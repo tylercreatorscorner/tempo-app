@@ -1,9 +1,11 @@
 import { BRAND_COLORS, BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
 import { formatCurrency } from '@/lib/utils/format';
+import { ArrowUpRight, ArrowDownRight } from 'lucide-react';
 
 interface BrandData {
   brand: string;
   gmv: number;
+  trend?: number;
 }
 
 interface Props {
@@ -34,7 +36,15 @@ export function BrandPerformanceStrip({ brands }: Props) {
                 <p className="text-sm font-medium">{name}</p>
                 <p className="text-xl font-bold tracking-tight">{formatCurrency(b.gmv)}</p>
               </div>
-              <span className="text-xs text-muted-foreground font-medium">{pct.toFixed(1)}%</span>
+              <div className="flex flex-col items-end gap-0.5">
+                <span className="text-xs text-muted-foreground font-medium">{pct.toFixed(1)}%</span>
+                {b.trend !== undefined && (
+                  <span className={`flex items-center gap-0.5 text-xs font-medium ${b.trend >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                    {b.trend >= 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
+                    {b.trend >= 0 ? '+' : ''}{b.trend.toFixed(1)}%
+                  </span>
+                )}
+              </div>
             </div>
             <div className="w-full h-1.5 rounded-full bg-muted/50 overflow-hidden">
               <div

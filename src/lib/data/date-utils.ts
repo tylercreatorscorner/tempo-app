@@ -1,8 +1,9 @@
 import { subDays, startOfMonth, endOfMonth, subMonths, format } from 'date-fns';
 
-export type DatePreset = 'last7' | 'last14' | 'last30' | 'thisMonth' | 'lastMonth';
+export type DatePreset = 'yesterday' | 'last7' | 'last14' | 'last30' | 'thisMonth' | 'lastMonth';
 
 export const DATE_PRESETS: { value: DatePreset; label: string }[] = [
+  { value: 'yesterday', label: 'Yesterday' },
   { value: 'last7', label: 'Last 7 Days' },
   { value: 'last14', label: 'Last 14 Days' },
   { value: 'last30', label: 'Last 30 Days' },
@@ -18,6 +19,10 @@ export function resolveDateRange(preset?: string | null): { startDate: string; e
   let end: Date = now;
 
   switch (p) {
+    case 'yesterday':
+      start = subDays(now, 1);
+      end = subDays(now, 1);
+      break;
     case 'last7':
       start = subDays(now, 7);
       break;

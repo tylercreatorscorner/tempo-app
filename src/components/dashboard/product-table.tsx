@@ -25,7 +25,7 @@ export function ProductTable({ products }: Props) {
       <div className="p-4 border-b border-border">
         <h3 className="text-lg font-semibold">Top Products</h3>
       </div>
-      <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
+      <div className="overflow-x-auto max-h-[800px] overflow-y-auto">
         <table className="w-full text-sm">
           <thead className="sticky top-0 bg-card z-10">
             <tr className="border-b border-border text-muted-foreground">

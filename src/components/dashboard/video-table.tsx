@@ -26,7 +26,7 @@ export function VideoTable({ videos }: Props) {
       <div className="p-4 border-b border-border">
         <h3 className="text-lg font-semibold">Top Videos</h3>
       </div>
-      <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
+      <div className="overflow-x-auto max-h-[800px] overflow-y-auto">
         <table className="w-full text-sm">
           <thead className="sticky top-0 bg-card z-10">
             <tr className="border-b border-border text-muted-foreground">
@@ -48,7 +48,7 @@ export function VideoTable({ videos }: Props) {
                 <td className="px-4 py-3 font-medium max-w-xs truncate">{v.video_title || 'Untitled'}</td>
                 <td className="px-4 py-3 text-muted-foreground">{v.creator_name}</td>
                 <td className="px-4 py-3 text-right font-medium">{formatCurrency(v.total_gmv)}</td>
-                <td className="px-4 py-3 text-right">{formatNumber(v.total_views)}</td>
+                <td className="px-4 py-3 text-right">{v.total_views != null ? formatNumber(v.total_views) : '-'}</td>
                 <td className="px-4 py-3 text-right">{formatNumber(v.total_orders)}</td>
               </tr>
             ))}

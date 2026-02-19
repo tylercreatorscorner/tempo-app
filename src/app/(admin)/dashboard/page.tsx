@@ -9,7 +9,8 @@ import { CreatorTable } from '@/components/dashboard/creator-table';
 import { ProductTable } from '@/components/dashboard/product-table';
 import { VideoTable } from '@/components/dashboard/video-table';
 import { DateRangePicker } from '@/components/dashboard/date-range-picker';
-import { format } from 'date-fns';
+import { DailyBrief } from '@/components/dashboard/daily-brief';
+import { format, subDays, differenceInDays } from 'date-fns';
 
 const BRANDS = ['jiyu', 'catakor', 'physicians_choice', 'toplux'] as const;
 
@@ -21,49 +22,87 @@ export default async function AdminDashboard({ searchParams }: Props) {
   const params = await searchParams;
   const { startDate, endDate } = resolveDateRange(params.range);
 
-  // Fetch all brand summaries in parallel
-  const summaries = await Promise.all(
-    BRANDS.map(async (brand) => {
-      try {
-        const data = await getBrandSummary(brand, startDate, endDate);
-        return { brand, data: data[0] ?? null };
-      } catch {
-        return { brand, data: null };
-      }
-    })
-  );
+  // Calculate previous period for WoW comparison
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  const periodLength = differenceInDays(end, start) + 1;
+  const prevEnd = subDays(start, 1);
+  const prevStart = subDays(prevEnd, periodLength - 1);
+  const prevStartDate = format(prevStart, 'yyyy-MM-dd');
+  const prevEndDate = format(prevEnd, 'yyyy-MM-dd');
+
+  // Yesterday for Daily Brief
+  const yesterday = subDays(new Date(), 1);
+  const yesterdayStr = format(yesterday, 'yyyy-MM-dd');
+
+  // Fetch all brand summaries in parallel (current + previous + yesterday)
+  const [summaries, prevSummaries, yesterdaySummaries] = await Promise.all([
+    Promise.all(
+      BRANDS.map(async (brand) => {
+        try {
+          const data = await getBrandSummary(brand, startDate, endDate);
+          return { brand, data: data[0] ?? null };
+        } catch (err) {
+          console.error(`getBrandSummary(${brand}) failed:`, err);
+          return { brand, data: null };
+        }
+      })
+    ),
+    Promise.all(
+      BRANDS.map(async (brand) => {
+        try {
+          const data = await getBrandSummary(brand, prevStartDate, prevEndDate);
+          return { brand, data: data[0] ?? null };
+        } catch (err) {
+          console.error(`getBrandSummary prev(${brand}) failed:`, err);
+          return { brand, data: null };
+        }
+      })
+    ),
+    Promise.all(
+      BRANDS.map(async (brand) => {
+        try {
+          const data = await getBrandSummary(brand, yesterdayStr, yesterdayStr);
+          return { brand, data: data[0] ?? null };
+        } catch (err) {
+          console.error(`getBrandSummary yesterday(${brand}) failed:`, err);
+          return { brand, data: null };
+        }
+      })
+    ),
+  ]);
 
   // Fetch creators, products, videos across all brands, merge & sort
   const [allCreators, allProducts, allVideos, allTrends] = await Promise.all([
     Promise.all(
       BRANDS.map(async (brand) => {
-        try { return await getCreatorRankings(brand, startDate, endDate, 20); } catch { return []; }
+        try { return await getCreatorRankings(brand, startDate, endDate, 20); } catch (err) { console.error(`getCreatorRankings(${brand}) failed:`, err); return []; }
       })
     ).then((results) =>
-      results.flat().sort((a, b) => b.total_gmv - a.total_gmv).slice(0, 20)
+      results.flat().sort((a, b) => (b.total_gmv ?? 0) - (a.total_gmv ?? 0)).slice(0, 20)
     ),
     Promise.all(
       BRANDS.map(async (brand) => {
-        try { return await getProductSummary(brand, startDate, endDate, 20); } catch { return []; }
+        try { return await getProductSummary(brand, startDate, endDate, 20); } catch (err) { console.error(`getProductSummary(${brand}) failed:`, err); return []; }
       })
     ).then((results) =>
-      results.flat().sort((a, b) => b.total_gmv - a.total_gmv).slice(0, 20)
+      results.flat().sort((a, b) => (b.total_gmv ?? 0) - (a.total_gmv ?? 0)).slice(0, 20)
     ),
     Promise.all(
       BRANDS.map(async (brand) => {
-        try { return await getVideoSummary(brand, startDate, endDate, 20); } catch { return []; }
+        try { return await getVideoSummary(brand, startDate, endDate, 20); } catch (err) { console.error(`getVideoSummary(${brand}) failed:`, err); return []; }
       })
     ).then((results) =>
-      results.flat().sort((a, b) => b.total_gmv - a.total_gmv).slice(0, 20)
+      results.flat().sort((a, b) => (b.total_gmv ?? 0) - (a.total_gmv ?? 0)).slice(0, 20)
     ),
     Promise.all(
       BRANDS.map(async (brand) => {
-        try { return { brand, data: await getDailyTrend(brand, startDate, endDate) }; } catch { return { brand, data: [] }; }
+        try { return { brand, data: await getDailyTrend(brand, startDate, endDate) }; } catch (err) { console.error(`getDailyTrend(${brand}) failed:`, err); return { brand, data: [] }; }
       })
     ),
   ]);
 
-  // Aggregate portfolio totals
+  // Aggregate portfolio totals (current)
   const totals = summaries.reduce(
     (acc, { data }) => {
       if (!data) return acc;
@@ -77,12 +116,41 @@ export default async function AdminDashboard({ searchParams }: Props) {
     { gmv: 0, orders: 0, items: 0, creators: 0, videos: 0 }
   );
 
+  // Aggregate previous period totals
+  const prevTotals = prevSummaries.reduce(
+    (acc, { data }) => {
+      if (!data) return acc;
+      acc.gmv += data.total_gmv ?? 0;
+      acc.orders += data.total_orders ?? 0;
+      acc.items += data.total_items_sold ?? 0;
+      return acc;
+    },
+    { gmv: 0, orders: 0, items: 0 }
+  );
+
+  // Yesterday GMV for Daily Brief
+  const yesterdayGmv = yesterdaySummaries.reduce((sum, { data }) => sum + (data?.total_gmv ?? 0), 0);
+
+  // Compute WoW % changes
+  function pctChange(current: number, previous: number): number | undefined {
+    if (previous === 0) return current > 0 ? 100 : undefined;
+    return ((current - previous) / previous) * 100;
+  }
+
+  const gmvTrend = pctChange(totals.gmv, prevTotals.gmv);
+  const ordersTrend = pctChange(totals.orders, prevTotals.orders);
+  const itemsTrend = pctChange(totals.items, prevTotals.items);
+
   const avgGmvPerCreator = totals.creators > 0 ? totals.gmv / totals.creators : 0;
 
-  // Build brand strip data
+  // Build brand strip data with WoW trends
   const brandStripData = BRANDS.map((brand) => {
     const s = summaries.find((x) => x.brand === brand);
-    return { brand, gmv: s?.data?.total_gmv ?? 0 };
+    const ps = prevSummaries.find((x) => x.brand === brand);
+    const currentGmv = s?.data?.total_gmv ?? 0;
+    const prevGmv = ps?.data?.total_gmv ?? 0;
+    const trend = pctChange(currentGmv, prevGmv);
+    return { brand, gmv: currentGmv, trend };
   });
 
   // Build chart data: merge all brand trends by date
@@ -102,6 +170,15 @@ export default async function AdminDashboard({ searchParams }: Props) {
       ...Object.fromEntries(BRANDS.map((b) => [b, values[b] ?? 0])),
     }));
 
+  // Daily Brief data
+  const topCreator = allCreators.length > 0 ? allCreators[0] : null;
+  const topVideo = allVideos.length > 0 ? allVideos[0] : null;
+  const brandTrends = brandStripData
+    .filter((b): b is typeof b & { trend: number } => b.trend !== undefined)
+    .map((b) => ({ brand: b.brand, gmv: b.gmv, trend: b.trend }));
+
+  const trendLabel = 'vs prior period';
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -117,11 +194,20 @@ export default async function AdminDashboard({ searchParams }: Props) {
         </Suspense>
       </div>
 
+      {/* Daily Brief */}
+      <DailyBrief
+        yesterdayGmv={yesterdayGmv}
+        totalCreators={totals.creators}
+        brandTrends={brandTrends}
+        topCreator={topCreator ? { creator_name: topCreator.creator_name, total_gmv: topCreator.total_gmv } : null}
+        topVideo={topVideo ? { video_title: topVideo.video_title, creator_name: topVideo.creator_name, total_gmv: topVideo.total_gmv } : null}
+      />
+
       {/* Portfolio Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 stagger-children">
-        <StatCard label="Total GMV" value={formatCurrency(totals.gmv)} />
-        <StatCard label="Orders" value={formatNumber(totals.orders)} />
-        <StatCard label="Items Sold" value={formatNumber(totals.items)} />
+        <StatCard label="Total GMV" value={formatCurrency(totals.gmv)} trend={gmvTrend} trendLabel={trendLabel} />
+        <StatCard label="Orders" value={formatNumber(totals.orders)} trend={ordersTrend} trendLabel={trendLabel} />
+        <StatCard label="Items Sold" value={formatNumber(totals.items)} trend={itemsTrend} trendLabel={trendLabel} />
         <StatCard label="Active Creators" value={formatNumber(totals.creators)} />
         <StatCard label="Videos" value={formatNumber(totals.videos)} />
         <StatCard label="Avg GMV/Creator" value={formatCurrency(avgGmvPerCreator)} />
