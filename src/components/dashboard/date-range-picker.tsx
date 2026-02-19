@@ -16,16 +16,16 @@ export function DateRangePicker() {
   }
 
   return (
-    <div className="flex flex-wrap gap-1.5 bg-muted/30 p-1 rounded-full border border-border">
+    <div className="flex flex-wrap gap-1 bg-white/[0.04] backdrop-blur-xl p-1 rounded-full border border-white/[0.08] shadow-[0_2px_12px_rgba(0,0,0,0.2)]">
       {DATE_PRESETS.map((p) => (
         <button
           key={p.value}
           onClick={() => select(p.value)}
           className={cn(
-            'px-3.5 py-1.5 text-sm rounded-full transition-all duration-200 font-medium',
+            'px-3.5 py-1.5 text-sm rounded-full transition-all duration-300 font-medium',
             current === p.value
-              ? 'bg-primary text-primary-foreground shadow-sm shadow-primary/20'
-              : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+              ? 'bg-gradient-to-r from-primary to-primary/80 text-primary-foreground shadow-[0_2px_12px_rgba(233,30,140,0.3)]'
+              : 'text-muted-foreground/70 hover:text-foreground hover:bg-white/[0.08]'
           )}
         >
           {p.label}

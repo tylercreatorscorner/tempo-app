@@ -184,8 +184,8 @@ export default async function AdminDashboard({ searchParams }: Props) {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Operations Center</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">Operations Center</h1>
+          <p className="text-sm text-muted-foreground/60 mt-1">
             Portfolio performance overview
           </p>
         </div>
@@ -220,8 +220,9 @@ export default async function AdminDashboard({ searchParams }: Props) {
       </div>
 
       {/* GMV Trend Chart */}
-      <div className="rounded-xl border border-border bg-card p-6">
-        <h3 className="text-lg font-semibold mb-4">GMV Trend</h3>
+      <div className="rounded-2xl bg-white/[0.04] backdrop-blur-xl border border-white/[0.08] shadow-[0_4px_24px_rgba(0,0,0,0.2)] p-6">
+        <h3 className="text-lg font-bold tracking-tight mb-1">GMV Trend</h3>
+        <p className="text-xs text-muted-foreground/50 mb-4">Daily revenue by brand</p>
         <GmvTrendChart data={chartData} brands={[...BRANDS]} />
       </div>
 
