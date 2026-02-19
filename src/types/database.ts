@@ -78,43 +78,42 @@ export interface ManagedCreator {
 
 /** RPC response types */
 
+/** RPC response types — match actual Supabase RPC return columns */
+
 export interface BrandSummary {
-  brand: string;
   total_gmv: number;
   total_orders: number;
-  active_creators: number;
-  total_videos: number;
-  wow_change: number;
+  total_items_sold: number;
+  unique_creators: number;
+  unique_videos: number;
 }
 
 export interface CreatorRanking {
   creator_name: string;
-  brand: string;
   total_gmv: number;
   total_orders: number;
-  items_sold: number;
-  rank: number;
+  total_items_sold: number;
+  video_count: number;
 }
 
 export interface ProductSummary {
   product_name: string;
-  brand: string;
   total_gmv: number;
   total_orders: number;
-  total_videos: number;
+  total_items_sold: number;
 }
 
 export interface VideoSummaryItem {
-  video_id: string;
+  video_title: string;
   creator_name: string;
-  product_name: string;
-  gmv: number;
-  views: number;
-  report_date: string;
+  total_gmv: number;
+  total_views: number;
+  total_orders: number;
 }
 
 export interface DailyTrend {
-  date: string;
-  gmv: number;
-  orders: number;
+  report_date: string;
+  daily_gmv: number;
+  daily_orders: number;
+  daily_items_sold: number;
 }

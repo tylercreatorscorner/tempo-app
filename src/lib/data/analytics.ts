@@ -16,8 +16,8 @@ export async function getPortfolioSummary(
 
   const totalGmv = brands.reduce((sum, b) => sum + b.total_gmv, 0);
   const totalOrders = brands.reduce((sum, b) => sum + b.total_orders, 0);
-  const totalCreators = brands.reduce((sum, b) => sum + b.active_creators, 0);
-  const totalVideos = brands.reduce((sum, b) => sum + b.total_videos, 0);
+  const totalCreators = brands.reduce((sum, b) => sum + (b.unique_creators ?? 0), 0);
+  const totalVideos = brands.reduce((sum, b) => sum + (b.unique_videos ?? 0), 0);
 
   return { totalGmv, totalOrders, totalCreators, totalVideos, brands };
 }
