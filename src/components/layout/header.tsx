@@ -1,34 +1,47 @@
 'use client';
 
-import { Menu, User, ChevronDown } from 'lucide-react';
+import { Menu, User, ChevronDown, ChevronRight } from 'lucide-react';
+import { usePathname } from 'next/navigation';
 
 interface HeaderProps {
   onMenuClick?: () => void;
-  /** When true, shows the brand filter/selector */
   showBrandFilter?: boolean;
-  /** Current tenant name for display */
   tenantName?: string;
 }
 
-/** Top header with conditional brand filter and user menu */
+const BREADCRUMB_MAP: Record<string, string> = {
+  '/': 'Dashboard',
+  '/brands': 'Brands',
+  '/analytics': 'Analytics',
+  '/creators': 'Creators',
+  '/payments': 'Payments',
+  '/settings': 'Settings',
+};
+
 export function Header({ onMenuClick, showBrandFilter = false, tenantName }: HeaderProps) {
+  const pathname = usePathname();
+  const pageLabel = BREADCRUMB_MAP[pathname] ?? 'Dashboard';
+
   return (
     <header className="flex items-center justify-between h-14 px-6 border-b border-border bg-card/50 backdrop-blur-sm">
       <div className="flex items-center gap-4">
         <button
           onClick={onMenuClick}
-          className="lg:hidden p-2 rounded-lg hover:bg-muted"
+          className="lg:hidden p-2 rounded-lg hover:bg-muted transition-colors"
           aria-label="Toggle menu"
         >
           <Menu className="h-5 w-5" />
         </button>
-        <h2 className="text-sm font-medium text-muted-foreground">
-          {tenantName ?? 'Operations Center'}
-        </h2>
 
-        {/* Brand selector — only shown for multi-brand tenants */}
+        {/* Breadcrumb */}
+        <div className="flex items-center gap-1.5 text-sm">
+          <span className="text-muted-foreground">{tenantName ?? 'Tempo'}</span>
+          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/50" />
+          <span className="font-medium">{pageLabel}</span>
+        </div>
+
         {showBrandFilter && (
-          <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-muted/50 text-sm hover:bg-muted transition-colors">
+          <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-border bg-muted/50 text-sm hover:bg-muted transition-colors">
             <span>All Brands</span>
             <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
           </button>
@@ -36,8 +49,8 @@ export function Header({ onMenuClick, showBrandFilter = false, tenantName }: Hea
       </div>
 
       <div className="flex items-center gap-3">
-        <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
-          <User className="h-4 w-4 text-muted-foreground" />
+        <div className="h-9 w-9 rounded-full bg-primary/15 border border-primary/20 flex items-center justify-center hover:bg-primary/25 transition-colors cursor-pointer">
+          <User className="h-4 w-4 text-primary" />
         </div>
       </div>
     </header>

@@ -118,7 +118,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
       </div>
 
       {/* Portfolio Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 stagger-children">
         <StatCard label="Total GMV" value={formatCurrency(totals.gmv)} />
         <StatCard label="Orders" value={formatNumber(totals.orders)} />
         <StatCard label="Items Sold" value={formatNumber(totals.items)} />

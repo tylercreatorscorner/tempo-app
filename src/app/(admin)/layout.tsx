@@ -21,7 +21,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           showBrandFilter={isMultiBrand}
           tenantName={tenant?.name}
         />
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="flex-1 overflow-y-auto p-6 animate-fade-in">
           {children}
         </main>
       </div>
