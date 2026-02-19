@@ -44,8 +44,8 @@ export function DailyBrief({ yesterdayGmv, totalCreators, brandTrends, topCreato
       <div className="px-6 py-4 border-b border-border flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Newspaper className="h-5 w-5 text-primary" />
-          <h2 className="text-lg font-bold tracking-tight" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
-            THE DAILY BRIEF
+          <h2 className="text-lg font-bold tracking-widest uppercase">
+            The Daily Brief
           </h2>
         </div>
         <span className="text-sm text-muted-foreground">{today}</span>

@@ -28,7 +28,7 @@ export function GmvTrendChart({ data, brands }: Props) {
   }
 
   return (
-    <div style={{ width: '100%', height: 320 }}>
+    <div className="w-full" style={{ height: 320, minHeight: 320 }}>
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={data} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
           <defs>

@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createAdminClient as createClient } from '@/lib/supabase/server';
 import type { BrandSummary, CreatorRanking, ProductSummary, VideoSummaryItem, DailyTrend } from '@/types';
 
 /** Typed error for RPC calls */
