@@ -63,7 +63,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
   const totalGmv = allCreatorData.reduce((s, c) => s + (c.total_gmv ?? 0), 0);
   const totalOrders = allCreatorData.reduce((s, c) => s + (c.total_orders ?? 0), 0);
   const totalItems = allCreatorData.reduce((s, c) => s + (c.total_items_sold ?? 0), 0);
-  const totalVideos = allCreatorData.reduce((s, c) => s + (c.video_count ?? 0), 0);
+  const totalVideos = allCreatorData.reduce((s, c) => s + (c.days_active ?? 0), 0);
   const activeBrands = allCreatorData.map((c) => c.brand);
 
   // Build trend chart — we don't have per-creator daily trend, so use aggregate brand trends
@@ -91,7 +91,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
     gmv: c.total_gmv ?? 0,
     orders: c.total_orders ?? 0,
     items: c.total_items_sold ?? 0,
-    videos: c.video_count ?? 0,
+    videos: c.days_active ?? 0,
   })).sort((a, b) => b.gmv - a.gmv);
 
   // Filter products to those appearing in creator's videos
@@ -211,7 +211,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                   <td className="px-4 sm:px-6 py-3.5 text-muted-foreground/50 text-sm tabular-nums">{i + 1}</td>
                   <td className="px-4 py-3.5 font-medium max-w-xs truncate">{v.video_title || 'Untitled'}</td>
                   <td className="px-4 py-3.5 text-right font-semibold tabular-nums">{formatCurrency(v.total_gmv)}</td>
-                  <td className="px-4 py-3.5 text-right text-white/60 tabular-nums">{v.total_views != null ? formatNumber(v.total_views) : '-'}</td>
+                  <td className="px-4 py-3.5 text-right text-white/60 tabular-nums">{v.days_active != null ? formatNumber(v.days_active) : '-'}</td>
                   <td className="px-4 py-3.5 text-right text-white/60 tabular-nums pr-6">{formatNumber(v.total_orders)}</td>
                 </tr>
               ))}

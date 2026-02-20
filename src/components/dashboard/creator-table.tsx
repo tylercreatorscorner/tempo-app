@@ -7,7 +7,7 @@ interface Creator {
   total_gmv: number;
   total_orders: number;
   total_items_sold: number;
-  video_count: number;
+  days_active: number;
 }
 
 interface Props {
@@ -37,7 +37,7 @@ export function CreatorTable({ creators }: Props) {
               <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider">GMV</th>
               <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider">Orders</th>
               <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider">Items</th>
-              <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider pr-6">Videos</th>
+              <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider pr-6">Days Active</th>
             </tr>
           </thead>
           <tbody>
@@ -56,7 +56,7 @@ export function CreatorTable({ creators }: Props) {
                 <td className="px-4 py-3.5 text-right font-semibold tabular-nums">{formatCurrency(c.total_gmv)}</td>
                 <td className="px-4 py-3.5 text-right text-white/60 tabular-nums">{formatNumber(c.total_orders)}</td>
                 <td className="px-4 py-3.5 text-right text-white/60 tabular-nums">{formatNumber(c.total_items_sold)}</td>
-                <td className="px-4 py-3.5 text-right text-white/60 tabular-nums pr-6">{formatNumber(c.video_count)}</td>
+                <td className="px-4 py-3.5 text-right text-white/60 tabular-nums pr-6">{formatNumber(c.days_active)}</td>
               </tr>
             ))}
             {creators.length === 0 && (

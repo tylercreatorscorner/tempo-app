@@ -29,7 +29,7 @@ export function generateTopCreatorsPost(
     '',
     ...top.map((c, i) => {
       const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `**${i + 1}.**`;
-      return `${medal} **@${c.creator_name}** — ${fmtCurrency(c.total_gmv)} GMV (${fmtNum(c.video_count)} videos)`;
+      return `${medal} **@${c.creator_name}** — ${fmtCurrency(c.total_gmv)} GMV (${fmtNum(c.days_active)} days active)`;
     }),
     '',
     `Total creators ranked: ${creators.length}`,

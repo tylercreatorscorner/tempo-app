@@ -98,7 +98,7 @@ export interface CreatorRanking {
   total_gmv: number;
   total_orders: number;
   total_items_sold: number;
-  video_count: number;
+  days_active: number;
 }
 
 export interface ProductSummary {
@@ -109,11 +109,14 @@ export interface ProductSummary {
 }
 
 export interface VideoSummaryItem {
+  video_id: string;
   video_title: string;
   creator_name: string;
   total_gmv: number;
-  total_views: number;
   total_orders: number;
+  total_items_sold: number;
+  total_est_commission: number;
+  days_active: number;
 }
 
 export interface DailyTrend {

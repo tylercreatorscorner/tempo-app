@@ -6,7 +6,7 @@ interface Video {
   video_title: string;
   creator_name: string;
   total_gmv: number;
-  total_views: number;
+  days_active: number;
   total_orders: number;
 }
 
@@ -36,7 +36,7 @@ export function VideoTable({ videos }: Props) {
               <th className="px-4 py-3 text-left font-medium text-xs uppercase tracking-wider">Video</th>
               <th className="px-4 py-3 text-left font-medium text-xs uppercase tracking-wider">Creator</th>
               <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider">GMV</th>
-              <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider">Views</th>
+              <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider">Days Active</th>
               <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider pr-6">Orders</th>
             </tr>
           </thead>
@@ -55,7 +55,7 @@ export function VideoTable({ videos }: Props) {
                   </Link>
                 </td>
                 <td className="px-4 py-3.5 text-right font-semibold tabular-nums">{formatCurrency(v.total_gmv)}</td>
-                <td className="px-4 py-3.5 text-right text-white/60 tabular-nums">{v.total_views != null ? formatNumber(v.total_views) : '-'}</td>
+                <td className="px-4 py-3.5 text-right text-white/60 tabular-nums">{v.days_active != null ? formatNumber(v.days_active) : '-'}</td>
                 <td className="px-4 py-3.5 text-right text-white/60 tabular-nums pr-6">{formatNumber(v.total_orders)}</td>
               </tr>
             ))}

@@ -149,7 +149,7 @@ export default async function AnalyticsPage({ searchParams }: Props) {
                 <th className="px-4 py-3 text-left font-medium">Brand</th>
                 <th className="px-4 py-3 text-right font-medium">GMV</th>
                 <th className="px-4 py-3 text-right font-medium">Orders</th>
-                <th className="px-4 py-3 text-right font-medium">Videos</th>
+                <th className="px-4 py-3 text-right font-medium">Days Active</th>
               </tr>
             </thead>
             <tbody>
@@ -164,7 +164,7 @@ export default async function AnalyticsPage({ searchParams }: Props) {
                   </td>
                   <td className="px-4 py-3 text-right font-medium">{formatCurrency(c.total_gmv)}</td>
                   <td className="px-4 py-3 text-right">{formatNumber(c.total_orders)}</td>
-                  <td className="px-4 py-3 text-right">{formatNumber(c.video_count)}</td>
+                  <td className="px-4 py-3 text-right">{formatNumber(c.days_active)}</td>
                 </tr>
               ))}
             </tbody>
