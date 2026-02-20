@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
 import { cn } from '@/lib/utils';
 
@@ -48,7 +49,11 @@ export function VideoTable({ videos }: Props) {
               )}>
                 <td className="px-6 py-3.5"><RankBadge rank={i + 1} /></td>
                 <td className="px-4 py-3.5 font-medium max-w-xs truncate">{v.video_title || 'Untitled'}</td>
-                <td className="px-4 py-3.5 text-white/50">{v.creator_name}</td>
+                <td className="px-4 py-3.5 text-white/50">
+                  <Link href={`/creators/${encodeURIComponent(v.creator_name)}`} className="hover:text-primary hover:underline transition-colors">
+                    {v.creator_name}
+                  </Link>
+                </td>
                 <td className="px-4 py-3.5 text-right font-semibold tabular-nums">{formatCurrency(v.total_gmv)}</td>
                 <td className="px-4 py-3.5 text-right text-white/60 tabular-nums">{v.total_views != null ? formatNumber(v.total_views) : '-'}</td>
                 <td className="px-4 py-3.5 text-right text-white/60 tabular-nums pr-6">{formatNumber(v.total_orders)}</td>

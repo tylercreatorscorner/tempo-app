@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import Link from 'next/link';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
 import { BRAND_COLORS, BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
 import { Search, ChevronUp, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -131,7 +132,11 @@ export function CreatorsClient({ creators }: Props) {
                   i % 2 === 1 && 'bg-muted/10'
                 )}>
                   <td className="px-4 py-3 text-muted-foreground">{page * PAGE_SIZE + i + 1}</td>
-                  <td className="px-4 py-3 font-medium">{c.creator_name}</td>
+                  <td className="px-4 py-3 font-medium">
+                    <Link href={`/creators/${encodeURIComponent(c.creator_name)}`} className="hover:text-primary hover:underline transition-colors">
+                      {c.creator_name}
+                    </Link>
+                  </td>
                   <td className="px-4 py-3">
                     <span
                       className="text-xs px-2 py-1 rounded-full font-medium"

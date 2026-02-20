@@ -48,7 +48,7 @@ export function StatCard({ label, value, trend, trendLabel, className }: StatCar
           <Icon className="h-4 w-4 text-primary" />
         </div>
       </div>
-      <p className="relative text-3xl font-extrabold tracking-tight bg-gradient-to-r from-white to-white/80 bg-clip-text">{value}</p>
+      <p className="relative text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight bg-gradient-to-r from-white to-white/80 bg-clip-text">{value}</p>
       {trend !== undefined && (
         <div className="relative flex items-center gap-1.5 text-sm">
           <div className={cn(

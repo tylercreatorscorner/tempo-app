@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  LayoutDashboard, Store, BarChart3, Users, Settings, CreditCard,
+  LayoutDashboard, Store, BarChart3, Users, Settings, CreditCard, MessageSquare,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { href: '/analytics', label: 'Analytics', icon: BarChart3 },
   { href: '/creators', label: 'Creators', icon: Users },
   { href: '/payments', label: 'Payments', icon: CreditCard },
+  { href: '/discord-posts', label: 'Discord Posts', icon: MessageSquare },
 ];
 
 const SETTINGS_ITEMS = [

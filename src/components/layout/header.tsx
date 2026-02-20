@@ -20,7 +20,10 @@ const BREADCRUMB_MAP: Record<string, string> = {
 
 export function Header({ onMenuClick, showBrandFilter = false, tenantName }: HeaderProps) {
   const pathname = usePathname();
-  const pageLabel = BREADCRUMB_MAP[pathname] ?? 'Dashboard';
+  const isCreatorDetail = pathname.startsWith('/creators/') && pathname !== '/creators';
+  const pageLabel = isCreatorDetail
+    ? decodeURIComponent(pathname.split('/creators/')[1] ?? '')
+    : (BREADCRUMB_MAP[pathname] ?? 'Dashboard');
 
   return (
     <header className="flex items-center justify-between h-14 px-6 border-b border-border bg-card/50 backdrop-blur-sm">

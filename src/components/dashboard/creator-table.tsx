@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
 import { cn } from '@/lib/utils';
 
@@ -47,7 +48,11 @@ export function CreatorTable({ creators }: Props) {
                 i < 3 && 'bg-white/[0.02]'
               )}>
                 <td className="px-6 py-3.5"><RankBadge rank={i + 1} /></td>
-                <td className="px-4 py-3.5 font-medium">{c.creator_name}</td>
+                <td className="px-4 py-3.5 font-medium">
+                  <Link href={`/creators/${encodeURIComponent(c.creator_name)}`} className="hover:text-primary hover:underline transition-colors">
+                    {c.creator_name}
+                  </Link>
+                </td>
                 <td className="px-4 py-3.5 text-right font-semibold tabular-nums">{formatCurrency(c.total_gmv)}</td>
                 <td className="px-4 py-3.5 text-right text-white/60 tabular-nums">{formatNumber(c.total_orders)}</td>
                 <td className="px-4 py-3.5 text-right text-white/60 tabular-nums">{formatNumber(c.total_items_sold)}</td>
