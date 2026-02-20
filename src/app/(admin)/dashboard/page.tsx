@@ -11,7 +11,8 @@ import { VideoTable } from '@/components/dashboard/video-table';
 import { DateRangePicker } from '@/components/dashboard/date-range-picker';
 import { DailyBrief } from '@/components/dashboard/daily-brief';
 import { BrandFilterBar } from '@/components/dashboard/brand-filter-bar';
-import { AlertBanners, generateAlerts } from '@/components/dashboard/alert-banners';
+import { AlertBanners } from '@/components/dashboard/alert-banners';
+import { generateAlerts } from '@/lib/data/alerts';
 import { format, subDays, differenceInDays } from 'date-fns';
 
 const ALL_BRANDS = ['jiyu', 'catakor', 'physicians_choice', 'toplux'] as const;
