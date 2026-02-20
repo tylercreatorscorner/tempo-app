@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { Menu, User, ChevronDown, ChevronRight } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 
@@ -37,10 +38,16 @@ export function Header({ onMenuClick, showBrandFilter = false, tenantName }: Hea
         </button>
 
         {/* Breadcrumb */}
-        <div className="flex items-center gap-1.5 text-sm">
-          <span className="text-muted-foreground">{tenantName ?? 'Tempo'}</span>
-          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/50" />
-          <span className="font-medium">{pageLabel}</span>
+        <div className="flex items-center gap-1.5 text-sm min-w-0">
+          <span className="text-muted-foreground hidden sm:inline">{tenantName ?? 'Tempo'}</span>
+          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/50 hidden sm:block" />
+          {isCreatorDetail && (
+            <>
+              <Link href="/creators" className="text-muted-foreground hover:text-foreground transition-colors">Creators</Link>
+              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/50" />
+            </>
+          )}
+          <span className="font-medium truncate">{pageLabel}</span>
         </div>
 
         {showBrandFilter && (
