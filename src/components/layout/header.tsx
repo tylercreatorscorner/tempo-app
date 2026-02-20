@@ -26,7 +26,7 @@ export function Header({ onMenuClick, showBrandFilter = false, tenantName }: Hea
     : (BREADCRUMB_MAP[pathname] ?? 'Dashboard');
 
   return (
-    <header className="flex items-center justify-between h-14 px-6 border-b border-border bg-card/50 backdrop-blur-sm">
+    <header className="flex items-center justify-between h-14 px-3 sm:px-6 border-b border-border bg-card/50 backdrop-blur-sm">
       <div className="flex items-center gap-4">
         <button
           onClick={onMenuClick}
