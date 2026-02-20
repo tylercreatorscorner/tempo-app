@@ -11,7 +11,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const { tenant, isMultiBrand } = useTenant();
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-screen overflow-hidden" style={{ backgroundColor: '#F8F9FC' }}>
       <Sidebar className="hidden lg:flex" />
       <MobileNav open={mobileNavOpen} onClose={() => setMobileNavOpen(false)} />
 

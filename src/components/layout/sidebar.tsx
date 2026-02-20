@@ -48,7 +48,7 @@ export function Sidebar({ className }: SidebarProps) {
   };
 
   return (
-    <aside className={cn('flex flex-col w-64 bg-[#F8F9FC] border-r border-gray-200 h-screen', className)}>
+    <aside className={cn('flex flex-col w-64 border-r h-screen', className)} style={{ backgroundColor: '#FFFFFF', borderColor: '#E5E7EB' }}>
       {/* Logo */}
       <div className="flex items-center gap-2 px-6 py-5 border-b border-gray-200">
         <TempoLogo size="md" animated={false} />
