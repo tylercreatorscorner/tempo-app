@@ -41,6 +41,7 @@ export async function getCreatorRankings(
     p_start_date: startDate,
     p_end_date: endDate,
     p_limit: limit,
+    p_managed_only: false,
   });
   if (error) throw new RPCError('get_creator_rankings', error.message);
   return (data ?? []) as CreatorRanking[];
