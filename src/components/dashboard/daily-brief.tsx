@@ -104,7 +104,7 @@ export function DailyBrief({
   );
 
   return (
-    <div className="rounded-2xl overflow-hidden border border-gray-100 shadow-sm bg-[#FFFBF0]">
+    <div className="rounded-2xl overflow-hidden border border-gray-100 shadow-sm bg-white">
       {/* Masthead */}
       <div className="px-6 py-4 border-b border-amber-100">
         <div className="flex items-center justify-between">
@@ -164,7 +164,7 @@ export function DailyBrief({
             <ul className="space-y-1">
               {atRiskLines.map((line, i) => (
                 <li key={i} className="text-sm text-red-600" style={{ fontFamily: 'Georgia, serif' }}>
-                  \u2022 {line}
+                  • {line}
                 </li>
               ))}
             </ul>

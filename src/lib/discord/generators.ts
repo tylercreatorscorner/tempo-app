@@ -86,7 +86,7 @@ export function generateWeeklyRecapPost(
     `• Orders: **${fmtNum(summary.total_orders)}**`,
     `• Items Sold: **${fmtNum(summary.total_items_sold)}**`,
     `• Active Creators: **${fmtNum(summary.unique_creators)}**`,
-    `• Videos: **${fmtNum(summary.unique_videos)}**`,
+    `• Videos: **${fmtNum(summary.total_videos)}**`,
     '',
   ];
 

@@ -145,7 +145,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
       acc.orders += data.total_orders ?? 0;
       acc.items += data.total_items_sold ?? 0;
       acc.creators += data.unique_creators ?? 0;
-      acc.videos += data.unique_videos ?? 0;
+      acc.videos += data.total_videos ?? 0;
       return acc;
     },
     { gmv: 0, orders: 0, items: 0, creators: 0, videos: 0 }

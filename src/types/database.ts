@@ -89,7 +89,6 @@ export interface BrandSummary {
   total_live_streams: number;
   total_est_commission: number;
   unique_creators: number;
-  unique_videos: number;
   avg_aov: number;
 }
 

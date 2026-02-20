@@ -83,7 +83,7 @@ export default async function AnalyticsPage({ searchParams }: Props) {
       brand: BRAND_DISPLAY_NAMES[s.brand] ?? s.brand,
       brandKey: s.brand,
       creators: s.data!.unique_creators ?? 0,
-      videos: s.data!.unique_videos ?? 0,
+      videos: s.data!.total_videos ?? 0,
     }));
 
   // Product rankings top 15

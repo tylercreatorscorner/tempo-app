@@ -63,7 +63,7 @@ export function Sidebar({ className }: SidebarProps) {
 
       {/* Version footer */}
       <div className="px-6 py-4 border-t border-gray-200">
-        <p className="text-xs text-gray-400">Tempo v2.0</p>
+        <p className="text-xs text-gray-400">Tempo</p>
       </div>
     </aside>
   );

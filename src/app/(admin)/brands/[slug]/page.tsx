@@ -95,7 +95,7 @@ export default async function BrandDetailPage({ params, searchParams }: Props) {
         <StatCard label="Orders" value={formatNumber(summary?.total_orders ?? 0)} trend={ordersTrend} trendLabel={trendLabel} />
         <StatCard label="Items Sold" value={formatNumber(summary?.total_items_sold ?? 0)} trend={itemsTrend} trendLabel={trendLabel} />
         <StatCard label="Active Creators" value={formatNumber(summary?.unique_creators ?? 0)} />
-        <StatCard label="Videos" value={formatNumber(summary?.unique_videos ?? 0)} />
+        <StatCard label="Videos" value={formatNumber(summary?.total_videos ?? 0)} />
       </div>
 
       <div className="rounded-xl border border-border bg-card p-6">
