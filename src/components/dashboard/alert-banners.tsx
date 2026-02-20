@@ -10,9 +10,9 @@ interface Props {
 }
 
 function getAlertStyle(change: number) {
-  if (change <= -15) return { bg: 'bg-red-500/10', border: 'border-red-500/30', text: 'text-red-400', icon: '🚨' };
-  if (change <= -5) return { bg: 'bg-yellow-500/10', border: 'border-yellow-500/30', text: 'text-yellow-400', icon: '⚠️' };
-  if (change >= 10) return { bg: 'bg-green-500/10', border: 'border-green-500/30', text: 'text-green-400', icon: '🔥' };
+  if (change <= -15) return { bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-600', icon: '\u{1F6A8}' };
+  if (change <= -5) return { bg: 'bg-yellow-50', border: 'border-yellow-200', text: 'text-yellow-700', icon: '\u26A0\uFE0F' };
+  if (change >= 10) return { bg: 'bg-green-50', border: 'border-green-200', text: 'text-green-700', icon: '\u{1F389}' };
   return null;
 }
 
@@ -34,7 +34,7 @@ export function AlertBanners({ alerts }: Props) {
           <div
             key={alert.id}
             className={cn(
-              'flex items-center justify-between gap-3 px-4 py-2.5 rounded-xl border backdrop-blur-xl transition-all duration-300',
+              'flex items-center justify-between gap-3 px-4 py-2.5 rounded-xl border transition-all duration-300',
               style.bg,
               style.border,
             )}
@@ -44,7 +44,7 @@ export function AlertBanners({ alerts }: Props) {
             </p>
             <button
               onClick={() => setDismissed((s) => new Set(s).add(alert.id))}
-              className="shrink-0 p-1 rounded-lg hover:bg-white/10 transition-colors text-muted-foreground/50 hover:text-white"
+              className="shrink-0 p-1 rounded-lg hover:bg-white/50 transition-colors text-gray-400 hover:text-gray-600"
             >
               <X className="h-3.5 w-3.5" />
             </button>

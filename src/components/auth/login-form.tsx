@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
+import { TempoLogo } from '@/components/ui/tempo-logo';
 
 /** Login form with email/password and Discord OAuth */
 export function LoginForm() {
@@ -41,11 +42,11 @@ export function LoginForm() {
   return (
     <div className="w-full max-w-sm space-y-6">
       <div className="text-center space-y-2">
-        <div className="mx-auto h-12 w-12 rounded-xl bg-tempo-pink flex items-center justify-center">
-          <span className="text-white font-bold text-xl">T</span>
+        <div className="flex justify-center">
+          <TempoLogo size="lg" animated />
         </div>
-        <h1 className="text-2xl font-bold">Welcome back</h1>
-        <p className="text-sm text-muted-foreground">Sign in to your Tempo account</p>
+        <h1 className="text-2xl font-bold text-[#1A1B3A]">Welcome back</h1>
+        <p className="text-sm text-gray-500">Sign in to your Tempo account</p>
       </div>
 
       <form onSubmit={handleLogin} className="space-y-4">

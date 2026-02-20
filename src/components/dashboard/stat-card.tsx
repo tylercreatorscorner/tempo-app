@@ -31,29 +31,26 @@ export function StatCard({ label, value, trend, trendLabel, className }: StatCar
   return (
     <div className={cn(
       'relative rounded-2xl p-5 space-y-2 cursor-default group overflow-hidden',
-      'bg-white/[0.04] backdrop-blur-xl',
-      'border border-white/[0.08]',
-      'shadow-[0_4px_24px_rgba(0,0,0,0.2)]',
-      'hover:scale-[1.03] hover:bg-white/[0.07] hover:border-white/[0.15]',
-      'hover:shadow-[0_8px_40px_rgba(233,30,140,0.08)]',
+      'bg-white border border-gray-100',
+      'shadow-sm',
+      'hover:shadow-md hover:-translate-y-0.5',
       'transition-all duration-300 ease-out',
       className
     )}>
-      {/* Subtle gradient overlay on hover */}
-      <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-br from-primary/5 via-transparent to-transparent pointer-events-none" />
+      <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-br from-pink-50/50 via-transparent to-transparent pointer-events-none" />
 
       <div className="relative flex items-center justify-between">
-        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground/80">{label}</p>
-        <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center group-hover:from-primary/30 group-hover:to-primary/10 transition-all duration-300">
-          <Icon className="h-4 w-4 text-primary" />
+        <p className="text-xs font-medium uppercase tracking-wider text-gray-500">{label}</p>
+        <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-pink-50 to-pink-100/50 flex items-center justify-center group-hover:from-pink-100 group-hover:to-pink-50 transition-all duration-300">
+          <Icon className="h-4 w-4 text-[#FF4D8D]" />
         </div>
       </div>
-      <p className="relative text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight bg-gradient-to-r from-white to-white/80 bg-clip-text">{value}</p>
+      <p className="relative text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight text-[#1A1B3A]">{value}</p>
       {trend !== undefined && (
         <div className="relative flex items-center gap-1.5 text-sm">
           <div className={cn(
             'flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-xs font-semibold',
-            isPositive ? 'bg-green-500/15 text-green-400' : 'bg-red-500/15 text-red-400'
+            isPositive ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-500'
           )}>
             {isPositive ? (
               <ArrowUpRight className="h-3 w-3" />
@@ -63,7 +60,7 @@ export function StatCard({ label, value, trend, trendLabel, className }: StatCar
             {trend >= 0 ? '+' : ''}{trend.toFixed(1)}%
           </div>
           {trendLabel && (
-            <span className="text-muted-foreground/60 text-xs">{trendLabel}</span>
+            <span className="text-gray-400 text-xs">{trendLabel}</span>
           )}
         </div>
       )}

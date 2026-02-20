@@ -15,6 +15,7 @@ import {
   Sparkles,
   Music2,
 } from 'lucide-react';
+import { TempoLogo } from '@/components/ui/tempo-logo';
 
 type Plan = 'brand' | 'agency' | null;
 
@@ -26,7 +27,7 @@ export default function OnboardingPage() {
   const [direction, setDirection] = useState<'forward' | 'back'>('forward');
   const [plan, setPlan] = useState<Plan>(null);
   const [brandName, setBrandName] = useState('');
-  const [brandColor, setBrandColor] = useState('#E91E8C');
+  const [brandColor, setBrandColor] = useState('#FF4D8D');
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [showToast, setShowToast] = useState(false);
@@ -94,7 +95,7 @@ export default function OnboardingPage() {
 
       {/* Toast */}
       {showToast && (
-        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 px-6 py-4 rounded-xl bg-card/90 backdrop-blur-xl border border-border shadow-2xl max-w-md text-center">
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 px-6 py-4 rounded-xl bg-white border border-gray-200 shadow-xl max-w-md text-center">
           <p className="text-sm font-medium">🎉 TikTok Shop integration coming soon!</p>
           <p className="text-xs text-muted-foreground mt-1">We&apos;ll notify you when it&apos;s ready. Loading sample data so you can explore.</p>
         </div>
@@ -102,9 +103,7 @@ export default function OnboardingPage() {
 
       {/* Logo */}
       <div className="text-center">
-        <div className="inline-flex h-12 w-12 rounded-xl bg-gradient-to-br from-[#E91E8C] to-[#9333EA] items-center justify-center shadow-lg shadow-[#E91E8C]/20">
-          <span className="text-white font-bold text-xl">T</span>
-        </div>
+        <TempoLogo size="lg" animated />
       </div>
 
       {/* Progress */}
@@ -115,9 +114,9 @@ export default function OnboardingPage() {
               <div
                 className={`h-8 w-8 rounded-full flex items-center justify-center text-xs font-semibold transition-all duration-300 ${
                   i < currentStep
-                    ? 'bg-gradient-to-br from-[#E91E8C] to-[#9333EA] text-white'
+                    ? 'bg-gradient-to-br from-[#FF4D8D] to-[#7C5CFC] text-white'
                     : i === currentStep
-                    ? 'bg-gradient-to-br from-[#E91E8C] to-[#9333EA] text-white ring-2 ring-[#E91E8C]/40 ring-offset-2 ring-offset-background'
+                    ? 'bg-gradient-to-br from-[#FF4D8D] to-[#7C5CFC] text-white ring-2 ring-[#FF4D8D]/40 ring-offset-2 ring-offset-background'
                     : 'bg-muted text-muted-foreground'
                 }`}
               >
@@ -128,7 +127,7 @@ export default function OnboardingPage() {
               </span>
             </div>
             {i < STEPS.length - 1 && (
-              <div className={`w-8 sm:w-16 h-0.5 mb-5 transition-colors duration-300 ${i < currentStep ? 'bg-gradient-to-r from-[#E91E8C] to-[#9333EA]' : 'bg-muted'}`} />
+              <div className={`w-8 sm:w-16 h-0.5 mb-5 transition-colors duration-300 ${i < currentStep ? 'bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC]' : 'bg-muted'}`} />
             )}
           </div>
         ))}
@@ -170,7 +169,7 @@ function StepRole({ plan, setPlan, onNext }: { plan: Plan; setPlan: (p: Plan) =>
   return (
     <div className="space-y-6 text-center">
       <div>
-        <h1 className="text-3xl font-bold bg-gradient-to-r from-[#E91E8C] to-[#9333EA] bg-clip-text text-transparent">
+        <h1 className="text-3xl font-bold bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] bg-clip-text text-transparent">
           Welcome to Tempo
         </h1>
         <p className="text-muted-foreground mt-2">How do you manage your TikTok Shop?</p>
@@ -194,7 +193,7 @@ function StepRole({ plan, setPlan, onNext }: { plan: Plan; setPlan: (p: Plan) =>
       <button
         disabled={!plan}
         onClick={onNext}
-        className="inline-flex items-center gap-2 px-8 py-3 rounded-xl bg-gradient-to-r from-[#E91E8C] to-[#9333EA] text-white font-semibold disabled:opacity-40 hover:opacity-90 transition-opacity"
+        className="inline-flex items-center gap-2 px-8 py-3 rounded-xl bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] text-white font-semibold disabled:opacity-40 hover:opacity-90 transition-opacity"
       >
         Continue <ArrowRight className="h-4 w-4" />
       </button>
@@ -206,19 +205,19 @@ function RoleCard({ selected, onClick, icon, title, desc }: { selected: boolean;
   return (
     <button
       onClick={onClick}
-      className={`relative p-6 rounded-2xl border text-left transition-all duration-200 backdrop-blur-xl bg-card/50 hover:bg-card/80 group ${
+      className={`relative p-6 rounded-2xl border text-left transition-all duration-200 bg-white hover:shadow-md group ${
         selected
-          ? 'border-[#E91E8C] shadow-lg shadow-[#E91E8C]/10 ring-1 ring-[#E91E8C]/30'
-          : 'border-border hover:border-[#E91E8C]/40'
+          ? 'border-[#FF4D8D] shadow-lg shadow-[#FF4D8D]/10 ring-1 ring-[#FF4D8D]/30'
+          : 'border-gray-200 hover:border-[#FF4D8D]/40'
       }`}
     >
-      <div className={`mb-3 transition-colors ${selected ? 'text-[#E91E8C]' : 'text-muted-foreground group-hover:text-foreground'}`}>
+      <div className={`mb-3 transition-colors ${selected ? 'text-[#FF4D8D]' : 'text-gray-400 group-hover:text-gray-700'}`}>
         {icon}
       </div>
       <h3 className="font-semibold text-lg">{title}</h3>
       <p className="text-sm text-muted-foreground mt-1">{desc}</p>
       {selected && (
-        <div className="absolute top-4 right-4 h-6 w-6 rounded-full bg-gradient-to-br from-[#E91E8C] to-[#9333EA] flex items-center justify-center">
+        <div className="absolute top-4 right-4 h-6 w-6 rounded-full bg-gradient-to-br from-[#FF4D8D] to-[#7C5CFC] flex items-center justify-center">
           <Check className="h-3.5 w-3.5 text-white" />
         </div>
       )}
@@ -244,15 +243,15 @@ function StepBrand({
         <p className="text-muted-foreground mt-1">Tell us about your first brand</p>
       </div>
 
-      <div className="rounded-2xl border border-border bg-card/50 backdrop-blur-xl p-6 space-y-5">
+      <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-6 space-y-5">
         {/* Brand name */}
         <div className="space-y-2">
-          <label className="text-sm font-medium">Brand name <span className="text-[#E91E8C]">*</span></label>
+          <label className="text-sm font-medium">Brand name <span className="text-[#FF4D8D]">*</span></label>
           <input
             value={brandName}
             onChange={(e) => setBrandName(e.target.value)}
             placeholder="e.g. Glow Cosmetics"
-            className="w-full px-4 py-2.5 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/50"
+            className="w-full px-4 py-2.5 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/50"
           />
         </div>
 
@@ -263,7 +262,7 @@ function StepBrand({
             onDragOver={(e) => e.preventDefault()}
             onDrop={onLogoDrop}
             onClick={() => fileInputRef.current?.click()}
-            className="border-2 border-dashed border-border rounded-xl p-6 text-center cursor-pointer hover:border-[#E91E8C]/50 transition-colors"
+            className="border-2 border-dashed border-border rounded-xl p-6 text-center cursor-pointer hover:border-[#FF4D8D]/50 transition-colors"
           >
             {logoPreview ? (
               <img src={logoPreview} alt="Logo" className="h-16 w-16 mx-auto rounded-xl object-cover" />
@@ -287,7 +286,7 @@ function StepBrand({
         </div>
 
         {plan === 'agency' && (
-          <div className="rounded-xl bg-[#E91E8C]/10 border border-[#E91E8C]/20 p-3 text-sm text-[#E91E8C]">
+          <div className="rounded-xl bg-[#FF4D8D]/10 border border-[#FF4D8D]/20 p-3 text-sm text-[#FF4D8D]">
             💡 You can add more brands later from Settings
           </div>
         )}
@@ -300,7 +299,7 @@ function StepBrand({
         <button
           disabled={!brandName.trim()}
           onClick={onNext}
-          className="inline-flex items-center gap-2 px-8 py-2.5 rounded-xl bg-gradient-to-r from-[#E91E8C] to-[#9333EA] text-white font-semibold disabled:opacity-40 hover:opacity-90 transition-opacity"
+          className="inline-flex items-center gap-2 px-8 py-2.5 rounded-xl bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] text-white font-semibold disabled:opacity-40 hover:opacity-90 transition-opacity"
         >
           Continue <ArrowRight className="h-4 w-4" />
         </button>
@@ -352,7 +351,7 @@ function StepReady({ onGo }: { onGo: () => void }) {
   return (
     <div className="space-y-8 text-center">
       <div>
-        <div className="inline-flex h-16 w-16 rounded-full bg-gradient-to-br from-[#E91E8C] to-[#9333EA] items-center justify-center mb-4">
+        <div className="inline-flex h-16 w-16 rounded-full bg-gradient-to-br from-[#FF4D8D] to-[#7C5CFC] items-center justify-center mb-4">
           <Sparkles className="h-8 w-8 text-white" />
         </div>
         <h2 className="text-3xl font-bold">You&apos;re all set! 🎉</h2>
@@ -361,8 +360,8 @@ function StepReady({ onGo }: { onGo: () => void }) {
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {features.map((f) => (
-          <div key={f.title} className="rounded-2xl border border-border bg-card/50 backdrop-blur-xl p-5 space-y-2">
-            <div className="text-[#E91E8C]">{f.icon}</div>
+          <div key={f.title} className="rounded-2xl border border-gray-200 bg-white shadow-sm p-5 space-y-2">
+            <div className="text-[#FF4D8D]">{f.icon}</div>
             <h3 className="font-semibold">{f.title}</h3>
             <p className="text-xs text-muted-foreground">{f.desc}</p>
           </div>
@@ -371,7 +370,7 @@ function StepReady({ onGo }: { onGo: () => void }) {
 
       <button
         onClick={onGo}
-        className="inline-flex items-center gap-2 px-10 py-4 rounded-2xl bg-gradient-to-r from-[#E91E8C] to-[#9333EA] text-white font-bold text-lg hover:opacity-90 transition-opacity shadow-lg shadow-[#E91E8C]/20"
+        className="inline-flex items-center gap-2 px-10 py-4 rounded-2xl bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] text-white font-bold text-lg hover:opacity-90 transition-opacity shadow-lg shadow-[#FF4D8D]/20"
       >
         Go to Dashboard <ArrowRight className="h-5 w-5" />
       </button>
@@ -389,7 +388,7 @@ function ConfettiEffect() {
           className="absolute w-2 h-2 rounded-full animate-confetti"
           style={{
             left: `${Math.random() * 100}%`,
-            backgroundColor: ['#E91E8C', '#9333EA', '#00F2EA', '#FF0050', '#FFD700', '#00FF88'][i % 6],
+            backgroundColor: ['#FF4D8D', '#7C5CFC', '#00F2EA', '#FF0050', '#FFD700', '#00FF88'][i % 6],
             animationDelay: `${Math.random() * 2}s`,
             animationDuration: `${2 + Math.random() * 2}s`,
           }}

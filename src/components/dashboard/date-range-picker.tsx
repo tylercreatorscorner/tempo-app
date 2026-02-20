@@ -16,7 +16,7 @@ export function DateRangePicker() {
   }
 
   return (
-    <div className="flex flex-wrap gap-1 bg-white/[0.04] backdrop-blur-xl p-1 rounded-full border border-white/[0.08] shadow-[0_2px_12px_rgba(0,0,0,0.2)]">
+    <div className="flex flex-wrap gap-1 bg-white p-1 rounded-full border border-gray-200 shadow-sm">
       {DATE_PRESETS.map((p) => (
         <button
           key={p.value}
@@ -24,8 +24,8 @@ export function DateRangePicker() {
           className={cn(
             'px-3.5 py-1.5 text-sm rounded-full transition-all duration-300 font-medium',
             current === p.value
-              ? 'bg-gradient-to-r from-primary to-primary/80 text-primary-foreground shadow-[0_2px_12px_rgba(233,30,140,0.3)]'
-              : 'text-muted-foreground/70 hover:text-foreground hover:bg-white/[0.08]'
+              ? 'bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] text-white shadow-md'
+              : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
           )}
         >
           {p.label}

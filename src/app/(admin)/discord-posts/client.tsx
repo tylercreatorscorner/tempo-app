@@ -53,13 +53,13 @@ export function DiscordPostsClient({ posts, brandOptions, currentBrand, currentR
   return (
     <div className="space-y-6">
       {/* Filters */}
-      <div className="rounded-2xl bg-white/[0.04] backdrop-blur-xl border border-white/[0.08] p-4">
+      <div className="rounded-2xl bg-white border border-gray-200 shadow-sm p-4">
         <div className="flex items-center gap-3 flex-wrap">
-          <Filter className="h-4 w-4 text-muted-foreground/50" />
+          <Filter className="h-4 w-4 text-gray-400" />
           <select
             value={currentBrand ?? ''}
             onChange={(e) => handleFilterChange(e.target.value, currentRange)}
-            className="bg-white/[0.06] border border-white/[0.1] rounded-lg px-3 py-2 text-sm text-white/80 focus:outline-none focus:ring-1 focus:ring-primary/50"
+            className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-[#FF4D8D]/50"
           >
             <option value="">All Brands</option>
             {brandOptions.map((b) => (
@@ -69,7 +69,7 @@ export function DiscordPostsClient({ posts, brandOptions, currentBrand, currentR
           <select
             value={currentRange}
             onChange={(e) => handleFilterChange(currentBrand ?? '', e.target.value)}
-            className="bg-white/[0.06] border border-white/[0.1] rounded-lg px-3 py-2 text-sm text-white/80 focus:outline-none focus:ring-1 focus:ring-primary/50"
+            className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-[#FF4D8D]/50"
           >
             {RANGE_OPTIONS.map((r) => (
               <option key={r.value} value={r.value}>{r.label}</option>
@@ -81,15 +81,15 @@ export function DiscordPostsClient({ posts, brandOptions, currentBrand, currentR
       <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6">
         {/* Post type selector */}
         <div className="space-y-2">
-          <p className="text-xs font-semibold text-muted-foreground/50 uppercase tracking-wider mb-3">Post Type</p>
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Post Type</p>
           {posts.map((post) => (
             <button
               key={post.id}
               onClick={() => setSelectedPost(post.id)}
               className={`w-full text-left px-4 py-3 rounded-xl text-sm transition-all duration-200 border ${
                 selectedPost === post.id
-                  ? 'bg-primary/10 border-primary/30 text-white'
-                  : 'bg-white/[0.03] border-white/[0.06] text-white/60 hover:bg-white/[0.06] hover:text-white/80'
+                  ? 'bg-pink-50 border-[#FF4D8D]/30 text-[#FF4D8D] font-medium'
+                  : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-gray-900'
               }`}
             >
               {post.title}
@@ -99,7 +99,7 @@ export function DiscordPostsClient({ posts, brandOptions, currentBrand, currentR
 
         {/* Preview */}
         {activePost && (
-          <div className="rounded-2xl overflow-hidden border border-white/[0.08] shadow-[0_4px_24px_rgba(0,0,0,0.2)]">
+          <div className="rounded-2xl overflow-hidden border border-gray-200 shadow-sm">
             {/* Discord-style header */}
             <div className="px-5 py-3 bg-[#36393f] border-b border-[#202225] flex items-center justify-between">
               <div className="flex items-center gap-2">

@@ -22,7 +22,7 @@ function formatDollar(value: number) {
 export function GmvTrendChart({ data, brands }: Props) {
   if (!data || data.length === 0) {
     return (
-      <div className="h-72 flex items-center justify-center text-muted-foreground/60 text-sm">
+      <div className="h-72 flex items-center justify-center text-gray-400 text-sm">
         No trend data available for selected period
       </div>
     );
@@ -37,23 +37,23 @@ export function GmvTrendChart({ data, brands }: Props) {
               const color = BRAND_COLORS[brand] ?? '#6B7280';
               return (
                 <linearGradient key={brand} id={`gradient-${brand}`} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={color} stopOpacity={0.35} />
+                  <stop offset="0%" stopColor={color} stopOpacity={0.2} />
                   <stop offset="100%" stopColor={color} stopOpacity={0.02} />
                 </linearGradient>
               );
             })}
           </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+          <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" vertical={false} />
           <XAxis
             dataKey="date"
-            tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.35)' }}
+            tick={{ fontSize: 11, fill: '#9CA3AF' }}
             tickLine={false}
             axisLine={false}
             dy={8}
           />
           <YAxis
             tickFormatter={formatDollar}
-            tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.35)' }}
+            tick={{ fontSize: 11, fill: '#9CA3AF' }}
             tickLine={false}
             axisLine={false}
             dx={-4}
@@ -61,17 +61,16 @@ export function GmvTrendChart({ data, brands }: Props) {
           />
           <Tooltip
             contentStyle={{
-              backgroundColor: 'rgba(12,12,24,0.95)',
-              border: '1px solid rgba(255,255,255,0.1)',
+              backgroundColor: '#FFFFFF',
+              border: '1px solid #E5E7EB',
               borderRadius: '12px',
               fontSize: '12px',
-              boxShadow: '0 12px 40px rgba(0,0,0,0.5)',
-              backdropFilter: 'blur(16px)',
+              boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
               padding: '12px 16px',
             }}
-            labelStyle={{ color: 'rgba(255,255,255,0.5)', marginBottom: 6, fontWeight: 500 }}
+            labelStyle={{ color: '#6B7280', marginBottom: 6, fontWeight: 500 }}
             itemStyle={{ padding: '2px 0' }}
-            cursor={{ stroke: 'rgba(255,255,255,0.1)', strokeWidth: 1 }}
+            cursor={{ stroke: '#E5E7EB', strokeWidth: 1 }}
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             formatter={(value: any, name: any) => [
               `$${Number(value ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
@@ -80,7 +79,7 @@ export function GmvTrendChart({ data, brands }: Props) {
           />
           <Legend
             formatter={(value: string) => BRAND_DISPLAY_NAMES[value] ?? value}
-            wrapperStyle={{ fontSize: '12px', paddingTop: '12px', opacity: 0.7 }}
+            wrapperStyle={{ fontSize: '12px', paddingTop: '12px', color: '#6B7280' }}
           />
           {brands.map((brand) => (
             <Area
@@ -98,7 +97,7 @@ export function GmvTrendChart({ data, brands }: Props) {
                 r: 5,
                 strokeWidth: 2,
                 stroke: BRAND_COLORS[brand] ?? '#6B7280',
-                fill: '#0a0a1a',
+                fill: '#FFFFFF',
               }}
             />
           ))}

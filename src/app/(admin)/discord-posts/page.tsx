@@ -91,10 +91,10 @@ export default async function DiscordPostsPage({ searchParams }: Props) {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">
+        <h1 className="text-3xl font-extrabold tracking-tight text-[#1A1B3A]">
           Discord Post Generator
         </h1>
-        <p className="text-sm text-muted-foreground/60 mt-1">
+        <p className="text-sm text-gray-500 mt-1">
           Auto-generate formatted Discord messages for your creator community
         </p>
       </div>

@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { Menu, User, ChevronDown, ChevronRight } from 'lucide-react';
 import { usePathname } from 'next/navigation';
+import { TempoLogo } from '@/components/ui/tempo-logo';
 
 interface HeaderProps {
   onMenuClick?: () => void;
@@ -27,40 +28,45 @@ export function Header({ onMenuClick, showBrandFilter = false, tenantName }: Hea
     : (BREADCRUMB_MAP[pathname] ?? 'Dashboard');
 
   return (
-    <header className="flex items-center justify-between h-14 px-3 sm:px-6 border-b border-border bg-card/50 backdrop-blur-sm">
+    <header className="flex items-center justify-between h-14 px-3 sm:px-6 border-b border-gray-200 bg-white">
       <div className="flex items-center gap-4">
         <button
           onClick={onMenuClick}
-          className="lg:hidden p-2 rounded-lg hover:bg-muted transition-colors"
+          className="lg:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors"
           aria-label="Toggle menu"
         >
-          <Menu className="h-5 w-5" />
+          <Menu className="h-5 w-5 text-gray-600" />
         </button>
+
+        {/* Mobile logo */}
+        <div className="lg:hidden">
+          <TempoLogo size="sm" animated={false} />
+        </div>
 
         {/* Breadcrumb */}
         <div className="flex items-center gap-1.5 text-sm min-w-0">
-          <span className="text-muted-foreground hidden sm:inline">{tenantName ?? 'Tempo'}</span>
-          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/50 hidden sm:block" />
+          <span className="text-gray-400 hidden sm:inline">{tenantName ?? 'Tempo'}</span>
+          <ChevronRight className="h-3.5 w-3.5 text-gray-300 hidden sm:block" />
           {isCreatorDetail && (
             <>
-              <Link href="/creators" className="text-muted-foreground hover:text-foreground transition-colors">Creators</Link>
-              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/50" />
+              <Link href="/creators" className="text-gray-400 hover:text-gray-700 transition-colors">Creators</Link>
+              <ChevronRight className="h-3.5 w-3.5 text-gray-300" />
             </>
           )}
-          <span className="font-medium truncate">{pageLabel}</span>
+          <span className="font-medium text-gray-900 truncate">{pageLabel}</span>
         </div>
 
         {showBrandFilter && (
-          <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-border bg-muted/50 text-sm hover:bg-muted transition-colors">
+          <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-gray-200 bg-white text-sm hover:bg-gray-50 transition-colors text-gray-600">
             <span>All Brands</span>
-            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+            <ChevronDown className="h-3.5 w-3.5 text-gray-400" />
           </button>
         )}
       </div>
 
       <div className="flex items-center gap-3">
-        <div className="h-9 w-9 rounded-full bg-primary/15 border border-primary/20 flex items-center justify-center hover:bg-primary/25 transition-colors cursor-pointer">
-          <User className="h-4 w-4 text-primary" />
+        <div className="h-9 w-9 rounded-full bg-pink-50 border border-pink-100 flex items-center justify-center hover:bg-pink-100 transition-colors cursor-pointer">
+          <User className="h-4 w-4 text-[#FF4D8D]" />
         </div>
       </div>
     </header>

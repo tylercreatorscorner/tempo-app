@@ -236,8 +236,8 @@ export default async function AdminDashboard({ searchParams }: Props) {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">{headerLabel}</h1>
-          <p className="text-sm text-muted-foreground/60 mt-1">
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#1A1B3A]">{headerLabel}</h1>
+          <p className="text-sm text-gray-500 mt-1">
             {brandFilter ? 'Brand performance details' : 'Portfolio performance overview'}
           </p>
         </div>
@@ -288,9 +288,9 @@ export default async function AdminDashboard({ searchParams }: Props) {
       )}
 
       {/* GMV Trend Chart */}
-      <div className="rounded-2xl bg-white/[0.04] backdrop-blur-xl border border-white/[0.08] shadow-[0_4px_24px_rgba(0,0,0,0.2)] p-6">
-        <h3 className="text-lg font-bold tracking-tight mb-1">GMV Trend</h3>
-        <p className="text-xs text-muted-foreground/50 mb-4">Daily revenue {brandFilter ? '' : 'by brand'}</p>
+      <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
+        <h3 className="text-lg font-bold tracking-tight text-[#1A1B3A] mb-1">GMV Trend</h3>
+        <p className="text-xs text-gray-400 mb-4">Daily revenue {brandFilter ? '' : 'by brand'}</p>
         <GmvTrendChart data={chartData} brands={chartBrands} />
       </div>
 

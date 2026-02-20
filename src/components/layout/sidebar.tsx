@@ -6,6 +6,7 @@ import {
   LayoutDashboard, Store, BarChart3, Users, Settings, CreditCard, MessageSquare,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { TempoLogo } from '@/components/ui/tempo-logo';
 
 const NAV_ITEMS = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -24,7 +25,6 @@ interface SidebarProps {
   className?: string;
 }
 
-/** Dark sidebar navigation for admin portal */
 export function Sidebar({ className }: SidebarProps) {
   const pathname = usePathname();
 
@@ -37,8 +37,8 @@ export function Sidebar({ className }: SidebarProps) {
         className={cn(
           'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-200',
           isActive
-            ? 'bg-sidebar-accent text-sidebar-primary border-l-2 border-sidebar-primary ml-0 shadow-sm shadow-primary/10'
-            : 'text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 border-l-2 border-transparent'
+            ? 'bg-pink-50 text-[#FF4D8D] font-medium border-l-2 border-[#FF4D8D] ml-0 shadow-sm'
+            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100 border-l-2 border-transparent'
         )}
       >
         <item.icon className="h-4 w-4" />
@@ -48,25 +48,22 @@ export function Sidebar({ className }: SidebarProps) {
   };
 
   return (
-    <aside className={cn('flex flex-col w-64 bg-sidebar border-r border-sidebar-border h-screen', className)}>
+    <aside className={cn('flex flex-col w-64 bg-[#F8F9FC] border-r border-gray-200 h-screen', className)}>
       {/* Logo */}
-      <div className="flex items-center gap-2 px-6 py-5 border-b border-sidebar-border">
-        <div className="h-8 w-8 rounded-lg bg-tempo-pink flex items-center justify-center shadow-md shadow-pink-500/20">
-          <span className="text-white font-bold text-sm">T</span>
-        </div>
-        <span className="text-lg font-semibold text-sidebar-foreground">Tempo</span>
+      <div className="flex items-center gap-2 px-6 py-5 border-b border-gray-200">
+        <TempoLogo size="md" animated={false} />
       </div>
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-1">
         {NAV_ITEMS.map(renderItem)}
-        <div className="my-3 mx-3 border-t border-sidebar-border/50" />
+        <div className="my-3 mx-3 border-t border-gray-200" />
         {SETTINGS_ITEMS.map(renderItem)}
       </nav>
 
       {/* Version footer */}
-      <div className="px-6 py-4 border-t border-sidebar-border/50">
-        <p className="text-xs text-muted-foreground/50">Tempo v2.0</p>
+      <div className="px-6 py-4 border-t border-gray-200">
+        <p className="text-xs text-gray-400">Tempo v2.0</p>
       </div>
     </aside>
   );

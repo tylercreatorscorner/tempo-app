@@ -23,24 +23,25 @@ export function TrendChart({ data, className }: TrendChartProps) {
     <div className={className}>
       <ResponsiveContainer width="100%" height={300}>
         <LineChart data={data} margin={{ top: 5, right: 20, bottom: 5, left: 20 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+          <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
           <XAxis
             dataKey="date"
-            stroke="rgba(255,255,255,0.3)"
+            stroke="#9CA3AF"
             fontSize={12}
             tickFormatter={(val: string) => val.slice(5)}
           />
           <YAxis
-            stroke="rgba(255,255,255,0.3)"
+            stroke="#9CA3AF"
             fontSize={12}
             tickFormatter={(val: number) => formatCurrency(val)}
           />
           <Tooltip
             contentStyle={{
-              backgroundColor: 'hsl(var(--card))',
-              border: '1px solid hsl(var(--border))',
+              backgroundColor: '#FFFFFF',
+              border: '1px solid #E5E7EB',
               borderRadius: '8px',
-              color: 'hsl(var(--foreground))',
+              color: '#1A1B3A',
+              boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
             }}
             formatter={(value) => [formatCurrency(value as number), 'GMV']}
           />

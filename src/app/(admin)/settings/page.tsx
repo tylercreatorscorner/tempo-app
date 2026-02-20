@@ -117,7 +117,7 @@ export default function SettingsPage() {
                       <span className="font-medium text-sm">{brand.name}</span>
                     </div>
                     <span className={`text-xs px-2 py-1 rounded-full font-medium ${
-                      brand.status === 'active' ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'
+                      brand.status === 'active' ? 'bg-green-50 text-green-600' : 'bg-yellow-50 text-yellow-600'
                     }`}>
                       {brand.status}
                     </span>
@@ -139,7 +139,7 @@ export default function SettingsPage() {
                       <p className="text-xs text-muted-foreground">Last sync: {int.lastSync}</p>
                     </div>
                     <span className={`text-xs px-2 py-1 rounded-full font-medium ${
-                      int.status === 'connected' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
+                      int.status === 'connected' ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-500'
                     }`}>
                       {int.status}
                     </span>
