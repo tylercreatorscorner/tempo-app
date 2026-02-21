@@ -103,7 +103,7 @@ export default function OnboardingPage() {
 
       {/* Logo */}
       <div className="text-center">
-        <TempoLogo size="lg" animated />
+        <TempoLogo size="lg" animated showTagline />
       </div>
 
       {/* Progress */}
