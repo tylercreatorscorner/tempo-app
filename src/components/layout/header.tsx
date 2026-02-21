@@ -40,7 +40,7 @@ export function Header({ onMenuClick, showBrandFilter = false, tenantName }: Hea
 
         {/* Mobile logo */}
         <div className="lg:hidden">
-          <TempoLogo size="sm" />
+          <TempoLogo size="sm" animated={false} />
         </div>
 
         {/* Breadcrumb */}

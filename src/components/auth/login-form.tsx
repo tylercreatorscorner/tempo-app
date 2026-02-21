@@ -43,7 +43,7 @@ export function LoginForm() {
     <div className="w-full max-w-sm space-y-6">
       <div className="text-center space-y-2">
         <div className="flex justify-center">
-          <TempoLogo size="lg" />
+          <TempoLogo size="lg" animated />
         </div>
         <h1 className="text-2xl font-bold text-[#1A1B3A]">Welcome back</h1>
         <p className="text-sm text-gray-500">Sign in to your Tempo account</p>
