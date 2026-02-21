@@ -11,10 +11,10 @@ interface TempoLogoProps {
 }
 
 const SIZE_CONFIG = {
-  sm: { fontSize: 20, circleSize: 18, gap: 1 },
-  md: { fontSize: 26, circleSize: 23, gap: 2 },
-  lg: { fontSize: 40, circleSize: 36, gap: 3 },
-  xl: { fontSize: 56, circleSize: 50, gap: 4 },
+  sm: { fontSize: 20, circleSize: 13, gap: -1 },
+  md: { fontSize: 26, circleSize: 17, gap: -1 },
+  lg: { fontSize: 40, circleSize: 26, gap: -1 },
+  xl: { fontSize: 56, circleSize: 36, gap: -2 },
 };
 
 export function TempoLogo({
@@ -62,8 +62,8 @@ export function TempoLogo({
             height: config.circleSize,
             flexShrink: 0,
             marginLeft: `${config.gap}px`,
-            marginBottom: `${config.fontSize * 0.04}px`,
-            alignSelf: 'center',
+            marginBottom: `${config.fontSize * 0.02}px`,
+            alignSelf: 'baseline',
           }}
         >
           {/* Pulsing glow ring */}
