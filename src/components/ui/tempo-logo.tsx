@@ -10,10 +10,10 @@ interface TempoLogoProps {
 }
 
 const SIZE_CONFIG = {
-  sm: { width: 100, height: 32 },
-  md: { width: 130, height: 40 },
-  lg: { width: 200, height: 60 },
-  xl: { width: 280, height: 85 },
+  sm: { fontSize: 20, circleSize: 16, gap: 1, playScale: 0.4 },
+  md: { fontSize: 26, circleSize: 21, gap: 1, playScale: 0.5 },
+  lg: { fontSize: 40, circleSize: 32, gap: 2, playScale: 0.8 },
+  xl: { fontSize: 56, circleSize: 44, gap: 3, playScale: 1.1 },
 };
 
 export function TempoLogo({
@@ -22,21 +22,66 @@ export function TempoLogo({
   className,
 }: TempoLogoProps) {
   const config = SIZE_CONFIG[size];
-  const src = showTagline && (size === 'lg' || size === 'xl')
-    ? '/logo/tempo-logo-tagline.svg'
-    : '/logo/tempo-logo.svg';
+  const showTag = showTagline && (size === 'lg' || size === 'xl');
 
   return (
-    <div className={cn('inline-flex items-center select-none', className)}>
-      <Image
-        src={src}
-        alt="Tempo"
-        width={config.width}
-        height={config.height}
-        priority
-        className="h-auto"
-        style={{ width: config.width, height: 'auto' }}
-      />
+    <div className={cn('inline-flex flex-col items-center select-none', className)}>
+      <div
+        className="inline-flex items-center"
+        style={{ gap: `${config.gap}px` }}
+      >
+        <span
+          style={{
+            fontSize: `${config.fontSize}px`,
+            fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
+            fontWeight: 800,
+            letterSpacing: '-0.04em',
+            lineHeight: 1,
+            color: '#1A1B3A',
+          }}
+        >
+          Temp
+        </span>
+
+        <svg
+          viewBox="0 0 40 40"
+          fill="none"
+          style={{
+            width: config.circleSize,
+            height: config.circleSize,
+            flexShrink: 0,
+          }}
+        >
+          <defs>
+            <linearGradient id="tempo-logo-grad" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
+              <stop stopColor="#FF4D8D" />
+              <stop offset="1" stopColor="#7C5CFC" />
+            </linearGradient>
+          </defs>
+          <circle cx="20" cy="20" r="20" fill="url(#tempo-logo-grad)" />
+          <polygon
+            points="16,12 16,28 28,20"
+            fill="white"
+            fillOpacity="0.95"
+          />
+        </svg>
+      </div>
+
+      {showTag && (
+        <span
+          style={{
+            fontSize: `${config.fontSize * 0.22}px`,
+            fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
+            fontWeight: 500,
+            letterSpacing: '0.14em',
+            color: '#9CA3AF',
+            textTransform: 'uppercase' as const,
+            marginTop: `${config.fontSize * 0.15}px`,
+          }}
+        >
+          Creator Management, Simplified
+        </span>
+      )}
     </div>
   );
 }
