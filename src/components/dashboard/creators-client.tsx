@@ -16,6 +16,7 @@ interface Creator {
   days_active: number;
   total_videos: number;
   brand: string;
+  managed_creator_id?: number;
 }
 
 type SortKey = 'creator_name' | 'total_gmv' | 'total_orders' | 'total_items_sold' | 'total_videos';
@@ -133,7 +134,7 @@ export function CreatorsClient({ creators }: Props) {
                   <td className="px-4 py-3 text-gray-400">{page * PAGE_SIZE + i + 1}</td>
                   <td className="px-4 py-3 font-medium text-[#1A1B3A]">
                     <div>
-                      <Link href={`/creators/${encodeURIComponent(c.handles?.[0] ?? c.creator_name)}`} className="hover:text-[#FF4D8D] hover:underline transition-colors">
+                      <Link href={`/creators/${c.managed_creator_id ?? encodeURIComponent(c.handles?.[0] ?? c.creator_name)}`} className="hover:text-[#FF4D8D] hover:underline transition-colors">
                         {c.creator_name}
                       </Link>
                       {c.handles && c.handles.length > 0 && c.creator_name !== c.handles[0] && (

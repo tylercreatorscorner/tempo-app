@@ -19,17 +19,18 @@ export interface GroupedCreator {
   days_active: number;
   total_videos: number;
   brand?: string;
+  managed_creator_id?: number;
 }
 
 /**
  * Fetches the mapping of TikTok usernames to real names from
  * creator_accounts joined with managed_creators.
  */
-async function fetchHandleToRealName(): Promise<Map<string, string>> {
+async function fetchHandleToRealName(): Promise<Map<string, { real_name: string; creator_id: number }>> {
   const supabase = await createAdminClient();
   const { data, error } = await supabase
     .from('creator_accounts')
-    .select('tiktok_username, managed_creators(real_name)')
+    .select('tiktok_username, creator_id, managed_creators(real_name)')
     .not('tiktok_username', 'is', null);
 
   if (error || !data) {
@@ -37,13 +38,15 @@ async function fetchHandleToRealName(): Promise<Map<string, string>> {
     return new Map();
   }
 
-  const map = new Map<string, string>();
+  const map = new Map<string, { real_name: string; creator_id: number }>();
   for (const row of data) {
     const username = row.tiktok_username;
-    // managed_creators comes back as object (single FK relation)
     const mc = row.managed_creators as unknown as { real_name: string } | null;
     if (username && mc?.real_name) {
-      map.set(username.toLowerCase(), mc.real_name);
+      map.set(username.toLowerCase(), {
+        real_name: mc.real_name,
+        creator_id: row.creator_id as number,
+      });
     }
   }
   return map;
@@ -61,7 +64,9 @@ export async function aggregateCreatorsByRealName(
   const groups = new Map<string, GroupedCreator>();
 
   for (const c of creators) {
-    const realName = handleMap.get(c.creator_name.toLowerCase());
+    const mapping = handleMap.get(c.creator_name.toLowerCase());
+    const realName = mapping?.real_name;
+    const creatorId = mapping?.creator_id;
     const key = realName?.toLowerCase() ?? c.creator_name.toLowerCase();
 
     const existing = groups.get(key);
@@ -74,6 +79,9 @@ export async function aggregateCreatorsByRealName(
       if (!existing.handles.includes(c.creator_name)) {
         existing.handles.push(c.creator_name);
       }
+      if (creatorId && !existing.managed_creator_id) {
+        existing.managed_creator_id = creatorId;
+      }
     } else {
       groups.set(key, {
         display_name: realName ?? c.creator_name,
@@ -84,6 +92,7 @@ export async function aggregateCreatorsByRealName(
         days_active: c.days_active ?? 0,
         total_videos: c.total_videos ?? 0,
         brand: c.brand,
+        managed_creator_id: creatorId,
       });
     }
   }

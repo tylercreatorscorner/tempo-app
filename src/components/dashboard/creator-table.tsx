@@ -10,6 +10,7 @@ interface Creator {
   total_items_sold: number;
   days_active: number;
   total_videos: number;
+  managed_creator_id?: number;
 }
 
 interface Props {
@@ -51,7 +52,7 @@ export function CreatorTable({ creators }: Props) {
                 <td className="px-6 py-3.5"><RankBadge rank={i + 1} /></td>
                 <td className="px-4 py-3.5 font-medium text-[#1A1B3A]">
                   <div>
-                    <Link href={`/creators/${encodeURIComponent(c.handles[0])}`} className="hover:text-[#FF4D8D] hover:underline transition-colors">
+                    <Link href={`/creators/${c.managed_creator_id ?? encodeURIComponent(c.handles[0])}`} className="hover:text-[#FF4D8D] hover:underline transition-colors">
                       {c.display_name}
                     </Link>
                     {c.handles.length > 0 && c.display_name !== c.handles[0] && (
