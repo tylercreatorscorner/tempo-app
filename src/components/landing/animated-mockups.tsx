@@ -96,7 +96,7 @@ export function HeroDashboardMockup() {
           {/* Chart */}
           <div className="rounded-xl bg-[#F8F9FC] border border-[#E5E7EB]/60 p-4">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-xs font-semibold text-[#1A1B3A]">GMV Trend — Last 30 Days</p>
+              <p className="text-xs font-semibold text-[#1A1B3A]">GMV Trend, Last 30 Days</p>
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-[#FF4D8D]" /><span className="text-[10px] text-[#9CA3AF]">GMV</span></div>
               </div>
@@ -305,7 +305,7 @@ export function DailyBriefMockup() {
               <span className="text-xs font-bold text-white">T</span>
             </div>
             <div>
-              <p className="text-sm font-semibold text-[#1A1B3A]">Daily Brief — Feb 21</p>
+              <p className="text-sm font-semibold text-[#1A1B3A]">Daily Brief, Feb 21</p>
               <p className="text-[10px] text-[#9CA3AF]">Glow Skin Co • 8:00 AM</p>
             </div>
           </div>
@@ -415,7 +415,7 @@ export function CreatorPortalMockup() {
           <div className="rounded-xl bg-gradient-to-r from-[#FF4D8D]/10 to-[#7C5CFC]/10 border border-[#FF4D8D]/20 p-3 text-center"
             style={fadeIn(inView, 1200)}>
             <p className="text-sm font-semibold text-[#1A1B3A]">You&apos;re in the top 5% of creators! 🔥</p>
-            <p className="text-[10px] text-[#6B7280] mt-0.5">Keep it up — you&apos;re on track for a record month</p>
+            <p className="text-[10px] text-[#6B7280] mt-0.5">Keep it up, you&apos;re on track for a record month</p>
           </div>
         </div>
       </div>

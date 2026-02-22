@@ -15,7 +15,7 @@ export default async function DiscordPostsPage({ searchParams }: Props) {
   const params = await searchParams;
   const { startDate, endDate } = resolveDateRange(params.range);
   const selectedBrand = params.brand || null;
-  const dateLabel = `${format(new Date(startDate), 'MMM d')}–${format(new Date(endDate), 'MMM d, yyyy')}`;
+  const dateLabel = `${format(new Date(startDate), 'MMM d')}-${format(new Date(endDate), 'MMM d, yyyy')}`;
 
   // Fetch data for all brands or selected brand
   const brandsToFetch = selectedBrand ? [selectedBrand] : [...BRANDS];
@@ -81,7 +81,7 @@ export default async function DiscordPostsPage({ searchParams }: Props) {
     { id: 'trending-products', title: '🔥 Trending Products', content: trendingProductsPost },
     ...weeklyRecaps.map((r) => ({
       id: `recap-${r.brand}`,
-      title: `📊 Weekly Recap — ${r.brandName}`,
+      title: `📊 Weekly Recap: ${r.brandName}`,
       content: r.content,
     })),
   ];

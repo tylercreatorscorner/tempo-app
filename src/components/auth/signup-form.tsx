@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils';
 type AccountType = 'brand' | 'agency';
 type Step = 'type' | 'details';
 
-/** Signup form — asks brand vs agency, then collects details */
+/** Signup form - asks brand vs agency, then collects details */
 export function SignupForm() {
   const [step, setStep] = useState<Step>('type');
   const [accountType, setAccountType] = useState<AccountType>('brand');
@@ -138,7 +138,7 @@ export function SignupForm() {
         <p className="text-sm text-muted-foreground">
           {accountType === 'brand'
             ? "We'll create your brand workspace in one step"
-            : 'Create your agency workspace — add brands later'}
+            : 'Create your agency workspace. Add brands later'}
         </p>
       </div>
 

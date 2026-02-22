@@ -380,7 +380,7 @@ function StepConnect({
       <div className="flex flex-col items-center gap-3 text-sm text-muted-foreground max-w-sm mx-auto">
         <div className="flex items-center gap-2">
           <Lock className="h-4 w-4 text-[#FF4D8D]" />
-          <span>Read-only access — we never modify your shop</span>
+          <span>Read-only access. We never modify your shop</span>
         </div>
         <div className="flex items-center gap-2">
           <BarChart3 className="h-4 w-4 text-[#7C5CFC]" />
