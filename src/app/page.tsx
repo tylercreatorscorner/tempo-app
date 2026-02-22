@@ -46,7 +46,7 @@ function Navbar() {
             href="#cta"
             className="inline-flex items-center rounded-full px-5 py-2 text-sm font-semibold text-white bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] hover:shadow-lg hover:shadow-[#FF4D8D]/25 hover:scale-105 transition-all duration-200"
           >
-            Get Started
+            Book a Demo
           </a>
         </div>
         <MobileNav />
@@ -63,21 +63,21 @@ function Hero() {
         <div className="space-y-6">
           <div className="inline-flex items-center gap-2 rounded-full bg-[#FF4D8D]/10 px-4 py-1.5 text-sm font-medium text-[#FF4D8D]">
             <span className="w-2 h-2 rounded-full bg-[#FF4D8D] animate-pulse" />
-            Now in Early Access
+            Now Accepting New Clients
           </div>
           <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight text-[#1A1B3A] leading-[1.1]">
             Creator Management,{' '}
             <span className="bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] bg-clip-text text-transparent">Simplified</span>
           </h1>
           <p className="text-lg md:text-xl text-[#6B7280] max-w-lg leading-relaxed">
-            You manage hundreds of creators across multiple brands. Your data lives in 12 spreadsheets, 3 TikTok dashboards, and someone&apos;s inbox. Tempo puts it all in one place.
+            Whether you&apos;re a brand managing your own creator program or an agency scaling across dozens of brands, your data shouldn&apos;t live in spreadsheets. Tempo puts it all in one place.
           </p>
           <div className="flex flex-wrap gap-4 pt-2">
             <a
               href="#cta"
               className="inline-flex items-center gap-2 rounded-full px-7 py-3.5 text-sm font-semibold text-white bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] hover:shadow-xl hover:shadow-[#FF4D8D]/30 hover:scale-105 transition-all duration-200"
             >
-              Request Early Access <ArrowRight className="w-4 h-4" />
+              Book a Demo <ArrowRight className="w-4 h-4" />
             </a>
             <a
               href="#how-it-works"
@@ -176,9 +176,9 @@ function StatsBar() {
 /* ─── The Problem ─── */
 function TheProblem() {
   const problems = [
-    { icon: FileSpreadsheet, title: 'Death by Spreadsheet', desc: "You're exporting CSVs every morning, copy-pasting into Google Sheets, and praying the formulas don't break. There's gotta be a better way." },
-    { icon: EyeOff, title: 'Flying Blind', desc: "A creator's video went viral yesterday and you didn't find out until the brand asked about it. You should've known first." },
-    { icon: Flame, title: 'Scaling = More Chaos', desc: "Every new brand means another dashboard, another data source, another tab to keep track of. Growth shouldn't feel like drowning." },
+    { icon: FileSpreadsheet, title: 'Death by Spreadsheet', desc: "Whether you're a brand team or an agency, you're exporting CSVs every morning, copy-pasting into Google Sheets, and praying the formulas don't break. There's gotta be a better way." },
+    { icon: EyeOff, title: 'Flying Blind', desc: "A creator's video went viral yesterday and nobody on your team knew until someone else brought it up. Brand managers and agency operators alike deserve real-time visibility." },
+    { icon: Flame, title: 'Scaling = More Chaos', desc: "Every new brand or creator roster means another dashboard, another data source, another tab to keep track of. Growth shouldn't feel like drowning." },
   ];
   return (
     <section className="py-24 px-6">
@@ -218,7 +218,7 @@ function Features() {
         <ScrollReveal className="text-center mb-16">
           <p className="text-sm font-semibold text-[#FF4D8D] uppercase tracking-wider mb-3">Features</p>
           <h2 className="text-3xl md:text-5xl font-extrabold text-[#1A1B3A] tracking-tight">Everything you need to win on TikTok Shop</h2>
-          <p className="text-[#6B7280] mt-4 max-w-2xl mx-auto text-lg">We built Tempo because we were tired of managing creators in spreadsheets. So we fixed it.</p>
+          <p className="text-[#6B7280] mt-4 max-w-2xl mx-auto text-lg">Whether you run a brand in-house or manage creators for dozens of clients, Tempo gives you the tools to stay ahead.</p>
         </ScrollReveal>
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
           {features.map((f, i) => (
@@ -345,9 +345,9 @@ function DashboardPreview() {
 /* ─── Built Different ─── */
 function BuiltDifferent() {
   const items = [
-    { icon: Target, title: 'Agency-First Design', desc: "We don't build features for demo day. We build what actually saves you time at 9 AM on Monday." },
+    { icon: Target, title: 'Built for Operators', desc: "We don't build features for demo day. We build what actually saves brand teams and agency operators time at 9 AM on Monday." },
     { icon: Database, title: 'Your Data, Your Way', desc: 'Brands see their full picture. Agencies see their managed creators. Everyone gets exactly what they need.' },
-    { icon: Rocket, title: 'Scales With You', desc: 'One brand or twenty. Solo manager or full agency. Same simple product, built to grow with your operation.' },
+    { icon: Rocket, title: 'Scales With You', desc: 'One brand or twenty. Solo brand manager or full agency team. Same simple product, built to grow with your operation.' },
   ];
   return (
     <section className="py-24 px-6 bg-[#F8F9FC]">
@@ -355,7 +355,7 @@ function BuiltDifferent() {
         <ScrollReveal className="text-center mb-16">
           <p className="text-sm font-semibold text-[#7C5CFC] uppercase tracking-wider mb-3">Why Tempo</p>
           <h2 className="text-3xl md:text-5xl font-extrabold text-[#1A1B3A] tracking-tight">Built by operators, not just engineers</h2>
-          <p className="text-[#6B7280] mt-4 max-w-2xl mx-auto text-lg">Tempo was built inside a real TikTok Shop agency managing 500+ creators across multiple brands. Every feature exists because we needed it ourselves.</p>
+          <p className="text-[#6B7280] mt-4 max-w-2xl mx-auto text-lg">Tempo was built inside a real TikTok Shop operation managing 500+ creators across multiple brands. Whether you&apos;re a brand team or an agency, every feature exists because operators like you needed it.</p>
         </ScrollReveal>
         <div className="grid md:grid-cols-3 gap-6">
           {items.map((item, i) => (
@@ -379,29 +379,38 @@ function BuiltDifferent() {
 function Pricing() {
   const tiers = [
     {
-      name: 'Starter',
-      price: 'Free',
-      period: '',
-      desc: 'Perfect for getting started',
-      features: ['1 brand', 'Basic analytics', '7-day data history', 'Email support'],
-      cta: 'Get Started Free',
+      name: 'Brand',
+      price: '$999',
+      period: '/mo',
+      desc: 'For brands managing their own creators',
+      features: ['1 brand', 'Full analytics suite', 'Creator portal', 'Daily briefs & alerts', 'Up to 3 team seats', 'Priority support'],
+      cta: 'Book a Demo',
       popular: false,
     },
     {
-      name: 'Pro',
-      price: '$99',
+      name: 'Agency',
+      price: '$1,999',
       period: '/mo',
-      desc: 'For growing agencies',
-      features: ['5 brands', 'Full analytics suite', 'Creator portal', 'Discord & Slack alerts', '90-day data history', 'Priority support'],
-      cta: 'Start Pro Trial',
+      desc: 'For agencies managing multiple brands',
+      features: ['Up to 5 brands', 'Everything in Brand', 'Multi-brand dashboard', 'Up to 10 team seats', 'Dedicated onboarding'],
+      cta: 'Book a Demo',
+      popular: false,
+    },
+    {
+      name: 'Scale',
+      price: '$3,499',
+      period: '/mo',
+      desc: 'For growing operations',
+      features: ['Up to 15 brands', 'Everything in Agency', 'Unlimited team seats', 'API access', 'Custom reporting'],
+      cta: 'Book a Demo',
       popular: true,
     },
     {
       name: 'Enterprise',
       price: 'Custom',
       period: '',
-      desc: 'For large operations',
-      features: ['Unlimited brands', 'API access', 'White-label options', 'Dedicated support', 'Full data history', 'Custom integrations'],
+      desc: 'For large-scale operations',
+      features: ['Unlimited brands', 'Everything in Scale', 'White-label options', 'Dedicated support & SLA', 'Custom integrations'],
       cta: 'Contact Sales',
       popular: false,
     },
@@ -412,9 +421,9 @@ function Pricing() {
         <ScrollReveal className="text-center mb-16">
           <p className="text-sm font-semibold text-[#FF4D8D] uppercase tracking-wider mb-3">Pricing</p>
           <h2 className="text-3xl md:text-5xl font-extrabold text-[#1A1B3A] tracking-tight">Simple, transparent pricing</h2>
-          <p className="text-[#6B7280] mt-4 text-lg">No surprises. Cancel anytime.</p>
+          <p className="text-[#6B7280] mt-4 text-lg">No free tier. No fluff. Just the tools you need to win.</p>
         </ScrollReveal>
-        <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
           {tiers.map((t, i) => (
             <ScrollReveal key={t.name} delay={i * 100}>
               <div
@@ -466,7 +475,7 @@ function Pricing() {
 function Faq() {
   const faqs = [
     { q: 'What platforms does Tempo support?', a: "We're laser-focused on TikTok Shop right now. That's where the biggest opportunity is, and we'd rather be the best TikTok Shop tool than a mediocre everything tool." },
-    { q: 'How does data get into Tempo?', a: "Right now, through a simple daily upload. We're building direct TikTok API integration that will make it fully automatic. Early access users will be first to get it." },
+    { q: 'How does data get into Tempo?', a: "Right now, through a simple daily upload. We're building direct TikTok API integration that will make it fully automatic." },
     { q: 'Can multiple agencies use Tempo for the same brand?', a: 'Yes. Each agency sees the full brand data (winning videos, trending products) but earnings and creator management are scoped to their roster. No conflicts.' },
     { q: 'Is my data secure?', a: 'Your data is isolated at the database level using row-level security. Other tenants can never see your data, period. We use Supabase (built on Postgres) with enterprise-grade encryption.' },
     { q: 'What if I manage creators AND am a brand?', a: 'Tempo handles both. Brand owners see everything. Agency managers see their slice. Same product, different views based on your role.' },
@@ -500,20 +509,17 @@ function CtaSection() {
       <div className="max-w-3xl mx-auto text-center">
         <ScrollReveal>
           <h2 className="text-3xl md:text-5xl font-extrabold text-[#1A1B3A] tracking-tight">
-            Ready to simplify your creator management?
+            Ready to see Tempo in action?
           </h2>
-          <p className="text-[#6B7280] mt-4 text-lg">Join the early access list and be the first to know when we launch.</p>
-          <div className="mt-8 flex flex-col sm:flex-row gap-3 max-w-md mx-auto">
-            <input
-              type="email"
-              placeholder="you@agency.com"
-              className="flex-1 rounded-full px-5 py-3.5 text-sm border border-[#E5E7EB] bg-white focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/40 focus:border-[#FF4D8D] transition-all"
-            />
-            <button className="rounded-full px-7 py-3.5 text-sm font-semibold text-white bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] hover:shadow-xl hover:shadow-[#FF4D8D]/30 hover:scale-105 transition-all duration-200 whitespace-nowrap">
-              Request Early Access
-            </button>
+          <p className="text-[#6B7280] mt-4 text-lg">Book a demo and we&apos;ll show you exactly how Tempo fits your operation.</p>
+          <div className="mt-8">
+            <a
+              href="#pricing"
+              className="inline-flex items-center gap-2 rounded-full px-8 py-4 text-sm font-semibold text-white bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] hover:shadow-xl hover:shadow-[#FF4D8D]/30 hover:scale-105 transition-all duration-200"
+            >
+              Book a Demo <ArrowRight className="w-4 h-4" />
+            </a>
           </div>
-          <p className="text-xs text-[#9CA3AF] mt-3">No spam, ever. We&apos;ll only email you when it matters.</p>
         </ScrollReveal>
       </div>
     </section>
