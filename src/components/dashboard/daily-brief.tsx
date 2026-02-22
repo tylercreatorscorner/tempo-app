@@ -100,7 +100,7 @@ export function DailyBrief({
 
   const riskBrands = brandTrends.filter((b) => b.trend < -20 && b.gmv > 0);
   const atRiskLines = riskBrands.map(
-    (b) => `${bn(b.brand)} down ${Math.abs(b.trend).toFixed(0)}% \u2014 investigate creator activity`
+    (b) => `${bn(b.brand)} down ${Math.abs(b.trend).toFixed(0)}%. Investigate creator activity`
   );
 
   return (
@@ -113,7 +113,7 @@ export function DailyBrief({
               <Newspaper className="h-4.5 w-4.5 text-amber-600" />
             </div>
             <div>
-              <h2 className="text-lg font-black tracking-[0.2em] uppercase text-[#1A1B3A]" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
+              <h2 className="text-lg font-black tracking-[0.2em] uppercase text-[#1A1B3A]">
                 The Daily Brief
               </h2>
               <p className="text-[10px] text-gray-400 tracking-wider uppercase mt-0.5">
@@ -139,7 +139,7 @@ export function DailyBrief({
 
       {/* Narrative body */}
       <div className="p-6">
-        <div className="space-y-3" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
+        <div className="space-y-3">
           {narrativeLines.map((line, i) => (
             <p
               key={i}
@@ -149,7 +149,7 @@ export function DailyBrief({
                   : 'text-gray-600'
               }`}
             >
-              {i === 0 && <span className="text-3xl font-bold text-amber-500 float-left mr-2 mt-0.5 leading-none" style={{ fontFamily: 'Georgia, serif' }}>{line[0]}</span>}
+              {i === 0 && <span className="text-3xl font-bold text-amber-500 float-left mr-2 mt-0.5 leading-none">{line[0]}</span>}
               {i === 0 ? line.slice(1) : line}
             </p>
           ))}
@@ -163,7 +163,7 @@ export function DailyBrief({
             </div>
             <ul className="space-y-1">
               {atRiskLines.map((line, i) => (
-                <li key={i} className="text-sm text-red-600" style={{ fontFamily: 'Georgia, serif' }}>
+                <li key={i} className="text-sm text-red-600">
                   • {line}
                 </li>
               ))}
