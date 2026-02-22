@@ -2,11 +2,13 @@ import { Suspense } from 'react';
 import { redirect, notFound } from 'next/navigation';
 import { resolveDateRange } from '@/lib/data/date-utils';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
-import { BRAND_COLORS, BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
+import { BRAND_COLORS, BRAND_DISPLAY_NAMES, ACTIVE_BRANDS } from '@/lib/utils/constants';
 import { StatCard } from '@/components/dashboard/stat-card';
 import { DateRangePicker } from '@/components/dashboard/date-range-picker';
 import { CreatorEditButton } from '@/components/creators/creator-edit-panel';
 import { RetainerTracker } from '@/components/creators/retainer-tracker';
+import { BrandFilter } from '@/components/creators/brand-filter';
+import { LifetimeStats } from '@/components/creators/lifetime-stats';
 import Link from 'next/link';
 import { ArrowLeft, User, Mail, Phone } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -18,11 +20,12 @@ import {
   getCreatorBrandBreakdown,
   getCreatorVideos,
   getPostsThisMonth,
+  getCreatorLifetimeStats,
 } from '@/lib/data/creator-profile';
 
 interface Props {
   params: Promise<{ name: string }>;
-  searchParams: Promise<{ range?: string }>;
+  searchParams: Promise<{ range?: string; brand?: string }>;
 }
 
 function trendPct(current: number, previous: number): number | undefined {
@@ -79,21 +82,27 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
   if (!profile) notFound();
 
   const { startDate, endDate } = resolveDateRange(sp.range);
+  const selectedBrand = sp.brand || null;
 
-  const [summary, accountBreakdown, brandBreakdown, videos, postsThisMonth] = await Promise.all([
-    getCreatorSummary(creatorId, startDate, endDate),
-    getCreatorAccountBreakdown(creatorId, startDate, endDate),
+  // Filter brands to only active ones
+  const activeBrands = profile.brands.filter((b) => (ACTIVE_BRANDS as readonly string[]).includes(b));
+  const activeBrandsWithData = profile.brandsWithData.filter((b) => (ACTIVE_BRANDS as readonly string[]).includes(b));
+
+  const [summary, accountBreakdown, brandBreakdown, videos, postsThisMonth, lifetimeStats] = await Promise.all([
+    getCreatorSummary(creatorId, startDate, endDate, selectedBrand ?? undefined),
+    getCreatorAccountBreakdown(creatorId, startDate, endDate, selectedBrand ?? undefined),
     getCreatorBrandBreakdown(creatorId, startDate, endDate),
-    getCreatorVideos(creatorId, startDate, endDate, 20),
-    getPostsThisMonth(creatorId),
+    getCreatorVideos(creatorId, startDate, endDate, 20, selectedBrand ?? undefined),
+    getPostsThisMonth(creatorId, selectedBrand ?? undefined),
+    getCreatorLifetimeStats(creatorId),
   ]);
 
-  // Bug fix #1: brands from creator_performance, not managed_creators
-  const uniqueBrands = profile.brands;
+  // Filter brand breakdown to active brands only
+  const filteredBrandBreakdown = brandBreakdown.filter((b) => (ACTIVE_BRANDS as readonly string[]).includes(b.brand));
 
   return (
     <div className="space-y-6">
-      {/* Breadcrumb - Bug fix #4: show real_name not numeric ID */}
+      {/* Breadcrumb */}
       <div className="flex items-center gap-1.5 text-xs text-gray-400">
         <Link href="/creators" className="hover:text-gray-600 transition-colors">Creators</Link>
         <span>/</span>
@@ -140,17 +149,27 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
               )}
             </div>
 
-            {/* Brand tags - Bug fix #1: from creator_performance */}
+            {/* Brand tags - active brands only, dimmer for no-data brands */}
             <div className="flex flex-wrap gap-1.5 mt-2">
-              {uniqueBrands.map((b) => (
-                <span
-                  key={b}
-                  className="text-xs px-2 py-0.5 rounded-full font-medium"
-                  style={{ backgroundColor: `${BRAND_COLORS[b] ?? '#6B7280'}15`, color: BRAND_COLORS[b] ?? '#6B7280' }}
-                >
-                  {BRAND_DISPLAY_NAMES[b] ?? b}
-                </span>
-              ))}
+              {activeBrands.map((b) => {
+                const hasData = activeBrandsWithData.includes(b);
+                return (
+                  <span
+                    key={b}
+                    className={cn(
+                      'text-xs px-2 py-0.5 rounded-full font-medium',
+                      !hasData && 'border border-dashed opacity-50'
+                    )}
+                    style={
+                      hasData
+                        ? { backgroundColor: `${BRAND_COLORS[b] ?? '#6B7280'}15`, color: BRAND_COLORS[b] ?? '#6B7280' }
+                        : { borderColor: BRAND_COLORS[b] ?? '#6B7280', color: BRAND_COLORS[b] ?? '#6B7280' }
+                    }
+                  >
+                    {BRAND_DISPLAY_NAMES[b] ?? b}
+                  </span>
+                );
+              })}
             </div>
 
             {/* Accounts list */}
@@ -163,6 +182,17 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
           <DateRangePicker />
         </Suspense>
       </div>
+
+      {/* Brand Filter Bar */}
+      {activeBrands.length > 0 && (
+        <Suspense fallback={null}>
+          <BrandFilter
+            brands={activeBrands}
+            brandsWithData={activeBrandsWithData}
+            selectedBrand={selectedBrand}
+          />
+        </Suspense>
+      )}
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
@@ -198,16 +228,22 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
         />
       </div>
 
-      {/* Retainer & Post Tracking - Feature #7 */}
-      <RetainerTracker data={{
-        creatorId: profile.id,
-        retainer: profile.retainer,
-        monthlyPostRequirement: profile.monthly_post_requirement,
-        retainerStartDate: profile.retainer_start_date,
-        postsThisMonth,
-      }} />
+      {/* Retainer & Post Tracking - only show when a specific brand is selected */}
+      {/* TODO: Per-brand retainer storage needs a schema update. Currently uses single retainer field from managed_creators. */}
+      {selectedBrand && (
+        <RetainerTracker data={{
+          creatorId: profile.id,
+          retainer: profile.retainer,
+          monthlyPostRequirement: profile.monthly_post_requirement,
+          retainerStartDate: profile.retainer_start_date,
+          postsThisMonth,
+        }} />
+      )}
 
-      {/* Account Breakdown - Bug fix #2: brands from performance data */}
+      {/* Lifetime Stats */}
+      <LifetimeStats stats={lifetimeStats} />
+
+      {/* Account Breakdown */}
       {accountBreakdown.length > 0 && (
         <div className="rounded-2xl overflow-hidden bg-white border border-gray-100 shadow-sm">
           <div className="px-4 sm:px-6 py-4 border-b border-gray-100">
@@ -232,7 +268,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                     <td className="px-4 sm:px-6 py-3.5 font-medium text-[#1A1B3A]">@{a.tiktok_username}</td>
                     <td className="px-4 py-3.5">
                       <div className="flex flex-wrap gap-1">
-                        {a.brands.length > 0 ? a.brands.map((b) => (
+                        {a.brands.filter((b) => (ACTIVE_BRANDS as readonly string[]).includes(b)).length > 0 ? a.brands.filter((b) => (ACTIVE_BRANDS as readonly string[]).includes(b)).map((b) => (
                           <span
                             key={b}
                             className="text-xs px-2 py-0.5 rounded-full font-medium"
@@ -257,8 +293,8 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
         </div>
       )}
 
-      {/* Brand Breakdown */}
-      {brandBreakdown.length > 1 && (
+      {/* Brand Breakdown - only show on "All Brands" view */}
+      {!selectedBrand && filteredBrandBreakdown.length > 1 && (
         <div className="rounded-2xl overflow-hidden bg-white border border-gray-100 shadow-sm">
           <div className="px-4 sm:px-6 py-4 border-b border-gray-100">
             <h3 className="text-lg font-bold tracking-tight text-[#1A1B3A]">Brand Breakdown</h3>
@@ -277,7 +313,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                 </tr>
               </thead>
               <tbody>
-                {brandBreakdown.map((b) => (
+                {filteredBrandBreakdown.map((b) => (
                   <tr key={b.brand} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
                     <td className="px-4 sm:px-6 py-3.5">
                       <div className="flex items-center gap-2">
@@ -298,11 +334,15 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
         </div>
       )}
 
-      {/* Top Videos - Bug fix #3: grouped by video_id with Days Selling */}
+      {/* Top Videos */}
       <div className="rounded-2xl overflow-hidden bg-white border border-gray-100 shadow-sm">
         <div className="px-4 sm:px-6 py-4 border-b border-gray-100">
           <h3 className="text-lg font-bold tracking-tight text-[#1A1B3A]">Top Videos by GMV</h3>
-          <p className="text-xs text-gray-400 mt-0.5">Across all accounts, top 20 (aggregated across dates)</p>
+          <p className="text-xs text-gray-400 mt-0.5">
+            {selectedBrand
+              ? `Filtered to ${BRAND_DISPLAY_NAMES[selectedBrand] ?? selectedBrand}, top 20`
+              : 'Across all accounts, top 20 (aggregated across dates)'}
+          </p>
         </div>
         <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
           <table className="w-full text-sm">

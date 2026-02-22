@@ -31,6 +31,10 @@ export const DATE_RANGE_PRESETS = [
   { value: 'thisQuarter', label: 'This quarter' },
 ] as const;
 
+/** Active brands - only these appear in brand tags and filters */
+export const ACTIVE_BRANDS = ['jiyu', 'catakor', 'physicians_choice', 'toplux'] as const;
+export type ActiveBrand = (typeof ACTIVE_BRANDS)[number];
+
 /** App name */
 export const APP_NAME = 'Tempo';
 export const APP_DESCRIPTION = 'TikTok Shop Analytics';

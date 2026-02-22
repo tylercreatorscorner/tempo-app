@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/server';
+import { ACTIVE_BRANDS } from '@/lib/utils/constants';
 
 // --- Types ---
 
@@ -15,7 +16,8 @@ export interface CreatorProfile {
   monthly_post_requirement: number | null;
   retainer_start_date: string | null;
   accounts: CreatorAccount[];
-  brands: string[]; // actual brands from creator_performance
+  brands: string[]; // all brands (performance + account registrations)
+  brandsWithData: string[]; // only brands with actual performance data
 }
 
 export interface CreatorAccount {
@@ -67,6 +69,15 @@ export interface CreatorVideo {
   orders: number;
   items_sold: number;
   days_selling: number;
+}
+
+export interface CreatorLifetimeStats {
+  total_gmv: number;
+  total_orders: number;
+  total_videos: number;
+  total_commission: number;
+  first_active_date: string | null;
+  months_active: number;
 }
 
 // --- Query Functions ---
@@ -150,11 +161,21 @@ export async function getCreatorProfile(creatorId: number): Promise<CreatorProfi
     account.brands = brandsByHandle.get(account.tiktok_username) ?? [];
   }
 
-  // All brands across all accounts
+  // All brands across all accounts (from performance data)
   const allBrands = new Set<string>();
   for (const brands of brandsByHandle.values()) {
     for (const b of brands) allBrands.add(b);
   }
+
+  // Also include brands from creator_accounts (registered but maybe no perf data yet)
+  const accountBrands = new Set<string>();
+  for (const a of accountList) {
+    if (a.brand) accountBrands.add(a.brand);
+  }
+
+  // perfBrands = brands with actual performance data, accountOnlyBrands = registered only
+  const perfBrands = new Set(allBrands);
+  const combinedBrands = new Set([...allBrands, ...accountBrands]);
 
   return {
     id: creator.id,
@@ -169,7 +190,8 @@ export async function getCreatorProfile(creatorId: number): Promise<CreatorProfi
     monthly_post_requirement: creator.monthly_post_requirement ?? null,
     retainer_start_date: creator.retainer_start_date ?? null,
     accounts: accountList,
-    brands: Array.from(allBrands),
+    brands: Array.from(combinedBrands),
+    brandsWithData: Array.from(perfBrands),
   };
 }
 
@@ -214,18 +236,21 @@ function getPriorPeriod(startDate: string, endDate: string): { prevStart: string
 async function aggregatePerformance(
   handles: string[],
   startDate: string,
-  endDate: string
+  endDate: string,
+  brand?: string
 ): Promise<{ gmv: number; orders: number; items_sold: number; videos: number; commission: number }> {
   if (handles.length === 0) return { gmv: 0, orders: 0, items_sold: 0, videos: 0, commission: 0 };
 
   const supabase = await createAdminClient();
-  const { data } = await supabase
+  let query = supabase
     .from('creator_performance')
     .select('gmv, orders, items_sold, videos, est_commission')
     .in('creator_name', handles)
     .gte('report_date', startDate)
     .lte('report_date', endDate)
     .eq('period_type', 'daily');
+  if (brand) query = query.eq('brand', brand);
+  const { data } = await query;
 
   const rows = data ?? [];
   return {
@@ -243,14 +268,15 @@ async function aggregatePerformance(
 export async function getCreatorSummary(
   creatorId: number,
   startDate: string,
-  endDate: string
+  endDate: string,
+  brand?: string
 ): Promise<CreatorSummaryData> {
   const handles = await getHandles(creatorId);
   const { prevStart, prevEnd } = getPriorPeriod(startDate, endDate);
 
   const [current, previous] = await Promise.all([
-    aggregatePerformance(handles, startDate, endDate),
-    aggregatePerformance(handles, prevStart, prevEnd),
+    aggregatePerformance(handles, startDate, endDate, brand),
+    aggregatePerformance(handles, prevStart, prevEnd, brand),
   ]);
 
   return {
@@ -273,25 +299,32 @@ export async function getCreatorSummary(
 export async function getCreatorAccountBreakdown(
   creatorId: number,
   startDate: string,
-  endDate: string
+  endDate: string,
+  brand?: string
 ): Promise<AccountBreakdownRow[]> {
   const supabase = await createAdminClient();
-  const { data: accounts } = await supabase
+
+  let accountQuery = supabase
     .from('creator_accounts')
-    .select('tiktok_username')
+    .select('tiktok_username, brand')
     .eq('creator_id', creatorId);
+  // When filtering by brand, only show accounts registered for that brand
+  if (brand) accountQuery = accountQuery.eq('brand', brand);
+  const { data: accounts } = await accountQuery;
 
   if (!accounts || accounts.length === 0) return [];
 
   const handles = accounts.map((a: Record<string, unknown>) => a.tiktok_username as string).filter(Boolean);
 
-  const { data: perf } = await supabase
+  let perfQuery = supabase
     .from('creator_performance')
     .select('creator_name, brand, gmv, orders, items_sold, videos')
     .in('creator_name', handles)
     .gte('report_date', startDate)
     .lte('report_date', endDate)
     .eq('period_type', 'daily');
+  if (brand) perfQuery = perfQuery.eq('brand', brand);
+  const { data: perf } = await perfQuery;
 
   // Group by handle, collect brands from perf data
   const map = new Map<string, AccountBreakdownRow>();
@@ -379,19 +412,21 @@ export async function getCreatorVideos(
   creatorId: number,
   startDate: string,
   endDate: string,
-  limit = 20
+  limit = 20,
+  brand?: string
 ): Promise<CreatorVideo[]> {
   const handles = await getHandles(creatorId);
   if (handles.length === 0) return [];
 
   const supabase = await createAdminClient();
-  // Fetch all rows, then group client-side since Supabase JS doesn't support GROUP BY
-  const { data } = await supabase
+  let query = supabase
     .from('video_performance')
     .select('video_id, video_title, creator_name, brand, product_name, gmv, orders, items_sold, report_date')
     .in('creator_name', handles)
     .gte('report_date', startDate)
     .lte('report_date', endDate);
+  if (brand) query = query.eq('brand', brand);
+  const { data } = await query;
 
   if (!data || data.length === 0) return [];
 
@@ -452,8 +487,26 @@ export async function getCreatorVideos(
  * Get posts this month for retainer tracking.
  * Sums the 'videos' column from creator_performance for current month.
  */
-export async function getPostsThisMonth(creatorId: number): Promise<number> {
-  const handles = await getHandles(creatorId);
+/**
+ * Get posts this month. When brand is provided, only count posts for accounts
+ * registered under that brand.
+ */
+export async function getPostsThisMonth(creatorId: number, brand?: string): Promise<number> {
+  let handles: string[];
+
+  if (brand) {
+    // Only count posts from accounts registered for this brand
+    const supabase = await createAdminClient();
+    const { data: accounts } = await supabase
+      .from('creator_accounts')
+      .select('tiktok_username')
+      .eq('creator_id', creatorId)
+      .eq('brand', brand);
+    handles = (accounts ?? []).map((a: Record<string, unknown>) => a.tiktok_username as string).filter(Boolean);
+  } else {
+    handles = await getHandles(creatorId);
+  }
+
   if (handles.length === 0) return 0;
 
   const now = new Date();
@@ -461,13 +514,55 @@ export async function getPostsThisMonth(creatorId: number): Promise<number> {
   const endOfMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()).padStart(2, '0')}`;
 
   const supabase = await createAdminClient();
-  const { data } = await supabase
+  let query = supabase
     .from('creator_performance')
     .select('videos')
     .in('creator_name', handles)
     .gte('report_date', startOfMonth)
     .lte('report_date', endOfMonth)
     .eq('period_type', 'daily');
+  if (brand) query = query.eq('brand', brand);
+  const { data } = await query;
 
   return (data ?? []).reduce((s: number, r: Record<string, unknown>) => s + (Number(r.videos) || 0), 0);
+}
+
+/**
+ * Get lifetime stats for a creator (all-time, no date filter).
+ */
+export async function getCreatorLifetimeStats(creatorId: number): Promise<CreatorLifetimeStats> {
+  const handles = await getHandles(creatorId);
+  if (handles.length === 0) {
+    return { total_gmv: 0, total_orders: 0, total_videos: 0, total_commission: 0, first_active_date: null, months_active: 0 };
+  }
+
+  const supabase = await createAdminClient();
+  const { data } = await supabase
+    .from('creator_performance')
+    .select('gmv, orders, videos, est_commission, report_date')
+    .in('creator_name', handles)
+    .eq('period_type', 'daily');
+
+  const rows = data ?? [];
+  let minDate: string | null = null;
+  let gmv = 0, orders = 0, videos = 0, commission = 0;
+
+  for (const r of rows) {
+    gmv += Number(r.gmv) || 0;
+    orders += Number(r.orders) || 0;
+    videos += Number(r.videos) || 0;
+    commission += Number(r.est_commission) || 0;
+    const d = r.report_date as string;
+    if (d && (!minDate || d < minDate)) minDate = d;
+  }
+
+  let monthsActive = 0;
+  if (minDate) {
+    const first = new Date(minDate);
+    const now = new Date();
+    monthsActive = (now.getFullYear() - first.getFullYear()) * 12 + (now.getMonth() - first.getMonth()) + 1;
+    if (monthsActive < 1) monthsActive = 1;
+  }
+
+  return { total_gmv: gmv, total_orders: orders, total_videos: videos, total_commission: commission, first_active_date: minDate, months_active: monthsActive };
 }
