@@ -6,6 +6,12 @@ import {
   Brain,
   Building2,
   FileText,
+  FileSpreadsheet,
+  EyeOff,
+  Flame,
+  Target,
+  Database,
+  Rocket,
   Link,
   TrendingUp,
   Sprout,
@@ -64,7 +70,7 @@ function Hero() {
             <span className="bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] bg-clip-text text-transparent">Simplified</span>
           </h1>
           <p className="text-lg md:text-xl text-[#6B7280] max-w-lg leading-relaxed">
-            Stop drowning in spreadsheets. Track your TikTok Shop creators, monitor GMV in real time, and scale what&apos;s working — all from one dashboard.
+            You manage hundreds of creators across multiple brands. Your data lives in 12 spreadsheets, 3 TikTok dashboards, and someone&apos;s inbox. Tempo puts it all in one place.
           </p>
           <div className="flex flex-wrap gap-4 pt-2">
             <a
@@ -150,8 +156,8 @@ function StatsBar() {
   const stats = [
     { value: '500+', label: 'Creators Managed' },
     { value: '$2M+', label: 'GMV Tracked' },
-    { value: '4', label: 'Brands Live' },
-    { value: '10K+', label: 'Videos Analyzed' },
+    { value: '6', label: 'Brands Onboarded' },
+    { value: '400K+', label: 'Videos Analyzed' },
   ];
   return (
     <section className="border-y border-[#E5E7EB] bg-[#F8F9FC]/50">
@@ -167,13 +173,44 @@ function StatsBar() {
   );
 }
 
+/* ─── The Problem ─── */
+function TheProblem() {
+  const problems = [
+    { icon: FileSpreadsheet, title: 'Death by Spreadsheet', desc: "You're exporting CSVs every morning, copy-pasting into Google Sheets, and praying the formulas don't break. There's gotta be a better way." },
+    { icon: EyeOff, title: 'Flying Blind', desc: "A creator's video went viral yesterday and you didn't find out until the brand asked about it. You should've known first." },
+    { icon: Flame, title: 'Scaling = More Chaos', desc: "Every new brand means another dashboard, another data source, another tab to keep track of. Growth shouldn't feel like drowning." },
+  ];
+  return (
+    <section className="py-24 px-6">
+      <div className="max-w-5xl mx-auto">
+        <ScrollReveal className="text-center mb-16">
+          <h2 className="text-3xl md:text-5xl font-extrabold text-[#1A1B3A] tracking-tight">Sound familiar?</h2>
+        </ScrollReveal>
+        <div className="grid md:grid-cols-3 gap-6">
+          {problems.map((p, i) => (
+            <ScrollReveal key={p.title} delay={i * 100}>
+              <div className="group relative rounded-2xl border border-[#E5E7EB]/80 bg-white/60 backdrop-blur-xl p-6 hover:border-[#FF4D8D]/30 hover:shadow-xl hover:shadow-[#FF4D8D]/10 hover:-translate-y-1 transition-all duration-300">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#FF4D8D]/10 to-[#7C5CFC]/10 flex items-center justify-center mb-4 group-hover:from-[#FF4D8D]/20 group-hover:to-[#7C5CFC]/20 transition-colors">
+                  <p.icon className="w-6 h-6 text-[#FF4D8D]" />
+                </div>
+                <h3 className="text-lg font-bold text-[#1A1B3A] mb-2">{p.title}</h3>
+                <p className="text-sm text-[#6B7280] leading-relaxed">{p.desc}</p>
+              </div>
+            </ScrollReveal>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 /* ─── Features ─── */
 function Features() {
   const features = [
-    { icon: BarChart3, title: 'Real-Time Analytics', desc: 'Track GMV, orders, and creator performance as it happens. No more waiting for yesterday\'s numbers.' },
-    { icon: Brain, title: 'Creator Intelligence', desc: 'Know which creators are winning and why. Surface top performers and spot trends before your competitors.' },
-    { icon: Building2, title: 'Multi-Brand Management', desc: 'Manage multiple brands from one dashboard. Switch context in seconds, not hours.' },
-    { icon: FileText, title: 'Automated Reporting', desc: 'Daily briefs and insights delivered to you. Wake up knowing exactly where you stand.' },
+    { icon: BarChart3, title: 'Real-Time Analytics', desc: 'GMV, orders, commission, creator performance. Updated daily, not whenever someone remembers to export the CSV.' },
+    { icon: Brain, title: 'Creator Intelligence', desc: "Know who's crushing it and who needs a nudge. Spot your next star creator before anyone else does." },
+    { icon: Building2, title: 'Multi-Brand Management', desc: 'Switch between brands in one click. Same dashboard, same workflow, whether you manage 2 brands or 20.' },
+    { icon: FileText, title: 'Automated Reporting', desc: "Wake up to a daily brief in your inbox. No more Monday morning scrambles to pull last week's numbers." },
   ];
   return (
     <section id="features" className="py-24 px-6 scroll-mt-20">
@@ -181,7 +218,7 @@ function Features() {
         <ScrollReveal className="text-center mb-16">
           <p className="text-sm font-semibold text-[#FF4D8D] uppercase tracking-wider mb-3">Features</p>
           <h2 className="text-3xl md:text-5xl font-extrabold text-[#1A1B3A] tracking-tight">Everything you need to win on TikTok Shop</h2>
-          <p className="text-[#6B7280] mt-4 max-w-2xl mx-auto text-lg">Built by agency operators who were tired of duct-taping spreadsheets together.</p>
+          <p className="text-[#6B7280] mt-4 max-w-2xl mx-auto text-lg">We built Tempo because we were tired of managing creators in spreadsheets. So we fixed it.</p>
         </ScrollReveal>
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
           {features.map((f, i) => (
@@ -305,6 +342,39 @@ function DashboardPreview() {
   );
 }
 
+/* ─── Built Different ─── */
+function BuiltDifferent() {
+  const items = [
+    { icon: Target, title: 'Agency-First Design', desc: "We don't build features for demo day. We build what actually saves you time at 9 AM on Monday." },
+    { icon: Database, title: 'Your Data, Your Way', desc: 'Brands see their full picture. Agencies see their managed creators. Everyone gets exactly what they need.' },
+    { icon: Rocket, title: 'Scales With You', desc: 'One brand or twenty. Solo manager or full agency. Same simple product, built to grow with your operation.' },
+  ];
+  return (
+    <section className="py-24 px-6 bg-[#F8F9FC]">
+      <div className="max-w-5xl mx-auto">
+        <ScrollReveal className="text-center mb-16">
+          <p className="text-sm font-semibold text-[#7C5CFC] uppercase tracking-wider mb-3">Why Tempo</p>
+          <h2 className="text-3xl md:text-5xl font-extrabold text-[#1A1B3A] tracking-tight">Built by operators, not just engineers</h2>
+          <p className="text-[#6B7280] mt-4 max-w-2xl mx-auto text-lg">Tempo was built inside a real TikTok Shop agency managing 500+ creators across multiple brands. Every feature exists because we needed it ourselves.</p>
+        </ScrollReveal>
+        <div className="grid md:grid-cols-3 gap-6">
+          {items.map((item, i) => (
+            <ScrollReveal key={item.title} delay={i * 100}>
+              <div className="group relative rounded-2xl border border-[#E5E7EB]/80 bg-white/60 backdrop-blur-xl p-6 hover:border-[#FF4D8D]/30 hover:shadow-xl hover:shadow-[#FF4D8D]/10 hover:-translate-y-1 transition-all duration-300">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#FF4D8D]/10 to-[#7C5CFC]/10 flex items-center justify-center mb-4 group-hover:from-[#FF4D8D]/20 group-hover:to-[#7C5CFC]/20 transition-colors">
+                  <item.icon className="w-6 h-6 text-[#7C5CFC]" />
+                </div>
+                <h3 className="text-lg font-bold text-[#1A1B3A] mb-2">{item.title}</h3>
+                <p className="text-sm text-[#6B7280] leading-relaxed">{item.desc}</p>
+              </div>
+            </ScrollReveal>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 /* ─── Pricing ─── */
 function Pricing() {
   const tiers = [
@@ -392,6 +462,37 @@ function Pricing() {
   );
 }
 
+/* ─── FAQ ─── */
+function Faq() {
+  const faqs = [
+    { q: 'What platforms does Tempo support?', a: "We're laser-focused on TikTok Shop right now. That's where the biggest opportunity is, and we'd rather be the best TikTok Shop tool than a mediocre everything tool." },
+    { q: 'How does data get into Tempo?', a: "Right now, through a simple daily upload. We're building direct TikTok API integration that will make it fully automatic. Early access users will be first to get it." },
+    { q: 'Can multiple agencies use Tempo for the same brand?', a: 'Yes. Each agency sees the full brand data (winning videos, trending products) but earnings and creator management are scoped to their roster. No conflicts.' },
+    { q: 'Is my data secure?', a: 'Your data is isolated at the database level using row-level security. Other tenants can never see your data, period. We use Supabase (built on Postgres) with enterprise-grade encryption.' },
+    { q: 'What if I manage creators AND am a brand?', a: 'Tempo handles both. Brand owners see everything. Agency managers see their slice. Same product, different views based on your role.' },
+  ];
+  return (
+    <section className="py-24 px-6">
+      <div className="max-w-3xl mx-auto">
+        <ScrollReveal className="text-center mb-16">
+          <p className="text-sm font-semibold text-[#FF4D8D] uppercase tracking-wider mb-3">FAQ</p>
+          <h2 className="text-3xl md:text-5xl font-extrabold text-[#1A1B3A] tracking-tight">Questions? We&apos;ve got answers.</h2>
+        </ScrollReveal>
+        <div className="space-y-6">
+          {faqs.map((faq, i) => (
+            <ScrollReveal key={i} delay={i * 80}>
+              <div className="rounded-2xl border border-[#E5E7EB]/80 bg-white/60 backdrop-blur-xl p-6">
+                <h3 className="text-base font-bold text-[#1A1B3A] mb-2">{faq.q}</h3>
+                <p className="text-sm text-[#6B7280] leading-relaxed">{faq.a}</p>
+              </div>
+            </ScrollReveal>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 /* ─── CTA ─── */
 function CtaSection() {
   return (
@@ -451,10 +552,13 @@ export default function Home() {
       <main>
         <Hero />
         <StatsBar />
+        <TheProblem />
         <Features />
         <HowItWorks />
         <DashboardPreview />
+        <BuiltDifferent />
         <Pricing />
+        <Faq />
         <CtaSection />
       </main>
       <Footer />
