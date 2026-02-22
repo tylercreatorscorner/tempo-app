@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils';
 import { TempoLogo } from '@/components/ui/tempo-logo';
 
 const NAV_ITEMS = [
-  { href: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/brands', label: 'Brands', icon: Store },
   { href: '/analytics', label: 'Analytics', icon: BarChart3 },
   { href: '/creators', label: 'Creators', icon: Users },
