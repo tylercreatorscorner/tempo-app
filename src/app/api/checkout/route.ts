@@ -19,7 +19,6 @@ export async function POST(request: NextRequest) {
       cancel_url: cancelUrl || `${origin}/onboarding?canceled=true`,
       allow_promotion_codes: true,
       billing_address_collection: 'required',
-      customer_creation: 'always',
     });
 
     return NextResponse.json({ url: session.url });
