@@ -95,12 +95,12 @@ export function PricingSection() {
   const brandPrice = isAnnual ? annualMonthly(currentTier.price) : currentTier.price;
 
   return (
-    <section id="pricing" className="py-32 md:py-40 px-6 bg-[#F8F9FC] scroll-mt-20">
+    <section id="pricing" className="py-16 md:py-40 px-4 sm:px-6 bg-[#F8F9FC] scroll-mt-20">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <ScrollReveal className="text-center mb-6">
           <p className="text-sm font-semibold text-[#FF4D8D] uppercase tracking-wider mb-3">Pricing</p>
-          <h2 className="text-3xl md:text-5xl font-extrabold text-[#1A1B3A] tracking-tight">Simple, transparent pricing</h2>
+          <h2 className="text-2xl md:text-5xl font-extrabold text-[#1A1B3A] tracking-tight">Simple, transparent pricing</h2>
           <p className="text-[#6B7280] mt-4 text-lg">No free tier. No fluff. Just the tools you need to win.</p>
         </ScrollReveal>
 
@@ -178,7 +178,7 @@ export function PricingSection() {
                     {GMV_TIERS.map((t, i) => (
                       <span
                         key={i}
-                        className={`text-xs cursor-pointer transition-colors ${
+                        className={`text-[10px] sm:text-xs cursor-pointer transition-colors ${
                           i === sliderValue ? 'text-[#FF4D8D] font-semibold' : 'text-[#9CA3AF]'
                         }`}
                         onClick={() => setSliderValue(i)}
@@ -194,7 +194,7 @@ export function PricingSection() {
 
                 {/* Price */}
                 <div className="text-center mb-2">
-                  <span className="text-5xl md:text-6xl font-extrabold bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] bg-clip-text text-transparent">
+                  <span className="text-4xl md:text-6xl font-extrabold bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] bg-clip-text text-transparent">
                     ${formatPrice(brandPrice)}
                   </span>
                 </div>

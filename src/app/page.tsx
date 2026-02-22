@@ -2,6 +2,7 @@ import { TempoLogo } from '@/components/ui/tempo-logo';
 import { MobileNav } from '@/components/landing/mobile-nav';
 import { ScrollReveal } from '@/components/landing/scroll-reveal';
 import { CountUp } from '@/components/landing/count-up';
+import { ScrollFix } from '@/components/landing/scroll-fix';
 import {
   HeroDashboardMockup,
   AnalyticsMockup,
@@ -57,7 +58,7 @@ function Navbar() {
 /* ─── Hero ─── */
 function Hero() {
   return (
-    <section className="min-h-screen pt-32 pb-20 md:pt-40 md:pb-32 px-6 overflow-hidden flex items-center">
+    <section className="min-h-screen pt-24 pb-16 md:pt-40 md:pb-32 px-4 sm:px-6 overflow-hidden flex items-center">
       <div className="max-w-7xl mx-auto w-full">
         <div className="text-center mb-12 md:mb-16">
           <ScrollReveal>
@@ -67,7 +68,7 @@ function Hero() {
             </div>
           </ScrollReveal>
           <ScrollReveal delay={100}>
-            <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight text-[#1A1B3A] leading-[1.05] mb-6">
+            <h1 className="text-3xl sm:text-5xl md:text-7xl font-extrabold tracking-tight text-[#1A1B3A] leading-[1.05] mb-6">
               Creator Management,{' '}
               <span className="bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] bg-clip-text text-transparent">Simplified</span>
             </h1>
@@ -78,7 +79,7 @@ function Hero() {
             </p>
           </ScrollReveal>
           <ScrollReveal delay={300}>
-            <div className="flex flex-wrap justify-center gap-4 pt-6">
+            <div className="flex flex-col sm:flex-row flex-wrap justify-center gap-4 pt-6">
               <a
                 href="#book-demo"
                 className="inline-flex items-center gap-2 rounded-full px-7 py-3.5 text-sm font-semibold text-white bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] hover:shadow-xl hover:shadow-[#FF4D8D]/30 hover:scale-105 transition-all duration-200"
@@ -97,7 +98,7 @@ function Hero() {
 
         {/* Massive dashboard mockup */}
         <ScrollReveal delay={400}>
-          <div className="max-w-5xl mx-auto">
+          <div className="max-w-5xl mx-auto max-w-full overflow-hidden">
             <HeroDashboardMockup />
           </div>
         </ScrollReveal>
@@ -115,10 +116,10 @@ function StatsBar() {
   ];
   return (
     <section className="border-y border-[#E5E7EB] bg-[#F8F9FC]/50">
-      <div className="max-w-5xl mx-auto px-6 py-16 grid grid-cols-1 md:grid-cols-3 gap-8">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-12 md:py-16 grid grid-cols-3 md:grid-cols-3 gap-4 md:gap-8">
         {stats.map((s) => (
           <div key={s.label} className="text-center">
-            <p className="text-3xl md:text-4xl font-extrabold bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] bg-clip-text text-transparent">
+            <p className="text-2xl md:text-4xl font-extrabold bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] bg-clip-text text-transparent">
               <CountUp end={s.value} prefix={s.prefix || ''} suffix={s.suffix || ''} duration={2500} />
             </p>
             <p className="text-sm text-[#6B7280] mt-1 font-medium">{s.label}</p>
@@ -137,12 +138,12 @@ function TheProblem() {
     { icon: Flame, title: 'Scaling = More Chaos', desc: 'Every new brand means another spreadsheet to manage.' },
   ];
   return (
-    <section className="py-32 md:py-40 px-6">
+    <section className="py-16 md:py-40 px-4 sm:px-6">
       <div className="max-w-5xl mx-auto">
-        <ScrollReveal className="text-center mb-20">
-          <h2 className="text-3xl md:text-5xl font-extrabold text-[#1A1B3A] tracking-tight">Sound familiar?</h2>
+        <ScrollReveal className="text-center mb-12 md:mb-20">
+          <h2 className="text-2xl md:text-5xl font-extrabold text-[#1A1B3A] tracking-tight">Sound familiar?</h2>
         </ScrollReveal>
-        <div className="grid md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {problems.map((p, i) => (
             <ScrollReveal key={p.title} delay={i * 100}>
               <div className="group relative rounded-2xl border border-[#E5E7EB]/80 bg-white/60 backdrop-blur-xl p-8 hover:border-[#FF4D8D]/30 hover:shadow-xl hover:shadow-[#FF4D8D]/10 hover:-translate-y-2 transition-all duration-300">
@@ -176,11 +177,11 @@ function FeatureSection({
 }) {
   return (
     <section id={id} className={id ? 'scroll-mt-20' : ''}>
-      <div className="max-w-7xl mx-auto px-6 py-32 md:py-40">
-        <div className={`grid md:grid-cols-2 gap-16 md:gap-20 items-center ${reversed ? 'md:[direction:rtl]' : ''}`}>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-16 md:py-40">
+        <div className={`grid md:grid-cols-2 gap-10 md:gap-20 items-center ${reversed ? 'md:[direction:rtl]' : ''}`}>
           <ScrollReveal className={reversed ? 'md:[direction:ltr]' : ''}>
-            <div className="space-y-6">
-              <h2 className="text-3xl md:text-5xl font-extrabold text-[#1A1B3A] tracking-tight leading-tight">
+            <div className="space-y-4 md:space-y-6">
+              <h2 className="text-2xl md:text-5xl font-extrabold text-[#1A1B3A] tracking-tight leading-tight">
                 {headline}
               </h2>
               <p className="text-lg text-[#6B7280] leading-relaxed max-w-md">
@@ -189,7 +190,7 @@ function FeatureSection({
             </div>
           </ScrollReveal>
           <ScrollReveal delay={200} className={reversed ? 'md:[direction:ltr]' : ''}>
-            <div className="relative">
+            <div className="relative max-w-full overflow-hidden">
               {mockup}
             </div>
           </ScrollReveal>
@@ -245,11 +246,11 @@ function Faq() {
     { q: 'What if I manage creators AND am a brand?', a: 'Tempo handles both. Brand owners see everything. Agency managers see their slice. Same product, different views based on your role.' },
   ];
   return (
-    <section className="py-32 md:py-40 px-6">
+    <section className="py-16 md:py-40 px-4 sm:px-6">
       <div className="max-w-3xl mx-auto">
-        <ScrollReveal className="text-center mb-20">
+        <ScrollReveal className="text-center mb-12 md:mb-20">
           <p className="text-sm font-semibold text-[#FF4D8D] uppercase tracking-wider mb-3">FAQ</p>
-          <h2 className="text-3xl md:text-5xl font-extrabold text-[#1A1B3A] tracking-tight">Questions? We&apos;ve got answers.</h2>
+          <h2 className="text-2xl md:text-5xl font-extrabold text-[#1A1B3A] tracking-tight">Questions? We&apos;ve got answers.</h2>
         </ScrollReveal>
         <div className="space-y-8">
           {faqs.map((faq, i) => (
@@ -269,17 +270,17 @@ function Faq() {
 /* ─── CTA ─── */
 function CtaSection() {
   return (
-    <section id="book-demo" className="py-32 md:py-40 px-6 scroll-mt-20">
+    <section id="book-demo" className="py-16 md:py-40 px-4 sm:px-6 scroll-mt-20">
       <div className="max-w-5xl mx-auto">
         <ScrollReveal>
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-5xl font-extrabold text-[#1A1B3A] tracking-tight">
+          <div className="text-center mb-10 md:mb-16">
+            <h2 className="text-2xl md:text-5xl font-extrabold text-[#1A1B3A] tracking-tight">
               Ready to get started?
             </h2>
             <p className="text-[#6B7280] mt-4 text-lg">Two options. Pick your path.</p>
           </div>
         </ScrollReveal>
-        <div className="grid md:grid-cols-2 gap-8 items-stretch">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-stretch">
           {/* Start Now - Primary */}
           <ScrollReveal delay={100}>
             <div className="relative rounded-2xl p-[2px] bg-gradient-to-b from-[#FF4D8D] to-[#7C5CFC] h-full">
@@ -336,7 +337,7 @@ function CtaSection() {
 function Footer() {
   return (
     <footer className="border-t border-[#E5E7EB] bg-white">
-      <div className="max-w-7xl mx-auto px-6 py-12 flex flex-col md:flex-row items-center justify-between gap-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12 flex flex-col md:flex-row items-center justify-between gap-6">
         <div className="flex items-center gap-6">
           <TempoLogo size="sm" animated={false} />
           <span className="text-sm text-[#9CA3AF]">© 2026 Tempo. All rights reserved.</span>
@@ -359,7 +360,8 @@ function Footer() {
 /* ─── Page ─── */
 export default function Home() {
   return (
-    <div className="min-h-screen bg-[#F8F9FC] scroll-smooth">
+    <div className="min-h-screen bg-[#F8F9FC] scroll-smooth overflow-x-hidden">
+      <ScrollFix />
       <Navbar />
       <main>
         <Hero />

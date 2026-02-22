@@ -59,8 +59,7 @@ export function HeroDashboardMockup() {
       {/* Floating glow */}
       <div className="absolute -inset-8 bg-gradient-to-r from-[#FF4D8D]/15 to-[#7C5CFC]/15 rounded-3xl blur-3xl animate-pulse-slow" />
 
-      <div className="relative rounded-2xl bg-white border border-[#E5E7EB] shadow-2xl shadow-[#7C5CFC]/10 overflow-hidden"
-        style={{ transform: 'perspective(1200px) rotateY(-5deg)' }}>
+      <div className="relative rounded-2xl bg-white border border-[#E5E7EB] shadow-2xl shadow-[#7C5CFC]/10 overflow-hidden md:perspective-mockup">
         {/* Top bar */}
         <div className="flex items-center justify-between px-5 py-3 bg-[#1A1B3A] text-white">
           <div className="flex items-center gap-3">
@@ -77,7 +76,7 @@ export function HeroDashboardMockup() {
 
         <div className="p-5 space-y-4">
           {/* Stat cards */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {[
               { label: 'Total GMV', value: 218580, prefix: '$', trend: '+24%', trendColor: 'text-[#34D399]' },
               { label: 'Active Creators', value: 142, prefix: '', trend: '+12 this week', trendColor: 'text-[#FF4D8D]' },
@@ -142,7 +141,7 @@ export function HeroDashboardMockup() {
                   </div>
                   <div className="flex items-center gap-4 text-xs">
                     <span className="font-semibold text-[#1A1B3A]">{c.gmv}</span>
-                    <span className="text-[#6B7280]">{c.videos} videos</span>
+                    <span className="text-[#6B7280] hidden sm:inline">{c.videos} videos</span>
                   </div>
                 </div>
               ))}
@@ -235,7 +234,7 @@ export function LeaderboardMockup() {
                 <span className="font-semibold text-[#1A1B3A]">
                   <CountUp end={c.gmv} prefix="$" duration={1800} />
                 </span>
-                <span className="text-[#6B7280]">{c.videos} videos</span>
+                <span className="text-[#6B7280] hidden sm:inline">{c.videos} videos</span>
               </div>
             </div>
           ))}
@@ -362,7 +361,7 @@ export function CreatorPortalMockup() {
           </div>
 
           {/* Stat cards */}
-          <div className="grid grid-cols-3 gap-2.5">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
             {[
               { label: 'My GMV', value: 24580, prefix: '$', color: '#FF4D8D' },
               { label: 'My Rank', value: 3, prefix: '#', suffix: ' of 142', color: '#7C5CFC' },

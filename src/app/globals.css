@@ -263,6 +263,13 @@ html {
   animation: pulseSlow 4s ease-in-out infinite;
 }
 
+/* Perspective transform only on md+ */
+@media (min-width: 768px) {
+  .md\:perspective-mockup {
+    transform: perspective(1200px) rotateY(-5deg);
+  }
+}
+
 /* GMV Slider */
 .gmv-slider {
   -webkit-appearance: none;
