@@ -98,6 +98,7 @@ export interface CreatorRanking {
   total_orders: number;
   total_items_sold: number;
   days_active: number;
+  total_videos: number;
 }
 
 export interface ProductSummary {

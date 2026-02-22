@@ -104,7 +104,7 @@ export function TodayClient({ creatorName, stats, streak, recentVideos, winningV
                 <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
                   <span className="font-semibold text-[#34D399]">{formatMoney(v.total_gmv)}</span>
                   <span>{v.total_orders} orders</span>
-                  <span>{v.days_active}d active</span>
+                  <span>{v.days_active}d selling</span>
                 </div>
               </div>
             ))}

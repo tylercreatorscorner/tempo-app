@@ -39,6 +39,7 @@ export interface RankingEntry {
   total_orders: number;
   total_items_sold: number;
   days_active: number;
+  total_videos: number;
 }
 
 /** Get aggregated stats for a creator in a date range */

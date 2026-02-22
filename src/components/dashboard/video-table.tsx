@@ -36,7 +36,7 @@ export function VideoTable({ videos }: Props) {
               <th className="px-4 py-3 text-left font-medium text-xs uppercase tracking-wider">Video</th>
               <th className="px-4 py-3 text-left font-medium text-xs uppercase tracking-wider">Creator</th>
               <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider">GMV</th>
-              <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider">Days Active</th>
+              <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider">Sales Days</th>
               <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider pr-6">Orders</th>
             </tr>
           </thead>

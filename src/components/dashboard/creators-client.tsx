@@ -13,10 +13,11 @@ interface Creator {
   total_orders: number;
   total_items_sold: number;
   days_active: number;
+  total_videos: number;
   brand: string;
 }
 
-type SortKey = 'creator_name' | 'total_gmv' | 'total_orders' | 'total_items_sold' | 'days_active';
+type SortKey = 'creator_name' | 'total_gmv' | 'total_orders' | 'total_items_sold' | 'total_videos';
 
 interface Props {
   creators: Creator[];
@@ -120,8 +121,8 @@ export function CreatorsClient({ creators }: Props) {
                 <th className="px-4 py-3 text-right font-medium cursor-pointer select-none" onClick={() => toggleSort('total_items_sold')}>
                   Items <SortIcon col="total_items_sold" />
                 </th>
-                <th className="px-4 py-3 text-right font-medium cursor-pointer select-none" onClick={() => toggleSort('days_active')}>
-                  Days Active <SortIcon col="days_active" />
+                <th className="px-4 py-3 text-right font-medium cursor-pointer select-none" onClick={() => toggleSort('total_videos')}>
+                  Videos <SortIcon col="total_videos" />
                 </th>
               </tr>
             </thead>
@@ -145,7 +146,7 @@ export function CreatorsClient({ creators }: Props) {
                   <td className="px-4 py-3 text-right font-medium text-[#1A1B3A]">{formatCurrency(c.total_gmv)}</td>
                   <td className="px-4 py-3 text-right text-gray-500">{formatNumber(c.total_orders)}</td>
                   <td className="px-4 py-3 text-right text-gray-500">{formatNumber(c.total_items_sold)}</td>
-                  <td className="px-4 py-3 text-right text-gray-500">{formatNumber(c.days_active)}</td>
+                  <td className="px-4 py-3 text-right text-gray-500">{formatNumber(c.total_videos)}</td>
                 </tr>
               ))}
               {paged.length === 0 && (

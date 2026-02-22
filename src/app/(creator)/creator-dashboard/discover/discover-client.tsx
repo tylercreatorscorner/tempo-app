@@ -69,7 +69,7 @@ export function DiscoverClient({ hotVideos, topEarnerVideos }: Props) {
               <div className="flex items-center gap-3 text-xs text-gray-500">
                 <span>📦 {v.total_orders} orders</span>
                 <span>🛒 {v.total_items_sold} items</span>
-                <span>📅 {v.days_active}d</span>
+                <span>📅 {v.days_active}d selling</span>
               </div>
             </div>
           ))

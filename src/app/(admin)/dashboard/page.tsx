@@ -279,8 +279,8 @@ export default async function AdminDashboard({ searchParams }: Props) {
         <div className="flex items-center justify-end mb-2">
           <CsvExportButton
             filename={`tempo-top-creators-${filenameDates}.csv`}
-            headers={['Rank', 'Creator', 'GMV', 'Orders', 'Items Sold', 'Days Active']}
-            rows={allCreators.map((c, i) => [i + 1, c.creator_name, c.total_gmv, c.total_orders, c.total_items_sold, c.days_active])}
+            headers={['Rank', 'Creator', 'GMV', 'Orders', 'Items Sold', 'Videos']}
+            rows={allCreators.map((c, i) => [i + 1, c.creator_name, c.total_gmv, c.total_orders, c.total_items_sold, c.total_videos])}
           />
         </div>
         <CreatorTable creators={allCreators} />
@@ -299,7 +299,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
         <div className="flex items-center justify-end mb-2">
           <CsvExportButton
             filename={`tempo-top-videos-${filenameDates}.csv`}
-            headers={['Rank', 'Video', 'Creator', 'GMV', 'Days Active', 'Orders']}
+            headers={['Rank', 'Video', 'Creator', 'GMV', 'Sales Days', 'Orders']}
             rows={allVideos.map((v, i) => [i + 1, v.video_title || 'Untitled', v.creator_name, v.total_gmv, v.days_active ?? 0, v.total_orders])}
           />
         </div>

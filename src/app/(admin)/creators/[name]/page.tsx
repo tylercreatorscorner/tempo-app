@@ -61,7 +61,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
   const totalGmv = allCreatorData.reduce((s, c) => s + (c.total_gmv ?? 0), 0);
   const totalOrders = allCreatorData.reduce((s, c) => s + (c.total_orders ?? 0), 0);
   const totalItems = allCreatorData.reduce((s, c) => s + (c.total_items_sold ?? 0), 0);
-  const totalVideos = allCreatorData.reduce((s, c) => s + (c.days_active ?? 0), 0);
+  const totalVideos = allCreatorData.reduce((s, c) => s + (c.total_videos ?? 0), 0);
   const activeBrands = allCreatorData.map((c) => c.brand);
 
   const dateMap = new Map<string, Record<string, number>>();
@@ -86,7 +86,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
     gmv: c.total_gmv ?? 0,
     orders: c.total_orders ?? 0,
     items: c.total_items_sold ?? 0,
-    videos: c.days_active ?? 0,
+    videos: c.total_videos ?? 0,
   })).sort((a, b) => b.gmv - a.gmv);
 
   const creatorProductNames = new Set(allVideos.map((v) => v.video_title));
@@ -186,7 +186,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                 <th className="px-4 sm:px-6 py-3 text-left font-medium text-xs uppercase tracking-wider w-12">#</th>
                 <th className="px-4 py-3 text-left font-medium text-xs uppercase tracking-wider">Video</th>
                 <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider">GMV</th>
-                <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider">Views</th>
+                <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider">Sales Days</th>
                 <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider pr-6">Orders</th>
               </tr>
             </thead>
