@@ -111,11 +111,10 @@ function StatsBar() {
     { value: 10000, suffix: '+', label: 'Creators Managed' },
     { value: 100, prefix: '$', suffix: 'M+', label: 'GMV Tracked' },
     { value: 1, suffix: 'M+', label: 'Videos Analyzed' },
-    { value: 50, suffix: '+', label: 'Brands Onboarded' },
   ];
   return (
     <section className="border-y border-[#E5E7EB] bg-[#F8F9FC]/50">
-      <div className="max-w-7xl mx-auto px-6 py-16 grid grid-cols-2 md:grid-cols-4 gap-8">
+      <div className="max-w-5xl mx-auto px-6 py-16 grid grid-cols-1 md:grid-cols-3 gap-8">
         {stats.map((s) => (
           <div key={s.label} className="text-center">
             <p className="text-3xl md:text-4xl font-extrabold bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] bg-clip-text text-transparent">
@@ -242,25 +241,25 @@ function Pricing() {
       name: 'Brand', price: '$999', period: '/mo',
       desc: 'For brands managing their own creators',
       features: ['1 brand', 'Full analytics suite', 'Creator portal', 'Daily briefs & alerts', 'Up to 3 team seats', 'Priority support'],
-      cta: 'Book a Demo', popular: false,
+      cta: 'Get Started', href: '/onboarding', popular: false,
     },
     {
       name: 'Agency', price: '$1,999', period: '/mo',
       desc: 'For agencies managing multiple brands',
       features: ['Up to 5 brands', 'Everything in Brand', 'Multi-brand dashboard', 'Up to 10 team seats', 'Dedicated onboarding'],
-      cta: 'Book a Demo', popular: false,
+      cta: 'Get Started', href: '/onboarding', popular: false,
     },
     {
       name: 'Scale', price: '$3,499', period: '/mo',
       desc: 'For growing operations',
       features: ['Up to 15 brands', 'Everything in Agency', 'Unlimited team seats', 'API access', 'Custom reporting'],
-      cta: 'Book a Demo', popular: true,
+      cta: 'Get Started', href: '/onboarding', popular: true,
     },
     {
       name: 'Enterprise', price: 'Custom', period: '',
       desc: 'For large-scale operations',
       features: ['Unlimited brands', 'Everything in Scale', 'White-label options', 'Dedicated support & SLA', 'Custom integrations'],
-      cta: 'Contact Sales', popular: false,
+      cta: 'Contact Sales', href: 'https://cal.com/tyler3p/tempo-demo', popular: false,
     },
   ];
   return (
@@ -300,7 +299,8 @@ function Pricing() {
                     ))}
                   </ul>
                   <a
-                    href="#book-demo"
+                    href={t.href}
+                    {...(t.href.startsWith('http') ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
                     className={`mt-8 inline-flex items-center justify-center rounded-full px-6 py-3 text-sm font-semibold transition-all duration-200 ${
                       t.popular
                         ? 'text-white bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] hover:shadow-lg hover:shadow-[#FF4D8D]/25 hover:scale-105'
@@ -354,23 +354,63 @@ function Faq() {
 function CtaSection() {
   return (
     <section id="book-demo" className="py-32 md:py-40 px-6 scroll-mt-20">
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-5xl mx-auto">
         <ScrollReveal>
-          <div className="text-center mb-10">
+          <div className="text-center mb-16">
             <h2 className="text-3xl md:text-5xl font-extrabold text-[#1A1B3A] tracking-tight">
-              Ready to see Tempo in action?
+              Ready to get started?
             </h2>
-            <p className="text-[#6B7280] mt-4 text-lg">Pick a time below and we&apos;ll show you exactly how Tempo fits your operation.</p>
-          </div>
-          <div className="relative rounded-2xl border border-[#E5E7EB]/80 bg-white/60 backdrop-blur-xl overflow-hidden shadow-xl shadow-[#7C5CFC]/10">
-            <iframe
-              src="https://cal.com/tyler3p/tempo-demo?embed=true&theme=light&hideEventTypeDetails=false&layout=month_view&branding=false"
-              frameBorder={0}
-              style={{ width: '100%', height: '600px', border: 'none' }}
-              title="Book a Demo"
-            />
+            <p className="text-[#6B7280] mt-4 text-lg">Two options. Pick your path.</p>
           </div>
         </ScrollReveal>
+        <div className="grid md:grid-cols-2 gap-8 items-stretch">
+          {/* Start Now - Primary */}
+          <ScrollReveal delay={100}>
+            <div className="relative rounded-2xl p-[2px] bg-gradient-to-b from-[#FF4D8D] to-[#7C5CFC] h-full">
+              <div className="rounded-[14px] bg-white/80 backdrop-blur-xl p-8 md:p-10 h-full flex flex-col">
+                <h3 className="text-2xl font-extrabold text-[#1A1B3A] mb-2">Start Now</h3>
+                <p className="text-[#6B7280] mb-6">No demo needed. Set up your account in 5 minutes.</p>
+                <ul className="space-y-3 flex-1 mb-8">
+                  {['Self-service onboarding', 'Connect your TikTok Shop', 'See your data instantly'].map((item) => (
+                    <li key={item} className="flex items-center gap-2.5 text-sm text-[#4B5563]">
+                      <Check className="w-4 h-4 text-[#FF4D8D] flex-shrink-0" />
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+                <a
+                  href="/onboarding"
+                  className="inline-flex items-center justify-center gap-2 rounded-full px-7 py-3.5 text-sm font-semibold text-white bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] hover:shadow-xl hover:shadow-[#FF4D8D]/30 hover:scale-105 transition-all duration-200"
+                >
+                  Create Your Account <ArrowRight className="w-4 h-4" />
+                </a>
+              </div>
+            </div>
+          </ScrollReveal>
+          {/* Talk to Us - Secondary */}
+          <ScrollReveal delay={200}>
+            <div className="rounded-2xl border border-[#E5E7EB]/80 bg-white/60 backdrop-blur-xl p-8 md:p-10 h-full flex flex-col">
+              <h3 className="text-2xl font-extrabold text-[#1A1B3A] mb-2">Talk to Us</h3>
+              <p className="text-[#6B7280] mb-6">Want a walkthrough? We&apos;ll show you exactly how Tempo fits your operation.</p>
+              <ul className="space-y-3 flex-1 mb-8">
+                {['30-minute video call', 'Live product demo', 'Q&A with our team'].map((item) => (
+                  <li key={item} className="flex items-center gap-2.5 text-sm text-[#4B5563]">
+                    <Check className="w-4 h-4 text-[#7C5CFC] flex-shrink-0" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+              <a
+                href="https://cal.com/tyler3p/tempo-demo"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center gap-2 rounded-full px-7 py-3.5 text-sm font-semibold text-[#1A1B3A] border border-[#E5E7EB] hover:border-[#FF4D8D]/40 hover:bg-[#FF4D8D]/5 transition-all duration-200"
+              >
+                Book a Demo <ArrowRight className="w-4 h-4" />
+              </a>
+            </div>
+          </ScrollReveal>
+        </div>
       </div>
     </section>
   );
