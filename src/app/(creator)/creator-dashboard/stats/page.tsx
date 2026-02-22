@@ -1,25 +1,22 @@
 import { getCreatorStats, getCreatorDailyData, getCreatorTopVideos, getDateRange, getAllTimeRange } from '@/lib/data/creator';
+import { getCreatorProfile, getCreatorUsernames } from '@/lib/data/creator-context';
 import { StatsClient } from './stats-client';
-
-const CREATOR_NAME = 'testcreator';
-const BRAND = 'creators_corner';
+import { redirect } from 'next/navigation';
 
 export default async function StatsPage() {
-  // Prefetch 7d data; client will re-fetch on period change
-  const ranges = {
-    '7': getDateRange(7),
-    '30': getDateRange(30),
-    '90': getDateRange(90),
-    'all': getAllTimeRange(),
-  };
+  const profile = await getCreatorProfile();
+  if (!profile) redirect('/creator-login');
 
-  const r = ranges['7'];
+  const usernames = getCreatorUsernames(profile, profile.current_brand);
+  const primaryUsername = usernames[0] ?? '';
+  const brand = profile.current_brand ?? profile.brands[0] ?? '';
+  const r = getDateRange(7);
 
   const [stats, prevStats, dailyData, topVideos] = await Promise.all([
-    getCreatorStats(CREATOR_NAME, BRAND, r.start, r.end).catch(() => null),
-    getCreatorStats(CREATOR_NAME, BRAND, getDateRange(14).start, getDateRange(14).end).catch(() => null),
-    getCreatorDailyData(CREATOR_NAME, BRAND, r.start, r.end).catch(() => []),
-    getCreatorTopVideos(CREATOR_NAME, BRAND, r.start, r.end, 10).catch(() => []),
+    primaryUsername ? getCreatorStats(primaryUsername, brand, r.start, r.end).catch(() => null) : null,
+    primaryUsername ? getCreatorStats(primaryUsername, brand, getDateRange(14).start, getDateRange(14).end).catch(() => null) : null,
+    primaryUsername ? getCreatorDailyData(primaryUsername, brand, r.start, r.end).catch(() => []) : [],
+    primaryUsername ? getCreatorTopVideos(primaryUsername, brand, r.start, r.end, 10).catch(() => []) : [],
   ]);
 
   return (

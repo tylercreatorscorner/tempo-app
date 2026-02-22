@@ -1,11 +1,13 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { Sun, Search, BarChart3, Trophy, Bot, BookOpen, Menu, X } from 'lucide-react';
+import { usePathname, useRouter } from 'next/navigation';
+import { Sun, Search, BarChart3, Trophy, Bot, BookOpen, Menu, X, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TempoLogo } from '@/components/ui/tempo-logo';
 import { useState } from 'react';
+import { BrandSwitcher } from '@/components/creator/brand-switcher';
+import type { CreatorProfile } from '@/lib/data/creator-context';
 
 const NAV_ITEMS = [
   { href: '/creator-dashboard', label: 'Today', icon: Sun, exact: true },
@@ -16,8 +18,23 @@ const NAV_ITEMS = [
   { href: '/creator-dashboard/learn', label: 'Learn', icon: BookOpen },
 ];
 
-export function CreatorSidebar({ className }: { className?: string }) {
+function getInitials(name: string): string {
+  return name
+    .split(' ')
+    .map((w) => w[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2) || '??';
+}
+
+export function CreatorSidebar({ className, profile }: { className?: string; profile: CreatorProfile }) {
   const pathname = usePathname();
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    await fetch('/api/auth/creator/logout', { method: 'POST' });
+    router.push('/creator-login');
+  };
 
   return (
     <aside className={cn('flex flex-col w-64 border-r border-gray-200 h-screen bg-white', className)}>
@@ -26,9 +43,12 @@ export function CreatorSidebar({ className }: { className?: string }) {
         <TempoLogo size="md" animated />
       </div>
 
-      {/* Portal label */}
-      <div className="px-6 pt-4 pb-2">
+      {/* Portal label + brand switcher */}
+      <div className="px-6 pt-4 pb-2 flex items-center justify-between">
         <span className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">Creator Portal</span>
+        {profile.brands.length > 1 && (
+          <BrandSwitcher brands={profile.brands} currentBrand={profile.current_brand} />
+        )}
       </div>
 
       {/* Navigation */}
@@ -64,30 +84,44 @@ export function CreatorSidebar({ className }: { className?: string }) {
       <div className="px-4 py-4 border-t border-gray-200">
         <div className="flex items-center gap-3">
           <div className="h-9 w-9 rounded-full bg-gradient-to-br from-[#FF4D8D] to-[#7C5CFC] flex items-center justify-center text-white text-xs font-bold">
-            TC
+            {getInitials(profile.real_name)}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-gray-900 truncate">Test Creator</p>
+            <p className="text-sm font-medium text-gray-900 truncate">{profile.real_name}</p>
             <p className="text-xs text-gray-400">Creator</p>
           </div>
+          <button onClick={handleLogout} className="text-gray-400 hover:text-gray-600 p-1" title="Log out">
+            <LogOut className="h-4 w-4" />
+          </button>
         </div>
       </div>
     </aside>
   );
 }
 
-export function CreatorMobileNav() {
+export function CreatorMobileNav({ profile }: { profile: CreatorProfile }) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    await fetch('/api/auth/creator/logout', { method: 'POST' });
+    router.push('/creator-login');
+  };
 
   return (
     <>
       {/* Mobile header */}
       <header className="lg:hidden flex items-center justify-between h-14 px-4 border-b border-gray-200 bg-white sticky top-0 z-40">
         <TempoLogo size="sm" animated={false} />
-        <button onClick={() => setOpen(true)} className="p-2 text-gray-600 hover:text-gray-900">
-          <Menu className="h-5 w-5" />
-        </button>
+        <div className="flex items-center gap-2">
+          {profile.brands.length > 1 && (
+            <BrandSwitcher brands={profile.brands} currentBrand={profile.current_brand} />
+          )}
+          <button onClick={() => setOpen(true)} className="p-2 text-gray-600 hover:text-gray-900">
+            <Menu className="h-5 w-5" />
+          </button>
+        </div>
       </header>
 
       {/* Overlay */}
@@ -132,12 +166,15 @@ export function CreatorMobileNav() {
             <div className="absolute bottom-0 left-0 right-0 px-4 py-4 border-t border-gray-200">
               <div className="flex items-center gap-3">
                 <div className="h-9 w-9 rounded-full bg-gradient-to-br from-[#FF4D8D] to-[#7C5CFC] flex items-center justify-center text-white text-xs font-bold">
-                  TC
+                  {getInitials(profile.real_name)}
                 </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-900">Test Creator</p>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 truncate">{profile.real_name}</p>
                   <p className="text-xs text-gray-400">Creator</p>
                 </div>
+                <button onClick={handleLogout} className="text-gray-400 hover:text-gray-600 p-1" title="Log out">
+                  <LogOut className="h-4 w-4" />
+                </button>
               </div>
             </div>
           </div>
