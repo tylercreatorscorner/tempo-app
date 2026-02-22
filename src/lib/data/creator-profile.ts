@@ -10,9 +10,12 @@ export interface CreatorProfile {
   status: string | null;
   email: string | null;
   phone: string | null;
+  notes: string | null;
   retainer: number | null;
   monthly_post_requirement: number | null;
+  retainer_start_date: string | null;
   accounts: CreatorAccount[];
+  brands: string[]; // actual brands from creator_performance
 }
 
 export interface CreatorAccount {
@@ -20,6 +23,7 @@ export interface CreatorAccount {
   brand: string;
   is_primary: boolean;
   verified: boolean;
+  brands: string[]; // actual brands from performance data
 }
 
 export interface CreatorSummaryData {
@@ -37,7 +41,7 @@ export interface CreatorSummaryData {
 
 export interface AccountBreakdownRow {
   tiktok_username: string;
-  brand: string;
+  brands: string[];
   gmv: number;
   orders: number;
   items_sold: number;
@@ -54,6 +58,7 @@ export interface BrandBreakdownRow {
 }
 
 export interface CreatorVideo {
+  video_id: string;
   video_title: string;
   creator_name: string;
   brand: string;
@@ -61,12 +66,54 @@ export interface CreatorVideo {
   gmv: number;
   orders: number;
   items_sold: number;
-  report_date: string;
+  days_selling: number;
 }
 
 // --- Query Functions ---
-// TODO: Add tenant_id filtering for multi-tenant scoping.
-// For now, admin view shows everything.
+
+/**
+ * Get distinct brands from creator_performance for given handles.
+ */
+async function getBrandsForHandles(handles: string[]): Promise<string[]> {
+  if (handles.length === 0) return [];
+  const supabase = await createAdminClient();
+  const { data } = await supabase
+    .from('creator_performance')
+    .select('brand')
+    .in('creator_name', handles);
+  const brands = new Set<string>();
+  for (const r of data ?? []) {
+    if (r.brand) brands.add(r.brand as string);
+  }
+  return Array.from(brands);
+}
+
+/**
+ * Get distinct brands per handle from creator_performance.
+ */
+async function getBrandsByHandle(handles: string[]): Promise<Map<string, string[]>> {
+  if (handles.length === 0) return new Map();
+  const supabase = await createAdminClient();
+  const { data } = await supabase
+    .from('creator_performance')
+    .select('creator_name, brand')
+    .in('creator_name', handles);
+
+  const map = new Map<string, Set<string>>();
+  for (const r of data ?? []) {
+    const handle = r.creator_name as string;
+    const brand = r.brand as string;
+    if (!handle || !brand) continue;
+    if (!map.has(handle)) map.set(handle, new Set());
+    map.get(handle)!.add(brand);
+  }
+
+  const result = new Map<string, string[]>();
+  for (const [handle, brands] of map) {
+    result.set(handle, Array.from(brands));
+  }
+  return result;
+}
 
 /**
  * Fetch a creator profile by managed_creators ID, including all linked accounts.
@@ -87,6 +134,28 @@ export async function getCreatorProfile(creatorId: number): Promise<CreatorProfi
     .select('tiktok_username, brand, is_primary, verified')
     .eq('creator_id', creatorId);
 
+  const accountList = (accounts ?? []).map((a: Record<string, unknown>) => ({
+    tiktok_username: a.tiktok_username as string,
+    brand: a.brand as string,
+    is_primary: !!a.is_primary,
+    verified: !!a.verified,
+    brands: [] as string[],
+  }));
+
+  const handles = accountList.map((a) => a.tiktok_username).filter(Boolean);
+  const brandsByHandle = await getBrandsByHandle(handles);
+
+  // Populate per-account brands
+  for (const account of accountList) {
+    account.brands = brandsByHandle.get(account.tiktok_username) ?? [];
+  }
+
+  // All brands across all accounts
+  const allBrands = new Set<string>();
+  for (const brands of brandsByHandle.values()) {
+    for (const b of brands) allBrands.add(b);
+  }
+
   return {
     id: creator.id,
     real_name: creator.real_name ?? creator.brand ?? 'Unknown',
@@ -95,14 +164,12 @@ export async function getCreatorProfile(creatorId: number): Promise<CreatorProfi
     status: creator.status ?? null,
     email: creator.email ?? null,
     phone: creator.phone ?? null,
+    notes: creator.notes ?? null,
     retainer: creator.retainer ?? null,
     monthly_post_requirement: creator.monthly_post_requirement ?? null,
-    accounts: (accounts ?? []).map((a: Record<string, unknown>) => ({
-      tiktok_username: a.tiktok_username as string,
-      brand: a.brand as string,
-      is_primary: !!a.is_primary,
-      verified: !!a.verified,
-    })),
+    retainer_start_date: creator.retainer_start_date ?? null,
+    accounts: accountList,
+    brands: Array.from(allBrands),
   };
 }
 
@@ -137,7 +204,7 @@ function getPriorPeriod(startDate: string, endDate: string): { prevStart: string
   const start = new Date(startDate);
   const end = new Date(endDate);
   const diffMs = end.getTime() - start.getTime();
-  const prevEnd = new Date(start.getTime() - 1); // day before start
+  const prevEnd = new Date(start.getTime() - 1);
   const prevStart = new Date(prevEnd.getTime() - diffMs);
   const fmt = (d: Date) => d.toISOString().slice(0, 10);
   return { prevStart: fmt(prevStart), prevEnd: fmt(prevEnd) };
@@ -201,7 +268,7 @@ export async function getCreatorSummary(
 }
 
 /**
- * Per-account performance breakdown.
+ * Per-account performance breakdown. Brands come from creator_performance, not creator_accounts.
  */
 export async function getCreatorAccountBreakdown(
   creatorId: number,
@@ -211,7 +278,7 @@ export async function getCreatorAccountBreakdown(
   const supabase = await createAdminClient();
   const { data: accounts } = await supabase
     .from('creator_accounts')
-    .select('tiktok_username, brand')
+    .select('tiktok_username')
     .eq('creator_id', creatorId);
 
   if (!accounts || accounts.length === 0) return [];
@@ -220,28 +287,40 @@ export async function getCreatorAccountBreakdown(
 
   const { data: perf } = await supabase
     .from('creator_performance')
-    .select('creator_name, gmv, orders, items_sold, videos')
+    .select('creator_name, brand, gmv, orders, items_sold, videos')
     .in('creator_name', handles)
     .gte('report_date', startDate)
     .lte('report_date', endDate)
     .eq('period_type', 'daily');
 
-  // Group by handle
+  // Group by handle, collect brands from perf data
   const map = new Map<string, AccountBreakdownRow>();
   for (const a of accounts) {
     const handle = a.tiktok_username as string;
     if (!handle) continue;
-    map.set(handle, { tiktok_username: handle, brand: a.brand as string, gmv: 0, orders: 0, items_sold: 0, videos: 0 });
+    map.set(handle, { tiktok_username: handle, brands: [], gmv: 0, orders: 0, items_sold: 0, videos: 0 });
   }
 
-  for (const r of (perf ?? [])) {
-    const row = map.get(r.creator_name as string);
+  const brandSets = new Map<string, Set<string>>();
+  for (const handle of handles) {
+    brandSets.set(handle, new Set());
+  }
+
+  for (const r of perf ?? []) {
+    const handle = r.creator_name as string;
+    const row = map.get(handle);
     if (row) {
       row.gmv += Number(r.gmv) || 0;
       row.orders += Number(r.orders) || 0;
       row.items_sold += Number(r.items_sold) || 0;
       row.videos += Number(r.videos) || 0;
+      if (r.brand) brandSets.get(handle)?.add(r.brand as string);
     }
+  }
+
+  for (const [handle, brands] of brandSets) {
+    const row = map.get(handle);
+    if (row) row.brands = Array.from(brands);
   }
 
   return Array.from(map.values()).sort((a, b) => b.gmv - a.gmv);
@@ -268,7 +347,7 @@ export async function getCreatorBrandBreakdown(
     .eq('period_type', 'daily');
 
   const map = new Map<string, BrandBreakdownRow>();
-  for (const r of (perf ?? [])) {
+  for (const r of perf ?? []) {
     const brand = r.brand as string;
     const existing = map.get(brand);
     if (existing) {
@@ -293,7 +372,8 @@ export async function getCreatorBrandBreakdown(
 }
 
 /**
- * Recent videos across all of a creator's accounts, sorted by GMV.
+ * Top videos across all of a creator's accounts, grouped by video_id.
+ * Bug fix: GROUP BY video_id, aggregate across dates.
  */
 export async function getCreatorVideos(
   creatorId: number,
@@ -305,23 +385,89 @@ export async function getCreatorVideos(
   if (handles.length === 0) return [];
 
   const supabase = await createAdminClient();
+  // Fetch all rows, then group client-side since Supabase JS doesn't support GROUP BY
   const { data } = await supabase
     .from('video_performance')
-    .select('video_title, creator_name, brand, product_name, gmv, orders, items_sold, report_date')
+    .select('video_id, video_title, creator_name, brand, product_name, gmv, orders, items_sold, report_date')
     .in('creator_name', handles)
     .gte('report_date', startDate)
-    .lte('report_date', endDate)
-    .order('gmv', { ascending: false })
-    .limit(limit);
+    .lte('report_date', endDate);
 
-  return (data ?? []).map((r: Record<string, unknown>) => ({
-    video_title: (r.video_title as string) || 'Untitled',
-    creator_name: r.creator_name as string,
-    brand: r.brand as string,
-    product_name: (r.product_name as string) || '',
-    gmv: Number(r.gmv) || 0,
-    orders: Number(r.orders) || 0,
-    items_sold: Number(r.items_sold) || 0,
-    report_date: r.report_date as string,
-  }));
+  if (!data || data.length === 0) return [];
+
+  // Group by video_id
+  const map = new Map<string, {
+    video_id: string;
+    video_title: string;
+    creator_name: string;
+    brand: string;
+    product_name: string;
+    gmv: number;
+    orders: number;
+    items_sold: number;
+    dates: Set<string>;
+  }>();
+
+  for (const r of data) {
+    const vid = r.video_id as string;
+    if (!vid) continue;
+    const existing = map.get(vid);
+    if (existing) {
+      existing.gmv += Number(r.gmv) || 0;
+      existing.orders += Number(r.orders) || 0;
+      existing.items_sold += Number(r.items_sold) || 0;
+      if (r.report_date) existing.dates.add(r.report_date as string);
+    } else {
+      map.set(vid, {
+        video_id: vid,
+        video_title: (r.video_title as string) || 'Untitled',
+        creator_name: r.creator_name as string,
+        brand: r.brand as string,
+        product_name: (r.product_name as string) || '',
+        gmv: Number(r.gmv) || 0,
+        orders: Number(r.orders) || 0,
+        items_sold: Number(r.items_sold) || 0,
+        dates: new Set(r.report_date ? [r.report_date as string] : []),
+      });
+    }
+  }
+
+  return Array.from(map.values())
+    .sort((a, b) => b.gmv - a.gmv)
+    .slice(0, limit)
+    .map((v) => ({
+      video_id: v.video_id,
+      video_title: v.video_title,
+      creator_name: v.creator_name,
+      brand: v.brand,
+      product_name: v.product_name,
+      gmv: v.gmv,
+      orders: v.orders,
+      items_sold: v.items_sold,
+      days_selling: v.dates.size,
+    }));
+}
+
+/**
+ * Get posts this month for retainer tracking.
+ * Sums the 'videos' column from creator_performance for current month.
+ */
+export async function getPostsThisMonth(creatorId: number): Promise<number> {
+  const handles = await getHandles(creatorId);
+  if (handles.length === 0) return 0;
+
+  const now = new Date();
+  const startOfMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+  const endOfMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()).padStart(2, '0')}`;
+
+  const supabase = await createAdminClient();
+  const { data } = await supabase
+    .from('creator_performance')
+    .select('videos')
+    .in('creator_name', handles)
+    .gte('report_date', startOfMonth)
+    .lte('report_date', endOfMonth)
+    .eq('period_type', 'daily');
+
+  return (data ?? []).reduce((s: number, r: Record<string, unknown>) => s + (Number(r.videos) || 0), 0);
 }

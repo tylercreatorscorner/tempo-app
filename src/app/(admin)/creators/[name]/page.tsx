@@ -5,8 +5,10 @@ import { formatCurrency, formatNumber } from '@/lib/utils/format';
 import { BRAND_COLORS, BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
 import { StatCard } from '@/components/dashboard/stat-card';
 import { DateRangePicker } from '@/components/dashboard/date-range-picker';
+import { CreatorEditButton } from '@/components/creators/creator-edit-panel';
+import { RetainerTracker } from '@/components/creators/retainer-tracker';
 import Link from 'next/link';
-import { ArrowLeft, User, Mail, Phone, BadgeCheck } from 'lucide-react';
+import { ArrowLeft, User, Mail, Phone } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   getCreatorProfile,
@@ -15,8 +17,8 @@ import {
   getCreatorAccountBreakdown,
   getCreatorBrandBreakdown,
   getCreatorVideos,
+  getPostsThisMonth,
 } from '@/lib/data/creator-profile';
-import { format } from 'date-fns';
 
 interface Props {
   params: Promise<{ name: string }>;
@@ -34,6 +36,8 @@ function StatusBadge({ status }: { status: string | null }) {
     active: 'bg-green-50 text-green-700 border-green-200',
     churned: 'bg-red-50 text-red-600 border-red-200',
     paused: 'bg-yellow-50 text-yellow-700 border-yellow-200',
+    applied: 'bg-blue-50 text-blue-600 border-blue-200',
+    pending: 'bg-orange-50 text-orange-600 border-orange-200',
     prospect: 'bg-blue-50 text-blue-600 border-blue-200',
   };
   return (
@@ -57,20 +61,17 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
   const slug = decodeURIComponent(name);
   const sp = await searchParams;
 
-  // If slug is numeric, treat as managed_creators ID
   const isNumericId = /^\d+$/.test(slug);
   let creatorId: number;
 
   if (isNumericId) {
     creatorId = parseInt(slug, 10);
   } else {
-    // Look up by TikTok handle, redirect to ID-based URL
     const id = await getCreatorIdByHandle(slug);
     if (id) {
       const qs = sp.range ? `?range=${sp.range}` : '';
       redirect(`/creators/${id}${qs}`);
     }
-    // If not found in creator_accounts, 404
     notFound();
   }
 
@@ -79,17 +80,26 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
 
   const { startDate, endDate } = resolveDateRange(sp.range);
 
-  const [summary, accountBreakdown, brandBreakdown, videos] = await Promise.all([
+  const [summary, accountBreakdown, brandBreakdown, videos, postsThisMonth] = await Promise.all([
     getCreatorSummary(creatorId, startDate, endDate),
     getCreatorAccountBreakdown(creatorId, startDate, endDate),
     getCreatorBrandBreakdown(creatorId, startDate, endDate),
     getCreatorVideos(creatorId, startDate, endDate, 20),
+    getPostsThisMonth(creatorId),
   ]);
 
-  const uniqueBrands = [...new Set(profile.accounts.map((a) => a.brand))];
+  // Bug fix #1: brands from creator_performance, not managed_creators
+  const uniqueBrands = profile.brands;
 
   return (
     <div className="space-y-6">
+      {/* Breadcrumb - Bug fix #4: show real_name not numeric ID */}
+      <div className="flex items-center gap-1.5 text-xs text-gray-400">
+        <Link href="/creators" className="hover:text-gray-600 transition-colors">Creators</Link>
+        <span>/</span>
+        <span className="text-gray-600">{profile.real_name}</span>
+      </div>
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div className="flex items-start gap-3">
@@ -102,6 +112,16 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-2xl font-bold text-[#1A1B3A]">{profile.real_name}</h1>
+              <CreatorEditButton creator={{
+                id: profile.id,
+                real_name: profile.real_name,
+                email: profile.email,
+                phone: profile.phone,
+                role: profile.role,
+                status: profile.status,
+                notes: profile.notes,
+                accounts: profile.accounts.map((a) => ({ tiktok_username: a.tiktok_username, is_primary: a.is_primary })),
+              }} />
               <StatusBadge status={profile.status} />
               <RoleBadge role={profile.role} />
             </div>
@@ -120,7 +140,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
               )}
             </div>
 
-            {/* Brand tags */}
+            {/* Brand tags - Bug fix #1: from creator_performance */}
             <div className="flex flex-wrap gap-1.5 mt-2">
               {uniqueBrands.map((b) => (
                 <span
@@ -178,7 +198,16 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
         />
       </div>
 
-      {/* Account Breakdown */}
+      {/* Retainer & Post Tracking - Feature #7 */}
+      <RetainerTracker data={{
+        creatorId: profile.id,
+        retainer: profile.retainer,
+        monthlyPostRequirement: profile.monthly_post_requirement,
+        retainerStartDate: profile.retainer_start_date,
+        postsThisMonth,
+      }} />
+
+      {/* Account Breakdown - Bug fix #2: brands from performance data */}
       {accountBreakdown.length > 0 && (
         <div className="rounded-2xl overflow-hidden bg-white border border-gray-100 shadow-sm">
           <div className="px-4 sm:px-6 py-4 border-b border-gray-100">
@@ -190,7 +219,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
               <thead>
                 <tr className="border-b border-gray-100 text-gray-500 bg-gray-50">
                   <th className="px-4 sm:px-6 py-3 text-left font-medium text-xs uppercase tracking-wider">Account</th>
-                  <th className="px-4 py-3 text-left font-medium text-xs uppercase tracking-wider">Brand</th>
+                  <th className="px-4 py-3 text-left font-medium text-xs uppercase tracking-wider">Brands</th>
                   <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider">GMV</th>
                   <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider">Orders</th>
                   <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider">Items</th>
@@ -202,12 +231,19 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                   <tr key={a.tiktok_username} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
                     <td className="px-4 sm:px-6 py-3.5 font-medium text-[#1A1B3A]">@{a.tiktok_username}</td>
                     <td className="px-4 py-3.5">
-                      <span
-                        className="text-xs px-2 py-0.5 rounded-full font-medium"
-                        style={{ backgroundColor: `${BRAND_COLORS[a.brand] ?? '#6B7280'}15`, color: BRAND_COLORS[a.brand] ?? '#6B7280' }}
-                      >
-                        {BRAND_DISPLAY_NAMES[a.brand] ?? a.brand}
-                      </span>
+                      <div className="flex flex-wrap gap-1">
+                        {a.brands.length > 0 ? a.brands.map((b) => (
+                          <span
+                            key={b}
+                            className="text-xs px-2 py-0.5 rounded-full font-medium"
+                            style={{ backgroundColor: `${BRAND_COLORS[b] ?? '#6B7280'}15`, color: BRAND_COLORS[b] ?? '#6B7280' }}
+                          >
+                            {BRAND_DISPLAY_NAMES[b] ?? b}
+                          </span>
+                        )) : (
+                          <span className="text-xs text-gray-300">-</span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3.5 text-right font-semibold tabular-nums text-[#1A1B3A]">{formatCurrency(a.gmv)}</td>
                     <td className="px-4 py-3.5 text-right text-gray-500 tabular-nums">{formatNumber(a.orders)}</td>
@@ -221,7 +257,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
         </div>
       )}
 
-      {/* Brand Breakdown - only if 2+ brands */}
+      {/* Brand Breakdown */}
       {brandBreakdown.length > 1 && (
         <div className="rounded-2xl overflow-hidden bg-white border border-gray-100 shadow-sm">
           <div className="px-4 sm:px-6 py-4 border-b border-gray-100">
@@ -262,11 +298,11 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
         </div>
       )}
 
-      {/* Recent Videos */}
+      {/* Top Videos - Bug fix #3: grouped by video_id with Days Selling */}
       <div className="rounded-2xl overflow-hidden bg-white border border-gray-100 shadow-sm">
         <div className="px-4 sm:px-6 py-4 border-b border-gray-100">
           <h3 className="text-lg font-bold tracking-tight text-[#1A1B3A]">Top Videos by GMV</h3>
-          <p className="text-xs text-gray-400 mt-0.5">Across all accounts, top 20</p>
+          <p className="text-xs text-gray-400 mt-0.5">Across all accounts, top 20 (aggregated across dates)</p>
         </div>
         <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
           <table className="w-full text-sm">
@@ -279,12 +315,13 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                 <th className="px-4 py-3 text-left font-medium text-xs uppercase tracking-wider">Product</th>
                 <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider">GMV</th>
                 <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider">Orders</th>
-                <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider pr-6">Date</th>
+                <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider">Items</th>
+                <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider pr-6">Days Selling</th>
               </tr>
             </thead>
             <tbody>
               {videos.map((v, i) => (
-                <tr key={i} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                <tr key={v.video_id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
                   <td className="px-4 sm:px-6 py-3.5 text-gray-400 tabular-nums">{i + 1}</td>
                   <td className="px-4 py-3.5 font-medium max-w-xs truncate text-[#1A1B3A]">{v.video_title}</td>
                   <td className="px-4 py-3.5 text-gray-500">@{v.creator_name}</td>
@@ -299,11 +336,12 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                   <td className="px-4 py-3.5 text-gray-500 max-w-[200px] truncate">{v.product_name || '-'}</td>
                   <td className="px-4 py-3.5 text-right font-semibold tabular-nums text-[#1A1B3A]">{formatCurrency(v.gmv)}</td>
                   <td className="px-4 py-3.5 text-right text-gray-500 tabular-nums">{formatNumber(v.orders)}</td>
-                  <td className="px-4 py-3.5 text-right text-gray-400 tabular-nums pr-6">{v.report_date ? format(new Date(v.report_date), 'MMM d') : '-'}</td>
+                  <td className="px-4 py-3.5 text-right text-gray-500 tabular-nums">{formatNumber(v.items_sold)}</td>
+                  <td className="px-4 py-3.5 text-right text-gray-500 tabular-nums pr-6">{v.days_selling}</td>
                 </tr>
               ))}
               {videos.length === 0 && (
-                <tr><td colSpan={8} className="px-4 py-12 text-center text-gray-400">No video data for this creator</td></tr>
+                <tr><td colSpan={9} className="px-4 py-12 text-center text-gray-400">No video data for this creator</td></tr>
               )}
             </tbody>
           </table>
