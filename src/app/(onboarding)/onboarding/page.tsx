@@ -13,15 +13,24 @@ import {
   Lock,
   BarChart3,
   Shield,
+  AlertCircle,
 } from 'lucide-react';
 import { TempoLogo } from '@/components/ui/tempo-logo';
 import { STRIPE_PRICES } from '@/lib/stripe-prices';
+import Link from 'next/link';
 
 type Role = 'brand' | 'agency' | null;
+type AgencySize = '1-3' | '4-10' | '11-15' | '15+' | null;
 
 const STEPS = ['Role', 'Account', 'Connect', 'Plan'] as const;
 
-/* ── GMV → Tier mapping ── */
+/* ── Email validation ── */
+function isValidEmail(email: string): boolean {
+  const re = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
+  return re.test(email.trim());
+}
+
+/* ── GMV to Tier mapping ── */
 function getGmvTier(monthlyGmv: number, role: Role): {
   tierName: string;
   monthlyPrice: number;
@@ -36,6 +45,28 @@ function getGmvTier(monthlyGmv: number, role: Role): {
   if (monthlyGmv < 1_500_000) return { tierName: 'Brand Pro', monthlyPrice: 1499, annualPrice: 1199, stripePlanKey: 'brand_pro' };
   if (monthlyGmv < 3_000_000) return { tierName: 'Brand Scale', monthlyPrice: 1999, annualPrice: 1599, stripePlanKey: 'brand_scale' };
   return { tierName: 'Brand Elite', monthlyPrice: 2999, annualPrice: 2399, stripePlanKey: 'brand_elite' };
+}
+
+/* ── Agency tier mapping ── */
+function getAgencyTier(size: AgencySize): {
+  tierName: string;
+  monthlyPrice: number;
+  annualPrice: number;
+  stripePlanKey: string;
+  description: string;
+} {
+  switch (size) {
+    case '1-3':
+      return { tierName: 'Agency', monthlyPrice: 1999, annualPrice: 1599, stripePlanKey: 'agency_base', description: 'Up to 3 brands included' };
+    case '4-10':
+      return { tierName: 'Agency Pro', monthlyPrice: 4999, annualPrice: 3999, stripePlanKey: 'agency_pro', description: 'Up to 15 brands included' };
+    case '11-15':
+      return { tierName: 'Agency Pro', monthlyPrice: 4999, annualPrice: 3999, stripePlanKey: 'agency_pro', description: 'Up to 15 brands included' };
+    case '15+':
+      return { tierName: 'Enterprise', monthlyPrice: 0, annualPrice: 0, stripePlanKey: '', description: 'Custom pricing for 15+ brands' };
+    default:
+      return { tierName: 'Agency', monthlyPrice: 1999, annualPrice: 1599, stripePlanKey: 'agency_base', description: 'Up to 3 brands included' };
+  }
 }
 
 export default function OnboardingPage() {
@@ -58,6 +89,9 @@ function OnboardingContent() {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [companyName, setCompanyName] = useState('');
+  const [emailError, setEmailError] = useState('');
+  const [emailExists, setEmailExists] = useState(false);
+  const [checkingEmail, setCheckingEmail] = useState(false);
 
   // Step 3
   const [connectAttempted, setConnectAttempted] = useState(false);
@@ -67,6 +101,8 @@ function OnboardingContent() {
   const [annualBilling, setAnnualBilling] = useState(false);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [agencySize, setAgencySize] = useState<AgencySize>(null);
 
   const DEMO_GMV = 1_247_832;
 
@@ -80,6 +116,26 @@ function OnboardingContent() {
     setCurrentStep((s) => Math.max(s - 1, 0));
   }, []);
 
+  // Save to Supabase when moving between steps
+  const saveProgress = useCallback(async () => {
+    if (!email || !fullName) return;
+    try {
+      await fetch('/api/onboarding/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: email.trim(),
+          fullName: fullName.trim(),
+          companyName: companyName.trim(),
+          role,
+          agencyBrandCount: agencySize === '1-3' ? 3 : agencySize === '4-10' ? 10 : agencySize === '11-15' ? 15 : agencySize === '15+' ? 20 : null,
+        }),
+      });
+    } catch {
+      // Non-blocking, best effort
+    }
+  }, [email, fullName, companyName, role, agencySize]);
+
   // Confetti on Plan step
   useEffect(() => {
     if (currentStep === 3) {
@@ -89,9 +145,60 @@ function OnboardingContent() {
     }
   }, [currentStep]);
 
+  // Save progress when step changes (after account step)
+  useEffect(() => {
+    if (currentStep >= 2 && email && fullName) {
+      saveProgress();
+    }
+  }, [currentStep, saveProgress, email, fullName]);
+
+  async function handleAccountNext() {
+    // Validate email format
+    if (!isValidEmail(email)) {
+      setEmailError('Please enter a valid email address');
+      return;
+    }
+    setEmailError('');
+
+    // Check for duplicate email
+    setCheckingEmail(true);
+    try {
+      const res = await fetch('/api/onboarding/check-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+      const data = await res.json();
+      if (data.exists) {
+        setEmailExists(true);
+        setCheckingEmail(false);
+        return;
+      }
+    } catch {
+      // If check fails, allow through
+    }
+    setEmailExists(false);
+    setCheckingEmail(false);
+    goNext();
+  }
+
   async function handleCheckout() {
-    const tier = getGmvTier(DEMO_GMV, role);
-    const priceConfig = STRIPE_PRICES[tier.stripePlanKey];
+    if (role === 'agency' && agencySize === '15+') {
+      // Enterprise: redirect to contact
+      window.location.href = 'mailto:hello@usetempo.ai?subject=Enterprise%20Inquiry';
+      return;
+    }
+
+    let tier;
+    let priceConfig;
+    if (role === 'agency' && agencySize) {
+      tier = getAgencyTier(agencySize);
+      priceConfig = STRIPE_PRICES[tier.stripePlanKey];
+    } else {
+      tier = getGmvTier(DEMO_GMV, role);
+      priceConfig = STRIPE_PRICES[tier.stripePlanKey];
+    }
+
     if (!priceConfig) {
       router.push('/dashboard');
       return;
@@ -102,7 +209,14 @@ function OnboardingContent() {
       const res = await fetch('/api/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ priceId }),
+        body: JSON.stringify({
+          priceId,
+          email: email.trim(),
+          name: fullName.trim(),
+          company: companyName.trim(),
+          role,
+          agencyBrandCount: agencySize === '1-3' ? 3 : agencySize === '4-10' ? 10 : agencySize === '11-15' ? 15 : agencySize === '15+' ? 20 : null,
+        }),
       });
       const data = await res.json();
       if (data.url) {
@@ -191,9 +305,12 @@ function OnboardingContent() {
         {currentStep === 1 && (
           <StepAccount
             fullName={fullName} setFullName={setFullName}
-            email={email} setEmail={setEmail}
+            email={email} setEmail={(v) => { setEmail(v); setEmailError(''); setEmailExists(false); }}
             companyName={companyName} setCompanyName={setCompanyName}
-            onNext={goNext} onBack={goBack}
+            emailError={emailError}
+            emailExists={emailExists}
+            checkingEmail={checkingEmail}
+            onNext={handleAccountNext} onBack={goBack}
           />
         )}
         {currentStep === 2 && (
@@ -211,6 +328,10 @@ function OnboardingContent() {
             annualBilling={annualBilling}
             setAnnualBilling={setAnnualBilling}
             isCheckingOut={isCheckingOut}
+            agreedToTerms={agreedToTerms}
+            setAgreedToTerms={setAgreedToTerms}
+            agencySize={agencySize}
+            setAgencySize={setAgencySize}
             onCheckout={handleCheckout}
             onBack={goBack}
           />
@@ -284,14 +405,18 @@ function RoleCard({ selected, onClick, icon, title, desc }: { selected: boolean;
 /* ── Step 2: Account Info ── */
 function StepAccount({
   fullName, setFullName, email, setEmail, companyName, setCompanyName,
+  emailError, emailExists, checkingEmail,
   onNext, onBack,
 }: {
   fullName: string; setFullName: (s: string) => void;
   email: string; setEmail: (s: string) => void;
   companyName: string; setCompanyName: (s: string) => void;
+  emailError: string;
+  emailExists: boolean;
+  checkingEmail: boolean;
   onNext: () => void; onBack: () => void;
 }) {
-  const isValid = fullName.trim() && email.trim() && companyName.trim();
+  const isValid = fullName.trim() && email.trim() && companyName.trim() && !checkingEmail;
 
   return (
     <div className="space-y-6">
@@ -317,8 +442,27 @@ function StepAccount({
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="tyler@company.com"
-            className="w-full px-4 py-2.5 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/50"
+            className={`w-full px-4 py-2.5 rounded-xl border text-sm focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/50 ${
+              emailError || emailExists ? 'border-red-400 bg-red-50/50' : 'border-input bg-background'
+            }`}
           />
+          {emailError && (
+            <div className="flex items-center gap-1.5 text-sm text-red-500">
+              <AlertCircle className="h-3.5 w-3.5" />
+              <span>{emailError}</span>
+            </div>
+          )}
+          {emailExists && (
+            <div className="flex items-center gap-1.5 text-sm text-amber-600">
+              <AlertCircle className="h-3.5 w-3.5" />
+              <span>
+                An account with this email already exists.{' '}
+                <Link href="/sign-in" className="underline font-medium hover:text-amber-700">
+                  Sign in instead?
+                </Link>
+              </span>
+            </div>
+          )}
         </div>
         <div className="space-y-2">
           <label className="text-sm font-medium">Company name <span className="text-[#FF4D8D]">*</span></label>
@@ -340,14 +484,14 @@ function StepAccount({
           onClick={onNext}
           className="inline-flex items-center gap-2 px-8 py-2.5 rounded-xl bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] text-white font-semibold disabled:opacity-40 hover:opacity-90 transition-opacity"
         >
-          Continue <ArrowRight className="h-4 w-4" />
+          {checkingEmail ? 'Checking...' : 'Continue'} <ArrowRight className="h-4 w-4" />
         </button>
       </div>
     </div>
   );
 }
 
-/* ── Step 3: Connect TikTok Shop (Mandatory) ── */
+/* ── Step 3: Connect TikTok Shop ── */
 function StepConnect({
   connectAttempted, onConnect, onContinueDemo, onBack,
 }: {
@@ -376,7 +520,6 @@ function StepConnect({
         Connect TikTok Shop
       </button>
 
-      {/* Trust signals */}
       <div className="flex flex-col items-center gap-3 text-sm text-muted-foreground max-w-sm mx-auto">
         <div className="flex items-center gap-2">
           <Lock className="h-4 w-4 text-[#FF4D8D]" />
@@ -392,7 +535,6 @@ function StepConnect({
         </div>
       </div>
 
-      {/* Demo continue — only after attempting connect */}
       {connectAttempted && (
         <div className="pt-2">
           <button
@@ -413,21 +555,31 @@ function StepConnect({
   );
 }
 
-/* ── Step 4: Plan Verification ── */
+/* ── Step 4: Plan ── */
 function StepPlan({
-  role, demoGmv, annualBilling, setAnnualBilling, isCheckingOut, onCheckout, onBack,
+  role, demoGmv, annualBilling, setAnnualBilling, isCheckingOut, agreedToTerms, setAgreedToTerms,
+  agencySize, setAgencySize, onCheckout, onBack,
 }: {
   role: Role;
   demoGmv: number;
   annualBilling: boolean;
   setAnnualBilling: (b: boolean) => void;
   isCheckingOut: boolean;
+  agreedToTerms: boolean;
+  setAgreedToTerms: (b: boolean) => void;
+  agencySize: AgencySize;
+  setAgencySize: (s: AgencySize) => void;
   onCheckout: () => void;
   onBack: () => void;
 }) {
-  const tier = getGmvTier(demoGmv, role);
+  const isAgency = role === 'agency';
+  const agencyTier = isAgency && agencySize ? getAgencyTier(agencySize) : null;
+  const brandTier = getGmvTier(demoGmv, role);
+
+  const tier = isAgency && agencyTier ? agencyTier : brandTier;
   const displayPrice = annualBilling ? tier.annualPrice : tier.monthlyPrice;
   const billingLabel = annualBilling ? '/mo (billed annually)' : '/mo';
+  const isEnterprise = isAgency && agencySize === '15+';
 
   return (
     <div className="space-y-6 text-center">
@@ -436,52 +588,152 @@ function StepPlan({
           <Sparkles className="h-8 w-8 text-white" />
         </div>
         <h2 className="text-2xl font-bold">Your plan</h2>
-        <p className="text-muted-foreground mt-1">Based on your last 30 days of TikTok Shop data</p>
+        <p className="text-muted-foreground mt-1">
+          {isAgency ? 'Select how many brands you manage' : 'Based on your last 30 days of TikTok Shop data'}
+        </p>
       </div>
 
-      {/* Plan card with gradient border */}
+      {/* Agency brand count selector */}
+      {isAgency && (
+        <div className="space-y-3 max-w-md mx-auto">
+          <p className="text-sm font-medium">How many brands do you manage?</p>
+          <div className="grid grid-cols-4 gap-2">
+            {(['1-3', '4-10', '11-15', '15+'] as AgencySize[]).map((size) => (
+              <button
+                key={size}
+                onClick={() => setAgencySize(size)}
+                className={`py-2.5 px-3 rounded-xl text-sm font-medium transition-all ${
+                  agencySize === size
+                    ? 'bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] text-white shadow-md'
+                    : 'bg-white border border-gray-200 hover:border-[#FF4D8D]/40 text-gray-700'
+                }`}
+              >
+                {size}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Plan card */}
       <div className="relative rounded-2xl p-[2px] bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] mx-auto max-w-md">
         <div className="rounded-2xl bg-white p-6 space-y-4">
-          <div className="text-sm text-muted-foreground">Verified Monthly GMV</div>
-          <div className="text-4xl font-bold bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] bg-clip-text text-transparent">
-            ${demoGmv.toLocaleString()}
-          </div>
-          <div className="h-px bg-gray-200" />
-          <div className="space-y-1">
-            <div className="text-lg font-semibold">{tier.tierName}</div>
-            <div className="text-3xl font-bold">
-              ${displayPrice.toLocaleString()}<span className="text-base font-normal text-muted-foreground">{billingLabel}</span>
-            </div>
-          </div>
-          <div className="text-xs text-muted-foreground bg-muted rounded-lg px-3 py-2">
-            Monthly GMV: ${demoGmv.toLocaleString()} → {tier.tierName} tier
-          </div>
+          {isAgency ? (
+            <>
+              <div className="text-sm text-muted-foreground">Agency Plan</div>
+              {agencySize ? (
+                <>
+                  <div className="space-y-1">
+                    <div className="text-lg font-semibold">{tier.tierName}</div>
+                    {isEnterprise ? (
+                      <div className="text-2xl font-bold text-[#7C5CFC]">Custom Pricing</div>
+                    ) : (
+                      <div className="text-3xl font-bold">
+                        ${displayPrice.toLocaleString()}<span className="text-base font-normal text-muted-foreground">{billingLabel}</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-xs text-muted-foreground bg-muted rounded-lg px-3 py-2">
+                    {'description' in tier ? (tier as { description: string }).description : ''}
+                  </div>
+                  {/* Per-brand breakdown */}
+                  {!isEnterprise && (
+                    <div className="space-y-2 pt-2">
+                      <div className="text-xs font-medium text-left text-muted-foreground">What you get:</div>
+                      <div className="grid grid-cols-2 gap-2 text-xs text-left">
+                        <div className="bg-muted/50 rounded-lg p-2">
+                          <div className="font-semibold text-foreground">{agencySize === '1-3' ? '3' : '15'} brands</div>
+                          <div className="text-muted-foreground">Included in plan</div>
+                        </div>
+                        <div className="bg-muted/50 rounded-lg p-2">
+                          <div className="font-semibold text-foreground">Per-brand analytics</div>
+                          <div className="text-muted-foreground">GMV, creators, products</div>
+                        </div>
+                        <div className="bg-muted/50 rounded-lg p-2">
+                          <div className="font-semibold text-foreground">Cross-brand reporting</div>
+                          <div className="text-muted-foreground">Compare performance</div>
+                        </div>
+                        <div className="bg-muted/50 rounded-lg p-2">
+                          <div className="font-semibold text-foreground">Team access</div>
+                          <div className="text-muted-foreground">Invite your whole team</div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="py-4 text-muted-foreground text-sm">
+                  Select how many brands you manage above to see pricing
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="text-sm text-muted-foreground">Verified Monthly GMV</div>
+              <div className="text-4xl font-bold bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] bg-clip-text text-transparent">
+                ${demoGmv.toLocaleString()}
+              </div>
+              <div className="h-px bg-gray-200" />
+              <div className="space-y-1">
+                <div className="text-lg font-semibold">{tier.tierName}</div>
+                <div className="text-3xl font-bold">
+                  ${displayPrice.toLocaleString()}<span className="text-base font-normal text-muted-foreground">{billingLabel}</span>
+                </div>
+              </div>
+              <div className="text-xs text-muted-foreground bg-muted rounded-lg px-3 py-2">
+                Monthly GMV: ${demoGmv.toLocaleString()} maps to the {tier.tierName} tier
+              </div>
+            </>
+          )}
         </div>
       </div>
 
       {/* Annual toggle */}
-      <div className="flex items-center justify-center gap-3">
-        <span className={`text-sm ${!annualBilling ? 'font-semibold' : 'text-muted-foreground'}`}>Monthly</span>
-        <button
-          onClick={() => setAnnualBilling(!annualBilling)}
-          className={`relative w-12 h-6 rounded-full transition-colors ${annualBilling ? 'bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC]' : 'bg-gray-300'}`}
-        >
-          <div className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${annualBilling ? 'translate-x-6' : 'translate-x-0.5'}`} />
-        </button>
-        <span className={`text-sm ${annualBilling ? 'font-semibold' : 'text-muted-foreground'}`}>
-          Annual <span className="text-[#FF4D8D] font-semibold">save 20%</span>
-        </span>
-      </div>
+      {!isEnterprise && (
+        <div className="flex items-center justify-center gap-3">
+          <span className={`text-sm ${!annualBilling ? 'font-semibold' : 'text-muted-foreground'}`}>Monthly</span>
+          <button
+            onClick={() => setAnnualBilling(!annualBilling)}
+            className={`relative w-12 h-6 rounded-full transition-colors ${annualBilling ? 'bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC]' : 'bg-gray-300'}`}
+          >
+            <div className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${annualBilling ? 'translate-x-6' : 'translate-x-0.5'}`} />
+          </button>
+          <span className={`text-sm ${annualBilling ? 'font-semibold' : 'text-muted-foreground'}`}>
+            Annual <span className="text-[#FF4D8D] font-semibold">save 20%</span>
+          </span>
+        </div>
+      )}
 
       <p className="text-xs text-muted-foreground">Plans are reviewed quarterly based on your actual GMV</p>
+
+      {/* Terms checkbox */}
+      <div className="flex items-start justify-center gap-2 max-w-md mx-auto">
+        <input
+          type="checkbox"
+          id="terms"
+          checked={agreedToTerms}
+          onChange={(e) => setAgreedToTerms(e.target.checked)}
+          className="mt-1 h-4 w-4 rounded border-gray-300 text-[#FF4D8D] focus:ring-[#FF4D8D]/50 accent-[#FF4D8D]"
+        />
+        <label htmlFor="terms" className="text-sm text-muted-foreground text-left">
+          I agree to the{' '}
+          <Link href="/terms" className="underline font-medium text-foreground hover:text-[#FF4D8D]">
+            Terms of Service
+          </Link>{' '}
+          and{' '}
+          <Link href="/privacy" className="underline font-medium text-foreground hover:text-[#FF4D8D]">
+            Privacy Policy
+          </Link>
+        </label>
+      </div>
 
       <div className="flex flex-col items-center gap-3">
         <button
           onClick={onCheckout}
-          disabled={isCheckingOut}
+          disabled={isCheckingOut || !agreedToTerms || (isAgency && !agencySize)}
           className="inline-flex items-center gap-2 px-10 py-4 rounded-2xl bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] text-white font-bold text-lg hover:opacity-90 transition-opacity shadow-lg shadow-[#FF4D8D]/20 disabled:opacity-50"
         >
-          {isCheckingOut ? 'Redirecting to Stripe...' : 'Proceed to Payment'} <ArrowRight className="h-5 w-5" />
+          {isCheckingOut ? 'Redirecting to Stripe...' : isEnterprise ? 'Contact Us' : 'Proceed to Payment'} <ArrowRight className="h-5 w-5" />
         </button>
         <button onClick={onBack} className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
           <ArrowLeft className="h-3.5 w-3.5" /> Back
