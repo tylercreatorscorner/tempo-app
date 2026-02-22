@@ -35,6 +35,7 @@ export interface TikTokVideoPerformanceItem {
   product_impressions: number;
   sku_orders: number;
   views: number;
+  product_name?: string;
 }
 
 export interface TikTokVideoPerformanceListData {

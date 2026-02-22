@@ -67,14 +67,16 @@ export async function ingestVideoPerformance(
         post_date: v.video_post_time
           ? new Date(v.video_post_time * 1000).toISOString().split('T')[0]
           : null,
+        product_name: v.product_name || null,
         data_source: 'api',
       }));
 
-      // Upsert: use brand + video_id + report_date + period_type as unique key
+      // Upsert: use brand + video_id + report_date + period_type + product_name as unique key
+      // (same video can have multiple products via multi-product links)
       const { error, count } = await supabase
         .from('video_performance')
         .upsert(rows, {
-          onConflict: 'brand,video_id,report_date,period_type',
+          onConflict: 'brand,video_id,report_date,period_type,product_name',
           ignoreDuplicates: false,
         })
         .select('id');
