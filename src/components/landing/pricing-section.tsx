@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Check, ArrowRight } from 'lucide-react';
 import { ScrollReveal } from './scroll-reveal';
+import { GMV_TO_PLAN, AGENCY_TO_PLAN } from '@/lib/stripe-prices';
 
 const GMV_TIERS = [
   { label: 'Up to $250K', range: 'Up to $250K/mo', price: 499 },
@@ -25,7 +26,7 @@ const AGENCY_TIERS = [
       'Dedicated onboarding',
     ],
     cta: 'Get Started',
-    href: '/onboarding',
+    href: '/onboarding?plan=agency_base&billing=monthly',
     popular: false,
   },
   {
@@ -40,7 +41,7 @@ const AGENCY_TIERS = [
       'Priority support',
     ],
     cta: 'Get Started',
-    href: '/onboarding',
+    href: '/onboarding?plan=agency_pro&billing=monthly',
     popular: true,
   },
   {
@@ -223,7 +224,7 @@ export function PricingSection() {
                 {/* CTA */}
                 <div className="text-center">
                   <a
-                    href="/onboarding"
+                    href={`/onboarding?plan=${GMV_TO_PLAN[sliderValue]}&billing=${billing}`}
                     className="inline-flex items-center gap-2 rounded-full px-8 py-3.5 text-sm font-semibold text-white bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] hover:shadow-xl hover:shadow-[#FF4D8D]/30 hover:scale-105 transition-all duration-200"
                   >
                     Get Started <ArrowRight className="w-4 h-4" />
@@ -239,6 +240,10 @@ export function PricingSection() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
             {AGENCY_TIERS.map((t, i) => {
               const displayPrice = t.price > 0 ? (isAnnual ? annualMonthly(t.price) : t.price) : 0;
+              const agencyPlanKey = AGENCY_TO_PLAN[t.name];
+              const dynamicHref = agencyPlanKey
+                ? `/onboarding?plan=${agencyPlanKey}&billing=${billing}`
+                : t.href;
               return (
                 <ScrollReveal key={t.name} delay={i * 100}>
                   <div
@@ -281,8 +286,8 @@ export function PricingSection() {
                         ))}
                       </ul>
                       <a
-                        href={t.href}
-                        {...(t.href.startsWith('http') ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+                        href={dynamicHref}
+                        {...(dynamicHref.startsWith('http') ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
                         className={`mt-8 inline-flex items-center justify-center rounded-full px-6 py-3 text-sm font-semibold transition-all duration-200 ${
                           t.popular
                             ? 'text-white bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] hover:shadow-lg hover:shadow-[#FF4D8D]/25 hover:scale-105'

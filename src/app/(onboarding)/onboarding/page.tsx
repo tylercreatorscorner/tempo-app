@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useCallback, useRef, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useCallback, useRef, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Building2,
   Briefcase,
@@ -16,16 +16,31 @@ import {
   Music2,
 } from 'lucide-react';
 import { TempoLogo } from '@/components/ui/tempo-logo';
+import { STRIPE_PRICES } from '@/lib/stripe-prices';
 
 type Plan = 'brand' | 'agency' | null;
 
-const STEPS = ['Role', 'Brand', 'Connect', 'Ready'] as const;
+const STEPS = ['Role', 'Brand', 'Connect', 'Payment'] as const;
 
 export default function OnboardingPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Loading...</div>}>
+      <OnboardingContent />
+    </Suspense>
+  );
+}
+
+function OnboardingContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const urlPlan = searchParams.get('plan');
+  const urlBilling = (searchParams.get('billing') as 'monthly' | 'annual') || 'monthly';
   const [currentStep, setCurrentStep] = useState(0);
   const [direction, setDirection] = useState<'forward' | 'back'>('forward');
-  const [plan, setPlan] = useState<Plan>(null);
+  const [plan, setPlan] = useState<Plan>(
+    urlPlan?.startsWith('agency') ? 'agency' : urlPlan?.startsWith('brand') ? 'brand' : null
+  );
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [brandName, setBrandName] = useState('');
   const [brandColor, setBrandColor] = useState('#FF4D8D');
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
@@ -157,7 +172,42 @@ export default function OnboardingPage() {
           <StepConnect onConnect={handleConnectTikTok} onSkip={handleSkip} onBack={goBack} />
         )}
         {currentStep === 3 && (
-          <StepReady onGo={() => router.push('/dashboard')} />
+          <StepPayment
+            urlPlan={urlPlan}
+            urlBilling={urlBilling}
+            isCheckingOut={isCheckingOut}
+            onCheckout={async () => {
+              if (!urlPlan) {
+                router.push('/dashboard');
+                return;
+              }
+              const priceConfig = STRIPE_PRICES[urlPlan];
+              if (!priceConfig) {
+                router.push('/dashboard');
+                return;
+              }
+              const priceId = urlBilling === 'annual' ? priceConfig.annual : priceConfig.monthly;
+              setIsCheckingOut(true);
+              try {
+                const res = await fetch('/api/checkout', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ priceId }),
+                });
+                const data = await res.json();
+                if (data.url) {
+                  window.location.href = data.url;
+                } else {
+                  console.error('No checkout URL:', data);
+                  setIsCheckingOut(false);
+                }
+              } catch (err) {
+                console.error('Checkout error:', err);
+                setIsCheckingOut(false);
+              }
+            }}
+            onSkip={() => router.push('/dashboard')}
+          />
         )}
       </div>
     </div>
@@ -340,8 +390,20 @@ function StepConnect({ onConnect, onSkip, onBack }: { onConnect: () => void; onS
   );
 }
 
-/* ── Step 4: Ready ── */
-function StepReady({ onGo }: { onGo: () => void }) {
+/* ── Step 4: Payment ── */
+function StepPayment({
+  urlPlan,
+  urlBilling,
+  isCheckingOut,
+  onCheckout,
+  onSkip,
+}: {
+  urlPlan: string | null;
+  urlBilling: string;
+  isCheckingOut: boolean;
+  onCheckout: () => void;
+  onSkip: () => void;
+}) {
   const features = [
     { icon: <BarChart3 className="h-6 w-6" />, title: 'Analytics', desc: 'Real-time TikTok Shop performance metrics' },
     { icon: <Users className="h-6 w-6" />, title: 'Creator Management', desc: 'Track and manage your creator partnerships' },
@@ -354,8 +416,14 @@ function StepReady({ onGo }: { onGo: () => void }) {
         <div className="inline-flex h-16 w-16 rounded-full bg-gradient-to-br from-[#FF4D8D] to-[#7C5CFC] items-center justify-center mb-4">
           <Sparkles className="h-8 w-8 text-white" />
         </div>
-        <h2 className="text-3xl font-bold">You&apos;re all set! 🎉</h2>
-        <p className="text-muted-foreground mt-2">Your dashboard is ready to go</p>
+        <h2 className="text-3xl font-bold">
+          {urlPlan ? 'Almost there!' : 'You\'re all set! 🎉'}
+        </h2>
+        <p className="text-muted-foreground mt-2">
+          {urlPlan
+            ? `Complete your ${urlPlan.replace('_', ' ')} subscription (${urlBilling}) to unlock everything.`
+            : 'Your dashboard is ready to go'}
+        </p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -369,11 +437,21 @@ function StepReady({ onGo }: { onGo: () => void }) {
       </div>
 
       <button
-        onClick={onGo}
-        className="inline-flex items-center gap-2 px-10 py-4 rounded-2xl bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] text-white font-bold text-lg hover:opacity-90 transition-opacity shadow-lg shadow-[#FF4D8D]/20"
+        onClick={onCheckout}
+        disabled={isCheckingOut}
+        className="inline-flex items-center gap-2 px-10 py-4 rounded-2xl bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] text-white font-bold text-lg hover:opacity-90 transition-opacity shadow-lg shadow-[#FF4D8D]/20 disabled:opacity-50"
       >
-        Go to Dashboard <ArrowRight className="h-5 w-5" />
+        {isCheckingOut ? 'Redirecting...' : urlPlan ? 'Proceed to Payment' : 'Go to Dashboard'}{' '}
+        <ArrowRight className="h-5 w-5" />
       </button>
+
+      {urlPlan && (
+        <div>
+          <button onClick={onSkip} className="text-sm text-muted-foreground hover:text-foreground transition-colors underline underline-offset-4">
+            Skip for now
+          </button>
+        </div>
+      )}
     </div>
   );
 }
