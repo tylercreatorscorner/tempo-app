@@ -228,3 +228,37 @@ html {
 .animate-slide-in-right {
   animation: slideInRight 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
+
+/* Landing page mockup animations */
+@keyframes draw {
+  to { stroke-dashoffset: 0; }
+}
+@keyframes slideUp {
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes slideRight {
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes mockFadeIn {
+  to { opacity: 1; }
+}
+@keyframes pulseSlow {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.7; }
+}
+
+.animate-draw {
+  animation: draw 1.8s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+.animate-slideUp {
+  animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.animate-slideRight {
+  animation: slideRight 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.animate-fadeIn {
+  animation: mockFadeIn 0.6s ease-out forwards;
+}
+.animate-pulse-slow {
+  animation: pulseSlow 4s ease-in-out infinite;
+}

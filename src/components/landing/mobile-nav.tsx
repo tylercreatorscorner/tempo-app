@@ -7,7 +7,6 @@ import { TempoLogo } from '@/components/ui/tempo-logo';
 const links = [
   { label: 'Features', href: '#features' },
   { label: 'Pricing', href: '#pricing' },
-  { label: 'About', href: '#how-it-works' },
 ];
 
 export function MobileNav() {
@@ -40,7 +39,7 @@ export function MobileNav() {
                 </a>
               ))}
               <a
-                href="#cta"
+                href="#book-demo"
                 onClick={() => setOpen(false)}
                 className="mt-4 inline-flex items-center justify-center rounded-full px-6 py-3 text-sm font-semibold text-white bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] hover:shadow-lg hover:shadow-[#FF4D8D]/25 transition-all"
               >

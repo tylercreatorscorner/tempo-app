@@ -1,23 +1,23 @@
 import { TempoLogo } from '@/components/ui/tempo-logo';
 import { MobileNav } from '@/components/landing/mobile-nav';
 import { ScrollReveal } from '@/components/landing/scroll-reveal';
+import { CountUp } from '@/components/landing/count-up';
 import {
-  BarChart3,
-  Brain,
-  Building2,
-  FileText,
+  HeroDashboardMockup,
+  AnalyticsMockup,
+  LeaderboardMockup,
+  BrandSwitcherMockup,
+  DailyBriefMockup,
+} from '@/components/landing/animated-mockups';
+import {
   FileSpreadsheet,
   EyeOff,
   Flame,
-  Target,
-  Database,
-  Rocket,
   Check,
   ArrowRight,
   Twitter,
   Github,
   Linkedin,
-  ChevronDown,
 } from 'lucide-react';
 
 const navLinks = [
@@ -55,138 +55,50 @@ function Navbar() {
 /* ─── Hero ─── */
 function Hero() {
   return (
-    <section className="pt-32 pb-20 md:pt-40 md:pb-28 px-6 overflow-hidden">
-      <div className="max-w-7xl mx-auto grid md:grid-cols-2 gap-12 items-center">
-        <div className="space-y-6">
-          <div className="inline-flex items-center gap-2 rounded-full bg-[#FF4D8D]/10 px-4 py-1.5 text-sm font-medium text-[#FF4D8D]">
-            <span className="w-2 h-2 rounded-full bg-[#FF4D8D] animate-pulse" />
-            Now Accepting New Clients
-          </div>
-          <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight text-[#1A1B3A] leading-[1.1]">
-            Creator Management,{' '}
-            <span className="bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] bg-clip-text text-transparent">Simplified</span>
-          </h1>
-          <p className="text-lg md:text-xl text-[#6B7280] max-w-lg leading-relaxed">
-            Whether you&apos;re a brand managing your own creator program or an agency scaling across dozens of brands, your data shouldn&apos;t live in spreadsheets. Tempo puts it all in one place.
-          </p>
-          <div className="flex flex-wrap gap-4 pt-2">
-            <a
-              href="#book-demo"
-              className="inline-flex items-center gap-2 rounded-full px-7 py-3.5 text-sm font-semibold text-white bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] hover:shadow-xl hover:shadow-[#FF4D8D]/30 hover:scale-105 transition-all duration-200"
-            >
-              Book a Demo <ArrowRight className="w-4 h-4" />
-            </a>
-            <a
-              href="#features"
-              className="inline-flex items-center gap-2 rounded-full px-7 py-3.5 text-sm font-semibold text-[#1A1B3A] border border-[#E5E7EB] hover:border-[#FF4D8D]/40 hover:bg-[#FF4D8D]/5 transition-all duration-200"
-            >
-              See Features
-            </a>
-          </div>
+    <section className="min-h-screen pt-32 pb-20 md:pt-40 md:pb-32 px-6 overflow-hidden flex items-center">
+      <div className="max-w-7xl mx-auto w-full">
+        <div className="text-center mb-12 md:mb-16">
+          <ScrollReveal>
+            <div className="inline-flex items-center gap-2 rounded-full bg-[#FF4D8D]/10 px-4 py-1.5 text-sm font-medium text-[#FF4D8D] mb-6">
+              <span className="w-2 h-2 rounded-full bg-[#FF4D8D] animate-pulse" />
+              Now Accepting New Clients
+            </div>
+          </ScrollReveal>
+          <ScrollReveal delay={100}>
+            <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight text-[#1A1B3A] leading-[1.05] mb-6">
+              Creator Management,{' '}
+              <span className="bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] bg-clip-text text-transparent">Simplified</span>
+            </h1>
+          </ScrollReveal>
+          <ScrollReveal delay={200}>
+            <p className="text-lg md:text-xl text-[#6B7280] max-w-xl mx-auto leading-relaxed">
+              Track performance. Manage creators. Grow GMV. All in one place.
+            </p>
+          </ScrollReveal>
+          <ScrollReveal delay={300}>
+            <div className="flex flex-wrap justify-center gap-4 pt-6">
+              <a
+                href="#book-demo"
+                className="inline-flex items-center gap-2 rounded-full px-7 py-3.5 text-sm font-semibold text-white bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] hover:shadow-xl hover:shadow-[#FF4D8D]/30 hover:scale-105 transition-all duration-200"
+              >
+                Book a Demo <ArrowRight className="w-4 h-4" />
+              </a>
+              <a
+                href="#features"
+                className="inline-flex items-center gap-2 rounded-full px-7 py-3.5 text-sm font-semibold text-[#1A1B3A] border border-[#E5E7EB] hover:border-[#FF4D8D]/40 hover:bg-[#FF4D8D]/5 transition-all duration-200"
+              >
+                See Features
+              </a>
+            </div>
+          </ScrollReveal>
         </div>
 
-        {/* Dashboard mockup */}
-        <div className="relative">
-          <div className="absolute -inset-4 bg-gradient-to-r from-[#FF4D8D]/20 to-[#7C5CFC]/20 rounded-3xl blur-3xl" />
-          <div className="relative rounded-2xl bg-white border border-[#E5E7EB] shadow-2xl shadow-[#7C5CFC]/10 overflow-hidden">
-            {/* Top bar */}
-            <div className="flex items-center justify-between px-5 py-3 bg-[#1A1B3A] text-white">
-              <div className="flex items-center gap-3">
-                <div className="w-6 h-6 rounded-md bg-gradient-to-br from-[#FF4D8D] to-[#7C5CFC] flex items-center justify-center">
-                  <span className="text-[9px] font-bold">T</span>
-                </div>
-                <span className="text-sm font-semibold">Tempo Dashboard</span>
-              </div>
-              <div className="flex items-center gap-2 bg-white/10 rounded-md px-3 py-1.5 text-xs font-medium">
-                <div className="w-4 h-4 rounded-sm bg-[#FF4D8D]/80" />
-                <span>Glow Skin Co</span>
-                <ChevronDown className="w-3 h-3 opacity-60" />
-              </div>
-            </div>
-
-            <div className="p-5 space-y-4">
-              {/* Stat cards */}
-              <div className="grid grid-cols-3 gap-3">
-                <div className="rounded-xl bg-[#F8F9FC] border border-[#E5E7EB]/60 p-3.5">
-                  <p className="text-[10px] text-[#9CA3AF] font-medium uppercase tracking-wide">Total GMV</p>
-                  <p className="text-xl font-bold text-[#1A1B3A] mt-1">$218,580</p>
-                  <p className="text-xs font-semibold text-[#34D399] mt-0.5">+24% vs last month</p>
-                </div>
-                <div className="rounded-xl bg-[#F8F9FC] border border-[#E5E7EB]/60 p-3.5">
-                  <p className="text-[10px] text-[#9CA3AF] font-medium uppercase tracking-wide">Active Creators</p>
-                  <p className="text-xl font-bold text-[#1A1B3A] mt-1">142</p>
-                  <p className="text-xs font-semibold text-[#FF4D8D] mt-0.5">+12 this week</p>
-                </div>
-                <div className="rounded-xl bg-[#F8F9FC] border border-[#E5E7EB]/60 p-3.5">
-                  <p className="text-[10px] text-[#9CA3AF] font-medium uppercase tracking-wide">Top Video GMV</p>
-                  <p className="text-xl font-bold text-[#1A1B3A] mt-1">$8,470</p>
-                  <p className="text-xs font-semibold text-[#7C5CFC] mt-0.5">@skincare.sarah</p>
-                </div>
-              </div>
-
-              {/* Realistic area chart */}
-              <div className="rounded-xl bg-[#F8F9FC] border border-[#E5E7EB]/60 p-4 relative overflow-hidden">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs font-semibold text-[#1A1B3A]">GMV Trend — Last 30 Days</p>
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-[#FF4D8D]" /><span className="text-[10px] text-[#9CA3AF]">GMV</span></div>
-                    <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-[#7C5CFC]" /><span className="text-[10px] text-[#9CA3AF]">Orders</span></div>
-                  </div>
-                </div>
-                <svg className="w-full h-36" viewBox="0 0 500 120" preserveAspectRatio="none">
-                  <defs>
-                    <linearGradient id="heroChartGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#FF4D8D" stopOpacity="0.25" />
-                      <stop offset="100%" stopColor="#FF4D8D" stopOpacity="0.02" />
-                    </linearGradient>
-                  </defs>
-                  {/* Grid lines */}
-                  <line x1="0" y1="30" x2="500" y2="30" stroke="#E5E7EB" strokeWidth="0.5" />
-                  <line x1="0" y1="60" x2="500" y2="60" stroke="#E5E7EB" strokeWidth="0.5" />
-                  <line x1="0" y1="90" x2="500" y2="90" stroke="#E5E7EB" strokeWidth="0.5" />
-                  {/* Area fill */}
-                  <path d="M0,85 L17,80 L34,72 L51,78 L68,65 L85,70 L102,58 L119,62 L136,50 L153,55 L170,48 L187,52 L204,40 L221,45 L238,38 L255,42 L272,35 L289,30 L306,38 L323,28 L340,32 L357,25 L374,22 L391,28 L408,18 L425,22 L442,15 L459,20 L476,12 L500,8 L500,120 L0,120Z" fill="url(#heroChartGrad)" />
-                  {/* Line */}
-                  <path d="M0,85 L17,80 L34,72 L51,78 L68,65 L85,70 L102,58 L119,62 L136,50 L153,55 L170,48 L187,52 L204,40 L221,45 L238,38 L255,42 L272,35 L289,30 L306,38 L323,28 L340,32 L357,25 L374,22 L391,28 L408,18 L425,22 L442,15 L459,20 L476,12 L500,8" fill="none" stroke="#FF4D8D" strokeWidth="2" />
-                  {/* Data dots */}
-                  <circle cx="136" cy="50" r="2.5" fill="#FF4D8D" />
-                  <circle cx="272" cy="35" r="2.5" fill="#FF4D8D" />
-                  <circle cx="408" cy="18" r="2.5" fill="#FF4D8D" />
-                  <circle cx="500" cy="8" r="2.5" fill="#FF4D8D" />
-                </svg>
-              </div>
-
-              {/* Creator leaderboard */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs font-semibold text-[#1A1B3A]">Top Creators</p>
-                  <p className="text-[10px] text-[#9CA3AF] font-medium">This Month</p>
-                </div>
-                <div className="space-y-1.5">
-                  {[
-                    { rank: 1, name: '@skincare.sarah', gmv: '$24,580', videos: 34 },
-                    { rank: 2, name: '@wellness.mike', gmv: '$18,320', videos: 28 },
-                    { rank: 3, name: '@fitness.luna', gmv: '$12,470', videos: 41 },
-                  ].map((c) => (
-                    <div key={c.name} className="flex items-center justify-between rounded-lg bg-[#F8F9FC] border border-[#E5E7EB]/60 px-3.5 py-2.5">
-                      <div className="flex items-center gap-2.5">
-                        <span className="text-[10px] font-bold text-[#9CA3AF] w-4 text-center">#{c.rank}</span>
-                        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#FF4D8D] to-[#7C5CFC] flex items-center justify-center">
-                          <span className="text-[9px] font-bold text-white">{c.name.charAt(1).toUpperCase()}</span>
-                        </div>
-                        <span className="text-sm font-medium text-[#1A1B3A]">{c.name}</span>
-                      </div>
-                      <div className="flex items-center gap-4 text-xs">
-                        <span className="font-semibold text-[#1A1B3A]">{c.gmv} <span className="text-[#9CA3AF] font-normal">GMV</span></span>
-                        <span className="text-[#6B7280]">{c.videos} videos</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
+        {/* Massive dashboard mockup */}
+        <ScrollReveal delay={400}>
+          <div className="max-w-5xl mx-auto">
+            <HeroDashboardMockup />
           </div>
-        </div>
+        </ScrollReveal>
       </div>
     </section>
   );
@@ -195,17 +107,19 @@ function Hero() {
 /* ─── Stats Bar ─── */
 function StatsBar() {
   const stats = [
-    { value: '10,000+', label: 'Creators Managed' },
-    { value: '$100M+', label: 'GMV Tracked' },
-    { value: '1M+', label: 'Videos Analyzed' },
-    { value: '50+', label: 'Brands Onboarded' },
+    { value: 10000, suffix: '+', label: 'Creators Managed' },
+    { value: 100, prefix: '$', suffix: 'M+', label: 'GMV Tracked' },
+    { value: 1, suffix: 'M+', label: 'Videos Analyzed' },
+    { value: 50, suffix: '+', label: 'Brands Onboarded' },
   ];
   return (
     <section className="border-y border-[#E5E7EB] bg-[#F8F9FC]/50">
-      <div className="max-w-7xl mx-auto px-6 py-12 grid grid-cols-2 md:grid-cols-4 gap-8">
+      <div className="max-w-7xl mx-auto px-6 py-16 grid grid-cols-2 md:grid-cols-4 gap-8">
         {stats.map((s) => (
           <div key={s.label} className="text-center">
-            <p className="text-3xl md:text-4xl font-extrabold bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] bg-clip-text text-transparent">{s.value}</p>
+            <p className="text-3xl md:text-4xl font-extrabold bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] bg-clip-text text-transparent">
+              <CountUp end={s.value} prefix={s.prefix || ''} suffix={s.suffix || ''} duration={2500} />
+            </p>
             <p className="text-sm text-[#6B7280] mt-1 font-medium">{s.label}</p>
           </div>
         ))}
@@ -217,21 +131,21 @@ function StatsBar() {
 /* ─── The Problem ─── */
 function TheProblem() {
   const problems = [
-    { icon: FileSpreadsheet, title: 'Death by Spreadsheet', desc: "Whether you're a brand team or an agency, you're exporting CSVs every morning, copy-pasting into Google Sheets, and praying the formulas don't break. There's gotta be a better way." },
-    { icon: EyeOff, title: 'Flying Blind', desc: "A creator's video went viral yesterday and nobody on your team knew until someone else brought it up. Brand managers and agency operators alike deserve real-time visibility." },
-    { icon: Flame, title: 'Scaling = More Chaos', desc: "Every new brand or creator roster means another dashboard, another data source, another tab to keep track of. Growth shouldn't feel like drowning." },
+    { icon: FileSpreadsheet, title: 'Death by Spreadsheet', desc: "You're exporting CSVs every morning. There's a better way." },
+    { icon: EyeOff, title: 'Flying Blind', desc: "A creator's video went viral and you found out last." },
+    { icon: Flame, title: 'Scaling = More Chaos', desc: 'Every new brand means another spreadsheet to manage.' },
   ];
   return (
-    <section className="py-24 px-6">
+    <section className="py-32 md:py-40 px-6">
       <div className="max-w-5xl mx-auto">
-        <ScrollReveal className="text-center mb-16">
+        <ScrollReveal className="text-center mb-20">
           <h2 className="text-3xl md:text-5xl font-extrabold text-[#1A1B3A] tracking-tight">Sound familiar?</h2>
         </ScrollReveal>
         <div className="grid md:grid-cols-3 gap-6">
           {problems.map((p, i) => (
             <ScrollReveal key={p.title} delay={i * 100}>
-              <div className="group relative rounded-2xl border border-[#E5E7EB]/80 bg-white/60 backdrop-blur-xl p-6 hover:border-[#FF4D8D]/30 hover:shadow-xl hover:shadow-[#FF4D8D]/10 hover:-translate-y-1 transition-all duration-300">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#FF4D8D]/10 to-[#7C5CFC]/10 flex items-center justify-center mb-4 group-hover:from-[#FF4D8D]/20 group-hover:to-[#7C5CFC]/20 transition-colors">
+              <div className="group relative rounded-2xl border border-[#E5E7EB]/80 bg-white/60 backdrop-blur-xl p-8 hover:border-[#FF4D8D]/30 hover:shadow-xl hover:shadow-[#FF4D8D]/10 hover:-translate-y-2 transition-all duration-300">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#FF4D8D]/10 to-[#7C5CFC]/10 flex items-center justify-center mb-5 group-hover:from-[#FF4D8D]/20 group-hover:to-[#7C5CFC]/20 transition-colors">
                   <p.icon className="w-6 h-6 text-[#FF4D8D]" />
                 </div>
                 <h3 className="text-lg font-bold text-[#1A1B3A] mb-2">{p.title}</h3>
@@ -245,172 +159,73 @@ function TheProblem() {
   );
 }
 
+/* ─── Feature Section (alternating layout) ─── */
+function FeatureSection({
+  headline,
+  description,
+  mockup,
+  reversed = false,
+  id,
+}: {
+  headline: string;
+  description: string;
+  mockup: React.ReactNode;
+  reversed?: boolean;
+  id?: string;
+}) {
+  return (
+    <section id={id} className={id ? 'scroll-mt-20' : ''}>
+      <div className="max-w-7xl mx-auto px-6 py-32 md:py-40">
+        <div className={`grid md:grid-cols-2 gap-16 md:gap-20 items-center ${reversed ? 'md:[direction:rtl]' : ''}`}>
+          <ScrollReveal className={reversed ? 'md:[direction:ltr]' : ''}>
+            <div className="space-y-6">
+              <h2 className="text-3xl md:text-5xl font-extrabold text-[#1A1B3A] tracking-tight leading-tight">
+                {headline}
+              </h2>
+              <p className="text-lg text-[#6B7280] leading-relaxed max-w-md">
+                {description}
+              </p>
+            </div>
+          </ScrollReveal>
+          <ScrollReveal delay={200} className={reversed ? 'md:[direction:ltr]' : ''}>
+            <div className="relative">
+              {mockup}
+            </div>
+          </ScrollReveal>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 /* ─── Features ─── */
 function Features() {
-  const features = [
-    { icon: BarChart3, title: 'Real-Time Analytics', desc: 'GMV, orders, commission, creator performance. Updated daily, not whenever someone remembers to export the CSV.' },
-    { icon: Brain, title: 'Creator Intelligence', desc: "Know who's crushing it and who needs a nudge. Spot your next star creator before anyone else does." },
-    { icon: Building2, title: 'Multi-Brand Management', desc: 'Switch between brands in one click. Same dashboard, same workflow, whether you manage 2 brands or 20.' },
-    { icon: FileText, title: 'Automated Reporting', desc: "Wake up to a daily brief in your inbox. No more Monday morning scrambles to pull last week's numbers." },
-  ];
   return (
-    <section id="features" className="py-24 px-6 scroll-mt-20">
-      <div className="max-w-7xl mx-auto">
-        <ScrollReveal className="text-center mb-16">
-          <p className="text-sm font-semibold text-[#FF4D8D] uppercase tracking-wider mb-3">Features</p>
-          <h2 className="text-3xl md:text-5xl font-extrabold text-[#1A1B3A] tracking-tight">Everything you need to win on TikTok Shop</h2>
-          <p className="text-[#6B7280] mt-4 max-w-2xl mx-auto text-lg">Whether you run a brand in-house or manage creators for dozens of clients, Tempo gives you the tools to stay ahead.</p>
-        </ScrollReveal>
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {features.map((f, i) => (
-            <ScrollReveal key={f.title} delay={i * 100}>
-              <div className="group relative rounded-2xl border border-[#E5E7EB]/80 bg-white/60 backdrop-blur-xl p-6 hover:border-[#FF4D8D]/30 hover:shadow-xl hover:shadow-[#FF4D8D]/10 hover:-translate-y-1 transition-all duration-300">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#FF4D8D]/10 to-[#7C5CFC]/10 flex items-center justify-center mb-4 group-hover:from-[#FF4D8D]/20 group-hover:to-[#7C5CFC]/20 transition-colors">
-                  <f.icon className="w-6 h-6 text-[#FF4D8D]" />
-                </div>
-                <h3 className="text-lg font-bold text-[#1A1B3A] mb-2">{f.title}</h3>
-                <p className="text-sm text-[#6B7280] leading-relaxed">{f.desc}</p>
-              </div>
-            </ScrollReveal>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* ─── Dashboard Preview ─── */
-function DashboardPreview() {
-  return (
-    <section className="py-24 px-6 overflow-hidden">
-      <div className="max-w-6xl mx-auto">
-        <ScrollReveal className="text-center mb-12">
-          <p className="text-sm font-semibold text-[#FF4D8D] uppercase tracking-wider mb-3">Dashboard Preview</p>
-          <h2 className="text-3xl md:text-5xl font-extrabold text-[#1A1B3A] tracking-tight">Your command center</h2>
-          <p className="text-[#6B7280] mt-4 max-w-xl mx-auto text-lg">Everything you need, nothing you don&apos;t.</p>
-        </ScrollReveal>
-        <ScrollReveal>
-          <div className="relative">
-            <div className="absolute -inset-6 bg-gradient-to-r from-[#FF4D8D]/10 via-[#7C5CFC]/10 to-[#FF4D8D]/10 rounded-[2rem] blur-3xl" />
-            <div className="relative rounded-2xl p-[2px] bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC]">
-              <div className="rounded-[14px] bg-white p-6 md:p-8 space-y-6">
-                {/* Top row stat cards */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {[
-                    { label: 'Total GMV', value: '$847,293' },
-                    { label: 'Orders', value: '12,847' },
-                    { label: 'Avg Commission', value: '13.8%' },
-                    { label: 'Active Creators', value: '487' },
-                  ].map((c) => (
-                    <div key={c.label} className="rounded-xl bg-[#F8F9FC] border border-[#E5E7EB]/60 p-4">
-                      <p className="text-[11px] text-[#9CA3AF] font-medium uppercase tracking-wide">{c.label}</p>
-                      <p className="text-2xl font-bold text-[#1A1B3A] mt-1">{c.value}</p>
-                    </div>
-                  ))}
-                </div>
-                {/* Chart area */}
-                <div className="grid md:grid-cols-3 gap-4">
-                  {/* Bar chart with brand labels */}
-                  <div className="md:col-span-2 rounded-xl bg-[#F8F9FC] border border-[#E5E7EB]/60 p-5 relative overflow-hidden">
-                    <p className="text-sm font-semibold text-[#1A1B3A] mb-4">Revenue by Brand</p>
-                    <div className="flex items-end gap-6 px-4" style={{ height: '128px' }}>
-                      {[
-                        { name: 'Glow Skin Co', h: 96, color: '#FF4D8D' },
-                        { name: 'FitNation', h: 70, color: '#7C5CFC' },
-                        { name: 'Pure Wellness', h: 58, color: '#FFB84D' },
-                        { name: 'NutriCore', h: 38, color: '#34D399' },
-                      ].map((b) => (
-                        <div key={b.name} className="flex-1 flex flex-col items-center justify-end" style={{ height: '100%' }}>
-                          <div className="w-full rounded-t-md" style={{ height: `${b.h}px`, backgroundColor: b.color, opacity: 0.85 }} />
-                          <span className="text-[9px] font-medium text-[#6B7280] text-center leading-tight mt-1">{b.name}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  {/* Brand Split */}
-                  <div className="rounded-xl bg-[#F8F9FC] border border-[#E5E7EB]/60 p-5">
-                    <p className="text-sm font-semibold text-[#1A1B3A] mb-3">Brand Split</p>
-                    <div className="space-y-3">
-                      {[
-                        { name: 'Glow Skin Co', pct: 35, color: '#FF4D8D' },
-                        { name: 'FitNation', pct: 28, color: '#7C5CFC' },
-                        { name: 'Pure Wellness', pct: 24, color: '#FFB84D' },
-                        { name: 'NutriCore', pct: 13, color: '#34D399' },
-                      ].map((b) => (
-                        <div key={b.name}>
-                          <div className="flex justify-between text-xs mb-1">
-                            <span className="font-medium text-[#1A1B3A]">{b.name}</span>
-                            <span className="text-[#6B7280]">{b.pct}%</span>
-                          </div>
-                          <div className="h-1.5 rounded-full bg-[#E5E7EB]">
-                            <div className="h-full rounded-full" style={{ width: `${b.pct}%`, backgroundColor: b.color }} />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-                {/* Top Performing Videos */}
-                <div className="rounded-xl bg-[#F8F9FC] border border-[#E5E7EB]/60 p-5">
-                  <p className="text-sm font-semibold text-[#1A1B3A] mb-3">Top Performing Videos</p>
-                  <div className="space-y-2">
-                    {[
-                      { title: 'This $12 serum changed everything #tiktokmademebuyit', creator: '@skincare.sarah', views: '2.1M', gmv: '$8,490' },
-                      { title: 'POV: you finally find supplements that work #guthealth', creator: '@wellness.mike', views: '1.4M', gmv: '$6,230' },
-                      { title: 'Why I switched to clean protein #gymtok #fitness', creator: '@fitness.luna', views: '890K', gmv: '$4,120' },
-                    ].map((v) => (
-                      <div key={v.title} className="flex items-center justify-between rounded-lg bg-white border border-[#E5E7EB]/60 px-4 py-2.5">
-                        <div className="flex-1 min-w-0 mr-4">
-                          <p className="text-sm font-medium text-[#1A1B3A] truncate">{v.title}</p>
-                          <p className="text-[11px] text-[#9CA3AF]">{v.creator}</p>
-                        </div>
-                        <div className="flex items-center gap-4 text-xs shrink-0">
-                          <span className="text-[#6B7280]">{v.views} views</span>
-                          <span className="font-semibold text-[#1A1B3A]">{v.gmv}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </ScrollReveal>
-      </div>
-    </section>
-  );
-}
-
-/* ─── Built Different ─── */
-function BuiltDifferent() {
-  const items = [
-    { icon: Target, title: 'Built for Operators', desc: "We don't build features for demo day. We build what actually saves brand teams and agency operators time at 9 AM on Monday." },
-    { icon: Database, title: 'Your Data, Your Way', desc: 'Brands see their full picture. Agencies see their managed creators. Everyone gets exactly what they need.' },
-    { icon: Rocket, title: 'Scales With You', desc: 'One brand or twenty. Solo brand manager or full agency team. Same simple product, built to grow with your operation.' },
-  ];
-  return (
-    <section className="py-24 px-6 bg-[#F8F9FC]">
-      <div className="max-w-5xl mx-auto">
-        <ScrollReveal className="text-center mb-16">
-          <p className="text-sm font-semibold text-[#7C5CFC] uppercase tracking-wider mb-3">Why Tempo</p>
-          <h2 className="text-3xl md:text-5xl font-extrabold text-[#1A1B3A] tracking-tight">Built by operators, not just engineers</h2>
-          <p className="text-[#6B7280] mt-4 max-w-2xl mx-auto text-lg">Tempo was built inside a real TikTok Shop operation managing 500+ creators across multiple brands. Whether you&apos;re a brand team or an agency, every feature exists because operators like you needed it.</p>
-        </ScrollReveal>
-        <div className="grid md:grid-cols-3 gap-6">
-          {items.map((item, i) => (
-            <ScrollReveal key={item.title} delay={i * 100}>
-              <div className="group relative rounded-2xl border border-[#E5E7EB]/80 bg-white/60 backdrop-blur-xl p-6 hover:border-[#FF4D8D]/30 hover:shadow-xl hover:shadow-[#FF4D8D]/10 hover:-translate-y-1 transition-all duration-300">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#FF4D8D]/10 to-[#7C5CFC]/10 flex items-center justify-center mb-4 group-hover:from-[#FF4D8D]/20 group-hover:to-[#7C5CFC]/20 transition-colors">
-                  <item.icon className="w-6 h-6 text-[#7C5CFC]" />
-                </div>
-                <h3 className="text-lg font-bold text-[#1A1B3A] mb-2">{item.title}</h3>
-                <p className="text-sm text-[#6B7280] leading-relaxed">{item.desc}</p>
-              </div>
-            </ScrollReveal>
-          ))}
-        </div>
-      </div>
-    </section>
+    <div>
+      <FeatureSection
+        id="features"
+        headline="Track every dollar in real time"
+        description="GMV, orders, commissions, creator performance. Updated daily, visualized instantly."
+        mockup={<AnalyticsMockup />}
+      />
+      <FeatureSection
+        headline="Know your creators"
+        description="See who's crushing it and who needs attention. Rankings update automatically."
+        mockup={<LeaderboardMockup />}
+        reversed
+      />
+      <FeatureSection
+        headline="Every brand, one dashboard"
+        description="Switch between brands in one click. Same workflow whether you manage 2 or 20."
+        mockup={<BrandSwitcherMockup />}
+      />
+      <FeatureSection
+        headline="Reports that write themselves"
+        description="Wake up to a daily brief. Know exactly where you stand before your first coffee."
+        mockup={<DailyBriefMockup />}
+        reversed
+      />
+    </div>
   );
 }
 
@@ -418,46 +233,34 @@ function BuiltDifferent() {
 function Pricing() {
   const tiers = [
     {
-      name: 'Brand',
-      price: '$999',
-      period: '/mo',
+      name: 'Brand', price: '$999', period: '/mo',
       desc: 'For brands managing their own creators',
       features: ['1 brand', 'Full analytics suite', 'Creator portal', 'Daily briefs & alerts', 'Up to 3 team seats', 'Priority support'],
-      cta: 'Book a Demo', href: '#book-demo',
-      popular: false,
+      cta: 'Book a Demo', popular: false,
     },
     {
-      name: 'Agency',
-      price: '$1,999',
-      period: '/mo',
+      name: 'Agency', price: '$1,999', period: '/mo',
       desc: 'For agencies managing multiple brands',
       features: ['Up to 5 brands', 'Everything in Brand', 'Multi-brand dashboard', 'Up to 10 team seats', 'Dedicated onboarding'],
-      cta: 'Book a Demo', href: '#book-demo',
-      popular: false,
+      cta: 'Book a Demo', popular: false,
     },
     {
-      name: 'Scale',
-      price: '$3,499',
-      period: '/mo',
+      name: 'Scale', price: '$3,499', period: '/mo',
       desc: 'For growing operations',
       features: ['Up to 15 brands', 'Everything in Agency', 'Unlimited team seats', 'API access', 'Custom reporting'],
-      cta: 'Book a Demo', href: '#book-demo',
-      popular: true,
+      cta: 'Book a Demo', popular: true,
     },
     {
-      name: 'Enterprise',
-      price: 'Custom',
-      period: '',
+      name: 'Enterprise', price: 'Custom', period: '',
       desc: 'For large-scale operations',
       features: ['Unlimited brands', 'Everything in Scale', 'White-label options', 'Dedicated support & SLA', 'Custom integrations'],
-      cta: 'Contact Sales', href: '#book-demo',
-      popular: false,
+      cta: 'Contact Sales', popular: false,
     },
   ];
   return (
-    <section id="pricing" className="py-24 px-6 bg-[#F8F9FC] scroll-mt-20">
+    <section id="pricing" className="py-32 md:py-40 px-6 bg-[#F8F9FC] scroll-mt-20">
       <div className="max-w-6xl mx-auto">
-        <ScrollReveal className="text-center mb-16">
+        <ScrollReveal className="text-center mb-20">
           <p className="text-sm font-semibold text-[#FF4D8D] uppercase tracking-wider mb-3">Pricing</p>
           <h2 className="text-3xl md:text-5xl font-extrabold text-[#1A1B3A] tracking-tight">Simple, transparent pricing</h2>
           <p className="text-[#6B7280] mt-4 text-lg">No free tier. No fluff. Just the tools you need to win.</p>
@@ -467,7 +270,7 @@ function Pricing() {
             <ScrollReveal key={t.name} delay={i * 100}>
               <div
                 className={`relative rounded-2xl p-[1px] h-full ${
-                  t.popular ? 'bg-gradient-to-b from-[#FF4D8D] to-[#7C5CFC] mt-0 md:mt-0' : 'bg-[#E5E7EB]'
+                  t.popular ? 'bg-gradient-to-b from-[#FF4D8D] to-[#7C5CFC]' : 'bg-[#E5E7EB]'
                 }`}
               >
                 {t.popular && (
@@ -520,17 +323,17 @@ function Faq() {
     { q: 'What if I manage creators AND am a brand?', a: 'Tempo handles both. Brand owners see everything. Agency managers see their slice. Same product, different views based on your role.' },
   ];
   return (
-    <section className="py-24 px-6">
+    <section className="py-32 md:py-40 px-6">
       <div className="max-w-3xl mx-auto">
-        <ScrollReveal className="text-center mb-16">
+        <ScrollReveal className="text-center mb-20">
           <p className="text-sm font-semibold text-[#FF4D8D] uppercase tracking-wider mb-3">FAQ</p>
           <h2 className="text-3xl md:text-5xl font-extrabold text-[#1A1B3A] tracking-tight">Questions? We&apos;ve got answers.</h2>
         </ScrollReveal>
-        <div className="space-y-6">
+        <div className="space-y-8">
           {faqs.map((faq, i) => (
             <ScrollReveal key={i} delay={i * 80}>
-              <div className="rounded-2xl border border-[#E5E7EB]/80 bg-white/60 backdrop-blur-xl p-6">
-                <h3 className="text-base font-bold text-[#1A1B3A] mb-2">{faq.q}</h3>
+              <div className="rounded-2xl border border-[#E5E7EB]/80 bg-white/60 backdrop-blur-xl p-8">
+                <h3 className="text-base font-bold text-[#1A1B3A] mb-3">{faq.q}</h3>
                 <p className="text-sm text-[#6B7280] leading-relaxed">{faq.a}</p>
               </div>
             </ScrollReveal>
@@ -544,10 +347,10 @@ function Faq() {
 /* ─── CTA ─── */
 function CtaSection() {
   return (
-    <section id="book-demo" className="py-24 px-6 scroll-mt-20">
+    <section id="book-demo" className="py-32 md:py-40 px-6 scroll-mt-20">
       <div className="max-w-4xl mx-auto">
         <ScrollReveal>
-          <div className="text-center mb-8">
+          <div className="text-center mb-10">
             <h2 className="text-3xl md:text-5xl font-extrabold text-[#1A1B3A] tracking-tight">
               Ready to see Tempo in action?
             </h2>
@@ -594,15 +397,13 @@ function Footer() {
 /* ─── Page ─── */
 export default function Home() {
   return (
-    <div className="min-h-screen bg-[#F8F9FC]">
+    <div className="min-h-screen bg-[#F8F9FC] scroll-smooth">
       <Navbar />
       <main>
         <Hero />
         <StatsBar />
         <TheProblem />
         <Features />
-        <DashboardPreview />
-        <BuiltDifferent />
         <Pricing />
         <Faq />
         <CtaSection />
