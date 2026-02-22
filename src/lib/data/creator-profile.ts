@@ -304,13 +304,11 @@ export async function getCreatorAccountBreakdown(
 ): Promise<AccountBreakdownRow[]> {
   const supabase = await createAdminClient();
 
-  let accountQuery = supabase
+  // Always get ALL accounts, then filter by performance data for the brand
+  const { data: accounts } = await supabase
     .from('creator_accounts')
     .select('tiktok_username, brand')
     .eq('creator_id', creatorId);
-  // When filtering by brand, only show accounts registered for that brand
-  if (brand) accountQuery = accountQuery.eq('brand', brand);
-  const { data: accounts } = await accountQuery;
 
   if (!accounts || accounts.length === 0) return [];
 
@@ -492,21 +490,8 @@ export async function getCreatorVideos(
  * registered under that brand.
  */
 export async function getPostsThisMonth(creatorId: number, brand?: string): Promise<number> {
-  let handles: string[];
-
-  if (brand) {
-    // Only count posts from accounts registered for this brand
-    const supabase = await createAdminClient();
-    const { data: accounts } = await supabase
-      .from('creator_accounts')
-      .select('tiktok_username')
-      .eq('creator_id', creatorId)
-      .eq('brand', brand);
-    handles = (accounts ?? []).map((a: Record<string, unknown>) => a.tiktok_username as string).filter(Boolean);
-  } else {
-    handles = await getHandles(creatorId);
-  }
-
+  // Always get ALL handles for the creator, then filter by brand in the performance query
+  const handles = await getHandles(creatorId);
   if (handles.length === 0) return 0;
 
   const now = new Date();

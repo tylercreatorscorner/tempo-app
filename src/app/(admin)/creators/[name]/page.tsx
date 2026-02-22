@@ -363,7 +363,16 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
               {videos.map((v, i) => (
                 <tr key={v.video_id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
                   <td className="px-4 sm:px-6 py-3.5 text-gray-400 tabular-nums">{i + 1}</td>
-                  <td className="px-4 py-3.5 font-medium max-w-xs truncate text-[#1A1B3A]">{v.video_title}</td>
+                  <td className="px-4 py-3.5 font-medium max-w-xs truncate">
+                    <a
+                      href={`https://www.tiktok.com/@${v.creator_name}/video/${v.video_id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[#1A1B3A] hover:text-[#FF4D8D] hover:underline transition-colors"
+                    >
+                      {v.video_title}
+                    </a>
+                  </td>
                   <td className="px-4 py-3.5 text-gray-500">@{v.creator_name}</td>
                   <td className="px-4 py-3.5">
                     <span
