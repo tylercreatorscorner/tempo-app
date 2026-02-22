@@ -3,7 +3,8 @@ import { formatCurrency, formatNumber } from '@/lib/utils/format';
 import { cn } from '@/lib/utils';
 
 interface Creator {
-  creator_name: string;
+  display_name: string;
+  handles: string[];
   total_gmv: number;
   total_orders: number;
   total_items_sold: number;
@@ -43,15 +44,22 @@ export function CreatorTable({ creators }: Props) {
           </thead>
           <tbody>
             {creators.map((c, i) => (
-              <tr key={c.creator_name + i} className={cn(
+              <tr key={c.display_name + i} className={cn(
                 'border-b border-gray-50 transition-all duration-200',
                 'hover:bg-gray-50',
               )}>
                 <td className="px-6 py-3.5"><RankBadge rank={i + 1} /></td>
                 <td className="px-4 py-3.5 font-medium text-[#1A1B3A]">
-                  <Link href={`/creators/${encodeURIComponent(c.creator_name)}`} className="hover:text-[#FF4D8D] hover:underline transition-colors">
-                    {c.creator_name}
-                  </Link>
+                  <div>
+                    <Link href={`/creators/${encodeURIComponent(c.handles[0])}`} className="hover:text-[#FF4D8D] hover:underline transition-colors">
+                      {c.display_name}
+                    </Link>
+                    {c.handles.length > 0 && c.display_name !== c.handles[0] && (
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        {c.handles.map((h) => `@${h}`).join(', ')}
+                      </p>
+                    )}
+                  </div>
                 </td>
                 <td className="px-4 py-3.5 text-right font-semibold tabular-nums text-[#1A1B3A]">{formatCurrency(c.total_gmv)}</td>
                 <td className="px-4 py-3.5 text-right text-gray-500 tabular-nums">{formatNumber(c.total_orders)}</td>

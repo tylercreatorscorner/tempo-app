@@ -9,6 +9,7 @@ import { GmvTrendChart } from '@/components/dashboard/gmv-trend-chart';
 import { CreatorTable } from '@/components/dashboard/creator-table';
 import { ProductTable } from '@/components/dashboard/product-table';
 import { DateRangePicker } from '@/components/dashboard/date-range-picker';
+import { aggregateCreatorsByRealName } from '@/lib/data/creator-aggregate';
 import { format, subDays, differenceInDays } from 'date-fns';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
@@ -103,7 +104,7 @@ export default async function BrandDetailPage({ params, searchParams }: Props) {
         <GmvTrendChart data={chartData} brands={[slug]} />
       </div>
 
-      <CreatorTable creators={creators} />
+      <CreatorTable creators={await aggregateCreatorsByRealName(creators)} />
       <ProductTable products={products} />
     </div>
   );

@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 
 interface Creator {
   creator_name: string;
+  handles?: string[];
   total_gmv: number;
   total_orders: number;
   total_items_sold: number;
@@ -39,7 +40,7 @@ export function CreatorsClient({ creators }: Props) {
     }
     if (search.trim()) {
       const q = search.toLowerCase();
-      result = result.filter((c) => c.creator_name.toLowerCase().includes(q));
+      result = result.filter((c) => c.creator_name.toLowerCase().includes(q) || c.handles?.some((h) => h.toLowerCase().includes(q)));
     }
     result.sort((a, b) => {
       const av = a[sortKey];
@@ -131,9 +132,16 @@ export function CreatorsClient({ creators }: Props) {
                 <tr key={`${c.creator_name}-${c.brand}-${i}`} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-3 text-gray-400">{page * PAGE_SIZE + i + 1}</td>
                   <td className="px-4 py-3 font-medium text-[#1A1B3A]">
-                    <Link href={`/creators/${encodeURIComponent(c.creator_name)}`} className="hover:text-[#FF4D8D] hover:underline transition-colors">
-                      {c.creator_name}
-                    </Link>
+                    <div>
+                      <Link href={`/creators/${encodeURIComponent(c.handles?.[0] ?? c.creator_name)}`} className="hover:text-[#FF4D8D] hover:underline transition-colors">
+                        {c.creator_name}
+                      </Link>
+                      {c.handles && c.handles.length > 0 && c.creator_name !== c.handles[0] && (
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {c.handles.map((h) => `@${h}`).join(', ')}
+                        </p>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-3">
                     <span

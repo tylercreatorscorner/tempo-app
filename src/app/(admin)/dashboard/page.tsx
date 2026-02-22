@@ -13,6 +13,7 @@ import { CsvExportButton } from '@/components/dashboard/csv-export-button';
 import { BrandFilterBar } from '@/components/dashboard/brand-filter-bar';
 import { AlertBanners } from '@/components/dashboard/alert-banners';
 import { generateAlerts } from '@/lib/data/alerts';
+import { aggregateCreatorsByRealName } from '@/lib/data/creator-aggregate';
 import { format, subDays, differenceInDays } from 'date-fns';
 
 const ALL_BRANDS = ['jiyu', 'catakor', 'physicians_choice', 'toplux'] as const;
@@ -124,6 +125,9 @@ export default async function AdminDashboard({ searchParams }: Props) {
       })
     ),
   ]);
+
+  // Group creators by real name
+  const groupedCreators = await aggregateCreatorsByRealName(allCreators);
 
   // Aggregate portfolio totals
   const totals = summaries.reduce(
@@ -279,11 +283,11 @@ export default async function AdminDashboard({ searchParams }: Props) {
         <div className="flex items-center justify-end mb-2">
           <CsvExportButton
             filename={`tempo-top-creators-${filenameDates}.csv`}
-            headers={['Rank', 'Creator', 'GMV', 'Orders', 'Items Sold', 'Videos']}
-            rows={allCreators.map((c, i) => [i + 1, c.creator_name, c.total_gmv, c.total_orders, c.total_items_sold, c.total_videos])}
+            headers={['Rank', 'Creator', 'Handles', 'GMV', 'Orders', 'Items Sold', 'Videos']}
+            rows={groupedCreators.map((c, i) => [i + 1, c.display_name, c.handles.join('; '), c.total_gmv, c.total_orders, c.total_items_sold, c.total_videos])}
           />
         </div>
-        <CreatorTable creators={allCreators} />
+        <CreatorTable creators={groupedCreators} />
       </div>
       <div>
         <div className="flex items-center justify-end mb-2">

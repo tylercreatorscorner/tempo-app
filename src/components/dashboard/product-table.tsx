@@ -45,7 +45,7 @@ export function ProductTable({ products }: Props) {
               )}>
                 <td className="px-6 py-3.5"><RankBadge rank={i + 1} /></td>
                 <td className="px-4 py-3.5 font-medium max-w-xs truncate text-[#1A1B3A]">
-                  <span className="hover:text-[#FF4D8D] hover:underline transition-colors cursor-pointer">{p.product_name}</span>
+                  {p.product_name}
                 </td>
                 <td className="px-4 py-3.5 text-right font-semibold tabular-nums text-[#1A1B3A]">{formatCurrency(p.total_gmv)}</td>
                 <td className="px-4 py-3.5 text-right text-gray-500 tabular-nums">{formatNumber(p.total_orders)}</td>
