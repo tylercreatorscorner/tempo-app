@@ -21,10 +21,6 @@ function SuccessContent() {
           Your subscription is active. Let&apos;s set up your account.
         </p>
 
-        {sessionId && (
-          <p className="text-xs text-[#9CA3AF]">Session: {sessionId}</p>
-        )}
-
         <Link
           href="/dashboard"
           className="inline-flex items-center gap-2 px-8 py-3.5 rounded-full text-white font-semibold bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] hover:shadow-xl hover:shadow-[#FF4D8D]/30 hover:scale-105 transition-all duration-200"
