@@ -110,7 +110,7 @@ function StatsBar() {
   const stats = [
     { value: 10000, suffix: '+', label: 'Creators Managed' },
     { value: 100, prefix: '$', suffix: 'M+', label: 'GMV Tracked' },
-    { value: 1, suffix: 'M+', label: 'Videos Analyzed' },
+    { value: 1000000, suffix: '+', label: 'Videos Analyzed' },
   ];
   return (
     <section className="border-y border-[#E5E7EB] bg-[#F8F9FC]/50">
