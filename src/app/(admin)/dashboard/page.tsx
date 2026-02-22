@@ -9,7 +9,7 @@ import { CreatorTable } from '@/components/dashboard/creator-table';
 import { ProductTable } from '@/components/dashboard/product-table';
 import { VideoTable } from '@/components/dashboard/video-table';
 import { DateRangePicker } from '@/components/dashboard/date-range-picker';
-import { DailyBrief } from '@/components/dashboard/daily-brief';
+import { CsvExportButton } from '@/components/dashboard/csv-export-button';
 import { BrandFilterBar } from '@/components/dashboard/brand-filter-bar';
 import { AlertBanners } from '@/components/dashboard/alert-banners';
 import { generateAlerts } from '@/lib/data/alerts';
@@ -40,13 +40,12 @@ export default async function AdminDashboard({ searchParams }: Props) {
   const prevStartDate = format(prevStart, 'yyyy-MM-dd');
   const prevEndDate = format(prevEnd, 'yyyy-MM-dd');
 
-  // Yesterday for Daily Brief
-  const yesterday = subDays(new Date(), 1);
-  const yesterdayStr = format(yesterday, 'yyyy-MM-dd');
+  // Server render time for "Last Updated"
+  const serverNow = new Date();
 
-  // Fetch all brand summaries in parallel (current + previous + yesterday)
+  // Fetch all brand summaries in parallel (current + previous)
   // Always fetch ALL brands for alerts even when filtering
-  const [summaries, prevSummaries, yesterdaySummaries, allBrandSummaries, allBrandPrevSummaries] = await Promise.all([
+  const [summaries, prevSummaries, allBrandSummaries, allBrandPrevSummaries] = await Promise.all([
     Promise.all(
       activeBrands.map(async (brand) => {
         try {
@@ -65,17 +64,6 @@ export default async function AdminDashboard({ searchParams }: Props) {
           return { brand, data: data[0] ?? null };
         } catch (err) {
           console.error(`getBrandSummary prev(${brand}) failed:`, err);
-          return { brand, data: null };
-        }
-      })
-    ),
-    Promise.all(
-      activeBrands.map(async (brand) => {
-        try {
-          const data = await getBrandSummary(brand, yesterdayStr, yesterdayStr);
-          return { brand, data: data[0] ?? null };
-        } catch (err) {
-          console.error(`getBrandSummary yesterday(${brand}) failed:`, err);
           return { brand, data: null };
         }
       })
@@ -157,12 +145,11 @@ export default async function AdminDashboard({ searchParams }: Props) {
       acc.gmv += data.total_gmv ?? 0;
       acc.orders += data.total_orders ?? 0;
       acc.items += data.total_items_sold ?? 0;
+      acc.creators += data.unique_creators ?? 0;
       return acc;
     },
-    { gmv: 0, orders: 0, items: 0 }
+    { gmv: 0, orders: 0, items: 0, creators: 0 }
   );
-
-  const yesterdayGmv = yesterdaySummaries.reduce((sum, { data }) => sum + (data?.total_gmv ?? 0), 0);
 
   // WoW % changes
   function pctChange(current: number, previous: number): number | undefined {
@@ -174,6 +161,8 @@ export default async function AdminDashboard({ searchParams }: Props) {
   const ordersTrend = pctChange(totals.orders, prevTotals.orders);
   const itemsTrend = pctChange(totals.items, prevTotals.items);
   const avgGmvPerCreator = totals.creators > 0 ? totals.gmv / totals.creators : 0;
+  const prevAvgGmvPerCreator = prevTotals.creators > 0 ? prevTotals.gmv / prevTotals.creators : 0;
+  const avgGmvTrend = pctChange(avgGmvPerCreator, prevAvgGmvPerCreator);
 
   // Brand strip data (always show all brands)
   const alertSummaries = allBrandSummaries ?? summaries;
@@ -219,14 +208,16 @@ export default async function AdminDashboard({ searchParams }: Props) {
       ...Object.fromEntries(chartBrands.map((b) => [b, values[b] ?? 0])),
     }));
 
-  // Daily Brief data
-  const topCreator = allCreators.length > 0 ? allCreators[0] : null;
-  const topVideo = allVideos.length > 0 ? allVideos[0] : null;
-  const brandTrends = brandStripData
-    .filter((b): b is typeof b & { trend: number } => b.trend !== undefined)
-    .map((b) => ({ brand: b.brand, gmv: b.gmv, trend: b.trend }));
-
   const trendLabel = 'vs prior period';
+
+  // Format date range for display
+  const displayStart = format(new Date(startDate), 'MMM d');
+  const displayEnd = format(new Date(endDate), 'MMM d, yyyy');
+  const dateRangeDisplay = `${displayStart} - ${displayEnd}`;
+  const filenameDates = `${startDate}-to-${endDate}`;
+
+  // Format last updated
+  const lastUpdated = format(serverNow, "MMM d, yyyy 'at' h:mm a") + ' CT';
   const headerLabel = brandFilter
     ? `${(['jiyu', 'catakor', 'physicians_choice', 'toplux'] as const).includes(brandFilter as typeof ALL_BRANDS[number]) ? ({'jiyu': 'JiYu', 'catakor': 'Cata-Kor', 'physicians_choice': "Physician's Choice", 'toplux': 'TopLux'} as Record<string, string>)[brandFilter] ?? brandFilter : brandFilter} Dashboard`
     : 'Operations Center';
@@ -240,10 +231,14 @@ export default async function AdminDashboard({ searchParams }: Props) {
           <p className="text-sm text-gray-500 mt-1">
             {brandFilter ? 'Brand performance details' : 'Portfolio performance overview'}
           </p>
+          <p className="text-xs text-gray-400 mt-1">Last updated: {lastUpdated}</p>
         </div>
-        <Suspense fallback={null}>
-          <DateRangePicker />
-        </Suspense>
+        <div className="flex flex-col items-end gap-1">
+          <Suspense fallback={null}>
+            <DateRangePicker />
+          </Suspense>
+          <span className="text-xs text-gray-400 font-medium">{dateRangeDisplay}</span>
+        </div>
       </div>
 
       {/* Brand Filter */}
@@ -254,21 +249,6 @@ export default async function AdminDashboard({ searchParams }: Props) {
       {/* Alert Banners */}
       <AlertBanners alerts={alertData} />
 
-      {/* Daily Brief */}
-      <DailyBrief
-        totalGmv={totals.gmv}
-        gmvTrend={gmvTrend}
-        yesterdayGmv={yesterdayGmv}
-        totalCreators={totals.creators}
-        totalVideos={totals.videos}
-        brandTrends={brandTrends}
-        topCreator={topCreator ? { creator_name: topCreator.creator_name, total_gmv: topCreator.total_gmv } : null}
-        topProduct={allProducts.length > 0 ? { product_name: allProducts[0].product_name, total_gmv: allProducts[0].total_gmv } : null}
-        topVideo={topVideo ? { video_title: topVideo.video_title, creator_name: topVideo.creator_name, total_gmv: topVideo.total_gmv } : null}
-        startDate={startDate}
-        endDate={endDate}
-      />
-
       {/* Portfolio Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 stagger-children">
         <StatCard label="Total GMV" value={formatCurrency(totals.gmv)} trend={gmvTrend} trendLabel={trendLabel} />
@@ -276,7 +256,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
         <StatCard label="Items Sold" value={formatNumber(totals.items)} trend={itemsTrend} trendLabel={trendLabel} />
         <StatCard label="Active Creators" value={formatNumber(totals.creators)} />
         <StatCard label="Videos" value={formatNumber(totals.videos)} />
-        <StatCard label="Avg GMV/Creator" value={formatCurrency(avgGmvPerCreator)} />
+        <StatCard label="Avg GMV/Creator" value={formatCurrency(avgGmvPerCreator)} trend={avgGmvTrend} trendLabel={trendLabel} />
       </div>
 
       {/* Brand Performance Strip — only show when viewing all brands */}
@@ -295,9 +275,36 @@ export default async function AdminDashboard({ searchParams }: Props) {
       </div>
 
       {/* Tables */}
-      <CreatorTable creators={allCreators} />
-      <ProductTable products={allProducts} />
-      <VideoTable videos={allVideos} />
+      <div>
+        <div className="flex items-center justify-end mb-2">
+          <CsvExportButton
+            filename={`tempo-top-creators-${filenameDates}.csv`}
+            headers={['Rank', 'Creator', 'GMV', 'Orders', 'Items Sold', 'Days Active']}
+            rows={allCreators.map((c, i) => [i + 1, c.creator_name, c.total_gmv, c.total_orders, c.total_items_sold, c.days_active])}
+          />
+        </div>
+        <CreatorTable creators={allCreators} />
+      </div>
+      <div>
+        <div className="flex items-center justify-end mb-2">
+          <CsvExportButton
+            filename={`tempo-top-products-${filenameDates}.csv`}
+            headers={['Rank', 'Product', 'GMV', 'Orders', 'Items Sold']}
+            rows={allProducts.map((p, i) => [i + 1, p.product_name, p.total_gmv, p.total_orders, p.total_items_sold])}
+          />
+        </div>
+        <ProductTable products={allProducts} />
+      </div>
+      <div>
+        <div className="flex items-center justify-end mb-2">
+          <CsvExportButton
+            filename={`tempo-top-videos-${filenameDates}.csv`}
+            headers={['Rank', 'Video', 'Creator', 'GMV', 'Days Active', 'Orders']}
+            rows={allVideos.map((v, i) => [i + 1, v.video_title || 'Untitled', v.creator_name, v.total_gmv, v.days_active ?? 0, v.total_orders])}
+          />
+        </div>
+        <VideoTable videos={allVideos} />
+      </div>
     </div>
   );
 }

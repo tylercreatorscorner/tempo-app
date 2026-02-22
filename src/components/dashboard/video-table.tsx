@@ -47,7 +47,9 @@ export function VideoTable({ videos }: Props) {
                 'hover:bg-gray-50',
               )}>
                 <td className="px-6 py-3.5"><RankBadge rank={i + 1} /></td>
-                <td className="px-4 py-3.5 font-medium max-w-xs truncate text-[#1A1B3A]">{v.video_title || 'Untitled'}</td>
+                <td className="px-4 py-3.5 font-medium max-w-xs truncate text-[#1A1B3A]">
+                  <span className="hover:text-[#FF4D8D] hover:underline transition-colors cursor-pointer">{v.video_title || 'Untitled'}</span>
+                </td>
                 <td className="px-4 py-3.5 text-gray-500">
                   <Link href={`/creators/${encodeURIComponent(v.creator_name)}`} className="hover:text-[#FF4D8D] hover:underline transition-colors">
                     {v.creator_name}

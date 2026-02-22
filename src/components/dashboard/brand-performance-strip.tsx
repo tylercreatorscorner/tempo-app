@@ -33,17 +33,23 @@ export function BrandPerformanceStrip({ brands }: Props) {
               />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-gray-500 group-hover:text-gray-700 transition-colors">{name}</p>
-                <p className="text-xl font-bold tracking-tight text-[#1A1B3A]">{formatCurrency(b.gmv)}</p>
-              </div>
-              <div className="flex flex-col items-end gap-0.5">
-                <span className="text-xs text-gray-400 font-medium tabular-nums">{pct.toFixed(1)}%</span>
-                {b.trend !== undefined && (
-                  <span className={`flex items-center gap-0.5 text-xs font-semibold px-1.5 py-0.5 rounded-md ${b.trend >= 0 ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-500'}`}>
-                    {b.trend >= 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
-                    {b.trend >= 0 ? '+' : ''}{b.trend.toFixed(1)}%
-                  </span>
+                {b.gmv === 0 ? (
+                  <p className="text-lg font-medium text-gray-300 italic">No Data</p>
+                ) : (
+                  <p className="text-xl font-bold tracking-tight text-[#1A1B3A]">{formatCurrency(b.gmv)}</p>
                 )}
               </div>
+              {b.gmv > 0 && (
+                <div className="flex flex-col items-end gap-0.5">
+                  <span className="text-xs text-gray-400 font-medium tabular-nums">{pct.toFixed(1)}%</span>
+                  {b.trend !== undefined && (
+                    <span className={`flex items-center gap-0.5 text-xs font-semibold px-1.5 py-0.5 rounded-md ${b.trend >= 0 ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-500'}`}>
+                      {b.trend >= 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
+                      {b.trend >= 0 ? '+' : ''}{b.trend.toFixed(1)}%
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
             <div className="relative w-full h-1.5 rounded-full bg-gray-100 overflow-hidden">
               <div
