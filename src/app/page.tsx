@@ -8,6 +8,7 @@ import {
   LeaderboardMockup,
   BrandSwitcherMockup,
   DailyBriefMockup,
+  CreatorPortalMockup,
 } from '@/components/landing/animated-mockups';
 import {
   FileSpreadsheet,
@@ -224,6 +225,11 @@ function Features() {
         description="Wake up to a daily brief. Know exactly where you stand before your first coffee."
         mockup={<DailyBriefMockup />}
         reversed
+      />
+      <FeatureSection
+        headline="A portal your creators will actually use"
+        description="Give creators their own dashboard to track performance, discover winning content, and stay motivated."
+        mockup={<CreatorPortalMockup />}
       />
     </div>
   );
