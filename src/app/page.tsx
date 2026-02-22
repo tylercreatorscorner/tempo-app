@@ -44,7 +44,7 @@ function Navbar() {
         </nav>
         <div className="hidden md:block">
           <a
-            href="#cta"
+            href="https://cal.com/tyler3p/tempo-demo" target="_blank" rel="noopener noreferrer"
             className="inline-flex items-center rounded-full px-5 py-2 text-sm font-semibold text-white bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] hover:shadow-lg hover:shadow-[#FF4D8D]/25 hover:scale-105 transition-all duration-200"
           >
             Book a Demo
@@ -75,7 +75,7 @@ function Hero() {
           </p>
           <div className="flex flex-wrap gap-4 pt-2">
             <a
-              href="#cta"
+              href="https://cal.com/tyler3p/tempo-demo" target="_blank" rel="noopener noreferrer"
               className="inline-flex items-center gap-2 rounded-full px-7 py-3.5 text-sm font-semibold text-white bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] hover:shadow-xl hover:shadow-[#FF4D8D]/30 hover:scale-105 transition-all duration-200"
             >
               Book a Demo <ArrowRight className="w-4 h-4" />
@@ -460,7 +460,7 @@ function Pricing() {
       period: '/mo',
       desc: 'For brands managing their own creators',
       features: ['1 brand', 'Full analytics suite', 'Creator portal', 'Daily briefs & alerts', 'Up to 3 team seats', 'Priority support'],
-      cta: 'Book a Demo',
+      cta: 'Book a Demo', href: 'https://cal.com/tyler3p/tempo-demo',
       popular: false,
     },
     {
@@ -469,7 +469,7 @@ function Pricing() {
       period: '/mo',
       desc: 'For agencies managing multiple brands',
       features: ['Up to 5 brands', 'Everything in Brand', 'Multi-brand dashboard', 'Up to 10 team seats', 'Dedicated onboarding'],
-      cta: 'Book a Demo',
+      cta: 'Book a Demo', href: 'https://cal.com/tyler3p/tempo-demo',
       popular: false,
     },
     {
@@ -478,7 +478,7 @@ function Pricing() {
       period: '/mo',
       desc: 'For growing operations',
       features: ['Up to 15 brands', 'Everything in Agency', 'Unlimited team seats', 'API access', 'Custom reporting'],
-      cta: 'Book a Demo',
+      cta: 'Book a Demo', href: 'https://cal.com/tyler3p/tempo-demo',
       popular: true,
     },
     {
@@ -487,7 +487,7 @@ function Pricing() {
       period: '',
       desc: 'For large-scale operations',
       features: ['Unlimited brands', 'Everything in Scale', 'White-label options', 'Dedicated support & SLA', 'Custom integrations'],
-      cta: 'Contact Sales',
+      cta: 'Contact Sales', href: 'https://cal.com/tyler3p/tempo-demo',
       popular: false,
     },
   ];
@@ -528,7 +528,7 @@ function Pricing() {
                     ))}
                   </ul>
                   <a
-                    href="#cta"
+                    href="https://cal.com/tyler3p/tempo-demo" target="_blank" rel="noopener noreferrer"
                     className={`mt-8 inline-flex items-center justify-center rounded-full px-6 py-3 text-sm font-semibold transition-all duration-200 ${
                       t.popular
                         ? 'text-white bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] hover:shadow-lg hover:shadow-[#FF4D8D]/25 hover:scale-105'
