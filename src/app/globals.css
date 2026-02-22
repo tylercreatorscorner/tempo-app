@@ -262,3 +262,43 @@ html {
 .animate-pulse-slow {
   animation: pulseSlow 4s ease-in-out infinite;
 }
+
+/* GMV Slider */
+.gmv-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(to right, #FF4D8D, #7C5CFC);
+  outline: none;
+  cursor: pointer;
+}
+.gmv-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: white;
+  border: 3px solid #FF4D8D;
+  box-shadow: 0 2px 8px rgba(255, 77, 141, 0.3);
+  cursor: pointer;
+  transition: box-shadow 0.2s;
+}
+.gmv-slider::-webkit-slider-thumb:hover {
+  box-shadow: 0 2px 16px rgba(255, 77, 141, 0.5);
+}
+.gmv-slider::-moz-range-thumb {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: white;
+  border: 3px solid #FF4D8D;
+  box-shadow: 0 2px 8px rgba(255, 77, 141, 0.3);
+  cursor: pointer;
+}
+.gmv-slider::-moz-range-track {
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(to right, #FF4D8D, #7C5CFC);
+}
