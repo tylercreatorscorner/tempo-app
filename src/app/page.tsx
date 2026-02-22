@@ -12,9 +12,6 @@ import {
   Target,
   Database,
   Rocket,
-  Link,
-  TrendingUp,
-  Sprout,
   Check,
   ArrowRight,
   Twitter,
@@ -26,7 +23,6 @@ import {
 const navLinks = [
   { label: 'Features', href: '#features' },
   { label: 'Pricing', href: '#pricing' },
-  { label: 'About', href: '#how-it-works' },
 ];
 
 /* ─── Navbar ─── */
@@ -81,10 +77,10 @@ function Hero() {
               Book a Demo <ArrowRight className="w-4 h-4" />
             </a>
             <a
-              href="#how-it-works"
+              href="#features"
               className="inline-flex items-center gap-2 rounded-full px-7 py-3.5 text-sm font-semibold text-[#1A1B3A] border border-[#E5E7EB] hover:border-[#FF4D8D]/40 hover:bg-[#FF4D8D]/5 transition-all duration-200"
             >
-              See How It Works
+              See Features
             </a>
           </div>
         </div>
@@ -283,39 +279,6 @@ function Features() {
   );
 }
 
-/* ─── How It Works ─── */
-function HowItWorks() {
-  const steps = [
-    { icon: Link, title: 'Connect', desc: 'Link your TikTok Shop accounts in minutes. We handle the API complexity.' },
-    { icon: TrendingUp, title: 'Track', desc: 'Watch real-time data flow in. Creator performance, GMV, and video analytics — all in one place.' },
-    { icon: Sprout, title: 'Grow', desc: 'Make data-driven decisions. Double down on what works and cut what doesn\'t.' },
-  ];
-  return (
-    <section id="how-it-works" className="py-24 px-6 bg-[#F8F9FC] scroll-mt-20">
-      <div className="max-w-5xl mx-auto">
-        <ScrollReveal className="text-center mb-16">
-          <p className="text-sm font-semibold text-[#7C5CFC] uppercase tracking-wider mb-3">How It Works</p>
-          <h2 className="text-3xl md:text-5xl font-extrabold text-[#1A1B3A] tracking-tight">Three steps to clarity</h2>
-        </ScrollReveal>
-        <div className="grid md:grid-cols-3 gap-8">
-          {steps.map((s, i) => (
-            <ScrollReveal key={s.title} delay={i * 150}>
-              <div className="text-center">
-                <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-[#FF4D8D] to-[#7C5CFC] flex items-center justify-center mb-5 shadow-lg shadow-[#FF4D8D]/20">
-                  <s.icon className="w-7 h-7 text-white" />
-                </div>
-                <div className="text-xs font-bold text-[#9CA3AF] uppercase tracking-widest mb-2">Step {i + 1}</div>
-                <h3 className="text-xl font-bold text-[#1A1B3A] mb-2">{s.title}</h3>
-                <p className="text-sm text-[#6B7280] leading-relaxed">{s.desc}</p>
-              </div>
-            </ScrollReveal>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
 /* ─── Dashboard Preview ─── */
 function DashboardPreview() {
   return (
@@ -350,15 +313,15 @@ function DashboardPreview() {
                   {/* Bar chart with brand labels */}
                   <div className="md:col-span-2 rounded-xl bg-[#F8F9FC] border border-[#E5E7EB]/60 p-5 relative overflow-hidden">
                     <p className="text-sm font-semibold text-[#1A1B3A] mb-4">Revenue by Brand</p>
-                    <div className="flex items-end gap-6 h-32 px-4">
+                    <div className="flex items-end gap-6 px-4" style={{ height: '128px' }}>
                       {[
-                        { name: 'Glow Skin Co', height: 90, color: '#FF4D8D' },
-                        { name: 'FitNation', height: 68, color: '#7C5CFC' },
-                        { name: 'Pure Wellness', height: 58, color: '#FFB84D' },
-                        { name: 'NutriCore', height: 35, color: '#34D399' },
+                        { name: 'Glow Skin Co', h: 96, color: '#FF4D8D' },
+                        { name: 'FitNation', h: 70, color: '#7C5CFC' },
+                        { name: 'Pure Wellness', h: 58, color: '#FFB84D' },
+                        { name: 'NutriCore', h: 38, color: '#34D399' },
                       ].map((b) => (
-                        <div key={b.name} className="flex-1 flex flex-col items-center gap-1">
-                          <div className="w-full rounded-t-md" style={{ height: `${b.height}%`, backgroundColor: b.color, opacity: 0.85 }} />
+                        <div key={b.name} className="flex-1 flex flex-col items-center justify-end" style={{ height: '100%' }}>
+                          <div className="w-full rounded-t-md" style={{ height: `${b.h}px`, backgroundColor: b.color, opacity: 0.85 }} />
                           <span className="text-[9px] font-medium text-[#6B7280] text-center leading-tight mt-1">{b.name}</span>
                         </div>
                       ))}
@@ -392,9 +355,9 @@ function DashboardPreview() {
                   <p className="text-sm font-semibold text-[#1A1B3A] mb-3">Top Performing Videos</p>
                   <div className="space-y-2">
                     {[
-                      { title: 'Morning routine with the new glow serum...', creator: '@skincare.sarah', views: '2.4M', gmv: '$12,480' },
-                      { title: 'Unboxing the new fitness starter kit...', creator: '@wellness.mike', views: '1.8M', gmv: '$9,230' },
-                      { title: 'Why I switched to clean supplements...', creator: '@fitness.luna', views: '1.2M', gmv: '$7,105' },
+                      { title: 'This $12 serum changed everything #tiktokmademebuyit', creator: '@skincare.sarah', views: '2.1M', gmv: '$8,490' },
+                      { title: 'POV: you finally find supplements that work #guthealth', creator: '@wellness.mike', views: '1.4M', gmv: '$6,230' },
+                      { title: 'Why I switched to clean protein #gymtok #fitness', creator: '@fitness.luna', views: '890K', gmv: '$4,120' },
                     ].map((v) => (
                       <div key={v.title} className="flex items-center justify-between rounded-lg bg-white border border-[#E5E7EB]/60 px-4 py-2.5">
                         <div className="flex-1 min-w-0 mr-4">
@@ -590,9 +553,10 @@ function CtaSection() {
             </h2>
             <p className="text-[#6B7280] mt-4 text-lg">Pick a time below and we&apos;ll show you exactly how Tempo fits your operation.</p>
           </div>
-          <div className="relative rounded-2xl border border-[#E5E7EB]/80 bg-white/60 backdrop-blur-xl p-2 overflow-hidden shadow-xl shadow-[#7C5CFC]/10">
+          <div className="relative rounded-2xl border border-[#E5E7EB]/80 bg-white/60 backdrop-blur-xl overflow-hidden shadow-xl shadow-[#7C5CFC]/10">
             <iframe
-              src="https://cal.com/tyler3p/tempo-demo?embed=true&theme=light"
+              src="https://cal.com/tyler3p/tempo-demo?embed=true&theme=light&hideEventTypeDetails=false&layout=month_view&branding=false"
+              frameBorder={0}
               style={{ width: '100%', height: '600px', border: 'none' }}
               title="Book a Demo"
             />
@@ -637,7 +601,6 @@ export default function Home() {
         <StatsBar />
         <TheProblem />
         <Features />
-        <HowItWorks />
         <DashboardPreview />
         <BuiltDifferent />
         <Pricing />
