@@ -58,7 +58,7 @@ function Navbar() {
 /* ─── Hero ─── */
 function Hero() {
   return (
-    <section className="min-h-screen pt-24 pb-16 md:pt-40 md:pb-32 px-4 sm:px-6 overflow-hidden flex items-center">
+    <section className="min-h-screen pt-28 pb-20 sm:pt-32 md:pt-40 md:pb-32 px-4 sm:px-6 overflow-hidden flex items-center">
       <div className="max-w-7xl mx-auto w-full">
         <div className="text-center mb-12 md:mb-16">
           <ScrollReveal>
@@ -68,7 +68,7 @@ function Hero() {
             </div>
           </ScrollReveal>
           <ScrollReveal delay={100}>
-            <h1 className="text-3xl sm:text-5xl md:text-7xl font-extrabold tracking-tight text-[#1A1B3A] leading-[1.05] mb-6">
+            <h1 className="text-3xl sm:text-5xl md:text-7xl font-extrabold tracking-tight text-[#1A1B3A] leading-[1.05] mb-6 break-words">
               Creator Management,{' '}
               <span className="bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] bg-clip-text text-transparent">Simplified</span>
             </h1>
@@ -82,13 +82,13 @@ function Hero() {
             <div className="flex flex-col sm:flex-row flex-wrap justify-center gap-4 pt-6">
               <a
                 href="#book-demo"
-                className="inline-flex items-center gap-2 rounded-full px-7 py-3.5 text-sm font-semibold text-white bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] hover:shadow-xl hover:shadow-[#FF4D8D]/30 hover:scale-105 transition-all duration-200"
+                className="inline-flex items-center gap-2 rounded-full px-7 py-3.5 min-h-[44px] text-sm font-semibold text-white bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] hover:shadow-xl hover:shadow-[#FF4D8D]/30 hover:scale-105 transition-all duration-200"
               >
                 Book a Demo <ArrowRight className="w-4 h-4" />
               </a>
               <a
                 href="#features"
-                className="inline-flex items-center gap-2 rounded-full px-7 py-3.5 text-sm font-semibold text-[#1A1B3A] border border-[#E5E7EB] hover:border-[#FF4D8D]/40 hover:bg-[#FF4D8D]/5 transition-all duration-200"
+                className="inline-flex items-center gap-2 rounded-full px-7 py-3.5 min-h-[44px] text-sm font-semibold text-[#1A1B3A] border border-[#E5E7EB] hover:border-[#FF4D8D]/40 hover:bg-[#FF4D8D]/5 transition-all duration-200"
               >
                 See Features
               </a>
@@ -98,7 +98,7 @@ function Hero() {
 
         {/* Massive dashboard mockup */}
         <ScrollReveal delay={400}>
-          <div className="max-w-5xl mx-auto max-w-full overflow-hidden">
+          <div className="max-w-5xl mx-auto w-full overflow-hidden">
             <HeroDashboardMockup />
           </div>
         </ScrollReveal>
@@ -116,7 +116,7 @@ function StatsBar() {
   ];
   return (
     <section className="border-y border-[#E5E7EB] bg-[#F8F9FC]/50">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-12 md:py-16 grid grid-cols-3 md:grid-cols-3 gap-4 md:gap-8">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-14 md:py-16 grid grid-cols-1 sm:grid-cols-3 gap-6 md:gap-8">
         {stats.map((s) => (
           <div key={s.label} className="text-center">
             <p className="text-2xl md:text-4xl font-extrabold bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] bg-clip-text text-transparent">
@@ -138,10 +138,10 @@ function TheProblem() {
     { icon: Flame, title: 'Scaling = More Chaos', desc: 'Every new brand means another spreadsheet to manage.' },
   ];
   return (
-    <section className="py-16 md:py-40 px-4 sm:px-6">
+    <section className="py-20 sm:py-24 md:py-40 px-4 sm:px-6">
       <div className="max-w-5xl mx-auto">
         <ScrollReveal className="text-center mb-12 md:mb-20">
-          <h2 className="text-2xl md:text-5xl font-extrabold text-[#1A1B3A] tracking-tight">Sound familiar?</h2>
+          <h2 className="text-2xl md:text-5xl font-extrabold text-[#1A1B3A] tracking-tight break-words">Sound familiar?</h2>
         </ScrollReveal>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {problems.map((p, i) => (
@@ -177,14 +177,14 @@ function FeatureSection({
 }) {
   return (
     <section id={id} className={id ? 'scroll-mt-20' : ''}>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-16 md:py-40">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-20 sm:py-24 md:py-40">
         <div className={`grid md:grid-cols-2 gap-10 md:gap-20 items-center ${reversed ? 'md:[direction:rtl]' : ''}`}>
           <ScrollReveal className={reversed ? 'md:[direction:ltr]' : ''}>
             <div className="space-y-4 md:space-y-6">
-              <h2 className="text-2xl md:text-5xl font-extrabold text-[#1A1B3A] tracking-tight leading-tight">
+              <h2 className="text-2xl md:text-5xl font-extrabold text-[#1A1B3A] tracking-tight leading-tight break-words">
                 {headline}
               </h2>
-              <p className="text-lg text-[#6B7280] leading-relaxed max-w-md">
+              <p className="text-base sm:text-lg text-[#6B7280] leading-relaxed max-w-md break-words">
                 {description}
               </p>
             </div>
@@ -246,11 +246,11 @@ function Faq() {
     { q: 'What if I manage creators AND am a brand?', a: 'Tempo handles both. Brand owners see everything. Agency managers see their slice. Same product, different views based on your role.' },
   ];
   return (
-    <section className="py-16 md:py-40 px-4 sm:px-6">
+    <section className="py-20 sm:py-24 md:py-40 px-4 sm:px-6">
       <div className="max-w-3xl mx-auto">
         <ScrollReveal className="text-center mb-12 md:mb-20">
           <p className="text-sm font-semibold text-[#FF4D8D] uppercase tracking-wider mb-3">FAQ</p>
-          <h2 className="text-2xl md:text-5xl font-extrabold text-[#1A1B3A] tracking-tight">Questions? We&apos;ve got answers.</h2>
+          <h2 className="text-2xl md:text-5xl font-extrabold text-[#1A1B3A] tracking-tight break-words">Questions? We&apos;ve got answers.</h2>
         </ScrollReveal>
         <div className="space-y-8">
           {faqs.map((faq, i) => (
@@ -270,7 +270,7 @@ function Faq() {
 /* ─── CTA ─── */
 function CtaSection() {
   return (
-    <section id="book-demo" className="py-16 md:py-40 px-4 sm:px-6 scroll-mt-20">
+    <section id="book-demo" className="py-20 sm:py-24 md:py-40 px-4 sm:px-6 scroll-mt-20">
       <div className="max-w-5xl mx-auto">
         <ScrollReveal>
           <div className="text-center mb-10 md:mb-16">
@@ -297,7 +297,7 @@ function CtaSection() {
                 </ul>
                 <a
                   href="/onboarding"
-                  className="inline-flex items-center justify-center gap-2 rounded-full px-7 py-3.5 text-sm font-semibold text-white bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] hover:shadow-xl hover:shadow-[#FF4D8D]/30 hover:scale-105 transition-all duration-200"
+                  className="inline-flex items-center justify-center gap-2 rounded-full px-7 py-3.5 min-h-[44px] text-sm font-semibold text-white bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] hover:shadow-xl hover:shadow-[#FF4D8D]/30 hover:scale-105 transition-all duration-200"
                 >
                   Create Your Account <ArrowRight className="w-4 h-4" />
                 </a>
@@ -321,7 +321,7 @@ function CtaSection() {
                 href="https://cal.com/tyler3p/tempo-demo"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-2 rounded-full px-7 py-3.5 text-sm font-semibold text-[#1A1B3A] border border-[#E5E7EB] hover:border-[#FF4D8D]/40 hover:bg-[#FF4D8D]/5 transition-all duration-200"
+                className="inline-flex items-center justify-center gap-2 rounded-full px-7 py-3.5 min-h-[44px] text-sm font-semibold text-[#1A1B3A] border border-[#E5E7EB] hover:border-[#FF4D8D]/40 hover:bg-[#FF4D8D]/5 transition-all duration-200"
               >
                 Book a Demo <ArrowRight className="w-4 h-4" />
               </a>
@@ -337,12 +337,12 @@ function CtaSection() {
 function Footer() {
   return (
     <footer className="border-t border-[#E5E7EB] bg-white">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12 flex flex-col md:flex-row items-center justify-between gap-6">
-        <div className="flex items-center gap-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12 flex flex-col md:flex-row items-center justify-between gap-6 text-center md:text-left">
+        <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-6">
           <TempoLogo size="sm" animated={false} />
           <span className="text-sm text-[#9CA3AF]">© 2026 Tempo. All rights reserved.</span>
         </div>
-        <div className="flex items-center gap-6">
+        <div className="flex flex-wrap justify-center items-center gap-6">
           {['Privacy', 'Terms', 'Contact'].map((l) => (
             <a key={l} href="#" className="text-sm text-[#6B7280] hover:text-[#1A1B3A] transition-colors">{l}</a>
           ))}
