@@ -14,23 +14,24 @@ export const DATE_PRESETS: { value: DatePreset; label: string }[] = [
 export function resolveDateRange(preset?: string | null): { startDate: string; endDate: string; preset: DatePreset } {
   const p = (preset && DATE_PRESETS.some(d => d.value === preset) ? preset : 'last7') as DatePreset;
   const now = new Date();
+  const yesterday = subDays(now, 1);
 
   let start: Date;
-  let end: Date = now;
+  let end: Date = yesterday; // Never include today, data is always delayed
 
   switch (p) {
     case 'yesterday':
-      start = subDays(now, 1);
-      end = subDays(now, 1);
+      start = yesterday;
+      end = yesterday;
       break;
     case 'last7':
-      start = subDays(now, 7);
+      start = subDays(yesterday, 6); // 7 days ending yesterday
       break;
     case 'last14':
-      start = subDays(now, 14);
+      start = subDays(yesterday, 13); // 14 days ending yesterday
       break;
     case 'last30':
-      start = subDays(now, 30);
+      start = subDays(yesterday, 29); // 30 days ending yesterday
       break;
     case 'thisMonth':
       start = startOfMonth(now);
