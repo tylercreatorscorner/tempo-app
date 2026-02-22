@@ -1,26 +1,42 @@
 'use client';
 
-import { useState, useCallback, useRef, useEffect, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useState, useCallback, useEffect, Suspense } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Building2,
   Briefcase,
-  Upload,
   Check,
   ArrowRight,
   ArrowLeft,
-  BarChart3,
-  Users,
-  MessageSquare,
   Sparkles,
   Music2,
+  Lock,
+  BarChart3,
+  Shield,
 } from 'lucide-react';
 import { TempoLogo } from '@/components/ui/tempo-logo';
 import { STRIPE_PRICES } from '@/lib/stripe-prices';
 
-type Plan = 'brand' | 'agency' | null;
+type Role = 'brand' | 'agency' | null;
 
-const STEPS = ['Role', 'Brand', 'Connect', 'Payment'] as const;
+const STEPS = ['Role', 'Account', 'Connect', 'Plan'] as const;
+
+/* ── GMV → Tier mapping ── */
+function getGmvTier(monthlyGmv: number, role: Role): {
+  tierName: string;
+  monthlyPrice: number;
+  annualPrice: number;
+  stripePlanKey: string;
+} {
+  if (role === 'agency') {
+    return { tierName: 'Agency Base', monthlyPrice: 799, annualPrice: 639, stripePlanKey: 'agency_base' };
+  }
+  if (monthlyGmv < 250_000) return { tierName: 'Brand Starter', monthlyPrice: 499, annualPrice: 399, stripePlanKey: 'brand_starter' };
+  if (monthlyGmv < 750_000) return { tierName: 'Brand Growth', monthlyPrice: 999, annualPrice: 799, stripePlanKey: 'brand_growth' };
+  if (monthlyGmv < 1_500_000) return { tierName: 'Brand Pro', monthlyPrice: 1499, annualPrice: 1199, stripePlanKey: 'brand_pro' };
+  if (monthlyGmv < 3_000_000) return { tierName: 'Brand Scale', monthlyPrice: 1999, annualPrice: 1599, stripePlanKey: 'brand_scale' };
+  return { tierName: 'Brand Elite', monthlyPrice: 2999, annualPrice: 2399, stripePlanKey: 'brand_elite' };
+}
 
 export default function OnboardingPage() {
   return (
@@ -32,26 +48,31 @@ export default function OnboardingPage() {
 
 function OnboardingContent() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const urlPlan = searchParams.get('plan');
-  const urlBilling = (searchParams.get('billing') as 'monthly' | 'annual') || 'monthly';
   const [currentStep, setCurrentStep] = useState(0);
   const [direction, setDirection] = useState<'forward' | 'back'>('forward');
-  const [plan, setPlan] = useState<Plan>(
-    urlPlan?.startsWith('agency') ? 'agency' : urlPlan?.startsWith('brand') ? 'brand' : null
-  );
+
+  // Step 1
+  const [role, setRole] = useState<Role>(null);
+
+  // Step 2
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
+  const [companyName, setCompanyName] = useState('');
+
+  // Step 3
+  const [connectAttempted, setConnectAttempted] = useState(false);
+  const [showConnectModal, setShowConnectModal] = useState(false);
+
+  // Step 4
+  const [annualBilling, setAnnualBilling] = useState(false);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
-  const [brandName, setBrandName] = useState('');
-  const [brandColor, setBrandColor] = useState('#FF4D8D');
-  const [logoPreview, setLogoPreview] = useState<string | null>(null);
-  const [logoFile, setLogoFile] = useState<File | null>(null);
-  const [showToast, setShowToast] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const DEMO_GMV = 1_247_832;
 
   const goNext = useCallback(() => {
     setDirection('forward');
-    setCurrentStep((s) => Math.min(s + 1, 3));
+    setCurrentStep((s) => Math.min(s + 1, STEPS.length - 1));
   }, []);
 
   const goBack = useCallback(() => {
@@ -59,7 +80,7 @@ function OnboardingContent() {
     setCurrentStep((s) => Math.max(s - 1, 0));
   }, []);
 
-  // Trigger confetti on step 4
+  // Confetti on Plan step
   useEffect(() => {
     if (currentStep === 3) {
       setShowConfetti(true);
@@ -68,35 +89,32 @@ function OnboardingContent() {
     }
   }, [currentStep]);
 
-  function handleLogoDrop(e: React.DragEvent) {
-    e.preventDefault();
-    const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith('image/')) {
-      setLogoFile(file);
-      setLogoPreview(URL.createObjectURL(file));
+  async function handleCheckout() {
+    const tier = getGmvTier(DEMO_GMV, role);
+    const priceConfig = STRIPE_PRICES[tier.stripePlanKey];
+    if (!priceConfig) {
+      router.push('/dashboard');
+      return;
     }
-  }
-
-  function handleLogoSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (file) {
-      setLogoFile(file);
-      setLogoPreview(URL.createObjectURL(file));
+    const priceId = annualBilling ? priceConfig.annual : priceConfig.monthly;
+    setIsCheckingOut(true);
+    try {
+      const res = await fetch('/api/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ priceId }),
+      });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        console.error('No checkout URL:', data);
+        setIsCheckingOut(false);
+      }
+    } catch (err) {
+      console.error('Checkout error:', err);
+      setIsCheckingOut(false);
     }
-  }
-
-  function handleConnectTikTok() {
-    setShowToast(true);
-    setTimeout(() => {
-      setShowToast(false);
-      console.log('Onboarding complete:', { plan, brandName, brandColor, logoFile: logoFile?.name });
-      goNext();
-    }, 3000);
-  }
-
-  function handleSkip() {
-    console.log('Onboarding complete (skipped TikTok):', { plan, brandName, brandColor, logoFile: logoFile?.name });
-    goNext();
   }
 
   const animClass = direction === 'forward'
@@ -105,14 +123,31 @@ function OnboardingContent() {
 
   return (
     <div className="w-full max-w-2xl mx-auto space-y-8">
-      {/* Confetti */}
       {showConfetti && <ConfettiEffect />}
 
-      {/* Toast */}
-      {showToast && (
-        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 px-6 py-4 rounded-xl bg-white border border-gray-200 shadow-xl max-w-md text-center">
-          <p className="text-sm font-medium">🎉 TikTok Shop integration coming soon!</p>
-          <p className="text-xs text-muted-foreground mt-1">We&apos;ll notify you when it&apos;s ready. Loading sample data so you can explore.</p>
+      {/* Connect Modal */}
+      {showConnectModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-2xl p-8 max-w-md mx-4 text-center space-y-4">
+            <div className="text-4xl">🚀</div>
+            <h3 className="text-xl font-bold">Coming Soon!</h3>
+            <p className="text-sm text-muted-foreground">
+              TikTok Shop API integration is launching soon! We&apos;ll notify you at{' '}
+              <span className="font-medium text-foreground">{email}</span> when it&apos;s ready.
+            </p>
+            <p className="text-sm text-muted-foreground">
+              In the meantime, explore the demo dashboard with sample data.
+            </p>
+            <button
+              onClick={() => {
+                setShowConnectModal(false);
+                setConnectAttempted(true);
+              }}
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] text-white font-semibold hover:opacity-90 transition-opacity"
+            >
+              Got it
+            </button>
+          </div>
         </div>
       )}
 
@@ -151,62 +186,33 @@ function OnboardingContent() {
       {/* Step content */}
       <div key={currentStep} className={animClass}>
         {currentStep === 0 && (
-          <StepRole plan={plan} setPlan={setPlan} onNext={goNext} />
+          <StepRole role={role} setRole={setRole} onNext={goNext} />
         )}
         {currentStep === 1 && (
-          <StepBrand
-            plan={plan}
-            brandName={brandName}
-            setBrandName={setBrandName}
-            brandColor={brandColor}
-            setBrandColor={setBrandColor}
-            logoPreview={logoPreview}
-            fileInputRef={fileInputRef}
-            onLogoDrop={handleLogoDrop}
-            onLogoSelect={handleLogoSelect}
-            onNext={goNext}
-            onBack={goBack}
+          <StepAccount
+            fullName={fullName} setFullName={setFullName}
+            email={email} setEmail={setEmail}
+            companyName={companyName} setCompanyName={setCompanyName}
+            onNext={goNext} onBack={goBack}
           />
         )}
         {currentStep === 2 && (
-          <StepConnect onConnect={handleConnectTikTok} onSkip={handleSkip} onBack={goBack} />
+          <StepConnect
+            connectAttempted={connectAttempted}
+            onConnect={() => setShowConnectModal(true)}
+            onContinueDemo={goNext}
+            onBack={goBack}
+          />
         )}
         {currentStep === 3 && (
-          <StepPayment
-            urlPlan={urlPlan}
-            urlBilling={urlBilling}
+          <StepPlan
+            role={role}
+            demoGmv={DEMO_GMV}
+            annualBilling={annualBilling}
+            setAnnualBilling={setAnnualBilling}
             isCheckingOut={isCheckingOut}
-            onCheckout={async () => {
-              if (!urlPlan) {
-                router.push('/dashboard');
-                return;
-              }
-              const priceConfig = STRIPE_PRICES[urlPlan];
-              if (!priceConfig) {
-                router.push('/dashboard');
-                return;
-              }
-              const priceId = urlBilling === 'annual' ? priceConfig.annual : priceConfig.monthly;
-              setIsCheckingOut(true);
-              try {
-                const res = await fetch('/api/checkout', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ priceId }),
-                });
-                const data = await res.json();
-                if (data.url) {
-                  window.location.href = data.url;
-                } else {
-                  console.error('No checkout URL:', data);
-                  setIsCheckingOut(false);
-                }
-              } catch (err) {
-                console.error('Checkout error:', err);
-                setIsCheckingOut(false);
-              }
-            }}
-            onSkip={() => router.push('/dashboard')}
+            onCheckout={handleCheckout}
+            onBack={goBack}
           />
         )}
       </div>
@@ -215,7 +221,7 @@ function OnboardingContent() {
 }
 
 /* ── Step 1: Role ── */
-function StepRole({ plan, setPlan, onNext }: { plan: Plan; setPlan: (p: Plan) => void; onNext: () => void }) {
+function StepRole({ role, setRole, onNext }: { role: Role; setRole: (r: Role) => void; onNext: () => void }) {
   return (
     <div className="space-y-6 text-center">
       <div>
@@ -226,22 +232,22 @@ function StepRole({ plan, setPlan, onNext }: { plan: Plan; setPlan: (p: Plan) =>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <RoleCard
-          selected={plan === 'brand'}
-          onClick={() => setPlan('brand')}
+          selected={role === 'brand'}
+          onClick={() => setRole('brand')}
           icon={<Building2 className="h-8 w-8" />}
           title="Brand"
           desc="I manage one brand's TikTok Shop"
         />
         <RoleCard
-          selected={plan === 'agency'}
-          onClick={() => setPlan('agency')}
+          selected={role === 'agency'}
+          onClick={() => setRole('agency')}
           icon={<Briefcase className="h-8 w-8" />}
           title="Agency"
           desc="I manage multiple brands"
         />
       </div>
       <button
-        disabled={!plan}
+        disabled={!role}
         onClick={onNext}
         className="inline-flex items-center gap-2 px-8 py-3 rounded-xl bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] text-white font-semibold disabled:opacity-40 hover:opacity-90 transition-opacity"
       >
@@ -275,71 +281,54 @@ function RoleCard({ selected, onClick, icon, title, desc }: { selected: boolean;
   );
 }
 
-/* ── Step 2: Brand ── */
-function StepBrand({
-  plan, brandName, setBrandName, brandColor, setBrandColor,
-  logoPreview, fileInputRef, onLogoDrop, onLogoSelect, onNext, onBack,
+/* ── Step 2: Account Info ── */
+function StepAccount({
+  fullName, setFullName, email, setEmail, companyName, setCompanyName,
+  onNext, onBack,
 }: {
-  plan: Plan; brandName: string; setBrandName: (s: string) => void;
-  brandColor: string; setBrandColor: (s: string) => void;
-  logoPreview: string | null; fileInputRef: React.RefObject<HTMLInputElement | null>;
-  onLogoDrop: (e: React.DragEvent) => void; onLogoSelect: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  fullName: string; setFullName: (s: string) => void;
+  email: string; setEmail: (s: string) => void;
+  companyName: string; setCompanyName: (s: string) => void;
   onNext: () => void; onBack: () => void;
 }) {
+  const isValid = fullName.trim() && email.trim() && companyName.trim();
+
   return (
     <div className="space-y-6">
       <div className="text-center">
-        <h2 className="text-2xl font-bold">Set up your brand</h2>
-        <p className="text-muted-foreground mt-1">Tell us about your first brand</p>
+        <h2 className="text-2xl font-bold">Create your account</h2>
+        <p className="text-muted-foreground mt-1">We just need a few details to get started</p>
       </div>
 
       <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-6 space-y-5">
-        {/* Brand name */}
         <div className="space-y-2">
-          <label className="text-sm font-medium">Brand name <span className="text-[#FF4D8D]">*</span></label>
+          <label className="text-sm font-medium">Full name <span className="text-[#FF4D8D]">*</span></label>
           <input
-            value={brandName}
-            onChange={(e) => setBrandName(e.target.value)}
-            placeholder="e.g. Glow Cosmetics"
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
+            placeholder="Tyler Drinkard"
             className="w-full px-4 py-2.5 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/50"
           />
         </div>
-
-        {/* Logo upload */}
         <div className="space-y-2">
-          <label className="text-sm font-medium">Brand logo <span className="text-muted-foreground">(optional)</span></label>
-          <div
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={onLogoDrop}
-            onClick={() => fileInputRef.current?.click()}
-            className="border-2 border-dashed border-border rounded-xl p-6 text-center cursor-pointer hover:border-[#FF4D8D]/50 transition-colors"
-          >
-            {logoPreview ? (
-              <img src={logoPreview} alt="Logo" className="h-16 w-16 mx-auto rounded-xl object-cover" />
-            ) : (
-              <div className="space-y-2 text-muted-foreground">
-                <Upload className="h-8 w-8 mx-auto" />
-                <p className="text-sm">Drag & drop or click to upload</p>
-              </div>
-            )}
-            <input ref={fileInputRef} type="file" accept="image/*" onChange={onLogoSelect} className="hidden" />
-          </div>
+          <label className="text-sm font-medium">Email <span className="text-[#FF4D8D]">*</span></label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="tyler@company.com"
+            className="w-full px-4 py-2.5 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/50"
+          />
         </div>
-
-        {/* Color */}
         <div className="space-y-2">
-          <label className="text-sm font-medium">Brand color</label>
-          <div className="flex items-center gap-3">
-            <input type="color" value={brandColor} onChange={(e) => setBrandColor(e.target.value)} className="h-10 w-10 rounded-lg border-0 cursor-pointer bg-transparent" />
-            <span className="text-sm text-muted-foreground font-mono">{brandColor}</span>
-          </div>
+          <label className="text-sm font-medium">Company name <span className="text-[#FF4D8D]">*</span></label>
+          <input
+            value={companyName}
+            onChange={(e) => setCompanyName(e.target.value)}
+            placeholder="Creator's Corner"
+            className="w-full px-4 py-2.5 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/50"
+          />
         </div>
-
-        {plan === 'agency' && (
-          <div className="rounded-xl bg-[#FF4D8D]/10 border border-[#FF4D8D]/20 p-3 text-sm text-[#FF4D8D]">
-            💡 You can add more brands later from Settings
-          </div>
-        )}
       </div>
 
       <div className="flex justify-between">
@@ -347,7 +336,7 @@ function StepBrand({
           <ArrowLeft className="h-4 w-4" /> Back
         </button>
         <button
-          disabled={!brandName.trim()}
+          disabled={!isValid}
           onClick={onNext}
           className="inline-flex items-center gap-2 px-8 py-2.5 rounded-xl bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] text-white font-semibold disabled:opacity-40 hover:opacity-90 transition-opacity"
         >
@@ -358,17 +347,27 @@ function StepBrand({
   );
 }
 
-/* ── Step 3: Connect TikTok ── */
-function StepConnect({ onConnect, onSkip, onBack }: { onConnect: () => void; onSkip: () => void; onBack: () => void }) {
+/* ── Step 3: Connect TikTok Shop (Mandatory) ── */
+function StepConnect({
+  connectAttempted, onConnect, onContinueDemo, onBack,
+}: {
+  connectAttempted: boolean;
+  onConnect: () => void;
+  onContinueDemo: () => void;
+  onBack: () => void;
+}) {
   return (
     <div className="space-y-6 text-center">
       <div className="mx-auto h-24 w-24 rounded-3xl bg-gradient-to-br from-[#00F2EA] via-black to-[#FF0050] flex items-center justify-center shadow-xl">
         <Music2 className="h-12 w-12 text-white" />
       </div>
       <div>
-        <h2 className="text-2xl font-bold">Connect TikTok Shop</h2>
-        <p className="text-muted-foreground mt-2 max-w-md mx-auto">Connect your TikTok Shop to start seeing real-time data, analytics, and creator performance.</p>
+        <h2 className="text-2xl font-bold">Connect your TikTok Shop</h2>
+        <p className="text-muted-foreground mt-2 max-w-md mx-auto">
+          We need to verify your shop data to set up your account. This takes less than 30 seconds.
+        </p>
       </div>
+
       <button
         onClick={onConnect}
         className="inline-flex items-center gap-3 px-8 py-4 rounded-2xl bg-black text-white font-semibold text-lg border border-white/10 hover:bg-black/80 transition-colors shadow-lg"
@@ -376,11 +375,35 @@ function StepConnect({ onConnect, onSkip, onBack }: { onConnect: () => void; onS
         <Music2 className="h-5 w-5 text-[#00F2EA]" />
         Connect TikTok Shop
       </button>
-      <div>
-        <button onClick={onSkip} className="text-sm text-muted-foreground hover:text-foreground transition-colors underline underline-offset-4">
-          Skip for now
-        </button>
+
+      {/* Trust signals */}
+      <div className="flex flex-col items-center gap-3 text-sm text-muted-foreground max-w-sm mx-auto">
+        <div className="flex items-center gap-2">
+          <Lock className="h-4 w-4 text-[#FF4D8D]" />
+          <span>Read-only access — we never modify your shop</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <BarChart3 className="h-4 w-4 text-[#7C5CFC]" />
+          <span>We use your GMV data to set your plan pricing</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Shield className="h-4 w-4 text-[#00F2EA]" />
+          <span>Your data is encrypted and isolated</span>
+        </div>
       </div>
+
+      {/* Demo continue — only after attempting connect */}
+      {connectAttempted && (
+        <div className="pt-2">
+          <button
+            onClick={onContinueDemo}
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] text-white font-semibold hover:opacity-90 transition-opacity"
+          >
+            Continue with Demo Data <ArrowRight className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
       <div>
         <button onClick={onBack} className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
           <ArrowLeft className="h-3.5 w-3.5" /> Back
@@ -390,68 +413,80 @@ function StepConnect({ onConnect, onSkip, onBack }: { onConnect: () => void; onS
   );
 }
 
-/* ── Step 4: Payment ── */
-function StepPayment({
-  urlPlan,
-  urlBilling,
-  isCheckingOut,
-  onCheckout,
-  onSkip,
+/* ── Step 4: Plan Verification ── */
+function StepPlan({
+  role, demoGmv, annualBilling, setAnnualBilling, isCheckingOut, onCheckout, onBack,
 }: {
-  urlPlan: string | null;
-  urlBilling: string;
+  role: Role;
+  demoGmv: number;
+  annualBilling: boolean;
+  setAnnualBilling: (b: boolean) => void;
   isCheckingOut: boolean;
   onCheckout: () => void;
-  onSkip: () => void;
+  onBack: () => void;
 }) {
-  const features = [
-    { icon: <BarChart3 className="h-6 w-6" />, title: 'Analytics', desc: 'Real-time TikTok Shop performance metrics' },
-    { icon: <Users className="h-6 w-6" />, title: 'Creator Management', desc: 'Track and manage your creator partnerships' },
-    { icon: <MessageSquare className="h-6 w-6" />, title: 'Discord Integration', desc: 'Automated reporting to your team channels' },
-  ];
+  const tier = getGmvTier(demoGmv, role);
+  const displayPrice = annualBilling ? tier.annualPrice : tier.monthlyPrice;
+  const billingLabel = annualBilling ? '/mo (billed annually)' : '/mo';
 
   return (
-    <div className="space-y-8 text-center">
+    <div className="space-y-6 text-center">
       <div>
         <div className="inline-flex h-16 w-16 rounded-full bg-gradient-to-br from-[#FF4D8D] to-[#7C5CFC] items-center justify-center mb-4">
           <Sparkles className="h-8 w-8 text-white" />
         </div>
-        <h2 className="text-3xl font-bold">
-          {urlPlan ? 'Almost there!' : 'You\'re all set! 🎉'}
-        </h2>
-        <p className="text-muted-foreground mt-2">
-          {urlPlan
-            ? `Complete your ${urlPlan.replace('_', ' ')} subscription (${urlBilling}) to unlock everything.`
-            : 'Your dashboard is ready to go'}
-        </p>
+        <h2 className="text-2xl font-bold">Your plan</h2>
+        <p className="text-muted-foreground mt-1">Based on your last 30 days of TikTok Shop data</p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {features.map((f) => (
-          <div key={f.title} className="rounded-2xl border border-gray-200 bg-white shadow-sm p-5 space-y-2">
-            <div className="text-[#FF4D8D]">{f.icon}</div>
-            <h3 className="font-semibold">{f.title}</h3>
-            <p className="text-xs text-muted-foreground">{f.desc}</p>
+      {/* Plan card with gradient border */}
+      <div className="relative rounded-2xl p-[2px] bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] mx-auto max-w-md">
+        <div className="rounded-2xl bg-white p-6 space-y-4">
+          <div className="text-sm text-muted-foreground">Verified Monthly GMV</div>
+          <div className="text-4xl font-bold bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] bg-clip-text text-transparent">
+            ${demoGmv.toLocaleString()}
           </div>
-        ))}
+          <div className="h-px bg-gray-200" />
+          <div className="space-y-1">
+            <div className="text-lg font-semibold">{tier.tierName}</div>
+            <div className="text-3xl font-bold">
+              ${displayPrice.toLocaleString()}<span className="text-base font-normal text-muted-foreground">{billingLabel}</span>
+            </div>
+          </div>
+          <div className="text-xs text-muted-foreground bg-muted rounded-lg px-3 py-2">
+            Monthly GMV: ${demoGmv.toLocaleString()} → {tier.tierName} tier
+          </div>
+        </div>
       </div>
 
-      <button
-        onClick={onCheckout}
-        disabled={isCheckingOut}
-        className="inline-flex items-center gap-2 px-10 py-4 rounded-2xl bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] text-white font-bold text-lg hover:opacity-90 transition-opacity shadow-lg shadow-[#FF4D8D]/20 disabled:opacity-50"
-      >
-        {isCheckingOut ? 'Redirecting...' : urlPlan ? 'Proceed to Payment' : 'Go to Dashboard'}{' '}
-        <ArrowRight className="h-5 w-5" />
-      </button>
+      {/* Annual toggle */}
+      <div className="flex items-center justify-center gap-3">
+        <span className={`text-sm ${!annualBilling ? 'font-semibold' : 'text-muted-foreground'}`}>Monthly</span>
+        <button
+          onClick={() => setAnnualBilling(!annualBilling)}
+          className={`relative w-12 h-6 rounded-full transition-colors ${annualBilling ? 'bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC]' : 'bg-gray-300'}`}
+        >
+          <div className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${annualBilling ? 'translate-x-6' : 'translate-x-0.5'}`} />
+        </button>
+        <span className={`text-sm ${annualBilling ? 'font-semibold' : 'text-muted-foreground'}`}>
+          Annual <span className="text-[#FF4D8D] font-semibold">save 20%</span>
+        </span>
+      </div>
 
-      {urlPlan && (
-        <div>
-          <button onClick={onSkip} className="text-sm text-muted-foreground hover:text-foreground transition-colors underline underline-offset-4">
-            Skip for now
-          </button>
-        </div>
-      )}
+      <p className="text-xs text-muted-foreground">Plans are reviewed quarterly based on your actual GMV</p>
+
+      <div className="flex flex-col items-center gap-3">
+        <button
+          onClick={onCheckout}
+          disabled={isCheckingOut}
+          className="inline-flex items-center gap-2 px-10 py-4 rounded-2xl bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] text-white font-bold text-lg hover:opacity-90 transition-opacity shadow-lg shadow-[#FF4D8D]/20 disabled:opacity-50"
+        >
+          {isCheckingOut ? 'Redirecting to Stripe...' : 'Proceed to Payment'} <ArrowRight className="h-5 w-5" />
+        </button>
+        <button onClick={onBack} className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
+          <ArrowLeft className="h-3.5 w-3.5" /> Back
+        </button>
+      </div>
     </div>
   );
 }
