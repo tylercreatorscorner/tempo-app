@@ -44,7 +44,7 @@ function Navbar() {
         </nav>
         <div className="hidden md:block">
           <a
-            href="https://cal.com/tyler3p/tempo-demo" target="_blank" rel="noopener noreferrer"
+            href="#book-demo"
             className="inline-flex items-center rounded-full px-5 py-2 text-sm font-semibold text-white bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] hover:shadow-lg hover:shadow-[#FF4D8D]/25 hover:scale-105 transition-all duration-200"
           >
             Book a Demo
@@ -75,7 +75,7 @@ function Hero() {
           </p>
           <div className="flex flex-wrap gap-4 pt-2">
             <a
-              href="https://cal.com/tyler3p/tempo-demo" target="_blank" rel="noopener noreferrer"
+              href="#book-demo"
               className="inline-flex items-center gap-2 rounded-full px-7 py-3.5 text-sm font-semibold text-white bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] hover:shadow-xl hover:shadow-[#FF4D8D]/30 hover:scale-105 transition-all duration-200"
             >
               Book a Demo <ArrowRight className="w-4 h-4" />
@@ -103,7 +103,7 @@ function Hero() {
               </div>
               <div className="flex items-center gap-2 bg-white/10 rounded-md px-3 py-1.5 text-xs font-medium">
                 <div className="w-4 h-4 rounded-sm bg-[#FF4D8D]/80" />
-                <span>JiYu</span>
+                <span>Glow Skin Co</span>
                 <ChevronDown className="w-3 h-3 opacity-60" />
               </div>
             </div>
@@ -124,7 +124,7 @@ function Hero() {
                 <div className="rounded-xl bg-[#F8F9FC] border border-[#E5E7EB]/60 p-3.5">
                   <p className="text-[10px] text-[#9CA3AF] font-medium uppercase tracking-wide">Top Video GMV</p>
                   <p className="text-xl font-bold text-[#1A1B3A] mt-1">$8,470</p>
-                  <p className="text-xs font-semibold text-[#7C5CFC] mt-0.5">@shopbyjake</p>
+                  <p className="text-xs font-semibold text-[#7C5CFC] mt-0.5">@skincare.sarah</p>
                 </div>
               </div>
 
@@ -168,9 +168,9 @@ function Hero() {
                 </div>
                 <div className="space-y-1.5">
                   {[
-                    { rank: 1, name: '@shopbyjake', gmv: '$218,580', videos: 34 },
-                    { rank: 2, name: '@evewellness1', gmv: '$220,407', videos: 28 },
-                    { rank: 3, name: '@_naturalhealing', gmv: '$128,402', videos: 41 },
+                    { rank: 1, name: '@skincare.sarah', gmv: '$24,580', videos: 34 },
+                    { rank: 2, name: '@wellness.mike', gmv: '$18,320', videos: 28 },
+                    { rank: 3, name: '@fitness.luna', gmv: '$12,470', videos: 41 },
                   ].map((c) => (
                     <div key={c.name} className="flex items-center justify-between rounded-lg bg-[#F8F9FC] border border-[#E5E7EB]/60 px-3.5 py-2.5">
                       <div className="flex items-center gap-2.5">
@@ -352,10 +352,10 @@ function DashboardPreview() {
                     <p className="text-sm font-semibold text-[#1A1B3A] mb-4">Revenue by Brand</p>
                     <div className="flex items-end gap-6 h-32 px-4">
                       {[
-                        { name: 'JiYu', height: 90, color: '#FF4D8D' },
-                        { name: 'Cata-Kor', height: 68, color: '#7C5CFC' },
-                        { name: 'Physicians Choice', height: 58, color: '#FFB84D' },
-                        { name: 'TopLux', height: 35, color: '#34D399' },
+                        { name: 'Glow Skin Co', height: 90, color: '#FF4D8D' },
+                        { name: 'FitNation', height: 68, color: '#7C5CFC' },
+                        { name: 'Pure Wellness', height: 58, color: '#FFB84D' },
+                        { name: 'NutriCore', height: 35, color: '#34D399' },
                       ].map((b) => (
                         <div key={b.name} className="flex-1 flex flex-col items-center gap-1">
                           <div className="w-full rounded-t-md" style={{ height: `${b.height}%`, backgroundColor: b.color, opacity: 0.85 }} />
@@ -369,10 +369,10 @@ function DashboardPreview() {
                     <p className="text-sm font-semibold text-[#1A1B3A] mb-3">Brand Split</p>
                     <div className="space-y-3">
                       {[
-                        { name: 'JiYu', pct: 35, color: '#FF4D8D' },
-                        { name: 'Cata-Kor', pct: 28, color: '#7C5CFC' },
-                        { name: 'Physicians Choice', pct: 24, color: '#FFB84D' },
-                        { name: 'TopLux', pct: 13, color: '#34D399' },
+                        { name: 'Glow Skin Co', pct: 35, color: '#FF4D8D' },
+                        { name: 'FitNation', pct: 28, color: '#7C5CFC' },
+                        { name: 'Pure Wellness', pct: 24, color: '#FFB84D' },
+                        { name: 'NutriCore', pct: 13, color: '#34D399' },
                       ].map((b) => (
                         <div key={b.name}>
                           <div className="flex justify-between text-xs mb-1">
@@ -392,9 +392,9 @@ function DashboardPreview() {
                   <p className="text-sm font-semibold text-[#1A1B3A] mb-3">Top Performing Videos</p>
                   <div className="space-y-2">
                     {[
-                      { title: 'Morning routine with JiYu glow serum...', creator: '@shopbyjake', views: '2.4M', gmv: '$12,480' },
-                      { title: 'Unboxing the new Cata-Kor starter kit...', creator: '@evewellness1', views: '1.8M', gmv: '$9,230' },
-                      { title: 'Why I switched to Physicians Choice...', creator: '@_naturalhealing', views: '1.2M', gmv: '$7,105' },
+                      { title: 'Morning routine with the new glow serum...', creator: '@skincare.sarah', views: '2.4M', gmv: '$12,480' },
+                      { title: 'Unboxing the new fitness starter kit...', creator: '@wellness.mike', views: '1.8M', gmv: '$9,230' },
+                      { title: 'Why I switched to clean supplements...', creator: '@fitness.luna', views: '1.2M', gmv: '$7,105' },
                     ].map((v) => (
                       <div key={v.title} className="flex items-center justify-between rounded-lg bg-white border border-[#E5E7EB]/60 px-4 py-2.5">
                         <div className="flex-1 min-w-0 mr-4">
@@ -460,7 +460,7 @@ function Pricing() {
       period: '/mo',
       desc: 'For brands managing their own creators',
       features: ['1 brand', 'Full analytics suite', 'Creator portal', 'Daily briefs & alerts', 'Up to 3 team seats', 'Priority support'],
-      cta: 'Book a Demo', href: 'https://cal.com/tyler3p/tempo-demo',
+      cta: 'Book a Demo', href: '#book-demo',
       popular: false,
     },
     {
@@ -469,7 +469,7 @@ function Pricing() {
       period: '/mo',
       desc: 'For agencies managing multiple brands',
       features: ['Up to 5 brands', 'Everything in Brand', 'Multi-brand dashboard', 'Up to 10 team seats', 'Dedicated onboarding'],
-      cta: 'Book a Demo', href: 'https://cal.com/tyler3p/tempo-demo',
+      cta: 'Book a Demo', href: '#book-demo',
       popular: false,
     },
     {
@@ -478,7 +478,7 @@ function Pricing() {
       period: '/mo',
       desc: 'For growing operations',
       features: ['Up to 15 brands', 'Everything in Agency', 'Unlimited team seats', 'API access', 'Custom reporting'],
-      cta: 'Book a Demo', href: 'https://cal.com/tyler3p/tempo-demo',
+      cta: 'Book a Demo', href: '#book-demo',
       popular: true,
     },
     {
@@ -487,7 +487,7 @@ function Pricing() {
       period: '',
       desc: 'For large-scale operations',
       features: ['Unlimited brands', 'Everything in Scale', 'White-label options', 'Dedicated support & SLA', 'Custom integrations'],
-      cta: 'Contact Sales', href: 'https://cal.com/tyler3p/tempo-demo',
+      cta: 'Contact Sales', href: '#book-demo',
       popular: false,
     },
   ];
@@ -528,7 +528,7 @@ function Pricing() {
                     ))}
                   </ul>
                   <a
-                    href="https://cal.com/tyler3p/tempo-demo" target="_blank" rel="noopener noreferrer"
+                    href="#book-demo"
                     className={`mt-8 inline-flex items-center justify-center rounded-full px-6 py-3 text-sm font-semibold transition-all duration-200 ${
                       t.popular
                         ? 'text-white bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] hover:shadow-lg hover:shadow-[#FF4D8D]/25 hover:scale-105'
@@ -581,20 +581,21 @@ function Faq() {
 /* ─── CTA ─── */
 function CtaSection() {
   return (
-    <section id="cta" className="py-24 px-6 scroll-mt-20">
-      <div className="max-w-3xl mx-auto text-center">
+    <section id="book-demo" className="py-24 px-6 scroll-mt-20">
+      <div className="max-w-4xl mx-auto">
         <ScrollReveal>
-          <h2 className="text-3xl md:text-5xl font-extrabold text-[#1A1B3A] tracking-tight">
-            Ready to see Tempo in action?
-          </h2>
-          <p className="text-[#6B7280] mt-4 text-lg">Book a demo and we&apos;ll show you exactly how Tempo fits your operation.</p>
-          <div className="mt-8">
-            <a
-              href="#pricing"
-              className="inline-flex items-center gap-2 rounded-full px-8 py-4 text-sm font-semibold text-white bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] hover:shadow-xl hover:shadow-[#FF4D8D]/30 hover:scale-105 transition-all duration-200"
-            >
-              Book a Demo <ArrowRight className="w-4 h-4" />
-            </a>
+          <div className="text-center mb-8">
+            <h2 className="text-3xl md:text-5xl font-extrabold text-[#1A1B3A] tracking-tight">
+              Ready to see Tempo in action?
+            </h2>
+            <p className="text-[#6B7280] mt-4 text-lg">Pick a time below and we&apos;ll show you exactly how Tempo fits your operation.</p>
+          </div>
+          <div className="relative rounded-2xl border border-[#E5E7EB]/80 bg-white/60 backdrop-blur-xl p-2 overflow-hidden shadow-xl shadow-[#7C5CFC]/10">
+            <iframe
+              src="https://cal.com/tyler3p/tempo-demo?embed=true&theme=light"
+              style={{ width: '100%', height: '600px', border: 'none' }}
+              title="Book a Demo"
+            />
           </div>
         </ScrollReveal>
       </div>
