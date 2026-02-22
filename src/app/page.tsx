@@ -20,6 +20,7 @@ import {
   Twitter,
   Github,
   Linkedin,
+  ChevronDown,
 } from 'lucide-react';
 
 const navLinks = [
@@ -91,58 +92,102 @@ function Hero() {
         {/* Dashboard mockup */}
         <div className="relative">
           <div className="absolute -inset-4 bg-gradient-to-r from-[#FF4D8D]/20 to-[#7C5CFC]/20 rounded-3xl blur-3xl" />
-          <div className="relative rounded-2xl bg-white border border-[#E5E7EB] shadow-2xl shadow-[#7C5CFC]/10 p-6 space-y-4">
-            <div className="flex items-center gap-3 pb-3 border-b border-[#E5E7EB]">
-              <div className="w-3 h-3 rounded-full bg-[#FF4D8D]" />
-              <div className="w-3 h-3 rounded-full bg-[#FFB84D]" />
-              <div className="w-3 h-3 rounded-full bg-[#34D399]" />
-              <span className="ml-auto text-xs text-[#9CA3AF] font-medium">Tempo Dashboard</span>
-            </div>
-            <div className="grid grid-cols-3 gap-3">
-              {[
-                { label: 'GMV Today', value: '$12,847', change: '+23%', color: '#34D399' },
-                { label: 'Active Creators', value: '142', change: '+8', color: '#FF4D8D' },
-                { label: 'Videos Live', value: '1,203', change: '+47', color: '#7C5CFC' },
-              ].map((s) => (
-                <div key={s.label} className="rounded-xl bg-[#F8F9FC] p-3">
-                  <p className="text-[10px] text-[#9CA3AF] font-medium uppercase tracking-wide">{s.label}</p>
-                  <p className="text-lg font-bold text-[#1A1B3A] mt-1">{s.value}</p>
-                  <p className="text-xs font-semibold mt-0.5" style={{ color: s.color }}>{s.change}</p>
+          <div className="relative rounded-2xl bg-white border border-[#E5E7EB] shadow-2xl shadow-[#7C5CFC]/10 overflow-hidden">
+            {/* Top bar */}
+            <div className="flex items-center justify-between px-5 py-3 bg-[#1A1B3A] text-white">
+              <div className="flex items-center gap-3">
+                <div className="w-6 h-6 rounded-md bg-gradient-to-br from-[#FF4D8D] to-[#7C5CFC] flex items-center justify-center">
+                  <span className="text-[9px] font-bold">T</span>
                 </div>
-              ))}
+                <span className="text-sm font-semibold">Tempo Dashboard</span>
+              </div>
+              <div className="flex items-center gap-2 bg-white/10 rounded-md px-3 py-1.5 text-xs font-medium">
+                <div className="w-4 h-4 rounded-sm bg-[#FF4D8D]/80" />
+                <span>JiYu</span>
+                <ChevronDown className="w-3 h-3 opacity-60" />
+              </div>
             </div>
-            {/* Fake chart */}
-            <div className="h-32 rounded-xl bg-[#F8F9FC] p-4 relative overflow-hidden">
-              <svg className="w-full h-full" viewBox="0 0 400 100" preserveAspectRatio="none">
-                <defs>
-                  <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#FF4D8D" stopOpacity="0.3" />
-                    <stop offset="100%" stopColor="#FF4D8D" stopOpacity="0" />
-                  </linearGradient>
-                </defs>
-                <path d="M0,80 Q50,60 100,50 T200,30 T300,45 T400,15 L400,100 L0,100Z" fill="url(#chartGrad)" />
-                <path d="M0,80 Q50,60 100,50 T200,30 T300,45 T400,15" fill="none" stroke="#FF4D8D" strokeWidth="2.5" />
-              </svg>
-              <p className="absolute top-4 left-4 text-xs font-semibold text-[#1A1B3A]">GMV Trend — Last 7 Days</p>
-            </div>
-            {/* Creator rows */}
-            <div className="space-y-2">
-              {[
-                { name: '@sarah_reviews', gmv: '$3,241', videos: 18 },
-                { name: '@fitlife.mike', gmv: '$2,890', videos: 12 },
-                { name: '@beauty.luna', gmv: '$1,756', videos: 24 },
-              ].map((c) => (
-                <div key={c.name} className="flex items-center justify-between rounded-lg bg-[#F8F9FC] px-3 py-2">
-                  <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#FF4D8D] to-[#7C5CFC]" />
-                    <span className="text-sm font-medium text-[#1A1B3A]">{c.name}</span>
-                  </div>
-                  <div className="flex items-center gap-4 text-xs text-[#6B7280]">
-                    <span className="font-semibold text-[#1A1B3A]">{c.gmv}</span>
-                    <span>{c.videos} vids</span>
+
+            <div className="p-5 space-y-4">
+              {/* Stat cards */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="rounded-xl bg-[#F8F9FC] border border-[#E5E7EB]/60 p-3.5">
+                  <p className="text-[10px] text-[#9CA3AF] font-medium uppercase tracking-wide">Total GMV</p>
+                  <p className="text-xl font-bold text-[#1A1B3A] mt-1">$218,580</p>
+                  <p className="text-xs font-semibold text-[#34D399] mt-0.5">+24% vs last month</p>
+                </div>
+                <div className="rounded-xl bg-[#F8F9FC] border border-[#E5E7EB]/60 p-3.5">
+                  <p className="text-[10px] text-[#9CA3AF] font-medium uppercase tracking-wide">Active Creators</p>
+                  <p className="text-xl font-bold text-[#1A1B3A] mt-1">142</p>
+                  <p className="text-xs font-semibold text-[#FF4D8D] mt-0.5">+12 this week</p>
+                </div>
+                <div className="rounded-xl bg-[#F8F9FC] border border-[#E5E7EB]/60 p-3.5">
+                  <p className="text-[10px] text-[#9CA3AF] font-medium uppercase tracking-wide">Top Video GMV</p>
+                  <p className="text-xl font-bold text-[#1A1B3A] mt-1">$8,470</p>
+                  <p className="text-xs font-semibold text-[#7C5CFC] mt-0.5">@shopbyjake</p>
+                </div>
+              </div>
+
+              {/* Realistic area chart */}
+              <div className="rounded-xl bg-[#F8F9FC] border border-[#E5E7EB]/60 p-4 relative overflow-hidden">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-semibold text-[#1A1B3A]">GMV Trend — Last 30 Days</p>
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-[#FF4D8D]" /><span className="text-[10px] text-[#9CA3AF]">GMV</span></div>
+                    <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-[#7C5CFC]" /><span className="text-[10px] text-[#9CA3AF]">Orders</span></div>
                   </div>
                 </div>
-              ))}
+                <svg className="w-full h-36" viewBox="0 0 500 120" preserveAspectRatio="none">
+                  <defs>
+                    <linearGradient id="heroChartGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#FF4D8D" stopOpacity="0.25" />
+                      <stop offset="100%" stopColor="#FF4D8D" stopOpacity="0.02" />
+                    </linearGradient>
+                  </defs>
+                  {/* Grid lines */}
+                  <line x1="0" y1="30" x2="500" y2="30" stroke="#E5E7EB" strokeWidth="0.5" />
+                  <line x1="0" y1="60" x2="500" y2="60" stroke="#E5E7EB" strokeWidth="0.5" />
+                  <line x1="0" y1="90" x2="500" y2="90" stroke="#E5E7EB" strokeWidth="0.5" />
+                  {/* Area fill */}
+                  <path d="M0,85 L17,80 L34,72 L51,78 L68,65 L85,70 L102,58 L119,62 L136,50 L153,55 L170,48 L187,52 L204,40 L221,45 L238,38 L255,42 L272,35 L289,30 L306,38 L323,28 L340,32 L357,25 L374,22 L391,28 L408,18 L425,22 L442,15 L459,20 L476,12 L500,8 L500,120 L0,120Z" fill="url(#heroChartGrad)" />
+                  {/* Line */}
+                  <path d="M0,85 L17,80 L34,72 L51,78 L68,65 L85,70 L102,58 L119,62 L136,50 L153,55 L170,48 L187,52 L204,40 L221,45 L238,38 L255,42 L272,35 L289,30 L306,38 L323,28 L340,32 L357,25 L374,22 L391,28 L408,18 L425,22 L442,15 L459,20 L476,12 L500,8" fill="none" stroke="#FF4D8D" strokeWidth="2" />
+                  {/* Data dots */}
+                  <circle cx="136" cy="50" r="2.5" fill="#FF4D8D" />
+                  <circle cx="272" cy="35" r="2.5" fill="#FF4D8D" />
+                  <circle cx="408" cy="18" r="2.5" fill="#FF4D8D" />
+                  <circle cx="500" cy="8" r="2.5" fill="#FF4D8D" />
+                </svg>
+              </div>
+
+              {/* Creator leaderboard */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-semibold text-[#1A1B3A]">Top Creators</p>
+                  <p className="text-[10px] text-[#9CA3AF] font-medium">This Month</p>
+                </div>
+                <div className="space-y-1.5">
+                  {[
+                    { rank: 1, name: '@shopbyjake', gmv: '$218,580', videos: 34 },
+                    { rank: 2, name: '@evewellness1', gmv: '$220,407', videos: 28 },
+                    { rank: 3, name: '@_naturalhealing', gmv: '$128,402', videos: 41 },
+                  ].map((c) => (
+                    <div key={c.name} className="flex items-center justify-between rounded-lg bg-[#F8F9FC] border border-[#E5E7EB]/60 px-3.5 py-2.5">
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-[10px] font-bold text-[#9CA3AF] w-4 text-center">#{c.rank}</span>
+                        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#FF4D8D] to-[#7C5CFC] flex items-center justify-center">
+                          <span className="text-[9px] font-bold text-white">{c.name.charAt(1).toUpperCase()}</span>
+                        </div>
+                        <span className="text-sm font-medium text-[#1A1B3A]">{c.name}</span>
+                      </div>
+                      <div className="flex items-center gap-4 text-xs">
+                        <span className="font-semibold text-[#1A1B3A]">{c.gmv} <span className="text-[#9CA3AF] font-normal">GMV</span></span>
+                        <span className="text-[#6B7280]">{c.videos} videos</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -154,10 +199,10 @@ function Hero() {
 /* ─── Stats Bar ─── */
 function StatsBar() {
   const stats = [
-    { value: '500+', label: 'Creators Managed' },
-    { value: '$2M+', label: 'GMV Tracked' },
-    { value: '6', label: 'Brands Onboarded' },
-    { value: '400K+', label: 'Videos Analyzed' },
+    { value: '10,000+', label: 'Creators Managed' },
+    { value: '$100M+', label: 'GMV Tracked' },
+    { value: '1M+', label: 'Videos Analyzed' },
+    { value: '50+', label: 'Brands Onboarded' },
   ];
   return (
     <section className="border-y border-[#E5E7EB] bg-[#F8F9FC]/50">
@@ -286,39 +331,48 @@ function DashboardPreview() {
             <div className="absolute -inset-6 bg-gradient-to-r from-[#FF4D8D]/10 via-[#7C5CFC]/10 to-[#FF4D8D]/10 rounded-[2rem] blur-3xl" />
             <div className="relative rounded-2xl p-[2px] bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC]">
               <div className="rounded-[14px] bg-white p-6 md:p-8 space-y-6">
-                {/* Top row */}
+                {/* Top row stat cards */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   {[
-                    { label: 'Total GMV', value: '$127,493', sub: '↑ 18% vs last week' },
-                    { label: 'Orders', value: '3,847', sub: '↑ 12% vs last week' },
-                    { label: 'Avg. Commission', value: '14.2%', sub: 'Across all creators' },
-                    { label: 'Top Creator', value: '@sarah_reviews', sub: '$12,490 GMV' },
+                    { label: 'Total GMV', value: '$847,293' },
+                    { label: 'Orders', value: '12,847' },
+                    { label: 'Avg Commission', value: '13.8%' },
+                    { label: 'Active Creators', value: '487' },
                   ].map((c) => (
-                    <div key={c.label} className="rounded-xl bg-[#F8F9FC] p-4">
+                    <div key={c.label} className="rounded-xl bg-[#F8F9FC] border border-[#E5E7EB]/60 p-4">
                       <p className="text-[11px] text-[#9CA3AF] font-medium uppercase tracking-wide">{c.label}</p>
-                      <p className="text-xl font-bold text-[#1A1B3A] mt-1">{c.value}</p>
-                      <p className="text-xs text-[#34D399] font-medium mt-0.5">{c.sub}</p>
+                      <p className="text-2xl font-bold text-[#1A1B3A] mt-1">{c.value}</p>
                     </div>
                   ))}
                 </div>
                 {/* Chart area */}
                 <div className="grid md:grid-cols-3 gap-4">
-                  <div className="md:col-span-2 rounded-xl bg-[#F8F9FC] p-5 h-48 relative overflow-hidden">
-                    <p className="text-sm font-semibold text-[#1A1B3A] mb-2">Revenue by Brand</p>
-                    <div className="flex items-end gap-3 h-28 px-2">
-                      {[65, 45, 80, 55, 90, 70, 85].map((h, i) => (
-                        <div key={i} className="flex-1 rounded-t-md bg-gradient-to-t from-[#FF4D8D] to-[#7C5CFC]" style={{ height: `${h}%`, opacity: 0.6 + i * 0.05 }} />
+                  {/* Bar chart with brand labels */}
+                  <div className="md:col-span-2 rounded-xl bg-[#F8F9FC] border border-[#E5E7EB]/60 p-5 relative overflow-hidden">
+                    <p className="text-sm font-semibold text-[#1A1B3A] mb-4">Revenue by Brand</p>
+                    <div className="flex items-end gap-6 h-32 px-4">
+                      {[
+                        { name: 'JiYu', height: 90, color: '#FF4D8D' },
+                        { name: 'Cata-Kor', height: 68, color: '#7C5CFC' },
+                        { name: 'Physicians Choice', height: 58, color: '#FFB84D' },
+                        { name: 'TopLux', height: 35, color: '#34D399' },
+                      ].map((b) => (
+                        <div key={b.name} className="flex-1 flex flex-col items-center gap-1">
+                          <div className="w-full rounded-t-md" style={{ height: `${b.height}%`, backgroundColor: b.color, opacity: 0.85 }} />
+                          <span className="text-[9px] font-medium text-[#6B7280] text-center leading-tight mt-1">{b.name}</span>
+                        </div>
                       ))}
                     </div>
                   </div>
-                  <div className="rounded-xl bg-[#F8F9FC] p-5">
+                  {/* Brand Split */}
+                  <div className="rounded-xl bg-[#F8F9FC] border border-[#E5E7EB]/60 p-5">
                     <p className="text-sm font-semibold text-[#1A1B3A] mb-3">Brand Split</p>
                     <div className="space-y-3">
                       {[
-                        { name: 'JiYu', pct: 42, color: '#FF4D8D' },
-                        { name: 'Catakor', pct: 28, color: '#7C5CFC' },
-                        { name: 'TopLux', pct: 18, color: '#FFB84D' },
-                        { name: 'Other', pct: 12, color: '#34D399' },
+                        { name: 'JiYu', pct: 35, color: '#FF4D8D' },
+                        { name: 'Cata-Kor', pct: 28, color: '#7C5CFC' },
+                        { name: 'Physicians Choice', pct: 24, color: '#FFB84D' },
+                        { name: 'TopLux', pct: 13, color: '#34D399' },
                       ].map((b) => (
                         <div key={b.name}>
                           <div className="flex justify-between text-xs mb-1">
@@ -331,6 +385,28 @@ function DashboardPreview() {
                         </div>
                       ))}
                     </div>
+                  </div>
+                </div>
+                {/* Top Performing Videos */}
+                <div className="rounded-xl bg-[#F8F9FC] border border-[#E5E7EB]/60 p-5">
+                  <p className="text-sm font-semibold text-[#1A1B3A] mb-3">Top Performing Videos</p>
+                  <div className="space-y-2">
+                    {[
+                      { title: 'Morning routine with JiYu glow serum...', creator: '@shopbyjake', views: '2.4M', gmv: '$12,480' },
+                      { title: 'Unboxing the new Cata-Kor starter kit...', creator: '@evewellness1', views: '1.8M', gmv: '$9,230' },
+                      { title: 'Why I switched to Physicians Choice...', creator: '@_naturalhealing', views: '1.2M', gmv: '$7,105' },
+                    ].map((v) => (
+                      <div key={v.title} className="flex items-center justify-between rounded-lg bg-white border border-[#E5E7EB]/60 px-4 py-2.5">
+                        <div className="flex-1 min-w-0 mr-4">
+                          <p className="text-sm font-medium text-[#1A1B3A] truncate">{v.title}</p>
+                          <p className="text-[11px] text-[#9CA3AF]">{v.creator}</p>
+                        </div>
+                        <div className="flex items-center gap-4 text-xs shrink-0">
+                          <span className="text-[#6B7280]">{v.views} views</span>
+                          <span className="font-semibold text-[#1A1B3A]">{v.gmv}</span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>
@@ -423,20 +499,20 @@ function Pricing() {
           <h2 className="text-3xl md:text-5xl font-extrabold text-[#1A1B3A] tracking-tight">Simple, transparent pricing</h2>
           <p className="text-[#6B7280] mt-4 text-lg">No free tier. No fluff. Just the tools you need to win.</p>
         </ScrollReveal>
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
           {tiers.map((t, i) => (
             <ScrollReveal key={t.name} delay={i * 100}>
               <div
                 className={`relative rounded-2xl p-[1px] h-full ${
-                  t.popular ? 'bg-gradient-to-b from-[#FF4D8D] to-[#7C5CFC]' : 'bg-[#E5E7EB]'
+                  t.popular ? 'bg-gradient-to-b from-[#FF4D8D] to-[#7C5CFC] mt-0 md:mt-0' : 'bg-[#E5E7EB]'
                 }`}
               >
                 {t.popular && (
-                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] text-xs font-semibold text-white">
+                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 z-10 px-4 py-1 rounded-full bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] text-xs font-semibold text-white whitespace-nowrap">
                     Most Popular
                   </div>
                 )}
-                <div className="rounded-[15px] bg-white p-6 md:p-8 h-full flex flex-col">
+                <div className={`rounded-[15px] bg-white p-6 md:p-8 h-full flex flex-col ${t.popular ? 'pt-8 md:pt-10' : ''}`}>
                   <h3 className="text-lg font-bold text-[#1A1B3A]">{t.name}</h3>
                   <p className="text-sm text-[#6B7280] mt-1">{t.desc}</p>
                   <div className="mt-5 mb-6">
