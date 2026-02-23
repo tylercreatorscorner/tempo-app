@@ -1,13 +1,18 @@
+'use client';
+
 import Link from 'next/link';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
 import { cn } from '@/lib/utils';
+import { useVideoPanel } from '@/components/video/video-panel-context';
 
 interface Video {
+  video_id?: string;
   video_title: string;
   creator_name: string;
   total_gmv: number;
   days_active: number;
   total_orders: number;
+  total_items_sold?: number;
 }
 
 interface Props {
@@ -22,6 +27,8 @@ function RankBadge({ rank }: { rank: number }) {
 }
 
 export function VideoTable({ videos }: Props) {
+  const { openVideo } = useVideoPanel();
+
   return (
     <div className="rounded-2xl overflow-hidden bg-white border border-gray-100 shadow-sm">
       <div className="px-6 py-4 border-b border-gray-100">
@@ -48,7 +55,25 @@ export function VideoTable({ videos }: Props) {
               )}>
                 <td className="px-6 py-3.5"><RankBadge rank={i + 1} /></td>
                 <td className="px-4 py-3.5 font-medium max-w-xs truncate text-[#1A1B3A]">
-                  {v.video_title || 'Untitled'}
+                  {v.video_id ? (
+                    <button
+                      type="button"
+                      onClick={() => openVideo({
+                        video_id: v.video_id!,
+                        video_title: v.video_title,
+                        creator_name: v.creator_name,
+                        gmv: v.total_gmv,
+                        orders: v.total_orders,
+                        items_sold: v.total_items_sold,
+                        days_selling: v.days_active,
+                      })}
+                      className="text-left hover:text-[#FF4D8D] hover:underline transition-colors"
+                    >
+                      {v.video_title || 'Untitled'}
+                    </button>
+                  ) : (
+                    v.video_title || 'Untitled'
+                  )}
                 </td>
                 <td className="px-4 py-3.5 text-gray-500">
                   <Link href={`/creators/${encodeURIComponent(v.creator_name)}`} className="hover:text-[#FF4D8D] hover:underline transition-colors">

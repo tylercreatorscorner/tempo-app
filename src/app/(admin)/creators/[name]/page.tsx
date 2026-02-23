@@ -12,6 +12,7 @@ import { LifetimeStats } from '@/components/creators/lifetime-stats';
 import Link from 'next/link';
 import { ArrowLeft, User, Mail, Phone } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { VideoTitleButton } from '@/components/video/video-title-button';
 import {
   getCreatorProfile,
   getCreatorIdByHandle,
@@ -364,14 +365,22 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                 <tr key={v.video_id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
                   <td className="px-4 sm:px-6 py-3.5 text-gray-400 tabular-nums">{i + 1}</td>
                   <td className="px-4 py-3.5 font-medium max-w-xs truncate">
-                    <a
-                      href={`https://www.tiktok.com/@${v.creator_name}/video/${v.video_id}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-[#1A1B3A] hover:text-[#FF4D8D] hover:underline transition-colors"
+                    <VideoTitleButton
+                      videoData={{
+                        video_id: v.video_id,
+                        video_title: v.video_title,
+                        creator_name: v.creator_name,
+                        brand: v.brand,
+                        product_name: v.product_name,
+                        gmv: v.gmv,
+                        orders: v.orders,
+                        items_sold: v.items_sold,
+                        days_selling: v.days_selling,
+                      }}
+                      className="text-left text-[#1A1B3A] hover:text-[#FF4D8D] hover:underline transition-colors"
                     >
                       {v.video_title}
-                    </a>
+                    </VideoTitleButton>
                   </td>
                   <td className="px-4 py-3.5 text-gray-500">@{v.creator_name}</td>
                   <td className="px-4 py-3.5">
