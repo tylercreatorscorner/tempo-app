@@ -45,31 +45,33 @@ export function classifyCreator(
   if (days_active < 7) return 'new';
 
   const prevGmv = prev_gmv ?? 0;
-  const gmvGrowth = prevGmv > 0 ? ((total_gmv - prevGmv) / prevGmv) : (total_gmv > 0 ? 1 : 0);
-  const gmvDecline = prevGmv > 0 ? ((prevGmv - total_gmv) / prevGmv) : 0;
+  // Only compute growth/decline when prior period has meaningful data (>$10)
+  const hasMeaningfulPrior = prevGmv > 10;
+  const gmvGrowth = hasMeaningfulPrior ? ((total_gmv - prevGmv) / prevGmv) : 0;
+  const gmvDecline = hasMeaningfulPrior ? ((prevGmv - total_gmv) / prevGmv) : 0;
 
-  // Crushing It: top 20% GMV for brand OR >25% WoW growth OR 5+ videos
+  // Crushing It: must be top 20% GMV for brand AND (>15% WoW growth OR 7+ videos)
   const brandThreshold = brand ? brandGmvThresholds.get(brand) : undefined;
-  if (
-    (brandThreshold !== undefined && total_gmv >= brandThreshold) ||
-    gmvGrowth > 0.25 ||
-    total_videos >= 5
-  ) {
+  const isTopGmv = brandThreshold !== undefined && total_gmv >= brandThreshold;
+  if (isTopGmv && (gmvGrowth > 0.15 || total_videos >= 7)) {
     return 'crushing_it';
   }
 
-  // Slacking: 0-1 videos OR >30% GMV decline
-  if (total_videos <= 1 || gmvDecline > 0.30) {
+  // Slacking: <3 videos OR >20% GMV decline (with meaningful prior data)
+  if (total_videos < 3 || (hasMeaningfulPrior && gmvDecline > 0.20)) {
     return 'slacking';
   }
 
-  // On Track: 2+ videos AND flat/positive GMV trend
-  if (total_videos >= 2 && total_gmv >= prevGmv) {
+  // On Track: 3+ videos AND GMV within 15% of prior period (or no meaningful prior)
+  if (total_videos >= 3 && (!hasMeaningfulPrior || Math.abs(gmvGrowth) <= 0.15)) {
     return 'on_track';
   }
 
-  // Default to slacking if none of the above match
-  return 'slacking';
+  // If growth > 15% but not top 20% GMV, still on_track
+  if (gmvGrowth > 0.15) return 'on_track';
+
+  // Default to on_track for remaining edge cases
+  return 'on_track';
 }
 
 /**

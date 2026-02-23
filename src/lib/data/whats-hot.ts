@@ -61,18 +61,22 @@ export async function getRisingVideos(limit = 10): Promise<RisingVideo[]> {
     .select('video_id, video_title, creator_name, brand, gmv, video_link')
     .gte('report_date', recentStart)
     .lte('report_date', recentEnd)
-    .in('brand', brands);
+    .in('brand', brands)
+    .limit(10000);
 
   if (e1) throw new Error(`Rising videos recent query failed: ${e1.message}`);
+  console.log(`[whats-hot] Rising videos recent: ${recentData?.length ?? 0} rows (${recentStart} to ${recentEnd})`);
 
   const { data: priorData, error: e2 } = await supabase
     .from('video_performance')
     .select('video_id, gmv')
     .gte('report_date', priorStart)
     .lte('report_date', priorEnd)
-    .in('brand', brands);
+    .in('brand', brands)
+    .limit(10000);
 
   if (e2) throw new Error(`Rising videos prior query failed: ${e2.message}`);
+  console.log(`[whats-hot] Rising videos prior: ${priorData?.length ?? 0} rows (${priorStart} to ${priorEnd})`);
 
   // Aggregate recent by video_id
   const recentMap = new Map<string, { gmv: number; title: string; creator: string; brand: string; link: string | null }>();
@@ -142,9 +146,12 @@ export async function getTrendingVideos(limit = 10): Promise<TrendingVideo[]> {
     .select('video_id, video_title, creator_name, brand, gmv, report_date, video_link')
     .gte('report_date', lookbackStart)
     .lte('report_date', endStr)
-    .in('brand', brands);
+    .in('brand', brands)
+    .order('gmv', { ascending: false })
+    .limit(10000);
 
   if (error) throw new Error(`Trending videos query failed: ${error.message}`);
+  console.log(`[whats-hot] Trending videos: ${data?.length ?? 0} rows (${lookbackStart} to ${endStr})`);
 
   // Group by video_id, find first_seen and total GMV
   const videoMap = new Map<string, {
@@ -201,9 +208,12 @@ export async function getTopVideos(startDate: string, endDate: string, limit = 1
     .select('video_id, video_title, creator_name, brand, gmv, orders, video_link')
     .gte('report_date', startDate)
     .lte('report_date', endDate)
-    .in('brand', brands);
+    .in('brand', brands)
+    .order('gmv', { ascending: false })
+    .limit(10000);
 
   if (error) throw new Error(`Top videos query failed: ${error.message}`);
+  console.log(`[whats-hot] Top videos: ${data?.length ?? 0} rows (${startDate} to ${endDate})`);
 
   const videoMap = new Map<string, TopVideo>();
   for (const row of data ?? []) {
@@ -250,17 +260,20 @@ export async function getBreakoutCreators(
       .select('creator_name, brand, gmv')
       .gte('report_date', startDate)
       .lte('report_date', endDate)
-      .in('brand', brands),
+      .in('brand', brands)
+      .limit(10000),
     supabase
       .from('creator_performance')
       .select('creator_name, brand, gmv')
       .gte('report_date', priorStart)
       .lte('report_date', priorEnd)
-      .in('brand', brands),
+      .in('brand', brands)
+      .limit(10000),
   ]);
 
   if (e1) throw new Error(`Breakout creators current query failed: ${e1.message}`);
   if (e2) throw new Error(`Breakout creators prior query failed: ${e2.message}`);
+  console.log(`[whats-hot] Breakout creators: current=${currentData?.length ?? 0}, prior=${priorData?.length ?? 0} rows`);
 
   // Aggregate by creator+brand
   const currentMap = new Map<string, { creator: string; brand: string; gmv: number }>();

@@ -11,10 +11,10 @@ export default async function WhatsHotPage({ searchParams }: Props) {
   const { startDate, endDate } = resolveDateRange(params.range);
 
   const [risingVideos, trendingVideos, topVideos, breakoutCreators] = await Promise.all([
-    getRisingVideos(10).catch(() => []),
-    getTrendingVideos(10).catch(() => []),
-    getTopVideos(startDate, endDate, 10).catch(() => []),
-    getBreakoutCreators(startDate, endDate, 10).catch(() => []),
+    getRisingVideos(10).catch((e) => { console.error('[whats-hot] Rising videos error:', e); return []; }),
+    getTrendingVideos(10).catch((e) => { console.error('[whats-hot] Trending videos error:', e); return []; }),
+    getTopVideos(startDate, endDate, 10).catch((e) => { console.error('[whats-hot] Top videos error:', e); return []; }),
+    getBreakoutCreators(startDate, endDate, 10).catch((e) => { console.error('[whats-hot] Breakout creators error:', e); return []; }),
   ]);
 
   return (
