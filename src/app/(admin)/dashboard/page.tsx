@@ -12,9 +12,16 @@ import { DateRangePicker } from '@/components/dashboard/date-range-picker';
 import { CsvExportButton } from '@/components/dashboard/csv-export-button';
 import { BrandFilterBar } from '@/components/dashboard/brand-filter-bar';
 import { AlertBanners } from '@/components/dashboard/alert-banners';
+import { TodaysPulse } from '@/components/dashboard/todays-pulse';
+import { ViralNow } from '@/components/dashboard/viral-now';
+import { CreatorMovers } from '@/components/dashboard/creator-movers';
+import { ActionItems } from '@/components/dashboard/action-items';
+import type { ActionItem } from '@/components/dashboard/action-items';
+import type { ViralVideo as ViralNowVideo } from '@/components/dashboard/viral-now';
 import { generateAlerts } from '@/lib/data/alerts';
 import { aggregateCreatorsByRealName } from '@/lib/data/creator-aggregate';
 import { classifyCreator } from '@/lib/data/creator-status';
+import { getRisingVideos, getTrendingVideos } from '@/lib/data/whats-hot';
 import { BRAND_COLORS, BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
 import { format, subDays, differenceInDays } from 'date-fns';
 
@@ -98,11 +105,19 @@ export default async function AdminDashboard({ searchParams }: Props) {
       : Promise.resolve(null),
   ]);
 
-  // Fetch creators, products, videos, trends
-  const [allCreators, allProducts, allVideos, allTrends] = await Promise.all([
+  // Fetch creators (current + prev), products, videos, trends, AND whats-hot data
+  const [allCreators, allPrevCreators, allProducts, allVideos, allTrends, risingVideos, trendingVideos] = await Promise.all([
     Promise.all(
       activeBrands.map(async (brand) => {
         try { return (await getCreatorRankings(brand, startDate, endDate, 20)).map((c) => ({ ...c, brand })); } catch { return []; }
+      })
+    ).then((results) =>
+      results.flat().sort((a, b) => (b.total_gmv ?? 0) - (a.total_gmv ?? 0)).slice(0, 20)
+    ),
+    // Previous period creators for delta calculation
+    Promise.all(
+      activeBrands.map(async (brand) => {
+        try { return (await getCreatorRankings(brand, prevStartDate, prevEndDate, 20)).map((c) => ({ ...c, brand })); } catch { return []; }
       })
     ).then((results) =>
       results.flat().sort((a, b) => (b.total_gmv ?? 0) - (a.total_gmv ?? 0)).slice(0, 20)
@@ -129,10 +144,14 @@ export default async function AdminDashboard({ searchParams }: Props) {
         try { return { brand, data: await getDailyTrend(brand, startDate, endDate) }; } catch { return { brand, data: [] }; }
       })
     ),
+    // What's Hot data
+    getRisingVideos(5).catch(() => []),
+    getTrendingVideos(5).catch(() => []),
   ]);
 
   // Group creators by real name
   const groupedCreators = await aggregateCreatorsByRealName(allCreators);
+  const groupedPrevCreators = await aggregateCreatorsByRealName(allPrevCreators);
 
   // Assign statuses to grouped creators
   const creatorsWithStatus = groupedCreators.map((c) => {
@@ -243,6 +262,164 @@ export default async function AdminDashboard({ searchParams }: Props) {
   // Check if filtered brand has zero data
   const isEmptyBrand = brandFilter && totals.gmv === 0 && totals.orders === 0 && totals.items === 0;
 
+  // === NEW SECTION DATA ===
+
+  // Today's Pulse: viral videos (top trending by GMV)
+  const pulseViralVideos = trendingVideos.slice(0, 3).map((v) => ({
+    video_title: v.video_title,
+    creator_name: v.creator_name,
+    brand: v.brand,
+    total_gmv: v.total_gmv,
+    video_link: v.video_link,
+  }));
+
+  // Creator movements: compare current vs prev grouped creators
+  const prevCreatorMap = new Map(groupedPrevCreators.map((c) => [c.display_name.toLowerCase(), c]));
+  let creatorsImproved = 0;
+  let creatorsDeclined = 0;
+  let creatorsGhost = 0;
+
+  for (const c of groupedCreators) {
+    const prev = prevCreatorMap.get(c.display_name.toLowerCase());
+    if (c.total_videos === 0) {
+      creatorsGhost++;
+    } else if (prev) {
+      const delta = (c.total_gmv ?? 0) - (prev.total_gmv ?? 0);
+      if (delta > 0) creatorsImproved++;
+      else if (delta < 0) creatorsDeclined++;
+    } else {
+      creatorsImproved++; // new creator = improvement
+    }
+  }
+
+  // GMV delta
+  const gmvDelta = totals.gmv - prevTotals.gmv;
+  const gmvDeltaPct = pctChange(totals.gmv, prevTotals.gmv);
+
+  // Viral Now: merge rising + trending, deduplicate, sort by growth then GMV
+  const viralVideoMap = new Map<string, ViralNowVideo>();
+  for (const v of risingVideos) {
+    viralVideoMap.set(v.video_id, {
+      video_id: v.video_id,
+      video_title: v.video_title,
+      creator_name: v.creator_name,
+      brand: v.brand,
+      gmv: v.recent_avg_gmv * 3, // total recent GMV
+      growth_pct: v.growth_pct,
+      video_link: v.video_link,
+    });
+  }
+  for (const v of trendingVideos) {
+    if (!viralVideoMap.has(v.video_id)) {
+      viralVideoMap.set(v.video_id, {
+        video_id: v.video_id,
+        video_title: v.video_title,
+        creator_name: v.creator_name,
+        brand: v.brand,
+        gmv: v.total_gmv,
+        growth_pct: null,
+        video_link: v.video_link,
+      });
+    }
+  }
+  const viralNowVideos = Array.from(viralVideoMap.values())
+    .sort((a, b) => (b.growth_pct ?? 0) - (a.growth_pct ?? 0) || b.gmv - a.gmv)
+    .slice(0, 5);
+
+  // Creator Movers: compute deltas
+  type CreatorMoverType = {
+    display_name: string;
+    brand?: string;
+    current_gmv: number;
+    prev_gmv: number;
+    delta_pct: number | null;
+    is_ghost: boolean;
+    managed_creator_id?: number;
+  };
+
+  const creatorMovers: CreatorMoverType[] = groupedCreators.map((c) => {
+    const prev = prevCreatorMap.get(c.display_name.toLowerCase());
+    const prevGmv = prev?.total_gmv ?? 0;
+    const deltaPct = prevGmv > 0 ? ((c.total_gmv - prevGmv) / prevGmv) * 100 : (c.total_gmv > 0 ? 100 : null);
+    return {
+      display_name: c.display_name,
+      brand: c.brand,
+      current_gmv: c.total_gmv,
+      prev_gmv: prevGmv,
+      delta_pct: deltaPct,
+      is_ghost: c.total_videos === 0,
+      managed_creator_id: c.managed_creator_id,
+    };
+  });
+
+  const risers = creatorMovers
+    .filter((c) => !c.is_ghost && c.delta_pct !== null && c.delta_pct > 0)
+    .sort((a, b) => (b.delta_pct ?? 0) - (a.delta_pct ?? 0))
+    .slice(0, 5);
+
+  const decliners = [
+    ...creatorMovers.filter((c) => c.is_ghost),
+    ...creatorMovers.filter((c) => !c.is_ghost && c.delta_pct !== null && c.delta_pct < 0).sort((a, b) => (a.delta_pct ?? 0) - (b.delta_pct ?? 0)),
+  ].slice(0, 5);
+
+  // Action Items
+  const actionItems: ActionItem[] = [];
+
+  // Ghost creators
+  const ghostCount = creatorsWithStatus.filter((c) => c.status === 'ghost').length;
+  if (ghostCount > 0) {
+    actionItems.push({
+      icon: '👻',
+      text: `<strong>${ghostCount} creator${ghostCount > 1 ? 's' : ''}</strong> are ghosts this period (0 posts)`,
+      link: '/creators?status=ghost',
+      priority: 'high',
+    });
+  }
+
+  // Brand GMV drops > 20%
+  for (const bd of brandStripData) {
+    if (bd.trend !== undefined && bd.trend <= -20) {
+      const brandName = BRAND_DISPLAY_NAMES[bd.brand] ?? bd.brand;
+      actionItems.push({
+        icon: '⚠️',
+        text: `<strong>${brandName}</strong> GMV dropped ${Math.abs(bd.trend).toFixed(0)}% — investigate`,
+        link: `?range=${params.range ?? 'last7'}&brand=${bd.brand}`,
+        priority: 'high',
+      });
+    }
+  }
+
+  // Viral videos count
+  const viralCount = risingVideos.length + trendingVideos.length;
+  if (viralCount > 0) {
+    actionItems.push({
+      icon: '🔥',
+      text: `<strong>${viralCount} video${viralCount > 1 ? 's' : ''}</strong> went viral recently`,
+      link: '/whats-hot',
+      priority: 'low',
+    });
+  }
+
+  // At-risk / behind creators
+  const atRiskCount = creatorsWithStatus.filter((c) => c.status === 'at_risk' || c.status === 'behind').length;
+  if (atRiskCount > 0) {
+    actionItems.push({
+      icon: '📋',
+      text: `<strong>${atRiskCount} creator${atRiskCount > 1 ? 's' : ''}</strong> below posting target — retainer check needed`,
+      link: '/creators?status=at_risk',
+      priority: 'medium',
+    });
+  }
+
+  // Declining creators
+  if (creatorsDeclined > 0) {
+    actionItems.push({
+      icon: '📉',
+      text: `<strong>${creatorsDeclined} creator${creatorsDeclined > 1 ? 's' : ''}</strong> saw GMV decline vs prior period`,
+      priority: 'medium',
+    });
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -280,6 +457,19 @@ export default async function AdminDashboard({ searchParams }: Props) {
         <StatCard label="Avg GMV/Creator" value={formatCurrency(avgGmvPerCreator)} trend={avgGmvTrend} trendLabel={trendLabel} brandColor={activeBrandColor} />
       </div>
 
+      {/* Today's Pulse — NEW */}
+      <TodaysPulse
+        viralVideos={pulseViralVideos}
+        creatorsImproved={creatorsImproved}
+        creatorsDeclined={creatorsDeclined}
+        creatorsGhost={creatorsGhost}
+        gmvDelta={gmvDelta}
+        gmvDeltaPct={gmvDeltaPct}
+      />
+
+      {/* Viral Right Now — NEW */}
+      <ViralNow videos={viralNowVideos} />
+
       {/* Empty state for brands with no data */}
       {isEmptyBrand && (
         <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-12 text-center">
@@ -303,6 +493,12 @@ export default async function AdminDashboard({ searchParams }: Props) {
         <p className="text-xs text-gray-400 mb-4">Daily revenue {brandFilter ? '' : 'by brand'}</p>
         <GmvTrendChart data={chartData} brands={chartBrands} />
       </div>
+
+      {/* Creator Movers — NEW */}
+      <CreatorMovers risers={risers} decliners={decliners} />
+
+      {/* Action Items — NEW */}
+      <ActionItems items={actionItems} />
 
       {/* Tables */}
       <CreatorTable
