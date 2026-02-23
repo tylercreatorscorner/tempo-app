@@ -123,7 +123,7 @@ export async function sendBulkDMs(
 export async function logMessage(message: TrackedMessage): Promise<void> {
   try {
     const supabase = getSupabase();
-    await supabase.from('creator_messages').insert({
+    const row = {
       tenant_id: message.tenantId ?? null,
       creator_id: message.creatorId ?? null,
       discord_user_id: message.discordUserId,
@@ -133,7 +133,14 @@ export async function logMessage(message: TrackedMessage): Promise<void> {
       status: message.status,
       sent_by: message.sentBy,
       metadata: message.metadata ?? {},
-    });
+    };
+    console.log('[tempo-bot] Logging message to DB:', JSON.stringify(row));
+    const { error } = await supabase.from('creator_messages').insert(row);
+    if (error) {
+      console.error('[tempo-bot] DB insert error:', error.message, error.details, error.hint);
+    } else {
+      console.log('[tempo-bot] Message logged successfully');
+    }
   } catch (err) {
     console.error('[tempo-bot] Failed to log message:', err);
   }
