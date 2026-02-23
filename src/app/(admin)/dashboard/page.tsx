@@ -23,6 +23,7 @@ import { generateAlerts } from '@/lib/data/alerts';
 import { aggregateCreatorsByRealName } from '@/lib/data/creator-aggregate';
 import { classifyCreator } from '@/lib/data/creator-status';
 import { getRisingVideos, getTrendingVideos } from '@/lib/data/whats-hot';
+import { getCreatorRetainers, getTotalRetainer } from '@/lib/data/retainer';
 import { unstable_cache } from 'next/cache';
 import { BRAND_COLORS, BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
 
@@ -163,6 +164,29 @@ export default async function AdminDashboard({ searchParams }: Props) {
     getCachedTrendingVideos().catch(() => []),
   ]);
 
+  // Enrich videos with first_seen dates
+  const videoIds = allVideos.map(v => v.video_id).filter(Boolean) as string[];
+  if (videoIds.length > 0) {
+    const { createAdminClient } = await import('@/lib/supabase/server');
+    const supabase = await createAdminClient();
+    const { data: dates } = await supabase
+      .from('video_performance')
+      .select('video_id, report_date')
+      .in('video_id', videoIds)
+      .order('report_date', { ascending: true });
+
+    const firstSeenMap = new Map<string, string>();
+    for (const row of dates ?? []) {
+      if (!firstSeenMap.has(row.video_id)) {
+        firstSeenMap.set(row.video_id, row.report_date);
+      }
+    }
+
+    for (const v of allVideos) {
+      (v as Record<string, unknown>).first_seen = v.video_id ? firstSeenMap.get(v.video_id) ?? null : null;
+    }
+  }
+
   // Group creators by real name
   const groupedCreators = await aggregateCreatorsByRealName(allCreators, brandFilter);
   const groupedPrevCreators = await aggregateCreatorsByRealName(allPrevCreators, brandFilter);
@@ -173,21 +197,24 @@ export default async function AdminDashboard({ searchParams }: Props) {
     return { ...c, status };
   });
 
-  // Managed vs Unmanaged split
+  // Managed vs Unmanaged split (from displayed creators)
   const managedSplitData = {
     managed: { gmv: 0, orders: 0, creators: 0, videos: 0 },
     unmanaged: { gmv: 0, orders: 0, creators: 0, videos: 0 },
   };
-  let totalRetainerSpend = 0;
   for (const c of groupedCreators) {
     const bucket = c.isManaged ? managedSplitData.managed : managedSplitData.unmanaged;
     bucket.gmv += c.total_gmv;
     bucket.orders += c.total_orders;
     bucket.creators += 1;
     bucket.videos += c.total_videos;
-    if (c.isManaged && c.retainer > 0) {
-      totalRetainerSpend += c.retainer;
-    }
+  }
+
+  // Total retainer spend from ALL managed creators (not just top 20 displayed)
+  const allRetainers = await getCreatorRetainers();
+  let totalRetainerSpend = 0;
+  for (const [, info] of allRetainers) {
+    totalRetainerSpend += getTotalRetainer(info.retainer, info.productRetainers, brandFilter);
   }
   const portfolioRoi = totalRetainerSpend > 0 ? managedSplitData.managed.gmv / totalRetainerSpend : 0;
 
@@ -553,8 +580,8 @@ export default async function AdminDashboard({ searchParams }: Props) {
         csvButton={
           <CsvExportButton
             filename={`tempo-top-creators-${filenameDates}.csv`}
-            headers={['Rank', 'Creator', 'Handles', 'GMV', 'Orders', 'Items Sold', 'Videos', 'Managed', 'Retainer', 'ROI']}
-            rows={creatorsWithStatus.map((c, i) => [i + 1, c.display_name, c.handles.join('; '), c.total_gmv, c.total_orders, c.total_items_sold, c.total_videos, c.isManaged ? 'Yes' : 'No', c.retainer > 0 ? c.retainer : '', c.retainer > 0 ? `${(c.total_gmv / c.retainer).toFixed(1)}x` : ''])}
+            headers={['Rank', 'Creator', 'Brand', 'Handles', 'GMV', 'Orders', 'Items Sold', 'Videos', 'Managed', 'Retainer', 'ROI']}
+            rows={creatorsWithStatus.map((c, i) => [i + 1, c.display_name, c.brand ?? '', c.handles.join('; '), c.total_gmv, c.total_orders, c.total_items_sold, c.total_videos, c.isManaged ? 'Yes' : 'No', c.retainer > 0 ? c.retainer : '', c.retainer > 0 ? `${(c.total_gmv / c.retainer).toFixed(1)}x` : ''])}
           />
         }
       />
@@ -573,8 +600,8 @@ export default async function AdminDashboard({ searchParams }: Props) {
         csvButton={
           <CsvExportButton
             filename={`tempo-top-videos-${filenameDates}.csv`}
-            headers={['Rank', 'Video', 'Creator', 'Brand', 'GMV', 'Sales Days', 'Orders']}
-            rows={allVideos.map((v, i) => [i + 1, v.video_title || 'Untitled', v.creator_name, String((v as Record<string, unknown>).brand ?? ''), v.total_gmv, v.days_active ?? 0, v.total_orders])}
+            headers={['Rank', 'Video', 'Creator', 'Brand', 'GMV', 'Posted', 'Orders']}
+            rows={allVideos.map((v, i) => [i + 1, v.video_title || 'Untitled', v.creator_name, String((v as Record<string, unknown>).brand ?? ''), v.total_gmv, String((v as Record<string, unknown>).first_seen ?? ''), v.total_orders])}
           />
         }
       />

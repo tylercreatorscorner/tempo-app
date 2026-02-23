@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
 import { cn } from '@/lib/utils';
 import { type CreatorStatus, ALL_STATUSES, STATUS_CONFIG } from '@/lib/data/creator-status';
+import { BRAND_COLORS, BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
 
 interface Creator {
   display_name: string;
@@ -18,6 +19,7 @@ interface Creator {
   status?: CreatorStatus;
   isManaged?: boolean;
   retainer?: number;
+  brand?: string;
 }
 
 interface Props {
@@ -41,6 +43,20 @@ function StatusDot({ status }: { status?: CreatorStatus }) {
       style={{ backgroundColor: config.dotColor }}
       title={config.label}
     />
+  );
+}
+
+function BrandPill({ brand }: { brand: string }) {
+  const color = BRAND_COLORS[brand] ?? '#6B7280';
+  const name = BRAND_DISPLAY_NAMES[brand] ?? brand;
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium"
+      style={{ backgroundColor: `${color}15`, color }}
+    >
+      <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: color }} />
+      {name}
+    </span>
   );
 }
 
@@ -114,6 +130,7 @@ export function CreatorTable({ creators, csvButton }: Props) {
             <tr className="border-b border-gray-100 text-gray-500">
               <th className="px-6 py-3 text-left font-medium text-xs uppercase tracking-wider w-12">#</th>
               <th className="px-4 py-3 text-left font-medium text-xs uppercase tracking-wider">Creator</th>
+              <th className="px-4 py-3 text-left font-medium text-xs uppercase tracking-wider">Brand</th>
               <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider">GMV</th>
               <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider">Orders</th>
               <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider">Items</th>
@@ -144,6 +161,9 @@ export function CreatorTable({ creators, csvButton }: Props) {
                     </div>
                   </div>
                 </td>
+                <td className="px-4 py-3.5">
+                  {c.brand ? <BrandPill brand={c.brand} /> : <span className="text-gray-300">-</span>}
+                </td>
                 <td className="px-4 py-3.5 text-right font-semibold tabular-nums text-[#1A1B3A]">{formatCurrency(c.total_gmv)}</td>
                 <td className="px-4 py-3.5 text-right text-gray-500 tabular-nums">{formatNumber(c.total_orders)}</td>
                 <td className="px-4 py-3.5 text-right text-gray-500 tabular-nums">{formatNumber(c.total_items_sold)}</td>
@@ -161,7 +181,7 @@ export function CreatorTable({ creators, csvButton }: Props) {
               </tr>
             ))}
             {filtered.length === 0 && (
-              <tr><td colSpan={8} className="px-4 py-12 text-center text-gray-400">No creator data</td></tr>
+              <tr><td colSpan={9} className="px-4 py-12 text-center text-gray-400">No creator data</td></tr>
             )}
           </tbody>
         </table>

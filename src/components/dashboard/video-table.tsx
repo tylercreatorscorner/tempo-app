@@ -15,6 +15,7 @@ interface Video {
   total_orders: number;
   total_items_sold?: number;
   brand?: string;
+  first_seen?: string | null;
 }
 
 interface Props {
@@ -43,6 +44,18 @@ function BrandPill({ brand }: { brand: string }) {
   );
 }
 
+function formatPostedDate(dateStr: string): string {
+  const d = new Date(dateStr + 'T00:00:00');
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function isNew(dateStr: string): boolean {
+  const d = new Date(dateStr + 'T00:00:00');
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  return diffMs < 7 * 24 * 60 * 60 * 1000;
+}
+
 export function VideoTable({ videos, csvButton }: Props) {
   const { openVideo } = useVideoPanel();
 
@@ -64,7 +77,7 @@ export function VideoTable({ videos, csvButton }: Props) {
               <th className="px-4 py-3 text-left font-medium text-xs uppercase tracking-wider">Creator</th>
               <th className="px-4 py-3 text-left font-medium text-xs uppercase tracking-wider">Brand</th>
               <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider">GMV</th>
-              <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider">Sales Days</th>
+              <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider">Posted</th>
               <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider pr-6">Orders</th>
             </tr>
           </thead>
@@ -105,7 +118,16 @@ export function VideoTable({ videos, csvButton }: Props) {
                   {v.brand ? <BrandPill brand={v.brand} /> : <span className="text-gray-300">-</span>}
                 </td>
                 <td className="px-4 py-3.5 text-right font-semibold tabular-nums text-[#1A1B3A]">{formatCurrency(v.total_gmv)}</td>
-                <td className="px-4 py-3.5 text-right text-gray-500 tabular-nums">{v.days_active != null ? formatNumber(v.days_active) : '-'}</td>
+                <td className="px-4 py-3.5 text-right text-gray-500 tabular-nums">
+                  {v.first_seen ? (
+                    <span className="inline-flex items-center gap-1.5">
+                      {formatPostedDate(v.first_seen)}
+                      {isNew(v.first_seen) && (
+                        <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-pink-100 text-[#FF4D8D]">NEW</span>
+                      )}
+                    </span>
+                  ) : v.days_active != null ? `${v.days_active}d` : '-'}
+                </td>
                 <td className="px-4 py-3.5 text-right text-gray-500 tabular-nums pr-6">{formatNumber(v.total_orders)}</td>
               </tr>
             ))}
