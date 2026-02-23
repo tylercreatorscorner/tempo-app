@@ -13,6 +13,7 @@
 import {
   Client,
   GatewayIntentBits,
+  Partials,
   REST,
   Routes,
   Events,
@@ -33,6 +34,11 @@ export function createClient(): Client {
       GatewayIntentBits.GuildMembers,
       GatewayIntentBits.MessageContent,
       GatewayIntentBits.DirectMessages,
+    ],
+    partials: [
+      Partials.Channel,
+      Partials.Message,
+      Partials.User,
     ],
   });
 }
