@@ -20,7 +20,7 @@ const sections = [
       { name: 'JiYu', color: '#E91E8C', status: 'active' },
       { name: 'Cata-Kor', color: '#00C853', status: 'active' },
       { name: "Physician's Choice", color: '#2196F3', status: 'active' },
-      { name: 'TopLux', color: '#FF9800', status: 'pending' },
+      { name: 'Toplux', color: '#FF9800', status: 'pending' },
     ],
   },
   {

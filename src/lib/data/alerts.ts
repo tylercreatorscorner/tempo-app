@@ -25,7 +25,7 @@ export function generateAlerts(
         brand,
         metric: 'gmv',
         change,
-        message: `${name} GMV down ${Math.abs(change).toFixed(0)}% vs previous period — needs attention`,
+        message: `${name} GMV down ${Math.abs(change).toFixed(0)}% vs previous period. Needs attention`,
       });
     } else if (change <= -5) {
       alerts.push({
@@ -41,7 +41,7 @@ export function generateAlerts(
         brand,
         metric: 'gmv',
         change,
-        message: `${name} up ${change.toFixed(0)}% — strong growth vs previous period`,
+        message: `${name} up ${change.toFixed(0)}%, strong growth vs previous period`,
       });
     }
   }

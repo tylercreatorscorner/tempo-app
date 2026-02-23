@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
 import { cn } from '@/lib/utils';
 import { useVideoPanel } from '@/components/video/video-panel-context';
+import { BRAND_COLORS, BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
 
 interface Video {
   video_id?: string;
@@ -13,10 +14,12 @@ interface Video {
   days_active: number;
   total_orders: number;
   total_items_sold?: number;
+  brand?: string;
 }
 
 interface Props {
   videos: Video[];
+  csvButton?: React.ReactNode;
 }
 
 function RankBadge({ rank }: { rank: number }) {
@@ -26,14 +29,31 @@ function RankBadge({ rank }: { rank: number }) {
   return <span className="text-gray-400 text-sm tabular-nums">{rank}</span>;
 }
 
-export function VideoTable({ videos }: Props) {
+function BrandPill({ brand }: { brand: string }) {
+  const color = BRAND_COLORS[brand] ?? '#6B7280';
+  const name = BRAND_DISPLAY_NAMES[brand] ?? brand;
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium"
+      style={{ backgroundColor: `${color}15`, color }}
+    >
+      <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: color }} />
+      {name}
+    </span>
+  );
+}
+
+export function VideoTable({ videos, csvButton }: Props) {
   const { openVideo } = useVideoPanel();
 
   return (
     <div className="rounded-2xl overflow-hidden bg-white border border-gray-100 shadow-sm">
-      <div className="px-6 py-4 border-b border-gray-100">
-        <h3 className="text-lg font-bold tracking-tight text-[#1A1B3A]">Top Videos</h3>
-        <p className="text-xs text-gray-400 mt-0.5">Ranked by GMV</p>
+      <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-bold tracking-tight text-[#1A1B3A]">Top Videos</h3>
+          <p className="text-xs text-gray-400 mt-0.5">Ranked by GMV</p>
+        </div>
+        {csvButton}
       </div>
       <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
         <table className="w-full text-sm">
@@ -42,6 +62,7 @@ export function VideoTable({ videos }: Props) {
               <th className="px-6 py-3 text-left font-medium text-xs uppercase tracking-wider w-12">#</th>
               <th className="px-4 py-3 text-left font-medium text-xs uppercase tracking-wider">Video</th>
               <th className="px-4 py-3 text-left font-medium text-xs uppercase tracking-wider">Creator</th>
+              <th className="px-4 py-3 text-left font-medium text-xs uppercase tracking-wider">Brand</th>
               <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider">GMV</th>
               <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider">Sales Days</th>
               <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider pr-6">Orders</th>
@@ -80,13 +101,16 @@ export function VideoTable({ videos }: Props) {
                     {v.creator_name}
                   </Link>
                 </td>
+                <td className="px-4 py-3.5">
+                  {v.brand ? <BrandPill brand={v.brand} /> : <span className="text-gray-300">-</span>}
+                </td>
                 <td className="px-4 py-3.5 text-right font-semibold tabular-nums text-[#1A1B3A]">{formatCurrency(v.total_gmv)}</td>
                 <td className="px-4 py-3.5 text-right text-gray-500 tabular-nums">{v.days_active != null ? formatNumber(v.days_active) : '-'}</td>
                 <td className="px-4 py-3.5 text-right text-gray-500 tabular-nums pr-6">{formatNumber(v.total_orders)}</td>
               </tr>
             ))}
             {videos.length === 0 && (
-              <tr><td colSpan={6} className="px-4 py-12 text-center text-gray-400">No video data</td></tr>
+              <tr><td colSpan={7} className="px-4 py-12 text-center text-gray-400">No video data</td></tr>
             )}
           </tbody>
         </table>

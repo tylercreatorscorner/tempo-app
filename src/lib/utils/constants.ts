@@ -11,7 +11,7 @@ export const BRAND_DISPLAY_NAMES: Record<string, string> = {
   jiyu: 'JiYu',
   catakor: 'Catakor',
   physicians_choice: "Physician's Choice",
-  toplux: 'TopLux',
+  toplux: 'Toplux',
 };
 
 /** Get brand color with fallback */

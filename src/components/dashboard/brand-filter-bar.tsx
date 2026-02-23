@@ -9,7 +9,7 @@ const BRANDS = [
   { key: 'jiyu', label: 'JiYu' },
   { key: 'catakor', label: 'Cata-Kor' },
   { key: 'physicians_choice', label: "Physician's Choice" },
-  { key: 'toplux', label: 'TopLux', disabled: true },
+  { key: 'toplux', label: 'Toplux', disabled: true },
 ];
 
 export function BrandFilterBar() {

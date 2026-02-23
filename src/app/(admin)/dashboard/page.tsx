@@ -14,6 +14,7 @@ import { BrandFilterBar } from '@/components/dashboard/brand-filter-bar';
 import { AlertBanners } from '@/components/dashboard/alert-banners';
 import { generateAlerts } from '@/lib/data/alerts';
 import { aggregateCreatorsByRealName } from '@/lib/data/creator-aggregate';
+import { BRAND_COLORS, BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
 import { format, subDays, differenceInDays } from 'date-fns';
 
 const ALL_BRANDS = ['jiyu', 'catakor', 'physicians_choice', 'toplux'] as const;
@@ -114,7 +115,10 @@ export default async function AdminDashboard({ searchParams }: Props) {
     ),
     Promise.all(
       activeBrands.map(async (brand) => {
-        try { return await getVideoSummary(brand, startDate, endDate, 20); } catch { return []; }
+        try {
+          const rows = await getVideoSummary(brand, startDate, endDate, 20);
+          return rows.map((r) => ({ ...r, brand }));
+        } catch { return []; }
       })
     ).then((results) =>
       results.flat().sort((a, b) => (b.total_gmv ?? 0) - (a.total_gmv ?? 0)).slice(0, 20)
@@ -223,8 +227,14 @@ export default async function AdminDashboard({ searchParams }: Props) {
   // Format last updated
   const lastUpdated = format(serverNow, "MMM d, yyyy 'at' h:mm a") + ' CT';
   const headerLabel = brandFilter
-    ? `${(['jiyu', 'catakor', 'physicians_choice', 'toplux'] as const).includes(brandFilter as typeof ALL_BRANDS[number]) ? ({'jiyu': 'JiYu', 'catakor': 'Cata-Kor', 'physicians_choice': "Physician's Choice", 'toplux': 'TopLux'} as Record<string, string>)[brandFilter] ?? brandFilter : brandFilter} Dashboard`
+    ? `${(['jiyu', 'catakor', 'physicians_choice', 'toplux'] as const).includes(brandFilter as typeof ALL_BRANDS[number]) ? ({'jiyu': 'JiYu', 'catakor': 'Cata-Kor', 'physicians_choice': "Physician's Choice", 'toplux': 'Toplux'} as Record<string, string>)[brandFilter] ?? brandFilter : brandFilter} Dashboard`
     : 'Operations Center';
+
+  const activeBrandColor = brandFilter ? BRAND_COLORS[brandFilter] ?? null : null;
+  const activeBrandName = brandFilter ? BRAND_DISPLAY_NAMES[brandFilter] ?? brandFilter : null;
+
+  // Check if filtered brand has zero data
+  const isEmptyBrand = brandFilter && totals.gmv === 0 && totals.orders === 0 && totals.items === 0;
 
   return (
     <div className="space-y-6">
@@ -255,13 +265,22 @@ export default async function AdminDashboard({ searchParams }: Props) {
 
       {/* Portfolio Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 stagger-children">
-        <StatCard label="Total GMV" value={formatCurrency(totals.gmv)} trend={gmvTrend} trendLabel={trendLabel} />
-        <StatCard label="Orders" value={formatNumber(totals.orders)} trend={ordersTrend} trendLabel={trendLabel} />
-        <StatCard label="Items Sold" value={formatNumber(totals.items)} trend={itemsTrend} trendLabel={trendLabel} />
-        <StatCard label="Active Creators" value={formatNumber(totals.creators)} />
-        <StatCard label="Videos" value={formatNumber(totals.videos)} />
-        <StatCard label="Avg GMV/Creator" value={formatCurrency(avgGmvPerCreator)} trend={avgGmvTrend} trendLabel={trendLabel} />
+        <StatCard label="Total GMV" value={formatCurrency(totals.gmv)} trend={gmvTrend} trendLabel={trendLabel} brandColor={activeBrandColor} />
+        <StatCard label="Orders" value={formatNumber(totals.orders)} trend={ordersTrend} trendLabel={trendLabel} brandColor={activeBrandColor} />
+        <StatCard label="Items Sold" value={formatNumber(totals.items)} trend={itemsTrend} trendLabel={trendLabel} brandColor={activeBrandColor} />
+        <StatCard label="Active Creators" value={formatNumber(totals.creators)} brandColor={activeBrandColor} />
+        <StatCard label="Videos" value={formatNumber(totals.videos)} brandColor={activeBrandColor} />
+        <StatCard label="Avg GMV/Creator" value={formatCurrency(avgGmvPerCreator)} trend={avgGmvTrend} trendLabel={trendLabel} brandColor={activeBrandColor} />
       </div>
+
+      {/* Empty state for brands with no data */}
+      {isEmptyBrand && (
+        <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-12 text-center">
+          <p className="text-gray-500 text-base">
+            No performance data available for {activeBrandName} yet. Data will appear once creators start generating sales.
+          </p>
+        </div>
+      )}
 
       {/* Brand Performance Strip — only show when viewing all brands */}
       {!brandFilter && (
@@ -279,36 +298,36 @@ export default async function AdminDashboard({ searchParams }: Props) {
       </div>
 
       {/* Tables */}
-      <div>
-        <div className="flex items-center justify-end mb-2">
+      <CreatorTable
+        creators={groupedCreators}
+        csvButton={
           <CsvExportButton
             filename={`tempo-top-creators-${filenameDates}.csv`}
             headers={['Rank', 'Creator', 'Handles', 'GMV', 'Orders', 'Items Sold', 'Videos']}
             rows={groupedCreators.map((c, i) => [i + 1, c.display_name, c.handles.join('; '), c.total_gmv, c.total_orders, c.total_items_sold, c.total_videos])}
           />
-        </div>
-        <CreatorTable creators={groupedCreators} />
-      </div>
-      <div>
-        <div className="flex items-center justify-end mb-2">
+        }
+      />
+      <ProductTable
+        products={allProducts}
+        csvButton={
           <CsvExportButton
             filename={`tempo-top-products-${filenameDates}.csv`}
             headers={['Rank', 'Product', 'GMV', 'Orders', 'Items Sold']}
             rows={allProducts.map((p, i) => [i + 1, p.product_name, p.total_gmv, p.total_orders, p.total_items_sold])}
           />
-        </div>
-        <ProductTable products={allProducts} />
-      </div>
-      <div>
-        <div className="flex items-center justify-end mb-2">
+        }
+      />
+      <VideoTable
+        videos={allVideos}
+        csvButton={
           <CsvExportButton
             filename={`tempo-top-videos-${filenameDates}.csv`}
-            headers={['Rank', 'Video', 'Creator', 'GMV', 'Sales Days', 'Orders']}
-            rows={allVideos.map((v, i) => [i + 1, v.video_title || 'Untitled', v.creator_name, v.total_gmv, v.days_active ?? 0, v.total_orders])}
+            headers={['Rank', 'Video', 'Creator', 'Brand', 'GMV', 'Sales Days', 'Orders']}
+            rows={allVideos.map((v, i) => [i + 1, v.video_title || 'Untitled', v.creator_name, String((v as Record<string, unknown>).brand ?? ''), v.total_gmv, v.days_active ?? 0, v.total_orders])}
           />
-        </div>
-        <VideoTable videos={allVideos} />
-      </div>
+        }
+      />
     </div>
   );
 }

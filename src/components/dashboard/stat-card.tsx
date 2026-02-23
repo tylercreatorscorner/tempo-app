@@ -7,6 +7,7 @@ interface StatCardProps {
   trend?: number;
   trendLabel?: string;
   className?: string;
+  brandColor?: string | null;
 }
 
 const ICON_MAP: Record<string, typeof DollarSign> = {
@@ -24,25 +25,46 @@ function getIcon(label: string) {
   return ICON_MAP[key ?? ''] ?? TrendingUp;
 }
 
-export function StatCard({ label, value, trend, trendLabel, className }: StatCardProps) {
+export function StatCard({ label, value, trend, trendLabel, className, brandColor }: StatCardProps) {
   const isPositive = trend !== undefined && trend >= 0;
   const Icon = getIcon(label);
 
   return (
-    <div className={cn(
-      'relative rounded-2xl p-5 space-y-2 cursor-default group overflow-hidden',
-      'bg-white border border-gray-100',
-      'shadow-sm',
-      'hover:shadow-md hover:-translate-y-0.5',
-      'transition-all duration-300 ease-out',
-      className
-    )}>
-      <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-br from-pink-50/50 via-transparent to-transparent pointer-events-none" />
+    <div
+      className={cn(
+        'relative rounded-2xl p-5 space-y-2 cursor-default group overflow-hidden',
+        'bg-white border',
+        'shadow-sm',
+        'hover:shadow-md hover:-translate-y-0.5',
+        'transition-all duration-300 ease-out',
+        className
+      )}
+      style={{
+        borderColor: brandColor ? `${brandColor}30` : undefined,
+      }}
+    >
+      <div
+        className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
+        style={{
+          background: brandColor
+            ? `linear-gradient(135deg, ${brandColor}0D 0%, transparent 60%)`
+            : undefined,
+        }}
+      />
+      {!brandColor && (
+        <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-br from-pink-50/50 via-transparent to-transparent pointer-events-none" />
+      )}
 
       <div className="relative flex items-center justify-between">
         <p className="text-xs font-medium uppercase tracking-wider text-gray-500">{label}</p>
-        <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-pink-50 to-pink-100/50 flex items-center justify-center group-hover:from-pink-100 group-hover:to-pink-50 transition-all duration-300">
-          <Icon className="h-4 w-4 text-[#FF4D8D]" />
+        <div
+          className={cn(
+            'h-9 w-9 rounded-xl flex items-center justify-center transition-all duration-300',
+            !brandColor && 'bg-gradient-to-br from-pink-50 to-pink-100/50 group-hover:from-pink-100 group-hover:to-pink-50'
+          )}
+          style={brandColor ? { backgroundColor: `${brandColor}15` } : undefined}
+        >
+          <Icon className="h-4 w-4" style={{ color: brandColor ?? '#FF4D8D' }} />
         </div>
       </div>
       <p className="relative text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight text-[#1A1B3A]">{value}</p>

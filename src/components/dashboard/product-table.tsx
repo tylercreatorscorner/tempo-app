@@ -10,6 +10,7 @@ interface Product {
 
 interface Props {
   products: Product[];
+  csvButton?: React.ReactNode;
 }
 
 function RankBadge({ rank }: { rank: number }) {
@@ -19,12 +20,15 @@ function RankBadge({ rank }: { rank: number }) {
   return <span className="text-gray-400 text-sm tabular-nums">{rank}</span>;
 }
 
-export function ProductTable({ products }: Props) {
+export function ProductTable({ products, csvButton }: Props) {
   return (
     <div className="rounded-2xl overflow-hidden bg-white border border-gray-100 shadow-sm">
-      <div className="px-6 py-4 border-b border-gray-100">
-        <h3 className="text-lg font-bold tracking-tight text-[#1A1B3A]">Top Products</h3>
-        <p className="text-xs text-gray-400 mt-0.5">Ranked by GMV</p>
+      <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-bold tracking-tight text-[#1A1B3A]">Top Products</h3>
+          <p className="text-xs text-gray-400 mt-0.5">Ranked by GMV</p>
+        </div>
+        {csvButton}
       </div>
       <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
         <table className="w-full text-sm">
