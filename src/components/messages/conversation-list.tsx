@@ -12,6 +12,12 @@ export interface Conversation {
   last_message_at: string;
   direction: string;
   unread_count: number;
+  message_count?: number;
+}
+
+/** Unique key for a conversation */
+export function convKey(conv: Conversation): string {
+  return conv.discord_user_id || `creator:${conv.creator_id}`;
 }
 
 function relativeTime(dateStr: string): string {
@@ -31,11 +37,11 @@ function relativeTime(dateStr: string): string {
 
 interface Props {
   conversations: Conversation[];
-  activeCreatorId: number | null;
-  onSelect: (creatorId: number) => void;
+  activeKey: string | null;
+  onSelect: (conv: Conversation) => void;
 }
 
-export function ConversationList({ conversations, activeCreatorId, onSelect }: Props) {
+export function ConversationList({ conversations, activeKey, onSelect }: Props) {
   const [search, setSearch] = useState('');
 
   const filtered = conversations.filter(c =>
@@ -68,11 +74,11 @@ export function ConversationList({ conversations, activeCreatorId, onSelect }: P
         ) : (
           filtered.map(conv => (
             <button
-              key={conv.creator_id}
-              onClick={() => onSelect(conv.creator_id)}
+              key={convKey(conv)}
+              onClick={() => onSelect(conv)}
               className={cn(
                 'w-full text-left px-4 py-3 border-b border-gray-100 transition-colors hover:bg-gray-50',
-                activeCreatorId === conv.creator_id && 'bg-pink-50 border-l-2 border-l-pink-400'
+                activeKey === convKey(conv) && 'bg-pink-50 border-l-2 border-l-pink-400'
               )}
             >
               <div className="flex items-center justify-between">

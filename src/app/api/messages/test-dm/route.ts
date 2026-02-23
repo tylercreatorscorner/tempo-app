@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createAdminClient } from '@/lib/supabase/server';
 
 const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
 
@@ -50,6 +51,32 @@ export async function POST(request: NextRequest) {
         delivered: false,
         error: `Failed to send: ${err.message || msgRes.statusText}`,
       });
+    }
+
+    // Step 3: Log to database so it shows in Messages page
+    try {
+      const supabase = await createAdminClient();
+
+      // Try to find creator by discord_id or discord_user_id
+      const { data: creator } = await supabase
+        .from('managed_creators')
+        .select('id')
+        .or(`discord_id.eq.${discordUserId.trim()},discord_user_id.eq.${discordUserId.trim()}`)
+        .limit(1)
+        .single();
+
+      await supabase.from('creator_messages').insert({
+        creator_id: creator?.id ?? null,
+        discord_user_id: discordUserId.trim(),
+        direction: 'outbound',
+        channel: 'dm',
+        content: content.trim(),
+        status: 'delivered',
+        sent_by: 'admin',
+      });
+    } catch {
+      // Don't fail the DM send if logging fails
+      console.error('[test-dm] Failed to log message to database');
     }
 
     return NextResponse.json({ delivered: true });

@@ -2,14 +2,14 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { MessageSquare, Users, Send } from 'lucide-react';
-import { ConversationList, type Conversation } from '@/components/messages/conversation-list';
+import { ConversationList, type Conversation, convKey } from '@/components/messages/conversation-list';
 import { ChatThread } from '@/components/messages/chat-thread';
 import { BulkMessageModal } from '@/components/messages/bulk-message-modal';
 import { TestDmModal } from '@/components/messages/test-dm-modal';
 
 export default function MessagesPage() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [activeCreatorId, setActiveCreatorId] = useState<number | null>(null);
+  const [activeConv, setActiveConv] = useState<Conversation | null>(null);
   const [loading, setLoading] = useState(true);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [mobileShowThread, setMobileShowThread] = useState(false);
@@ -31,10 +31,10 @@ export default function MessagesPage() {
     fetchConversations();
   }, [fetchConversations]);
 
-  const activeConv = conversations.find(c => c.creator_id === activeCreatorId);
+  const activeKey = activeConv ? (activeConv.discord_user_id || `creator:${activeConv.creator_id}`) : null;
 
-  const handleSelect = (id: number) => {
-    setActiveCreatorId(id);
+  const handleSelect = (conv: Conversation) => {
+    setActiveConv(conv);
     setMobileShowThread(true);
   };
 
@@ -83,7 +83,7 @@ export default function MessagesPage() {
           ) : (
             <ConversationList
               conversations={conversations}
-              activeCreatorId={activeCreatorId}
+              activeKey={activeKey}
               onSelect={handleSelect}
             />
           )}
@@ -91,10 +91,11 @@ export default function MessagesPage() {
 
         {/* Right panel - chat thread */}
         <div className={`flex-1 ${mobileShowThread ? 'block' : 'hidden md:block'}`}>
-          {activeCreatorId && activeConv ? (
+          {activeConv ? (
             <ChatThread
-              creatorId={activeCreatorId}
+              creatorId={activeConv.creator_id}
               creatorName={activeConv.creator_name}
+              discordUserId={activeConv.discord_user_id}
             />
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-gray-400 bg-[#F8F9FC]">
@@ -115,7 +116,7 @@ export default function MessagesPage() {
       {/* Test DM modal */}
       <TestDmModal
         open={testDmOpen}
-        onClose={() => setTestDmOpen(false)}
+        onClose={() => { setTestDmOpen(false); fetchConversations(); }}
       />
     </div>
   );

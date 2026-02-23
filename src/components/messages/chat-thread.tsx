@@ -16,6 +16,7 @@ interface Message {
 interface Props {
   creatorId: number;
   creatorName: string;
+  discordUserId?: string | null;
 }
 
 function StatusIcon({ status }: { status: string }) {
@@ -28,7 +29,7 @@ function StatusIcon({ status }: { status: string }) {
   }
 }
 
-export function ChatThread({ creatorId, creatorName }: Props) {
+export function ChatThread({ creatorId, creatorName, discordUserId }: Props) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(true);
@@ -40,7 +41,9 @@ export function ChatThread({ creatorId, creatorName }: Props) {
 
   const fetchMessages = useCallback(async (p: number, append = false) => {
     try {
-      const res = await fetch(`/api/messages/${creatorId}?page=${p}`);
+      const params = new URLSearchParams({ page: String(p) });
+      if (discordUserId) params.set('discord_user_id', discordUserId);
+      const res = await fetch(`/api/messages/${creatorId}?${params}`);
       const data = await res.json();
       setMessages(prev => append ? [...data.messages, ...prev] : data.messages);
       setHasMore(data.hasMore);
@@ -50,7 +53,7 @@ export function ChatThread({ creatorId, creatorName }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [creatorId]);
+  }, [creatorId, discordUserId]);
 
   useEffect(() => {
     setLoading(true);
