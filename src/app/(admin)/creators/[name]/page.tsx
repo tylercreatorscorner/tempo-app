@@ -103,18 +103,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
   const filteredBrandBreakdown = brandBreakdown.filter((b) => (ACTIVE_BRANDS as readonly string[]).includes(b.brand));
 
   // Compute performance status
-  const daysActive = lifetimeStats.first_active_date
-    ? Math.floor((Date.now() - new Date(lifetimeStats.first_active_date).getTime()) / 86400000)
-    : 0;
-  const performanceStatus = classifyCreator(
-    {
-      total_videos: summary.total_videos,
-      total_gmv: summary.total_gmv,
-      days_active: daysActive,
-      prev_gmv: summary.prev_gmv,
-    },
-    new Map(),
-  );
+  const performanceStatus = classifyCreator(summary.total_videos);
   const perfStatusInfo = getStatusInfo(performanceStatus);
 
   return (
