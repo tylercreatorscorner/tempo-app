@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Send, Check, CheckCheck, X, Loader2, ChevronUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { createClient } from '@supabase/supabase-js';
 
 interface Message {
   id: string;
@@ -65,16 +66,39 @@ export function ChatThread({ creatorId, creatorName, discordUserId }: Props) {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // TODO: Add Supabase Realtime subscription to `creator_messages` table
-  // filtered by creator_id for live message updates.
-  // useEffect(() => {
-  //   const channel = supabase.channel('messages')
-  //     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'creator_messages', filter: `creator_id=eq.${creatorId}` }, payload => {
-  //       setMessages(prev => [...prev, payload.new as Message]);
-  //     })
-  //     .subscribe();
-  //   return () => { supabase.removeChannel(channel); };
-  // }, [creatorId]);
+  // Supabase Realtime — live message updates
+  useEffect(() => {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!url || !key) return;
+
+    const supabase = createClient(url, key);
+
+    // Build filter based on what we have
+    const filter = discordUserId
+      ? `discord_user_id=eq.${discordUserId}`
+      : `creator_id=eq.${creatorId}`;
+
+    const channel = supabase
+      .channel(`messages-${discordUserId || creatorId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'creator_messages', filter },
+        (payload) => {
+          const newMsg = payload.new as Message;
+          // Avoid duplicates (optimistic updates)
+          setMessages(prev => {
+            if (prev.some(m => m.id === newMsg.id)) return prev;
+            return [...prev, newMsg];
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [creatorId, discordUserId]);
 
   const handleSend = async () => {
     const content = input.trim();
