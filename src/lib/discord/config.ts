@@ -55,6 +55,16 @@ const GUILD_MAP: Record<string, GuildConfig> = {
     channels: {},
     permissions: { alerts: 'admin' },
   },
+  // Physician's Choice Discord server
+  '1181985490363240499': {
+    brandSlug: 'physicians_choice',
+    displayName: BRAND_DISPLAY_NAMES['physicians_choice'] ?? "Physician's Choice",
+    color: BRAND_COLORS['physicians_choice'] ?? '#2196F3',
+    allowedChannels: [],
+    adminRoles: [],
+    channels: {},
+    permissions: { alerts: 'admin' },
+  },
   // Tyler's personal server (dev/testing)
   '1093295115495297084': {
     brandSlug: 'jiyu', // defaults to JiYu for testing
