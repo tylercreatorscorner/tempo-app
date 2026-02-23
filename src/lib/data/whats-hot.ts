@@ -44,6 +44,33 @@ export interface BreakoutCreator {
 
 const yesterday = () => subDays(new Date(), 1);
 
+/** Paginated fetch to bypass Supabase PostgREST row limits */
+async function paginatedFetch(
+  supabase: Awaited<ReturnType<typeof createAdminClient>>,
+  table: string,
+  select: string,
+  filters: { column: string; op: string; value: unknown }[],
+  pageSize = 1000
+): Promise<any[]> {
+  const all: any[] = [];
+  let from = 0;
+  while (true) {
+    let q = supabase.from(table).select(select).range(from, from + pageSize - 1);
+    for (const f of filters) {
+      if (f.op === 'gte') q = q.gte(f.column, f.value as string);
+      else if (f.op === 'lte') q = q.lte(f.column, f.value as string);
+      else if (f.op === 'in') q = q.in(f.column, f.value as string[]);
+    }
+    const { data, error } = await q;
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    all.push(...data);
+    if (data.length < pageSize) break;
+    from += pageSize;
+  }
+  return all;
+}
+
 /** Rising Videos — highest GMV acceleration (last 3 days vs prior 3 days) */
 export async function getRisingVideos(limit = 10): Promise<RisingVideo[]> {
   const supabase = await createAdminClient();
@@ -56,49 +83,47 @@ export async function getRisingVideos(limit = 10): Promise<RisingVideo[]> {
   const brands = [...ACTIVE_BRANDS];
 
   // Get recent period aggregated by video
-  const { data: recentData, error: e1 } = await supabase
-    .from('video_performance')
-    .select('video_id, video_title, creator_name, brand, gmv, video_link')
-    .gte('report_date', recentStart)
-    .lte('report_date', recentEnd)
-    .in('brand', brands)
-    .limit(10000);
+  const recentData = await paginatedFetch(supabase, 'video_performance',
+    'video_id, video_title, creator_name, brand, gmv, video_link',
+    [
+      { column: 'report_date', op: 'gte', value: recentStart },
+      { column: 'report_date', op: 'lte', value: recentEnd },
+      { column: 'brand', op: 'in', value: brands },
+    ]);
+  console.log(`[whats-hot] Rising videos recent: ${recentData.length} rows (${recentStart} to ${recentEnd})`);
 
-  if (e1) throw new Error(`Rising videos recent query failed: ${e1.message}`);
-  console.log(`[whats-hot] Rising videos recent: ${recentData?.length ?? 0} rows (${recentStart} to ${recentEnd})`);
-
-  const { data: priorData, error: e2 } = await supabase
-    .from('video_performance')
-    .select('video_id, gmv')
-    .gte('report_date', priorStart)
-    .lte('report_date', priorEnd)
-    .in('brand', brands)
-    .limit(10000);
-
-  if (e2) throw new Error(`Rising videos prior query failed: ${e2.message}`);
-  console.log(`[whats-hot] Rising videos prior: ${priorData?.length ?? 0} rows (${priorStart} to ${priorEnd})`);
+  const priorData = await paginatedFetch(supabase, 'video_performance',
+    'video_id, gmv',
+    [
+      { column: 'report_date', op: 'gte', value: priorStart },
+      { column: 'report_date', op: 'lte', value: priorEnd },
+      { column: 'brand', op: 'in', value: brands },
+    ]);
+  console.log(`[whats-hot] Rising videos prior: ${priorData.length} rows (${priorStart} to ${priorEnd})`);
 
   // Aggregate recent by video_id
   const recentMap = new Map<string, { gmv: number; title: string; creator: string; brand: string; link: string | null }>();
-  for (const row of recentData ?? []) {
-    const existing = recentMap.get(row.video_id);
+  for (const row of recentData) {
+    const vid = row.video_id as string;
+    const existing = recentMap.get(vid);
     if (existing) {
-      existing.gmv += row.gmv ?? 0;
+      existing.gmv += (row.gmv as number) ?? 0;
     } else {
-      recentMap.set(row.video_id, {
-        gmv: row.gmv ?? 0,
-        title: row.video_title ?? 'Untitled',
-        creator: row.creator_name ?? 'Unknown',
-        brand: row.brand,
-        link: row.video_link ?? null,
+      recentMap.set(vid, {
+        gmv: (row.gmv as number) ?? 0,
+        title: (row.video_title as string) ?? 'Untitled',
+        creator: (row.creator_name as string) ?? 'Unknown',
+        brand: row.brand as string,
+        link: (row.video_link as string) ?? null,
       });
     }
   }
 
   // Aggregate prior by video_id
   const priorMap = new Map<string, number>();
-  for (const row of priorData ?? []) {
-    priorMap.set(row.video_id, (priorMap.get(row.video_id) ?? 0) + (row.gmv ?? 0));
+  for (const row of priorData) {
+    const vid = row.video_id as string;
+    priorMap.set(vid, (priorMap.get(vid) ?? 0) + ((row.gmv as number) ?? 0));
   }
 
   // Calculate growth
@@ -141,17 +166,14 @@ export async function getTrendingVideos(limit = 10): Promise<TrendingVideo[]> {
   // Get all video performance for last 14 days to find first_seen
   const lookbackStart = format(subDays(end, 30), 'yyyy-MM-dd');
 
-  const { data, error } = await supabase
-    .from('video_performance')
-    .select('video_id, video_title, creator_name, brand, gmv, report_date, video_link')
-    .gte('report_date', lookbackStart)
-    .lte('report_date', endStr)
-    .in('brand', brands)
-    .order('gmv', { ascending: false })
-    .limit(10000);
-
-  if (error) throw new Error(`Trending videos query failed: ${error.message}`);
-  console.log(`[whats-hot] Trending videos: ${data?.length ?? 0} rows (${lookbackStart} to ${endStr})`);
+  const data = await paginatedFetch(supabase, 'video_performance',
+    'video_id, video_title, creator_name, brand, gmv, report_date, video_link',
+    [
+      { column: 'report_date', op: 'gte', value: lookbackStart },
+      { column: 'report_date', op: 'lte', value: endStr },
+      { column: 'brand', op: 'in', value: brands },
+    ]);
+  console.log(`[whats-hot] Trending videos: ${data.length} rows (${lookbackStart} to ${endStr})`);
 
   // Group by video_id, find first_seen and total GMV
   const videoMap = new Map<string, {
@@ -159,19 +181,22 @@ export async function getTrendingVideos(limit = 10): Promise<TrendingVideo[]> {
     firstSeen: string; link: string | null;
   }>();
 
-  for (const row of data ?? []) {
-    const existing = videoMap.get(row.video_id);
+  for (const row of data) {
+    const vid = row.video_id as string;
+    const existing = videoMap.get(vid);
+    const gmv = (row.gmv as number) ?? 0;
+    const reportDate = row.report_date as string;
     if (existing) {
-      existing.gmv += row.gmv ?? 0;
-      if (row.report_date < existing.firstSeen) existing.firstSeen = row.report_date;
+      existing.gmv += gmv;
+      if (reportDate < existing.firstSeen) existing.firstSeen = reportDate;
     } else {
-      videoMap.set(row.video_id, {
-        title: row.video_title ?? 'Untitled',
-        creator: row.creator_name ?? 'Unknown',
-        brand: row.brand,
-        gmv: row.gmv ?? 0,
-        firstSeen: row.report_date,
-        link: row.video_link ?? null,
+      videoMap.set(vid, {
+        title: (row.video_title as string) ?? 'Untitled',
+        creator: (row.creator_name as string) ?? 'Unknown',
+        brand: row.brand as string,
+        gmv,
+        firstSeen: reportDate,
+        link: (row.video_link as string) ?? null,
       });
     }
   }
@@ -203,33 +228,31 @@ export async function getTopVideos(startDate: string, endDate: string, limit = 1
   const supabase = await createAdminClient();
   const brands = [...ACTIVE_BRANDS];
 
-  const { data, error } = await supabase
-    .from('video_performance')
-    .select('video_id, video_title, creator_name, brand, gmv, orders, video_link')
-    .gte('report_date', startDate)
-    .lte('report_date', endDate)
-    .in('brand', brands)
-    .order('gmv', { ascending: false })
-    .limit(10000);
-
-  if (error) throw new Error(`Top videos query failed: ${error.message}`);
-  console.log(`[whats-hot] Top videos: ${data?.length ?? 0} rows (${startDate} to ${endDate})`);
+  const data = await paginatedFetch(supabase, 'video_performance',
+    'video_id, video_title, creator_name, brand, gmv, orders, video_link',
+    [
+      { column: 'report_date', op: 'gte', value: startDate },
+      { column: 'report_date', op: 'lte', value: endDate },
+      { column: 'brand', op: 'in', value: brands },
+    ]);
+  console.log(`[whats-hot] Top videos: ${data.length} rows (${startDate} to ${endDate})`);
 
   const videoMap = new Map<string, TopVideo>();
-  for (const row of data ?? []) {
-    const existing = videoMap.get(row.video_id);
+  for (const row of data) {
+    const vid = row.video_id as string;
+    const existing = videoMap.get(vid);
     if (existing) {
-      existing.total_gmv += row.gmv ?? 0;
-      existing.total_orders += row.orders ?? 0;
+      existing.total_gmv += (row.gmv as number) ?? 0;
+      existing.total_orders += (row.orders as number) ?? 0;
     } else {
-      videoMap.set(row.video_id, {
-        video_id: row.video_id,
-        video_title: row.video_title ?? 'Untitled',
-        creator_name: row.creator_name ?? 'Unknown',
-        brand: row.brand,
-        total_gmv: row.gmv ?? 0,
-        total_orders: row.orders ?? 0,
-        video_link: row.video_link ?? null,
+      videoMap.set(vid, {
+        video_id: vid,
+        video_title: (row.video_title as string) ?? 'Untitled',
+        creator_name: (row.creator_name as string) ?? 'Unknown',
+        brand: row.brand as string,
+        total_gmv: (row.gmv as number) ?? 0,
+        total_orders: (row.orders as number) ?? 0,
+        video_link: (row.video_link as string) ?? null,
       });
     }
   }
@@ -254,43 +277,36 @@ export async function getBreakoutCreators(
   const priorEnd = format(subDays(start, 1), 'yyyy-MM-dd');
   const priorStart = format(subDays(start, periodDays), 'yyyy-MM-dd');
 
-  const [{ data: currentData, error: e1 }, { data: priorData, error: e2 }] = await Promise.all([
-    supabase
-      .from('creator_performance')
-      .select('creator_name, brand, gmv')
-      .gte('report_date', startDate)
-      .lte('report_date', endDate)
-      .in('brand', brands)
-      .limit(10000),
-    supabase
-      .from('creator_performance')
-      .select('creator_name, brand, gmv')
-      .gte('report_date', priorStart)
-      .lte('report_date', priorEnd)
-      .in('brand', brands)
-      .limit(10000),
+  const [currentData, priorData] = await Promise.all([
+    paginatedFetch(supabase, 'creator_performance', 'creator_name, brand, gmv', [
+      { column: 'report_date', op: 'gte', value: startDate },
+      { column: 'report_date', op: 'lte', value: endDate },
+      { column: 'brand', op: 'in', value: brands },
+    ]),
+    paginatedFetch(supabase, 'creator_performance', 'creator_name, brand, gmv', [
+      { column: 'report_date', op: 'gte', value: priorStart },
+      { column: 'report_date', op: 'lte', value: priorEnd },
+      { column: 'brand', op: 'in', value: brands },
+    ]),
   ]);
-
-  if (e1) throw new Error(`Breakout creators current query failed: ${e1.message}`);
-  if (e2) throw new Error(`Breakout creators prior query failed: ${e2.message}`);
-  console.log(`[whats-hot] Breakout creators: current=${currentData?.length ?? 0}, prior=${priorData?.length ?? 0} rows`);
+  console.log(`[whats-hot] Breakout creators: current=${currentData.length}, prior=${priorData.length} rows`);
 
   // Aggregate by creator+brand
   const currentMap = new Map<string, { creator: string; brand: string; gmv: number }>();
-  for (const row of currentData ?? []) {
+  for (const row of currentData) {
     const key = `${row.creator_name}::${row.brand}`;
     const existing = currentMap.get(key);
     if (existing) {
-      existing.gmv += row.gmv ?? 0;
+      existing.gmv += (row.gmv as number) ?? 0;
     } else {
-      currentMap.set(key, { creator: row.creator_name, brand: row.brand, gmv: row.gmv ?? 0 });
+      currentMap.set(key, { creator: row.creator_name as string, brand: row.brand as string, gmv: (row.gmv as number) ?? 0 });
     }
   }
 
   const priorMap = new Map<string, number>();
-  for (const row of priorData ?? []) {
+  for (const row of priorData) {
     const key = `${row.creator_name}::${row.brand}`;
-    priorMap.set(key, (priorMap.get(key) ?? 0) + (row.gmv ?? 0));
+    priorMap.set(key, (priorMap.get(key) ?? 0) + ((row.gmv as number) ?? 0));
   }
 
   const results: BreakoutCreator[] = [];
