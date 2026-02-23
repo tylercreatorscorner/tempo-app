@@ -12,7 +12,17 @@ export interface ChannelMapping {
   dailyBrief?: string;
   /** Channel for alert notifications */
   alerts?: string;
+  /** Channel for relay notifications (inbound DMs from creators) */
+  relay?: string;
 }
+
+/** Messaging relay configuration */
+export const RELAY_CONFIG = {
+  /** Milliseconds between bulk DMs (default 1000) */
+  bulkDmRateLimit: 1000,
+  /** How often to check for due reminders in ms (default 60000) */
+  reminderCheckInterval: 60_000,
+} as const;
 
 export type PermissionLevel = 'everyone' | 'admin';
 

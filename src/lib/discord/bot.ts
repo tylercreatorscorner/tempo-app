@@ -17,8 +17,12 @@ import {
   Routes,
   Events,
   type Interaction,
+  type TextChannel,
 } from 'discord.js';
 import { commands, commandMap } from './commands';
+import { getGuildConfig } from './config';
+import { logMessage } from './relay';
+import { startReminderChecker } from './scheduler';
 
 /** Create a configured Discord client */
 export function createClient(): Client {
@@ -26,7 +30,9 @@ export function createClient(): Client {
     intents: [
       GatewayIntentBits.Guilds,
       GatewayIntentBits.GuildMessages,
+      GatewayIntentBits.GuildMembers,
       GatewayIntentBits.MessageContent,
+      GatewayIntentBits.DirectMessages,
     ],
   });
 }
@@ -55,6 +61,8 @@ export async function registerCommands(
 export function setupEventHandlers(client: Client): void {
   client.once(Events.ClientReady, (c) => {
     console.log(`[tempo-bot] Logged in as ${c.user.tag} — serving ${c.guilds.cache.size} guilds`);
+    // Start reminder checker
+    startReminderChecker(client);
   });
 
   client.on(Events.InteractionCreate, async (interaction: Interaction) => {
@@ -90,6 +98,42 @@ export function setupEventHandlers(client: Client): void {
         await interaction.followUp({ content, ephemeral: true }).catch(() => {});
       } else {
         await interaction.reply({ content, ephemeral: true }).catch(() => {});
+      }
+    }
+  });
+
+  // Inbound DM listener — log creator replies and forward to relay channel
+  client.on(Events.MessageCreate, async (msg) => {
+    // Only handle DMs from non-bots
+    if (!msg.author.bot && msg.channel.isDMBased()) {
+      console.log(`[tempo-bot] Inbound DM from ${msg.author.tag}: ${msg.content.slice(0, 100)}`);
+
+      // Log inbound message
+      await logMessage({
+        discordUserId: msg.author.id,
+        direction: 'inbound',
+        channel: 'dm',
+        content: msg.content,
+        status: 'delivered',
+        sentBy: msg.author.tag,
+      });
+
+      // Forward to relay channels in all guilds where bot is present
+      for (const [guildId, guild] of client.guilds.cache) {
+        const config = getGuildConfig(guildId);
+        const relayChannelId = config?.channels.relay ?? config?.channels.alerts;
+        if (relayChannelId) {
+          try {
+            const channel = (await guild.channels.fetch(relayChannelId)) as TextChannel;
+            if (channel) {
+              await channel.send(
+                `📩 **Inbound DM from ${msg.author.tag}** (<@${msg.author.id}>):\n>>> ${msg.content.slice(0, 1900)}`,
+              );
+            }
+          } catch {
+            // Silently skip if channel not accessible
+          }
+        }
       }
     }
   });

@@ -37,6 +37,70 @@ export function getScheduledMessages(): readonly ScheduledMessage[] {
   return scheduledMessages;
 }
 
+/** Check for due reminders and send them */
+export async function checkReminders(client: Client): Promise<void> {
+  try {
+    const supabase = getSupabase();
+    const now = new Date().toISOString();
+
+    const { data: dueReminders } = await supabase
+      .from('reminders')
+      .select('*')
+      .eq('status', 'pending')
+      .lte('scheduled_for', now)
+      .limit(50);
+
+    if (!dueReminders?.length) return;
+
+    for (const reminder of dueReminders) {
+      try {
+        if (reminder.target_type === 'creator') {
+          const user = await client.users.fetch(reminder.target_id).catch(() => null);
+          if (user) {
+            await user.send(reminder.content);
+          }
+        } else if (reminder.target_type === 'channel') {
+          const channel = await client.channels.fetch(reminder.target_id).catch(() => null);
+          if (channel && 'send' in channel) {
+            await (channel as TextChannel).send(reminder.content);
+          }
+        }
+
+        await supabase
+          .from('reminders')
+          .update({ status: 'sent' })
+          .eq('id', reminder.id);
+      } catch (err) {
+        console.error(`[tempo-bot] Failed to send reminder ${reminder.id}:`, err);
+      }
+    }
+
+    if (dueReminders.length > 0) {
+      console.log(`[tempo-bot] Processed ${dueReminders.length} reminders`);
+    }
+  } catch (err) {
+    console.error('[tempo-bot] Reminder check failed:', err);
+  }
+}
+
+let reminderInterval: ReturnType<typeof setInterval> | null = null;
+
+/** Start the reminder checker on an interval */
+export function startReminderChecker(client: Client, intervalMs = 60_000): void {
+  if (reminderInterval) clearInterval(reminderInterval);
+  reminderInterval = setInterval(() => checkReminders(client), intervalMs);
+  console.log(`[tempo-bot] Reminder checker started (every ${intervalMs / 1000}s)`);
+}
+
+/** Stop the reminder checker */
+export function stopReminderChecker(): void {
+  if (reminderInterval) {
+    clearInterval(reminderInterval);
+    reminderInterval = null;
+    console.log('[tempo-bot] Reminder checker stopped');
+  }
+}
+
 /** Generate and post a daily brief to the configured channel */
 export async function sendDailyBrief(client: Client, guildId: string): Promise<void> {
   const guildConfig = getGuildConfig(guildId);

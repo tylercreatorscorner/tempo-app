@@ -115,5 +115,11 @@ export function helpEmbed(): EmbedBuilder {
       { name: '/compare [creator1] [creator2]', value: 'Side-by-side creator comparison', inline: false },
       { name: '/brand [name]', value: 'Brand performance summary', inline: false },
       { name: '/help', value: 'Show this help message', inline: false },
+      { name: '/message creator [name] [text]', value: 'DM a managed creator', inline: false },
+      { name: '/message channel [channel] [text]', value: 'Post announcement to a channel', inline: false },
+      { name: '/bulk dm [role] [text]', value: 'DM all members with a role', inline: false },
+      { name: '/bulk announce [channel] [text]', value: 'Post formatted announcement', inline: false },
+      { name: '/reminder create [creator] [text] [when]', value: 'Schedule a reminder DM', inline: false },
+      { name: '/reminder posting [days]', value: 'Remind inactive creators', inline: false },
     );
 }
