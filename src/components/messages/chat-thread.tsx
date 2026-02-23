@@ -3,7 +3,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Send, Check, CheckCheck, X, Loader2, ChevronUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { createClient } from '@supabase/supabase-js';
 
 interface Message {
   id: string;
@@ -66,38 +65,29 @@ export function ChatThread({ creatorId, creatorName, discordUserId }: Props) {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Supabase Realtime — live message updates
+  // Poll for new messages every 3 seconds
   useEffect(() => {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    if (!url || !key) return;
+    const interval = setInterval(async () => {
+      try {
+        const params = new URLSearchParams({ page: '1' });
+        if (discordUserId) params.set('discord_user_id', discordUserId);
+        const res = await fetch(`/api/messages/${creatorId}?${params}`);
+        const data = await res.json();
+        const newMessages = data.messages as Message[];
+        setMessages(prev => {
+          // Only update if there are new messages (compare count + last id)
+          if (newMessages.length !== prev.length || 
+              (newMessages.length > 0 && prev.length > 0 && newMessages[newMessages.length - 1]?.id !== prev[prev.length - 1]?.id)) {
+            return newMessages;
+          }
+          return prev;
+        });
+      } catch {
+        // Silently fail polling
+      }
+    }, 3000);
 
-    const supabase = createClient(url, key);
-
-    // Build filter based on what we have
-    const filter = discordUserId
-      ? `discord_user_id=eq.${discordUserId}`
-      : `creator_id=eq.${creatorId}`;
-
-    const channel = supabase
-      .channel(`messages-${discordUserId || creatorId}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'creator_messages', filter },
-        (payload) => {
-          const newMsg = payload.new as Message;
-          // Avoid duplicates (optimistic updates)
-          setMessages(prev => {
-            if (prev.some(m => m.id === newMsg.id)) return prev;
-            return [...prev, newMsg];
-          });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => clearInterval(interval);
   }, [creatorId, discordUserId]);
 
   const handleSend = async () => {
