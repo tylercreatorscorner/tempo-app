@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { MessageSquare, Users } from 'lucide-react';
+import { MessageSquare, Users, Send } from 'lucide-react';
 import { ConversationList, type Conversation } from '@/components/messages/conversation-list';
 import { ChatThread } from '@/components/messages/chat-thread';
 import { BulkMessageModal } from '@/components/messages/bulk-message-modal';
+import { TestDmModal } from '@/components/messages/test-dm-modal';
 
 export default function MessagesPage() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -12,6 +13,7 @@ export default function MessagesPage() {
   const [loading, setLoading] = useState(true);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [mobileShowThread, setMobileShowThread] = useState(false);
+  const [testDmOpen, setTestDmOpen] = useState(false);
 
   const fetchConversations = useCallback(async () => {
     try {
@@ -52,13 +54,22 @@ export default function MessagesPage() {
           <MessageSquare className="h-5 w-5 text-pink-500" />
           <h1 className="text-lg font-semibold text-[#1A1B3A]">Messages</h1>
         </div>
-        <button
-          onClick={() => setBulkOpen(true)}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-br from-pink-500 to-purple-500 text-white text-sm font-medium hover:opacity-90 transition-opacity"
-        >
-          <Users className="h-4 w-4" />
-          Bulk Message
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setTestDmOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-200 bg-white text-gray-700 text-sm font-medium hover:bg-gray-50 transition-colors"
+          >
+            <Send className="h-4 w-4" />
+            Test DM
+          </button>
+          <button
+            onClick={() => setBulkOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-br from-pink-500 to-purple-500 text-white text-sm font-medium hover:opacity-90 transition-opacity"
+          >
+            <Users className="h-4 w-4" />
+            Bulk Message
+          </button>
+        </div>
       </div>
 
       {/* Two-panel layout */}
@@ -99,6 +110,12 @@ export default function MessagesPage() {
         open={bulkOpen}
         onClose={() => setBulkOpen(false)}
         conversations={conversations}
+      />
+
+      {/* Test DM modal */}
+      <TestDmModal
+        open={testDmOpen}
+        onClose={() => setTestDmOpen(false)}
       />
     </div>
   );
