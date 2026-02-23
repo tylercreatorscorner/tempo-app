@@ -444,9 +444,6 @@ export default async function AdminDashboard({ searchParams }: Props) {
         <BrandFilterBar />
       </Suspense>
 
-      {/* Alert Banners */}
-      <AlertBanners alerts={alertData} />
-
       {/* Portfolio Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 stagger-children">
         <StatCard label="Total GMV" value={formatCurrency(totals.gmv)} trend={gmvTrend} trendLabel={trendLabel} brandColor={activeBrandColor} />
