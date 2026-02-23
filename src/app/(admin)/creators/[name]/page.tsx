@@ -207,7 +207,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
       )}
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         <StatCard
           label="Total GMV"
           value={formatCurrency(summary.total_gmv)}
@@ -238,6 +238,15 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
           trend={trendPct(summary.total_commission, summary.prev_commission)}
           trendLabel="vs prior period"
         />
+        {profile.retainer != null && profile.retainer > 0 && (
+          <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-5 flex flex-col justify-center">
+            <p className="text-xs text-gray-400 font-medium uppercase tracking-wider mb-1">Period ROI</p>
+            <p className={`text-2xl font-extrabold tabular-nums ${summary.total_gmv / profile.retainer >= 1 ? 'text-green-600' : 'text-red-500'}`}>
+              {(summary.total_gmv / profile.retainer).toFixed(1)}x
+            </p>
+            <p className="text-xs text-gray-400 mt-0.5">GMV ÷ ${profile.retainer.toLocaleString()} retainer</p>
+          </div>
+        )}
       </div>
 
       {/* Retainer & Post Tracking - only show when a specific brand is selected */}

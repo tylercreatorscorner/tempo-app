@@ -19,6 +19,8 @@ interface Creator {
   brand: string;
   managed_creator_id?: number;
   status?: CreatorStatus;
+  isManaged?: boolean;
+  retainer?: number;
 }
 
 type SortKey = 'creator_name' | 'total_gmv' | 'total_orders' | 'total_items_sold' | 'total_videos';
@@ -36,6 +38,7 @@ export function CreatorsClient({ creators }: Props) {
   const [page, setPage] = useState(0);
   const [brandFilter, setBrandFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [managedFilter, setManagedFilter] = useState<'all' | 'managed' | 'unmanaged'>('all');
 
   const hasStatuses = creators.some((c) => c.status);
 
@@ -56,6 +59,11 @@ export function CreatorsClient({ creators }: Props) {
     if (statusFilter !== 'all') {
       result = result.filter((c) => c.status === statusFilter);
     }
+    if (managedFilter === 'managed') {
+      result = result.filter((c) => c.isManaged);
+    } else if (managedFilter === 'unmanaged') {
+      result = result.filter((c) => !c.isManaged);
+    }
     if (search.trim()) {
       const q = search.toLowerCase();
       result = result.filter((c) => c.creator_name.toLowerCase().includes(q) || c.handles?.some((h) => h.toLowerCase().includes(q)));
@@ -67,7 +75,7 @@ export function CreatorsClient({ creators }: Props) {
       return sortDir === 'asc' ? (av as number) - (bv as number) : (bv as number) - (av as number);
     });
     return result;
-  }, [creators, search, sortKey, sortDir, brandFilter, statusFilter]);
+  }, [creators, search, sortKey, sortDir, brandFilter, statusFilter, managedFilter]);
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const paged = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
@@ -152,6 +160,33 @@ export function CreatorsClient({ creators }: Props) {
         </div>
       )}
 
+      {/* Managed/Unmanaged Filter */}
+      <div className="flex gap-2 flex-wrap">
+        {(['all', 'managed', 'unmanaged'] as const).map((v) => {
+          const label = v === 'all' ? 'All' : v === 'managed' ? 'Managed' : 'Unmanaged';
+          const count = v === 'all' ? creators.length : creators.filter((c) => v === 'managed' ? c.isManaged : !c.isManaged).length;
+          return (
+            <button
+              key={v}
+              onClick={() => { setManagedFilter(v); setPage(0); }}
+              className={cn(
+                'px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 border',
+                managedFilter === v
+                  ? v === 'managed'
+                    ? 'border-[#FF4D8D] bg-pink-50 text-[#FF4D8D]'
+                    : v === 'unmanaged'
+                      ? 'border-gray-500 bg-gray-100 text-gray-700'
+                      : 'border-[#FF4D8D] bg-pink-50 text-[#FF4D8D]'
+                  : 'border-gray-200 bg-white text-gray-500 hover:bg-gray-50'
+              )}
+            >
+              {label}
+              <span className="ml-1.5 opacity-70">{count}</span>
+            </button>
+          );
+        })}
+      </div>
+
       <p className="text-sm text-gray-500">{filtered.length} creators found</p>
 
       {/* Table */}
@@ -177,6 +212,8 @@ export function CreatorsClient({ creators }: Props) {
                 <th className="px-4 py-3 text-right font-medium cursor-pointer select-none" onClick={() => toggleSort('total_videos')}>
                   Videos <SortIcon col="total_videos" />
                 </th>
+                <th className="px-4 py-3 text-right font-medium">Retainer</th>
+                <th className="px-4 py-3 text-right font-medium">ROI</th>
               </tr>
             </thead>
             <tbody>
@@ -216,10 +253,20 @@ export function CreatorsClient({ creators }: Props) {
                   <td className="px-4 py-3 text-right text-gray-500">{formatNumber(c.total_orders)}</td>
                   <td className="px-4 py-3 text-right text-gray-500">{formatNumber(c.total_items_sold)}</td>
                   <td className="px-4 py-3 text-right text-gray-500">{formatNumber(c.total_videos)}</td>
+                  <td className="px-4 py-3 text-right text-gray-500 tabular-nums">
+                    {c.retainer && c.retainer > 0 ? `$${c.retainer.toLocaleString()}` : ''}
+                  </td>
+                  <td className="px-4 py-3 text-right tabular-nums">
+                    {c.retainer && c.retainer > 0 ? (
+                      <span className={c.total_gmv / c.retainer >= 1 ? 'text-green-600 font-semibold' : 'text-red-500 font-semibold'}>
+                        {(c.total_gmv / c.retainer).toFixed(1)}x
+                      </span>
+                    ) : ''}
+                  </td>
                 </tr>
               ))}
               {paged.length === 0 && (
-                <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">No creators found</td></tr>
+                <tr><td colSpan={9} className="px-4 py-8 text-center text-gray-400">No creators found</td></tr>
               )}
             </tbody>
           </table>

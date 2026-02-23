@@ -14,6 +14,7 @@ import { BrandFilterBar } from '@/components/dashboard/brand-filter-bar';
 import { AlertBanners } from '@/components/dashboard/alert-banners';
 import { TodaysPulse } from '@/components/dashboard/todays-pulse';
 import { ViralNow } from '@/components/dashboard/viral-now';
+import { ManagedSplit } from '@/components/dashboard/managed-split';
 import { CreatorMovers } from '@/components/dashboard/creator-movers';
 import { ActionItems } from '@/components/dashboard/action-items';
 import type { ActionItem } from '@/components/dashboard/action-items';
@@ -163,14 +164,32 @@ export default async function AdminDashboard({ searchParams }: Props) {
   ]);
 
   // Group creators by real name
-  const groupedCreators = await aggregateCreatorsByRealName(allCreators);
-  const groupedPrevCreators = await aggregateCreatorsByRealName(allPrevCreators);
+  const groupedCreators = await aggregateCreatorsByRealName(allCreators, brandFilter);
+  const groupedPrevCreators = await aggregateCreatorsByRealName(allPrevCreators, brandFilter);
 
   // Assign statuses to grouped creators
   const creatorsWithStatus = groupedCreators.map((c) => {
     const status = classifyCreator(c.total_videos);
     return { ...c, status };
   });
+
+  // Managed vs Unmanaged split
+  const managedSplitData = {
+    managed: { gmv: 0, orders: 0, creators: 0, videos: 0 },
+    unmanaged: { gmv: 0, orders: 0, creators: 0, videos: 0 },
+  };
+  let totalRetainerSpend = 0;
+  for (const c of groupedCreators) {
+    const bucket = c.isManaged ? managedSplitData.managed : managedSplitData.unmanaged;
+    bucket.gmv += c.total_gmv;
+    bucket.orders += c.total_orders;
+    bucket.creators += 1;
+    bucket.videos += c.total_videos;
+    if (c.isManaged && c.retainer > 0) {
+      totalRetainerSpend += c.retainer;
+    }
+  }
+  const portfolioRoi = totalRetainerSpend > 0 ? managedSplitData.managed.gmv / totalRetainerSpend : 0;
 
   // Aggregate portfolio totals
   const totals = summaries.reduce(
@@ -467,6 +486,21 @@ export default async function AdminDashboard({ searchParams }: Props) {
         <StatCard label="Avg GMV/Creator" value={formatCurrency(avgGmvPerCreator)} trend={avgGmvTrend} trendLabel={trendLabel} brandColor={activeBrandColor} />
       </div>
 
+      {/* ROI Summary */}
+      {totalRetainerSpend > 0 && (
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <StatCard label="Retainer Spend" value={formatCurrency(totalRetainerSpend)} brandColor={activeBrandColor} />
+          <StatCard label="Managed GMV" value={formatCurrency(managedSplitData.managed.gmv)} brandColor={activeBrandColor} />
+          <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-5 flex flex-col justify-center">
+            <p className="text-xs text-gray-400 font-medium uppercase tracking-wider mb-1">Portfolio ROI</p>
+            <p className={`text-2xl font-extrabold tabular-nums ${portfolioRoi >= 1 ? 'text-green-600' : 'text-red-500'}`}>
+              {portfolioRoi.toFixed(1)}x
+            </p>
+            <p className="text-xs text-gray-400 mt-0.5">Managed GMV ÷ Retainer Spend</p>
+          </div>
+        </div>
+      )}
+
       {/* Today's Pulse — NEW */}
       <TodaysPulse
         viralVideos={pulseViralVideos}
@@ -476,6 +510,9 @@ export default async function AdminDashboard({ searchParams }: Props) {
         gmvDelta={gmvDelta}
         gmvDeltaPct={gmvDeltaPct}
       />
+
+      {/* Managed vs Unmanaged Split */}
+      <ManagedSplit data={managedSplitData} />
 
       {/* Viral Right Now — NEW */}
       <ViralNow videos={viralNowVideos} />
@@ -516,8 +553,8 @@ export default async function AdminDashboard({ searchParams }: Props) {
         csvButton={
           <CsvExportButton
             filename={`tempo-top-creators-${filenameDates}.csv`}
-            headers={['Rank', 'Creator', 'Handles', 'GMV', 'Orders', 'Items Sold', 'Videos']}
-            rows={creatorsWithStatus.map((c, i) => [i + 1, c.display_name, c.handles.join('; '), c.total_gmv, c.total_orders, c.total_items_sold, c.total_videos])}
+            headers={['Rank', 'Creator', 'Handles', 'GMV', 'Orders', 'Items Sold', 'Videos', 'Managed', 'Retainer', 'ROI']}
+            rows={creatorsWithStatus.map((c, i) => [i + 1, c.display_name, c.handles.join('; '), c.total_gmv, c.total_orders, c.total_items_sold, c.total_videos, c.isManaged ? 'Yes' : 'No', c.retainer > 0 ? c.retainer : '', c.retainer > 0 ? `${(c.total_gmv / c.retainer).toFixed(1)}x` : ''])}
           />
         }
       />

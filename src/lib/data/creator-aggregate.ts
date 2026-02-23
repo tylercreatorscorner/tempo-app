@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/server';
+import { getCreatorRetainers, getTotalRetainer, type RetainerInfo } from './retainer';
 
 interface RawCreator {
   creator_name: string;
@@ -20,6 +21,9 @@ export interface GroupedCreator {
   total_videos: number;
   brand?: string;
   managed_creator_id?: number;
+  isManaged: boolean;
+  retainer: number;
+  productRetainers: Record<string, number>;
 }
 
 /**
@@ -57,9 +61,13 @@ async function fetchHandleToRealName(): Promise<Map<string, { real_name: string;
  * Aggregates GMV, orders, items, videos across multiple handles.
  */
 export async function aggregateCreatorsByRealName(
-  creators: RawCreator[]
+  creators: RawCreator[],
+  brandFilter?: string | null
 ): Promise<GroupedCreator[]> {
-  const handleMap = await fetchHandleToRealName();
+  const [handleMap, retainerMap] = await Promise.all([
+    fetchHandleToRealName(),
+    getCreatorRetainers(),
+  ]);
 
   const groups = new Map<string, GroupedCreator>();
 
@@ -81,8 +89,16 @@ export async function aggregateCreatorsByRealName(
       }
       if (creatorId && !existing.managed_creator_id) {
         existing.managed_creator_id = creatorId;
+        existing.isManaged = true;
+        const ri = retainerMap.get(creatorId);
+        if (ri) {
+          existing.retainer = getTotalRetainer(ri.retainer, ri.productRetainers, brandFilter);
+          existing.productRetainers = ri.productRetainers;
+        }
       }
     } else {
+      const isManaged = !!creatorId;
+      const ri = creatorId ? retainerMap.get(creatorId) : undefined;
       groups.set(key, {
         display_name: realName ?? c.creator_name,
         handles: [c.creator_name],
@@ -93,6 +109,9 @@ export async function aggregateCreatorsByRealName(
         total_videos: c.total_videos ?? 0,
         brand: c.brand,
         managed_creator_id: creatorId,
+        isManaged,
+        retainer: ri ? getTotalRetainer(ri.retainer, ri.productRetainers, brandFilter) : 0,
+        productRetainers: ri?.productRetainers ?? {},
       });
     }
   }

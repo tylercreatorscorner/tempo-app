@@ -43,6 +43,8 @@ export default async function CreatorsPage({ searchParams }: Props) {
       brand: g.brand ?? '',
       managed_creator_id: g.managed_creator_id,
       status,
+      isManaged: g.isManaged,
+      retainer: g.retainer,
     };
   });
 

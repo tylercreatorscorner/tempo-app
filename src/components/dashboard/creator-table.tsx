@@ -16,6 +16,8 @@ interface Creator {
   total_videos: number;
   managed_creator_id?: number;
   status?: CreatorStatus;
+  isManaged?: boolean;
+  retainer?: number;
 }
 
 interface Props {
@@ -115,7 +117,9 @@ export function CreatorTable({ creators, csvButton }: Props) {
               <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider">GMV</th>
               <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider">Orders</th>
               <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider">Items</th>
-              <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider pr-6">Videos</th>
+              <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider">Videos</th>
+              <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider">Retainer</th>
+              <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider pr-6">ROI</th>
             </tr>
           </thead>
           <tbody>
@@ -143,11 +147,21 @@ export function CreatorTable({ creators, csvButton }: Props) {
                 <td className="px-4 py-3.5 text-right font-semibold tabular-nums text-[#1A1B3A]">{formatCurrency(c.total_gmv)}</td>
                 <td className="px-4 py-3.5 text-right text-gray-500 tabular-nums">{formatNumber(c.total_orders)}</td>
                 <td className="px-4 py-3.5 text-right text-gray-500 tabular-nums">{formatNumber(c.total_items_sold)}</td>
-                <td className="px-4 py-3.5 text-right text-gray-500 tabular-nums pr-6">{formatNumber(c.total_videos)}</td>
+                <td className="px-4 py-3.5 text-right text-gray-500 tabular-nums">{formatNumber(c.total_videos)}</td>
+                <td className="px-4 py-3.5 text-right text-gray-500 tabular-nums">
+                  {c.retainer && c.retainer > 0 ? `$${c.retainer.toLocaleString()}` : ''}
+                </td>
+                <td className="px-4 py-3.5 text-right tabular-nums pr-6">
+                  {c.retainer && c.retainer > 0 ? (
+                    <span className={c.total_gmv / c.retainer >= 1 ? 'text-green-600 font-semibold' : 'text-red-500 font-semibold'}>
+                      {(c.total_gmv / c.retainer).toFixed(1)}x
+                    </span>
+                  ) : ''}
+                </td>
               </tr>
             ))}
             {filtered.length === 0 && (
-              <tr><td colSpan={6} className="px-4 py-12 text-center text-gray-400">No creator data</td></tr>
+              <tr><td colSpan={8} className="px-4 py-12 text-center text-gray-400">No creator data</td></tr>
             )}
           </tbody>
         </table>
