@@ -1,6 +1,10 @@
+'use client';
+
+import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
 import { cn } from '@/lib/utils';
+import { type CreatorStatus, ALL_STATUSES, STATUS_CONFIG } from '@/lib/data/creator-status';
 
 interface Creator {
   display_name: string;
@@ -11,6 +15,7 @@ interface Creator {
   days_active: number;
   total_videos: number;
   managed_creator_id?: number;
+  status?: CreatorStatus;
 }
 
 interface Props {
@@ -25,15 +30,81 @@ function RankBadge({ rank }: { rank: number }) {
   return <span className="text-gray-400 text-sm tabular-nums">{rank}</span>;
 }
 
+function StatusDot({ status }: { status?: CreatorStatus }) {
+  if (!status) return null;
+  const config = STATUS_CONFIG[status];
+  return (
+    <span
+      className="inline-block h-2 w-2 rounded-full flex-shrink-0"
+      style={{ backgroundColor: config.dotColor }}
+      title={config.label}
+    />
+  );
+}
+
+type FilterValue = 'all' | CreatorStatus;
+
 export function CreatorTable({ creators, csvButton }: Props) {
+  const [filter, setFilter] = useState<FilterValue>('all');
+
+  const statusCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: creators.length };
+    for (const s of ALL_STATUSES) counts[s] = 0;
+    for (const c of creators) {
+      if (c.status) counts[c.status] = (counts[c.status] ?? 0) + 1;
+    }
+    return counts;
+  }, [creators]);
+
+  const filtered = useMemo(() => {
+    if (filter === 'all') return creators;
+    return creators.filter((c) => c.status === filter);
+  }, [creators, filter]);
+
+  const hasStatuses = creators.some((c) => c.status);
+
   return (
     <div className="rounded-2xl overflow-hidden bg-white border border-gray-100 shadow-sm">
-      <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-        <div>
-          <h3 className="text-lg font-bold tracking-tight text-[#1A1B3A]">Top Creators</h3>
-          <p className="text-xs text-gray-400 mt-0.5">Ranked by GMV</p>
+      <div className="px-6 py-4 border-b border-gray-100 flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-bold tracking-tight text-[#1A1B3A]">Top Creators</h3>
+            <p className="text-xs text-gray-400 mt-0.5">Ranked by GMV</p>
+          </div>
+          {csvButton}
         </div>
-        {csvButton}
+        {hasStatuses && (
+          <div className="flex gap-2 flex-wrap">
+            {(['all', ...ALL_STATUSES] as FilterValue[]).map((s) => {
+              const isAll = s === 'all';
+              const config = !isAll ? STATUS_CONFIG[s] : null;
+              const count = statusCounts[s] ?? 0;
+              const active = filter === s;
+              return (
+                <button
+                  key={s}
+                  onClick={() => setFilter(s)}
+                  className={cn(
+                    'px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 border',
+                    active
+                      ? isAll
+                        ? 'border-[#FF4D8D] bg-pink-50 text-[#FF4D8D]'
+                        : ''
+                      : 'border-gray-200 bg-white text-gray-500 hover:bg-gray-50'
+                  )}
+                  style={
+                    active && !isAll && config
+                      ? { borderColor: config.color, color: config.color, backgroundColor: config.bgColor }
+                      : {}
+                  }
+                >
+                  {isAll ? 'All' : config!.label}
+                  <span className="ml-1.5 opacity-70">{count}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
       <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
         <table className="w-full text-sm">
@@ -48,22 +119,25 @@ export function CreatorTable({ creators, csvButton }: Props) {
             </tr>
           </thead>
           <tbody>
-            {creators.map((c, i) => (
+            {filtered.map((c, i) => (
               <tr key={c.display_name + i} className={cn(
                 'border-b border-gray-50 transition-all duration-200',
                 'hover:bg-gray-50',
               )}>
                 <td className="px-6 py-3.5"><RankBadge rank={i + 1} /></td>
                 <td className="px-4 py-3.5 font-medium text-[#1A1B3A]">
-                  <div>
-                    <Link href={`/creators/${c.managed_creator_id ?? encodeURIComponent(c.handles[0])}`} className="hover:text-[#FF4D8D] hover:underline transition-colors">
-                      {c.display_name}
-                    </Link>
-                    {c.handles.length > 0 && c.display_name !== c.handles[0] && (
-                      <p className="text-xs text-gray-400 mt-0.5">
-                        {c.handles.map((h) => `@${h}`).join(', ')}
-                      </p>
-                    )}
+                  <div className="flex items-center gap-2">
+                    <StatusDot status={c.status} />
+                    <div>
+                      <Link href={`/creators/${c.managed_creator_id ?? encodeURIComponent(c.handles[0])}`} className="hover:text-[#FF4D8D] hover:underline transition-colors">
+                        {c.display_name}
+                      </Link>
+                      {c.handles.length > 0 && c.display_name !== c.handles[0] && (
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {c.handles.map((h) => `@${h}`).join(', ')}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </td>
                 <td className="px-4 py-3.5 text-right font-semibold tabular-nums text-[#1A1B3A]">{formatCurrency(c.total_gmv)}</td>
@@ -72,7 +146,7 @@ export function CreatorTable({ creators, csvButton }: Props) {
                 <td className="px-4 py-3.5 text-right text-gray-500 tabular-nums pr-6">{formatNumber(c.total_videos)}</td>
               </tr>
             ))}
-            {creators.length === 0 && (
+            {filtered.length === 0 && (
               <tr><td colSpan={6} className="px-4 py-12 text-center text-gray-400">No creator data</td></tr>
             )}
           </tbody>

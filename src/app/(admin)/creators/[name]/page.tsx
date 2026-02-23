@@ -13,6 +13,7 @@ import Link from 'next/link';
 import { ArrowLeft, User, Mail, Phone } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { VideoTitleButton } from '@/components/video/video-title-button';
+import { classifyCreator, getStatusInfo } from '@/lib/data/creator-status';
 import {
   getCreatorProfile,
   getCreatorIdByHandle,
@@ -101,6 +102,21 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
   // Filter brand breakdown to active brands only
   const filteredBrandBreakdown = brandBreakdown.filter((b) => (ACTIVE_BRANDS as readonly string[]).includes(b.brand));
 
+  // Compute performance status
+  const daysActive = lifetimeStats.first_active_date
+    ? Math.floor((Date.now() - new Date(lifetimeStats.first_active_date).getTime()) / 86400000)
+    : 0;
+  const performanceStatus = classifyCreator(
+    {
+      total_videos: summary.total_videos,
+      total_gmv: summary.total_gmv,
+      days_active: daysActive,
+      prev_gmv: summary.prev_gmv,
+    },
+    new Map(),
+  );
+  const perfStatusInfo = getStatusInfo(performanceStatus);
+
   return (
     <div className="space-y-6">
       {/* Breadcrumb */}
@@ -134,6 +150,12 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
               }} />
               <StatusBadge status={profile.status} />
               <RoleBadge role={profile.role} />
+              <span
+                className="text-xs px-2.5 py-1 rounded-full font-medium border"
+                style={{ borderColor: perfStatusInfo.color, color: perfStatusInfo.color, backgroundColor: perfStatusInfo.bgColor }}
+              >
+                {perfStatusInfo.label}
+              </span>
             </div>
 
             {/* Contact info */}

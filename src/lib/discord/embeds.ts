@@ -1,0 +1,114 @@
+/**
+ * Tempo Bot — Rich embed builders
+ *
+ * Consistent formatting across all commands with brand colors and Tempo branding.
+ */
+
+import { EmbedBuilder } from 'discord.js';
+import { TEMPO_DEFAULTS, type GuildConfig } from './config';
+
+/** Create a base embed with Tempo branding */
+export function tempoEmbed(guildConfig?: GuildConfig): EmbedBuilder {
+  const color = guildConfig
+    ? parseInt(guildConfig.color.replace('#', ''), 16)
+    : TEMPO_DEFAULTS.color;
+
+  return new EmbedBuilder()
+    .setColor(color)
+    .setFooter({ text: TEMPO_DEFAULTS.footerText })
+    .setTimestamp();
+}
+
+/** Error embed — red, with error message */
+export function errorEmbed(message: string): EmbedBuilder {
+  return new EmbedBuilder()
+    .setColor(0xE74C3C)
+    .setTitle('❌ Error')
+    .setDescription(message)
+    .setFooter({ text: TEMPO_DEFAULTS.footerText })
+    .setTimestamp();
+}
+
+/** Stats embed for a single creator */
+export function creatorStatsEmbed(
+  guildConfig: GuildConfig | undefined,
+  creatorName: string,
+  period: string,
+  stats: {
+    gmv: number;
+    orders: number;
+    videos: number;
+    impressions: number;
+    itemsSold: number;
+  },
+): EmbedBuilder {
+  const fmt = (n: number) => new Intl.NumberFormat('en-US').format(n);
+  const fmtUsd = (n: number) =>
+    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(n);
+
+  return tempoEmbed(guildConfig)
+    .setTitle(`📊 Creator Stats — @${creatorName}`)
+    .setDescription(`Period: **${period}**`)
+    .addFields(
+      { name: '💰 GMV', value: fmtUsd(stats.gmv), inline: true },
+      { name: '🛒 Orders', value: fmt(stats.orders), inline: true },
+      { name: '📦 Items Sold', value: fmt(stats.itemsSold), inline: true },
+      { name: '🎬 Videos', value: fmt(stats.videos), inline: true },
+      { name: '👀 Impressions', value: fmt(stats.impressions), inline: true },
+    );
+}
+
+/** Leaderboard embed — top creators ranked by GMV */
+export function leaderboardEmbed(
+  guildConfig: GuildConfig | undefined,
+  brandName: string,
+  period: string,
+  creators: Array<{ name: string; gmv: number; videos: number }>,
+): EmbedBuilder {
+  const fmtUsd = (n: number) =>
+    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(n);
+  const fmt = (n: number) => new Intl.NumberFormat('en-US').format(n);
+
+  const medals = ['🥇', '🥈', '🥉'];
+  const lines = creators.slice(0, 10).map((c, i) => {
+    const prefix = i < 3 ? medals[i] : `**${i + 1}.**`;
+    return `${prefix} **@${c.name}** — ${fmtUsd(c.gmv)} (${fmt(c.videos)} videos)`;
+  });
+
+  return tempoEmbed(guildConfig)
+    .setTitle(`🏆 Leaderboard — ${brandName}`)
+    .setDescription(`**${period}**\n\n${lines.join('\n')}`);
+}
+
+/** What's Hot embed — trending/rising videos */
+export function whatsHotEmbed(
+  guildConfig: GuildConfig | undefined,
+  videos: Array<{ title: string; creator: string; views: number; gmv: number }>,
+): EmbedBuilder {
+  const fmt = (n: number) => new Intl.NumberFormat('en-US').format(n);
+  const fmtUsd = (n: number) =>
+    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(n);
+
+  const lines = videos.slice(0, 5).map((v, i) => {
+    const title = v.title.length > 50 ? v.title.slice(0, 47) + '...' : v.title;
+    return `**${i + 1}.** ${title}\n   👤 @${v.creator} · 👀 ${fmt(v.views)} · 💰 ${fmtUsd(v.gmv)}`;
+  });
+
+  return tempoEmbed(guildConfig)
+    .setTitle('🔥 What\'s Hot')
+    .setDescription(lines.join('\n\n') || 'No trending videos right now.');
+}
+
+/** Help embed — list all commands */
+export function helpEmbed(): EmbedBuilder {
+  return tempoEmbed()
+    .setTitle('📖 Tempo Bot — Commands')
+    .setDescription('TikTok Shop analytics right in your Discord server.')
+    .addFields(
+      { name: '/tempo ping', value: 'Check if the bot is online', inline: false },
+      { name: '/tempo stats [creator] [period]', value: 'View creator performance stats', inline: false },
+      { name: '/tempo leaderboard [brand] [period]', value: 'Top creators ranked by GMV', inline: false },
+      { name: '/tempo whats-hot', value: 'See trending/rising videos', inline: false },
+      { name: '/tempo help', value: 'Show this help message', inline: false },
+    );
+}

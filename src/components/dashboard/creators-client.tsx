@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
 import { BRAND_COLORS, BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
+import { type CreatorStatus, ALL_STATUSES, STATUS_CONFIG } from '@/lib/data/creator-status';
 import { Search, ChevronUp, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -17,6 +18,7 @@ interface Creator {
   total_videos: number;
   brand: string;
   managed_creator_id?: number;
+  status?: CreatorStatus;
 }
 
 type SortKey = 'creator_name' | 'total_gmv' | 'total_orders' | 'total_items_sold' | 'total_videos';
@@ -33,11 +35,26 @@ export function CreatorsClient({ creators }: Props) {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [page, setPage] = useState(0);
   const [brandFilter, setBrandFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+
+  const hasStatuses = creators.some((c) => c.status);
+
+  const statusCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: creators.length };
+    for (const s of ALL_STATUSES) counts[s] = 0;
+    for (const c of creators) {
+      if (c.status) counts[c.status] = (counts[c.status] ?? 0) + 1;
+    }
+    return counts;
+  }, [creators]);
 
   const filtered = useMemo(() => {
     let result = creators;
     if (brandFilter !== 'all') {
       result = result.filter((c) => c.brand === brandFilter);
+    }
+    if (statusFilter !== 'all') {
+      result = result.filter((c) => c.status === statusFilter);
     }
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -101,6 +118,40 @@ export function CreatorsClient({ creators }: Props) {
         </div>
       </div>
 
+      {/* Status Filter Pills */}
+      {hasStatuses && (
+        <div className="flex gap-2 flex-wrap">
+          {(['all', ...ALL_STATUSES] as string[]).map((s) => {
+            const isAll = s === 'all';
+            const config = !isAll ? STATUS_CONFIG[s as CreatorStatus] : null;
+            const count = statusCounts[s] ?? 0;
+            const active = statusFilter === s;
+            return (
+              <button
+                key={s}
+                onClick={() => { setStatusFilter(s); setPage(0); }}
+                className={cn(
+                  'px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 border',
+                  active
+                    ? isAll
+                      ? 'border-[#FF4D8D] bg-pink-50 text-[#FF4D8D]'
+                      : ''
+                    : 'border-gray-200 bg-white text-gray-500 hover:bg-gray-50'
+                )}
+                style={
+                  active && !isAll && config
+                    ? { borderColor: config.color, color: config.color, backgroundColor: config.bgColor }
+                    : {}
+                }
+              >
+                {isAll ? 'All Statuses' : config!.label}
+                <span className="ml-1.5 opacity-70">{count}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       <p className="text-sm text-gray-500">{filtered.length} creators found</p>
 
       {/* Table */}
@@ -133,7 +184,15 @@ export function CreatorsClient({ creators }: Props) {
                 <tr key={`${c.creator_name}-${c.brand}-${i}`} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-3 text-gray-400">{page * PAGE_SIZE + i + 1}</td>
                   <td className="px-4 py-3 font-medium text-[#1A1B3A]">
-                    <div>
+                    <div className="flex items-center gap-2">
+                      {c.status && (
+                        <span
+                          className="inline-block h-2 w-2 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: STATUS_CONFIG[c.status].dotColor }}
+                          title={STATUS_CONFIG[c.status].label}
+                        />
+                      )}
+                      <div>
                       <Link href={`/creators/${c.managed_creator_id ?? encodeURIComponent(c.handles?.[0] ?? c.creator_name)}`} className="hover:text-[#FF4D8D] hover:underline transition-colors">
                         {c.creator_name}
                       </Link>
@@ -142,6 +201,7 @@ export function CreatorsClient({ creators }: Props) {
                           {c.handles.map((h) => `@${h}`).join(', ')}
                         </p>
                       )}
+                      </div>
                     </div>
                   </td>
                   <td className="px-4 py-3">

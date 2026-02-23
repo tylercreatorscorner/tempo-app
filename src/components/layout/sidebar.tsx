@@ -3,13 +3,14 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  LayoutDashboard, Store, BarChart3, Users, Settings, CreditCard, MessageSquare,
+  LayoutDashboard, Store, BarChart3, Users, Settings, CreditCard, MessageSquare, Flame,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TempoLogo } from '@/components/ui/tempo-logo';
 
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/whats-hot', label: "What's Hot", icon: Flame },
   { href: '/brands', label: 'Brands', icon: Store },
   { href: '/analytics', label: 'Analytics', icon: BarChart3 },
   { href: '/creators', label: 'Creators', icon: Users },

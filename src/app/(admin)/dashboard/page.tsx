@@ -14,6 +14,7 @@ import { BrandFilterBar } from '@/components/dashboard/brand-filter-bar';
 import { AlertBanners } from '@/components/dashboard/alert-banners';
 import { generateAlerts } from '@/lib/data/alerts';
 import { aggregateCreatorsByRealName } from '@/lib/data/creator-aggregate';
+import { classifyCreator, computeBrandGmvThresholds } from '@/lib/data/creator-status';
 import { BRAND_COLORS, BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
 import { format, subDays, differenceInDays } from 'date-fns';
 
@@ -98,14 +99,19 @@ export default async function AdminDashboard({ searchParams }: Props) {
   ]);
 
   // Fetch creators, products, videos, trends
-  const [allCreators, allProducts, allVideos, allTrends] = await Promise.all([
+  const [allCreators, prevCreators, allProducts, allVideos, allTrends] = await Promise.all([
     Promise.all(
       activeBrands.map(async (brand) => {
-        try { return await getCreatorRankings(brand, startDate, endDate, 20); } catch { return []; }
+        try { return (await getCreatorRankings(brand, startDate, endDate, 20)).map((c) => ({ ...c, brand })); } catch { return []; }
       })
     ).then((results) =>
       results.flat().sort((a, b) => (b.total_gmv ?? 0) - (a.total_gmv ?? 0)).slice(0, 20)
     ),
+    Promise.all(
+      activeBrands.map(async (brand) => {
+        try { return (await getCreatorRankings(brand, prevStartDate, prevEndDate, 50)).map((c) => ({ ...c, brand })); } catch { return []; }
+      })
+    ).then((results) => results.flat()),
     Promise.all(
       activeBrands.map(async (brand) => {
         try { return await getProductSummary(brand, startDate, endDate, 20); } catch { return []; }
@@ -132,6 +138,27 @@ export default async function AdminDashboard({ searchParams }: Props) {
 
   // Group creators by real name
   const groupedCreators = await aggregateCreatorsByRealName(allCreators);
+
+  // Build prev period GMV lookup by creator name (lowercase)
+  const prevGmvMap = new Map<string, number>();
+  for (const c of prevCreators) {
+    const key = c.creator_name.toLowerCase();
+    prevGmvMap.set(key, (prevGmvMap.get(key) ?? 0) + (c.total_gmv ?? 0));
+  }
+
+  // Compute brand GMV thresholds for top 20%
+  const brandThresholds = computeBrandGmvThresholds(allCreators);
+
+  // Assign statuses to grouped creators
+  const creatorsWithStatus = groupedCreators.map((c) => {
+    // Sum prev GMV across all handles
+    const prevGmv = c.handles.reduce((sum, h) => sum + (prevGmvMap.get(h.toLowerCase()) ?? 0), 0);
+    const status = classifyCreator(
+      { total_videos: c.total_videos, total_gmv: c.total_gmv, days_active: c.days_active, prev_gmv: prevGmv, brand: c.brand },
+      brandThresholds,
+    );
+    return { ...c, status };
+  });
 
   // Aggregate portfolio totals
   const totals = summaries.reduce(
@@ -299,12 +326,12 @@ export default async function AdminDashboard({ searchParams }: Props) {
 
       {/* Tables */}
       <CreatorTable
-        creators={groupedCreators}
+        creators={creatorsWithStatus}
         csvButton={
           <CsvExportButton
             filename={`tempo-top-creators-${filenameDates}.csv`}
             headers={['Rank', 'Creator', 'Handles', 'GMV', 'Orders', 'Items Sold', 'Videos']}
-            rows={groupedCreators.map((c, i) => [i + 1, c.display_name, c.handles.join('; '), c.total_gmv, c.total_orders, c.total_items_sold, c.total_videos])}
+            rows={creatorsWithStatus.map((c, i) => [i + 1, c.display_name, c.handles.join('; '), c.total_gmv, c.total_orders, c.total_items_sold, c.total_videos])}
           />
         }
       />
