@@ -12,13 +12,14 @@ import { DateRangePicker } from '@/components/dashboard/date-range-picker';
 import { CsvExportButton } from '@/components/dashboard/csv-export-button';
 import { BrandFilterBar } from '@/components/dashboard/brand-filter-bar';
 import { AlertBanners } from '@/components/dashboard/alert-banners';
-import { TodaysPulse } from '@/components/dashboard/todays-pulse';
-import { ViralNow } from '@/components/dashboard/viral-now';
 import { ManagedSplit } from '@/components/dashboard/managed-split';
 import { CreatorMovers } from '@/components/dashboard/creator-movers';
 import { ActionItems } from '@/components/dashboard/action-items';
+import { BrandTicker } from '@/components/dashboard/brand-ticker';
+import { DailyHeadline } from '@/components/dashboard/daily-headline';
+import { VideoMarketReport } from '@/components/dashboard/video-market-report';
+import { FeaturedByBrand } from '@/components/dashboard/featured-by-brand';
 import type { ActionItem } from '@/components/dashboard/action-items';
-import type { ViralVideo as ViralNowVideo } from '@/components/dashboard/viral-now';
 import { generateAlerts } from '@/lib/data/alerts';
 import { aggregateCreatorsByRealName } from '@/lib/data/creator-aggregate';
 import { classifyCreator } from '@/lib/data/creator-status';
@@ -321,16 +322,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
   // Check if filtered brand has zero data
   const isEmptyBrand = brandFilter && totals.gmv === 0 && totals.orders === 0 && totals.items === 0;
 
-  // === NEW SECTION DATA ===
-
-  // Today's Pulse: viral videos (top trending by GMV)
-  const pulseViralVideos = trendingVideos.slice(0, 3).map((v) => ({
-    video_title: v.video_title,
-    creator_name: v.creator_name,
-    brand: v.brand,
-    total_gmv: v.total_gmv,
-    video_link: v.video_link,
-  }));
+  // === CREATOR MOVEMENT DATA ===
 
   // Creator movements: compare current vs prev grouped creators
   const prevCreatorMap = new Map(groupedPrevCreators.map((c) => [c.display_name.toLowerCase(), c]));
@@ -350,40 +342,6 @@ export default async function AdminDashboard({ searchParams }: Props) {
       creatorsImproved++; // new creator = improvement
     }
   }
-
-  // GMV delta
-  const gmvDelta = totals.gmv - prevTotals.gmv;
-  const gmvDeltaPct = pctChange(totals.gmv, prevTotals.gmv);
-
-  // Viral Now: merge rising + trending, deduplicate, sort by growth then GMV
-  const viralVideoMap = new Map<string, ViralNowVideo>();
-  for (const v of risingVideos) {
-    viralVideoMap.set(v.video_id, {
-      video_id: v.video_id,
-      video_title: v.video_title,
-      creator_name: v.creator_name,
-      brand: v.brand,
-      gmv: v.recent_avg_gmv * 3, // total recent GMV
-      growth_pct: v.growth_pct,
-      video_link: v.video_link,
-    });
-  }
-  for (const v of trendingVideos) {
-    if (!viralVideoMap.has(v.video_id)) {
-      viralVideoMap.set(v.video_id, {
-        video_id: v.video_id,
-        video_title: v.video_title,
-        creator_name: v.creator_name,
-        brand: v.brand,
-        gmv: v.total_gmv,
-        growth_pct: null,
-        video_link: v.video_link,
-      });
-    }
-  }
-  const viralNowVideos = Array.from(viralVideoMap.values())
-    .sort((a, b) => (b.growth_pct ?? 0) - (a.growth_pct ?? 0) || b.gmv - a.gmv)
-    .slice(0, 5);
 
   // Creator Movers: compute deltas
   type CreatorMoverType = {
@@ -448,12 +406,12 @@ export default async function AdminDashboard({ searchParams }: Props) {
     }
   }
 
-  // Viral videos count
-  const viralCount = risingVideos.length + trendingVideos.length;
-  if (viralCount > 0) {
+  // Hot videos count
+  const hotVideosCount = allVideos.filter(v => v.total_gmv >= 100).length;
+  if (hotVideosCount > 0) {
     actionItems.push({
       icon: '🔥',
-      text: `<strong>${viralCount} video${viralCount > 1 ? 's' : ''}</strong> went viral recently`,
+      text: `<strong>${hotVideosCount} video${hotVideosCount > 1 ? 's' : ''}</strong> performing strongly (≥$100 GMV)`,
       link: '/whats-hot',
       priority: 'low',
     });
@@ -479,6 +437,13 @@ export default async function AdminDashboard({ searchParams }: Props) {
     });
   }
 
+  // Additional data for new components
+  const topVideo = allVideos[0];
+  const topCreator = groupedCreators[0];
+  const topVideoGmv = topVideo?.total_gmv ?? 0;
+  const topCreatorGmv = topCreator?.total_gmv ?? 0;
+  const topCreatorName = topCreator?.display_name;
+  
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -502,6 +467,30 @@ export default async function AdminDashboard({ searchParams }: Props) {
       <Suspense fallback={null}>
         <BrandFilterBar />
       </Suspense>
+
+      {/* ========== SECTION 1: THE HEADLINES ========== */}
+      
+      {/* Brand Ticker Bar */}
+      <BrandTicker brands={brandStripData} />
+
+      {/* Daily Headline with Portfolio Weather */}
+      <DailyHeadline
+        brands={brandStripData}
+        topVideoGmv={topVideoGmv}
+        topCreatorName={topCreatorName}
+        topCreatorGmv={topCreatorGmv}
+        portfolioChange={gmvTrend}
+        totalGmv={totals.gmv}
+        period="Period"
+      />
+
+      {/* Alert Banners (FIXED - was imported but not rendered) */}
+      <AlertBanners alerts={alertData} />
+
+      {/* Action Items (MOVED UP) */}
+      <ActionItems items={actionItems} />
+
+      {/* ========== SECTION 2: THE NUMBERS ========== */}
 
       {/* Portfolio Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 stagger-children">
@@ -528,21 +517,26 @@ export default async function AdminDashboard({ searchParams }: Props) {
         </div>
       )}
 
-      {/* Today's Pulse — NEW */}
-      <TodaysPulse
-        viralVideos={pulseViralVideos}
-        creatorsImproved={creatorsImproved}
-        creatorsDeclined={creatorsDeclined}
-        creatorsGhost={creatorsGhost}
-        gmvDelta={gmvDelta}
-        gmvDeltaPct={gmvDeltaPct}
-      />
+      {/* Brand Performance Strip — only show when viewing all brands */}
+      {!brandFilter && (
+        <div>
+          <h2 className="text-lg font-semibold mb-3">Brand Performance</h2>
+          <BrandPerformanceStrip brands={brandStripData} />
+        </div>
+      )}
 
-      {/* Managed vs Unmanaged Split */}
-      <ManagedSplit data={managedSplitData} />
+      {/* ========== SECTION 3: WHAT'S HOT ========== */}
 
-      {/* Viral Right Now — NEW */}
-      <ViralNow videos={viralNowVideos} />
+      {/* Video Market Report */}
+      <VideoMarketReport videos={allVideos} />
+
+      {/* Featured Videos by Brand */}
+      <FeaturedByBrand videos={allVideos} />
+
+      {/* Creator Movers */}
+      <CreatorMovers risers={risers} decliners={decliners} />
+
+      {/* ========== SECTION 4: THE DATA ========== */}
 
       {/* Empty state for brands with no data */}
       {isEmptyBrand && (
@@ -553,14 +547,6 @@ export default async function AdminDashboard({ searchParams }: Props) {
         </div>
       )}
 
-      {/* Brand Performance Strip — only show when viewing all brands */}
-      {!brandFilter && (
-        <div>
-          <h2 className="text-lg font-semibold mb-3">Brand Performance</h2>
-          <BrandPerformanceStrip brands={brandStripData} />
-        </div>
-      )}
-
       {/* GMV Trend Chart */}
       <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
         <h3 className="text-lg font-bold tracking-tight text-[#1A1B3A] mb-1">GMV Trend</h3>
@@ -568,11 +554,8 @@ export default async function AdminDashboard({ searchParams }: Props) {
         <GmvTrendChart data={chartData} brands={chartBrands} />
       </div>
 
-      {/* Creator Movers — NEW */}
-      <CreatorMovers risers={risers} decliners={decliners} />
-
-      {/* Action Items — NEW */}
-      <ActionItems items={actionItems} />
+      {/* Managed vs Unmanaged Split */}
+      <ManagedSplit data={managedSplitData} />
 
       {/* Tables */}
       <CreatorTable
