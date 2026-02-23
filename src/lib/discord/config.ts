@@ -7,6 +7,15 @@
 
 import { BRAND_COLORS, BRAND_DISPLAY_NAMES, ACTIVE_BRANDS } from '@/lib/utils/constants';
 
+export interface ChannelMapping {
+  /** Channel for daily brief posts */
+  dailyBrief?: string;
+  /** Channel for alert notifications */
+  alerts?: string;
+}
+
+export type PermissionLevel = 'everyone' | 'admin';
+
 export interface GuildConfig {
   brandSlug: string;
   displayName: string;
@@ -15,6 +24,10 @@ export interface GuildConfig {
   allowedChannels: string[];
   /** Role IDs that can use admin commands */
   adminRoles: string[];
+  /** Channel mappings for automated messages */
+  channels: ChannelMapping;
+  /** Command permission overrides (command name → level) */
+  permissions: Partial<Record<string, PermissionLevel>>;
 }
 
 /**
@@ -29,6 +42,8 @@ const GUILD_MAP: Record<string, GuildConfig> = {
     color: BRAND_COLORS['jiyu'] ?? '#E91E8C',
     allowedChannels: [],
     adminRoles: [],
+    channels: {},
+    permissions: { alerts: 'admin' },
   },
   // Tyler's personal server (dev/testing)
   '1093295115495297084': {
@@ -37,6 +52,11 @@ const GUILD_MAP: Record<string, GuildConfig> = {
     color: '#6C5CE7',
     allowedChannels: [],
     adminRoles: [],
+    channels: {
+      dailyBrief: '1465474331365736552', // ping channel for testing
+      alerts: '1465474331365736552',
+    },
+    permissions: {},
   },
 };
 

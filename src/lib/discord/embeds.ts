@@ -15,7 +15,8 @@ export function tempoEmbed(guildConfig?: GuildConfig): EmbedBuilder {
 
   return new EmbedBuilder()
     .setColor(color)
-    .setFooter({ text: TEMPO_DEFAULTS.footerText })
+    .setThumbnail('https://tempo-app-wheat.vercel.app/tempo-icon.png')
+    .setFooter({ text: 'Tempo • tempoapp.ai' })
     .setTimestamp();
 }
 
@@ -105,10 +106,14 @@ export function helpEmbed(): EmbedBuilder {
     .setTitle('📖 Tempo Bot — Commands')
     .setDescription('TikTok Shop analytics right in your Discord server.')
     .addFields(
-      { name: '/tempo ping', value: 'Check if the bot is online', inline: false },
-      { name: '/tempo stats [creator] [period]', value: 'View creator performance stats', inline: false },
-      { name: '/tempo leaderboard [brand] [period]', value: 'Top creators ranked by GMV', inline: false },
-      { name: '/tempo whats-hot', value: 'See trending/rising videos', inline: false },
-      { name: '/tempo help', value: 'Show this help message', inline: false },
+      { name: '/ping', value: 'Check if the bot is online', inline: false },
+      { name: '/stats [creator] [period]', value: 'Creator stats or brand summary', inline: false },
+      { name: '/leaderboard [brand] [period]', value: 'Top creators ranked by GMV', inline: false },
+      { name: '/whats-hot', value: 'Trending/rising videos', inline: false },
+      { name: '/alerts', value: 'Performance alerts & warnings', inline: false },
+      { name: '/creator [name]', value: 'Detailed creator profile', inline: false },
+      { name: '/compare [creator1] [creator2]', value: 'Side-by-side creator comparison', inline: false },
+      { name: '/brand [name]', value: 'Brand performance summary', inline: false },
+      { name: '/help', value: 'Show this help message', inline: false },
     );
 }

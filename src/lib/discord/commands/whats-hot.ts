@@ -1,6 +1,7 @@
 import { SlashCommandBuilder, type ChatInputCommandInteraction } from 'discord.js';
-import { whatsHotEmbed, errorEmbed } from '../embeds';
+import { errorEmbed, tempoEmbed } from '../embeds';
 import { getGuildConfig, getBrandForGuild } from '../config';
+import { getSupabase, daysAgo } from '../supabase';
 import type { TempoCommand } from './index';
 
 const command: TempoCommand = {
@@ -18,14 +19,62 @@ const command: TempoCommand = {
     }
 
     await interaction.deferReply();
+    const supabase = getSupabase();
 
     try {
-      // TODO: Query What's Hot data from Supabase
-      // const videos = await queryWhatsHot(brand);
+      // Get videos from last 3 days
+      const { data: recent, error: e1 } = await supabase
+        .from('video_performance')
+        .select('video_id, video_title, creator_name, gmv, orders, video_link')
+        .eq('brand', brand)
+        .gte('report_date', daysAgo(3));
+      if (e1) throw e1;
 
-      const videos: Array<{ title: string; creator: string; views: number; gmv: number }> = [];
+      // Get videos from prior 3 days (days 4-6 ago)
+      const { data: prior, error: e2 } = await supabase
+        .from('video_performance')
+        .select('video_id, gmv')
+        .eq('brand', brand)
+        .gte('report_date', daysAgo(6))
+        .lt('report_date', daysAgo(3));
+      if (e2) throw e2;
 
-      const embed = whatsHotEmbed(guildConfig, videos);
+      // Aggregate recent by video_id
+      const recentMap = new Map<string, { title: string; creator: string; gmv: number; link?: string }>();
+      for (const r of recent ?? []) {
+        const cur = recentMap.get(r.video_id) ?? { title: r.video_title || 'Untitled', creator: r.creator_name, gmv: 0, link: r.video_link };
+        cur.gmv += r.gmv || 0;
+        recentMap.set(r.video_id, cur);
+      }
+
+      // Aggregate prior by video_id
+      const priorMap = new Map<string, number>();
+      for (const r of prior ?? []) {
+        priorMap.set(r.video_id, (priorMap.get(r.video_id) ?? 0) + (r.gmv || 0));
+      }
+
+      // Calculate growth
+      const entries = [...recentMap.entries()].map(([id, r]) => {
+        const priorGmv = priorMap.get(id) ?? 0;
+        const growth = priorGmv > 0 ? ((r.gmv - priorGmv) / priorGmv) * 100 : (r.gmv > 0 ? 100 : 0);
+        return { ...r, id, growth };
+      });
+
+      entries.sort((a, b) => b.growth - a.growth);
+      const top5 = entries.slice(0, 5);
+
+      const fmtUsd = (n: number) =>
+        new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(n);
+
+      const lines = top5.map((v, i) => {
+        const title = v.title.length > 50 ? v.title.slice(0, 47) + '...' : v.title;
+        const linkText = v.link ? ` [🔗](${v.link})` : '';
+        return `**${i + 1}.** ${title}${linkText}\n   👤 @${v.creator} · 📈 ${v.growth.toFixed(0)}% · 💰 ${fmtUsd(v.gmv)}`;
+      });
+
+      const embed = tempoEmbed(guildConfig)
+        .setTitle('🔥 What\'s Hot')
+        .setDescription(lines.join('\n\n') || 'No trending videos right now.');
       await interaction.editReply({ embeds: [embed] });
     } catch (err) {
       console.error('[tempo-bot] whats-hot command error:', err);

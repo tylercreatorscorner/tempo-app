@@ -1,6 +1,7 @@
 import { SlashCommandBuilder, type ChatInputCommandInteraction } from 'discord.js';
 import { leaderboardEmbed, errorEmbed } from '../embeds';
 import { getGuildConfig, getBrandForGuild } from '../config';
+import { getSupabase, daysAgo, periodToDays } from '../supabase';
 import { BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
 import type { TempoCommand } from './index';
 
@@ -20,7 +21,6 @@ const command: TempoCommand = {
           { name: 'Last 7 days', value: '7d' },
           { name: 'Last 14 days', value: '14d' },
           { name: 'Last 30 days', value: '30d' },
-          { name: 'This month', value: 'month' },
         ),
     ),
 
@@ -36,19 +36,53 @@ const command: TempoCommand = {
     }
 
     await interaction.deferReply();
+    const supabase = getSupabase();
+    const days = periodToDays(period);
+    const since = daysAgo(days);
 
     try {
-      // TODO: Query Supabase for leaderboard data
-      // const creators = await queryLeaderboard(brand, period);
+      const { data, error } = await supabase
+        .from('creator_performance')
+        .select('creator_name, gmv, orders')
+        .eq('brand', brand)
+        .gte('report_date', since);
 
-      const creators: Array<{ name: string; gmv: number; videos: number }> = [];
+      if (error) throw error;
+
+      // Aggregate by creator
+      const map = new Map<string, { gmv: number; orders: number; videos: number }>();
+      for (const row of data ?? []) {
+        const key = row.creator_name;
+        const cur = map.get(key) ?? { gmv: 0, orders: 0, videos: 0 };
+        cur.gmv += row.gmv || 0;
+        cur.orders += row.orders || 0;
+        map.set(key, cur);
+      }
+
+      // Get video counts per creator
+      const { data: vids } = await supabase
+        .from('video_performance')
+        .select('creator_name')
+        .eq('brand', brand)
+        .gte('report_date', since);
+
+      const vidCounts = new Map<string, number>();
+      for (const v of vids ?? []) {
+        vidCounts.set(v.creator_name, (vidCounts.get(v.creator_name) ?? 0) + 1);
+      }
+
+      for (const [name, entry] of map) {
+        entry.videos = vidCounts.get(name) ?? 0;
+      }
+
+      const creators = [...map.entries()]
+        .map(([name, s]) => ({ name, gmv: s.gmv, orders: s.orders, videos: s.videos }))
+        .sort((a, b) => b.gmv - a.gmv)
+        .slice(0, 10);
 
       const brandName = BRAND_DISPLAY_NAMES[brand] ?? brand;
       const periodLabels: Record<string, string> = {
-        '7d': 'Last 7 days',
-        '14d': 'Last 14 days',
-        '30d': 'Last 30 days',
-        'month': 'This month',
+        '7d': 'Last 7 days', '14d': 'Last 14 days', '30d': 'Last 30 days',
       };
 
       const embed = leaderboardEmbed(guildConfig, brandName, periodLabels[period] ?? period, creators);
