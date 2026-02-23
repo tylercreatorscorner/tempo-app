@@ -32,6 +32,9 @@ interface CreatorForStatus {
 /**
  * Classify a creator's status based on their metrics.
  * 
+ * NOTE: days_active = days with sales in the selected period (NOT days since first appearance).
+ * For a 7-day range, max days_active is 7. Most active creators have 3-5.
+ * 
  * @param creator - Current period metrics
  * @param brandGmvThresholds - Map of brand -> top 20% GMV threshold
  */
@@ -41,8 +44,8 @@ export function classifyCreator(
 ): CreatorStatus {
   const { total_videos, total_gmv, days_active, prev_gmv, brand } = creator;
 
-  // New: less than 7 days of data
-  if (days_active < 7) return 'new';
+  // New: zero sales days AND zero videos (truly no activity)
+  if (days_active === 0 && total_videos === 0) return 'new';
 
   const prevGmv = prev_gmv ?? 0;
   // Only compute growth/decline when prior period has meaningful data (>$10)
@@ -50,27 +53,24 @@ export function classifyCreator(
   const gmvGrowth = hasMeaningfulPrior ? ((total_gmv - prevGmv) / prevGmv) : 0;
   const gmvDecline = hasMeaningfulPrior ? ((prevGmv - total_gmv) / prevGmv) : 0;
 
-  // Crushing It: must be top 20% GMV for brand AND (>15% WoW growth OR 7+ videos)
+  // Crushing It: top 20% GMV for brand AND (>15% WoW growth OR 5+ videos)
   const brandThreshold = brand ? brandGmvThresholds.get(brand) : undefined;
   const isTopGmv = brandThreshold !== undefined && total_gmv >= brandThreshold;
-  if (isTopGmv && (gmvGrowth > 0.15 || total_videos >= 7)) {
+  if (isTopGmv && (gmvGrowth > 0.15 || total_videos >= 5)) {
     return 'crushing_it';
   }
 
-  // Slacking: <3 videos OR >20% GMV decline (with meaningful prior data)
-  if (total_videos < 3 || (hasMeaningfulPrior && gmvDecline > 0.20)) {
+  // Slacking: 0-1 videos OR >20% GMV decline (with meaningful prior data)
+  if (total_videos <= 1 || (hasMeaningfulPrior && gmvDecline > 0.20)) {
     return 'slacking';
   }
 
-  // On Track: 3+ videos AND GMV within 15% of prior period (or no meaningful prior)
-  if (total_videos >= 3 && (!hasMeaningfulPrior || Math.abs(gmvGrowth) <= 0.15)) {
+  // On Track: 2+ videos AND GMV flat or growing (or no meaningful prior to compare)
+  if (total_videos >= 2 && (!hasMeaningfulPrior || gmvDecline <= 0.15)) {
     return 'on_track';
   }
 
-  // If growth > 15% but not top 20% GMV, still on_track
-  if (gmvGrowth > 0.15) return 'on_track';
-
-  // Default to on_track for remaining edge cases
+  // Default: slight decline but still posting = on_track
   return 'on_track';
 }
 
