@@ -67,7 +67,7 @@ export function CreatorsClient({ creators }: Props) {
       return sortDir === 'asc' ? (av as number) - (bv as number) : (bv as number) - (av as number);
     });
     return result;
-  }, [creators, search, sortKey, sortDir, brandFilter]);
+  }, [creators, search, sortKey, sortDir, brandFilter, statusFilter]);
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const paged = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);

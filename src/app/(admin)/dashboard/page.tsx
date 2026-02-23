@@ -22,7 +22,20 @@ import { generateAlerts } from '@/lib/data/alerts';
 import { aggregateCreatorsByRealName } from '@/lib/data/creator-aggregate';
 import { classifyCreator } from '@/lib/data/creator-status';
 import { getRisingVideos, getTrendingVideos } from '@/lib/data/whats-hot';
+import { unstable_cache } from 'next/cache';
 import { BRAND_COLORS, BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
+
+// Cache heavy What's Hot queries for 5 minutes
+const getCachedRisingVideos = unstable_cache(
+  async () => getRisingVideos(5),
+  ['rising-videos'],
+  { revalidate: 300 }
+);
+const getCachedTrendingVideos = unstable_cache(
+  async () => getTrendingVideos(5),
+  ['trending-videos'],
+  { revalidate: 300 }
+);
 import { format, subDays, differenceInDays } from 'date-fns';
 
 const ALL_BRANDS = ['jiyu', 'catakor', 'physicians_choice', 'toplux'] as const;
@@ -144,9 +157,9 @@ export default async function AdminDashboard({ searchParams }: Props) {
         try { return { brand, data: await getDailyTrend(brand, startDate, endDate) }; } catch { return { brand, data: [] }; }
       })
     ),
-    // What's Hot data
-    getRisingVideos(5).catch(() => []),
-    getTrendingVideos(5).catch(() => []),
+    // What's Hot data (cached 5 min to avoid slow paginated queries on every load)
+    getCachedRisingVideos().catch(() => []),
+    getCachedTrendingVideos().catch(() => []),
   ]);
 
   // Group creators by real name
