@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import { classifyCreator } from '@/lib/data/creator-status';
-import { fetchDiscordAvatars } from '@/lib/discord/avatars';
 
 export async function GET() {
   try {
@@ -10,7 +9,7 @@ export async function GET() {
     // 1. Fetch ALL managed creators
     const { data: creators, error: creatorsErr } = await supabase
       .from('managed_creators')
-      .select('id, real_name, brand, discord_id, tiktok_handle, retainer_amount')
+      .select('id, real_name, brand, discord_id, account_1, retainer, discord_avatar')
       .order('real_name');
 
     if (creatorsErr) throw creatorsErr;
@@ -59,10 +58,10 @@ export async function GET() {
     
     const videoStats = new Map<number, { total_videos: number; total_gmv: number }>();
     // video_performance uses creator_name (not creator_id) and report_date (not date)
-    // Build a name→id lookup from managed_creators
+    // Build a name→id lookup from managed_creators using account names
     const nameToId = new Map<string, number>();
     for (const c of creators ?? []) {
-      if (c.tiktok_handle) nameToId.set(c.tiktok_handle.toLowerCase(), c.id);
+      if (c.account_1) nameToId.set(c.account_1.toLowerCase(), c.id);
       nameToId.set(c.real_name.toLowerCase(), c.id);
     }
 
@@ -89,20 +88,7 @@ export async function GET() {
       vpPage++;
     }
 
-    // 4. Fetch Discord avatars (limit to first 50 to avoid rate limits/timeouts)
-    const discordIds = (creators ?? [])
-      .map(c => c.discord_id)
-      .filter((id): id is string => !!id)
-      .slice(0, 50);
-
-    let avatars: Record<string, string | null> = {};
-    try {
-      avatars = await fetchDiscordAvatars(discordIds);
-    } catch {
-      // Don't let avatar fetching break the whole endpoint
-    }
-
-    // 5. Build conversation list
+    // 4. Build conversation list (avatars already stored in managed_creators)
     const conversations = (creators ?? []).map(c => {
       const msg = msgByCreator.get(c.id);
       const stats = videoStats.get(c.id) || { total_videos: 0, total_gmv: 0 };
@@ -112,9 +98,9 @@ export async function GET() {
         creator_id: c.id,
         creator_name: c.real_name,
         discord_user_id: c.discord_id || null,
-        tiktok_handle: c.tiktok_handle || null,
+        tiktok_handle: c.account_1 || null,
         brand: c.brand || null,
-        retainer_amount: c.retainer_amount != null ? Number(c.retainer_amount) : null,
+        retainer_amount: c.retainer != null ? Number(c.retainer) : null,
         last_message: msg?.last_message || null,
         last_message_at: msg?.last_message_at || null,
         direction: msg?.direction || null,
@@ -124,7 +110,7 @@ export async function GET() {
         total_videos_7d: stats.total_videos,
         total_gmv_7d: stats.total_gmv,
         status,
-        discord_avatar: c.discord_id ? (avatars[c.discord_id] || null) : null,
+        discord_avatar: c.discord_avatar || null,
       };
     });
 
