@@ -76,30 +76,55 @@ export async function GET() {
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     const videoStats = new Map<number, { total_videos: number; total_gmv: number }>();
 
-    // Fetch video data (report_date based — matches TikTok's "Videos" count)
-    // TikTok's "Videos" = unique videos with shoppable activity in the period
+    // Fetch GMV from video_performance (report_date = when sales happened)
     let vpPage = 0;
     const vpPageSize = 1000;
     let hasMore = true;
     while (hasMore) {
       const { data: vp } = await supabase
         .from('video_performance')
-        .select('creator_name, gmv, video_id')
+        .select('creator_name, gmv')
         .gte('report_date', sevenDaysAgo)
         .range(vpPage * vpPageSize, (vpPage + 1) * vpPageSize - 1);
 
       for (const row of vp ?? []) {
         const cid = nameToId.get(row.creator_name?.toLowerCase());
         if (!cid) continue;
-        const existing = videoStats.get(cid) || { total_videos: 0, total_gmv: 0, videoIds: new Set<string>() };
-        (existing as any).videoIds = (existing as any).videoIds || new Set<string>();
-        (existing as any).videoIds.add(row.video_id);
-        existing.total_videos = (existing as any).videoIds.size;
+        const existing = videoStats.get(cid) || { total_videos: 0, total_gmv: 0 };
         existing.total_gmv += Number(row.gmv) || 0;
         videoStats.set(cid, existing);
       }
       hasMore = (vp?.length ?? 0) === vpPageSize;
       vpPage++;
+    }
+
+    // Fetch post counts from videos table (post_date = when video was actually posted)
+    // videos table has reliable post_date; video_performance has 56% NULL
+    let vidPage = 0;
+    hasMore = true;
+    const postsByCreator = new Map<number, Set<string>>();
+    while (hasMore) {
+      const { data: vids } = await supabase
+        .from('videos')
+        .select('video_id, creator_name')
+        .gte('post_date', sevenDaysAgo)
+        .range(vidPage * vpPageSize, (vidPage + 1) * vpPageSize - 1);
+
+      for (const row of vids ?? []) {
+        const cid = nameToId.get(row.creator_name?.toLowerCase());
+        if (!cid) continue;
+        if (!postsByCreator.has(cid)) postsByCreator.set(cid, new Set());
+        postsByCreator.get(cid)!.add(row.video_id);
+      }
+      hasMore = (vids?.length ?? 0) === vpPageSize;
+      vidPage++;
+    }
+
+    // Merge post counts into videoStats
+    for (const [cid, videoIds] of postsByCreator) {
+      const existing = videoStats.get(cid) || { total_videos: 0, total_gmv: 0 };
+      existing.total_videos = videoIds.size;
+      videoStats.set(cid, existing);
     }
 
     // 4. Deduplicate creators — same person can have rows across multiple brands

@@ -57,8 +57,7 @@ export async function GET(
       }
 
       if (usernames.length > 0) {
-        // All data uses report_date — matches TikTok's "Videos" count
-        // TikTok "Videos" = unique videos with shoppable activity in the period
+        // GMV from video_performance (report_date = when sales happened)
         const { data: salesRows } = await supabase
           .from('video_performance')
           .select('video_id, gmv, report_date, creator_name, brand')
@@ -70,24 +69,38 @@ export async function GET(
           gmv7d = salesRows.reduce((sum: number, v: { gmv: number | null }) => sum + (Number(v.gmv) || 0), 0);
           lastActive = salesRows[0].report_date;
 
-          // Per-brand breakdown: unique video_ids + GMV
-          const brandMap = new Map<string, { videoIds: Set<string>; gmv: number }>();
-          const allVideoIds = new Set<string>();
+          // Per-brand GMV
+          const brandGmvMap = new Map<string, number>();
           for (const v of salesRows) {
             const b = v.brand || usernameToBrand[v.creator_name?.toLowerCase()] || 'unknown';
-            allVideoIds.add(v.video_id);
-            const existing = brandMap.get(b) || { videoIds: new Set(), gmv: 0 };
-            existing.videoIds.add(v.video_id);
-            existing.gmv += Number(v.gmv) || 0;
-            brandMap.set(b, existing);
+            brandGmvMap.set(b, (brandGmvMap.get(b) || 0) + (Number(v.gmv) || 0));
           }
-          posts7d = allVideoIds.size;
 
-          for (const [brand, data] of brandMap) {
+          // Post counts from videos table (post_date = when actually posted)
+          // videos table has reliable post_date; video_performance has 56% NULL
+          const { data: postRows } = await supabase
+            .from('videos')
+            .select('video_id, creator_name, brand')
+            .in('creator_name', usernames)
+            .gte('post_date', dateStr);
+
+          const allPosts = new Set<string>();
+          const brandPostMap = new Map<string, Set<string>>();
+          for (const v of postRows ?? []) {
+            allPosts.add(v.video_id);
+            const b = v.brand || usernameToBrand[v.creator_name?.toLowerCase()] || 'unknown';
+            if (!brandPostMap.has(b)) brandPostMap.set(b, new Set());
+            brandPostMap.get(b)!.add(v.video_id);
+          }
+          posts7d = allPosts.size;
+
+          // Combine into brand breakdown
+          const allBrands = new Set([...brandGmvMap.keys(), ...brandPostMap.keys()]);
+          for (const brand of allBrands) {
             brandBreakdown.push({
               brand,
-              posts_7d: data.videoIds.size,
-              gmv_7d: Math.round(data.gmv * 100) / 100,
+              posts_7d: brandPostMap.get(brand)?.size || 0,
+              gmv_7d: Math.round((brandGmvMap.get(brand) || 0) * 100) / 100,
             });
           }
         }
