@@ -74,30 +74,57 @@ export async function GET() {
 
     // 3. Fetch video stats (last 7 days)
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-    const videoStats = new Map<number, { total_videos: number; total_gmv: number; videoIds: Set<string> }>();
+    const videoStats = new Map<number, { total_videos: number; total_gmv: number }>();
 
-    // Fetch video performance for last 7 days (paginated)
+    // Fetch GMV data (report_date = when sales happened)
     let vpPage = 0;
     const vpPageSize = 1000;
     let hasMore = true;
     while (hasMore) {
       const { data: vp } = await supabase
         .from('video_performance')
-        .select('creator_name, gmv, video_id')
+        .select('creator_name, gmv')
         .gte('report_date', sevenDaysAgo)
         .range(vpPage * vpPageSize, (vpPage + 1) * vpPageSize - 1);
 
       for (const row of vp ?? []) {
         const cid = nameToId.get(row.creator_name?.toLowerCase());
         if (!cid) continue;
-        const existing = videoStats.get(cid) || { total_videos: 0, total_gmv: 0, videoIds: new Set() };
-        existing.videoIds.add(row.video_id);
-        existing.total_videos = existing.videoIds.size;
+        const existing = videoStats.get(cid) || { total_videos: 0, total_gmv: 0 };
         existing.total_gmv += Number(row.gmv) || 0;
         videoStats.set(cid, existing);
       }
       hasMore = (vp?.length ?? 0) === vpPageSize;
       vpPage++;
+    }
+
+    // Fetch actual post counts (post_date = when video was posted)
+    vpPage = 0;
+    hasMore = true;
+    const postsByCreator = new Map<number, Set<string>>();
+    while (hasMore) {
+      const { data: vp } = await supabase
+        .from('video_performance')
+        .select('creator_name, video_id')
+        .not('post_date', 'is', null)
+        .gte('post_date', sevenDaysAgo)
+        .range(vpPage * vpPageSize, (vpPage + 1) * vpPageSize - 1);
+
+      for (const row of vp ?? []) {
+        const cid = nameToId.get(row.creator_name?.toLowerCase());
+        if (!cid) continue;
+        if (!postsByCreator.has(cid)) postsByCreator.set(cid, new Set());
+        postsByCreator.get(cid)!.add(row.video_id);
+      }
+      hasMore = (vp?.length ?? 0) === vpPageSize;
+      vpPage++;
+    }
+
+    // Merge post counts into videoStats
+    for (const [cid, videoIds] of postsByCreator) {
+      const existing = videoStats.get(cid) || { total_videos: 0, total_gmv: 0 };
+      existing.total_videos = videoIds.size;
+      videoStats.set(cid, existing);
     }
 
     // 4. Build conversation list (avatars already stored in managed_creators)
