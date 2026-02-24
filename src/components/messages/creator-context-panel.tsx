@@ -6,6 +6,12 @@ import { cn } from '@/lib/utils';
 import { getBrandColor, BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
 import { STATUS_CONFIG, type CreatorStatus } from '@/lib/data/creator-status';
 
+interface BrandBreakdown {
+  brand: string;
+  posts_7d: number;
+  gmv_7d: number;
+}
+
 interface CreatorContext {
   id: number;
   real_name: string;
@@ -18,6 +24,7 @@ interface CreatorContext {
   posts_7d: number;
   gmv_7d: number;
   last_active: string | null;
+  brand_breakdown?: BrandBreakdown[];
 }
 
 interface Props {
@@ -149,6 +156,29 @@ export function CreatorContextPanel({ creatorId }: Props) {
               value={context.last_active ? new Date(context.last_active).toLocaleDateString([], { month: 'short', day: 'numeric' }) : 'N/A'}
             />
           </div>
+
+          {/* Brand breakdown (for multi-brand creators) */}
+          {context.brand_breakdown && context.brand_breakdown.length > 1 && (
+            <div>
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Per Brand (7d)</p>
+              <div className="space-y-2">
+                {context.brand_breakdown.map(b => (
+                  <div key={b.brand} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+                    <span
+                      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium text-white"
+                      style={{ backgroundColor: getBrandColor(b.brand) }}
+                    >
+                      {BRAND_DISPLAY_NAMES[b.brand] || b.brand}
+                    </span>
+                    <div className="flex items-center gap-3 text-xs text-[#1A1B3A]">
+                      <span>{b.posts_7d} posts</span>
+                      <span className="font-medium">${b.gmv_7d.toLocaleString()}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Discord status */}
           <div>
