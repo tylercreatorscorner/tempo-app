@@ -9,8 +9,10 @@ export function getSupabase(): SupabaseClient {
   if (!_client) {
     const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    console.log(`[tempo-bot] Supabase URL: ${url ? url.slice(0, 30) + '...' : 'MISSING'}`);
+    console.log(`[tempo-bot] Supabase key: ${key ? key.slice(0, 15) + '...' : 'MISSING'}`);
     if (!url || !key) {
-      throw new Error('[tempo-bot] Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
+      throw new Error('[tempo-bot] Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
     }
     _client = createClient(url, key);
   }
