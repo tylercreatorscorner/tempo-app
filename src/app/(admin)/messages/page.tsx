@@ -45,7 +45,7 @@ export default function MessagesPage() {
   };
 
   return (
-    <div className="h-full flex flex-col -m-3 sm:-m-4 md:-m-6">
+    <div className="flex flex-col -m-3 sm:-m-4 md:-m-6" style={{ height: 'calc(100vh - 57px)' }}>
       {/* Top bar */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-white">
         <div className="flex items-center gap-3">
