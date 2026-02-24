@@ -1,24 +1,30 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
+import { classifyCreator } from '@/lib/data/creator-status';
+import { fetchDiscordAvatars } from '@/lib/discord/avatars';
 
 export async function GET() {
   try {
     const supabase = await createAdminClient();
 
-    // Get all messages ordered by most recent
-    const { data: messages, error } = await supabase
+    // 1. Fetch ALL managed creators
+    const { data: creators, error: creatorsErr } = await supabase
+      .from('managed_creators')
+      .select('id, real_name, brand, discord_id, tiktok_handle, retainer_amount')
+      .order('real_name');
+
+    if (creatorsErr) throw creatorsErr;
+
+    // 2. Fetch all messages grouped by creator
+    const { data: messages, error: msgErr } = await supabase
       .from('creator_messages')
       .select('id, creator_id, discord_user_id, content, direction, channel, sent_at, status')
       .order('sent_at', { ascending: false });
 
-    if (error) throw error;
+    if (msgErr) throw msgErr;
 
-    // Group by discord_user_id (primary key for conversations)
-    // Falls back to creator_id if no discord_user_id
-    const convMap = new Map<string, {
-      key: string;
-      creator_id: number | null;
-      discord_user_id: string | null;
+    // Build message summary per creator_id
+    const msgByCreator = new Map<number, {
       last_message: string;
       last_message_at: string;
       direction: string;
@@ -28,12 +34,10 @@ export async function GET() {
     }>();
 
     for (const msg of messages ?? []) {
-      const key = msg.discord_user_id || `creator:${msg.creator_id}`;
-      if (!convMap.has(key)) {
-        convMap.set(key, {
-          key,
-          creator_id: msg.creator_id,
-          discord_user_id: msg.discord_user_id,
+      const cid = msg.creator_id;
+      if (!cid) continue;
+      if (!msgByCreator.has(cid)) {
+        msgByCreator.set(cid, {
           last_message: msg.content,
           last_message_at: msg.sent_at,
           direction: msg.direction,
@@ -42,53 +46,63 @@ export async function GET() {
           message_count: 0,
         });
       }
-      const conv = convMap.get(key)!;
-      conv.message_count++;
+      const entry = msgByCreator.get(cid)!;
+      entry.message_count++;
       if (msg.direction === 'inbound') {
-        conv.unread_count++;
-      }
-      if (msg.creator_id && !conv.creator_id) {
-        conv.creator_id = msg.creator_id;
+        entry.unread_count++;
       }
     }
 
-    // Fetch creator names and brands for linked conversations
-    const creatorIds = [...convMap.values()]
-      .map(c => c.creator_id)
-      .filter((id): id is number => id !== null);
+    // 3. Fetch video stats (last 7 days)
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const creatorIds = (creators ?? []).map(c => c.id);
     
-    const creatorInfo: Record<number, { name: string; brand: string }> = {};
+    const videoStats = new Map<number, { total_videos: number; total_gmv: number }>();
     if (creatorIds.length > 0) {
-      const { data: creators } = await supabase
-        .from('managed_creators')
-        .select('id, real_name, brand')
-        .in('id', creatorIds);
-      for (const c of creators ?? []) {
-        creatorInfo[c.id] = { name: c.real_name, brand: c.brand };
+      const { data: vp } = await supabase
+        .from('video_performance')
+        .select('creator_id, total_gmv')
+        .in('creator_id', creatorIds)
+        .gte('date', sevenDaysAgo);
+
+      for (const row of vp ?? []) {
+        const existing = videoStats.get(row.creator_id) || { total_videos: 0, total_gmv: 0 };
+        existing.total_videos++;
+        existing.total_gmv += Number(row.total_gmv) || 0;
+        videoStats.set(row.creator_id, existing);
       }
     }
 
-    const conversations = [...convMap.values()].map(c => {
-      let name = 'Unknown User';
-      let brand = '';
-      if (c.creator_id && creatorInfo[c.creator_id]) {
-        name = creatorInfo[c.creator_id].name;
-        brand = creatorInfo[c.creator_id].brand || '';
-      } else if (c.discord_user_id) {
-        name = `Discord User ${c.discord_user_id.slice(-4)}`;
-      }
+    // 4. Fetch Discord avatars
+    const discordIds = (creators ?? [])
+      .map(c => c.discord_id)
+      .filter((id): id is string => !!id);
+
+    const avatars = await fetchDiscordAvatars(discordIds);
+
+    // 5. Build conversation list
+    const conversations = (creators ?? []).map(c => {
+      const msg = msgByCreator.get(c.id);
+      const stats = videoStats.get(c.id) || { total_videos: 0, total_gmv: 0 };
+      const status = classifyCreator(stats.total_videos);
 
       return {
-        creator_id: c.creator_id ?? 0,
-        discord_user_id: c.discord_user_id,
-        creator_name: name,
-        last_message: c.last_message,
-        last_message_at: c.last_message_at,
-        direction: c.direction,
-        channel: c.channel,
-        brand,
-        unread_count: c.unread_count,
-        message_count: c.message_count,
+        creator_id: c.id,
+        creator_name: c.real_name,
+        discord_user_id: c.discord_id || null,
+        tiktok_handle: c.tiktok_handle || null,
+        brand: c.brand || null,
+        retainer_amount: c.retainer_amount != null ? Number(c.retainer_amount) : null,
+        last_message: msg?.last_message || null,
+        last_message_at: msg?.last_message_at || null,
+        direction: msg?.direction || null,
+        channel: msg?.channel || 'dm',
+        unread_count: msg?.unread_count || 0,
+        message_count: msg?.message_count || 0,
+        total_videos_7d: stats.total_videos,
+        total_gmv_7d: stats.total_gmv,
+        status,
+        discord_avatar: c.discord_id ? (avatars[c.discord_id] || null) : null,
       };
     });
 

@@ -33,7 +33,7 @@ export default function MessagesPage() {
     fetchConversations();
   }, [fetchConversations]);
 
-  const activeKey = activeConv ? (activeConv.discord_user_id || `creator:${activeConv.creator_id}`) : null;
+  const activeKey = activeConv ? convKey(activeConv) : null;
 
   const handleSelect = (conv: Conversation) => {
     setActiveConv(conv);
