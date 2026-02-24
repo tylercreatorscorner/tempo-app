@@ -29,7 +29,7 @@ export async function GET() {
     }
     // Also map by real_name as fallback
     for (const c of creators ?? []) {
-      nameToId.set(c.real_name.toLowerCase(), c.id);
+      if (c.real_name) nameToId.set(c.real_name.toLowerCase(), c.id);
     }
 
     // 2. Fetch all messages grouped by creator
@@ -105,7 +105,7 @@ export async function GET() {
 
       return {
         creator_id: c.id,
-        creator_name: c.real_name,
+        creator_name: c.real_name || 'Unknown Creator',
         discord_user_id: c.discord_id || null,
         tiktok_handle: accountsByCreator.get(c.id) || null,
         brand: c.brand || null,
@@ -125,8 +125,7 @@ export async function GET() {
 
     return NextResponse.json({ conversations });
   } catch (err: unknown) {
-    const errMsg = err instanceof Error ? err.message : String(err);
-    console.error('Failed to fetch conversations:', errMsg);
-    return NextResponse.json({ conversations: [], error: errMsg }, { status: 200 });
+    console.error('Failed to fetch conversations:', err);
+    return NextResponse.json({ conversations: [], error: 'Failed to fetch conversations' }, { status: 200 });
   }
 }
