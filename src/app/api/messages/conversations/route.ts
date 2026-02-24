@@ -74,7 +74,7 @@ export async function GET() {
 
     // 3. Fetch video stats (last 7 days)
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-    const videoStats = new Map<number, { total_videos: number; total_gmv: number }>();
+    const videoStats = new Map<number, { total_videos: number; total_gmv: number; videoIds: Set<string> }>();
 
     // Fetch video performance for last 7 days (paginated)
     let vpPage = 0;
@@ -90,8 +90,9 @@ export async function GET() {
       for (const row of vp ?? []) {
         const cid = nameToId.get(row.creator_name?.toLowerCase());
         if (!cid) continue;
-        const existing = videoStats.get(cid) || { total_videos: 0, total_gmv: 0 };
-        existing.total_videos++;
+        const existing = videoStats.get(cid) || { total_videos: 0, total_gmv: 0, videoIds: new Set() };
+        existing.videoIds.add(row.video_id);
+        existing.total_videos = existing.videoIds.size;
         existing.total_gmv += Number(row.gmv) || 0;
         videoStats.set(cid, existing);
       }

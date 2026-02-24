@@ -53,13 +53,15 @@ export async function GET(
       if (usernames.length > 0) {
         const { data: videos } = await supabase
           .from('video_performance')
-          .select('gmv, report_date')
+          .select('video_id, gmv, report_date')
           .in('creator_name', usernames)
           .gte('report_date', dateStr)
           .order('report_date', { ascending: false });
 
         if (videos && videos.length > 0) {
-          posts7d = videos.length;
+          // Deduplicate by video_id for actual post count
+          const uniqueVideoIds = new Set(videos.map(v => v.video_id));
+          posts7d = uniqueVideoIds.size;
           gmv7d = videos.reduce((sum: number, v: { gmv: number | null }) => sum + (Number(v.gmv) || 0), 0);
           lastActive = videos[0].report_date;
         }
