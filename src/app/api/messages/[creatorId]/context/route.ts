@@ -57,7 +57,8 @@ export async function GET(
       }
 
       if (usernames.length > 0) {
-        // GMV data: use report_date (when sales happened)
+        // All data uses report_date — matches TikTok's "Videos" count
+        // TikTok "Videos" = unique videos with shoppable activity in the period
         const { data: salesRows } = await supabase
           .from('video_performance')
           .select('video_id, gmv, report_date, creator_name, brand')
@@ -69,38 +70,24 @@ export async function GET(
           gmv7d = salesRows.reduce((sum: number, v: { gmv: number | null }) => sum + (Number(v.gmv) || 0), 0);
           lastActive = salesRows[0].report_date;
 
-          // Per-brand GMV breakdown
-          const brandGmvMap = new Map<string, number>();
+          // Per-brand breakdown: unique video_ids + GMV
+          const brandMap = new Map<string, { videoIds: Set<string>; gmv: number }>();
+          const allVideoIds = new Set<string>();
           for (const v of salesRows) {
             const b = v.brand || usernameToBrand[v.creator_name?.toLowerCase()] || 'unknown';
-            brandGmvMap.set(b, (brandGmvMap.get(b) || 0) + (Number(v.gmv) || 0));
+            allVideoIds.add(v.video_id);
+            const existing = brandMap.get(b) || { videoIds: new Set(), gmv: 0 };
+            existing.videoIds.add(v.video_id);
+            existing.gmv += Number(v.gmv) || 0;
+            brandMap.set(b, existing);
           }
+          posts7d = allVideoIds.size;
 
-          // Post count: use post_date (when video was actually posted)
-          const { data: postRows } = await supabase
-            .from('video_performance')
-            .select('video_id, post_date, creator_name, brand')
-            .in('creator_name', usernames)
-            .not('post_date', 'is', null)
-            .gte('post_date', dateStr);
-
-          const uniquePosts = new Set<string>();
-          const brandPostMap = new Map<string, Set<string>>();
-          for (const v of postRows ?? []) {
-            uniquePosts.add(v.video_id);
-            const b = v.brand || usernameToBrand[v.creator_name?.toLowerCase()] || 'unknown';
-            if (!brandPostMap.has(b)) brandPostMap.set(b, new Set());
-            brandPostMap.get(b)!.add(v.video_id);
-          }
-          posts7d = uniquePosts.size;
-
-          // Combine into brand breakdown
-          const allBrands = new Set([...brandGmvMap.keys(), ...brandPostMap.keys()]);
-          for (const brand of allBrands) {
+          for (const [brand, data] of brandMap) {
             brandBreakdown.push({
               brand,
-              posts_7d: brandPostMap.get(brand)?.size || 0,
-              gmv_7d: Math.round((brandGmvMap.get(brand) || 0) * 100) / 100,
+              posts_7d: data.videoIds.size,
+              gmv_7d: Math.round(data.gmv * 100) / 100,
             });
           }
         }
