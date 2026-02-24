@@ -14,7 +14,7 @@ export async function GET(
     // Get creator info
     const { data: creator, error } = await supabase
       .from('managed_creators')
-      .select('id, real_name, tiktok_handle, brand, discord_id, retainer_amount')
+      .select('id, real_name, brand, discord_id, retainer, discord_avatar')
       .eq('id', parseInt(creatorId))
       .single();
 
@@ -22,7 +22,17 @@ export async function GET(
       return NextResponse.json({ creator: null });
     }
 
-    // Try to get performance data (last 7 days)
+    // Get TikTok handle from creator_accounts
+    const { data: account } = await supabase
+      .from('creator_accounts')
+      .select('tiktok_username')
+      .eq('creator_id', creator.id)
+      .limit(1)
+      .single();
+
+    const tiktokHandle = account?.tiktok_username || null;
+
+    // Get performance data (last 7 days) using creator_accounts to match
     let posts7d = 0;
     let gmv7d = 0;
     let lastActive: string | null = null;
@@ -30,19 +40,29 @@ export async function GET(
     try {
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      const dateStr = sevenDaysAgo.toISOString().split('T')[0];
 
-      // Try video_performance table first, fall back to creator_performance
-      const { data: videos } = await supabase
-        .from('video_performance')
-        .select('gmv, created_at')
-        .eq('creator_id', creator.id)
-        .gte('created_at', sevenDaysAgo.toISOString())
-        .order('created_at', { ascending: false });
+      // Get all tiktok usernames for this creator
+      const { data: allAccounts } = await supabase
+        .from('creator_accounts')
+        .select('tiktok_username')
+        .eq('creator_id', creator.id);
 
-      if (videos && videos.length > 0) {
-        posts7d = videos.length;
-        gmv7d = videos.reduce((sum: number, v: { gmv: number | null }) => sum + (v.gmv || 0), 0);
-        lastActive = videos[0].created_at;
+      const usernames = (allAccounts ?? []).map(a => a.tiktok_username);
+
+      if (usernames.length > 0) {
+        const { data: videos } = await supabase
+          .from('video_performance')
+          .select('gmv, report_date')
+          .in('creator_name', usernames)
+          .gte('report_date', dateStr)
+          .order('report_date', { ascending: false });
+
+        if (videos && videos.length > 0) {
+          posts7d = videos.length;
+          gmv7d = videos.reduce((sum: number, v: { gmv: number | null }) => sum + (Number(v.gmv) || 0), 0);
+          lastActive = videos[0].report_date;
+        }
       }
     } catch {
       // Performance tables may not exist
@@ -54,10 +74,11 @@ export async function GET(
       creator: {
         id: creator.id,
         real_name: creator.real_name,
-        tiktok_handle: creator.tiktok_handle,
+        tiktok_handle: tiktokHandle,
         brand: creator.brand,
         discord_id: creator.discord_id,
-        retainer_amount: creator.retainer_amount,
+        retainer_amount: creator.retainer != null ? Number(creator.retainer) : null,
+        discord_avatar: creator.discord_avatar,
         status,
         status_label: STATUS_CONFIG[status].label,
         posts_7d: posts7d,
