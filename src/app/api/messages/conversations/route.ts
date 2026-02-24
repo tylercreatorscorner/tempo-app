@@ -1,15 +1,17 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import { classifyCreator } from '@/lib/data/creator-status';
+import { ACTIVE_BRANDS } from '@/lib/utils/constants';
 
 export async function GET() {
   try {
     const supabase = await createAdminClient();
 
-    // 1. Fetch ALL managed creators
+    // 1. Fetch managed creators (active brands only)
     const { data: creators, error: creatorsErr } = await supabase
       .from('managed_creators')
       .select('id, real_name, brand, discord_id, retainer, discord_avatar')
+      .in('brand', ACTIVE_BRANDS)
       .order('real_name');
 
     if (creatorsErr) throw creatorsErr;
