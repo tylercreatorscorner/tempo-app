@@ -55,6 +55,16 @@ const GUILD_MAP: Record<string, GuildConfig> = {
     channels: {},
     permissions: { alerts: 'admin' },
   },
+  // Toplux Nutrition Discord server
+  '1452562452733759531': {
+    brandSlug: 'toplux',
+    displayName: BRAND_DISPLAY_NAMES['toplux'] ?? 'Toplux Nutrition',
+    color: BRAND_COLORS['toplux'] ?? '#FF9800',
+    allowedChannels: [],
+    adminRoles: [],
+    channels: {},
+    permissions: { alerts: 'admin' },
+  },
   // Cata-Kor Discord server
   '1166776019655602236': {
     brandSlug: 'catakor',
