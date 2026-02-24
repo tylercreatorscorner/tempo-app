@@ -38,10 +38,14 @@ export default function MessagesPage() {
   const handleSelect = (conv: Conversation) => {
     setActiveConv(conv);
     setMobileShowThread(true);
+    // Clear unread count locally
+    setConversations(prev => prev.map(c => 
+      convKey(c) === convKey(conv) ? { ...c, unread_count: 0 } : c
+    ));
   };
 
   return (
-    <div className="h-[calc(100vh-0px)] flex flex-col">
+    <div className="h-full flex flex-col -m-3 sm:-m-4 md:-m-6">
       {/* Top bar */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-white">
         <div className="flex items-center gap-3">
