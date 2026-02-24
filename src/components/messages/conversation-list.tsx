@@ -157,14 +157,22 @@ export function ConversationList({ conversations, activeKey, onSelect }: Props) 
         }
         case 'name_asc':
           return a.creator_name.localeCompare(b.creator_name);
-        case 'gmv_desc':
-          return b.total_gmv_7d - a.total_gmv_7d;
-        case 'posts_desc':
-          return b.total_videos_7d - a.total_videos_7d;
-        case 'retainer_desc':
-          return (b.retainer_amount ?? 0) - (a.retainer_amount ?? 0);
-        case 'status_worst':
-          return (STATUS_ORDER[a.status] ?? 5) - (STATUS_ORDER[b.status] ?? 5);
+        case 'gmv_desc': {
+          const diff = b.total_gmv_7d - a.total_gmv_7d;
+          return diff !== 0 ? diff : a.creator_name.localeCompare(b.creator_name);
+        }
+        case 'posts_desc': {
+          const diff = b.total_videos_7d - a.total_videos_7d;
+          return diff !== 0 ? diff : a.creator_name.localeCompare(b.creator_name);
+        }
+        case 'retainer_desc': {
+          const diff = (b.retainer_amount ?? 0) - (a.retainer_amount ?? 0);
+          return diff !== 0 ? diff : a.creator_name.localeCompare(b.creator_name);
+        }
+        case 'status_worst': {
+          const diff = (STATUS_ORDER[a.status] ?? 5) - (STATUS_ORDER[b.status] ?? 5);
+          return diff !== 0 ? diff : a.creator_name.localeCompare(b.creator_name);
+        }
         default:
           return 0;
       }
@@ -477,7 +485,22 @@ export function ConversationList({ conversations, activeKey, onSelect }: Props) 
                             {BRAND_DISPLAY_NAMES[conv.brand] || conv.brand}
                           </span>
                         )}
-                        {conv.total_videos_7d > 0 && (
+                        {sortBy === 'gmv_desc' && conv.total_gmv_7d > 0 && (
+                          <span className="text-[10px] text-gray-400">
+                            ${Math.round(conv.total_gmv_7d).toLocaleString()} GMV
+                          </span>
+                        )}
+                        {sortBy === 'retainer_desc' && conv.retainer_amount != null && conv.retainer_amount > 0 && (
+                          <span className="text-[10px] text-gray-400">
+                            ${conv.retainer_amount.toLocaleString()} retainer
+                          </span>
+                        )}
+                        {sortBy === 'posts_desc' && conv.total_videos_7d > 0 && (
+                          <span className="text-[10px] text-gray-400">
+                            {conv.total_videos_7d} posts
+                          </span>
+                        )}
+                        {sortBy !== 'gmv_desc' && sortBy !== 'retainer_desc' && sortBy !== 'posts_desc' && conv.total_videos_7d > 0 && (
                           <span className="text-[10px] text-gray-400">
                             {conv.total_videos_7d} posts
                           </span>
