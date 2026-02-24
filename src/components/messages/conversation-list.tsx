@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { Search, MessageSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ChannelBadge } from './channel-icon';
+import { getBrandColor, BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
 
 export interface Conversation {
   creator_id: number;
@@ -13,6 +15,8 @@ export interface Conversation {
   direction: string;
   unread_count: number;
   message_count?: number;
+  channel?: string;
+  brand?: string;
 }
 
 /** Unique key for a conversation */
@@ -59,7 +63,7 @@ export function ConversationList({ conversations, activeKey, onSelect }: Props) 
             placeholder="Search creators..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-pink-300 focus:border-transparent"
+            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all"
           />
         </div>
       </div>
@@ -72,33 +76,62 @@ export function ConversationList({ conversations, activeKey, onSelect }: Props) 
             <p className="text-sm text-center">No conversations yet.<br />Start a conversation with a creator.</p>
           </div>
         ) : (
-          filtered.map(conv => (
-            <button
-              key={convKey(conv)}
-              onClick={() => onSelect(conv)}
-              className={cn(
-                'w-full text-left px-4 py-3 border-b border-gray-100 transition-colors hover:bg-gray-50',
-                activeKey === convKey(conv) && 'bg-pink-50 border-l-2 border-l-pink-400'
-              )}
-            >
-              <div className="flex items-center justify-between">
-                <span className="font-medium text-sm text-[#1A1B3A] truncate">{conv.creator_name}</span>
-                <span className="text-xs text-gray-400 whitespace-nowrap ml-2">
-                  {relativeTime(conv.last_message_at)}
-                </span>
-              </div>
-              <div className="flex items-center justify-between mt-1">
-                <p className="text-xs text-gray-500 truncate max-w-[200px]">
-                  {conv.direction === 'outbound' ? 'You: ' : ''}{conv.last_message.slice(0, 50)}
-                </p>
-                {conv.unread_count > 0 && (
-                  <span className="ml-2 bg-pink-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium">
-                    {conv.unread_count > 9 ? '9+' : conv.unread_count}
-                  </span>
+          filtered.map(conv => {
+            const isActive = activeKey === convKey(conv);
+            return (
+              <button
+                key={convKey(conv)}
+                onClick={() => onSelect(conv)}
+                className={cn(
+                  'w-full text-left px-4 py-3.5 border-b border-gray-50 transition-all hover:bg-gray-50/80',
+                  isActive && 'bg-pink-50/80 border-l-2 border-l-pink-400 hover:bg-pink-50'
                 )}
-              </div>
-            </button>
-          ))
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-2 min-w-0">
+                    {/* Avatar initial */}
+                    <div
+                      className="h-8 w-8 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0"
+                      style={{
+                        backgroundColor: conv.brand ? getBrandColor(conv.brand) : '#7C5CFC',
+                      }}
+                    >
+                      {conv.creator_name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="min-w-0">
+                      <span className="font-medium text-sm text-[#1A1B3A] truncate block">
+                        {conv.creator_name}
+                      </span>
+                      {conv.brand && (
+                        <span
+                          className="text-[10px] font-medium"
+                          style={{ color: getBrandColor(conv.brand) }}
+                        >
+                          {BRAND_DISPLAY_NAMES[conv.brand] || conv.brand}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end gap-1 flex-shrink-0 ml-2">
+                    <span className="text-[10px] text-gray-400 whitespace-nowrap">
+                      {relativeTime(conv.last_message_at)}
+                    </span>
+                    {conv.unread_count > 0 && (
+                      <span className="bg-pink-500 text-white text-[10px] rounded-full h-4 min-w-[16px] px-1 flex items-center justify-center font-medium">
+                        {conv.unread_count > 9 ? '9+' : conv.unread_count}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 ml-10">
+                  {conv.channel && <ChannelBadge channel={conv.channel} />}
+                  <p className="text-xs text-gray-500 truncate">
+                    {conv.direction === 'outbound' ? 'You: ' : ''}{conv.last_message.slice(0, 40)}
+                  </p>
+                </div>
+              </button>
+            );
+          })
         )}
       </div>
     </div>

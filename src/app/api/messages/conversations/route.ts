@@ -8,7 +8,7 @@ export async function GET() {
     // Get all messages ordered by most recent
     const { data: messages, error } = await supabase
       .from('creator_messages')
-      .select('id, creator_id, discord_user_id, content, direction, sent_at, status')
+      .select('id, creator_id, discord_user_id, content, direction, channel, sent_at, status')
       .order('sent_at', { ascending: false });
 
     if (error) throw error;
@@ -22,6 +22,7 @@ export async function GET() {
       last_message: string;
       last_message_at: string;
       direction: string;
+      channel: string;
       unread_count: number;
       message_count: number;
     }>();
@@ -36,6 +37,7 @@ export async function GET() {
           last_message: msg.content,
           last_message_at: msg.sent_at,
           direction: msg.direction,
+          channel: msg.channel || 'dm',
           unread_count: 0,
           message_count: 0,
         });
@@ -45,33 +47,33 @@ export async function GET() {
       if (msg.direction === 'inbound') {
         conv.unread_count++;
       }
-      // Keep the creator_id if we find one
       if (msg.creator_id && !conv.creator_id) {
         conv.creator_id = msg.creator_id;
       }
     }
 
-    // Fetch creator names for linked conversations
+    // Fetch creator names and brands for linked conversations
     const creatorIds = [...convMap.values()]
       .map(c => c.creator_id)
       .filter((id): id is number => id !== null);
     
-    const creatorNames: Record<number, string> = {};
+    const creatorInfo: Record<number, { name: string; brand: string }> = {};
     if (creatorIds.length > 0) {
       const { data: creators } = await supabase
         .from('managed_creators')
-        .select('id, real_name')
+        .select('id, real_name, brand')
         .in('id', creatorIds);
       for (const c of creators ?? []) {
-        creatorNames[c.id] = c.real_name;
+        creatorInfo[c.id] = { name: c.real_name, brand: c.brand };
       }
     }
 
-    // Try to resolve Discord usernames for unlinked conversations
     const conversations = [...convMap.values()].map(c => {
       let name = 'Unknown User';
-      if (c.creator_id && creatorNames[c.creator_id]) {
-        name = creatorNames[c.creator_id];
+      let brand = '';
+      if (c.creator_id && creatorInfo[c.creator_id]) {
+        name = creatorInfo[c.creator_id].name;
+        brand = creatorInfo[c.creator_id].brand || '';
       } else if (c.discord_user_id) {
         name = `Discord User ${c.discord_user_id.slice(-4)}`;
       }
@@ -83,6 +85,8 @@ export async function GET() {
         last_message: c.last_message,
         last_message_at: c.last_message_at,
         direction: c.direction,
+        channel: c.channel,
+        brand,
         unread_count: c.unread_count,
         message_count: c.message_count,
       };

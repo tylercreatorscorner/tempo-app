@@ -4,8 +4,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { MessageSquare, Users, Send } from 'lucide-react';
 import { ConversationList, type Conversation, convKey } from '@/components/messages/conversation-list';
 import { ChatThread } from '@/components/messages/chat-thread';
+import { CreatorContextPanel } from '@/components/messages/creator-context-panel';
 import { BulkMessageModal } from '@/components/messages/bulk-message-modal';
 import { TestDmModal } from '@/components/messages/test-dm-modal';
+import { BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
 
 export default function MessagesPage() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -72,7 +74,7 @@ export default function MessagesPage() {
         </div>
       </div>
 
-      {/* Two-panel layout */}
+      {/* Three-panel layout */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left panel - conversation list */}
         <div className={`w-full md:w-80 md:flex-shrink-0 ${mobileShowThread ? 'hidden md:block' : 'block'}`}>
@@ -89,13 +91,14 @@ export default function MessagesPage() {
           )}
         </div>
 
-        {/* Right panel - chat thread */}
+        {/* Center panel - chat thread */}
         <div className={`flex-1 ${mobileShowThread ? 'block' : 'hidden md:block'}`}>
           {activeConv ? (
             <ChatThread
               creatorId={activeConv.creator_id}
               creatorName={activeConv.creator_name}
               discordUserId={activeConv.discord_user_id}
+              brandName={activeConv.brand ? (BRAND_DISPLAY_NAMES[activeConv.brand] || activeConv.brand) : undefined}
             />
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-gray-400 bg-[#F8F9FC]">
@@ -104,13 +107,17 @@ export default function MessagesPage() {
             </div>
           )}
         </div>
+
+        {/* Right panel - creator context */}
+        {activeConv && activeConv.creator_id > 0 && (
+          <CreatorContextPanel creatorId={activeConv.creator_id} />
+        )}
       </div>
 
       {/* Bulk message modal */}
       <BulkMessageModal
         open={bulkOpen}
         onClose={() => setBulkOpen(false)}
-        conversations={conversations}
       />
 
       {/* Test DM modal */}

@@ -3,10 +3,14 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Send, Check, CheckCheck, X, Loader2, ChevronUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ChannelIcon } from './channel-icon';
+import { TemplateSidebar } from './template-sidebar';
+import { getChannelConfig } from '@/lib/messages/channels';
 
 interface Message {
   id: string;
   direction: string;
+  channel: string;
   content: string;
   status: string;
   sent_at: string;
@@ -17,6 +21,7 @@ interface Props {
   creatorId: number;
   creatorName: string;
   discordUserId?: string | null;
+  brandName?: string;
 }
 
 function StatusIcon({ status }: { status: string }) {
@@ -29,7 +34,7 @@ function StatusIcon({ status }: { status: string }) {
   }
 }
 
-export function ChatThread({ creatorId, creatorName, discordUserId }: Props) {
+export function ChatThread({ creatorId, creatorName, discordUserId, brandName }: Props) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(true);
@@ -49,7 +54,7 @@ export function ChatThread({ creatorId, creatorName, discordUserId }: Props) {
       setHasMore(data.hasMore);
       setPage(p);
     } catch {
-      // Table may not exist yet — show empty state
+      // Table may not exist yet
     } finally {
       setLoading(false);
     }
@@ -65,7 +70,7 @@ export function ChatThread({ creatorId, creatorName, discordUserId }: Props) {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Poll for new messages every 3 seconds
+  // Poll every 3 seconds
   useEffect(() => {
     const interval = setInterval(async () => {
       try {
@@ -75,32 +80,27 @@ export function ChatThread({ creatorId, creatorName, discordUserId }: Props) {
         const data = await res.json();
         const newMessages = data.messages as Message[];
         setMessages(prev => {
-          // Only update if there are new messages (compare count + last id)
-          if (newMessages.length !== prev.length || 
+          if (newMessages.length !== prev.length ||
               (newMessages.length > 0 && prev.length > 0 && newMessages[newMessages.length - 1]?.id !== prev[prev.length - 1]?.id)) {
             return newMessages;
           }
           return prev;
         });
-      } catch {
-        // Silently fail polling
-      }
+      } catch {}
     }, 3000);
-
     return () => clearInterval(interval);
   }, [creatorId, discordUserId]);
 
   const handleSend = async () => {
     const content = input.trim();
     if (!content || sending) return;
-
     setSending(true);
     setInput('');
 
-    // Optimistic update
     const tempMsg: Message = {
       id: `temp-${Date.now()}`,
       direction: 'outbound',
+      channel: 'dm',
       content,
       status: 'pending',
       sent_at: new Date().toISOString(),
@@ -140,12 +140,30 @@ export function ChatThread({ creatorId, creatorName, discordUserId }: Props) {
     return d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
+  const sendChannel = discordUserId ? 'dm' : 'dm';
+  const channelConfig = getChannelConfig(sendChannel);
+
   return (
     <div className="flex flex-col h-full bg-[#F8F9FC]">
       {/* Header */}
-      <div className="px-6 py-4 border-b border-gray-200 bg-white">
-        <h2 className="font-semibold text-[#1A1B3A]">{creatorName}</h2>
-        <p className="text-xs text-gray-400">Creator #{creatorId}</p>
+      <div className="px-6 py-4 border-b border-gray-200 bg-white flex items-center justify-between">
+        <div>
+          <h2 className="font-semibold text-[#1A1B3A]">{creatorName}</h2>
+          <div className="flex items-center gap-2 mt-0.5">
+            <span className="text-xs text-gray-400">Creator #{creatorId}</span>
+            {discordUserId && (
+              <span className="inline-flex items-center gap-1 text-[10px] text-[#5865F2] font-medium">
+                <ChannelIcon channel="dm" size="sm" />
+                Discord connected
+              </span>
+            )}
+          </div>
+        </div>
+        <TemplateSidebar
+          creatorName={creatorName}
+          brandName={brandName}
+          onSelect={(content) => setInput(content)}
+        />
       </div>
 
       {/* Messages */}
@@ -186,9 +204,17 @@ export function ChatThread({ creatorId, creatorName, discordUserId }: Props) {
               >
                 <p className="whitespace-pre-wrap break-words">{msg.content}</p>
                 <div className={cn(
-                  'flex items-center gap-1 mt-1',
+                  'flex items-center gap-1.5 mt-1',
                   msg.direction === 'outbound' ? 'justify-end' : 'justify-start'
                 )}>
+                  {/* Channel indicator */}
+                  {msg.channel && (
+                    <ChannelIcon
+                      channel={msg.channel}
+                      size="sm"
+                      className={msg.direction === 'outbound' ? 'opacity-70' : 'opacity-50'}
+                    />
+                  )}
                   <span className={cn('text-[10px]', msg.direction === 'outbound' ? 'text-white/70' : 'text-gray-400')}>
                     {formatTime(msg.sent_at)}
                   </span>
@@ -203,6 +229,13 @@ export function ChatThread({ creatorId, creatorName, discordUserId }: Props) {
 
       {/* Compose */}
       <div className="px-6 py-4 border-t border-gray-200 bg-white">
+        {/* Channel indicator */}
+        <div className="flex items-center gap-1.5 mb-2">
+          <ChannelIcon channel={sendChannel} size="sm" showLabel />
+          <span className="text-[10px] text-gray-400">
+            Sending via {channelConfig.label}
+          </span>
+        </div>
         <div className="flex items-end gap-3">
           <textarea
             value={input}
@@ -210,7 +243,7 @@ export function ChatThread({ creatorId, creatorName, discordUserId }: Props) {
             onKeyDown={handleKeyDown}
             placeholder="Type a message... (Ctrl+Enter to send)"
             rows={1}
-            className="flex-1 resize-none rounded-xl border border-gray-200 px-4 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-300 focus:border-transparent"
+            className="flex-1 resize-none rounded-xl border border-gray-200 px-4 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all"
             style={{ minHeight: '40px', maxHeight: '120px' }}
             onInput={e => {
               const t = e.target as HTMLTextAreaElement;
