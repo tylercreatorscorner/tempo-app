@@ -55,6 +55,16 @@ const GUILD_MAP: Record<string, GuildConfig> = {
     channels: {},
     permissions: { alerts: 'admin' },
   },
+  // Cata-Kor Discord server
+  '1166776019655602236': {
+    brandSlug: 'catakor',
+    displayName: BRAND_DISPLAY_NAMES['catakor'] ?? 'Cata-Kor',
+    color: BRAND_COLORS['catakor'] ?? '#00C853',
+    allowedChannels: [],
+    adminRoles: [],
+    channels: {},
+    permissions: { alerts: 'admin' },
+  },
   // Physician's Choice Discord server
   '1181985490363240499': {
     brandSlug: 'physicians_choice',
