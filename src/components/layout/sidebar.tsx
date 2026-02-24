@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  LayoutDashboard, Store, BarChart3, Users, Settings, CreditCard, MessageSquare, Flame, Mail,
+  LayoutDashboard, Store, BarChart3, Users, Settings, CreditCard, MessageSquare, Flame, Mail, ScanSearch,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TempoLogo } from '@/components/ui/tempo-logo';
@@ -17,6 +17,7 @@ const NAV_ITEMS = [
   { href: '/creators', label: 'Creators', icon: Users },
   { href: '/payments', label: 'Payments', icon: CreditCard },
   { href: '/discord-posts', label: 'Discord Posts', icon: MessageSquare },
+  { href: '/discord-scan', label: 'Discord Scan', icon: ScanSearch },
 ];
 
 const SETTINGS_ITEMS = [
