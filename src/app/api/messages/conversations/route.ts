@@ -125,7 +125,8 @@ export async function GET() {
 
     return NextResponse.json({ conversations });
   } catch (err: unknown) {
-    console.error('Failed to fetch conversations:', err);
-    return NextResponse.json({ conversations: [], error: 'Failed to fetch conversations' }, { status: 200 });
+    const errMsg = err instanceof Error ? err.message : String(err);
+    console.error('Failed to fetch conversations:', errMsg);
+    return NextResponse.json({ conversations: [], error: errMsg }, { status: 200 });
   }
 }
