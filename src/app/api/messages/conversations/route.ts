@@ -58,27 +58,49 @@ export async function GET() {
     const creatorIds = (creators ?? []).map(c => c.id);
     
     const videoStats = new Map<number, { total_videos: number; total_gmv: number }>();
-    if (creatorIds.length > 0) {
-      const { data: vp } = await supabase
-        .from('video_performance')
-        .select('creator_id, total_gmv')
-        .in('creator_id', creatorIds)
-        .gte('date', sevenDaysAgo);
-
-      for (const row of vp ?? []) {
-        const existing = videoStats.get(row.creator_id) || { total_videos: 0, total_gmv: 0 };
-        existing.total_videos++;
-        existing.total_gmv += Number(row.total_gmv) || 0;
-        videoStats.set(row.creator_id, existing);
-      }
+    // video_performance uses creator_name (not creator_id) and report_date (not date)
+    // Build a name→id lookup from managed_creators
+    const nameToId = new Map<string, number>();
+    for (const c of creators ?? []) {
+      if (c.tiktok_handle) nameToId.set(c.tiktok_handle.toLowerCase(), c.id);
+      nameToId.set(c.real_name.toLowerCase(), c.id);
     }
 
-    // 4. Fetch Discord avatars
+    // Fetch video performance for last 7 days (paginated)
+    let vpPage = 0;
+    const vpPageSize = 1000;
+    let hasMore = true;
+    while (hasMore) {
+      const { data: vp } = await supabase
+        .from('video_performance')
+        .select('creator_name, gmv, video_id')
+        .gte('report_date', sevenDaysAgo)
+        .range(vpPage * vpPageSize, (vpPage + 1) * vpPageSize - 1);
+
+      for (const row of vp ?? []) {
+        const cid = nameToId.get(row.creator_name?.toLowerCase());
+        if (!cid) continue;
+        const existing = videoStats.get(cid) || { total_videos: 0, total_gmv: 0 };
+        existing.total_videos++;
+        existing.total_gmv += Number(row.gmv) || 0;
+        videoStats.set(cid, existing);
+      }
+      hasMore = (vp?.length ?? 0) === vpPageSize;
+      vpPage++;
+    }
+
+    // 4. Fetch Discord avatars (limit to first 50 to avoid rate limits/timeouts)
     const discordIds = (creators ?? [])
       .map(c => c.discord_id)
-      .filter((id): id is string => !!id);
+      .filter((id): id is string => !!id)
+      .slice(0, 50);
 
-    const avatars = await fetchDiscordAvatars(discordIds);
+    let avatars: Record<string, string | null> = {};
+    try {
+      avatars = await fetchDiscordAvatars(discordIds);
+    } catch {
+      // Don't let avatar fetching break the whole endpoint
+    }
 
     // 5. Build conversation list
     const conversations = (creators ?? []).map(c => {
