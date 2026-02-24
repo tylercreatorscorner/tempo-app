@@ -127,29 +127,88 @@ export async function GET() {
       videoStats.set(cid, existing);
     }
 
-    // 4. Build conversation list (avatars already stored in managed_creators)
-    const conversations = (creators ?? []).map(c => {
-      const msg = msgByCreator.get(c.id);
-      const stats = videoStats.get(c.id) || { total_videos: 0, total_gmv: 0 };
-      const status = classifyCreator(stats.total_videos);
+    // 4. Deduplicate creators — same person can have rows across multiple brands
+    // Group by discord_id first (most reliable), fall back to real_name
+    const personMap = new Map<string, {
+      creator_ids: number[];
+      real_name: string;
+      discord_id: string | null;
+      discord_avatar: string | null;
+      brands: string[];
+      retainer: number;
+      tiktok_handle: string | null;
+    }>();
+
+    for (const c of creators ?? []) {
+      // Use discord_id as the unique person key, fall back to lowercase real_name
+      const personKey = c.discord_id || `name:${(c.real_name || '').toLowerCase()}`;
+      
+      const existing = personMap.get(personKey);
+      if (existing) {
+        existing.creator_ids.push(c.id);
+        if (c.brand && !existing.brands.includes(c.brand)) existing.brands.push(c.brand);
+        existing.retainer += Number(c.retainer) || 0;
+        if (!existing.discord_id && c.discord_id) existing.discord_id = c.discord_id;
+        if (!existing.discord_avatar && c.discord_avatar) existing.discord_avatar = c.discord_avatar;
+        if (!existing.tiktok_handle) existing.tiktok_handle = accountsByCreator.get(c.id) || null;
+      } else {
+        personMap.set(personKey, {
+          creator_ids: [c.id],
+          real_name: c.real_name || 'Unknown Creator',
+          discord_id: c.discord_id || null,
+          discord_avatar: c.discord_avatar || null,
+          brands: c.brand ? [c.brand] : [],
+          retainer: Number(c.retainer) || 0,
+          tiktok_handle: accountsByCreator.get(c.id) || null,
+        });
+      }
+    }
+
+    // 5. Build conversation list from deduplicated people
+    const conversations = [...personMap.values()].map(person => {
+      // Use the first creator_id as the primary (for messaging)
+      const primaryId = person.creator_ids[0];
+      
+      // Merge messages across all creator_ids
+      let bestMsg: typeof msgByCreator extends Map<number, infer V> ? V : never = undefined as any;
+      for (const cid of person.creator_ids) {
+        const msg = msgByCreator.get(cid);
+        if (msg && (!bestMsg || new Date(msg.last_message_at) > new Date(bestMsg.last_message_at))) {
+          bestMsg = msg;
+        }
+      }
+
+      // Merge video stats across all creator_ids
+      let totalVideos = 0;
+      let totalGmv = 0;
+      for (const cid of person.creator_ids) {
+        const stats = videoStats.get(cid);
+        if (stats) {
+          totalVideos += stats.total_videos;
+          totalGmv += stats.total_gmv;
+        }
+      }
+
+      const status = classifyCreator(totalVideos);
 
       return {
-        creator_id: c.id,
-        creator_name: c.real_name || 'Unknown Creator',
-        discord_user_id: c.discord_id || null,
-        tiktok_handle: accountsByCreator.get(c.id) || null,
-        brand: c.brand || null,
-        retainer_amount: c.retainer != null ? Number(c.retainer) : null,
-        last_message: msg?.last_message || null,
-        last_message_at: msg?.last_message_at || null,
-        direction: msg?.direction || null,
-        channel: msg?.channel || 'dm',
-        unread_count: msg?.unread_count || 0,
-        message_count: msg?.message_count || 0,
-        total_videos_7d: stats.total_videos,
-        total_gmv_7d: stats.total_gmv,
+        creator_id: primaryId,
+        creator_name: person.real_name,
+        discord_user_id: person.discord_id,
+        tiktok_handle: person.tiktok_handle,
+        brand: person.brands.length === 1 ? person.brands[0] : person.brands.join(','),
+        brands: person.brands,
+        retainer_amount: person.retainer,
+        last_message: bestMsg?.last_message || null,
+        last_message_at: bestMsg?.last_message_at || null,
+        direction: bestMsg?.direction || null,
+        channel: bestMsg?.channel || 'dm',
+        unread_count: bestMsg?.unread_count || 0,
+        message_count: bestMsg?.message_count || 0,
+        total_videos_7d: totalVideos,
+        total_gmv_7d: totalGmv,
         status,
-        discord_avatar: c.discord_avatar || null,
+        discord_avatar: person.discord_avatar,
       };
     });
 

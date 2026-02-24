@@ -28,6 +28,7 @@ export interface Conversation {
   discord_user_id: string | null;
   tiktok_handle: string | null;
   brand: string | null;
+  brands?: string[];
   retainer_amount: number | null;
   last_message: string | null;
   last_message_at: string | null;
@@ -117,7 +118,7 @@ export function ConversationList({ conversations, activeKey, onSelect }: Props) 
 
     // Brand
     if (brandFilter) {
-      items = items.filter((c) => c.brand === brandFilter);
+      items = items.filter((c) => c.brands?.includes(brandFilter) || c.brand === brandFilter);
     }
 
     // Status
@@ -477,14 +478,24 @@ export function ConversationList({ conversations, activeKey, onSelect }: Props) 
                         {conv.creator_name}
                       </span>
                       <div className="flex items-center gap-1.5">
-                        {conv.brand && (
+                        {conv.brands && conv.brands.length > 0 ? (
+                          conv.brands.map(b => (
+                            <span
+                              key={b}
+                              className="text-[10px] font-medium"
+                              style={{ color: getBrandColor(b) }}
+                            >
+                              {BRAND_DISPLAY_NAMES[b] || b}
+                            </span>
+                          ))
+                        ) : conv.brand ? (
                           <span
                             className="text-[10px] font-medium"
                             style={{ color: getBrandColor(conv.brand) }}
                           >
                             {BRAND_DISPLAY_NAMES[conv.brand] || conv.brand}
                           </span>
-                        )}
+                        ) : null}
                         {sortBy === 'gmv_desc' && conv.total_gmv_7d > 0 && (
                           <span className="text-[10px] text-gray-400">
                             ${Math.round(conv.total_gmv_7d).toLocaleString()} GMV
