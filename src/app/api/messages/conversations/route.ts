@@ -9,10 +9,28 @@ export async function GET() {
     // 1. Fetch ALL managed creators
     const { data: creators, error: creatorsErr } = await supabase
       .from('managed_creators')
-      .select('id, real_name, brand, discord_id, account_1, retainer, discord_avatar')
+      .select('id, real_name, brand, discord_id, retainer, discord_avatar')
       .order('real_name');
 
     if (creatorsErr) throw creatorsErr;
+
+    // 1b. Fetch creator_accounts for tiktok_username → creator_id mapping
+    const { data: accounts } = await supabase
+      .from('creator_accounts')
+      .select('creator_id, tiktok_username');
+
+    const accountsByCreator = new Map<number, string>();
+    const nameToId = new Map<string, number>();
+    for (const a of accounts ?? []) {
+      if (!accountsByCreator.has(a.creator_id)) {
+        accountsByCreator.set(a.creator_id, a.tiktok_username);
+      }
+      nameToId.set(a.tiktok_username.toLowerCase(), a.creator_id);
+    }
+    // Also map by real_name as fallback
+    for (const c of creators ?? []) {
+      nameToId.set(c.real_name.toLowerCase(), c.id);
+    }
 
     // 2. Fetch all messages grouped by creator
     const { data: messages, error: msgErr } = await supabase
@@ -54,16 +72,7 @@ export async function GET() {
 
     // 3. Fetch video stats (last 7 days)
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-    const creatorIds = (creators ?? []).map(c => c.id);
-    
     const videoStats = new Map<number, { total_videos: number; total_gmv: number }>();
-    // video_performance uses creator_name (not creator_id) and report_date (not date)
-    // Build a name→id lookup from managed_creators using account names
-    const nameToId = new Map<string, number>();
-    for (const c of creators ?? []) {
-      if (c.account_1) nameToId.set(c.account_1.toLowerCase(), c.id);
-      nameToId.set(c.real_name.toLowerCase(), c.id);
-    }
 
     // Fetch video performance for last 7 days (paginated)
     let vpPage = 0;
@@ -98,7 +107,7 @@ export async function GET() {
         creator_id: c.id,
         creator_name: c.real_name,
         discord_user_id: c.discord_id || null,
-        tiktok_handle: c.account_1 || null,
+        tiktok_handle: accountsByCreator.get(c.id) || null,
         brand: c.brand || null,
         retainer_amount: c.retainer != null ? Number(c.retainer) : null,
         last_message: msg?.last_message || null,
