@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
+import { ACTIVE_BRANDS } from '@/lib/utils/constants';
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,6 +15,8 @@ export async function GET(request: NextRequest) {
 
     if (brand !== 'all') {
       query = query.eq('brand', brand);
+    } else {
+      query = query.in('brand', [...ACTIVE_BRANDS]);
     }
 
     const { data: creators, error } = await query.order('creator_name');

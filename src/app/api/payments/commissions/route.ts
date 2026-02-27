@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
+import { ACTIVE_BRANDS } from '@/lib/utils/constants';
 
 export async function GET(request: NextRequest) {
   try {
@@ -10,6 +11,8 @@ export async function GET(request: NextRequest) {
     let settingsQuery = supabase.from('brand_settings').select('brand, commission_rate');
     if (brand !== 'all') {
       settingsQuery = settingsQuery.eq('brand', brand);
+    } else {
+      settingsQuery = settingsQuery.in('brand', [...ACTIVE_BRANDS]);
     }
     const { data: brandSettings } = await settingsQuery;
 

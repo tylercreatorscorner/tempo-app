@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
+import { ACTIVE_BRANDS } from '@/lib/utils/constants';
 
 export async function GET() {
   try {
@@ -8,6 +9,7 @@ export async function GET() {
     const { data: invoices, error } = await supabase
       .from('invoices')
       .select('*')
+      .in('brand', [...ACTIVE_BRANDS])
       .order('generated_at', { ascending: false });
 
     if (error) throw error;

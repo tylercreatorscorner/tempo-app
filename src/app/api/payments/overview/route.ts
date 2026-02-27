@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
+import { ACTIVE_BRANDS } from '@/lib/utils/constants';
 
 export async function GET() {
   try {
@@ -49,7 +50,8 @@ export async function GET() {
     // Spend by brand (retainers from managed_creators + commissions from creator_payments)
     const { data: brandRetainers } = await supabase
       .from('managed_creators')
-      .select('brand, retainer');
+      .select('brand, retainer')
+      .in('brand', [...ACTIVE_BRANDS]);
 
     const brandSpend: Record<string, number> = {};
     for (const r of brandRetainers || []) {
