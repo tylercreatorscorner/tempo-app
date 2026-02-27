@@ -1,12 +1,12 @@
 import { createAdminClient } from '@/lib/supabase/server';
-import { ACTIVE_BRANDS } from '@/lib/utils/constants';
+import { ACTIVE_BRANDS, brandSlugToUuid, brandUuidToSlug } from '@/lib/utils/constants';
 
 // --- Types ---
 
 export interface CreatorProfile {
-  id: number;
+  id: string; // UUID
   real_name: string;
-  brand: string;
+  brand: string; // primary brand slug (from first creator_brands row)
   role: string | null;
   status: string | null;
   email: string | null;
@@ -16,16 +16,16 @@ export interface CreatorProfile {
   monthly_post_requirement: number | null;
   retainer_start_date: string | null;
   accounts: CreatorAccount[];
-  brands: string[]; // all brands (performance + account registrations)
-  brandsWithData: string[]; // only brands with actual performance data
+  brands: string[]; // all brands (performance + account registrations) — slugs
+  brandsWithData: string[]; // only brands with actual performance data — slugs
 }
 
 export interface CreatorAccount {
   tiktok_username: string;
-  brand: string;
+  brand: string; // slug
   is_primary: boolean;
   verified: boolean;
-  brands: string[]; // actual brands from performance data
+  brands: string[]; // actual brands from performance data — slugs
 }
 
 export interface CreatorSummaryData {
@@ -83,40 +83,41 @@ export interface CreatorLifetimeStats {
 // --- Query Functions ---
 
 /**
- * Get distinct brands from creator_performance for given handles.
+ * Get distinct brands (as slugs) from daily_creator_stats for given handles.
  */
 async function getBrandsForHandles(handles: string[]): Promise<string[]> {
   if (handles.length === 0) return [];
   const supabase = await createAdminClient();
   const { data } = await supabase
-    .from('creator_performance')
-    .select('brand')
-    .in('creator_name', handles);
+    .from('daily_creator_stats')
+    .select('brand_id')
+    .in('tiktok_username', handles);
   const brands = new Set<string>();
   for (const r of data ?? []) {
-    if (r.brand) brands.add(r.brand as string);
+    const slug = brandUuidToSlug(r.brand_id as string);
+    if (slug) brands.add(slug);
   }
   return Array.from(brands);
 }
 
 /**
- * Get distinct brands per handle from creator_performance.
+ * Get distinct brands per handle from daily_creator_stats.
  */
 async function getBrandsByHandle(handles: string[]): Promise<Map<string, string[]>> {
   if (handles.length === 0) return new Map();
   const supabase = await createAdminClient();
   const { data } = await supabase
-    .from('creator_performance')
-    .select('creator_name, brand')
-    .in('creator_name', handles);
+    .from('daily_creator_stats')
+    .select('tiktok_username, brand_id')
+    .in('tiktok_username', handles);
 
   const map = new Map<string, Set<string>>();
   for (const r of data ?? []) {
-    const handle = r.creator_name as string;
-    const brand = r.brand as string;
-    if (!handle || !brand) continue;
+    const handle = r.tiktok_username as string;
+    const slug = brandUuidToSlug(r.brand_id as string);
+    if (!handle || !slug) continue;
     if (!map.has(handle)) map.set(handle, new Set());
-    map.get(handle)!.add(brand);
+    map.get(handle)!.add(slug);
   }
 
   const result = new Map<string, string[]>();
@@ -127,27 +128,40 @@ async function getBrandsByHandle(handles: string[]): Promise<Map<string, string[
 }
 
 /**
- * Fetch a creator profile by managed_creators ID, including all linked accounts.
+ * Fetch a creator profile by creators_v2 ID (UUID), including all linked accounts.
  */
-export async function getCreatorProfile(creatorId: number): Promise<CreatorProfile | null> {
+export async function getCreatorProfile(creatorId: string | number): Promise<CreatorProfile | null> {
   const supabase = await createAdminClient();
 
+  // For backwards compat, accept number but treat as string
+  const id = String(creatorId);
+
+  // Get creator from creators_v2
   const { data: creator, error } = await supabase
-    .from('managed_creators')
+    .from('creators_v2')
     .select('*')
-    .eq('id', creatorId)
+    .eq('id', id)
     .single();
 
   if (error || !creator) return null;
 
+  // Get brand-specific data from creator_brands
+  const { data: brandRows } = await supabase
+    .from('creator_brands')
+    .select('*')
+    .eq('creator_id', id);
+
+  const primaryBrand = brandRows?.[0];
+
+  // Get accounts from tiktok_accounts
   const { data: accounts } = await supabase
-    .from('creator_accounts')
-    .select('tiktok_username, brand, is_primary, verified')
-    .eq('creator_id', creatorId);
+    .from('tiktok_accounts')
+    .select('tiktok_username, brand_id, is_primary, verified')
+    .eq('creator_id', id);
 
   const accountList = (accounts ?? []).map((a: Record<string, unknown>) => ({
     tiktok_username: a.tiktok_username as string,
-    brand: a.brand as string,
+    brand: brandUuidToSlug(a.brand_id as string) ?? (a.brand_id as string),
     is_primary: !!a.is_primary,
     verified: !!a.verified,
     brands: [] as string[],
@@ -167,28 +181,27 @@ export async function getCreatorProfile(creatorId: number): Promise<CreatorProfi
     for (const b of brands) allBrands.add(b);
   }
 
-  // Also include brands from creator_accounts (registered but maybe no perf data yet)
+  // Also include brands from tiktok_accounts (registered but maybe no perf data yet)
   const accountBrands = new Set<string>();
   for (const a of accountList) {
     if (a.brand) accountBrands.add(a.brand);
   }
 
-  // perfBrands = brands with actual performance data, accountOnlyBrands = registered only
   const perfBrands = new Set(allBrands);
   const combinedBrands = new Set([...allBrands, ...accountBrands]);
 
   return {
     id: creator.id,
-    real_name: creator.real_name ?? creator.brand ?? 'Unknown',
-    brand: creator.brand,
-    role: creator.role ?? null,
-    status: creator.status ?? null,
+    real_name: creator.real_name ?? 'Unknown',
+    brand: primaryBrand ? (brandUuidToSlug(primaryBrand.brand_id) ?? primaryBrand.brand_id) : '',
+    role: primaryBrand?.role ?? null,
+    status: primaryBrand?.status ?? null,
     email: creator.email ?? null,
     phone: creator.phone ?? null,
     notes: creator.notes ?? null,
-    retainer: creator.retainer ?? null,
-    monthly_post_requirement: creator.monthly_post_requirement ?? null,
-    retainer_start_date: creator.retainer_start_date ?? null,
+    retainer: primaryBrand?.retainer ?? null,
+    monthly_post_requirement: primaryBrand?.monthly_post_requirement ?? null,
+    retainer_start_date: primaryBrand?.retainer_start_date ?? null,
     accounts: accountList,
     brands: Array.from(combinedBrands),
     brandsWithData: Array.from(perfBrands),
@@ -196,26 +209,26 @@ export async function getCreatorProfile(creatorId: number): Promise<CreatorProfi
 }
 
 /**
- * Look up creator_id from a TikTok username handle.
+ * Look up creator_id (UUID) from a TikTok username handle.
  */
-export async function getCreatorIdByHandle(handle: string): Promise<number | null> {
+export async function getCreatorIdByHandle(handle: string): Promise<string | null> {
   const supabase = await createAdminClient();
   const { data, error } = await supabase
-    .from('creator_accounts')
+    .from('tiktok_accounts')
     .select('creator_id')
     .eq('tiktok_username', handle)
     .limit(1)
     .single();
 
   if (error || !data) return null;
-  return data.creator_id as number;
+  return data.creator_id as string;
 }
 
 /** Helper: get all TikTok usernames for a creator */
-async function getHandles(creatorId: number): Promise<string[]> {
+async function getHandles(creatorId: string): Promise<string[]> {
   const supabase = await createAdminClient();
   const { data } = await supabase
-    .from('creator_accounts')
+    .from('tiktok_accounts')
     .select('tiktok_username')
     .eq('creator_id', creatorId);
   return (data ?? []).map((r: Record<string, unknown>) => r.tiktok_username as string).filter(Boolean);
@@ -232,7 +245,7 @@ function getPriorPeriod(startDate: string, endDate: string): { prevStart: string
   return { prevStart: fmt(prevStart), prevEnd: fmt(prevEnd) };
 }
 
-/** Aggregate performance from creator_performance for given handles and date range */
+/** Aggregate performance from daily_creator_stats for given handles and date range */
 async function aggregatePerformance(
   handles: string[],
   startDate: string,
@@ -243,13 +256,15 @@ async function aggregatePerformance(
 
   const supabase = await createAdminClient();
   let query = supabase
-    .from('creator_performance')
+    .from('daily_creator_stats')
     .select('gmv, orders, items_sold, videos, est_commission')
-    .in('creator_name', handles)
+    .in('tiktok_username', handles)
     .gte('report_date', startDate)
-    .lte('report_date', endDate)
-    .eq('period_type', 'daily');
-  if (brand) query = query.eq('brand', brand);
+    .lte('report_date', endDate);
+  if (brand) {
+    const brandUuid = brandSlugToUuid(brand);
+    if (brandUuid) query = query.eq('brand_id', brandUuid);
+  }
   const { data } = await query;
 
   const rows = data ?? [];
@@ -266,12 +281,12 @@ async function aggregatePerformance(
  * Get aggregated summary for a creator across all accounts, with trend vs prior period.
  */
 export async function getCreatorSummary(
-  creatorId: number,
+  creatorId: string | number,
   startDate: string,
   endDate: string,
   brand?: string
 ): Promise<CreatorSummaryData> {
-  const handles = await getHandles(creatorId);
+  const handles = await getHandles(String(creatorId));
   const { prevStart, prevEnd } = getPriorPeriod(startDate, endDate);
 
   const [current, previous] = await Promise.all([
@@ -294,37 +309,38 @@ export async function getCreatorSummary(
 }
 
 /**
- * Per-account performance breakdown. Brands come from creator_performance, not creator_accounts.
+ * Per-account performance breakdown.
  */
 export async function getCreatorAccountBreakdown(
-  creatorId: number,
+  creatorId: string | number,
   startDate: string,
   endDate: string,
   brand?: string
 ): Promise<AccountBreakdownRow[]> {
   const supabase = await createAdminClient();
+  const id = String(creatorId);
 
-  // Always get ALL accounts, then filter by performance data for the brand
   const { data: accounts } = await supabase
-    .from('creator_accounts')
-    .select('tiktok_username, brand')
-    .eq('creator_id', creatorId);
+    .from('tiktok_accounts')
+    .select('tiktok_username, brand_id')
+    .eq('creator_id', id);
 
   if (!accounts || accounts.length === 0) return [];
 
   const handles = accounts.map((a: Record<string, unknown>) => a.tiktok_username as string).filter(Boolean);
 
   let perfQuery = supabase
-    .from('creator_performance')
-    .select('creator_name, brand, gmv, orders, items_sold, videos')
-    .in('creator_name', handles)
+    .from('daily_creator_stats')
+    .select('tiktok_username, brand_id, gmv, orders, items_sold, videos')
+    .in('tiktok_username', handles)
     .gte('report_date', startDate)
-    .lte('report_date', endDate)
-    .eq('period_type', 'daily');
-  if (brand) perfQuery = perfQuery.eq('brand', brand);
+    .lte('report_date', endDate);
+  if (brand) {
+    const brandUuid = brandSlugToUuid(brand);
+    if (brandUuid) perfQuery = perfQuery.eq('brand_id', brandUuid);
+  }
   const { data: perf } = await perfQuery;
 
-  // Group by handle, collect brands from perf data
   const map = new Map<string, AccountBreakdownRow>();
   for (const a of accounts) {
     const handle = a.tiktok_username as string;
@@ -338,14 +354,15 @@ export async function getCreatorAccountBreakdown(
   }
 
   for (const r of perf ?? []) {
-    const handle = r.creator_name as string;
+    const handle = r.tiktok_username as string;
     const row = map.get(handle);
     if (row) {
       row.gmv += Number(r.gmv) || 0;
       row.orders += Number(r.orders) || 0;
       row.items_sold += Number(r.items_sold) || 0;
       row.videos += Number(r.videos) || 0;
-      if (r.brand) brandSets.get(handle)?.add(r.brand as string);
+      const slug = brandUuidToSlug(r.brand_id as string);
+      if (slug) brandSets.get(handle)?.add(slug);
     }
   }
 
@@ -361,26 +378,25 @@ export async function getCreatorAccountBreakdown(
  * Per-brand performance breakdown.
  */
 export async function getCreatorBrandBreakdown(
-  creatorId: number,
+  creatorId: string | number,
   startDate: string,
   endDate: string
 ): Promise<BrandBreakdownRow[]> {
-  const handles = await getHandles(creatorId);
+  const handles = await getHandles(String(creatorId));
   if (handles.length === 0) return [];
 
   const supabase = await createAdminClient();
   const { data: perf } = await supabase
-    .from('creator_performance')
-    .select('brand, gmv, orders, items_sold, videos, est_commission')
-    .in('creator_name', handles)
+    .from('daily_creator_stats')
+    .select('brand_id, gmv, orders, items_sold, videos, est_commission')
+    .in('tiktok_username', handles)
     .gte('report_date', startDate)
-    .lte('report_date', endDate)
-    .eq('period_type', 'daily');
+    .lte('report_date', endDate);
 
   const map = new Map<string, BrandBreakdownRow>();
   for (const r of perf ?? []) {
-    const brand = r.brand as string;
-    const existing = map.get(brand);
+    const slug = brandUuidToSlug(r.brand_id as string) ?? (r.brand_id as string);
+    const existing = map.get(slug);
     if (existing) {
       existing.gmv += Number(r.gmv) || 0;
       existing.orders += Number(r.orders) || 0;
@@ -388,8 +404,8 @@ export async function getCreatorBrandBreakdown(
       existing.videos += Number(r.videos) || 0;
       existing.commission += Number(r.est_commission) || 0;
     } else {
-      map.set(brand, {
-        brand,
+      map.set(slug, {
+        brand: slug,
         gmv: Number(r.gmv) || 0,
         orders: Number(r.orders) || 0,
         items_sold: Number(r.items_sold) || 0,
@@ -404,31 +420,32 @@ export async function getCreatorBrandBreakdown(
 
 /**
  * Top videos across all of a creator's accounts, grouped by video_id.
- * Bug fix: GROUP BY video_id, aggregate across dates.
  */
 export async function getCreatorVideos(
-  creatorId: number,
+  creatorId: string | number,
   startDate: string,
   endDate: string,
   limit = 20,
   brand?: string
 ): Promise<CreatorVideo[]> {
-  const handles = await getHandles(creatorId);
+  const handles = await getHandles(String(creatorId));
   if (handles.length === 0) return [];
 
   const supabase = await createAdminClient();
   let query = supabase
-    .from('video_performance')
-    .select('video_id, video_title, creator_name, brand, product_name, gmv, orders, items_sold, report_date')
-    .in('creator_name', handles)
+    .from('daily_video_product_stats')
+    .select('video_id, video_title, tiktok_username, brand_id, product_name, gmv, orders, items_sold, report_date')
+    .in('tiktok_username', handles)
     .gte('report_date', startDate)
     .lte('report_date', endDate);
-  if (brand) query = query.eq('brand', brand);
+  if (brand) {
+    const brandUuid = brandSlugToUuid(brand);
+    if (brandUuid) query = query.eq('brand_id', brandUuid);
+  }
   const { data } = await query;
 
   if (!data || data.length === 0) return [];
 
-  // Group by video_id
   const map = new Map<string, {
     video_id: string;
     video_title: string;
@@ -454,8 +471,8 @@ export async function getCreatorVideos(
       map.set(vid, {
         video_id: vid,
         video_title: (r.video_title as string) || 'Untitled',
-        creator_name: r.creator_name as string,
-        brand: r.brand as string,
+        creator_name: r.tiktok_username as string,
+        brand: brandUuidToSlug(r.brand_id as string) ?? (r.brand_id as string),
         product_name: (r.product_name as string) || '',
         gmv: Number(r.gmv) || 0,
         orders: Number(r.orders) || 0,
@@ -483,15 +500,9 @@ export async function getCreatorVideos(
 
 /**
  * Get posts this month for retainer tracking.
- * Sums the 'videos' column from creator_performance for current month.
  */
-/**
- * Get posts this month. When brand is provided, only count posts for accounts
- * registered under that brand.
- */
-export async function getPostsThisMonth(creatorId: number, brand?: string): Promise<number> {
-  // Always get ALL handles for the creator, then filter by brand in the performance query
-  const handles = await getHandles(creatorId);
+export async function getPostsThisMonth(creatorId: string | number, brand?: string): Promise<number> {
+  const handles = await getHandles(String(creatorId));
   if (handles.length === 0) return 0;
 
   const now = new Date();
@@ -500,13 +511,15 @@ export async function getPostsThisMonth(creatorId: number, brand?: string): Prom
 
   const supabase = await createAdminClient();
   let query = supabase
-    .from('creator_performance')
+    .from('daily_creator_stats')
     .select('videos')
-    .in('creator_name', handles)
+    .in('tiktok_username', handles)
     .gte('report_date', startOfMonth)
-    .lte('report_date', endOfMonth)
-    .eq('period_type', 'daily');
-  if (brand) query = query.eq('brand', brand);
+    .lte('report_date', endOfMonth);
+  if (brand) {
+    const brandUuid = brandSlugToUuid(brand);
+    if (brandUuid) query = query.eq('brand_id', brandUuid);
+  }
   const { data } = await query;
 
   return (data ?? []).reduce((s: number, r: Record<string, unknown>) => s + (Number(r.videos) || 0), 0);
@@ -515,18 +528,17 @@ export async function getPostsThisMonth(creatorId: number, brand?: string): Prom
 /**
  * Get lifetime stats for a creator (all-time, no date filter).
  */
-export async function getCreatorLifetimeStats(creatorId: number): Promise<CreatorLifetimeStats> {
-  const handles = await getHandles(creatorId);
+export async function getCreatorLifetimeStats(creatorId: string | number): Promise<CreatorLifetimeStats> {
+  const handles = await getHandles(String(creatorId));
   if (handles.length === 0) {
     return { total_gmv: 0, total_orders: 0, total_videos: 0, total_commission: 0, first_active_date: null, months_active: 0 };
   }
 
   const supabase = await createAdminClient();
   const { data } = await supabase
-    .from('creator_performance')
+    .from('daily_creator_stats')
     .select('gmv, orders, videos, est_commission, report_date')
-    .in('creator_name', handles)
-    .eq('period_type', 'daily');
+    .in('tiktok_username', handles);
 
   const rows = data ?? [];
   let minDate: string | null = null;

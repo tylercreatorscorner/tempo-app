@@ -2,6 +2,7 @@ import { SlashCommandBuilder, type ChatInputCommandInteraction } from 'discord.j
 import { errorEmbed, tempoEmbed } from '../embeds';
 import { getGuildConfig, getBrandForGuild } from '../config';
 import { getSupabase, daysAgo } from '../supabase';
+import { brandSlugToUuid } from '@/lib/utils/constants';
 import type { TempoCommand } from './index';
 
 const command: TempoCommand = {
@@ -20,21 +21,22 @@ const command: TempoCommand = {
 
     await interaction.deferReply();
     const supabase = getSupabase();
+    const brandUuid = brandSlugToUuid(brand);
 
     try {
       // Get videos from last 3 days
       const { data: recent, error: e1 } = await supabase
-        .from('video_performance')
-        .select('video_id, video_title, creator_name, gmv, orders, video_link')
-        .eq('brand', brand)
+        .from('daily_video_product_stats')
+        .select('video_id, video_title, tiktok_username, gmv, orders, video_url')
+        .eq('brand_id', brandUuid)
         .gte('report_date', daysAgo(3));
       if (e1) throw e1;
 
       // Get videos from prior 3 days (days 4-6 ago)
       const { data: prior, error: e2 } = await supabase
-        .from('video_performance')
+        .from('daily_video_product_stats')
         .select('video_id, gmv')
-        .eq('brand', brand)
+        .eq('brand_id', brandUuid)
         .gte('report_date', daysAgo(6))
         .lt('report_date', daysAgo(3));
       if (e2) throw e2;
@@ -42,7 +44,7 @@ const command: TempoCommand = {
       // Aggregate recent by video_id
       const recentMap = new Map<string, { title: string; creator: string; gmv: number; link?: string }>();
       for (const r of recent ?? []) {
-        const cur = recentMap.get(r.video_id) ?? { title: r.video_title || 'Untitled', creator: r.creator_name, gmv: 0, link: r.video_link };
+        const cur = recentMap.get(r.video_id) ?? { title: r.video_title || 'Untitled', creator: r.tiktok_username, gmv: 0, link: r.video_url };
         cur.gmv += r.gmv || 0;
         recentMap.set(r.video_id, cur);
       }

@@ -6,7 +6,7 @@ import { Check, X, Search, Users, Zap, HelpCircle, RefreshCw, ChevronDown } from
 interface Creator {
   id: number;
   real_name: string | null;
-  discord_name: string | null;
+  discord_username: string | null;
   brand: string | null;
 }
 
@@ -25,7 +25,7 @@ interface QueueEntry {
   reviewed_by: string | null;
   reviewed_at: string | null;
   scanned_at: string;
-  managed_creators: Creator | null;
+  creator: Creator | null;
 }
 
 interface Stats {
@@ -81,7 +81,7 @@ export default function DiscordScanPage() {
   const fetchCreators = useCallback(async () => {
     try {
       const res = await fetch('/api/discord/scan-queue?status=all&_creators=1');
-      // We'll just use managed_creators from existing entries for now
+      // We'll just use creator from existing entries for now
     } catch {}
   }, []);
 
@@ -139,8 +139,8 @@ export default function DiscordScanPage() {
 
   // Get unique creators from entries for reassignment dropdown
   const creatorsFromEntries = entries
-    .filter(e => e.managed_creators)
-    .map(e => e.managed_creators!)
+    .filter(e => e.creator)
+    .map(e => e.creator!)
     .filter((c, i, arr) => arr.findIndex(x => x.id === c.id) === i);
 
   return (
@@ -254,12 +254,12 @@ export default function DiscordScanPage() {
 
               {/* Match info */}
               <div className="flex items-center gap-3 flex-shrink-0">
-                {entry.managed_creators ? (
+                {entry.creator ? (
                   <div className="text-right">
-                    <p className="text-sm font-medium text-gray-900">{entry.managed_creators.real_name}</p>
-                    {entry.managed_creators.brand && (
-                      <span className={`inline-block text-xs px-2 py-0.5 rounded-full font-medium ${BRAND_COLORS[entry.managed_creators.brand] ?? 'bg-gray-100 text-gray-600'}`}>
-                        {entry.managed_creators.brand}
+                    <p className="text-sm font-medium text-gray-900">{entry.creator.real_name}</p>
+                    {entry.creator.brand && (
+                      <span className={`inline-block text-xs px-2 py-0.5 rounded-full font-medium ${BRAND_COLORS[entry.creator.brand] ?? 'bg-gray-100 text-gray-600'}`}>
+                        {entry.creator.brand}
                       </span>
                     )}
                   </div>

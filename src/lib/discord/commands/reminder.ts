@@ -48,21 +48,18 @@ const data = new SlashCommandBuilder()
 function parseWhen(when: string): Date | null {
   const now = new Date();
 
-  // Hours: 1h, 4h, 24h
   const hoursMatch = when.match(/^(\d+)h$/i);
   if (hoursMatch) {
     const h = parseInt(hoursMatch[1]);
     return new Date(now.getTime() + h * 60 * 60 * 1000);
   }
 
-  // Minutes: 30m, 15m
   const minMatch = when.match(/^(\d+)m$/i);
   if (minMatch) {
     const m = parseInt(minMatch[1]);
     return new Date(now.getTime() + m * 60 * 1000);
   }
 
-  // tomorrow
   if (when.toLowerCase() === 'tomorrow') {
     const d = new Date(now);
     d.setDate(d.getDate() + 1);
@@ -70,7 +67,6 @@ function parseWhen(when: string): Date | null {
     return d;
   }
 
-  // Day of week
   const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
   const dayIdx = days.indexOf(when.toLowerCase());
   if (dayIdx >= 0) {
@@ -81,7 +77,6 @@ function parseWhen(when: string): Date | null {
     return d;
   }
 
-  // Custom datetime: YYYY-MM-DD HH:MM
   const parsed = new Date(when);
   if (!isNaN(parsed.getTime())) return parsed;
 
@@ -118,26 +113,25 @@ async function handleCreate(
     return;
   }
 
-  // Look up creator
+  // Look up creator in creators_v2
   const { data: creators } = await supabase
-    .from('managed_creators')
-    .select('id, creator_name, discord_user_id, tenant_id')
-    .ilike('creator_name', `%${creatorName}%`)
+    .from('creators_v2')
+    .select('id, real_name, discord_id')
+    .ilike('real_name', `%${creatorName}%`)
     .limit(1);
 
   const creator = creators?.[0];
   if (!creator) {
     await interaction.editReply({
-      embeds: [errorEmbed(`Creator "${creatorName}" not found in managed_creators.`)],
+      embeds: [errorEmbed(`Creator "${creatorName}" not found in creators_v2.`)],
     });
     return;
   }
 
   // Store reminder
   const { error } = await supabase.from('reminders').insert({
-    tenant_id: creator.tenant_id,
     target_type: 'creator',
-    target_id: creator.discord_user_id ?? String(creator.id),
+    target_id: creator.discord_id ?? String(creator.id),
     content: text,
     scheduled_for: scheduledFor.toISOString(),
     created_by: interaction.user.tag,
@@ -151,7 +145,7 @@ async function handleCreate(
   const embed = tempoEmbed(guildConfig)
     .setTitle('⏰ Reminder Scheduled')
     .addFields(
-      { name: 'Creator', value: `@${creator.creator_name}`, inline: true },
+      { name: 'Creator', value: `@${creator.real_name}`, inline: true },
       { name: 'When', value: `<t:${Math.floor(scheduledFor.getTime() / 1000)}:F>`, inline: true },
       { name: 'Message', value: text.slice(0, 1024) },
     );
@@ -168,32 +162,44 @@ async function handlePostingReminder(
   const days = interaction.options.getInteger('days') ?? 7;
   const supabase = getSupabase();
   const cutoff = daysAgo(days);
-  const brand = guildConfig?.brandSlug;
 
   // Find creators who haven't posted recently
-  // Get all managed creators for this brand
   const { data: allCreators } = await supabase
-    .from('managed_creators')
-    .select('id, creator_name, discord_user_id, tenant_id');
+    .from('creators_v2')
+    .select('id, real_name, discord_id');
 
   if (!allCreators?.length) {
     await interaction.editReply({ embeds: [errorEmbed('No managed creators found.')] });
     return;
   }
 
-  // Get creators with recent activity
+  // Get creators with recent activity via tiktok_accounts → daily_creator_stats
   const { data: activeData } = await supabase
-    .from('creator_performance')
-    .select('creator_name')
+    .from('daily_creator_stats')
+    .select('tiktok_username')
     .gte('report_date', cutoff)
-    .gt('videos_published', 0);
+    .gt('videos', 0);
 
-  const activeNames = new Set((activeData ?? []).map((r) => r.creator_name?.toLowerCase()));
+  const activeNames = new Set((activeData ?? []).map((r) => r.tiktok_username?.toLowerCase()));
+
+  // Get tiktok usernames for all creators
+  const { data: allAccounts } = await supabase
+    .from('tiktok_accounts')
+    .select('creator_id, tiktok_username');
+
+  const creatorToUsernames = new Map<string, string[]>();
+  for (const a of allAccounts ?? []) {
+    const list = creatorToUsernames.get(a.creator_id) ?? [];
+    list.push(a.tiktok_username);
+    creatorToUsernames.set(a.creator_id, list);
+  }
 
   // Filter to inactive creators with Discord IDs
-  const inactive = allCreators.filter(
-    (c) => c.discord_user_id && !activeNames.has(c.creator_name?.toLowerCase()),
-  );
+  const inactive = allCreators.filter((c) => {
+    if (!c.discord_id) return false;
+    const usernames = creatorToUsernames.get(c.id) ?? [];
+    return !usernames.some(u => activeNames.has(u.toLowerCase()));
+  });
 
   if (inactive.length === 0) {
     const embed = tempoEmbed(guildConfig)
@@ -212,10 +218,10 @@ async function handlePostingReminder(
     const msg = `Hey! 👋 You haven't posted for ${guildConfig?.displayName ?? 'the brand'} in ${days}+ days. Need any help or have questions? We're here for you!`;
     const result = await sendTrackedDM(
       interaction.client,
-      creator.discord_user_id!,
+      creator.discord_id!,
       msg,
       {
-        tenantId: creator.tenant_id,
+        tenantId: '',
         creatorId: creator.id,
         sentBy: 'system',
         channel: 'dm',
@@ -224,17 +230,16 @@ async function handlePostingReminder(
 
     if (result.success) {
       sent++;
-      reminded.push(creator.creator_name);
+      reminded.push(creator.real_name);
     } else {
       failed++;
     }
 
-    // Rate limit
     await new Promise((r) => setTimeout(r, 1000));
   }
 
   const embed = tempoEmbed(guildConfig)
-    .setTitle('📬 Posting Reminders Sent')
+    .setTitle('📣 Posting Reminders Sent')
     .addFields(
       { name: 'Inactive Days', value: String(days), inline: true },
       { name: '✅ Sent', value: String(sent), inline: true },

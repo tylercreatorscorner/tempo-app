@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import { classifyCreator } from '@/lib/data/creator-status';
 import { STATUS_CONFIG } from '@/lib/data/creator-status';
+import { brandUuidToSlug } from '@/lib/utils/constants';
 
 export async function GET(
   _request: NextRequest,
@@ -11,20 +12,30 @@ export async function GET(
     const { creatorId } = await params;
     const supabase = await createAdminClient();
 
-    // Get creator info
+    // Get creator info from creators_v2
     const { data: creator, error } = await supabase
-      .from('managed_creators')
-      .select('id, real_name, brand, discord_id, retainer, discord_avatar')
-      .eq('id', parseInt(creatorId))
+      .from('creators_v2')
+      .select('id, real_name, discord_id, discord_avatar')
+      .eq('id', creatorId)
       .single();
 
     if (error || !creator) {
       return NextResponse.json({ creator: null });
     }
 
-    // Get TikTok handle from creator_accounts
+    // Get brand-specific data
+    const { data: brandRow } = await supabase
+      .from('creator_brands')
+      .select('brand_id, retainer')
+      .eq('creator_id', creator.id)
+      .limit(1)
+      .single();
+
+    const brandSlug = brandRow ? (brandUuidToSlug(brandRow.brand_id) ?? brandRow.brand_id) : null;
+
+    // Get TikTok handle from tiktok_accounts
     const { data: account } = await supabase
-      .from('creator_accounts')
+      .from('tiktok_accounts')
       .select('tiktok_username')
       .eq('creator_id', creator.id)
       .limit(1)
@@ -32,7 +43,6 @@ export async function GET(
 
     const tiktokHandle = account?.tiktok_username || null;
 
-    // Get performance data (last 7 days) using creator_accounts to match
     let posts7d = 0;
     let gmv7d = 0;
     let lastActive: string | null = null;
@@ -43,58 +53,53 @@ export async function GET(
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
       const dateStr = sevenDaysAgo.toISOString().split('T')[0];
 
-      // Get all tiktok usernames for this creator, grouped by brand
       const { data: allAccounts } = await supabase
-        .from('creator_accounts')
-        .select('tiktok_username, brand')
+        .from('tiktok_accounts')
+        .select('tiktok_username, brand_id')
         .eq('creator_id', creator.id);
 
       const usernames = (allAccounts ?? []).map(a => a.tiktok_username);
-      // Map username → brand for breakdown
       const usernameToBrand: Record<string, string> = {};
       for (const a of allAccounts ?? []) {
-        usernameToBrand[a.tiktok_username.toLowerCase()] = a.brand;
+        usernameToBrand[a.tiktok_username.toLowerCase()] = brandUuidToSlug(a.brand_id) ?? a.brand_id;
       }
 
       if (usernames.length > 0) {
-        // GMV from video_performance (report_date = when sales happened)
+        // GMV from daily_video_product_stats
         const { data: salesRows } = await supabase
-          .from('video_performance')
-          .select('video_id, gmv, report_date, creator_name, brand')
-          .in('creator_name', usernames)
+          .from('daily_video_product_stats')
+          .select('video_id, gmv, report_date, tiktok_username, brand_id')
+          .in('tiktok_username', usernames)
           .gte('report_date', dateStr)
           .order('report_date', { ascending: false });
 
         if (salesRows && salesRows.length > 0) {
-          gmv7d = salesRows.reduce((sum: number, v: { gmv: number | null }) => sum + (Number(v.gmv) || 0), 0);
+          gmv7d = salesRows.reduce((sum: number, v: any) => sum + (Number(v.gmv) || 0), 0);
           lastActive = salesRows[0].report_date;
 
-          // Per-brand GMV
           const brandGmvMap = new Map<string, number>();
           for (const v of salesRows) {
-            const b = v.brand || usernameToBrand[v.creator_name?.toLowerCase()] || 'unknown';
+            const b = brandUuidToSlug(v.brand_id) ?? usernameToBrand[v.tiktok_username?.toLowerCase()] ?? 'unknown';
             brandGmvMap.set(b, (brandGmvMap.get(b) || 0) + (Number(v.gmv) || 0));
           }
 
-          // Post counts from videos table (post_date = when actually posted)
-          // videos table has reliable post_date; video_performance has 56% NULL
+          // Post counts from daily_video_stats
           const { data: postRows } = await supabase
-            .from('videos')
-            .select('video_id, creator_name, brand')
-            .in('creator_name', usernames)
+            .from('daily_video_stats')
+            .select('video_id, tiktok_username, brand_id')
+            .in('tiktok_username', usernames)
             .gte('post_date', dateStr);
 
           const allPosts = new Set<string>();
           const brandPostMap = new Map<string, Set<string>>();
           for (const v of postRows ?? []) {
             allPosts.add(v.video_id);
-            const b = v.brand || usernameToBrand[v.creator_name?.toLowerCase()] || 'unknown';
+            const b = brandUuidToSlug(v.brand_id) ?? usernameToBrand[v.tiktok_username?.toLowerCase()] ?? 'unknown';
             if (!brandPostMap.has(b)) brandPostMap.set(b, new Set());
             brandPostMap.get(b)!.add(v.video_id);
           }
           posts7d = allPosts.size;
 
-          // Combine into brand breakdown
           const allBrands = new Set([...brandGmvMap.keys(), ...brandPostMap.keys()]);
           for (const brand of allBrands) {
             brandBreakdown.push({
@@ -116,9 +121,9 @@ export async function GET(
         id: creator.id,
         real_name: creator.real_name,
         tiktok_handle: tiktokHandle,
-        brand: creator.brand,
+        brand: brandSlug,
         discord_id: creator.discord_id,
-        retainer_amount: creator.retainer != null ? Number(creator.retainer) : null,
+        retainer_amount: brandRow?.retainer != null ? Number(brandRow.retainer) : null,
         discord_avatar: creator.discord_avatar,
         status,
         status_label: STATUS_CONFIG[status].label,

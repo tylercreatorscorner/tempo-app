@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  LayoutDashboard, Store, BarChart3, Users, Settings, CreditCard, MessageSquare, Flame, Mail, ScanSearch,
+  LayoutDashboard, Store, BarChart3, Users, Settings, CreditCard, MessageSquare, Flame, Mail, ScanSearch, Shield,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TempoLogo } from '@/components/ui/tempo-logo';
@@ -21,6 +21,7 @@ const NAV_ITEMS = [
 ];
 
 const SETTINGS_ITEMS = [
+  { href: '/system', label: 'System Health', icon: Shield },
   { href: '/settings', label: 'Settings', icon: Settings },
 ];
 

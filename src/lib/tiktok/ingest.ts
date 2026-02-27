@@ -1,5 +1,6 @@
 import { TikTokClient } from './client';
 import { createAdminClient } from '@/lib/supabase/server';
+import { brandSlugToUuid } from '@/lib/utils/constants';
 import type {
   BrandShopIdentifier,
   DateRangeOptions,
@@ -51,12 +52,13 @@ export async function ingestVideoPerformance(
       if (videos.length === 0) break;
 
       // Map API response to our table schema
+      const brandUuid = brandSlugToUuid(shop.brand) ?? shop.brand;
       const rows = videos.map((v) => ({
         tenant_id: shop.tenant_id,
-        brand: shop.brand,
+        brand_id: brandUuid,
         video_id: v.id,
         video_title: v.title,
-        creator_name: v.username?.toLowerCase().replace(/^@/, '') || '',
+        tiktok_username: v.username?.toLowerCase().replace(/^@/, '') || '',
         report_date: dateRange.start_date,
         gmv: v.gmv || 0,
         orders: v.sku_orders || 0,
@@ -71,12 +73,11 @@ export async function ingestVideoPerformance(
         data_source: 'api',
       }));
 
-      // Upsert: use brand + video_id + report_date + period_type + product_name as unique key
-      // (same video can have multiple products via multi-product links)
+      // Upsert: use brand_id + video_id + report_date + product_name as unique key
       const { error, count } = await supabase
-        .from('video_performance')
+        .from('daily_video_product_stats')
         .upsert(rows, {
-          onConflict: 'brand,video_id,report_date,period_type,product_name',
+          onConflict: 'brand_id,video_id,report_date,product_name',
           ignoreDuplicates: false,
         })
         .select('id');
@@ -98,7 +99,7 @@ export async function ingestVideoPerformance(
   } while (pageToken);
 
   const summary: IngestionSummary = {
-    table: 'video_performance',
+    table: 'daily_video_product_stats',
     brand: shop.brand,
     date_start: dateRange.start_date,
     date_end: dateRange.end_date,
@@ -183,10 +184,11 @@ export async function ingestCreatorPerformance(
       const performances = response.data.creator_performances || [];
       if (performances.length === 0) break;
 
+      const creatorBrandUuid = brandSlugToUuid(shop.brand) ?? shop.brand;
       const rows = performances.map((p) => ({
         tenant_id: shop.tenant_id,
-        brand: shop.brand,
-        creator_name:
+        brand_id: creatorBrandUuid,
+        tiktok_username:
           creatorNames.get(p.creator_id) ||
           p.creator_name?.toLowerCase().replace(/^@/, '') ||
           p.creator_id,
@@ -195,19 +197,18 @@ export async function ingestCreatorPerformance(
         orders: p.orders || 0,
         items_sold: p.items_sold || 0,
         videos: p.videos || 0,
-        live_streams: p.live_streams || 0,
+        livestreams: p.live_streams || 0,
         est_commission: p.est_commission || 0,
         refunds: p.refunds || 0,
         items_refunded: p.items_refunded || 0,
         aov: p.orders > 0 ? (p.gmv || 0) / p.orders : 0,
-        period_type: 'daily' as const,
         data_source: 'api',
       }));
 
       const { error, count } = await supabase
-        .from('creator_performance')
+        .from('daily_creator_stats')
         .upsert(rows, {
-          onConflict: 'brand,creator_name,report_date,period_type',
+          onConflict: 'brand_id,tiktok_username,report_date',
           ignoreDuplicates: false,
         })
         .select('id');
@@ -228,7 +229,7 @@ export async function ingestCreatorPerformance(
   } while (perfPageToken);
 
   const summary: IngestionSummary = {
-    table: 'creator_performance',
+    table: 'daily_creator_stats',
     brand: shop.brand,
     date_start: dateRange.start_date,
     date_end: dateRange.end_date,
@@ -282,9 +283,10 @@ export async function ingestProductPerformance(
       const products = response.data.shop_products || [];
       if (products.length === 0) break;
 
+      const productBrandUuid = brandSlugToUuid(shop.brand) ?? shop.brand;
       const rows = products.map((p) => ({
         tenant_id: shop.tenant_id,
-        brand: shop.brand,
+        brand_id: productBrandUuid,
         product_id: p.product_id,
         product_name: p.product_name,
         report_date: dateRange.start_date,
@@ -295,16 +297,15 @@ export async function ingestProductPerformance(
         refunds: p.refunds || 0,
         items_refunded: p.items_refunded || 0,
         videos: p.videos || 0,
-        live_streams: p.live_streams || 0,
+        livestreams: p.live_streams || 0,
         product_category: p.product_category || null,
-        period_type: 'daily' as const,
         data_source: 'api',
       }));
 
       const { error, count } = await supabase
-        .from('product_performance')
+        .from('daily_product_stats')
         .upsert(rows, {
-          onConflict: 'brand,product_id,report_date,period_type',
+          onConflict: 'brand_id,product_id,report_date',
           ignoreDuplicates: false,
         })
         .select('id');
@@ -325,7 +326,7 @@ export async function ingestProductPerformance(
   } while (pageToken);
 
   const summary: IngestionSummary = {
-    table: 'product_performance',
+    table: 'daily_product_stats',
     brand: shop.brand,
     date_start: dateRange.start_date,
     date_end: dateRange.end_date,

@@ -20,7 +20,7 @@ export interface GroupedCreator {
   days_active: number;
   total_videos: number;
   brand?: string;
-  managed_creator_id?: number;
+  managed_creator_id?: string;
   isManaged: boolean;
   retainer: number;
   productRetainers: Record<string, number>;
@@ -28,13 +28,13 @@ export interface GroupedCreator {
 
 /**
  * Fetches the mapping of TikTok usernames to real names from
- * creator_accounts joined with managed_creators.
+ * tiktok_accounts joined with creators_v2.
  */
-async function fetchHandleToRealName(): Promise<Map<string, { real_name: string; creator_id: number }>> {
+async function fetchHandleToRealName(): Promise<Map<string, { real_name: string; creator_id: string }>> {
   const supabase = await createAdminClient();
   const { data, error } = await supabase
-    .from('creator_accounts')
-    .select('tiktok_username, creator_id, managed_creators(real_name)')
+    .from('tiktok_accounts')
+    .select('tiktok_username, creator_id, creator:creators_v2(real_name)')
     .not('tiktok_username', 'is', null);
 
   if (error || !data) {
@@ -42,14 +42,14 @@ async function fetchHandleToRealName(): Promise<Map<string, { real_name: string;
     return new Map();
   }
 
-  const map = new Map<string, { real_name: string; creator_id: number }>();
+  const map = new Map<string, { real_name: string; creator_id: string }>();
   for (const row of data) {
     const username = row.tiktok_username;
-    const mc = row.managed_creators as unknown as { real_name: string } | null;
+    const mc = row.creator as unknown as { real_name: string } | null;
     if (username && mc?.real_name) {
       map.set(username.toLowerCase(), {
         real_name: mc.real_name,
-        creator_id: row.creator_id as number,
+        creator_id: row.creator_id as string,
       });
     }
   }

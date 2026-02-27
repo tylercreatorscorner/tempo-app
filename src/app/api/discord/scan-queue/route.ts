@@ -17,7 +17,7 @@ export async function GET(request: Request) {
 
   let query = supabase
     .from('discord_match_queue')
-    .select('*, managed_creators(id, real_name, discord_name, brand)')
+    .select('*, creator:creators_v2(id, real_name, discord_username)')
     .order('match_type', { ascending: true }) // exact first
     .order('match_confidence', { ascending: false });
 

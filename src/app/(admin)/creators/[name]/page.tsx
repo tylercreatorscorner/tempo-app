@@ -66,11 +66,12 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
   const slug = decodeURIComponent(name);
   const sp = await searchParams;
 
-  const isNumericId = /^\d+$/.test(slug);
-  let creatorId: number;
+  // Accept UUID or TikTok handle
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug);
+  let creatorId: string;
 
-  if (isNumericId) {
-    creatorId = parseInt(slug, 10);
+  if (isUuid) {
+    creatorId = slug;
   } else {
     const id = await getCreatorIdByHandle(slug);
     if (id) {

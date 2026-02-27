@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/server';
+import { brandSlugToUuid, brandUuidToSlug } from '@/lib/utils/constants';
 
 /**
  * Creator-specific data fetching functions.
@@ -50,16 +51,19 @@ export async function getCreatorStats(
   endDate: string
 ): Promise<CreatorStats> {
   const supabase = await createAdminClient();
+  const brandUuid = brandSlugToUuid(brand);
 
-  // Get creator_performance aggregated
-  const { data: perfData } = await supabase
-    .from('creator_performance')
+  // Get daily_creator_stats aggregated
+  let perfQuery = supabase
+    .from('daily_creator_stats')
     .select('report_date, gmv, orders, items_sold, est_commission')
-    .eq('creator_name', creatorName)
-    .eq('brand', brand)
+    .eq('tiktok_username', creatorName)
     .gte('report_date', startDate)
     .lte('report_date', endDate)
     .order('report_date', { ascending: true });
+  if (brandUuid) perfQuery = perfQuery.eq('brand_id', brandUuid);
+
+  const { data: perfData } = await perfQuery;
 
   const rows = perfData ?? [];
   const totalGmv = rows.reduce((s, r) => s + (r.gmv || 0), 0);
@@ -67,24 +71,16 @@ export async function getCreatorStats(
   const totalItemsSold = rows.reduce((s, r) => s + (r.items_sold || 0), 0);
   const totalCommission = rows.reduce((s, r) => s + (r.est_commission || 0), 0);
 
-  // Get video count
-  const { count: videoCount } = await supabase
-    .from('video_performance')
-    .select('video_id', { count: 'exact', head: true })
-    .eq('creator_name', creatorName)
-    .eq('brand', brand)
-    .gte('report_date', startDate)
-    .lte('report_date', endDate);
-
-  // Distinct video count
-  const { data: videoIds } = await supabase
-    .from('video_performance')
+  // Distinct video count from daily_video_product_stats
+  let vidQuery = supabase
+    .from('daily_video_product_stats')
     .select('video_id')
-    .eq('creator_name', creatorName)
-    .eq('brand', brand)
+    .eq('tiktok_username', creatorName)
     .gte('report_date', startDate)
     .lte('report_date', endDate);
+  if (brandUuid) vidQuery = vidQuery.eq('brand_id', brandUuid);
 
+  const { data: videoIds } = await vidQuery;
   const uniqueVideos = new Set((videoIds ?? []).map(v => v.video_id)).size;
 
   // Best day
@@ -114,15 +110,18 @@ export async function getCreatorDailyData(
   endDate: string
 ): Promise<CreatorDailyData[]> {
   const supabase = await createAdminClient();
-  const { data } = await supabase
-    .from('creator_performance')
+  const brandUuid = brandSlugToUuid(brand);
+
+  let query = supabase
+    .from('daily_creator_stats')
     .select('report_date, gmv, orders, items_sold, est_commission')
-    .eq('creator_name', creatorName)
-    .eq('brand', brand)
+    .eq('tiktok_username', creatorName)
     .gte('report_date', startDate)
     .lte('report_date', endDate)
     .order('report_date', { ascending: true });
+  if (brandUuid) query = query.eq('brand_id', brandUuid);
 
+  const { data } = await query;
   return (data ?? []) as CreatorDailyData[];
 }
 
@@ -197,14 +196,17 @@ export async function getCreatorStreak(
   brand: string
 ): Promise<number> {
   const supabase = await createAdminClient();
-  // Get distinct dates with videos, most recent first
-  const { data } = await supabase
-    .from('video_performance')
+  const brandUuid = brandSlugToUuid(brand);
+
+  let query = supabase
+    .from('daily_video_product_stats')
     .select('report_date')
-    .eq('creator_name', creatorName)
-    .eq('brand', brand)
+    .eq('tiktok_username', creatorName)
     .order('report_date', { ascending: false })
     .limit(90);
+  if (brandUuid) query = query.eq('brand_id', brandUuid);
+
+  const { data } = await query;
 
   if (!data || data.length === 0) return 0;
 
@@ -217,7 +219,6 @@ export async function getCreatorStreak(
     expected.setDate(expected.getDate() - i);
     const expectedStr = expected.toISOString().split('T')[0];
 
-    // Allow 1-day gap
     if (uniqueDates[i] === expectedStr || (i === 0 && uniqueDates[0] <= expectedStr)) {
       streak++;
     } else {

@@ -12,7 +12,7 @@ export interface CreatorMover {
   prev_gmv: number;
   delta_pct: number | null;
   is_ghost: boolean;
-  managed_creator_id?: number;
+  managed_creator_id?: string;
 }
 
 interface Props {

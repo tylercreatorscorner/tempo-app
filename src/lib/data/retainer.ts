@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/server';
+import { brandSlugToUuid, brandUuidToSlug } from '@/lib/utils/constants';
 
 export interface RetainerInfo {
   retainer: number;
@@ -6,14 +7,14 @@ export interface RetainerInfo {
 }
 
 /**
- * Fetches retainer data for all active managed creators.
- * Returns a Map of creator_id -> RetainerInfo.
+ * Fetches retainer data for all active creator-brand relationships.
+ * Returns a Map of creator_id (UUID) -> RetainerInfo.
  */
-export async function getCreatorRetainers(): Promise<Map<number, RetainerInfo>> {
+export async function getCreatorRetainers(): Promise<Map<string, RetainerInfo>> {
   const supabase = await createAdminClient();
   const { data, error } = await supabase
-    .from('managed_creators')
-    .select('id, retainer, product_retainers')
+    .from('creator_brands')
+    .select('creator_id, retainer, product_retainers')
     .eq('status', 'Active');
 
   if (error || !data) {
@@ -21,9 +22,9 @@ export async function getCreatorRetainers(): Promise<Map<number, RetainerInfo>> 
     return new Map();
   }
 
-  const map = new Map<number, RetainerInfo>();
+  const map = new Map<string, RetainerInfo>();
   for (const row of data) {
-    map.set(row.id, {
+    map.set(row.creator_id, {
       retainer: row.retainer ?? 0,
       productRetainers: (row.product_retainers as Record<string, number>) ?? {},
     });
@@ -32,7 +33,7 @@ export async function getCreatorRetainers(): Promise<Map<number, RetainerInfo>> 
 }
 
 /**
- * Calculates total retainer for a creator, optionally filtered by brand.
+ * Calculates total retainer for a creator, optionally filtered by brand slug.
  * Total = base retainer + product_retainers[brand] (or sum of all product retainers if no brand filter).
  */
 export function getTotalRetainer(

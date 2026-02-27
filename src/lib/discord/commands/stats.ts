@@ -2,6 +2,7 @@ import { SlashCommandBuilder, type ChatInputCommandInteraction, type Autocomplet
 import { creatorStatsEmbed, errorEmbed, tempoEmbed } from '../embeds';
 import { getGuildConfig, getBrandForGuild } from '../config';
 import { getSupabase, daysAgo, periodToDays } from '../supabase';
+import { brandSlugToUuid } from '@/lib/utils/constants';
 import type { TempoCommand } from './index';
 
 const command: TempoCommand = {
@@ -28,7 +29,7 @@ const command: TempoCommand = {
     const focused = interaction.options.getFocused();
     const supabase = getSupabase();
     const { data } = await supabase
-      .from('managed_creators')
+      .from('creators_v2')
       .select('real_name')
       .ilike('real_name', `%${focused}%`)
       .limit(25);
@@ -49,6 +50,7 @@ const command: TempoCommand = {
 
     await interaction.deferReply();
     const supabase = getSupabase();
+    const brandUuid = brandSlugToUuid(brand);
     const days = periodToDays(period);
     const since = daysAgo(days);
 
@@ -56,9 +58,9 @@ const command: TempoCommand = {
       if (!creator) {
         // Brand summary
         const { data, error } = await supabase
-          .from('creator_performance')
+          .from('daily_creator_stats')
           .select('gmv, orders, items_sold, est_commission')
-          .eq('brand', brand)
+          .eq('brand_id', brandUuid)
           .gte('report_date', since);
 
         if (error) throw error;
@@ -91,10 +93,10 @@ const command: TempoCommand = {
 
       // Creator-specific stats
       const { data, error } = await supabase
-        .from('creator_performance')
+        .from('daily_creator_stats')
         .select('gmv, orders, items_sold, est_commission')
-        .eq('brand', brand)
-        .ilike('creator_name', `%${creator}%`)
+        .eq('brand_id', brandUuid)
+        .ilike('tiktok_username', `%${creator}%`)
         .gte('report_date', since);
 
       if (error) throw error;
@@ -117,27 +119,27 @@ const command: TempoCommand = {
 
       // Also get 7d and 30d GMV for context
       const { data: data7d } = await supabase
-        .from('creator_performance')
+        .from('daily_creator_stats')
         .select('gmv')
-        .eq('brand', brand)
-        .ilike('creator_name', `%${creator}%`)
+        .eq('brand_id', brandUuid)
+        .ilike('tiktok_username', `%${creator}%`)
         .gte('report_date', daysAgo(7));
       const gmv7d = (data7d ?? []).reduce((s, r) => s + (r.gmv || 0), 0);
 
       const { data: data30d } = await supabase
-        .from('creator_performance')
+        .from('daily_creator_stats')
         .select('gmv')
-        .eq('brand', brand)
-        .ilike('creator_name', `%${creator}%`)
+        .eq('brand_id', brandUuid)
+        .ilike('tiktok_username', `%${creator}%`)
         .gte('report_date', daysAgo(30));
       const gmv30d = (data30d ?? []).reduce((s, r) => s + (r.gmv || 0), 0);
 
       // Count videos
       const { count: videoCount } = await supabase
-        .from('video_performance')
+        .from('daily_video_product_stats')
         .select('*', { count: 'exact', head: true })
-        .eq('brand', brand)
-        .ilike('creator_name', `%${creator}%`)
+        .eq('brand_id', brandUuid)
+        .ilike('tiktok_username', `%${creator}%`)
         .gte('report_date', since);
 
       const periodLabels: Record<string, string> = {

@@ -65,23 +65,23 @@ async function handleCreatorDM(
   const text = interaction.options.getString('text', true);
   const supabase = getSupabase();
 
-  // Look up creator in managed_creators
+  // Look up creator in creators_v2
   const { data: creators } = await supabase
-    .from('managed_creators')
-    .select('id, creator_name, discord_user_id, tenant_id')
-    .ilike('creator_name', `%${creatorName}%`)
+    .from('creators_v2')
+    .select('id, real_name, discord_id')
+    .ilike('real_name', `%${creatorName}%`)
     .limit(1);
 
   const creator = creators?.[0];
 
-  if (creator?.discord_user_id) {
+  if (creator?.discord_id) {
     // Send DM
     const result = await sendTrackedDM(
       interaction.client,
-      creator.discord_user_id,
+      creator.discord_id,
       text,
       {
-        tenantId: creator.tenant_id,
+        tenantId: '', // TODO: get from creator_brands
         creatorId: creator.id,
         sentBy: interaction.user.tag,
         channel: 'dm',
@@ -92,7 +92,7 @@ async function handleCreatorDM(
     const embed = tempoEmbed(guildConfig)
       .setTitle(`${statusEmoji} Message ${result.success ? 'Sent' : 'Failed'}`)
       .addFields(
-        { name: 'To', value: `@${creator.creator_name}`, inline: true },
+        { name: 'To', value: `@${creator.real_name}`, inline: true },
         { name: 'Status', value: result.status, inline: true },
         { name: 'Message', value: text.slice(0, 1024) },
       );
@@ -108,13 +108,13 @@ async function handleCreatorDM(
     if (relayChannelId && interaction.guild) {
       try {
         const channel = (await interaction.guild.channels.fetch(relayChannelId)) as TextChannel;
-        const mention = creator?.discord_user_id
-          ? `<@${creator.discord_user_id}>`
+        const mention = creator?.discord_id
+          ? `<@${creator.discord_id}>`
           : `**@${creatorName}**`;
-        await channel.send(`📨 Message for ${mention}:\n\n${text}`);
+        await channel.send(`📬 Message for ${mention}:\n\n${text}`);
 
         const embed = tempoEmbed(guildConfig)
-          .setTitle('📨 Message Posted to Channel')
+          .setTitle('📬 Message Posted to Channel')
           .setDescription(
             creator
               ? `Creator found but no Discord ID linked. Posted in <#${relayChannelId}>.`
@@ -133,8 +133,8 @@ async function handleCreatorDM(
         embeds: [
           errorEmbed(
             creator
-              ? `Creator "${creator.creator_name}" has no Discord ID linked.`
-              : `Creator "${creatorName}" not found. Make sure they're in managed_creators.`,
+              ? `Creator "${creator.real_name}" has no Discord ID linked.`
+              : `Creator "${creatorName}" not found. Make sure they're in creators_v2.`,
           ),
         ],
       });

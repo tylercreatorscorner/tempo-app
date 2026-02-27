@@ -171,7 +171,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
     const { createAdminClient } = await import('@/lib/supabase/server');
     const supabase = await createAdminClient();
     const { data: dates } = await supabase
-      .from('video_performance')
+      .from('daily_video_product_stats')
       .select('video_id, report_date')
       .in('video_id', videoIds)
       .order('report_date', { ascending: true });
@@ -351,7 +351,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
     prev_gmv: number;
     delta_pct: number | null;
     is_ghost: boolean;
-    managed_creator_id?: number;
+    managed_creator_id?: string;
   };
 
   const creatorMovers: CreatorMoverType[] = groupedCreators.map((c) => {

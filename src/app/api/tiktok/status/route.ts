@@ -37,23 +37,25 @@ export async function GET() {
       if (conn.last_sync_at) {
         const syncDate = conn.last_sync_at.split('T')[0];
 
+        const { brandSlugToUuid } = await import('@/lib/utils/constants');
+        const brandUuid = brandSlugToUuid(conn.brand);
         const [videoCount, creatorCount, productCount] = await Promise.all([
           supabase
-            .from('video_performance')
+            .from('daily_video_product_stats')
             .select('id', { count: 'exact', head: true })
-            .eq('brand', conn.brand)
+            .eq('brand_id', brandUuid)
             .eq('data_source', 'api')
             .gte('created_at', syncDate),
           supabase
-            .from('creator_performance')
+            .from('daily_creator_stats')
             .select('id', { count: 'exact', head: true })
-            .eq('brand', conn.brand)
+            .eq('brand_id', brandUuid)
             .eq('data_source', 'api')
             .gte('created_at', syncDate),
           supabase
-            .from('product_performance')
+            .from('daily_product_stats')
             .select('id', { count: 'exact', head: true })
-            .eq('brand', conn.brand)
+            .eq('brand_id', brandUuid)
             .eq('data_source', 'api')
             .gte('created_at', syncDate),
         ]);

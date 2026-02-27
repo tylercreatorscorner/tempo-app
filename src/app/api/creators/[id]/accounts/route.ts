@@ -6,10 +6,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const creatorId = parseInt(id, 10);
-  if (isNaN(creatorId)) {
-    return NextResponse.json({ error: 'Invalid creator ID' }, { status: 400 });
-  }
+  const creatorId = id; // UUID string now
 
   const body = await request.json();
   const { tiktok_username } = body;
@@ -27,7 +24,7 @@ export async function POST(
 
   // Check if already linked
   const { data: existing } = await supabase
-    .from('creator_accounts')
+    .from('tiktok_accounts')
     .select('id')
     .eq('creator_id', creatorId)
     .eq('tiktok_username', handle)
@@ -38,7 +35,7 @@ export async function POST(
   }
 
   const { error } = await supabase
-    .from('creator_accounts')
+    .from('tiktok_accounts')
     .insert({ creator_id: creatorId, tiktok_username: handle });
 
   if (error) {
@@ -53,10 +50,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const creatorId = parseInt(id, 10);
-  if (isNaN(creatorId)) {
-    return NextResponse.json({ error: 'Invalid creator ID' }, { status: 400 });
-  }
+  const creatorId = id; // UUID
 
   const body = await request.json();
   const { tiktok_username } = body;
@@ -67,7 +61,7 @@ export async function DELETE(
 
   const supabase = await createAdminClient();
   const { error } = await supabase
-    .from('creator_accounts')
+    .from('tiktok_accounts')
     .delete()
     .eq('creator_id', creatorId)
     .eq('tiktok_username', tiktok_username);

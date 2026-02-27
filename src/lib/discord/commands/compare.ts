@@ -2,42 +2,44 @@ import { SlashCommandBuilder, type ChatInputCommandInteraction, type Autocomplet
 import { tempoEmbed, errorEmbed } from '../embeds';
 import { getGuildConfig, getBrandForGuild } from '../config';
 import { getSupabase, daysAgo } from '../supabase';
+import { brandSlugToUuid } from '@/lib/utils/constants';
 import type { TempoCommand } from './index';
 
 async function getCreatorStats(brand: string, name: string) {
   const supabase = getSupabase();
+  const brandUuid = brandSlugToUuid(brand);
   const since7 = daysAgo(7);
   const since14 = daysAgo(14);
   const since30 = daysAgo(30);
 
   const { data: d7 } = await supabase
-    .from('creator_performance')
+    .from('daily_creator_stats')
     .select('gmv, orders')
-    .eq('brand', brand)
-    .ilike('creator_name', `%${name}%`)
+    .eq('brand_id', brandUuid)
+    .ilike('tiktok_username', `%${name}%`)
     .gte('report_date', since7);
 
   const { data: d30 } = await supabase
-    .from('creator_performance')
+    .from('daily_creator_stats')
     .select('gmv, orders')
-    .eq('brand', brand)
-    .ilike('creator_name', `%${name}%`)
+    .eq('brand_id', brandUuid)
+    .ilike('tiktok_username', `%${name}%`)
     .gte('report_date', since30);
 
   // Prior 7d for growth
   const { data: dPrior } = await supabase
-    .from('creator_performance')
+    .from('daily_creator_stats')
     .select('gmv')
-    .eq('brand', brand)
-    .ilike('creator_name', `%${name}%`)
+    .eq('brand_id', brandUuid)
+    .ilike('tiktok_username', `%${name}%`)
     .gte('report_date', since14)
     .lt('report_date', since7);
 
   const { count: videos } = await supabase
-    .from('video_performance')
+    .from('daily_video_product_stats')
     .select('*', { count: 'exact', head: true })
-    .eq('brand', brand)
-    .ilike('creator_name', `%${name}%`)
+    .eq('brand_id', brandUuid)
+    .ilike('tiktok_username', `%${name}%`)
     .gte('report_date', since30);
 
   const gmv7 = (d7 ?? []).reduce((s, r) => s + (r.gmv || 0), 0);
@@ -64,7 +66,7 @@ const command: TempoCommand = {
     const focused = interaction.options.getFocused();
     const supabase = getSupabase();
     const { data } = await supabase
-      .from('managed_creators')
+      .from('creators_v2')
       .select('real_name')
       .ilike('real_name', `%${focused}%`)
       .limit(25);

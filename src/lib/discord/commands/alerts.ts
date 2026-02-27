@@ -2,6 +2,7 @@ import { SlashCommandBuilder, type ChatInputCommandInteraction } from 'discord.j
 import { tempoEmbed, errorEmbed } from '../embeds';
 import { getGuildConfig, getBrandForGuild } from '../config';
 import { getSupabase, daysAgo } from '../supabase';
+import { brandSlugToUuid } from '@/lib/utils/constants';
 import type { TempoCommand } from './index';
 
 const command: TempoCommand = {
@@ -20,19 +21,20 @@ const command: TempoCommand = {
 
     await interaction.deferReply();
     const supabase = getSupabase();
+    const brandUuid = brandSlugToUuid(brand);
     const alerts: string[] = [];
 
     try {
       // 1. Brand WoW GMV decline (>20%)
       const { data: thisWeek } = await supabase
-        .from('creator_performance')
+        .from('daily_creator_stats')
         .select('gmv')
-        .eq('brand', brand)
+        .eq('brand_id', brandUuid)
         .gte('report_date', daysAgo(7));
       const { data: lastWeek } = await supabase
-        .from('creator_performance')
+        .from('daily_creator_stats')
         .select('gmv')
-        .eq('brand', brand)
+        .eq('brand_id', brandUuid)
         .gte('report_date', daysAgo(14))
         .lt('report_date', daysAgo(7));
 
@@ -44,22 +46,22 @@ const command: TempoCommand = {
         if (change < -20) {
           const fmtUsd = (n: number) =>
             new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(n);
-          alerts.push(`🚨 **GMV Decline:** Brand GMV dropped **${change.toFixed(0)}%** WoW (${fmtUsd(lwGmv)} → ${fmtUsd(twGmv)})`);
+          alerts.push(`📉 **GMV Decline:** Brand GMV dropped **${change.toFixed(0)}%** WoW (${fmtUsd(lwGmv)} → ${fmtUsd(twGmv)})`);
         }
       }
 
       // 2. Creators who haven't posted in 5+ days
       const { data: recentVids } = await supabase
-        .from('video_performance')
-        .select('creator_name, report_date')
-        .eq('brand', brand)
+        .from('daily_video_product_stats')
+        .select('tiktok_username, report_date')
+        .eq('brand_id', brandUuid)
         .gte('report_date', daysAgo(30));
 
       const lastPost = new Map<string, string>();
       for (const v of recentVids ?? []) {
-        const cur = lastPost.get(v.creator_name);
+        const cur = lastPost.get(v.tiktok_username);
         if (!cur || v.report_date > cur) {
-          lastPost.set(v.creator_name, v.report_date);
+          lastPost.set(v.tiktok_username, v.report_date);
         }
       }
 
@@ -72,41 +74,44 @@ const command: TempoCommand = {
         }
       }
       if (inactive.length > 0) {
-        alerts.push(`⚠️ **Inactive Creators (5+ days):**\n${inactive.join(', ')}`);
+        alerts.push(`😴 **Inactive Creators (5+ days):**\n${inactive.join(', ')}`);
       }
 
       // 3. Slacking creators (< 2 posts in 7 days)
       const { data: weekVids } = await supabase
-        .from('video_performance')
-        .select('creator_name')
-        .eq('brand', brand)
+        .from('daily_video_product_stats')
+        .select('tiktok_username')
+        .eq('brand_id', brandUuid)
         .gte('report_date', daysAgo(7));
 
       const postCounts = new Map<string, number>();
       for (const v of weekVids ?? []) {
-        postCounts.set(v.creator_name, (postCounts.get(v.creator_name) ?? 0) + 1);
+        postCounts.set(v.tiktok_username, (postCounts.get(v.tiktok_username) ?? 0) + 1);
       }
 
-      // Get all managed creators for this brand to check who's slacking
+      // Get all managed creators for this brand
       const { data: managed } = await supabase
-        .from('managed_creators')
-        .select('real_name')
-        .eq('brand', brand)
-        .eq('status', 'active');
+        .from('creator_brands')
+        .select('creator:creators_v2(real_name)')
+        .eq('brand_id', brandUuid)
+        .eq('status', 'Active');
 
       const slacking: string[] = [];
       for (const mc of managed ?? []) {
-        const count = postCounts.get(mc.real_name) ?? 0;
+        const creator = mc.creator as unknown as { real_name: string } | null;
+        const name = creator?.real_name;
+        if (!name) continue;
+        const count = postCounts.get(name) ?? 0;
         if (count < 2) {
-          slacking.push(`@${mc.real_name} (${count} posts)`);
+          slacking.push(`@${name} (${count} posts)`);
         }
       }
       if (slacking.length > 0) {
-        alerts.push(`😴 **Low Activity (<2 posts/7d):**\n${slacking.join(', ')}`);
+        alerts.push(`📉 **Low Activity (<2 posts/7d):**\n${slacking.join(', ')}`);
       }
 
       const embed = tempoEmbed(guildConfig)
-        .setTitle('🚨 Alerts')
+        .setTitle('📉 Alerts')
         .setDescription(alerts.length > 0 ? alerts.join('\n\n') : '✅ No alerts — everything looks good!');
 
       await interaction.editReply({ embeds: [embed] });

@@ -9,6 +9,7 @@ import {
 import { tempoEmbed } from '../embeds';
 import { getGuildConfig, getBrandForGuild } from '../config';
 import { getSupabase } from '../supabase';
+import { brandSlugToUuid } from '@/lib/utils/constants';
 import type { TempoCommand } from './index';
 
 /** Simple Levenshtein distance */
@@ -34,15 +35,14 @@ function similarity(a: string, b: string): number {
 }
 
 interface ManagedCreator {
-  id: number;
+  id: string;
   real_name: string | null;
-  discord_name: string | null;
+  discord_username: string | null;
   discord_id: string | null;
-  brand: string | null;
 }
 
 interface MatchResult {
-  matched_creator_id: number | null;
+  matched_creator_id: string | null;
   match_type: 'exact' | 'fuzzy' | 'none';
   match_confidence: number;
   match_reason: string | null;
@@ -56,14 +56,14 @@ function findBestMatch(
   const uLower = username.toLowerCase();
   const dLower = displayName?.toLowerCase() ?? '';
 
-  // 1. Exact username match on discord_name
+  // 1. Exact username match on discord_username
   for (const c of creators) {
-    if (c.discord_name && c.discord_name.toLowerCase() === uLower) {
+    if (c.discord_username && c.discord_username.toLowerCase() === uLower) {
       return {
         matched_creator_id: c.id,
         match_type: 'exact',
         match_confidence: 1.0,
-        match_reason: `Username "${username}" exactly matches discord_name "${c.discord_name}"`,
+        match_reason: `Username "${username}" exactly matches discord_username "${c.discord_username}"`,
       };
     }
   }
@@ -94,7 +94,6 @@ function findBestMatch(
     const rLower = c.real_name?.toLowerCase() ?? '';
     if (!rLower || rLower.length < 3) continue;
 
-    // Username contains real_name or vice versa
     if (uLower.includes(rLower) || rLower.includes(uLower)) {
       const conf = 0.6;
       if (conf > bestMatch.match_confidence) {
@@ -107,7 +106,6 @@ function findBestMatch(
       }
     }
 
-    // Display name contains real_name
     if (dLower && (dLower.includes(rLower) || rLower.includes(dLower))) {
       const conf = 0.6;
       if (conf > bestMatch.match_confidence) {
@@ -120,9 +118,8 @@ function findBestMatch(
       }
     }
 
-    // Levenshtein similarity on discord_name
-    if (c.discord_name) {
-      const sim = similarity(uLower, c.discord_name.toLowerCase());
+    if (c.discord_username) {
+      const sim = similarity(uLower, c.discord_username.toLowerCase());
       if (sim >= 0.7) {
         const conf = Math.round(sim * 100) / 100;
         if (conf > bestMatch.match_confidence) {
@@ -130,7 +127,7 @@ function findBestMatch(
             matched_creator_id: c.id,
             match_type: 'fuzzy',
             match_confidence: Math.min(conf, 0.9),
-            match_reason: `Username "${username}" similar to discord_name "${c.discord_name}" (${Math.round(sim * 100)}%)`,
+            match_reason: `Username "${username}" similar to discord_username "${c.discord_username}" (${Math.round(sim * 100)}%)`,
           };
         }
       }
@@ -163,17 +160,27 @@ const command: TempoCommand = {
     await interaction.deferReply();
 
     const supabase = getSupabase();
+    const brandUuid = brandSlugToUuid(brand);
 
-    // Fetch managed creators for this brand
-    const { data: creators, error: creatorsErr } = await supabase
-      .from('managed_creators')
-      .select('id, real_name, discord_name, discord_id, brand')
-      .eq('brand', brand);
+    // Fetch creators for this brand via creator_brands → creators_v2
+    const { data: brandCreators, error: creatorsErr } = await supabase
+      .from('creator_brands')
+      .select('creator_id, creator:creators_v2(id, real_name, discord_username, discord_id)')
+      .eq('brand_id', brandUuid);
 
-    if (creatorsErr || !creators) {
+    if (creatorsErr || !brandCreators) {
       await interaction.editReply('Failed to fetch creators from database.');
       return;
     }
+
+    const creators: ManagedCreator[] = brandCreators
+      .filter((bc: any) => bc.creator)
+      .map((bc: any) => ({
+        id: bc.creator.id,
+        real_name: bc.creator.real_name,
+        discord_username: bc.creator.discord_username,
+        discord_id: bc.creator.discord_id,
+      }));
 
     // Fetch existing queue entries for this guild
     const { data: existingQueue } = await supabase
@@ -185,7 +192,7 @@ const command: TempoCommand = {
 
     // Already-linked discord IDs
     const linkedDiscordIds = new Set(
-      creators.filter((c: ManagedCreator) => c.discord_id).map((c: ManagedCreator) => c.discord_id)
+      creators.filter((c) => c.discord_id).map((c) => c.discord_id)
     );
 
     // Fetch all guild members
@@ -204,13 +211,11 @@ const command: TempoCommand = {
 
       const userId = member.user.id;
 
-      // Skip if already in queue
       if (existingUserIds.has(userId)) {
         skipped++;
         continue;
       }
 
-      // Skip if already linked
       if (linkedDiscordIds.has(userId)) {
         skipped++;
         continue;
@@ -220,7 +225,7 @@ const command: TempoCommand = {
       const displayName = member.displayName !== username ? member.displayName : null;
       const avatarUrl = member.user.displayAvatarURL({ size: 128 });
 
-      const match = findBestMatch(username, displayName, creators as ManagedCreator[]);
+      const match = findBestMatch(username, displayName, creators);
 
       inserts.push({
         guild_id: interaction.guildId,
@@ -260,7 +265,7 @@ const command: TempoCommand = {
         `Skipped **${skipped}** (already queued or linked)\n\n` +
         `✅ Exact matches: **${exact}**\n` +
         `🟡 Fuzzy matches: **${fuzzy}**\n` +
-        `⬜ Unmatched: **${unmatched}**\n\n` +
+        `⚪ Unmatched: **${unmatched}**\n\n` +
         `Review matches at [Tempo Dashboard](https://tempo-app-wheat.vercel.app/discord-scan)`
       );
 

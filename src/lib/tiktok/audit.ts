@@ -1,5 +1,6 @@
 import { TikTokClient } from './client';
 import { createAdminClient } from '@/lib/supabase/server';
+import { brandSlugToUuid } from '@/lib/utils/constants';
 import type {
   AuditDiscrepancy,
   AuditResult,
@@ -53,11 +54,11 @@ export async function auditBrandData(
     } while (pageToken);
 
     // Fetch existing DB data
+    const brandUuid = brandSlugToUuid(shop.brand) ?? shop.brand;
     const { data: dbVideos } = await supabase
-      .from('video_performance')
+      .from('daily_video_product_stats')
       .select('video_id, gmv, orders, items_sold, report_date')
-      .eq('brand', shop.brand)
-      .eq('period_type', 'daily')
+      .eq('brand_id', brandUuid)
       .gte('report_date', dateRange.start_date)
       .lte('report_date', dateRange.end_date);
 
@@ -76,7 +77,7 @@ export async function auditBrandData(
       const dbData = dbVideoMap.get(videoId);
       if (!dbData) {
         discrepancies.push({
-          table: 'video_performance',
+          table: 'daily_video_product_stats',
           report_date: dateRange.start_date,
           field: 'gmv',
           api_value: apiData.gmv,
@@ -90,7 +91,7 @@ export async function auditBrandData(
       const gmvDiff = Math.abs(apiData.gmv - dbData.gmv);
       if (gmvDiff > 0.01) {
         discrepancies.push({
-          table: 'video_performance',
+          table: 'daily_video_product_stats',
           report_date: dateRange.start_date,
           field: `gmv (video ${videoId})`,
           api_value: apiData.gmv,
@@ -106,7 +107,7 @@ export async function auditBrandData(
       if (!apiVideos.has(videoId)) {
         const dbData = dbVideoMap.get(videoId)!;
         discrepancies.push({
-          table: 'video_performance',
+          table: 'daily_video_product_stats',
           report_date: dateRange.start_date,
           field: `gmv (video ${videoId})`,
           api_value: 0,
@@ -119,7 +120,7 @@ export async function auditBrandData(
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     discrepancies.push({
-      table: 'video_performance',
+      table: 'daily_video_product_stats',
       report_date: dateRange.start_date,
       field: 'AUDIT_ERROR',
       api_value: 0,
@@ -132,6 +133,7 @@ export async function auditBrandData(
 
   // --- Audit Creator Performance ---
   try {
+    const brandUuid = brandSlugToUuid(shop.brand) ?? shop.brand;
     const apiCreators = new Map<string, { gmv: number; orders: number }>();
     let pageToken: string | undefined;
 
@@ -157,16 +159,15 @@ export async function auditBrandData(
     } while (pageToken);
 
     const { data: dbCreators } = await supabase
-      .from('creator_performance')
-      .select('creator_name, gmv, orders, report_date')
-      .eq('brand', shop.brand)
-      .eq('period_type', 'daily')
+      .from('daily_creator_stats')
+      .select('tiktok_username, gmv, orders, report_date')
+      .eq('brand_id', brandUuid)
       .gte('report_date', dateRange.start_date)
       .lte('report_date', dateRange.end_date);
 
     const dbCreatorMap = new Map<string, { gmv: number; orders: number }>();
     for (const row of dbCreators || []) {
-      const name = row.creator_name?.toLowerCase().replace(/^@/, '') || '';
+      const name = row.tiktok_username?.toLowerCase().replace(/^@/, '') || '';
       const existing = dbCreatorMap.get(name) || { gmv: 0, orders: 0 };
       existing.gmv += parseFloat(String(row.gmv)) || 0;
       existing.orders += row.orders || 0;
@@ -177,7 +178,7 @@ export async function auditBrandData(
       const dbData = dbCreatorMap.get(name);
       if (!dbData) {
         discrepancies.push({
-          table: 'creator_performance',
+          table: 'daily_creator_stats',
           report_date: dateRange.start_date,
           field: `gmv (creator ${name})`,
           api_value: apiData.gmv,
@@ -191,7 +192,7 @@ export async function auditBrandData(
       const gmvDiff = Math.abs(apiData.gmv - dbData.gmv);
       if (gmvDiff > 0.01) {
         discrepancies.push({
-          table: 'creator_performance',
+          table: 'daily_creator_stats',
           report_date: dateRange.start_date,
           field: `gmv (creator ${name})`,
           api_value: apiData.gmv,

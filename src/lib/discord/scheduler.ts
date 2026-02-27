@@ -9,7 +9,7 @@ import type { Client, TextChannel } from 'discord.js';
 import { tempoEmbed } from './embeds';
 import { getGuildConfig, getBrandForGuild } from './config';
 import { getSupabase, daysAgo } from './supabase';
-import { BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
+import { BRAND_DISPLAY_NAMES, brandSlugToUuid } from '@/lib/utils/constants';
 
 interface ScheduledMessage {
   guildId: string;
@@ -118,10 +118,11 @@ export async function sendDailyBrief(client: Client, guildId: string): Promise<v
   try {
     // Yesterday's performance
     const yesterday = daysAgo(1);
+    const brandUuid = brandSlugToUuid(brand);
     const { data: yesterdayData } = await supabase
-      .from('creator_performance')
+      .from('daily_creator_stats')
       .select('gmv, orders, items_sold')
-      .eq('brand', brand)
+      .eq('brand_id', brandUuid)
       .eq('report_date', yesterday);
 
     const rows = yesterdayData ?? [];
@@ -131,16 +132,16 @@ export async function sendDailyBrief(client: Client, guildId: string): Promise<v
 
     // 7d trend
     const { data: d7 } = await supabase
-      .from('creator_performance')
+      .from('daily_creator_stats')
       .select('gmv')
-      .eq('brand', brand)
+      .eq('brand_id', brandUuid)
       .gte('report_date', daysAgo(7));
     const gmv7 = (d7 ?? []).reduce((s, r) => s + (r.gmv || 0), 0);
 
     const { data: dPrior } = await supabase
-      .from('creator_performance')
+      .from('daily_creator_stats')
       .select('gmv')
-      .eq('brand', brand)
+      .eq('brand_id', brandUuid)
       .gte('report_date', daysAgo(14))
       .lt('report_date', daysAgo(7));
     const gmvPrior = (dPrior ?? []).reduce((s, r) => s + (r.gmv || 0), 0);

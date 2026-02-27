@@ -30,61 +30,40 @@ export async function POST(request: NextRequest) {
     // Check if any TikTok username matches an existing creator
     const usernamesToCheck = tiktok_usernames.map((u: string) => u.toLowerCase().trim().replace(/^@/, ''));
 
-    // Check creator_accounts table first
+    const { brandSlugToUuid } = await import('@/lib/utils/constants');
+    const brandUuid = brandSlugToUuid(brand) ?? brand;
+
+    // Check tiktok_accounts table first
     const { data: existingAccounts } = await supabase
-      .from('creator_accounts')
+      .from('tiktok_accounts')
       .select('creator_id, tiktok_username')
       .in('tiktok_username', usernamesToCheck)
-      .eq('brand', brand);
+      .eq('brand_id', brandUuid);
 
-    // Also check managed_creators account_1 through account_10
-    let matchedCreatorId: number | null = null;
+    let matchedCreatorId: string | null = null;
     const verifiedUsernames: string[] = [];
 
     if (existingAccounts && existingAccounts.length > 0) {
       matchedCreatorId = existingAccounts[0].creator_id;
       verifiedUsernames.push(...existingAccounts.map((a) => a.tiktok_username));
-    } else {
-      // Check the old account_1-10 columns
-      for (const username of usernamesToCheck) {
-        const { data: match } = await supabase
-          .from('managed_creators')
-          .select('id')
-          .eq('brand', brand)
-          .or(
-            Array.from({ length: 10 }, (_, i) => `account_${i + 1}.eq.${username}`).join(',')
-          )
-          .limit(1)
-          .single();
-
-        if (match) {
-          matchedCreatorId = match.id;
-          verifiedUsernames.push(username);
-          break;
-        }
-      }
     }
 
-    let creatorId: number;
+    let creatorId: string;
 
     if (matchedCreatorId) {
       // Update existing creator with email and name
       await supabase
-        .from('managed_creators')
+        .from('creators_v2')
         .update({ email: normalizedEmail, real_name: name })
         .eq('id', matchedCreatorId);
       creatorId = matchedCreatorId;
     } else {
-      // Create new managed_creators record
+      // Create new creators_v2 record
       const { data: newCreator, error: createError } = await supabase
-        .from('managed_creators')
+        .from('creators_v2')
         .insert({
           real_name: name,
           email: normalizedEmail,
-          brand,
-          account_1: usernamesToCheck[0],
-          status: 'Applied',
-          tenant_id,
         })
         .select('id')
         .single();
@@ -93,24 +72,32 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Failed to create account' }, { status: 500 });
       }
       creatorId = newCreator.id;
+
+      // Create creator_brands entry
+      await supabase
+        .from('creator_brands')
+        .insert({
+          creator_id: creatorId,
+          brand_id: brandUuid,
+          status: 'Applied',
+        });
     }
 
-    // Create creator_accounts entries
+    // Create tiktok_accounts entries
     for (const username of usernamesToCheck) {
       const isVerified = verifiedUsernames.includes(username);
       await supabase
-        .from('creator_accounts')
+        .from('tiktok_accounts')
         .upsert(
           {
             creator_id: creatorId,
             tiktok_username: username,
-            brand,
+            brand_id: brandUuid,
             is_primary: username === usernamesToCheck[0],
             verified: isVerified,
             verified_at: isVerified ? new Date().toISOString() : null,
-            tenant_id,
           },
-          { onConflict: 'tiktok_username,brand,tenant_id' }
+          { onConflict: 'tiktok_username,brand_id' }
         );
     }
 

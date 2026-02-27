@@ -1,22 +1,24 @@
 import { createClient } from '@/lib/supabase/server';
-import type { ManagedCreator } from '@/types';
+import { brandSlugToUuid } from '@/lib/utils/constants';
 
-/** Fetch managed creators for a tenant, optionally filtered by brand */
+/** Fetch managed creators for a tenant, optionally filtered by brand slug */
 export async function getManagedCreators(
   tenantId: string,
   brand?: string
-): Promise<ManagedCreator[]> {
+) {
   const supabase = await createClient();
   let query = supabase
-    .from('managed_creators')
-    .select('*')
-    .eq('tenant_id', tenantId);
+    .from('creator_brands')
+    .select('*, creator:creators_v2(*)');
 
   if (brand) {
-    query = query.eq('brand', brand);
+    const brandUuid = brandSlugToUuid(brand);
+    if (brandUuid) {
+      query = query.eq('brand_id', brandUuid);
+    }
   }
 
-  const { data, error } = await query.order('brand');
+  const { data, error } = await query;
   if (error) throw new Error(`Failed to fetch creators: ${error.message}`);
-  return (data ?? []) as ManagedCreator[];
+  return data ?? [];
 }

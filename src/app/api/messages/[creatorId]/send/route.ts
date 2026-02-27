@@ -53,9 +53,9 @@ export async function POST(
 
     // Look up creator's Discord user ID
     const { data: creator } = await supabase
-      .from('managed_creators')
+      .from('creators_v2')
       .select('discord_id, real_name')
-      .eq('id', parseInt(creatorId))
+      .eq('id', creatorId)
       .single();
 
     // Try to send via Discord if we have their Discord ID
@@ -74,7 +74,7 @@ export async function POST(
     const { data, error } = await supabase
       .from('creator_messages')
       .insert({
-        creator_id: parseInt(creatorId),
+        creator_id: creatorId,
         discord_user_id: discordUserId,
         direction: 'outbound',
         channel: 'dm',

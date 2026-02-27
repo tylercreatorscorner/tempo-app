@@ -35,6 +35,32 @@ export const DATE_RANGE_PRESETS = [
 export const ACTIVE_BRANDS = ['jiyu', 'catakor', 'physicians_choice', 'toplux'] as const;
 export type ActiveBrand = (typeof ACTIVE_BRANDS)[number];
 
+/** Brand slug → UUID mapping for v2 database tables */
+export const BRAND_UUID_MAP: Record<string, string> = {
+  catakor: 'b0000000-0000-0000-0000-000000000001',
+  physicians_choice: 'b0000000-0000-0000-0000-000000000002',
+  jiyu: 'b0000000-0000-0000-0000-000000000003',
+  toplux: 'b0000000-0000-0000-0000-000000000004',
+};
+
+/** UUID → brand slug reverse mapping */
+export const BRAND_SLUG_MAP: Record<string, string> = {
+  'b0000000-0000-0000-0000-000000000001': 'catakor',
+  'b0000000-0000-0000-0000-000000000002': 'physicians_choice',
+  'b0000000-0000-0000-0000-000000000003': 'jiyu',
+  'b0000000-0000-0000-0000-000000000004': 'toplux',
+};
+
+/** Convert brand slug to UUID, returns undefined if not found */
+export function brandSlugToUuid(slug: string): string | undefined {
+  return BRAND_UUID_MAP[slug.toLowerCase().replace(/['\s]/g, '_')];
+}
+
+/** Convert brand UUID to slug, returns undefined if not found */
+export function brandUuidToSlug(uuid: string): string | undefined {
+  return BRAND_SLUG_MAP[uuid];
+}
+
 /** App name */
 export const APP_NAME = 'Tempo';
 export const APP_DESCRIPTION = 'TikTok Shop Analytics';

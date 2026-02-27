@@ -22,8 +22,8 @@ export async function GET(
 
     if (discordUserId) {
       query = query.eq('discord_user_id', discordUserId);
-    } else if (parseInt(creatorId) > 0) {
-      query = query.eq('creator_id', parseInt(creatorId));
+    } else if (creatorId && creatorId !== '0') {
+      query = query.eq('creator_id', creatorId);
     } else {
       return NextResponse.json({ messages: [], total: 0, page: 1, hasMore: false });
     }

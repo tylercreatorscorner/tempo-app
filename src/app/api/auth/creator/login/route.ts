@@ -14,8 +14,8 @@ export async function POST(request: NextRequest) {
 
     // Find creator by email
     const { data: creator } = await supabase
-      .from('managed_creators')
-      .select('id, email, real_name, tenant_id')
+      .from('creators_v2')
+      .select('id, email, real_name')
       .eq('email', email.toLowerCase().trim())
       .single();
 
@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
     const token = await generateMagicToken({
       creatorId: creator.id,
       email: creator.email,
-      tenantId: creator.tenant_id,
+      tenantId: '', // tenant resolved from creator_brands if needed
     });
 
     const verifyUrl = `${request.nextUrl.origin}/api/auth/creator/verify?token=${token}`;

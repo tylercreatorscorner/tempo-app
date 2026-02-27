@@ -15,7 +15,7 @@ interface Creator {
   total_items_sold: number;
   days_active: number;
   total_videos: number;
-  managed_creator_id?: number;
+  managed_creator_id?: string;
   status?: CreatorStatus;
   isManaged?: boolean;
   retainer?: number;

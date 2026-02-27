@@ -2,7 +2,7 @@ import { SlashCommandBuilder, type ChatInputCommandInteraction } from 'discord.j
 import { tempoEmbed, errorEmbed } from '../embeds';
 import { getGuildConfig } from '../config';
 import { getSupabase, daysAgo } from '../supabase';
-import { BRAND_DISPLAY_NAMES, BRAND_COLORS } from '@/lib/utils/constants';
+import { BRAND_DISPLAY_NAMES, BRAND_COLORS, brandSlugToUuid } from '@/lib/utils/constants';
 import type { TempoCommand } from './index';
 
 const command: TempoCommand = {
@@ -25,6 +25,7 @@ const command: TempoCommand = {
   async execute(interaction: ChatInputCommandInteraction) {
     const guildConfig = interaction.guildId ? getGuildConfig(interaction.guildId) : undefined;
     const brandSlug = interaction.options.getString('name', true);
+    const brandUuid = brandSlugToUuid(brandSlug);
 
     await interaction.deferReply();
     const supabase = getSupabase();
@@ -32,9 +33,9 @@ const command: TempoCommand = {
     try {
       // 30d performance
       const { data: perf } = await supabase
-        .from('creator_performance')
-        .select('creator_name, gmv, orders, items_sold, est_commission')
-        .eq('brand', brandSlug)
+        .from('daily_creator_stats')
+        .select('tiktok_username, gmv, orders, items_sold, est_commission')
+        .eq('brand_id', brandUuid)
         .gte('report_date', daysAgo(30));
 
       const rows = perf ?? [];
@@ -45,7 +46,7 @@ const command: TempoCommand = {
       // Top creators by GMV
       const creatorGmv = new Map<string, number>();
       for (const r of rows) {
-        creatorGmv.set(r.creator_name, (creatorGmv.get(r.creator_name) ?? 0) + (r.gmv || 0));
+        creatorGmv.set(r.tiktok_username, (creatorGmv.get(r.tiktok_username) ?? 0) + (r.gmv || 0));
       }
       const topCreators = [...creatorGmv.entries()]
         .sort((a, b) => b[1] - a[1])
@@ -53,14 +54,14 @@ const command: TempoCommand = {
 
       // WoW growth
       const { data: d7 } = await supabase
-        .from('creator_performance')
+        .from('daily_creator_stats')
         .select('gmv')
-        .eq('brand', brandSlug)
+        .eq('brand_id', brandUuid)
         .gte('report_date', daysAgo(7));
       const { data: dPrior } = await supabase
-        .from('creator_performance')
+        .from('daily_creator_stats')
         .select('gmv')
-        .eq('brand', brandSlug)
+        .eq('brand_id', brandUuid)
         .gte('report_date', daysAgo(14))
         .lt('report_date', daysAgo(7));
 

@@ -11,21 +11,35 @@ export async function GET(request: NextRequest) {
 
     const supabase = await createAdminClient();
 
+    // Query creator_brands joined with creators_v2
     let query = supabase
-      .from('managed_creators')
-      .select('id, real_name, brand, discord_id, tiktok_handle');
+      .from('creator_brands')
+      .select('creator_id, brand_id, creator:creators_v2(id, real_name, discord_id)');
 
     if (brand) {
-      query = query.eq('brand', brand);
+      const { brandSlugToUuid } = await import('@/lib/utils/constants');
+      const brandUuid = brandSlugToUuid(brand);
+      if (brandUuid) query = query.eq('brand_id', brandUuid);
     }
 
-    if (hasDiscord === 'yes') {
-      query = query.not('discord_id', 'is', null);
-    } else if (hasDiscord === 'no') {
-      query = query.is('discord_id', null);
-    }
+    const { data: rows, error } = await query;
 
-    const { data: creators, error } = await query.order('real_name');
+    // Flatten and filter
+    const creators = (rows ?? [])
+      .filter((r: any) => r.creator)
+      .map((r: any) => ({
+        id: r.creator.id,
+        real_name: r.creator.real_name,
+        brand: r.brand_id, // keep UUID for now
+        discord_id: r.creator.discord_id,
+      }));
+
+    // Filter by discord
+    const filtered = hasDiscord === 'yes'
+      ? creators.filter((c: any) => c.discord_id)
+      : hasDiscord === 'no'
+        ? creators.filter((c: any) => !c.discord_id)
+        : creators;
 
     if (error) throw error;
 
@@ -34,26 +48,19 @@ export async function GET(request: NextRequest) {
       ? new Set(statusesParam.split(',') as CreatorStatus[])
       : null;
 
-    // For now we classify without actual post data (would need video_performance join)
-    // We'll attempt to get post counts for classification
-    const creatorList = (creators ?? []).map(c => {
-      // Default to ghost since we don't have per-creator post counts in this endpoint
-      // A more complete implementation would join video_performance
-      return {
-        id: c.id,
-        real_name: c.real_name,
-        brand: c.brand,
-        discord_id: c.discord_id,
-        status: 'ghost' as CreatorStatus,
-      };
-    });
+    const creatorList = filtered.map((c: any) => ({
+      id: c.id,
+      real_name: c.real_name,
+      brand: c.brand,
+      discord_id: c.discord_id,
+      status: 'ghost' as CreatorStatus,
+    }));
 
-    // Filter by status if specified
-    const filtered = allowedStatuses
-      ? creatorList.filter(c => allowedStatuses.has(c.status))
+    const finalList = allowedStatuses
+      ? creatorList.filter((c: any) => allowedStatuses.has(c.status))
       : creatorList;
 
-    return NextResponse.json({ creators: filtered });
+    return NextResponse.json({ creators: finalList });
   } catch (err) {
     console.error('Failed to fetch creators for bulk:', err);
     return NextResponse.json({ creators: [] }, { status: 200 });

@@ -59,9 +59,9 @@ export async function POST(request: NextRequest) {
 
       // Try to find creator by discord_id or discord_user_id
       const { data: creator } = await supabase
-        .from('managed_creators')
+        .from('creators_v2')
         .select('id')
-        .or(`discord_id.eq.${discordUserId.trim()},discord_user_id.eq.${discordUserId.trim()}`)
+        .eq('discord_id', discordUserId.trim())
         .limit(1)
         .single();
 

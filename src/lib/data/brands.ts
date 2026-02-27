@@ -5,7 +5,7 @@ import type { Brand } from '@/types';
 export async function getBrands(tenantId: string): Promise<Brand[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
-    .from('brands')
+    .from('brands_v2')
     .select('*')
     .eq('tenant_id', tenantId)
     .order('display_name');
@@ -18,7 +18,7 @@ export async function getBrands(tenantId: string): Promise<Brand[]> {
 export async function getBrand(brandId: string): Promise<Brand | null> {
   const supabase = await createClient();
   const { data, error } = await supabase
-    .from('brands')
+    .from('brands_v2')
     .select('*')
     .eq('id', brandId)
     .single();

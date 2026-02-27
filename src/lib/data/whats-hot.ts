@@ -1,12 +1,12 @@
 import { createAdminClient } from '@/lib/supabase/server';
-import { ACTIVE_BRANDS } from '@/lib/utils/constants';
+import { ACTIVE_BRANDS, BRAND_UUID_MAP, brandUuidToSlug } from '@/lib/utils/constants';
 import { format, subDays } from 'date-fns';
 
 export interface RisingVideo {
   video_id: string;
   video_title: string;
   creator_name: string;
-  brand: string;
+  brand: string; // slug
   recent_avg_gmv: number;
   prior_avg_gmv: number;
   growth_pct: number;
@@ -17,7 +17,7 @@ export interface TrendingVideo {
   video_id: string;
   video_title: string;
   creator_name: string;
-  brand: string;
+  brand: string; // slug
   total_gmv: number;
   first_seen: string;
   days_since_posted: number;
@@ -28,7 +28,7 @@ export interface TopVideo {
   video_id: string;
   video_title: string;
   creator_name: string;
-  brand: string;
+  brand: string; // slug
   total_gmv: number;
   total_orders: number;
   video_link: string | null;
@@ -36,13 +36,16 @@ export interface TopVideo {
 
 export interface BreakoutCreator {
   creator_name: string;
-  brand: string;
+  brand: string; // slug
   current_gmv: number;
   prior_gmv: number;
   growth_pct: number;
 }
 
 const yesterday = () => subDays(new Date(), 1);
+
+/** Get brand UUIDs for active brands */
+const ACTIVE_BRAND_UUIDS = [...ACTIVE_BRANDS].map(b => BRAND_UUID_MAP[b]).filter(Boolean);
 
 /** Paginated fetch to bypass Supabase PostgREST row limits */
 async function paginatedFetch(
@@ -80,28 +83,24 @@ export async function getRisingVideos(limit = 10): Promise<RisingVideo[]> {
   const priorEnd = format(subDays(end, 3), 'yyyy-MM-dd');
   const priorStart = format(subDays(end, 5), 'yyyy-MM-dd');
 
-  const brands = [...ACTIVE_BRANDS];
-
-  // Get recent period aggregated by video
-  const recentData = await paginatedFetch(supabase, 'video_performance',
-    'video_id, video_title, creator_name, brand, gmv, video_link',
+  const recentData = await paginatedFetch(supabase, 'daily_video_product_stats',
+    'video_id, video_title, tiktok_username, brand_id, gmv, video_url',
     [
       { column: 'report_date', op: 'gte', value: recentStart },
       { column: 'report_date', op: 'lte', value: recentEnd },
-      { column: 'brand', op: 'in', value: brands },
+      { column: 'brand_id', op: 'in', value: ACTIVE_BRAND_UUIDS },
     ]);
   console.log(`[whats-hot] Rising videos recent: ${recentData.length} rows (${recentStart} to ${recentEnd})`);
 
-  const priorData = await paginatedFetch(supabase, 'video_performance',
+  const priorData = await paginatedFetch(supabase, 'daily_video_product_stats',
     'video_id, gmv',
     [
       { column: 'report_date', op: 'gte', value: priorStart },
       { column: 'report_date', op: 'lte', value: priorEnd },
-      { column: 'brand', op: 'in', value: brands },
+      { column: 'brand_id', op: 'in', value: ACTIVE_BRAND_UUIDS },
     ]);
   console.log(`[whats-hot] Rising videos prior: ${priorData.length} rows (${priorStart} to ${priorEnd})`);
 
-  // Aggregate recent by video_id
   const recentMap = new Map<string, { gmv: number; title: string; creator: string; brand: string; link: string | null }>();
   for (const row of recentData) {
     const vid = row.video_id as string;
@@ -112,30 +111,25 @@ export async function getRisingVideos(limit = 10): Promise<RisingVideo[]> {
       recentMap.set(vid, {
         gmv: (row.gmv as number) ?? 0,
         title: (row.video_title as string) ?? 'Untitled',
-        creator: (row.creator_name as string) ?? 'Unknown',
-        brand: row.brand as string,
-        link: (row.video_link as string) ?? null,
+        creator: (row.tiktok_username as string) ?? 'Unknown',
+        brand: brandUuidToSlug(row.brand_id as string) ?? (row.brand_id as string),
+        link: (row.video_url as string) ?? null,
       });
     }
   }
 
-  // Aggregate prior by video_id
   const priorMap = new Map<string, number>();
   for (const row of priorData) {
     const vid = row.video_id as string;
     priorMap.set(vid, (priorMap.get(vid) ?? 0) + ((row.gmv as number) ?? 0));
   }
 
-  // Calculate growth
   const results: RisingVideo[] = [];
   for (const [videoId, recent] of recentMap) {
     const recentAvg = recent.gmv / 3;
     const priorTotal = priorMap.get(videoId) ?? 0;
     const priorAvg = priorTotal / 3;
-
-    // Only include videos that had some prior activity and meaningful recent GMV
     if (priorAvg < 1 || recentAvg < 5) continue;
-
     const growthPct = ((recentAvg - priorAvg) / priorAvg) * 100;
     if (growthPct <= 0) continue;
 
@@ -161,21 +155,17 @@ export async function getTrendingVideos(limit = 10): Promise<TrendingVideo[]> {
   const end = yesterday();
   const weekAgo = format(subDays(end, 6), 'yyyy-MM-dd');
   const endStr = format(end, 'yyyy-MM-dd');
-  const brands = [...ACTIVE_BRANDS];
-
-  // Get all video performance for last 14 days to find first_seen
   const lookbackStart = format(subDays(end, 30), 'yyyy-MM-dd');
 
-  const data = await paginatedFetch(supabase, 'video_performance',
-    'video_id, video_title, creator_name, brand, gmv, report_date, video_link',
+  const data = await paginatedFetch(supabase, 'daily_video_product_stats',
+    'video_id, video_title, tiktok_username, brand_id, gmv, report_date, video_url',
     [
       { column: 'report_date', op: 'gte', value: lookbackStart },
       { column: 'report_date', op: 'lte', value: endStr },
-      { column: 'brand', op: 'in', value: brands },
+      { column: 'brand_id', op: 'in', value: ACTIVE_BRAND_UUIDS },
     ]);
   console.log(`[whats-hot] Trending videos: ${data.length} rows (${lookbackStart} to ${endStr})`);
 
-  // Group by video_id, find first_seen and total GMV
   const videoMap = new Map<string, {
     title: string; creator: string; brand: string; gmv: number;
     firstSeen: string; link: string | null;
@@ -192,20 +182,19 @@ export async function getTrendingVideos(limit = 10): Promise<TrendingVideo[]> {
     } else {
       videoMap.set(vid, {
         title: (row.video_title as string) ?? 'Untitled',
-        creator: (row.creator_name as string) ?? 'Unknown',
-        brand: row.brand as string,
+        creator: (row.tiktok_username as string) ?? 'Unknown',
+        brand: brandUuidToSlug(row.brand_id as string) ?? (row.brand_id as string),
         gmv,
         firstSeen: reportDate,
-        link: (row.video_link as string) ?? null,
+        link: (row.video_url as string) ?? null,
       });
     }
   }
 
   const results: TrendingVideo[] = [];
   for (const [videoId, v] of videoMap) {
-    if (v.firstSeen < weekAgo) continue; // Not new
+    if (v.firstSeen < weekAgo) continue;
     if (v.gmv < 1) continue;
-
     const daysSince = Math.max(1, Math.round((end.getTime() - new Date(v.firstSeen).getTime()) / 86400000));
     results.push({
       video_id: videoId,
@@ -226,14 +215,13 @@ export async function getTrendingVideos(limit = 10): Promise<TrendingVideo[]> {
 /** Top Videos — highest GMV in date range */
 export async function getTopVideos(startDate: string, endDate: string, limit = 10): Promise<TopVideo[]> {
   const supabase = await createAdminClient();
-  const brands = [...ACTIVE_BRANDS];
 
-  const data = await paginatedFetch(supabase, 'video_performance',
-    'video_id, video_title, creator_name, brand, gmv, orders, video_link',
+  const data = await paginatedFetch(supabase, 'daily_video_product_stats',
+    'video_id, video_title, tiktok_username, brand_id, gmv, orders, video_url',
     [
       { column: 'report_date', op: 'gte', value: startDate },
       { column: 'report_date', op: 'lte', value: endDate },
-      { column: 'brand', op: 'in', value: brands },
+      { column: 'brand_id', op: 'in', value: ACTIVE_BRAND_UUIDS },
     ]);
   console.log(`[whats-hot] Top videos: ${data.length} rows (${startDate} to ${endDate})`);
 
@@ -248,11 +236,11 @@ export async function getTopVideos(startDate: string, endDate: string, limit = 1
       videoMap.set(vid, {
         video_id: vid,
         video_title: (row.video_title as string) ?? 'Untitled',
-        creator_name: (row.creator_name as string) ?? 'Unknown',
-        brand: row.brand as string,
+        creator_name: (row.tiktok_username as string) ?? 'Unknown',
+        brand: brandUuidToSlug(row.brand_id as string) ?? (row.brand_id as string),
         total_gmv: (row.gmv as number) ?? 0,
         total_orders: (row.orders as number) ?? 0,
-        video_link: (row.video_link as string) ?? null,
+        video_link: (row.video_url as string) ?? null,
       });
     }
   }
@@ -269,7 +257,6 @@ export async function getBreakoutCreators(
   limit = 10
 ): Promise<BreakoutCreator[]> {
   const supabase = await createAdminClient();
-  const brands = [...ACTIVE_BRANDS];
 
   const start = new Date(startDate);
   const end = new Date(endDate);
@@ -278,43 +265,44 @@ export async function getBreakoutCreators(
   const priorStart = format(subDays(start, periodDays), 'yyyy-MM-dd');
 
   const [currentData, priorData] = await Promise.all([
-    paginatedFetch(supabase, 'creator_performance', 'creator_name, brand, gmv', [
+    paginatedFetch(supabase, 'daily_creator_stats', 'tiktok_username, brand_id, gmv', [
       { column: 'report_date', op: 'gte', value: startDate },
       { column: 'report_date', op: 'lte', value: endDate },
-      { column: 'brand', op: 'in', value: brands },
+      { column: 'brand_id', op: 'in', value: ACTIVE_BRAND_UUIDS },
     ]),
-    paginatedFetch(supabase, 'creator_performance', 'creator_name, brand, gmv', [
+    paginatedFetch(supabase, 'daily_creator_stats', 'tiktok_username, brand_id, gmv', [
       { column: 'report_date', op: 'gte', value: priorStart },
       { column: 'report_date', op: 'lte', value: priorEnd },
-      { column: 'brand', op: 'in', value: brands },
+      { column: 'brand_id', op: 'in', value: ACTIVE_BRAND_UUIDS },
     ]),
   ]);
   console.log(`[whats-hot] Breakout creators: current=${currentData.length}, prior=${priorData.length} rows`);
 
-  // Aggregate by creator+brand
   const currentMap = new Map<string, { creator: string; brand: string; gmv: number }>();
   for (const row of currentData) {
-    const key = `${row.creator_name}::${row.brand}`;
+    const slug = brandUuidToSlug(row.brand_id as string) ?? (row.brand_id as string);
+    const key = `${row.tiktok_username}::${slug}`;
     const existing = currentMap.get(key);
     if (existing) {
       existing.gmv += (row.gmv as number) ?? 0;
     } else {
-      currentMap.set(key, { creator: row.creator_name as string, brand: row.brand as string, gmv: (row.gmv as number) ?? 0 });
+      currentMap.set(key, { creator: row.tiktok_username as string, brand: slug, gmv: (row.gmv as number) ?? 0 });
     }
   }
 
   const priorMap = new Map<string, number>();
   for (const row of priorData) {
-    const key = `${row.creator_name}::${row.brand}`;
+    const slug = brandUuidToSlug(row.brand_id as string) ?? (row.brand_id as string);
+    const key = `${row.tiktok_username}::${slug}`;
     priorMap.set(key, (priorMap.get(key) ?? 0) + ((row.gmv as number) ?? 0));
   }
 
   const results: BreakoutCreator[] = [];
   for (const [key, current] of currentMap) {
     const priorGmv = priorMap.get(key) ?? 0;
-    if (priorGmv < 10) continue; // Need meaningful prior to be a "breakout"
+    if (priorGmv < 10) continue;
     const growthPct = ((current.gmv - priorGmv) / priorGmv) * 100;
-    if (growthPct < 100) continue; // 2x minimum
+    if (growthPct < 100) continue;
 
     results.push({
       creator_name: current.creator,

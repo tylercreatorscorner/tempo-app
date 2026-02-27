@@ -1,40 +1,43 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import { classifyCreator } from '@/lib/data/creator-status';
-import { ACTIVE_BRANDS } from '@/lib/utils/constants';
+import { ACTIVE_BRANDS, BRAND_UUID_MAP, brandUuidToSlug } from '@/lib/utils/constants';
+
+const ACTIVE_BRAND_UUIDS = [...ACTIVE_BRANDS].map(b => BRAND_UUID_MAP[b]).filter(Boolean);
 
 export async function GET() {
   try {
     const supabase = await createAdminClient();
 
-    // 1. Fetch managed creators (active brands only)
-    const { data: creators, error: creatorsErr } = await supabase
-      .from('managed_creators')
-      .select('id, real_name, brand, discord_id, retainer, discord_avatar')
-      .in('brand', ACTIVE_BRANDS)
-      .order('real_name');
+    // 1. Fetch creator_brands with creators_v2 for active brands
+    const { data: brandRows, error: brandErr } = await supabase
+      .from('creator_brands')
+      .select('creator_id, brand_id, retainer, creator:creators_v2(id, real_name, discord_id, discord_avatar)')
+      .in('brand_id', ACTIVE_BRAND_UUIDS);
 
-    if (creatorsErr) throw creatorsErr;
+    if (brandErr) throw brandErr;
 
-    // 1b. Fetch creator_accounts for tiktok_username → creator_id mapping
+    // 1b. Fetch tiktok_accounts
     const { data: accounts } = await supabase
-      .from('creator_accounts')
+      .from('tiktok_accounts')
       .select('creator_id, tiktok_username');
 
-    const accountsByCreator = new Map<number, string>();
-    const nameToId = new Map<string, number>();
+    const accountsByCreator = new Map<string, string>();
+    const nameToId = new Map<string, string>();
     for (const a of accounts ?? []) {
       if (!accountsByCreator.has(a.creator_id)) {
         accountsByCreator.set(a.creator_id, a.tiktok_username);
       }
       nameToId.set(a.tiktok_username.toLowerCase(), a.creator_id);
     }
-    // Also map by real_name as fallback
-    for (const c of creators ?? []) {
-      if (c.real_name) nameToId.set(c.real_name.toLowerCase(), c.id);
+
+    // Also map by real_name
+    for (const br of brandRows ?? []) {
+      const c = br.creator as any;
+      if (c?.real_name) nameToId.set(c.real_name.toLowerCase(), c.id);
     }
 
-    // 2. Fetch all messages grouped by creator
+    // 2. Fetch all messages
     const { data: messages, error: msgErr } = await supabase
       .from('creator_messages')
       .select('id, creator_id, discord_user_id, content, direction, channel, sent_at, status')
@@ -42,8 +45,7 @@ export async function GET() {
 
     if (msgErr) throw msgErr;
 
-    // Build message summary per creator_id
-    const msgByCreator = new Map<number, {
+    const msgByCreator = new Map<string, {
       last_message: string;
       last_message_at: string;
       direction: string;
@@ -67,28 +69,25 @@ export async function GET() {
       }
       const entry = msgByCreator.get(cid)!;
       entry.message_count++;
-      if (msg.direction === 'inbound') {
-        entry.unread_count++;
-      }
+      if (msg.direction === 'inbound') entry.unread_count++;
     }
 
     // 3. Fetch video stats (last 7 days)
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-    const videoStats = new Map<number, { total_videos: number; total_gmv: number }>();
+    const videoStats = new Map<string, { total_videos: number; total_gmv: number }>();
 
-    // Fetch GMV from video_performance (report_date = when sales happened)
     let vpPage = 0;
     const vpPageSize = 1000;
     let hasMore = true;
     while (hasMore) {
       const { data: vp } = await supabase
-        .from('video_performance')
-        .select('creator_name, gmv')
+        .from('daily_video_product_stats')
+        .select('tiktok_username, gmv')
         .gte('report_date', sevenDaysAgo)
         .range(vpPage * vpPageSize, (vpPage + 1) * vpPageSize - 1);
 
       for (const row of vp ?? []) {
-        const cid = nameToId.get(row.creator_name?.toLowerCase());
+        const cid = nameToId.get(row.tiktok_username?.toLowerCase());
         if (!cid) continue;
         const existing = videoStats.get(cid) || { total_videos: 0, total_gmv: 0 };
         existing.total_gmv += Number(row.gmv) || 0;
@@ -98,20 +97,19 @@ export async function GET() {
       vpPage++;
     }
 
-    // Fetch post counts from videos table (post_date = when video was actually posted)
-    // videos table has reliable post_date; video_performance has 56% NULL
+    // Post counts from daily_video_stats
     let vidPage = 0;
     hasMore = true;
-    const postsByCreator = new Map<number, Set<string>>();
+    const postsByCreator = new Map<string, Set<string>>();
     while (hasMore) {
       const { data: vids } = await supabase
-        .from('videos')
-        .select('video_id, creator_name')
+        .from('daily_video_stats')
+        .select('video_id, tiktok_username')
         .gte('post_date', sevenDaysAgo)
         .range(vidPage * vpPageSize, (vidPage + 1) * vpPageSize - 1);
 
       for (const row of vids ?? []) {
-        const cid = nameToId.get(row.creator_name?.toLowerCase());
+        const cid = nameToId.get(row.tiktok_username?.toLowerCase());
         if (!cid) continue;
         if (!postsByCreator.has(cid)) postsByCreator.set(cid, new Set());
         postsByCreator.get(cid)!.add(row.video_id);
@@ -120,17 +118,15 @@ export async function GET() {
       vidPage++;
     }
 
-    // Merge post counts into videoStats
     for (const [cid, videoIds] of postsByCreator) {
       const existing = videoStats.get(cid) || { total_videos: 0, total_gmv: 0 };
       existing.total_videos = videoIds.size;
       videoStats.set(cid, existing);
     }
 
-    // 4. Deduplicate creators — same person can have rows across multiple brands
-    // Group by discord_id first (most reliable), fall back to real_name
+    // 4. Deduplicate creators by discord_id or real_name
     const personMap = new Map<string, {
-      creator_ids: number[];
+      creator_ids: string[];
       real_name: string;
       discord_id: string | null;
       discord_avatar: string | null;
@@ -139,15 +135,17 @@ export async function GET() {
       tiktok_handle: string | null;
     }>();
 
-    for (const c of creators ?? []) {
-      // Use discord_id as the unique person key, fall back to lowercase real_name
+    for (const br of brandRows ?? []) {
+      const c = br.creator as any;
+      if (!c) continue;
+      const brandSlug = brandUuidToSlug(br.brand_id) ?? br.brand_id;
       const personKey = c.discord_id || `name:${(c.real_name || '').toLowerCase()}`;
-      
+
       const existing = personMap.get(personKey);
       if (existing) {
-        existing.creator_ids.push(c.id);
-        if (c.brand && !existing.brands.includes(c.brand)) existing.brands.push(c.brand);
-        existing.retainer += Number(c.retainer) || 0;
+        if (!existing.creator_ids.includes(c.id)) existing.creator_ids.push(c.id);
+        if (brandSlug && !existing.brands.includes(brandSlug)) existing.brands.push(brandSlug);
+        existing.retainer += Number(br.retainer) || 0;
         if (!existing.discord_id && c.discord_id) existing.discord_id = c.discord_id;
         if (!existing.discord_avatar && c.discord_avatar) existing.discord_avatar = c.discord_avatar;
         if (!existing.tiktok_handle) existing.tiktok_handle = accountsByCreator.get(c.id) || null;
@@ -157,20 +155,18 @@ export async function GET() {
           real_name: c.real_name || 'Unknown Creator',
           discord_id: c.discord_id || null,
           discord_avatar: c.discord_avatar || null,
-          brands: c.brand ? [c.brand] : [],
-          retainer: Number(c.retainer) || 0,
+          brands: brandSlug ? [brandSlug] : [],
+          retainer: Number(br.retainer) || 0,
           tiktok_handle: accountsByCreator.get(c.id) || null,
         });
       }
     }
 
-    // 5. Build conversation list from deduplicated people
+    // 5. Build conversation list
     const conversations = [...personMap.values()].map(person => {
-      // Use the first creator_id as the primary (for messaging)
       const primaryId = person.creator_ids[0];
-      
-      // Merge messages across all creator_ids
-      let bestMsg: typeof msgByCreator extends Map<number, infer V> ? V : never = undefined as any;
+
+      let bestMsg: any = undefined;
       for (const cid of person.creator_ids) {
         const msg = msgByCreator.get(cid);
         if (msg && (!bestMsg || new Date(msg.last_message_at) > new Date(bestMsg.last_message_at))) {
@@ -178,7 +174,6 @@ export async function GET() {
         }
       }
 
-      // Merge video stats across all creator_ids
       let totalVideos = 0;
       let totalGmv = 0;
       for (const cid of person.creator_ids) {

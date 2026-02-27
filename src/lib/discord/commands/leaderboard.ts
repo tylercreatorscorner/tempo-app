@@ -2,7 +2,7 @@ import { SlashCommandBuilder, type ChatInputCommandInteraction } from 'discord.j
 import { leaderboardEmbed, errorEmbed } from '../embeds';
 import { getGuildConfig, getBrandForGuild } from '../config';
 import { getSupabase, daysAgo, periodToDays } from '../supabase';
-import { BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
+import { BRAND_DISPLAY_NAMES, brandSlugToUuid } from '@/lib/utils/constants';
 import type { TempoCommand } from './index';
 
 const command: TempoCommand = {
@@ -37,14 +37,15 @@ const command: TempoCommand = {
 
     await interaction.deferReply();
     const supabase = getSupabase();
+    const brandUuid = brandSlugToUuid(brand);
     const days = periodToDays(period);
     const since = daysAgo(days);
 
     try {
       const { data, error } = await supabase
-        .from('creator_performance')
-        .select('creator_name, gmv, orders')
-        .eq('brand', brand)
+        .from('daily_creator_stats')
+        .select('tiktok_username, gmv, orders')
+        .eq('brand_id', brandUuid)
         .gte('report_date', since);
 
       if (error) throw error;
@@ -52,7 +53,7 @@ const command: TempoCommand = {
       // Aggregate by creator
       const map = new Map<string, { gmv: number; orders: number; videos: number }>();
       for (const row of data ?? []) {
-        const key = row.creator_name;
+        const key = row.tiktok_username;
         const cur = map.get(key) ?? { gmv: 0, orders: 0, videos: 0 };
         cur.gmv += row.gmv || 0;
         cur.orders += row.orders || 0;
@@ -61,14 +62,14 @@ const command: TempoCommand = {
 
       // Get video counts per creator
       const { data: vids } = await supabase
-        .from('video_performance')
-        .select('creator_name')
-        .eq('brand', brand)
+        .from('daily_video_product_stats')
+        .select('tiktok_username')
+        .eq('brand_id', brandUuid)
         .gte('report_date', since);
 
       const vidCounts = new Map<string, number>();
       for (const v of vids ?? []) {
-        vidCounts.set(v.creator_name, (vidCounts.get(v.creator_name) ?? 0) + 1);
+        vidCounts.set(v.tiktok_username, (vidCounts.get(v.tiktok_username) ?? 0) + 1);
       }
 
       for (const [name, entry] of map) {
