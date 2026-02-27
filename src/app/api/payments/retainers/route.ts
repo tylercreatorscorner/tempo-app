@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
       query = query.in('brand', [...ACTIVE_BRANDS]);
     }
 
-    const { data: creators, error } = await query.order('creator_name');
+    const { data: creators, error } = await query.order('real_name');
     if (error) throw error;
 
     // Get post counts for current period
@@ -46,7 +46,8 @@ export async function GET(request: NextRequest) {
     const totalRetainerSpend = (creators || []).reduce((sum: number, c: any) => sum + (c.retainer || 0), 0);
 
     const enriched = (creators || []).map((c: any) => {
-      const key = `${c.creator_name}|${c.brand}`;
+      // Match by account_1 (TikTok handle) since creator_payments uses handle as creator_name
+      const key = `${c.account_1}|${c.brand}`;
       const payment = paymentMap[key];
       const postsFound = payment?.posts_found ?? 0;
       const postsRequired = c.monthly_post_requirement ?? 0;
@@ -65,6 +66,7 @@ export async function GET(request: NextRequest) {
 
       return {
         ...c,
+        creator_name: c.real_name || c.account_1 || 'Unknown',
         posts_found: postsFound,
         posts_required: postsRequired,
         status,
