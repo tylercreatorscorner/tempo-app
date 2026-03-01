@@ -1,13 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import { Menu, User, ChevronDown, ChevronRight } from 'lucide-react';
+import { Menu, User, ChevronRight } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { TempoLogo } from '@/components/ui/tempo-logo';
 
 interface HeaderProps {
   onMenuClick?: () => void;
-  showBrandFilter?: boolean;
   tenantName?: string;
 }
 
@@ -20,7 +19,7 @@ const BREADCRUMB_MAP: Record<string, string> = {
   '/settings': 'Settings',
 };
 
-export function Header({ onMenuClick, showBrandFilter = false, tenantName }: HeaderProps) {
+export function Header({ onMenuClick, tenantName }: HeaderProps) {
   const pathname = usePathname();
   const isCreatorDetail = pathname.startsWith('/creators/') && pathname !== '/creators';
   const pageLabel = isCreatorDetail
@@ -56,12 +55,6 @@ export function Header({ onMenuClick, showBrandFilter = false, tenantName }: Hea
           <span className="font-medium text-gray-900 truncate">{pageLabel}</span>
         </div>
 
-        {showBrandFilter && (
-          <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-gray-200 bg-white text-sm hover:bg-gray-50 transition-colors text-gray-600">
-            <span>All Brands</span>
-            <ChevronDown className="h-3.5 w-3.5 text-gray-400" />
-          </button>
-        )}
       </div>
 
       <div className="flex items-center gap-3">

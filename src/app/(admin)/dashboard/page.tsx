@@ -10,7 +10,6 @@ import { ProductTable } from '@/components/dashboard/product-table';
 import { VideoTable } from '@/components/dashboard/video-table';
 import { DateRangePicker } from '@/components/dashboard/date-range-picker';
 import { CsvExportButton } from '@/components/dashboard/csv-export-button';
-import { BrandFilterBar } from '@/components/dashboard/brand-filter-bar';
 import { AlertBanners } from '@/components/dashboard/alert-banners';
 import { ManagedSplit } from '@/components/dashboard/managed-split';
 import { CreatorMovers } from '@/components/dashboard/creator-movers';
@@ -462,11 +461,6 @@ export default async function AdminDashboard({ searchParams }: Props) {
           <span className="text-xs text-gray-400 font-medium">{dateRangeDisplay}</span>
         </div>
       </div>
-
-      {/* Brand Filter */}
-      <Suspense fallback={null}>
-        <BrandFilterBar />
-      </Suspense>
 
       {/* ========== SECTION 1: THE HEADLINES ========== */}
       

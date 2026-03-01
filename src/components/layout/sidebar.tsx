@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TempoLogo } from '@/components/ui/tempo-logo';
+import { BrandSwitcher } from '@/components/layout/brand-switcher';
 
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -58,8 +59,13 @@ export function Sidebar({ className }: SidebarProps) {
         <TempoLogo size="md" animated />
       </div>
 
+      {/* Brand Switcher */}
+      <div className="py-3 border-b border-gray-200 relative z-50">
+        <BrandSwitcher />
+      </div>
+
       {/* Navigation */}
-      <nav className="flex-1 px-3 py-4 space-y-1">
+      <nav className="flex-1 px-3 py-4 space-y-1 relative z-0">
         {NAV_ITEMS.map(renderItem)}
         <div className="my-3 mx-3 border-t border-gray-200" />
         {SETTINGS_ITEMS.map(renderItem)}
