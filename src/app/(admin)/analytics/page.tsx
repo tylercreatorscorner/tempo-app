@@ -8,15 +8,18 @@ import { GmvTrendChart } from '@/components/dashboard/gmv-trend-chart';
 import { AnalyticsCharts } from '@/components/dashboard/analytics-charts';
 import { format } from 'date-fns';
 
-const BRANDS = ['jiyu', 'catakor', 'physicians_choice', 'toplux'] as const;
+const ALL_BRANDS = ['jiyu', 'catakor', 'physicians_choice', 'toplux'] as const;
 
 interface Props {
-  searchParams: Promise<{ range?: string }>;
+  searchParams: Promise<{ range?: string; brand?: string }>;
 }
 
 export default async function AnalyticsPage({ searchParams }: Props) {
   const params = await searchParams;
   const { startDate, endDate } = resolveDateRange(params.range);
+  const brandFilter = params.brand && ALL_BRANDS.includes(params.brand as typeof ALL_BRANDS[number])
+    ? params.brand : null;
+  const BRANDS = brandFilter ? [brandFilter] as const : ALL_BRANDS;
 
   const [allTrends, allCreators, allProducts, allVideos, summaries] = await Promise.all([
     Promise.all(
@@ -112,9 +115,9 @@ export default async function AnalyticsPage({ searchParams }: Props) {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Analytics</h1>
+          <h1 className="text-2xl font-bold">{brandFilter ? `${BRAND_DISPLAY_NAMES[brandFilter] ?? brandFilter} Analytics` : 'Analytics'}</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Deep performance insights across the portfolio
+            {brandFilter ? 'Brand performance insights' : 'Deep performance insights across the portfolio'}
           </p>
         </div>
         <Suspense fallback={null}>
@@ -138,7 +141,7 @@ export default async function AnalyticsPage({ searchParams }: Props) {
       {/* Top creators across all brands */}
       <div className="rounded-xl border border-border bg-card overflow-hidden">
         <div className="p-4 border-b border-border">
-          <h3 className="text-lg font-semibold">Top 20 Creators (All Brands)</h3>
+          <h3 className="text-lg font-semibold">Top 20 Creators{brandFilter ? '' : ' (All Brands)'}</h3>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
