@@ -133,22 +133,21 @@ export async function getCreatorTopVideos(
   endDate: string,
   limit = 10
 ): Promise<CreatorVideo[]> {
-  const supabase = await createAdminClient();
-  const { data, error } = await supabase.rpc('get_video_summary', {
-    p_brand: brand,
-    p_start_date: startDate,
-    p_end_date: endDate,
-    p_limit: 100,
-  });
-
-  if (error) return [];
-
-  // Filter to this creator and take top N
-  const filtered = (data ?? [])
-    .filter((v: any) => v.creator_name === creatorName)
-    .slice(0, limit);
-
-  return filtered as CreatorVideo[];
+  const { getVideoSummary } = await import('./rpc');
+  try {
+    const videos = await getVideoSummary(brand, startDate, endDate, 100);
+    return videos
+      .filter(v => v.creator_name === creatorName)
+      .slice(0, limit)
+      .map(v => ({
+        video_id: v.video_id,
+        video_title: v.video_title,
+        total_gmv: v.total_gmv,
+        total_orders: v.total_orders,
+        total_items_sold: v.total_items_sold,
+        days_active: v.days_active,
+      }));
+  } catch { return []; }
 }
 
 /** Get all top videos for a brand (discover) */
@@ -158,16 +157,20 @@ export async function getBrandTopVideos(
   endDate: string,
   limit = 20
 ): Promise<(CreatorVideo & { creator_name: string })[]> {
-  const supabase = await createAdminClient();
-  const { data, error } = await supabase.rpc('get_video_summary', {
-    p_brand: brand,
-    p_start_date: startDate,
-    p_end_date: endDate,
-    p_limit: limit,
-  });
-
-  if (error) return [];
-  return (data ?? []) as (CreatorVideo & { creator_name: string })[];
+  const { getVideoSummary } = await import('./rpc');
+  try {
+    const videos = await getVideoSummary(brand, startDate, endDate, limit);
+    return videos.map(v => ({
+      video_id: v.video_id,
+      video_title: v.video_title,
+      creator_name: v.creator_name,
+      total_gmv: v.total_gmv,
+      total_orders: v.total_orders,
+      total_items_sold: v.total_items_sold,
+      total_est_commission: v.total_est_commission,
+      days_active: v.days_active,
+    }));
+  } catch { return []; }
 }
 
 /** Get creator rankings */
@@ -177,17 +180,10 @@ export async function getCreatorRankingsData(
   endDate: string,
   limit = 50
 ): Promise<RankingEntry[]> {
-  const supabase = await createAdminClient();
-  const { data, error } = await supabase.rpc('get_creator_rankings', {
-    p_brand: brand,
-    p_start_date: startDate,
-    p_end_date: endDate,
-    p_limit: limit,
-    p_managed_only: false,
-  });
-
-  if (error) return [];
-  return (data ?? []) as RankingEntry[];
+  const { getCreatorRankings } = await import('./rpc');
+  try {
+    return await getCreatorRankings(brand, startDate, endDate, limit);
+  } catch { return []; }
 }
 
 /** Get posting streak for a creator */
