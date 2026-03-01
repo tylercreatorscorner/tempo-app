@@ -4,11 +4,8 @@ import { resolveDateRange } from '@/lib/data/date-utils';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
 import { StatCard } from '@/components/dashboard/stat-card';
 import { DateRangePicker } from '@/components/dashboard/date-range-picker';
-import { AlertBanners } from '@/components/dashboard/alert-banners';
 import { BrandTicker } from '@/components/dashboard/brand-ticker';
-import { DailyHeadline } from '@/components/dashboard/daily-headline';
 import { VideoSection } from '@/components/dashboard/video-section';
-import { generateAlerts } from '@/lib/data/alerts';
 import { aggregateCreatorsByRealName } from '@/lib/data/creator-aggregate';
 import { getDashboardVideos } from '@/lib/data/video-sections';
 import { BRAND_COLORS, BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
@@ -169,19 +166,6 @@ export default async function AdminDashboard({ searchParams }: Props) {
     return { brand, gmv: currentGmv, trend };
   });
 
-  // Alerts
-  const alertData = generateAlerts(
-    ALL_BRANDS.map((brand) => {
-      const s = alertSummaries.find((x) => x.brand === brand);
-      const ps = alertPrevSummaries.find((x) => x.brand === brand);
-      return {
-        brand,
-        currentGmv: s?.data?.total_gmv ?? 0,
-        prevGmv: ps?.data?.total_gmv ?? 0,
-      };
-    })
-  );
-
   const trendLabel = 'vs prior period';
   const displayStart = format(new Date(startDate), 'MMM d');
   const displayEnd = format(new Date(endDate), 'MMM d, yyyy');
@@ -194,14 +178,6 @@ export default async function AdminDashboard({ searchParams }: Props) {
 
   const activeBrandColor = brandFilter ? BRAND_COLORS[brandFilter] ?? null : null;
   const activeBrandName = brandFilter ? BRAND_DISPLAY_NAMES[brandFilter] ?? brandFilter : null;
-
-  // Headline data
-  const topCreator = groupedCreators[0];
-  const topCreatorGmv = topCreator?.total_gmv ?? 0;
-  const topCreatorName = topCreator?.display_name;
-  // Find top video GMV from all sections
-  const allSectionVideos = [...videoSections.hotNow, ...videoSections.rising, ...videoSections.topPerformers];
-  const topVideoGmv = allSectionVideos.length > 0 ? Math.max(...allSectionVideos.map((v) => v.total_gmv)) : 0;
 
   const isEmptyBrand = brandFilter && totals.gmv === 0 && totals.orders === 0 && totals.items === 0;
 
@@ -227,15 +203,11 @@ export default async function AdminDashboard({ searchParams }: Props) {
         </div>
       </div>
 
-      {/* Stats Bar with Managed/Unmanaged integrated */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 stagger-children">
+      {/* Stats Bar */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 stagger-children">
         <StatCard label="Total GMV" value={formatCurrency(totals.gmv)} trend={gmvTrend} trendLabel={trendLabel} brandColor={activeBrandColor} />
-        <StatCard label="Orders" value={formatNumber(totals.orders)} trend={ordersTrend} trendLabel={trendLabel} brandColor={activeBrandColor} />
-        <StatCard label="Items Sold" value={formatNumber(totals.items)} trend={itemsTrend} trendLabel={trendLabel} brandColor={activeBrandColor} />
-        <StatCard label="Active Creators" value={formatNumber(totals.creators)} brandColor={activeBrandColor} />
-        <StatCard label="Videos" value={formatNumber(totals.videos)} brandColor={activeBrandColor} />
+        <StatCard label="Creators" value={formatNumber(totals.creators)} brandColor={activeBrandColor} />
         <StatCard label="Avg GMV/Creator" value={formatCurrency(avgGmvPerCreator)} trend={avgGmvTrend} trendLabel={trendLabel} brandColor={activeBrandColor} />
-        {/* Managed/Unmanaged integrated into stats bar */}
         <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-5 space-y-2 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300">
           <p className="text-xs font-medium uppercase tracking-wider text-gray-500">Managed GMV</p>
           <p className="text-xl sm:text-2xl font-extrabold tracking-tight text-[#1A1B3A]">{formatCurrency(managedSplitData.managed.gmv)}</p>
@@ -256,22 +228,8 @@ export default async function AdminDashboard({ searchParams }: Props) {
         </div>
       </div>
 
-      {/* Brand Ticker */}
-      <BrandTicker brands={brandStripData} />
-
-      {/* Daily Headline */}
-      <DailyHeadline
-        brands={brandStripData}
-        topVideoGmv={topVideoGmv}
-        topCreatorName={topCreatorName}
-        topCreatorGmv={topCreatorGmv}
-        portfolioChange={gmvTrend}
-        totalGmv={totals.gmv}
-        period="Period"
-      />
-
-      {/* Alert Banners */}
-      <AlertBanners alerts={alertData} />
+      {/* Brand Ticker — only show on All Brands view */}
+      {!brandFilter && <BrandTicker brands={brandStripData} />}
 
       {/* Empty state */}
       {isEmptyBrand && (
