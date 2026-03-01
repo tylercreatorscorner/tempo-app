@@ -37,19 +37,29 @@ export async function getDashboardVideos(
     return { hotNow: [], rising: [], topPerformers: [] };
   }
 
-  // Fetch all video stats in the date range
-  let query = supabase
-    .from('daily_video_stats')
-    .select('video_id, video_url, video_title, tiktok_username, post_date, gmv, orders, brand_id')
-    .gte('report_date', startDate)
-    .lte('report_date', endDate)
-    .in('brand_id', brandUuids);
+  // Paginated fetch to bypass PostgREST 1000-row limit
+  const allData: Record<string, unknown>[] = [];
+  const PAGE_SIZE = 1000;
+  let from = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from('daily_video_stats')
+      .select('video_id, video_url, video_title, tiktok_username, post_date, gmv, orders, brand_id')
+      .gte('report_date', startDate)
+      .lte('report_date', endDate)
+      .in('brand_id', brandUuids)
+      .range(from, from + PAGE_SIZE - 1);
 
-  const { data, error } = await query;
-  if (error) {
-    console.error('[video-sections] Query failed:', error);
-    return { hotNow: [], rising: [], topPerformers: [] };
+    if (error) {
+      console.error('[video-sections] Query failed:', error);
+      return { hotNow: [], rising: [], topPerformers: [] };
+    }
+    if (!data || data.length === 0) break;
+    allData.push(...data);
+    if (data.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
   }
+  const data = allData;
 
   // Aggregate by video_id
   const videoMap = new Map<string, DashboardVideo>();
@@ -81,19 +91,16 @@ export async function getDashboardVideos(
   // Hot Now: posted within last 7 days, $100+ GMV
   const hotNow = allVideos
     .filter((v) => v.post_date && v.post_date >= sevenDaysAgo && v.total_gmv >= 100)
-    .sort((a, b) => b.total_gmv - a.total_gmv)
-    .slice(0, 20);
+    .sort((a, b) => b.total_gmv - a.total_gmv);
 
   // Rising: posted 7-14 days ago with sales
   const rising = allVideos
     .filter((v) => v.post_date && v.post_date >= fourteenDaysAgo && v.post_date < sevenDaysAgo && v.total_gmv > 0)
-    .sort((a, b) => b.total_gmv - a.total_gmv)
-    .slice(0, 20);
+    .sort((a, b) => b.total_gmv - a.total_gmv);
 
   // Top Performers: highest GMV overall
-  const topPerformers = allVideos
-    .sort((a, b) => b.total_gmv - a.total_gmv)
-    .slice(0, 20);
+  const topPerformers = [...allVideos]
+    .sort((a, b) => b.total_gmv - a.total_gmv);
 
   return { hotNow, rising, topPerformers };
 }

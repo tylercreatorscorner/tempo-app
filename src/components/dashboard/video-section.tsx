@@ -17,11 +17,12 @@ export interface VideoData {
 interface VideoSectionProps {
   title: string;
   emoji: string;
+  description: string;
   videos: VideoData[];
   defaultExpanded?: boolean;
 }
 
-export function VideoSection({ title, emoji, videos, defaultExpanded = true }: VideoSectionProps) {
+export function VideoSection({ title, emoji, description, videos, defaultExpanded = true }: VideoSectionProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
 
   if (videos.length === 0) return null;
@@ -38,6 +39,7 @@ export function VideoSection({ title, emoji, videos, defaultExpanded = true }: V
           <span className="bg-[#FF4D8D]/10 text-[#FF4D8D] text-xs font-bold px-2.5 py-1 rounded-full">
             {videos.length}
           </span>
+          <span className="text-sm text-gray-400 font-normal hidden sm:inline">{description}</span>
         </div>
         <ChevronDown
           className={`h-5 w-5 text-gray-400 transition-transform duration-300 ${expanded ? 'rotate-180' : ''}`}

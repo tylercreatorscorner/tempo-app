@@ -142,7 +142,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
   );
 
   function pctChange(current: number, previous: number): number | undefined {
-    if (previous === 0) return current > 0 ? 100 : undefined;
+    if (previous === 0) return undefined;
     return ((current - previous) / previous) * 100;
   }
 
@@ -244,18 +244,21 @@ export default async function AdminDashboard({ searchParams }: Props) {
       <VideoSection
         emoji="🔥"
         title="Hot Now"
+        description="Posted in the last 7 days with $100+ in sales"
         videos={videoSections.hotNow}
       />
 
       <VideoSection
         emoji="📈"
         title="Rising"
+        description="Posted 7-14 days ago with sustained sales momentum"
         videos={videoSections.rising}
       />
 
       <VideoSection
         emoji="🏆"
         title="Top Performers"
+        description="Highest total GMV videos in the selected date range"
         videos={videoSections.topPerformers}
       />
     </div>
