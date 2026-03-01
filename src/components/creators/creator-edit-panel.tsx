@@ -5,7 +5,7 @@ import { Pencil, X, Save, Loader2, Plus, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 interface CreatorData {
-  id: number;
+  id: number | string;
   real_name: string;
   email: string | null;
   phone: string | null;
