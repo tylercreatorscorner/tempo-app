@@ -5,7 +5,7 @@ import { DollarSign, Target, Pencil, Save, Loader2, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 interface RetainerData {
-  creatorId: number;
+  creatorId: number | string;
   retainer: number | null;
   monthlyPostRequirement: number | null;
   retainerStartDate: string | null;
@@ -140,7 +140,7 @@ function EditButton({
   requirement,
   startDate,
 }: {
-  creatorId: number;
+  creatorId: number | string;
   retainer: number | null;
   requirement: number | null;
   startDate: string | null;
@@ -176,7 +176,7 @@ function RetainerEditForm({
   startDate,
   onClose,
 }: {
-  creatorId: number;
+  creatorId: number | string;
   retainer: number | null;
   requirement: number | null;
   startDate: string | null;
