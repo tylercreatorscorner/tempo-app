@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import {
   LayoutDashboard, Store, BarChart3, Users, Settings, CreditCard, MessageSquare, Flame, Mail, ScanSearch, Shield,
 } from 'lucide-react';
@@ -32,13 +32,21 @@ interface SidebarProps {
 
 export function Sidebar({ className }: SidebarProps) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const brand = searchParams.get('brand');
+
+  /** Build href preserving current brand filter */
+  function withBrand(href: string) {
+    if (!brand) return href;
+    return `${href}?brand=${brand}`;
+  }
 
   const renderItem = (item: typeof NAV_ITEMS[0]) => {
     const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
     return (
       <Link
         key={item.href}
-        href={item.href}
+        href={withBrand(item.href)}
         className={cn(
           'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-200',
           isActive
