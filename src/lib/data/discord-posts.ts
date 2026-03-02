@@ -58,18 +58,37 @@ function getBrandUuids(brandFilter: string): string[] | null {
 }
 
 async function getDiscordMap(supabase: any, brandUuids: string[] | null): Promise<Map<string, { discord_id: string | null; discord_name: string | null }>> {
-  // Query creators_v2 joined with tiktok_accounts
-  // Note: creators_v2 uses 'discord_username' not 'discord_name'
-  // Don't filter by brand here — we want Discord IDs for all creators
-  // regardless of which brand is selected for the report
-  const { data } = await supabase
-    .from('tiktok_accounts')
-    .select('tiktok_username, creator:creators_v2!inner(discord_id, discord_username)');
   const map = new Map<string, { discord_id: string | null; discord_name: string | null }>();
 
-  (data || []).forEach((row: any) => {
+  // Primary source: managed_creators (has the most discord IDs — 650+)
+  // Most tiktok_accounts aren't linked to creators_v2 yet, so this is the reliable source
+  const { data: mcData } = await supabase
+    .from('managed_creators')
+    .select('account_1, account_2, account_3, account_4, account_5, discord_id, discord_name');
+
+  (mcData || []).forEach((mc: any) => {
+    if (!mc.discord_id) return;
+    const accounts = [mc.account_1, mc.account_2, mc.account_3, mc.account_4, mc.account_5].filter(Boolean);
+    accounts.forEach((acc: string) => {
+      const handle = acc.toLowerCase().replace('@', '').trim();
+      if (handle && !map.has(handle)) {
+        map.set(handle, {
+          discord_id: mc.discord_id,
+          discord_name: mc.discord_name,
+        });
+      }
+    });
+  });
+
+  // Secondary source: creators_v2 via tiktok_accounts (for newer creators not in managed_creators)
+  const { data: v2Data } = await supabase
+    .from('tiktok_accounts')
+    .select('tiktok_username, creator:creators_v2!inner(discord_id, discord_username)')
+    .not('creator_id', 'is', null);
+
+  (v2Data || []).forEach((row: any) => {
     const handle = (row.tiktok_username || '').toLowerCase().replace('@', '');
-    if (handle && row.creator) {
+    if (handle && row.creator?.discord_id && !map.has(handle)) {
       map.set(handle, {
         discord_id: row.creator.discord_id,
         discord_name: row.creator.discord_username,
