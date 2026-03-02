@@ -457,51 +457,44 @@ export async function getDailyDropData(brandFilter: string): Promise<DailyDropDa
   const dayBeforeStr = formatDate(dayBefore);
   const monthStartStr = formatDate(monthStart);
 
-  // Yesterday's creator stats
-  let q1 = supabase
-    .from('daily_creator_stats')
-    .select('tiktok_username, gmv')
-    .eq('report_date', yesterdayStr)
-    .gt('gmv', 0)
-    .order('gmv', { ascending: false });
-  if (brandUuids) q1 = q1.in('brand_id', brandUuids);
-  const { data: yesterdayCreators } = await q1;
+  // Yesterday's creator stats - paginated
+  const ycFilters: { column: string; op: string; value: any }[] = [
+    { column: 'report_date', op: 'eq', value: yesterdayStr },
+    { column: 'gmv', op: 'gt', value: 0 },
+  ];
+  if (brandUuids) ycFilters.push({ column: 'brand_id', op: 'in', value: brandUuids });
+  const yesterdayCreators = await paginatedFetch(supabase, 'daily_creator_stats', 'tiktok_username, gmv', ycFilters);
 
-  // Day-before creator stats (for comparison)
-  let q2 = supabase
-    .from('daily_creator_stats')
-    .select('gmv')
-    .eq('report_date', dayBeforeStr);
-  if (brandUuids) q2 = q2.in('brand_id', brandUuids);
-  const { data: dayBeforeCreators } = await q2;
+  // Day-before creator stats - paginated
+  const dbFilters: { column: string; op: string; value: any }[] = [
+    { column: 'report_date', op: 'eq', value: dayBeforeStr },
+  ];
+  if (brandUuids) dbFilters.push({ column: 'brand_id', op: 'in', value: brandUuids });
+  const dayBeforeCreators = await paginatedFetch(supabase, 'daily_creator_stats', 'gmv', dbFilters);
 
-  // MTD creator stats
-  let q3 = supabase
-    .from('daily_creator_stats')
-    .select('gmv')
-    .gte('report_date', monthStartStr)
-    .lte('report_date', yesterdayStr);
-  if (brandUuids) q3 = q3.in('brand_id', brandUuids);
-  const { data: mtdData } = await q3;
+  // MTD creator stats - paginated
+  const mtdFilters: { column: string; op: string; value: any }[] = [
+    { column: 'report_date', op: 'gte', value: monthStartStr },
+    { column: 'report_date', op: 'lte', value: yesterdayStr },
+  ];
+  if (brandUuids) mtdFilters.push({ column: 'brand_id', op: 'in', value: brandUuids });
+  const mtdData = await paginatedFetch(supabase, 'daily_creator_stats', 'gmv', mtdFilters);
 
-  // Yesterday's video stats
-  let q4 = supabase
-    .from('daily_video_stats')
-    .select('video_id, tiktok_username, gmv, product_name')
-    .eq('report_date', yesterdayStr)
-    .gt('gmv', 0)
-    .order('gmv', { ascending: false });
-  if (brandUuids) q4 = q4.in('brand_id', brandUuids);
-  const { data: yesterdayVideos } = await q4;
+  // Yesterday's video stats - paginated
+  const yvFilters: { column: string; op: string; value: any }[] = [
+    { column: 'report_date', op: 'eq', value: yesterdayStr },
+    { column: 'gmv', op: 'gt', value: 0 },
+  ];
+  if (brandUuids) yvFilters.push({ column: 'brand_id', op: 'in', value: brandUuids });
+  const yesterdayVideos = await paginatedFetch(supabase, 'daily_video_stats', 'video_id, tiktok_username, gmv, product_name', yvFilters);
 
-  // One to Watch: recent videos with strong early traction
-  let q5 = supabase
-    .from('daily_video_stats')
-    .select('video_id, tiktok_username, gmv, post_date, report_date')
-    .gte('post_date', formatDate(threeDaysAgo))
-    .gt('gmv', 0);
-  if (brandUuids) q5 = q5.in('brand_id', brandUuids);
-  const { data: recentVideoStats } = await q5;
+  // One to Watch: recent videos with strong early traction - paginated
+  const otwFilters: { column: string; op: string; value: any }[] = [
+    { column: 'post_date', op: 'gte', value: formatDate(threeDaysAgo) },
+    { column: 'gmv', op: 'gt', value: 0 },
+  ];
+  if (brandUuids) otwFilters.push({ column: 'brand_id', op: 'in', value: brandUuids });
+  const recentVideoStats = await paginatedFetch(supabase, 'daily_video_stats', 'video_id, tiktok_username, gmv, post_date, report_date', otwFilters);
 
   // Aggregate videos by video_id
   const videoMap = new Map<string, { video_id: string; tiktok_username: string; gmv: number }>();
@@ -610,42 +603,38 @@ export async function getWeeklyRankingsData(brandFilter: string): Promise<Weekly
   const twoWeeksAgoStr = formatDate(twoWeeksAgo);
   const monthStartStr = formatDate(monthStart);
 
-  // This week's creator stats
-  let q1 = supabase
-    .from('daily_creator_stats')
-    .select('tiktok_username, gmv, videos, report_date')
-    .gte('report_date', weekAgoStr)
-    .lte('report_date', yesterdayStr);
-  if (brandUuids) q1 = q1.in('brand_id', brandUuids);
-  const { data: thisWeekData } = await q1;
+  // This week's creator stats - paginated
+  const twcFilters: { column: string; op: string; value: any }[] = [
+    { column: 'report_date', op: 'gte', value: weekAgoStr },
+    { column: 'report_date', op: 'lte', value: yesterdayStr },
+  ];
+  if (brandUuids) twcFilters.push({ column: 'brand_id', op: 'in', value: brandUuids });
+  const thisWeekData = await paginatedFetch(supabase, 'daily_creator_stats', 'tiktok_username, gmv, videos, report_date', twcFilters);
 
-  // Last week's creator stats
-  let q2 = supabase
-    .from('daily_creator_stats')
-    .select('tiktok_username, gmv')
-    .gte('report_date', twoWeeksAgoStr)
-    .lt('report_date', weekAgoStr);
-  if (brandUuids) q2 = q2.in('brand_id', brandUuids);
-  const { data: lastWeekData } = await q2;
+  // Last week's creator stats - paginated
+  const lwcFilters: { column: string; op: string; value: any }[] = [
+    { column: 'report_date', op: 'gte', value: twoWeeksAgoStr },
+    { column: 'report_date', op: 'lt', value: weekAgoStr },
+  ];
+  if (brandUuids) lwcFilters.push({ column: 'brand_id', op: 'in', value: brandUuids });
+  const lastWeekData = await paginatedFetch(supabase, 'daily_creator_stats', 'tiktok_username, gmv', lwcFilters);
 
-  // MTD
-  let q3 = supabase
-    .from('daily_creator_stats')
-    .select('gmv')
-    .gte('report_date', monthStartStr)
-    .lte('report_date', yesterdayStr);
-  if (brandUuids) q3 = q3.in('brand_id', brandUuids);
-  const { data: mtdData } = await q3;
+  // MTD - paginated
+  const wrMtdFilters: { column: string; op: string; value: any }[] = [
+    { column: 'report_date', op: 'gte', value: monthStartStr },
+    { column: 'report_date', op: 'lte', value: yesterdayStr },
+  ];
+  if (brandUuids) wrMtdFilters.push({ column: 'brand_id', op: 'in', value: brandUuids });
+  const mtdData = await paginatedFetch(supabase, 'daily_creator_stats', 'gmv', wrMtdFilters);
 
-  // This week's video stats (for Hot Now, Doing Well, All-Time)
-  let q4 = supabase
-    .from('daily_video_stats')
-    .select('video_id, tiktok_username, gmv, post_date, report_date')
-    .gte('report_date', weekAgoStr)
-    .lte('report_date', yesterdayStr)
-    .gt('gmv', 0);
-  if (brandUuids) q4 = q4.in('brand_id', brandUuids);
-  const { data: weekVideoData } = await q4;
+  // This week's video stats - paginated
+  const wvFilters: { column: string; op: string; value: any }[] = [
+    { column: 'report_date', op: 'gte', value: weekAgoStr },
+    { column: 'report_date', op: 'lte', value: yesterdayStr },
+    { column: 'gmv', op: 'gt', value: 0 },
+  ];
+  if (brandUuids) wvFilters.push({ column: 'brand_id', op: 'in', value: brandUuids });
+  const weekVideoData = await paginatedFetch(supabase, 'daily_video_stats', 'video_id, tiktok_username, gmv, post_date, report_date', wvFilters);
 
   // Aggregate this week creators
   const thisWeekMap = new Map<string, { name: string; gmv: number; videos: number }>();
