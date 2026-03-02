@@ -35,6 +35,7 @@ function PostCard({
   const [period, setPeriod] = useState<'7d' | '30d'>('7d');
   const [text, setText] = useState<string | null>(null);
   const [stats, setStats] = useState<Stats | null>(null);
+  const [mentionMap, setMentionMap] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,6 +52,7 @@ function PostCard({
       const data = await res.json();
       setText(data.text);
       setStats(data.stats);
+      setMentionMap(data.mentionMap || {});
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -168,7 +170,7 @@ function PostCard({
           {/* Discord-style body */}
           <div className="bg-[#36393f] p-4 flex-1 overflow-auto max-h-[500px]">
             <div className="text-sm text-[#dcddde] whitespace-pre-wrap leading-[1.375rem] font-[Whitney,_Helvetica_Neue,_Helvetica,_Arial,_sans-serif]">
-              {renderDiscordMarkdown(text)}
+              {renderDiscordMarkdown(text, mentionMap)}
             </div>
           </div>
         </div>
@@ -229,21 +231,21 @@ export function DiscordPostsClient() {
 
 // ─── Discord Markdown Renderer ──────────────────────────────────
 
-function renderDiscordMarkdown(text: string) {
+function renderDiscordMarkdown(text: string, mentionMap: Record<string, string> = {}) {
   return text.split('\n').map((line, i) => {
     if (line.startsWith('> ')) {
       return (
         <div key={i} className="border-l-[3px] border-[#4f545c] pl-3 my-0.5 text-[#b9bbbe]">
-          {parseInline(line.slice(2))}
+          {parseInline(line.slice(2), mentionMap)}
         </div>
       );
     }
     if (line === '') return <br key={i} />;
-    return <div key={i}>{parseInline(line)}</div>;
+    return <div key={i}>{parseInline(line, mentionMap)}</div>;
   });
 }
 
-function parseInline(text: string) {
+function parseInline(text: string, mentionMap: Record<string, string> = {}) {
   // Handle **bold**, *italic*, __underline__, [text](url), <@id>, :emoji:
   const parts: (string | React.ReactElement)[] = [];
   let remaining = text;
@@ -253,7 +255,7 @@ function parseInline(text: string) {
     // Bold
     const boldMatch = remaining.match(/^\*\*(.+?)\*\*/);
     if (boldMatch) {
-      parts.push(<strong key={key++} className="font-bold text-white">{parseInline(boldMatch[1])}</strong>);
+      parts.push(<strong key={key++} className="font-bold text-white">{parseInline(boldMatch[1], mentionMap)}</strong>);
       remaining = remaining.slice(boldMatch[0].length);
       continue;
     }
@@ -269,7 +271,7 @@ function parseInline(text: string) {
     // Underline
     const underlineMatch = remaining.match(/^__(.+?)__/);
     if (underlineMatch) {
-      parts.push(<span key={key++} className="underline">{parseInline(underlineMatch[1])}</span>);
+      parts.push(<span key={key++} className="underline">{parseInline(underlineMatch[1], mentionMap)}</span>);
       remaining = remaining.slice(underlineMatch[0].length);
       continue;
     }
@@ -289,8 +291,10 @@ function parseInline(text: string) {
     // Discord mention <@id>
     const mentionMatch = remaining.match(/^<@(\d+)>/);
     if (mentionMatch) {
+      const discordId = mentionMatch[1];
+      const displayName = mentionMap[discordId] || 'user';
       parts.push(
-        <span key={key++} className="bg-[#5865F2]/20 text-[#dee0fc] rounded px-1">@user</span>
+        <span key={key++} className="bg-[#5865F2]/20 text-[#dee0fc] rounded px-1">@{displayName}</span>
       );
       remaining = remaining.slice(mentionMatch[0].length);
       continue;

@@ -21,8 +21,14 @@ export async function GET(request: NextRequest) {
     if (type === 'whats-cooking') {
       const data = await getWhatsCookingData(brand, period);
       const text = formatWhatsCookingDiscord(data, brandName, period);
+      // Build mention display map for preview (discord_id -> username)
+      const mentionMap: Record<string, string> = {};
+      data.discordMap.forEach((v, handle) => {
+        if (v.discord_id && v.discord_name) mentionMap[v.discord_id] = v.discord_name;
+      });
       return NextResponse.json({
         text,
+        mentionMap,
         stats: {
           totalGmv: data.totalGmv,
           videoCount: data.videoCount,
@@ -32,8 +38,14 @@ export async function GET(request: NextRequest) {
     } else if (type === 'whos-cooking') {
       const data = await getWhosCookingData(brand, period);
       const text = formatWhosCookingDiscord(data, brandName, period);
+      // Build mention display map for preview
+      const mentionMap: Record<string, string> = {};
+      data.leaderboard.forEach(c => {
+        if (c.discord_id && c.discord_name) mentionMap[c.discord_id] = c.discord_name;
+      });
       return NextResponse.json({
         text,
+        mentionMap,
         stats: {
           totalGmv: data.totalGmv,
           videoCount: data.videoCount,

@@ -369,8 +369,19 @@ export function formatWhatsCookingDiscord(
   brandName: string,
   period: '7d' | '30d'
 ): string {
-  const dateStr = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  const periodLabel = period === '30d' ? 'Monthly performance' : 'Performance from the last 7 days';
+  const today = new Date();
+  const dateStr = today.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  
+  let periodLabel: string;
+  if (period === '30d') {
+    const thirtyAgo = new Date(today);
+    thirtyAgo.setDate(today.getDate() - 30);
+    const rangeStart = thirtyAgo.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const rangeEnd = today.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    periodLabel = `Monthly performance (${rangeStart} – ${rangeEnd})`;
+  } else {
+    periodLabel = 'Performance from the last 7 days';
+  }
 
   const formatVideo = (v: VideoEntry, i: number) => {
     const handle = v.tiktok_username.replace('@', '');
@@ -384,7 +395,8 @@ export function formatWhatsCookingDiscord(
       : `> ${i + 1}. ${mention} - $${formatGmv(v.gmv)}`;
   };
 
-  let text = `🍳 **What's Cooking?** | ${brandName} | ${dateStr}\n`;
+  const headerSuffix = period === '30d' ? ' | 📅 Monthly' : '';
+  let text = `🍳 **What's Cooking?** | ${brandName} | ${dateStr}${headerSuffix}\n`;
   text += `*${periodLabel}*\n\n`;
 
   if (data.hotVideos.length > 0) {
@@ -421,11 +433,23 @@ export function formatWhosCookingDiscord(
   brandName: string,
   period: '7d' | '30d'
 ): string {
-  const dateStr = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  const periodLabel = period === '30d' ? 'Top performers this month' : 'Top performers from the last 7 days';
+  const today = new Date();
+  const dateStr = today.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  
+  let periodLabel: string;
+  if (period === '30d') {
+    const thirtyAgo = new Date(today);
+    thirtyAgo.setDate(today.getDate() - 30);
+    const rangeStart = thirtyAgo.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const rangeEnd = today.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    periodLabel = `Top performers this month (${rangeStart} – ${rangeEnd})`;
+  } else {
+    periodLabel = 'Top performers from the last 7 days';
+  }
   const comparisonLabel = period === '30d' ? 'from last month' : 'from last week';
 
-  let text = `👨‍🍳 **Who's Cooking?** | ${brandName} | ${dateStr}\n`;
+  const headerSuffix = period === '30d' ? ' | 📅 Monthly' : '';
+  let text = `👨‍🍳 **Who's Cooking?** | ${brandName} | ${dateStr}${headerSuffix}\n`;
   text += `*${periodLabel}*\n\n`;
 
   // Leaderboard
