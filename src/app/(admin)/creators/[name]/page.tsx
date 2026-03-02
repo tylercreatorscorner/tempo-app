@@ -14,6 +14,9 @@ import { ArrowLeft, User, Mail, Phone } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { VideoTitleButton } from '@/components/video/video-title-button';
 import { classifyCreator, getStatusInfo } from '@/lib/data/creator-status';
+import { CreatorTags } from '@/components/crm/creator-tags';
+import { CreatorTimeline } from '@/components/crm/creator-timeline';
+import { TaskList } from '@/components/crm/task-list';
 import {
   getCreatorProfile,
   getCreatorIdByHandle,
@@ -183,6 +186,11 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                   </span>
                 );
               })}
+            </div>
+
+            {/* CRM Tags */}
+            <div className="mt-2">
+              <CreatorTags creatorId={creatorId} />
             </div>
 
             {/* Accounts list */}
@@ -426,6 +434,12 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
           </table>
         </div>
       </div>
+
+      {/* CRM Timeline */}
+      <CreatorTimeline creatorId={creatorId} />
+
+      {/* Tasks */}
+      <TaskList creatorId={creatorId} />
     </div>
   );
 }

@@ -1,176 +1,325 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { Copy, Check, MessageSquare, Filter } from 'lucide-react';
+import { useState, useCallback } from 'react';
+import { Clipboard, Check, Loader2, ChefHat, Flame } from 'lucide-react';
 
-interface Post {
-  id: string;
-  title: string;
-  content: string;
-}
-
-interface BrandOption {
-  value: string;
-  label: string;
-}
-
-interface Props {
-  posts: Post[];
-  brandOptions: BrandOption[];
-  currentBrand: string | null;
-  currentRange: string;
-}
-
-const RANGE_OPTIONS = [
-  { value: 'last7', label: 'Last 7 days' },
-  { value: 'last14', label: 'Last 14 days' },
-  { value: 'last30', label: 'Last 30 days' },
-  { value: 'thisMonth', label: 'This month' },
-  { value: 'lastMonth', label: 'Last month' },
+const BRANDS = [
+  { value: 'all', label: 'All Brands' },
+  { value: 'jiyu', label: 'JiYu' },
+  { value: 'catakor', label: 'Catakor' },
+  { value: 'physicians_choice', label: "Physician's Choice" },
+  { value: 'toplux', label: 'Toplux' },
 ];
 
-export function DiscordPostsClient({ posts, brandOptions, currentBrand, currentRange }: Props) {
-  const router = useRouter();
-  const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [selectedPost, setSelectedPost] = useState<string>(posts[0]?.id ?? '');
+const PERIODS = [
+  { value: '7d', label: '7 Day' },
+  { value: '30d', label: 'Monthly' },
+];
 
-  const handleCopy = async (id: string, content: string) => {
-    await navigator.clipboard.writeText(content);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2000);
+interface Stats {
+  totalGmv: number;
+  videoCount: number;
+  creatorCount: number;
+}
+
+function PostCard({
+  title,
+  icon: Icon,
+  type,
+}: {
+  title: string;
+  icon: typeof Flame;
+  type: 'whats-cooking' | 'whos-cooking';
+}) {
+  const [brand, setBrand] = useState('all');
+  const [period, setPeriod] = useState<'7d' | '30d'>('7d');
+  const [text, setText] = useState<string | null>(null);
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const generate = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/discord-posts?type=${type}&brand=${brand}&period=${period}`);
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      setText(data.text);
+      setStats(data.stats);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [type, brand, period]);
+
+  const handleCopy = async () => {
+    if (!text) return;
+    await navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
-
-  const handleFilterChange = (brand: string, range: string) => {
-    const params = new URLSearchParams();
-    if (brand) params.set('brand', brand);
-    if (range) params.set('range', range);
-    router.push(`/discord-posts?${params.toString()}`);
-  };
-
-  const activePost = posts.find((p) => p.id === selectedPost) ?? posts[0];
 
   return (
-    <div className="space-y-6">
-      {/* Filters */}
-      <div className="rounded-2xl bg-white border border-gray-200 shadow-sm p-4">
-        <div className="flex items-center gap-3 flex-wrap">
-          <Filter className="h-4 w-4 text-gray-400" />
-          <select
-            value={currentBrand ?? ''}
-            onChange={(e) => handleFilterChange(e.target.value, currentRange)}
-            className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-[#FF4D8D]/50"
-          >
-            <option value="">All Brands</option>
-            {brandOptions.map((b) => (
-              <option key={b.value} value={b.value}>{b.label}</option>
-            ))}
-          </select>
-          <select
-            value={currentRange}
-            onChange={(e) => handleFilterChange(currentBrand ?? '', e.target.value)}
-            className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-[#FF4D8D]/50"
-          >
-            {RANGE_OPTIONS.map((r) => (
-              <option key={r.value} value={r.value}>{r.label}</option>
-            ))}
-          </select>
+    <div className="rounded-2xl bg-white border border-gray-200 shadow-sm flex flex-col">
+      {/* Header */}
+      <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-3">
+        <div className="h-9 w-9 rounded-lg bg-pink-50 flex items-center justify-center">
+          <Icon className="h-5 w-5 text-[#FF4D8D]" />
         </div>
+        <h2 className="text-lg font-bold text-[#1A1B3A]">{title}</h2>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6">
-        {/* Post type selector */}
-        <div className="space-y-2">
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Post Type</p>
-          {posts.map((post) => (
+      {/* Controls */}
+      <div className="px-5 py-4 space-y-3">
+        {/* Brand Filter */}
+        <select
+          value={brand}
+          onChange={(e) => setBrand(e.target.value)}
+          className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-[#FF4D8D]/50"
+        >
+          {BRANDS.map((b) => (
+            <option key={b.value} value={b.value}>{b.label}</option>
+          ))}
+        </select>
+
+        {/* Period Toggle */}
+        <div className="flex bg-gray-100 rounded-lg p-1">
+          {PERIODS.map((p) => (
             <button
-              key={post.id}
-              onClick={() => setSelectedPost(post.id)}
-              className={`w-full text-left px-4 py-3 rounded-xl text-sm transition-all duration-200 border ${
-                selectedPost === post.id
-                  ? 'bg-pink-50 border-[#FF4D8D]/30 text-[#FF4D8D] font-medium'
-                  : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+              key={p.value}
+              onClick={() => setPeriod(p.value as '7d' | '30d')}
+              className={`flex-1 text-sm font-medium py-1.5 rounded-md transition-all ${
+                period === p.value
+                  ? 'bg-white text-[#FF4D8D] shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
               }`}
             >
-              {post.title}
+              {p.label}
             </button>
           ))}
         </div>
 
-        {/* Preview */}
-        {activePost && (
-          <div className="rounded-2xl overflow-hidden border border-gray-200 shadow-sm">
-            {/* Discord-style header */}
-            <div className="px-5 py-3 bg-[#36393f] border-b border-[#202225] flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <MessageSquare className="h-4 w-4 text-[#72767d]" />
-                <span className="text-sm font-semibold text-[#dcddde]">Preview</span>
-              </div>
-              <button
-                onClick={() => handleCopy(activePost.id, activePost.content)}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-[#5865F2] hover:bg-[#4752c4] text-white text-xs font-medium transition-colors"
-              >
-                {copiedId === activePost.id ? (
-                  <>
-                    <Check className="h-3.5 w-3.5" />
-                    Copied!
-                  </>
-                ) : (
-                  <>
-                    <Copy className="h-3.5 w-3.5" />
-                    Copy to Clipboard
-                  </>
-                )}
-              </button>
-            </div>
+        {/* Generate Button */}
+        <button
+          onClick={generate}
+          disabled={loading}
+          className="w-full py-2.5 rounded-lg bg-[#FF4D8D] hover:bg-[#e8437e] text-white font-medium text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+        >
+          {loading ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Generating...
+            </>
+          ) : (
+            'Generate'
+          )}
+        </button>
+      </div>
 
-            {/* Discord-style message body */}
-            <div className="bg-[#36393f] p-5">
-              <div className="flex gap-4">
-                {/* Bot avatar */}
-                <div className="h-10 w-10 rounded-full bg-gradient-to-br from-pink-500 to-purple-600 flex items-center justify-center flex-shrink-0">
-                  <span className="text-white font-bold text-sm">T</span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-sm font-semibold text-white">Tempo Bot</span>
-                    <span className="text-[10px] bg-[#5865F2] text-white px-1.5 py-0.5 rounded font-medium">BOT</span>
-                    <span className="text-[11px] text-[#72767d]">Today at {new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</span>
-                  </div>
-                  <div className="text-sm text-[#dcddde] whitespace-pre-wrap leading-[1.375rem] font-[Whitney,_Helvetica_Neue,_Helvetica,_Arial,_sans-serif]">
-                    {renderDiscordMarkdown(activePost.content)}
-                  </div>
-                </div>
-              </div>
+      {/* Stats */}
+      {stats && (
+        <div className="px-5 pb-3 flex gap-4 text-xs text-gray-500">
+          <span>
+            <strong className="text-gray-700">${stats.totalGmv.toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong> GMV
+          </span>
+          <span>
+            <strong className="text-gray-700">{stats.videoCount}</strong> videos
+          </span>
+          <span>
+            <strong className="text-gray-700">{stats.creatorCount}</strong> creators
+          </span>
+        </div>
+      )}
+
+      {/* Preview Area */}
+      {text && (
+        <div className="mx-5 mb-4 rounded-xl overflow-hidden border border-gray-200 flex-1 flex flex-col">
+          {/* Discord-style header */}
+          <div className="px-4 py-2 bg-[#36393f] flex items-center justify-between">
+            <span className="text-xs font-semibold text-[#dcddde]">Preview</span>
+            <button
+              onClick={handleCopy}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                copied
+                  ? 'bg-green-600 text-white'
+                  : 'bg-[#5865F2] hover:bg-[#4752c4] text-white'
+              }`}
+            >
+              {copied ? (
+                <>
+                  <Check className="h-3.5 w-3.5" />
+                  Copied!
+                </>
+              ) : (
+                <>
+                  <Clipboard className="h-3.5 w-3.5" />
+                  Copy
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* Discord-style body */}
+          <div className="bg-[#36393f] p-4 flex-1 overflow-auto max-h-[500px]">
+            <div className="text-sm text-[#dcddde] whitespace-pre-wrap leading-[1.375rem] font-[Whitney,_Helvetica_Neue,_Helvetica,_Arial,_sans-serif]">
+              {renderDiscordMarkdown(text)}
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
+      {/* Error */}
+      {error && (
+        <div className="mx-5 mb-4 px-3 py-2 rounded-lg bg-red-50 text-red-600 text-xs">
+          {error}
+        </div>
+      )}
+
+      {/* Big Copy Button */}
+      {text && (
+        <div className="px-5 pb-5">
+          <button
+            onClick={handleCopy}
+            className={`w-full py-3 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 ${
+              copied
+                ? 'bg-green-500 text-white'
+                : 'bg-[#1A1B3A] hover:bg-[#2a2b4a] text-white'
+            }`}
+          >
+            {copied ? (
+              <>
+                <Check className="h-4 w-4" />
+                Copied to Clipboard!
+              </>
+            ) : (
+              <>
+                <Clipboard className="h-4 w-4" />
+                Copy to Clipboard
+              </>
+            )}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
 
-/** Simple Discord markdown renderer — handles **bold** and > quotes */
+export function DiscordPostsClient() {
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <PostCard
+        title="What's Cooking?"
+        icon={Flame}
+        type="whats-cooking"
+      />
+      <PostCard
+        title="Who's Cooking?"
+        icon={ChefHat}
+        type="whos-cooking"
+      />
+    </div>
+  );
+}
+
+// ─── Discord Markdown Renderer ──────────────────────────────────
+
 function renderDiscordMarkdown(text: string) {
   return text.split('\n').map((line, i) => {
     if (line.startsWith('> ')) {
       return (
-        <div key={i} className="border-l-[3px] border-[#4f545c] pl-3 my-1 text-[#b9bbbe] italic">
-          {parseBold(line.slice(2))}
+        <div key={i} className="border-l-[3px] border-[#4f545c] pl-3 my-0.5 text-[#b9bbbe]">
+          {parseInline(line.slice(2))}
         </div>
       );
     }
     if (line === '') return <br key={i} />;
-    return <div key={i}>{parseBold(line)}</div>;
+    return <div key={i}>{parseInline(line)}</div>;
   });
 }
 
-function parseBold(text: string) {
-  const parts = text.split(/(\*\*[^*]+\*\*)/g);
-  return parts.map((part, i) => {
-    if (part.startsWith('**') && part.endsWith('**')) {
-      return <strong key={i} className="font-bold text-white">{part.slice(2, -2)}</strong>;
+function parseInline(text: string) {
+  // Handle **bold**, *italic*, __underline__, [text](url), <@id>, :emoji:
+  const parts: (string | React.ReactElement)[] = [];
+  let remaining = text;
+  let key = 0;
+
+  while (remaining.length > 0) {
+    // Bold
+    const boldMatch = remaining.match(/^\*\*(.+?)\*\*/);
+    if (boldMatch) {
+      parts.push(<strong key={key++} className="font-bold text-white">{parseInline(boldMatch[1])}</strong>);
+      remaining = remaining.slice(boldMatch[0].length);
+      continue;
     }
-    return part;
-  });
+
+    // Italic
+    const italicMatch = remaining.match(/^\*(.+?)\*/);
+    if (italicMatch) {
+      parts.push(<em key={key++} className="italic text-[#b9bbbe]">{italicMatch[1]}</em>);
+      remaining = remaining.slice(italicMatch[0].length);
+      continue;
+    }
+
+    // Underline
+    const underlineMatch = remaining.match(/^__(.+?)__/);
+    if (underlineMatch) {
+      parts.push(<span key={key++} className="underline">{parseInline(underlineMatch[1])}</span>);
+      remaining = remaining.slice(underlineMatch[0].length);
+      continue;
+    }
+
+    // Links [text](url)
+    const linkMatch = remaining.match(/^\[(.+?)\]\((.+?)\)/);
+    if (linkMatch) {
+      parts.push(
+        <a key={key++} href={linkMatch[2]} target="_blank" rel="noopener noreferrer" className="text-[#00AFF4] hover:underline">
+          {linkMatch[1]}
+        </a>
+      );
+      remaining = remaining.slice(linkMatch[0].length);
+      continue;
+    }
+
+    // Discord mention <@id>
+    const mentionMatch = remaining.match(/^<@(\d+)>/);
+    if (mentionMatch) {
+      parts.push(
+        <span key={key++} className="bg-[#5865F2]/20 text-[#dee0fc] rounded px-1">@user</span>
+      );
+      remaining = remaining.slice(mentionMatch[0].length);
+      continue;
+    }
+
+    // Discord emoji :name:
+    const emojiMatch = remaining.match(/^:([a-z_]+):/);
+    if (emojiMatch) {
+      const emojiMap: Record<string, string> = {
+        fire: '🔥',
+        trophy: '🏆',
+        star: '⭐',
+        chart_with_upwards_trend: '📈',
+      };
+      parts.push(<span key={key++}>{emojiMap[emojiMatch[1]] || `:${emojiMatch[1]}:`}</span>);
+      remaining = remaining.slice(emojiMatch[0].length);
+      continue;
+    }
+
+    // Plain text (consume until next special char)
+    const nextSpecial = remaining.slice(1).search(/[\*_\[<:]/);
+    if (nextSpecial === -1) {
+      parts.push(remaining);
+      break;
+    } else {
+      parts.push(remaining.slice(0, nextSpecial + 1));
+      remaining = remaining.slice(nextSpecial + 1);
+    }
+  }
+
+  return <>{parts}</>;
 }
