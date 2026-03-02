@@ -59,15 +59,12 @@ function getBrandUuids(brandFilter: string): string[] | null {
 
 async function getDiscordMap(supabase: any, brandUuids: string[] | null): Promise<Map<string, { discord_id: string | null; discord_name: string | null }>> {
   // Query creators_v2 joined with tiktok_accounts
-  let query = supabase
+  // Note: creators_v2 uses 'discord_username' not 'discord_name'
+  // Don't filter by brand here — we want Discord IDs for all creators
+  // regardless of which brand is selected for the report
+  const { data } = await supabase
     .from('tiktok_accounts')
-    .select('tiktok_username, creator:creators_v2!inner(discord_id, discord_name)');
-
-  if (brandUuids) {
-    query = query.in('brand_id', brandUuids);
-  }
-
-  const { data } = await query;
+    .select('tiktok_username, creator:creators_v2!inner(discord_id, discord_username)');
   const map = new Map<string, { discord_id: string | null; discord_name: string | null }>();
 
   (data || []).forEach((row: any) => {
@@ -75,7 +72,7 @@ async function getDiscordMap(supabase: any, brandUuids: string[] | null): Promis
     if (handle && row.creator) {
       map.set(handle, {
         discord_id: row.creator.discord_id,
-        discord_name: row.creator.discord_name,
+        discord_name: row.creator.discord_username,
       });
     }
   });
