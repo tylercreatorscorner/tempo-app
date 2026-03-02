@@ -2,8 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   getWhatsCookingData,
   getWhosCookingData,
+  getDailyDropData,
+  getWeeklyRankingsData,
   formatWhatsCookingDiscord,
   formatWhosCookingDiscord,
+  formatDailyDropDiscord,
+  formatWeeklyRankingsDiscord,
 } from '@/lib/data/discord-posts';
 import { BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
 
@@ -50,6 +54,38 @@ export async function GET(request: NextRequest) {
           totalGmv: data.totalGmv,
           videoCount: data.videoCount,
           creatorCount: data.creatorCount,
+        },
+      });
+    } else if (type === 'daily-drop') {
+      const data = await getDailyDropData(brand);
+      const text = formatDailyDropDiscord(data, brandName);
+      const mentionMap: Record<string, string> = {};
+      data.discordMap.forEach((v, handle) => {
+        if (v.discord_id && v.discord_name) mentionMap[v.discord_id] = v.discord_name;
+      });
+      return NextResponse.json({
+        text,
+        mentionMap,
+        stats: {
+          totalGmv: data.yesterdayGmv,
+          videoCount: data.topVideos.length,
+          creatorCount: data.topCreators.length,
+        },
+      });
+    } else if (type === 'weekly-rankings') {
+      const data = await getWeeklyRankingsData(brand);
+      const text = formatWeeklyRankingsDiscord(data, brandName);
+      const mentionMap: Record<string, string> = {};
+      data.discordMap.forEach((v, handle) => {
+        if (v.discord_id && v.discord_name) mentionMap[v.discord_id] = v.discord_name;
+      });
+      return NextResponse.json({
+        text,
+        mentionMap,
+        stats: {
+          totalGmv: data.weekTotal,
+          videoCount: data.videosHot.length + data.videosDoingWell.length,
+          creatorCount: data.topCreators.length,
         },
       });
     } else {

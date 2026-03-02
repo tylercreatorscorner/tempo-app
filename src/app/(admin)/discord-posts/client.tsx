@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { Clipboard, Check, Loader2, ChefHat, Flame } from 'lucide-react';
+import { Clipboard, Check, Loader2, ChefHat, Flame, TrendingUp, BarChart3 } from 'lucide-react';
 
 const BRANDS = [
   { value: 'all', label: 'All Brands' },
@@ -26,10 +26,12 @@ function PostCard({
   title,
   icon: Icon,
   type,
+  showPeriod = true,
 }: {
   title: string;
   icon: typeof Flame;
-  type: 'whats-cooking' | 'whos-cooking';
+  type: 'whats-cooking' | 'whos-cooking' | 'daily-drop' | 'weekly-rankings';
+  showPeriod?: boolean;
 }) {
   const [brand, setBrand] = useState('all');
   const [period, setPeriod] = useState<'7d' | '30d'>('7d');
@@ -91,21 +93,23 @@ function PostCard({
         </select>
 
         {/* Period Toggle */}
-        <div className="flex bg-gray-100 rounded-lg p-1">
-          {PERIODS.map((p) => (
-            <button
-              key={p.value}
-              onClick={() => setPeriod(p.value as '7d' | '30d')}
-              className={`flex-1 text-sm font-medium py-1.5 rounded-md transition-all ${
-                period === p.value
-                  ? 'bg-white text-[#FF4D8D] shadow-sm'
-                  : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
+        {showPeriod && (
+          <div className="flex bg-gray-100 rounded-lg p-1">
+            {PERIODS.map((p) => (
+              <button
+                key={p.value}
+                onClick={() => setPeriod(p.value as '7d' | '30d')}
+                className={`flex-1 text-sm font-medium py-1.5 rounded-md transition-all ${
+                  period === p.value
+                    ? 'bg-white text-[#FF4D8D] shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Generate Button */}
         <button
@@ -225,6 +229,18 @@ export function DiscordPostsClient() {
         icon={ChefHat}
         type="whos-cooking"
       />
+      <PostCard
+        title="Daily Drop"
+        icon={TrendingUp}
+        type="daily-drop"
+        showPeriod={false}
+      />
+      <PostCard
+        title="Weekly Rankings"
+        icon={BarChart3}
+        type="weekly-rankings"
+        showPeriod={false}
+      />
     </div>
   );
 }
@@ -233,6 +249,13 @@ export function DiscordPostsClient() {
 
 function renderDiscordMarkdown(text: string, mentionMap: Record<string, string> = {}) {
   return text.split('\n').map((line, i) => {
+    if (line.startsWith('# ')) {
+      return (
+        <div key={i} className="text-xl font-bold text-white mt-1 mb-1">
+          {parseInline(line.slice(2), mentionMap)}
+        </div>
+      );
+    }
     if (line.startsWith('> ')) {
       return (
         <div key={i} className="border-l-[3px] border-[#4f545c] pl-3 my-0.5 text-[#b9bbbe]">
