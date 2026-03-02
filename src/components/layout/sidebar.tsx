@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import {
   LayoutDashboard, Store, BarChart3, Users, Settings, CreditCard, MessageSquare, Flame, Mail, ScanSearch, Shield,
-  Columns3, ClipboardList,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TempoLogo } from '@/components/ui/tempo-logo';
@@ -17,8 +16,6 @@ const NAV_ITEMS = [
   { href: '/brands', label: 'Brands', icon: Store },
   { href: '/analytics', label: 'Analytics', icon: BarChart3 },
   { href: '/creators', label: 'Creators', icon: Users },
-  { href: '/creators/pipeline', label: 'Pipeline', icon: Columns3 },
-  { href: '/tasks', label: 'Tasks', icon: ClipboardList },
   { href: '/payments', label: 'Payments', icon: CreditCard },
   { href: '/discord-posts', label: 'Discord Posts', icon: MessageSquare },
   { href: '/discord-scan', label: 'Discord Scan', icon: ScanSearch },

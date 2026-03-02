@@ -16,7 +16,6 @@ import { VideoTitleButton } from '@/components/video/video-title-button';
 import { classifyCreator, getStatusInfo } from '@/lib/data/creator-status';
 import { CreatorTags } from '@/components/crm/creator-tags';
 import { CreatorTimeline } from '@/components/crm/creator-timeline';
-import { TaskList } from '@/components/crm/task-list';
 import {
   getCreatorProfile,
   getCreatorIdByHandle,
@@ -437,9 +436,6 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
 
       {/* CRM Timeline */}
       <CreatorTimeline creatorId={creatorId} />
-
-      {/* Tasks */}
-      <TaskList creatorId={creatorId} />
     </div>
   );
 }
