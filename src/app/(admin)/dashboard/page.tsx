@@ -8,6 +8,7 @@ import { BrandTicker } from '@/components/dashboard/brand-ticker';
 import { VideoSection } from '@/components/dashboard/video-section';
 import { aggregateCreatorsByRealName } from '@/lib/data/creator-aggregate';
 import { getDashboardVideos } from '@/lib/data/video-sections';
+import { getCreatorRetainers } from '@/lib/data/retainer';
 import { BRAND_COLORS, BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
 
 import { format, subDays, differenceInDays } from 'date-fns';
@@ -87,8 +88,8 @@ export default async function AdminDashboard({ searchParams }: Props) {
       : Promise.resolve(null),
   ]);
 
-  // Fetch creators + video sections in parallel
-  const [allCreators, videoSections] = await Promise.all([
+  // Fetch creators + video sections + retainers in parallel
+  const [allCreators, videoSections, retainerMap] = await Promise.all([
     Promise.all(
       activeBrands.map(async (brand) => {
         try { return (await getCreatorRankings(brand, startDate, endDate, 50)).map((c) => ({ ...c, brand })); } catch { return []; }
@@ -97,6 +98,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
       results.flat().sort((a, b) => (b.total_gmv ?? 0) - (a.total_gmv ?? 0))
     ),
     getDashboardVideos(brandFilter, startDate, endDate),
+    getCreatorRetainers(),
   ]);
 
   // Group creators for managed/unmanaged split
@@ -149,9 +151,12 @@ export default async function AdminDashboard({ searchParams }: Props) {
   const gmvTrend = pctChange(totals.gmv, prevTotals.gmv);
   const ordersTrend = pctChange(totals.orders, prevTotals.orders);
   const itemsTrend = pctChange(totals.items, prevTotals.items);
-  const avgGmvPerCreator = totals.creators > 0 ? totals.gmv / totals.creators : 0;
-  const prevAvgGmvPerCreator = prevTotals.creators > 0 ? prevTotals.gmv / prevTotals.creators : 0;
-  const avgGmvTrend = pctChange(avgGmvPerCreator, prevAvgGmvPerCreator);
+  // ROI = Total GMV / Total Retainer Spend
+  let totalRetainerSpend = 0;
+  for (const [, info] of retainerMap) {
+    totalRetainerSpend += info.retainer ?? 0;
+  }
+  const roi = totalRetainerSpend > 0 ? totals.gmv / totalRetainerSpend : 0;
 
   // Brand strip data
   const alertSummaries = allBrandSummaries ?? summaries;
@@ -207,7 +212,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 stagger-children">
         <StatCard label="Total GMV" value={formatCurrency(totals.gmv)} trend={gmvTrend} trendLabel={trendLabel} brandColor={activeBrandColor} />
         <StatCard label="Creators" value={formatNumber(totals.creators)} brandColor={activeBrandColor} />
-        <StatCard label="Avg GMV/Creator" value={formatCurrency(avgGmvPerCreator)} trend={avgGmvTrend} trendLabel={trendLabel} brandColor={activeBrandColor} />
+        <StatCard label="ROI" value={roi > 0 ? `${roi.toFixed(1)}x` : 'N/A'} brandColor={activeBrandColor} />
         <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-5 space-y-2 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300">
           <p className="text-xs font-medium uppercase tracking-wider text-gray-500">Managed GMV</p>
           <p className="text-xl sm:text-2xl font-extrabold tracking-tight text-[#1A1B3A]">{formatCurrency(managedSplitData.managed.gmv)}</p>
