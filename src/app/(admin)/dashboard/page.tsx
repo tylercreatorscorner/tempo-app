@@ -246,6 +246,13 @@ export default async function AdminDashboard({ searchParams }: Props) {
       )}
 
       {/* Video Sections */}
+      {/* DEBUG: Remove after fixing */}
+      {videoSections.hotNow.length === 0 && videoSections.rising.length === 0 && videoSections.topPerformers.length === 0 && (
+        <div className="rounded-2xl bg-yellow-50 border border-yellow-200 p-4 text-sm text-yellow-800">
+          ⚠️ Video sections returned 0 videos. Debug: hotNow={videoSections.hotNow.length}, rising={videoSections.rising.length}, top={videoSections.topPerformers.length} | 
+          ENV check: SERVICE_ROLE_KEY={process.env.SUPABASE_SERVICE_ROLE_KEY ? '✅ set' : '❌ missing'}
+        </div>
+      )}
       <VideoSection
         emoji="🔥"
         title="Hot Now"

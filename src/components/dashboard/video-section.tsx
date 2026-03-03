@@ -25,7 +25,7 @@ interface VideoSectionProps {
 export function VideoSection({ title, emoji, description, videos, defaultExpanded = true }: VideoSectionProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
 
-  if (videos.length === 0) return null;
+  if (!videos || videos.length === 0) return null;
 
   return (
     <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">

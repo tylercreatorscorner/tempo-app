@@ -46,6 +46,14 @@ export async function getDashboardVideos(
     return { hotNow: [], rising: [], topPerformers: [] };
   }
 
+  console.log('[video-sections] brandUuids:', brandUuids, 'startDate:', startDate, 'endDate:', endDate, 'rows:', data?.length ?? 0);
+  
+  if (data?.length) {
+    const sections: Record<string, number> = {};
+    for (const row of data) { sections[row.section] = (sections[row.section] || 0) + 1; }
+    console.log('[video-sections] sections:', sections, 'sample row keys:', Object.keys(data[0]));
+  }
+
   const hotNow: DashboardVideo[] = [];
   const rising: DashboardVideo[] = [];
   const topPerformers: DashboardVideo[] = [];
