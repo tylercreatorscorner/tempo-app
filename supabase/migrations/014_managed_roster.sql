@@ -4,7 +4,7 @@
 CREATE TABLE IF NOT EXISTS managed_roster (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  brand_id UUID REFERENCES brands(id) ON DELETE SET NULL,
+  brand_id INTEGER REFERENCES brands(id) ON DELETE SET NULL,
   creator_handle TEXT NOT NULL,
   creator_name TEXT,
   retainer_amount NUMERIC,
