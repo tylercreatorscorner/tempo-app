@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import { syncBrand } from '@/lib/tiktok/scheduler';
+import { DATA_ENABLED_BRANDS } from '@/lib/utils/constants';
 import type { TikTokShopConnection } from '@/lib/tiktok/types';
 
 const COOLDOWN_MS = 60 * 60 * 1000; // 1 hour
@@ -35,6 +36,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Missing required field: brand' },
         { status: 400 }
+      );
+    }
+
+    // Guard: only data-enabled brands can sync
+    if (!DATA_ENABLED_BRANDS.includes(brand)) {
+      console.error(`[SYNC BLOCKED] Attempted sync for non-data-enabled brand: ${brand}`);
+      return NextResponse.json(
+        { error: `Brand "${brand}" is not enabled for data sync.` },
+        { status: 403 }
       );
     }
 

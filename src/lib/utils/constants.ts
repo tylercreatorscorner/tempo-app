@@ -35,6 +35,29 @@ export const DATE_RANGE_PRESETS = [
 export const ACTIVE_BRANDS = ['jiyu', 'catakor', 'physicians_choice', 'toplux'] as const;
 export type ActiveBrand = (typeof ACTIVE_BRANDS)[number];
 
+/**
+ * Brands with active data pipelines (scraper/CSV).
+ * ONLY these brand IDs are allowed to write to v2 data tables.
+ * Toplux is excluded — no data access, no writes, ever.
+ */
+export const DATA_ENABLED_BRANDS = ['jiyu', 'catakor', 'physicians_choice'] as const;
+export const DATA_ENABLED_BRAND_IDS = new Set([
+  'b0000000-0000-0000-0000-000000000001', // catakor
+  'b0000000-0000-0000-0000-000000000002', // physicians_choice
+  'b0000000-0000-0000-0000-000000000003', // jiyu
+]);
+
+/** Validate a brand_id is allowed to have data written. Throws if not. */
+export function assertDataWriteAllowed(brandId: string, context?: string): void {
+  if (!DATA_ENABLED_BRAND_IDS.has(brandId)) {
+    throw new Error(
+      `DATA WRITE BLOCKED: brand_id ${brandId} is not in DATA_ENABLED_BRAND_IDS. ` +
+      `Only brands with active data pipelines can write data. ` +
+      (context ? `Context: ${context}` : '')
+    );
+  }
+}
+
 /** Brand slug → UUID mapping for v2 database tables */
 export const BRAND_UUID_MAP: Record<string, string> = {
   catakor: 'b0000000-0000-0000-0000-000000000001',
