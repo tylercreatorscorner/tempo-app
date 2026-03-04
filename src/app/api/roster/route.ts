@@ -1,30 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 
-// GET /api/roster?tenant_id=...&brand_id=...&status=...&search=...
+// GET /api/roster?brand=...&status=...&search=...
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
-  const tenantId = searchParams.get('tenant_id');
-  const brandId = searchParams.get('brand_id');
+  const brand = searchParams.get('brand');
   const status = searchParams.get('status');
   const search = searchParams.get('search');
-
-  if (!tenantId) {
-    return NextResponse.json({ error: 'tenant_id is required' }, { status: 400 });
-  }
 
   const supabase = await createAdminClient();
 
   let query = supabase
-    .from('managed_roster')
+    .from('managed_creators')
     .select('*')
-    .eq('tenant_id', tenantId)
-    .order('created_at', { ascending: false });
+    .order('retainer', { ascending: false, nullsFirst: false });
 
-  if (brandId) query = query.eq('brand_id', brandId);
-  if (status) query = query.eq('status', status);
+  if (brand && brand !== 'all') query = query.eq('brand', brand);
+  if (status && status !== 'all') query = query.eq('status', status);
   if (search) {
-    query = query.or(`creator_handle.ilike.%${search}%,creator_name.ilike.%${search}%`);
+    query = query.or(`real_name.ilike.%${search}%,account_1.ilike.%${search}%,discord_name.ilike.%${search}%`);
   }
 
   const { data, error } = await query;
@@ -36,39 +30,35 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({ data });
 }
 
-// POST /api/roster — add a single creator to the roster
+// POST /api/roster — add a single creator
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const { tenant_id, brand_id, creator_handle, creator_name, retainer_amount, retainer_currency, retainer_period, start_date, end_date, status, notes } = body;
+  const { brand, real_name, account_1, retainer, discord_name, notes, monthly_post_requirement } = body;
 
-  if (!tenant_id || !creator_handle) {
-    return NextResponse.json({ error: 'tenant_id and creator_handle are required' }, { status: 400 });
+  if (!real_name && !account_1) {
+    return NextResponse.json({ error: 'real_name or account_1 is required' }, { status: 400 });
   }
 
   const supabase = await createAdminClient();
 
   const { data, error } = await supabase
-    .from('managed_roster')
+    .from('managed_creators')
     .insert({
-      tenant_id,
-      brand_id: brand_id || null,
-      creator_handle: creator_handle.replace(/^@/, ''),
-      creator_name: creator_name || null,
-      retainer_amount: retainer_amount || null,
-      retainer_currency: retainer_currency || 'USD',
-      retainer_period: retainer_period || 'monthly',
-      start_date: start_date || null,
-      end_date: end_date || null,
-      status: status || 'active',
+      brand: brand || null,
+      real_name: real_name || null,
+      account_1: account_1 ? account_1.replace(/^@/, '') : null,
+      retainer: retainer || 0,
+      discord_name: discord_name || null,
       notes: notes || null,
+      monthly_post_requirement: monthly_post_requirement || 30,
+      status: 'Active',
+      employment_status: 'active',
+      tenant_id: '00000000-0000-0000-0000-000000000001',
     })
     .select()
     .single();
 
   if (error) {
-    if (error.code === '23505') {
-      return NextResponse.json({ error: 'Creator already exists in roster for this brand' }, { status: 409 });
-    }
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
