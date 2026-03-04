@@ -253,6 +253,32 @@ export default async function AdminDashboard({ searchParams }: Props) {
           ENV check: SERVICE_ROLE_KEY={process.env.SUPABASE_SERVICE_ROLE_KEY ? '✅ set' : '❌ missing'}
         </div>
       )}
+      {/* Community Highlights — Top 5 Creators */}
+      <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+        <div className="p-4 border-b border-gray-100 flex items-center gap-2">
+          <span className="text-lg">🏅</span>
+          <h3 className="text-lg font-semibold text-[#1A1B3A]">Community Highlights</h3>
+          <span className="text-xs text-gray-400 ml-auto">Top creators this period</span>
+        </div>
+        <div className="divide-y divide-gray-50">
+          {allCreators.slice(0, 5).map((c, i) => (
+            <div key={`${c.creator_name}-${c.brand}-${i}`} className="flex items-center justify-between px-4 py-3 hover:bg-pink-50/20 transition-colors">
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-bold text-gray-400 w-5">{i + 1}</span>
+                <div>
+                  <p className="text-sm font-medium text-[#1A1B3A]">{c.creator_name}</p>
+                  <p className="text-xs text-gray-400">{formatNumber(c.total_videos)} videos · {formatNumber(c.total_orders)} orders</p>
+                </div>
+              </div>
+              <span className="text-sm font-semibold text-[#E91E8C]">{formatCurrency(c.total_gmv)}</span>
+            </div>
+          ))}
+          {allCreators.length === 0 && (
+            <div className="px-4 py-8 text-center text-gray-400 text-sm">No creator data available</div>
+          )}
+        </div>
+      </div>
+
       <VideoSection
         emoji="🔥"
         title="Hot Now"

@@ -3,37 +3,53 @@
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import {
-  LayoutDashboard, Store, BarChart3, Users, UserCheck, Settings, CreditCard, MessageSquare, Mail, ScanSearch, Shield,
+  LayoutDashboard, Store, BarChart3, UserCheck, Settings, CreditCard, Mail, ScanSearch, Shield,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TempoLogo } from '@/components/ui/tempo-logo';
 import { BrandSwitcher } from '@/components/layout/brand-switcher';
 
-const NAV_ITEMS = [
+interface NavItem {
+  href: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+}
+
+const CUSTOMER_NAV: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/messages', label: 'Messages', icon: Mail },
-  { href: '/brands', label: 'Brands', icon: Store },
-  { href: '/analytics', label: 'Analytics', icon: BarChart3 },
-  { href: '/creators', label: 'Creators', icon: Users },
   { href: '/roster', label: 'My Creators', icon: UserCheck },
+  { href: '/analytics', label: 'Analytics', icon: BarChart3 },
+  { href: '/messages', label: 'Messages', icon: Mail },
   { href: '/payments', label: 'Payments', icon: CreditCard },
-  { href: '/discord-posts', label: 'Discord Posts', icon: MessageSquare },
+];
+
+const OWNER_EXTRA: NavItem[] = [
+  { href: '/brands', label: 'All Brands', icon: Store },
+  { href: '/system', label: 'System Health', icon: Shield },
   { href: '/discord-scan', label: 'Discord Scan', icon: ScanSearch },
 ];
 
-const SETTINGS_ITEMS = [
-  { href: '/system', label: 'System Health', icon: Shield },
+const SETTINGS_NAV: NavItem[] = [
   { href: '/settings', label: 'Settings', icon: Settings },
 ];
 
 interface SidebarProps {
   className?: string;
+  userRole?: 'owner' | 'customer';
 }
 
-export function Sidebar({ className }: SidebarProps) {
+export function Sidebar({ className, userRole = 'customer' }: SidebarProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const brand = searchParams.get('brand');
+
+  // Dev override: ?role=owner
+  const roleOverride = searchParams.get('role');
+  const effectiveRole = roleOverride === 'owner' ? 'owner' : userRole;
+
+  const navItems = effectiveRole === 'owner'
+    ? [...CUSTOMER_NAV, ...OWNER_EXTRA]
+    : CUSTOMER_NAV;
 
   /** Build href preserving current brand filter */
   function withBrand(href: string) {
@@ -41,7 +57,7 @@ export function Sidebar({ className }: SidebarProps) {
     return `${href}?brand=${brand}`;
   }
 
-  const renderItem = (item: typeof NAV_ITEMS[0]) => {
+  const renderItem = (item: NavItem) => {
     const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
     return (
       <Link
@@ -74,9 +90,9 @@ export function Sidebar({ className }: SidebarProps) {
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-1 relative z-0">
-        {NAV_ITEMS.map(renderItem)}
+        {navItems.map(renderItem)}
         <div className="my-3 mx-3 border-t border-gray-200" />
-        {SETTINGS_ITEMS.map(renderItem)}
+        {SETTINGS_NAV.map(renderItem)}
       </nav>
 
       {/* Version footer */}
