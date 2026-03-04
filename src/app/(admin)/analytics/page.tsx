@@ -5,7 +5,7 @@ import { DateRangePicker } from '@/components/dashboard/date-range-picker';
 import { AnalyticsTabs } from '@/components/analytics/analytics-tabs';
 import { BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
 
-const ALL_BRANDS = ['jiyu', 'catakor', 'physicians_choice', 'toplux'] as const;
+const ALL_BRANDS = ['jiyu', 'catakor', 'physicians_choice'] as const;
 
 interface Props {
   searchParams: Promise<{ range?: string; brand?: string }>;
