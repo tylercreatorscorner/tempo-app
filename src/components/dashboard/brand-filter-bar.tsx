@@ -9,6 +9,7 @@ const BRANDS = [
   { key: 'jiyu', label: 'JiYu' },
   { key: 'catakor', label: 'Cata-Kor' },
   { key: 'physicians_choice', label: "Physician's Choice" },
+  { key: 'toplux', label: 'Toplux', disabled: true },
 ];
 
 export function BrandFilterBar() {
@@ -36,13 +37,16 @@ export function BrandFilterBar() {
         return (
           <button
             key={b.key}
-            onClick={() => select(b.key)}
+            onClick={() => !b.disabled && select(b.key)}
+            disabled={b.disabled}
             className={cn(
-              'px-4 py-1.5 text-sm rounded-full font-medium transition-all duration-300 border cursor-pointer hover:scale-[1.05]',
+              'px-4 py-1.5 text-sm rounded-full font-medium transition-all duration-300 border',
+              b.disabled && 'opacity-30 cursor-not-allowed',
+              !b.disabled && !isActive && 'cursor-pointer hover:scale-[1.05]',
               isActive && isAll && 'bg-gray-900 border-gray-900 text-white shadow-md',
               !isActive && isAll && 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-900',
               isActive && !isAll && 'text-white shadow-md',
-              !isActive && !isAll && 'bg-white border-gray-200 text-gray-500 hover:text-gray-900',
+              !isActive && !isAll && !b.disabled && 'bg-white border-gray-200 text-gray-500 hover:text-gray-900',
             )}
             style={
               isActive && !isAll && color
@@ -50,7 +54,7 @@ export function BrandFilterBar() {
                     backgroundColor: color,
                     borderColor: color,
                   }
-                : !isActive && !isAll && color
+                : !isActive && !isAll && color && !b.disabled
                 ? { borderColor: `${color}40` }
                 : undefined
             }

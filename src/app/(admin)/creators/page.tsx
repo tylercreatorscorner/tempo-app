@@ -6,7 +6,7 @@ import { classifyCreator } from '@/lib/data/creator-status';
 import { DateRangePicker } from '@/components/dashboard/date-range-picker';
 import { CreatorsClient } from '@/components/dashboard/creators-client';
 
-const ALL_BRANDS = ['jiyu', 'catakor', 'physicians_choice'] as const;
+const ALL_BRANDS = ['jiyu', 'catakor', 'physicians_choice', 'toplux'] as const;
 
 interface Props {
   searchParams: Promise<{ range?: string; brand?: string }>;

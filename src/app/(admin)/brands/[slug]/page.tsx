@@ -14,7 +14,7 @@ import { format, subDays, differenceInDays } from 'date-fns';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 
-const VALID_BRANDS = ['jiyu', 'catakor', 'physicians_choice'];
+const VALID_BRANDS = ['jiyu', 'catakor', 'physicians_choice', 'toplux'];
 
 interface Props {
   params: Promise<{ slug: string }>;

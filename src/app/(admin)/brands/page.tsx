@@ -7,7 +7,7 @@ import { BRAND_COLORS, BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
 import { DateRangePicker } from '@/components/dashboard/date-range-picker';
 import { DollarSign, ShoppingCart, Users, Package } from 'lucide-react';
 
-const BRANDS = ['jiyu', 'catakor', 'physicians_choice'] as const;
+const BRANDS = ['jiyu', 'catakor', 'physicians_choice', 'toplux'] as const;
 
 interface Props {
   searchParams: Promise<{ range?: string }>;

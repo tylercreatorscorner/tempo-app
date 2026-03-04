@@ -13,7 +13,7 @@ import { BRAND_COLORS, BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
 
 import { format, subDays, differenceInDays } from 'date-fns';
 
-const ALL_BRANDS = ['jiyu', 'catakor', 'physicians_choice'] as const;
+const ALL_BRANDS = ['jiyu', 'catakor', 'physicians_choice', 'toplux'] as const;
 
 interface Props {
   searchParams: Promise<{ range?: string; brand?: string }>;
