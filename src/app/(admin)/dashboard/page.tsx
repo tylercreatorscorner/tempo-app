@@ -253,29 +253,90 @@ export default async function AdminDashboard({ searchParams }: Props) {
           ENV check: SERVICE_ROLE_KEY={process.env.SUPABASE_SERVICE_ROLE_KEY ? '✅ set' : '❌ missing'}
         </div>
       )}
-      {/* Community Highlights — Top 5 Creators */}
-      <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
-        <div className="p-4 border-b border-gray-100 flex items-center gap-2">
-          <span className="text-lg">🏅</span>
-          <h3 className="text-lg font-semibold text-[#1A1B3A]">Community Highlights</h3>
-          <span className="text-xs text-gray-400 ml-auto">Top creators this period</span>
-        </div>
-        <div className="divide-y divide-gray-50">
-          {allCreators.slice(0, 5).map((c, i) => (
-            <div key={`${c.creator_name}-${c.brand}-${i}`} className="flex items-center justify-between px-4 py-3 hover:bg-pink-50/20 transition-colors">
-              <div className="flex items-center gap-3">
-                <span className="text-sm font-bold text-gray-400 w-5">{i + 1}</span>
-                <div>
-                  <p className="text-sm font-medium text-[#1A1B3A]">{c.creator_name}</p>
-                  <p className="text-xs text-gray-400">{formatNumber(c.total_videos)} videos · {formatNumber(c.total_orders)} orders</p>
+      {/* Community Highlights + Creator Alerts — Side by Side */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Community Highlights — Top 5 Creators */}
+        <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+          <div className="p-4 border-b border-gray-100 flex items-center gap-2">
+            <span className="text-lg">🏅</span>
+            <h3 className="text-lg font-semibold text-[#1A1B3A]">Community Highlights</h3>
+            <span className="text-xs text-gray-400 ml-auto">Top creators this period</span>
+          </div>
+          <div className="divide-y divide-gray-50">
+            {allCreators.slice(0, 5).map((c, i) => (
+              <div key={`${c.creator_name}-${c.brand}-${i}`} className="flex items-center justify-between px-4 py-3 hover:bg-pink-50/20 transition-colors">
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-bold text-gray-400 w-5">{i + 1}</span>
+                  <div>
+                    <p className="text-sm font-medium text-[#1A1B3A]">{c.creator_name}</p>
+                    <p className="text-xs text-gray-400">{formatNumber(c.total_videos)} videos · {formatNumber(c.total_orders)} orders</p>
+                  </div>
                 </div>
+                <span className="text-sm font-semibold text-[#E91E8C]">{formatCurrency(c.total_gmv)}</span>
               </div>
-              <span className="text-sm font-semibold text-[#E91E8C]">{formatCurrency(c.total_gmv)}</span>
-            </div>
-          ))}
-          {allCreators.length === 0 && (
-            <div className="px-4 py-8 text-center text-gray-400 text-sm">No creator data available</div>
-          )}
+            ))}
+            {allCreators.length === 0 && (
+              <div className="px-4 py-8 text-center text-gray-400 text-sm">No creator data available</div>
+            )}
+          </div>
+        </div>
+
+        {/* Creator Alerts */}
+        <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+          <div className="p-4 border-b border-gray-100 flex items-center gap-2">
+            <span className="text-lg">🚨</span>
+            <h3 className="text-lg font-semibold text-[#1A1B3A]">Creator Alerts</h3>
+            <span className="text-xs text-gray-400 ml-auto">Needs attention</span>
+          </div>
+          <div className="divide-y divide-gray-50">
+            {(() => {
+              const alerts: { name: string; type: 'slacking' | 'crushing' | 'new'; detail: string }[] = [];
+
+              for (const c of groupedCreators) {
+                if (!c.isManaged) continue;
+                const retainerAmt = c.retainer ?? 0;
+
+                if (retainerAmt > 0 && c.total_gmv < retainerAmt * 2) {
+                  alerts.push({ name: c.display_name, type: 'slacking', detail: `GMV ${formatCurrency(c.total_gmv)} vs ${formatCurrency(retainerAmt)} retainer` });
+                } else if (c.total_gmv > retainerAmt * 10 && retainerAmt > 0) {
+                  alerts.push({ name: c.display_name, type: 'crushing', detail: `${(c.total_gmv / retainerAmt).toFixed(0)}x ROI on retainer` });
+                }
+                if (c.total_videos <= 1 && c.total_gmv > 500) {
+                  alerts.push({ name: c.display_name, type: 'new', detail: `${formatCurrency(c.total_gmv)} GMV from just ${c.total_videos} video${c.total_videos === 1 ? '' : 's'}` });
+                }
+              }
+
+              const sorted = alerts.sort((a, b) => {
+                const order = { slacking: 0, new: 1, crushing: 2 };
+                return order[a.type] - order[b.type];
+              }).slice(0, 5);
+
+              if (sorted.length === 0) {
+                return <div className="px-4 py-8 text-center text-gray-400 text-sm">No alerts right now. Your creators are on track! ✅</div>;
+              }
+
+              return sorted.map((alert, i) => (
+                <div key={`${alert.name}-${alert.type}-${i}`} className="flex items-center justify-between px-4 py-3 hover:bg-pink-50/20 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <span className="text-base">
+                      {alert.type === 'slacking' ? '⚠️' : alert.type === 'crushing' ? '🔥' : '⭐'}
+                    </span>
+                    <div>
+                      <p className="text-sm font-medium text-[#1A1B3A]">{alert.name}</p>
+                      <p className="text-xs text-gray-400">{alert.detail}</p>
+                    </div>
+                  </div>
+                  <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
+                    alert.type === 'slacking' ? 'bg-amber-50 text-amber-600' :
+                    alert.type === 'crushing' ? 'bg-green-50 text-green-600' :
+                    'bg-blue-50 text-blue-600'
+                  }`}>
+                    {alert.type === 'slacking' ? 'Underperforming' : alert.type === 'crushing' ? 'Crushing it' : 'Breakout'}
+                  </span>
+                </div>
+              ));
+            })()}
+          </div>
         </div>
       </div>
 
