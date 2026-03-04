@@ -9,7 +9,7 @@ export const BRAND_COLORS: Record<string, string> = {
 /** Brand display name mapping */
 export const BRAND_DISPLAY_NAMES: Record<string, string> = {
   jiyu: 'JiYu',
-  catakor: 'Catakor',
+  catakor: 'Cata-Kor',
   physicians_choice: "Physician's Choice",
   toplux: 'Toplux',
 };
