@@ -17,7 +17,6 @@ export interface TempoCommand {
 import ping from './ping';
 import stats from './stats';
 import leaderboard from './leaderboard';
-import whatsHot from './whats-hot';
 import help from './help';
 import alerts from './alerts';
 import creator from './creator';
@@ -30,7 +29,7 @@ import scan from './scan';
 
 /** All registered commands */
 export const commands: TempoCommand[] = [
-  ping, stats, leaderboard, whatsHot, help,
+  ping, stats, leaderboard, help,
   alerts, creator, compare, brand,
   message, bulk, reminder, scan,
 ];

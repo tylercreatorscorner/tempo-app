@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import {
-  LayoutDashboard, Store, BarChart3, Users, Settings, CreditCard, MessageSquare, Flame, Mail, ScanSearch, Shield,
+  LayoutDashboard, Store, BarChart3, Users, Settings, CreditCard, MessageSquare, Mail, ScanSearch, Shield,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TempoLogo } from '@/components/ui/tempo-logo';
@@ -11,7 +11,6 @@ import { BrandSwitcher } from '@/components/layout/brand-switcher';
 
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/whats-hot', label: "What's Hot", icon: Flame },
   { href: '/messages', label: 'Messages', icon: Mail },
   { href: '/brands', label: 'Brands', icon: Store },
   { href: '/analytics', label: 'Analytics', icon: BarChart3 },

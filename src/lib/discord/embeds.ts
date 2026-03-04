@@ -81,25 +81,6 @@ export function leaderboardEmbed(
     .setDescription(`**${period}**\n\n${lines.join('\n')}`);
 }
 
-/** What's Hot embed — trending/rising videos */
-export function whatsHotEmbed(
-  guildConfig: GuildConfig | undefined,
-  videos: Array<{ title: string; creator: string; views: number; gmv: number }>,
-): EmbedBuilder {
-  const fmt = (n: number) => new Intl.NumberFormat('en-US').format(n);
-  const fmtUsd = (n: number) =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(n);
-
-  const lines = videos.slice(0, 5).map((v, i) => {
-    const title = v.title.length > 50 ? v.title.slice(0, 47) + '...' : v.title;
-    return `**${i + 1}.** ${title}\n   👤 @${v.creator} · 👀 ${fmt(v.views)} · 💰 ${fmtUsd(v.gmv)}`;
-  });
-
-  return tempoEmbed(guildConfig)
-    .setTitle('🔥 What\'s Hot')
-    .setDescription(lines.join('\n\n') || 'No trending videos right now.');
-}
-
 /** Help embed — list all commands */
 export function helpEmbed(): EmbedBuilder {
   return tempoEmbed()
@@ -109,7 +90,6 @@ export function helpEmbed(): EmbedBuilder {
       { name: '/ping', value: 'Check if the bot is online', inline: false },
       { name: '/stats [creator] [period]', value: 'Creator stats or brand summary', inline: false },
       { name: '/leaderboard [brand] [period]', value: 'Top creators ranked by GMV', inline: false },
-      { name: '/whats-hot', value: 'Trending/rising videos', inline: false },
       { name: '/alerts', value: 'Performance alerts & warnings', inline: false },
       { name: '/creator [name]', value: 'Detailed creator profile', inline: false },
       { name: '/compare [creator1] [creator2]', value: 'Side-by-side creator comparison', inline: false },

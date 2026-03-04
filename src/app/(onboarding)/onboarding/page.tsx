@@ -14,7 +14,14 @@ import {
   BarChart3,
   Shield,
   AlertCircle,
+  Upload,
+  FileSpreadsheet,
+  X,
+  Copy,
+  CheckCircle2,
+  Info,
 } from 'lucide-react';
+import { DiscordSetup } from '@/components/onboarding/DiscordSetup';
 import { TempoLogo } from '@/components/ui/tempo-logo';
 import { STRIPE_PRICES } from '@/lib/stripe-prices';
 import Link from 'next/link';
@@ -22,7 +29,7 @@ import Link from 'next/link';
 type Role = 'brand' | 'agency' | null;
 type AgencySize = '1-3' | '4-10' | '11-15' | '15+' | null;
 
-const STEPS = ['Role', 'Account', 'Connect', 'Plan'] as const;
+const STEPS = ['Role', 'Account', 'Connect', 'Creators', 'Discord', 'Plan'] as const;
 
 /* ── Email validation ── */
 function isValidEmail(email: string): boolean {
@@ -97,7 +104,11 @@ function OnboardingContent() {
   const [connectAttempted, setConnectAttempted] = useState(false);
   const [showConnectModal, setShowConnectModal] = useState(false);
 
-  // Step 4
+  // Step 4 - Creators
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [csvPreview, setCsvPreview] = useState<Array<{ creator_handle: string; creator_name: string; retainer_amount: string }>>([]);
+
+  // Step 6 - Plan
   const [annualBilling, setAnnualBilling] = useState(false);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
@@ -138,7 +149,7 @@ function OnboardingContent() {
 
   // Confetti on Plan step
   useEffect(() => {
-    if (currentStep === 3) {
+    if (currentStep === 5) {
       setShowConfetti(true);
       const t = setTimeout(() => setShowConfetti(false), 4000);
       return () => clearTimeout(t);
@@ -316,12 +327,33 @@ function OnboardingContent() {
         {currentStep === 2 && (
           <StepConnect
             connectAttempted={connectAttempted}
+            companyName={companyName}
             onConnect={() => setShowConnectModal(true)}
             onContinueDemo={goNext}
             onBack={goBack}
           />
         )}
         {currentStep === 3 && (
+          <StepCreators
+            csvFile={csvFile}
+            csvPreview={csvPreview}
+            onFileUpload={(file, preview) => { setCsvFile(file); setCsvPreview(preview); }}
+            onClearFile={() => { setCsvFile(null); setCsvPreview([]); }}
+            onNext={goNext}
+            onBack={goBack}
+          />
+        )}
+        {currentStep === 4 && (
+          <div className="space-y-6">
+            <DiscordSetup onComplete={goNext} onSkip={goNext} />
+            <div className="text-center">
+              <button onClick={goBack} className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
+                <ArrowLeft className="h-3.5 w-3.5" /> Back
+              </button>
+            </div>
+          </div>
+        )}
+        {currentStep === 5 && (
           <StepPlan
             role={role}
             demoGmv={DEMO_GMV}
@@ -493,13 +525,24 @@ function StepAccount({
 
 /* ── Step 3: Connect TikTok Shop ── */
 function StepConnect({
-  connectAttempted, onConnect, onContinueDemo, onBack,
+  connectAttempted, companyName, onConnect, onContinueDemo, onBack,
 }: {
   connectAttempted: boolean;
+  companyName: string;
   onConnect: () => void;
   onContinueDemo: () => void;
   onBack: () => void;
 }) {
+  const brandSlug = companyName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'mybrand';
+  const dataEmail = `data+${brandSlug}@tempoapp.ai`;
+  const [copied, setCopied] = useState(false);
+
+  function copyEmail() {
+    navigator.clipboard.writeText(dataEmail);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
   return (
     <div className="space-y-6 text-center">
       <div className="mx-auto h-24 w-24 rounded-3xl bg-gradient-to-br from-[#00F2EA] via-black to-[#FF0050] flex items-center justify-center shadow-xl">
@@ -508,8 +551,38 @@ function StepConnect({
       <div>
         <h2 className="text-2xl font-bold">Connect your TikTok Shop</h2>
         <p className="text-muted-foreground mt-2 max-w-md mx-auto">
-          We need to verify your shop data to set up your account. This takes less than 30 seconds.
+          Add Tempo as a sub-account to your TikTok Shop Seller Center for automatic data collection.
         </p>
+      </div>
+
+      {/* Sub-account email */}
+      <div className="rounded-2xl border border-gray-200 bg-white p-5 space-y-4 max-w-md mx-auto text-left">
+        <div className="flex items-start gap-2">
+          <Info className="h-4 w-4 text-[#7C5CFC] mt-0.5 shrink-0" />
+          <p className="text-xs text-muted-foreground">Your unique data collection email:</p>
+        </div>
+        <div className="flex items-center gap-2 bg-muted rounded-xl px-4 py-3">
+          <code className="text-sm font-mono font-semibold text-foreground flex-1 truncate">{dataEmail}</code>
+          <button onClick={copyEmail} className="shrink-0 p-1.5 rounded-lg hover:bg-gray-200 transition-colors">
+            {copied ? <CheckCircle2 className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4 text-muted-foreground" />}
+          </button>
+        </div>
+
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">How to connect:</p>
+          <ol className="text-sm text-muted-foreground space-y-2 list-decimal list-inside">
+            <li>Go to <span className="font-medium text-foreground">TikTok Shop Seller Center</span></li>
+            <li>Navigate to <span className="font-medium text-foreground">Settings → Account → Sub-accounts</span></li>
+            <li>Click <span className="font-medium text-foreground">&quot;Add Sub-account&quot;</span></li>
+            <li>Enter the email above as an <span className="font-medium text-foreground">Affiliate Manager</span></li>
+            <li>Click &quot;Invite&quot; — we&apos;ll auto-accept within minutes</li>
+          </ol>
+        </div>
+
+        {/* Screenshot placeholder */}
+        <div className="rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 h-32 flex items-center justify-center">
+          <span className="text-xs text-muted-foreground">📸 Visual guide coming soon</span>
+        </div>
       </div>
 
       <button
@@ -517,7 +590,7 @@ function StepConnect({
         className="inline-flex items-center gap-3 px-8 py-4 rounded-2xl bg-black text-white font-semibold text-lg border border-white/10 hover:bg-black/80 transition-colors shadow-lg"
       >
         <Music2 className="h-5 w-5 text-[#00F2EA]" />
-        Connect TikTok Shop
+        I&apos;ve Added the Sub-account
       </button>
 
       <div className="flex flex-col items-center gap-3 text-sm text-muted-foreground max-w-sm mx-auto">
@@ -550,6 +623,158 @@ function StepConnect({
         <button onClick={onBack} className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
           <ArrowLeft className="h-3.5 w-3.5" /> Back
         </button>
+      </div>
+    </div>
+  );
+}
+
+/* ── Step 4: Upload Managed Creators ── */
+function StepCreators({
+  csvFile, csvPreview, onFileUpload, onClearFile, onNext, onBack,
+}: {
+  csvFile: File | null;
+  csvPreview: Array<{ creator_handle: string; creator_name: string; retainer_amount: string }>;
+  onFileUpload: (file: File, preview: Array<{ creator_handle: string; creator_name: string; retainer_amount: string }>) => void;
+  onClearFile: () => void;
+  onNext: () => void;
+  onBack: () => void;
+}) {
+  const [dragOver, setDragOver] = useState(false);
+
+  function parseCSV(text: string) {
+    const lines = text.trim().split('\n');
+    if (lines.length < 2) return [];
+    const headers = lines[0].toLowerCase().split(',').map(h => h.trim());
+    const handleIdx = headers.indexOf('creator_handle');
+    const nameIdx = headers.indexOf('creator_name');
+    const retainerIdx = headers.indexOf('retainer_amount');
+
+    return lines.slice(1).filter(l => l.trim()).map(line => {
+      const cols = line.split(',').map(c => c.trim());
+      return {
+        creator_handle: handleIdx >= 0 ? cols[handleIdx] || '' : cols[0] || '',
+        creator_name: nameIdx >= 0 ? cols[nameIdx] || '' : cols[1] || '',
+        retainer_amount: retainerIdx >= 0 ? cols[retainerIdx] || '' : cols[2] || '',
+      };
+    }).slice(0, 20); // preview max 20
+  }
+
+  function handleFile(file: File) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target?.result as string;
+      const preview = parseCSV(text);
+      onFileUpload(file, preview);
+    };
+    reader.readAsText(file);
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setDragOver(false);
+    const file = e.dataTransfer.files[0];
+    if (file && (file.name.endsWith('.csv') || file.type === 'text/csv')) {
+      handleFile(file);
+    }
+  }
+
+  function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (file) handleFile(file);
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="text-center">
+        <div className="inline-flex h-16 w-16 rounded-2xl bg-gradient-to-br from-[#FF4D8D] to-[#7C5CFC] items-center justify-center mb-3">
+          <FileSpreadsheet className="h-8 w-8 text-white" />
+        </div>
+        <h2 className="text-2xl font-bold">Add your managed roster</h2>
+        <p className="text-muted-foreground mt-2 max-w-md mx-auto text-sm">
+          Upload the creators you manage (on retainer). We&apos;ll track them separately from all your affiliates.
+        </p>
+      </div>
+
+      {!csvFile ? (
+        <div
+          onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={handleDrop}
+          className={`relative rounded-2xl border-2 border-dashed p-10 text-center transition-colors cursor-pointer ${
+            dragOver ? 'border-[#FF4D8D] bg-[#FF4D8D]/5' : 'border-gray-300 hover:border-[#FF4D8D]/40 bg-white'
+          }`}
+        >
+          <input
+            type="file"
+            accept=".csv"
+            onChange={handleInputChange}
+            className="absolute inset-0 opacity-0 cursor-pointer"
+          />
+          <Upload className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+          <p className="font-medium text-sm">Drag & drop a CSV file here</p>
+          <p className="text-xs text-muted-foreground mt-1">or click to browse</p>
+          <div className="mt-4 inline-flex items-center gap-1.5 text-xs text-muted-foreground bg-muted rounded-lg px-3 py-1.5">
+            <span>Expected columns:</span>
+            <code className="font-mono font-semibold">creator_handle, creator_name, retainer_amount</code>
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-2xl border border-gray-200 bg-white p-5 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <FileSpreadsheet className="h-4 w-4 text-[#FF4D8D]" />
+              <span className="text-sm font-medium">{csvFile.name}</span>
+              <span className="text-xs text-muted-foreground">({csvPreview.length} creators)</span>
+            </div>
+            <button onClick={onClearFile} className="p-1 rounded-lg hover:bg-muted transition-colors">
+              <X className="h-4 w-4 text-muted-foreground" />
+            </button>
+          </div>
+          {csvPreview.length > 0 && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left py-2 pr-4 font-medium text-muted-foreground">Handle</th>
+                    <th className="text-left py-2 pr-4 font-medium text-muted-foreground">Name</th>
+                    <th className="text-right py-2 font-medium text-muted-foreground">Retainer</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {csvPreview.slice(0, 5).map((row, i) => (
+                    <tr key={i} className="border-b border-gray-100">
+                      <td className="py-1.5 pr-4 font-mono">@{row.creator_handle.replace('@', '')}</td>
+                      <td className="py-1.5 pr-4">{row.creator_name}</td>
+                      <td className="py-1.5 text-right">${row.retainer_amount}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {csvPreview.length > 5 && (
+                <p className="text-xs text-muted-foreground mt-2">...and {csvPreview.length - 5} more</p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="flex justify-between items-center">
+        <button onClick={onBack} className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl border border-border text-sm font-medium hover:bg-muted transition-colors">
+          <ArrowLeft className="h-4 w-4" /> Back
+        </button>
+        <div className="flex items-center gap-3">
+          {!csvFile && (
+            <button onClick={onNext} className="text-sm text-muted-foreground hover:text-foreground transition-colors underline">
+              Skip for now
+            </button>
+          )}
+          <button
+            onClick={onNext}
+            className="inline-flex items-center gap-2 px-8 py-2.5 rounded-xl bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] text-white font-semibold hover:opacity-90 transition-opacity"
+          >
+            {csvFile ? 'Continue' : 'Next'} <ArrowRight className="h-4 w-4" />
+          </button>
+        </div>
       </div>
     </div>
   );

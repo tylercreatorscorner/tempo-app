@@ -1,3 +1,5 @@
+import { FeedbackWidget } from '@/components/feedback/FeedbackWidget';
+
 export default function BrandLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen">
@@ -5,6 +7,7 @@ export default function BrandLayout({ children }: { children: React.ReactNode })
         <span className="font-semibold">Brand Portal</span>
       </header>
       <main className="p-6">{children}</main>
+      <FeedbackWidget />
     </div>
   );
 }
