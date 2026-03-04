@@ -47,10 +47,11 @@ export function VideoSection({ title, emoji, description, videos, defaultExpande
       </button>
 
       <div
-        className={`transition-all duration-300 ease-in-out ${
-          expanded ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'
-        } overflow-hidden`}
+        className={`grid transition-[grid-template-rows,opacity] duration-300 ease-in-out ${
+          expanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+        }`}
       >
+        <div className="overflow-hidden">
         <div className="px-6 pb-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {videos.map((video) => (
             <VideoCard
@@ -63,6 +64,7 @@ export function VideoSection({ title, emoji, description, videos, defaultExpande
               postDate={video.post_date}
             />
           ))}
+        </div>
         </div>
       </div>
     </div>
