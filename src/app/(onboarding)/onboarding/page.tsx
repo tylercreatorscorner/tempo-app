@@ -533,8 +533,8 @@ function StepConnect({
   onContinueDemo: () => void;
   onBack: () => void;
 }) {
-  const brandSlug = companyName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'mybrand';
-  const dataEmail = `data+${brandSlug}@tempoapp.ai`;
+  const brandSlug = companyName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '').replace(/\s+/g, '') || 'mybrand';
+  const dataEmail = `${brandSlug}@tempoapp.ai`;
   const [copied, setCopied] = useState(false);
 
   function copyEmail() {
