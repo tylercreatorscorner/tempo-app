@@ -26,6 +26,9 @@ import {
   getPostsThisMonth,
   getCreatorLifetimeStats,
   getManagedCreatorInfo,
+  hasPerformanceData,
+  getHandleSummary,
+  getHandleVideos,
 } from '@/lib/data/creator-profile';
 
 interface Props {
@@ -64,8 +67,9 @@ function RoleBadge({ role }: { role: string | null }) {
   );
 }
 
-function ManagedOnlyProfile({ creator }: { creator: any }) {
+function ManagedOnlyProfile({ creator, summary, videos }: { creator: any; summary?: any; videos?: any[] }) {
   const fmt = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(n);
+  const fmtNum = (n: number) => new Intl.NumberFormat('en-US').format(n);
   const allAccounts = [creator.account_1];
   for (let i = 2; i <= 10; i++) {
     if (creator[`account_${i}`]) allAccounts.push(creator[`account_${i}`]);
@@ -156,10 +160,58 @@ function ManagedOnlyProfile({ creator }: { creator: any }) {
         </div>
       </div>
 
-      <div className="rounded-2xl bg-gray-50 border border-gray-100 p-8 text-center">
-        <p className="text-gray-400 text-sm">No performance data yet for this creator.</p>
-        <p className="text-gray-300 text-xs mt-1">Data will appear once the daily scraper picks up their videos.</p>
-      </div>
+      {summary ? (
+        <>
+          {/* Summary Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+            <StatCard label="Total GMV" value={formatCurrency(summary.total_gmv)} />
+            <StatCard label="Orders" value={formatNumber(summary.total_orders)} />
+            <StatCard label="Items Sold" value={formatNumber(summary.total_items_sold)} />
+            <StatCard label="Videos" value={formatNumber(summary.total_videos)} />
+            <StatCard label="Est. Commission" value={formatCurrency(summary.total_commission)} />
+          </div>
+
+          {/* Top Videos */}
+          {videos && videos.length > 0 && (
+            <div className="rounded-2xl overflow-hidden bg-white border border-gray-100 shadow-sm">
+              <div className="px-6 py-4 border-b border-gray-100">
+                <h3 className="text-lg font-bold text-[#1A1B3A]">Top Videos by GMV</h3>
+              </div>
+              <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 z-10 bg-gray-50">
+                    <tr className="border-b border-gray-100 text-gray-500">
+                      <th className="px-6 py-3 text-left font-medium text-xs uppercase tracking-wider w-12">#</th>
+                      <th className="px-4 py-3 text-left font-medium text-xs uppercase tracking-wider">Video</th>
+                      <th className="px-4 py-3 text-left font-medium text-xs uppercase tracking-wider">Product</th>
+                      <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider">GMV</th>
+                      <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider">Orders</th>
+                      <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider pr-6">Items</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {videos.map((v: any, i: number) => (
+                      <tr key={`${v.video_id}-${i}`} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                        <td className="px-6 py-3.5 text-gray-400 tabular-nums">{i + 1}</td>
+                        <td className="px-4 py-3.5 font-medium text-[#1A1B3A] max-w-xs truncate">{v.video_title}</td>
+                        <td className="px-4 py-3.5 text-gray-500 max-w-[200px] truncate">{v.product_name || '-'}</td>
+                        <td className="px-4 py-3.5 text-right font-semibold tabular-nums text-[#1A1B3A]">{formatCurrency(v.gmv)}</td>
+                        <td className="px-4 py-3.5 text-right text-gray-500 tabular-nums">{formatNumber(v.orders)}</td>
+                        <td className="px-4 py-3.5 text-right text-gray-500 tabular-nums pr-6">{formatNumber(v.items_sold)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </>
+      ) : (
+        <div className="rounded-2xl bg-gray-50 border border-gray-100 p-8 text-center">
+          <p className="text-gray-400 text-sm">No performance data yet for this creator.</p>
+          <p className="text-gray-300 text-xs mt-1">Data will appear once the daily scraper picks up their videos.</p>
+        </div>
+      )}
     </div>
   );
 }
@@ -181,7 +233,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
       const qs = sp.range ? `?range=${sp.range}` : '';
       redirect(`/creators/${id}${qs}`);
     }
-    // Not in tiktok_accounts — check if they're a managed-only creator
+    // Not in tiktok_accounts (or creator_id is null) — check managed_creators
     const supabase = await (await import('@/lib/supabase/server')).createAdminClient();
     const { data: managedRow } = await supabase
       .from('managed_creators')
@@ -190,6 +242,20 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
       .limit(1)
       .single();
     if (managedRow) {
+      // Collect all handles for this managed creator
+      const allHandles = [managedRow.account_1];
+      for (let i = 2; i <= 10; i++) {
+        if (managedRow[`account_${i}`]) allHandles.push(managedRow[`account_${i}`]);
+      }
+      const hasData = await hasPerformanceData(slug);
+      if (hasData) {
+        const { startDate, endDate } = resolveDateRange(sp.range);
+        const [summary, videos] = await Promise.all([
+          getHandleSummary(allHandles, startDate, endDate),
+          getHandleVideos(allHandles, startDate, endDate),
+        ]);
+        return <ManagedOnlyProfile creator={managedRow} summary={summary} videos={videos} />;
+      }
       return <ManagedOnlyProfile creator={managedRow} />;
     }
     notFound();
