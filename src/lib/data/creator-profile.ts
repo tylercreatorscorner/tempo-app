@@ -213,9 +213,7 @@ export async function getCreatorProfile(creatorId: string | number): Promise<Cre
  */
 export async function getCreatorIdByHandle(handle: string): Promise<string | null> {
   const supabase = await createAdminClient();
-
-  // Try tiktok_accounts first (may have creator_id)
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('tiktok_accounts')
     .select('creator_id')
     .eq('tiktok_username', handle)
@@ -223,109 +221,8 @@ export async function getCreatorIdByHandle(handle: string): Promise<string | nul
     .limit(1)
     .single();
 
-  if (data?.creator_id) return data.creator_id as string;
-
-  // Fallback: find creator_id through managed_creators → creators_v2 by name match
-  const { data: managed } = await supabase
-    .from('managed_creators')
-    .select('real_name')
-    .eq('account_1', handle)
-    .limit(1)
-    .single();
-
-  if (managed?.real_name) {
-    const { data: creator } = await supabase
-      .from('creators_v2')
-      .select('id')
-      .ilike('real_name', managed.real_name)
-      .limit(1)
-      .single();
-    if (creator?.id) return creator.id as string;
-  }
-
-  return null;
-}
-
-/**
- * Check if a handle has performance data (daily_creator_stats) even without a creators_v2 link.
- */
-export async function hasPerformanceData(handle: string): Promise<boolean> {
-  const supabase = await createAdminClient();
-  const { count } = await supabase
-    .from('daily_creator_stats')
-    .select('*', { count: 'exact', head: true })
-    .eq('tiktok_username', handle)
-    .limit(1);
-  return (count ?? 0) > 0;
-}
-
-/**
- * Get performance summary for a handle directly (no creator_id needed).
- */
-export async function getHandleSummary(handles: string[], startDate: string, endDate: string): Promise<CreatorSummaryData> {
-  const supabase = await createAdminClient();
-  const { data } = await supabase
-    .from('daily_creator_stats')
-    .select('gmv, orders, items_sold, videos, est_commission')
-    .in('tiktok_username', handles)
-    .gte('report_date', startDate)
-    .lte('report_date', endDate);
-
-  const rows = data ?? [];
-  let gmv = 0, orders = 0, items = 0, videos = 0, commission = 0;
-  for (const r of rows) {
-    gmv += Number(r.gmv) || 0;
-    orders += Number(r.orders) || 0;
-    items += Number(r.items_sold) || 0;
-    videos += Number(r.videos) || 0;
-    commission += Number(r.est_commission) || 0;
-  }
-  return { total_gmv: gmv, total_orders: orders, total_items_sold: items, total_videos: videos, total_commission: commission, prev_gmv: 0, prev_orders: 0, prev_items_sold: 0, prev_videos: 0, prev_commission: 0 };
-}
-
-/**
- * Get top videos for a handle directly.
- */
-export async function getHandleVideos(handles: string[], startDate: string, endDate: string, limit = 20): Promise<CreatorVideo[]> {
-  const supabase = await createAdminClient();
-  const { data } = await supabase
-    .from('daily_video_product_stats')
-    .select('video_id, video_title, creator_name, brand_id, product_name, gmv, orders, items_sold, report_date')
-    .in('creator_name', handles)
-    .gte('report_date', startDate)
-    .lte('report_date', endDate)
-    .order('gmv', { ascending: false })
-    .limit(limit);
-
-  // Aggregate by video_id
-  const map = new Map<string, any>();
-  for (const r of data ?? []) {
-    const key = `${r.video_id}-${r.product_name}`;
-    if (!map.has(key)) {
-      map.set(key, { ...r, gmv: 0, orders: 0, items_sold: 0, days_selling: 0 });
-    }
-    const m = map.get(key)!;
-    m.gmv += Number(r.gmv) || 0;
-    m.orders += Number(r.orders) || 0;
-    m.items_sold += Number(r.items_sold) || 0;
-    m.days_selling++;
-  }
-
-  const { brandUuidToSlug } = await import('@/lib/utils/constants');
-  return Array.from(map.values())
-    .sort((a, b) => b.gmv - a.gmv)
-    .slice(0, limit)
-    .map((v) => ({
-      video_id: v.video_id,
-      video_title: v.video_title || 'Untitled',
-      creator_name: v.creator_name,
-      brand: brandUuidToSlug(v.brand_id) ?? v.brand_id,
-      product_name: v.product_name || '',
-      gmv: v.gmv,
-      orders: v.orders,
-      items_sold: v.items_sold,
-      days_selling: v.days_selling,
-    }));
+  if (error || !data) return null;
+  return data.creator_id as string;
 }
 
 /** Helper: get all TikTok usernames for a creator */

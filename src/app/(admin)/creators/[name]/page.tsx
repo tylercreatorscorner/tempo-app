@@ -26,9 +26,6 @@ import {
   getPostsThisMonth,
   getCreatorLifetimeStats,
   getManagedCreatorInfo,
-  hasPerformanceData,
-  getHandleSummary,
-  getHandleVideos,
 } from '@/lib/data/creator-profile';
 
 interface Props {
@@ -67,155 +64,6 @@ function RoleBadge({ role }: { role: string | null }) {
   );
 }
 
-function ManagedOnlyProfile({ creator, summary, videos }: { creator: any; summary?: any; videos?: any[] }) {
-  const fmt = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(n);
-  const fmtNum = (n: number) => new Intl.NumberFormat('en-US').format(n);
-  const allAccounts = [creator.account_1];
-  for (let i = 2; i <= 10; i++) {
-    if (creator[`account_${i}`]) allAccounts.push(creator[`account_${i}`]);
-  }
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-1.5 text-xs text-gray-400">
-        <Link href="/roster" className="hover:text-gray-600 transition-colors">My Creators</Link>
-        <span>/</span>
-        <span className="text-gray-600">{creator.real_name || creator.account_1}</span>
-      </div>
-
-      <div className="flex items-start gap-3">
-        <Link href="/roster" className="p-2 rounded-lg hover:bg-gray-100 transition-colors mt-1">
-          <ArrowLeft className="h-5 w-5 text-gray-600" />
-        </Link>
-        <div className="h-12 w-12 rounded-full bg-pink-50 border border-pink-100 flex items-center justify-center">
-          <User className="h-6 w-6 text-[#FF4D8D]" />
-        </div>
-        <div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <h1 className="text-2xl font-bold text-[#1A1B3A]">{creator.real_name || 'Unknown'}</h1>
-            <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full font-medium border bg-pink-50 text-[#E91E8C] border-pink-200">
-              <Shield className="h-3 w-3" /> Managed
-            </span>
-            <span className={cn(
-              'text-xs font-semibold px-2 py-1 rounded-full',
-              creator.status === 'Active' ? 'bg-green-50 text-green-600' : 'bg-gray-100 text-gray-500'
-            )}>
-              {creator.status || 'Active'}
-            </span>
-          </div>
-          <p className="text-xs text-gray-400 mt-1">
-            {allAccounts.map((h: string) => `@${h}`).join(', ')}
-          </p>
-          {creator.brand && (
-            <span
-              className="inline-block mt-2 text-xs px-2 py-0.5 rounded-full font-medium"
-              style={{ backgroundColor: `${BRAND_COLORS[creator.brand] ?? '#6B7280'}15`, color: BRAND_COLORS[creator.brand] ?? '#6B7280' }}
-            >
-              {BRAND_DISPLAY_NAMES[creator.brand] ?? creator.brand}
-            </span>
-          )}
-        </div>
-      </div>
-
-      <div className="rounded-2xl bg-pink-50/50 border border-pink-100 shadow-sm p-5">
-        <div className="flex items-center gap-2 mb-3">
-          <Shield className="h-4 w-4 text-[#E91E8C]" />
-          <h3 className="text-sm font-bold text-[#1A1B3A]">Managed Creator Details</h3>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-          <div>
-            <p className="text-xs text-gray-400 uppercase tracking-wider mb-0.5">Retainer</p>
-            <p className="font-semibold text-[#1A1B3A]">{creator.retainer > 0 ? fmt(creator.retainer) : '—'}</p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-400 uppercase tracking-wider mb-0.5">Posts/Mo</p>
-            <p className="font-semibold text-[#1A1B3A]">{creator.monthly_post_requirement || 30}</p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-400 uppercase tracking-wider mb-0.5">Discord</p>
-            <div className="flex items-center gap-1.5">
-              {creator.discord_avatar && <img src={creator.discord_avatar} alt="" className="h-5 w-5 rounded-full" />}
-              <p className="font-semibold text-[#1A1B3A]">{creator.discord_name || '—'}</p>
-            </div>
-          </div>
-          {creator.notes && (
-            <div className="col-span-2">
-              <p className="text-xs text-gray-400 uppercase tracking-wider mb-0.5">Notes</p>
-              <p className="text-gray-600 text-xs">{creator.notes}</p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-5">
-        <div className="flex items-center gap-2 mb-3">
-          <p className="text-sm font-bold text-[#1A1B3A]">TikTok Accounts</p>
-        </div>
-        <div className="space-y-2">
-          {allAccounts.map((h: string) => (
-            <a key={h} href={`https://tiktok.com/@${h}`} target="_blank" rel="noopener noreferrer" className="block text-sm text-[#E91E8C] hover:underline">
-              @{h}
-            </a>
-          ))}
-        </div>
-      </div>
-
-      {summary ? (
-        <>
-          {/* Summary Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-            <StatCard label="Total GMV" value={formatCurrency(summary.total_gmv)} />
-            <StatCard label="Orders" value={formatNumber(summary.total_orders)} />
-            <StatCard label="Items Sold" value={formatNumber(summary.total_items_sold)} />
-            <StatCard label="Videos" value={formatNumber(summary.total_videos)} />
-            <StatCard label="Est. Commission" value={formatCurrency(summary.total_commission)} />
-          </div>
-
-          {/* Top Videos */}
-          {videos && videos.length > 0 && (
-            <div className="rounded-2xl overflow-hidden bg-white border border-gray-100 shadow-sm">
-              <div className="px-6 py-4 border-b border-gray-100">
-                <h3 className="text-lg font-bold text-[#1A1B3A]">Top Videos by GMV</h3>
-              </div>
-              <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
-                <table className="w-full text-sm">
-                  <thead className="sticky top-0 z-10 bg-gray-50">
-                    <tr className="border-b border-gray-100 text-gray-500">
-                      <th className="px-6 py-3 text-left font-medium text-xs uppercase tracking-wider w-12">#</th>
-                      <th className="px-4 py-3 text-left font-medium text-xs uppercase tracking-wider">Video</th>
-                      <th className="px-4 py-3 text-left font-medium text-xs uppercase tracking-wider">Product</th>
-                      <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider">GMV</th>
-                      <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider">Orders</th>
-                      <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider pr-6">Items</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {videos.map((v: any, i: number) => (
-                      <tr key={`${v.video_id}-${i}`} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
-                        <td className="px-6 py-3.5 text-gray-400 tabular-nums">{i + 1}</td>
-                        <td className="px-4 py-3.5 font-medium text-[#1A1B3A] max-w-xs truncate">{v.video_title}</td>
-                        <td className="px-4 py-3.5 text-gray-500 max-w-[200px] truncate">{v.product_name || '-'}</td>
-                        <td className="px-4 py-3.5 text-right font-semibold tabular-nums text-[#1A1B3A]">{formatCurrency(v.gmv)}</td>
-                        <td className="px-4 py-3.5 text-right text-gray-500 tabular-nums">{formatNumber(v.orders)}</td>
-                        <td className="px-4 py-3.5 text-right text-gray-500 tabular-nums pr-6">{formatNumber(v.items_sold)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </>
-      ) : (
-        <div className="rounded-2xl bg-gray-50 border border-gray-100 p-8 text-center">
-          <p className="text-gray-400 text-sm">No performance data yet for this creator.</p>
-          <p className="text-gray-300 text-xs mt-1">Data will appear once the daily scraper picks up their videos.</p>
-        </div>
-      )}
-    </div>
-  );
-}
-
 export default async function CreatorDetailPage({ params, searchParams }: Props) {
   const { name } = await params;
   const slug = decodeURIComponent(name);
@@ -232,31 +80,6 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
     if (id) {
       const qs = sp.range ? `?range=${sp.range}` : '';
       redirect(`/creators/${id}${qs}`);
-    }
-    // Not in tiktok_accounts (or creator_id is null) — check managed_creators
-    const supabase = await (await import('@/lib/supabase/server')).createAdminClient();
-    const { data: managedRow } = await supabase
-      .from('managed_creators')
-      .select('*')
-      .eq('account_1', slug)
-      .limit(1)
-      .single();
-    if (managedRow) {
-      // Collect all handles for this managed creator
-      const allHandles = [managedRow.account_1];
-      for (let i = 2; i <= 10; i++) {
-        if (managedRow[`account_${i}`]) allHandles.push(managedRow[`account_${i}`]);
-      }
-      const hasData = await hasPerformanceData(slug);
-      if (hasData) {
-        const { startDate, endDate } = resolveDateRange(sp.range);
-        const [summary, videos] = await Promise.all([
-          getHandleSummary(allHandles, startDate, endDate),
-          getHandleVideos(allHandles, startDate, endDate),
-        ]);
-        return <ManagedOnlyProfile creator={managedRow} summary={summary} videos={videos} />;
-      }
-      return <ManagedOnlyProfile creator={managedRow} />;
     }
     notFound();
   }
