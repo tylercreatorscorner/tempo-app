@@ -10,7 +10,7 @@ import { RetainerTracker } from '@/components/creators/retainer-tracker';
 import { BrandFilter } from '@/components/creators/brand-filter';
 import { LifetimeStats } from '@/components/creators/lifetime-stats';
 import Link from 'next/link';
-import { ArrowLeft, User, Mail, Phone } from 'lucide-react';
+import { ArrowLeft, User, Mail, Phone, Shield } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { VideoTitleButton } from '@/components/video/video-title-button';
 import { classifyCreator, getStatusInfo } from '@/lib/data/creator-status';
@@ -25,6 +25,7 @@ import {
   getCreatorVideos,
   getPostsThisMonth,
   getCreatorLifetimeStats,
+  getManagedCreatorInfo,
 } from '@/lib/data/creator-profile';
 
 interface Props {
@@ -93,13 +94,14 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
   const activeBrands = profile.brands.filter((b) => (ACTIVE_BRANDS as readonly string[]).includes(b));
   const activeBrandsWithData = profile.brandsWithData.filter((b) => (ACTIVE_BRANDS as readonly string[]).includes(b));
 
-  const [summary, accountBreakdown, brandBreakdown, videos, postsThisMonth, lifetimeStats] = await Promise.all([
+  const [summary, accountBreakdown, brandBreakdown, videos, postsThisMonth, lifetimeStats, managedInfo] = await Promise.all([
     getCreatorSummary(creatorId, startDate, endDate, selectedBrand ?? undefined),
     getCreatorAccountBreakdown(creatorId, startDate, endDate, selectedBrand ?? undefined),
     getCreatorBrandBreakdown(creatorId, startDate, endDate),
     getCreatorVideos(creatorId, startDate, endDate, 20, selectedBrand ?? undefined),
     getPostsThisMonth(creatorId, selectedBrand ?? undefined),
     getCreatorLifetimeStats(creatorId),
+    getManagedCreatorInfo(creatorId),
   ]);
 
   // Filter brand breakdown to active brands only
@@ -142,6 +144,11 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
               }} />
               <StatusBadge status={profile.status} />
               <RoleBadge role={profile.role} />
+              {managedInfo && (
+                <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full font-medium border bg-pink-50 text-[#E91E8C] border-pink-200">
+                  <Shield className="h-3 w-3" /> Managed
+                </span>
+              )}
               <span
                 className="text-xs px-2.5 py-1 rounded-full font-medium border"
                 style={{ borderColor: perfStatusInfo.color, color: perfStatusInfo.color, backgroundColor: perfStatusInfo.bgColor }}
@@ -256,6 +263,40 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
           </div>
         )}
       </div>
+
+      {/* Managed Creator Info */}
+      {managedInfo && (
+        <div className="rounded-2xl bg-pink-50/50 border border-pink-100 shadow-sm p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <Shield className="h-4 w-4 text-[#E91E8C]" />
+            <h3 className="text-sm font-bold text-[#1A1B3A]">Managed Creator</h3>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div>
+              <p className="text-xs text-gray-400 uppercase tracking-wider mb-0.5">Retainer</p>
+              <p className="font-semibold text-[#1A1B3A]">
+                {managedInfo.retainer > 0
+                  ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(managedInfo.retainer)
+                  : '—'}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-400 uppercase tracking-wider mb-0.5">Posts/Mo</p>
+              <p className="font-semibold text-[#1A1B3A]">{managedInfo.monthly_post_requirement || 30}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-400 uppercase tracking-wider mb-0.5">Status</p>
+              <p className="font-semibold text-[#1A1B3A]">{managedInfo.status || 'Active'}</p>
+            </div>
+            {managedInfo.notes && (
+              <div className="col-span-2 md:col-span-1">
+                <p className="text-xs text-gray-400 uppercase tracking-wider mb-0.5">Notes</p>
+                <p className="text-gray-600 text-xs">{managedInfo.notes}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Retainer & Post Tracking - only show when a specific brand is selected */}
       {/* TODO: Per-brand retainer storage needs a schema update. Currently uses single retainer field from managed_creators. */}

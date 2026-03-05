@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { UserPlus, Upload, Search, Users, DollarSign, UserCheck, UserX, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { UserPlus, Upload, Search, Users, DollarSign, UserCheck, UserX, X, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react';
+import Link from 'next/link';
 import { Suspense } from 'react';
 import { BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
 
@@ -132,6 +133,17 @@ function CreatorPanel({ creator, onClose }: { creator: any; onClose: () => void 
               <p className="text-xs font-medium uppercase tracking-wider text-gray-400 mb-1">Joined</p>
               <span className="text-sm text-gray-700">{new Date(creator.created_at).toLocaleDateString()}</span>
             </div>
+          )}
+
+          {/* View Full Profile Link */}
+          {creator.account_1 && (
+            <Link
+              href={`/creators/${encodeURIComponent(creator.account_1)}`}
+              className="flex items-center justify-center gap-2 w-full mt-2 px-4 py-2.5 rounded-xl bg-[#E91E8C] text-white text-sm font-medium hover:bg-[#d1177d] transition-colors"
+            >
+              <ExternalLink className="h-4 w-4" />
+              View Full Profile
+            </Link>
           )}
         </div>
       </div>

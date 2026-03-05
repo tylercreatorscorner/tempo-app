@@ -563,3 +563,28 @@ export async function getCreatorLifetimeStats(creatorId: string | number): Promi
 
   return { total_gmv: gmv, total_orders: orders, total_videos: videos, total_commission: commission, first_active_date: minDate, months_active: monthsActive };
 }
+
+/**
+ * Check if a creator is in the managed roster by their TikTok handles.
+ * Returns the managed_creators row if found, null otherwise.
+ */
+export async function getManagedCreatorInfo(creatorId: string): Promise<{
+  retainer: number;
+  monthly_post_requirement: number;
+  notes: string | null;
+  status: string;
+  brand: string | null;
+} | null> {
+  const handles = await getHandles(creatorId);
+  if (handles.length === 0) return null;
+
+  const supabase = await createAdminClient();
+  const { data } = await supabase
+    .from('managed_creators')
+    .select('retainer, monthly_post_requirement, notes, status, brand')
+    .in('account_1', handles)
+    .limit(1)
+    .single();
+
+  return data ?? null;
+}
