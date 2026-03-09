@@ -74,8 +74,8 @@ function Hero() {
             </h1>
           </ScrollReveal>
           <ScrollReveal delay={200}>
-            <p className="text-lg md:text-xl text-[#6B7280] max-w-xl mx-auto leading-relaxed">
-              Track performance. Manage creators. Grow GMV. All in one place.
+            <p className="text-lg md:text-xl text-[#6B7280] max-w-2xl mx-auto leading-relaxed">
+              Your creators posted 47 videos yesterday. Do you know which ones drove sales?
             </p>
           </ScrollReveal>
           <ScrollReveal delay={300}>
@@ -110,21 +110,26 @@ function Hero() {
 /* ─── Stats Bar ─── */
 function StatsBar() {
   const stats = [
-    { value: 10000, suffix: '+', label: 'Creators Managed' },
-    { value: 100, prefix: '$', suffix: 'M+', label: 'GMV Tracked' },
-    { value: 1000000, suffix: '+', label: 'Videos Analyzed' },
+    { value: 980, suffix: '+', label: 'Creators Managed' },
+    { value: 12, prefix: '$', suffix: 'M+', label: 'GMV Tracked' },
+    { value: 400, suffix: 'K+', label: 'Videos Analyzed' },
   ];
   return (
     <section className="border-y border-[#E5E7EB] bg-[#F8F9FC]/50">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-14 md:py-16 grid grid-cols-1 sm:grid-cols-3 gap-6 md:gap-8">
-        {stats.map((s) => (
-          <div key={s.label} className="text-center">
-            <p className="text-2xl md:text-4xl font-extrabold bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] bg-clip-text text-transparent">
-              <CountUp end={s.value} prefix={s.prefix || ''} suffix={s.suffix || ''} duration={2500} />
-            </p>
-            <p className="text-sm text-[#6B7280] mt-1 font-medium">{s.label}</p>
-          </div>
-        ))}
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-14 md:py-16">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 md:gap-8 mb-6">
+          {stats.map((s) => (
+            <div key={s.label} className="text-center">
+              <p className="text-2xl md:text-4xl font-extrabold bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] bg-clip-text text-transparent">
+                <CountUp end={s.value} prefix={s.prefix || ''} suffix={s.suffix || ''} duration={2500} />
+              </p>
+              <p className="text-sm text-[#6B7280] mt-1 font-medium">{s.label}</p>
+            </div>
+          ))}
+        </div>
+        <div className="text-center">
+          <p className="text-sm text-[#9CA3AF] border-t border-[#E5E7EB] pt-4">Trusted by 4 TikTok Shop brands</p>
+        </div>
       </div>
     </section>
   );
@@ -200,6 +205,73 @@ function FeatureSection({
   );
 }
 
+/* ─── Tempo Bot Feature Section ─── */
+function TempoBotSection() {
+  const features = [
+    { title: 'DM Relay', desc: 'Message creators directly from Tempo - no switching apps' },
+    { title: 'Bulk Messaging', desc: 'Send updates to multiple creators at once' },
+    { title: 'Creator Status Alerts', desc: 'Get notified when creators go offline or underperform' },
+    { title: 'Retainer Tracking', desc: 'Automated nudges for payment schedules and contract renewals' },
+  ];
+  return (
+    <section className="py-20 sm:py-24 md:py-40 px-4 sm:px-6">
+      <div className="max-w-7xl mx-auto">
+        <div className="grid md:grid-cols-2 gap-10 md:gap-20 items-center">
+          <ScrollReveal>
+            <div className="space-y-4 md:space-y-6">
+              <div className="inline-flex items-center gap-2 rounded-full bg-[#5865F2]/10 px-4 py-1.5 text-sm font-medium text-[#5865F2] mb-4">
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515a.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0a12.64 12.64 0 0 0-.617-1.25a.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057a19.9 19.9 0 0 0 5.993 3.03a.078.078 0 0 0 .084-.028a14.09 14.09 0 0 0 1.226-1.994a.076.076 0 0 0-.041-.106a13.107 13.107 0 0 1-1.872-.892a.077.077 0 0 1-.008-.128a10.2 10.2 0 0 0 .372-.292a.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127a12.299 12.299 0 0 1-1.873.892a.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028a19.839 19.839 0 0 0 6.002-3.03a.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419c0-1.333.956-2.419 2.157-2.419c1.21 0 2.176 1.096 2.157 2.42c0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419c0-1.333.955-2.419 2.157-2.419c1.21 0 2.176 1.096 2.157 2.42c0 1.333-.946 2.418-2.157 2.418z"/>
+                </svg>
+                Tempo Bot
+              </div>
+              <h2 className="text-2xl md:text-5xl font-extrabold text-[#1A1B3A] tracking-tight leading-tight break-words">
+                Your creators are on Discord. <span className="bg-gradient-to-r from-[#5865F2] to-[#7C5CFC] bg-clip-text text-transparent">So should you.</span>
+              </h2>
+              <p className="text-base sm:text-lg text-[#6B7280] leading-relaxed max-w-md break-words">
+                Tempo Bot brings creator management directly to Discord. No more juggling platforms - manage everything from where your creators already are.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-8">
+                {features.map((feature) => (
+                  <div key={feature.title} className="space-y-1">
+                    <h4 className="text-sm font-semibold text-[#1A1B3A]">{feature.title}</h4>
+                    <p className="text-xs text-[#6B7280] leading-relaxed">{feature.desc}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </ScrollReveal>
+          <ScrollReveal delay={200}>
+            <div className="relative max-w-full overflow-hidden">
+              <div className="relative rounded-2xl bg-gradient-to-br from-[#5865F2]/10 via-[#FF4D8D]/10 to-[#7C5CFC]/10 p-8 border border-[#5865F2]/20 backdrop-blur-xl">
+                <div className="text-center space-y-4">
+                  <div className="w-16 h-16 mx-auto rounded-2xl bg-[#5865F2] flex items-center justify-center mb-4">
+                    <svg className="w-8 h-8 text-white" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515a.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0a12.64 12.64 0 0 0-.617-1.25a.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057a19.9 19.9 0 0 0 5.993 3.03a.078.078 0 0 0 .084-.028a14.09 14.09 0 0 0 1.226-1.994a.076.076 0 0 0-.041-.106a13.107 13.107 0 0 1-1.872-.892a.077.077 0 0 1-.008-.128a10.2 10.2 0 0 0 .372-.292a.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127a12.299 12.299 0 0 1-1.873.892a.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028a19.839 19.839 0 0 0 6.002-3.03a.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419c0-1.333.956-2.419 2.157-2.419c1.21 0 2.176 1.096 2.157 2.42c0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419c0-1.333.955-2.419 2.157-2.419c1.21 0 2.176 1.096 2.157 2.42c0 1.333-.946 2.418-2.157 2.418z"/>
+                    </svg>
+                  </div>
+                  <h3 className="text-xl font-bold text-[#1A1B3A]">Discord Bot Preview</h3>
+                  <p className="text-sm text-[#6B7280]">Real creator management, right in your Discord server</p>
+                  <div className="bg-[#2F3136] rounded-lg p-4 text-left text-xs text-[#DCDDDE] font-mono">
+                    <div className="mb-2">
+                      <span className="text-[#5865F2]">TempoBot</span> <span className="text-[#72767D]">Today at 9:15 AM</span>
+                    </div>
+                    <div className="space-y-1">
+                      <div>📈 <span className="text-[#00D166]">@sarah_beauty</span> just hit 50K views!</div>
+                      <div>💰 Daily GMV: <span className="text-[#FEE75C]">$12,450</span> (+23%)</div>
+                      <div>🔔 3 creators need check-ins</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </ScrollReveal>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 /* ─── Features ─── */
 function Features() {
   return (
@@ -208,29 +280,111 @@ function Features() {
         id="features"
         headline="Track every dollar in real time"
         description="GMV, orders, commissions, creator performance. Updated daily, visualized instantly."
-        mockup={<AnalyticsMockup />}
+        mockup={
+          <div className="relative rounded-2xl bg-gradient-to-br from-[#FF4D8D]/10 via-[#7C5CFC]/10 to-[#1A1B3A]/10 p-8 border border-[#FF4D8D]/20 backdrop-blur-xl">
+            <div className="text-center space-y-4">
+              <h3 className="text-xl font-bold text-[#1A1B3A]">Analytics Dashboard Preview</h3>
+              <div className="space-y-3">
+                <div className="bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] h-2 rounded-full w-full opacity-20"></div>
+                <div className="bg-gradient-to-r from-[#7C5CFC] to-[#1A1B3A] h-2 rounded-full w-3/4 opacity-20"></div>
+                <div className="bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] h-2 rounded-full w-1/2 opacity-20"></div>
+              </div>
+              <p className="text-sm text-[#6B7280]">Real-time performance tracking</p>
+            </div>
+          </div>
+        }
       />
       <FeatureSection
         headline="Know your creators"
         description="See who's crushing it and who needs attention. Rankings update automatically."
-        mockup={<LeaderboardMockup />}
+        mockup={
+          <div className="relative rounded-2xl bg-gradient-to-br from-[#7C5CFC]/10 via-[#FF4D8D]/10 to-[#1A1B3A]/10 p-8 border border-[#7C5CFC]/20 backdrop-blur-xl">
+            <div className="text-center space-y-4">
+              <h3 className="text-xl font-bold text-[#1A1B3A]">Creator Leaderboard Preview</h3>
+              <div className="space-y-2">
+                <div className="flex justify-between items-center bg-white/40 rounded-lg p-2">
+                  <span className="text-sm">🥇 Creator A</span>
+                  <span className="text-sm font-bold text-[#FF4D8D]">$2.4K</span>
+                </div>
+                <div className="flex justify-between items-center bg-white/40 rounded-lg p-2">
+                  <span className="text-sm">🥈 Creator B</span>
+                  <span className="text-sm font-bold text-[#7C5CFC]">$1.8K</span>
+                </div>
+                <div className="flex justify-between items-center bg-white/40 rounded-lg p-2">
+                  <span className="text-sm">🥉 Creator C</span>
+                  <span className="text-sm font-bold text-[#1A1B3A]">$1.2K</span>
+                </div>
+              </div>
+              <p className="text-sm text-[#6B7280]">Automatic creator rankings</p>
+            </div>
+          </div>
+        }
         reversed
       />
+      <TempoBotSection />
       <FeatureSection
         headline="Every brand, one dashboard"
         description="Switch between brands in one click. Same workflow whether you manage 2 or 20."
-        mockup={<BrandSwitcherMockup />}
+        mockup={
+          <div className="relative rounded-2xl bg-gradient-to-br from-[#1A1B3A]/10 via-[#FF4D8D]/10 to-[#7C5CFC]/10 p-8 border border-[#1A1B3A]/20 backdrop-blur-xl">
+            <div className="text-center space-y-4">
+              <h3 className="text-xl font-bold text-[#1A1B3A]">Multi-Brand Switcher Preview</h3>
+              <div className="flex justify-center gap-2">
+                <div className="bg-[#FF4D8D] text-white px-3 py-1 rounded-full text-xs">Brand A</div>
+                <div className="bg-white border border-[#E5E7EB] px-3 py-1 rounded-full text-xs">Brand B</div>
+                <div className="bg-white border border-[#E5E7EB] px-3 py-1 rounded-full text-xs">Brand C</div>
+              </div>
+              <p className="text-sm text-[#6B7280]">One-click brand switching</p>
+            </div>
+          </div>
+        }
       />
       <FeatureSection
         headline="Reports that write themselves"
         description="Wake up to a daily brief. Know exactly where you stand before your first coffee."
-        mockup={<DailyBriefMockup />}
+        mockup={
+          <div className="relative rounded-2xl bg-gradient-to-br from-[#7C5CFC]/10 via-[#1A1B3A]/10 to-[#FF4D8D]/10 p-8 border border-[#7C5CFC]/20 backdrop-blur-xl">
+            <div className="text-center space-y-4">
+              <h3 className="text-xl font-bold text-[#1A1B3A]">Daily Brief Preview</h3>
+              <div className="bg-white/60 rounded-lg p-4 text-left text-sm space-y-2">
+                <div className="font-semibold text-[#1A1B3A]">📊 Yesterday's Performance</div>
+                <div className="text-[#6B7280]">• Total GMV: <span className="text-[#FF4D8D] font-semibold">$8.2K</span></div>
+                <div className="text-[#6B7280]">• Top Creator: <span className="text-[#7C5CFC] font-semibold">Sarah_beauty</span></div>
+                <div className="text-[#6B7280]">• Videos Posted: <span className="text-[#1A1B3A] font-semibold">12</span></div>
+              </div>
+              <p className="text-sm text-[#6B7280]">Automated daily insights</p>
+            </div>
+          </div>
+        }
         reversed
       />
       <FeatureSection
         headline="A portal your creators will actually use"
         description="Give creators their own dashboard to track performance, discover winning content, and stay motivated."
-        mockup={<CreatorPortalMockup />}
+        mockup={
+          <div className="relative rounded-2xl bg-gradient-to-br from-[#FF4D8D]/10 via-[#1A1B3A]/10 to-[#7C5CFC]/10 p-8 border border-[#FF4D8D]/20 backdrop-blur-xl">
+            <div className="text-center space-y-4">
+              <h3 className="text-xl font-bold text-[#1A1B3A]">Creator Portal Preview</h3>
+              <div className="bg-white/60 rounded-lg p-4 space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-semibold">Your Stats</span>
+                  <span className="text-xs text-[#6B7280]">This Week</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="text-center">
+                    <div className="text-lg font-bold text-[#FF4D8D]">$1.2K</div>
+                    <div className="text-xs text-[#6B7280]">Earnings</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-lg font-bold text-[#7C5CFC]">8</div>
+                    <div className="text-xs text-[#6B7280]">Videos</div>
+                  </div>
+                </div>
+              </div>
+              <p className="text-sm text-[#6B7280]">Creator self-service dashboard</p>
+            </div>
+          </div>
+        }
       />
     </div>
   );
@@ -241,6 +395,7 @@ function Faq() {
   const faqs = [
     { q: 'What platforms does Tempo support?', a: "We're laser-focused on TikTok Shop right now. That's where the biggest opportunity is, and we'd rather be the best TikTok Shop tool than a mediocre everything tool." },
     { q: 'How does data get into Tempo?', a: "Right now, through a simple daily upload. We're building direct TikTok API integration that will make it fully automatic." },
+    { q: 'How is Tempo different from Seller Center or Kalodata?', a: "Seller Center and Kalodata give you data. Tempo gives you tools to actually manage creator relationships. Think Discord bot for DMs, bulk messaging, status alerts, and retainer tracking. It's not just analytics - it's creator relationship management." },
     { q: 'Can multiple agencies use Tempo for the same brand?', a: 'Yes. Each agency sees the full brand data (winning videos, trending products) but earnings and creator management are scoped to their roster. No conflicts.' },
     { q: 'Is my data secure?', a: 'Your data is isolated at the database level using row-level security. Other tenants can never see your data, period. We use Supabase (built on Postgres) with enterprise-grade encryption.' },
     { q: 'What if I manage creators AND am a brand?', a: 'Tempo handles both. Brand owners see everything. Agency managers see their slice. Same product, different views based on your role.' },

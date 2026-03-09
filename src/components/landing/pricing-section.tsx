@@ -234,22 +234,7 @@ export function PricingSection() {
           </div>
         )}
 
-        {/* ─── Every Plan Includes ─── */}
-        <ScrollReveal className="mt-20">
-          <div className="max-w-4xl mx-auto">
-            <h3 className="text-2xl md:text-3xl font-extrabold text-[#1A1B3A] text-center mb-10">
-              Every plan includes
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {INCLUDED_FEATURES.map((f) => (
-                <div key={f} className="flex items-center gap-3 rounded-xl bg-white/60 backdrop-blur-xl border border-[#E5E7EB]/60 px-5 py-3.5">
-                  <Check className="w-5 h-5 text-[#FF4D8D] flex-shrink-0" />
-                  <span className="text-sm font-medium text-[#4B5563]">{f}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </ScrollReveal>
+
       </div>
     </section>
   );

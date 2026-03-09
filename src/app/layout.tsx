@@ -9,7 +9,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'Tempo — TikTok Shop Analytics',
+  title: 'Tempo — Creator Management for TikTok Shop',
   description: 'Multi-tenant TikTok Shop agency management platform',
 };
 
