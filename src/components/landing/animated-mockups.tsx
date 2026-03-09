@@ -157,17 +157,17 @@ export function HeroDashboardMockup() {
 export function AnalyticsMockup() {
   const { ref, inView } = useInView();
   return (
-    <div ref={ref}>
+    <div ref={ref} className="relative">
       <div className="absolute -inset-6 bg-gradient-to-br from-[#FF4D8D]/10 to-[#7C5CFC]/10 rounded-3xl blur-3xl" />
-      <div className="relative rounded-2xl bg-white border border-[#E5E7EB] shadow-xl p-6 space-y-4">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="relative rounded-2xl bg-[#F8F9FC] shadow-xl p-6 space-y-4">
+        <div className="grid grid-cols-2 gap-3">
           {[
             { label: 'Total GMV', val: 847293, prefix: '$' },
             { label: 'Orders', val: 12847, prefix: '' },
             { label: 'Avg Commission', val: 13, prefix: '', suffix: '.8%' },
             { label: 'Active Creators', val: 487, prefix: '' },
           ].map((s, i) => (
-            <div key={s.label} className="rounded-xl bg-[#F8F9FC] border border-[#E5E7EB]/60 p-3"
+            <div key={s.label} className="rounded-xl bg-white p-3"
               style={fadeIn(inView, i * 150)}>
               <p className="text-[10px] text-[#9CA3AF] font-medium uppercase tracking-wide">{s.label}</p>
               <p className="text-lg font-bold text-[#1A1B3A] mt-1">
@@ -176,7 +176,7 @@ export function AnalyticsMockup() {
             </div>
           ))}
         </div>
-        <div className="rounded-xl bg-[#F8F9FC] border border-[#E5E7EB]/60 p-4">
+        <div className="rounded-xl bg-white p-4">
           <p className="text-xs font-semibold text-[#1A1B3A] mb-3">Revenue Trend</p>
           <svg className="w-full h-36" viewBox="0 0 500 120" preserveAspectRatio="none">
             <defs>
@@ -205,9 +205,9 @@ export function AnalyticsMockup() {
 export function LeaderboardMockup() {
   const { ref, inView } = useInView();
   return (
-    <div ref={ref}>
-      <div className="absolute -inset-6 bg-gradient-to-bl from-[#7C5CFC]/10 to-[#FF4D8D]/10 rounded-3xl blur-3xl" />
-      <div className="relative rounded-2xl bg-white border border-[#E5E7EB] shadow-xl p-6">
+    <div ref={ref} className="relative">
+      <div className="absolute -inset-6 bg-gradient-to-bl from-[#7C5CFC]/10 to-[#FF4D8D]/10 rounded-3xl blur-3xl -z-10" />
+      <div className="relative rounded-2xl bg-[#F8F9FC] shadow-xl p-6">
         <div className="flex items-center justify-between mb-4">
           <p className="text-sm font-semibold text-[#1A1B3A]">Creator Rankings</p>
           <span className="text-[10px] text-[#9CA3AF] font-medium px-2 py-1 bg-[#F8F9FC] rounded-md">This Month</span>
@@ -221,7 +221,7 @@ export function LeaderboardMockup() {
             { rank: 5, name: '@health.alex', gmv: 7290, videos: 19, color: 'from-[#FF4D8D] to-[#7C5CFC]' },
           ].map((c, i) => (
             <div key={c.name}
-              className={`flex items-center justify-between rounded-xl bg-[#F8F9FC] border border-[#E5E7EB]/60 px-4 py-3`}
+              className={`flex items-center justify-between rounded-xl bg-white px-4 py-3`}
               style={slideUp(inView, i * 120)}>
               <div className="flex items-center gap-3">
                 <span className="text-xs font-bold text-[#9CA3AF] w-5 text-center">#{c.rank}</span>
@@ -248,11 +248,11 @@ export function LeaderboardMockup() {
 export function BrandSwitcherMockup() {
   const { ref, inView } = useInView();
   return (
-    <div ref={ref}>
-      <div className="absolute -inset-6 bg-gradient-to-br from-[#FF4D8D]/10 to-[#7C5CFC]/10 rounded-3xl blur-3xl" />
-      <div className="relative rounded-2xl bg-white border border-[#E5E7EB] shadow-xl p-6 space-y-4">
+    <div ref={ref} className="relative">
+      <div className="absolute -inset-6 bg-gradient-to-br from-[#FF4D8D]/10 to-[#7C5CFC]/10 rounded-3xl blur-3xl -z-10" />
+      <div className="relative rounded-2xl bg-[#F8F9FC] shadow-xl p-6 space-y-4">
         {/* Dropdown */}
-        <div className="rounded-xl border border-[#7C5CFC]/30 bg-[#F8F9FC] p-3" style={fadeIn(inView, 0)}>
+        <div className="rounded-xl border border-[#7C5CFC]/30 bg-white p-3" style={fadeIn(inView, 0)}>
           <p className="text-[10px] text-[#9CA3AF] font-medium uppercase tracking-wide mb-2">Switch Brand</p>
           <div className="space-y-1.5">
             {[
@@ -277,7 +277,7 @@ export function BrandSwitcherMockup() {
             { brand: 'Glow Skin Co', gmv: 218580, color: '#FF4D8D' },
             { brand: 'FitNation', gmv: 164230, color: '#7C5CFC' },
           ].map((b, i) => (
-            <div key={b.brand} className="rounded-xl border border-[#E5E7EB]/60 bg-[#F8F9FC] p-3"
+            <div key={b.brand} className="rounded-xl bg-white p-3"
               style={fadeIn(inView, 600 + i * 150)}>
               <div className="flex items-center gap-2 mb-1">
                 <div className="w-2 h-2 rounded-sm" style={{ backgroundColor: b.color }} />
@@ -296,9 +296,9 @@ export function BrandSwitcherMockup() {
 export function DailyBriefMockup() {
   const { ref, inView } = useInView();
   return (
-    <div ref={ref}>
-      <div className="absolute -inset-6 bg-gradient-to-bl from-[#7C5CFC]/10 to-[#FF4D8D]/10 rounded-3xl blur-3xl" />
-      <div className="relative rounded-2xl bg-white border border-[#E5E7EB] shadow-xl p-6">
+    <div ref={ref} className="relative">
+      <div className="absolute -inset-6 bg-gradient-to-bl from-[#7C5CFC]/10 to-[#FF4D8D]/10 rounded-3xl blur-3xl -z-10" />
+      <div className="relative rounded-2xl bg-[#F8F9FC] shadow-xl p-6">
         <div style={slideRight(inView, 200)}>
           <div className="flex items-center gap-3 mb-4">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#FF4D8D] to-[#7C5CFC] flex items-center justify-center">
@@ -340,9 +340,9 @@ export function DailyBriefMockup() {
 export function CreatorPortalMockup() {
   const { ref, inView } = useInView();
   return (
-    <div ref={ref}>
-      <div className="absolute -inset-6 bg-gradient-to-br from-[#FF4D8D]/10 to-[#7C5CFC]/10 rounded-3xl blur-3xl" />
-      <div className="relative rounded-2xl bg-white border border-[#E5E7EB] shadow-xl overflow-hidden">
+    <div ref={ref} className="relative">
+      <div className="absolute -inset-6 bg-gradient-to-br from-[#FF4D8D]/10 to-[#7C5CFC]/10 rounded-3xl blur-3xl -z-10" />
+      <div className="relative rounded-2xl bg-[#F8F9FC] shadow-xl overflow-hidden">
         {/* Top bar */}
         <div className="px-5 py-3 bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC]">
           <div className="flex items-center gap-2">
@@ -367,7 +367,7 @@ export function CreatorPortalMockup() {
               { label: 'My Rank', value: 3, prefix: '#', suffix: ' of 142', color: '#7C5CFC' },
               { label: 'Videos This Month', value: 34, prefix: '', color: '#34D399' },
             ].map((s, i) => (
-              <div key={s.label} className="rounded-xl bg-[#F8F9FC] border border-[#E5E7EB]/60 p-3"
+              <div key={s.label} className="rounded-xl bg-white p-3"
                 style={fadeIn(inView, 200 + i * 150)}>
                 <p className="text-[9px] text-[#9CA3AF] font-medium uppercase tracking-wide">{s.label}</p>
                 <p className="text-base font-bold text-[#1A1B3A] mt-0.5">
@@ -394,7 +394,7 @@ export function CreatorPortalMockup() {
                 { title: 'Night Skincare Hack', views: '940K views', gmv: '$1,850' },
               ].map((v, i) => (
                 <div key={v.title}
-                  className="flex items-center justify-between rounded-lg bg-[#F8F9FC] border border-[#E5E7EB]/60 px-3 py-2"
+                  className="flex items-center justify-between rounded-lg bg-white px-3 py-2"
                   style={slideUp(inView, 800 + i * 120)}>
                   <div className="flex items-center gap-2.5">
                     <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#FF4D8D]/20 to-[#7C5CFC]/20 flex items-center justify-center">

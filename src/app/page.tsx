@@ -140,7 +140,7 @@ function TheProblem() {
   const problems = [
     { icon: FileSpreadsheet, title: 'Death by Spreadsheet', desc: "You're exporting CSVs every morning. There's a better way." },
     { icon: EyeOff, title: 'Flying Blind', desc: "A creator's video went viral and you found out last." },
-    { icon: Flame, title: 'Scaling = More Chaos', desc: 'Every new brand means another spreadsheet to manage.' },
+    { icon: Flame, title: 'Scaling = More Chaos', desc: 'More creators means more spreadsheets, more exports, more chaos.' },
   ];
   return (
     <section className="py-20 sm:py-24 md:py-40 px-4 sm:px-6">
@@ -208,7 +208,7 @@ function FeatureSection({
 /* ─── Tempo Bot Feature Section ─── */
 function TempoBotSection() {
   const features = [
-    { title: 'DM Relay', desc: 'Message creators directly from Tempo - no switching apps' },
+    { title: 'DM Relay', desc: 'Message creators directly from Tempo. No switching apps.' },
     { title: 'Bulk Messaging', desc: 'Send updates to multiple creators at once' },
     { title: 'Creator Status Alerts', desc: 'Get notified when creators go offline or underperform' },
     { title: 'Retainer Tracking', desc: 'Automated nudges for payment schedules and contract renewals' },
@@ -229,7 +229,7 @@ function TempoBotSection() {
                 Your creators are on Discord. <span className="bg-gradient-to-r from-[#5865F2] to-[#7C5CFC] bg-clip-text text-transparent">So should you.</span>
               </h2>
               <p className="text-base sm:text-lg text-[#6B7280] leading-relaxed max-w-md break-words">
-                Tempo Bot brings creator management directly to Discord. No more juggling platforms - manage everything from where your creators already are.
+                Tempo Bot brings creator management directly to Discord. Manage everything from where your creators already are.
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-8">
                 {features.map((feature) => (
@@ -290,8 +290,8 @@ function Features() {
       />
       <TempoBotSection />
       <FeatureSection
-        headline="Every brand, one dashboard"
-        description="Switch between brands in one click. Same workflow whether you manage 2 or 20."
+        headline="Your whole operation, one dashboard"
+        description="Creators, videos, GMV, commissions. Everything in one place instead of scattered across tabs and spreadsheets."
         mockup={<BrandSwitcherMockup />}
       />
       <FeatureSection
@@ -314,10 +314,10 @@ function Faq() {
   const faqs = [
     { q: 'What platforms does Tempo support?', a: "We're laser-focused on TikTok Shop right now. That's where the biggest opportunity is, and we'd rather be the best TikTok Shop tool than a mediocre everything tool." },
     { q: 'How does data get into Tempo?', a: "Right now, through a simple daily upload. We're building direct TikTok API integration that will make it fully automatic." },
-    { q: 'How is Tempo different from Seller Center or Kalodata?', a: "Seller Center and Kalodata give you data. Tempo gives you tools to actually manage creator relationships. Think Discord bot for DMs, bulk messaging, status alerts, and retainer tracking. It's not just analytics - it's creator relationship management." },
-    { q: 'Can multiple agencies use Tempo for the same brand?', a: 'Yes. Each agency sees the full brand data (winning videos, trending products) but earnings and creator management are scoped to their roster. No conflicts.' },
+    { q: 'How is Tempo different from Seller Center or Kalodata?', a: "Seller Center and Kalodata give you data. Tempo gives you tools to actually manage creator relationships. Discord bot for DMs, bulk messaging, status alerts, retainer tracking. It's creator relationship management, not just analytics." },
+    { q: 'Can multiple people use Tempo for the same brand?', a: 'Yes. Invite your team with role-based access. Everyone sees the data they need without stepping on each other.' },
     { q: 'Is my data secure?', a: 'Your data is isolated at the database level using row-level security. Other tenants can never see your data, period. We use Supabase (built on Postgres) with enterprise-grade encryption.' },
-    { q: 'What if I manage creators AND am a brand?', a: 'Tempo handles both. Brand owners see everything. Agency managers see their slice. Same product, different views based on your role.' },
+    { q: 'Do I need to be technical to use Tempo?', a: "Not at all. If you can use a spreadsheet, you can use Tempo. We handle the data pipeline. You just log in and see your numbers." },
   ];
   return (
     <section className="py-20 sm:py-24 md:py-40 px-4 sm:px-6">
@@ -382,7 +382,7 @@ function CtaSection() {
           <ScrollReveal delay={200}>
             <div className="rounded-2xl border border-[#E5E7EB]/80 bg-white/60 backdrop-blur-xl p-8 md:p-10 h-full flex flex-col">
               <h3 className="text-2xl font-extrabold text-[#1A1B3A] mb-2">Talk to Us</h3>
-              <p className="text-[#6B7280] mb-6">Want a walkthrough? We&apos;ll show you exactly how Tempo fits your operation.</p>
+              <p className="text-[#6B7280] mb-6">Want a walkthrough? We&apos;ll show you exactly how Tempo fits your brand.</p>
               <ul className="space-y-3 flex-1 mb-8">
                 {['30-minute video call', 'Live product demo', 'Q&A with our team'].map((item) => (
                   <li key={item} className="flex items-center gap-2.5 text-sm text-[#4B5563]">

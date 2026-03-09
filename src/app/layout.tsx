@@ -9,8 +9,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'Tempo — Creator Management for TikTok Shop',
-  description: 'Multi-tenant TikTok Shop agency management platform',
+  title: 'Tempo | Creator Management for TikTok Shop',
+  description: 'Manage your TikTok Shop creators, track GMV, and grow sales. All in one platform.',
 };
 
 export default function RootLayout({

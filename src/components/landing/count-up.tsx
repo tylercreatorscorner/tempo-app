@@ -11,7 +11,7 @@ interface CountUpProps {
 }
 
 export function CountUp({ end, prefix = '', suffix = '', duration = 2000, className = '' }: CountUpProps) {
-  const [value, setValue] = useState(0);
+  const [value, setValue] = useState(end);
   const ref = useRef<HTMLSpanElement>(null);
   const started = useRef(false);
 
@@ -22,6 +22,7 @@ export function CountUp({ end, prefix = '', suffix = '', duration = 2000, classN
       ([entry]) => {
         if (entry.isIntersecting && !started.current) {
           started.current = true;
+          setValue(0);
           const start = performance.now();
           const animate = (now: number) => {
             const progress = Math.min((now - start) / duration, 1);

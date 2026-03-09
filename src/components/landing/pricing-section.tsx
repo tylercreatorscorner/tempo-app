@@ -56,17 +56,6 @@ const AGENCY_TIERS = [
   },
 ];
 
-const INCLUDED_FEATURES = [
-  'Full analytics suite',
-  'Creator portal',
-  'Daily performance briefs',
-  'Real-time GMV tracking',
-  'Creator rankings & insights',
-  'Multi-brand support (agencies)',
-  'Team collaboration',
-  'Priority support',
-  'Secure data isolation',
-];
 
 function formatPrice(price: number) {
   return price.toLocaleString('en-US');
@@ -161,7 +150,7 @@ export function PricingSection() {
                 <div className="text-center">
                   <a
                     href="/onboarding?plan=brand&billing=monthly"
-                    className="inline-flex items-center gap-2 rounded-full px-8 py-3.5 text-sm font-semibold text-white bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] hover:shadow-xl hover:shadow-[#FF4D8D]/30 hover:scale-105 transition-all duration-200"
+                    className="inline-flex items-center justify-center gap-2 rounded-full px-8 py-3.5 w-full sm:w-auto text-sm font-semibold text-white bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] hover:shadow-xl hover:shadow-[#FF4D8D]/30 hover:scale-105 transition-all duration-200"
                   >
                     Get Started <ArrowRight className="w-4 h-4" />
                   </a>
