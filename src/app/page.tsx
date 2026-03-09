@@ -280,111 +280,30 @@ function Features() {
         id="features"
         headline="Track every dollar in real time"
         description="GMV, orders, commissions, creator performance. Updated daily, visualized instantly."
-        mockup={
-          <div className="relative rounded-2xl bg-gradient-to-br from-[#FF4D8D]/10 via-[#7C5CFC]/10 to-[#1A1B3A]/10 p-8 border border-[#FF4D8D]/20 backdrop-blur-xl">
-            <div className="text-center space-y-4">
-              <h3 className="text-xl font-bold text-[#1A1B3A]">Analytics Dashboard Preview</h3>
-              <div className="space-y-3">
-                <div className="bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] h-2 rounded-full w-full opacity-20"></div>
-                <div className="bg-gradient-to-r from-[#7C5CFC] to-[#1A1B3A] h-2 rounded-full w-3/4 opacity-20"></div>
-                <div className="bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] h-2 rounded-full w-1/2 opacity-20"></div>
-              </div>
-              <p className="text-sm text-[#6B7280]">Real-time performance tracking</p>
-            </div>
-          </div>
-        }
+        mockup={<AnalyticsMockup />}
       />
       <FeatureSection
         headline="Know your creators"
         description="See who's crushing it and who needs attention. Rankings update automatically."
-        mockup={
-          <div className="relative rounded-2xl bg-gradient-to-br from-[#7C5CFC]/10 via-[#FF4D8D]/10 to-[#1A1B3A]/10 p-8 border border-[#7C5CFC]/20 backdrop-blur-xl">
-            <div className="text-center space-y-4">
-              <h3 className="text-xl font-bold text-[#1A1B3A]">Creator Leaderboard Preview</h3>
-              <div className="space-y-2">
-                <div className="flex justify-between items-center bg-white/40 rounded-lg p-2">
-                  <span className="text-sm">🥇 Creator A</span>
-                  <span className="text-sm font-bold text-[#FF4D8D]">$2.4K</span>
-                </div>
-                <div className="flex justify-between items-center bg-white/40 rounded-lg p-2">
-                  <span className="text-sm">🥈 Creator B</span>
-                  <span className="text-sm font-bold text-[#7C5CFC]">$1.8K</span>
-                </div>
-                <div className="flex justify-between items-center bg-white/40 rounded-lg p-2">
-                  <span className="text-sm">🥉 Creator C</span>
-                  <span className="text-sm font-bold text-[#1A1B3A]">$1.2K</span>
-                </div>
-              </div>
-              <p className="text-sm text-[#6B7280]">Automatic creator rankings</p>
-            </div>
-          </div>
-        }
+        mockup={<LeaderboardMockup />}
         reversed
       />
       <TempoBotSection />
       <FeatureSection
         headline="Every brand, one dashboard"
         description="Switch between brands in one click. Same workflow whether you manage 2 or 20."
-        mockup={
-          <div className="relative rounded-2xl bg-gradient-to-br from-[#1A1B3A]/10 via-[#FF4D8D]/10 to-[#7C5CFC]/10 p-8 border border-[#1A1B3A]/20 backdrop-blur-xl">
-            <div className="text-center space-y-4">
-              <h3 className="text-xl font-bold text-[#1A1B3A]">Multi-Brand Switcher Preview</h3>
-              <div className="flex justify-center gap-2">
-                <div className="bg-[#FF4D8D] text-white px-3 py-1 rounded-full text-xs">Brand A</div>
-                <div className="bg-white border border-[#E5E7EB] px-3 py-1 rounded-full text-xs">Brand B</div>
-                <div className="bg-white border border-[#E5E7EB] px-3 py-1 rounded-full text-xs">Brand C</div>
-              </div>
-              <p className="text-sm text-[#6B7280]">One-click brand switching</p>
-            </div>
-          </div>
-        }
+        mockup={<BrandSwitcherMockup />}
       />
       <FeatureSection
         headline="Reports that write themselves"
         description="Wake up to a daily brief. Know exactly where you stand before your first coffee."
-        mockup={
-          <div className="relative rounded-2xl bg-gradient-to-br from-[#7C5CFC]/10 via-[#1A1B3A]/10 to-[#FF4D8D]/10 p-8 border border-[#7C5CFC]/20 backdrop-blur-xl">
-            <div className="text-center space-y-4">
-              <h3 className="text-xl font-bold text-[#1A1B3A]">Daily Brief Preview</h3>
-              <div className="bg-white/60 rounded-lg p-4 text-left text-sm space-y-2">
-                <div className="font-semibold text-[#1A1B3A]">📊 Yesterday's Performance</div>
-                <div className="text-[#6B7280]">• Total GMV: <span className="text-[#FF4D8D] font-semibold">$8.2K</span></div>
-                <div className="text-[#6B7280]">• Top Creator: <span className="text-[#7C5CFC] font-semibold">Sarah_beauty</span></div>
-                <div className="text-[#6B7280]">• Videos Posted: <span className="text-[#1A1B3A] font-semibold">12</span></div>
-              </div>
-              <p className="text-sm text-[#6B7280]">Automated daily insights</p>
-            </div>
-          </div>
-        }
+        mockup={<DailyBriefMockup />}
         reversed
       />
       <FeatureSection
         headline="A portal your creators will actually use"
         description="Give creators their own dashboard to track performance, discover winning content, and stay motivated."
-        mockup={
-          <div className="relative rounded-2xl bg-gradient-to-br from-[#FF4D8D]/10 via-[#1A1B3A]/10 to-[#7C5CFC]/10 p-8 border border-[#FF4D8D]/20 backdrop-blur-xl">
-            <div className="text-center space-y-4">
-              <h3 className="text-xl font-bold text-[#1A1B3A]">Creator Portal Preview</h3>
-              <div className="bg-white/60 rounded-lg p-4 space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm font-semibold">Your Stats</span>
-                  <span className="text-xs text-[#6B7280]">This Week</span>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="text-center">
-                    <div className="text-lg font-bold text-[#FF4D8D]">$1.2K</div>
-                    <div className="text-xs text-[#6B7280]">Earnings</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-lg font-bold text-[#7C5CFC]">8</div>
-                    <div className="text-xs text-[#6B7280]">Videos</div>
-                  </div>
-                </div>
-              </div>
-              <p className="text-sm text-[#6B7280]">Creator self-service dashboard</p>
-            </div>
-          </div>
-        }
+        mockup={<CreatorPortalMockup />}
       />
     </div>
   );

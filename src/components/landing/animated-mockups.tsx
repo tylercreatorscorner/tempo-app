@@ -59,7 +59,7 @@ export function HeroDashboardMockup() {
       {/* Floating glow */}
       <div className="absolute -inset-8 bg-gradient-to-r from-[#FF4D8D]/15 to-[#7C5CFC]/15 rounded-3xl blur-3xl animate-pulse-slow" />
 
-      <div className="relative rounded-2xl bg-white border border-[#E5E7EB] shadow-2xl shadow-[#7C5CFC]/10 overflow-hidden md:perspective-mockup">
+      <div className="relative rounded-2xl bg-[#F8F9FC] shadow-2xl shadow-[#7C5CFC]/10 overflow-hidden md:perspective-mockup">
         {/* Top bar */}
         <div className="flex items-center justify-between px-5 py-3 bg-[#1A1B3A] text-white">
           <div className="flex items-center gap-3">
