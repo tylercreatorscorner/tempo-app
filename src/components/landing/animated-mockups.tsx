@@ -74,7 +74,7 @@ export function HeroDashboardMockup() {
           </div>
         </div>
 
-        <div className="p-5 space-y-4">
+        <div className="p-5 bg-[#F8F9FC] space-y-4">
           {/* Stat cards */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {[
@@ -82,7 +82,7 @@ export function HeroDashboardMockup() {
               { label: 'Active Creators', value: 142, prefix: '', trend: '+12 this week', trendColor: 'text-[#FF4D8D]' },
               { label: 'Top Video GMV', value: 8470, prefix: '$', trend: '@skincare.sarah', trendColor: 'text-[#7C5CFC]' },
             ].map((s, i) => (
-              <div key={s.label} className="rounded-xl bg-[#F8F9FC] border border-[#E5E7EB]/60 p-3.5"
+              <div key={s.label} className="rounded-xl bg-white p-3.5"
                 style={fadeIn(inView, i * 200)}>
                 <p className="text-[10px] text-[#9CA3AF] font-medium uppercase tracking-wide">{s.label}</p>
                 <p className="text-xl font-bold text-[#1A1B3A] mt-1">
@@ -94,7 +94,7 @@ export function HeroDashboardMockup() {
           </div>
 
           {/* Chart */}
-          <div className="rounded-xl bg-[#F8F9FC] border border-[#E5E7EB]/60 p-4">
+          <div className="rounded-xl bg-white p-4">
             <div className="flex items-center justify-between mb-2">
               <p className="text-xs font-semibold text-[#1A1B3A]">GMV Trend, Last 30 Days</p>
               <div className="flex items-center gap-3">
@@ -130,7 +130,7 @@ export function HeroDashboardMockup() {
                 { rank: 3, name: '@fitness.luna', gmv: '$12,470', videos: 41 },
               ].map((c, i) => (
                 <div key={c.name}
-                  className="flex items-center justify-between rounded-lg bg-[#F8F9FC] border border-[#E5E7EB]/60 px-3.5 py-2.5"
+                  className="flex items-center justify-between rounded-lg bg-white px-3.5 py-2.5"
                   style={slideUp(inView, 800 + i * 150)}>
                   <div className="flex items-center gap-2.5">
                     <span className="text-[10px] font-bold text-[#9CA3AF] w-4 text-center">#{c.rank}</span>
