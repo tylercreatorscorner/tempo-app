@@ -47,15 +47,20 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 
     console.log('Created tenant:', tenant.id);
 
-    // Create user profile
+    // Create or link user profile
+    // Check if auth user already exists (from /signup flow)
+    const { data: { users } } = await supabase.auth.admin.listUsers();
+    const authUser = users?.find(u => u.email?.toLowerCase() === email.toLowerCase());
+
     const { error: profileError } = await supabase
       .from('user_profiles')
-      .insert({
+      .upsert({
+        user_id: authUser?.id || null,
         email: email.toLowerCase(),
-        display_name: name,
+        name: name || company,
         role: 'owner',
         tenant_id: tenant.id,
-      });
+      }, { onConflict: 'email' });
 
     if (profileError) {
       console.error('Profile creation error:', profileError);
