@@ -1,21 +1,40 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { BRAND_COLORS, BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
+import { createClient } from '@/lib/supabase/client';
 
-const BRANDS = [
-  { key: 'all', label: 'All Brands' },
-  { key: 'jiyu', label: 'JiYu' },
-  { key: 'catakor', label: 'Cata-Kor' },
-  { key: 'physicians_choice', label: "Physician's Choice" },
-  { key: 'toplux', label: 'Toplux', disabled: true },
-];
+interface BrandItem {
+  key: string;
+  label: string;
+}
 
 export function BrandFilterBar() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const current = searchParams.get('brand') || 'all';
+  const [brands, setBrands] = useState<BrandItem[]>([]);
+
+  useEffect(() => {
+    async function load() {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from('brands_v2')
+        .select('slug, display_name, name')
+        .order('name');
+      if (data) {
+        setBrands(data.map(b => ({
+          key: b.slug,
+          label: b.display_name || BRAND_DISPLAY_NAMES[b.slug] || b.name,
+        })));
+      }
+    }
+    load();
+  }, []);
+
+  const allBrands: BrandItem[] = [{ key: 'all', label: 'All Brands' }, ...brands];
 
   function select(brand: string) {
     const params = new URLSearchParams(searchParams.toString());
@@ -29,7 +48,7 @@ export function BrandFilterBar() {
 
   return (
     <div className="flex flex-wrap gap-2">
-      {BRANDS.map((b) => {
+      {allBrands.map((b) => {
         const isActive = current === b.key;
         const color = BRAND_COLORS[b.key];
         const isAll = b.key === 'all';
@@ -37,24 +56,18 @@ export function BrandFilterBar() {
         return (
           <button
             key={b.key}
-            onClick={() => !b.disabled && select(b.key)}
-            disabled={b.disabled}
+            onClick={() => select(b.key)}
             className={cn(
-              'px-4 py-1.5 text-sm rounded-full font-medium transition-all duration-300 border',
-              b.disabled && 'opacity-30 cursor-not-allowed',
-              !b.disabled && !isActive && 'cursor-pointer hover:scale-[1.05]',
+              'px-4 py-1.5 text-sm rounded-full font-medium transition-all duration-300 border cursor-pointer hover:scale-[1.05]',
               isActive && isAll && 'bg-gray-900 border-gray-900 text-white shadow-md',
               !isActive && isAll && 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-900',
               isActive && !isAll && 'text-white shadow-md',
-              !isActive && !isAll && !b.disabled && 'bg-white border-gray-200 text-gray-500 hover:text-gray-900',
+              !isActive && !isAll && 'bg-white border-gray-200 text-gray-500 hover:text-gray-900',
             )}
             style={
               isActive && !isAll && color
-                ? {
-                    backgroundColor: color,
-                    borderColor: color,
-                  }
-                : !isActive && !isAll && color && !b.disabled
+                ? { backgroundColor: color, borderColor: color }
+                : !isActive && !isAll && color
                 ? { borderColor: `${color}40` }
                 : undefined
             }
