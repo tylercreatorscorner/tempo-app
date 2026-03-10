@@ -28,7 +28,7 @@ export async function updateSession(request: NextRequest) {
 
   // Auth guard: redirect unauthenticated users to /login
   const { data: { user } } = await supabase.auth.getUser();
-  const publicPaths = ['/login', '/signup', '/auth/callback', '/auth/confirm', '/onboarding', '/join', '/creator-login', '/api/webhooks'];
+  const publicPaths = ['/login', '/signup', '/auth/callback', '/auth/confirm', '/onboarding', '/join', '/creator-login', '/api/webhooks', '/forgot-password'];
   const isPublicPath = publicPaths.some((path) => request.nextUrl.pathname.startsWith(path));
   // Landing page is public
   const isLanding = request.nextUrl.pathname === '/';
