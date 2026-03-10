@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect, Suspense } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Building2,
   Briefcase,
@@ -20,16 +20,20 @@ import {
   Copy,
   CheckCircle2,
   Info,
+  Mail,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { DiscordSetup } from '@/components/onboarding/DiscordSetup';
 import { TempoLogo } from '@/components/ui/tempo-logo';
+import { createClient } from '@/lib/supabase/client';
 import { STRIPE_PRICES } from '@/lib/stripe-prices';
 import Link from 'next/link';
 
 type Role = 'brand' | 'agency' | null;
 type AgencySize = '1-3' | '4-10' | '11-15' | '15+' | null;
 
-const STEPS = ['Role', 'Account', 'Connect', 'Creators', 'Discord', 'Plan'] as const;
+const STEPS = ['Role', 'Sign Up', 'Connect', 'Creators', 'Discord', 'Plan'] as const;
 
 /* ── Email validation ── */
 function isValidEmail(email: string): boolean {
@@ -95,10 +99,13 @@ function OnboardingContent() {
   // Step 2
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [companyName, setCompanyName] = useState('');
   const [emailError, setEmailError] = useState('');
   const [emailExists, setEmailExists] = useState(false);
   const [checkingEmail, setCheckingEmail] = useState(false);
+  const [awaitingConfirm, setAwaitingConfirm] = useState(false);
+  const [signupError, setSignupError] = useState('');
 
   // Step 3
   const [connectAttempted, setConnectAttempted] = useState(false);
@@ -169,7 +176,12 @@ function OnboardingContent() {
       setEmailError('Please enter a valid email address');
       return;
     }
+    if (password.length < 6) {
+      setSignupError('Password must be at least 6 characters');
+      return;
+    }
     setEmailError('');
+    setSignupError('');
 
     // Check for duplicate email
     setCheckingEmail(true);
@@ -189,8 +201,41 @@ function OnboardingContent() {
       // If check fails, allow through
     }
     setEmailExists(false);
+
+    // Create Supabase auth account
+    const supabase = createClient();
+    const { error, data } = await supabase.auth.signUp({
+      email: email.trim(),
+      password,
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/confirm`,
+        data: {
+          account_type: role || 'brand',
+          org_name: companyName.trim(),
+          full_name: fullName.trim(),
+        },
+      },
+    });
+
     setCheckingEmail(false);
-    goNext();
+
+    if (error) {
+      if (error.message.includes('already registered')) {
+        setEmailExists(true);
+      } else {
+        setSignupError(error.message);
+      }
+      return;
+    }
+
+    // If auto-confirmed (session exists), continue directly
+    if (data.session) {
+      goNext();
+      return;
+    }
+
+    // Otherwise, show email confirmation interstitial
+    setAwaitingConfirm(true);
   }
 
   async function handleCheckout() {
@@ -308,8 +353,41 @@ function OnboardingContent() {
         ))}
       </div>
 
+      {/* Email confirmation interstitial */}
+      {awaitingConfirm && (
+        <div className="text-center space-y-6 py-8">
+          <div className="inline-flex h-20 w-20 rounded-full bg-gradient-to-br from-[#FF4D8D] to-[#7C5CFC] items-center justify-center">
+            <Mail className="h-10 w-10 text-white" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-bold">Check your email</h2>
+            <p className="text-muted-foreground mt-2 max-w-sm mx-auto">
+              We sent a confirmation link to <strong>{email}</strong>. Click it to continue setting up your account.
+            </p>
+          </div>
+          <div className="rounded-2xl border border-gray-200 bg-white p-5 max-w-sm mx-auto space-y-3">
+            <p className="text-sm text-muted-foreground">Didn&apos;t get the email?</p>
+            <button
+              onClick={async () => {
+                const supabase = createClient();
+                await supabase.auth.resend({ type: 'signup', email: email.trim() });
+              }}
+              className="text-sm font-medium text-[#FF4D8D] hover:underline"
+            >
+              Resend confirmation email
+            </button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Already confirmed?{' '}
+            <button onClick={() => { setAwaitingConfirm(false); goNext(); }} className="text-[#FF4D8D] hover:underline font-medium">
+              Continue to next step →
+            </button>
+          </p>
+        </div>
+      )}
+
       {/* Step content */}
-      <div key={currentStep} className={animClass}>
+      {!awaitingConfirm && <div key={currentStep} className={animClass}>
         {currentStep === 0 && (
           <StepRole role={role} setRole={setRole} onNext={goNext} />
         )}
@@ -317,10 +395,12 @@ function OnboardingContent() {
           <StepAccount
             fullName={fullName} setFullName={setFullName}
             email={email} setEmail={(v) => { setEmail(v); setEmailError(''); setEmailExists(false); }}
+            password={password} setPassword={(v) => { setPassword(v); setSignupError(''); }}
             companyName={companyName} setCompanyName={setCompanyName}
             emailError={emailError}
             emailExists={emailExists}
             checkingEmail={checkingEmail}
+            signupError={signupError}
             onNext={handleAccountNext} onBack={goBack}
           />
         )}
@@ -368,7 +448,7 @@ function OnboardingContent() {
             onBack={goBack}
           />
         )}
-      </div>
+      </div>}
     </div>
   );
 }
@@ -436,28 +516,37 @@ function RoleCard({ selected, onClick, icon, title, desc }: { selected: boolean;
 
 /* ── Step 2: Account Info ── */
 function StepAccount({
-  fullName, setFullName, email, setEmail, companyName, setCompanyName,
-  emailError, emailExists, checkingEmail,
+  fullName, setFullName, email, setEmail, password, setPassword, companyName, setCompanyName,
+  emailError, emailExists, checkingEmail, signupError,
   onNext, onBack,
 }: {
   fullName: string; setFullName: (s: string) => void;
   email: string; setEmail: (s: string) => void;
+  password: string; setPassword: (s: string) => void;
   companyName: string; setCompanyName: (s: string) => void;
   emailError: string;
   emailExists: boolean;
   checkingEmail: boolean;
+  signupError: string;
   onNext: () => void; onBack: () => void;
 }) {
-  const isValid = fullName.trim() && email.trim() && companyName.trim() && !checkingEmail;
+  const [showPassword, setShowPassword] = useState(false);
+  const isValid = fullName.trim() && email.trim() && password.length >= 6 && companyName.trim() && !checkingEmail;
 
   return (
     <div className="space-y-6">
       <div className="text-center">
         <h2 className="text-2xl font-bold">Create your account</h2>
-        <p className="text-muted-foreground mt-1">We just need a few details to get started</p>
+        <p className="text-muted-foreground mt-1">Set up your login and we&apos;ll get you rolling</p>
       </div>
 
       <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-6 space-y-5">
+        {signupError && (
+          <div className="flex items-center gap-2 p-3 rounded-xl bg-red-50 text-red-600 text-sm">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            <span>{signupError}</span>
+          </div>
+        )}
         <div className="space-y-2">
           <label className="text-sm font-medium">Full name <span className="text-[#FF4D8D]">*</span></label>
           <input
@@ -489,12 +578,32 @@ function StepAccount({
               <AlertCircle className="h-3.5 w-3.5" />
               <span>
                 An account with this email already exists.{' '}
-                <Link href="/sign-in" className="underline font-medium hover:text-amber-700">
+                <Link href="/login" className="underline font-medium hover:text-amber-700">
                   Sign in instead?
                 </Link>
               </span>
             </div>
           )}
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Password <span className="text-[#FF4D8D]">*</span></label>
+          <div className="relative">
+            <input
+              type={showPassword ? 'text' : 'password'}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="At least 6 characters"
+              minLength={6}
+              className="w-full px-4 py-2.5 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/50 pr-10"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
         </div>
         <div className="space-y-2">
           <label className="text-sm font-medium">Company name <span className="text-[#FF4D8D]">*</span></label>
@@ -516,9 +625,14 @@ function StepAccount({
           onClick={onNext}
           className="inline-flex items-center gap-2 px-8 py-2.5 rounded-xl bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] text-white font-semibold disabled:opacity-40 hover:opacity-90 transition-opacity"
         >
-          {checkingEmail ? 'Checking...' : 'Continue'} <ArrowRight className="h-4 w-4" />
+          {checkingEmail ? 'Creating account...' : 'Create Account'} <ArrowRight className="h-4 w-4" />
         </button>
       </div>
+
+      <p className="text-center text-sm text-muted-foreground">
+        Already have an account?{' '}
+        <Link href="/login" className="text-[#FF4D8D] hover:underline font-medium">Sign in</Link>
+      </p>
     </div>
   );
 }
