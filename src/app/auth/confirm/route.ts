@@ -6,18 +6,37 @@ export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const token_hash = searchParams.get('token_hash');
   const type = searchParams.get('type');
+  const code = searchParams.get('code');
 
+  const supabase = await createClient();
+
+  // Method 1: Supabase PKCE flow (code exchange)
+  if (code) {
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    if (!error) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) await provisionTenant(user);
+      return NextResponse.redirect(`${origin}/dashboard`);
+    }
+  }
+
+  // Method 2: OTP token hash verification
   if (token_hash && type) {
-    const supabase = await createClient();
     const { error, data } = await supabase.auth.verifyOtp({
       type: type as 'signup' | 'email',
       token_hash,
     });
     if (!error && data.user) {
-      // Auto-provision tenant + profile on first email confirmation
       await provisionTenant(data.user);
       return NextResponse.redirect(`${origin}/dashboard`);
     }
+  }
+
+  // Method 3: User might already be authenticated (Supabase handled verification)
+  const { data: { user } } = await supabase.auth.getUser();
+  if (user) {
+    await provisionTenant(user);
+    return NextResponse.redirect(`${origin}/dashboard`);
   }
 
   return NextResponse.redirect(`${origin}/login?error=confirmation_failed`);
