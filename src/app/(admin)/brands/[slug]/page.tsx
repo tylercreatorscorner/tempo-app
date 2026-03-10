@@ -10,11 +10,10 @@ import { CreatorTable } from '@/components/dashboard/creator-table';
 import { ProductTable } from '@/components/dashboard/product-table';
 import { DateRangePicker } from '@/components/dashboard/date-range-picker';
 import { aggregateCreatorsByRealName } from '@/lib/data/creator-aggregate';
+import { createClient } from '@/lib/supabase/server';
 import { format, subDays, differenceInDays } from 'date-fns';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
-
-const VALID_BRANDS = ['jiyu', 'catakor', 'physicians_choice', 'toplux'];
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -23,7 +22,14 @@ interface Props {
 
 export default async function BrandDetailPage({ params, searchParams }: Props) {
   const { slug } = await params;
-  if (!VALID_BRANDS.includes(slug)) notFound();
+  // Validate brand exists in tenant's brands (RLS-scoped)
+  const supabase = await createClient();
+  const { data: brand } = await supabase
+    .from('brands_v2')
+    .select('slug, display_name, color')
+    .eq('slug', slug)
+    .single();
+  if (!brand) notFound();
 
   const sp = await searchParams;
   const { startDate, endDate } = resolveDateRange(sp.range);

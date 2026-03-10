@@ -51,7 +51,6 @@ const BRAND_COLORS: Record<string, string> = {
   jiyu: 'bg-pink-100 text-pink-700',
   physicians_choice: 'bg-blue-100 text-blue-700',
   catakor: 'bg-purple-100 text-purple-700',
-  toplux: 'bg-orange-100 text-orange-700',
 };
 
 type TabStatus = 'pending' | 'approved' | 'rejected' | 'all';

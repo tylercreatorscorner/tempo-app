@@ -10,10 +10,9 @@ import { aggregateCreatorsByRealName } from '@/lib/data/creator-aggregate';
 import { getDashboardVideos } from '@/lib/data/video-sections';
 import { getCreatorRetainers } from '@/lib/data/retainer';
 import { BRAND_COLORS, BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
+import { createClient } from '@/lib/supabase/server';
 
 import { format, subDays, differenceInDays } from 'date-fns';
-
-const ALL_BRANDS = ['jiyu', 'catakor', 'physicians_choice'] as const;
 
 interface Props {
   searchParams: Promise<{ range?: string; brand?: string }>;
@@ -22,11 +21,20 @@ interface Props {
 export default async function AdminDashboard({ searchParams }: Props) {
   const params = await searchParams;
   const { startDate, endDate } = resolveDateRange(params.range);
-  const brandFilter = params.brand && ALL_BRANDS.includes(params.brand as typeof ALL_BRANDS[number])
+
+  // Load brands dynamically from database (tenant-scoped via RLS)
+  const supabase = await createClient();
+  const { data: dbBrands } = await supabase
+    .from('brands_v2')
+    .select('slug')
+    .order('name');
+  const ALL_BRANDS = (dbBrands ?? []).map(b => b.slug);
+
+  const brandFilter = params.brand && ALL_BRANDS.includes(params.brand)
     ? params.brand
     : null;
 
-  const activeBrands = brandFilter ? [brandFilter] as const : ALL_BRANDS;
+  const activeBrands = brandFilter ? [brandFilter] : ALL_BRANDS;
 
   // Previous period for comparison
   const start = new Date(startDate);

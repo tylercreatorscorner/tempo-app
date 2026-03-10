@@ -1,13 +1,13 @@
 import { Suspense } from 'react';
 import Link from 'next/link';
+import { createClient } from '@/lib/supabase/server';
 import { getBrandSummary } from '@/lib/data/rpc';
 import { resolveDateRange } from '@/lib/data/date-utils';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
 import { BRAND_COLORS, BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
 import { DateRangePicker } from '@/components/dashboard/date-range-picker';
 import { DollarSign, ShoppingCart, Users, Package } from 'lucide-react';
-
-const BRANDS = ['jiyu', 'catakor', 'physicians_choice', 'toplux'] as const;
+import { BrandsActions } from './brands-actions';
 
 interface Props {
   searchParams: Promise<{ range?: string }>;
@@ -17,13 +17,27 @@ export default async function BrandsPage({ searchParams }: Props) {
   const params = await searchParams;
   const { startDate, endDate } = resolveDateRange(params.range);
 
+  // Load brands from database (tenant-scoped via RLS)
+  const supabase = await createClient();
+  const { data: dbBrands } = await supabase
+    .from('brands_v2')
+    .select('id, slug, name, display_name, color')
+    .order('name');
+
+  const brands = (dbBrands ?? []).map(b => ({
+    slug: b.slug,
+    name: b.display_name || b.name,
+    color: b.color || BRAND_COLORS[b.slug] || '#6B7280',
+  }));
+
+  // Fetch summaries for each brand
   const summaries = await Promise.all(
-    BRANDS.map(async (brand) => {
+    brands.map(async (brand) => {
       try {
-        const data = await getBrandSummary(brand, startDate, endDate);
-        return { brand, data: data[0] ?? null };
+        const data = await getBrandSummary(brand.slug, startDate, endDate);
+        return { brand: brand.slug, data: data[0] ?? null };
       } catch {
-        return { brand, data: null };
+        return { brand: brand.slug, data: null };
       }
     })
   );
@@ -46,12 +60,15 @@ export default async function BrandsPage({ searchParams }: Props) {
         <div>
           <h1 className="text-2xl font-bold">Brands</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Portfolio overview — {BRANDS.length} brands
+            Portfolio overview — {brands.length} brand{brands.length !== 1 ? 's' : ''}
           </p>
         </div>
-        <Suspense fallback={null}>
-          <DateRangePicker />
-        </Suspense>
+        <div className="flex items-center gap-3">
+          <BrandsActions />
+          <Suspense fallback={null}>
+            <DateRangePicker />
+          </Suspense>
+        </div>
       </div>
 
       {/* Portfolio totals */}
@@ -74,18 +91,32 @@ export default async function BrandsPage({ searchParams }: Props) {
         ))}
       </div>
 
+      {/* Empty state */}
+      {brands.length === 0 && (
+        <div className="rounded-2xl border border-gray-200 bg-white overflow-hidden">
+          <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
+            <div className="text-5xl mb-4">🏢</div>
+            <h3 className="text-lg font-bold">No brands yet</h3>
+            <p className="text-sm text-muted-foreground mt-2 max-w-sm">
+              Add your first brand to start tracking creator performance, GMV, and product analytics.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Brand Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {summaries.map(({ brand, data }) => {
-          const color = BRAND_COLORS[brand] ?? '#6B7280';
-          const displayName = BRAND_DISPLAY_NAMES[brand] ?? brand;
+        {summaries.map(({ brand: slug, data }) => {
+          const brandInfo = brands.find(b => b.slug === slug);
+          const color = brandInfo?.color ?? '#6B7280';
+          const displayName = brandInfo?.name ?? BRAND_DISPLAY_NAMES[slug] ?? slug;
           const gmv = data?.total_gmv ?? 0;
           const gmvShare = portfolioTotals.gmv > 0 ? (gmv / portfolioTotals.gmv) * 100 : 0;
 
           return (
             <Link
-              key={brand}
-              href={`/brands/${brand}`}
+              key={slug}
+              href={`/brands/${slug}`}
               className="group rounded-xl border border-border bg-card p-6 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 hover:scale-[1.01] transition-all duration-200"
             >
               <div className="flex items-center gap-3 mb-4">

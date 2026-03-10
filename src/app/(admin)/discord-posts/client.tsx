@@ -8,7 +8,6 @@ const BRANDS = [
   { value: 'jiyu', label: 'JiYu' },
   { value: 'catakor', label: 'Catakor' },
   { value: 'physicians_choice', label: "Physician's Choice" },
-  { value: 'toplux', label: 'Toplux' },
 ];
 
 const PERIODS = [
