@@ -1,4 +1,4 @@
-import { createAdminClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase/server';
 import { getCreatorRetainers, getTotalRetainer, type RetainerInfo } from './retainer';
 
 interface RawCreator {
@@ -31,7 +31,7 @@ export interface GroupedCreator {
  * tiktok_accounts joined with creators_v2.
  */
 async function fetchHandleToRealName(): Promise<Map<string, { real_name: string; creator_id: string }>> {
-  const supabase = await createAdminClient();
+  const supabase = await createClient();
   const { data, error } = await supabase
     .from('tiktok_accounts')
     .select('tiktok_username, creator_id, creator:creators_v2(real_name)')

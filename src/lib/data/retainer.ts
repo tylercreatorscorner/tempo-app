@@ -1,4 +1,4 @@
-import { createAdminClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase/server';
 import { brandSlugToUuid, brandUuidToSlug } from '@/lib/utils/constants';
 
 export interface RetainerInfo {
@@ -11,7 +11,7 @@ export interface RetainerInfo {
  * Returns a Map of creator_id (UUID) -> RetainerInfo.
  */
 export async function getCreatorRetainers(): Promise<Map<string, RetainerInfo>> {
-  const supabase = await createAdminClient();
+  const supabase = await createClient();
   const { data, error } = await supabase
     .from('creator_brands')
     .select('creator_id, retainer, product_retainers')

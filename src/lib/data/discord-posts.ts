@@ -1,4 +1,4 @@
-import { createAdminClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase/server';
 import { BRAND_UUID_MAP, BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
 
 // ─── Types ──────────────────────────────────────────────────────
@@ -137,7 +137,7 @@ async function paginatedFetch(
 // ─── What's Cooking Data ────────────────────────────────────────
 
 export async function getWhatsCookingData(brandFilter: string, period: '7d' | '30d'): Promise<WhatsCookingData> {
-  const supabase = await createAdminClient();
+  const supabase = await createClient();
   const brandUuids = getBrandUuids(brandFilter);
 
   const today = new Date();
@@ -249,7 +249,7 @@ export async function getWhatsCookingData(brandFilter: string, period: '7d' | '3
 // ─── Who's Cooking Data ─────────────────────────────────────────
 
 export async function getWhosCookingData(brandFilter: string, period: '7d' | '30d'): Promise<WhosCookingData> {
-  const supabase = await createAdminClient();
+  const supabase = await createClient();
   const brandUuids = getBrandUuids(brandFilter);
 
   const today = new Date();
@@ -441,7 +441,7 @@ export interface DailyDropData {
 }
 
 export async function getDailyDropData(brandFilter: string): Promise<DailyDropData> {
-  const supabase = await createAdminClient();
+  const supabase = await createClient();
   const brandUuids = getBrandUuids(brandFilter);
 
   const today = new Date();
@@ -586,7 +586,7 @@ export interface WeeklyRankingsData {
 }
 
 export async function getWeeklyRankingsData(brandFilter: string): Promise<WeeklyRankingsData> {
-  const supabase = await createAdminClient();
+  const supabase = await createClient();
   const brandUuids = getBrandUuids(brandFilter);
 
   const today = new Date();

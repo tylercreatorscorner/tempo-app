@@ -1,4 +1,4 @@
-import { createAdminClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase/server';
 import { brandSlugToUuid, brandUuidToSlug } from '@/lib/utils/constants';
 
 /**
@@ -50,7 +50,7 @@ export async function getCreatorStats(
   startDate: string,
   endDate: string
 ): Promise<CreatorStats> {
-  const supabase = await createAdminClient();
+  const supabase = await createClient();
   const brandUuid = brandSlugToUuid(brand);
 
   // Get daily_creator_stats aggregated
@@ -109,7 +109,7 @@ export async function getCreatorDailyData(
   startDate: string,
   endDate: string
 ): Promise<CreatorDailyData[]> {
-  const supabase = await createAdminClient();
+  const supabase = await createClient();
   const brandUuid = brandSlugToUuid(brand);
 
   let query = supabase
@@ -191,7 +191,7 @@ export async function getCreatorStreak(
   creatorName: string,
   brand: string
 ): Promise<number> {
-  const supabase = await createAdminClient();
+  const supabase = await createClient();
   const brandUuid = brandSlugToUuid(brand);
 
   let query = supabase

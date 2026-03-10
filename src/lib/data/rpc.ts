@@ -1,4 +1,4 @@
-import { createAdminClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase/server';
 import {
   ACTIVE_BRANDS,
   BRAND_UUID_MAP,
@@ -42,7 +42,7 @@ export async function getBrandSummary(
   startDate: string,
   endDate: string,
 ): Promise<BrandSummary[]> {
-  const supabase = await createAdminClient();
+  const supabase = await createClient();
   const uuids = resolveBrandUuids(brand);
 
   const { data, error } = await supabase.rpc('get_brand_summary_v2', {
@@ -84,7 +84,7 @@ export async function getCreatorRankings(
   endDate: string,
   limit = 20,
 ): Promise<CreatorRanking[]> {
-  const supabase = await createAdminClient();
+  const supabase = await createClient();
   const uuids = resolveBrandUuids(brand);
 
   const { data, error } = await supabase.rpc('get_creator_rankings_v2', {
@@ -117,7 +117,7 @@ export async function getProductSummary(
   endDate: string,
   limit = 20,
 ): Promise<ProductSummary[]> {
-  const supabase = await createAdminClient();
+  const supabase = await createClient();
   const uuids = resolveBrandUuids(brand);
 
   const { data, error } = await supabase.rpc('get_product_summary_v2', {
@@ -148,7 +148,7 @@ export async function getVideoSummary(
   endDate: string,
   limit = 20,
 ): Promise<VideoSummaryItem[]> {
-  const supabase = await createAdminClient();
+  const supabase = await createClient();
   const uuids = resolveBrandUuids(brand);
 
   const { data, error } = await supabase.rpc('get_video_summary_v2', {
@@ -182,7 +182,7 @@ export async function getDailyTrend(
   startDate: string,
   endDate: string,
 ): Promise<DailyTrend[]> {
-  const supabase = await createAdminClient();
+  const supabase = await createClient();
   const uuids = resolveBrandUuids(brand);
 
   const { data, error } = await supabase.rpc('get_daily_trend_v2', {

@@ -1,4 +1,4 @@
-import { createAdminClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase/server';
 import { ACTIVE_BRANDS, brandSlugToUuid, brandUuidToSlug } from '@/lib/utils/constants';
 
 // --- Types ---
@@ -87,7 +87,7 @@ export interface CreatorLifetimeStats {
  */
 async function getBrandsForHandles(handles: string[]): Promise<string[]> {
   if (handles.length === 0) return [];
-  const supabase = await createAdminClient();
+  const supabase = await createClient();
   const { data } = await supabase
     .from('daily_creator_stats')
     .select('brand_id')
@@ -105,7 +105,7 @@ async function getBrandsForHandles(handles: string[]): Promise<string[]> {
  */
 async function getBrandsByHandle(handles: string[]): Promise<Map<string, string[]>> {
   if (handles.length === 0) return new Map();
-  const supabase = await createAdminClient();
+  const supabase = await createClient();
   const { data } = await supabase
     .from('daily_creator_stats')
     .select('tiktok_username, brand_id')
@@ -131,7 +131,7 @@ async function getBrandsByHandle(handles: string[]): Promise<Map<string, string[
  * Fetch a creator profile by creators_v2 ID (UUID), including all linked accounts.
  */
 export async function getCreatorProfile(creatorId: string | number): Promise<CreatorProfile | null> {
-  const supabase = await createAdminClient();
+  const supabase = await createClient();
 
   // For backwards compat, accept number but treat as string
   const id = String(creatorId);
@@ -212,7 +212,7 @@ export async function getCreatorProfile(creatorId: string | number): Promise<Cre
  * Look up creator_id (UUID) from a TikTok username handle.
  */
 export async function getCreatorIdByHandle(handle: string): Promise<string | null> {
-  const supabase = await createAdminClient();
+  const supabase = await createClient();
   const { data, error } = await supabase
     .from('tiktok_accounts')
     .select('creator_id')
@@ -227,7 +227,7 @@ export async function getCreatorIdByHandle(handle: string): Promise<string | nul
 
 /** Helper: get all TikTok usernames for a creator */
 async function getHandles(creatorId: string): Promise<string[]> {
-  const supabase = await createAdminClient();
+  const supabase = await createClient();
   const { data } = await supabase
     .from('tiktok_accounts')
     .select('tiktok_username')
@@ -255,7 +255,7 @@ async function aggregatePerformance(
 ): Promise<{ gmv: number; orders: number; items_sold: number; videos: number; commission: number }> {
   if (handles.length === 0) return { gmv: 0, orders: 0, items_sold: 0, videos: 0, commission: 0 };
 
-  const supabase = await createAdminClient();
+  const supabase = await createClient();
   let query = supabase
     .from('daily_creator_stats')
     .select('gmv, orders, items_sold, videos, est_commission')
@@ -318,7 +318,7 @@ export async function getCreatorAccountBreakdown(
   endDate: string,
   brand?: string
 ): Promise<AccountBreakdownRow[]> {
-  const supabase = await createAdminClient();
+  const supabase = await createClient();
   const id = String(creatorId);
 
   const { data: accounts } = await supabase
@@ -386,7 +386,7 @@ export async function getCreatorBrandBreakdown(
   const handles = await getHandles(String(creatorId));
   if (handles.length === 0) return [];
 
-  const supabase = await createAdminClient();
+  const supabase = await createClient();
   const { data: perf } = await supabase
     .from('daily_creator_stats')
     .select('brand_id, gmv, orders, items_sold, videos, est_commission')
@@ -432,7 +432,7 @@ export async function getCreatorVideos(
   const handles = await getHandles(String(creatorId));
   if (handles.length === 0) return [];
 
-  const supabase = await createAdminClient();
+  const supabase = await createClient();
   let query = supabase
     .from('daily_video_product_stats')
     .select('video_id, video_title, tiktok_username, brand_id, product_name, gmv, orders, items_sold, report_date')
@@ -510,7 +510,7 @@ export async function getPostsThisMonth(creatorId: string | number, brand?: stri
   const startOfMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
   const endOfMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()).padStart(2, '0')}`;
 
-  const supabase = await createAdminClient();
+  const supabase = await createClient();
   let query = supabase
     .from('daily_creator_stats')
     .select('videos')
@@ -535,7 +535,7 @@ export async function getCreatorLifetimeStats(creatorId: string | number): Promi
     return { total_gmv: 0, total_orders: 0, total_videos: 0, total_commission: 0, first_active_date: null, months_active: 0 };
   }
 
-  const supabase = await createAdminClient();
+  const supabase = await createClient();
   const { data } = await supabase
     .from('daily_creator_stats')
     .select('gmv, orders, videos, est_commission, report_date')
@@ -579,7 +579,7 @@ export async function getManagedCreatorInfo(creatorId: string): Promise<{
   const handles = await getHandles(creatorId);
   if (handles.length === 0) return null;
 
-  const supabase = await createAdminClient();
+  const supabase = await createClient();
   const { data } = await supabase
     .from('managed_creators')
     .select('retainer, monthly_post_requirement, notes, status, brand')

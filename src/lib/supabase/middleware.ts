@@ -26,16 +26,17 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  // AUTH BYPASS FOR DEVELOPMENT — skip redirect to /login
-  // TODO: Re-enable auth check before production
-  // const { data: { user } } = await supabase.auth.getUser();
-  // const publicPaths = ['/login', '/signup', '/auth/callback', '/auth/confirm'];
-  // const isPublicPath = publicPaths.some((path) => request.nextUrl.pathname.startsWith(path));
-  // if (!user && !isPublicPath) {
-  //   const url = request.nextUrl.clone();
-  //   url.pathname = '/login';
-  //   return NextResponse.redirect(url);
-  // }
+  // Auth guard: redirect unauthenticated users to /login
+  const { data: { user } } = await supabase.auth.getUser();
+  const publicPaths = ['/login', '/signup', '/auth/callback', '/auth/confirm', '/onboarding', '/join', '/creator-login', '/api/webhooks'];
+  const isPublicPath = publicPaths.some((path) => request.nextUrl.pathname.startsWith(path));
+  // Landing page is public
+  const isLanding = request.nextUrl.pathname === '/';
+  if (!user && !isPublicPath && !isLanding) {
+    const url = request.nextUrl.clone();
+    url.pathname = '/login';
+    return NextResponse.redirect(url);
+  }
 
   return supabaseResponse;
 }

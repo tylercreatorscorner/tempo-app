@@ -1,4 +1,4 @@
-import { createAdminClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase/server';
 
 // ── Types ──────────────────────────────────────────────
 
@@ -56,7 +56,7 @@ export interface TaskFilters {
 // ── Timeline ───────────────────────────────────────────
 
 export async function getCreatorTimeline(creatorId: string, page = 1, limit = 50) {
-  const supabase = await createAdminClient();
+  const supabase = await createClient();
   const offset = (page - 1) * limit;
   const { data, error } = await supabase
     .from('creator_activity_log')
@@ -76,7 +76,7 @@ export async function addTimelineEntry(
   metadata: Record<string, any> = {},
   createdBy = 'system'
 ) {
-  const supabase = await createAdminClient();
+  const supabase = await createClient();
   const { data, error } = await supabase
     .from('creator_activity_log')
     .insert({ creator_id: creatorId, activity_type: type, title, body, metadata, created_by: createdBy })
@@ -89,7 +89,7 @@ export async function addTimelineEntry(
 // ── Tags ───────────────────────────────────────────────
 
 export async function getCreatorTags(creatorId: string) {
-  const supabase = await createAdminClient();
+  const supabase = await createClient();
   const { data, error } = await supabase
     .from('creator_tags')
     .select('*')
@@ -100,7 +100,7 @@ export async function getCreatorTags(creatorId: string) {
 }
 
 export async function getAllTags() {
-  const supabase = await createAdminClient();
+  const supabase = await createClient();
   const { data, error } = await supabase
     .from('creator_tags')
     .select('tag')
@@ -111,7 +111,7 @@ export async function getAllTags() {
 }
 
 export async function addCreatorTag(creatorId: string, tag: string, createdBy = 'system') {
-  const supabase = await createAdminClient();
+  const supabase = await createClient();
   const { data, error } = await supabase
     .from('creator_tags')
     .upsert({ creator_id: creatorId, tag, created_by: createdBy }, { onConflict: 'creator_id,tag' })
@@ -122,7 +122,7 @@ export async function addCreatorTag(creatorId: string, tag: string, createdBy = 
 }
 
 export async function removeCreatorTag(creatorId: string, tag: string) {
-  const supabase = await createAdminClient();
+  const supabase = await createClient();
   const { error } = await supabase
     .from('creator_tags')
     .delete()
@@ -134,7 +134,7 @@ export async function removeCreatorTag(creatorId: string, tag: string) {
 // ── Tasks ──────────────────────────────────────────────
 
 export async function getTasks(filters: TaskFilters = {}) {
-  const supabase = await createAdminClient();
+  const supabase = await createClient();
   let query = supabase.from('creator_tasks').select('*').order('due_date', { ascending: true });
   if (filters.assignedTo) query = query.eq('assigned_to', filters.assignedTo);
   if (filters.creatorId) query = query.eq('creator_id', filters.creatorId);
@@ -146,7 +146,7 @@ export async function getTasks(filters: TaskFilters = {}) {
 }
 
 export async function createTask(task: Partial<CreatorTask>) {
-  const supabase = await createAdminClient();
+  const supabase = await createClient();
   const { data, error } = await supabase
     .from('creator_tasks')
     .insert(task)
@@ -157,7 +157,7 @@ export async function createTask(task: Partial<CreatorTask>) {
 }
 
 export async function updateTask(id: string, updates: Partial<CreatorTask>) {
-  const supabase = await createAdminClient();
+  const supabase = await createClient();
   if (updates.completed) updates.completed_at = new Date().toISOString();
   const { data, error } = await supabase
     .from('creator_tasks')
@@ -170,7 +170,7 @@ export async function updateTask(id: string, updates: Partial<CreatorTask>) {
 }
 
 export async function deleteTask(id: string) {
-  const supabase = await createAdminClient();
+  const supabase = await createClient();
   const { error } = await supabase.from('creator_tasks').delete().eq('id', id);
   if (error) throw error;
 }
@@ -178,14 +178,14 @@ export async function deleteTask(id: string) {
 // ── Saved Views ────────────────────────────────────────
 
 export async function getSavedViews() {
-  const supabase = await createAdminClient();
+  const supabase = await createClient();
   const { data, error } = await supabase.from('saved_views').select('*').order('name');
   if (error) throw error;
   return data as SavedView[];
 }
 
 export async function createSavedView(name: string, filters: SavedView['filters'], createdBy = 'tyler') {
-  const supabase = await createAdminClient();
+  const supabase = await createClient();
   const { data, error } = await supabase
     .from('saved_views')
     .insert({ name, filters, created_by: createdBy })
@@ -196,7 +196,7 @@ export async function createSavedView(name: string, filters: SavedView['filters'
 }
 
 export async function deleteSavedView(id: string) {
-  const supabase = await createAdminClient();
+  const supabase = await createClient();
   const { error } = await supabase.from('saved_views').delete().eq('id', id);
   if (error) throw error;
 }

@@ -1,4 +1,4 @@
-import { createAdminClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase/server';
 import { ACTIVE_BRANDS, BRAND_UUID_MAP } from '@/lib/utils/constants';
 
 export interface DashboardVideo {
@@ -24,7 +24,7 @@ export async function getDashboardVideos(
   rising: DashboardVideo[];
   topPerformers: DashboardVideo[];
 }> {
-  const supabase = await createAdminClient();
+  const supabase = await createClient();
 
   const brandUuids = brandFilter
     ? [BRAND_UUID_MAP[brandFilter]].filter(Boolean)

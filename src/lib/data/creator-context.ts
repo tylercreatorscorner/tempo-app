@@ -1,5 +1,5 @@
 import { getCreatorSession, getCurrentBrandCookie } from '@/lib/auth/creator-auth';
-import { createAdminClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase/server';
 import { brandUuidToSlug } from '@/lib/utils/constants';
 
 export interface CreatorAccount {
@@ -25,7 +25,7 @@ export async function getCreatorProfile(): Promise<CreatorProfile | null> {
   const session = await getCreatorSession();
   if (!session) return null;
 
-  const supabase = await createAdminClient();
+  const supabase = await createClient();
 
   // Get creator record from creators_v2
   const { data: creator } = await supabase
