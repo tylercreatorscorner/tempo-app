@@ -2,7 +2,11 @@
 
 import { Lock, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useOnboarding } from '@/hooks/use-onboarding';
+
+// Pages that should never be gated (users need access to complete setup)
+const UNGATED_PATHS = ['/settings', '/roster'];
 
 interface DashboardGateProps {
   children: React.ReactNode;
@@ -11,9 +15,12 @@ interface DashboardGateProps {
 /** Wraps dashboard content. Shows blurred overlay with CTA when required onboarding steps are incomplete. */
 export function DashboardGate({ children }: DashboardGateProps) {
   const { isGated, steps, loading } = useOnboarding();
+  const pathname = usePathname();
+
+  const isUngatedPage = UNGATED_PATHS.some(p => pathname?.startsWith(p));
 
   if (loading) return <>{children}</>;
-  if (!isGated) return <>{children}</>;
+  if (!isGated || isUngatedPage) return <>{children}</>;
 
   const incompleteRequired = steps.filter(s => s.required && !s.complete);
 

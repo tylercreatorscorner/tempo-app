@@ -20,53 +20,80 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 
   try {
     const supabase = await createAdminClient();
-    const slug = company
-      ? company.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
-      : email.split('@')[0];
 
-    // Create tenant
+    // Determine plan from Stripe price
     const plan = role === 'agency' ? 'agency' : 'brand';
     const maxBrands = role === 'agency' ? 25 : 1;
 
-    const { data: tenant, error: tenantError } = await supabase
-      .from('tenants')
-      .insert({
-        name: company || name || email,
-        slug: `${slug}-${Date.now()}`,
-        plan,
-        max_brands: maxBrands,
-        onboarding_complete: true,
-      })
-      .select()
-      .single();
-
-    if (tenantError) {
-      console.error('Tenant creation error:', tenantError);
-      return;
-    }
-
-    console.log('Created tenant:', tenant.id);
-
-    // Create or link user profile
-    // Check if auth user already exists (from /signup flow)
-    const { data: { users } } = await supabase.auth.admin.listUsers();
-    const authUser = users?.find(u => u.email?.toLowerCase() === email.toLowerCase());
-
-    const { error: profileError } = await supabase
+    // Find existing profile (created during signup/email confirm)
+    const { data: profile } = await supabase
       .from('user_profiles')
-      .upsert({
-        user_id: authUser?.id || null,
-        email: email.toLowerCase(),
-        name: name || company,
-        role: 'owner',
-        tenant_id: tenant.id,
-      }, { onConflict: 'email' });
+      .select('id, tenant_id')
+      .eq('email', email.toLowerCase())
+      .maybeSingle();
 
-    if (profileError) {
-      console.error('Profile creation error:', profileError);
+    if (profile?.tenant_id) {
+      // UPDATE existing tenant (onboarding v2 flow: tenant already exists)
+      const { error: updateError } = await supabase
+        .from('tenants')
+        .update({
+          plan,
+          max_brands: maxBrands,
+          stripe_customer_id: customerId || null,
+          stripe_subscription_id: subscriptionId || null,
+          onboarding_complete: true,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', profile.tenant_id);
+
+      if (updateError) {
+        console.error('Tenant update error:', updateError);
+      } else {
+        console.log('Updated tenant:', profile.tenant_id, 'plan:', plan, 'subscription:', subscriptionId);
+      }
+    } else {
+      // FALLBACK: No profile yet (direct checkout without signup). Create tenant + profile.
+      const slug = company
+        ? company.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+        : email.split('@')[0];
+
+      const { data: tenant, error: tenantError } = await supabase
+        .from('tenants')
+        .insert({
+          name: company || name || email,
+          slug: `${slug}-${Date.now()}`,
+          plan,
+          max_brands: maxBrands,
+          stripe_customer_id: customerId || null,
+          stripe_subscription_id: subscriptionId || null,
+          onboarding_complete: true,
+        })
+        .select()
+        .single();
+
+      if (tenantError) {
+        console.error('Tenant creation error:', tenantError);
+        return;
+      }
+
+      // Find auth user if exists
+      const { data: { users } } = await supabase.auth.admin.listUsers();
+      const authUser = users?.find(u => u.email?.toLowerCase() === email.toLowerCase());
+
+      await supabase
+        .from('user_profiles')
+        .upsert({
+          user_id: authUser?.id || null,
+          email: email.toLowerCase(),
+          name: name || company,
+          role: 'owner',
+          tenant_id: tenant.id,
+        }, { onConflict: 'email' });
+
+      console.log('Created tenant:', tenant.id, 'for:', email);
     }
 
-    // Update onboarding session status
+    // Update onboarding session if exists
     await supabase
       .from('onboarding_sessions')
       .update({
@@ -77,7 +104,6 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
       })
       .eq('email', email.toLowerCase());
 
-    console.log('Checkout completed for:', email, 'tenant:', tenant.id, 'subscription:', subscriptionId);
   } catch (err) {
     console.error('Error handling checkout completion:', err);
   }

@@ -1,15 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
+import { createClient } from '@/lib/supabase/server';
 
 export async function POST(request: NextRequest) {
   try {
-    const { priceId, email, name, company, role, agencyBrandCount, successUrl, cancelUrl } = await request.json();
+    const { priceId, email: bodyEmail, name, company, role, agencyBrandCount, successUrl, cancelUrl } = await request.json();
 
     if (!priceId) {
       return NextResponse.json({ error: 'priceId is required' }, { status: 400 });
     }
 
     const origin = request.headers.get('origin') || 'http://localhost:3000';
+
+    // Get email from auth session if not provided in body
+    let email = bodyEmail;
+    if (!email) {
+      const supabase = await createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      email = user?.email;
+    }
 
     // Find or create Stripe customer
     let customerId: string | undefined;
@@ -46,8 +55,8 @@ export async function POST(request: NextRequest) {
       customer: customerId,
       customer_email: customerId ? undefined : email || undefined,
       line_items: [{ price: priceId, quantity: 1 }],
-      success_url: successUrl || `${origin}/onboarding/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: cancelUrl || `${origin}/onboarding?canceled=true`,
+      success_url: successUrl || `${origin}/dashboard?plan_activated=true`,
+      cancel_url: cancelUrl || `${origin}/settings?plan_canceled=true`,
       allow_promotion_codes: true,
       billing_address_collection: 'required',
       metadata: {
