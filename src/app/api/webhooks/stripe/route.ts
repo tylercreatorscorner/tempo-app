@@ -138,29 +138,50 @@ export async function POST(request: NextRequest) {
 
     case 'customer.subscription.updated': {
       const subscription = event.data.object as Stripe.Subscription;
-      console.log('Subscription updated:', {
-        subscriptionId: subscription.id,
-        status: subscription.status,
-        priceId: subscription.items.data[0]?.price.id,
-      });
+      const subCustomerId = typeof subscription.customer === 'string' ? subscription.customer : subscription.customer?.id;
+      if (subCustomerId) {
+        const supabase = await createAdminClient();
+        // If subscription goes past_due or unpaid, keep plan but flag it
+        if (subscription.status === 'past_due' || subscription.status === 'unpaid') {
+          await supabase
+            .from('tenants')
+            .update({ updated_at: new Date().toISOString() })
+            .eq('stripe_customer_id', subCustomerId);
+          console.log('Subscription past_due/unpaid for customer:', subCustomerId);
+        }
+      }
       break;
     }
 
     case 'customer.subscription.deleted': {
       const subscription = event.data.object as Stripe.Subscription;
-      console.log('Subscription canceled:', {
-        subscriptionId: subscription.id,
-        customerId: subscription.customer,
-      });
+      const cancelCustomerId = typeof subscription.customer === 'string' ? subscription.customer : subscription.customer?.id;
+      if (cancelCustomerId) {
+        const supabase = await createAdminClient();
+        // Downgrade tenant to free plan on cancellation
+        const { error } = await supabase
+          .from('tenants')
+          .update({
+            plan: 'free',
+            stripe_subscription_id: null,
+            onboarding_complete: false,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('stripe_customer_id', cancelCustomerId);
+        if (error) {
+          console.error('Error downgrading tenant on cancel:', error);
+        } else {
+          console.log('Tenant downgraded to free for customer:', cancelCustomerId);
+        }
+      }
       break;
     }
 
     case 'invoice.payment_failed': {
       const invoice = event.data.object as Stripe.Invoice;
-      console.log('Payment failed:', {
-        invoiceId: invoice.id,
-        customerId: invoice.customer,
-      });
+      const failedCustomerId = typeof invoice.customer === 'string' ? invoice.customer : null;
+      console.log('Payment failed for customer:', failedCustomerId, 'invoice:', invoice.id);
+      // Could send an email or Telegram alert here
       break;
     }
 
