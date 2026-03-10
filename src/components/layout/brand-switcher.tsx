@@ -5,23 +5,44 @@ import { createPortal } from 'react-dom';
 import { ChevronDown, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useGlobalBrand } from '@/hooks/use-global-brand';
-import { ACTIVE_BRANDS, BRAND_DISPLAY_NAMES, BRAND_COLORS } from '@/lib/utils/constants';
+import { BRAND_DISPLAY_NAMES, BRAND_COLORS } from '@/lib/utils/constants';
+import { createClient } from '@/lib/supabase/client';
 
-const OPTIONS = [
-  { key: 'all', label: 'All Brands', color: null },
-  ...ACTIVE_BRANDS.map((b) => ({
-    key: b,
-    label: BRAND_DISPLAY_NAMES[b] ?? b,
-    color: BRAND_COLORS[b] ?? '#6B7280',
-  })),
-];
+interface BrandOption {
+  key: string;
+  label: string;
+  color: string | null;
+}
 
 export function BrandSwitcher() {
   const { brand, setBrand, brandLabel, brandColor } = useGlobalBrand();
   const [open, setOpen] = useState(false);
+  const [options, setOptions] = useState<BrandOption[]>([{ key: 'all', label: 'All Brands', color: null }]);
   const btnRef = useRef<HTMLButtonElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
+
+  // Load brands from database
+  useEffect(() => {
+    async function load() {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from('brands_v2')
+        .select('slug, display_name, name, color')
+        .order('name');
+      if (data) {
+        setOptions([
+          { key: 'all', label: 'All Brands', color: null },
+          ...data.map(b => ({
+            key: b.slug,
+            label: b.display_name || BRAND_DISPLAY_NAMES[b.slug] || b.name,
+            color: b.color || BRAND_COLORS[b.slug] || '#6B7280',
+          })),
+        ]);
+      }
+    }
+    load();
+  }, []);
 
   // Position dropdown below button
   const updatePos = useCallback(() => {
@@ -55,7 +76,7 @@ export function BrandSwitcher() {
           className="fixed bg-white border border-gray-200 rounded-lg shadow-lg py-1 animate-fade-in"
           style={{ top: pos.top, left: pos.left, width: pos.width, zIndex: 9999 }}
         >
-          {OPTIONS.map((opt) => {
+          {options.map((opt) => {
             const isActive = brand === opt.key;
             return (
               <button
