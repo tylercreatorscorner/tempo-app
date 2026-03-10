@@ -313,7 +313,7 @@ function Features() {
 function Faq() {
   const faqs = [
     { q: 'What platforms does Tempo support?', a: "We're laser-focused on TikTok Shop right now. That's where the biggest opportunity is, and we'd rather be the best TikTok Shop tool than a mediocre everything tool." },
-    { q: 'How does data get into Tempo?', a: "Right now, through a simple daily upload. We're building direct TikTok API integration that will make it fully automatic." },
+    { q: 'How does data get into Tempo?', a: "Tempo syncs your TikTok Shop data automatically every day. No manual exports, no CSV uploads. Just connect your shop and the data flows in." },
     { q: 'How is Tempo different from Seller Center or Kalodata?', a: "Seller Center and Kalodata give you data. Tempo gives you tools to actually manage creator relationships. Discord bot for DMs, bulk messaging, status alerts, retainer tracking. It's creator relationship management, not just analytics." },
     { q: 'Can multiple people use Tempo for the same brand?', a: 'Yes. Invite your team with role-based access. Everyone sees the data they need without stepping on each other.' },
     { q: 'Is my data secure?', a: 'Your data is isolated at the database level using row-level security. Other tenants can never see your data, period. We use Supabase (built on Postgres) with enterprise-grade encryption.' },
