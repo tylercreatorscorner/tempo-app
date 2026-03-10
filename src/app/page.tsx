@@ -43,10 +43,10 @@ function Navbar() {
         </nav>
         <div className="hidden md:block">
           <a
-            href="#book-demo"
+            href="/onboarding"
             className="inline-flex items-center rounded-full px-5 py-2 text-sm font-semibold text-white bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] hover:shadow-lg hover:shadow-[#FF4D8D]/25 hover:scale-105 transition-all duration-200"
           >
-            Book a Demo
+            Get Started
           </a>
         </div>
         <MobileNav />
