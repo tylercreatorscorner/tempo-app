@@ -237,22 +237,33 @@ export default async function AdminDashboard({ searchParams }: Props) {
       {!brandFilter && <BrandTicker brands={brandStripData} />}
 
       {/* Empty state */}
-      {isEmptyBrand && (
-        <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-12 text-center">
-          <p className="text-gray-500 text-base">
-            No performance data available for {activeBrandName} yet. Data will appear once creators start generating sales.
-          </p>
+      {/* Empty state: no data for any brand */}
+      {totals.gmv === 0 && totals.orders === 0 && totals.creators === 0 && (
+        <div className="rounded-2xl border border-gray-200 bg-white overflow-hidden">
+          <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
+            <div className="text-5xl mb-4">📊</div>
+            <h3 className="text-lg font-bold">
+              {isEmptyBrand ? `No data for ${activeBrandName} yet` : 'Your dashboard is ready'}
+            </h3>
+            <p className="text-sm text-muted-foreground mt-2 max-w-sm">
+              {isEmptyBrand
+                ? 'Data will appear once creators start generating sales for this brand.'
+                : 'Connect your TikTok Shop to start seeing real-time GMV, creator performance, and product analytics.'
+              }
+            </p>
+            {!isEmptyBrand && (
+              <a
+                href="/settings"
+                className="mt-6 inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] text-white text-sm font-semibold hover:opacity-90 transition-opacity shadow-lg shadow-[#FF4D8D]/20"
+              >
+                Connect TikTok Shop →
+              </a>
+            )}
+          </div>
         </div>
       )}
 
       {/* Video Sections */}
-      {/* DEBUG: Remove after fixing */}
-      {videoSections.hotNow.length === 0 && videoSections.rising.length === 0 && videoSections.topPerformers.length === 0 && (
-        <div className="rounded-2xl bg-yellow-50 border border-yellow-200 p-4 text-sm text-yellow-800">
-          ⚠️ Video sections returned 0 videos. Debug: hotNow={videoSections.hotNow.length}, rising={videoSections.rising.length}, top={videoSections.topPerformers.length} | 
-          ENV check: SERVICE_ROLE_KEY={process.env.SUPABASE_SERVICE_ROLE_KEY ? '✅ set' : '❌ missing'}
-        </div>
-      )}
       {/* Community Highlights + Creator Alerts — Side by Side */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Community Highlights — Top 5 Creators */}
