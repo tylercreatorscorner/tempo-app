@@ -1,4 +1,7 @@
+import { Suspense } from 'react';
 import { User, Building2, Database, Bell, Key, Shield } from 'lucide-react';
+import { TikTokConnect } from '@/components/onboarding/tiktok-connect';
+import { PlanSelector } from '@/components/onboarding/plan-selector';
 
 const sections = [
   {
@@ -63,6 +66,20 @@ export default function SettingsPage() {
         <p className="text-sm text-muted-foreground mt-1">
           Manage your account and application configuration
         </p>
+      </div>
+
+      {/* TikTok Connection */}
+      <Suspense>
+        <TikTokConnect />
+      </Suspense>
+
+      {/* Plan Selection */}
+      <div className="rounded-xl border border-border bg-card overflow-hidden">
+        <div className="p-6">
+          <Suspense>
+            <PlanSelector />
+          </Suspense>
+        </div>
       </div>
 
       {sections.map((section) => (
