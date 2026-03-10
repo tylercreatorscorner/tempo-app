@@ -14,20 +14,22 @@ import { FirstSyncToast } from '@/components/onboarding/first-sync-toast';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const { tenant, isMultiBrand } = useTenant();
+  const { tenant, isMultiBrand, userName, userEmail } = useTenant();
 
   return (
     <Suspense>
     <BrandProvider>
     <VideoPanelProvider>
       <div className="flex h-screen overflow-hidden" style={{ backgroundColor: '#F8F9FC' }}>
-        <Sidebar className="hidden lg:flex" />
+        <Sidebar className="hidden lg:flex" userRole={isMultiBrand ? 'owner' : 'customer'} />
         <MobileNav open={mobileNavOpen} onClose={() => setMobileNavOpen(false)} />
 
         <div className="flex-1 flex flex-col overflow-hidden">
           <Header
             onMenuClick={() => setMobileNavOpen(true)}
             tenantName={tenant?.name}
+            userName={userName}
+            userEmail={userEmail}
           />
           <main className="flex-1 overflow-y-auto animate-fade-in">
             <SetupBanner />

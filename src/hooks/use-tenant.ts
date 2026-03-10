@@ -2,11 +2,27 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import type { Tenant } from '@/types';
 
-/** Hook to get the current user's tenant with plan awareness */
+interface TenantInfo {
+  id: string;
+  name: string;
+  slug: string;
+  plan: string;
+  max_brands: number;
+  onboarding_complete: boolean;
+  tiktok_connected: boolean;
+  creators_added: boolean;
+  discord_connected: boolean;
+  stripe_customer_id: string | null;
+  stripe_subscription_id: string | null;
+}
+
+/** Hook to get the current user's tenant, role, and plan awareness */
 export function useTenant() {
-  const [tenant, setTenant] = useState<Tenant | null>(null);
+  const [tenant, setTenant] = useState<TenantInfo | null>(null);
+  const [userRole, setUserRole] = useState<string>('customer');
+  const [userName, setUserName] = useState<string>('');
+  const [userEmail, setUserEmail] = useState<string>('');
   const [brandCount, setBrandCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
@@ -17,19 +33,26 @@ export function useTenant() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { setLoading(false); return; }
 
+      setUserEmail(user.email || '');
+
       const { data: profile } = await supabase
         .from('user_profiles')
-        .select('tenant_id')
-        .eq('id', user.id)
-        .single();
+        .select('tenant_id, role, name')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (profile) {
+        setUserRole(profile.role || 'customer');
+        setUserName(profile.name || user.user_metadata?.full_name || '');
+      }
 
       if (profile?.tenant_id) {
         const [tenantRes, countRes] = await Promise.all([
           supabase.from('tenants').select('*').eq('id', profile.tenant_id).single(),
-          supabase.from('brands').select('id', { count: 'exact', head: true }).eq('tenant_id', profile.tenant_id),
+          supabase.from('brands_v2').select('id', { count: 'exact', head: true }),
         ]);
 
-        setTenant(tenantRes.data as Tenant | null);
+        setTenant(tenantRes.data as TenantInfo | null);
         setBrandCount(countRes.count ?? 0);
       }
       setLoading(false);
@@ -38,11 +61,9 @@ export function useTenant() {
     fetchTenant();
   }, []);
 
-  /** True when tenant has more than one brand (agency/enterprise) */
   const isMultiBrand = useMemo(() => brandCount > 1, [brandCount]);
-
-  /** True when tenant is on brand plan (single brand expected) */
   const isBrandPlan = useMemo(() => tenant?.plan === 'brand', [tenant]);
+  const isOwner = useMemo(() => userRole === 'owner', [userRole]);
 
-  return { tenant, brandCount, isMultiBrand, isBrandPlan, loading };
+  return { tenant, userRole, userName, userEmail, brandCount, isMultiBrand, isBrandPlan, isOwner, loading };
 }
