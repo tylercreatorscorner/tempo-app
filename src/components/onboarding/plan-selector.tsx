@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Check, ArrowRight, Loader2, Sparkles } from 'lucide-react';
+import { STRIPE_PRICES } from '@/lib/stripe-prices';
 
 const PLANS = [
   {
@@ -55,7 +56,9 @@ export function PlanSelector({ currentPlan, onSelect }: PlanSelectorProps) {
   async function handleSelect(plan: typeof PLANS[0]) {
     setLoading(plan.id);
     try {
-      const priceId = annual ? `${plan.stripePriceKey}_annual` : `${plan.stripePriceKey}_monthly`;
+      const prices = STRIPE_PRICES[plan.stripePriceKey];
+      if (!prices) { console.error('No Stripe price found for', plan.stripePriceKey); setLoading(null); return; }
+      const priceId = annual ? prices.annual : prices.monthly;
       const res = await fetch('/api/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
