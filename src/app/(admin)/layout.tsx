@@ -8,6 +8,7 @@ import { useTenant } from '@/hooks/use-tenant';
 import { VideoPanelProvider } from '@/components/video/video-panel-context';
 import { VideoPlayerPanel } from '@/components/video/video-player-panel';
 import { BrandProvider } from '@/hooks/use-global-brand';
+import { SetupBanner } from '@/components/onboarding/setup-banner';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -26,8 +27,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             onMenuClick={() => setMobileNavOpen(true)}
             tenantName={tenant?.name}
           />
-          <main className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6 animate-fade-in">
-            {children}
+          <main className="flex-1 overflow-y-auto animate-fade-in">
+            <SetupBanner />
+            <div className="p-3 sm:p-4 md:p-6 pt-0">
+              {children}
+            </div>
           </main>
         </div>
       </div>
