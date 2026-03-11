@@ -65,7 +65,7 @@ export function useOnboarding(): OnboardingStatus {
 
       // Check each step
       const tiktokConnected = tenant.tiktok_connected || false;
-      const planSelected = tenant.plan !== 'free' && tenant.plan !== null;
+      const planSelected = !!tenant.stripe_subscription_id;
       const creatorsAdded = tenant.creators_added || false;
       const discordConnected = tenant.discord_connected || false;
 

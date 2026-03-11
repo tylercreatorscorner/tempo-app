@@ -54,7 +54,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
           </div>
         </div>
 
-        {/* Setup steps as cards */}
+        {/* Required steps */}
         <div className="grid gap-4 md:grid-cols-2">
           {/* Step 1: Connect TikTok - PRIMARY */}
           <a href="/settings" className="group relative overflow-hidden rounded-2xl border-2 border-[#FF4D8D]/30 bg-gradient-to-br from-[#FF4D8D]/5 to-white p-6 hover:border-[#FF4D8D]/60 hover:shadow-lg hover:shadow-[#FF4D8D]/10 transition-all duration-300">
@@ -75,7 +75,30 @@ export default async function AdminDashboard({ searchParams }: Props) {
             </div>
           </a>
 
-          {/* Step 2: Add Creators */}
+          {/* Step 2: Choose Plan */}
+          <a href="/settings" className="group relative overflow-hidden rounded-2xl border-2 border-[#7C5CFC]/30 bg-gradient-to-br from-[#7C5CFC]/5 to-white p-6 hover:border-[#7C5CFC]/60 hover:shadow-lg hover:shadow-[#7C5CFC]/10 transition-all duration-300">
+            <div className="flex items-start gap-4">
+              <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-[#7C5CFC] to-[#7C5CFC]/80 flex items-center justify-center flex-shrink-0 shadow-lg shadow-[#7C5CFC]/20">
+                <span className="text-2xl">💎</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <h3 className="font-semibold text-gray-900">Choose Your Plan</h3>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-[#7C5CFC]/10 text-[#7C5CFC]">Required</span>
+                </div>
+                <p className="text-sm text-gray-500">Subscribe to unlock your full analytics dashboard, creator rankings, and daily performance briefs.</p>
+              </div>
+            </div>
+            <div className="mt-4 flex items-center gap-1.5 text-sm font-medium text-[#7C5CFC] group-hover:gap-2.5 transition-all">
+              View plans <span className="transition-transform group-hover:translate-x-1">→</span>
+            </div>
+          </a>
+
+        </div>
+
+        {/* Optional steps */}
+        <div className="grid gap-4 md:grid-cols-3">
+          {/* Step 3: Add Creators */}
           <a href="/roster" className="group relative overflow-hidden rounded-2xl border border-gray-200 bg-white p-6 hover:border-gray-300 hover:shadow-md transition-all duration-300">
             <div className="flex items-start gap-4">
               <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-[#7C5CFC] to-[#7C5CFC]/80 flex items-center justify-center flex-shrink-0 shadow-lg shadow-[#7C5CFC]/20">
