@@ -63,7 +63,7 @@ export function useTenant() {
 
   const isMultiBrand = useMemo(() => brandCount > 1, [brandCount]);
   const isBrandPlan = useMemo(() => tenant?.plan === 'brand', [tenant]);
-  const isOwner = useMemo(() => userRole === 'owner', [userRole]);
+  const isOwner = useMemo(() => userRole === 'owner' || userRole === 'admin', [userRole]);
 
   return { tenant, userRole, userName, userEmail, brandCount, isMultiBrand, isBrandPlan, isOwner, loading };
 }
