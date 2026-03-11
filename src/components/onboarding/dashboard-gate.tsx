@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import { useOnboarding } from '@/hooks/use-onboarding';
 
 // Pages that should never be gated (users need access to complete setup)
-const UNGATED_PATHS = ['/settings', '/roster'];
+const UNGATED_PATHS = ['/settings', '/roster', '/dashboard'];
 
 interface DashboardGateProps {
   children: React.ReactNode;
