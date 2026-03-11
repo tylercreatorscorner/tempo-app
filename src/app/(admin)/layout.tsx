@@ -21,7 +21,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     <BrandProvider>
     <VideoPanelProvider>
       <div className="flex h-screen overflow-hidden" style={{ backgroundColor: '#F8F9FC' }}>
-        <Sidebar className="hidden lg:flex" userRole={isOwner || isMultiBrand ? 'owner' : 'customer'} />
+        <Sidebar className="hidden lg:flex" userRole={isOwner && isMultiBrand ? 'owner' : 'customer'} />
         <MobileNav open={mobileNavOpen} onClose={() => setMobileNavOpen(false)} />
 
         <div className="flex-1 flex flex-col overflow-hidden">
