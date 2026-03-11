@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { X, ChevronDown, ChevronUp, Check, ArrowRight } from 'lucide-react';
 import { useOnboarding, type OnboardingStep } from '@/hooks/use-onboarding';
 
@@ -9,8 +10,10 @@ export function SetupBanner() {
   const { steps, progress, isComplete, loading } = useOnboarding();
   const [expanded, setExpanded] = useState(true);
   const [dismissed, setDismissed] = useState(false);
+  const pathname = usePathname();
 
-  if (loading || isComplete || dismissed || steps.length === 0) return null;
+  // Hide on dashboard (it has its own onboarding cards)
+  if (loading || isComplete || dismissed || steps.length === 0 || pathname === '/dashboard') return null;
 
   const nextStep = steps.find(s => !s.complete);
 
