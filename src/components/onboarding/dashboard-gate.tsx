@@ -1,6 +1,6 @@
 'use client';
 
-import { Lock, ArrowRight, BarChart3, MessageSquare, CreditCard } from 'lucide-react';
+import { Lock, ArrowRight, BarChart3, MessageSquare, CreditCard, Compass, FileBarChart } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useOnboarding } from '@/hooks/use-onboarding';
@@ -22,6 +22,16 @@ const PAGE_META: Record<string, { title: string; description: string; icon: Reac
     title: 'Payments',
     description: 'Track retainers, commissions, invoices, and ROI across all your creators.',
     icon: <CreditCard className="h-8 w-8 text-white" />,
+  },
+  '/discover': {
+    title: 'Discover',
+    description: 'Browse trending videos, rising creators, and winning products across all of TikTok Shop.',
+    icon: <Compass className="h-8 w-8 text-white" />,
+  },
+  '/reporting': {
+    title: 'Reporting',
+    description: 'Generate automated reports and schedule performance updates for Discord, Slack, and email.',
+    icon: <FileBarChart className="h-8 w-8 text-white" />,
   },
 };
 

@@ -25,6 +25,8 @@ const BREADCRUMB_MAP: Record<string, string> = {
   '/settings': 'Settings',
   '/roster': 'My Creators',
   '/messages': 'Messages',
+  '/discover': 'Discover',
+  '/reporting': 'Reporting',
 };
 
 export function Header({ onMenuClick, tenantName, userName, userEmail }: HeaderProps) {

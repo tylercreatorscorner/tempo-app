@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import {
-  LayoutDashboard, Store, BarChart3, UserCheck, Settings, CreditCard, Mail, ScanSearch, Shield,
+  LayoutDashboard, Store, BarChart3, UserCheck, Settings, CreditCard, Mail, ScanSearch, Shield, Compass, FileBarChart,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TempoLogo } from '@/components/ui/tempo-logo';
@@ -19,8 +19,10 @@ const CUSTOMER_NAV: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/roster', label: 'My Creators', icon: UserCheck },
   { href: '/analytics', label: 'Analytics', icon: BarChart3 },
+  { href: '/discover', label: 'Discover', icon: Compass },
   { href: '/messages', label: 'Messages', icon: Mail },
   { href: '/payments', label: 'Payments', icon: CreditCard },
+  { href: '/reporting', label: 'Reporting', icon: FileBarChart },
 ];
 
 const OWNER_EXTRA: NavItem[] = [
