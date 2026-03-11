@@ -10,7 +10,7 @@ export function SetupBanner() {
   const [expanded, setExpanded] = useState(true);
   const [dismissed, setDismissed] = useState(false);
 
-  if (loading || isComplete || dismissed) return null;
+  if (loading || isComplete || dismissed || steps.length === 0) return null;
 
   const nextStep = steps.find(s => !s.complete);
 

@@ -23,6 +23,9 @@ export function DashboardGate({ children }: DashboardGateProps) {
   if (!isGated || isUngatedPage) return <>{children}</>;
 
   const incompleteRequired = steps.filter(s => s.required && !s.complete);
+  
+  // If gated but no steps to show (e.g. no profile yet), just show children without blur
+  if (incompleteRequired.length === 0) return <>{children}</>;
 
   return (
     <div className="relative">

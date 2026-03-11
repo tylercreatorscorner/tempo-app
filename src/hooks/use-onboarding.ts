@@ -47,7 +47,8 @@ export function useOnboarding(): OnboardingStatus {
         .maybeSingle();
 
       if (!profile?.tenant_id) {
-        setStatus(s => ({ ...s, loading: false }));
+        // No profile = new user, show gate but with default steps
+        setStatus(s => ({ ...s, loading: false, isGated: true }));
         return;
       }
 
