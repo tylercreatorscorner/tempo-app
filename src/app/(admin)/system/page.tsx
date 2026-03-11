@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Activity, AlertTriangle, CheckCircle, Clock, Database, RefreshCw, Shield, XCircle } from 'lucide-react'
+import { Activity, AlertTriangle, CheckCircle, Clock, Database, RefreshCw, Shield, XCircle, BarChart3 } from 'lucide-react'
+import Link from 'next/link'
 
 interface BrandSession {
   id: string
@@ -157,6 +158,13 @@ export default function SystemHealthPage() {
             </p>
           </div>
           <div className="flex items-center gap-3">
+            <Link
+              href="/system/pipeline"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 border border-indigo-200 rounded-lg text-sm text-indigo-700 hover:bg-indigo-100 transition-colors"
+            >
+              <BarChart3 className="w-3.5 h-3.5" />
+              Pipeline Monitor
+            </Link>
             <span className="text-xs text-gray-400">
               Updated {lastRefresh.toLocaleTimeString()}
             </span>
