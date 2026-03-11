@@ -1,8 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
+
+async function getTenantId() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  
+  const admin = await createAdminClient();
+  const { data: profile } = await admin
+    .from('user_profiles')
+    .select('tenant_id')
+    .eq('user_id', user.id)
+    .maybeSingle();
+  
+  return profile?.tenant_id || null;
+}
 
 // GET /api/roster?brand=...&status=...&search=...
 export async function GET(request: NextRequest) {
+  const tenantId = await getTenantId();
+  if (!tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
   const { searchParams } = new URL(request.url);
   const brand = searchParams.get('brand');
   const status = searchParams.get('status');
@@ -13,6 +31,7 @@ export async function GET(request: NextRequest) {
   let query = supabase
     .from('managed_creators')
     .select('*')
+    .eq('tenant_id', tenantId)
     .order('retainer', { ascending: false, nullsFirst: false });
 
   if (brand && brand !== 'all') query = query.eq('brand', brand);
@@ -32,6 +51,9 @@ export async function GET(request: NextRequest) {
 
 // POST /api/roster — add a single creator
 export async function POST(request: NextRequest) {
+  const tenantId = await getTenantId();
+  if (!tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
   const body = await request.json();
   const { brand, real_name, account_1, retainer, discord_name, notes, monthly_post_requirement } = body;
 
@@ -53,7 +75,7 @@ export async function POST(request: NextRequest) {
       monthly_post_requirement: monthly_post_requirement || 30,
       status: 'Active',
       employment_status: 'active',
-      tenant_id: '00000000-0000-0000-0000-000000000001',
+      tenant_id: tenantId,
     })
     .select()
     .single();

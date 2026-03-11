@@ -8,7 +8,7 @@ import { useOnboarding, type OnboardingStep } from '@/hooks/use-onboarding';
 
 export function SetupBanner() {
   const { steps, progress, isComplete, loading } = useOnboarding();
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(false);
   const [dismissed, setDismissed] = useState(false);
   const pathname = usePathname();
 
