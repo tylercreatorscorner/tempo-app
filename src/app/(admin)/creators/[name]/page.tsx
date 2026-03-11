@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { Suspense } from 'react';
 import { redirect, notFound } from 'next/navigation';
 import { resolveDateRange } from '@/lib/data/date-utils';

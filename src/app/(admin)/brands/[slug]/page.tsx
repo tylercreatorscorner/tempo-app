@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { Suspense } from 'react';
 import { notFound } from 'next/navigation';
 import { getBrandSummary, getCreatorRankings, getProductSummary, getDailyTrend } from '@/lib/data/rpc';

@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { Suspense } from 'react';
 import { User, Building2, Database, Bell, Key, Shield } from 'lucide-react';
 import { TikTokConnect } from '@/components/onboarding/tiktok-connect';

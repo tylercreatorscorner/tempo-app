@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { Suspense } from 'react';
 import { getBrandSummary, getCreatorRankings } from '@/lib/data/rpc';
 import { resolveDateRange } from '@/lib/data/date-utils';

@@ -30,15 +30,19 @@ export function BrandSwitcher() {
         .from('brands_v2')
         .select('slug, display_name, name, color')
         .order('name');
-      if (data) {
+      if (data && data.length > 0) {
         setOptions([
-          { key: 'all', label: 'All Brands', color: null },
+          ...(data.length > 1 ? [{ key: 'all', label: 'All Brands', color: null as string | null }] : []),
           ...data.map(b => ({
             key: b.slug,
             label: b.display_name || BRAND_DISPLAY_NAMES[b.slug] || b.name,
             color: b.color || BRAND_COLORS[b.slug] || '#6B7280',
           })),
         ]);
+        // Auto-select if only one brand
+        if (data.length === 1) setBrand(data[0].slug);
+      } else {
+        setOptions([]);
       }
     }
     load();
@@ -101,6 +105,9 @@ export function BrandSwitcher() {
         document.body
       )
     : null;
+
+  // Hide if no brands loaded
+  if (options.length === 0) return null;
 
   return (
     <div className="px-3">
