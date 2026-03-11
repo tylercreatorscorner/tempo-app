@@ -32,6 +32,25 @@ export default async function AdminDashboard({ searchParams }: Props) {
     .order('name');
   const ALL_BRANDS = (dbBrands ?? []).map(b => b.slug);
 
+  // No brands = new tenant, show empty state
+  if (ALL_BRANDS.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
+        <div className="text-6xl mb-6">📊</div>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">Welcome to Tempo</h2>
+        <p className="text-gray-500 max-w-md mb-6">
+          Complete your setup to start seeing your TikTok Shop data here. Connect your TikTok account and we&apos;ll start syncing your performance data automatically.
+        </p>
+        <a
+          href="/settings"
+          className="px-6 py-3 rounded-xl bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] text-white font-medium hover:shadow-lg transition-shadow"
+        >
+          Complete Setup
+        </a>
+      </div>
+    );
+  }
+
   const brandFilter = params.brand && ALL_BRANDS.includes(params.brand)
     ? params.brand
     : null;
