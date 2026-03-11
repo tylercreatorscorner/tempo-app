@@ -32,21 +32,118 @@ export default async function AdminDashboard({ searchParams }: Props) {
     .order('name');
   const ALL_BRANDS = (dbBrands ?? []).map(b => b.slug);
 
-  // No brands = new tenant, show empty state
+  // No brands = new tenant, show premium onboarding experience
   if (ALL_BRANDS.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
-        <div className="text-6xl mb-6">📊</div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Welcome to Tempo</h2>
-        <p className="text-gray-500 max-w-md mb-6">
-          Complete your setup to start seeing your TikTok Shop data here. Connect your TikTok account and we&apos;ll start syncing your performance data automatically.
-        </p>
-        <a
-          href="/settings"
-          className="px-6 py-3 rounded-xl bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] text-white font-medium hover:shadow-lg transition-shadow"
-        >
-          Complete Setup
-        </a>
+      <div className="max-w-4xl mx-auto py-8 px-4 space-y-8">
+        {/* Hero welcome */}
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#1A1B3A] via-[#2D1B69] to-[#1A1B3A] p-8 md:p-12 text-white">
+          <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-bl from-[#FF4D8D]/20 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/3" />
+          <div className="absolute bottom-0 left-0 w-64 h-64 bg-gradient-to-tr from-[#7C5CFC]/20 to-transparent rounded-full blur-3xl translate-y-1/2 -translate-x-1/4" />
+          <div className="relative z-10">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="h-10 w-10 rounded-xl bg-white/10 backdrop-blur flex items-center justify-center">
+                <span className="text-xl">🚀</span>
+              </div>
+              <span className="text-sm font-medium text-white/60 uppercase tracking-wider">Getting Started</span>
+            </div>
+            <h1 className="text-3xl md:text-4xl font-bold mb-3">Welcome to Tempo</h1>
+            <p className="text-lg text-white/70 max-w-xl">
+              Let&apos;s get your TikTok Shop data flowing. Connect your account and we&apos;ll start syncing performance data automatically.
+            </p>
+          </div>
+        </div>
+
+        {/* Setup steps as cards */}
+        <div className="grid gap-4 md:grid-cols-2">
+          {/* Step 1: Connect TikTok - PRIMARY */}
+          <a href="/settings" className="group relative overflow-hidden rounded-2xl border-2 border-[#FF4D8D]/30 bg-gradient-to-br from-[#FF4D8D]/5 to-white p-6 hover:border-[#FF4D8D]/60 hover:shadow-lg hover:shadow-[#FF4D8D]/10 transition-all duration-300">
+            <div className="flex items-start gap-4">
+              <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-[#FF4D8D] to-[#FF4D8D]/80 flex items-center justify-center flex-shrink-0 shadow-lg shadow-[#FF4D8D]/20">
+                <span className="text-2xl">🎵</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <h3 className="font-semibold text-gray-900">Connect TikTok Shop</h3>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-[#FF4D8D]/10 text-[#FF4D8D]">Required</span>
+                </div>
+                <p className="text-sm text-gray-500">Add Tempo as a sub-account to start syncing your creator and sales data automatically.</p>
+              </div>
+            </div>
+            <div className="mt-4 flex items-center gap-1.5 text-sm font-medium text-[#FF4D8D] group-hover:gap-2.5 transition-all">
+              Connect now <span className="transition-transform group-hover:translate-x-1">→</span>
+            </div>
+          </a>
+
+          {/* Step 2: Add Creators */}
+          <a href="/roster" className="group relative overflow-hidden rounded-2xl border border-gray-200 bg-white p-6 hover:border-gray-300 hover:shadow-md transition-all duration-300">
+            <div className="flex items-start gap-4">
+              <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-[#7C5CFC] to-[#7C5CFC]/80 flex items-center justify-center flex-shrink-0 shadow-lg shadow-[#7C5CFC]/20">
+                <span className="text-2xl">👥</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="font-semibold text-gray-900 mb-1">Add Your Creators</h3>
+                <p className="text-sm text-gray-500">Upload your managed roster so Tempo can track their performance and retainer ROI.</p>
+              </div>
+            </div>
+            <div className="mt-4 flex items-center gap-1.5 text-sm font-medium text-[#7C5CFC] group-hover:gap-2.5 transition-all">
+              Add creators <span className="transition-transform group-hover:translate-x-1">→</span>
+            </div>
+          </a>
+
+          {/* Step 3: Connect Discord */}
+          <a href="/settings" className="group relative overflow-hidden rounded-2xl border border-gray-200 bg-white p-6 hover:border-gray-300 hover:shadow-md transition-all duration-300">
+            <div className="flex items-start gap-4">
+              <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-[#5865F2] to-[#5865F2]/80 flex items-center justify-center flex-shrink-0 shadow-lg shadow-[#5865F2]/20">
+                <span className="text-2xl">💬</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="font-semibold text-gray-900 mb-1">Connect Discord</h3>
+                <p className="text-sm text-gray-500">Enable the Tempo Bot in your server for messaging, alerts, and creator communication.</p>
+              </div>
+            </div>
+            <div className="mt-4 flex items-center gap-1.5 text-sm font-medium text-[#5865F2] group-hover:gap-2.5 transition-all">
+              Set up Discord <span className="transition-transform group-hover:translate-x-1">→</span>
+            </div>
+          </a>
+
+          {/* Step 4: Explore */}
+          <div className="relative overflow-hidden rounded-2xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-6">
+            <div className="flex items-start gap-4">
+              <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-500/80 flex items-center justify-center flex-shrink-0 shadow-lg shadow-emerald-500/20">
+                <span className="text-2xl">✨</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="font-semibold text-gray-900 mb-1">{"You're All Set"}</h3>
+                <p className="text-sm text-gray-500">Once connected, your dashboard will populate with real-time GMV, creator rankings, video performance, and more.</p>
+              </div>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {['GMV Tracking', 'Creator Rankings', 'Video Analytics', 'Daily Briefs', 'ROI Reports'].map((f) => (
+                <span key={f} className="px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">{f}</span>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Quick stats preview (what they'll see) */}
+        <div className="rounded-2xl border border-gray-200 bg-white p-6">
+          <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">What your dashboard will look like</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[
+              { label: 'Total GMV', value: '$--', icon: '💰' },
+              { label: 'Active Creators', value: '--', icon: '👥' },
+              { label: 'Videos This Week', value: '--', icon: '🎬' },
+              { label: 'Retainer ROI', value: '--x', icon: '📈' },
+            ].map((s) => (
+              <div key={s.label} className="rounded-xl bg-gray-50 p-4 text-center">
+                <div className="text-2xl mb-2">{s.icon}</div>
+                <div className="text-2xl font-bold text-gray-300 mb-1">{s.value}</div>
+                <div className="text-xs text-gray-400">{s.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     );
   }
