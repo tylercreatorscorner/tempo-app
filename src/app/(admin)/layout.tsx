@@ -32,8 +32,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             userEmail={userEmail}
           />
           <main className="flex-1 overflow-y-auto animate-fade-in">
-            <SetupBanner />
-            <div className="p-3 sm:p-4 md:p-6 pt-0">
+            <div className="px-3 sm:px-4 md:px-6 pt-3 sm:pt-4">
+              <SetupBanner />
+            </div>
+            <div className="p-3 sm:p-4 md:p-6 pt-2">
               <DashboardGate>
                 {children}
               </DashboardGate>
