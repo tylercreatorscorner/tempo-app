@@ -13,7 +13,7 @@ export default async function SettingsPage() {
 
   // Load profile + tenant + brands dynamically
   let profile: { name: string; email: string; role: string; tenant_id: string } | null = null;
-  let tenant: { name: string; tiktok_connected: boolean; discord_connected: boolean } | null = null;
+  let tenant: { name: string; tiktok_connected: boolean; discord_connected: boolean; stripe_subscription_id: string | null; plan: string | null } | null = null;
   let brands: { name: string; slug: string; color: string | null; display_name: string | null }[] = [];
 
   if (user) {
@@ -27,7 +27,7 @@ export default async function SettingsPage() {
     if (p?.tenant_id) {
       const { data: t } = await supabase
         .from('tenants')
-        .select('name, tiktok_connected, discord_connected')
+        .select('name, tiktok_connected, discord_connected, stripe_subscription_id, plan')
         .eq('id', p.tenant_id)
         .single();
       tenant = t;
@@ -56,14 +56,14 @@ export default async function SettingsPage() {
 
       {/* TikTok Connection */}
       <Suspense>
-        <TikTokConnect />
+        <TikTokConnect companyName={tenant?.name} connected={tiktokConnected} />
       </Suspense>
 
       {/* Plan Selection */}
       <div className="rounded-xl border border-border bg-card overflow-hidden">
         <div className="p-6">
           <Suspense>
-            <PlanSelector />
+            <PlanSelector currentPlan={tenant?.stripe_subscription_id ? (tenant.plan || 'brand') : undefined} />
           </Suspense>
         </div>
       </div>

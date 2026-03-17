@@ -108,9 +108,11 @@ export function useOnboarding(): OnboardingStatus {
         },
       ];
 
+      const requiredSteps = steps.filter(s => s.required);
+      const requiredCompleted = requiredSteps.filter(s => s.complete).length;
       const completed = steps.filter(s => s.complete).length;
-      const progress = Math.round((completed / steps.length) * 100);
-      const requiredDone = steps.filter(s => s.required).every(s => s.complete);
+      const progress = Math.round((requiredCompleted / requiredSteps.length) * 100);
+      const requiredDone = requiredSteps.every(s => s.complete);
 
       setStatus({
         steps,

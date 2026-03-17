@@ -44,7 +44,7 @@ export function SetupBanner() {
             </div>
 
             <span className="text-xs font-medium text-muted-foreground hidden sm:block">
-              {steps.filter(s => s.complete).length}/{steps.length}
+              {steps.filter(s => s.required && s.complete).length}/{steps.filter(s => s.required).length}
             </span>
           </div>
 

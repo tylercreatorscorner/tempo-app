@@ -4,6 +4,7 @@ export const BRAND_COLORS: Record<string, string> = {
   catakor: '#00C853',
   physicians_choice: '#2196F3',
   toplux: '#FF9800',
+  leefar: '#8BC34A',
 };
 
 /** Brand display name mapping */
@@ -12,6 +13,7 @@ export const BRAND_DISPLAY_NAMES: Record<string, string> = {
   catakor: 'Cata-Kor',
   physicians_choice: "Physician's Choice",
   toplux: 'Toplux',
+  leefar: 'LeeFar',
 };
 
 /** Get brand color with fallback */
