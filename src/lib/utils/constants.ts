@@ -34,7 +34,7 @@ export const DATE_RANGE_PRESETS = [
 ] as const;
 
 /** Active brands - only these appear in brand tags and filters */
-export const ACTIVE_BRANDS = ['jiyu', 'catakor', 'physicians_choice'] as const;
+export const ACTIVE_BRANDS = ['jiyu', 'catakor', 'leefar', 'physicians_choice'] as const;
 export type ActiveBrand = (typeof ACTIVE_BRANDS)[number];
 
 /**
