@@ -1,9 +1,4 @@
 import { createClient } from '@/lib/supabase/server';
-import {
-  ACTIVE_BRANDS,
-  BRAND_UUID_MAP,
-  brandSlugToUuid,
-} from '@/lib/utils/constants';
 import type {
   BrandSummary,
   CreatorRanking,
@@ -23,16 +18,6 @@ export class RPCError extends Error {
   }
 }
 
-/** Resolve brand slug → UUID array */
-function resolveBrandUuids(brand: string): string[] {
-  if (brand === 'all') {
-    return [...ACTIVE_BRANDS].map((b) => BRAND_UUID_MAP[b]).filter(Boolean);
-  }
-  const uuid = brandSlugToUuid(brand);
-  if (!uuid) throw new RPCError('resolveBrand', `Unknown brand slug: ${brand}`);
-  return [uuid];
-}
-
 /* ------------------------------------------------------------------ */
 /*  getBrandSummary                                                    */
 /* ------------------------------------------------------------------ */
@@ -43,15 +28,14 @@ export async function getBrandSummary(
   endDate: string,
 ): Promise<BrandSummary[]> {
   const supabase = await createClient();
-  const uuids = resolveBrandUuids(brand);
 
-  const { data, error } = await supabase.rpc('get_brand_summary_v2', {
-    p_brand_ids: uuids,
+  const { data, error } = await supabase.rpc('get_brand_summary', {
+    p_brand: brand,
     p_start_date: startDate,
     p_end_date: endDate,
   });
 
-  if (error) throw new RPCError('get_brand_summary_v2', error.message);
+  if (error) throw new RPCError('get_brand_summary', error.message);
 
   if (!data || data.length === 0) {
     return [{
@@ -85,16 +69,17 @@ export async function getCreatorRankings(
   limit = 20,
 ): Promise<CreatorRanking[]> {
   const supabase = await createClient();
-  const uuids = resolveBrandUuids(brand);
 
-  const { data, error } = await supabase.rpc('get_creator_rankings_v2', {
-    p_brand_ids: uuids,
+  const { data, error } = await supabase.rpc('get_creator_rankings', {
+    p_brand: brand,
     p_start_date: startDate,
     p_end_date: endDate,
     p_limit: limit,
+    p_managed_only: false,
+    p_tenant_id: null,
   });
 
-  if (error) throw new RPCError('get_creator_rankings_v2', error.message);
+  if (error) throw new RPCError('get_creator_rankings', error.message);
   if (!data) return [];
 
   return data.map((r: Record<string, unknown>) => ({
@@ -118,16 +103,15 @@ export async function getProductSummary(
   limit = 20,
 ): Promise<ProductSummary[]> {
   const supabase = await createClient();
-  const uuids = resolveBrandUuids(brand);
 
-  const { data, error } = await supabase.rpc('get_product_summary_v2', {
-    p_brand_ids: uuids,
+  const { data, error } = await supabase.rpc('get_product_summary', {
+    p_brand: brand,
     p_start_date: startDate,
     p_end_date: endDate,
     p_limit: limit,
   });
 
-  if (error) throw new RPCError('get_product_summary_v2', error.message);
+  if (error) throw new RPCError('get_product_summary', error.message);
   if (!data) return [];
 
   return data.map((r: Record<string, unknown>) => ({
@@ -149,16 +133,15 @@ export async function getVideoSummary(
   limit = 20,
 ): Promise<VideoSummaryItem[]> {
   const supabase = await createClient();
-  const uuids = resolveBrandUuids(brand);
 
-  const { data, error } = await supabase.rpc('get_video_summary_v2', {
-    p_brand_ids: uuids,
+  const { data, error } = await supabase.rpc('get_video_summary', {
+    p_brand: brand,
     p_start_date: startDate,
     p_end_date: endDate,
     p_limit: limit,
   });
 
-  if (error) throw new RPCError('get_video_summary_v2', error.message);
+  if (error) throw new RPCError('get_video_summary', error.message);
   if (!data) return [];
 
   return data.map((r: Record<string, unknown>) => ({
@@ -183,15 +166,14 @@ export async function getDailyTrend(
   endDate: string,
 ): Promise<DailyTrend[]> {
   const supabase = await createClient();
-  const uuids = resolveBrandUuids(brand);
 
-  const { data, error } = await supabase.rpc('get_daily_trend_v2', {
-    p_brand_ids: uuids,
+  const { data, error } = await supabase.rpc('get_daily_trend', {
+    p_brand: brand,
     p_start_date: startDate,
     p_end_date: endDate,
   });
 
-  if (error) throw new RPCError('get_daily_trend_v2', error.message);
+  if (error) throw new RPCError('get_daily_trend', error.message);
   if (!data) return [];
 
   return data.map((r: Record<string, unknown>) => ({

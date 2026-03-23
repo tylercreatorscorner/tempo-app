@@ -5,6 +5,8 @@ export const BRAND_COLORS: Record<string, string> = {
   physicians_choice: '#2196F3',
   toplux: '#FF9800',
   leefar: '#8BC34A',
+  leefar_nutrition: '#8BC34A',
+  leefar_supplements: '#66BB6A',
 };
 
 /** Brand display name mapping */
@@ -14,6 +16,8 @@ export const BRAND_DISPLAY_NAMES: Record<string, string> = {
   physicians_choice: "Physician's Choice",
   toplux: 'Toplux',
   leefar: 'LeeFar',
+  leefar_nutrition: 'LeeFar Nutrition',
+  leefar_supplements: 'LeeFar Supplements',
 };
 
 /** Get brand color with fallback */
@@ -34,7 +38,7 @@ export const DATE_RANGE_PRESETS = [
 ] as const;
 
 /** Active brands - only these appear in brand tags and filters */
-export const ACTIVE_BRANDS = ['jiyu', 'catakor', 'leefar', 'physicians_choice'] as const;
+export const ACTIVE_BRANDS = ['jiyu', 'catakor', 'leefar_nutrition', 'leefar_supplements', 'physicians_choice'] as const;
 export type ActiveBrand = (typeof ACTIVE_BRANDS)[number];
 
 /**
@@ -42,11 +46,13 @@ export type ActiveBrand = (typeof ACTIVE_BRANDS)[number];
  * ONLY these brand IDs are allowed to write to v2 data tables.
  * Toplux is excluded — no data access, no writes, ever.
  */
-export const DATA_ENABLED_BRANDS = ['jiyu', 'catakor', 'physicians_choice'] as const;
+export const DATA_ENABLED_BRANDS = ['jiyu', 'catakor', 'physicians_choice', 'leefar_nutrition', 'leefar_supplements'] as const;
 export const DATA_ENABLED_BRAND_IDS = new Set([
   'b0000000-0000-0000-0000-000000000001', // catakor
   'b0000000-0000-0000-0000-000000000002', // physicians_choice
   'b0000000-0000-0000-0000-000000000003', // jiyu
+  'b0000000-0000-0000-0000-000000000006', // leefar_nutrition
+  'b0000000-0000-0000-0000-000000000007', // leefar_supplements
 ]);
 
 /** Validate a brand_id is allowed to have data written. Throws if not. */
@@ -66,6 +72,8 @@ export const BRAND_UUID_MAP: Record<string, string> = {
   physicians_choice: 'b0000000-0000-0000-0000-000000000002',
   jiyu: 'b0000000-0000-0000-0000-000000000003',
   toplux: 'b0000000-0000-0000-0000-000000000004',
+  leefar_nutrition: 'b0000000-0000-0000-0000-000000000006',
+  leefar_supplements: 'b0000000-0000-0000-0000-000000000007',
 };
 
 /** UUID → brand slug reverse mapping */
@@ -74,6 +82,8 @@ export const BRAND_SLUG_MAP: Record<string, string> = {
   'b0000000-0000-0000-0000-000000000002': 'physicians_choice',
   'b0000000-0000-0000-0000-000000000003': 'jiyu',
   'b0000000-0000-0000-0000-000000000004': 'toplux',
+  'b0000000-0000-0000-0000-000000000006': 'leefar_nutrition',
+  'b0000000-0000-0000-0000-000000000007': 'leefar_supplements',
 };
 
 /** Convert brand slug to UUID, returns undefined if not found */
