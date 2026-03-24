@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, Suspense } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Eye, EyeOff, ArrowRight, AlertCircle, Mail, Loader2 } from 'lucide-react';
+import { ArrowRight, AlertCircle, Mail, Loader2, ArrowLeft } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { TempoLogo } from '@/components/ui/tempo-logo';
+import { OtpInput } from '@/components/auth/otp-input';
 
 function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -25,14 +26,22 @@ function SignupForm() {
   const router = useRouter();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [companyName, setCompanyName] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [awaitingConfirm, setAwaitingConfirm] = useState(false);
+  const [step, setStep] = useState<'details' | 'verify'>('details');
+  const [verifying, setVerifying] = useState(false);
+  const [otpError, setOtpError] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
 
-  const isValid = fullName.trim() && isValidEmail(email) && password.length >= 6 && companyName.trim();
+  const isValid = fullName.trim() && isValidEmail(email) && companyName.trim();
+
+  // Cooldown timer
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = setTimeout(() => setCooldown(cooldown - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [cooldown]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -43,11 +52,10 @@ function SignupForm() {
 
     const supabase = createClient();
 
-    const { error: signupError, data } = await supabase.auth.signUp({
+    const { error: otpError } = await supabase.auth.signInWithOtp({
       email: email.trim(),
-      password,
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/confirm`,
+        shouldCreateUser: true,
         data: {
           org_name: companyName.trim(),
           full_name: fullName.trim(),
@@ -57,11 +65,11 @@ function SignupForm() {
 
     setLoading(false);
 
-    if (signupError) {
-      if (signupError.message.includes('already registered')) {
+    if (otpError) {
+      if (otpError.message.includes('already registered')) {
         setError('An account with this email already exists. Try signing in instead.');
       } else {
-        setError(signupError.message);
+        setError(otpError.message);
       }
       return;
     }
@@ -82,17 +90,59 @@ function SignupForm() {
       // Non-blocking
     }
 
-    // If auto-confirmed (session exists), go straight to dashboard
-    if (data.session) {
-      router.push('/dashboard');
+    setCooldown(60);
+    setStep('verify');
+  }
+
+  async function handleVerifyCode(code: string) {
+    setVerifying(true);
+    setError('');
+    setOtpError(false);
+
+    const supabase = createClient();
+    const { error } = await supabase.auth.verifyOtp({
+      email: email.trim(),
+      token: code,
+      type: 'email',
+    });
+
+    if (error) {
+      setOtpError(true);
+      setError('Invalid code. Please try again.');
+      setVerifying(false);
       return;
     }
 
-    // Show email confirmation screen
-    setAwaitingConfirm(true);
+    router.push('/dashboard');
+    router.refresh();
   }
 
-  if (awaitingConfirm) {
+  async function handleResendCode() {
+    if (cooldown > 0) return;
+
+    setError('');
+    const supabase = createClient();
+    const { error } = await supabase.auth.signInWithOtp({
+      email: email.trim(),
+      options: {
+        shouldCreateUser: true,
+        data: {
+          org_name: companyName.trim(),
+          full_name: fullName.trim(),
+        },
+      },
+    });
+
+    if (error) {
+      setError('Failed to resend code. Try again.');
+      return;
+    }
+
+    setCooldown(60);
+  }
+
+  // Step 2: OTP verification
+  if (step === 'verify') {
     return (
       <div className="w-full max-w-md text-center space-y-6">
         <TempoLogo size="lg" animated />
@@ -102,38 +152,62 @@ function SignupForm() {
         </div>
 
         <div>
-          <h1 className="text-2xl font-bold">Check your email</h1>
+          <h1 className="text-2xl font-bold">Verify your email</h1>
           <p className="text-muted-foreground mt-2">
-            We sent a confirmation link to <strong>{email}</strong>
+            We sent a 6-digit code to <strong>{email}</strong>
           </p>
           <p className="text-sm text-muted-foreground mt-1">
-            Click the link to activate your account and access your dashboard.
+            Enter the code below to create your account.
           </p>
+        </div>
+
+        <div className="space-y-4">
+          {error && (
+            <div className="p-3 rounded-xl bg-red-50 text-red-600 text-sm">
+              {error}
+            </div>
+          )}
+
+          <OtpInput
+            onComplete={handleVerifyCode}
+            disabled={verifying}
+            error={otpError}
+          />
+
+          {verifying && (
+            <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Creating your account...
+            </div>
+          )}
         </div>
 
         <div className="rounded-2xl border border-gray-200 bg-white p-5 space-y-3">
-          <p className="text-sm text-muted-foreground">Didn&apos;t get the email?</p>
-          <button
-            onClick={async () => {
-              const supabase = createClient();
-              await supabase.auth.resend({ type: 'signup', email: email.trim() });
-            }}
-            className="text-sm font-medium text-[#FF4D8D] hover:underline"
-          >
-            Resend confirmation email
-          </button>
+          <p className="text-sm text-muted-foreground">Didn&apos;t get the code?</p>
+          {cooldown > 0 ? (
+            <p className="text-sm text-gray-400">Resend in {cooldown}s</p>
+          ) : (
+            <button
+              onClick={handleResendCode}
+              className="text-sm font-medium text-[#FF4D8D] hover:underline"
+            >
+              Resend code
+            </button>
+          )}
         </div>
 
-        <p className="text-xs text-muted-foreground">
-          Wrong email?{' '}
-          <button onClick={() => setAwaitingConfirm(false)} className="text-[#FF4D8D] hover:underline font-medium">
-            Go back
-          </button>
-        </p>
+        <button
+          onClick={() => { setStep('details'); setError(''); setOtpError(false); }}
+          className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" />
+          Back to details
+        </button>
       </div>
     );
   }
 
+  // Step 1: Details form
   return (
     <div className="w-full max-w-md space-y-8">
       {/* Logo + header */}
@@ -153,7 +227,12 @@ function SignupForm() {
           {error && (
             <div className="flex items-center gap-2 p-3 rounded-xl bg-red-50 text-red-600 text-sm">
               <AlertCircle className="h-4 w-4 shrink-0" />
-              <span>{error}</span>
+              <span>
+                {error}{' '}
+                {error.includes('signing in') && (
+                  <Link href="/login" className="underline font-medium">Sign in here</Link>
+                )}
+              </span>
             </div>
           )}
 
@@ -188,31 +267,6 @@ function SignupForm() {
           </div>
 
           <div className="space-y-1.5">
-            <label htmlFor="password" className="text-sm font-medium">
-              Password
-            </label>
-            <div className="relative">
-              <input
-                id="password"
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={(e) => { setPassword(e.target.value); setError(''); }}
-                placeholder="At least 6 characters"
-                minLength={6}
-                required
-                className="w-full px-4 py-2.5 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/50 pr-10"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-              >
-                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
             <label htmlFor="company" className="text-sm font-medium">
               Company name
             </label>
@@ -236,7 +290,7 @@ function SignupForm() {
           {loading ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
-              Creating your account...
+              Sending verification code...
             </>
           ) : (
             <>
