@@ -130,6 +130,7 @@ export function LoginForm() {
           )}
 
           <OtpInput
+            length={8}
             onComplete={handleVerifyCode}
             disabled={verifying}
             error={otpError}
