@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server';
 import { User, Building2, Database, Bell, Key, Shield } from 'lucide-react';
 import { TikTokConnect } from '@/components/onboarding/tiktok-connect';
 import { PlanSelector } from '@/components/onboarding/plan-selector';
+import { UserManagement } from '@/components/settings/user-management';
 import { BRAND_COLORS } from '@/lib/utils/constants';
 
 export default async function SettingsPage() {
@@ -14,7 +15,8 @@ export default async function SettingsPage() {
   // Load profile + tenant + brands dynamically
   let profile: { name: string; email: string; role: string; tenant_id: string } | null = null;
   let tenant: { name: string; tiktok_connected: boolean; discord_connected: boolean; stripe_subscription_id: string | null; plan: string | null } | null = null;
-  let brands: { name: string; slug: string; color: string | null; display_name: string | null }[] = [];
+  let brands: { id: string; name: string; slug: string; color: string | null; display_name: string | null }[] = [];
+  let teamMembers: { user_id: string; email: string; name: string | null; role: string; status: string; brand_access: string[] }[] = [];
 
   if (user) {
     const { data: p } = await supabase
@@ -34,9 +36,26 @@ export default async function SettingsPage() {
 
       const { data: b } = await supabase
         .from('brands_v2')
-        .select('name, slug, color, display_name')
+        .select('id, name, slug, color, display_name')
         .order('name');
       brands = b || [];
+
+      // Load team members (non-creator roles)
+      const { data: members } = await supabase
+        .from('user_profiles')
+        .select('user_id, email, name, role, status')
+        .neq('role', 'creator')
+        .order('role');
+
+      // Load brand access for scoped roles
+      const { data: accessRows } = await supabase
+        .from('user_brand_access')
+        .select('user_id, brand_id');
+
+      teamMembers = (members || []).map(m => ({
+        ...m,
+        brand_access: (accessRows || []).filter(a => a.user_id === m.user_id).map(a => a.brand_id),
+      }));
     }
   }
 
@@ -193,6 +212,16 @@ export default async function SettingsPage() {
           <p className="text-xs text-muted-foreground mt-2">Notification preferences coming soon.</p>
         </div>
       </div>
+
+      {/* Team Members - only show for owner/admin */}
+      {(profile?.role === 'owner' || profile?.role === 'admin') && (
+        <UserManagement
+          users={teamMembers}
+          brands={brands}
+          tenantId={profile.tenant_id}
+          currentUserId={user?.id ?? ''}
+        />
+      )}
 
       {/* API Keys - only show if they have brands */}
       {brands.length > 0 && (
