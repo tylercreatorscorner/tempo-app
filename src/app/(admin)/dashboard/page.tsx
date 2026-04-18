@@ -228,67 +228,48 @@ export default async function AdminDashboard({ searchParams }: Props) {
 
   const serverNow = new Date();
 
-  // Fetch summaries (current + previous) + all brands for alerts
-  const [summaries, prevSummaries, allBrandSummaries, allBrandPrevSummaries] = await Promise.all([
-    Promise.all(
-      activeBrands.map(async (brand) => {
-        try {
-          const data = await getBrandSummary(brand, startDate, endDate);
-          return { brand, data: data[0] ?? null };
-        } catch (err) {
-          console.error(`getBrandSummary(${brand}) failed:`, err);
-          return { brand, data: null };
-        }
-      })
-    ),
-    Promise.all(
-      activeBrands.map(async (brand) => {
-        try {
-          const data = await getBrandSummary(brand, prevStartDate, prevEndDate);
-          return { brand, data: data[0] ?? null };
-        } catch (err) {
-          return { brand, data: null };
-        }
-      })
-    ),
-    brandFilter
-      ? Promise.all(
-          ALL_BRANDS.map(async (brand) => {
-            try {
-              const data = await getBrandSummary(brand, startDate, endDate);
-              return { brand, data: data[0] ?? null };
-            } catch (err) {
-              return { brand, data: null };
-            }
-          })
-        )
-      : Promise.resolve(null),
-    brandFilter
-      ? Promise.all(
-          ALL_BRANDS.map(async (brand) => {
-            try {
-              const data = await getBrandSummary(brand, prevStartDate, prevEndDate);
-              return { brand, data: data[0] ?? null };
-            } catch (err) {
-              return { brand, data: null };
-            }
-          })
-        )
-      : Promise.resolve(null),
-  ]);
+  async function fetchSummary(brand: string, start: string, end: string) {
+    try {
+      const data = await getBrandSummary(brand, start, end);
+      return { brand, data: data[0] ?? null };
+    } catch {
+      return { brand, data: null };
+    }
+  }
 
-  // Fetch creators + video sections + retainers in parallel
-  const [allCreators, videoSections, retainerMap] = await Promise.all([
+  // Single parallel fetch — all data in one shot
+  const [
+    summaries,
+    prevSummaries,
+    allBrandSummariesRaw,
+    allBrandPrevSummariesRaw,
+    creatorsNested,
+    videoSections,
+    retainerMap,
+    managedCount,
+  ] = await Promise.all([
+    Promise.all(activeBrands.map(b => fetchSummary(b, startDate, endDate))),
+    Promise.all(activeBrands.map(b => fetchSummary(b, prevStartDate, prevEndDate))),
+    // Only fetch all-brand summaries when a brand filter is active (used for ticker)
+    brandFilter
+      ? Promise.all(ALL_BRANDS.map(b => fetchSummary(b, startDate, endDate)))
+      : Promise.resolve(null),
+    brandFilter
+      ? Promise.all(ALL_BRANDS.map(b => fetchSummary(b, prevStartDate, prevEndDate)))
+      : Promise.resolve(null),
     Promise.all(
       activeBrands.map(async (brand) => {
         try { return (await getCreatorRankings(brand, startDate, endDate, 50)).map((c) => ({ ...c, brand })); } catch { return []; }
       })
-    ).then((results) =>
-      results.flat().sort((a, b) => (b.total_gmv ?? 0) - (a.total_gmv ?? 0))
     ),
     getDashboardVideos(brandFilter, startDate, endDate),
     getCreatorRetainers(),
+    supabase.from('managed_creators').select('id', { count: 'exact', head: true }).eq('status', 'Active'),
   ]);
+
+  const allCreators = creatorsNested.flat().sort((a, b) => (b.total_gmv ?? 0) - (a.total_gmv ?? 0));
+  const allBrandSummaries = allBrandSummariesRaw ?? summaries;
+  const allBrandPrevSummaries = allBrandPrevSummariesRaw ?? prevSummaries;
 
   // Group creators for managed/unmanaged split
   const groupedCreators = await aggregateCreatorsByRealName(allCreators, brandFilter);
@@ -400,7 +381,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
       {/* Stats Bar */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 stagger-children">
         <StatCard label="Total GMV" value={formatCurrency(totals.gmv)} trend={gmvTrend} trendLabel={trendLabel} brandColor={activeBrandColor} />
-        <StatCard label="Creators" value={formatNumber(totals.creators)} brandColor={activeBrandColor} />
+        <StatCard label="Managed Creators" value={formatNumber(managedCount.count ?? 0)} brandColor={activeBrandColor} />
         <StatCard label="ROI" value={roi > 0 ? `${roi.toFixed(1)}x` : 'N/A'} brandColor={activeBrandColor} />
         <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-5 space-y-2 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300">
           <p className="text-xs font-medium uppercase tracking-wider text-gray-500">Managed GMV</p>
@@ -422,8 +403,8 @@ export default async function AdminDashboard({ searchParams }: Props) {
         </div>
       </div>
 
-      {/* Brand Ticker — only show on All Brands view */}
-      {!brandFilter && <BrandTicker brands={brandStripData} />}
+      {/* Brand Ticker — only show on All Brands view, filter out brands with no data */}
+      {!brandFilter && <BrandTicker brands={brandStripData.filter(b => b.gmv > 0)} />}
 
       {/* Empty state */}
       {/* Empty state: no data for any brand */}
@@ -501,7 +482,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
                 } else if (c.total_gmv > retainerAmt * 10 && retainerAmt > 0) {
                   alerts.push({ name: c.display_name, type: 'crushing', detail: `${(c.total_gmv / retainerAmt).toFixed(0)}x ROI on retainer` });
                 }
-                if (c.total_videos <= 1 && c.total_gmv > 500) {
+                if (c.total_videos > 0 && c.total_videos <= 2 && c.total_gmv > 500) {
                   alerts.push({ name: c.display_name, type: 'new', detail: `${formatCurrency(c.total_gmv)} GMV from just ${c.total_videos} video${c.total_videos === 1 ? '' : 's'}` });
                 }
               }
