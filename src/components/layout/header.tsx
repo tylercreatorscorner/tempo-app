@@ -13,6 +13,7 @@ interface HeaderProps {
   tenantName?: string;
   userName?: string;
   userEmail?: string;
+  tenantSwitcher?: React.ReactNode;
 }
 
 const BREADCRUMB_MAP: Record<string, string> = {
@@ -29,7 +30,7 @@ const BREADCRUMB_MAP: Record<string, string> = {
   '/reporting': 'Reporting',
 };
 
-export function Header({ onMenuClick, tenantName, userName, userEmail }: HeaderProps) {
+export function Header({ onMenuClick, tenantName, userName, userEmail, tenantSwitcher }: HeaderProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -101,6 +102,9 @@ export function Header({ onMenuClick, tenantName, userName, userEmail }: HeaderP
           <span className="font-medium text-gray-900 truncate">{pageLabel}</span>
         </div>
       </div>
+
+      {/* Tenant switcher (platform admin only) */}
+      {tenantSwitcher && <div className="hidden sm:block">{tenantSwitcher}</div>}
 
       {/* User menu */}
       <div className="relative" ref={menuRef}>
