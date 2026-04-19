@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import {
-  LayoutDashboard, BarChart3, UserCheck, Settings, CreditCard,
+  LayoutDashboard, BarChart3, UserCheck, CreditCard,
   Mail, Compass, FileBarChart, Store,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -53,11 +53,6 @@ const FINANCES_SECTION: NavSection = {
 };
 
 
-const SETTINGS_SECTION: NavSection = {
-  items: [
-    { href: '/settings', label: 'Settings', icon: Settings },
-  ],
-};
 
 interface SidebarProps {
   className?: string;
@@ -130,11 +125,6 @@ export function Sidebar({ className, userRole = 'customer' }: SidebarProps) {
       <nav className="flex-1 px-2 py-1 overflow-y-auto space-y-0.5">
         {sections.map((s, i) => renderSection(s, `section-${i}`))}
 
-        {/* Divider + Settings */}
-        <div className="pt-3">
-          <div className="mx-3 mb-3 border-t border-gray-100" />
-          {SETTINGS_SECTION.items.map(renderItem)}
-        </div>
       </nav>
 
       {/* Brand selector pinned to bottom */}
