@@ -45,7 +45,7 @@ export function DailyBrief({
 
   let headline: string;
   if (currentGmv === 0) {
-    headline = `No sales recorded for ${name} yesterday. Verify your TikTok Shop sync is active.`;
+    headline = `No sales data for ${name} on ${date} yet — TikTok Shop data typically syncs within 24 hours. Try Last 7 Days for current data.`;
   } else if (gmvTrend === undefined) {
     headline = `${name} generated ${formatCurrency(currentGmv)} yesterday.`;
   } else {

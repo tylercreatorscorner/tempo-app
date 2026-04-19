@@ -513,22 +513,28 @@ export default async function AdminDashboard({ searchParams }: Props) {
         </div>
       )}
 
-      {/* Empty state */}
-      {/* Empty state: no data for any brand */}
-      {totals.gmv === 0 && totals.orders === 0 && totals.creators === 0 && (
+      {/* Empty state: no data for selected period */}
+      {!isYesterday && totals.gmv === 0 && totals.orders === 0 && totals.creators === 0 && (
         <div className="rounded-2xl border border-gray-200 bg-white overflow-hidden">
           <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
             <div className="text-5xl mb-4">📊</div>
             <h3 className="text-lg font-bold">
-              {isEmptyBrand ? `No data for ${activeBrandName} yet` : 'Your dashboard is ready'}
+              {isEmptyBrand ? `No data for ${activeBrandName} in this period` : 'Your dashboard is ready'}
             </h3>
             <p className="text-sm text-muted-foreground mt-2 max-w-sm">
               {isEmptyBrand
-                ? 'Data will appear once creators start generating sales for this brand.'
+                ? 'Try a different date range, or check back once creators have activity in this period.'
                 : 'Connect your TikTok Shop to start seeing real-time GMV, creator performance, and product analytics.'
               }
             </p>
-            {!isEmptyBrand && (
+            {isEmptyBrand ? (
+              <a
+                href="?range=last7"
+                className="mt-6 inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-white border border-gray-200 text-[#1A1B3A] text-sm font-semibold hover:bg-gray-50 transition-colors"
+              >
+                View Last 7 Days →
+              </a>
+            ) : (
               <a
                 href="/settings"
                 className="mt-6 inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] text-white text-sm font-semibold hover:opacity-90 transition-opacity shadow-lg shadow-[#FF4D8D]/20"
