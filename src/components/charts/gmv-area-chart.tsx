@@ -2,23 +2,13 @@
 
 import dynamic from 'next/dynamic';
 import type { ApexOptions } from 'apexcharts';
-import { BRAND_COLORS, BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
 
 const ApexChart = dynamic(() => import('react-apexcharts'), { ssr: false });
 
-interface TrendDataPoint {
-  date: string;
-  [brand: string]: number | string;
-}
-
 interface Props {
-  data: TrendDataPoint[];
-  brands: string[];
-}
-
-function fmtLabel(dateStr: string) {
-  const [, m, d] = dateStr.split('-');
-  return `${parseInt(m)}/${parseInt(d)}`;
+  data: { date: string; gmv: number }[];
+  color?: string;
+  height?: number;
 }
 
 function fmtY(val: number) {
@@ -27,35 +17,52 @@ function fmtY(val: number) {
   return `$${val.toFixed(0)}`;
 }
 
-export function GmvTrendChart({ data, brands }: Props) {
-  if (!data || data.length === 0) {
-    return (
-      <div className="h-72 flex items-center justify-center text-gray-400 text-sm">
-        No trend data available for selected period
-      </div>
-    );
-  }
+function fmtLabel(dateStr: string) {
+  const [, m, d] = dateStr.split('-');
+  return `${parseInt(m)}/${parseInt(d)}`;
+}
+
+export function GmvAreaChart({ data, color = '#FF4D8D', height = 260 }: Props) {
+  if (!data || data.length <= 1) return null;
 
   const categories = data.map(d => fmtLabel(d.date));
-
-  const series = brands.map(brand => ({
-    name: BRAND_DISPLAY_NAMES[brand] ?? brand,
-    data: data.map(d => parseFloat(Number(d[brand] ?? 0).toFixed(2))),
-  }));
+  const values = data.map(d => parseFloat(d.gmv.toFixed(2)));
 
   const options: ApexOptions = {
     chart: {
-      type: 'line',
+      type: 'area',
       toolbar: { show: false },
       zoom: { enabled: false },
-      animations: { enabled: true, speed: 800 },
+      animations: {
+        enabled: true,
+        speed: 900,
+        animateGradually: { enabled: true, delay: 120 },
+        dynamicAnimation: { enabled: true, speed: 350 },
+      },
       fontFamily: 'inherit',
       background: 'transparent',
+      sparkline: { enabled: false },
     },
-    stroke: { curve: 'smooth', width: 2.5 },
-    colors: brands.map(b => BRAND_COLORS[b] ?? '#6B7280'),
+    stroke: { curve: 'smooth', width: 2.5, colors: [color] },
+    fill: {
+      type: 'gradient',
+      gradient: {
+        shadeIntensity: 1,
+        type: 'vertical',
+        colorStops: [
+          { offset: 0, color, opacity: 0.28 },
+          { offset: 85, color, opacity: 0.02 },
+        ],
+      },
+    },
     dataLabels: { enabled: false },
-    markers: { size: 0, hover: { size: 5 } },
+    markers: {
+      size: 0,
+      colors: [color],
+      strokeColors: '#fff',
+      strokeWidth: 2,
+      hover: { size: 5, sizeOffset: 1 },
+    },
     xaxis: {
       type: 'category',
       categories,
@@ -81,29 +88,27 @@ export function GmvTrendChart({ data, brands }: Props) {
       strokeDashArray: 4,
       xaxis: { lines: { show: false } },
       yaxis: { lines: { show: true } },
-    },
-    legend: {
-      position: 'top',
-      horizontalAlign: 'left',
-      fontSize: '12px',
-      fontFamily: 'inherit',
-      markers: { size: 8 },
-      itemMargin: { horizontal: 12 },
-      labels: { colors: '#6B7280' },
+      padding: { top: 0, right: 8, bottom: 0, left: 0 },
     },
     tooltip: {
-      shared: true,
-      intersect: false,
       theme: 'light',
       style: { fontSize: '12px', fontFamily: 'inherit' },
       y: {
         formatter: val =>
           `$${val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+        title: { formatter: () => 'GMV' },
       },
+      marker: { show: true },
     },
   };
 
   return (
-    <ApexChart type="line" series={series} options={options} height={340} width="100%" />
+    <ApexChart
+      type="area"
+      series={[{ name: 'GMV', data: values }]}
+      options={options}
+      height={height}
+      width="100%"
+    />
   );
 }

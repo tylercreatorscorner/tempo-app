@@ -1,8 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import dynamic from 'next/dynamic';
+import type { ApexOptions } from 'apexcharts';
 import type { CreatorStats, CreatorDailyData, CreatorVideo } from '@/lib/data/creator';
+
+const ApexChart = dynamic(() => import('react-apexcharts'), { ssr: false });
 
 function fmt(n: number): string {
   if (n >= 1000) return `$${(n / 1000).toFixed(1)}k`;
@@ -24,11 +27,69 @@ export function StatsClient({ stats, dailyData, topVideos }: Props) {
 
   const s = stats;
 
-  const chartData = dailyData.map((d) => ({
-    date: new Date(d.report_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-    gmv: d.gmv,
-    orders: d.orders,
-  }));
+  const categories = dailyData.map(d =>
+    new Date(d.report_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  );
+  const values = dailyData.map(d => parseFloat((chartMetric === 'gmv' ? d.gmv : d.orders).toFixed(2)));
+
+  const chartOptions: ApexOptions = {
+    chart: {
+      type: 'area',
+      toolbar: { show: false },
+      zoom: { enabled: false },
+      animations: { enabled: true, speed: 800, dynamicAnimation: { enabled: true, speed: 350 } },
+      fontFamily: 'inherit',
+      background: 'transparent',
+    },
+    stroke: { curve: 'smooth', width: 2.5, colors: ['#FF4D8D'] },
+    fill: {
+      type: 'gradient',
+      gradient: {
+        shadeIntensity: 1,
+        type: 'vertical',
+        colorStops: [
+          { offset: 0, color: '#FF4D8D', opacity: 0.25 },
+          { offset: 90, color: '#FF4D8D', opacity: 0.02 },
+        ],
+      },
+    },
+    dataLabels: { enabled: false },
+    markers: { size: 0, hover: { size: 5 } },
+    xaxis: {
+      type: 'category',
+      categories,
+      labels: {
+        style: { colors: '#9CA3AF', fontSize: '11px', fontFamily: 'inherit' },
+        hideOverlappingLabels: true,
+      },
+      axisBorder: { show: false },
+      axisTicks: { show: false },
+      tooltip: { enabled: false },
+    },
+    yaxis: {
+      labels: {
+        style: { colors: '#9CA3AF', fontSize: '11px', fontFamily: 'inherit' },
+        formatter: val => chartMetric === 'gmv' ? fmt(val) : String(Math.round(val)),
+      },
+      forceNiceScale: true,
+    },
+    grid: {
+      borderColor: '#F3F4F6',
+      strokeDashArray: 4,
+      xaxis: { lines: { show: false } },
+      yaxis: { lines: { show: true } },
+    },
+    tooltip: {
+      theme: 'light',
+      style: { fontSize: '12px', fontFamily: 'inherit' },
+      y: {
+        formatter: val => chartMetric === 'gmv'
+          ? `$${val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+          : String(Math.round(val)),
+        title: { formatter: () => chartMetric === 'gmv' ? 'GMV' : 'Orders' },
+      },
+    },
+  };
 
   return (
     <div className="space-y-6 max-w-5xl">
@@ -67,7 +128,7 @@ export function StatsClient({ stats, dailyData, topVideos }: Props) {
       </div>
 
       {/* Performance Chart */}
-      <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm animate-fade-in">
+      <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm animate-fade-in overflow-hidden">
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold text-[#1A1B3A]">📈 Performance Trend</h3>
           <div className="flex gap-1">
@@ -82,23 +143,19 @@ export function StatsClient({ stats, dailyData, topVideos }: Props) {
             ))}
           </div>
         </div>
-        <div className="h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={chartData}>
-              <defs>
-                <linearGradient id="colorMetric" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#FF4D8D" stopOpacity={0.2} />
-                  <stop offset="95%" stopColor="#FF4D8D" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
-              <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#9CA3AF' }} />
-              <YAxis tick={{ fontSize: 11, fill: '#9CA3AF' }} tickFormatter={chartMetric === 'gmv' ? (v) => `$${v}` : undefined} />
-              <Tooltip />
-              <Area type="monotone" dataKey={chartMetric} stroke="#FF4D8D" fill="url(#colorMetric)" strokeWidth={2} />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
+        {dailyData.length > 1 ? (
+          <ApexChart
+            type="area"
+            series={[{ name: chartMetric === 'gmv' ? 'GMV' : 'Orders', data: values }]}
+            options={chartOptions}
+            height={240}
+            width="100%"
+          />
+        ) : (
+          <div className="flex items-center justify-center h-40 text-gray-400 text-sm">
+            Not enough data for this period
+          </div>
+        )}
       </div>
 
       {/* Top Videos */}

@@ -1,60 +1,104 @@
 'use client';
 
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
+import dynamic from 'next/dynamic';
+import type { ApexOptions } from 'apexcharts';
 import type { DailyTrend } from '@/types';
-import { formatCurrency } from '@/lib/utils/format';
 
-interface TrendChartProps {
+const ApexChart = dynamic(() => import('react-apexcharts'), { ssr: false });
+
+interface Props {
   data: DailyTrend[];
+  color?: string;
   className?: string;
 }
 
-/** GMV trend line chart */
-export function TrendChart({ data, className }: TrendChartProps) {
-  if (data.length === 0) {
+function fmtY(val: number) {
+  if (val >= 1_000_000) return `$${(val / 1_000_000).toFixed(1)}M`;
+  if (val >= 1000) return `$${(val / 1000).toFixed(0)}k`;
+  return `$${val.toFixed(0)}`;
+}
+
+export function TrendChart({ data, color = '#FF4D8D', className }: Props) {
+  if (!data || data.length === 0) {
     return (
-      <div className={`flex items-center justify-center h-64 text-muted-foreground ${className ?? ''}`}>
+      <div className={`flex items-center justify-center h-64 text-gray-400 text-sm ${className ?? ''}`}>
         No trend data available
       </div>
     );
   }
 
+  const categories = data.map(d => {
+    const [, m, day] = d.report_date.split('-');
+    return `${parseInt(m)}/${parseInt(day)}`;
+  });
+
+  const options: ApexOptions = {
+    chart: {
+      type: 'area',
+      toolbar: { show: false },
+      zoom: { enabled: false },
+      animations: { enabled: true, speed: 800 },
+      fontFamily: 'inherit',
+      background: 'transparent',
+    },
+    stroke: { curve: 'smooth', width: 2.5, colors: [color] },
+    fill: {
+      type: 'gradient',
+      gradient: {
+        shadeIntensity: 1,
+        type: 'vertical',
+        colorStops: [
+          { offset: 0, color, opacity: 0.25 },
+          { offset: 90, color, opacity: 0.02 },
+        ],
+      },
+    },
+    dataLabels: { enabled: false },
+    markers: { size: 0, hover: { size: 5 } },
+    xaxis: {
+      type: 'category',
+      categories,
+      labels: {
+        style: { colors: '#9CA3AF', fontSize: '11px', fontFamily: 'inherit' },
+        hideOverlappingLabels: true,
+      },
+      axisBorder: { show: false },
+      axisTicks: { show: false },
+      tooltip: { enabled: false },
+    },
+    yaxis: {
+      labels: {
+        style: { colors: '#9CA3AF', fontSize: '11px', fontFamily: 'inherit' },
+        formatter: fmtY,
+      },
+      forceNiceScale: true,
+    },
+    grid: {
+      borderColor: '#F3F4F6',
+      strokeDashArray: 4,
+      xaxis: { lines: { show: false } },
+      yaxis: { lines: { show: true } },
+    },
+    tooltip: {
+      theme: 'light',
+      style: { fontSize: '12px', fontFamily: 'inherit' },
+      y: {
+        formatter: val =>
+          `$${val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+        title: { formatter: () => 'GMV' },
+      },
+    },
+  };
+
   return (
     <div className={className}>
-      <ResponsiveContainer width="100%" height={300}>
-        <LineChart data={data} margin={{ top: 5, right: 20, bottom: 5, left: 20 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-          <XAxis
-            dataKey="date"
-            stroke="#9CA3AF"
-            fontSize={12}
-            tickFormatter={(val: string) => val.slice(5)}
-          />
-          <YAxis
-            stroke="#9CA3AF"
-            fontSize={12}
-            tickFormatter={(val: number) => formatCurrency(val)}
-          />
-          <Tooltip
-            contentStyle={{
-              backgroundColor: '#FFFFFF',
-              border: '1px solid #E5E7EB',
-              borderRadius: '8px',
-              color: '#1A1B3A',
-              boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
-            }}
-            formatter={(value) => [formatCurrency(value as number), 'GMV']}
-          />
-          <Line
-            type="monotone"
-            dataKey="gmv"
-            stroke="#E91E63"
-            strokeWidth={2}
-            dot={false}
-            activeDot={{ r: 4 }}
-          />
-        </LineChart>
-      </ResponsiveContainer>
+      <ApexChart
+        type="area"
+        series={[{ name: 'GMV', data: data.map(d => parseFloat(d.daily_gmv.toFixed(2))) }]}
+        options={options}
+        height={300}
+        width="100%"
+      />
     </div>
   );
 }

@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { Suspense } from 'react';
-import { getBrandSummary, getCreatorRankings } from '@/lib/data/rpc';
+import { getBrandSummary, getCreatorRankings, getDailyTrend } from '@/lib/data/rpc';
 import { resolveDateRange } from '@/lib/data/date-utils';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
 import { StatCard } from '@/components/dashboard/stat-card';
@@ -14,6 +14,9 @@ import { getCreatorRetainers } from '@/lib/data/retainer';
 import { BRAND_COLORS, BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
 import { createClient } from '@/lib/supabase/server';
 import { getActiveTenantId } from '@/lib/auth/platform-admin';
+import { GmvAreaChart } from '@/components/charts/gmv-area-chart';
+import { ManagedSplitDonut } from '@/components/charts/managed-split-donut';
+import { TopCreatorsBar } from '@/components/charts/top-creators-bar';
 
 import { format, subDays, differenceInDays } from 'date-fns';
 
@@ -247,6 +250,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
     videoSections,
     retainerMap,
     managedCount,
+    trendsByBrandRaw,
   ] = await Promise.all([
     Promise.all(activeBrands.map(b => fetchSummary(b, startDate, endDate))),
     Promise.all(activeBrands.map(b => fetchSummary(b, prevStartDate, prevEndDate))),
@@ -265,7 +269,19 @@ export default async function AdminDashboard({ searchParams }: Props) {
     getDashboardVideos(brandFilter, startDate, endDate),
     getCreatorRetainers(),
     supabase.from('managed_creators').select('id', { count: 'exact', head: true }).eq('status', 'Active'),
+    Promise.all(activeBrands.map(b => getDailyTrend(b, startDate, endDate).catch(() => []))),
   ]);
+
+  // Aggregate daily trend across all active brands by date
+  const trendByDate = new Map<string, number>();
+  for (const brandTrend of trendsByBrandRaw) {
+    for (const day of brandTrend) {
+      trendByDate.set(day.report_date, (trendByDate.get(day.report_date) ?? 0) + day.daily_gmv);
+    }
+  }
+  const aggregatedTrend = Array.from(trendByDate.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, gmv]) => ({ date, gmv }));
 
   const allCreators = creatorsNested.flat().sort((a, b) => (b.total_gmv ?? 0) - (a.total_gmv ?? 0));
   const allBrandSummaries = allBrandSummariesRaw ?? summaries;
@@ -405,6 +421,48 @@ export default async function AdminDashboard({ searchParams }: Props) {
 
       {/* Brand Ticker — only show on All Brands view, filter out brands with no data */}
       {!brandFilter && <BrandTicker brands={brandStripData.filter(b => b.gmv > 0)} />}
+
+      {/* GMV Trend Chart — hidden for single-day ranges */}
+      {aggregatedTrend.length > 1 && (
+        <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+          <div className="px-6 pt-5 pb-1 flex items-start justify-between">
+            <div>
+              <h3 className="font-semibold text-[#1A1B3A]">GMV Trend</h3>
+              <p className="text-xs text-gray-400 mt-0.5">{dateRangeDisplay}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-lg font-bold text-[#1A1B3A]">{formatCurrency(totals.gmv)}</p>
+              {gmvTrend !== undefined && (
+                <p className={`text-xs font-semibold mt-0.5 ${gmvTrend >= 0 ? 'text-emerald-500' : 'text-red-400'}`}>
+                  {gmvTrend >= 0 ? '↑' : '↓'} {Math.abs(gmvTrend).toFixed(1)}% vs prior period
+                </p>
+              )}
+            </div>
+          </div>
+          <GmvAreaChart data={aggregatedTrend} color={activeBrandColor ?? '#FF4D8D'} height={260} />
+        </div>
+      )}
+
+      {/* Analytics Row: GMV Split + Top Creators */}
+      {totals.gmv > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
+            <h3 className="font-semibold text-[#1A1B3A]">GMV Split</h3>
+            <p className="text-xs text-gray-400 mt-0.5 mb-2">Managed vs Unmanaged creators</p>
+            <ManagedSplitDonut
+              managedGmv={managedSplitData.managed.gmv}
+              unmanagedGmv={managedSplitData.unmanaged.gmv}
+            />
+          </div>
+          <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
+            <h3 className="font-semibold text-[#1A1B3A]">Top Creators</h3>
+            <p className="text-xs text-gray-400 mt-0.5 mb-2">
+              By GMV · {brandFilter ? (BRAND_DISPLAY_NAMES[brandFilter] ?? brandFilter) : 'All Brands'}
+            </p>
+            <TopCreatorsBar creators={groupedCreators} color={activeBrandColor ?? '#FF4D8D'} />
+          </div>
+        </div>
+      )}
 
       {/* Empty state */}
       {/* Empty state: no data for any brand */}
