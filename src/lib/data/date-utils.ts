@@ -1,4 +1,7 @@
 import { subDays, startOfMonth, endOfMonth, subMonths, format } from 'date-fns';
+import { toZonedTime } from 'date-fns-tz';
+
+const APP_TIMEZONE = 'America/Chicago'; // Dallas, TX (Central Time)
 
 export type DatePreset = 'yesterday' | 'last7' | 'last14' | 'last30' | 'thisMonth' | 'lastMonth';
 
@@ -13,7 +16,7 @@ export const DATE_PRESETS: { value: DatePreset; label: string }[] = [
 
 export function resolveDateRange(preset?: string | null): { startDate: string; endDate: string; preset: DatePreset } {
   const p = (preset && DATE_PRESETS.some(d => d.value === preset) ? preset : 'last7') as DatePreset;
-  const now = new Date();
+  const now = toZonedTime(new Date(), APP_TIMEZONE);
   const yesterday = subDays(now, 1);
 
   let start: Date;
