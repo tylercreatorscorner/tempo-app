@@ -4,6 +4,8 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Lock to light mode — full dark mode rebuild needed */
+html { color-scheme: light; }
 
 @theme inline {
   --color-background: var(--background);
