@@ -84,10 +84,7 @@ export interface BrandSummary {
   total_gmv: number;
   total_orders: number;
   total_items_sold: number;
-  total_refunds: number;
   total_videos: number;
-  total_live_streams: number;
-  total_est_commission: number;
   unique_creators: number;
   avg_aov: number;
 }

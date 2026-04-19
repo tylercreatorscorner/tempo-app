@@ -39,9 +39,8 @@ export async function getBrandSummary(
 
   if (!data || data.length === 0) {
     return [{
-      total_gmv: 0, total_orders: 0, total_items_sold: 0, total_refunds: 0,
-      total_videos: 0, total_live_streams: 0, total_est_commission: 0,
-      unique_creators: 0, avg_aov: 0,
+      total_gmv: 0, total_orders: 0, total_items_sold: 0,
+      total_videos: 0, unique_creators: 0, avg_aov: 0,
     }];
   }
 
@@ -49,10 +48,7 @@ export async function getBrandSummary(
     total_gmv: Number(r.total_gmv) || 0,
     total_orders: Number(r.total_orders) || 0,
     total_items_sold: Number(r.total_items_sold) || 0,
-    total_refunds: Number(r.total_refunds) || 0,
     total_videos: Number(r.total_videos) || 0,
-    total_live_streams: Number(r.total_live_streams) || 0,
-    total_est_commission: Number(r.total_est_commission) || 0,
     unique_creators: Number(r.unique_creators) || 0,
     avg_aov: Number(r.avg_aov) || 0,
   }));

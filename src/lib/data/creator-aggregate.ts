@@ -30,12 +30,13 @@ export interface GroupedCreator {
  * Fetches the mapping of TikTok usernames to real names from
  * tiktok_accounts joined with creators_v2.
  */
-async function fetchHandleToRealName(): Promise<Map<string, { real_name: string; creator_id: string }>> {
+async function fetchHandleToRealName(handles: string[]): Promise<Map<string, { real_name: string; creator_id: string }>> {
+  if (handles.length === 0) return new Map();
   const supabase = await createClient();
   const { data, error } = await supabase
     .from('tiktok_accounts')
     .select('tiktok_username, creator_id, creator:creators_v2(real_name)')
-    .not('tiktok_username', 'is', null);
+    .in('tiktok_username', handles);
 
   if (error || !data) {
     console.error('Failed to fetch creator account mappings:', error);
@@ -64,8 +65,9 @@ export async function aggregateCreatorsByRealName(
   creators: RawCreator[],
   brandFilter?: string | null
 ): Promise<GroupedCreator[]> {
+  const handles = creators.map(c => c.creator_name);
   const [handleMap, retainerMap] = await Promise.all([
-    fetchHandleToRealName(),
+    fetchHandleToRealName(handles),
     getCreatorRetainers(),
   ]);
 
