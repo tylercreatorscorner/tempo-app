@@ -124,8 +124,12 @@ export function Sidebar({ className, userRole = 'customer' }: SidebarProps) {
   );
 
   return (
-    <aside className={cn('flex flex-col w-64 h-screen', className)}
-      style={{ backgroundColor: '#0F1117', borderRight: '1px solid rgba(255,255,255,0.06)' }}
+    <aside className={cn(
+        'flex flex-col w-64 h-screen',
+        'bg-[#0F1117] dark:bg-[#0F1117]',
+        'border-r border-white/6',
+        className
+      )}
     >
       {/* Logo */}
       <div className="flex items-center gap-2 px-5 py-5">
@@ -138,13 +142,13 @@ export function Sidebar({ className, userRole = 'customer' }: SidebarProps) {
 
         {/* Divider + Settings */}
         <div className="pt-3">
-          <div className="mx-3 mb-3 border-t" style={{ borderColor: 'rgba(255,255,255,0.06)' }} />
+          <div className="mx-3 mb-3 border-t border-white/6" />
           {SETTINGS_SECTION.items.map(renderItem)}
         </div>
       </nav>
 
       {/* Brand selector pinned to bottom */}
-      <div className="px-2 pb-4 pt-2" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+      <div className="px-2 pb-4 pt-2 border-t border-white/6">
         <BrandSwitcher dark />
       </div>
     </aside>

@@ -25,7 +25,7 @@ export function AdminShell({ children, tenantSwitcher }: AdminShellProps) {
     <Suspense>
     <BrandProvider>
     <VideoPanelProvider>
-      <div className="flex h-screen overflow-hidden" style={{ backgroundColor: '#F8F9FC' }}>
+      <div className="flex h-screen overflow-hidden bg-[#F8F9FC] dark:bg-[#0A0B14]">
         <Sidebar className="hidden lg:flex" userRole={isOwner && isMultiBrand ? 'owner' : 'customer'} />
         <MobileNav open={mobileNavOpen} onClose={() => setMobileNavOpen(false)} userRole={isOwner && isMultiBrand ? 'owner' : 'customer'} />
 

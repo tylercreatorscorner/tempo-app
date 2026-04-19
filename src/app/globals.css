@@ -4,10 +4,6 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Force light color scheme regardless of OS preference */
-html {
-  color-scheme: light !important;
-}
 
 @theme inline {
   --color-background: var(--background);
