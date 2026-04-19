@@ -396,27 +396,37 @@ export default async function AdminDashboard({ searchParams }: Props) {
 
       {/* Stats Bar */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 stagger-children">
-        <StatCard label="Total GMV" value={formatCurrency(totals.gmv)} trend={gmvTrend} trendLabel={trendLabel} brandColor={activeBrandColor} />
-        <StatCard label="Managed Creators" value={formatNumber(managedCount.count ?? 0)} brandColor={activeBrandColor} />
-        <StatCard label="ROI" value={roi > 0 ? `${roi.toFixed(1)}x` : 'N/A'} brandColor={activeBrandColor} />
-        <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-5 space-y-2 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300">
-          <p className="text-xs font-medium uppercase tracking-wider text-gray-500">Managed GMV</p>
-          <p className="text-xl sm:text-2xl font-extrabold tracking-tight text-[#1A1B3A]">{formatCurrency(managedSplitData.managed.gmv)}</p>
-          <div className="flex items-center gap-1.5">
-            <span className="bg-green-50 text-green-600 text-xs font-semibold px-1.5 py-0.5 rounded-md">
-              {managedGmvPct.toFixed(0)}% of total
-            </span>
-          </div>
-        </div>
-        <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-5 space-y-2 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300">
-          <p className="text-xs font-medium uppercase tracking-wider text-gray-500">Unmanaged GMV</p>
-          <p className="text-xl sm:text-2xl font-extrabold tracking-tight text-[#1A1B3A]">{formatCurrency(managedSplitData.unmanaged.gmv)}</p>
-          <div className="flex items-center gap-1.5">
-            <span className="bg-gray-50 text-gray-500 text-xs font-semibold px-1.5 py-0.5 rounded-md">
-              {(100 - managedGmvPct).toFixed(0)}% of total
-            </span>
-          </div>
-        </div>
+        <StatCard
+          label="Total GMV"
+          value={formatCurrency(totals.gmv)}
+          trend={gmvTrend}
+          trendLabel={trendLabel}
+          brandColor={activeBrandColor}
+          hero
+          sparklineData={aggregatedTrend.length > 1 ? aggregatedTrend.map(d => d.gmv) : undefined}
+        />
+        <StatCard
+          label="Managed Creators"
+          value={formatNumber(managedCount.count ?? 0)}
+          accentColor="#7C5CFC"
+        />
+        <StatCard
+          label="ROI"
+          value={roi > 0 ? `${roi.toFixed(1)}x` : 'N/A'}
+          accentColor={activeBrandColor ?? '#FF4D8D'}
+        />
+        <StatCard
+          label="Managed GMV"
+          value={formatCurrency(managedSplitData.managed.gmv)}
+          accentColor="#10B981"
+          subValue={`${managedGmvPct.toFixed(0)}% of total`}
+        />
+        <StatCard
+          label="Unmanaged GMV"
+          value={formatCurrency(managedSplitData.unmanaged.gmv)}
+          accentColor="#94A3B8"
+          subValue={`${(100 - managedGmvPct).toFixed(0)}% of total`}
+        />
       </div>
 
       {/* Brand Ticker — only show on All Brands view, filter out brands with no data */}
@@ -498,23 +508,57 @@ export default async function AdminDashboard({ searchParams }: Props) {
         <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
           <div className="p-4 border-b border-gray-100 flex items-center gap-2">
             <span className="text-lg">🏅</span>
-            <h3 className="text-lg font-semibold text-[#1A1B3A]">Community Highlights</h3>
+            <h3 className="text-base font-semibold text-[#1A1B3A]">Community Highlights</h3>
             <span className="text-xs text-gray-400 ml-auto">Top creators this period</span>
           </div>
-          <div className="divide-y divide-gray-50">
-            {allCreators.slice(0, 5).map((c, i) => (
-              <div key={`${c.creator_name}-${c.brand}-${i}`} className="flex items-center justify-between px-4 py-3 hover:bg-pink-50/20 transition-colors">
-                <div className="flex items-center gap-3">
-                  <span className="text-sm font-bold text-gray-400 w-5">{i + 1}</span>
-                  <div>
-                    <p className="text-sm font-medium text-[#1A1B3A]">{c.creator_name}</p>
+          <div className="divide-y divide-gray-50/80">
+            {groupedCreators.slice(0, 5).map((c, i) => {
+              const rankStyles = [
+                { bg: 'from-amber-300 to-amber-500', shadow: 'shadow-amber-200/60', text: 'text-white' },
+                { bg: 'from-slate-300 to-slate-400', shadow: 'shadow-slate-200/60', text: 'text-white' },
+                { bg: 'from-amber-600 to-amber-700', shadow: 'shadow-amber-300/40', text: 'text-white' },
+              ];
+              const rank = rankStyles[i];
+              const initial = (c.display_name || '?')[0].toUpperCase();
+              return (
+                <div key={c.display_name + i} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50/60 transition-colors">
+                  {/* Rank badge */}
+                  {rank ? (
+                    <div className={`h-7 w-7 rounded-full bg-gradient-to-br ${rank.bg} ${rank.shadow} shadow flex items-center justify-center text-xs font-bold ${rank.text} flex-shrink-0`}>
+                      {i + 1}
+                    </div>
+                  ) : (
+                    <span className="h-7 w-7 flex items-center justify-center text-sm font-bold text-gray-300 flex-shrink-0">{i + 1}</span>
+                  )}
+
+                  {/* Creator avatar */}
+                  <div
+                    className="h-8 w-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
+                    style={{
+                      background: c.isManaged
+                        ? 'linear-gradient(135deg, #FF4D8D, #7C5CFC)'
+                        : 'linear-gradient(135deg, #CBD5E1, #94A3B8)',
+                    }}
+                  >
+                    {initial}
+                  </div>
+
+                  {/* Name + stats */}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-sm font-semibold text-[#1A1B3A] truncate">{c.display_name}</p>
+                      {c.isManaged && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[#7C5CFC]/10 text-[#7C5CFC] flex-shrink-0">M</span>
+                      )}
+                    </div>
                     <p className="text-xs text-gray-400">{formatNumber(c.total_videos)} videos · {formatNumber(c.total_orders)} orders</p>
                   </div>
+
+                  <span className="text-sm font-bold text-[#E91E8C] flex-shrink-0">{formatCurrency(c.total_gmv)}</span>
                 </div>
-                <span className="text-sm font-semibold text-[#E91E8C]">{formatCurrency(c.total_gmv)}</span>
-              </div>
-            ))}
-            {allCreators.length === 0 && (
+              );
+            })}
+            {groupedCreators.length === 0 && (
               <div className="px-4 py-8 text-center text-gray-400 text-sm">No creator data available</div>
             )}
           </div>
