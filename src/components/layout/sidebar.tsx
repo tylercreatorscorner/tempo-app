@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import {
   LayoutDashboard, BarChart3, UserCheck, Settings, CreditCard,
-  Mail, Shield, Compass, FileBarChart, Store,
+  Mail, Compass, FileBarChart, Store,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TempoLogo } from '@/components/ui/tempo-logo';
@@ -41,6 +41,7 @@ const INSIGHTS_SECTION: NavSection = {
   items: [
     { href: '/analytics', label: 'Analytics', icon: BarChart3 },
     { href: '/reporting', label: 'Reporting', icon: FileBarChart },
+    { href: '/brands', label: 'All Brands', icon: Store },
   ],
 };
 
@@ -51,13 +52,6 @@ const FINANCES_SECTION: NavSection = {
   ],
 };
 
-const ADMIN_SECTION: NavSection = {
-  label: 'Admin',
-  items: [
-    { href: '/brands', label: 'All Brands', icon: Store },
-    { href: '/system', label: 'System Health', icon: Shield },
-  ],
-};
 
 const SETTINGS_SECTION: NavSection = {
   items: [
@@ -78,9 +72,7 @@ export function Sidebar({ className, userRole = 'customer' }: SidebarProps) {
   const roleOverride = searchParams.get('role');
   const effectiveRole = roleOverride === 'owner' ? 'owner' : userRole;
 
-  const sections = effectiveRole === 'owner'
-    ? [MAIN_SECTION, MANAGE_SECTION, INSIGHTS_SECTION, FINANCES_SECTION, ADMIN_SECTION]
-    : [MAIN_SECTION, MANAGE_SECTION, INSIGHTS_SECTION, FINANCES_SECTION];
+  const sections = [MAIN_SECTION, MANAGE_SECTION, INSIGHTS_SECTION, FINANCES_SECTION];
 
   function withBrand(href: string) {
     if (!brand) return href;
