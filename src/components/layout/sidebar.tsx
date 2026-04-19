@@ -96,13 +96,13 @@ export function Sidebar({ className, userRole = 'customer' }: SidebarProps) {
         className={cn(
           'group flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-150',
           isActive
-            ? 'bg-white/10 text-white font-medium'
-            : 'text-gray-400 hover:text-gray-100 hover:bg-white/6'
+            ? 'bg-pink-50 text-[#FF4D8D] font-medium'
+            : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
         )}
       >
         <item.icon className={cn(
           'h-4 w-4 flex-shrink-0 transition-colors',
-          isActive ? 'text-[#FF4D8D]' : 'text-gray-500 group-hover:text-gray-300'
+          isActive ? 'text-[#FF4D8D]' : 'text-gray-400 group-hover:text-gray-600'
         )} />
         {item.label}
         {isActive && (
@@ -115,7 +115,7 @@ export function Sidebar({ className, userRole = 'customer' }: SidebarProps) {
   const renderSection = (section: NavSection, key: string) => (
     <div key={key} className="space-y-0.5">
       {section.label && (
-        <p className="px-3 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-widest text-gray-600 select-none">
+        <p className="px-3 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-widest text-gray-400 select-none">
           {section.label}
         </p>
       )}
@@ -125,9 +125,7 @@ export function Sidebar({ className, userRole = 'customer' }: SidebarProps) {
 
   return (
     <aside className={cn(
-        'flex flex-col w-64 h-screen',
-        'bg-[#0F1117] dark:bg-[#0F1117]',
-        'border-r border-white/6',
+        'flex flex-col w-64 h-screen bg-white border-r border-gray-100',
         className
       )}
     >
@@ -142,14 +140,14 @@ export function Sidebar({ className, userRole = 'customer' }: SidebarProps) {
 
         {/* Divider + Settings */}
         <div className="pt-3">
-          <div className="mx-3 mb-3 border-t border-white/6" />
+          <div className="mx-3 mb-3 border-t border-gray-100" />
           {SETTINGS_SECTION.items.map(renderItem)}
         </div>
       </nav>
 
       {/* Brand selector pinned to bottom */}
-      <div className="px-2 pb-4 pt-2 border-t border-white/6">
-        <BrandSwitcher dark />
+      <div className="px-2 pb-4 pt-2 border-t border-gray-100">
+        <BrandSwitcher />
       </div>
     </aside>
   );
