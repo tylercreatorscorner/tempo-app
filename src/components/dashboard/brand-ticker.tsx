@@ -1,6 +1,6 @@
 'use client';
 
-import { formatCurrency, formatPercent } from '@/lib/utils/format';
+import { formatCurrency } from '@/lib/utils/format';
 import { BRAND_COLORS, BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
 
 interface BrandTickerData {
@@ -39,7 +39,7 @@ export function BrandTicker({ brands }: Props) {
                 brand.trend >= 0 ? 'text-green-600' : 'text-red-500'
               }`}>
                 <span>{brand.trend >= 0 ? '▲' : '▼'}</span>
-                <span>{formatPercent(Math.abs(brand.trend))}</span>
+                <span>{Math.abs(brand.trend).toFixed(1)}%</span>
               </span>
             )}
           </div>

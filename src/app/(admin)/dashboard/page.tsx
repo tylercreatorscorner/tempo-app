@@ -671,14 +671,14 @@ export default async function AdminDashboard({ searchParams }: Props) {
       <VideoSection
         emoji="🔥"
         title="Hot Now"
-        description="Posted in the last 7 days with $100+ in sales"
+        description="Recently posted videos generating $100+ in sales"
         videos={videoSections.hotNow}
       />
 
       <VideoSection
         emoji="📈"
         title="Rising"
-        description="Posted 7-14 days ago with sustained sales momentum"
+        description="Videos with sustained sales momentum"
         videos={videoSections.rising}
       />
 
