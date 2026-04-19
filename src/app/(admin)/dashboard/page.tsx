@@ -17,6 +17,7 @@ import { getActiveTenantId } from '@/lib/auth/platform-admin';
 import { GmvAreaChart } from '@/components/charts/gmv-area-chart';
 import { ManagedSplitDonut } from '@/components/charts/managed-split-donut';
 import { TopCreatorsBar } from '@/components/charts/top-creators-bar';
+import { DailyBrief, type DailyBriefActionItem } from '@/components/dashboard/daily-brief';
 
 import { format, subDays, differenceInDays } from 'date-fns';
 
@@ -26,7 +27,8 @@ interface Props {
 
 export default async function AdminDashboard({ searchParams }: Props) {
   const params = await searchParams;
-  const { startDate, endDate } = resolveDateRange(params.range);
+  const { startDate, endDate, preset } = resolveDateRange(params.range);
+  const isYesterday = preset === 'yesterday';
 
   // Load brands dynamically from database (tenant-scoped via RLS, or explicit tenant for platform admin)
   const supabase = await createClient();
@@ -375,6 +377,23 @@ export default async function AdminDashboard({ searchParams }: Props) {
   // Managed GMV trend (compare to previous period is complex, just show values)
   const managedGmvPct = totals.gmv > 0 ? (managedSplitData.managed.gmv / totals.gmv) * 100 : 0;
 
+  // Daily Brief action items (same logic as Creator Alerts)
+  const briefActionItems: DailyBriefActionItem[] = [];
+  for (const c of groupedCreators) {
+    if (!c.isManaged) continue;
+    const retainerAmt = c.retainer ?? 0;
+    if (retainerAmt > 0 && c.total_gmv < retainerAmt * 2) {
+      briefActionItems.push({ name: c.display_name, type: 'warning', detail: `GMV ${formatCurrency(c.total_gmv)} vs ${formatCurrency(retainerAmt)} retainer` });
+    } else if (c.total_gmv > retainerAmt * 10 && retainerAmt > 0) {
+      briefActionItems.push({ name: c.display_name, type: 'crushing', detail: `${(c.total_gmv / retainerAmt).toFixed(0)}x ROI on retainer` });
+    }
+    if (c.total_videos > 0 && c.total_videos <= 2 && c.total_gmv > 500) {
+      briefActionItems.push({ name: c.display_name, type: 'breakout', detail: `${formatCurrency(c.total_gmv)} from just ${c.total_videos} video${c.total_videos === 1 ? '' : 's'}` });
+    }
+  }
+  const briefDate = format(new Date(startDate), 'MMM d, yyyy');
+  const briefPrevDateLabel = format(new Date(prevStartDate), 'MMM d');
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -432,8 +451,27 @@ export default async function AdminDashboard({ searchParams }: Props) {
       {/* Brand Ticker — only show on All Brands view, filter out brands with no data */}
       {!brandFilter && <BrandTicker brands={brandStripData.filter(b => b.gmv > 0)} />}
 
+      {/* Daily Brief — replaces trend chart on Yesterday view */}
+      {isYesterday && (
+        <DailyBrief
+          brandName={activeBrandName}
+          date={briefDate}
+          prevDateLabel={briefPrevDateLabel}
+          currentGmv={totals.gmv}
+          prevGmv={prevTotals.gmv}
+          currentOrders={totals.orders}
+          prevOrders={prevTotals.orders}
+          currentVideos={totals.videos}
+          currentCreators={totals.creators}
+          gmvTrend={gmvTrend}
+          topCreator={groupedCreators[0] ? { name: groupedCreators[0].display_name, gmv: groupedCreators[0].total_gmv } : null}
+          actionItems={briefActionItems}
+          color={activeBrandColor ?? '#FF4D8D'}
+        />
+      )}
+
       {/* GMV Trend Chart — hidden for single-day ranges */}
-      {aggregatedTrend.length > 1 && (
+      {!isYesterday && aggregatedTrend.length > 1 && (
         <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
           <div className="px-6 pt-5 pb-1 flex items-start justify-between">
             <div>
@@ -452,6 +490,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
           <GmvAreaChart data={aggregatedTrend} color={activeBrandColor ?? '#FF4D8D'} height={260} />
         </div>
       )}
+
 
       {/* Analytics Row: GMV Split + Top Creators */}
       {totals.gmv > 0 && (

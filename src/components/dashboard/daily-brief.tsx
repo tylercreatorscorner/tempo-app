@@ -1,196 +1,219 @@
+import type { ReactNode } from 'react';
+import { ShoppingCart, Video, Users, TrendingUp, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
-import { BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
-import { format } from 'date-fns';
-import { Newspaper, AlertTriangle, TrendingUp, TrendingDown } from 'lucide-react';
+import { DayComparisonChart } from '@/components/charts/day-comparison-chart';
 
-interface BrandTrend {
-  brand: string;
-  gmv: number;
-  trend: number;
-}
-
-interface TopCreator {
-  creator_name: string;
-  total_gmv: number;
-}
-
-interface TopProduct {
-  product_name: string;
-  total_gmv: number;
-}
-
-interface TopVideo {
-  video_title: string;
-  creator_name: string;
-  total_gmv: number;
+export interface DailyBriefActionItem {
+  name: string;
+  detail: string;
+  type: 'warning' | 'breakout' | 'crushing';
 }
 
 interface Props {
-  totalGmv: number;
+  brandName: string | null;
+  date: string;
+  prevDateLabel: string;
+  currentGmv: number;
+  prevGmv: number;
+  currentOrders: number;
+  prevOrders: number;
+  currentVideos: number;
+  currentCreators: number;
   gmvTrend?: number;
-  yesterdayGmv: number;
-  totalCreators: number;
-  totalVideos: number;
-  brandTrends: BrandTrend[];
-  topCreator: TopCreator | null;
-  topProduct: TopProduct | null;
-  topVideo: TopVideo | null;
-  startDate: string;
-  endDate: string;
-}
-
-function bn(brand: string) {
-  return BRAND_DISPLAY_NAMES[brand] ?? brand;
+  topCreator?: { name: string; gmv: number } | null;
+  actionItems: DailyBriefActionItem[];
+  color?: string;
 }
 
 export function DailyBrief({
-  totalGmv,
+  brandName,
+  date,
+  prevDateLabel,
+  currentGmv,
+  prevGmv,
+  currentOrders,
+  prevOrders,
+  currentVideos,
+  currentCreators,
   gmvTrend,
-  yesterdayGmv,
-  totalCreators,
-  totalVideos,
-  brandTrends,
   topCreator,
-  topProduct,
-  topVideo,
-  startDate,
-  endDate,
+  actionItems,
+  color = '#FF4D8D',
 }: Props) {
-  const now = new Date();
-  const generatedAt = format(now, "h:mm a 'CT'");
-  const briefRange = `${format(new Date(startDate), 'MMM d')}\u2013${format(new Date(endDate), 'MMM d, yyyy')}`;
+  const name = brandName ?? 'Your portfolio';
+  const isPositive = gmvTrend !== undefined && gmvTrend >= 0;
 
-  const narrativeLines: string[] = [];
-
-  const direction = gmvTrend !== undefined ? (gmvTrend >= 0 ? 'up' : 'down') : null;
-  const trendStr = gmvTrend !== undefined ? `${Math.abs(gmvTrend).toFixed(1)}%` : '';
-  if (direction) {
-    narrativeLines.push(
-      `Portfolio GMV was ${formatCurrency(totalGmv)} this period, ${direction} ${trendStr} from the prior period. ${formatNumber(totalCreators)} creators produced ${formatNumber(totalVideos)} videos.`
-    );
+  let headline: string;
+  if (currentGmv === 0) {
+    headline = `No sales recorded for ${name} yesterday. Verify your TikTok Shop sync is active.`;
+  } else if (gmvTrend === undefined) {
+    headline = `${name} generated ${formatCurrency(currentGmv)} yesterday.`;
   } else {
-    narrativeLines.push(
-      `Portfolio GMV was ${formatCurrency(totalGmv)} this period across ${formatNumber(totalCreators)} active creators.`
-    );
+    const dir = isPositive ? 'up' : 'down';
+    headline = `${name} generated ${formatCurrency(currentGmv)} yesterday — ${dir} ${Math.abs(gmvTrend).toFixed(1)}% from ${prevDateLabel}.`;
   }
 
-  const sortedBrands = [...brandTrends].sort((a, b) => Math.abs(b.trend) - Math.abs(a.trend));
-  for (const b of sortedBrands.slice(0, 3)) {
-    if (b.gmv === 0) continue;
-    const dir = b.trend >= 0 ? 'up' : 'down';
-    narrativeLines.push(
-      `${bn(b.brand)} posted ${formatCurrency(b.gmv)} (${dir} ${Math.abs(b.trend).toFixed(1)}% WoW).`
-    );
-  }
-
-  if (topCreator && topCreator.total_gmv > 0) {
-    narrativeLines.push(
-      `Top performer: @${topCreator.creator_name} generated ${formatCurrency(topCreator.total_gmv)} in GMV.`
-    );
-  }
-
-  if (topProduct && topProduct.total_gmv > 0) {
-    const name = topProduct.product_name.length > 60
-      ? topProduct.product_name.slice(0, 57) + '...'
-      : topProduct.product_name;
-    narrativeLines.push(
-      `Product spotlight: "${name}" led with ${formatCurrency(topProduct.total_gmv)} in revenue.`
-    );
-  }
-
-  const riskBrands = brandTrends.filter((b) => b.trend < -20 && b.gmv > 0);
-  const atRiskLines = riskBrands.map(
-    (b) => `${bn(b.brand)} down ${Math.abs(b.trend).toFixed(0)}%. Investigate creator activity`
-  );
+  const ordersTrend =
+    prevOrders > 0 ? ((currentOrders - prevOrders) / prevOrders) * 100 : undefined;
 
   return (
     <div className="rounded-2xl overflow-hidden border border-gray-100 shadow-sm bg-white">
-      {/* Masthead */}
-      <div className="px-6 py-4 border-b border-amber-100">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-lg bg-amber-50 flex items-center justify-center">
-              <Newspaper className="h-4.5 w-4.5 text-amber-600" />
-            </div>
+      {/* Header */}
+      <div className="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-gray-50/80 to-white">
+        <div className="flex items-center gap-2">
+          <span className="text-base">📰</span>
+          <h3 className="font-semibold text-[#1A1B3A] text-sm">Daily Brief</h3>
+        </div>
+        <span className="text-xs text-gray-400 font-medium">{date}</span>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_260px] divide-y lg:divide-y-0 lg:divide-x divide-gray-100">
+
+        {/* Left: narrative */}
+        <div className="p-5 space-y-4">
+          {/* Headline */}
+          <p className="text-[15px] font-semibold text-[#1A1B3A] leading-snug">
+            {headline}
+            {gmvTrend !== undefined && (
+              <span className={`inline-flex items-center gap-0.5 ml-1 text-sm font-bold ${isPositive ? 'text-emerald-500' : 'text-red-400'}`}>
+                {isPositive ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
+              </span>
+            )}
+          </p>
+
+          {/* Mini stats grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <MiniStat
+              icon={<ShoppingCart className="h-3.5 w-3.5" />}
+              label="Orders"
+              value={formatNumber(currentOrders)}
+              sub={ordersTrend !== undefined ? `${ordersTrend >= 0 ? '+' : ''}${ordersTrend.toFixed(1)}% vs prior` : undefined}
+              subPositive={ordersTrend !== undefined ? ordersTrend >= 0 : undefined}
+              color={color}
+            />
+            <MiniStat
+              icon={<Video className="h-3.5 w-3.5" />}
+              label="Videos"
+              value={formatNumber(currentVideos)}
+              color={color}
+            />
+            <MiniStat
+              icon={<Users className="h-3.5 w-3.5" />}
+              label="Creators"
+              value={formatNumber(currentCreators)}
+              color={color}
+            />
+            {topCreator ? (
+              <MiniStat
+                icon={<TrendingUp className="h-3.5 w-3.5" />}
+                label="Top Creator"
+                value={topCreator.name.split(' ')[0]}
+                sub={formatCurrency(topCreator.gmv)}
+                color={color}
+              />
+            ) : (
+              <MiniStat
+                icon={<TrendingUp className="h-3.5 w-3.5" />}
+                label="Avg Order"
+                value={currentOrders > 0 ? formatCurrency(currentGmv / currentOrders) : '—'}
+                color={color}
+              />
+            )}
+          </div>
+
+          {/* Action items */}
+          {actionItems.length > 0 ? (
             <div>
-              <h2 className="text-lg font-black tracking-[0.2em] uppercase text-[#1A1B3A]">
-                The Daily Brief
-              </h2>
-              <p className="text-[10px] text-gray-400 tracking-wider uppercase mt-0.5">
-                Tempo Intelligence Report
-              </p>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Action Items</p>
+              <div className="space-y-1.5">
+                {actionItems.slice(0, 3).map((item, i) => (
+                  <div key={i} className="flex items-start gap-2 text-sm">
+                    <span className="flex-shrink-0 mt-0.5">
+                      {item.type === 'warning' ? '⚠️' : item.type === 'crushing' ? '🔥' : '⭐'}
+                    </span>
+                    <p className="text-gray-500 leading-snug">
+                      <span className="font-semibold text-[#1A1B3A]">{item.name}</span>
+                      {' — '}{item.detail}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : currentGmv > 0 ? (
+            <p className="text-sm text-gray-400">✅ No action items — your creators are on track.</p>
+          ) : null}
+        </div>
+
+        {/* Right: GMV comparison chart */}
+        <div className="p-4">
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 px-1">
+            GMV vs Prior Day
+          </p>
+          <DayComparisonChart
+            currentGmv={currentGmv}
+            previousGmv={prevGmv}
+            currentLabel="Yesterday"
+            previousLabel={prevDateLabel}
+            color={color}
+            height={170}
+          />
+          {/* Orders row */}
+          <div className="flex items-center justify-between px-2 pt-2 border-t border-gray-100">
+            <div>
+              <p className="text-[10px] text-gray-400">Orders yesterday</p>
+              <p className="text-sm font-bold text-[#1A1B3A]">{formatNumber(currentOrders)}</p>
+            </div>
+            {ordersTrend !== undefined && (
+              <span className={`text-xs font-bold ${ordersTrend >= 0 ? 'text-emerald-500' : 'text-red-400'}`}>
+                {ordersTrend >= 0 ? '↑' : '↓'} {Math.abs(ordersTrend).toFixed(1)}%
+              </span>
+            )}
+            <div className="text-right">
+              <p className="text-[10px] text-gray-400">Prior day</p>
+              <p className="text-sm font-bold text-gray-400">{formatNumber(prevOrders)}</p>
             </div>
           </div>
-          <div className="text-right">
-            <p className="text-[11px] text-gray-500 font-medium">
-              Brief for {briefRange}
-            </p>
-            <p className="text-[10px] text-gray-400">
-              Generated at {generatedAt}
-            </p>
-          </div>
-        </div>
-        <div className="mt-3 flex gap-0.5">
-          <div className="h-[2px] flex-1 bg-amber-200" />
-          <div className="h-[2px] w-8 bg-amber-400" />
-          <div className="h-[2px] flex-1 bg-amber-200" />
         </div>
       </div>
+    </div>
+  );
+}
 
-      {/* Narrative body */}
-      <div className="p-6">
-        <div className="space-y-3">
-          {narrativeLines.map((line, i) => (
-            <p
-              key={i}
-              className={`text-sm leading-relaxed ${
-                i === 0
-                  ? 'text-[#1A1B3A] text-base font-medium'
-                  : 'text-gray-600'
-              }`}
-            >
-              {i === 0 && <span className="text-3xl font-bold text-amber-500 float-left mr-2 mt-0.5 leading-none">{line[0]}</span>}
-              {i === 0 ? line.slice(1) : line}
-            </p>
-          ))}
-        </div>
-
-        {atRiskLines.length > 0 && (
-          <div className="mt-5 rounded-xl bg-red-50 border border-red-100 p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <AlertTriangle className="h-4 w-4 text-red-500" />
-              <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-red-500">Risk Flags</span>
-            </div>
-            <ul className="space-y-1">
-              {atRiskLines.map((line, i) => (
-                <li key={i} className="text-sm text-red-600">
-                  • {line}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        <div className="mt-5 pt-4 border-t border-amber-100 flex flex-wrap gap-4">
-          {brandTrends.map((b) => (
-            <div key={b.brand} className="flex items-center gap-1.5 text-xs">
-              <span className="text-gray-400 font-medium">{bn(b.brand)}</span>
-              <span className="font-semibold text-[#1A1B3A]">{formatCurrency(b.gmv)}</span>
-              {b.trend >= 0 ? (
-                <span className="flex items-center text-green-600">
-                  <TrendingUp className="h-3 w-3 mr-0.5" />
-                  +{b.trend.toFixed(1)}%
-                </span>
-              ) : (
-                <span className="flex items-center text-red-500">
-                  <TrendingDown className="h-3 w-3 mr-0.5" />
-                  {b.trend.toFixed(1)}%
-                </span>
-              )}
-            </div>
-          ))}
-        </div>
+function MiniStat({
+  icon,
+  label,
+  value,
+  sub,
+  subPositive,
+  color,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: string;
+  sub?: string;
+  subPositive?: boolean;
+  color?: string;
+}) {
+  return (
+    <div className="rounded-xl bg-gray-50/80 px-3 py-2.5 space-y-0.5">
+      <div className="flex items-center gap-1">
+        <span style={{ color: color ?? '#FF4D8D' }}>{icon}</span>
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">{label}</span>
       </div>
+      <p className="text-sm font-bold text-[#1A1B3A]">{value}</p>
+      {sub && (
+        <p
+          className={`text-[10px] font-medium ${
+            subPositive === true
+              ? 'text-emerald-500'
+              : subPositive === false
+              ? 'text-red-400'
+              : 'text-gray-400'
+          }`}
+        >
+          {sub}
+        </p>
+      )}
     </div>
   );
 }
