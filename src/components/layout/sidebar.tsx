@@ -24,6 +24,7 @@ interface NavSection {
 const MAIN_SECTION: NavSection = {
   items: [
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { href: '/discover', label: 'Discover', icon: Compass },
   ],
 };
 
@@ -31,7 +32,6 @@ const MANAGE_SECTION: NavSection = {
   label: 'Manage',
   items: [
     { href: '/roster', label: 'My Creators', icon: UserCheck },
-    { href: '/discover', label: 'Discover', icon: Compass },
     { href: '/messages', label: 'Messages', icon: Mail },
   ],
 };
