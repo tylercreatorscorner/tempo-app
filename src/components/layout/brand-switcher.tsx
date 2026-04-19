@@ -14,7 +14,7 @@ interface BrandOption {
   color: string | null;
 }
 
-export function BrandSwitcher() {
+export function BrandSwitcher({ dark = false }: { dark?: boolean }) {
   const { brand, setBrand, brandLabel, brandColor } = useGlobalBrand();
   const [open, setOpen] = useState(false);
   const [options, setOptions] = useState<BrandOption[]>([{ key: 'all', label: 'All Brands', color: null }]);
@@ -110,16 +110,20 @@ export function BrandSwitcher() {
   if (options.length === 0) return null;
 
   return (
-    <div className="px-3">
+    <div>
       <button
         ref={btnRef}
         onClick={() => setOpen(!open)}
         className={cn(
           'w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200',
-          'border hover:shadow-sm',
-          brand === 'all'
-            ? 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100'
-            : 'bg-white border-gray-200 text-gray-900 hover:bg-gray-50'
+          dark
+            ? 'bg-white/8 border border-white/10 text-gray-200 hover:bg-white/12 hover:text-white'
+            : cn(
+                'border hover:shadow-sm',
+                brand === 'all'
+                  ? 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100'
+                  : 'bg-white border-gray-200 text-gray-900 hover:bg-gray-50'
+              )
         )}
       >
         {brandColor ? (
