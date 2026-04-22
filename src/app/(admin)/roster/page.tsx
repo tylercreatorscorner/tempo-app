@@ -167,13 +167,12 @@ function CreatorPanel({
     });
     setSaveError('');
     setEditing(false);
+    setVisibleSlots(initialSlots);
   };
 
-  // How many account slots are visible in edit mode (at least 1, grow as user fills them)
-  const visibleAccountCount = Math.min(
-    5,
-    Math.max(1, ACCOUNT_KEYS.filter(k => form[k]).length + 1)
-  );
+  // Track how many handle slots are visible — starts at however many are already populated
+  const initialSlots = Math.max(1, ACCOUNT_KEYS.filter(k => !!creator[k as keyof Creator]).length);
+  const [visibleSlots, setVisibleSlots] = useState(initialSlots);
 
   const displayName = creator.real_name || creator.account_1 || 'Creator';
 
@@ -266,7 +265,7 @@ function CreatorPanel({
               <div>
                 <label className="block text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1.5">TikTok Accounts</label>
                 <div className="space-y-2">
-                  {ACCOUNT_KEYS.slice(0, visibleAccountCount).map((key, idx) => (
+                  {ACCOUNT_KEYS.slice(0, visibleSlots).map((key, idx) => (
                     <div key={key} className="flex items-center gap-2">
                       <span className="text-xs text-gray-400 w-4 shrink-0">{idx + 1}</span>
                       <input
@@ -276,19 +275,20 @@ function CreatorPanel({
                         placeholder={idx === 0 ? 'primary handle' : 'additional handle'}
                         className="flex-1 px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
                       />
-                      {idx > 0 && form[key] && (
+                      {idx > 0 && (
                         <button
                           type="button"
-                          onClick={() => set(key, '')}
+                          onClick={() => { set(key, ''); setVisibleSlots(s => s - 1); }}
                           className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 transition-colors"
+                          title="Remove handle"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       )}
-                      {idx === visibleAccountCount - 1 && visibleAccountCount < 5 && (
+                      {idx === visibleSlots - 1 && visibleSlots < 5 && (
                         <button
                           type="button"
-                          onClick={() => set(ACCOUNT_KEYS[visibleAccountCount], '')}
+                          onClick={() => setVisibleSlots(s => s + 1)}
                           className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 transition-colors"
                           title="Add another handle"
                         >
