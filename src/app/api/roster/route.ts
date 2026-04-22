@@ -56,22 +56,24 @@ export async function GET(request: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Compute total retainer across ALL matching creators (not just current page)
-  let totalRetainerQuery = supabase
+  // Aggregate query: total_retainer, active_count, on_retainer_count across ALL matching rows
+  let aggQuery = supabase
     .from('managed_creators')
-    .select('retainer')
+    .select('retainer, status')
     .eq('tenant_id', tenantId);
-  if (brand && brand !== 'all') totalRetainerQuery = totalRetainerQuery.eq('brand', brand);
-  if (status && status !== 'all') totalRetainerQuery = totalRetainerQuery.eq('status', status);
+  if (brand && brand !== 'all') aggQuery = aggQuery.eq('brand', brand);
+  if (status && status !== 'all') aggQuery = aggQuery.eq('status', status);
   if (search) {
-    totalRetainerQuery = totalRetainerQuery.or(
+    aggQuery = aggQuery.or(
       `real_name.ilike.%${search}%,account_1.ilike.%${search}%,discord_name.ilike.%${search}%`
     );
   }
-  const { data: retainerRows } = await totalRetainerQuery;
-  const total_retainer = (retainerRows || []).reduce((sum, r) => sum + (Number(r.retainer) || 0), 0);
+  const { data: aggRows } = await aggQuery;
+  const total_retainer    = (aggRows || []).reduce((sum, r) => sum + (Number(r.retainer) || 0), 0);
+  const active_count      = (aggRows || []).filter(r => r.status === 'Active').length;
+  const on_retainer_count = (aggRows || []).filter(r => (Number(r.retainer) || 0) > 0).length;
 
-  return NextResponse.json({ data, total: count ?? 0, page, limit, total_retainer });
+  return NextResponse.json({ data, total: count ?? 0, page, limit, total_retainer, active_count, on_retainer_count });
 }
 
 // POST /api/roster — add a single creator

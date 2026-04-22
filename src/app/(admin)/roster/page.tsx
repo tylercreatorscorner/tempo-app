@@ -403,16 +403,13 @@ function AllCreatorsTab({ brand, onAddCreator }: { brand: string; onAddCreator: 
       const params = new URLSearchParams({ page: String(page), limit: String(PAGE), days: String(days) });
       if (search) params.set('search', search);
       if (brand && brand !== 'all') params.set('brand', brand);
+      if (managedFilter !== 'all') params.set('managed', managedFilter);
 
       const res = await fetch(`/api/creators/universe?${params}`);
       const json = await res.json();
 
-      let data: UniverseCreator[] = json.data || [];
-      if (managedFilter === 'managed')   data = data.filter(c => c.is_managed);
-      if (managedFilter === 'unmanaged') data = data.filter(c => !c.is_managed);
-
-      setCreators(data);
-      setTotal(managedFilter === 'all' ? (json.total || 0) : data.length);
+      setCreators(json.data || []);
+      setTotal(json.total || 0);
     } catch (err) {
       console.error('Failed to fetch all creators:', err);
     } finally {
@@ -424,9 +421,6 @@ function AllCreatorsTab({ brand, onAddCreator }: { brand: string; onAddCreator: 
 
   const fmt  = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(n);
   const totalPages = Math.max(1, Math.ceil(total / PAGE));
-
-  const managedCount   = creators.filter(c => c.is_managed).length;
-  const unmanagedCount = creators.filter(c => !c.is_managed).length;
 
   return (
     <div className="space-y-5">
@@ -479,6 +473,9 @@ function AllCreatorsTab({ brand, onAddCreator }: { brand: string; onAddCreator: 
         <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-16 text-center">
           <Globe className="h-8 w-8 text-gray-200 mx-auto mb-3" />
           <p className="text-gray-500 text-sm font-medium">No creators found</p>
+          {(search || managedFilter !== 'all') && (
+            <p className="text-gray-400 text-xs mt-1">Try adjusting your search or filters</p>
+          )}
         </div>
       ) : (
         <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
@@ -557,7 +554,7 @@ function AllCreatorsTab({ brand, onAddCreator }: { brand: string; onAddCreator: 
 
           <div className="flex items-center justify-between px-5 py-3.5 border-t border-gray-100 bg-gray-50/40">
             <p className="text-xs text-gray-400">
-              {total.toLocaleString()} creators · {managedCount} managed · {unmanagedCount} unmanaged on this page
+              {total.toLocaleString()} {managedFilter === 'all' ? 'creators' : managedFilter} · page {page} of {totalPages}
             </p>
             <div className="flex items-center gap-2">
               <button
@@ -593,6 +590,8 @@ function RosterContent() {
   const [roster, setRoster] = useState<Creator[]>([]);
   const [total, setTotal] = useState(0);
   const [totalRetainer, setTotalRetainer] = useState(0);
+  const [activeCount, setActiveCount] = useState(0);
+  const [onRetainerCount, setOnRetainerCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
@@ -623,6 +622,8 @@ function RosterContent() {
       setRoster(json.data || []);
       setTotal(json.total || 0);
       setTotalRetainer(json.total_retainer || 0);
+      setActiveCount(json.active_count ?? 0);
+      setOnRetainerCount(json.on_retainer_count ?? 0);
     } catch (err) {
       console.error('Failed to fetch roster:', err);
     } finally {
@@ -634,12 +635,12 @@ function RosterContent() {
     fetchRoster();
   }, [fetchRoster]);
 
-  // Reset to page 1 when filters change
-  useEffect(() => { setPage(1); }, [brand, statusFilter]);
+  // Reset page + status filter when brand changes
+  useEffect(() => { setPage(1); setStatusFilter('all'); setSearchInput(''); }, [brand]);
+  // Reset page when status filter changes
+  useEffect(() => { setPage(1); }, [statusFilter]);
 
-  const totalPages   = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const activeCount  = roster.filter(c => c.status === 'Active').length;
-  const withRetainer = roster.filter(c => (c.retainer || 0) > 0).length;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const fmt = (n: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(n);
@@ -699,7 +700,7 @@ function RosterContent() {
           { icon: <Users className="h-4 w-4 text-gray-400" />, label: 'Total Creators', value: total.toLocaleString() },
           { icon: <DollarSign className="h-4 w-4 text-[#E91E8C]" />, label: 'Monthly Retainer', value: fmt(totalRetainer) },
           { icon: <UserCheck className="h-4 w-4 text-green-500" />, label: 'Active', value: activeCount.toLocaleString() },
-          { icon: <TrendingUp className="h-4 w-4 text-blue-400" />, label: 'On Retainer', value: withRetainer.toLocaleString() },
+          { icon: <TrendingUp className="h-4 w-4 text-blue-400" />, label: 'On Retainer', value: onRetainerCount.toLocaleString() },
         ].map(({ icon, label, value }) => (
           <div key={label} className="rounded-2xl bg-white border border-gray-100 shadow-sm p-5">
             <div className="flex items-center gap-2 mb-2">
@@ -744,7 +745,9 @@ function RosterContent() {
         <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-16 text-center">
           <Users className="h-8 w-8 text-gray-200 mx-auto mb-3" />
           <p className="text-gray-500 text-sm font-medium">No creators found</p>
-          <p className="text-gray-400 text-xs mt-1">Try adjusting your search or filters</p>
+          {(search || statusFilter !== 'all') && (
+            <p className="text-gray-400 text-xs mt-1">Try adjusting your search or filters</p>
+          )}
         </div>
       ) : (
         <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">

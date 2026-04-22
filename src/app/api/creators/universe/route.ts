@@ -39,11 +39,12 @@ export async function GET(request: NextRequest) {
   if (!tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { searchParams } = new URL(request.url);
-  const search      = searchParams.get('search')?.toLowerCase() || '';
-  const brandFilter = searchParams.get('brand') || 'all';
-  const page        = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
-  const limit       = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '50', 10)));
-  const days        = Math.min(365, Math.max(7, parseInt(searchParams.get('days') || '90', 10)));
+  const search        = searchParams.get('search')?.toLowerCase() || '';
+  const brandFilter   = searchParams.get('brand') || 'all';
+  const managedFilter = searchParams.get('managed') || 'all'; // 'all' | 'managed' | 'unmanaged'
+  const page          = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
+  const limit         = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '50', 10)));
+  const days          = Math.min(365, Math.max(7, parseInt(searchParams.get('days') || '90', 10)));
 
   // Compute date range anchored to Central Time yesterday → N days back
   const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }));
@@ -116,10 +117,13 @@ export async function GET(request: NextRequest) {
     }
   });
 
-  // Filter by search
-  const filtered = search
+  // Filter by search and managed status
+  let filtered = search
     ? all.filter(c => c.creator_name.toLowerCase().includes(search))
     : all;
+
+  if (managedFilter === 'managed')   filtered = filtered.filter(c => c.is_managed);
+  if (managedFilter === 'unmanaged') filtered = filtered.filter(c => !c.is_managed);
 
   // Sort by GMV descending
   filtered.sort((a, b) => b.total_gmv - a.total_gmv);
