@@ -45,9 +45,10 @@ function trendPct(current: number, previous: number): number | undefined {
 
 /** Initials avatar — picks a color from the brand or falls back to pink gradient */
 function CreatorAvatar({ name, brand }: { name: string; brand: string }) {
+  // Only consider words that START with an alphanumeric character — skips emoji like 💎
   const initials = name
-    .split(' ')
-    .filter(Boolean)
+    .split(/\s+/)
+    .filter((w) => /^[A-Za-z0-9]/.test(w))
     .slice(0, 2)
     .map((w) => w[0].toUpperCase())
     .join('');
@@ -135,9 +136,20 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
     (ACTIVE_BRANDS as readonly string[]).includes(b.brand)
   );
 
-  const performanceStatus = classifyCreator(summary.total_videos);
+  // If the period has no data (data is stale OR truly inactive), classify by lifetime videos instead —
+  // otherwise an active creator looks like a "Ghost" just because we haven't uploaded recent CSVs.
+  const videosForClassification = summary.total_videos > 0
+    ? summary.total_videos
+    : (isStale ? lifetimeStats.total_videos : summary.total_videos);
+  const performanceStatus = classifyCreator(videosForClassification);
   const perfStatusInfo = getStatusInfo(performanceStatus);
-  const primaryBrand = activeBrandsWithData[0] ?? activeBrands[0] ?? '';
+
+  // Prefer the managed brand (where they're officially signed) over whichever brand happened to
+  // return data first
+  const primaryBrand = managedInfo?.brand
+    ?? activeBrandsWithData[0]
+    ?? activeBrands[0]
+    ?? '';
 
   const fmt = (n: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(n);
@@ -145,6 +157,25 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
   return (
     <div className="space-y-6">
       <SetBreadcrumb label={profile.real_name} />
+
+      {/* ── Stale data banner (top priority) ─────────────────────────────── */}
+      {isStale && latestReportDate && (
+        <div className="rounded-2xl bg-amber-50 border border-amber-200 p-4 flex items-start gap-3">
+          <div className="h-9 w-9 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0">
+            <AlertTriangle className="h-4 w-4 text-amber-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-amber-900">
+              Performance data is {daysStale} days old
+            </p>
+            <p className="text-xs text-amber-700 mt-0.5">
+              Last data point: {new Date(latestReportDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}.
+              Period-based stats below may show zero until a fresh TikTok Shop upload is processed.
+              Lifetime stats are still accurate.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* ── Header card ─────────────────────────────────────────────────── */}
       <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
@@ -160,16 +191,8 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
 
         <div className="px-6 py-5">
           <div className="flex flex-col sm:flex-row sm:items-start gap-4">
-            {/* Left: back + avatar + info */}
+            {/* Left: avatar + info (breadcrumb handles back navigation) */}
             <div className="flex items-start gap-4 flex-1 min-w-0">
-              <Link
-                href="/roster"
-                className="p-2 rounded-xl hover:bg-gray-100 transition-colors mt-1 flex-shrink-0"
-                title="Back to My Creators"
-              >
-                <ArrowLeft className="h-4 w-4 text-gray-500" />
-              </Link>
-
               <CreatorAvatar name={profile.real_name} brand={primaryBrand} />
 
               <div className="min-w-0 flex-1">
@@ -309,25 +332,6 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
         </Suspense>
       )}
 
-      {/* ── Stale data banner ────────────────────────────────────────────── */}
-      {isStale && latestReportDate && (
-        <div className="rounded-2xl bg-amber-50 border border-amber-200 p-4 flex items-start gap-3">
-          <div className="h-9 w-9 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0">
-            <AlertTriangle className="h-4 w-4 text-amber-600" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-amber-900">
-              Performance data is {daysStale} days old
-            </p>
-            <p className="text-xs text-amber-700 mt-0.5">
-              Last data point: {new Date(latestReportDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}.
-              Period-based stats below may show zero until a fresh TikTok Shop upload is processed.
-              Lifetime stats are still accurate.
-            </p>
-          </div>
-        </div>
-      )}
-
       {/* ── Stat cards ───────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
         <StatCard
@@ -362,19 +366,18 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
           trend={trendPct(summary.total_commission, summary.prev_commission)}
           trendLabel="vs prior period"
         />
-        {managedInfo && managedInfo.retainer > 0 ? (
-          <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-5 flex flex-col justify-center">
-            <p className="text-xs font-medium uppercase tracking-wider text-gray-500 mb-1">Period ROI</p>
-            <p className={`text-2xl font-extrabold tabular-nums ${
-              summary.total_gmv / managedInfo.retainer >= 1 ? 'text-green-600' : 'text-red-500'
-            }`}>
-              {(summary.total_gmv / managedInfo.retainer).toFixed(1)}x
-            </p>
-            <p className="text-xs text-gray-400 mt-0.5">
-              GMV ÷ {fmt(managedInfo.retainer)} retainer
-            </p>
-          </div>
-        ) : (
+        {managedInfo && managedInfo.retainer > 0 ? (() => {
+          const roi = summary.total_gmv / managedInfo.retainer;
+          const roiColor = roi >= 1 ? '#00C853' : '#F44336';
+          return (
+            <StatCard
+              label="Period ROI"
+              value={`${roi.toFixed(1)}x`}
+              subValue={`GMV ÷ ${fmt(managedInfo.retainer)} retainer`}
+              accentColor={roiColor}
+            />
+          );
+        })() : (
           <StatCard
             label="Avg GMV / Video"
             value={summary.total_videos > 0 ? formatCurrency(summary.total_gmv / summary.total_videos) : '—'}
@@ -382,59 +385,31 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
         )}
       </div>
 
-      {/* ── Managed info + retainer row ──────────────────────────────────── */}
+      {/* ── Retainer tracker (managed creators only) ─────────────────────── */}
       {managedInfo && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {/* Managed summary */}
-          <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="h-8 w-8 rounded-lg bg-pink-50 flex items-center justify-center">
-                <Shield className="h-4 w-4 text-[#E91E8C]" />
+        <div className={cn(managedInfo.notes ? 'grid grid-cols-1 lg:grid-cols-3 gap-4' : '')}>
+          <div className={managedInfo.notes ? 'lg:col-span-2' : ''}>
+            <RetainerTracker data={{
+              creatorId: profile.id,
+              retainer: managedInfo.retainer,
+              monthlyPostRequirement: managedInfo.monthly_post_requirement,
+              retainerStartDate: profile.retainer_start_date,
+              postsThisMonth,
+            }} />
+          </div>
+          {managedInfo.notes && (
+            <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="h-7 w-7 rounded-lg bg-pink-50 flex items-center justify-center">
+                  <Shield className="h-3.5 w-3.5 text-[#E91E8C]" />
+                </div>
+                <h3 className="text-sm font-bold text-[#1A1B3A]">Notes</h3>
               </div>
-              <h3 className="text-sm font-bold text-[#1A1B3A]">Managed Creator</h3>
-              {managedInfo.brand && (
-                <span
-                  className="ml-auto text-xs px-2.5 py-0.5 rounded-full font-medium"
-                  style={{
-                    backgroundColor: `${BRAND_COLORS[managedInfo.brand] ?? '#6B7280'}18`,
-                    color: BRAND_COLORS[managedInfo.brand] ?? '#6B7280',
-                  }}
-                >
-                  {BRAND_DISPLAY_NAMES[managedInfo.brand] ?? managedInfo.brand}
-                </span>
-              )}
-            </div>
-            <div className="grid grid-cols-3 gap-4">
-              <div className="rounded-xl bg-gray-50 p-3 text-center">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1">Retainer</p>
-                <p className="text-base font-bold text-[#1A1B3A]">
-                  {managedInfo.retainer > 0 ? fmt(managedInfo.retainer) : '—'}
-                </p>
-              </div>
-              <div className="rounded-xl bg-gray-50 p-3 text-center">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1">Posts/Mo</p>
-                <p className="text-base font-bold text-[#1A1B3A]">{managedInfo.monthly_post_requirement || 30}</p>
-              </div>
-              <div className="rounded-xl bg-gray-50 p-3 text-center">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1">Status</p>
-                <p className="text-base font-bold text-[#1A1B3A] capitalize">{managedInfo.status || 'Active'}</p>
-              </div>
-            </div>
-            {managedInfo.notes && (
-              <p className="mt-3 text-xs text-gray-500 bg-gray-50 rounded-xl px-3 py-2 leading-relaxed">
+              <p className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">
                 {managedInfo.notes}
               </p>
-            )}
-          </div>
-
-          {/* Retainer tracker — always show when managed */}
-          <RetainerTracker data={{
-            creatorId: profile.id,
-            retainer: managedInfo.retainer,
-            monthlyPostRequirement: managedInfo.monthly_post_requirement,
-            retainerStartDate: profile.retainer_start_date,
-            postsThisMonth,
-          }} />
+            </div>
+          )}
         </div>
       )}
 
@@ -555,12 +530,13 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                   <h3 className="text-sm font-bold text-[#1A1B3A]">Top Videos by GMV</h3>
                   <p className="text-xs text-gray-400 mt-0.5">
                     {selectedBrand
-                      ? `Filtered to ${BRAND_DISPLAY_NAMES[selectedBrand] ?? selectedBrand} · top 20`
-                      : 'Across all accounts · top 20'}
+                      ? `Filtered to ${BRAND_DISPLAY_NAMES[selectedBrand] ?? selectedBrand}`
+                      : 'Across all accounts'}
+                    {summary.total_videos > 20 ? ` · showing top 20 of ${formatNumber(summary.total_videos)}` : ''}
                   </p>
                 </div>
                 <span className="text-xs font-semibold text-gray-400 bg-gray-100 px-2.5 py-1 rounded-full">
-                  {videos.length} videos
+                  {videos.length} shown
                 </span>
               </div>
               <div className="overflow-x-auto">
@@ -581,7 +557,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                     {videos.map((v, i) => (
                       <tr key={v.video_id} className="hover:bg-gray-50/60 transition-colors">
                         <td className="px-5 py-3.5 text-gray-300 font-medium tabular-nums">{i + 1}</td>
-                        <td className="px-5 py-3.5 max-w-xs">
+                        <td className="px-5 py-3.5 min-w-[200px] max-w-[360px]">
                           <VideoTitleButton
                             videoData={{
                               video_id: v.video_id,
@@ -594,7 +570,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                               items_sold: v.items_sold,
                               days_selling: v.days_selling,
                             }}
-                            className="text-left font-medium text-[#1A1B3A] hover:text-[#E91E8C] hover:underline transition-colors truncate block max-w-[240px]"
+                            className="text-left font-medium text-[#1A1B3A] hover:text-[#E91E8C] hover:underline transition-colors truncate block w-full"
                           >
                             {v.video_title}
                           </VideoTitleButton>

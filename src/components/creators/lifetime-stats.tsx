@@ -3,7 +3,20 @@ import type { CreatorLifetimeStats } from '@/lib/data/creator-profile';
 import { Calendar, TrendingUp, Video, ShoppingCart, DollarSign, Clock } from 'lucide-react';
 
 export function LifetimeStats({ stats }: { stats: CreatorLifetimeStats }) {
-  if (!stats.first_active_date) return null;
+  if (!stats.first_active_date) {
+    return (
+      <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+        <div className="px-4 sm:px-6 py-4 border-b border-gray-100">
+          <h3 className="text-lg font-bold tracking-tight text-[#1A1B3A]">Lifetime Stats</h3>
+          <p className="text-xs text-gray-400 mt-0.5">All-time performance across all accounts</p>
+        </div>
+        <div className="p-8 text-center">
+          <p className="text-sm text-gray-400">No performance data yet for this creator.</p>
+          <p className="text-xs text-gray-300 mt-1">Stats will appear here once TikTok Shop data starts syncing.</p>
+        </div>
+      </div>
+    );
+  }
 
   const firstDate = new Date(stats.first_active_date).toLocaleDateString('en-US', {
     month: 'short',
