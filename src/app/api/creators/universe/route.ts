@@ -39,10 +39,11 @@ export async function GET(request: NextRequest) {
   if (!tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { searchParams } = new URL(request.url);
-  const search = searchParams.get('search')?.toLowerCase() || '';
-  const page   = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
-  const limit  = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '50', 10)));
-  const days   = Math.min(365, Math.max(7, parseInt(searchParams.get('days') || '90', 10)));
+  const search      = searchParams.get('search')?.toLowerCase() || '';
+  const brandFilter = searchParams.get('brand') || 'all';
+  const page        = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
+  const limit       = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '50', 10)));
+  const days        = Math.min(365, Math.max(7, parseInt(searchParams.get('days') || '90', 10)));
 
   // Compute date range anchored to Central Time yesterday → N days back
   const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }));
@@ -54,9 +55,14 @@ export async function GET(request: NextRequest) {
 
   const supabase = await createAdminClient();
 
-  // Fetch all creator rankings for every active brand in parallel
+  // Determine which brands to query
+  const brandsToQuery = (brandFilter !== 'all' && (ACTIVE_BRANDS as readonly string[]).includes(brandFilter))
+    ? [brandFilter]
+    : [...ACTIVE_BRANDS];
+
+  // Fetch creator rankings for relevant brands in parallel
   const rankingResults = await Promise.all(
-    ACTIVE_BRANDS.map(brand =>
+    brandsToQuery.map(brand =>
       supabase.rpc('get_creator_rankings', {
         p_brand: brand,
         p_start_date: start,
@@ -86,7 +92,7 @@ export async function GET(request: NextRequest) {
 
   // Combine all brand results into a flat array
   const all: UniverseCreator[] = [];
-  ACTIVE_BRANDS.forEach((brand, i) => {
+  brandsToQuery.forEach((brand, i) => {
     const { data, error } = rankingResults[i];
     if (error || !data) return;
 

@@ -377,7 +377,7 @@ const DAYS_OPTIONS = [
   { label: '90d', value: 90 },
 ];
 
-function AllCreatorsTab({ onAddCreator }: { onAddCreator: (prefill: { account_1: string; brand: string }) => void }) {
+function AllCreatorsTab({ brand, onAddCreator }: { brand: string; onAddCreator: (prefill: { account_1: string; brand: string }) => void }) {
   const [creators, setCreators] = useState<UniverseCreator[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -395,11 +395,15 @@ function AllCreatorsTab({ onAddCreator }: { onAddCreator: (prefill: { account_1:
 
   useEffect(() => { setPage(1); }, [days, managedFilter]);
 
+  useEffect(() => { setPage(1); }, [brand]);
+
   const fetchCreators = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams({ page: String(page), limit: String(PAGE), days: String(days) });
       if (search) params.set('search', search);
+      if (brand && brand !== 'all') params.set('brand', brand);
+
       const res = await fetch(`/api/creators/universe?${params}`);
       const json = await res.json();
 
@@ -414,7 +418,7 @@ function AllCreatorsTab({ onAddCreator }: { onAddCreator: (prefill: { account_1:
     } finally {
       setLoading(false);
     }
-  }, [page, search, days, managedFilter]);
+  }, [brand, page, search, days, managedFilter]);
 
   useEffect(() => { fetchCreators(); }, [fetchCreators]);
 
@@ -683,6 +687,7 @@ function RosterContent() {
       {/* All Creators tab */}
       {activeTab === 'all' && (
         <AllCreatorsTab
+          brand={brand}
           onAddCreator={(prefill) => setAddModalPrefill(prefill)}
         />
       )}
