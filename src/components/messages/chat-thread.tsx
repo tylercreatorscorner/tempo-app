@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import { ChannelIcon } from './channel-icon';
 import { TemplateSidebar } from './template-sidebar';
 import { getChannelConfig } from '@/lib/messages/channels';
+import { TOPIC_LABELS, TOPIC_COLORS, type MessageTopic } from '@/lib/messages/classify-topic';
 
 interface Message {
   id: string;
@@ -15,6 +16,7 @@ interface Message {
   status: string;
   sent_at: string;
   sent_by: string | null;
+  topic?: string | null;
 }
 
 interface Props {
@@ -215,10 +217,20 @@ export function ChatThread({ creatorId, creatorName, discordUserId, brandName, p
             <div
               key={msg.id}
               className={cn(
-                'flex',
-                msg.direction === 'outbound' ? 'justify-end' : 'justify-start'
+                'flex flex-col',
+                msg.direction === 'outbound' ? 'items-end' : 'items-start'
               )}
             >
+              {/* Topic pill on inbound messages */}
+              {msg.direction === 'inbound' && msg.topic && msg.topic !== 'other' && (
+                <span className={cn(
+                  'text-[10px] font-semibold px-2 py-0.5 rounded-full mb-1',
+                  TOPIC_COLORS[msg.topic as MessageTopic]?.bg,
+                  TOPIC_COLORS[msg.topic as MessageTopic]?.fg
+                )}>
+                  {TOPIC_LABELS[msg.topic as MessageTopic]}
+                </span>
+              )}
               <div
                 className={cn(
                   'max-w-[70%] rounded-2xl px-4 py-2.5 text-sm shadow-sm',

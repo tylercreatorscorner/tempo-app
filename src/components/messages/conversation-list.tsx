@@ -21,6 +21,7 @@ import {
   type CreatorStatus,
   getStatusInfo,
 } from '@/lib/data/creator-status';
+import { MESSAGE_TOPICS, TOPIC_LABELS, TOPIC_COLORS, type MessageTopic } from '@/lib/messages/classify-topic';
 
 export interface Conversation {
   creator_id: number;
@@ -40,6 +41,10 @@ export interface Conversation {
   status: string;
   discord_avatar: string | null;
   channel?: string;
+  /** Topic of the most recent inbound message */
+  latest_topic?: string | null;
+  /** Topics of all currently-unread inbound messages */
+  open_topics?: string[];
 }
 
 export function convKey(conv: Conversation): string {
@@ -100,8 +105,21 @@ export function ConversationList({ conversations, activeKey, onSelect }: Props) 
   const [brandFilter, setBrandFilter] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<CreatorStatus | null>(null);
   const [quickFilter, setQuickFilter] = useState<QuickFilter | null>(null);
+  const [topicFilter, setTopicFilter] = useState<MessageTopic | null>(null);
   const [sortBy, setSortBy] = useState<SortOption>('last_messaged');
   const [sortOpen, setSortOpen] = useState(false);
+
+  // Topic counts (only conversations with unread open topics)
+  const topicCounts = useMemo(() => {
+    const counts: Partial<Record<MessageTopic, number>> = {};
+    for (const c of conversations) {
+      if (!c.open_topics || c.open_topics.length === 0) continue;
+      for (const t of c.open_topics) {
+        counts[t as MessageTopic] = (counts[t as MessageTopic] ?? 0) + 1;
+      }
+    }
+    return counts;
+  }, [conversations]);
 
   const filtered = useMemo(() => {
     let items = [...conversations];
@@ -124,6 +142,13 @@ export function ConversationList({ conversations, activeKey, onSelect }: Props) 
     // Status
     if (statusFilter) {
       items = items.filter((c) => c.status === statusFilter);
+    }
+
+    // Topic — filter by the latest inbound topic OR any open (unread) topic on the convo
+    if (topicFilter) {
+      items = items.filter((c) =>
+        c.latest_topic === topicFilter || (c.open_topics?.includes(topicFilter) ?? false)
+      );
     }
 
     // Quick filters
@@ -185,10 +210,13 @@ export function ConversationList({ conversations, activeKey, onSelect }: Props) 
     }
 
     return items;
-  }, [conversations, search, brandFilter, statusFilter, quickFilter, sortBy]);
+  }, [conversations, search, brandFilter, statusFilter, quickFilter, topicFilter, sortBy]);
 
   const activeFiltersCount =
-    (brandFilter ? 1 : 0) + (statusFilter ? 1 : 0) + (quickFilter ? 1 : 0);
+    (brandFilter ? 1 : 0) + (statusFilter ? 1 : 0) + (quickFilter ? 1 : 0) + (topicFilter ? 1 : 0);
+
+  // Topic pills visible when there are any open topics in the inbox (actionable triage)
+  const topicsWithCounts = MESSAGE_TOPICS.filter((t) => (topicCounts[t] ?? 0) > 0);
 
   return (
     <div className="flex flex-col h-full bg-white/80 backdrop-blur-sm border-r border-gray-200">
@@ -415,6 +443,41 @@ export function ConversationList({ conversations, activeKey, onSelect }: Props) 
         </p>
       </div>
 
+      {/* Topic triage strip — only shows when there are unread messages with classified topics */}
+      {topicsWithCounts.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 px-4 py-2.5 border-b border-gray-100 bg-white">
+          <button
+            onClick={() => setTopicFilter(null)}
+            className={cn(
+              'text-[11px] font-semibold px-2.5 py-1 rounded-full transition-colors',
+              topicFilter === null ? 'bg-[#1A1B3A] text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+            )}
+          >
+            All
+          </button>
+          {topicsWithCounts.map((t) => {
+            const active = topicFilter === t;
+            const colors = TOPIC_COLORS[t];
+            return (
+              <button
+                key={t}
+                onClick={() => setTopicFilter(active ? null : t)}
+                className={cn(
+                  'inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full transition-colors',
+                  active ? 'bg-[#1A1B3A] text-white' : `${colors.bg} ${colors.fg} hover:ring-1 hover:ring-gray-200`
+                )}
+              >
+                {TOPIC_LABELS[t]}
+                <span className={cn(
+                  'text-[10px] font-bold px-1.5 rounded-full',
+                  active ? 'bg-white/20 text-white' : 'bg-white/70 text-gray-700'
+                )}>{topicCounts[t]}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* Conversation list */}
       <div className="flex-1 overflow-y-auto">
         {filtered.length === 0 ? (
@@ -535,6 +598,15 @@ export function ConversationList({ conversations, activeKey, onSelect }: Props) 
                   </div>
                 </div>
                 <div className="flex items-center gap-2 ml-[52px]">
+                  {conv.latest_topic && conv.latest_topic !== 'other' && conv.unread_count > 0 && (
+                    <span className={cn(
+                      'text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0',
+                      TOPIC_COLORS[conv.latest_topic as MessageTopic]?.bg,
+                      TOPIC_COLORS[conv.latest_topic as MessageTopic]?.fg
+                    )}>
+                      {TOPIC_LABELS[conv.latest_topic as MessageTopic]}
+                    </span>
+                  )}
                   {conv.last_message ? (
                     <>
                       {conv.channel && <ChannelBadge channel={conv.channel} />}

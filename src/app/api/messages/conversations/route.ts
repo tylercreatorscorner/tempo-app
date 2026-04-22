@@ -40,7 +40,7 @@ export async function GET() {
     // 2. Fetch all messages
     const { data: messages, error: msgErr } = await supabase
       .from('creator_messages')
-      .select('id, creator_id, discord_user_id, content, direction, channel, sent_at, status, read_at')
+      .select('id, creator_id, discord_user_id, content, direction, channel, sent_at, status, read_at, topic')
       .order('sent_at', { ascending: false });
 
     if (msgErr) throw msgErr;
@@ -52,6 +52,8 @@ export async function GET() {
       channel: string;
       unread_count: number;
       message_count: number;
+      latest_inbound_topic: string | null;
+      open_topics: Set<string>;
     }>();
 
     for (const msg of messages ?? []) {
@@ -65,12 +67,22 @@ export async function GET() {
           channel: msg.channel || 'dm',
           unread_count: 0,
           message_count: 0,
+          latest_inbound_topic: null,
+          open_topics: new Set(),
         });
       }
       const entry = msgByCreator.get(cid)!;
       entry.message_count++;
-      // Only count as unread if inbound AND not yet read
-      if (msg.direction === 'inbound' && !msg.read_at) entry.unread_count++;
+      // Unread tracking (inbound + not yet read)
+      if (msg.direction === 'inbound' && !msg.read_at) {
+        entry.unread_count++;
+        if (msg.topic) entry.open_topics.add(msg.topic);
+      }
+      // Latest inbound topic = the topic of the most recent inbound message.
+      // Messages are sorted by sent_at DESC so the first inbound we see is the latest.
+      if (msg.direction === 'inbound' && !entry.latest_inbound_topic && msg.topic) {
+        entry.latest_inbound_topic = msg.topic;
+      }
     }
 
     // 3. Fetch video stats (last 7 days)
@@ -168,11 +180,14 @@ export async function GET() {
       const primaryId = person.creator_ids[0];
 
       let bestMsg: any = undefined;
+      const aggregatedOpenTopics = new Set<string>();
       for (const cid of person.creator_ids) {
         const msg = msgByCreator.get(cid);
-        if (msg && (!bestMsg || new Date(msg.last_message_at) > new Date(bestMsg.last_message_at))) {
+        if (!msg) continue;
+        if (!bestMsg || new Date(msg.last_message_at) > new Date(bestMsg.last_message_at)) {
           bestMsg = msg;
         }
+        msg.open_topics.forEach(t => aggregatedOpenTopics.add(t));
       }
 
       let totalVideos = 0;
@@ -201,6 +216,8 @@ export async function GET() {
         channel: bestMsg?.channel || 'dm',
         unread_count: bestMsg?.unread_count || 0,
         message_count: bestMsg?.message_count || 0,
+        latest_topic: bestMsg?.latest_inbound_topic || null,
+        open_topics: [...aggregatedOpenTopics],
         total_videos_7d: totalVideos,
         total_gmv_7d: totalGmv,
         status,
