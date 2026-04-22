@@ -590,3 +590,25 @@ export async function getManagedCreatorInfo(creatorId: string): Promise<{
 
   return data ?? null;
 }
+
+/**
+ * Most recent report_date in the creator's performance data.
+ * Used to surface data-freshness banners when the data is stale.
+ */
+export async function getCreatorLatestReportDate(
+  creatorId: string | number
+): Promise<string | null> {
+  const handles = await getHandles(String(creatorId));
+  if (handles.length === 0) return null;
+
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from('daily_creator_stats')
+    .select('report_date')
+    .in('tiktok_username', handles)
+    .order('report_date', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  return (data?.report_date as string) ?? null;
+}

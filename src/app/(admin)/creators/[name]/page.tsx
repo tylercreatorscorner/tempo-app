@@ -16,7 +16,7 @@ import { VideoTitleButton } from '@/components/video/video-title-button';
 import { classifyCreator, getStatusInfo } from '@/lib/data/creator-status';
 import { CreatorTags } from '@/components/crm/creator-tags';
 import { CreatorTimeline } from '@/components/crm/creator-timeline';
-import { ArrowLeft, Mail, Phone, Shield, ExternalLink, UserX } from 'lucide-react';
+import { ArrowLeft, Mail, Phone, Shield, ExternalLink, UserX, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   getCreatorProfile,
@@ -28,6 +28,7 @@ import {
   getPostsThisMonth,
   getCreatorLifetimeStats,
   getManagedCreatorInfo,
+  getCreatorLatestReportDate,
 } from '@/lib/data/creator-profile';
 import { CreatorPageTabs } from '@/components/creators/creator-page-tabs';
 
@@ -111,7 +112,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
   const activeBrands = profile.brands.filter((b) => (ACTIVE_BRANDS as readonly string[]).includes(b));
   const activeBrandsWithData = profile.brandsWithData.filter((b) => (ACTIVE_BRANDS as readonly string[]).includes(b));
 
-  const [summary, accountBreakdown, brandBreakdown, videos, postsThisMonth, lifetimeStats, managedInfo] =
+  const [summary, accountBreakdown, brandBreakdown, videos, postsThisMonth, lifetimeStats, managedInfo, latestReportDate] =
     await Promise.all([
       getCreatorSummary(creatorId, startDate, endDate, selectedBrand ?? undefined),
       getCreatorAccountBreakdown(creatorId, startDate, endDate, selectedBrand ?? undefined),
@@ -120,7 +121,14 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
       getPostsThisMonth(creatorId, selectedBrand ?? undefined),
       getCreatorLifetimeStats(creatorId),
       getManagedCreatorInfo(creatorId),
+      getCreatorLatestReportDate(creatorId),
     ]);
+
+  // Flag the data as stale if the last data point is > 3 days old
+  const daysStale = latestReportDate
+    ? Math.floor((Date.now() - new Date(latestReportDate).getTime()) / (1000 * 60 * 60 * 24))
+    : null;
+  const isStale = daysStale != null && daysStale > 3;
 
   const filteredBrandBreakdown = brandBreakdown.filter((b) =>
     (ACTIVE_BRANDS as readonly string[]).includes(b.brand)
@@ -296,6 +304,25 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
             selectedBrand={selectedBrand}
           />
         </Suspense>
+      )}
+
+      {/* ── Stale data banner ────────────────────────────────────────────── */}
+      {isStale && latestReportDate && (
+        <div className="rounded-2xl bg-amber-50 border border-amber-200 p-4 flex items-start gap-3">
+          <div className="h-9 w-9 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0">
+            <AlertTriangle className="h-4 w-4 text-amber-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-amber-900">
+              Performance data is {daysStale} days old
+            </p>
+            <p className="text-xs text-amber-700 mt-0.5">
+              Last data point: {new Date(latestReportDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}.
+              Period-based stats below may show zero until a fresh TikTok Shop upload is processed.
+              Lifetime stats are still accurate.
+            </p>
+          </div>
+        </div>
       )}
 
       {/* ── Stat cards ───────────────────────────────────────────────────── */}
