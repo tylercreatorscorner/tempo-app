@@ -213,13 +213,14 @@ export async function getCreatorProfile(creatorId: string | number): Promise<Cre
  */
 export async function getCreatorIdByHandle(handle: string): Promise<string | null> {
   const supabase = await createClient();
+  // Use ilike for case-insensitive match — handles stored in mixed case won't hard-404
   const { data, error } = await supabase
     .from('tiktok_accounts')
     .select('creator_id')
-    .eq('tiktok_username', handle)
+    .ilike('tiktok_username', handle)
     .not('creator_id', 'is', null)
     .limit(1)
-    .single();
+    .maybeSingle();
 
   if (error || !data) return null;
   return data.creator_id as string;

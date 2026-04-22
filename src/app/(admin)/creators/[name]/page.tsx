@@ -12,7 +12,7 @@ import { RetainerTracker } from '@/components/creators/retainer-tracker';
 import { BrandFilter } from '@/components/creators/brand-filter';
 import { LifetimeStats } from '@/components/creators/lifetime-stats';
 import Link from 'next/link';
-import { ArrowLeft, User, Mail, Phone, Shield } from 'lucide-react';
+import { ArrowLeft, User, Mail, Phone, Shield, UserX } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { VideoTitleButton } from '@/components/video/video-title-button';
 import { classifyCreator, getStatusInfo } from '@/lib/data/creator-status';
@@ -83,7 +83,27 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
       const qs = sp.range ? `?range=${sp.range}` : '';
       redirect(`/creators/${id}${qs}`);
     }
-    notFound();
+    // No full profile exists for this handle — show a helpful page instead of a hard 404
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6 text-center px-4">
+        <div className="h-16 w-16 rounded-full bg-gray-100 flex items-center justify-center">
+          <UserX className="h-8 w-8 text-gray-300" />
+        </div>
+        <div>
+          <h1 className="text-xl font-bold text-[#1A1B3A] mb-1">No full profile for @{slug}</h1>
+          <p className="text-sm text-gray-400 max-w-sm">
+            This creator is on your managed roster but hasn&apos;t been linked to a full performance profile yet.
+            They&apos;ll appear here automatically once their TikTok data starts syncing.
+          </p>
+        </div>
+        <Link
+          href="/roster"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#E91E8C] text-white text-sm font-semibold hover:bg-[#d1177d] transition-colors"
+        >
+          <ArrowLeft className="h-4 w-4" /> Back to My Creators
+        </Link>
+      </div>
+    );
   }
 
   const profile = await getCreatorProfile(creatorId);
