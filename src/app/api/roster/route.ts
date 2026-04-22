@@ -5,48 +5,58 @@ async function getTenantId() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
-  
+
   const admin = await createAdminClient();
   const { data: profile } = await admin
     .from('user_profiles')
     .select('tenant_id')
     .eq('user_id', user.id)
     .maybeSingle();
-  
+
   return profile?.tenant_id || null;
 }
 
-// GET /api/roster?brand=...&status=...&search=...
+const COLUMNS = [
+  'id', 'real_name', 'brand', 'status', 'retainer', 'monthly_post_requirement',
+  'discord_name', 'discord_avatar', 'notes', 'created_at',
+  'account_1', 'account_2', 'account_3', 'account_4', 'account_5',
+].join(', ');
+
+// GET /api/roster?brand=&status=&search=&page=1&limit=50
 export async function GET(request: NextRequest) {
   const tenantId = await getTenantId();
   if (!tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { searchParams } = new URL(request.url);
-  const brand = searchParams.get('brand');
+  const brand  = searchParams.get('brand');
   const status = searchParams.get('status');
   const search = searchParams.get('search');
+  const page   = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
+  const limit  = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '50', 10)));
+  const offset = (page - 1) * limit;
 
   const supabase = await createAdminClient();
 
   let query = supabase
     .from('managed_creators')
-    .select('*')
+    .select(COLUMNS, { count: 'exact' })
     .eq('tenant_id', tenantId)
-    .order('retainer', { ascending: false, nullsFirst: false });
+    .order('retainer', { ascending: false, nullsFirst: false })
+    .range(offset, offset + limit - 1);
 
   if (brand && brand !== 'all') query = query.eq('brand', brand);
   if (status && status !== 'all') query = query.eq('status', status);
   if (search) {
-    query = query.or(`real_name.ilike.%${search}%,account_1.ilike.%${search}%,discord_name.ilike.%${search}%`);
+    query = query.or(
+      `real_name.ilike.%${search}%,account_1.ilike.%${search}%,discord_name.ilike.%${search}%`
+    );
   }
 
-  const { data, error } = await query;
+  const { data, count, error } = await query;
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  return NextResponse.json({ data });
+  return NextResponse.json({ data, total: count ?? 0, page, limit });
 }
 
 // POST /api/roster — add a single creator
@@ -80,9 +90,7 @@ export async function POST(request: NextRequest) {
     .select()
     .single();
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   return NextResponse.json({ data }, { status: 201 });
 }
