@@ -101,10 +101,12 @@ export default function MessagesPage() {
     ));
   };
 
+  const totalUnread = conversations.reduce((sum, c) => sum + (c.unread_count || 0), 0);
+
   return (
     <div className="flex flex-col -m-3 sm:-m-4 md:-m-6" style={{ height: 'calc(100vh - 57px)' }}>
       {/* Top bar */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-white">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-white">
         <div className="flex items-center gap-3">
           {mobileShowThread && (
             <button
@@ -114,20 +116,27 @@ export default function MessagesPage() {
               ← Back
             </button>
           )}
-          <MessageSquare className="h-5 w-5 text-pink-500" />
-          <h1 className="text-lg font-semibold text-[#1A1B3A]">Messages</h1>
+          <MessageSquare className="h-5 w-5 text-[#E91E8C]" />
+          <div className="flex items-center gap-2">
+            <h1 className="text-lg font-bold text-[#1A1B3A]">Messages</h1>
+            {totalUnread > 0 && (
+              <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-[#E91E8C] text-white text-[10px] font-bold">
+                {totalUnread > 99 ? '99+' : totalUnread}
+              </span>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={() => setTestDmOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-200 bg-white text-gray-700 text-sm font-medium hover:bg-gray-50 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-200 bg-white text-gray-600 text-sm font-medium hover:bg-gray-50 transition-colors"
           >
             <Send className="h-4 w-4" />
             Test DM
           </button>
           <button
             onClick={() => setBulkOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-br from-pink-500 to-purple-500 text-white text-sm font-medium hover:opacity-90 transition-opacity"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#E91E8C] text-white text-sm font-semibold hover:bg-[#d1177d] transition-colors shadow-sm"
           >
             <Users className="h-4 w-4" />
             Bulk Message
@@ -145,8 +154,16 @@ export default function MessagesPage() {
           {/* Left panel - conversation list */}
           <div className={`w-full md:w-80 md:flex-shrink-0 ${mobileShowThread ? 'hidden md:block' : 'block'}`}>
             {loading ? (
-              <div className="flex items-center justify-center h-full text-gray-400">
-                <div className="animate-spin h-6 w-6 border-2 border-pink-300 border-t-transparent rounded-full" />
+              <div className="p-4 space-y-2">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-3 p-3 rounded-xl">
+                    <div className="h-10 w-10 rounded-full bg-gray-100 animate-pulse" />
+                    <div className="flex-1 space-y-1.5">
+                      <div className="h-3 w-3/5 rounded bg-gray-100 animate-pulse" />
+                      <div className="h-2.5 w-4/5 rounded bg-gray-100 animate-pulse" />
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : (
               <ConversationList
@@ -161,15 +178,19 @@ export default function MessagesPage() {
           <div className={`flex-1 ${mobileShowThread ? 'block' : 'hidden md:block'}`}>
             {activeConv ? (
               <ChatThread
+                key={activeConv.creator_id}
                 creatorId={activeConv.creator_id}
                 creatorName={activeConv.creator_name}
                 discordUserId={activeConv.discord_user_id}
                 brandName={activeConv.brand ? (BRAND_DISPLAY_NAMES[activeConv.brand] || activeConv.brand) : undefined}
+                postCount={activeConv.total_videos_7d}
+                gmv={activeConv.total_gmv_7d}
               />
             ) : (
-              <div className="flex flex-col items-center justify-center h-full text-gray-400 bg-[#F8F9FC]">
+              <div className="flex flex-col items-center justify-center h-full text-gray-400 bg-[#F8F9FC] px-4 text-center">
                 <MessageSquare className="h-12 w-12 mb-4 opacity-30" />
-                <p className="text-sm">Select a conversation to start messaging</p>
+                <p className="text-sm font-medium text-gray-500">Select a conversation</p>
+                <p className="text-xs text-gray-400 mt-1">Or start a new one with the Bulk Message button above</p>
               </div>
             )}
           </div>

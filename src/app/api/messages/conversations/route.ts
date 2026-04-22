@@ -40,7 +40,7 @@ export async function GET() {
     // 2. Fetch all messages
     const { data: messages, error: msgErr } = await supabase
       .from('creator_messages')
-      .select('id, creator_id, discord_user_id, content, direction, channel, sent_at, status')
+      .select('id, creator_id, discord_user_id, content, direction, channel, sent_at, status, read_at')
       .order('sent_at', { ascending: false });
 
     if (msgErr) throw msgErr;
@@ -69,7 +69,8 @@ export async function GET() {
       }
       const entry = msgByCreator.get(cid)!;
       entry.message_count++;
-      if (msg.direction === 'inbound') entry.unread_count++;
+      // Only count as unread if inbound AND not yet read
+      if (msg.direction === 'inbound' && !msg.read_at) entry.unread_count++;
     }
 
     // 3. Fetch video stats (last 7 days)

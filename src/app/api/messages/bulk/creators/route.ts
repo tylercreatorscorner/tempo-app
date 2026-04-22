@@ -24,40 +24,77 @@ export async function GET(request: NextRequest) {
 
     const { data: rows, error } = await query;
 
+    if (error) throw error;
+
     // Flatten and filter
     const creators = (rows ?? [])
       .filter((r: any) => r.creator)
       .map((r: any) => ({
         id: r.creator.id,
         real_name: r.creator.real_name,
-        brand: r.brand_id, // keep UUID for now
+        brand: r.brand_id,
         discord_id: r.creator.discord_id,
       }));
 
-    // Filter by discord
-    const filtered = hasDiscord === 'yes'
+    // Filter by discord presence
+    const filteredByDiscord = hasDiscord === 'yes'
       ? creators.filter((c: any) => c.discord_id)
       : hasDiscord === 'no'
         ? creators.filter((c: any) => !c.discord_id)
         : creators;
 
-    if (error) throw error;
+    // Compute real status from 7-day video counts rather than hardcoding 'ghost'
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const creatorIds = filteredByDiscord.map((c: any) => c.id);
 
-    // Parse status filters
+    // Get tiktok handles for these creators so we can look up video counts by handle
+    const { data: accounts } = await supabase
+      .from('tiktok_accounts')
+      .select('creator_id, tiktok_username')
+      .in('creator_id', creatorIds);
+
+    const handlesByCreator = new Map<string, string[]>();
+    for (const a of accounts ?? []) {
+      if (!handlesByCreator.has(a.creator_id)) handlesByCreator.set(a.creator_id, []);
+      handlesByCreator.get(a.creator_id)!.push(a.tiktok_username.toLowerCase());
+    }
+    const allHandles = [...new Set([...handlesByCreator.values()].flat())];
+
+    // Fetch 7-day video counts for all these handles in one shot
+    const videosByHandle = new Map<string, Set<string>>();
+    if (allHandles.length > 0) {
+      const { data: vids } = await supabase
+        .from('daily_video_stats')
+        .select('tiktok_username, video_id')
+        .gte('post_date', sevenDaysAgo)
+        .in('tiktok_username', allHandles);
+
+      for (const v of vids ?? []) {
+        const h = v.tiktok_username?.toLowerCase();
+        if (!h) continue;
+        if (!videosByHandle.has(h)) videosByHandle.set(h, new Set());
+        videosByHandle.get(h)!.add(v.video_id);
+      }
+    }
+
+    const creatorList = filteredByDiscord.map((c: any) => {
+      const handles = handlesByCreator.get(c.id) ?? [];
+      const videoCount = handles.reduce((sum, h) => sum + (videosByHandle.get(h)?.size ?? 0), 0);
+      return {
+        id: c.id,
+        real_name: c.real_name,
+        brand: c.brand,
+        discord_id: c.discord_id,
+        status: classifyCreator(videoCount),
+      };
+    });
+
     const allowedStatuses = statusesParam
       ? new Set(statusesParam.split(',') as CreatorStatus[])
       : null;
 
-    const creatorList = filtered.map((c: any) => ({
-      id: c.id,
-      real_name: c.real_name,
-      brand: c.brand,
-      discord_id: c.discord_id,
-      status: 'ghost' as CreatorStatus,
-    }));
-
     const finalList = allowedStatuses
-      ? creatorList.filter((c: any) => allowedStatuses.has(c.status))
+      ? creatorList.filter(c => allowedStatuses.has(c.status))
       : creatorList;
 
     return NextResponse.json({ creators: finalList });

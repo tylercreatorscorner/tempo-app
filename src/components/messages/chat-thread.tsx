@@ -22,6 +22,8 @@ interface Props {
   creatorName: string;
   discordUserId?: string | null;
   brandName?: string;
+  postCount?: number;
+  gmv?: number;
 }
 
 function StatusIcon({ status }: { status: string }) {
@@ -34,7 +36,7 @@ function StatusIcon({ status }: { status: string }) {
   }
 }
 
-export function ChatThread({ creatorId, creatorName, discordUserId, brandName }: Props) {
+export function ChatThread({ creatorId, creatorName, discordUserId, brandName, postCount, gmv }: Props) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(true);
@@ -43,6 +45,14 @@ export function ChatThread({ creatorId, creatorName, discordUserId, brandName }:
   const [hasMore, setHasMore] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const markAsRead = useCallback(async () => {
+    try {
+      const params = new URLSearchParams();
+      if (discordUserId) params.set('discord_user_id', discordUserId);
+      await fetch(`/api/messages/${creatorId}/mark-read?${params}`, { method: 'POST' });
+    } catch {/* non-critical */}
+  }, [creatorId, discordUserId]);
 
   const fetchMessages = useCallback(async (p: number, append = false) => {
     try {
@@ -64,32 +74,45 @@ export function ChatThread({ creatorId, creatorName, discordUserId, brandName }:
     setLoading(true);
     setMessages([]);
     fetchMessages(1);
-  }, [creatorId, fetchMessages]);
+    markAsRead(); // Mark thread as read as soon as it opens
+  }, [creatorId, fetchMessages, markAsRead]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Poll every 3 seconds
+  // Poll every 10s when tab is visible; pause when hidden to save API calls.
+  // Mark-as-read is re-called whenever new inbound messages arrive so the unread
+  // badge clears even when the user stays in the thread.
   useEffect(() => {
-    const interval = setInterval(async () => {
+    let lastMessageId: string | null = null;
+
+    const tick = async () => {
+      if (document.hidden) return;
       try {
         const params = new URLSearchParams({ page: '1' });
         if (discordUserId) params.set('discord_user_id', discordUserId);
         const res = await fetch(`/api/messages/${creatorId}?${params}`);
         const data = await res.json();
         const newMessages = data.messages as Message[];
-        setMessages(prev => {
-          if (newMessages.length !== prev.length ||
-              (newMessages.length > 0 && prev.length > 0 && newMessages[newMessages.length - 1]?.id !== prev[prev.length - 1]?.id)) {
-            return newMessages;
-          }
-          return prev;
-        });
-      } catch {}
-    }, 3000);
-    return () => clearInterval(interval);
-  }, [creatorId, discordUserId]);
+        const latestId = newMessages[newMessages.length - 1]?.id ?? null;
+        if (latestId !== lastMessageId) {
+          lastMessageId = latestId;
+          setMessages(newMessages);
+          // New inbound message(s) arrived while viewing — re-mark as read
+          if (newMessages.some(m => m.direction === 'inbound')) markAsRead();
+        }
+      } catch {/* non-critical */}
+    };
+
+    const interval = setInterval(tick, 10000);
+    const onVisible = () => { if (!document.hidden) tick(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [creatorId, discordUserId, markAsRead]);
 
   const handleSend = async () => {
     const content = input.trim();
@@ -162,6 +185,8 @@ export function ChatThread({ creatorId, creatorName, discordUserId, brandName }:
         <TemplateSidebar
           creatorName={creatorName}
           brandName={brandName}
+          postCount={postCount}
+          gmv={gmv}
           onSelect={(content) => setInput(content)}
         />
       </div>

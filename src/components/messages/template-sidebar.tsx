@@ -8,10 +8,12 @@ import { cn } from '@/lib/utils';
 interface Props {
   creatorName?: string;
   brandName?: string;
+  postCount?: number;
+  gmv?: number;
   onSelect: (content: string) => void;
 }
 
-export function TemplateSidebar({ creatorName, brandName, onSelect }: Props) {
+export function TemplateSidebar({ creatorName, brandName, postCount, gmv, onSelect }: Props) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
 
@@ -23,8 +25,11 @@ export function TemplateSidebar({ creatorName, brandName, onSelect }: Props) {
   const handleSelect = (template: MessageTemplate) => {
     const values: Record<string, string> = {};
     if (creatorName) values.creator_name = creatorName;
-    if (brandName) values.brand_name = brandName;
-    // Leave unfilled variables as placeholders
+    if (brandName)   values.brand_name = brandName;
+    if (postCount !== undefined) values.post_count = String(postCount);
+    if (gmv !== undefined) {
+      values.gmv = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(gmv);
+    }
     const filled = fillTemplate(template.content, values);
     onSelect(filled);
     setOpen(false);
