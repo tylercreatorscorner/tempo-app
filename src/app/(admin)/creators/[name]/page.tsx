@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import { Suspense } from 'react';
 import { redirect, notFound } from 'next/navigation';
+import Link from 'next/link';
 import { resolveDateRange } from '@/lib/data/date-utils';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
 import { BRAND_COLORS, BRAND_DISPLAY_NAMES, ACTIVE_BRANDS } from '@/lib/utils/constants';
@@ -11,13 +12,12 @@ import { CreatorEditButton } from '@/components/creators/creator-edit-panel';
 import { RetainerTracker } from '@/components/creators/retainer-tracker';
 import { BrandFilter } from '@/components/creators/brand-filter';
 import { LifetimeStats } from '@/components/creators/lifetime-stats';
-import Link from 'next/link';
-import { ArrowLeft, User, Mail, Phone, Shield, UserX } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import { VideoTitleButton } from '@/components/video/video-title-button';
 import { classifyCreator, getStatusInfo } from '@/lib/data/creator-status';
 import { CreatorTags } from '@/components/crm/creator-tags';
 import { CreatorTimeline } from '@/components/crm/creator-timeline';
+import { ArrowLeft, Mail, Phone, Shield, ExternalLink, UserX } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import {
   getCreatorProfile,
   getCreatorIdByHandle,
@@ -29,10 +29,11 @@ import {
   getCreatorLifetimeStats,
   getManagedCreatorInfo,
 } from '@/lib/data/creator-profile';
+import { CreatorPageTabs } from '@/components/creators/creator-page-tabs';
 
 interface Props {
   params: Promise<{ name: string }>;
-  searchParams: Promise<{ range?: string; brand?: string }>;
+  searchParams: Promise<{ range?: string; brand?: string; tab?: string }>;
 }
 
 function trendPct(current: number, previous: number): number | undefined {
@@ -40,29 +41,24 @@ function trendPct(current: number, previous: number): number | undefined {
   return ((current - previous) / previous) * 100;
 }
 
-function StatusBadge({ status }: { status: string | null }) {
-  if (!status) return null;
-  const colors: Record<string, string> = {
-    active: 'bg-green-50 text-green-700 border-green-200',
-    churned: 'bg-red-50 text-red-600 border-red-200',
-    paused: 'bg-yellow-50 text-yellow-700 border-yellow-200',
-    applied: 'bg-blue-50 text-blue-600 border-blue-200',
-    pending: 'bg-orange-50 text-orange-600 border-orange-200',
-    prospect: 'bg-blue-50 text-blue-600 border-blue-200',
-  };
-  return (
-    <span className={cn('text-xs px-2.5 py-1 rounded-full font-medium border capitalize', colors[status.toLowerCase()] ?? 'bg-gray-50 text-gray-600 border-gray-200')}>
-      {status}
-    </span>
-  );
-}
+/** Initials avatar — picks a color from the brand or falls back to pink gradient */
+function CreatorAvatar({ name, brand }: { name: string; brand: string }) {
+  const initials = name
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0].toUpperCase())
+    .join('');
 
-function RoleBadge({ role }: { role: string | null }) {
-  if (!role) return null;
+  const color = BRAND_COLORS[brand] ?? '#E91E8C';
+
   return (
-    <span className="text-xs px-2.5 py-1 rounded-full font-medium border bg-purple-50 text-purple-700 border-purple-200 capitalize">
-      {role}
-    </span>
+    <div
+      className="h-16 w-16 rounded-2xl flex items-center justify-center text-xl font-extrabold text-white shadow-lg flex-shrink-0"
+      style={{ background: `linear-gradient(135deg, ${color}dd, ${color}88)` }}
+    >
+      {initials || '?'}
+    </div>
   );
 }
 
@@ -83,7 +79,6 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
       const qs = sp.range ? `?range=${sp.range}` : '';
       redirect(`/creators/${id}${qs}`);
     }
-    // No full profile exists for this handle — show a helpful page instead of a hard 404
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6 text-center px-4">
         <div className="h-16 w-16 rounded-full bg-gray-100 flex items-center justify-center">
@@ -111,129 +106,189 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
 
   const { startDate, endDate } = resolveDateRange(sp.range);
   const selectedBrand = sp.brand || null;
+  const activeTab = sp.tab || 'overview';
 
-  // Filter brands to only active ones
   const activeBrands = profile.brands.filter((b) => (ACTIVE_BRANDS as readonly string[]).includes(b));
   const activeBrandsWithData = profile.brandsWithData.filter((b) => (ACTIVE_BRANDS as readonly string[]).includes(b));
 
-  const [summary, accountBreakdown, brandBreakdown, videos, postsThisMonth, lifetimeStats, managedInfo] = await Promise.all([
-    getCreatorSummary(creatorId, startDate, endDate, selectedBrand ?? undefined),
-    getCreatorAccountBreakdown(creatorId, startDate, endDate, selectedBrand ?? undefined),
-    getCreatorBrandBreakdown(creatorId, startDate, endDate),
-    getCreatorVideos(creatorId, startDate, endDate, 20, selectedBrand ?? undefined),
-    getPostsThisMonth(creatorId, selectedBrand ?? undefined),
-    getCreatorLifetimeStats(creatorId),
-    getManagedCreatorInfo(creatorId),
-  ]);
+  const [summary, accountBreakdown, brandBreakdown, videos, postsThisMonth, lifetimeStats, managedInfo] =
+    await Promise.all([
+      getCreatorSummary(creatorId, startDate, endDate, selectedBrand ?? undefined),
+      getCreatorAccountBreakdown(creatorId, startDate, endDate, selectedBrand ?? undefined),
+      getCreatorBrandBreakdown(creatorId, startDate, endDate),
+      getCreatorVideos(creatorId, startDate, endDate, 20, selectedBrand ?? undefined),
+      getPostsThisMonth(creatorId, selectedBrand ?? undefined),
+      getCreatorLifetimeStats(creatorId),
+      getManagedCreatorInfo(creatorId),
+    ]);
 
-  // Filter brand breakdown to active brands only
-  const filteredBrandBreakdown = brandBreakdown.filter((b) => (ACTIVE_BRANDS as readonly string[]).includes(b.brand));
+  const filteredBrandBreakdown = brandBreakdown.filter((b) =>
+    (ACTIVE_BRANDS as readonly string[]).includes(b.brand)
+  );
 
-  // Compute performance status
   const performanceStatus = classifyCreator(summary.total_videos);
   const perfStatusInfo = getStatusInfo(performanceStatus);
+  const primaryBrand = activeBrandsWithData[0] ?? activeBrands[0] ?? '';
+
+  const fmt = (n: number) =>
+    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(n);
 
   return (
     <div className="space-y-6">
-      {/* Breadcrumb */}
-      <div className="flex items-center gap-1.5 text-xs text-gray-400">
-        <Link href="/creators" className="hover:text-gray-600 transition-colors">Creators</Link>
-        <span>/</span>
-        <span className="text-gray-600">{profile.real_name}</span>
-      </div>
+      {/* ── Header card ─────────────────────────────────────────────────── */}
+      <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+        {/* Thin brand-color top bar */}
+        <div
+          className="h-1.5 w-full"
+          style={{
+            background: primaryBrand
+              ? `linear-gradient(90deg, ${BRAND_COLORS[primaryBrand] ?? '#E91E8C'}, ${BRAND_COLORS[primaryBrand] ?? '#E91E8C'}66)`
+              : 'linear-gradient(90deg, #E91E8C, #E91E8C66)',
+          }}
+        />
 
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-        <div className="flex items-start gap-3">
-          <Link href="/creators" className="p-2 rounded-lg hover:bg-gray-100 transition-colors mt-1">
-            <ArrowLeft className="h-5 w-5 text-gray-600" />
-          </Link>
-          <div className="h-12 w-12 rounded-full bg-pink-50 border border-pink-100 flex items-center justify-center">
-            <User className="h-6 w-6 text-[#FF4D8D]" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-2xl font-bold text-[#1A1B3A]">{profile.real_name}</h1>
-              <CreatorEditButton creator={{
-                id: profile.id,
-                real_name: profile.real_name,
-                email: profile.email,
-                phone: profile.phone,
-                role: profile.role,
-                status: profile.status,
-                notes: profile.notes,
-                accounts: profile.accounts.map((a) => ({ tiktok_username: a.tiktok_username, is_primary: a.is_primary })),
-              }} />
-              <StatusBadge status={profile.status} />
-              <RoleBadge role={profile.role} />
-              {managedInfo && (
-                <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full font-medium border bg-pink-50 text-[#E91E8C] border-pink-200">
-                  <Shield className="h-3 w-3" /> Managed
-                </span>
-              )}
-              <span
-                className="text-xs px-2.5 py-1 rounded-full font-medium border"
-                style={{ borderColor: perfStatusInfo.color, color: perfStatusInfo.color, backgroundColor: perfStatusInfo.bgColor }}
+        <div className="px-6 py-5">
+          <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+            {/* Left: back + avatar + info */}
+            <div className="flex items-start gap-4 flex-1 min-w-0">
+              <Link
+                href="/roster"
+                className="p-2 rounded-xl hover:bg-gray-100 transition-colors mt-1 flex-shrink-0"
+                title="Back to My Creators"
               >
-                {perfStatusInfo.label}
-              </span>
-            </div>
+                <ArrowLeft className="h-4 w-4 text-gray-500" />
+              </Link>
 
-            {/* Contact info */}
-            <div className="flex items-center gap-4 mt-1">
-              {profile.email && (
-                <span className="flex items-center gap-1 text-xs text-gray-400">
-                  <Mail className="h-3 w-3" /> {profile.email}
-                </span>
-              )}
-              {profile.phone && (
-                <span className="flex items-center gap-1 text-xs text-gray-400">
-                  <Phone className="h-3 w-3" /> {profile.phone}
-                </span>
-              )}
-            </div>
+              <CreatorAvatar name={profile.real_name} brand={primaryBrand} />
 
-            {/* Brand tags - active brands only, dimmer for no-data brands */}
-            <div className="flex flex-wrap gap-1.5 mt-2">
-              {activeBrands.map((b) => {
-                const hasData = activeBrandsWithData.includes(b);
-                return (
+              <div className="min-w-0 flex-1">
+                {/* Name row */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1 className="text-2xl font-extrabold text-[#1A1B3A] leading-tight">
+                    {profile.real_name}
+                  </h1>
+                  <CreatorEditButton
+                    creator={{
+                      id: profile.id,
+                      real_name: profile.real_name,
+                      email: profile.email,
+                      phone: profile.phone,
+                      role: profile.role,
+                      status: profile.status,
+                      notes: profile.notes,
+                      accounts: profile.accounts.map((a) => ({
+                        tiktok_username: a.tiktok_username,
+                        is_primary: a.is_primary,
+                      })),
+                    }}
+                  />
+                </div>
+
+                {/* Badges row */}
+                <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                  {profile.status && (
+                    <span className={cn(
+                      'text-xs px-2.5 py-0.5 rounded-full font-semibold border capitalize',
+                      {
+                        active:   'bg-green-50 text-green-700 border-green-200',
+                        churned:  'bg-red-50 text-red-600 border-red-200',
+                        paused:   'bg-yellow-50 text-yellow-700 border-yellow-200',
+                        applied:  'bg-blue-50 text-blue-600 border-blue-200',
+                        pending:  'bg-orange-50 text-orange-600 border-orange-200',
+                      }[profile.status.toLowerCase()] ?? 'bg-gray-50 text-gray-600 border-gray-200'
+                    )}>
+                      {profile.status}
+                    </span>
+                  )}
+                  {profile.role && (
+                    <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold border bg-purple-50 text-purple-700 border-purple-200 capitalize">
+                      {profile.role}
+                    </span>
+                  )}
+                  {managedInfo && (
+                    <span className="inline-flex items-center gap-1 text-xs px-2.5 py-0.5 rounded-full font-semibold border bg-pink-50 text-[#E91E8C] border-pink-200">
+                      <Shield className="h-3 w-3" /> Managed
+                    </span>
+                  )}
                   <span
-                    key={b}
-                    className={cn(
-                      'text-xs px-2 py-0.5 rounded-full font-medium',
-                      !hasData && 'border border-dashed opacity-50'
-                    )}
-                    style={
-                      hasData
-                        ? { backgroundColor: `${BRAND_COLORS[b] ?? '#6B7280'}15`, color: BRAND_COLORS[b] ?? '#6B7280' }
-                        : { borderColor: BRAND_COLORS[b] ?? '#6B7280', color: BRAND_COLORS[b] ?? '#6B7280' }
-                    }
+                    className="text-xs px-2.5 py-0.5 rounded-full font-semibold border"
+                    style={{
+                      borderColor: perfStatusInfo.color,
+                      color: perfStatusInfo.color,
+                      backgroundColor: perfStatusInfo.bgColor,
+                    }}
                   >
-                    {BRAND_DISPLAY_NAMES[b] ?? b}
+                    {perfStatusInfo.label}
                   </span>
-                );
-              })}
+                </div>
+
+                {/* Handles + contact */}
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2">
+                  {profile.accounts.slice(0, 3).map((a) => (
+                    <a
+                      key={a.tiktok_username}
+                      href={`https://tiktok.com/@${a.tiktok_username}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-xs text-[#E91E8C] hover:underline font-medium"
+                    >
+                      @{a.tiktok_username}
+                      <ExternalLink className="h-2.5 w-2.5 opacity-60" />
+                    </a>
+                  ))}
+                  {profile.accounts.length > 3 && (
+                    <span className="text-xs text-gray-400">+{profile.accounts.length - 3} more</span>
+                  )}
+                  {profile.email && (
+                    <span className="flex items-center gap-1 text-xs text-gray-400">
+                      <Mail className="h-3 w-3" /> {profile.email}
+                    </span>
+                  )}
+                  {profile.phone && (
+                    <span className="flex items-center gap-1 text-xs text-gray-400">
+                      <Phone className="h-3 w-3" /> {profile.phone}
+                    </span>
+                  )}
+                </div>
+
+                {/* Brand pills */}
+                {activeBrands.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-2.5">
+                    {activeBrands.map((b) => {
+                      const hasData = activeBrandsWithData.includes(b);
+                      const color = BRAND_COLORS[b] ?? '#6B7280';
+                      return (
+                        <span
+                          key={b}
+                          className={cn('text-xs px-2 py-0.5 rounded-full font-medium', !hasData && 'opacity-40')}
+                          style={{ backgroundColor: `${color}18`, color }}
+                        >
+                          {BRAND_DISPLAY_NAMES[b] ?? b}
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* CRM tags */}
+                <div className="mt-2">
+                  <CreatorTags creatorId={creatorId} />
+                </div>
+              </div>
             </div>
 
-            {/* CRM Tags */}
-            <div className="mt-2">
-              <CreatorTags creatorId={creatorId} />
+            {/* Right: date picker */}
+            <div className="flex-shrink-0">
+              <Suspense fallback={null}>
+                <DateRangePicker />
+              </Suspense>
             </div>
-
-            {/* Accounts list */}
-            <p className="text-xs text-gray-400 mt-1">
-              {profile.accounts.map((a) => `@${a.tiktok_username}`).join(', ')}
-            </p>
           </div>
         </div>
-        <Suspense fallback={null}>
-          <DateRangePicker />
-        </Suspense>
       </div>
 
-      {/* Brand Filter Bar */}
-      {activeBrands.length > 0 && (
+      {/* ── Brand filter ─────────────────────────────────────────────────── */}
+      {activeBrands.length > 1 && (
         <Suspense fallback={null}>
           <BrandFilter
             brands={activeBrands}
@@ -243,13 +298,15 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
         </Suspense>
       )}
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+      {/* ── Stat cards ───────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
         <StatCard
           label="Total GMV"
           value={formatCurrency(summary.total_gmv)}
           trend={trendPct(summary.total_gmv, summary.prev_gmv)}
           trendLabel="vs prior period"
+          hero
+          className="col-span-2 sm:col-span-1"
         />
         <StatCard
           label="Orders"
@@ -275,230 +332,276 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
           trend={trendPct(summary.total_commission, summary.prev_commission)}
           trendLabel="vs prior period"
         />
-        {profile.retainer != null && profile.retainer > 0 && (
+        {managedInfo && managedInfo.retainer > 0 ? (
           <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-5 flex flex-col justify-center">
-            <p className="text-xs text-gray-400 font-medium uppercase tracking-wider mb-1">Period ROI</p>
-            <p className={`text-2xl font-extrabold tabular-nums ${summary.total_gmv / profile.retainer >= 1 ? 'text-green-600' : 'text-red-500'}`}>
-              {(summary.total_gmv / profile.retainer).toFixed(1)}x
+            <p className="text-xs font-medium uppercase tracking-wider text-gray-500 mb-1">Period ROI</p>
+            <p className={`text-2xl font-extrabold tabular-nums ${
+              summary.total_gmv / managedInfo.retainer >= 1 ? 'text-green-600' : 'text-red-500'
+            }`}>
+              {(summary.total_gmv / managedInfo.retainer).toFixed(1)}x
             </p>
-            <p className="text-xs text-gray-400 mt-0.5">GMV ÷ ${profile.retainer.toLocaleString()} retainer</p>
+            <p className="text-xs text-gray-400 mt-0.5">
+              GMV ÷ {fmt(managedInfo.retainer)} retainer
+            </p>
           </div>
+        ) : (
+          <StatCard
+            label="Avg GMV / Video"
+            value={summary.total_videos > 0 ? formatCurrency(summary.total_gmv / summary.total_videos) : '—'}
+          />
         )}
       </div>
 
-      {/* Managed Creator Info */}
+      {/* ── Managed info + retainer row ──────────────────────────────────── */}
       {managedInfo && (
-        <div className="rounded-2xl bg-pink-50/50 border border-pink-100 shadow-sm p-5">
-          <div className="flex items-center gap-2 mb-3">
-            <Shield className="h-4 w-4 text-[#E91E8C]" />
-            <h3 className="text-sm font-bold text-[#1A1B3A]">Managed Creator</h3>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-            <div>
-              <p className="text-xs text-gray-400 uppercase tracking-wider mb-0.5">Retainer</p>
-              <p className="font-semibold text-[#1A1B3A]">
-                {managedInfo.retainer > 0
-                  ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(managedInfo.retainer)
-                  : '—'}
-              </p>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* Managed summary */}
+          <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="h-8 w-8 rounded-lg bg-pink-50 flex items-center justify-center">
+                <Shield className="h-4 w-4 text-[#E91E8C]" />
+              </div>
+              <h3 className="text-sm font-bold text-[#1A1B3A]">Managed Creator</h3>
+              {managedInfo.brand && (
+                <span
+                  className="ml-auto text-xs px-2.5 py-0.5 rounded-full font-medium"
+                  style={{
+                    backgroundColor: `${BRAND_COLORS[managedInfo.brand] ?? '#6B7280'}18`,
+                    color: BRAND_COLORS[managedInfo.brand] ?? '#6B7280',
+                  }}
+                >
+                  {BRAND_DISPLAY_NAMES[managedInfo.brand] ?? managedInfo.brand}
+                </span>
+              )}
             </div>
-            <div>
-              <p className="text-xs text-gray-400 uppercase tracking-wider mb-0.5">Posts/Mo</p>
-              <p className="font-semibold text-[#1A1B3A]">{managedInfo.monthly_post_requirement || 30}</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-400 uppercase tracking-wider mb-0.5">Status</p>
-              <p className="font-semibold text-[#1A1B3A]">{managedInfo.status || 'Active'}</p>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="rounded-xl bg-gray-50 p-3 text-center">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1">Retainer</p>
+                <p className="text-base font-bold text-[#1A1B3A]">
+                  {managedInfo.retainer > 0 ? fmt(managedInfo.retainer) : '—'}
+                </p>
+              </div>
+              <div className="rounded-xl bg-gray-50 p-3 text-center">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1">Posts/Mo</p>
+                <p className="text-base font-bold text-[#1A1B3A]">{managedInfo.monthly_post_requirement || 30}</p>
+              </div>
+              <div className="rounded-xl bg-gray-50 p-3 text-center">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1">Status</p>
+                <p className="text-base font-bold text-[#1A1B3A] capitalize">{managedInfo.status || 'Active'}</p>
+              </div>
             </div>
             {managedInfo.notes && (
-              <div className="col-span-2 md:col-span-1">
-                <p className="text-xs text-gray-400 uppercase tracking-wider mb-0.5">Notes</p>
-                <p className="text-gray-600 text-xs">{managedInfo.notes}</p>
-              </div>
+              <p className="mt-3 text-xs text-gray-500 bg-gray-50 rounded-xl px-3 py-2 leading-relaxed">
+                {managedInfo.notes}
+              </p>
             )}
           </div>
+
+          {/* Retainer tracker — always show when managed */}
+          <RetainerTracker data={{
+            creatorId: profile.id,
+            retainer: managedInfo.retainer,
+            monthlyPostRequirement: managedInfo.monthly_post_requirement,
+            retainerStartDate: profile.retainer_start_date,
+            postsThisMonth,
+          }} />
         </div>
       )}
 
-      {/* Retainer & Post Tracking - only show when a specific brand is selected */}
-      {/* TODO: Per-brand retainer storage needs a schema update. Currently uses single retainer field from managed_creators. */}
-      {selectedBrand && (
-        <RetainerTracker data={{
-          creatorId: profile.id,
-          retainer: profile.retainer,
-          monthlyPostRequirement: profile.monthly_post_requirement,
-          retainerStartDate: profile.retainer_start_date,
-          postsThisMonth,
-        }} />
-      )}
+      {/* ── Tabbed content ───────────────────────────────────────────────── */}
+      <CreatorPageTabs activeTab={activeTab}>
+        {{
+          overview: (
+            <div className="space-y-6">
+              {/* Lifetime stats */}
+              <LifetimeStats stats={lifetimeStats} />
 
-      {/* Lifetime Stats */}
-      <LifetimeStats stats={lifetimeStats} />
-
-      {/* Account Breakdown */}
-      {accountBreakdown.length > 0 && (
-        <div className="rounded-2xl overflow-hidden bg-white border border-gray-100 shadow-sm">
-          <div className="px-4 sm:px-6 py-4 border-b border-gray-100">
-            <h3 className="text-lg font-bold tracking-tight text-[#1A1B3A]">Account Breakdown</h3>
-            <p className="text-xs text-gray-400 mt-0.5">Performance by TikTok account</p>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-100 text-gray-500 bg-gray-50">
-                  <th className="px-4 sm:px-6 py-3 text-left font-medium text-xs uppercase tracking-wider">Account</th>
-                  <th className="px-4 py-3 text-left font-medium text-xs uppercase tracking-wider">Brands</th>
-                  <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider">GMV</th>
-                  <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider">Orders</th>
-                  <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider">Items</th>
-                  <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider pr-6">Videos</th>
-                </tr>
-              </thead>
-              <tbody>
-                {accountBreakdown.map((a) => (
-                  <tr key={a.tiktok_username} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
-                    <td className="px-4 sm:px-6 py-3.5 font-medium text-[#1A1B3A]">@{a.tiktok_username}</td>
-                    <td className="px-4 py-3.5">
-                      <div className="flex flex-wrap gap-1">
-                        {a.brands.filter((b) => (ACTIVE_BRANDS as readonly string[]).includes(b)).length > 0 ? a.brands.filter((b) => (ACTIVE_BRANDS as readonly string[]).includes(b)).map((b) => (
-                          <span
-                            key={b}
-                            className="text-xs px-2 py-0.5 rounded-full font-medium"
-                            style={{ backgroundColor: `${BRAND_COLORS[b] ?? '#6B7280'}15`, color: BRAND_COLORS[b] ?? '#6B7280' }}
-                          >
-                            {BRAND_DISPLAY_NAMES[b] ?? b}
-                          </span>
-                        )) : (
-                          <span className="text-xs text-gray-300">-</span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3.5 text-right font-semibold tabular-nums text-[#1A1B3A]">{formatCurrency(a.gmv)}</td>
-                    <td className="px-4 py-3.5 text-right text-gray-500 tabular-nums">{formatNumber(a.orders)}</td>
-                    <td className="px-4 py-3.5 text-right text-gray-500 tabular-nums">{formatNumber(a.items_sold)}</td>
-                    <td className="px-4 py-3.5 text-right text-gray-500 tabular-nums pr-6">{formatNumber(a.videos)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* Brand Breakdown - only show on "All Brands" view */}
-      {!selectedBrand && filteredBrandBreakdown.length > 1 && (
-        <div className="rounded-2xl overflow-hidden bg-white border border-gray-100 shadow-sm">
-          <div className="px-4 sm:px-6 py-4 border-b border-gray-100">
-            <h3 className="text-lg font-bold tracking-tight text-[#1A1B3A]">Brand Breakdown</h3>
-            <p className="text-xs text-gray-400 mt-0.5">Performance split across brands</p>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-100 text-gray-500 bg-gray-50">
-                  <th className="px-4 sm:px-6 py-3 text-left font-medium text-xs uppercase tracking-wider">Brand</th>
-                  <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider">GMV</th>
-                  <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider">Orders</th>
-                  <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider">Items</th>
-                  <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider">Videos</th>
-                  <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider pr-6">Commission</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredBrandBreakdown.map((b) => (
-                  <tr key={b.brand} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
-                    <td className="px-4 sm:px-6 py-3.5">
-                      <div className="flex items-center gap-2">
-                        <div className="h-3 w-3 rounded-full" style={{ backgroundColor: BRAND_COLORS[b.brand] ?? '#6B7280' }} />
-                        <span className="font-medium text-[#1A1B3A]">{BRAND_DISPLAY_NAMES[b.brand] ?? b.brand}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3.5 text-right font-semibold tabular-nums text-[#1A1B3A]">{formatCurrency(b.gmv)}</td>
-                    <td className="px-4 py-3.5 text-right text-gray-500 tabular-nums">{formatNumber(b.orders)}</td>
-                    <td className="px-4 py-3.5 text-right text-gray-500 tabular-nums">{formatNumber(b.items_sold)}</td>
-                    <td className="px-4 py-3.5 text-right text-gray-500 tabular-nums">{formatNumber(b.videos)}</td>
-                    <td className="px-4 py-3.5 text-right text-gray-500 tabular-nums pr-6">{formatCurrency(b.commission)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* Top Videos */}
-      <div className="rounded-2xl overflow-hidden bg-white border border-gray-100 shadow-sm">
-        <div className="px-4 sm:px-6 py-4 border-b border-gray-100">
-          <h3 className="text-lg font-bold tracking-tight text-[#1A1B3A]">Top Videos by GMV</h3>
-          <p className="text-xs text-gray-400 mt-0.5">
-            {selectedBrand
-              ? `Filtered to ${BRAND_DISPLAY_NAMES[selectedBrand] ?? selectedBrand}, top 20`
-              : 'Across all accounts, top 20 (aggregated across dates)'}
-          </p>
-        </div>
-        <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
-          <table className="w-full text-sm">
-            <thead className="sticky top-0 z-10 bg-gray-50">
-              <tr className="border-b border-gray-100 text-gray-500">
-                <th className="px-4 sm:px-6 py-3 text-left font-medium text-xs uppercase tracking-wider w-12">#</th>
-                <th className="px-4 py-3 text-left font-medium text-xs uppercase tracking-wider">Video</th>
-                <th className="px-4 py-3 text-left font-medium text-xs uppercase tracking-wider">Account</th>
-                <th className="px-4 py-3 text-left font-medium text-xs uppercase tracking-wider">Brand</th>
-                <th className="px-4 py-3 text-left font-medium text-xs uppercase tracking-wider">Product</th>
-                <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider">GMV</th>
-                <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider">Orders</th>
-                <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider">Items</th>
-                <th className="px-4 py-3 text-right font-medium text-xs uppercase tracking-wider pr-6">Days Selling</th>
-              </tr>
-            </thead>
-            <tbody>
-              {videos.map((v, i) => (
-                <tr key={v.video_id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
-                  <td className="px-4 sm:px-6 py-3.5 text-gray-400 tabular-nums">{i + 1}</td>
-                  <td className="px-4 py-3.5 font-medium max-w-xs truncate">
-                    <VideoTitleButton
-                      videoData={{
-                        video_id: v.video_id,
-                        video_title: v.video_title,
-                        creator_name: v.creator_name,
-                        brand: v.brand,
-                        product_name: v.product_name,
-                        gmv: v.gmv,
-                        orders: v.orders,
-                        items_sold: v.items_sold,
-                        days_selling: v.days_selling,
-                      }}
-                      className="text-left text-[#1A1B3A] hover:text-[#FF4D8D] hover:underline transition-colors"
-                    >
-                      {v.video_title}
-                    </VideoTitleButton>
-                  </td>
-                  <td className="px-4 py-3.5 text-gray-500">@{v.creator_name}</td>
-                  <td className="px-4 py-3.5">
-                    <span
-                      className="text-xs px-2 py-0.5 rounded-full font-medium"
-                      style={{ backgroundColor: `${BRAND_COLORS[v.brand] ?? '#6B7280'}15`, color: BRAND_COLORS[v.brand] ?? '#6B7280' }}
-                    >
-                      {BRAND_DISPLAY_NAMES[v.brand] ?? v.brand}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3.5 text-gray-500 max-w-[200px] truncate">{v.product_name || '-'}</td>
-                  <td className="px-4 py-3.5 text-right font-semibold tabular-nums text-[#1A1B3A]">{formatCurrency(v.gmv)}</td>
-                  <td className="px-4 py-3.5 text-right text-gray-500 tabular-nums">{formatNumber(v.orders)}</td>
-                  <td className="px-4 py-3.5 text-right text-gray-500 tabular-nums">{formatNumber(v.items_sold)}</td>
-                  <td className="px-4 py-3.5 text-right text-gray-500 tabular-nums pr-6">{v.days_selling}</td>
-                </tr>
-              ))}
-              {videos.length === 0 && (
-                <tr><td colSpan={9} className="px-4 py-12 text-center text-gray-400">No video data for this creator</td></tr>
+              {/* Account breakdown */}
+              {accountBreakdown.length > 0 && (
+                <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+                  <div className="px-6 py-4 border-b border-gray-100">
+                    <h3 className="text-sm font-bold text-[#1A1B3A]">Account Breakdown</h3>
+                    <p className="text-xs text-gray-400 mt-0.5">Performance by TikTok account</p>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-gray-100 bg-gray-50/60">
+                          <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Account</th>
+                          <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Brands</th>
+                          <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">GMV</th>
+                          <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Orders</th>
+                          <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Items</th>
+                          <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Videos</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50">
+                        {accountBreakdown.map((a) => (
+                          <tr key={a.tiktok_username} className="hover:bg-gray-50/60 transition-colors">
+                            <td className="px-5 py-3.5 font-medium text-[#1A1B3A]">
+                              <a
+                                href={`https://tiktok.com/@${a.tiktok_username}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-[#E91E8C] hover:underline"
+                              >
+                                @{a.tiktok_username}
+                              </a>
+                            </td>
+                            <td className="px-5 py-3.5">
+                              <div className="flex flex-wrap gap-1">
+                                {a.brands
+                                  .filter((b) => (ACTIVE_BRANDS as readonly string[]).includes(b))
+                                  .map((b) => (
+                                    <span
+                                      key={b}
+                                      className="text-xs px-2 py-0.5 rounded-full font-medium"
+                                      style={{ backgroundColor: `${BRAND_COLORS[b] ?? '#6B7280'}18`, color: BRAND_COLORS[b] ?? '#6B7280' }}
+                                    >
+                                      {BRAND_DISPLAY_NAMES[b] ?? b}
+                                    </span>
+                                  ))}
+                              </div>
+                            </td>
+                            <td className="px-5 py-3.5 text-right font-semibold text-[#1A1B3A]">{formatCurrency(a.gmv)}</td>
+                            <td className="px-5 py-3.5 text-right text-gray-500">{formatNumber(a.orders)}</td>
+                            <td className="px-5 py-3.5 text-right text-gray-500">{formatNumber(a.items_sold)}</td>
+                            <td className="px-5 py-3.5 text-right text-gray-500">{formatNumber(a.videos)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               )}
-            </tbody>
-          </table>
-        </div>
-      </div>
 
-      {/* CRM Timeline */}
-      <CreatorTimeline creatorId={creatorId} />
+              {/* Brand breakdown */}
+              {!selectedBrand && filteredBrandBreakdown.length > 1 && (
+                <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+                  <div className="px-6 py-4 border-b border-gray-100">
+                    <h3 className="text-sm font-bold text-[#1A1B3A]">Brand Breakdown</h3>
+                    <p className="text-xs text-gray-400 mt-0.5">Performance split across brands</p>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-gray-100 bg-gray-50/60">
+                          <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Brand</th>
+                          <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">GMV</th>
+                          <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Orders</th>
+                          <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Items</th>
+                          <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Videos</th>
+                          <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Commission</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50">
+                        {filteredBrandBreakdown.map((b) => (
+                          <tr key={b.brand} className="hover:bg-gray-50/60 transition-colors">
+                            <td className="px-5 py-3.5">
+                              <div className="flex items-center gap-2">
+                                <div className="h-2.5 w-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: BRAND_COLORS[b.brand] ?? '#6B7280' }} />
+                                <span className="font-medium text-[#1A1B3A]">{BRAND_DISPLAY_NAMES[b.brand] ?? b.brand}</span>
+                              </div>
+                            </td>
+                            <td className="px-5 py-3.5 text-right font-semibold text-[#1A1B3A]">{formatCurrency(b.gmv)}</td>
+                            <td className="px-5 py-3.5 text-right text-gray-500">{formatNumber(b.orders)}</td>
+                            <td className="px-5 py-3.5 text-right text-gray-500">{formatNumber(b.items_sold)}</td>
+                            <td className="px-5 py-3.5 text-right text-gray-500">{formatNumber(b.videos)}</td>
+                            <td className="px-5 py-3.5 text-right text-gray-500">{formatCurrency(b.commission)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          ),
+
+          videos: (
+            <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-[#1A1B3A]">Top Videos by GMV</h3>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {selectedBrand
+                      ? `Filtered to ${BRAND_DISPLAY_NAMES[selectedBrand] ?? selectedBrand} · top 20`
+                      : 'Across all accounts · top 20'}
+                  </p>
+                </div>
+                <span className="text-xs font-semibold text-gray-400 bg-gray-100 px-2.5 py-1 rounded-full">
+                  {videos.length} videos
+                </span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-100 bg-gray-50/60">
+                      <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 w-8">#</th>
+                      <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Video</th>
+                      <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Account</th>
+                      <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Brand</th>
+                      <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Product</th>
+                      <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">GMV</th>
+                      <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Orders</th>
+                      <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Days</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {videos.map((v, i) => (
+                      <tr key={v.video_id} className="hover:bg-gray-50/60 transition-colors">
+                        <td className="px-5 py-3.5 text-gray-300 font-medium tabular-nums">{i + 1}</td>
+                        <td className="px-5 py-3.5 max-w-xs">
+                          <VideoTitleButton
+                            videoData={{
+                              video_id: v.video_id,
+                              video_title: v.video_title,
+                              creator_name: v.creator_name,
+                              brand: v.brand,
+                              product_name: v.product_name,
+                              gmv: v.gmv,
+                              orders: v.orders,
+                              items_sold: v.items_sold,
+                              days_selling: v.days_selling,
+                            }}
+                            className="text-left font-medium text-[#1A1B3A] hover:text-[#E91E8C] hover:underline transition-colors truncate block max-w-[240px]"
+                          >
+                            {v.video_title}
+                          </VideoTitleButton>
+                        </td>
+                        <td className="px-5 py-3.5 text-gray-500 text-xs">@{v.creator_name}</td>
+                        <td className="px-5 py-3.5">
+                          <span
+                            className="text-xs px-2 py-0.5 rounded-full font-medium"
+                            style={{ backgroundColor: `${BRAND_COLORS[v.brand] ?? '#6B7280'}18`, color: BRAND_COLORS[v.brand] ?? '#6B7280' }}
+                          >
+                            {BRAND_DISPLAY_NAMES[v.brand] ?? v.brand}
+                          </span>
+                        </td>
+                        <td className="px-5 py-3.5 text-gray-500 text-xs max-w-[160px] truncate">{v.product_name || '—'}</td>
+                        <td className="px-5 py-3.5 text-right font-semibold text-[#1A1B3A] tabular-nums">{formatCurrency(v.gmv)}</td>
+                        <td className="px-5 py-3.5 text-right text-gray-500 tabular-nums">{formatNumber(v.orders)}</td>
+                        <td className="px-5 py-3.5 text-right text-gray-500 tabular-nums">{v.days_selling}</td>
+                      </tr>
+                    ))}
+                    {videos.length === 0 && (
+                      <tr>
+                        <td colSpan={8} className="px-5 py-12 text-center text-gray-400 text-sm">
+                          No video data for this period
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ),
+
+          crm: (
+            <CreatorTimeline creatorId={creatorId} />
+          ),
+        }}
+      </CreatorPageTabs>
     </div>
   );
 }
