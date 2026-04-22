@@ -46,6 +46,13 @@ export async function GET(request: NextRequest) {
   const limit         = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '50', 10)));
   const days          = Math.min(365, Math.max(7, parseInt(searchParams.get('days') || '90', 10)));
 
+  // Sort
+  const SORTABLE = ['gmv', 'orders', 'videos', 'creator_name'] as const;
+  type SortCol = typeof SORTABLE[number];
+  const sortParam = searchParams.get('sort') || 'gmv';
+  const sort: SortCol = (SORTABLE as readonly string[]).includes(sortParam) ? sortParam as SortCol : 'gmv';
+  const asc = searchParams.get('dir') === 'asc';
+
   // Compute date range anchored to Central Time yesterday → N days back
   const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }));
   const yesterday = new Date(now); yesterday.setDate(yesterday.getDate() - 1);
@@ -125,8 +132,17 @@ export async function GET(request: NextRequest) {
   if (managedFilter === 'managed')   filtered = filtered.filter(c => c.is_managed);
   if (managedFilter === 'unmanaged') filtered = filtered.filter(c => !c.is_managed);
 
-  // Sort by GMV descending
-  filtered.sort((a, b) => b.total_gmv - a.total_gmv);
+  // Sort
+  const dir = asc ? 1 : -1;
+  filtered.sort((a, b) => {
+    switch (sort) {
+      case 'orders':       return dir * (a.total_orders - b.total_orders);
+      case 'videos':       return dir * (a.total_videos - b.total_videos);
+      case 'creator_name': return dir * a.creator_name.localeCompare(b.creator_name);
+      case 'gmv':
+      default:             return dir * (a.total_gmv - b.total_gmv);
+    }
+  });
 
   const total = filtered.length;
   const data  = filtered.slice((page - 1) * limit, page * limit);

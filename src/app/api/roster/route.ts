@@ -23,7 +23,7 @@ const COLUMNS = [
   'account_1', 'account_2', 'account_3', 'account_4', 'account_5',
 ].join(', ');
 
-// GET /api/roster?brand=&status=&search=&page=1&limit=50
+// GET /api/roster?brand=&status=&search=&page=1&limit=50&sort=&dir=
 export async function GET(request: NextRequest) {
   const tenantId = await getTenantId();
   if (!tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -36,13 +36,20 @@ export async function GET(request: NextRequest) {
   const limit  = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '50', 10)));
   const offset = (page - 1) * limit;
 
+  // Whitelist sortable columns to prevent SQL injection via arbitrary column names
+  const SORTABLE = ['retainer', 'real_name', 'monthly_post_requirement', 'created_at', 'status', 'brand'] as const;
+  const sortParam = searchParams.get('sort') || 'retainer';
+  const dirParam  = searchParams.get('dir')  || 'desc';
+  const sortCol   = (SORTABLE as readonly string[]).includes(sortParam) ? sortParam : 'retainer';
+  const ascending = dirParam === 'asc';
+
   const supabase = await createAdminClient();
 
   let query = supabase
     .from('managed_creators')
     .select(COLUMNS, { count: 'exact' })
     .eq('tenant_id', tenantId)
-    .order('retainer', { ascending: false, nullsFirst: false })
+    .order(sortCol, { ascending, nullsFirst: false })
     .range(offset, offset + limit - 1);
 
   if (brand && brand !== 'all') query = query.eq('brand', brand);

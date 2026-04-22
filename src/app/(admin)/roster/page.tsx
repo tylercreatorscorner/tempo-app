@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import {
   UserPlus, Search, Users, DollarSign, UserCheck, X,
   ChevronLeft, ChevronRight, ExternalLink, TrendingUp, Loader2,
-  UserX, Globe, Pencil, Check, Plus, Trash2,
+  UserX, Globe, Pencil, Check, Plus, Trash2, ArrowUp, ArrowDown, ArrowUpDown,
 } from 'lucide-react';
 import Link from 'next/link';
 import { BRAND_DISPLAY_NAMES, ACTIVE_BRANDS } from '@/lib/utils/constants';
@@ -36,12 +36,21 @@ function getExtraAccounts(c: Creator): string[] {
 }
 
 function StatusBadge({ status }: { status: string | null }) {
-  const isActive = status === 'Active';
+  // Null/empty status → neutral dash (not green "Active")
+  if (!status) {
+    return <span className="text-xs text-gray-300">—</span>;
+  }
+  const STYLE: Record<string, string> = {
+    Active:   'bg-green-50 text-green-600',
+    Inactive: 'bg-gray-100 text-gray-500',
+    Churned:  'bg-red-50 text-red-600',
+    'On Hold': 'bg-yellow-50 text-yellow-700',
+    Paused:   'bg-yellow-50 text-yellow-700',
+  };
+  const cls = STYLE[status] ?? 'bg-gray-100 text-gray-500';
   return (
-    <span className={`inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-full ${
-      isActive ? 'bg-green-50 text-green-600' : 'bg-gray-100 text-gray-500'
-    }`}>
-      {status || 'Active'}
+    <span className={`inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-full ${cls}`}>
+      {status}
     </span>
   );
 }
@@ -90,6 +99,31 @@ function ExtraAccountsBadge({ creator }: { creator: Creator }) {
 }
 
 const ACCOUNT_KEYS = ['account_1', 'account_2', 'account_3', 'account_4', 'account_5'] as const;
+
+// ─── Skeleton loaders ─────────────────────────────────────────────────────────
+function SkeletonStatCard() {
+  return (
+    <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-5">
+      <div className="flex items-center gap-2 mb-2">
+        <div className="h-4 w-4 rounded bg-gray-200 animate-pulse" />
+        <div className="h-3 w-24 rounded bg-gray-200 animate-pulse" />
+      </div>
+      <div className="h-7 w-20 rounded bg-gray-200 animate-pulse" />
+    </div>
+  );
+}
+
+function SkeletonRow({ cols }: { cols: number }) {
+  return (
+    <tr>
+      {Array.from({ length: cols }).map((_, i) => (
+        <td key={i} className="px-5 py-3.5">
+          <div className="h-3.5 rounded bg-gray-100 animate-pulse" style={{ width: `${40 + ((i * 13) % 40)}%` }} />
+        </td>
+      ))}
+    </tr>
+  );
+}
 
 function CreatorPanel({
   creator,
@@ -336,6 +370,8 @@ function CreatorPanel({
                     className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
                   >
                     <option value="Active">Active</option>
+                    <option value="On Hold">On Hold</option>
+                    <option value="Churned">Churned</option>
                     <option value="Inactive">Inactive</option>
                   </select>
                 </div>
@@ -625,7 +661,16 @@ const DAYS_OPTIONS = [
   { label: '90d', value: 90 },
 ];
 
-function AllCreatorsTab({ brand, onAddCreator }: { brand: string; onAddCreator: (prefill: { account_1: string; brand: string }) => void }) {
+function AllCreatorsTab({
+  brand,
+  refreshTrigger,
+  onAddCreator,
+}: {
+  brand: string;
+  refreshTrigger: number;
+  onAddCreator: (prefill: { account_1: string; brand: string }) => void;
+}) {
+  const router = useRouter();
   const [creators, setCreators] = useState<UniverseCreator[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -634,6 +679,8 @@ function AllCreatorsTab({ brand, onAddCreator }: { brand: string; onAddCreator: 
   const [days, setDays] = useState(90);
   const [managedFilter, setManagedFilter] = useState<'all' | 'managed' | 'unmanaged'>('all');
   const [page, setPage] = useState(1);
+  const [sortBy, setSortBy]       = useState<'gmv' | 'orders' | 'videos' | 'creator_name'>('gmv');
+  const [sortDir, setSortDir]     = useState<'asc' | 'desc'>('desc');
   const PAGE = 50;
 
   useEffect(() => {
@@ -641,14 +688,20 @@ function AllCreatorsTab({ brand, onAddCreator }: { brand: string; onAddCreator: 
     return () => clearTimeout(t);
   }, [searchInput]);
 
-  useEffect(() => { setPage(1); }, [days, managedFilter]);
+  useEffect(() => { setPage(1); }, [days, managedFilter, sortBy, sortDir]);
 
   useEffect(() => { setPage(1); }, [brand]);
 
   const fetchCreators = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ page: String(page), limit: String(PAGE), days: String(days) });
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: String(PAGE),
+        days: String(days),
+        sort: sortBy,
+        dir: sortDir,
+      });
       if (search) params.set('search', search);
       if (brand && brand !== 'all') params.set('brand', brand);
       if (managedFilter !== 'all') params.set('managed', managedFilter);
@@ -663,9 +716,20 @@ function AllCreatorsTab({ brand, onAddCreator }: { brand: string; onAddCreator: 
     } finally {
       setLoading(false);
     }
-  }, [brand, page, search, days, managedFilter]);
+  }, [brand, page, search, days, managedFilter, sortBy, sortDir]);
 
-  useEffect(() => { fetchCreators(); }, [fetchCreators]);
+  // Refetch whenever filters/sort change OR parent bumps the refreshTrigger
+  useEffect(() => { fetchCreators(); }, [fetchCreators, refreshTrigger]);
+
+  const toggleSort = (col: typeof sortBy) => {
+    if (sortBy === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortBy(col); setSortDir(col === 'creator_name' ? 'asc' : 'desc'); }
+  };
+
+  const SortIcon = ({ col }: { col: typeof sortBy }) => {
+    if (sortBy !== col) return <ArrowUpDown className="h-3 w-3 opacity-30" />;
+    return sortDir === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />;
+  };
 
   const fmt  = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(n);
   const totalPages = Math.max(1, Math.ceil(total / PAGE));
@@ -712,12 +776,7 @@ function AllCreatorsTab({ brand, onAddCreator }: { brand: string; onAddCreator: 
         </div>
       </div>
 
-      {loading ? (
-        <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-16 flex flex-col items-center justify-center gap-3">
-          <Loader2 className="h-6 w-6 text-gray-300 animate-spin" />
-          <p className="text-sm text-gray-400">Loading creators...</p>
-        </div>
-      ) : creators.length === 0 ? (
+      {creators.length === 0 && !loading ? (
         <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-16 text-center">
           <Globe className="h-8 w-8 text-gray-200 mx-auto mb-3" />
           <p className="text-gray-500 text-sm font-medium">No creators found</p>
@@ -731,18 +790,43 @@ function AllCreatorsTab({ brand, onAddCreator }: { brand: string; onAddCreator: 
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50/60">
-                  <th className="text-left px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">Creator</th>
+                  <th className="text-left px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
+                    <button onClick={() => toggleSort('creator_name')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors">
+                      Creator <SortIcon col="creator_name" />
+                    </button>
+                  </th>
                   <th className="text-left px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">Brand</th>
-                  <th className="text-right px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">GMV ({days}d)</th>
-                  <th className="text-right px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">Orders</th>
-                  <th className="text-right px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">Videos</th>
+                  <th className="text-right px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
+                    <button onClick={() => toggleSort('gmv')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors">
+                      GMV ({days}d) <SortIcon col="gmv" />
+                    </button>
+                  </th>
+                  <th className="text-right px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
+                    <button onClick={() => toggleSort('orders')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors">
+                      Orders <SortIcon col="orders" />
+                    </button>
+                  </th>
+                  <th className="text-right px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
+                    <button onClick={() => toggleSort('videos')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors">
+                      Videos <SortIcon col="videos" />
+                    </button>
+                  </th>
                   <th className="text-center px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">Status</th>
                   <th className="px-5 py-3.5" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {creators.map((c) => (
-                  <tr key={`${c.creator_name}|||${c.brand}`} className="hover:bg-gray-50/60 transition-colors">
+                {loading && Array.from({ length: 8 }).map((_, i) => <SkeletonRow key={i} cols={7} />)}
+                {!loading && creators.map((c) => (
+                  <tr
+                    key={`${c.creator_name}|||${c.brand}`}
+                    className={`hover:bg-gray-50/60 transition-colors ${c.is_managed && c.managed_id ? 'cursor-pointer' : ''}`}
+                    onClick={() => {
+                      if (c.is_managed && c.managed_id) {
+                        router.push(`/creators/${encodeURIComponent(c.creator_name)}`);
+                      }
+                    }}
+                  >
                     <td className="px-5 py-3.5">
                       <div>
                         <a
@@ -787,7 +871,7 @@ function AllCreatorsTab({ brand, onAddCreator }: { brand: string; onAddCreator: 
                     <td className="px-5 py-3.5 text-right">
                       {!c.is_managed && (
                         <button
-                          onClick={() => onAddCreator({ account_1: c.creator_name, brand: c.brand })}
+                          onClick={(e) => { e.stopPropagation(); onAddCreator({ account_1: c.creator_name, brand: c.brand }); }}
                           className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-[#E91E8C] text-white hover:bg-[#d1177d] transition-colors whitespace-nowrap"
                         >
                           + Add to Roster
@@ -847,6 +931,20 @@ function RosterContent() {
   const [selectedCreator, setSelectedCreator] = useState<Creator | null>(null);
   const [page, setPage] = useState(1);
   const [addModalPrefill, setAddModalPrefill] = useState<{ account_1?: string; brand?: string } | null>(null);
+  const [allCreatorsRefreshKey, setAllCreatorsRefreshKey] = useState(0);
+
+  // Sort state for the Managed Roster table
+  type RosterSortCol = 'retainer' | 'real_name' | 'monthly_post_requirement' | 'created_at' | 'status';
+  const [sortBy, setSortBy] = useState<RosterSortCol>('retainer');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const toggleSort = (col: RosterSortCol) => {
+    if (sortBy === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortBy(col); setSortDir(col === 'real_name' ? 'asc' : 'desc'); }
+  };
+  const SortIcon = ({ col }: { col: RosterSortCol }) => {
+    if (sortBy !== col) return <ArrowUpDown className="h-3 w-3 opacity-30" />;
+    return sortDir === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />;
+  };
 
   // Debounce search: only fire API after 300ms of no typing
   useEffect(() => {
@@ -860,7 +958,12 @@ function RosterContent() {
   const fetchRoster = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ page: String(page), limit: String(PAGE_SIZE) });
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: String(PAGE_SIZE),
+        sort: sortBy,
+        dir: sortDir,
+      });
       if (brand && brand !== 'all') params.set('brand', brand);
       if (statusFilter !== 'all') params.set('status', statusFilter);
       if (search) params.set('search', search);
@@ -877,7 +980,7 @@ function RosterContent() {
     } finally {
       setLoading(false);
     }
-  }, [brand, statusFilter, search, page]);
+  }, [brand, statusFilter, search, page, sortBy, sortDir]);
 
   useEffect(() => {
     fetchRoster();
@@ -885,8 +988,8 @@ function RosterContent() {
 
   // Reset page + status filter when brand changes
   useEffect(() => { setPage(1); setStatusFilter('all'); setSearchInput(''); }, [brand]);
-  // Reset page when status filter changes
-  useEffect(() => { setPage(1); }, [statusFilter]);
+  // Reset page when status filter or sort changes
+  useEffect(() => { setPage(1); }, [statusFilter, sortBy, sortDir]);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
@@ -938,26 +1041,29 @@ function RosterContent() {
       {activeTab === 'all' && (
         <AllCreatorsTab
           brand={brand}
+          refreshTrigger={allCreatorsRefreshKey}
           onAddCreator={(prefill) => setAddModalPrefill(prefill)}
         />
       )}
 
       {/* Managed Roster tab content */}
       {activeTab === 'roster' && (<><div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          { icon: <Users className="h-4 w-4 text-gray-400" />, label: 'Total Creators', value: total.toLocaleString() },
-          { icon: <DollarSign className="h-4 w-4 text-[#E91E8C]" />, label: 'Monthly Retainer', value: fmt(totalRetainer) },
-          { icon: <UserCheck className="h-4 w-4 text-green-500" />, label: 'Active', value: activeCount.toLocaleString() },
-          { icon: <TrendingUp className="h-4 w-4 text-blue-400" />, label: 'On Retainer', value: onRetainerCount.toLocaleString() },
-        ].map(({ icon, label, value }) => (
-          <div key={label} className="rounded-2xl bg-white border border-gray-100 shadow-sm p-5">
-            <div className="flex items-center gap-2 mb-2">
-              {icon}
-              <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">{label}</p>
-            </div>
-            <p className="text-2xl font-extrabold text-[#1A1B3A]">{loading ? '—' : value}</p>
-          </div>
-        ))}
+        {loading && roster.length === 0
+          ? Array.from({ length: 4 }).map((_, i) => <SkeletonStatCard key={i} />)
+          : [
+              { icon: <Users className="h-4 w-4 text-gray-400" />, label: 'Total Creators', value: total.toLocaleString() },
+              { icon: <DollarSign className="h-4 w-4 text-[#E91E8C]" />, label: 'Monthly Retainer', value: fmt(totalRetainer) },
+              { icon: <UserCheck className="h-4 w-4 text-green-500" />, label: 'Active', value: activeCount.toLocaleString() },
+              { icon: <TrendingUp className="h-4 w-4 text-blue-400" />, label: 'On Retainer', value: onRetainerCount.toLocaleString() },
+            ].map(({ icon, label, value }) => (
+              <div key={label} className="rounded-2xl bg-white border border-gray-100 shadow-sm p-5">
+                <div className="flex items-center gap-2 mb-2">
+                  {icon}
+                  <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">{label}</p>
+                </div>
+                <p className="text-2xl font-extrabold text-[#1A1B3A]">{value}</p>
+              </div>
+            ))}
       </div>
 
       {/* Search + Filter */}
@@ -979,17 +1085,14 @@ function RosterContent() {
         >
           <option value="all">All Status</option>
           <option value="Active">Active</option>
+          <option value="On Hold">On Hold</option>
+          <option value="Churned">Churned</option>
           <option value="Inactive">Inactive</option>
         </select>
       </div>
 
       {/* Table */}
-      {loading ? (
-        <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-16 flex flex-col items-center justify-center gap-3">
-          <Loader2 className="h-6 w-6 text-gray-300 animate-spin" />
-          <p className="text-sm text-gray-400">Loading creators...</p>
-        </div>
-      ) : roster.length === 0 ? (
+      {!loading && roster.length === 0 ? (
         <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-16 text-center">
           <Users className="h-8 w-8 text-gray-200 mx-auto mb-3" />
           <p className="text-gray-500 text-sm font-medium">No creators found</p>
@@ -1003,17 +1106,36 @@ function RosterContent() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50/60">
-                  <th className="text-left px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">Name</th>
+                  <th className="text-left px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
+                    <button onClick={() => toggleSort('real_name')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors">
+                      Name <SortIcon col="real_name" />
+                    </button>
+                  </th>
                   <th className="text-left px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">Handle</th>
                   {showBrandColumn && <th className="text-left px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">Brand</th>}
                   <th className="text-left px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">Discord</th>
-                  <th className="text-right px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">Retainer</th>
-                  <th className="text-center px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">Posts/Mo</th>
-                  <th className="text-center px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">Status</th>
+                  <th className="text-right px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
+                    <button onClick={() => toggleSort('retainer')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors">
+                      Retainer <SortIcon col="retainer" />
+                    </button>
+                  </th>
+                  <th className="text-center px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
+                    <button onClick={() => toggleSort('monthly_post_requirement')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors mx-auto">
+                      Posts/Mo <SortIcon col="monthly_post_requirement" />
+                    </button>
+                  </th>
+                  <th className="text-center px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
+                    <button onClick={() => toggleSort('status')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors mx-auto">
+                      Status <SortIcon col="status" />
+                    </button>
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {roster.map((c) => (
+                {loading && roster.length === 0 && Array.from({ length: 8 }).map((_, i) => (
+                  <SkeletonRow key={i} cols={showBrandColumn ? 7 : 6} />
+                ))}
+                {!loading && roster.map((c) => (
                   <tr
                     key={c.id}
                     className="hover:bg-pink-50/20 transition-colors cursor-pointer group"
@@ -1100,9 +1222,10 @@ function RosterContent() {
         </div>
       )}
 
-      {/* Creator detail panel */}
+      {/* Creator detail panel — key forces remount when switching creators so form state is fresh */}
       {selectedCreator && (
         <CreatorPanel
+          key={selectedCreator.id}
           creator={selectedCreator}
           onClose={() => setSelectedCreator(null)}
           onSaved={(updated) => {
@@ -1121,7 +1244,13 @@ function RosterContent() {
         <AddCreatorModal
           prefill={addModalPrefill}
           onClose={() => setAddModalPrefill(null)}
-          onSuccess={() => { setAddModalPrefill(null); fetchRoster(); }}
+          onSuccess={() => {
+            setAddModalPrefill(null);
+            fetchRoster();
+            // Bump refresh key so the All Creators tab (if mounted) refetches and the
+            // just-added creator's "Unmanaged" badge flips to "Managed"
+            setAllCreatorsRefreshKey(k => k + 1);
+          }}
         />
       )}
 
