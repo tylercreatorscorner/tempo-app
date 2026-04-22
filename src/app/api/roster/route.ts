@@ -56,7 +56,22 @@ export async function GET(request: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  return NextResponse.json({ data, total: count ?? 0, page, limit });
+  // Compute total retainer across ALL matching creators (not just current page)
+  let totalRetainerQuery = supabase
+    .from('managed_creators')
+    .select('retainer')
+    .eq('tenant_id', tenantId);
+  if (brand && brand !== 'all') totalRetainerQuery = totalRetainerQuery.eq('brand', brand);
+  if (status && status !== 'all') totalRetainerQuery = totalRetainerQuery.eq('status', status);
+  if (search) {
+    totalRetainerQuery = totalRetainerQuery.or(
+      `real_name.ilike.%${search}%,account_1.ilike.%${search}%,discord_name.ilike.%${search}%`
+    );
+  }
+  const { data: retainerRows } = await totalRetainerQuery;
+  const total_retainer = (retainerRows || []).reduce((sum, r) => sum + (Number(r.retainer) || 0), 0);
+
+  return NextResponse.json({ data, total: count ?? 0, page, limit, total_retainer });
 }
 
 // POST /api/roster — add a single creator

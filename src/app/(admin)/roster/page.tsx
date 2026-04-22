@@ -592,6 +592,7 @@ function RosterContent() {
   const [activeTab, setActiveTab] = useState<'roster' | 'all'>('roster');
   const [roster, setRoster] = useState<Creator[]>([]);
   const [total, setTotal] = useState(0);
+  const [totalRetainer, setTotalRetainer] = useState(0);
   const [loading, setLoading] = useState(true);
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
@@ -621,6 +622,7 @@ function RosterContent() {
       const json = await res.json();
       setRoster(json.data || []);
       setTotal(json.total || 0);
+      setTotalRetainer(json.total_retainer || 0);
     } catch (err) {
       console.error('Failed to fetch roster:', err);
     } finally {
@@ -635,8 +637,7 @@ function RosterContent() {
   // Reset to page 1 when filters change
   useEffect(() => { setPage(1); }, [brand, statusFilter]);
 
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const totalRetainer = roster.reduce((sum, c) => sum + (c.retainer || 0), 0);
+  const totalPages   = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const activeCount  = roster.filter(c => c.status === 'Active').length;
   const withRetainer = roster.filter(c => (c.retainer || 0) > 0).length;
 
