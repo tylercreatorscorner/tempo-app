@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import {
   UserPlus, Search, Users, DollarSign, UserCheck, X,
   ChevronLeft, ChevronRight, ExternalLink, TrendingUp, Loader2,
-  UserX, Globe,
+  UserX, Globe, Pencil, Check, Plus, Trash2,
 } from 'lucide-react';
 import Link from 'next/link';
 import { BRAND_DISPLAY_NAMES, ACTIVE_BRANDS } from '@/lib/utils/constants';
@@ -89,113 +89,361 @@ function ExtraAccountsBadge({ creator }: { creator: Creator }) {
   );
 }
 
-function CreatorPanel({ creator, onClose }: { creator: Creator; onClose: () => void }) {
-  const allAccounts = [creator.account_1, ...getExtraAccounts(creator)].filter(Boolean) as string[];
-  const fmt = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(n);
+const ACCOUNT_KEYS = ['account_1', 'account_2', 'account_3', 'account_4', 'account_5'] as const;
+
+function CreatorPanel({
+  creator,
+  onClose,
+  onSaved,
+}: {
+  creator: Creator;
+  onClose: () => void;
+  onSaved: (updated: Creator) => void;
+}) {
+  const fmt = (n: number) =>
+    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(n);
+
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving]   = useState(false);
+  const [saveError, setSaveError] = useState('');
+
+  // Edit form state — mirrors the Creator interface fields we allow editing
+  const [form, setForm] = useState({
+    real_name:               creator.real_name || '',
+    brand:                   creator.brand || '',
+    status:                  creator.status || 'Active',
+    retainer:                String(creator.retainer ?? ''),
+    monthly_post_requirement: String(creator.monthly_post_requirement ?? 30),
+    discord_name:            creator.discord_name || '',
+    notes:                   creator.notes || '',
+    account_1:               creator.account_1 || '',
+    account_2:               creator.account_2 || '',
+    account_3:               creator.account_3 || '',
+    account_4:               creator.account_4 || '',
+    account_5:               creator.account_5 || '',
+  });
+
+  const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
+
+  const handleSave = async () => {
+    setSaving(true);
+    setSaveError('');
+    try {
+      const res = await fetch(`/api/roster/${creator.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...form,
+          retainer: form.retainer !== '' ? parseFloat(form.retainer) : 0,
+          monthly_post_requirement: parseInt(form.monthly_post_requirement) || 30,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Save failed');
+      onSaved(json.data as Creator);
+      setEditing(false);
+    } catch (err: unknown) {
+      setSaveError(err instanceof Error ? err.message : 'Something went wrong');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCancel = () => {
+    // Reset form to original values
+    setForm({
+      real_name:               creator.real_name || '',
+      brand:                   creator.brand || '',
+      status:                  creator.status || 'Active',
+      retainer:                String(creator.retainer ?? ''),
+      monthly_post_requirement: String(creator.monthly_post_requirement ?? 30),
+      discord_name:            creator.discord_name || '',
+      notes:                   creator.notes || '',
+      account_1:               creator.account_1 || '',
+      account_2:               creator.account_2 || '',
+      account_3:               creator.account_3 || '',
+      account_4:               creator.account_4 || '',
+      account_5:               creator.account_5 || '',
+    });
+    setSaveError('');
+    setEditing(false);
+  };
+
+  // How many account slots are visible in edit mode (at least 1, grow as user fills them)
+  const visibleAccountCount = Math.min(
+    5,
+    Math.max(1, ACCOUNT_KEYS.filter(k => form[k]).length + 1)
+  );
+
+  const displayName = creator.real_name || creator.account_1 || 'Creator';
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/20 backdrop-blur-[2px]" />
+    <div className="fixed inset-0 z-50 flex justify-end" onClick={editing ? undefined : onClose}>
+      <div className="absolute inset-0 bg-black/20 backdrop-blur-[2px]" onClick={editing ? undefined : onClose} />
       <div
-        className="relative w-full max-w-md bg-white shadow-2xl h-full overflow-y-auto"
+        className="relative w-full max-w-md bg-white shadow-2xl h-full overflow-y-auto flex flex-col"
         style={{ animation: 'slideInRight 0.22s ease-out' }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between">
+        {/* Header */}
+        <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between z-10">
           <div>
-            <h2 className="text-base font-bold text-[#1A1B3A]">{creator.real_name || creator.account_1 || 'Creator'}</h2>
-            {creator.brand && (
+            <h2 className="text-base font-bold text-[#1A1B3A]">{displayName}</h2>
+            {creator.brand && !editing && (
               <p className="text-xs text-gray-400 mt-0.5">{BRAND_DISPLAY_NAMES[creator.brand] || creator.brand}</p>
             )}
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
-            <X className="h-5 w-5 text-gray-400" />
-          </button>
+          <div className="flex items-center gap-2">
+            {!editing ? (
+              <>
+                <button
+                  onClick={() => setEditing(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+                >
+                  <Pencil className="h-3.5 w-3.5" /> Edit
+                </button>
+                <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
+                  <X className="h-5 w-5 text-gray-400" />
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={handleCancel}
+                  disabled={saving}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#E91E8C] text-white hover:bg-[#d1177d] disabled:opacity-60 transition-colors"
+                >
+                  {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                  {saving ? 'Saving…' : 'Save'}
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
-        <div className="p-6 space-y-5">
-          {/* Key stats row */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-xl bg-gray-50 p-3">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1">Retainer</p>
-              <p className="text-base font-bold text-[#1A1B3A]">
-                {creator.retainer && creator.retainer > 0 ? fmt(creator.retainer) : '—'}
-              </p>
-            </div>
-            <div className="rounded-xl bg-gray-50 p-3">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1">Posts/Mo</p>
-              <p className="text-base font-bold text-[#1A1B3A]">{creator.monthly_post_requirement || 30}</p>
-            </div>
-          </div>
+        {/* Body */}
+        <div className="p-6 space-y-5 flex-1">
+          {saveError && (
+            <p className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2">{saveError}</p>
+          )}
 
-          {/* Status */}
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">Status</p>
-            <StatusBadge status={creator.status} />
-          </div>
+          {editing ? (
+            /* ── EDIT MODE ── */
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1">Real Name</label>
+                  <input
+                    type="text"
+                    value={form.real_name}
+                    onChange={e => set('real_name', e.target.value)}
+                    placeholder="Jane Smith"
+                    className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1">Brand</label>
+                  <select
+                    value={form.brand}
+                    onChange={e => set('brand', e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+                  >
+                    <option value="">— none —</option>
+                    {ACTIVE_BRANDS.map(b => (
+                      <option key={b} value={b}>{BRAND_DISPLAY_NAMES[b] || b}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
 
-          {/* TikTok Accounts */}
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">TikTok Accounts</p>
-            <div className="space-y-1">
-              {allAccounts.length > 0 ? allAccounts.map((h) => (
-                <a
-                  key={h}
-                  href={`https://tiktok.com/@${h}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 text-sm text-[#E91E8C] hover:underline"
-                >
-                  @{h}
-                  <ExternalLink className="h-3 w-3 opacity-60" />
-                </a>
-              )) : <span className="text-sm text-gray-400">—</span>}
-            </div>
-          </div>
+              <div>
+                <label className="block text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1.5">TikTok Accounts</label>
+                <div className="space-y-2">
+                  {ACCOUNT_KEYS.slice(0, visibleAccountCount).map((key, idx) => (
+                    <div key={key} className="flex items-center gap-2">
+                      <span className="text-xs text-gray-400 w-4 shrink-0">{idx + 1}</span>
+                      <input
+                        type="text"
+                        value={form[key]}
+                        onChange={e => set(key, e.target.value)}
+                        placeholder={idx === 0 ? 'primary handle' : 'additional handle'}
+                        className="flex-1 px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+                      />
+                      {idx > 0 && form[key] && (
+                        <button
+                          type="button"
+                          onClick={() => set(key, '')}
+                          className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 transition-colors"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                      {idx === visibleAccountCount - 1 && visibleAccountCount < 5 && (
+                        <button
+                          type="button"
+                          onClick={() => set(ACCOUNT_KEYS[visibleAccountCount], '')}
+                          className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 transition-colors"
+                          title="Add another handle"
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
 
-          {/* Discord */}
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">Discord</p>
-            <div className="flex items-center gap-2">
-              {creator.discord_avatar ? (
-                <img
-                  src={creator.discord_avatar}
-                  alt=""
-                  className="h-7 w-7 rounded-full ring-2 ring-gray-100"
-                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1">Monthly Retainer ($)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="50"
+                    value={form.retainer}
+                    onChange={e => set('retainer', e.target.value)}
+                    placeholder="0"
+                    className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1">Posts / Month</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="200"
+                    value={form.monthly_post_requirement}
+                    onChange={e => set('monthly_post_requirement', e.target.value)}
+                    placeholder="30"
+                    className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1">Status</label>
+                  <select
+                    value={form.status}
+                    onChange={e => set('status', e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+                  >
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1">Discord</label>
+                  <input
+                    type="text"
+                    value={form.discord_name}
+                    onChange={e => set('discord_name', e.target.value)}
+                    placeholder="username"
+                    className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1">Notes</label>
+                <textarea
+                  rows={3}
+                  value={form.notes}
+                  onChange={e => set('notes', e.target.value)}
+                  placeholder="Any notes about this creator…"
+                  className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C] resize-none"
                 />
-              ) : null}
-              <span className="text-sm text-gray-700">{creator.discord_name || '—'}</span>
+              </div>
             </div>
-          </div>
+          ) : (
+            /* ── VIEW MODE ── */
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-xl bg-gray-50 p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1">Retainer</p>
+                  <p className="text-base font-bold text-[#1A1B3A]">
+                    {creator.retainer && creator.retainer > 0 ? fmt(creator.retainer) : '—'}
+                  </p>
+                </div>
+                <div className="rounded-xl bg-gray-50 p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1">Posts/Mo</p>
+                  <p className="text-base font-bold text-[#1A1B3A]">{creator.monthly_post_requirement || 30}</p>
+                </div>
+              </div>
 
-          {/* Notes */}
-          {creator.notes && (
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">Notes</p>
-              <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{creator.notes}</p>
-            </div>
-          )}
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">Status</p>
+                <StatusBadge status={creator.status} />
+              </div>
 
-          {/* Joined */}
-          {creator.created_at && (
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Joined</p>
-              <span className="text-sm text-gray-500">
-                {new Date(creator.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-              </span>
-            </div>
-          )}
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">TikTok Accounts</p>
+                <div className="space-y-1">
+                  {[creator.account_1, ...getExtraAccounts(creator)].filter(Boolean).length > 0
+                    ? [creator.account_1, ...getExtraAccounts(creator)].filter(Boolean).map((h) => (
+                      <a
+                        key={h}
+                        href={`https://tiktok.com/@${h}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1.5 text-sm text-[#E91E8C] hover:underline"
+                      >
+                        @{h}
+                        <ExternalLink className="h-3 w-3 opacity-60" />
+                      </a>
+                    ))
+                    : <span className="text-sm text-gray-400">—</span>}
+                </div>
+              </div>
 
-          {/* CTA */}
-          {creator.account_1 && (
-            <Link
-              href={`/creators/${encodeURIComponent(creator.account_1)}`}
-              className="flex items-center justify-center gap-2 w-full mt-2 px-4 py-3 rounded-xl bg-[#E91E8C] text-white text-sm font-semibold hover:bg-[#d1177d] transition-colors"
-            >
-              <ExternalLink className="h-4 w-4" />
-              View Full Profile
-            </Link>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">Discord</p>
+                <div className="flex items-center gap-2">
+                  {creator.discord_avatar && (
+                    <img
+                      src={creator.discord_avatar}
+                      alt=""
+                      className="h-7 w-7 rounded-full ring-2 ring-gray-100"
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                    />
+                  )}
+                  <span className="text-sm text-gray-700">{creator.discord_name || '—'}</span>
+                </div>
+              </div>
+
+              {creator.notes && (
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">Notes</p>
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{creator.notes}</p>
+                </div>
+              )}
+
+              {creator.created_at && (
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Joined</p>
+                  <span className="text-sm text-gray-500">
+                    {new Date(creator.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                  </span>
+                </div>
+              )}
+
+              {creator.account_1 && (
+                <Link
+                  href={`/creators/${encodeURIComponent(creator.account_1)}`}
+                  className="flex items-center justify-center gap-2 w-full mt-2 px-4 py-3 rounded-xl bg-[#E91E8C] text-white text-sm font-semibold hover:bg-[#d1177d] transition-colors"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  View Full Profile
+                </Link>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -854,7 +1102,17 @@ function RosterContent() {
 
       {/* Creator detail panel */}
       {selectedCreator && (
-        <CreatorPanel creator={selectedCreator} onClose={() => setSelectedCreator(null)} />
+        <CreatorPanel
+          creator={selectedCreator}
+          onClose={() => setSelectedCreator(null)}
+          onSaved={(updated) => {
+            // Update the row in-place so the table reflects the save immediately
+            setRoster(prev => prev.map(c => c.id === updated.id ? updated : c));
+            setSelectedCreator(updated);
+            // Re-fetch to keep aggregates accurate
+            fetchRoster();
+          }}
+        />
       )}
       </>)}
 
