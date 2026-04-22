@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
+import { brandSlugToUuid } from '@/lib/utils/constants';
 
 async function getTenantId() {
   const supabase = await createClient();
@@ -108,6 +109,68 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Auto-provision creators_v2 + tiktok_accounts + creator_brands so
+  // "View Full Profile" works immediately for newly added creators.
+  const handle = data.account_1;
+  if (handle) {
+    const brandUuid = brand ? brandSlugToUuid(brand) : undefined;
+
+    // 1. Check if a creators_v2 record already exists for this handle+tenant
+    const { data: existing } = await supabase
+      .from('tiktok_accounts')
+      .select('creator_id')
+      .ilike('tiktok_username', handle)
+      .eq('tenant_id', tenantId)
+      .limit(1)
+      .maybeSingle();
+
+    let creatorId: string | null = existing?.creator_id ?? null;
+
+    if (!creatorId) {
+      // 2. Create creators_v2 record
+      const { data: cv } = await supabase
+        .from('creators_v2')
+        .insert({
+          tenant_id: tenantId,
+          real_name: real_name || null,
+          notes: notes || null,
+          discord_username: discord_name || null,
+        })
+        .select('id')
+        .single();
+
+      creatorId = cv?.id ?? null;
+    }
+
+    if (creatorId) {
+      // 3. Ensure tiktok_accounts row exists for primary handle
+      await supabase
+        .from('tiktok_accounts')
+        .upsert({
+          creator_id: creatorId,
+          tenant_id: tenantId,
+          tiktok_username: handle,
+          brand_id: brandUuid ?? null,
+          is_primary: true,
+        }, { onConflict: 'tenant_id,tiktok_username,brand_id', ignoreDuplicates: true });
+
+      // 4. Ensure creator_brands row exists
+      if (brandUuid) {
+        await supabase
+          .from('creator_brands')
+          .upsert({
+            creator_id: creatorId,
+            brand_id: brandUuid,
+            tenant_id: tenantId,
+            is_managed: true,
+            status: 'active',
+            retainer: retainer || 0,
+            monthly_post_requirement: monthly_post_requirement || 30,
+          }, { onConflict: 'creator_id,brand_id', ignoreDuplicates: true });
+      }
+    }
+  }
 
   return NextResponse.json({ data }, { status: 201 });
 }
