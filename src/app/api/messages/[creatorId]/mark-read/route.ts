@@ -29,8 +29,8 @@ export async function POST(
     query = query.eq('creator_id', creatorId);
   }
 
-  const { error, count } = await query.select('*', { count: 'exact', head: true });
+  const { error, data } = await query.select('id');
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ marked_read: count ?? 0 });
+  return NextResponse.json({ marked_read: data?.length ?? 0 });
 }
