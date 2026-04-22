@@ -23,6 +23,7 @@ export function BrandFilterBar() {
       const { data } = await supabase
         .from('brands_v2')
         .select('slug, display_name, name')
+        .eq('is_archived', false)
         .order('name');
       if (data) {
         setBrands(data.map(b => ({

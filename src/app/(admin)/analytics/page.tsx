@@ -17,7 +17,7 @@ export default async function AnalyticsPage({ searchParams }: Props) {
   const { startDate, endDate } = resolveDateRange(params.range);
 
   const supabase = await createClient();
-  const { data: dbBrands } = await supabase.from('brands_v2').select('slug').order('name');
+  const { data: dbBrands } = await supabase.from('brands_v2').select('slug').eq('is_archived', false).order('name');
   const ALL_BRANDS = (dbBrands ?? []).map(b => b.slug);
 
   const brandFilter = params.brand && ALL_BRANDS.includes(params.brand)

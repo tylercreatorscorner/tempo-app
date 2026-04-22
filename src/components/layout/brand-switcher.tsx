@@ -25,6 +25,7 @@ export function BrandSwitcher() {
       const { data } = await supabase
         .from('brands_v2')
         .select('slug, display_name, name, color')
+        .eq('is_archived', false)
         .order('name');
       if (data && data.length > 0) {
         setOptions([

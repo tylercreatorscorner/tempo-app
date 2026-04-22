@@ -24,6 +24,7 @@ export default async function BrandsPage({ searchParams }: Props) {
   const { data: dbBrands } = await supabase
     .from('brands_v2')
     .select('id, slug, name, display_name, color')
+    .eq('is_archived', false)
     .order('name');
 
   const brands = (dbBrands ?? []).map(b => ({

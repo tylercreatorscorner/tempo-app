@@ -1,13 +1,14 @@
 import { createClient } from '@/lib/supabase/server';
 import type { Brand } from '@/types';
 
-/** Fetch all brands for the current tenant */
+/** Fetch all non-archived brands for the current tenant */
 export async function getBrands(tenantId: string): Promise<Brand[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from('brands_v2')
     .select('*')
     .eq('tenant_id', tenantId)
+    .eq('is_archived', false)
     .order('display_name');
 
   if (error) throw new Error(`Failed to fetch brands: ${error.message}`);
