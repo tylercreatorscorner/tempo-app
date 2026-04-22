@@ -7,6 +7,7 @@ import { Menu, ChevronRight, LogOut, Settings, Bell, MessageSquare } from 'lucid
 import { usePathname } from 'next/navigation';
 import { TempoLogo } from '@/components/ui/tempo-logo';
 import { createClient } from '@/lib/supabase/client';
+import { useBreadcrumbOverride } from '@/components/layout/breadcrumb-context';
 
 interface HeaderProps {
   onMenuClick?: () => void;
@@ -21,7 +22,6 @@ const BREADCRUMB_MAP: Record<string, string> = {
   '/dashboard': 'Dashboard',
   '/brands': 'Brands',
   '/analytics': 'Analytics',
-  '/creators': 'Creators',
   '/payments': 'Payments',
   '/settings': 'Settings',
   '/roster': 'My Creators',
@@ -35,14 +35,24 @@ export function Header({ onMenuClick, tenantName, userName, userEmail, tenantSwi
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const { label: overrideLabel } = useBreadcrumbOverride();
 
   const isCreatorDetail = pathname.startsWith('/creators/') && pathname !== '/creators';
   const isBrandDetail = pathname.startsWith('/brands/') && pathname !== '/brands';
-  const pageLabel = isCreatorDetail
-    ? decodeURIComponent(pathname.split('/creators/')[1] ?? '')
-    : isBrandDetail
-    ? decodeURIComponent(pathname.split('/brands/')[1] ?? '')
-    : (BREADCRUMB_MAP[pathname] ?? 'Dashboard');
+
+  // Fallback label if no override is set — truncate UUIDs so they don't dominate the bar
+  const fallbackDetailLabel = (slug: string) => {
+    const decoded = decodeURIComponent(slug);
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(decoded);
+    return isUuid ? 'Creator Profile' : decoded;
+  };
+
+  const pageLabel = overrideLabel
+    ?? (isCreatorDetail
+      ? fallbackDetailLabel(pathname.split('/creators/')[1] ?? '')
+      : isBrandDetail
+      ? decodeURIComponent(pathname.split('/brands/')[1] ?? '')
+      : (BREADCRUMB_MAP[pathname] ?? 'Dashboard'));
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -88,7 +98,7 @@ export function Header({ onMenuClick, tenantName, userName, userEmail, tenantSwi
           <ChevronRight className="h-3 w-3 text-gray-300 hidden sm:block" />
           {isCreatorDetail && (
             <>
-              <Link href="/creators" className="text-gray-400 hover:text-gray-700 text-xs transition-colors hidden sm:inline">Creators</Link>
+              <Link href="/roster" className="text-gray-400 hover:text-gray-700 text-xs transition-colors hidden sm:inline">My Creators</Link>
               <ChevronRight className="h-3 w-3 text-gray-300 hidden sm:block" />
             </>
           )}

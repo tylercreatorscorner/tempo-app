@@ -31,6 +31,7 @@ import {
   getCreatorLatestReportDate,
 } from '@/lib/data/creator-profile';
 import { CreatorPageTabs } from '@/components/creators/creator-page-tabs';
+import { SetBreadcrumb } from '@/components/layout/breadcrumb-context';
 
 interface Props {
   params: Promise<{ name: string }>;
@@ -143,6 +144,8 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
 
   return (
     <div className="space-y-6">
+      <SetBreadcrumb label={profile.real_name} />
+
       {/* ── Header card ─────────────────────────────────────────────────── */}
       <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
         {/* Thin brand-color top bar */}

@@ -11,6 +11,7 @@ import { BrandProvider } from '@/hooks/use-global-brand';
 import { SetupBanner } from '@/components/onboarding/setup-banner';
 import { DashboardGate } from '@/components/onboarding/dashboard-gate';
 import { FirstSyncToast } from '@/components/onboarding/first-sync-toast';
+import { BreadcrumbProvider } from '@/components/layout/breadcrumb-context';
 
 interface AdminShellProps {
   children: React.ReactNode;
@@ -24,6 +25,7 @@ export function AdminShell({ children, tenantSwitcher }: AdminShellProps) {
   return (
     <Suspense>
     <BrandProvider>
+    <BreadcrumbProvider>
     <VideoPanelProvider>
       <div className="flex h-screen overflow-hidden" style={{ backgroundColor: '#F8F9FC' }}>
         <Sidebar className="hidden lg:flex" userRole={isOwner && isMultiBrand ? 'owner' : 'customer'} />
@@ -52,6 +54,7 @@ export function AdminShell({ children, tenantSwitcher }: AdminShellProps) {
       <VideoPlayerPanel />
       <Suspense><FirstSyncToast /></Suspense>
     </VideoPanelProvider>
+    </BreadcrumbProvider>
     </BrandProvider>
     </Suspense>
   );
