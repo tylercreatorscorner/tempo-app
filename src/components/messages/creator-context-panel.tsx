@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ChevronRight, ChevronLeft, User, ExternalLink, DollarSign, Video, Calendar, Loader2 } from 'lucide-react';
+import { ChevronRight, ChevronLeft, User, ExternalLink, DollarSign, Video, Calendar, Loader2, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getBrandColor, BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
 import { STATUS_CONFIG, type CreatorStatus } from '@/lib/data/creator-status';
+import { TOPIC_LABELS, TOPIC_COLORS, type MessageTopic } from '@/lib/messages/classify-topic';
 
 interface BrandBreakdown {
   brand: string;
@@ -29,9 +30,75 @@ interface CreatorContext {
 
 interface Props {
   creatorId: number;
+  /** Topic of the most recent inbound message — drives the Topic Context Card */
+  topic?: string | null;
+  /** Pushes a draft reply into the chat thread's compose box */
+  onDraftReply?: (content: string) => void;
 }
 
-export function CreatorContextPanel({ creatorId }: Props) {
+/**
+ * Builds a topic-specific starter reply using available creator context.
+ * Returns null if no useful template for this topic.
+ */
+function buildDraftReply(topic: MessageTopic, ctx: CreatorContext): string | null {
+  const firstName = ctx.real_name.split(' ')[0];
+  const gmv = ctx.gmv_7d > 0
+    ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(ctx.gmv_7d)
+    : '$0';
+  const retainer = ctx.retainer_amount
+    ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(ctx.retainer_amount)
+    : null;
+  const brand = BRAND_DISPLAY_NAMES[ctx.brand] || ctx.brand;
+
+  switch (topic) {
+    case 'payment':
+      return retainer
+        ? `Hey ${firstName}! Your ${brand} retainer is ${retainer}/mo. Let me check where you're at in the payment cycle and I'll get back to you shortly.`
+        : `Hey ${firstName}! Let me look into your payment status and get back to you ASAP.`;
+    case 'sample':
+      return `Hey ${firstName}! Let me pull up your sample shipment and send you the tracking — one sec.`;
+    case 'campaign':
+      return `Hey ${firstName}! Thanks for reaching out. Which campaign are you asking about specifically — is this about ${brand} or another program?`;
+    case 'ban':
+      return `Hey ${firstName}! Sorry to hear about the account issue. Can you send a screenshot of the notification so I can help troubleshoot? Also — did this happen after posting a specific video, or out of nowhere?`;
+    case 'review':
+      return `Hey ${firstName}! Happy to do a review. Quick snapshot: ${ctx.posts_7d} posts in the last 7 days generating ${gmv} GMV. Want me to dig deeper into a specific video or timeframe?`;
+    case 'checkin':
+      return `Hey ${firstName}! Doing well on my end — how are things going with you?`;
+    default:
+      return null;
+  }
+}
+
+/**
+ * Short context snippet per topic that shows "what you should look at first" when
+ * answering a question of this type.
+ */
+function topicBullets(topic: MessageTopic, ctx: CreatorContext): string[] {
+  const retainer = ctx.retainer_amount
+    ? `$${ctx.retainer_amount.toLocaleString()}/mo retainer`
+    : 'No retainer set';
+  const brand = BRAND_DISPLAY_NAMES[ctx.brand] || ctx.brand;
+
+  switch (topic) {
+    case 'payment':
+      return [retainer, `Brand: ${brand}`, 'Payments table not yet wired'];
+    case 'sample':
+      return [`Brand: ${brand}`, 'Sample-tracking table not yet wired'];
+    case 'campaign':
+      return [`Currently on ${brand}`, retainer, `${ctx.posts_7d} posts in last 7d`];
+    case 'ban':
+      return [ctx.discord_id ? 'Discord: connected' : 'Discord: not connected', ctx.tiktok_handle ? `@${ctx.tiktok_handle}` : 'No TikTok handle on file'];
+    case 'review':
+      return [`${ctx.posts_7d} posts / ${ctx.gmv_7d > 0 ? `$${ctx.gmv_7d.toLocaleString()} GMV` : '$0 GMV'} in last 7d`, `Status: ${ctx.status_label}`, retainer];
+    case 'checkin':
+      return [`Status: ${ctx.status_label}`, `${ctx.posts_7d} posts last 7d`];
+    default:
+      return [];
+  }
+}
+
+export function CreatorContextPanel({ creatorId, topic, onDraftReply }: Props) {
   const [context, setContext] = useState<CreatorContext | null>(null);
   const [loading, setLoading] = useState(true);
   const [collapsed, setCollapsed] = useState(false);
@@ -84,6 +151,43 @@ export function CreatorContextPanel({ creatorId }: Props) {
         </div>
       ) : (
         <div className="px-4 py-4 space-y-5">
+          {/* Topic Context Card — only when a real topic is classified */}
+          {topic && topic !== 'other' && (() => {
+            const t = topic as MessageTopic;
+            const colors = TOPIC_COLORS[t];
+            const bullets = topicBullets(t, context);
+            const draft = buildDraftReply(t, context);
+            return (
+              <div className={cn('rounded-xl border p-3', colors?.bg, 'border-transparent')}>
+                <div className="flex items-center gap-2 mb-2">
+                  <Sparkles className={cn('h-3.5 w-3.5', colors?.fg)} />
+                  <span className={cn('text-[10px] font-bold uppercase tracking-wider', colors?.fg)}>
+                    Asking about: {TOPIC_LABELS[t]}
+                  </span>
+                </div>
+                {bullets.length > 0 && (
+                  <ul className="space-y-1 mb-3">
+                    {bullets.map((b, i) => (
+                      <li key={i} className="text-xs text-[#1A1B3A] flex gap-2">
+                        <span className={cn('mt-1.5 h-1 w-1 rounded-full flex-shrink-0', colors?.fg.replace('text-', 'bg-'))} />
+                        <span>{b}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {draft && onDraftReply && (
+                  <button
+                    onClick={() => onDraftReply(draft)}
+                    className="w-full text-xs font-semibold px-3 py-2 rounded-lg bg-white text-[#1A1B3A] border border-gray-200 hover:bg-gray-50 transition-colors flex items-center justify-center gap-1.5"
+                  >
+                    <Sparkles className="h-3 w-3" />
+                    Draft reply
+                  </button>
+                )}
+              </div>
+            );
+          })()}
+
           {/* Name + avatar placeholder */}
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-full bg-gradient-to-br from-pink-400 to-purple-400 flex items-center justify-center text-white font-semibold text-sm">

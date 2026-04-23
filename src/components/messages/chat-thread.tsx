@@ -26,6 +26,10 @@ interface Props {
   brandName?: string;
   postCount?: number;
   gmv?: number;
+  /** Draft text pushed from another component (e.g. context panel) to populate the compose box. */
+  draftToInject?: string | null;
+  /** Called after the draft is consumed so the parent can reset it to null. */
+  onDraftConsumed?: () => void;
 }
 
 function StatusIcon({ status }: { status: string }) {
@@ -38,7 +42,10 @@ function StatusIcon({ status }: { status: string }) {
   }
 }
 
-export function ChatThread({ creatorId, creatorName, discordUserId, brandName, postCount, gmv }: Props) {
+export function ChatThread({
+  creatorId, creatorName, discordUserId, brandName, postCount, gmv,
+  draftToInject, onDraftConsumed,
+}: Props) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(true);
@@ -78,6 +85,14 @@ export function ChatThread({ creatorId, creatorName, discordUserId, brandName, p
     fetchMessages(1);
     markAsRead(); // Mark thread as read as soon as it opens
   }, [creatorId, fetchMessages, markAsRead]);
+
+  // Consume drafts pushed from the context panel
+  useEffect(() => {
+    if (draftToInject) {
+      setInput(draftToInject);
+      onDraftConsumed?.();
+    }
+  }, [draftToInject, onDraftConsumed]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });

@@ -72,6 +72,8 @@ export default function MessagesPage() {
   const [bulkOpen, setBulkOpen] = useState(false);
   const [mobileShowThread, setMobileShowThread] = useState(false);
   const [testDmOpen, setTestDmOpen] = useState(false);
+  // Draft injected from context panel → chat thread. Cleared by thread after consuming.
+  const [draftToInject, setDraftToInject] = useState<string | null>(null);
   const { tenant } = useTenant();
 
   const fetchConversations = useCallback(async () => {
@@ -185,6 +187,8 @@ export default function MessagesPage() {
                 brandName={activeConv.brand ? (BRAND_DISPLAY_NAMES[activeConv.brand] || activeConv.brand) : undefined}
                 postCount={activeConv.total_videos_7d}
                 gmv={activeConv.total_gmv_7d}
+                draftToInject={draftToInject}
+                onDraftConsumed={() => setDraftToInject(null)}
               />
             ) : (
               <div className="flex flex-col items-center justify-center h-full text-gray-400 bg-[#F8F9FC] px-4 text-center">
@@ -197,7 +201,11 @@ export default function MessagesPage() {
 
           {/* Right panel - creator context */}
           {activeConv && activeConv.creator_id > 0 && (
-            <CreatorContextPanel creatorId={activeConv.creator_id} />
+            <CreatorContextPanel
+              creatorId={activeConv.creator_id}
+              topic={activeConv.latest_topic ?? null}
+              onDraftReply={setDraftToInject}
+            />
           )}
         </div>
       )}
