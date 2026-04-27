@@ -272,10 +272,14 @@ export default async function AnalyticsPage({ searchParams }: Props) {
           <div className="flex items-center justify-between mb-3">
             <div>
               <h3 className="text-sm font-bold text-[#1A1B3A]">GMV Trend</h3>
-              <p className="text-xs text-gray-400 mt-0.5">Daily total across selected period</p>
+              <p className="text-xs text-gray-400 mt-0.5">
+                {aggregatedTrend.length === 1
+                  ? `Single day · ${new Date(aggregatedTrend[0].date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`
+                  : 'Daily total across selected period'}
+              </p>
             </div>
             <span className="text-xs font-semibold text-gray-400 bg-gray-100 px-2.5 py-1 rounded-full">
-              {aggregatedTrend.length} days
+              {aggregatedTrend.length} {aggregatedTrend.length === 1 ? 'day' : 'days'}
             </span>
           </div>
           {aggregatedTrend.length > 1 ? (
@@ -283,9 +287,21 @@ export default async function AnalyticsPage({ searchParams }: Props) {
               data={aggregatedTrend}
               color={brandFilter ? (BRAND_COLORS[brandFilter] ?? '#E91E8C') : '#E91E8C'}
             />
+          ) : aggregatedTrend.length === 1 ? (
+            // Single day → show one big-number card instead of an empty chart
+            <div className="h-[260px] flex flex-col items-center justify-center">
+              <p className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold">Day Total</p>
+              <p
+                className="text-5xl font-extrabold mt-2 mb-1"
+                style={{ color: brandFilter ? (BRAND_COLORS[brandFilter] ?? '#E91E8C') : '#E91E8C' }}
+              >
+                {formatCurrency(aggregatedTrend[0].gmv)}
+              </p>
+              <p className="text-xs text-gray-400">Switch to a longer range to see a trend chart</p>
+            </div>
           ) : (
             <div className="h-[260px] flex items-center justify-center text-sm text-gray-400">
-              Not enough data points to chart this range
+              No data in this period
             </div>
           )}
         </div>
