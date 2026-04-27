@@ -137,8 +137,17 @@ export async function getVideoSummary(
     p_limit: limit,
   });
 
-  if (error) throw new RPCError('get_video_summary', error.message);
-  if (!data) return [];
+  if (error) {
+    console.error('[getVideoSummary] error:', { brand, startDate, endDate, error: error.message, code: error.code, hint: error.hint });
+    throw new RPCError('get_video_summary', error.message);
+  }
+  if (!data) {
+    console.warn('[getVideoSummary] null data for', { brand, startDate, endDate });
+    return [];
+  }
+  if (data.length === 0) {
+    console.warn('[getVideoSummary] empty array for', { brand, startDate, endDate });
+  }
 
   return data.map((r: Record<string, unknown>) => ({
     video_id: String(r.video_id),
