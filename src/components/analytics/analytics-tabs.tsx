@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Search, ArrowUpDown, ArrowUp, ArrowDown, Users, Package, Video, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, ArrowUpDown, ArrowUp, ArrowDown, Users, Package, Video, ChevronLeft, ChevronRight, Download } from 'lucide-react';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
 import { BRAND_DISPLAY_NAMES, BRAND_COLORS } from '@/lib/utils/constants';
 import { cn } from '@/lib/utils';
 import { VideoTitleButton } from '@/components/video/video-title-button';
+import { downloadCsv } from '@/lib/utils/csv';
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -212,18 +213,47 @@ export function AnalyticsTabs({ creators, products, videos }: Props) {
 
       {/* Card with search + table + pagination */}
       <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
-        {/* Search */}
-        <div className="p-4 border-b border-gray-100">
-          <div className="relative">
+        {/* Search + Export */}
+        <div className="p-4 border-b border-gray-100 flex items-center justify-between gap-3">
+          <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
             <input
               type="text"
               value={search}
               onChange={(e) => handleSearch(e.target.value)}
               placeholder={placeholder}
-              className="w-full sm:w-80 pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
             />
           </div>
+          <button
+            onClick={() => {
+              const date = new Date().toISOString().split('T')[0];
+              if (tab === 'creators') {
+                downloadCsv(`creators-${date}.csv`, filteredCreators.map((c, i) => ({
+                  rank: i + 1, creator: c.creator_name, brand: BRAND_DISPLAY_NAMES[c.brand] ?? c.brand,
+                  posts: c.total_videos, gmv: c.total_gmv, orders: c.total_orders,
+                  items_sold: c.total_items_sold, avg_gmv_per_post: c.avg_gmv_per_video,
+                })));
+              } else if (tab === 'products') {
+                downloadCsv(`products-${date}.csv`, filteredProducts.map((p, i) => ({
+                  rank: i + 1, product: p.product_name, brand: BRAND_DISPLAY_NAMES[p.brand] ?? p.brand,
+                  units_sold: p.total_items_sold, gmv: p.total_gmv, orders: p.total_orders,
+                })));
+              } else {
+                downloadCsv(`videos-${date}.csv`, filteredVideos.map((v, i) => ({
+                  rank: i + 1, video_id: v.video_id, title: v.video_title, creator: v.creator_name,
+                  brand: BRAND_DISPLAY_NAMES[v.brand] ?? v.brand, gmv: v.total_gmv,
+                  views: v.total_views, orders: v.total_orders, days_active: v.days_active,
+                })));
+              }
+            }}
+            disabled={activeData.length === 0}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-xs font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+            title="Export current view as CSV"
+          >
+            <Download className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Export CSV</span>
+          </button>
         </div>
 
         {/* Table */}

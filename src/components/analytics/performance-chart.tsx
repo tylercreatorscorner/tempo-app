@@ -33,21 +33,38 @@ function fmtLabel(dateStr: string) {
 
 interface Props {
   data: DailyMetrics[];
+  /** Optional prior-period series for the comparison overlay */
+  priorData?: DailyMetrics[];
   /** Override accent color (e.g. when filtered to a single brand) */
   accentColor?: string;
 }
 
-export function PerformanceChart({ data, accentColor }: Props) {
+export function PerformanceChart({ data, priorData, accentColor }: Props) {
   const [metric, setMetric] = useState<Metric>('gmv');
+  const [compare, setCompare] = useState(false);
 
   const cfg = METRICS.find((m) => m.key === metric)!;
   const color = accentColor ?? cfg.color;
+
+  // Prior totals for the delta strip
+  const priorTotal = (priorData ?? []).reduce((sum, row) => sum + row[metric], 0);
 
   // Day total — useful single-day fallback display
   const total = data.reduce((sum, row) => sum + row[metric], 0);
 
   const categories = data.map((d) => fmtLabel(d.date));
   const values = data.map((d) => Number(d[metric].toFixed(2)));
+  // For comparison overlay: align prior data to current data positions by index
+  const priorValues = compare && priorData && priorData.length === data.length
+    ? priorData.map((d) => Number(d[metric].toFixed(2)))
+    : null;
+
+  const series = priorValues
+    ? [
+        { name: cfg.label, data: values, type: 'area' as const },
+        { name: 'Prior period', data: priorValues, type: 'line' as const },
+      ]
+    : [{ name: cfg.label, data: values }];
 
   const options: ApexOptions = {
     chart: {
@@ -57,17 +74,19 @@ export function PerformanceChart({ data, accentColor }: Props) {
       animations: { enabled: true, speed: 250 },
       sparkline: { enabled: false },
     },
-    stroke: { curve: 'smooth', width: 2.5 },
+    stroke: { curve: 'smooth', width: priorValues ? [2.5, 1.5] : 2.5, dashArray: priorValues ? [0, 5] : undefined },
     fill: {
-      type: 'gradient',
+      type: priorValues ? ['gradient', 'solid'] : 'gradient',
       gradient: {
         shadeIntensity: 1,
         opacityFrom: 0.35,
         opacityTo: 0.0,
         stops: [0, 100],
       },
+      opacity: priorValues ? [1, 0] : 1,
     },
-    colors: [color],
+    colors: priorValues ? [color, '#9CA3AF'] : [color],
+    legend: priorValues ? { show: true, position: 'top', horizontalAlign: 'right' } : { show: false },
     dataLabels: { enabled: false },
     grid: {
       borderColor: '#F3F4F6',
@@ -104,6 +123,12 @@ export function PerformanceChart({ data, accentColor }: Props) {
     },
   };
 
+  // % change vs prior period for the active metric
+  const priorDelta =
+    priorData && priorData.length > 0 && priorTotal > 0
+      ? ((total - priorTotal) / priorTotal) * 100
+      : null;
+
   return (
     <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-5">
       {/* Header with metric toggle */}
@@ -113,32 +138,61 @@ export function PerformanceChart({ data, accentColor }: Props) {
           <p className="text-xs text-gray-400 mt-0.5">
             Total in period:{' '}
             <span className="font-semibold text-[#1A1B3A] tabular-nums">{cfg.format(total)}</span>
+            {priorDelta !== null && (
+              <span
+                className={cn(
+                  'ml-2 inline-flex items-center px-1.5 py-0.5 rounded-md text-[11px] font-semibold',
+                  priorDelta >= 0 ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-500'
+                )}
+              >
+                {priorDelta >= 0 ? '+' : ''}{priorDelta.toFixed(1)}%
+              </span>
+            )}
           </p>
         </div>
 
-        {/* Metric toggle */}
-        <div className="flex gap-1 p-1 bg-gray-100 rounded-xl w-fit">
-          {METRICS.map(({ key, label, icon: Icon }) => (
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Compare toggle */}
+          {priorData && priorData.length > 1 && (
             <button
-              key={key}
-              onClick={() => setMetric(key)}
+              onClick={() => setCompare(c => !c)}
               className={cn(
-                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors',
-                metric === key
-                  ? 'bg-white text-[#1A1B3A] shadow-sm'
-                  : 'text-gray-500 hover:text-gray-700'
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors',
+                compare
+                  ? 'bg-[#1A1B3A] text-white border-[#1A1B3A]'
+                  : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
               )}
+              title="Overlay prior period"
             >
-              <Icon className="h-3.5 w-3.5" />
-              {label}
+              <span className="h-2 w-3 border-t-2 border-dashed border-current" />
+              Compare prior
             </button>
-          ))}
+          )}
+
+          {/* Metric toggle */}
+          <div className="flex gap-1 p-1 bg-gray-100 rounded-xl w-fit">
+            {METRICS.map(({ key, label, icon: Icon }) => (
+              <button
+                key={key}
+                onClick={() => setMetric(key)}
+                className={cn(
+                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors',
+                  metric === key
+                    ? 'bg-white text-[#1A1B3A] shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                )}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
       {/* Chart */}
       {data.length > 1 ? (
-        <ApexChart options={options} series={[{ name: cfg.label, data: values }]} type="area" height={280} />
+        <ApexChart options={options} series={series} type="area" height={280} />
       ) : data.length === 1 ? (
         <div className="h-[280px] flex flex-col items-center justify-center">
           <p className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold">

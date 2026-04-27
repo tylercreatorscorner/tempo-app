@@ -149,6 +149,13 @@ export function StatCard({
           {trendLabel && <span className="text-gray-400 text-xs">{trendLabel}</span>}
         </div>
       )}
+
+      {/* Sparkline — flush to the bottom edge of the card for visual lift */}
+      {sparklineData && sparklineData.length > 1 && (
+        <div className="-mx-5 -mb-5 mt-2">
+          <SparklineChart data={sparklineData} color={resolvedAccent} height={40} />
+        </div>
+      )}
     </div>
   );
 }

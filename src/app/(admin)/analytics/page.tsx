@@ -70,11 +70,12 @@ export default async function AnalyticsPage({ searchParams }: Props) {
   const brandFilter = params.brand && ALL_BRANDS.includes(params.brand) ? params.brand : null;
   const BRANDS = brandFilter ? [brandFilter] : ALL_BRANDS;
 
-  // Parallel fetch: per-brand summaries (current + prior period), trend series, and entity tables
+  // Parallel fetch: per-brand summaries (current + prior period), trend series (current + prior), and entity tables
   const [
     summariesByBrand,
     prevSummariesByBrand,
     trendsByBrand,
+    prevTrendsByBrand,
     allCreators,
     allProducts,
     allVideos,
@@ -89,6 +90,10 @@ export default async function AnalyticsPage({ searchParams }: Props) {
     })),
     Promise.all(BRANDS.map(async (brand) => {
       try { return { brand, trend: await getDailyTrend(brand, startDate, endDate) }; }
+      catch { return { brand, trend: [] }; }
+    })),
+    Promise.all(BRANDS.map(async (brand) => {
+      try { return { brand, trend: await getDailyTrend(brand, prevStart, prevEnd) }; }
       catch { return { brand, trend: [] }; }
     })),
     Promise.all(BRANDS.map(async (brand) => {
@@ -136,20 +141,24 @@ export default async function AnalyticsPage({ searchParams }: Props) {
   const prevAvgGmvPerVideo = prevTotals.videos > 0 ? prevTotals.gmv / prevTotals.videos : 0;
 
   // Aggregate daily trend across brands — keep all 4 metrics for the multi-metric chart
-  const trendByDate = new Map<string, { gmv: number; orders: number; items: number; videos: number }>();
-  for (const { trend } of trendsByBrand) {
-    for (const row of trend) {
-      const existing = trendByDate.get(row.report_date) ?? { gmv: 0, orders: 0, items: 0, videos: 0 };
-      existing.gmv    += row.daily_gmv;
-      existing.orders += row.daily_orders;
-      existing.items  += row.daily_items_sold;
-      existing.videos += row.daily_videos;
-      trendByDate.set(row.report_date, existing);
+  const aggregateTrend = (byBrand: Array<{ trend: Awaited<ReturnType<typeof getDailyTrend>> }>): DailyMetrics[] => {
+    const byDate = new Map<string, { gmv: number; orders: number; items: number; videos: number }>();
+    for (const { trend } of byBrand) {
+      for (const row of trend) {
+        const existing = byDate.get(row.report_date) ?? { gmv: 0, orders: 0, items: 0, videos: 0 };
+        existing.gmv    += row.daily_gmv;
+        existing.orders += row.daily_orders;
+        existing.items  += row.daily_items_sold;
+        existing.videos += row.daily_videos;
+        byDate.set(row.report_date, existing);
+      }
     }
-  }
-  const aggregatedTrend: DailyMetrics[] = Array.from(trendByDate.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, m]) => ({ date, ...m }));
+    return Array.from(byDate.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, m]) => ({ date, ...m }));
+  };
+  const aggregatedTrend     = aggregateTrend(trendsByBrand);
+  const aggregatedPrevTrend = aggregateTrend(prevTrendsByBrand);
 
   // Stale-data check — latest data point in the trend series
   const latestDate = aggregatedTrend.length > 0
@@ -235,7 +244,15 @@ export default async function AnalyticsPage({ searchParams }: Props) {
           <h1 className="text-2xl font-extrabold text-[#1A1B3A]">
             {brandFilter ? `${BRAND_DISPLAY_NAMES[brandFilter] ?? brandFilter} Analytics` : 'Analytics'}
           </h1>
-          <p className="text-sm text-gray-400 mt-0.5">Performance insights across creators, products, and videos</p>
+          <div className="flex items-center gap-3 mt-0.5">
+            <p className="text-sm text-gray-400">Performance insights across creators, products, and videos</p>
+            {latestDate && (
+              <span className="hidden sm:inline-flex items-center gap-1 text-[11px] text-gray-400">
+                <span className={`h-1.5 w-1.5 rounded-full ${isStale ? 'bg-amber-400' : 'bg-green-400'}`} />
+                {daysStale === 0 ? 'Updated today' : daysStale === 1 ? 'Updated yesterday' : `Updated ${daysStale}d ago`}
+              </span>
+            )}
+          </div>
         </div>
         <Suspense fallback={null}>
           <DateRangePicker />
@@ -253,13 +270,14 @@ export default async function AnalyticsPage({ searchParams }: Props) {
         </Suspense>
       )}
 
-      {/* KPI strip */}
+      {/* KPI strip — sparklines on the 4 trended metrics give context at a glance */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
         <StatCard
           label="Total GMV"
           value={formatCurrency(totals.gmv)}
           trend={trendPct(totals.gmv, prevTotals.gmv)}
           trendLabel="vs prior period"
+          sparklineData={aggregatedTrend.map(d => d.gmv)}
           hero
           className="col-span-2 sm:col-span-1"
         />
@@ -268,18 +286,21 @@ export default async function AnalyticsPage({ searchParams }: Props) {
           value={formatNumber(totals.orders)}
           trend={trendPct(totals.orders, prevTotals.orders)}
           trendLabel="vs prior period"
+          sparklineData={aggregatedTrend.map(d => d.orders)}
         />
         <StatCard
           label="Items Sold"
           value={formatNumber(totals.items)}
           trend={trendPct(totals.items, prevTotals.items)}
           trendLabel="vs prior period"
+          sparklineData={aggregatedTrend.map(d => d.items)}
         />
         <StatCard
           label="Videos"
           value={formatNumber(totals.videos)}
           trend={trendPct(totals.videos, prevTotals.videos)}
           trendLabel="vs prior period"
+          sparklineData={aggregatedTrend.map(d => d.videos)}
         />
         <StatCard
           label="Active Creators"
@@ -295,52 +316,58 @@ export default async function AnalyticsPage({ searchParams }: Props) {
         />
       </div>
 
-      {/* Performance Overview — multi-metric chart with toggle */}
+      {/* Performance Overview — multi-metric chart with compare toggle */}
       <PerformanceChart
         data={aggregatedTrend}
+        priorData={aggregatedPrevTrend}
         accentColor={brandFilter ? (BRAND_COLORS[brandFilter] ?? undefined) : undefined}
       />
 
       {/* Brand breakdown — only on All Brands view with >1 brand having data */}
-      {!brandFilter && brandBreakdown.length > 1 && (
-        <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-5">
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <h3 className="text-sm font-bold text-[#1A1B3A]">Brand Breakdown</h3>
-              <p className="text-xs text-gray-400 mt-0.5">GMV by brand</p>
+      {!brandFilter && brandBreakdown.length > 1 && (() => {
+        const totalBrandGmv = brandBreakdown.reduce((s, b) => s + b.gmv, 0);
+        return (
+          <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-5">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h3 className="text-sm font-bold text-[#1A1B3A]">Brand Breakdown</h3>
+                <p className="text-xs text-gray-400 mt-0.5">GMV by brand · {formatCurrency(totalBrandGmv)} total</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
+              {brandBreakdown.map((b) => {
+                const pct      = (b.gmv / maxBrandGmv) * 100;
+                const sharePct = totalBrandGmv > 0 ? (b.gmv / totalBrandGmv) * 100 : 0;
+                const color    = BRAND_COLORS[b.brand] ?? '#6B7280';
+                return (
+                  <div key={b.brand}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-medium text-[#1A1B3A]">
+                        {BRAND_DISPLAY_NAMES[b.brand] ?? b.brand}
+                      </span>
+                      <span className="text-xs tabular-nums font-semibold text-[#1A1B3A]">
+                        {formatCurrency(b.gmv)}
+                        <span className="text-gray-400 font-normal ml-1.5">{sharePct.toFixed(1)}%</span>
+                      </span>
+                    </div>
+                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all"
+                        style={{ width: `${pct}%`, backgroundColor: color }}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between mt-1">
+                      <span className="text-[10px] text-gray-400">
+                        {formatNumber(b.videos)} videos · {formatNumber(b.orders)} orders
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
-            {brandBreakdown.map((b) => {
-              const pct = (b.gmv / maxBrandGmv) * 100;
-              const color = BRAND_COLORS[b.brand] ?? '#6B7280';
-              return (
-                <div key={b.brand}>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-medium text-[#1A1B3A]">
-                      {BRAND_DISPLAY_NAMES[b.brand] ?? b.brand}
-                    </span>
-                    <span className="text-xs tabular-nums font-semibold text-[#1A1B3A]">
-                      {formatCurrency(b.gmv)}
-                    </span>
-                  </div>
-                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                    <div
-                      className="h-full rounded-full transition-all"
-                      style={{ width: `${pct}%`, backgroundColor: color }}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between mt-1">
-                    <span className="text-[10px] text-gray-400">
-                      {formatNumber(b.videos)} videos · {formatNumber(b.orders)} orders
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Top Posts + Top Creators — first-class sections side by side on wide screens */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">

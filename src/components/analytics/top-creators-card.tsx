@@ -2,10 +2,11 @@
 
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
-import { ExternalLink, UserCheck, Users } from 'lucide-react';
+import { ExternalLink, UserCheck, Users, Download } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
 import { BRAND_COLORS, BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
+import { downloadCsv } from '@/lib/utils/csv';
 
 export interface TopCreator {
   creator_name: string;
@@ -58,20 +59,44 @@ export function TopCreatorsCard({ creators, limit = 10 }: Props) {
               Highest-performing creators by {cfg.label.toLowerCase()} · top {Math.min(limit, sorted.length)}
             </p>
           </div>
-          {/* Metric toggle */}
-          <div className="flex gap-1 p-1 bg-gray-100 rounded-xl w-fit">
-            {METRICS.map(({ key, label }) => (
-              <button
-                key={key}
-                onClick={() => setMetric(key)}
-                className={cn(
-                  'px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors',
-                  metric === key ? 'bg-white text-[#1A1B3A] shadow-sm' : 'text-gray-500 hover:text-gray-700'
-                )}
-              >
-                {label}
-              </button>
-            ))}
+          <div className="flex items-center gap-2">
+            {/* Metric toggle */}
+            <div className="flex gap-1 p-1 bg-gray-100 rounded-xl w-fit">
+              {METRICS.map(({ key, label }) => (
+                <button
+                  key={key}
+                  onClick={() => setMetric(key)}
+                  className={cn(
+                    'px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors',
+                    metric === key ? 'bg-white text-[#1A1B3A] shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {/* CSV export */}
+            <button
+              onClick={() => downloadCsv(
+                `top-creators-${audience}-${metric}-${new Date().toISOString().split('T')[0]}.csv`,
+                sorted.map((c, i) => ({
+                  rank: i + 1,
+                  creator: c.creator_name,
+                  brand: BRAND_DISPLAY_NAMES[c.brand] ?? c.brand,
+                  managed: c.is_managed ? 'yes' : 'no',
+                  posts: c.total_videos,
+                  gmv: c.total_gmv,
+                  orders: c.total_orders,
+                  items_sold: c.total_items_sold,
+                  avg_gmv_per_post: c.avg_gmv_per_video,
+                }))
+              )}
+              disabled={sorted.length === 0}
+              className="p-2 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              title="Export CSV"
+            >
+              <Download className="h-3.5 w-3.5" />
+            </button>
           </div>
         </div>
 
