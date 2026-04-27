@@ -198,11 +198,13 @@ export default async function AnalyticsPage({ searchParams }: Props) {
     brand: p.brand,
   }));
   const videos = allVideos.map((v) => ({
+    video_id: v.video_id,
     video_title: v.video_title || 'Untitled',
     creator_name: v.creator_name,
     total_gmv: v.total_gmv,
     total_orders: v.total_orders,
     total_items_sold: v.total_items_sold,
+    total_views: v.total_views,
     days_active: v.days_active,
     brand: v.brand,
   }));

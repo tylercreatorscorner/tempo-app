@@ -113,6 +113,7 @@ export interface VideoSummaryItem {
   total_orders: number;
   total_items_sold: number;
   total_est_commission: number;
+  total_views: number;
   days_active: number;
 }
 

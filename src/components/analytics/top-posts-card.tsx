@@ -1,26 +1,29 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { ExternalLink, ArrowUpRight } from 'lucide-react';
+import { ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
 import { BRAND_COLORS, BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
+import { VideoTitleButton } from '@/components/video/video-title-button';
 
 export interface TopPost {
+  video_id: string;
   video_title: string;
   creator_name: string;
   total_gmv: number;
   total_orders: number;
   total_items_sold: number;
+  total_views: number;
   days_active: number;
   brand: string;
 }
 
-type Metric = 'total_gmv' | 'total_orders';
+type Metric = 'total_gmv' | 'total_views';
 
 const METRICS: Array<{ key: Metric; label: string; format: (n: number) => string }> = [
-  { key: 'total_gmv',    label: 'GMV',    format: (n) => formatCurrency(n) },
-  { key: 'total_orders', label: 'Orders', format: (n) => formatNumber(n) },
+  { key: 'total_gmv',   label: 'GMV',   format: (n) => formatCurrency(n) },
+  { key: 'total_views', label: 'Views', format: (n) => formatNumber(n) },
 ];
 
 interface Props {
@@ -73,12 +76,26 @@ export function TopPostsCard({ posts, limit = 10 }: Props) {
             const pct = (value / max) * 100;
             const brandColor = BRAND_COLORS[post.brand] ?? '#6B7280';
             return (
-              <div key={`${post.video_title}-${post.creator_name}-${i}`} className="px-5 py-3.5 hover:bg-gray-50/60 transition-colors">
+              <div key={`${post.video_id}-${i}`} className="px-5 py-3.5 hover:bg-gray-50/60 transition-colors">
                 <div className="flex items-center gap-3">
                   <div className="text-xs text-gray-300 font-bold tabular-nums w-6">{i + 1}</div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-0.5">
-                      <p className="text-sm font-medium text-[#1A1B3A] truncate min-w-0">{post.video_title}</p>
+                      <VideoTitleButton
+                        videoData={{
+                          video_id: post.video_id,
+                          video_title: post.video_title,
+                          creator_name: post.creator_name,
+                          brand: post.brand,
+                          gmv: post.total_gmv,
+                          orders: post.total_orders,
+                          items_sold: post.total_items_sold,
+                          days_selling: post.days_active,
+                        }}
+                        className="text-sm font-medium text-[#1A1B3A] hover:text-[#E91E8C] hover:underline transition-colors truncate min-w-0 text-left"
+                      >
+                        {post.video_title}
+                      </VideoTitleButton>
                       <span
                         className="text-[10px] font-medium px-2 py-0.5 rounded-full whitespace-nowrap flex-shrink-0"
                         style={{ backgroundColor: `${brandColor}18`, color: brandColor }}
@@ -97,6 +114,7 @@ export function TopPostsCard({ posts, limit = 10 }: Props) {
                         <ExternalLink className="h-2.5 w-2.5 opacity-60" />
                       </a>
                       {' · '}{post.days_active}d active
+                      {post.total_views > 0 && metric !== 'total_views' && ` · ${formatNumber(post.total_views)} views`}
                     </p>
                   </div>
                   <div className="flex-shrink-0 text-right min-w-[100px]">

@@ -148,6 +148,7 @@ export async function getVideoSummary(
     total_orders: Number(r.total_orders) || 0,
     total_items_sold: Number(r.total_items_sold) || 0,
     total_est_commission: Number(r.total_est_commission) || 0,
+    total_views: Number(r.total_views) || 0,
     days_active: Number(r.days_active) || 0,
   }));
 }

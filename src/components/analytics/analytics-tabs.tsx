@@ -5,6 +5,7 @@ import { Search, ArrowUpDown, ArrowUp, ArrowDown, Users, Package, Video, Chevron
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
 import { BRAND_DISPLAY_NAMES, BRAND_COLORS } from '@/lib/utils/constants';
 import { cn } from '@/lib/utils';
+import { VideoTitleButton } from '@/components/video/video-title-button';
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -27,11 +28,13 @@ interface Product {
 }
 
 interface Video {
+  video_id: string;
   video_title: string;
   creator_name: string;
   total_gmv: number;
   total_orders: number;
   total_items_sold: number;
+  total_views: number;
   days_active: number;
   brand: string;
 }
@@ -298,24 +301,42 @@ export function AnalyticsTabs({ creators, products, videos }: Props) {
                   <SortHeader label="Creator" field="creator_name" currentSort={sortField} currentDir={sortDir} onSort={handleSort} align="left" />
                   <th className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Brand</th>
                   <SortHeader label="GMV" field="total_gmv" currentSort={sortField} currentDir={sortDir} onSort={handleSort} />
+                  <SortHeader label="Views" field="total_views" currentSort={sortField} currentDir={sortDir} onSort={handleSort} />
                   <SortHeader label="Orders" field="total_orders" currentSort={sortField} currentDir={sortDir} onSort={handleSort} />
                   <SortHeader label="Days" field="days_active" currentSort={sortField} currentDir={sortDir} onSort={handleSort} />
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {filteredVideos.slice(pageStart, pageEnd).map((v, i) => (
-                  <tr key={`${v.video_title}-${v.creator_name}-${i}`} className="hover:bg-gray-50/60 transition-colors">
+                  <tr key={`${v.video_id}-${i}`} className="hover:bg-gray-50/60 transition-colors">
                     <td className="px-5 py-3.5 text-gray-300 tabular-nums">{pageStart + i + 1}</td>
-                    <td className="px-5 py-3.5 font-medium text-[#1A1B3A] min-w-[200px] max-w-[360px] truncate">{v.video_title}</td>
+                    <td className="px-5 py-3.5 min-w-[200px] max-w-[360px]">
+                      <VideoTitleButton
+                        videoData={{
+                          video_id: v.video_id,
+                          video_title: v.video_title,
+                          creator_name: v.creator_name,
+                          brand: v.brand,
+                          gmv: v.total_gmv,
+                          orders: v.total_orders,
+                          items_sold: v.total_items_sold,
+                          days_selling: v.days_active,
+                        }}
+                        className="text-left font-medium text-[#1A1B3A] hover:text-[#E91E8C] hover:underline transition-colors truncate block w-full"
+                      >
+                        {v.video_title}
+                      </VideoTitleButton>
+                    </td>
                     <td className="px-5 py-3.5 text-gray-500 text-xs">@{v.creator_name}</td>
                     <td className="px-5 py-3.5"><BrandPill brand={v.brand} /></td>
                     <td className="px-5 py-3.5 text-right font-semibold text-[#1A1B3A] tabular-nums">{formatCurrency(v.total_gmv)}</td>
+                    <td className="px-5 py-3.5 text-right text-gray-500 tabular-nums">{formatNumber(v.total_views)}</td>
                     <td className="px-5 py-3.5 text-right text-gray-500 tabular-nums">{formatNumber(v.total_orders)}</td>
                     <td className="px-5 py-3.5 text-right text-gray-500 tabular-nums">{v.days_active}d</td>
                   </tr>
                 ))}
                 {filteredVideos.length === 0 && (
-                  <tr><td colSpan={7} className="px-5 py-12 text-center text-sm text-gray-400">No videos found</td></tr>
+                  <tr><td colSpan={8} className="px-5 py-12 text-center text-sm text-gray-400">No videos found</td></tr>
                 )}
               </tbody>
             </table>
