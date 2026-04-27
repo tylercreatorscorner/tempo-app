@@ -1,9 +1,9 @@
-import { subDays, startOfMonth, endOfMonth, subMonths, format } from 'date-fns';
+import { subDays, startOfMonth, endOfMonth, subMonths, format, isValid, parseISO } from 'date-fns';
 import { toZonedTime } from 'date-fns-tz';
 
 const APP_TIMEZONE = 'America/Chicago'; // Dallas, TX (Central Time)
 
-export type DatePreset = 'yesterday' | 'last7' | 'last14' | 'last30' | 'thisMonth' | 'lastMonth';
+export type DatePreset = 'yesterday' | 'last7' | 'last14' | 'last30' | 'thisMonth' | 'lastMonth' | 'custom';
 
 export const DATE_PRESETS: { value: DatePreset; label: string }[] = [
   { value: 'yesterday', label: 'Yesterday' },
@@ -14,7 +14,33 @@ export const DATE_PRESETS: { value: DatePreset; label: string }[] = [
   { value: 'lastMonth', label: 'Last Month' },
 ];
 
-export function resolveDateRange(preset?: string | null): { startDate: string; endDate: string; preset: DatePreset } {
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Resolve a date range from URL params.
+ * - preset: one of the DATE_PRESETS values, or 'custom' to use customStart/customEnd
+ * - customStart, customEnd: ISO date strings (yyyy-MM-dd) — only honored when preset === 'custom'
+ *
+ * Returns the canonical { startDate, endDate, preset } the rest of the app keys off.
+ */
+export function resolveDateRange(
+  preset?: string | null,
+  customStart?: string | null,
+  customEnd?: string | null,
+): { startDate: string; endDate: string; preset: DatePreset } {
+  // Custom range path — must have valid ISO start AND end, with start <= end
+  if (preset === 'custom' && customStart && customEnd && ISO_DATE.test(customStart) && ISO_DATE.test(customEnd)) {
+    const s = parseISO(customStart);
+    const e = parseISO(customEnd);
+    if (isValid(s) && isValid(e) && s <= e) {
+      return {
+        startDate: format(s, 'yyyy-MM-dd'),
+        endDate: format(e, 'yyyy-MM-dd'),
+        preset: 'custom',
+      };
+    }
+  }
+
   const p = (preset && DATE_PRESETS.some(d => d.value === preset) ? preset : 'last7') as DatePreset;
   const now = toZonedTime(new Date(), APP_TIMEZONE);
   const yesterday = subDays(now, 1);

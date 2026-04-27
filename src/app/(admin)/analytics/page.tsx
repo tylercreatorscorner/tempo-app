@@ -11,6 +11,7 @@ import { AnalyticsTabs } from '@/components/analytics/analytics-tabs';
 import { PerformanceChart, type DailyMetrics } from '@/components/analytics/performance-chart';
 import { TopPostsCard } from '@/components/analytics/top-posts-card';
 import { TopCreatorsCard } from '@/components/analytics/top-creators-card';
+import { NotableChanges, type BrandChange, type CreatorBreakout, type HotPost } from '@/components/analytics/notable-changes';
 import { StatCard } from '@/components/dashboard/stat-card';
 import { BRAND_DISPLAY_NAMES, BRAND_COLORS } from '@/lib/utils/constants';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
@@ -18,7 +19,7 @@ import { formatCurrency, formatNumber } from '@/lib/utils/format';
 import { AlertTriangle } from 'lucide-react';
 
 interface Props {
-  searchParams: Promise<{ range?: string; brand?: string }>;
+  searchParams: Promise<{ range?: string; brand?: string; start?: string; end?: string }>;
 }
 
 /** Compute the prior period — same length, immediately preceding the current range. */
@@ -42,7 +43,7 @@ function trendPct(current: number, previous: number): number | undefined {
 
 export default async function AnalyticsPage({ searchParams }: Props) {
   const params = await searchParams;
-  const { startDate, endDate } = resolveDateRange(params.range);
+  const { startDate, endDate } = resolveDateRange(params.range, params.start, params.end);
   const { prevStart, prevEnd } = priorPeriod(startDate, endDate);
 
   const supabase = await createClient();
@@ -77,6 +78,7 @@ export default async function AnalyticsPage({ searchParams }: Props) {
     trendsByBrand,
     prevTrendsByBrand,
     allCreators,
+    prevAllCreators,
     allProducts,
     allVideos,
   ] = await Promise.all([
@@ -102,6 +104,13 @@ export default async function AnalyticsPage({ searchParams }: Props) {
         return data.map((c) => ({ ...c, brand }));
       } catch { return []; }
     })).then((r) => r.flat().sort((a, b) => (b.total_gmv ?? 0) - (a.total_gmv ?? 0))),
+    // Prior period creator rankings — used for breakout detection
+    Promise.all(BRANDS.map(async (brand) => {
+      try {
+        const data = await getCreatorRankings(brand, prevStart, prevEnd, 500);
+        return data.map((c) => ({ ...c, brand }));
+      } catch { return []; }
+    })).then((r) => r.flat()),
     Promise.all(BRANDS.map(async (brand) => {
       try {
         const data = await getProductSummary(brand, startDate, endDate, 100);
@@ -218,6 +227,76 @@ export default async function AnalyticsPage({ searchParams }: Props) {
     brand: v.brand,
   }));
 
+  // ─── Notable Changes computation ──────────────────────────────────────────
+  // Top brand riser/faller — compare current vs prior period
+  const brandDeltas: BrandChange[] = summariesByBrand
+    .map(({ brand, summary }) => {
+      const prior = prevSummariesByBrand.find(p => p.brand === brand)?.summary;
+      const cur = summary?.total_gmv ?? 0;
+      const pri = prior?.total_gmv ?? 0;
+      const delta_pct = pri === 0 ? (cur > 0 ? 100 : 0) : ((cur - pri) / pri) * 100;
+      return { brand, current: cur, prior: pri, delta_pct };
+    })
+    // Need meaningful base to consider — at least $500 in either period
+    .filter(b => b.current > 500 || b.prior > 500);
+
+  const brandRiser  = brandDeltas.filter(b => b.delta_pct > 0).sort((a, b) => b.delta_pct - a.delta_pct)[0] ?? null;
+  const brandFaller = brandDeltas.filter(b => b.delta_pct < 0).sort((a, b) => a.delta_pct - b.delta_pct)[0] ?? null;
+
+  // Don't surface a riser if it's the only brand (uninteresting)
+  const meaningfulRiser  = brandDeltas.length > 1 && brandRiser  ? brandRiser  : null;
+  const meaningfulFaller = brandDeltas.length > 1 && brandFaller ? brandFaller : null;
+
+  // Breakout creator — biggest current-period creator that wasn't already top last period
+  const prevCreatorMap = new Map<string, number>();
+  for (const c of prevAllCreators) {
+    const key = `${norm(c.creator_name)}|||${c.brand}`;
+    prevCreatorMap.set(key, c.total_gmv);
+  }
+  let creatorBreakout: CreatorBreakout | null = null;
+  let bestBreakoutScore = 0;
+  for (const c of creators) {
+    if (c.total_gmv < 1000) continue; // ignore noise
+    const key = `${norm(c.creator_name)}|||${c.brand}`;
+    const prior = prevCreatorMap.get(key) ?? 0;
+    const delta_pct = prior === 0 ? (c.total_gmv > 1000 ? 999 : 0) : ((c.total_gmv - prior) / prior) * 100;
+    // Score = delta% × log(GMV) — favors big jumps on big-enough creators
+    const score = delta_pct * Math.log(c.total_gmv);
+    if (delta_pct > 50 && score > bestBreakoutScore) {
+      bestBreakoutScore = score;
+      creatorBreakout = {
+        creator_name: c.creator_name,
+        brand: c.brand,
+        current_gmv: c.total_gmv,
+        prior_gmv: prior,
+        delta_pct,
+        is_managed: c.is_managed,
+      };
+    }
+  }
+
+  // Hottest post — highest GMV-per-day among posts that are <= 7 days active
+  // (rapidly ramping, hasn't fully cooled yet)
+  let hotPost: HotPost | null = null;
+  let bestVelocity = 0;
+  for (const v of allVideos) {
+    if (v.days_active === 0 || v.days_active > 7) continue;
+    if (v.total_gmv < 500) continue;
+    const velocity = v.total_gmv / v.days_active;
+    if (velocity > bestVelocity) {
+      bestVelocity = velocity;
+      hotPost = {
+        video_id: v.video_id,
+        video_title: v.video_title || 'Untitled',
+        creator_name: v.creator_name,
+        brand: v.brand,
+        total_gmv: v.total_gmv,
+        days_active: v.days_active,
+        velocity,
+      };
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Stale-data banner */}
@@ -259,15 +338,17 @@ export default async function AnalyticsPage({ searchParams }: Props) {
         </Suspense>
       </div>
 
-      {/* Brand filter pills (only shown when there's >1 brand to choose from) */}
+      {/* Brand filter pills — sticky on scroll so you can switch brands at any time */}
       {ALL_BRANDS.length > 1 && (
-        <Suspense fallback={null}>
-          <BrandFilter
-            brands={ALL_BRANDS}
-            brandsWithData={brandBreakdown.map(b => b.brand)}
-            selectedBrand={brandFilter}
-          />
-        </Suspense>
+        <div className="sticky top-0 z-30 -mx-3 sm:-mx-4 md:-mx-6 px-3 sm:px-4 md:px-6 py-2 bg-[#F8F9FC]/85 backdrop-blur-md border-b border-gray-200/60">
+          <Suspense fallback={null}>
+            <BrandFilter
+              brands={ALL_BRANDS}
+              brandsWithData={brandBreakdown.map(b => b.brand)}
+              selectedBrand={brandFilter}
+            />
+          </Suspense>
+        </div>
       )}
 
       {/* KPI strip — sparklines on the 4 trended metrics give context at a glance */}
@@ -315,6 +396,14 @@ export default async function AnalyticsPage({ searchParams }: Props) {
           trendLabel="vs prior period"
         />
       </div>
+
+      {/* Notable Changes — auto-surfaced anomalies vs prior period */}
+      <NotableChanges
+        brandRiser={meaningfulRiser}
+        brandFaller={meaningfulFaller}
+        creatorBreakout={creatorBreakout}
+        hotPost={hotPost}
+      />
 
       {/* Performance Overview — multi-metric chart with compare toggle */}
       <PerformanceChart
