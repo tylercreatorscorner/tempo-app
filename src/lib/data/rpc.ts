@@ -177,5 +177,6 @@ export async function getDailyTrend(
     daily_gmv: Number(r.daily_gmv) || 0,
     daily_orders: Number(r.daily_orders) || 0,
     daily_items_sold: Number(r.daily_items_sold) || 0,
+    daily_videos: Number(r.daily_videos) || 0,
   }));
 }

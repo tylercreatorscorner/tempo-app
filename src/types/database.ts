@@ -121,4 +121,5 @@ export interface DailyTrend {
   daily_gmv: number;
   daily_orders: number;
   daily_items_sold: number;
+  daily_videos: number;
 }

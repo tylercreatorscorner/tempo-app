@@ -8,10 +8,12 @@ import { resolveDateRange } from '@/lib/data/date-utils';
 import { DateRangePicker } from '@/components/dashboard/date-range-picker';
 import { BrandFilter } from '@/components/creators/brand-filter';
 import { AnalyticsTabs } from '@/components/analytics/analytics-tabs';
+import { PerformanceChart, type DailyMetrics } from '@/components/analytics/performance-chart';
+import { TopPostsCard } from '@/components/analytics/top-posts-card';
+import { TopCreatorsCard } from '@/components/analytics/top-creators-card';
 import { StatCard } from '@/components/dashboard/stat-card';
-import { GmvAreaChart } from '@/components/charts/gmv-area-chart';
 import { BRAND_DISPLAY_NAMES, BRAND_COLORS } from '@/lib/utils/constants';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
 import { AlertTriangle } from 'lucide-react';
 
@@ -50,6 +52,20 @@ export default async function AnalyticsPage({ searchParams }: Props) {
   if (allowedBrands) brandsQuery = brandsQuery.in('slug', allowedBrands);
   const { data: dbBrands } = await brandsQuery.order('name');
   const ALL_BRANDS = (dbBrands ?? []).map(b => b.slug);
+
+  // Cross-reference: which (handle|brand) pairs are managed?
+  const admin = await createAdminClient();
+  const { data: managedRows } = await admin
+    .from('managed_creators')
+    .select('id, brand, account_1, account_2, account_3, account_4, account_5');
+  const managedSet = new Map<string, string>(); // "handle|||brand" → managed_creators.id
+  const norm = (h: string) => h.replace(/^@/, '').trim().toLowerCase();
+  for (const m of managedRows ?? []) {
+    for (const acct of [m.account_1, m.account_2, m.account_3, m.account_4, m.account_5]) {
+      if (!acct || !m.brand) continue;
+      managedSet.set(`${norm(acct)}|||${m.brand}`, m.id);
+    }
+  }
 
   const brandFilter = params.brand && ALL_BRANDS.includes(params.brand) ? params.brand : null;
   const BRANDS = brandFilter ? [brandFilter] : ALL_BRANDS;
@@ -119,16 +135,21 @@ export default async function AnalyticsPage({ searchParams }: Props) {
   const avgGmvPerVideo = totals.videos > 0 ? totals.gmv / totals.videos : 0;
   const prevAvgGmvPerVideo = prevTotals.videos > 0 ? prevTotals.gmv / prevTotals.videos : 0;
 
-  // Aggregate daily trend across brands → one merged series
-  const trendByDate = new Map<string, number>();
+  // Aggregate daily trend across brands — keep all 4 metrics for the multi-metric chart
+  const trendByDate = new Map<string, { gmv: number; orders: number; items: number; videos: number }>();
   for (const { trend } of trendsByBrand) {
     for (const row of trend) {
-      trendByDate.set(row.report_date, (trendByDate.get(row.report_date) ?? 0) + row.daily_gmv);
+      const existing = trendByDate.get(row.report_date) ?? { gmv: 0, orders: 0, items: 0, videos: 0 };
+      existing.gmv    += row.daily_gmv;
+      existing.orders += row.daily_orders;
+      existing.items  += row.daily_items_sold;
+      existing.videos += row.daily_videos;
+      trendByDate.set(row.report_date, existing);
     }
   }
-  const aggregatedTrend = Array.from(trendByDate.entries())
+  const aggregatedTrend: DailyMetrics[] = Array.from(trendByDate.entries())
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, gmv]) => ({ date, gmv }));
+    .map(([date, m]) => ({ date, ...m }));
 
   // Stale-data check — latest data point in the trend series
   const latestDate = aggregatedTrend.length > 0
@@ -152,16 +173,23 @@ export default async function AnalyticsPage({ searchParams }: Props) {
 
   const maxBrandGmv = brandBreakdown[0]?.gmv ?? 1;
 
-  // Maps for table rows — these still feed AnalyticsTabs
-  const creators = allCreators.map((c) => ({
-    creator_name: c.creator_name,
-    total_videos: c.total_videos,
-    total_gmv: c.total_gmv,
-    total_orders: c.total_orders,
-    total_items_sold: c.total_items_sold,
-    avg_gmv_per_video: c.total_videos > 0 ? c.total_gmv / c.total_videos : 0,
-    brand: c.brand,
-  }));
+  // Maps for table rows — these feed AnalyticsTabs and the new top-N cards.
+  // is_managed is set by cross-referencing the (handle|brand) tuple against managed_creators.
+  const creators = allCreators.map((c) => {
+    const key = `${norm(c.creator_name)}|||${c.brand}`;
+    const managedId = managedSet.get(key) ?? null;
+    return {
+      creator_name: c.creator_name,
+      total_videos: c.total_videos,
+      total_gmv: c.total_gmv,
+      total_orders: c.total_orders,
+      total_items_sold: c.total_items_sold,
+      avg_gmv_per_video: c.total_videos > 0 ? c.total_gmv / c.total_videos : 0,
+      brand: c.brand,
+      is_managed: managedId !== null,
+      managed_id: managedId,
+    };
+  });
   const products = allProducts.map((p) => ({
     product_name: p.product_name,
     total_items_sold: p.total_items_sold,
@@ -265,91 +293,65 @@ export default async function AnalyticsPage({ searchParams }: Props) {
         />
       </div>
 
-      {/* Charts row */}
-      <div className={`grid grid-cols-1 ${!brandFilter && brandBreakdown.length > 1 ? 'lg:grid-cols-3' : 'lg:grid-cols-1'} gap-4`}>
-        {/* GMV trend */}
-        <div className={`rounded-2xl bg-white border border-gray-100 shadow-sm p-5 ${!brandFilter && brandBreakdown.length > 1 ? 'lg:col-span-2' : ''}`}>
+      {/* Performance Overview — multi-metric chart with toggle */}
+      <PerformanceChart
+        data={aggregatedTrend}
+        accentColor={brandFilter ? (BRAND_COLORS[brandFilter] ?? undefined) : undefined}
+      />
+
+      {/* Brand breakdown — only on All Brands view with >1 brand having data */}
+      {!brandFilter && brandBreakdown.length > 1 && (
+        <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-5">
           <div className="flex items-center justify-between mb-3">
             <div>
-              <h3 className="text-sm font-bold text-[#1A1B3A]">GMV Trend</h3>
-              <p className="text-xs text-gray-400 mt-0.5">
-                {aggregatedTrend.length === 1
-                  ? `Single day · ${new Date(aggregatedTrend[0].date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`
-                  : 'Daily total across selected period'}
-              </p>
+              <h3 className="text-sm font-bold text-[#1A1B3A]">Brand Breakdown</h3>
+              <p className="text-xs text-gray-400 mt-0.5">GMV by brand</p>
             </div>
-            <span className="text-xs font-semibold text-gray-400 bg-gray-100 px-2.5 py-1 rounded-full">
-              {aggregatedTrend.length} {aggregatedTrend.length === 1 ? 'day' : 'days'}
-            </span>
           </div>
-          {aggregatedTrend.length > 1 ? (
-            <GmvAreaChart
-              data={aggregatedTrend}
-              color={brandFilter ? (BRAND_COLORS[brandFilter] ?? '#E91E8C') : '#E91E8C'}
-            />
-          ) : aggregatedTrend.length === 1 ? (
-            // Single day → show one big-number card instead of an empty chart
-            <div className="h-[260px] flex flex-col items-center justify-center">
-              <p className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold">Day Total</p>
-              <p
-                className="text-5xl font-extrabold mt-2 mb-1"
-                style={{ color: brandFilter ? (BRAND_COLORS[brandFilter] ?? '#E91E8C') : '#E91E8C' }}
-              >
-                {formatCurrency(aggregatedTrend[0].gmv)}
-              </p>
-              <p className="text-xs text-gray-400">Switch to a longer range to see a trend chart</p>
-            </div>
-          ) : (
-            <div className="h-[260px] flex items-center justify-center text-sm text-gray-400">
-              No data in this period
-            </div>
-          )}
-        </div>
-
-        {/* Brand breakdown — only on All Brands view with >1 brand having data */}
-        {!brandFilter && brandBreakdown.length > 1 && (
-          <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-5">
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <h3 className="text-sm font-bold text-[#1A1B3A]">Brand Breakdown</h3>
-                <p className="text-xs text-gray-400 mt-0.5">GMV by brand</p>
-              </div>
-            </div>
-            <div className="space-y-3">
-              {brandBreakdown.map((b) => {
-                const pct = (b.gmv / maxBrandGmv) * 100;
-                const color = BRAND_COLORS[b.brand] ?? '#6B7280';
-                return (
-                  <div key={b.brand}>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs font-medium text-[#1A1B3A]">
-                        {BRAND_DISPLAY_NAMES[b.brand] ?? b.brand}
-                      </span>
-                      <span className="text-xs tabular-nums font-semibold text-[#1A1B3A]">
-                        {formatCurrency(b.gmv)}
-                      </span>
-                    </div>
-                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                      <div
-                        className="h-full rounded-full transition-all"
-                        style={{ width: `${pct}%`, backgroundColor: color }}
-                      />
-                    </div>
-                    <div className="flex items-center justify-between mt-1">
-                      <span className="text-[10px] text-gray-400">
-                        {formatNumber(b.videos)} videos · {formatNumber(b.orders)} orders
-                      </span>
-                    </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
+            {brandBreakdown.map((b) => {
+              const pct = (b.gmv / maxBrandGmv) * 100;
+              const color = BRAND_COLORS[b.brand] ?? '#6B7280';
+              return (
+                <div key={b.brand}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-medium text-[#1A1B3A]">
+                      {BRAND_DISPLAY_NAMES[b.brand] ?? b.brand}
+                    </span>
+                    <span className="text-xs tabular-nums font-semibold text-[#1A1B3A]">
+                      {formatCurrency(b.gmv)}
+                    </span>
                   </div>
-                );
-              })}
-            </div>
+                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{ width: `${pct}%`, backgroundColor: color }}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between mt-1">
+                    <span className="text-[10px] text-gray-400">
+                      {formatNumber(b.videos)} videos · {formatNumber(b.orders)} orders
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-        )}
+        </div>
+      )}
+
+      {/* Top Posts + Top Creators — first-class sections side by side on wide screens */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <TopCreatorsCard creators={creators} limit={10} />
+        <TopPostsCard posts={videos} limit={10} />
       </div>
 
-      {/* Tabbed entity tables */}
-      <AnalyticsTabs creators={creators} products={products} videos={videos} />
+      {/* Full-detail tabs — use these to drill in */}
+      <div>
+        <h3 className="text-sm font-bold text-[#1A1B3A] mb-1">All Detail</h3>
+        <p className="text-xs text-gray-400 mb-3">Sortable, searchable, and paginated for deep dives.</p>
+        <AnalyticsTabs creators={creators} products={products} videos={videos} />
+      </div>
     </div>
   );
 }
