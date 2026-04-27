@@ -1,27 +1,42 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   FileBarChart, Clipboard, Check, Loader2, ChefHat, Flame, TrendingUp,
-  BarChart3, Calendar, Clock, Send, Users, Video, ArrowUpRight, ArrowDownRight,
-  Download, MessageSquare, Hash,
+  BarChart3, Calendar, Clock, Send, Users, Video, Hash, Trash2, Pencil,
 } from 'lucide-react';
-
-// ── Constants ───────────────────────────────────────────────────────
-const BRANDS = [
-  { value: 'all', label: 'All Brands' },
-  { value: 'jiyu', label: 'JiYu' },
-  { value: 'catakor', label: 'Cata-Kor' },
-  { value: 'physicians_choice', label: "Physician's Choice" },
-];
+import { cn } from '@/lib/utils';
+import { ACTIVE_BRANDS, BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
+import { useTenant } from '@/hooks/use-tenant';
+import { FREQUENCIES } from '@/lib/data/schedule-frequency';
 
 const TABS = [
-  { id: 'reports', label: 'Reports', icon: FileBarChart },
+  { id: 'reports',    label: 'Reports',         icon: FileBarChart },
   { id: 'generators', label: 'Post Generators', icon: Hash },
-  { id: 'schedules', label: 'Schedules', icon: Clock },
+  { id: 'schedules',  label: 'Schedules',       icon: Clock },
 ] as const;
 
 type TabId = typeof TABS[number]['id'];
+
+/**
+ * Hook: returns the brand options the current user is allowed to see.
+ * Built from ACTIVE_BRANDS, filtered by allowed_brands (RBAC), with an "All Brands" entry
+ * prepended unless the user is restricted to a single brand.
+ */
+function useBrandOptions() {
+  const { allowedBrands } = useTenant();
+  return useMemo(() => {
+    const visibleSlugs = allowedBrands && allowedBrands.length > 0
+      ? ACTIVE_BRANDS.filter((b) => allowedBrands.includes(b))
+      : [...ACTIVE_BRANDS];
+    const opts = visibleSlugs.map((slug) => ({
+      value: slug,
+      label: BRAND_DISPLAY_NAMES[slug] ?? slug,
+    }));
+    if (visibleSlugs.length === 1) return opts; // Restricted to one brand → no "All"
+    return [{ value: 'all', label: 'All Brands' }, ...opts];
+  }, [allowedBrands]);
+}
 
 // ── Main Page ───────────────────────────────────────────────────────
 export default function ReportingPage() {
@@ -31,34 +46,35 @@ export default function ReportingPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-[#1A1B3A]">Reporting</h1>
-        <p className="text-sm text-gray-500 mt-1">
+        <h1 className="text-2xl font-extrabold text-[#1A1B3A]">Reporting</h1>
+        <p className="text-sm text-gray-400 mt-0.5">
           Generate reports, create Discord & Slack posts, and schedule automated updates.
         </p>
       </div>
 
-      {/* Tab Bar */}
-      <div className="flex bg-gray-100 rounded-xl p-1 w-fit">
-        {TABS.map(tab => (
+      {/* Tab Bar — pill style matching My Creators / Analytics */}
+      <div className="flex gap-1 p-1 bg-gray-100 rounded-xl w-fit">
+        {TABS.map(({ id, label, icon: Icon }) => (
           <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-              activeTab === tab.id
-                ? 'bg-white text-[#FF4D8D] shadow-sm'
+            key={id}
+            onClick={() => setActiveTab(id)}
+            className={cn(
+              'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors',
+              activeTab === id
+                ? 'bg-white text-[#1A1B3A] shadow-sm'
                 : 'text-gray-500 hover:text-gray-700'
-            }`}
+            )}
           >
-            <tab.icon className="h-4 w-4" />
-            {tab.label}
+            <Icon className="h-4 w-4" />
+            {label}
           </button>
         ))}
       </div>
 
       {/* Tab Content */}
-      {activeTab === 'reports' && <ReportsTab />}
+      {activeTab === 'reports'    && <ReportsTab />}
       {activeTab === 'generators' && <PostGeneratorsTab />}
-      {activeTab === 'schedules' && <SchedulesTab />}
+      {activeTab === 'schedules'  && <SchedulesTab />}
     </div>
   );
 }
@@ -129,143 +145,401 @@ function PostGeneratorsTab() {
 }
 
 // ── Schedules Tab ───────────────────────────────────────────────────
-function SchedulesTab() {
-  const [showModal, setShowModal] = useState(false);
 
-  // Demo schedules
-  const schedules = [
-    { id: '1', type: 'Daily Drop', brand: 'All Brands', frequency: 'Daily @ 9 AM', destination: 'Discord #daily-updates', lastSent: '2 hours ago', active: true },
-    { id: '2', type: "Who's Cooking?", brand: 'JiYu', frequency: 'Weekly (Mon)', destination: 'Discord #creator-highlights', lastSent: '3 days ago', active: true },
-    { id: '3', type: 'Brand Report', brand: "Physician's Choice", frequency: 'Weekly (Fri)', destination: 'Slack #pc-updates', lastSent: '5 days ago', active: false },
-  ];
+interface ScheduleRow {
+  id: string;
+  report_type: string;
+  source: string;
+  brand: string;
+  period: string;
+  cron_label: string;
+  destination_kind: string;
+  webhook_url: string;
+  channel_label: string | null;
+  active: boolean;
+  last_run_at: string | null;
+  last_run_status: string | null;
+  last_run_error: string | null;
+  next_run_at: string | null;
+  created_at: string;
+}
+
+const REPORT_TYPE_LABELS: Record<string, string> = {
+  // discord-posts source
+  'daily-drop':       'Daily Drop',
+  'whats-cooking':    "What's Cooking?",
+  'whos-cooking':     "Who's Cooking?",
+  'weekly-rankings':  'Weekly Rankings',
+  // reporting source
+  'performance-summary': 'Performance Summary',
+  'creator-activity':    'Creator Activity',
+  'brand-report':        'Brand Report',
+};
+
+function relativeTimeAgo(iso: string | null): string {
+  if (!iso) return '—';
+  const ms = Date.now() - new Date(iso).getTime();
+  if (ms < 0) return 'Soon';
+  const min = Math.floor(ms / 60000);
+  if (min < 1) return 'Just now';
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  const d = Math.floor(hr / 24);
+  return `${d}d ago`;
+}
+
+function relativeTimeUntil(iso: string | null): string {
+  if (!iso) return '—';
+  const ms = new Date(iso).getTime() - Date.now();
+  if (ms < 0) return 'Pending';
+  const min = Math.floor(ms / 60000);
+  if (min < 60) return `in ${min}m`;
+  const hr = Math.floor(min / 60);
+  if (hr < 48) return `in ${hr}h`;
+  const d = Math.floor(hr / 24);
+  return `in ${d}d`;
+}
+
+function SchedulesTab() {
+  const [schedules, setSchedules] = useState<ScheduleRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [editing, setEditing] = useState<ScheduleRow | null>(null);
+
+  const fetchSchedules = useCallback(async () => {
+    try {
+      const res = await fetch('/api/schedules');
+      const data = await res.json();
+      setSchedules(data.schedules ?? []);
+    } catch {
+      setSchedules([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchSchedules(); }, [fetchSchedules]);
+
+  const toggleActive = async (s: ScheduleRow) => {
+    await fetch(`/api/schedules/${s.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ active: !s.active }),
+    });
+    fetchSchedules();
+  };
+
+  const deleteSchedule = async (s: ScheduleRow) => {
+    if (!confirm(`Delete the ${REPORT_TYPE_LABELS[s.report_type] ?? s.report_type} schedule?`)) return;
+    await fetch(`/api/schedules/${s.id}`, { method: 'DELETE' });
+    fetchSchedules();
+  };
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-gray-500">Automated report delivery to Discord and Slack channels.</p>
+        <p className="text-sm text-gray-400">Automated report delivery to Discord and Slack channels.</p>
         <button
-          onClick={() => setShowModal(true)}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] text-white text-sm font-medium hover:opacity-90 transition-opacity"
+          onClick={() => { setEditing(null); setShowModal(true); }}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#E91E8C] text-white text-sm font-semibold hover:bg-[#d1177d] transition-colors"
         >
           <Calendar className="h-4 w-4" />
           New Schedule
         </button>
       </div>
 
-      <div className="rounded-2xl bg-white border border-gray-200 overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 border-b border-gray-200">
-            <tr>
-              {['Report Type', 'Brand', 'Frequency', 'Destination', 'Last Sent', 'Status', ''].map(h => (
-                <th key={h} className="text-left py-3 px-4 font-medium text-gray-500 text-xs uppercase tracking-wider">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {schedules.map(s => (
-              <tr key={s.id} className="hover:bg-gray-50 transition-colors">
-                <td className="py-3 px-4 font-medium text-gray-900">{s.type}</td>
-                <td className="py-3 px-4 text-gray-600">{s.brand}</td>
-                <td className="py-3 px-4 text-gray-600">{s.frequency}</td>
-                <td className="py-3 px-4">
-                  <span className={`inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full font-medium ${
-                    s.destination.startsWith('Discord') ? 'bg-[#5865F2]/10 text-[#5865F2]' : 'bg-green-50 text-green-700'
-                  }`}>
-                    {s.destination.startsWith('Discord') ? '💬' : '📨'} {s.destination}
-                  </span>
-                </td>
-                <td className="py-3 px-4 text-gray-400 text-xs">{s.lastSent}</td>
-                <td className="py-3 px-4">
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                    s.active ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'
-                  }`}>
-                    {s.active ? 'Active' : 'Paused'}
-                  </span>
-                </td>
-                <td className="py-3 px-4">
-                  <button className="text-xs text-gray-400 hover:text-gray-700 transition-colors">Edit</button>
-                </td>
+      {loading ? (
+        <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-12 text-center">
+          <Loader2 className="h-5 w-5 mx-auto animate-spin text-gray-300" />
+        </div>
+      ) : schedules.length === 0 ? (
+        <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-16 text-center">
+          <Clock className="h-8 w-8 mx-auto text-gray-200 mb-3" />
+          <p className="text-sm font-medium text-gray-500">No schedules yet</p>
+          <p className="text-xs text-gray-400 mt-1 max-w-sm mx-auto">
+            Set up an automated schedule to deliver any report or post on a recurring basis to a Discord or Slack channel.
+          </p>
+        </div>
+      ) : (
+        <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50/60 border-b border-gray-100">
+              <tr>
+                {['Report', 'Brand', 'Frequency', 'Destination', 'Last Sent', 'Next Run', 'Status', ''].map(h => (
+                  <th key={h} className="text-left py-3 px-4 font-semibold text-gray-500 text-xs uppercase tracking-wider">{h}</th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {schedules.map(s => (
+                <tr key={s.id} className="hover:bg-gray-50/60 transition-colors">
+                  <td className="py-3 px-4 font-medium text-[#1A1B3A]">{REPORT_TYPE_LABELS[s.report_type] ?? s.report_type}</td>
+                  <td className="py-3 px-4 text-gray-500">{s.brand === 'all' ? 'All Brands' : (BRAND_DISPLAY_NAMES[s.brand] ?? s.brand)}</td>
+                  <td className="py-3 px-4 text-gray-500 text-xs">{s.cron_label}</td>
+                  <td className="py-3 px-4">
+                    <span className={cn(
+                      'inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full font-medium',
+                      s.destination_kind === 'discord' ? 'bg-[#5865F2]/10 text-[#5865F2]' : 'bg-green-50 text-green-700'
+                    )}>
+                      {s.destination_kind === 'discord' ? '💬' : '📨'} {s.channel_label || s.destination_kind}
+                    </span>
+                  </td>
+                  <td className="py-3 px-4 text-xs">
+                    <div className="text-gray-500">{relativeTimeAgo(s.last_run_at)}</div>
+                    {s.last_run_status === 'failed' && (
+                      <div className="text-[10px] text-red-500" title={s.last_run_error ?? ''}>last run failed</div>
+                    )}
+                  </td>
+                  <td className="py-3 px-4 text-xs text-gray-500">{s.active ? relativeTimeUntil(s.next_run_at) : 'Paused'}</td>
+                  <td className="py-3 px-4">
+                    <button
+                      onClick={() => toggleActive(s)}
+                      className={cn(
+                        'text-xs px-2 py-0.5 rounded-full font-semibold transition-colors',
+                        s.active ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                      )}
+                    >
+                      {s.active ? 'Active' : 'Paused'}
+                    </button>
+                  </td>
+                  <td className="py-3 px-4">
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => { setEditing(s); setShowModal(true); }}
+                        className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors"
+                        title="Edit"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={() => deleteSchedule(s)}
+                        className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-600 transition-colors"
+                        title="Delete"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
-      <p className="text-xs text-gray-400 text-center pt-2">
-        Scheduling is coming soon. This preview shows how automated reports will work.
-      </p>
-
-      {showModal && <NewScheduleModal onClose={() => setShowModal(false)} />}
+      {showModal && (
+        <ScheduleModal
+          editing={editing}
+          onClose={() => { setShowModal(false); setEditing(null); }}
+          onSaved={() => { setShowModal(false); setEditing(null); fetchSchedules(); }}
+        />
+      )}
     </div>
   );
 }
 
-// ── New Schedule Modal ──────────────────────────────────────────────
-function NewScheduleModal({ onClose }: { onClose: () => void }) {
+// ── Schedule Modal — create or edit a schedule ──────────────────────
+function ScheduleModal({
+  editing, onClose, onSaved,
+}: { editing: ScheduleRow | null; onClose: () => void; onSaved: () => void }) {
+  const brandOptions = useBrandOptions();
+  const [source, setSource] = useState<string>(editing?.source ?? 'discord-posts');
+  const [reportType, setReportType] = useState<string>(editing?.report_type ?? 'daily-drop');
+  const [brand, setBrand] = useState(editing?.brand ?? brandOptions[0]?.value ?? 'all');
+  const [period, setPeriod] = useState(editing?.period ?? '7d');
+  const [cronLabel, setCronLabel] = useState(editing?.cron_label ?? FREQUENCIES[0].label);
+  const [webhookUrl, setWebhookUrl] = useState(editing?.webhook_url ?? '');
+  const [channelLabel, setChannelLabel] = useState(editing?.channel_label ?? '');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const reportOptions = source === 'discord-posts'
+    ? [
+        { value: 'daily-drop',      label: 'Daily Drop' },
+        { value: 'whats-cooking',   label: "What's Cooking?" },
+        { value: 'whos-cooking',    label: "Who's Cooking?" },
+        { value: 'weekly-rankings', label: 'Weekly Rankings' },
+      ]
+    : [
+        { value: 'performance-summary', label: 'Performance Summary' },
+        { value: 'creator-activity',    label: 'Creator Activity' },
+        { value: 'brand-report',        label: 'Brand Report' },
+      ];
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      const body = {
+        source, report_type: reportType, brand, period,
+        cron_label: cronLabel,
+        webhook_url: webhookUrl,
+        channel_label: channelLabel || null,
+      };
+      const res = editing
+        ? await fetch(`/api/schedules/${editing.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          })
+        : await fetch('/api/schedules', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Save failed');
+      onSaved();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Something went wrong');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4">
-        <h3 className="text-lg font-bold text-gray-900">New Schedule</h3>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" />
+      <div
+        className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="text-base font-bold text-[#1A1B3A]">{editing ? 'Edit Schedule' : 'New Schedule'}</h3>
 
         <div className="space-y-3">
+          {/* Source */}
           <div>
-            <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Report Type</label>
-            <select className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#FF4D8D]/50">
-              <option>Daily Drop</option>
-              <option>What&apos;s Cooking?</option>
-              <option>Who&apos;s Cooking?</option>
-              <option>Weekly Rankings</option>
-              <option>Video Breakdown</option>
-              <option>Performance Summary</option>
-              <option>Creator Activity</option>
-              <option>Brand Report</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Brand</label>
-            <select className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#FF4D8D]/50">
-              {BRANDS.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}
-            </select>
-          </div>
-
-          <div>
-            <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Frequency</label>
-            <select className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#FF4D8D]/50">
-              <option>Daily @ 9:00 AM CT</option>
-              <option>Weekly (Monday)</option>
-              <option>Weekly (Friday)</option>
-              <option>Monthly (1st)</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Destination</label>
-            <div className="flex gap-2 mt-1">
-              <select className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#FF4D8D]/50">
-                <option>Discord</option>
-                <option>Slack</option>
-              </select>
-              <input
-                type="text"
-                placeholder="#channel-name"
-                className="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#FF4D8D]/50"
-              />
+            <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Type</label>
+            <div className="flex gap-1 p-1 bg-gray-100 rounded-xl">
+              {[
+                { v: 'discord-posts', l: 'Quick Post' },
+                { v: 'reporting',     l: 'Long Report' },
+              ].map(o => (
+                <button
+                  key={o.v}
+                  onClick={() => {
+                    setSource(o.v);
+                    setReportType(o.v === 'discord-posts' ? 'daily-drop' : 'performance-summary');
+                  }}
+                  className={cn(
+                    'flex-1 text-sm font-semibold py-1.5 rounded-lg transition-colors',
+                    source === o.v ? 'bg-white text-[#1A1B3A] shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                  )}
+                >
+                  {o.l}
+                </button>
+              ))}
             </div>
           </div>
+
+          {/* Report */}
+          <div>
+            <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Report</label>
+            <select
+              value={reportType}
+              onChange={e => setReportType(e.target.value)}
+              className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+            >
+              {reportOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </div>
+
+          {/* Brand */}
+          <div>
+            <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Brand</label>
+            <select
+              value={brand}
+              onChange={e => setBrand(e.target.value)}
+              className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+            >
+              {brandOptions.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}
+            </select>
+          </div>
+
+          {/* Period (only for periodic reports) */}
+          {(source === 'reporting' || ['whats-cooking', 'whos-cooking'].includes(reportType)) && (
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Lookback Period</label>
+              <div className="flex gap-1 p-1 bg-gray-100 rounded-xl">
+                {[{ v: '7d', l: '7 Days' }, { v: '30d', l: '30 Days' }].map(p => (
+                  <button
+                    key={p.v}
+                    onClick={() => setPeriod(p.v)}
+                    className={cn(
+                      'flex-1 text-sm font-semibold py-1.5 rounded-lg transition-colors',
+                      period === p.v ? 'bg-white text-[#1A1B3A] shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                    )}
+                  >
+                    {p.l}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Frequency */}
+          <div>
+            <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Send</label>
+            <select
+              value={cronLabel}
+              onChange={e => setCronLabel(e.target.value)}
+              className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+            >
+              {FREQUENCIES.map(f => <option key={f.label} value={f.label}>{f.label}</option>)}
+            </select>
+          </div>
+
+          {/* Webhook URL */}
+          <div>
+            <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+              Webhook URL <span className="text-gray-400 font-normal normal-case ml-1">(Discord or Slack incoming webhook)</span>
+            </label>
+            <input
+              type="url"
+              value={webhookUrl}
+              onChange={e => setWebhookUrl(e.target.value)}
+              placeholder="https://discord.com/api/webhooks/…  or  https://hooks.slack.com/services/…"
+              className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C] font-mono"
+            />
+          </div>
+
+          {/* Channel label (display) */}
+          <div>
+            <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+              Label <span className="text-gray-400 font-normal normal-case ml-1">(display only — e.g. #daily-updates)</span>
+            </label>
+            <input
+              type="text"
+              value={channelLabel}
+              onChange={e => setChannelLabel(e.target.value)}
+              placeholder="#channel-name"
+              className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+            />
+          </div>
         </div>
 
-        <div className="flex gap-3 pt-2">
-          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+        {error && (
+          <div className="px-3 py-2 rounded-lg bg-red-50 text-red-600 text-xs">{error}</div>
+        )}
+
+        <div className="flex gap-3 pt-1">
+          <button
+            onClick={onClose}
+            disabled={saving}
+            className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+          >
             Cancel
           </button>
-          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] text-white text-sm font-medium hover:opacity-90 transition-opacity">
-            Create Schedule
+          <button
+            onClick={handleSave}
+            disabled={saving || !webhookUrl}
+            className="flex-1 py-2.5 rounded-xl bg-[#E91E8C] hover:bg-[#d1177d] text-white text-sm font-semibold disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+          >
+            {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+            {editing ? 'Save Changes' : 'Create Schedule'}
           </button>
         </div>
-
-        <p className="text-xs text-gray-400 text-center">Scheduling will be fully functional in the next update.</p>
       </div>
     </div>
   );
@@ -279,21 +553,28 @@ function ReportCard({
   iconBg: string; iconColor: string; type: string;
   showPeriod?: boolean; features: string[];
 }) {
-  const [brand, setBrand] = useState('all');
+  const brandOptions = useBrandOptions();
+  const [brand, setBrand] = useState(brandOptions[0]?.value ?? 'all');
   const [period, setPeriod] = useState<'7d' | '30d'>('7d');
   const [text, setText] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const generate = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const res = await fetch(`/api/reporting?type=${type}&brand=${brand}&period=${period}`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `HTTP ${res.status}`);
+      }
       const data = await res.json();
       setText(data.text);
-    } catch (err: any) {
-      setText(`Error: ${err.message}. Report API route coming soon.`);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to generate report');
+      setText(null);
     } finally {
       setLoading(false);
     }
@@ -307,30 +588,39 @@ function ReportCard({
   };
 
   return (
-    <div className="rounded-2xl bg-white border border-gray-200 shadow-sm flex flex-col">
+    <div className="rounded-2xl bg-white border border-gray-100 shadow-sm flex flex-col">
       <div className="px-5 py-4 border-b border-gray-100">
         <div className="flex items-center gap-3 mb-2">
           <div className={`h-10 w-10 rounded-lg ${iconBg} flex items-center justify-center`}>
             <Icon className={`h-5 w-5 ${iconColor}`} />
           </div>
-          <h3 className="font-bold text-gray-900">{title}</h3>
+          <h3 className="font-bold text-[#1A1B3A]">{title}</h3>
         </div>
-        <p className="text-sm text-gray-500">{description}</p>
+        <p className="text-sm text-gray-400">{description}</p>
       </div>
 
       <div className="px-5 py-4 space-y-3">
-        <select value={brand} onChange={e => setBrand(e.target.value)}
-          className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-[#FF4D8D]/50">
-          {BRANDS.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}
+        <select
+          value={brand}
+          onChange={e => setBrand(e.target.value)}
+          className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+        >
+          {brandOptions.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}
         </select>
 
         {showPeriod && (
-          <div className="flex bg-gray-100 rounded-lg p-1">
+          <div className="flex gap-1 p-1 bg-gray-100 rounded-xl">
             {[{ v: '7d', l: 'Weekly' }, { v: '30d', l: 'Monthly' }].map(p => (
-              <button key={p.v} onClick={() => setPeriod(p.v as '7d' | '30d')}
-                className={`flex-1 text-sm font-medium py-1.5 rounded-md transition-all ${
-                  period === p.v ? 'bg-white text-[#FF4D8D] shadow-sm' : 'text-gray-500 hover:text-gray-700'
-                }`}>{p.l}</button>
+              <button
+                key={p.v}
+                onClick={() => setPeriod(p.v as '7d' | '30d')}
+                className={cn(
+                  'flex-1 text-sm font-semibold py-1.5 rounded-lg transition-colors',
+                  period === p.v ? 'bg-white text-[#1A1B3A] shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                )}
+              >
+                {p.l}
+              </button>
             ))}
           </div>
         )}
@@ -339,31 +629,39 @@ function ReportCard({
         <div className="space-y-1">
           {features.map(f => (
             <div key={f} className="flex items-center gap-2 text-xs text-gray-500">
-              <div className="w-1 h-1 rounded-full bg-[#FF4D8D]" />
+              <div className="w-1 h-1 rounded-full bg-[#E91E8C]" />
               {f}
             </div>
           ))}
         </div>
 
-        <button onClick={generate} disabled={loading}
-          className="w-full py-2.5 rounded-lg bg-[#FF4D8D] hover:bg-[#e8437e] text-white font-medium text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
-          {loading ? <><Loader2 className="h-4 w-4 animate-spin" />Generating...</> : 'Generate Report'}
+        <button
+          onClick={generate}
+          disabled={loading}
+          className="w-full py-2.5 rounded-xl bg-[#E91E8C] hover:bg-[#d1177d] text-white font-semibold text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+        >
+          {loading ? <><Loader2 className="h-4 w-4 animate-spin" />Generating…</> : 'Generate Report'}
         </button>
       </div>
+
+      {error && (
+        <div className="mx-5 mb-4 px-3 py-2 rounded-lg bg-red-50 text-red-600 text-xs">{error}</div>
+      )}
 
       {text && (
         <div className="px-5 pb-5 space-y-3">
           <div className="rounded-xl border border-gray-200 overflow-hidden">
-            <div className="px-4 py-2 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+            <div className="px-4 py-2 bg-gray-50/80 border-b border-gray-200 flex items-center justify-between">
               <span className="text-xs font-semibold text-gray-500">Preview</span>
-              <div className="flex gap-2">
-                <button onClick={handleCopy}
-                  className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-colors ${
-                    copied ? 'bg-green-500 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
-                  }`}>
-                  {copied ? <><Check className="h-3.5 w-3.5" />Copied!</> : <><Clipboard className="h-3.5 w-3.5" />Copy</>}
-                </button>
-              </div>
+              <button
+                onClick={handleCopy}
+                className={cn(
+                  'flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold transition-colors',
+                  copied ? 'bg-green-500 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                )}
+              >
+                {copied ? <><Check className="h-3.5 w-3.5" />Copied</> : <><Clipboard className="h-3.5 w-3.5" />Copy</>}
+              </button>
             </div>
             <div className="p-4 bg-white max-h-[400px] overflow-auto">
               <pre className="text-sm text-gray-700 whitespace-pre-wrap font-sans leading-relaxed">{text}</pre>
@@ -381,7 +679,8 @@ function PostCard({
 }: {
   title: string; icon: typeof Flame; type: string; showPeriod?: boolean; description: string;
 }) {
-  const [brand, setBrand] = useState('all');
+  const brandOptions = useBrandOptions();
+  const [brand, setBrand] = useState(brandOptions[0]?.value ?? 'all');
   const [period, setPeriod] = useState<'7d' | '30d'>('7d');
   const [format, setFormat] = useState<'discord' | 'slack'>('discord');
   const [text, setText] = useState<string | null>(null);
@@ -414,8 +713,8 @@ function PostCard({
       setText(output);
       setStats(data.stats);
       setMentionMap(data.mentionMap || {});
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to generate post');
     } finally {
       setLoading(false);
     }
@@ -429,55 +728,73 @@ function PostCard({
   };
 
   return (
-    <div className="rounded-2xl bg-white border border-gray-200 shadow-sm flex flex-col">
+    <div className="rounded-2xl bg-white border border-gray-100 shadow-sm flex flex-col">
       {/* Header */}
       <div className="px-5 py-4 border-b border-gray-100">
         <div className="flex items-center gap-3 mb-1">
           <div className="h-9 w-9 rounded-lg bg-pink-50 flex items-center justify-center">
-            <Icon className="h-5 w-5 text-[#FF4D8D]" />
+            <Icon className="h-5 w-5 text-[#E91E8C]" />
           </div>
           <h2 className="text-lg font-bold text-[#1A1B3A]">{title}</h2>
         </div>
-        <p className="text-xs text-gray-500">{description}</p>
+        <p className="text-xs text-gray-400">{description}</p>
       </div>
 
       {/* Controls */}
       <div className="px-5 py-4 space-y-3">
-        <select value={brand} onChange={e => setBrand(e.target.value)}
-          className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-[#FF4D8D]/50">
-          {BRANDS.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}
+        <select
+          value={brand}
+          onChange={e => setBrand(e.target.value)}
+          className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+        >
+          {brandOptions.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}
         </select>
 
         {showPeriod && (
-          <div className="flex bg-gray-100 rounded-lg p-1">
+          <div className="flex gap-1 p-1 bg-gray-100 rounded-xl">
             {[{ v: '7d', l: '7 Day' }, { v: '30d', l: 'Monthly' }].map(p => (
-              <button key={p.v} onClick={() => setPeriod(p.v as '7d' | '30d')}
-                className={`flex-1 text-sm font-medium py-1.5 rounded-md transition-all ${
-                  period === p.v ? 'bg-white text-[#FF4D8D] shadow-sm' : 'text-gray-500 hover:text-gray-700'
-                }`}>{p.l}</button>
+              <button
+                key={p.v}
+                onClick={() => setPeriod(p.v as '7d' | '30d')}
+                className={cn(
+                  'flex-1 text-sm font-semibold py-1.5 rounded-lg transition-colors',
+                  period === p.v ? 'bg-white text-[#1A1B3A] shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                )}
+              >
+                {p.l}
+              </button>
             ))}
           </div>
         )}
 
         {/* Format Toggle */}
-        <div className="flex bg-gray-100 rounded-lg p-1">
-          <button onClick={() => setFormat('discord')}
-            className={`flex-1 text-sm font-medium py-1.5 rounded-md transition-all flex items-center justify-center gap-1.5 ${
-              format === 'discord' ? 'bg-[#36393f] text-[#dcddde] shadow-sm' : 'text-gray-500 hover:text-gray-700'
-            }`}>
+        <div className="flex gap-1 p-1 bg-gray-100 rounded-xl">
+          <button
+            onClick={() => setFormat('discord')}
+            className={cn(
+              'flex-1 text-sm font-semibold py-1.5 rounded-lg transition-colors flex items-center justify-center gap-1.5',
+              format === 'discord' ? 'bg-[#5865F2] text-white shadow-sm' : 'text-gray-500 hover:text-gray-700'
+            )}
+          >
             💬 Discord
           </button>
-          <button onClick={() => setFormat('slack')}
-            className={`flex-1 text-sm font-medium py-1.5 rounded-md transition-all flex items-center justify-center gap-1.5 ${
-              format === 'slack' ? 'bg-white text-[#4A154B] shadow-sm' : 'text-gray-500 hover:text-gray-700'
-            }`}>
+          <button
+            onClick={() => setFormat('slack')}
+            className={cn(
+              'flex-1 text-sm font-semibold py-1.5 rounded-lg transition-colors flex items-center justify-center gap-1.5',
+              format === 'slack' ? 'bg-[#4A154B] text-white shadow-sm' : 'text-gray-500 hover:text-gray-700'
+            )}
+          >
             📨 Slack
           </button>
         </div>
 
-        <button onClick={generate} disabled={loading}
-          className="w-full py-2.5 rounded-lg bg-[#FF4D8D] hover:bg-[#e8437e] text-white font-medium text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
-          {loading ? <><Loader2 className="h-4 w-4 animate-spin" />Generating...</> : 'Generate'}
+        <button
+          onClick={generate}
+          disabled={loading}
+          className="w-full py-2.5 rounded-xl bg-[#E91E8C] hover:bg-[#d1177d] text-white font-semibold text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+        >
+          {loading ? <><Loader2 className="h-4 w-4 animate-spin" />Generating…</> : 'Generate'}
         </button>
       </div>
 
@@ -527,11 +844,14 @@ function PostCard({
 
       {text && (
         <div className="px-5 pb-5">
-          <button onClick={handleCopy}
-            className={`w-full py-3 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 ${
+          <button
+            onClick={handleCopy}
+            className={cn(
+              'w-full py-3 rounded-xl font-semibold text-sm transition-colors flex items-center justify-center gap-2',
               copied ? 'bg-green-500 text-white' : 'bg-[#1A1B3A] hover:bg-[#2a2b4a] text-white'
-            }`}>
-            {copied ? <><Check className="h-4 w-4" />Copied!</> : <><Clipboard className="h-4 w-4" />Copy to Clipboard</>}
+            )}
+          >
+            {copied ? <><Check className="h-4 w-4" />Copied</> : <><Clipboard className="h-4 w-4" />Copy to Clipboard</>}
           </button>
         </div>
       )}
