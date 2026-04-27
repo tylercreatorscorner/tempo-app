@@ -33,8 +33,13 @@ export default async function AdminDashboard({ searchParams }: Props) {
   // Load brands dynamically from database (tenant-scoped via RLS, or explicit tenant for platform admin)
   const supabase = await createClient();
   const activeTenantId = await getActiveTenantId();
+  // Honor user's allowed_brands restriction (if any)
+  const { getAllowedBrandsForUser } = await import('@/lib/data/brands');
+  const allowedBrands = await getAllowedBrandsForUser();
+
   let brandsQuery = supabase.from('brands_v2').select('slug').eq('is_archived', false).order('name');
   if (activeTenantId) brandsQuery = brandsQuery.eq('tenant_id', activeTenantId);
+  if (allowedBrands) brandsQuery = brandsQuery.in('slug', allowedBrands);
   const { data: dbBrands } = await brandsQuery;
   const ALL_BRANDS = (dbBrands ?? []).map(b => b.slug);
 

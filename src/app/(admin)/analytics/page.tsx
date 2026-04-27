@@ -17,7 +17,12 @@ export default async function AnalyticsPage({ searchParams }: Props) {
   const { startDate, endDate } = resolveDateRange(params.range);
 
   const supabase = await createClient();
-  const { data: dbBrands } = await supabase.from('brands_v2').select('slug').eq('is_archived', false).order('name');
+  // Honor user's allowed_brands restriction (if any)
+  const { getAllowedBrandsForUser } = await import('@/lib/data/brands');
+  const allowedBrands = await getAllowedBrandsForUser();
+  let brandsQuery = supabase.from('brands_v2').select('slug').eq('is_archived', false);
+  if (allowedBrands) brandsQuery = brandsQuery.in('slug', allowedBrands);
+  const { data: dbBrands } = await brandsQuery.order('name');
   const ALL_BRANDS = (dbBrands ?? []).map(b => b.slug);
 
   const brandFilter = params.brand && ALL_BRANDS.includes(params.brand)

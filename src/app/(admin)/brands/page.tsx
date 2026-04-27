@@ -21,11 +21,16 @@ export default async function BrandsPage({ searchParams }: Props) {
 
   // Load brands from database (tenant-scoped via RLS)
   const supabase = await createClient();
-  const { data: dbBrands } = await supabase
+  // Honor user's allowed_brands restriction (if any)
+  const { getAllowedBrandsForUser } = await import('@/lib/data/brands');
+  const allowedBrands = await getAllowedBrandsForUser();
+
+  let brandsQuery = supabase
     .from('brands_v2')
     .select('id, slug, name, display_name, color')
-    .eq('is_archived', false)
-    .order('name');
+    .eq('is_archived', false);
+  if (allowedBrands) brandsQuery = brandsQuery.in('slug', allowedBrands);
+  const { data: dbBrands } = await brandsQuery.order('name');
 
   const brands = (dbBrands ?? []).map(b => ({
     slug: b.slug,

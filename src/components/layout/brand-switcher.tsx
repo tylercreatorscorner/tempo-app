@@ -22,11 +22,26 @@ export function BrandSwitcher() {
   useEffect(() => {
     async function load() {
       const supabase = createClient();
-      const { data } = await supabase
+      // Pull allowed_brands from the user's profile to enforce per-user brand restrictions
+      const { data: { user } } = await supabase.auth.getUser();
+      let allowedBrands: string[] | null = null;
+      if (user) {
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('allowed_brands')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        if (Array.isArray(profile?.allowed_brands) && profile.allowed_brands.length > 0) {
+          allowedBrands = profile.allowed_brands;
+        }
+      }
+
+      let query = supabase
         .from('brands_v2')
         .select('slug, display_name, name, color')
-        .eq('is_archived', false)
-        .order('name');
+        .eq('is_archived', false);
+      if (allowedBrands) query = query.in('slug', allowedBrands);
+      const { data } = await query.order('name');
       if (data && data.length > 0) {
         setOptions([
           ...(data.length > 1 ? [{ key: 'all', label: 'All Brands', color: null as string | null }] : []),

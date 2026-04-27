@@ -24,6 +24,7 @@ export function useTenant() {
   const [userName, setUserName] = useState<string>('');
   const [userEmail, setUserEmail] = useState<string>('');
   const [brandCount, setBrandCount] = useState(0);
+  const [allowedBrands, setAllowedBrands] = useState<string[] | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -37,13 +38,18 @@ export function useTenant() {
 
       const { data: profile } = await supabase
         .from('user_profiles')
-        .select('tenant_id, role, name')
+        .select('tenant_id, role, name, allowed_brands')
         .eq('user_id', user.id)
         .maybeSingle();
 
       if (profile) {
         setUserRole(profile.role || 'customer');
         setUserName(profile.name || user.user_metadata?.full_name || '');
+        setAllowedBrands(
+          Array.isArray(profile.allowed_brands) && profile.allowed_brands.length > 0
+            ? profile.allowed_brands
+            : null
+        );
       }
 
       if (profile?.tenant_id) {
@@ -64,6 +70,10 @@ export function useTenant() {
   const isMultiBrand = useMemo(() => brandCount > 1, [brandCount]);
   const isBrandPlan = useMemo(() => tenant?.plan === 'brand', [tenant]);
   const isOwner = useMemo(() => userRole === 'owner' || userRole === 'admin', [userRole]);
+  const isBrandRestricted = useMemo(() => allowedBrands !== null, [allowedBrands]);
 
-  return { tenant, userRole, userName, userEmail, brandCount, isMultiBrand, isBrandPlan, isOwner, loading };
+  return {
+    tenant, userRole, userName, userEmail, brandCount,
+    isMultiBrand, isBrandPlan, isOwner, allowedBrands, isBrandRestricted, loading,
+  };
 }
