@@ -101,19 +101,33 @@ function pctChange(curr: number, prior: number): number | null {
   return ((curr - prior) / prior) * 100;
 }
 
-// Anchor to latest data day (same pattern as discord-posts.ts).
-async function resolveAnchorToday(supabase: any, brandUuids: string[] | null): Promise<Date> {
-  let query = supabase
-    .from('daily_creator_stats')
-    .select('report_date')
-    .order('report_date', { ascending: false })
-    .limit(1);
-  if (brandUuids) query = query.in('brand_id', brandUuids);
-  const { data } = await query;
-  if (!data || data.length === 0) return new Date();
-  const latest = new Date(data[0].report_date + 'T12:00:00Z');
-  latest.setUTCDate(latest.getUTCDate() + 1);
-  return latest;
+// Anchor to the oldest of the latest dates across all tables we'll query.
+// For a client-facing report, internal consistency across sections matters
+// more than freshness — if video data is from Mar 14 but creator data is from
+// Apr 26, anchoring to creator latest would produce a report where the
+// headline GMV is from one week and "Top Videos" is from another (or empty).
+// Using the oldest shared date guarantees every section reports on the
+// same window, even if it means the report is a few weeks behind real time.
+async function resolveSharedAnchor(supabase: any, brandUuids: string[] | null): Promise<Date> {
+  const tables: ('daily_creator_stats' | 'daily_video_stats' | 'daily_product_stats')[] = [
+    'daily_creator_stats',
+    'daily_video_stats',
+    'daily_product_stats',
+  ];
+  const latests = await Promise.all(tables.map(async (t) => {
+    let q = supabase.from(t).select('report_date').order('report_date', { ascending: false }).limit(1);
+    if (brandUuids) q = q.in('brand_id', brandUuids);
+    const { data } = await q;
+    if (!data || data.length === 0) return null;
+    return new Date(data[0].report_date + 'T12:00:00Z');
+  }));
+  const valid = latests.filter((d): d is Date => d !== null);
+  if (valid.length === 0) return new Date();
+  // Oldest of the latest dates
+  const oldestLatest = valid.reduce((min, d) => d.getTime() < min.getTime() ? d : min);
+  // Add 1 day so endDate (= today - 1) lands on that latest data day
+  oldestLatest.setUTCDate(oldestLatest.getUTCDate() + 1);
+  return oldestLatest;
 }
 
 // Paginated fetch helper (same as discord-posts but inlined to avoid coupling)
@@ -194,8 +208,10 @@ export async function getBrandClientReportData(
   const brandUuids = getBrandUuids(brandSlug);
   const periodDays = period === '30d' ? 30 : 7;
 
-  // ── Resolve the time window
-  const today = await resolveAnchorToday(supabase, brandUuids);
+  // ── Resolve the time window — anchor to the oldest of the latest dates
+  // across creator/video/product tables so every section reports on the
+  // same window (no cross-section date mixing in a client-facing deliverable).
+  const today = await resolveSharedAnchor(supabase, brandUuids);
   const endDate = new Date(today);
   endDate.setDate(today.getDate() - 1);
   const startDate = new Date(endDate);

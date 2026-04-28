@@ -68,14 +68,23 @@ function getBrandUuids(brandFilter: string): string[] | null {
  * Apr 21–28 returns nothing).
  *
  * This returns a synthetic "today" that is one day after the latest data point
- * we have for the brand, so `yesterday = latest data date` and all existing
- * "today minus N days" math windows over real data automatically.
+ * we have for the brand IN THE GIVEN TABLE, so `yesterday = latest data date`
+ * and all existing "today minus N days" math windows over real data automatically.
  *
- * Falls back to real `new Date()` if the brand has zero data (pre-launch).
+ * IMPORTANT: each table can have its own latest upload date — for JiYu,
+ * daily_creator_stats is current through Apr but daily_video_stats/daily_product_stats
+ * stopped updating in March. Pass the table you're querying so each section
+ * shows the freshest data in that source.
+ *
+ * Falls back to real `new Date()` if the table has zero data for this brand.
  */
-async function resolveAnchorToday(supabase: any, brandUuids: string[] | null): Promise<Date> {
+async function resolveAnchorToday(
+  supabase: any,
+  brandUuids: string[] | null,
+  table: 'daily_creator_stats' | 'daily_video_stats' | 'daily_product_stats' = 'daily_creator_stats'
+): Promise<Date> {
   let query = supabase
-    .from('daily_creator_stats')
+    .from(table)
     .select('report_date')
     .order('report_date', { ascending: false })
     .limit(1);
@@ -190,7 +199,9 @@ export async function getWhatsCookingData(brandFilter: string, period: '7d' | '3
   const supabase = await createClient();
   const brandUuids = getBrandUuids(brandFilter);
 
-  const today = await resolveAnchorToday(supabase, brandUuids);
+  // What's Cooking queries daily_video_stats — anchor to that table specifically
+  // so we always show the most recent video data we have (may lag creator data).
+  const today = await resolveAnchorToday(supabase, brandUuids, 'daily_video_stats');
   const yesterday = new Date(today);
   yesterday.setDate(today.getDate() - 1);
 
@@ -485,6 +496,10 @@ export interface DailyDropData {
   monthlyGoal: number;
   yesterdayDate: Date;
   dayBeforeDate: Date;
+  /** Date the video/OTW data is reporting on (may lag yesterdayDate when video uploads are stale). */
+  videoAsOf: Date;
+  /** Date the product data is reporting on (may lag yesterdayDate when product uploads are stale). */
+  productAsOf: Date;
   topCreators: { tiktok_username: string; gmv: number }[];
   topVideos: { video_id: string; tiktok_username: string; gmv: number }[];
   topProducts: { name: string; gmv: number }[];
@@ -496,18 +511,38 @@ export async function getDailyDropData(brandFilter: string): Promise<DailyDropDa
   const supabase = await createClient();
   const brandUuids = getBrandUuids(brandFilter);
 
-  const today = await resolveAnchorToday(supabase, brandUuids);
+  // Each table can have its own latest upload date. For JiYu, daily_creator_stats
+  // is current through Apr but daily_video_stats and daily_product_stats stopped
+  // at Mar 14. Anchor each section's queries to its own table so video/product
+  // sections still show the freshest data they have, instead of empty results.
+  const [creatorAnchor, videoAnchor, productAnchor] = await Promise.all([
+    resolveAnchorToday(supabase, brandUuids, 'daily_creator_stats'),
+    resolveAnchorToday(supabase, brandUuids, 'daily_video_stats'),
+    resolveAnchorToday(supabase, brandUuids, 'daily_product_stats'),
+  ]);
+
+  // Header date / "yesterday" math uses the creator anchor (most authoritative
+  // for headline GMV and pacing). Video/product sections use their own anchors.
+  const today = creatorAnchor;
   const yesterday = new Date(today);
   yesterday.setDate(today.getDate() - 1);
   const dayBefore = new Date(today);
   dayBefore.setDate(today.getDate() - 2);
   const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-  const threeDaysAgo = new Date(today);
-  threeDaysAgo.setDate(today.getDate() - 3);
+
+  const videoYesterday = new Date(videoAnchor);
+  videoYesterday.setDate(videoAnchor.getDate() - 1);
+  const videoThreeDaysAgo = new Date(videoAnchor);
+  videoThreeDaysAgo.setDate(videoAnchor.getDate() - 3);
+
+  const productYesterday = new Date(productAnchor);
+  productYesterday.setDate(productAnchor.getDate() - 1);
 
   const yesterdayStr = formatDate(yesterday);
   const dayBeforeStr = formatDate(dayBefore);
   const monthStartStr = formatDate(monthStart);
+  const videoYesterdayStr = formatDate(videoYesterday);
+  const productYesterdayStr = formatDate(productYesterday);
 
   // All queries below run in parallel — sequential awaits were timing out on JiYu
   // (140K+ rows/month) on the Hobby-plan 10s function ceiling.
@@ -532,26 +567,23 @@ export async function getDailyDropData(brandFilter: string): Promise<DailyDropDa
   ];
   if (brandUuids) mtdFilters.push({ column: 'brand_id', op: 'in', value: brandUuids });
 
-  // Yesterday's video stats - paginated. NOTE: daily_video_stats does NOT have a
-  // product_name column — that lives on daily_product_stats. Selecting it here
-  // was throwing a 400 from PostgREST and surfacing as "Internal error" on the
-  // generators page (most visible on JiYu since it has the most data).
+  // Video sections use the video table's anchor (may differ from creator anchor).
   const yvFilters: { column: string; op: string; value: any }[] = [
-    { column: 'report_date', op: 'eq', value: yesterdayStr },
+    { column: 'report_date', op: 'eq', value: videoYesterdayStr },
     { column: 'gmv', op: 'gt', value: 0 },
   ];
   if (brandUuids) yvFilters.push({ column: 'brand_id', op: 'in', value: brandUuids });
 
-  // Yesterday's product stats - paginated. Lives on its own table aggregated by product.
+  // Product section uses the product table's anchor.
   const ypFilters: { column: string; op: string; value: any }[] = [
-    { column: 'report_date', op: 'eq', value: yesterdayStr },
+    { column: 'report_date', op: 'eq', value: productYesterdayStr },
     { column: 'gmv', op: 'gt', value: 0 },
   ];
   if (brandUuids) ypFilters.push({ column: 'brand_id', op: 'in', value: brandUuids });
 
-  // One to Watch: recent videos with strong early traction - paginated
+  // One to Watch: anchored to the video table's latest 3-day window.
   const otwFilters: { column: string; op: string; value: any }[] = [
-    { column: 'post_date', op: 'gte', value: formatDate(threeDaysAgo) },
+    { column: 'post_date', op: 'gte', value: formatDate(videoThreeDaysAgo) },
     { column: 'gmv', op: 'gt', value: 0 },
   ];
   if (brandUuids) otwFilters.push({ column: 'brand_id', op: 'in', value: brandUuids });
@@ -604,7 +636,9 @@ export async function getDailyDropData(brandFilter: string): Promise<DailyDropDa
   if (otwSorted.length > 0) {
     const best = otwSorted[0];
     const postDate = new Date(best.post_date + 'T12:00:00');
-    const hoursAgo = Math.round((today.getTime() - postDate.getTime()) / (1000 * 60 * 60));
+    // hoursAgo is relative to the video table's anchor — when comparing to
+    // creator's "today" we'd get nonsensical numbers when the tables diverge.
+    const hoursAgo = Math.round((videoAnchor.getTime() - postDate.getTime()) / (1000 * 60 * 60));
     oneToWatch = { video_id: best.video_id, tiktok_username: best.tiktok_username, gmv: best.gmv, hoursAgo };
   }
 
@@ -630,6 +664,8 @@ export async function getDailyDropData(brandFilter: string): Promise<DailyDropDa
     monthlyGoal: getMonthlyGoal(brandFilter),
     yesterdayDate: yesterday,
     dayBeforeDate: dayBefore,
+    videoAsOf: videoYesterday,
+    productAsOf: productYesterday,
     topCreators,
     topVideos,
     topProducts,
@@ -1230,10 +1266,16 @@ export function formatDailyDropDiscord(data: DailyDropData, brandName: string): 
   }
   msg += `\n━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
 
-  // Top 5 Videos — use markdown links rather than naked URLs
-  msg += `**__🎬 TOP VIDEOS__**\n`;
+  // Top 5 Videos — use markdown links rather than naked URLs.
+  // Label the section's "as of" date when video data lags creator data.
+  const videoAsOfStr = data.videoAsOf.toISOString().slice(0, 10);
+  const yesterdayStr2 = yesterdayDate.toISOString().slice(0, 10);
+  const videoStaleLabel = videoAsOfStr !== yesterdayStr2
+    ? ` _(as of ${data.videoAsOf.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})_`
+    : '';
+  msg += `**__🎬 TOP VIDEOS__**${videoStaleLabel}\n`;
   if (data.topVideos.length === 0) {
-    msg += `> No video data yesterday.\n`;
+    msg += `> No video data available.\n`;
   } else {
     data.topVideos.forEach((v, i) => {
       const handle = (v.tiktok_username || '').replace('@', '');
@@ -1247,10 +1289,14 @@ export function formatDailyDropDiscord(data: DailyDropData, brandName: string): 
   }
   msg += `\n━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
 
-  // Top 5 Products
-  msg += `**__📦 TOP PRODUCTS__**\n`;
+  // Top 5 Products — label the section's "as of" date when product data lags.
+  const productAsOfStr = data.productAsOf.toISOString().slice(0, 10);
+  const productStaleLabel = productAsOfStr !== yesterdayStr2
+    ? ` _(as of ${data.productAsOf.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})_`
+    : '';
+  msg += `**__📦 TOP PRODUCTS__**${productStaleLabel}\n`;
   if (data.topProducts.length === 0) {
-    msg += `> No product data yesterday.\n`;
+    msg += `> No product data available.\n`;
   } else {
     data.topProducts.forEach((p, i) => {
       msg += `> ${i + 1}. ${p.name} — **${formatCurrency(p.gmv)}**\n`;
