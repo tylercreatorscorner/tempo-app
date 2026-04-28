@@ -532,12 +532,22 @@ export async function getDailyDropData(brandFilter: string): Promise<DailyDropDa
   ];
   if (brandUuids) mtdFilters.push({ column: 'brand_id', op: 'in', value: brandUuids });
 
-  // Yesterday's video stats - paginated
+  // Yesterday's video stats - paginated. NOTE: daily_video_stats does NOT have a
+  // product_name column — that lives on daily_product_stats. Selecting it here
+  // was throwing a 400 from PostgREST and surfacing as "Internal error" on the
+  // generators page (most visible on JiYu since it has the most data).
   const yvFilters: { column: string; op: string; value: any }[] = [
     { column: 'report_date', op: 'eq', value: yesterdayStr },
     { column: 'gmv', op: 'gt', value: 0 },
   ];
   if (brandUuids) yvFilters.push({ column: 'brand_id', op: 'in', value: brandUuids });
+
+  // Yesterday's product stats - paginated. Lives on its own table aggregated by product.
+  const ypFilters: { column: string; op: string; value: any }[] = [
+    { column: 'report_date', op: 'eq', value: yesterdayStr },
+    { column: 'gmv', op: 'gt', value: 0 },
+  ];
+  if (brandUuids) ypFilters.push({ column: 'brand_id', op: 'in', value: brandUuids });
 
   // One to Watch: recent videos with strong early traction - paginated
   const otwFilters: { column: string; op: string; value: any }[] = [
@@ -546,11 +556,12 @@ export async function getDailyDropData(brandFilter: string): Promise<DailyDropDa
   ];
   if (brandUuids) otwFilters.push({ column: 'brand_id', op: 'in', value: brandUuids });
 
-  const [yesterdayCreators, dayBeforeCreators, mtdData, yesterdayVideos, recentVideoStats, discordMap] = await Promise.all([
+  const [yesterdayCreators, dayBeforeCreators, mtdData, yesterdayVideos, yesterdayProducts, recentVideoStats, discordMap] = await Promise.all([
     paginatedFetch(supabase, 'daily_creator_stats', 'tiktok_username, gmv', ycFilters),
     paginatedFetch(supabase, 'daily_creator_stats', 'gmv', dbFilters),
     paginatedFetch(supabase, 'daily_creator_stats', 'gmv', mtdFilters),
-    paginatedFetch(supabase, 'daily_video_stats', 'video_id, tiktok_username, gmv, product_name', yvFilters),
+    paginatedFetch(supabase, 'daily_video_stats', 'video_id, tiktok_username, gmv', yvFilters),
+    paginatedFetch(supabase, 'daily_product_stats', 'product_name, gmv', ypFilters),
     paginatedFetch(supabase, 'daily_video_stats', 'video_id, tiktok_username, gmv, post_date, report_date', otwFilters),
     getDiscordMap(supabase, brandUuids),
   ]);
@@ -567,11 +578,11 @@ export async function getDailyDropData(brandFilter: string): Promise<DailyDropDa
   });
   const topVideos = Array.from(videoMap.values()).sort((a, b) => b.gmv - a.gmv).slice(0, 5);
 
-  // Aggregate products
+  // Aggregate products from daily_product_stats (one row per product per day)
   const productMap = new Map<string, number>();
-  (yesterdayVideos || []).forEach((v: any) => {
-    const name = v.product_name || 'Unknown Product';
-    productMap.set(name, (productMap.get(name) || 0) + (parseFloat(v.gmv) || 0));
+  (yesterdayProducts || []).forEach((p: any) => {
+    const name = p.product_name || 'Unknown Product';
+    productMap.set(name, (productMap.get(name) || 0) + (parseFloat(p.gmv) || 0));
   });
   const topProducts = Array.from(productMap.entries())
     .map(([name, gmv]) => ({ name, gmv }))
