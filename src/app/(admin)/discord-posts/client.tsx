@@ -29,7 +29,7 @@ function PostCard({
 }: {
   title: string;
   icon: typeof Flame;
-  type: 'whats-cooking' | 'whos-cooking' | 'daily-drop' | 'weekly-rankings';
+  type: 'whats-cooking' | 'whos-cooking' | 'daily-drop' | 'weekly-wrap' | 'monthly-recap';
   showPeriod?: boolean;
 }) {
   const [brand, setBrand] = useState('all');
@@ -235,9 +235,9 @@ export function DiscordPostsClient() {
         showPeriod={false}
       />
       <PostCard
-        title="Weekly Rankings"
+        title="Weekly Wrap"
         icon={BarChart3}
-        type="weekly-rankings"
+        type="weekly-wrap"
         showPeriod={false}
       />
     </div>

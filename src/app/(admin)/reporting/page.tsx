@@ -3,7 +3,8 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   FileBarChart, Clipboard, Check, Loader2, ChefHat, Flame, TrendingUp,
-  BarChart3, Calendar, Clock, Send, Users, Video, Hash, Trash2, Pencil,
+  BarChart3, Calendar, Clock, Send, Users, Hash, Trash2, Pencil,
+  CalendarDays, CalendarRange, Briefcase, Download,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ACTIVE_BRANDS, BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
@@ -129,16 +130,23 @@ function PostGeneratorsTab() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Internal Discord posts */}
         <PostCard title="Daily Drop" icon={TrendingUp} type="daily-drop" showPeriod={false}
           description="Yesterday's numbers at a glance. Quick daily update for your Discord." />
         <PostCard title="What's Cooking?" icon={Flame} type="whats-cooking"
           description="Top performing videos of the period. Hot content that's driving sales." />
         <PostCard title="Who's Cooking?" icon={ChefHat} type="whos-cooking"
           description="Top creators leaderboard. Celebrate your top performers." />
-        <PostCard title="Weekly Rankings" icon={BarChart3} type="weekly-rankings" showPeriod={false}
-          description="Full weekly creator and video rankings with tiers." />
-        <PostCard title="Video Breakdown" icon={Video} type="video-breakdown" showPeriod={false}
-          description="Detailed stats on top 10 videos: views, likes, shares, GMV, and product." />
+        <PostCard title="Weekly Wrap" icon={CalendarDays} type="weekly-wrap" showPeriod={false}
+          description="Tight weekly recap: headline number, hot videos, top creators, and risers." />
+        <PostCard title="Monthly Recap" icon={CalendarRange} type="monthly-recap" showPeriod={false}
+          description="Big-picture month view: best video, best creator, MoM trend, top movers." />
+
+        {/* Client-facing — Slack only, locked format. Includes PDF export to replace the weekly deck. */}
+        <PostCard title="Brand Client Update" icon={Briefcase} type="brand-client-update" showPeriod={false}
+          slackOnly
+          pdfEndpoint="/api/brand-client-pdf"
+          description="Slack-formatted weekly recap for brand clients. Includes a polished PDF you can attach in Slack — replaces the manual deck." />
       </div>
     </div>
   );
@@ -166,14 +174,16 @@ interface ScheduleRow {
 
 const REPORT_TYPE_LABELS: Record<string, string> = {
   // discord-posts source
-  'daily-drop':       'Daily Drop',
-  'whats-cooking':    "What's Cooking?",
-  'whos-cooking':     "Who's Cooking?",
-  'weekly-rankings':  'Weekly Rankings',
+  'daily-drop':           'Daily Drop',
+  'whats-cooking':        "What's Cooking?",
+  'whos-cooking':         "Who's Cooking?",
+  'weekly-wrap':          'Weekly Wrap',
+  'monthly-recap':        'Monthly Recap',
+  'brand-client-update':  'Brand Client Update',
   // reporting source
-  'performance-summary': 'Performance Summary',
-  'creator-activity':    'Creator Activity',
-  'brand-report':        'Brand Report',
+  'performance-summary':  'Performance Summary',
+  'creator-activity':     'Creator Activity',
+  'brand-report':         'Brand Report',
 };
 
 function relativeTimeAgo(iso: string | null): string {
@@ -356,10 +366,12 @@ function ScheduleModal({
 
   const reportOptions = source === 'discord-posts'
     ? [
-        { value: 'daily-drop',      label: 'Daily Drop' },
-        { value: 'whats-cooking',   label: "What's Cooking?" },
-        { value: 'whos-cooking',    label: "Who's Cooking?" },
-        { value: 'weekly-rankings', label: 'Weekly Rankings' },
+        { value: 'daily-drop',          label: 'Daily Drop' },
+        { value: 'whats-cooking',       label: "What's Cooking?" },
+        { value: 'whos-cooking',        label: "Who's Cooking?" },
+        { value: 'weekly-wrap',         label: 'Weekly Wrap' },
+        { value: 'monthly-recap',       label: 'Monthly Recap' },
+        { value: 'brand-client-update', label: 'Brand Client Update (Slack)' },
       ]
     : [
         { value: 'performance-summary', label: 'Performance Summary' },
@@ -675,28 +687,50 @@ function ReportCard({
 
 // ── Post Generator Card ─────────────────────────────────────────────
 function PostCard({
-  title, icon: Icon, type, showPeriod = true, description,
+  title, icon: Icon, type, showPeriod = true, description, slackOnly = false, pdfEndpoint,
 }: {
   title: string; icon: typeof Flame; type: string; showPeriod?: boolean; description: string;
+  slackOnly?: boolean; pdfEndpoint?: string;
 }) {
   const brandOptions = useBrandOptions();
   const [brand, setBrand] = useState(brandOptions[0]?.value ?? 'all');
   const [period, setPeriod] = useState<'7d' | '30d'>('7d');
-  const [format, setFormat] = useState<'discord' | 'slack'>('discord');
+  const [format, setFormat] = useState<'discord' | 'slack'>(slackOnly ? 'slack' : 'discord');
   const [text, setText] = useState<string | null>(null);
   const [stats, setStats] = useState<{ totalGmv: number; videoCount: number; creatorCount: number } | null>(null);
   const [mentionMap, setMentionMap] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pdfLoading, setPdfLoading] = useState(false);
+
+  const downloadPdf = useCallback(async () => {
+    if (!pdfEndpoint) return;
+    setPdfLoading(true);
+    try {
+      const res = await fetch(`${pdfEndpoint}?brand=${brand}`);
+      if (!res.ok) throw new Error(`PDF generation failed (${res.status})`);
+      const blob = await res.blob();
+      // Read filename from Content-Disposition if present
+      const cd = res.headers.get('content-disposition') || '';
+      const match = cd.match(/filename="?([^"]+)"?/);
+      const filename = match?.[1] || `brand-update-${brand}.pdf`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename; a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'PDF download failed');
+    } finally {
+      setPdfLoading(false);
+    }
+  }, [pdfEndpoint, brand]);
 
   const generate = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const endpoint = type === 'video-breakdown'
-        ? `/api/discord-posts?type=whats-cooking&brand=${brand}&period=${period}&detail=true`
-        : `/api/discord-posts?type=${type}&brand=${brand}&period=${period}`;
+      const endpoint = `/api/discord-posts?type=${type}&brand=${brand}&period=${period}`;
       const res = await fetch(endpoint);
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
@@ -705,8 +739,8 @@ function PostCard({
       const data = await res.json();
       let output = data.text;
 
-      // Convert to Slack format if needed
-      if (format === 'slack') {
+      // Convert to Slack format if needed (skip for slackOnly — already Slack-formatted server-side)
+      if (format === 'slack' && !slackOnly) {
         output = toSlackFormat(output);
       }
 
@@ -718,7 +752,7 @@ function PostCard({
     } finally {
       setLoading(false);
     }
-  }, [type, brand, period, format]);
+  }, [type, brand, period, format, slackOnly]);
 
   const handleCopy = async () => {
     if (!text) return;
@@ -768,26 +802,32 @@ function PostCard({
         )}
 
         {/* Format Toggle */}
-        <div className="flex gap-1 p-1 bg-gray-100 rounded-xl">
-          <button
-            onClick={() => setFormat('discord')}
-            className={cn(
-              'flex-1 text-sm font-semibold py-1.5 rounded-lg transition-colors flex items-center justify-center gap-1.5',
-              format === 'discord' ? 'bg-[#5865F2] text-white shadow-sm' : 'text-gray-500 hover:text-gray-700'
-            )}
-          >
-            💬 Discord
-          </button>
-          <button
-            onClick={() => setFormat('slack')}
-            className={cn(
-              'flex-1 text-sm font-semibold py-1.5 rounded-lg transition-colors flex items-center justify-center gap-1.5',
-              format === 'slack' ? 'bg-[#4A154B] text-white shadow-sm' : 'text-gray-500 hover:text-gray-700'
-            )}
-          >
-            📨 Slack
-          </button>
-        </div>
+        {slackOnly ? (
+          <div className="flex items-center justify-center gap-1.5 p-1.5 bg-[#4A154B] text-white text-sm font-semibold rounded-xl">
+            📨 Slack format (client-facing)
+          </div>
+        ) : (
+          <div className="flex gap-1 p-1 bg-gray-100 rounded-xl">
+            <button
+              onClick={() => setFormat('discord')}
+              className={cn(
+                'flex-1 text-sm font-semibold py-1.5 rounded-lg transition-colors flex items-center justify-center gap-1.5',
+                format === 'discord' ? 'bg-[#5865F2] text-white shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              )}
+            >
+              💬 Discord
+            </button>
+            <button
+              onClick={() => setFormat('slack')}
+              className={cn(
+                'flex-1 text-sm font-semibold py-1.5 rounded-lg transition-colors flex items-center justify-center gap-1.5',
+                format === 'slack' ? 'bg-[#4A154B] text-white shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              )}
+            >
+              📨 Slack
+            </button>
+          </div>
+        )}
 
         <button
           onClick={generate}
@@ -796,6 +836,16 @@ function PostCard({
         >
           {loading ? <><Loader2 className="h-4 w-4 animate-spin" />Generating…</> : 'Generate'}
         </button>
+
+        {pdfEndpoint && (
+          <button
+            onClick={downloadPdf}
+            disabled={pdfLoading}
+            className="w-full py-2.5 rounded-xl border border-gray-200 hover:bg-gray-50 text-[#1A1B3A] font-semibold text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {pdfLoading ? <><Loader2 className="h-4 w-4 animate-spin" />Building PDF…</> : <><Download className="h-4 w-4" />Download PDF</>}
+          </button>
+        )}
       </div>
 
       {/* Stats */}

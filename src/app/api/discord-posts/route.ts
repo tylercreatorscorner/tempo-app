@@ -3,11 +3,15 @@ import {
   getWhatsCookingData,
   getWhosCookingData,
   getDailyDropData,
-  getWeeklyRankingsData,
+  getWeeklyWrapData,
+  getMonthlyRecapData,
+  getBrandClientUpdateData,
   formatWhatsCookingDiscord,
   formatWhosCookingDiscord,
   formatDailyDropDiscord,
-  formatWeeklyRankingsDiscord,
+  formatWeeklyWrapDiscord,
+  formatMonthlyRecapDiscord,
+  formatBrandClientUpdateSlack,
 } from '@/lib/data/discord-posts';
 import { BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
 
@@ -25,9 +29,8 @@ export async function GET(request: NextRequest) {
     if (type === 'whats-cooking') {
       const data = await getWhatsCookingData(brand, period);
       const text = formatWhatsCookingDiscord(data, brandName, period);
-      // Build mention display map for preview (discord_id -> username)
       const mentionMap: Record<string, string> = {};
-      data.discordMap.forEach((v, handle) => {
+      data.discordMap.forEach((v) => {
         if (v.discord_id && v.discord_name) mentionMap[v.discord_id] = v.discord_name;
       });
       return NextResponse.json({
@@ -42,7 +45,6 @@ export async function GET(request: NextRequest) {
     } else if (type === 'whos-cooking') {
       const data = await getWhosCookingData(brand, period);
       const text = formatWhosCookingDiscord(data, brandName, period);
-      // Build mention display map for preview
       const mentionMap: Record<string, string> = {};
       data.leaderboard.forEach(c => {
         if (c.discord_id && c.discord_name) mentionMap[c.discord_id] = c.discord_name;
@@ -60,7 +62,7 @@ export async function GET(request: NextRequest) {
       const data = await getDailyDropData(brand);
       const text = formatDailyDropDiscord(data, brandName);
       const mentionMap: Record<string, string> = {};
-      data.discordMap.forEach((v, handle) => {
+      data.discordMap.forEach((v) => {
         if (v.discord_id && v.discord_name) mentionMap[v.discord_id] = v.discord_name;
       });
       return NextResponse.json({
@@ -72,11 +74,11 @@ export async function GET(request: NextRequest) {
           creatorCount: data.topCreators.length,
         },
       });
-    } else if (type === 'weekly-rankings') {
-      const data = await getWeeklyRankingsData(brand);
-      const text = formatWeeklyRankingsDiscord(data, brandName);
+    } else if (type === 'weekly-wrap') {
+      const data = await getWeeklyWrapData(brand);
+      const text = formatWeeklyWrapDiscord(data, brandName);
       const mentionMap: Record<string, string> = {};
-      data.discordMap.forEach((v, handle) => {
+      data.discordMap.forEach((v) => {
         if (v.discord_id && v.discord_name) mentionMap[v.discord_id] = v.discord_name;
       });
       return NextResponse.json({
@@ -84,15 +86,45 @@ export async function GET(request: NextRequest) {
         mentionMap,
         stats: {
           totalGmv: data.weekTotal,
-          videoCount: data.videosHot.length + data.videosDoingWell.length,
+          videoCount: data.hotVideos.length,
           creatorCount: data.topCreators.length,
+        },
+      });
+    } else if (type === 'monthly-recap') {
+      const data = await getMonthlyRecapData(brand);
+      const text = formatMonthlyRecapDiscord(data, brandName);
+      const mentionMap: Record<string, string> = {};
+      data.discordMap.forEach((v) => {
+        if (v.discord_id && v.discord_name) mentionMap[v.discord_id] = v.discord_name;
+      });
+      return NextResponse.json({
+        text,
+        mentionMap,
+        stats: {
+          totalGmv: data.monthTotal,
+          videoCount: data.bestVideo ? 1 : 0,
+          creatorCount: data.topCreators.length,
+        },
+      });
+    } else if (type === 'brand-client-update') {
+      // Always Slack-formatted; client-facing weekly recap.
+      const data = await getBrandClientUpdateData(brand);
+      const text = formatBrandClientUpdateSlack(data, brandName);
+      return NextResponse.json({
+        text,
+        mentionMap: {},
+        stats: {
+          totalGmv: data.weekTotal,
+          videoCount: data.videoCount,
+          creatorCount: data.creatorCount,
         },
       });
     } else {
       return NextResponse.json({ error: 'Invalid type' }, { status: 400 });
     }
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Discord posts API error:', err);
-    return NextResponse.json({ error: err.message || 'Internal error' }, { status: 500 });
+    const message = err instanceof Error ? err.message : 'Internal error';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
