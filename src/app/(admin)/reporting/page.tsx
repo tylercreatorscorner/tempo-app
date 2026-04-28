@@ -4,7 +4,7 @@ import { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   Clipboard, Check, Loader2, ChefHat, Flame, TrendingUp,
   BarChart3, Calendar, Clock, Send, Users, Trash2, Pencil,
-  CalendarDays, CalendarRange, Wand2, Sparkles, AlertCircle, Download,
+  CalendarDays, CalendarRange, Wand2, Sparkles, AlertCircle, Download, Briefcase,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ACTIVE_BRANDS, BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
@@ -107,10 +107,10 @@ function GenerateTab() {
       <AudienceSection
         eyebrow="For brand clients"
         title="Brand reports"
-        subtitle="Polished, outward-facing updates you share with your brand contacts."
+        subtitle="Polished, multi-page PDF reports you share with brand contacts. Replaces the manual deck."
         accent="purple"
       >
-        <BrandClientPlaceholder />
+        <BrandClientReportCard />
       </AudienceSection>
 
       {/* For internal team (long-form text) */}
@@ -216,24 +216,130 @@ function FreshnessBanner() {
   );
 }
 
-// ── Brand Client Placeholder ────────────────────────────────────────
-// Holds the spot in the new layout while the Gamma-powered deck rebuild is shipped.
-function BrandClientPlaceholder() {
+// ── Brand Client Report Card ────────────────────────────────────────
+// Replaces the old throwaway one-pager with a deck-quality multi-page PDF
+// (cover · exec summary · KPIs · managed/organic · new/returning · daily perf ·
+// top creators · top videos · top products · per-product creator breakdown).
+function BrandClientReportCard() {
+  const brandOptions = useBrandOptions();
+  const [brand, setBrand] = useState(brandOptions[0]?.value ?? 'all');
+  const [period, setPeriod] = useState<'7d' | '30d'>('7d');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const downloadPdf = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/brand-client-pdf?brand=${brand}&period=${period}`);
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `HTTP ${res.status}`);
+      }
+      const blob = await res.blob();
+      const cd = res.headers.get('content-disposition') || '';
+      const match = cd.match(/filename="?([^"]+)"?/);
+      const filename = match?.[1] || `brand-report.pdf`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename; a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'PDF download failed');
+    } finally {
+      setLoading(false);
+    }
+  }, [brand, period]);
+
+  const brandLabel = brandOptions.find(b => b.value === brand)?.label ?? brand;
+
   return (
-    <div className="col-span-full rounded-2xl bg-gradient-to-br from-purple-50 via-pink-50 to-purple-50 border border-purple-200/60 p-10 text-center">
-      <div className="inline-flex items-center justify-center h-12 w-12 rounded-xl bg-white shadow-sm mb-4">
-        <Sparkles className="h-6 w-6 text-purple-600" />
+    <div className="col-span-full rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+      <div className="grid grid-cols-1 lg:grid-cols-5">
+        {/* Left: Configuration */}
+        <div className="lg:col-span-3 p-6 space-y-5">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-purple-50 flex items-center justify-center">
+              <Briefcase className="h-5 w-5 text-purple-600" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-[#1A1B3A]">Brand Client Report</h3>
+              <p className="text-xs text-gray-500 mt-0.5">Polished multi-page PDF. Send to your brand contacts in Slack, email, or WhatsApp.</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Brand</label>
+              <select
+                value={brand}
+                onChange={e => setBrand(e.target.value)}
+                className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+              >
+                {brandOptions.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Period</label>
+              <div className="flex gap-1 p-1 bg-gray-100 rounded-xl">
+                {[{ v: '7d', l: 'Weekly (7d)' }, { v: '30d', l: 'Monthly (30d)' }].map(p => (
+                  <button
+                    key={p.v}
+                    onClick={() => setPeriod(p.v as '7d' | '30d')}
+                    className={cn(
+                      'flex-1 text-sm font-semibold py-1.5 rounded-lg transition-colors',
+                      period === p.v ? 'bg-white text-[#1A1B3A] shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                    )}
+                  >
+                    {p.l}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {error && (
+            <div className="px-3 py-2 rounded-lg bg-red-50 text-red-600 text-xs">{error}</div>
+          )}
+
+          <button
+            onClick={downloadPdf}
+            disabled={loading}
+            className="w-full py-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-semibold text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {loading ? <><Loader2 className="h-4 w-4 animate-spin" />Building report (~10–20s)…</> : <><Download className="h-4 w-4" />Generate PDF Report</>}
+          </button>
+
+          <p className="text-[11px] text-gray-400 leading-relaxed">
+            Filename: <code className="text-gray-500">{brandLabel.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-{period === '30d' ? 'monthly' : 'weekly'}-report-YYYY-MM-DD.pdf</code>
+          </p>
+        </div>
+
+        {/* Right: Sections preview */}
+        <div className="lg:col-span-2 bg-gradient-to-br from-purple-50 via-pink-50/40 to-white border-l border-gray-100 p-6">
+          <div className="text-[10px] font-bold uppercase tracking-[0.15em] text-purple-700 mb-3">What's inside</div>
+          <ul className="space-y-2 text-xs text-gray-700">
+            {[
+              'Branded cover page with reporting period',
+              'Executive summary (narrative paragraph)',
+              'Top creator · top video · best day highlights',
+              'KPI strip with WoW deltas (orders, creators, videos)',
+              'Managed vs organic split with donut visual',
+              'New vs returning creators breakdown',
+              'Day-of-week + daily performance with peak day',
+              'Top 10 creators leaderboard with progress bars',
+              'Top 10 videos with creator attribution',
+              'Top 10 products with order counts',
+              'Per-product creator breakdown (top 5 × top 3)',
+            ].map(s => (
+              <li key={s} className="flex items-start gap-2">
+                <Sparkles className="h-3 w-3 text-purple-500 mt-0.5 shrink-0" />
+                <span>{s}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
-      <div className="inline-block px-2.5 py-0.5 rounded-full bg-purple-600 text-white text-[10px] font-bold uppercase tracking-wider mb-3">
-        In Progress
-      </div>
-      <h3 className="text-lg font-bold text-[#1A1B3A]">Brand Client Deck — Gamma-powered</h3>
-      <p className="text-sm text-gray-600 mt-2 max-w-xl mx-auto">
-        Rebuilding the weekly client report as a polished, multi-page deck (cover · executive summary · KPIs ·
-        managed-vs-organic split · top creators · top videos · top products · per-product creator breakdown)
-        generated through the Gamma API. Editable in Gamma, exportable as PDF, paste-ready as Slack text.
-      </p>
-      <p className="text-xs text-purple-600 mt-4 font-semibold uppercase tracking-wider">Coming next deploy →</p>
     </div>
   );
 }
