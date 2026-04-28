@@ -2,9 +2,9 @@
 
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import {
-  FileBarChart, Clipboard, Check, Loader2, ChefHat, Flame, TrendingUp,
-  BarChart3, Calendar, Clock, Send, Users, Hash, Trash2, Pencil,
-  CalendarDays, CalendarRange, Briefcase, Download,
+  Clipboard, Check, Loader2, ChefHat, Flame, TrendingUp,
+  BarChart3, Calendar, Clock, Send, Users, Trash2, Pencil,
+  CalendarDays, CalendarRange, Wand2, Sparkles, AlertCircle, Download,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ACTIVE_BRANDS, BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
@@ -12,9 +12,8 @@ import { useTenant } from '@/hooks/use-tenant';
 import { FREQUENCIES } from '@/lib/data/schedule-frequency';
 
 const TABS = [
-  { id: 'reports',    label: 'Reports',         icon: FileBarChart },
-  { id: 'generators', label: 'Post Generators', icon: Hash },
-  { id: 'schedules',  label: 'Schedules',       icon: Clock },
+  { id: 'generate',  label: 'Generate',  icon: Wand2 },
+  { id: 'schedules', label: 'Schedules', icon: Clock },
 ] as const;
 
 type TabId = typeof TABS[number]['id'];
@@ -41,7 +40,7 @@ function useBrandOptions() {
 
 // ── Main Page ───────────────────────────────────────────────────────
 export default function ReportingPage() {
-  const [activeTab, setActiveTab] = useState<TabId>('reports');
+  const [activeTab, setActiveTab] = useState<TabId>('generate');
 
   return (
     <div className="space-y-6">
@@ -49,7 +48,7 @@ export default function ReportingPage() {
       <div>
         <h1 className="text-2xl font-extrabold text-[#1A1B3A]">Reporting</h1>
         <p className="text-sm text-gray-400 mt-0.5">
-          Generate reports, create Discord & Slack posts, and schedule automated updates.
+          Generate reports for your creators, brand clients, and internal team — or schedule them to run automatically.
         </p>
       </div>
 
@@ -73,81 +72,168 @@ export default function ReportingPage() {
       </div>
 
       {/* Tab Content */}
-      {activeTab === 'reports'    && <ReportsTab />}
-      {activeTab === 'generators' && <PostGeneratorsTab />}
-      {activeTab === 'schedules'  && <SchedulesTab />}
+      {activeTab === 'generate'  && <GenerateTab />}
+      {activeTab === 'schedules' && <SchedulesTab />}
     </div>
   );
 }
 
-// ── Reports Tab ─────────────────────────────────────────────────────
-function ReportsTab() {
+// ── Generate Tab — audience-grouped sections ────────────────────────
+function GenerateTab() {
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-      <ReportCard
-        title="Performance Summary"
-        description="Weekly or monthly overview of GMV, top creators, top videos, and trends across brands."
-        icon={BarChart3}
-        iconBg="bg-blue-50"
-        iconColor="text-blue-600"
-        type="performance-summary"
-        showPeriod
-        features={['Total GMV & trend', 'Top 10 creators', 'Top 10 videos', 'Week-over-week change']}
-      />
-      <ReportCard
-        title="Creator Activity"
-        description="Creator status breakdown: who's crushing it, who's on track, and who needs a nudge."
-        icon={Users}
-        iconBg="bg-purple-50"
-        iconColor="text-purple-600"
-        type="creator-activity"
-        showPeriod
-        features={['Status grouping', 'Posting frequency', 'Days since last video', 'GMV per creator']}
-      />
-      <ReportCard
-        title="Brand Report"
-        description="Client-facing summary designed to share with brand contacts. Clean, professional format."
-        icon={Send}
-        iconBg="bg-green-50"
-        iconColor="text-green-600"
-        type="brand-report"
-        showPeriod
-        features={['Brand GMV summary', 'Top creators & videos', 'Week-over-week trends', 'Shareable format']}
-      />
-    </div>
-  );
-}
+    <div className="space-y-10">
+      <FreshnessBanner />
 
-// ── Post Generators Tab ─────────────────────────────────────────────
-function PostGeneratorsTab() {
-  return (
-    <div className="space-y-6">
-      {/* Format info */}
-      <div className="flex items-center gap-2 text-xs text-gray-400">
-        <span className="px-2 py-0.5 rounded bg-[#36393f] text-[#dcddde]">Discord</span>
-        <span className="px-2 py-0.5 rounded bg-white border text-gray-600">Slack</span>
-        <span>Toggle format on each card</span>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Internal Discord posts */}
+      {/* For your creators (Discord posts) */}
+      <AudienceSection
+        eyebrow="For your creators"
+        title="Discord posts"
+        subtitle="Quick text updates to hype your team in your internal Discord."
+        accent="pink"
+      >
         <PostCard title="Daily Drop" icon={TrendingUp} type="daily-drop" showPeriod={false}
-          description="Yesterday's numbers at a glance. Quick daily update for your Discord." />
+          description="Yesterday's numbers at a glance." />
+        <PostCard title="Weekly Wrap" icon={CalendarDays} type="weekly-wrap" showPeriod={false}
+          description="Tight weekly recap: headline number, hot videos, top creators, risers." />
+        <PostCard title="Monthly Recap" icon={CalendarRange} type="monthly-recap" showPeriod={false}
+          description="Best video, best creator, MoM trend, top movers." />
         <PostCard title="What's Cooking?" icon={Flame} type="whats-cooking"
-          description="Top performing videos of the period. Hot content that's driving sales." />
+          description="Top performing videos of the period — hot content that's driving sales." />
         <PostCard title="Who's Cooking?" icon={ChefHat} type="whos-cooking"
           description="Top creators leaderboard. Celebrate your top performers." />
-        <PostCard title="Weekly Wrap" icon={CalendarDays} type="weekly-wrap" showPeriod={false}
-          description="Tight weekly recap: headline number, hot videos, top creators, and risers." />
-        <PostCard title="Monthly Recap" icon={CalendarRange} type="monthly-recap" showPeriod={false}
-          description="Big-picture month view: best video, best creator, MoM trend, top movers." />
+      </AudienceSection>
 
-        {/* Client-facing — Slack only, locked format. Includes PDF export to replace the weekly deck. */}
-        <PostCard title="Brand Client Update" icon={Briefcase} type="brand-client-update" showPeriod={false}
-          slackOnly
-          pdfEndpoint="/api/brand-client-pdf"
-          description="Slack-formatted weekly recap for brand clients. Includes a polished PDF you can attach in Slack — replaces the manual deck." />
+      {/* For brand clients (Slack/email — outward-facing) */}
+      <AudienceSection
+        eyebrow="For brand clients"
+        title="Brand reports"
+        subtitle="Polished, outward-facing updates you share with your brand contacts."
+        accent="purple"
+      >
+        <BrandClientPlaceholder />
+      </AudienceSection>
+
+      {/* For internal team (long-form text) */}
+      <AudienceSection
+        eyebrow="For internal review"
+        title="Long-form reports"
+        subtitle="Detailed text reports for your team review — not for sharing externally."
+        accent="blue"
+      >
+        <ReportCard
+          title="Performance Summary"
+          description="Weekly or monthly overview of GMV, top creators, top videos, and trends."
+          icon={BarChart3}
+          iconBg="bg-blue-50"
+          iconColor="text-blue-600"
+          type="performance-summary"
+          showPeriod
+          features={['Total GMV & trend', 'Top 10 creators', 'Top 10 videos', 'Week-over-week change']}
+        />
+        <ReportCard
+          title="Creator Activity"
+          description="Creator status breakdown — who's crushing it, who's on track, who needs a nudge."
+          icon={Users}
+          iconBg="bg-purple-50"
+          iconColor="text-purple-600"
+          type="creator-activity"
+          showPeriod
+          features={['Status grouping', 'Posting frequency', 'Days since last video', 'GMV per creator']}
+        />
+        <ReportCard
+          title="Brand Report"
+          description="Internal narrative report on a single brand. (For client-facing, use the Brand reports section.)"
+          icon={Send}
+          iconBg="bg-green-50"
+          iconColor="text-green-600"
+          type="brand-report"
+          showPeriod
+          features={['Brand GMV summary', 'Top creators & videos', 'Week-over-week trends', 'Internal use']}
+        />
+      </AudienceSection>
+    </div>
+  );
+}
+
+// ── Audience Section wrapper ────────────────────────────────────────
+const ACCENT_STYLES = {
+  pink:   { dot: 'bg-[#E91E8C]',  eyebrow: 'text-[#E91E8C]' },
+  purple: { dot: 'bg-purple-600', eyebrow: 'text-purple-600' },
+  blue:   { dot: 'bg-blue-600',   eyebrow: 'text-blue-600' },
+} as const;
+
+function AudienceSection({
+  eyebrow, title, subtitle, accent, children,
+}: {
+  eyebrow: string; title: string; subtitle: string;
+  accent: keyof typeof ACCENT_STYLES; children: React.ReactNode;
+}) {
+  const styles = ACCENT_STYLES[accent];
+  return (
+    <section className="space-y-4">
+      <div className="flex items-start gap-3">
+        <div className={cn('h-2 w-2 rounded-full mt-2.5', styles.dot)} />
+        <div>
+          <div className={cn('text-[10px] font-bold uppercase tracking-[0.15em]', styles.eyebrow)}>{eyebrow}</div>
+          <h2 className="text-xl font-bold text-[#1A1B3A] mt-0.5">{title}</h2>
+          <p className="text-sm text-gray-500 mt-0.5">{subtitle}</p>
+        </div>
       </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-5">
+        {children}
+      </div>
+    </section>
+  );
+}
+
+// ── Freshness Banner — warns when data is stale ─────────────────────
+function FreshnessBanner() {
+  const [state, setState] = useState<{ daysOld: number | null; latest: string | null } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/reporting/freshness?brand=all')
+      .then(r => r.json())
+      .then(d => { if (!cancelled) setState({ daysOld: d.daysOld, latest: d.latestReportDate }); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  if (!state || state.daysOld === null || state.daysOld <= 3) return null;
+
+  const dateLabel = state.latest
+    ? new Date(state.latest + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+    : 'unknown';
+
+  return (
+    <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 flex items-start gap-3">
+      <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+      <div className="text-xs text-amber-900">
+        <strong>Data is {state.daysOld} days old.</strong> Last upload processed: {dateLabel}.
+        Reports below anchor to that date — period windows will show the most recent data available, not today's.
+      </div>
+    </div>
+  );
+}
+
+// ── Brand Client Placeholder ────────────────────────────────────────
+// Holds the spot in the new layout while the Gamma-powered deck rebuild is shipped.
+function BrandClientPlaceholder() {
+  return (
+    <div className="col-span-full rounded-2xl bg-gradient-to-br from-purple-50 via-pink-50 to-purple-50 border border-purple-200/60 p-10 text-center">
+      <div className="inline-flex items-center justify-center h-12 w-12 rounded-xl bg-white shadow-sm mb-4">
+        <Sparkles className="h-6 w-6 text-purple-600" />
+      </div>
+      <div className="inline-block px-2.5 py-0.5 rounded-full bg-purple-600 text-white text-[10px] font-bold uppercase tracking-wider mb-3">
+        In Progress
+      </div>
+      <h3 className="text-lg font-bold text-[#1A1B3A]">Brand Client Deck — Gamma-powered</h3>
+      <p className="text-sm text-gray-600 mt-2 max-w-xl mx-auto">
+        Rebuilding the weekly client report as a polished, multi-page deck (cover · executive summary · KPIs ·
+        managed-vs-organic split · top creators · top videos · top products · per-product creator breakdown)
+        generated through the Gamma API. Editable in Gamma, exportable as PDF, paste-ready as Slack text.
+      </p>
+      <p className="text-xs text-purple-600 mt-4 font-semibold uppercase tracking-wider">Coming next deploy →</p>
     </div>
   );
 }

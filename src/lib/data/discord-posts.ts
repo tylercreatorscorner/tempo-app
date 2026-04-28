@@ -33,6 +33,8 @@ export interface WhatsCookingData {
   totalGmv: number;
   videoCount: number;
   creatorCount: number;
+  /** Last day of the data window (latest report_date). Use for display headers. */
+  endDate: Date;
 }
 
 export interface WhosCookingData {
@@ -43,6 +45,8 @@ export interface WhosCookingData {
   totalGmv: number;
   creatorCount: number;
   videoCount: number;
+  /** Last day of the data window (latest report_date). Use for display headers. */
+  endDate: Date;
 }
 
 // ─── Helpers ────────────────────────────────────────────────────
@@ -55,6 +59,52 @@ function getBrandUuids(brandFilter: string): string[] | null {
   if (!brandFilter || brandFilter === 'all') return null;
   const uuid = BRAND_UUID_MAP[brandFilter];
   return uuid ? [uuid] : null;
+}
+
+/**
+ * The data tables only have data through whatever the most recent CSV upload
+ * processed. Anchoring period windows to "today" produces empty results when
+ * uploads are stale (e.g. today is Apr 28 but data ends Apr 13 → 7-day window
+ * Apr 21–28 returns nothing).
+ *
+ * This returns a synthetic "today" that is one day after the latest data point
+ * we have for the brand, so `yesterday = latest data date` and all existing
+ * "today minus N days" math windows over real data automatically.
+ *
+ * Falls back to real `new Date()` if the brand has zero data (pre-launch).
+ */
+async function resolveAnchorToday(supabase: any, brandUuids: string[] | null): Promise<Date> {
+  let query = supabase
+    .from('daily_creator_stats')
+    .select('report_date')
+    .order('report_date', { ascending: false })
+    .limit(1);
+  if (brandUuids) query = query.in('brand_id', brandUuids);
+  const { data } = await query;
+  if (!data || data.length === 0) return new Date();
+  // Build a Date from the latest report_date (UTC noon to avoid TZ slips), then add 1 day so
+  // "yesterday" math = the actual latest data date.
+  const latest = new Date(data[0].report_date + 'T12:00:00Z');
+  latest.setUTCDate(latest.getUTCDate() + 1);
+  return latest;
+}
+
+/**
+ * Returns the latest report_date in the data tables (or null if none exist).
+ * Used by the freshness banner so the UI can warn the user when data is stale.
+ */
+export async function getLatestReportDate(brandFilter: string): Promise<Date | null> {
+  const supabase = await createClient();
+  const brandUuids = getBrandUuids(brandFilter);
+  let query = supabase
+    .from('daily_creator_stats')
+    .select('report_date')
+    .order('report_date', { ascending: false })
+    .limit(1);
+  if (brandUuids) query = query.in('brand_id', brandUuids);
+  const { data } = await query;
+  if (!data || data.length === 0) return null;
+  return new Date(data[0].report_date + 'T12:00:00Z');
 }
 
 async function getDiscordMap(supabase: any, brandUuids: string[] | null): Promise<Map<string, { discord_id: string | null; discord_name: string | null }>> {
@@ -140,7 +190,7 @@ export async function getWhatsCookingData(brandFilter: string, period: '7d' | '3
   const supabase = await createClient();
   const brandUuids = getBrandUuids(brandFilter);
 
-  const today = new Date();
+  const today = await resolveAnchorToday(supabase, brandUuids);
   const yesterday = new Date(today);
   yesterday.setDate(today.getDate() - 1);
 
@@ -243,6 +293,7 @@ export async function getWhatsCookingData(brandFilter: string, period: '7d' | '3
     totalGmv,
     videoCount: allVideos.length,
     creatorCount,
+    endDate: yesterday,
   };
 }
 
@@ -252,7 +303,7 @@ export async function getWhosCookingData(brandFilter: string, period: '7d' | '30
   const supabase = await createClient();
   const brandUuids = getBrandUuids(brandFilter);
 
-  const today = new Date();
+  const today = await resolveAnchorToday(supabase, brandUuids);
   const yesterday = new Date(today);
   yesterday.setDate(today.getDate() - 1);
   const endDate = formatDate(yesterday);
@@ -405,6 +456,7 @@ export async function getWhosCookingData(brandFilter: string, period: '7d' | '30
     totalGmv,
     creatorCount: creators.length,
     videoCount: totalVideos,
+    endDate: yesterday,
   };
 }
 
@@ -444,7 +496,7 @@ export async function getDailyDropData(brandFilter: string): Promise<DailyDropDa
   const supabase = await createClient();
   const brandUuids = getBrandUuids(brandFilter);
 
-  const today = new Date();
+  const today = await resolveAnchorToday(supabase, brandUuids);
   const yesterday = new Date(today);
   yesterday.setDate(today.getDate() - 1);
   const dayBefore = new Date(today);
@@ -457,20 +509,21 @@ export async function getDailyDropData(brandFilter: string): Promise<DailyDropDa
   const dayBeforeStr = formatDate(dayBefore);
   const monthStartStr = formatDate(monthStart);
 
+  // All queries below run in parallel — sequential awaits were timing out on JiYu
+  // (140K+ rows/month) on the Hobby-plan 10s function ceiling.
+
   // Yesterday's creator stats - paginated
   const ycFilters: { column: string; op: string; value: any }[] = [
     { column: 'report_date', op: 'eq', value: yesterdayStr },
     { column: 'gmv', op: 'gt', value: 0 },
   ];
   if (brandUuids) ycFilters.push({ column: 'brand_id', op: 'in', value: brandUuids });
-  const yesterdayCreators = await paginatedFetch(supabase, 'daily_creator_stats', 'tiktok_username, gmv', ycFilters);
 
   // Day-before creator stats - paginated
   const dbFilters: { column: string; op: string; value: any }[] = [
     { column: 'report_date', op: 'eq', value: dayBeforeStr },
   ];
   if (brandUuids) dbFilters.push({ column: 'brand_id', op: 'in', value: brandUuids });
-  const dayBeforeCreators = await paginatedFetch(supabase, 'daily_creator_stats', 'gmv', dbFilters);
 
   // MTD creator stats - paginated
   const mtdFilters: { column: string; op: string; value: any }[] = [
@@ -478,7 +531,6 @@ export async function getDailyDropData(brandFilter: string): Promise<DailyDropDa
     { column: 'report_date', op: 'lte', value: yesterdayStr },
   ];
   if (brandUuids) mtdFilters.push({ column: 'brand_id', op: 'in', value: brandUuids });
-  const mtdData = await paginatedFetch(supabase, 'daily_creator_stats', 'gmv', mtdFilters);
 
   // Yesterday's video stats - paginated
   const yvFilters: { column: string; op: string; value: any }[] = [
@@ -486,7 +538,6 @@ export async function getDailyDropData(brandFilter: string): Promise<DailyDropDa
     { column: 'gmv', op: 'gt', value: 0 },
   ];
   if (brandUuids) yvFilters.push({ column: 'brand_id', op: 'in', value: brandUuids });
-  const yesterdayVideos = await paginatedFetch(supabase, 'daily_video_stats', 'video_id, tiktok_username, gmv, product_name', yvFilters);
 
   // One to Watch: recent videos with strong early traction - paginated
   const otwFilters: { column: string; op: string; value: any }[] = [
@@ -494,7 +545,15 @@ export async function getDailyDropData(brandFilter: string): Promise<DailyDropDa
     { column: 'gmv', op: 'gt', value: 0 },
   ];
   if (brandUuids) otwFilters.push({ column: 'brand_id', op: 'in', value: brandUuids });
-  const recentVideoStats = await paginatedFetch(supabase, 'daily_video_stats', 'video_id, tiktok_username, gmv, post_date, report_date', otwFilters);
+
+  const [yesterdayCreators, dayBeforeCreators, mtdData, yesterdayVideos, recentVideoStats, discordMap] = await Promise.all([
+    paginatedFetch(supabase, 'daily_creator_stats', 'tiktok_username, gmv', ycFilters),
+    paginatedFetch(supabase, 'daily_creator_stats', 'gmv', dbFilters),
+    paginatedFetch(supabase, 'daily_creator_stats', 'gmv', mtdFilters),
+    paginatedFetch(supabase, 'daily_video_stats', 'video_id, tiktok_username, gmv, product_name', yvFilters),
+    paginatedFetch(supabase, 'daily_video_stats', 'video_id, tiktok_username, gmv, post_date, report_date', otwFilters),
+    getDiscordMap(supabase, brandUuids),
+  ]);
 
   // Aggregate videos by video_id
   const videoMap = new Map<string, { video_id: string; tiktok_username: string; gmv: number }>();
@@ -553,8 +612,6 @@ export async function getDailyDropData(brandFilter: string): Promise<DailyDropDa
   const dayBeforeGmv = (dayBeforeCreators || []).reduce((s: number, c: any) => s + (parseFloat(c.gmv) || 0), 0);
   const mtdGmv = (mtdData || []).reduce((s: number, c: any) => s + (parseFloat(c.gmv) || 0), 0);
 
-  const discordMap = await getDiscordMap(supabase, brandUuids);
-
   return {
     yesterdayGmv,
     dayBeforeGmv,
@@ -592,7 +649,7 @@ export async function getWeeklyWrapData(brandFilter: string): Promise<WeeklyWrap
   const supabase = await createClient();
   const brandUuids = getBrandUuids(brandFilter);
 
-  const today = new Date();
+  const today = await resolveAnchorToday(supabase, brandUuids);
   const yesterday = new Date(today);
   yesterday.setDate(today.getDate() - 1);
   const weekAgo = new Date(today);
@@ -738,7 +795,7 @@ export async function getMonthlyRecapData(brandFilter: string): Promise<MonthlyR
   const supabase = await createClient();
   const brandUuids = getBrandUuids(brandFilter);
 
-  const today = new Date();
+  const today = await resolveAnchorToday(supabase, brandUuids);
   const yesterday = new Date(today);
   yesterday.setDate(today.getDate() - 1);
   const thirtyDaysAgo = new Date(today);
@@ -866,7 +923,7 @@ export async function getBrandClientUpdateData(brandFilter: string): Promise<Bra
   const supabase = await createClient();
   const brandUuids = getBrandUuids(brandFilter);
 
-  const today = new Date();
+  const today = await resolveAnchorToday(supabase, brandUuids);
   const yesterday = new Date(today);
   yesterday.setDate(today.getDate() - 1);
   const weekAgo = new Date(today);
@@ -970,7 +1027,7 @@ export function formatWhatsCookingDiscord(
   brandName: string,
   period: '7d' | '30d'
 ): string {
-  const today = new Date();
+  const today = data.endDate;
   const periodDays = period === '30d' ? 30 : 7;
   const periodStart = new Date(today);
   periodStart.setDate(today.getDate() - periodDays);
@@ -1029,7 +1086,7 @@ export function formatWhosCookingDiscord(
   brandName: string,
   period: '7d' | '30d'
 ): string {
-  const today = new Date();
+  const today = data.endDate;
   const periodDays = period === '30d' ? 30 : 7;
   const periodStart = new Date(today);
   periodStart.setDate(today.getDate() - periodDays);
@@ -1128,9 +1185,10 @@ export function formatDailyDropDiscord(data: DailyDropData, brandName: string): 
     dodChange = ` (${changeArrow}${Math.abs(changePercent)}% vs ${dayBeforeName})`;
   }
 
-  // Goal pacing
-  const today = new Date();
-  const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+  // Goal pacing — anchor month math to the yesterday date so we project against
+  // the correct month even when data is stale (otherwise we'd compare MTD against
+  // the wrong month's day count)
+  const daysInMonth = new Date(yesterdayDate.getFullYear(), yesterdayDate.getMonth() + 1, 0).getDate();
   const dayOfMonth = yesterdayDate.getDate();
   const daysRemaining = daysInMonth - dayOfMonth;
   const dailyAverage = dayOfMonth > 0 ? data.mtdGmv / dayOfMonth : 0;
