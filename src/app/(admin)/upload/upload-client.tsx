@@ -19,6 +19,9 @@ import {
   AlertCircle, CheckCircle2, FileSpreadsheet, Loader2, Trash2, Upload,
   ChevronDown, ChevronUp, AlertTriangle,
 } from 'lucide-react';
+import { FreshnessPanel } from '@/components/upload/freshness-panel';
+import { DataMatrix } from '@/components/upload/data-matrix';
+import { UploadHistory } from '@/components/upload/upload-history';
 import { cn } from '@/lib/utils';
 import { ACTIVE_BRANDS, BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
 import {
@@ -70,6 +73,9 @@ export function UploadClient() {
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [dragActive, setDragActive] = useState(false);
   const [running, setRunning] = useState(false);
+  // Bumped each time a file uploads successfully — causes Freshness, Matrix,
+  // and History panels to refetch so what just landed shows up immediately.
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // ── Drag/drop handlers
   const onDrop = useCallback((e: React.DragEvent) => {
@@ -254,6 +260,7 @@ export function UploadClient() {
         status: 'success',
         result: { rowCount: parsed.records.length, totalGmv, totalOrders },
       });
+      setRefreshKey(k => k + 1);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Upload failed';
       appendLog(item.id, 'error', message);
@@ -283,8 +290,12 @@ export function UploadClient() {
   }, [queue]);
 
   return (
-    <div className="space-y-5">
-      {/* Drop zone */}
+    <div className="space-y-8">
+      {/* Freshness — at-a-glance: which brand uploads are current vs stale */}
+      <FreshnessPanel refreshKey={refreshKey} />
+
+      {/* Drop zone + queue */}
+      <div className="space-y-5">
       <div
         onDrop={onDrop}
         onDragOver={onDragOver}
@@ -345,6 +356,13 @@ export function UploadClient() {
           </ul>
         </div>
       )}
+      </div>
+
+      {/* Coverage matrix — visual "did I miss any days" check */}
+      <DataMatrix refreshKey={refreshKey} />
+
+      {/* Recent uploads — audit trail sourced from activity_log */}
+      <UploadHistory refreshKey={refreshKey} />
     </div>
   );
 }
