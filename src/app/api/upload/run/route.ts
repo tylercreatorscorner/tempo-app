@@ -27,7 +27,13 @@ const TABLE_CONFLICT: Record<string, string> = {
   product_performance: 'product_id,brand,report_date',
 };
 
-const BATCH_SIZE = 500;
+// Smaller batches reduce per-row-trigger work per HTTP request, which matters
+// because PostgREST uses the `authenticator` role (statement_timeout=8s).
+// 500 was blowing past 8s for creator_performance uploads when its per-row
+// sync trigger to daily_creator_stats fires for every inserted row.
+// Tradeoff: more HTTP roundtrips per upload, but each completes in well
+// under 8s and the upload is idempotent so partial-success is recoverable.
+const BATCH_SIZE = 100;
 
 export async function POST(request: NextRequest) {
   // ── Auth: must be owner or admin role. Creators / brand clients / unprofiled

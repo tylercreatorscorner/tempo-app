@@ -113,25 +113,14 @@ function normalizeHandle(h: string | null | undefined): string {
   return h.replace(/^@/, '').trim().toLowerCase();
 }
 
-const ACTIVE_BRANDS_FOR_EARNINGS = [
-  'catakor',
-  'jiyu',
-  'leefar_nutrition',
-  'leefar_supplements',
-  'lemme',
-  'physicians_choice',
-  'toplux',
-] as const;
-
-const BRAND_LABELS: Record<string, string> = {
-  catakor:            'Cata-Kor',
-  jiyu:               'JiYu',
-  leefar_nutrition:   'LeeFar Nutrition',
-  leefar_supplements: 'LeeFar Supplements',
-  lemme:              'Lemme',
-  physicians_choice:  'Physicians Choice',
-  toplux:             'Toplux Nutrition',
-};
+/**
+ * Umbrella brands that group children (e.g. "LeeFar (All Stores)" =
+ * leefar_nutrition + leefar_supplements). These exist in brands_v2 for
+ * grouping purposes but never have their own creator_performance rows —
+ * uploads land on the child slugs. Excluded from earnings to avoid
+ * showing $0 rows that confuse the totals.
+ */
+const UMBRELLA_BRAND_SLUGS = new Set(['leefar']);
 
 // ── Helpers ────────────────────────────────────────────────────────
 
@@ -166,6 +155,34 @@ export async function getEarnings(month: string): Promise<EarningsResult> {
 
   const supabase = await createAdminClient();
 
+  // ── Resolve the active brand list from brands_v2 (source of truth)
+  // Filters out archived brands (e.g. Toplux as of 2026-04-22) and umbrellas
+  // (e.g. "leefar" — has no data; its children leefar_nutrition + leefar_supplements
+  // do). This replaces the previously-hardcoded list which would silently drift
+  // out of sync as brands were added/archived.
+  const { data: brandsRaw } = await supabase
+    .from('brands_v2')
+    .select('slug, name')
+    .eq('is_archived', false)
+    .order('name');
+  const activeBrandRows = (brandsRaw as Array<{ slug: string; name: string }> | null ?? [])
+    .filter(b => !UMBRELLA_BRAND_SLUGS.has(b.slug));
+  const activeBrandSlugs = activeBrandRows.map(b => b.slug);
+  const brandLabelBySlug = new Map(activeBrandRows.map(b => [b.slug, b.name]));
+
+  if (activeBrandSlugs.length === 0) {
+    // No active brands — return empty result. Better than throwing on a fresh tenant.
+    return {
+      month, startDate, endDate, brands: [],
+      totals: {
+        affiliateGmv: 0, marketingGmv: 0, totalGmv: 0,
+        commission: 0, retainers: 0, launchFees: 0,
+        earnings: 0, tylerShare: 0, mattShare: 0,
+        monthlyGoal: 0, goalProgressPct: 0,
+      },
+    };
+  }
+
   // ── Fan out: brand settings, perf data, custom rates, marketing GMV, managed creators
   const [
     brandSettingsRes,
@@ -174,13 +191,13 @@ export async function getEarnings(month: string): Promise<EarningsResult> {
     marketingRes,
     managedRes,
   ] = await Promise.all([
-    supabase.from('brand_settings').select('*').in('brand', ACTIVE_BRANDS_FOR_EARNINGS as unknown as string[]),
+    supabase.from('brand_settings').select('*').in('brand', activeBrandSlugs),
     supabase.from('creator_performance')
       .select('creator_name, brand, gmv')
       .eq('period_type', 'daily')
       .gte('report_date', startDate)
       .lte('report_date', endDate)
-      .in('brand', ACTIVE_BRANDS_FOR_EARNINGS as unknown as string[])
+      .in('brand', activeBrandSlugs)
       .limit(50000),
     supabase.from('creator_commission_rates').select('creator_name, brand, rate'),
     supabase.from('marketing_gmv').select('brand, amount').eq('month', month),
@@ -220,7 +237,8 @@ export async function getEarnings(month: string): Promise<EarningsResult> {
   type CreatorAgg = { handleNorm: string; rawName: string; brand: string; gmv: number };
   const creatorByBrand: Record<string, Map<string, CreatorAgg>> = {};
   const brandAffiliateGmv: Record<string, number> = {};
-  for (const b of ACTIVE_BRANDS_FOR_EARNINGS) {
+  const activeBrandSet = new Set(activeBrandSlugs);
+  for (const b of activeBrandSlugs) {
     creatorByBrand[b] = new Map();
     brandAffiliateGmv[b] = 0;
   }
@@ -228,7 +246,7 @@ export async function getEarnings(month: string): Promise<EarningsResult> {
   for (const row of perfData) {
     const handle = normalizeHandle(row.creator_name);
     if (!handle) continue;
-    if (!ACTIVE_BRANDS_FOR_EARNINGS.includes(row.brand as typeof ACTIVE_BRANDS_FOR_EARNINGS[number])) continue;
+    if (!activeBrandSet.has(row.brand)) continue;
     const k = `${handle}|||${row.brand}`;
     if (!managedLookup.has(k)) continue;
     const gmv = pNum(row.gmv);
@@ -245,7 +263,7 @@ export async function getEarnings(month: string): Promise<EarningsResult> {
   let totalCommission = 0, totalRetainers = 0, totalLaunchFees = 0;
   let monthlyGoalSum = 0;
 
-  for (const brand of ACTIVE_BRANDS_FOR_EARNINGS) {
+  for (const brand of activeBrandSlugs) {
     const s = settingsByBrand.get(brand);
     const ratePct = getBrandRatePct(s);
     const rateMul = ratePct / 100;
@@ -298,7 +316,7 @@ export async function getEarnings(month: string): Promise<EarningsResult> {
 
     brands.push({
       brand,
-      brandLabel: BRAND_LABELS[brand] ?? brand,
+      brandLabel: brandLabelBySlug.get(brand) ?? brand,
       affiliateGmv,
       marketingGmv,
       totalGmv: gmv,
