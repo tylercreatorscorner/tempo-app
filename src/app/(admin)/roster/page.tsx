@@ -6,10 +6,12 @@ import {
   UserPlus, Search, Users, DollarSign, UserCheck, X,
   ChevronLeft, ChevronRight, ExternalLink, TrendingUp, Loader2,
   UserX, Globe, Pencil, Check, Plus, Trash2, ArrowUp, ArrowDown, ArrowUpDown,
+  RefreshCcw,
 } from 'lucide-react';
 import Link from 'next/link';
 import { BRAND_DISPLAY_NAMES, ACTIVE_BRANDS } from '@/lib/utils/constants';
 import type { UniverseCreator } from '@/app/api/creators/universe/route';
+import { RenewalsTab } from '@/components/roster/renewals-tab';
 
 const PAGE_SIZE = 50;
 
@@ -918,7 +920,7 @@ function RosterContent() {
   const brand = searchParams.get('brand') || 'all';
   const showBrandColumn = brand === 'all';
 
-  const [activeTab, setActiveTab] = useState<'roster' | 'all'>('roster');
+  const [activeTab, setActiveTab] = useState<'roster' | 'all' | 'renewals'>('roster');
   const [roster, setRoster] = useState<Creator[]>([]);
   const [total, setTotal] = useState(0);
   const [totalRetainer, setTotalRetainer] = useState(0);
@@ -1035,6 +1037,14 @@ function RosterContent() {
         >
           <Globe className="h-4 w-4" /> All Creators
         </button>
+        <button
+          onClick={() => setActiveTab('renewals')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+            activeTab === 'renewals' ? 'bg-white text-[#1A1B3A] shadow-sm' : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          <RefreshCcw className="h-4 w-4" /> Renewals
+        </button>
       </div>
 
       {/* All Creators tab */}
@@ -1044,6 +1054,11 @@ function RosterContent() {
           refreshTrigger={allCreatorsRefreshKey}
           onAddCreator={(prefill) => setAddModalPrefill(prefill)}
         />
+      )}
+
+      {/* Renewals tab */}
+      {activeTab === 'renewals' && (
+        <RenewalsTab brand={brand && brand !== 'all' ? brand : null} />
       )}
 
       {/* Managed Roster tab content */}
