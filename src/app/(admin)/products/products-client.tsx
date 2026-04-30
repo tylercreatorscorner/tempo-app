@@ -1,0 +1,564 @@
+'use client';
+
+/**
+ * Products view — admin-only page at /products.
+ *
+ * Layout (top to bottom):
+ *   Header (title + range picker)
+ *   Brand filter pills (matches /creators)
+ *   KPI strip — Total GMV, Orders, Items, # Products (each with WoW delta)
+ *   Top 5 Products card
+ *   Products table:
+ *     - Sortable columns (GMV / Orders / Items / Videos / Creators)
+ *     - Search box
+ *     - CSV export
+ *     - Click any row -> expands inline to show the creators driving that product
+ *
+ * Data:
+ *   GET /api/products?brand=&start=&end=             - main aggregate fetch
+ *   GET /api/products/[id]/creators?brand=&start=&end - lazy-loaded on row expand
+ *
+ * Pattern matches /analytics — same DateRangePicker + BrandFilter + StatCard
+ * components — and /upload — same admin gating pattern (server component
+ * redirect + client surface).
+ */
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  ChevronDown, ChevronRight, Download, Loader2, Package, Search,
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { BRAND_DISPLAY_NAMES, BRAND_COLORS } from '@/lib/utils/constants';
+import { DateRangePicker } from '@/components/dashboard/date-range-picker';
+import { BrandFilter } from '@/components/creators/brand-filter';
+import { StatCard } from '@/components/dashboard/stat-card';
+import { formatCurrency, formatNumber } from '@/lib/utils/format';
+
+interface ProductRow {
+  product_id: string;
+  product_name: string;
+  brand: string;
+  product_category: string | null;
+  gmv: number;
+  refunds: number;
+  orders: number;
+  items_sold: number;
+  items_refunded: number;
+  videos: number;
+  live_streams: number;
+  est_commission: number;
+  avg_creators_with_sales: number;
+}
+
+interface ProductsResponse {
+  products: ProductRow[];
+  kpis: {
+    totalGmv: number;
+    totalOrders: number;
+    totalItems: number;
+    productCount: number;
+    gmvChangePct: number | null;
+    ordersChangePct: number | null;
+    itemsChangePct: number | null;
+    productCountChangePct: number | null;
+  };
+  startDate: string;
+  endDate: string;
+}
+
+interface CreatorBreakdownRow {
+  tiktok_username: string;
+  gmv: number;
+  orders: number;
+  items_sold: number;
+  videos: number;
+}
+
+type SortKey = 'gmv' | 'orders' | 'items_sold' | 'videos' | 'avg_creators_with_sales' | 'product_name';
+type SortDir = 'asc' | 'desc';
+
+interface ProductsClientProps {
+  brands: string[];
+  selectedBrand: string | null;
+  startDate: string;
+  endDate: string;
+}
+
+export function ProductsClient({ brands, selectedBrand, startDate, endDate }: ProductsClientProps) {
+  const [data, setData] = useState<ProductsResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [sortKey, setSortKey] = useState<SortKey>('gmv');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  // Fetch products on mount + whenever brand/range changes
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    const params = new URLSearchParams();
+    if (selectedBrand) params.set('brand', selectedBrand);
+    params.set('start', startDate);
+    params.set('end', endDate);
+    fetch(`/api/products?${params.toString()}`)
+      .then(r => r.json())
+      .then((d: ProductsResponse | { error: string }) => {
+        if (cancelled) return;
+        if ('error' in d) setError(d.error);
+        else setData(d);
+      })
+      .catch(() => { if (!cancelled) setError('Failed to load products'); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [selectedBrand, startDate, endDate]);
+
+  // Brands that have data in the current window — used for highlighting in BrandFilter
+  const brandsWithData = useMemo(() => {
+    if (!data) return [] as string[];
+    return Array.from(new Set(data.products.map(p => p.brand)));
+  }, [data]);
+
+  // Filter + sort
+  const visibleProducts = useMemo(() => {
+    if (!data) return [];
+    const term = search.trim().toLowerCase();
+    let list = data.products;
+    if (term) {
+      list = list.filter(p =>
+        (p.product_name || '').toLowerCase().includes(term) ||
+        (p.product_category || '').toLowerCase().includes(term)
+      );
+    }
+    const dir = sortDir === 'asc' ? 1 : -1;
+    list = [...list].sort((a, b) => {
+      let av: string | number = a[sortKey] ?? 0;
+      let bv: string | number = b[sortKey] ?? 0;
+      if (sortKey === 'product_name') {
+        av = String(av).toLowerCase();
+        bv = String(bv).toLowerCase();
+        return av < bv ? -dir : av > bv ? dir : 0;
+      }
+      return ((av as number) - (bv as number)) * dir;
+    });
+    return list;
+  }, [data, search, sortKey, sortDir]);
+
+  function changeSort(key: SortKey) {
+    if (sortKey === key) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortKey(key);
+      setSortDir(key === 'product_name' ? 'asc' : 'desc');
+    }
+  }
+
+  function toggleExpand(productKey: string) {
+    setExpanded(prev => {
+      const next = new Set(prev);
+      if (next.has(productKey)) next.delete(productKey);
+      else next.add(productKey);
+      return next;
+    });
+  }
+
+  function downloadCsv() {
+    if (!visibleProducts.length) return;
+    const headers = ['Product', 'Brand', 'Category', 'GMV', 'Orders', 'Items Sold', 'Refunds', 'Videos', 'Avg Creators / Day', 'Est. Commission'];
+    const rows = visibleProducts.map(p => [
+      p.product_name || 'Unknown',
+      BRAND_DISPLAY_NAMES[p.brand] ?? p.brand,
+      p.product_category ?? '',
+      p.gmv.toFixed(2),
+      p.orders,
+      p.items_sold,
+      p.refunds.toFixed(2),
+      p.videos,
+      p.avg_creators_with_sales,
+      p.est_commission.toFixed(2),
+    ]);
+    const csv = [headers, ...rows]
+      .map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(','))
+      .join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `products-${startDate}-to-${endDate}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  const isInitial = loading && !data;
+
+  return (
+    <div className="space-y-6">
+      {/* Header row: title + date picker */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-extrabold text-[#1A1B3A]">Products</h1>
+          <p className="text-sm text-gray-400 mt-0.5">
+            Per-product performance for{' '}
+            <span className="font-medium text-gray-600">
+              {selectedBrand ? (BRAND_DISPLAY_NAMES[selectedBrand] ?? selectedBrand) : 'all brands'}
+            </span>
+            . Click any row to see the creators driving it.
+          </p>
+        </div>
+        <DateRangePicker />
+      </div>
+
+      {/* Brand pills */}
+      <BrandFilter brands={brands} brandsWithData={brandsWithData} selectedBrand={selectedBrand} />
+
+      {error && (
+        <div className="rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
+      {/* KPI strip */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <StatCard
+          label="Total GMV"
+          value={data ? formatCurrency(data.kpis.totalGmv) : '—'}
+          trend={data?.kpis.gmvChangePct ?? undefined}
+        />
+        <StatCard
+          label="Active Products"
+          value={data ? formatNumber(data.kpis.productCount) : '—'}
+          trend={data?.kpis.productCountChangePct ?? undefined}
+        />
+        <StatCard
+          label="Total Orders"
+          value={data ? formatNumber(data.kpis.totalOrders) : '—'}
+          trend={data?.kpis.ordersChangePct ?? undefined}
+        />
+        <StatCard
+          label="Items Sold"
+          value={data ? formatNumber(data.kpis.totalItems) : '—'}
+          trend={data?.kpis.itemsChangePct ?? undefined}
+        />
+      </div>
+
+      {/* Top 5 products */}
+      <TopProductsCard products={data?.products ?? []} totalGmv={data?.kpis.totalGmv ?? 0} loading={isInitial} />
+
+      {/* Table */}
+      <div className="rounded-2xl bg-white border border-gray-100 shadow-sm">
+        {/* Table toolbar */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-5 py-3 border-b border-gray-100">
+          <div className="flex items-center gap-3">
+            <h2 className="text-sm font-bold text-[#1A1B3A]">All Products</h2>
+            <span className="text-xs text-gray-400">
+              {visibleProducts.length} of {data?.products.length ?? 0}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <Search className="h-3.5 w-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search products..."
+                className="text-sm bg-white border border-gray-200 rounded-xl pl-8 pr-3 py-1.5 w-56 focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/20 focus:border-[#E91E8C]"
+              />
+            </div>
+            <button
+              onClick={downloadCsv}
+              disabled={!visibleProducts.length}
+              className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-600 disabled:opacity-40 transition-colors"
+            >
+              <Download className="h-3.5 w-3.5" /> CSV
+            </button>
+          </div>
+        </div>
+
+        {/* Table */}
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left">
+                <SortableTh label="Product"  sortKey="product_name"             current={sortKey} dir={sortDir} onClick={changeSort} />
+                <Th>Brand</Th>
+                <SortableTh label="GMV"      sortKey="gmv"                      current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
+                <SortableTh label="Orders"   sortKey="orders"                   current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
+                <SortableTh label="Items"    sortKey="items_sold"               current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
+                <SortableTh label="Videos"   sortKey="videos"                   current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
+                <SortableTh label="Creators/Day" sortKey="avg_creators_with_sales" current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
+              </tr>
+            </thead>
+            <tbody>
+              {isInitial ? (
+                <tr><td colSpan={7} className="text-center text-gray-400 py-12 text-sm">
+                  <Loader2 className="h-4 w-4 animate-spin inline mr-2" />Loading products...
+                </td></tr>
+              ) : visibleProducts.length === 0 ? (
+                <tr><td colSpan={7} className="text-center text-gray-400 py-12">
+                  <Package className="h-8 w-8 mx-auto mb-2 text-gray-300" />
+                  <div className="text-sm font-medium">No products in this window</div>
+                  <div className="text-xs mt-1">Try a wider date range or different brand.</div>
+                </td></tr>
+              ) : (
+                visibleProducts.map(p => {
+                  const key = `${p.product_id}|||${p.brand}`;
+                  const isExpanded = expanded.has(key);
+                  const brandColor = BRAND_COLORS[p.brand] ?? '#6B7280';
+                  return (
+                    <ProductRowGroup
+                      key={key}
+                      productKey={key}
+                      product={p}
+                      brandColor={brandColor}
+                      isExpanded={isExpanded}
+                      onToggle={() => toggleExpand(key)}
+                      startDate={startDate}
+                      endDate={endDate}
+                    />
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Sortable column header ──────────────────────────────────────────
+
+function SortableTh({
+  label, sortKey, current, dir, onClick, align = 'left',
+}: {
+  label: string;
+  sortKey: SortKey;
+  current: SortKey;
+  dir: SortDir;
+  onClick: (k: SortKey) => void;
+  align?: 'left' | 'right';
+}) {
+  const active = current === sortKey;
+  const arrow = active ? (dir === 'asc' ? '↑' : '↓') : '';
+  return (
+    <th
+      onClick={() => onClick(sortKey)}
+      className={cn(
+        'px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider cursor-pointer select-none transition-colors',
+        align === 'right' ? 'text-right' : 'text-left',
+        active ? 'text-[#E91E8C]' : 'text-gray-500 hover:text-gray-700'
+      )}
+    >
+      {label}{arrow && <span className="ml-1">{arrow}</span>}
+    </th>
+  );
+}
+
+function Th({ children }: { children: React.ReactNode }) {
+  return (
+    <th className="px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider text-gray-500">{children}</th>
+  );
+}
+
+// ── Product row + expanded creator breakdown ────────────────────────
+
+function ProductRowGroup({
+  productKey, product, brandColor, isExpanded, onToggle, startDate, endDate,
+}: {
+  productKey: string;
+  product: ProductRow;
+  brandColor: string;
+  isExpanded: boolean;
+  onToggle: () => void;
+  startDate: string;
+  endDate: string;
+}) {
+  const [creators, setCreators] = useState<CreatorBreakdownRow[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  // Lazy fetch when first expanded; cache after that
+  const fetchCreators = useCallback(async () => {
+    if (creators !== null) return;
+    setLoading(true);
+    setErr(null);
+    try {
+      const params = new URLSearchParams({
+        brand: product.brand,
+        start: startDate,
+        end:   endDate,
+      });
+      const res = await fetch(`/api/products/${encodeURIComponent(product.product_id)}/creators?${params.toString()}`);
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
+      setCreators(j.creators);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Failed to load');
+    } finally {
+      setLoading(false);
+    }
+  }, [creators, product.brand, product.product_id, startDate, endDate]);
+
+  useEffect(() => {
+    if (isExpanded) fetchCreators();
+  }, [isExpanded, fetchCreators]);
+
+  const titleClipped = (product.product_name || '(unnamed)').length > 80
+    ? (product.product_name || '').slice(0, 80) + '…'
+    : (product.product_name || '(unnamed)');
+
+  return (
+    <>
+      <tr
+        onClick={onToggle}
+        className={cn(
+          'border-t border-gray-50 hover:bg-gray-50/50 cursor-pointer transition-colors',
+          isExpanded && 'bg-pink-50/40'
+        )}
+      >
+        <td className="px-4 py-3 align-top">
+          <div className="flex items-start gap-2">
+            {isExpanded ? <ChevronDown className="h-3.5 w-3.5 text-gray-400 mt-0.5 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 text-gray-400 mt-0.5 shrink-0" />}
+            <div className="min-w-0">
+              <div className="font-medium text-[#1A1B3A] truncate" title={product.product_name}>{titleClipped}</div>
+              {product.product_category && (
+                <div className="text-[11px] text-gray-400 mt-0.5">{product.product_category}</div>
+              )}
+            </div>
+          </div>
+        </td>
+        <td className="px-4 py-3 align-top">
+          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-600">
+            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: brandColor }} />
+            {BRAND_DISPLAY_NAMES[product.brand] ?? product.brand}
+          </span>
+        </td>
+        <td className="px-4 py-3 text-right font-bold text-[#E91E8C] tabular-nums">{formatCurrency(product.gmv)}</td>
+        <td className="px-4 py-3 text-right text-gray-700 tabular-nums">{formatNumber(product.orders)}</td>
+        <td className="px-4 py-3 text-right text-gray-700 tabular-nums">{formatNumber(product.items_sold)}</td>
+        <td className="px-4 py-3 text-right text-gray-700 tabular-nums">{formatNumber(product.videos)}</td>
+        <td className="px-4 py-3 text-right text-gray-700 tabular-nums">{formatNumber(product.avg_creators_with_sales)}</td>
+      </tr>
+      {isExpanded && (
+        <tr className="bg-gray-50/30 border-t border-gray-50">
+          <td colSpan={7} className="px-4 pt-1 pb-4">
+            <CreatorBreakdown loading={loading} err={err} creators={creators} productGmv={product.gmv} />
+          </td>
+        </tr>
+      )}
+    </>
+  );
+}
+
+function CreatorBreakdown({
+  loading, err, creators, productGmv,
+}: {
+  loading: boolean;
+  err: string | null;
+  creators: CreatorBreakdownRow[] | null;
+  productGmv: number;
+}) {
+  if (loading && creators === null) {
+    return (
+      <div className="text-xs text-gray-500 flex items-center gap-2 px-2 py-3">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading creators...
+      </div>
+    );
+  }
+  if (err) {
+    return <div className="text-xs text-red-600 px-2 py-3">Error: {err}</div>;
+  }
+  if (!creators || creators.length === 0) {
+    return (
+      <div className="text-xs text-gray-400 italic px-2 py-3">
+        No creator-attributed sales for this product in the selected period.
+      </div>
+    );
+  }
+
+  const top = creators.slice(0, 10);
+  return (
+    <div className="rounded-xl bg-white border border-gray-100 p-3 space-y-1">
+      <div className="text-[10px] font-bold uppercase tracking-wider text-gray-500 px-2 pb-2">
+        Top Creators · {creators.length} total · {formatCurrency(productGmv)} product GMV
+      </div>
+      <div className="space-y-0.5">
+        {top.map((c, i) => {
+          const share = productGmv > 0 ? (c.gmv / productGmv) * 100 : 0;
+          return (
+            <div key={c.tiktok_username} className="flex items-center gap-3 text-xs px-2 py-1.5 hover:bg-gray-50 rounded-lg transition-colors">
+              <span className="w-6 text-gray-400 font-medium tabular-nums">{i + 1}.</span>
+              <span className="font-medium text-[#1A1B3A] flex-1 truncate">@{c.tiktok_username}</span>
+              <span className="text-gray-500 w-24 text-right tabular-nums">{formatNumber(c.videos)} {c.videos === 1 ? 'vid' : 'vids'}</span>
+              <span className="text-gray-500 w-24 text-right tabular-nums">{formatNumber(c.orders)} orders</span>
+              <span className="font-bold text-[#E91E8C] w-24 text-right tabular-nums">{formatCurrency(c.gmv)}</span>
+              <span className="text-[10px] text-gray-400 w-12 text-right tabular-nums">{share.toFixed(1)}%</span>
+            </div>
+          );
+        })}
+      </div>
+      {creators.length > 10 && (
+        <div className="text-[11px] text-gray-400 px-2 pt-1">
+          Showing top 10 of {creators.length} creators
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Top 5 Products card ─────────────────────────────────────────────
+
+function TopProductsCard({
+  products, totalGmv, loading,
+}: {
+  products: ProductRow[];
+  totalGmv: number;
+  loading: boolean;
+}) {
+  const top = products.slice(0, 5);
+  return (
+    <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-5">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <div className="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-500">Headliners</div>
+          <h2 className="text-base font-bold text-[#1A1B3A] mt-0.5">Top 5 products</h2>
+        </div>
+      </div>
+      {loading ? (
+        <div className="text-xs text-gray-400 flex items-center gap-2"><Loader2 className="h-3.5 w-3.5 animate-spin" />Loading...</div>
+      ) : top.length === 0 ? (
+        <div className="text-xs text-gray-400 italic py-3">No products in this window.</div>
+      ) : (
+        <div className="space-y-2">
+          {top.map((p, i) => {
+            const share = totalGmv > 0 ? (p.gmv / totalGmv) * 100 : 0;
+            const titleClipped = (p.product_name || '(unnamed)').length > 60
+              ? (p.product_name || '').slice(0, 60) + '…'
+              : (p.product_name || '(unnamed)');
+            const brandColor = BRAND_COLORS[p.brand] ?? '#6B7280';
+            return (
+              <div key={`${p.product_id}|||${p.brand}`} className="flex items-center gap-3">
+                <span className="w-6 text-xs text-gray-400 font-bold tabular-nums">{i + 1}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-[#1A1B3A] truncate" title={p.product_name}>{titleClipped}</div>
+                  <div className="flex items-center gap-1.5 text-[11px] text-gray-500 mt-0.5">
+                    <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: brandColor }} />
+                    {BRAND_DISPLAY_NAMES[p.brand] ?? p.brand}
+                  </div>
+                  <div className="mt-1.5 h-1 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-[#E91E8C]" style={{ width: `${Math.min(100, share)}%` }} />
+                  </div>
+                </div>
+                <div className="text-right shrink-0">
+                  <div className="font-bold text-[#1A1B3A] tabular-nums">{formatCurrency(p.gmv)}</div>
+                  <div className="text-[11px] text-gray-400 tabular-nums">{share.toFixed(1)}% of total</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}

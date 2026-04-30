@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import {
   LayoutDashboard, BarChart3, UserCheck, CreditCard,
-  Mail, Compass, FileBarChart, Store, Upload,
+  Mail, Compass, FileBarChart, Store, Upload, Package,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TempoLogo } from '@/components/ui/tempo-logo';
@@ -52,6 +52,7 @@ const INSIGHTS_SECTION: NavSection = {
     { href: '/analytics', label: 'Analytics', icon: BarChart3 },
     { href: '/reporting', label: 'Reporting', icon: FileBarChart },
     { href: '/brands', label: 'All Brands', icon: Store },
+    { href: '/products', label: 'Products', icon: Package },
   ],
 };
 
