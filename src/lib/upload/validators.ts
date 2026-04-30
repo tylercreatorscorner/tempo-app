@@ -91,12 +91,22 @@ export function validateVideoRecords(records: VideoPerformanceRecord[]): Validat
     }
   }
 
-  // Video data CAN legitimately have $0 GMV some days (no sales). Don't hard-block,
-  // but surface loudly if a large file returns zero.
-  if (totalGmv === 0 && records.length > 100) {
+  // Hard-block $0-GMV uploads on files with non-zero orders. The video table
+  // CAN legitimately have $0 some days (no sales) — but if there are orders
+  // recorded with $0 GMV, that's always a column-mapping failure, never a
+  // legitimate state. We hit this in production: TikTok renamed the GMV
+  // column and the old single-name map silently dropped GMV to $0 while
+  // orders/items kept mapping correctly.
+  if (records.length > 0 && totalGmv === 0 && totalOrders > 0) {
+    errors.push(
+      `🚨 BLOCKED: Total GMV is $0 across ${records.length} video rows but ${totalOrders.toLocaleString()} orders are present. ` +
+      `This means the GMV column wasn't matched. Expected: "Creator Video-attributed GMV" (new) ` +
+      `or "Affiliate Video-attributed GMV" (legacy). Verify your file's column names.`
+    );
+  } else if (records.length > 100 && totalGmv === 0) {
     warnings.push(
-      `Total GMV is $0 across ${records.length} videos. This *might* be normal for a slow day, ` +
-      `but more often it means the "Affiliate Video-attributed GMV" column wasn't found. Verify.`
+      `Total GMV is $0 across ${records.length} videos with no orders either — this might be a slow day, ` +
+      `but verify the "Creator Video-attributed GMV" column is present in your file.`
     );
   }
 
@@ -121,6 +131,17 @@ export function validateProductRecords(records: ProductPerformanceRecord[]): Val
     if (!r.product_id || r.product_id.length < 5) {
       errors.push(`${r.product_name}: Invalid product ID`);
     }
+  }
+
+  // Hard-block: GMV column not matched. Same check as creator/video — the old
+  // upload tool didn't have this guard on product data, which is why product
+  // uploads silently landed with $0 GMV for weeks after TikTok renamed the column.
+  if (records.length > 0 && totalGmv === 0 && totalOrders > 0) {
+    errors.push(
+      `🚨 BLOCKED: Total GMV is $0 across ${records.length} product rows but ${totalOrders.toLocaleString()} orders are present. ` +
+      `This means the GMV column wasn't matched. Expected: "Creator-attributed GMV" (new) ` +
+      `or "Affiliate-attributed GMV" (legacy). Verify your file's column names.`
+    );
   }
 
   return { errors, warnings, totalGmv, totalOrders };
