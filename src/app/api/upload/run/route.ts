@@ -69,8 +69,35 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Missing reportDate' }, { status: 400 });
   }
 
+  // ── Server-side validation (defense-in-depth before any destructive op).
+  // The client validates first, but if a future column rename slips past the
+  // client, we never want to delete real data and fail to replace it. If GMV
+  // is $0 across the file but orders > 0, that's always a column-mapping
+  // failure — refuse to delete.
+  const tablesNeedingGmvCheck = new Set(['creator_performance', 'video_performance', 'product_performance']);
+  if (tablesNeedingGmvCheck.has(table)) {
+    let totalGmv = 0;
+    let totalOrders = 0;
+    for (const r of records) {
+      const g = (r as Record<string, unknown>).gmv;
+      const o = (r as Record<string, unknown>).orders;
+      if (typeof g === 'number') totalGmv += g;
+      if (typeof o === 'number') totalOrders += o;
+    }
+    if (totalGmv === 0 && totalOrders > 0) {
+      return NextResponse.json({
+        error:
+          `BLOCKED: total GMV is $0 across ${records.length} rows but ${totalOrders.toLocaleString()} orders are present. ` +
+          `Column mapping likely failed. Refusing to overwrite existing data.`,
+      }, { status: 400 });
+    }
+  }
+
   try {
-    // ── Optionally clear existing rows for this (brand, report_date) before inserting
+    // ── Optionally clear existing rows for this (brand, report_date) before inserting.
+    // Validation already passed by here, so a delete-then-fail-to-insert outcome
+    // is highly unlikely. (If the upsert errors mid-batch we return an error
+    // and the data is partially restored from the new file — the client can retry.)
     if (overwrite && requiresReportDate) {
       const { error: delErr } = await admin
         .from(table)
