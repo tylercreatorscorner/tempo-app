@@ -3,15 +3,19 @@
  *
  * Body: { table, brand, reportDate, records, overwrite }
  *
- * Server-side upsert path. The client parses the XLSX in-browser (no server
- * file upload needed — files can be 10MB+ and we don't want to babysit
- * uploads). We accept already-parsed records and either:
- *   - upsert directly (no existing data), or
- *   - delete existing for that (brand, report_date) tuple, then insert
- *     (when overwrite=true and existing rows were detected).
+ * Routes the upload through a Postgres RPC that does delete + bulk insert
+ * atomically inside a single transaction with `SET LOCAL statement_timeout = '60s'`.
+ * That bypasses the 8s authenticator-role timeout that PostgREST inherits at
+ * session start — SET LOCAL applies regardless of the role's GUC config.
  *
- * Uses createAdminClient() to bypass RLS — only authenticated users with a
- * user_profile (any role) can hit this route.
+ * Each upload = one HTTP request to the RPC = one Postgres transaction.
+ * No batching loop, no delete-then-fail-to-insert window — if the bulk
+ * insert fails for any reason, the delete rolls back too.
+ *
+ * Auth: owner/admin only via requireAdmin(). Server-side validation hard-blocks
+ * uploads where total GMV is $0 but orders > 0 (column-mapping failure
+ * signature) BEFORE the RPC is called, so we never destructive-overwrite
+ * good data with broken data.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
@@ -20,22 +24,17 @@ import { requireAdmin } from '@/lib/auth/require-admin';
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
-const TABLE_CONFLICT: Record<string, string> = {
-  creator_performance: 'creator_name,brand,report_date',
-  video_performance:   'video_id,product_id,brand,report_date',
-  videos:              'video_id,brand',
-  product_performance: 'product_id,brand,report_date',
+type UploadTable = 'creator_performance' | 'video_performance' | 'videos' | 'product_performance';
+
+const RPC_NAME: Record<UploadTable, string> = {
+  creator_performance: 'upload_creator_performance_atomic',
+  video_performance:   'upload_video_performance_atomic',
+  product_performance: 'upload_product_performance_atomic',
+  videos:              'upload_videos_atomic',
 };
 
-// 500-row batches comfortably fit within the 60s statement_timeout we set
-// for service_role on 2026-04-30 (was inheriting authenticator's 8s default
-// via PostgREST role-switching, which caused the per-row sync trigger to
-// daily_creator_stats to push past the cap on big creator_performance uploads).
-const BATCH_SIZE = 500;
-
 export async function POST(request: NextRequest) {
-  // ── Auth: must be owner or admin role. Creators / brand clients / unprofiled
-  // users cannot upload data — even if they somehow reach this endpoint.
+  // ── Auth: must be owner or admin role.
   const profile = await requireAdmin();
   if (!profile) {
     return NextResponse.json({ error: 'Forbidden — admin access required' }, { status: 403 });
@@ -58,7 +57,9 @@ export async function POST(request: NextRequest) {
   }
 
   const { table, brand, reportDate, records, overwrite } = body;
-  if (!table || !TABLE_CONFLICT[table]) {
+  const isUploadTable = (t: unknown): t is UploadTable =>
+    typeof t === 'string' && t in RPC_NAME;
+  if (!isUploadTable(table)) {
     return NextResponse.json({ error: 'Invalid table' }, { status: 400 });
   }
   if (!brand) return NextResponse.json({ error: 'Missing brand' }, { status: 400 });
@@ -66,19 +67,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Missing records' }, { status: 400 });
   }
 
-  // The 'videos' table is keyed by (video_id, brand) only — no report_date column.
-  // Other tables require reportDate to scope deletes.
+  // 'videos' is keyed by (video_id, brand) only — no report_date column.
   const requiresReportDate = table !== 'videos';
   if (requiresReportDate && !reportDate) {
     return NextResponse.json({ error: 'Missing reportDate' }, { status: 400 });
   }
 
-  // ── Server-side validation (defense-in-depth before any destructive op).
-  // The client validates first, but if a future column rename slips past the
-  // client, we never want to delete real data and fail to replace it. If GMV
-  // is $0 across the file but orders > 0, that's always a column-mapping
-  // failure — refuse to delete.
-  const tablesNeedingGmvCheck = new Set(['creator_performance', 'video_performance', 'product_performance']);
+  // ── Server-side hard-block: zero GMV with non-zero orders means the GMV
+  // column wasn't matched. Catch this BEFORE we call any destructive RPC.
+  const tablesNeedingGmvCheck = new Set<UploadTable>(['creator_performance', 'video_performance', 'product_performance']);
   if (tablesNeedingGmvCheck.has(table)) {
     let totalGmv = 0;
     let totalOrders = 0;
@@ -97,37 +94,21 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // ── Single RPC call — does delete (if overwrite) + bulk insert atomically
+  //    inside a transaction with SET LOCAL statement_timeout = '60s'.
   try {
-    // ── Optionally clear existing rows for this (brand, report_date) before inserting.
-    // Validation already passed by here, so a delete-then-fail-to-insert outcome
-    // is highly unlikely. (If the upsert errors mid-batch we return an error
-    // and the data is partially restored from the new file — the client can retry.)
-    if (overwrite && requiresReportDate) {
-      const { error: delErr } = await admin
-        .from(table)
-        .delete()
-        .eq('brand', brand)
-        .eq('report_date', reportDate);
-      if (delErr) {
-        return NextResponse.json({ error: `Delete failed: ${delErr.message}` }, { status: 500 });
-      }
+    const rpcArgs =
+      table === 'videos'
+        ? { p_records: records }
+        : { p_brand: brand, p_report_date: reportDate, p_records: records, p_overwrite: !!overwrite };
+
+    const { data, error } = await admin.rpc(RPC_NAME[table], rpcArgs);
+    if (error) {
+      return NextResponse.json({ error: `Upload failed: ${error.message}` }, { status: 500 });
     }
 
-    // ── Batched upsert
-    let upserted = 0;
-    for (let i = 0; i < records.length; i += BATCH_SIZE) {
-      const batch = records.slice(i, i + BATCH_SIZE);
-      const { error } = await admin.from(table).upsert(batch, {
-        onConflict: TABLE_CONFLICT[table],
-      });
-      if (error) {
-        return NextResponse.json({
-          error: `Upsert failed at batch ${i / BATCH_SIZE + 1}: ${error.message}`,
-          upsertedSoFar: upserted,
-        }, { status: 500 });
-      }
-      upserted += batch.length;
-    }
+    const upserted = (data as { upserted?: number } | null)?.upserted ?? 0;
+    const deleted  = (data as { deleted?:  number } | null)?.deleted  ?? 0;
 
     // ── Activity log (best-effort — don't fail the upload if this errors)
     try {
@@ -139,6 +120,7 @@ export async function POST(request: NextRequest) {
           brand,
           report_date: reportDate ?? null,
           row_count: upserted,
+          deleted_count: deleted,
           uploaded_by: profile.name ?? profile.email ?? 'unknown',
         },
       });
@@ -146,7 +128,7 @@ export async function POST(request: NextRequest) {
       // ignore
     }
 
-    return NextResponse.json({ ok: true, upserted });
+    return NextResponse.json({ ok: true, upserted, deleted });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Upload failed';
     return NextResponse.json({ error: message }, { status: 500 });
