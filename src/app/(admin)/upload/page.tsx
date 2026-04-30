@@ -1,8 +1,17 @@
+import { redirect } from 'next/navigation';
+import { requireAdmin } from '@/lib/auth/require-admin';
 import { UploadClient } from './upload-client';
 
 export const metadata = { title: 'Upload — Tempo' };
 
-export default function UploadPage() {
+export default async function UploadPage() {
+  // Server-side gate: only owner/admin can render this page. Creators or brand
+  // clients who somehow navigate here get bounced to the dashboard.
+  const profile = await requireAdmin();
+  if (!profile) {
+    redirect('/dashboard');
+  }
+
   return (
     <div className="space-y-6">
       <div>

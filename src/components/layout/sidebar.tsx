@@ -19,6 +19,8 @@ interface NavItem {
 interface NavSection {
   label?: string;
   items: NavItem[];
+  /** When true, only owner/admin roles see this section. */
+  adminOnly?: boolean;
 }
 
 const MAIN_SECTION: NavSection = {
@@ -38,6 +40,7 @@ const MANAGE_SECTION: NavSection = {
 
 const DATA_SECTION: NavSection = {
   label: 'Data',
+  adminOnly: true,
   items: [
     { href: '/upload', label: 'Upload', icon: Upload },
   ],
@@ -74,7 +77,11 @@ export function Sidebar({ className, userRole = 'customer' }: SidebarProps) {
   const roleOverride = searchParams.get('role');
   const effectiveRole = roleOverride === 'owner' ? 'owner' : userRole;
 
-  const sections = [MAIN_SECTION, MANAGE_SECTION, DATA_SECTION, INSIGHTS_SECTION, FINANCES_SECTION];
+  // Filter admin-only sections out for non-admin roles. Server-side gating on
+  // the actual pages/APIs is the real security boundary — this is purely UX.
+  const isAdmin = effectiveRole === 'owner';
+  const sections = [MAIN_SECTION, MANAGE_SECTION, DATA_SECTION, INSIGHTS_SECTION, FINANCES_SECTION]
+    .filter(s => !s.adminOnly || isAdmin);
 
   function withBrand(href: string) {
     if (!brand) return href;

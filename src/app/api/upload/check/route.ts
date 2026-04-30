@@ -8,6 +8,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
+import { requireAdmin } from '@/lib/auth/require-admin';
 
 const ALLOWED_TABLES = new Set([
   'creator_performance',
@@ -16,6 +17,9 @@ const ALLOWED_TABLES = new Set([
 ]);
 
 export async function GET(request: NextRequest) {
+  const profile = await requireAdmin();
+  if (!profile) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
   const { searchParams } = request.nextUrl;
   const table = searchParams.get('table') || '';
   const brand = searchParams.get('brand') || '';

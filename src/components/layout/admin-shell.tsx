@@ -20,7 +20,7 @@ interface AdminShellProps {
 
 export function AdminShell({ children, tenantSwitcher }: AdminShellProps) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const { tenant, isMultiBrand, isOwner, userName, userEmail } = useTenant();
+  const { tenant, isOwner, userName, userEmail } = useTenant();
 
   return (
     <Suspense>
@@ -28,8 +28,8 @@ export function AdminShell({ children, tenantSwitcher }: AdminShellProps) {
     <BreadcrumbProvider>
     <VideoPanelProvider>
       <div className="flex h-screen overflow-hidden" style={{ backgroundColor: '#F8F9FC' }}>
-        <Sidebar className="hidden lg:flex" userRole={isOwner && isMultiBrand ? 'owner' : 'customer'} />
-        <MobileNav open={mobileNavOpen} onClose={() => setMobileNavOpen(false)} userRole={isOwner && isMultiBrand ? 'owner' : 'customer'} />
+        <Sidebar className="hidden lg:flex" userRole={isOwner ? 'owner' : 'customer'} />
+        <MobileNav open={mobileNavOpen} onClose={() => setMobileNavOpen(false)} userRole={isOwner ? 'owner' : 'customer'} />
 
         <div className="flex-1 flex flex-col overflow-hidden">
           <Header

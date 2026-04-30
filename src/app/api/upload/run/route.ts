@@ -14,7 +14,8 @@
  * user_profile (any role) can hit this route.
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient, createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/server';
+import { requireAdmin } from '@/lib/auth/require-admin';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -29,18 +30,14 @@ const TABLE_CONFLICT: Record<string, string> = {
 const BATCH_SIZE = 500;
 
 export async function POST(request: NextRequest) {
-  // ── Auth: must be a logged-in user with a profile
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  // ── Auth: must be owner or admin role. Creators / brand clients / unprofiled
+  // users cannot upload data — even if they somehow reach this endpoint.
+  const profile = await requireAdmin();
+  if (!profile) {
+    return NextResponse.json({ error: 'Forbidden — admin access required' }, { status: 403 });
+  }
 
   const admin = await createAdminClient();
-  const { data: profile } = await admin
-    .from('user_profiles')
-    .select('user_id, role, name')
-    .eq('user_id', user.id)
-    .maybeSingle();
-  if (!profile) return NextResponse.json({ error: 'Forbidden — no user profile' }, { status: 403 });
 
   // ── Body
   let body: {
@@ -105,13 +102,13 @@ export async function POST(request: NextRequest) {
     try {
       await admin.from('activity_log').insert({
         activity_type: 'upload',
-        user_id: user.id,
+        user_id: profile.user_id,
         details: {
           table,
           brand,
           report_date: reportDate ?? null,
           row_count: upserted,
-          uploaded_by: profile.name ?? user.email ?? 'unknown',
+          uploaded_by: profile.name ?? profile.email ?? 'unknown',
         },
       });
     } catch {
