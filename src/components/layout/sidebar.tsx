@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import {
   LayoutDashboard, BarChart3, UserCheck, CreditCard,
-  Mail, Compass, FileBarChart, Store, Upload, Package,
+  Mail, Compass, FileBarChart, Store, Upload, Package, Calculator,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TempoLogo } from '@/components/ui/tempo-logo';
@@ -31,7 +31,7 @@ const MAIN_SECTION: NavSection = {
 };
 
 const MANAGE_SECTION: NavSection = {
-  label: 'Manage',
+  label: 'Manage Creators',
   items: [
     { href: '/roster', label: 'My Creators', icon: UserCheck },
     { href: '/messages', label: 'Messages', icon: Mail },
@@ -47,7 +47,7 @@ const DATA_SECTION: NavSection = {
 };
 
 const INSIGHTS_SECTION: NavSection = {
-  label: 'Insights',
+  label: 'Track Performance',
   items: [
     { href: '/analytics', label: 'Analytics', icon: BarChart3 },
     { href: '/reporting', label: 'Reporting', icon: FileBarChart },
@@ -58,7 +58,9 @@ const INSIGHTS_SECTION: NavSection = {
 
 const FINANCES_SECTION: NavSection = {
   label: 'Finances',
+  adminOnly: true,
   items: [
+    { href: '/earnings', label: 'Earnings', icon: Calculator },
     { href: '/payments', label: 'Payments', icon: CreditCard },
   ],
 };
