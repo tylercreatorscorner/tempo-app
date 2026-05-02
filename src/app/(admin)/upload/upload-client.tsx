@@ -13,7 +13,7 @@
  *   - Editable per-file before processing: brand, date, type — in case
  *     filename detection got something wrong.
  */
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import * as XLSX from 'xlsx';
 import {
   AlertCircle, CheckCircle2, FileSpreadsheet, Loader2, Trash2, Upload,
@@ -23,7 +23,12 @@ import { FreshnessPanel } from '@/components/upload/freshness-panel';
 import { DataMatrix } from '@/components/upload/data-matrix';
 import { UploadHistory } from '@/components/upload/upload-history';
 import { cn } from '@/lib/utils';
-import { ACTIVE_BRANDS, BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
+
+// File size limits — XLSX is parsed in-browser, so genuinely huge files
+// will OOM the tab. The reject ceiling is conservative.
+const FILE_SIZE_WARN_BYTES   =  50 * 1024 * 1024;   //  50 MB warn
+const FILE_SIZE_REJECT_BYTES = 200 * 1024 * 1024;   // 200 MB hard reject
+const QUEUE_LOCALSTORAGE_KEY = 'tempo:upload-queue:v1';
 import {
   detectFileType,
   extractBrand,
@@ -69,13 +74,87 @@ const FILE_TYPE_OPTIONS: { value: FileType; label: string }[] = [
 
 function newId() { return Math.random().toString(36).slice(2, 10); }
 
-export function UploadClient() {
+interface ActiveBrand {
+  slug: string;
+  name: string;
+}
+
+interface UploadClientProps {
+  activeBrands: ActiveBrand[];
+}
+
+// Survives a browser refresh — we persist the metadata of unfinished items
+// (filename, brand, date, type, status, log) but NOT the File object itself
+// (Files can't be serialized). On reload, the user sees a banner with what
+// was unfinished so they can re-drop those files. Better than silently
+// losing the queue state.
+interface PersistedQueueItem {
+  id: string;
+  filename: string;
+  type: FileType;
+  brand: string;
+  reportDate: string;
+  status: QueueStatus;
+  log: { level: 'info' | 'warning' | 'error' | 'success'; message: string }[];
+  result?: { rowCount: number; totalGmv: number; totalOrders: number };
+}
+
+function persistQueue(queue: QueueItem[]) {
+  try {
+    const meta: PersistedQueueItem[] = queue.map(({ id, filename, type, brand, reportDate, status, log, result }) => ({
+      id, filename, type, brand, reportDate, status, log, result,
+    }));
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(QUEUE_LOCALSTORAGE_KEY, JSON.stringify(meta));
+    }
+  } catch {
+    // localStorage may be full or disabled — ignore
+  }
+}
+
+function loadPersistedQueue(): PersistedQueueItem[] {
+  try {
+    if (typeof window === 'undefined') return [];
+    const raw = window.localStorage.getItem(QUEUE_LOCALSTORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as PersistedQueueItem[];
+    // Only restore unfinished items — successful uploads don't need to come back
+    return parsed.filter(p => p.status === 'queued' || p.status === 'processing' || p.status === 'error');
+  } catch {
+    return [];
+  }
+}
+
+export function UploadClient({ activeBrands }: UploadClientProps) {
+  const brandLabelBySlug = useMemo(
+    () => new Map(activeBrands.map(b => [b.slug, b.name])),
+    [activeBrands],
+  );
+
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [dragActive, setDragActive] = useState(false);
   const [running, setRunning] = useState(false);
+  // Recovery banner: items the user had queued before refresh, surfaced so
+  // they can re-drop the files (we can't rehydrate File objects).
+  const [unrecoveredItems, setUnrecoveredItems] = useState<PersistedQueueItem[]>([]);
   // Bumped each time a file uploads successfully — causes Freshness, Matrix,
   // and History panels to refetch so what just landed shows up immediately.
   const [refreshKey, setRefreshKey] = useState(0);
+
+  // ── Restore persisted unfinished items on mount
+  useEffect(() => {
+    const persisted = loadPersistedQueue();
+    if (persisted.length > 0) {
+      setUnrecoveredItems(persisted);
+      // Clear so the banner doesn't reappear on next refresh — user has been notified
+      try { window.localStorage.removeItem(QUEUE_LOCALSTORAGE_KEY); } catch {}
+    }
+  }, []);
+
+  // ── Persist queue on every change (so a refresh during upload doesn't lose state)
+  useEffect(() => {
+    persistQueue(queue);
+  }, [queue]);
 
   // ── Drag/drop handlers
   const onDrop = useCallback((e: React.DragEvent) => {
@@ -99,17 +178,40 @@ export function UploadClient() {
   function addFiles(files: File[]) {
     const xlsxFiles = files.filter(f => /\.(xlsx|xls)$/i.test(f.name));
     if (xlsxFiles.length === 0) return;
-    const items: QueueItem[] = xlsxFiles.map(f => ({
-      id: newId(),
-      file: f,
-      filename: f.name,
-      type: detectFileType(f.name),
-      brand: extractBrand(f.name),
-      reportDate: extractDate(f.name),
-      status: 'queued',
-      log: [],
-      expanded: false,
-    }));
+
+    const items: QueueItem[] = [];
+    for (const f of xlsxFiles) {
+      const item: QueueItem = {
+        id: newId(),
+        file: f,
+        filename: f.name,
+        type: detectFileType(f.name),
+        brand: extractBrand(f.name),
+        reportDate: extractDate(f.name),
+        status: 'queued',
+        log: [],
+        expanded: false,
+      };
+
+      // ── File size hard-cap. SheetJS reads the entire file into memory
+      // in the browser; oversized files crash the tab.
+      if (f.size > FILE_SIZE_REJECT_BYTES) {
+        item.status = 'error';
+        item.expanded = true;
+        item.log.push({
+          level: 'error',
+          message: `File is ${(f.size / 1024 / 1024).toFixed(1)} MB — too large to parse in-browser. Hard cap is ${FILE_SIZE_REJECT_BYTES / 1024 / 1024} MB. Split the file or reach out for streaming support.`,
+        });
+      } else if (f.size > FILE_SIZE_WARN_BYTES) {
+        item.log.push({
+          level: 'warning',
+          message: `Large file (${(f.size / 1024 / 1024).toFixed(1)} MB) — parsing may be slow. Consider splitting if it stalls.`,
+        });
+      }
+
+      items.push(item);
+    }
+
     setQueue(q => [...q, ...items]);
   }
 
@@ -133,7 +235,15 @@ export function UploadClient() {
   async function processItem(item: QueueItem) {
     updateItem(item.id, { status: 'processing', log: [], expanded: true });
 
-    // 1. Validate report date
+    // Skip items already marked errored on add (e.g. file size cap)
+    if (item.status === 'error' && item.log.length > 0) {
+      return;
+    }
+
+    // 1. Validate report date — this is the file-level guard. The file's
+    //    label says it's for date X; if X is in the future, hard-block here
+    //    before we even try to parse rows. Per-row dates inside the file are
+    //    handled by the parser/validators downstream.
     const dateCheck = validateReportDate(item.reportDate);
     if (!dateCheck.valid) {
       appendLog(item.id, 'error', dateCheck.error || 'Invalid date');
@@ -141,6 +251,21 @@ export function UploadClient() {
       return;
     }
     if (dateCheck.warning) appendLog(item.id, 'warning', dateCheck.warning);
+
+    // File-level future-date guard. validateReportDate accepts today/yesterday
+    // but anything explicitly in the future means the filename was wrong or
+    // someone re-uploaded an export from before a clock skew. Refuse.
+    {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const fileDate = new Date(item.reportDate + 'T12:00:00Z');
+      if (fileDate.getTime() > today.getTime()) {
+        appendLog(item.id, 'error',
+          `Report date ${item.reportDate} is in the future. Edit the date field above to a real upload date and retry.`);
+        updateItem(item.id, { status: 'error' });
+        return;
+      }
+    }
 
     // 2. Validate brand
     if (item.brand === 'unknown') {
@@ -178,6 +303,11 @@ export function UploadClient() {
 
     appendLog(item.id, 'info', `Parsed ${rows.length.toLocaleString()} rows.`);
 
+    // Capture the raw file headers up front — used to enrich error messages
+    // when the parser/validator finds something off (e.g. "we expected
+    // 'Creator-attributed GMV' but didn't find it; here's what we DID see").
+    const fileColumns = Object.keys(rows[0] ?? {});
+
     // 4. Map type → table + parser
     const { table, parsed, errors, warnings, totalGmv, totalOrders } = await runTypeParser(item, rows);
     if (!table) {
@@ -194,6 +324,21 @@ export function UploadClient() {
       appendLog(item.id, 'warning', `Missing (will default to 0): ${parsed.missingColumns.join(', ')}`);
     }
 
+    // Schema-mismatch warning: file has columns we don't know how to handle.
+    // Could mean TikTok added new fields we should be capturing — surfaces
+    // the discovery early instead of silently dropping the data.
+    if (parsed.matchedColumns.length > 0) {
+      const matchedHeaderTokens = new Set(parsed.matchedColumns.map(c => c.toLowerCase()));
+      const unmappedFileCols = fileColumns.filter(h => {
+        // Heuristic: if the raw header doesn't loosely contain any matched token, flag it
+        const hl = h.toLowerCase();
+        return !Array.from(matchedHeaderTokens).some(t => hl.includes(t.replace(/_/g, ' ')) || hl.replace(/[^a-z]/g, '').includes(t.replace(/_/g, '')));
+      });
+      if (unmappedFileCols.length > 0 && unmappedFileCols.length <= 6) {
+        appendLog(item.id, 'info', `File has ${unmappedFileCols.length} unmapped column(s): ${unmappedFileCols.join(', ')} — ignored, but worth checking if any are new TikTok fields we should capture.`);
+      }
+    }
+
     if (parsed.records.length === 0) {
       appendLog(item.id, 'error', `No valid records after parsing. Check that columns match TikTok's export format.`);
       updateItem(item.id, { status: 'error' });
@@ -205,6 +350,22 @@ export function UploadClient() {
     if (warnings.length > 5) appendLog(item.id, 'warning', `...and ${warnings.length - 5} more warnings.`);
     if (errors.length > 0) {
       for (const e of errors) appendLog(item.id, 'error', e);
+
+      // If any error mentions a column-mapping failure (BLOCKED / GMV-zero
+      // signature), dump the raw file column headers so the user can
+      // immediately spot what TikTok renamed. This was the pattern that
+      // burned us on Apr 30 — adding it directly to the error makes
+      // debugging a 10-second job instead of a 5-minute file inspection.
+      const hasMappingError = errors.some(e =>
+        e.includes('BLOCKED') || e.includes('GMV column') || e.includes('column wasn\'t found')
+      );
+      if (hasMappingError && fileColumns.length > 0) {
+        appendLog(
+          item.id, 'error',
+          `Columns found in your file: ${fileColumns.join(', ')}`
+        );
+      }
+
       updateItem(item.id, { status: 'error' });
       return;
     }
@@ -219,7 +380,7 @@ export function UploadClient() {
         if (res.ok && j.existingCount > 0) {
           appendLog(item.id, 'warning', `Found ${j.existingCount.toLocaleString()} existing rows for ${item.brand} on ${item.reportDate}.`);
           const ok = window.confirm(
-            `Overwrite ${j.existingCount.toLocaleString()} existing rows for ${BRAND_DISPLAY_NAMES[item.brand] ?? item.brand} on ${item.reportDate}?\n\n` +
+            `Overwrite ${j.existingCount.toLocaleString()} existing rows for ${brandLabelBySlug.get(item.brand) ?? item.brand} on ${item.reportDate}?\n\n` +
             `Click OK to delete existing rows + insert new (${parsed.records.length.toLocaleString()} rows). Cancel to skip this file.`
           );
           if (!ok) {
@@ -252,6 +413,9 @@ export function UploadClient() {
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
+      if (j.idempotent) {
+        appendLog(item.id, 'info', j.message ?? 'Identical upload was already processed (idempotency).');
+      }
       appendLog(
         item.id, 'success',
         `${j.upserted.toLocaleString()} rows upserted. Total GMV: $${totalGmv.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}, Orders: ${totalOrders.toLocaleString()}.`
@@ -291,6 +455,44 @@ export function UploadClient() {
 
   return (
     <div className="space-y-8">
+      {/* Recovery banner — shown when the last session had unfinished items.
+          We can't restore the actual File handles (browsers don't permit it
+          for security reasons), but we surface the metadata so the user
+          knows what they were in the middle of. */}
+      {unrecoveredItems.length > 0 && (
+        <div className="rounded-2xl bg-amber-50 border border-amber-200 px-5 py-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
+            <div className="flex-1">
+              <div className="text-sm font-bold text-amber-900">
+                {unrecoveredItems.length} unfinished upload{unrecoveredItems.length === 1 ? '' : 's'} from your last session
+              </div>
+              <div className="text-xs text-amber-800 mt-1">
+                Browser refreshed mid-upload. Re-drop these files (we can't auto-recover
+                the file content, only the metadata):
+              </div>
+              <ul className="mt-2 space-y-0.5 text-xs text-amber-900">
+                {unrecoveredItems.map(it => (
+                  <li key={it.id} className="flex items-center gap-2">
+                    <span className="font-medium">{it.filename}</span>
+                    <span className="text-amber-700">·</span>
+                    <span>{brandLabelBySlug.get(it.brand) ?? it.brand} · {it.reportDate}</span>
+                    <span className="text-amber-700">·</span>
+                    <span className="capitalize">{it.status}</span>
+                  </li>
+                ))}
+              </ul>
+              <button
+                onClick={() => setUnrecoveredItems([])}
+                className="mt-3 text-xs font-semibold text-amber-700 hover:text-amber-900"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Freshness — at-a-glance: which brand uploads are current vs stale */}
       <FreshnessPanel refreshKey={refreshKey} />
 
@@ -351,7 +553,7 @@ export function UploadClient() {
           </div>
           <ul className="divide-y divide-gray-100">
             {queue.map(item => (
-              <QueueRow key={item.id} item={item} onChange={p => updateItem(item.id, p)} onRemove={() => removeItem(item.id)} />
+              <QueueRow key={item.id} item={item} brands={activeBrands} onChange={p => updateItem(item.id, p)} onRemove={() => removeItem(item.id)} />
             ))}
           </ul>
         </div>
@@ -370,9 +572,10 @@ export function UploadClient() {
 // ── Queue Row ──────────────────────────────────────────────────────
 
 function QueueRow({
-  item, onChange, onRemove,
+  item, brands, onChange, onRemove,
 }: {
   item: QueueItem;
+  brands: ActiveBrand[];
   onChange: (patch: Partial<QueueItem>) => void;
   onRemove: () => void;
 }) {
@@ -418,8 +621,8 @@ function QueueRow({
               )}
             >
               {item.brand === 'unknown' && <option value="unknown">Pick a brand…</option>}
-              {ACTIVE_BRANDS.map(slug => (
-                <option key={slug} value={slug}>{BRAND_DISPLAY_NAMES[slug] ?? slug}</option>
+              {brands.map(b => (
+                <option key={b.slug} value={b.slug}>{b.name}</option>
               ))}
             </select>
             <input

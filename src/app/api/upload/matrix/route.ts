@@ -8,11 +8,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth/require-admin';
-import { ACTIVE_BRANDS, BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
 
 export const runtime = 'nodejs';
 
 const MATRIX_DAYS = 14;
+const UMBRELLA_BRAND_SLUGS = new Set(['leefar']);
 
 const FILE_TYPE_TABLES: Record<string, { table: string; dateField: string }> = {
   creator:   { table: 'creator_performance', dateField: 'report_date' },
@@ -42,22 +42,34 @@ export async function GET(request: NextRequest) {
   }
   const oldestDate = dates[dates.length - 1];
 
-  // For each brand, fetch which dates have data in the window
-  const rows = await Promise.all(ACTIVE_BRANDS.map(async (brand) => {
-    const { data: raw } = await admin
-      .from(cfg.table)
-      .select(cfg.dateField)
-      .eq('brand', brand)
-      .gte(cfg.dateField, oldestDate)
-      .lte(cfg.dateField, dates[0]);
-    // Cast through unknown — dynamic column name defeats Supabase's typed client
-    const data = (raw as unknown as Array<Record<string, unknown>>) ?? [];
-    const present = new Set(data.map(r => String(r[cfg.dateField])));
-    return {
-      brand,
-      displayName: BRAND_DISPLAY_NAMES[brand] ?? brand,
-      cells: dates.map(d => ({ date: d, present: present.has(d) })),
-    };
+  // Pull active brands from brands_v2 (excluding the leefar umbrella)
+  const { data: brandRows } = await admin
+    .from('brands_v2')
+    .select('slug, name')
+    .eq('is_archived', false)
+    .order('name');
+  const activeBrands = (brandRows as Array<{ slug: string; name: string }> | null ?? [])
+    .filter(b => !UMBRELLA_BRAND_SLUGS.has(b.slug));
+  const activeBrandSlugs = activeBrands.map(b => b.slug);
+
+  // Single query (instead of N) — pulls every brand's date set in one call
+  const { data: raw } = await admin
+    .from(cfg.table)
+    .select(`brand, ${cfg.dateField}`)
+    .in('brand', activeBrandSlugs)
+    .gte(cfg.dateField, oldestDate)
+    .lte(cfg.dateField, dates[0]);
+  const datesByBrand = new Map<string, Set<string>>();
+  for (const slug of activeBrandSlugs) datesByBrand.set(slug, new Set());
+  for (const row of (raw as unknown as Array<Record<string, unknown>> | null ?? [])) {
+    const slug = String(row.brand);
+    datesByBrand.get(slug)?.add(String(row[cfg.dateField]));
+  }
+
+  const rows = activeBrands.map(b => ({
+    brand: b.slug,
+    displayName: b.name,
+    cells: dates.map(d => ({ date: d, present: datesByBrand.get(b.slug)?.has(d) ?? false })),
   }));
 
   return NextResponse.json({ fileType, dates, rows });

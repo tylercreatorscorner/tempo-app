@@ -18,11 +18,14 @@
  * good data with broken data.
  */
 import { NextRequest, NextResponse } from 'next/server';
+import { createHash } from 'crypto';
 import { createAdminClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth/require-admin';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
+
+const IDEMPOTENCY_TTL_HOURS = 24;
 
 type UploadTable = 'creator_performance' | 'video_performance' | 'videos' | 'product_performance';
 
@@ -94,8 +97,38 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // ── Idempotency check — sha256 the (table, brand, date, records) tuple. If
+  //    we've already processed an identical payload within the TTL window,
+  //    short-circuit and return the cached result. Prevents a duplicate
+  //    upload from doing a destructive overwrite + reinsert when the data
+  //    is the same anyway. Common scenario: user re-uploads the same file
+  //    thinking the first attempt failed.
+  const payloadHash = createHash('sha256')
+    .update(JSON.stringify({ table, brand, reportDate, records }))
+    .digest('hex');
+
+  const ttlCutoff = new Date(Date.now() - IDEMPOTENCY_TTL_HOURS * 60 * 60 * 1000).toISOString();
+  const { data: cached } = await admin
+    .from('upload_idempotency')
+    .select('row_count, created_at')
+    .eq('hash', payloadHash)
+    .gte('created_at', ttlCutoff)
+    .maybeSingle();
+
+  if (cached) {
+    const ageMin = Math.round((Date.now() - new Date(cached.created_at).getTime()) / 60_000);
+    return NextResponse.json({
+      ok: true,
+      upserted: cached.row_count,
+      deleted: 0,
+      idempotent: true,
+      message: `Identical upload was processed ${ageMin}m ago — no-op (idempotency).`,
+    });
+  }
+
   // ── Single RPC call — does delete (if overwrite) + bulk insert atomically
-  //    inside a transaction with SET LOCAL statement_timeout = '60s'.
+  //    inside a transaction with SET LOCAL statement_timeout = '60s' and an
+  //    advisory lock on (brand, report_date) to serialize concurrent uploads.
   try {
     const rpcArgs =
       table === 'videos'
@@ -109,6 +142,22 @@ export async function POST(request: NextRequest) {
 
     const upserted = (data as { upserted?: number } | null)?.upserted ?? 0;
     const deleted  = (data as { deleted?:  number } | null)?.deleted  ?? 0;
+
+    // Record idempotency hash for the next 24h
+    try {
+      await admin.from('upload_idempotency').insert({
+        hash: payloadHash,
+        table_name: table,
+        brand,
+        report_date: reportDate ?? null,
+        row_count: upserted,
+        user_id: profile.user_id,
+      });
+    } catch {
+      // Hash insert is best-effort — never fail the upload if the audit-style
+      // record can't be stored. Worst case: the next duplicate upload runs
+      // again instead of being deduped.
+    }
 
     // ── Activity log (best-effort — don't fail the upload if this errors)
     try {

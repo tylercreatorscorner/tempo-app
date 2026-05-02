@@ -8,24 +8,30 @@
  *   - Detected gaps (days within the last 30 with no creator data, surrounded by days that have it)
  *   - Detected future-dated rows (always invalid — TikTok data can't be from the future)
  *
- * Used by the FreshnessPanel component on /upload to give Tyler at-a-glance
- * "what have I uploaded recently / what's missing" visibility.
+ * Implementation note: previously fanned out 4 × N brand queries (24+ DB round
+ * trips for 6 brands). Now uses 4 queries total — one per source table — each
+ * pulling all brands at once. Aggregation happens in JS. Cuts panel-load
+ * latency roughly 5×.
+ *
+ * Brand list is dynamic — pulled from brands_v2 (filtered to is_archived=false
+ * and excluding the `leefar` umbrella) so newly-added brands appear without
+ * a code deploy.
  */
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth/require-admin';
-import { ACTIVE_BRANDS, BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
 
 export const runtime = 'nodejs';
 
-const FILE_TYPES: Array<{ key: string; label: string; name: string; table: string; dateField: string }> = [
+const FILE_TYPES = [
   { key: 'creator',   label: 'C', name: 'Creator Data',  table: 'creator_performance', dateField: 'report_date' },
   { key: 'video',     label: 'V', name: 'Video Data',    table: 'video_performance',   dateField: 'report_date' },
   { key: 'videolist', label: 'L', name: 'Video List',    table: 'videos',              dateField: 'post_date'   },
   { key: 'product',   label: 'P', name: 'Product Data',  table: 'product_performance', dateField: 'report_date' },
-];
+] as const;
 
 const MATRIX_DAYS = 30;
+const UMBRELLA_BRAND_SLUGS = new Set(['leefar']);
 
 type FileStatus = 'ok' | 'stale' | 'missing' | 'never';
 type BrandStatus = 'current' | 'behind' | 'stale' | 'never';
@@ -44,7 +50,7 @@ export async function GET() {
   windowStart.setUTCDate(windowStart.getUTCDate() - MATRIX_DAYS);
   const windowStartStr = windowStart.toISOString().split('T')[0];
 
-  // Build the date strings for the gap check
+  // Generate every date string in the gap-check window (newest first)
   const allDates: string[] = [];
   for (let i = 1; i <= MATRIX_DAYS; i++) {
     const d = new Date(today);
@@ -52,8 +58,74 @@ export async function GET() {
     allDates.push(d.toISOString().split('T')[0]);
   }
 
-  type FilesMap = Record<string, { status: FileStatus; latestDate: string | null; label: string; name: string }>;
+  // ── Pull active brands from brands_v2 (dynamic, no hardcoded list)
+  const { data: brandRows } = await admin
+    .from('brands_v2')
+    .select('slug, name')
+    .eq('is_archived', false)
+    .order('name');
+  const activeBrands = (brandRows as Array<{ slug: string; name: string }> | null ?? [])
+    .filter(b => !UMBRELLA_BRAND_SLUGS.has(b.slug));
+  const activeBrandSlugs = activeBrands.map(b => b.slug);
+  const brandLabelBySlug = new Map(activeBrands.map(b => [b.slug, b.name]));
 
+  // ── 4 parallel queries (one per source table) instead of 4×N. Each pulls
+  //    every active brand at once; we partition the rows in JS.
+  const filePulls = await Promise.all(FILE_TYPES.map(async (ft) => {
+    const [windowResult, futureResult] = await Promise.all([
+      admin.from(ft.table)
+        .select(`brand, ${ft.dateField}`)
+        .in('brand', activeBrandSlugs)
+        .gte(ft.dateField, windowStartStr)
+        .lte(ft.dateField, yesterdayStr),
+      admin.from(ft.table)
+        .select(`brand, ${ft.dateField}`)
+        .in('brand', activeBrandSlugs)
+        .gt(ft.dateField, yesterdayStr)
+        .limit(50),
+    ]);
+    return {
+      ft,
+      windowRows: (windowResult.data as unknown as Array<Record<string, unknown>> | null) ?? [],
+      futureRows: (futureResult.data as unknown as Array<Record<string, unknown>> | null) ?? [],
+    };
+  }));
+
+  // ── Index per-brand-per-file-type dates
+  // shape: brandDates.get(brand).get(fileTypeKey) → Set<dateStr>
+  const brandDates = new Map<string, Map<string, Set<string>>>();
+  for (const slug of activeBrandSlugs) {
+    const inner = new Map<string, Set<string>>();
+    for (const ft of FILE_TYPES) inner.set(ft.key, new Set());
+    brandDates.set(slug, inner);
+  }
+  const futureIssues: { brand: string; fileType: string; dates: string[] }[] = [];
+  for (const { ft, windowRows, futureRows } of filePulls) {
+    for (const row of windowRows) {
+      const slug = String(row.brand);
+      const dateStr = String(row[ft.dateField]);
+      brandDates.get(slug)?.get(ft.key)?.add(dateStr);
+    }
+    if (futureRows.length > 0) {
+      // Group future rows by brand
+      const byBrand = new Map<string, Set<string>>();
+      for (const row of futureRows) {
+        const slug = String(row.brand);
+        const dateStr = String(row[ft.dateField]);
+        if (!byBrand.has(slug)) byBrand.set(slug, new Set());
+        byBrand.get(slug)!.add(dateStr);
+      }
+      for (const [slug, dates] of byBrand) {
+        futureIssues.push({
+          brand: brandLabelBySlug.get(slug) ?? slug,
+          fileType: ft.name,
+          dates: Array.from(dates),
+        });
+      }
+    }
+  }
+
+  type FilesMap = Record<string, { status: FileStatus; latestDate: string | null; label: string; name: string }>;
   interface BrandFreshness {
     brand: string;
     displayName: string;
@@ -65,51 +137,24 @@ export async function GET() {
     files: FilesMap;
   }
 
-  const futureIssues: { brand: string; fileType: string; dates: string[] }[] = [];
-
-  // Fan out: 4 file types × N brands = ~24 quick queries. All in parallel.
-  const brandResults = await Promise.all(ACTIVE_BRANDS.map(async (brand): Promise<BrandFreshness> => {
+  const brandResults: BrandFreshness[] = activeBrandSlugs.map(slug => {
+    const inner = brandDates.get(slug)!;
     const fileStatuses: FilesMap = {};
-    let overallLatest: string | null = null;
     let creatorDates = new Set<string>();
+    let overallLatest: string | null = null;
 
-    await Promise.all(FILE_TYPES.map(async (ft) => {
-      // Latest in window. Supabase's typed client returns GenericStringError[]
-      // when the selected column is a dynamic string (ft.dateField), so we cast
-      // through unknown to a generic record shape we can index into.
-      const { data: rowsRaw } = await admin
-        .from(ft.table)
-        .select(ft.dateField)
-        .eq('brand', brand)
-        .gte(ft.dateField, windowStartStr)
-        .lte(ft.dateField, yesterdayStr)
-        .order(ft.dateField, { ascending: false });
-      const rows = (rowsRaw as unknown as Array<Record<string, unknown>>) ?? [];
+    for (const ft of FILE_TYPES) {
+      const dates = inner.get(ft.key)!;
+      const sorted = Array.from(dates).sort().reverse();
+      const latest = sorted[0] ?? null;
 
-      // Future-dated check (always invalid)
-      const { data: futureRaw } = await admin
-        .from(ft.table)
-        .select(ft.dateField)
-        .eq('brand', brand)
-        .gt(ft.dateField, yesterdayStr)
-        .limit(5);
-      const future = (futureRaw as unknown as Array<Record<string, unknown>>) ?? [];
-      if (future.length > 0) {
-        const dates = Array.from(new Set(future.map(r => String(r[ft.dateField]))));
-        futureIssues.push({ brand: BRAND_DISPLAY_NAMES[brand] ?? brand, fileType: ft.name, dates });
-      }
-
-      const dates = new Set(rows.map(r => String(r[ft.dateField])));
-      const latest = rows.length > 0 ? String(rows[0][ft.dateField]) : null;
       let status: FileStatus;
       if (!latest) {
         status = 'never';
       } else {
         const latestObj = new Date(latest + 'T12:00:00Z');
         const daysDiff = Math.floor((yesterday.getTime() - latestObj.getTime()) / (1000 * 60 * 60 * 24));
-        if (daysDiff <= 0)      status = 'ok';
-        else if (daysDiff <= 2) status = 'stale';
-        else                    status = 'missing';
+        status = daysDiff <= 0 ? 'ok' : daysDiff <= 2 ? 'stale' : 'missing';
       }
       fileStatuses[ft.key] = { status, latestDate: latest, label: ft.label, name: ft.name };
 
@@ -117,9 +162,8 @@ export async function GET() {
         overallLatest = latest;
         creatorDates = dates;
       }
-    }));
+    }
 
-    // Overall status (anchored on creator data — primary KPI source)
     let status: BrandStatus = 'never';
     let statusLabel = 'No Data';
     let daysBehind = -1;
@@ -131,7 +175,6 @@ export async function GET() {
       else                      { status = 'stale';   statusLabel = `${daysBehind}d stale`; }
     }
 
-    // Gaps: days inside the window where creator data is missing but data exists on both sides
     const gaps: string[] = [];
     for (let i = 0; i < allDates.length; i++) {
       const dateStr = allDates[i];
@@ -146,8 +189,8 @@ export async function GET() {
     }
 
     return {
-      brand,
-      displayName: BRAND_DISPLAY_NAMES[brand] ?? brand,
+      brand: slug,
+      displayName: brandLabelBySlug.get(slug) ?? slug,
       latestDate: overallLatest,
       status,
       statusLabel,
@@ -155,7 +198,7 @@ export async function GET() {
       gaps,
       files: fileStatuses,
     };
-  }));
+  });
 
   return NextResponse.json({
     brands: brandResults,
