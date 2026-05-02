@@ -1,13 +1,25 @@
+import { BrandShell } from '@/components/layout/brand-shell';
 import { FeedbackWidget } from '@/components/feedback/FeedbackWidget';
+import { loadBrandPortalContext } from '@/lib/data/brand-portal';
+import { NoBrandAccess } from './no-brand-access';
 
-export default function BrandLayout({ children }: { children: React.ReactNode }) {
+export const dynamic = 'force-dynamic';
+
+export default async function BrandLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const ctx = await loadBrandPortalContext();
+
+  if (ctx.activeBrand === null) {
+    return <NoBrandAccess email={ctx.user.email} />;
+  }
+
   return (
-    <div className="min-h-screen">
-      <header className="h-14 border-b border-border flex items-center px-6">
-        <span className="font-semibold">Brand Portal</span>
-      </header>
-      <main className="p-6">{children}</main>
+    <>
+      <BrandShell context={ctx}>{children}</BrandShell>
       <FeedbackWidget />
-    </div>
+    </>
   );
 }

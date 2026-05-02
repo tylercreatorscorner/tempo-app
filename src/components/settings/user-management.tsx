@@ -10,6 +10,7 @@ const ROLE_OPTIONS = [
   { value: 'manager', label: 'Manager', description: 'Manage creators, scoped to brands' },
   { value: 'analyst', label: 'Analyst', description: 'Read-only, scoped to brands' },
   { value: 'brand_contact', label: 'Brand Contact', description: 'View their brand only' },
+  { value: 'brand', label: 'Client', description: 'External client viewing their brand only' },
 ];
 
 const ROLE_COLORS: Record<string, string> = {
@@ -18,6 +19,7 @@ const ROLE_COLORS: Record<string, string> = {
   manager: 'bg-emerald-100 text-emerald-700',
   analyst: 'bg-amber-100 text-amber-700',
   brand_contact: 'bg-orange-100 text-orange-700',
+  brand: 'bg-pink-100 text-pink-700',
 };
 
 interface TeamUser {
@@ -48,6 +50,7 @@ export function UserManagement({ users, brands, tenantId, currentUserId }: Props
   const [showInvite, setShowInvite] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState('manager');
+  const [inviteBrandIds, setInviteBrandIds] = useState<string[]>([]);
   const [expandedUser, setExpandedUser] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -59,16 +62,33 @@ export function UserManagement({ users, brands, tenantId, currentUserId }: Props
 
   function handleInvite() {
     if (!inviteEmail.trim()) return;
+    // Clients MUST have at least one brand assigned at invite time, otherwise
+    // they'll log in and hit the no-access state.
+    if (inviteRole === 'brand' && inviteBrandIds.length === 0) {
+      flash('Select at least one brand for this client.', 'error');
+      return;
+    }
     startTransition(async () => {
       try {
-        await inviteUser(inviteEmail.trim(), inviteRole);
+        const result = await inviteUser(inviteEmail.trim(), inviteRole);
+        // Server action returns the new user's ID — wire up brand access for client invites.
+        if (inviteRole === 'brand' && inviteBrandIds.length > 0 && result?.userId) {
+          await updateBrandAccess(result.userId, inviteBrandIds, tenantId);
+        }
         setInviteEmail('');
+        setInviteBrandIds([]);
         setShowInvite(false);
         flash('Invite sent!', 'success');
       } catch (e) {
         flash((e as Error).message, 'error');
       }
     });
+  }
+
+  function toggleInviteBrand(brandId: string) {
+    setInviteBrandIds((prev) =>
+      prev.includes(brandId) ? prev.filter((id) => id !== brandId) : [...prev, brandId],
+    );
   }
 
   function handleRoleChange(userId: string, role: string) {
@@ -107,7 +127,8 @@ export function UserManagement({ users, brands, tenantId, currentUserId }: Props
     });
   }
 
-  const needsBrandScope = (role: string) => ['manager', 'analyst', 'brand_contact'].includes(role);
+  const needsBrandScope = (role: string) => ['manager', 'analyst', 'brand_contact', 'brand'].includes(role);
+  const isClientRole = (role: string) => role === 'brand';
 
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden">
@@ -140,7 +161,9 @@ export function UserManagement({ users, brands, tenantId, currentUserId }: Props
       {/* Invite form */}
       {showInvite && (
         <div className="p-6 border-b border-border bg-muted/30 space-y-3">
-          <p className="text-sm font-medium">Invite a team member</p>
+          <p className="text-sm font-medium">
+            {isClientRole(inviteRole) ? 'Invite a client' : 'Invite a team member'}
+          </p>
           <div className="flex gap-2">
             <input
               type="email"
@@ -161,13 +184,54 @@ export function UserManagement({ users, brands, tenantId, currentUserId }: Props
             </select>
             <button
               onClick={handleInvite}
-              disabled={isPending || !inviteEmail.trim()}
+              disabled={isPending || !inviteEmail.trim() || (isClientRole(inviteRole) && inviteBrandIds.length === 0)}
               className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
             >
               Send
             </button>
           </div>
-          <p className="text-xs text-muted-foreground">They'll receive an email to set up their account.</p>
+
+          {/* Brand picker when inviting a client */}
+          {isClientRole(inviteRole) && (
+            <div>
+              <p className="text-xs font-medium text-gray-500 mb-2">
+                Brand access {inviteBrandIds.length === 0 && <span className="text-red-500">(required)</span>}
+              </p>
+              {brands.length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  No brands set up yet — connect a brand before inviting clients.
+                </p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {brands.map((b) => {
+                    const checked = inviteBrandIds.includes(b.id);
+                    return (
+                      <button
+                        key={b.id}
+                        type="button"
+                        onClick={() => toggleInviteBrand(b.id)}
+                        className={cn(
+                          'flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors',
+                          checked
+                            ? 'bg-primary/10 border-primary/30 text-primary'
+                            : 'bg-white border-border text-gray-500 hover:border-gray-300',
+                        )}
+                      >
+                        {checked && <Check className="h-3 w-3" />}
+                        {b.display_name || b.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          <p className="text-xs text-muted-foreground">
+            {isClientRole(inviteRole)
+              ? "They'll receive an email magic link to log in to their brand portal."
+              : "They'll receive an email to set up their account."}
+          </p>
         </div>
       )}
 

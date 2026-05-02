@@ -1,7 +1,22 @@
 'use server';
 
+import { createServerClient } from '@supabase/ssr';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
+
+/**
+ * Fresh anon-key Supabase client with no session attached. Used to trigger
+ * outbound auth emails (signInWithOtp) without touching the caller's cookies.
+ */
+function createAnonClient() {
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: { getAll() { return []; }, setAll() {} },
+    }
+  );
+}
 
 async function assertOwnerOrAdmin() {
   const supabase = await createClient();
@@ -16,22 +31,51 @@ async function assertOwnerOrAdmin() {
 export async function inviteUser(email: string, role: string) {
   const { admin, tenantId } = await assertOwnerOrAdmin();
 
-  // Invite via Supabase auth
+  // Try to invite a brand-new user first
   const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
     redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback`,
   });
-  if (error) throw new Error(error.message);
 
-  // Create profile
-  await admin.from('user_profiles').upsert({
-    user_id: data.user.id,
+  let userId: string | null = null;
+
+  if (error) {
+    const alreadyRegistered = /already.*registered|already.*exists/i.test(error.message);
+    if (!alreadyRegistered) throw new Error(error.message);
+
+    // User exists in auth.users — look them up and trigger a magic-link email.
+    // generateLink() only returns the URL; signInWithOtp() actually sends the email.
+    const { data: list } = await admin.auth.admin.listUsers();
+    const existing = list?.users?.find((u) => u.email?.toLowerCase() === email.toLowerCase());
+    if (!existing) throw new Error('User exists but could not be located.');
+    userId = existing.id;
+
+    const anon = createAnonClient();
+    const { error: otpError } = await anon.auth.signInWithOtp({
+      email,
+      options: {
+        shouldCreateUser: false,
+        emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback`,
+      },
+    });
+    if (otpError) throw new Error(`Found existing account but failed to send magic link: ${otpError.message}`);
+  } else {
+    userId = data.user.id;
+  }
+
+  if (!userId) throw new Error('Could not resolve user id.');
+
+  // Upsert profile (creates it for brand-new users, updates role/tenant for existing ones)
+  const { error: upsertError } = await admin.from('user_profiles').upsert({
+    user_id: userId,
     email,
     role,
     tenant_id: tenantId,
     status: 'active',
   }, { onConflict: 'user_id' });
+  if (upsertError) throw new Error(`Profile upsert failed: ${upsertError.message}`);
 
   revalidatePath('/settings');
+  return { userId };
 }
 
 export async function updateUserRole(userId: string, role: string) {

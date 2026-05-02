@@ -1,36 +1,48 @@
 /**
  * Earnings data fetcher.
  *
- * Powers the /earnings page (your monthly commission + retainer + launch fee
- * income, split between Tyler and Matt). Same logic as the old dashboard's
- * Rev Share Calculator, ported with the Toplux MAX(retainer, 5% rev share)
- * special case intact.
+ * Powers the /earnings page (monthly commission + retainer + launch fee income).
  *
  * Inputs:
- *   month  — "YYYY-MM"  (which month to compute earnings for)
+ *   month  — "YYYY-MM"
  *
  * Pulls from:
  *   creator_performance        — affiliate GMV per (creator, brand) for the month
- *   managed_creators           — to filter to YOUR managed creators only
- *   brand_settings             — per-brand rate, retainer, launch fee, product retainer, monthly goal
+ *   managed_creators           — to filter to managed creators only
+ *   brand_settings             — per-brand rate, retainer, launch fee, product retainer, monthly goal,
+ *                                compensation_model, marketing_commission_rate
  *   creator_commission_rates   — per-(brand, creator) rate overrides
  *   marketing_gmv              — per-(brand, month) manual marketing GMV
+ *   brands_v2                  — active brand list (filters is_archived + is_umbrella)
  *
  * Per-brand calculation:
- *   affiliateGmv = sum of GMV for managed creators of this brand
- *   marketingGmv = manual entry (editable in UI, persisted to marketing_gmv table)
- *   totalGmv = affiliateGmv + marketingGmv
- *   commission = sum(creatorGmv × creatorRate) + (marketingGmv × 2%)
- *      where creatorRate = commission_rate override (if any) ELSE brand rate
- *      marketing always gets 2% regardless of brand rate
- *   totalFees = retainer + launchFee + productRetainer
- *   total = commission + totalFees   (this is what Tyler+Matt split)
+ *   affiliateGmv     = sum of GMV for managed creators of this brand
+ *   marketingGmv     = manual entry (marketing_gmv table)
+ *   commission       = sum(creatorGmv × (overrideRate ?? brandRate))
+ *                      + (marketingGmv × marketingRate)
+ *      where overrideRate is from creator_commission_rates if present
  *
- * Toplux exception:
- *   MAX(retainer, 5% × totalGmv).  If 5% wins, retainer goes to 0 and
- *   commission = 5% × totalGmv. Otherwise normal retainer-only model.
+ *   Then compensation_model controls how retainer + commission combine:
+ *     standard         (default) → total = commission + retainer + fees
+ *     revshare_max               → MAX(retainer, commission), then + fees
+ *     commission_only            → retainer ignored
+ *     retainer_only              → commission ignored
+ *
+ *   Per-creator rate overrides apply across all models — the model only
+ *   controls how the resulting commission combines with the retainer.
  */
 import { createAdminClient } from '@/lib/supabase/server';
+
+export interface CreatorContribution {
+  /** Creator handle as it appears in creator_performance (with @ stripped). */
+  name: string;
+  /** GMV the creator drove for this brand this month. */
+  gmv: number;
+  /** Effective rate applied (per-creator override if any, else brand rate). */
+  rate: number;
+  /** Commission earned on this creator's GMV (gmv × rate / 100). */
+  commission: number;
+}
 
 export interface BrandRow {
   brand: string;
@@ -46,6 +58,8 @@ export interface BrandRow {
   marketingCommission: number;
   commission: number;
   retainer: number;
+  /** Configured retainer from brand_settings, before any model adjustment. */
+  configuredRetainer: number;
   productRetainer: number;
   productRetainerName: string | null;
   launchFee: number;
@@ -53,11 +67,32 @@ export interface BrandRow {
   launchFeeEnds: string | null;
   totalFees: number;
   total: number;
-  tylerShare: number;
-  mattShare: number;
-  /** Toplux only: indicates which model is active */
-  topluxModel: { type: 'retainer' | 'revshare'; activeAmount: number; comparison: number } | null;
+  /** Monthly GMV goal from brand_settings (0 if unset). */
+  monthlyGoal: number;
+  /** Marketing commission rate as decimal multiplier (0.02 = 2%). */
+  marketingCommissionRate: number;
+  /** Default invoice recipient name for this brand. */
+  billToName: string | null;
+  /** Default invoice recipient email for this brand. */
+  billToEmail: string | null;
+  /** Default invoice recipient address for this brand. */
+  billToAddress: string | null;
+  /** Brand's compensation model — how retainer + commission combine. */
+  compensationModel: CompensationModel;
+  /**
+   * Populated when compensationModel = 'revshare_max'. Indicates which side
+   * of the MAX(retainer, commission) won and what the loser would have been.
+   */
+  revshareMaxOutcome: { winner: 'retainer' | 'commission'; activeAmount: number; comparison: number } | null;
+  /**
+   * Per-creator breakdown of who drove what GMV and the commission earned
+   * on each. Sorted by commission descending. Excludes marketing GMV (which
+   * isn't attributable to a specific creator).
+   */
+  creators: CreatorContribution[];
 }
+
+export type CompensationModel = 'standard' | 'revshare_max' | 'commission_only' | 'retainer_only';
 
 export interface EarningsResult {
   month: string;
@@ -72,8 +107,6 @@ export interface EarningsResult {
     retainers: number;             // base + product retainers across all brands
     launchFees: number;
     earnings: number;              // commission + retainers + launch fees
-    tylerShare: number;
-    mattShare: number;
     /** Sum of monthly_gmv_goal across all brands for the goal bar */
     monthlyGoal: number;
     /** % of monthlyGoal achieved this month */
@@ -94,6 +127,12 @@ interface BrandSettingsRow {
   product_retainer_amount: number | string | null;
   product_retainer_name: string | null;
   monthly_gmv_goal: number | string | null;
+  compensation_model: CompensationModel | null;
+  /** Decimal (e.g. 0.02 = 2%). Default 0.02 if column missing or null. */
+  marketing_commission_rate: number | string | null;
+  bill_to_name: string | null;
+  bill_to_email: string | null;
+  bill_to_address: string | null;
 }
 
 interface PerfRow {
@@ -112,15 +151,6 @@ function normalizeHandle(h: string | null | undefined): string {
   if (!h) return '';
   return h.replace(/^@/, '').trim().toLowerCase();
 }
-
-/**
- * Umbrella brands that group children (e.g. "LeeFar (All Stores)" =
- * leefar_nutrition + leefar_supplements). These exist in brands_v2 for
- * grouping purposes but never have their own creator_performance rows —
- * uploads land on the child slugs. Excluded from earnings to avoid
- * showing $0 rows that confuse the totals.
- */
-const UMBRELLA_BRAND_SLUGS = new Set(['leefar']);
 
 // ── Helpers ────────────────────────────────────────────────────────
 
@@ -155,18 +185,16 @@ export async function getEarnings(month: string): Promise<EarningsResult> {
 
   const supabase = await createAdminClient();
 
-  // ── Resolve the active brand list from brands_v2 (source of truth)
-  // Filters out archived brands (e.g. Toplux as of 2026-04-22) and umbrellas
-  // (e.g. "leefar" — has no data; its children leefar_nutrition + leefar_supplements
-  // do). This replaces the previously-hardcoded list which would silently drift
-  // out of sync as brands were added/archived.
+  // ── Resolve the active brand list from brands_v2 (source of truth).
+  // Excludes archived brands and umbrella groupings (e.g. "leefar" which
+  // groups leefar_nutrition + leefar_supplements but has no data of its own).
   const { data: brandsRaw } = await supabase
     .from('brands_v2')
     .select('slug, name')
     .eq('is_archived', false)
+    .eq('is_umbrella', false)
     .order('name');
-  const activeBrandRows = (brandsRaw as Array<{ slug: string; name: string }> | null ?? [])
-    .filter(b => !UMBRELLA_BRAND_SLUGS.has(b.slug));
+  const activeBrandRows = (brandsRaw as Array<{ slug: string; name: string }> | null ?? []);
   const activeBrandSlugs = activeBrandRows.map(b => b.slug);
   const brandLabelBySlug = new Map(activeBrandRows.map(b => [b.slug, b.name]));
 
@@ -177,13 +205,16 @@ export async function getEarnings(month: string): Promise<EarningsResult> {
       totals: {
         affiliateGmv: 0, marketingGmv: 0, totalGmv: 0,
         commission: 0, retainers: 0, launchFees: 0,
-        earnings: 0, tylerShare: 0, mattShare: 0,
+        earnings: 0,
         monthlyGoal: 0, goalProgressPct: 0,
       },
     };
   }
 
   // ── Fan out: brand settings, perf data, custom rates, marketing GMV, managed creators
+  // perfRes uses an RPC that aggregates server-side — returns one row per
+  // (brand, creator_name) instead of one per day. Replaces a raw select with
+  // .limit(50000) that silently truncated rows on busy months.
   const [
     brandSettingsRes,
     perfRes,
@@ -192,13 +223,11 @@ export async function getEarnings(month: string): Promise<EarningsResult> {
     managedRes,
   ] = await Promise.all([
     supabase.from('brand_settings').select('*').in('brand', activeBrandSlugs),
-    supabase.from('creator_performance')
-      .select('creator_name, brand, gmv')
-      .eq('period_type', 'daily')
-      .gte('report_date', startDate)
-      .lte('report_date', endDate)
-      .in('brand', activeBrandSlugs)
-      .limit(50000),
+    supabase.rpc('get_creator_brand_gmv', {
+      p_start_date: startDate,
+      p_end_date: endDate,
+      p_brands: activeBrandSlugs,
+    }),
     supabase.from('creator_commission_rates').select('creator_name, brand, rate'),
     supabase.from('marketing_gmv').select('brand, amount').eq('month', month),
     supabase.from('managed_creators').select('brand, account_1, account_2, account_3, account_4, account_5'),
@@ -267,44 +296,72 @@ export async function getEarnings(month: string): Promise<EarningsResult> {
     const s = settingsByBrand.get(brand);
     const ratePct = getBrandRatePct(s);
     const rateMul = ratePct / 100;
+    const marketingMul = pNum(s?.marketing_commission_rate) || 0.02;
     const affiliateGmv = brandAffiliateGmv[brand];
     const marketingGmv = marketingByBrand.get(brand) ?? 0;
     const gmv = affiliateGmv + marketingGmv;
 
-    // Per-creator commission = sum(creator GMV × creator rate)
+    // Affiliate commission = sum(creator GMV × creator rate). Per-creator
+    // overrides (creator_commission_rates) win over the brand rate; this
+    // applies regardless of compensation_model.
     let affiliateCommission = 0;
+    const creators: CreatorContribution[] = [];
     for (const c of creatorByBrand[brand].values()) {
       const overrideKey = `${c.handleNorm}|||${brand}`;
       const overridePct = customRateLookup.get(overrideKey);
-      const creatorMul = overridePct !== undefined ? overridePct / 100 : rateMul;
-      affiliateCommission += c.gmv * creatorMul;
+      const creatorPct = overridePct !== undefined ? overridePct : ratePct;
+      const creatorMul = creatorPct / 100;
+      const creatorCommission = c.gmv * creatorMul;
+      affiliateCommission += creatorCommission;
+      creators.push({
+        name: c.rawName,
+        gmv: c.gmv,
+        rate: creatorPct,
+        commission: creatorCommission,
+      });
     }
-    const marketingCommission = marketingGmv * 0.02; // marketing always at 2%
+    creators.sort((a, b) => b.commission - a.commission);
+    const marketingCommission = marketingGmv * marketingMul;
     let commission = affiliateCommission + marketingCommission;
     const effectiveRate = affiliateGmv > 0 ? (affiliateCommission / affiliateGmv) * 100 : ratePct;
 
-    let retainer = pNum(s?.retainer);
+    const configuredRetainer = pNum(s?.retainer);
+    let retainer = configuredRetainer;
     const productRetainer = pNum(s?.product_retainer_amount);
     const launchFee = pNum(s?.launch_fee);
-    let topluxModel: BrandRow['topluxModel'] = null;
+    const monthlyGoal = pNum(s?.monthly_gmv_goal);
+    const compensationModel: CompensationModel = s?.compensation_model ?? 'standard';
+    let revshareMaxOutcome: BrandRow['revshareMaxOutcome'] = null;
 
-    // Toplux exception: MAX(retainer, 5% of total GMV)
-    if (brand === 'toplux' && retainer > 0) {
-      const topluxRevShare = gmv * 0.05;
-      if (topluxRevShare > retainer) {
-        commission = topluxRevShare;
-        topluxModel = { type: 'revshare', activeAmount: topluxRevShare, comparison: retainer };
-        retainer = 0;
-      } else {
-        commission = 0;
-        topluxModel = { type: 'retainer', activeAmount: retainer, comparison: topluxRevShare };
+    // Apply compensation model. Per-creator overrides have already been
+    // baked into `commission` above — the model only controls how
+    // `commission` and `retainer` combine.
+    switch (compensationModel) {
+      case 'revshare_max': {
+        // MAX(retainer, commission). Whichever wins, the other goes to 0.
+        if (commission >= retainer) {
+          revshareMaxOutcome = { winner: 'commission', activeAmount: commission, comparison: retainer };
+          retainer = 0;
+        } else {
+          revshareMaxOutcome = { winner: 'retainer', activeAmount: retainer, comparison: commission };
+          commission = 0;
+        }
+        break;
       }
+      case 'commission_only':
+        retainer = 0;
+        break;
+      case 'retainer_only':
+        commission = 0;
+        break;
+      case 'standard':
+      default:
+        // Both apply additively — no adjustment needed.
+        break;
     }
 
     const totalFees = retainer + productRetainer + launchFee;
     const total = commission + totalFees;
-    const tylerShare = total / 2;
-    const mattShare = total / 2;
 
     totalAffiliateGmv += affiliateGmv;
     totalMarketingGmv += marketingGmv;
@@ -312,7 +369,7 @@ export async function getEarnings(month: string): Promise<EarningsResult> {
     totalCommission += commission;
     totalRetainers += retainer + productRetainer;
     totalLaunchFees += launchFee;
-    monthlyGoalSum += pNum(s?.monthly_gmv_goal);
+    monthlyGoalSum += monthlyGoal;
 
     brands.push({
       brand,
@@ -326,6 +383,7 @@ export async function getEarnings(month: string): Promise<EarningsResult> {
       marketingCommission,
       commission,
       retainer,
+      configuredRetainer,
       productRetainer,
       productRetainerName: s?.product_retainer_name ?? null,
       launchFee,
@@ -333,9 +391,14 @@ export async function getEarnings(month: string): Promise<EarningsResult> {
       launchFeeEnds: s?.launch_fee_ends ?? null,
       totalFees,
       total,
-      tylerShare,
-      mattShare,
-      topluxModel,
+      monthlyGoal,
+      marketingCommissionRate: marketingMul,
+      billToName: s?.bill_to_name ?? null,
+      billToEmail: s?.bill_to_email ?? null,
+      billToAddress: s?.bill_to_address ?? null,
+      compensationModel,
+      revshareMaxOutcome,
+      creators,
     });
   }
 
@@ -354,8 +417,6 @@ export async function getEarnings(month: string): Promise<EarningsResult> {
       retainers: totalRetainers,
       launchFees: totalLaunchFees,
       earnings,
-      tylerShare: earnings / 2,
-      mattShare: earnings / 2,
       monthlyGoal: monthlyGoalSum,
       goalProgressPct: monthlyGoalSum > 0 ? (totalGmv / monthlyGoalSum) * 100 : 0,
     },

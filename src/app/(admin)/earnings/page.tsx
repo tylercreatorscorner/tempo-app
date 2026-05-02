@@ -26,7 +26,7 @@ export default async function EarningsPage({ searchParams }: Props) {
       <div>
         <h1 className="text-2xl font-extrabold text-[#1A1B3A]">Earnings</h1>
         <p className="text-sm text-gray-400 mt-0.5">
-          Your monthly take across all brands — commission + retainers + launch fees, split with Matt.
+          Your monthly take across all brands — commission + retainers + launch fees.
         </p>
       </div>
       <EarningsClient initialMonth={month} />

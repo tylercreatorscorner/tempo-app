@@ -9,6 +9,8 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@expo-google-fonts/inter": "^0.4.2",
+    "@fontsource/inter": "^5.2.8",
     "@react-pdf/renderer": "^4.5.1",
     "@stripe/stripe-js": "^8.8.0",
     "@supabase/ssr": "^0.8.0",

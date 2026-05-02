@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import {
   LayoutDashboard, BarChart3, UserCheck, CreditCard,
-  Mail, Compass, FileBarChart, Store, Upload, Package, Calculator,
+  Mail, Compass, FileBarChart, Store, Upload, Package, Calculator, Receipt, PlaySquare,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TempoLogo } from '@/components/ui/tempo-logo';
@@ -50,17 +50,19 @@ const INSIGHTS_SECTION: NavSection = {
   label: 'Track Performance',
   items: [
     { href: '/analytics', label: 'Analytics', icon: BarChart3 },
+    { href: '/posts',     label: 'Posts',     icon: PlaySquare },
     { href: '/reporting', label: 'Reporting', icon: FileBarChart },
-    { href: '/brands', label: 'All Brands', icon: Store },
-    { href: '/products', label: 'Products', icon: Package },
+    { href: '/brands',    label: 'All Brands', icon: Store },
+    { href: '/products',  label: 'Products',  icon: Package },
   ],
 };
 
-const FINANCES_SECTION: NavSection = {
-  label: 'Finances',
+const FINANCE_SECTION: NavSection = {
+  label: 'Finance',
   adminOnly: true,
   items: [
     { href: '/earnings', label: 'Earnings', icon: Calculator },
+    { href: '/invoicing', label: 'Invoicing', icon: Receipt },
     { href: '/payments', label: 'Payments', icon: CreditCard },
   ],
 };
@@ -83,7 +85,10 @@ export function Sidebar({ className, userRole = 'customer' }: SidebarProps) {
   // Filter admin-only sections out for non-admin roles. Server-side gating on
   // the actual pages/APIs is the real security boundary — this is purely UX.
   const isAdmin = effectiveRole === 'owner';
-  const sections = [MAIN_SECTION, MANAGE_SECTION, DATA_SECTION, INSIGHTS_SECTION, FINANCES_SECTION]
+  // Order: Main → Manage → Track Performance → Finance → Data (bottom).
+  // Data lives at the bottom because it's an admin maintenance surface,
+  // not a daily-use section like the things above it.
+  const sections = [MAIN_SECTION, MANAGE_SECTION, INSIGHTS_SECTION, FINANCE_SECTION, DATA_SECTION]
     .filter(s => !s.adminOnly || isAdmin);
 
   function withBrand(href: string) {

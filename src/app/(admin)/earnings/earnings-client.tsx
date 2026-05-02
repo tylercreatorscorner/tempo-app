@@ -1,25 +1,29 @@
 'use client';
 
 /**
- * Earnings page — replaces the old dashboard's "Calculator" feature.
+ * Earnings page — monthly take across all brands.
  *
  * Layout:
- *   1. Month picker (current + last 12 months)
- *   2. Summary strip — Total GMV, Commission, Retainers, Earnings, Tyler/Matt
- *   3. Goal progress bar — total monthly GMV vs sum of brand monthly_gmv_goals
- *   4. Per-brand table with inline-editable Marketing GMV / Rate / Retainer /
- *      Launch Fee / Product Retainer cells. Each edit hits a PATCH endpoint and
- *      re-fetches earnings so the totals update immediately.
+ *   1. Header: month picker + 12-month period summary
+ *   2. Stat cards: Total Earnings (hero), Commission, Retainers, Launch Fees, Total GMV
+ *   3. Earnings trend (12-month stacked area chart)
+ *   4. Goal gauge + Revenue-by-brand stacked bar (50/50 row)
+ *   5. Per-brand breakdown table — click a row to edit its settings
  *
- * Note: the GMV column rename bug we just fixed (Apr 2026) means historical
- * months may show $0 in some sections until Tyler re-uploads with the new
- * column maps. Once those land, this page reflects correctly without any
- * code change here.
+ * Editing is done via BrandEditSheet (slide-over drawer). All inline-editing
+ * UX has been removed in favor of the dedicated edit panel.
  */
+
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ChevronDown, Loader2, RefreshCw, Save } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { ChevronDown, RefreshCw, Pencil, ArrowUp, ArrowDown, Receipt, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { formatCurrency, formatNumber } from '@/lib/utils/format';
+import { formatCurrency } from '@/lib/utils/format';
+import { StatCard } from '@/components/dashboard/stat-card';
+import { EarningsTrendChart, type SeriesPoint } from './components/earnings-trend-chart';
+import { BrandRevenueChart } from './components/brand-revenue-chart';
+import { GoalGauge } from './components/goal-gauge';
+import { BrandEditSheet, type BrandSettingsValues, type CompensationModel } from './components/brand-edit-sheet';
 
 interface BrandRow {
   brand: string;
@@ -33,6 +37,7 @@ interface BrandRow {
   marketingCommission: number;
   commission: number;
   retainer: number;
+  configuredRetainer: number;
   productRetainer: number;
   productRetainerName: string | null;
   launchFee: number;
@@ -40,9 +45,13 @@ interface BrandRow {
   launchFeeEnds: string | null;
   totalFees: number;
   total: number;
-  tylerShare: number;
-  mattShare: number;
-  topluxModel: { type: 'retainer' | 'revshare'; activeAmount: number; comparison: number } | null;
+  monthlyGoal: number;
+  marketingCommissionRate: number;
+  billToName: string | null;
+  billToEmail: string | null;
+  billToAddress: string | null;
+  compensationModel: CompensationModel;
+  revshareMaxOutcome: { winner: 'retainer' | 'commission'; activeAmount: number; comparison: number } | null;
 }
 
 interface EarningsResponse {
@@ -58,14 +67,14 @@ interface EarningsResponse {
     retainers: number;
     launchFees: number;
     earnings: number;
-    tylerShare: number;
-    mattShare: number;
     monthlyGoal: number;
     goalProgressPct: number;
   };
 }
 
-// Helper: build a list of recent months for the dropdown (current + 12 prior)
+type SortKey =
+  | 'brandLabel' | 'totalGmv' | 'rate' | 'commission' | 'retainer' | 'launchFee' | 'total';
+
 function buildMonthOptions(): { value: string; label: string }[] {
   const opts: { value: string; label: string }[] = [];
   const now = new Date();
@@ -79,20 +88,35 @@ function buildMonthOptions(): { value: string; label: string }[] {
 }
 
 export function EarningsClient({ initialMonth }: { initialMonth: string }) {
+  const router = useRouter();
   const monthOptions = useMemo(buildMonthOptions, []);
   const [month, setMonth] = useState(initialMonth);
   const [data, setData] = useState<EarningsResponse | null>(null);
+  const [series, setSeries] = useState<SeriesPoint[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [editingBrand, setEditingBrand] = useState<BrandRow | null>(null);
+  const [sortKey, setSortKey] = useState<SortKey>('total');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [generatingBrand, setGeneratingBrand] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ kind: 'success' | 'error'; message: string } | null>(null);
 
-  const fetchEarnings = useCallback(async (m: string) => {
+  const fetchAll = useCallback(async (m: string) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/earnings?month=${m}`);
-      const j = await res.json();
-      if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
-      setData(j);
+      const [earningsRes, seriesRes] = await Promise.all([
+        fetch(`/api/earnings?month=${m}`),
+        fetch(`/api/earnings/series?endMonth=${m}&months=12`),
+      ]);
+      const earningsJson = await earningsRes.json();
+      if (!earningsRes.ok) throw new Error(earningsJson.error || `HTTP ${earningsRes.status}`);
+      setData(earningsJson);
+
+      if (seriesRes.ok) {
+        const seriesJson = await seriesRes.json();
+        setSeries(seriesJson.series);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load earnings');
     } finally {
@@ -100,58 +124,93 @@ export function EarningsClient({ initialMonth }: { initialMonth: string }) {
     }
   }, []);
 
-  useEffect(() => { fetchEarnings(month); }, [month, fetchEarnings]);
+  useEffect(() => { fetchAll(month); }, [month, fetchAll]);
 
-  const handleEditBrandSetting = useCallback(async (brand: string, field: 'rate' | 'retainer' | 'launch_fee' | 'product_retainer', value: number) => {
+  const handleGenerateInvoice = useCallback(async (brand: string) => {
+    setGeneratingBrand(brand);
+    setToast(null);
     try {
-      const res = await fetch('/api/earnings/brand-settings', {
-        method: 'PATCH',
+      const res = await fetch('/api/invoices', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ brand, field, value }),
+        body: JSON.stringify({ brand, month }),
       });
+      const j = await res.json();
       if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
+        if (res.status === 409 && j.existing) {
+          // Already exists — open it instead of erroring out
+          setToast({ kind: 'success', message: `${j.existing.invoice_number} already exists. Opening it…` });
+          setTimeout(() => router.push(`/invoicing?id=${j.existing.id}`), 600);
+          return;
+        }
         throw new Error(j.error || `HTTP ${res.status}`);
       }
-      await fetchEarnings(month);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Save failed');
+      setToast({ kind: 'success', message: `Created ${j.invoice.invoice_number}. Opening Invoicing…` });
+      setTimeout(() => router.push(`/invoicing?id=${j.invoice.id}`), 600);
+    } catch (e) {
+      setToast({ kind: 'error', message: e instanceof Error ? e.message : 'Failed to generate invoice' });
+    } finally {
+      setGeneratingBrand(null);
     }
-  }, [month, fetchEarnings]);
+  }, [month, router]);
 
-  const handleEditMarketingGmv = useCallback(async (brand: string, amount: number) => {
-    try {
-      const res = await fetch('/api/earnings/marketing-gmv', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ brand, month, amount }),
-      });
-      if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
-        throw new Error(j.error || `HTTP ${res.status}`);
+  // Auto-dismiss toast
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 4500);
+    return () => clearTimeout(t);
+  }, [toast]);
+
+  const handleSort = useCallback((key: SortKey) => {
+    setSortKey((prev) => {
+      if (prev === key) {
+        setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+        return prev;
       }
-      await fetchEarnings(month);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Save failed');
-    }
-  }, [month, fetchEarnings]);
+      setSortDir('desc');
+      return key;
+    });
+  }, []);
+
+  const sortedBrands = useMemo(() => {
+    if (!data) return [];
+    const arr = [...data.brands];
+    arr.sort((a, b) => {
+      const av = a[sortKey];
+      const bv = b[sortKey];
+      if (typeof av === 'number' && typeof bv === 'number') return sortDir === 'asc' ? av - bv : bv - av;
+      const as = String(av ?? '');
+      const bs = String(bv ?? '');
+      return sortDir === 'asc' ? as.localeCompare(bs) : bs.localeCompare(as);
+    });
+    return arr;
+  }, [data, sortKey, sortDir]);
+
+  // Trend % vs prior month — series is oldest-first, last is current month
+  const earningsTrend = useMemo(() => {
+    if (!series || series.length < 2) return undefined;
+    const cur = series[series.length - 1].earnings;
+    const prev = series[series.length - 2].earnings;
+    if (prev <= 0) return undefined;
+    return ((cur - prev) / prev) * 100;
+  }, [series]);
 
   return (
-    <div className="space-y-5">
-      {/* Top bar — month picker */}
-      <div className="flex items-center gap-3">
+    <div className="space-y-6">
+      {/* Header bar */}
+      <div className="flex items-center gap-3 flex-wrap">
         <div className="relative">
           <select
             value={month}
             onChange={(e) => setMonth(e.target.value)}
-            className="appearance-none bg-white border border-gray-200 rounded-xl pl-4 pr-10 py-2 text-sm font-semibold text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+            className="appearance-none bg-white border border-gray-200 rounded-xl pl-4 pr-10 py-2 text-sm font-semibold text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D] cursor-pointer"
           >
-            {monthOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            {monthOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
           <ChevronDown className="h-4 w-4 absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
         </div>
         <button
-          onClick={() => fetchEarnings(month)}
+          onClick={() => fetchAll(month)}
           disabled={loading}
           className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-600 disabled:opacity-40 transition-colors"
           title="Refresh"
@@ -170,342 +229,378 @@ export function EarningsClient({ initialMonth }: { initialMonth: string }) {
         </div>
       )}
 
-      {/* Summary cards */}
-      <SummaryStrip data={data} loading={loading} />
-
-      {/* Goal progress */}
-      <GoalBar data={data} loading={loading} />
-
-      {/* Per-brand table */}
-      <BrandTable
-        data={data}
-        loading={loading}
-        onEditBrandSetting={handleEditBrandSetting}
-        onEditMarketingGmv={handleEditMarketingGmv}
-      />
-    </div>
-  );
-}
-
-// ── Summary strip ──────────────────────────────────────────────────
-
-function SummaryStrip({ data, loading }: { data: EarningsResponse | null; loading: boolean }) {
-  return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-      <SummaryCard label="Total GMV"     value={data ? formatCurrency(data.totals.totalGmv)     : '—'} loading={loading} accent="blue" />
-      <SummaryCard label="Commission"    value={data ? formatCurrency(data.totals.commission)   : '—'} loading={loading} accent="emerald" />
-      <SummaryCard label="Retainers"     value={data ? formatCurrency(data.totals.retainers)    : '—'} loading={loading} accent="purple" />
-      <SummaryCard label="Total Earnings" value={data ? formatCurrency(data.totals.earnings)     : '—'} loading={loading} accent="pink"
-        sub={data ? `Tyler ${formatCurrency(data.totals.tylerShare)} · Matt ${formatCurrency(data.totals.mattShare)}` : ''} hero />
-      <SummaryCard label="Launch Fees"   value={data ? formatCurrency(data.totals.launchFees)   : '—'} loading={loading} accent="amber" />
-    </div>
-  );
-}
-
-const ACCENT_BORDER = {
-  blue:    'border-l-blue-400',
-  emerald: 'border-l-emerald-400',
-  purple:  'border-l-purple-400',
-  pink:    'border-l-[#E91E8C]',
-  amber:   'border-l-amber-400',
-} as const;
-
-function SummaryCard({
-  label, value, sub, accent, loading, hero,
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-  accent: keyof typeof ACCENT_BORDER;
-  loading: boolean;
-  hero?: boolean;
-}) {
-  return (
-    <div className={cn(
-      'rounded-2xl bg-white border border-gray-100 shadow-sm p-4 border-l-4',
-      ACCENT_BORDER[accent],
-      hero && 'lg:col-span-2 bg-gradient-to-br from-[#1A1B3A] to-[#2a2b4a]',
-    )}>
-      <div className={cn('text-[10px] font-bold uppercase tracking-[0.15em]', hero ? 'text-pink-200' : 'text-gray-500')}>
-        {label}
+      {/* Stat cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4">
+        <div className="lg:col-span-5">
+          <StatCard
+            label="Total Earnings"
+            value={data ? formatCurrency(data.totals.earnings) : '—'}
+            hero
+            trend={earningsTrend}
+            trendLabel="vs last month"
+            sparklineData={series?.map((s) => s.earnings) ?? undefined}
+            accentColor="#FF4D8D"
+          />
+        </div>
+        <div className="lg:col-span-7 grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <StatCard
+            label="Commission"
+            value={data ? formatCurrency(data.totals.commission) : '—'}
+            accentColor="#7C5CFC"
+          />
+          <StatCard
+            label="Retainers"
+            value={data ? formatCurrency(data.totals.retainers) : '—'}
+            accentColor="#10B981"
+          />
+          <StatCard
+            label="Launch Fees"
+            value={data ? formatCurrency(data.totals.launchFees) : '—'}
+            accentColor="#FF9800"
+          />
+          <StatCard
+            label="Total GMV"
+            value={data ? formatCurrency(data.totals.totalGmv) : '—'}
+            accentColor="#2196F3"
+          />
+        </div>
       </div>
-      <div className={cn('mt-2 text-2xl font-extrabold', hero ? 'text-white' : 'text-[#1A1B3A]')}>
-        {loading && !value.startsWith('$') ? <Loader2 className="h-5 w-5 animate-spin" /> : value}
+
+      {/* Trend chart */}
+      <Panel title="Earnings Trend" subtitle="Last 12 months · stacked by component">
+        {loading && !series ? (
+          <ChartSkeleton height={280} />
+        ) : series && series.length > 0 ? (
+          <EarningsTrendChart data={series} activeMonth={month} height={280} />
+        ) : (
+          <EmptyState message="No trend data available yet" />
+        )}
+      </Panel>
+
+      {/* Goal gauge + Revenue by brand */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <Panel title="Goal Progress" subtitle="Total GMV vs. monthly target" className="lg:col-span-1">
+          {loading && !data ? (
+            <ChartSkeleton height={260} />
+          ) : data && data.totals.monthlyGoal > 0 ? (
+            <GoalGauge current={data.totals.totalGmv} goal={data.totals.monthlyGoal} height={260} />
+          ) : (
+            <EmptyState message="Set a monthly GMV goal on a brand to see progress" />
+          )}
+        </Panel>
+
+        <Panel title="Revenue by Brand" subtitle="Commission / retainer / fees breakdown" className="lg:col-span-2">
+          {loading && !data ? (
+            <ChartSkeleton height={320} />
+          ) : data && data.brands.length > 0 ? (
+            <BrandRevenueChart
+              data={data.brands.map((b) => ({
+                brand: b.brand,
+                brandLabel: b.brandLabel,
+                commission: b.commission,
+                retainer: b.retainer + b.productRetainer,
+                launchFees: b.launchFee,
+              }))}
+              height={320}
+            />
+          ) : (
+            <EmptyState message="No brand data for this month yet" />
+          )}
+        </Panel>
       </div>
-      {sub && (
-        <div className={cn('text-[11px] mt-1', hero ? 'text-pink-100/80' : 'text-gray-500')}>{sub}</div>
+
+      {/* Brand breakdown table */}
+      <Panel
+        title="Brand Breakdown"
+        subtitle={data ? `${data.brands.length} brands · click a row to edit settings` : 'Loading…'}
+        bodyPadding={false}
+      >
+        {loading && !data ? (
+          <div className="p-8"><ChartSkeleton height={200} /></div>
+        ) : (
+          <BrandTable
+            rows={sortedBrands}
+            sortKey={sortKey}
+            sortDir={sortDir}
+            onSort={handleSort}
+            onEdit={(row) => setEditingBrand(row)}
+            onGenerateInvoice={handleGenerateInvoice}
+            generatingBrand={generatingBrand}
+            totals={data?.totals ?? null}
+          />
+        )}
+      </Panel>
+
+      {/* Toast */}
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-50 animate-in slide-in-from-bottom-4">
+          <div
+            className={cn(
+              'flex items-start gap-3 px-4 py-3 rounded-xl shadow-2xl border max-w-sm',
+              toast.kind === 'success'
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                : 'bg-red-50 border-red-200 text-red-900',
+            )}
+          >
+            {toast.kind === 'success'
+              ? <CheckCircle2 className="h-5 w-5 text-emerald-600 flex-shrink-0 mt-0.5" />
+              : <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />}
+            <p className="text-sm font-medium">{toast.message}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Edit drawer */}
+      {editingBrand && (
+        <BrandEditSheet
+          open
+          brand={editingBrand.brand}
+          brandLabel={editingBrand.brandLabel}
+          marketingGmv={editingBrand.marketingGmv}
+          activeMonth={month}
+          initialValues={{
+            commission_rate: editingBrand.rate,
+            retainer: editingBrand.configuredRetainer,
+            launch_fee: editingBrand.launchFee,
+            launch_fee_name: editingBrand.launchFeeName,
+            launch_fee_ends: editingBrand.launchFeeEnds,
+            product_retainer_amount: editingBrand.productRetainer,
+            product_retainer_name: editingBrand.productRetainerName,
+            monthly_gmv_goal: editingBrand.monthlyGoal,
+            marketing_commission_rate: editingBrand.marketingCommissionRate,
+            compensation_model: editingBrand.compensationModel,
+            bill_to_name: editingBrand.billToName,
+            bill_to_email: editingBrand.billToEmail,
+            bill_to_address: editingBrand.billToAddress,
+          }}
+          onClose={() => setEditingBrand(null)}
+          onSaved={() => fetchAll(month)}
+        />
       )}
     </div>
   );
 }
 
-// ── Goal progress bar ──────────────────────────────────────────────
+// ── Panel wrapper ─────────────────────────────────────────────────────
 
-function GoalBar({ data, loading }: { data: EarningsResponse | null; loading: boolean }) {
-  if (loading || !data || data.totals.monthlyGoal === 0) return null;
-  const pct = Math.min(100, data.totals.goalProgressPct);
-  const reached = data.totals.goalProgressPct >= 100;
+function Panel({ title, subtitle, children, className, bodyPadding = true }: {
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+  className?: string;
+  bodyPadding?: boolean;
+}) {
   return (
-    <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-4">
-      <div className="flex items-center justify-between mb-2">
-        <div>
-          <div className="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-500">Monthly GMV goal</div>
-          <div className="text-sm font-semibold text-[#1A1B3A]">
-            {formatCurrency(data.totals.totalGmv)} of {formatCurrency(data.totals.monthlyGoal)} · <span className={cn(reached ? 'text-emerald-600' : 'text-[#E91E8C]')}>{Math.round(data.totals.goalProgressPct)}%</span>
-          </div>
-        </div>
-        {reached && <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 ring-1 ring-emerald-200 px-2 py-0.5 rounded-full">🎯 Goal hit!</span>}
+    <div className={cn('rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden', className)}>
+      <div className="px-5 pt-4 pb-3">
+        <h3 className="text-sm font-bold text-[#1A1B3A]">{title}</h3>
+        {subtitle && <p className="text-xs text-gray-400 mt-0.5">{subtitle}</p>}
       </div>
-      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-        <div
-          className={cn('h-full rounded-full transition-all', reached ? 'bg-emerald-400' : 'bg-[#E91E8C]')}
-          style={{ width: `${pct}%` }}
-        />
-      </div>
+      <div className={cn(bodyPadding && 'px-5 pb-5')}>{children}</div>
     </div>
   );
 }
 
-// ── Brand table with inline editing ────────────────────────────────
+function ChartSkeleton({ height }: { height: number }) {
+  return (
+    <div className="w-full animate-pulse rounded-xl bg-gray-50" style={{ height }} />
+  );
+}
+
+function EmptyState({ message }: { message: string }) {
+  return (
+    <div className="text-sm text-gray-400 text-center py-12">{message}</div>
+  );
+}
+
+// ── Brand table ───────────────────────────────────────────────────────
 
 function BrandTable({
-  data, loading, onEditBrandSetting, onEditMarketingGmv,
+  rows, sortKey, sortDir, onSort, onEdit, onGenerateInvoice, generatingBrand, totals,
 }: {
-  data: EarningsResponse | null;
-  loading: boolean;
-  onEditBrandSetting: (brand: string, field: 'rate' | 'retainer' | 'launch_fee' | 'product_retainer', value: number) => Promise<void>;
-  onEditMarketingGmv: (brand: string, amount: number) => Promise<void>;
+  rows: BrandRow[];
+  sortKey: SortKey;
+  sortDir: 'asc' | 'desc';
+  onSort: (k: SortKey) => void;
+  onEdit: (row: BrandRow) => void;
+  onGenerateInvoice: (brand: string) => void;
+  generatingBrand: string | null;
+  totals: EarningsResponse['totals'] | null;
 }) {
-  if (loading && !data) {
-    return (
-      <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-12 text-center">
-        <Loader2 className="h-5 w-5 mx-auto animate-spin text-gray-300" />
-      </div>
-    );
-  }
-  if (!data) return null;
-
   return (
-    <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left bg-gray-50/60 border-b border-gray-100">
-              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-gray-500">Brand</th>
-              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-gray-500 text-right">Affiliate GMV</th>
-              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-gray-500 text-right">Marketing GMV</th>
-              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-gray-500 text-right">Total GMV</th>
-              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-gray-500 text-center">Rate</th>
-              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-gray-500 text-right">Commission</th>
-              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-gray-500 text-right">Retainer</th>
-              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-gray-500 text-right">Product Retainer</th>
-              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-gray-500 text-right">Launch Fee</th>
-              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-gray-500 text-right">Total</th>
-              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-gray-500 text-right">Tyler</th>
-              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-gray-500 text-right">Matt</th>
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="bg-gray-50/60 border-y border-gray-100">
+            <SortHeader k="brandLabel" label="Brand" align="left" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+            <SortHeader k="totalGmv"   label="GMV"          align="right" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+            <SortHeader k="rate"       label="Rate"         align="right" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+            <SortHeader k="commission" label="Commission"   align="right" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+            <SortHeader k="retainer"   label="Retainer"     align="right" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+            <SortHeader k="launchFee"  label="Launch Fee"   align="right" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+            <SortHeader k="total"      label="Total"        align="right" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+            <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-gray-500 text-right w-32">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr
+              key={row.brand}
+              className="border-b border-gray-50 hover:bg-[#FFF0F5]/40 cursor-pointer transition-colors group"
+              onClick={() => onEdit(row)}
+            >
+              <td className="px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-[#1A1B3A]">{row.brandLabel}</span>
+                  <ModelBadge model={row.compensationModel} outcome={row.revshareMaxOutcome} />
+                </div>
+              </td>
+              <td className="px-4 py-3 text-right tabular-nums">
+                <div className="font-semibold text-[#1A1B3A]">{formatCurrency(row.totalGmv)}</div>
+                {row.marketingGmv > 0 && (
+                  <div className="text-[10px] text-gray-400 mt-0.5">
+                    {formatCurrency(row.affiliateGmv)} aff · {formatCurrency(row.marketingGmv)} mkt
+                  </div>
+                )}
+              </td>
+              <td className="px-4 py-3 text-right tabular-nums">
+                <span className="font-medium text-gray-700">{row.rate.toFixed(2)}%</span>
+                {Math.abs(row.effectiveRate - row.rate) > 0.01 && (
+                  <div className="text-[10px] text-[#FF4D8D] mt-0.5" title="Effective rate after per-creator overrides">
+                    eff: {row.effectiveRate.toFixed(2)}%
+                  </div>
+                )}
+              </td>
+              <td className="px-4 py-3 text-right tabular-nums text-emerald-600 font-semibold">
+                {formatCurrency(row.commission)}
+              </td>
+              <td className="px-4 py-3 text-right tabular-nums">
+                <div>{formatCurrency(row.retainer + row.productRetainer)}</div>
+                {row.productRetainer > 0 && (
+                  <div className="text-[10px] text-gray-400 mt-0.5">
+                    +{formatCurrency(row.productRetainer)} {row.productRetainerName ?? 'product'}
+                  </div>
+                )}
+              </td>
+              <td className="px-4 py-3 text-right tabular-nums">
+                {row.launchFee > 0 ? (
+                  <>
+                    <div className="text-amber-600 font-medium">{formatCurrency(row.launchFee)}</div>
+                    {row.launchFeeName && (
+                      <div className="text-[10px] text-gray-400 mt-0.5">{row.launchFeeName}</div>
+                    )}
+                  </>
+                ) : (
+                  <span className="text-gray-300">—</span>
+                )}
+              </td>
+              <td className="px-4 py-3 text-right tabular-nums font-bold text-[#1A1B3A]">
+                {formatCurrency(row.total)}
+              </td>
+              <td className="px-4 py-3 text-right">
+                <div className="inline-flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    onClick={() => onEdit(row)}
+                    className="inline-flex items-center justify-center h-7 w-7 rounded-lg text-gray-400 hover:text-[#FF4D8D] hover:bg-white transition-colors"
+                    title="Edit brand settings"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    onClick={() => onGenerateInvoice(row.brand)}
+                    disabled={generatingBrand === row.brand || row.total <= 0}
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-[#FFF0F5] border border-pink-100 text-[#FF4D8D] text-[11px] font-bold hover:bg-[#FF4D8D] hover:text-white hover:border-[#FF4D8D] disabled:opacity-40 disabled:hover:bg-[#FFF0F5] disabled:hover:text-[#FF4D8D] transition-colors"
+                    title={row.total > 0 ? 'Generate invoice for this brand & month' : 'Nothing to invoice'}
+                  >
+                    {generatingBrand === row.brand
+                      ? <Loader2 className="h-3 w-3 animate-spin" />
+                      : <Receipt className="h-3 w-3" />}
+                    Invoice
+                  </button>
+                </div>
+              </td>
             </tr>
-          </thead>
-          <tbody>
-            {data.brands.map(b => (
-              <BrandTableRow
-                key={b.brand}
-                row={b}
-                onEditBrandSetting={onEditBrandSetting}
-                onEditMarketingGmv={onEditMarketingGmv}
-              />
-            ))}
-          </tbody>
+          ))}
+        </tbody>
+        {totals && (
           <tfoot>
-            <tr className="bg-gray-50/60 border-t border-gray-200 font-bold text-[#1A1B3A]">
+            <tr className="bg-gray-50/60 border-t-2 border-gray-100 font-bold text-[#1A1B3A]">
               <td className="px-4 py-3">Totals</td>
-              <td className="px-4 py-3 text-right tabular-nums">{formatCurrency(data.totals.affiliateGmv)}</td>
-              <td className="px-4 py-3 text-right tabular-nums">{formatCurrency(data.totals.marketingGmv)}</td>
-              <td className="px-4 py-3 text-right tabular-nums">{formatCurrency(data.totals.totalGmv)}</td>
-              <td className="px-4 py-3" />
-              <td className="px-4 py-3 text-right tabular-nums text-emerald-600">{formatCurrency(data.totals.commission)}</td>
-              <td className="px-4 py-3 text-right tabular-nums">{formatCurrency(data.totals.retainers)}</td>
-              <td className="px-4 py-3" />
-              <td className="px-4 py-3 text-right tabular-nums">{formatCurrency(data.totals.launchFees)}</td>
-              <td className="px-4 py-3 text-right tabular-nums text-[#E91E8C]">{formatCurrency(data.totals.earnings)}</td>
-              <td className="px-4 py-3 text-right tabular-nums">{formatCurrency(data.totals.tylerShare)}</td>
-              <td className="px-4 py-3 text-right tabular-nums">{formatCurrency(data.totals.mattShare)}</td>
+              <td className="px-4 py-3 text-right tabular-nums">{formatCurrency(totals.totalGmv)}</td>
+              <td />
+              <td className="px-4 py-3 text-right tabular-nums text-emerald-600">{formatCurrency(totals.commission)}</td>
+              <td className="px-4 py-3 text-right tabular-nums">{formatCurrency(totals.retainers)}</td>
+              <td className="px-4 py-3 text-right tabular-nums">{formatCurrency(totals.launchFees)}</td>
+              <td className="px-4 py-3 text-right tabular-nums text-[#FF4D8D]">{formatCurrency(totals.earnings)}</td>
+              <td />
             </tr>
           </tfoot>
-        </table>
-      </div>
+        )}
+      </table>
     </div>
   );
 }
 
-// ── Single editable row ────────────────────────────────────────────
-
-function BrandTableRow({
-  row, onEditBrandSetting, onEditMarketingGmv,
-}: {
-  row: BrandRow;
-  onEditBrandSetting: (brand: string, field: 'rate' | 'retainer' | 'launch_fee' | 'product_retainer', value: number) => Promise<void>;
-  onEditMarketingGmv: (brand: string, amount: number) => Promise<void>;
+function SortHeader({ k, label, align, sortKey, sortDir, onSort }: {
+  k: SortKey;
+  label: string;
+  align: 'left' | 'right';
+  sortKey: SortKey;
+  sortDir: 'asc' | 'desc';
+  onSort: (k: SortKey) => void;
 }) {
+  const active = sortKey === k;
   return (
-    <tr className="border-t border-gray-50 hover:bg-gray-50/30">
-      <td className="px-4 py-3 font-semibold text-[#1A1B3A]">{row.brandLabel}</td>
-      <td className="px-4 py-3 text-right tabular-nums text-[#E91E8C] font-semibold">{formatCurrency(row.affiliateGmv)}</td>
-      <td className="px-4 py-3 text-right">
-        <NumberCell
-          value={row.marketingGmv}
-          step={100}
-          onSave={(v) => onEditMarketingGmv(row.brand, v)}
-          accent="purple"
-          width="w-24"
-        />
-      </td>
-      <td className="px-4 py-3 text-right tabular-nums font-semibold">{formatCurrency(row.totalGmv)}</td>
-      <td className="px-4 py-3 text-center">
-        <div className="flex flex-col items-center gap-0.5">
-          <NumberCell
-            value={row.rate}
-            step={0.5}
-            suffix="%"
-            onSave={(v) => onEditBrandSetting(row.brand, 'rate', v)}
-            width="w-16"
-          />
-          {Math.abs(row.effectiveRate - row.rate) > 0.01 && (
-            <span className="text-[10px] text-[#E91E8C]" title="Effective rate after per-creator overrides">
-              eff: {row.effectiveRate.toFixed(2)}%
-            </span>
-          )}
-        </div>
-      </td>
-      <td className="px-4 py-3 text-right">
-        <div className="flex flex-col items-end">
-          <span className="tabular-nums text-emerald-600 font-semibold">{formatCurrency(row.commission)}</span>
-          {row.marketingGmv > 0 && row.commission > 0 && (
-            <span className="text-[10px] text-gray-400 mt-0.5">
-              {formatCurrency(row.affiliateCommission)} aff + {formatCurrency(row.marketingCommission)} mkt
-            </span>
-          )}
-          {row.topluxModel && (
-            <span className="text-[10px] text-purple-600 mt-0.5" title={`Toplux uses MAX(retainer, 5% rev share). Active: ${row.topluxModel.type}`}>
-              {row.topluxModel.type === 'revshare' ? `5% rev share (${formatCurrency(row.topluxModel.activeAmount)})` : 'flat retainer (rev share would be ' + formatCurrency(row.topluxModel.comparison) + ')'}
-            </span>
-          )}
-        </div>
-      </td>
-      <td className="px-4 py-3 text-right">
-        <NumberCell
-          value={row.retainer}
-          step={100}
-          onSave={(v) => onEditBrandSetting(row.brand, 'retainer', v)}
-          width="w-24"
-        />
-      </td>
-      <td className="px-4 py-3 text-right">
-        <div className="flex flex-col items-end gap-0.5">
-          <NumberCell
-            value={row.productRetainer}
-            step={100}
-            onSave={(v) => onEditBrandSetting(row.brand, 'product_retainer', v)}
-            width="w-24"
-          />
-          {row.productRetainerName && (
-            <span className="text-[10px] text-[#E91E8C]">{row.productRetainerName}</span>
-          )}
-        </div>
-      </td>
-      <td className="px-4 py-3 text-right">
-        <div className="flex flex-col items-end gap-0.5">
-          <NumberCell
-            value={row.launchFee}
-            step={100}
-            onSave={(v) => onEditBrandSetting(row.brand, 'launch_fee', v)}
-            width="w-24"
-          />
-          {row.launchFeeName && (
-            <span className="text-[10px] text-blue-600">{row.launchFeeName}{row.launchFeeEnds ? ` · ends ${row.launchFeeEnds}` : ''}</span>
-          )}
-        </div>
-      </td>
-      <td className="px-4 py-3 text-right tabular-nums font-bold text-[#1A1B3A]">{formatCurrency(row.total)}</td>
-      <td className="px-4 py-3 text-right tabular-nums text-blue-600">{formatCurrency(row.tylerShare)}</td>
-      <td className="px-4 py-3 text-right tabular-nums text-purple-600">{formatCurrency(row.mattShare)}</td>
-    </tr>
+    <th
+      onClick={() => onSort(k)}
+      className={cn(
+        'px-4 py-3 text-[10px] font-bold uppercase tracking-wider cursor-pointer select-none transition-colors',
+        align === 'right' ? 'text-right' : 'text-left',
+        active ? 'text-[#FF4D8D]' : 'text-gray-500 hover:text-gray-700',
+      )}
+    >
+      <span className="inline-flex items-center gap-1">
+        {label}
+        {active && (sortDir === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
+      </span>
+    </th>
   );
 }
 
-// ── Reusable inline-edit number cell ───────────────────────────────
-
-function NumberCell({
-  value, step, suffix, prefix, onSave, accent, width,
-}: {
-  value: number;
-  step: number;
-  suffix?: string;
-  prefix?: string;
-  onSave: (v: number) => Promise<void>;
-  accent?: 'pink' | 'purple';
-  width?: string;
+function ModelBadge({ model, outcome }: {
+  model: CompensationModel;
+  outcome: BrandRow['revshareMaxOutcome'];
 }) {
-  const [draft, setDraft] = useState(String(value));
-  const [saving, setSaving] = useState(false);
-  const [dirty, setDirty] = useState(false);
-
-  // When the value prop changes (e.g. after a refetch), reset the draft
-  useEffect(() => {
-    setDraft(String(value));
-    setDirty(false);
-  }, [value]);
-
-  const commit = useCallback(async () => {
-    if (!dirty) return;
-    const n = parseFloat(draft);
-    if (Number.isNaN(n) || n < 0) {
-      setDraft(String(value));
-      setDirty(false);
-      return;
-    }
-    if (n === value) {
-      setDirty(false);
-      return;
-    }
-    setSaving(true);
-    try {
-      await onSave(n);
-    } finally {
-      setSaving(false);
-      setDirty(false);
-    }
-  }, [draft, dirty, value, onSave]);
-
+  if (model === 'standard') return null;
+  const config: Record<Exclude<CompensationModel, 'standard'>, { label: string; bg: string; text: string; tip: string }> = {
+    revshare_max: {
+      label: 'MAX',
+      bg: 'bg-purple-50 border-purple-200',
+      text: 'text-purple-700',
+      tip: outcome
+        ? `MAX(retainer, commission). ${outcome.winner === 'commission' ? 'Rev share' : 'Retainer'} won.`
+        : 'MAX(retainer, commission)',
+    },
+    commission_only: {
+      label: 'Comm only',
+      bg: 'bg-blue-50 border-blue-200',
+      text: 'text-blue-700',
+      tip: 'No retainer, commission only',
+    },
+    retainer_only: {
+      label: 'Retainer only',
+      bg: 'bg-emerald-50 border-emerald-200',
+      text: 'text-emerald-700',
+      tip: 'Flat retainer, no commission',
+    },
+  };
+  const c = config[model];
   return (
-    <div className="inline-flex items-center gap-1">
-      {prefix && <span className="text-[11px] text-gray-400">{prefix}</span>}
-      <div className="relative inline-block">
-        <input
-          type="number"
-          step={step}
-          min={0}
-          value={draft}
-          onChange={(e) => { setDraft(e.target.value); setDirty(true); }}
-          onBlur={commit}
-          onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
-          disabled={saving}
-          className={cn(
-            'text-right text-sm border rounded-lg px-2 py-1 tabular-nums focus:outline-none focus:ring-2',
-            width ?? 'w-20',
-            saving       ? 'bg-gray-50 text-gray-400 border-gray-200' :
-            accent === 'purple' ? 'bg-purple-50 border-purple-200 text-purple-900 focus:ring-purple-200' :
-                          'bg-white border-gray-200 text-gray-900 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]',
-            dirty && !saving && 'border-[#E91E8C] ring-1 ring-[#E91E8C]/20',
-          )}
-        />
-        {saving && (
-          <Loader2 className="h-3 w-3 animate-spin text-gray-400 absolute right-2 top-1/2 -translate-y-1/2" />
-        )}
-        {dirty && !saving && (
-          <Save className="h-3 w-3 text-[#E91E8C] absolute -right-4 top-1/2 -translate-y-1/2" />
-        )}
-      </div>
-      {suffix && <span className="text-[11px] text-gray-400">{suffix}</span>}
-    </div>
+    <span
+      title={c.tip}
+      className={cn('inline-flex items-center px-1.5 py-0.5 rounded-md border text-[10px] font-bold uppercase tracking-wider', c.bg, c.text)}
+    >
+      {c.label}
+    </span>
   );
 }

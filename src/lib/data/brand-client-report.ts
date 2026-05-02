@@ -19,6 +19,7 @@
  * data tables — uploads are usually a few days behind real time and we'd
  * otherwise return empty windows.
  */
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
 import { BRAND_UUID_MAP } from '@/lib/utils/constants';
 
@@ -202,9 +203,16 @@ function buildLeaderboard<T extends { gmv: number }>(
 export async function getBrandClientReportData(
   brandSlug: string,
   brandName: string,
-  period: ReportPeriod = '7d'
+  period: ReportPeriod = '7d',
+  /**
+   * Optional pre-built Supabase client. The brand portal passes the admin
+   * client here to bypass RLS — access is already validated at the layout
+   * level, and the per-row RLS subqueries cause statement timeouts on the
+   * large stats tables.
+   */
+  clientOverride?: SupabaseClient,
 ): Promise<BrandClientReportData> {
-  const supabase = await createClient();
+  const supabase = clientOverride ?? (await createClient());
   const brandUuids = getBrandUuids(brandSlug);
   const periodDays = period === '30d' ? 30 : 7;
 

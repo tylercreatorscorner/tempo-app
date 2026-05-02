@@ -11,6 +11,16 @@ export function formatCurrency(amount: number): string {
   }).format(amount);
 }
 
+/** Format a number as exact USD currency with cents: $XX,XXX.XX */
+export function formatCurrencyExact(amount: number): string {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount);
+}
+
 /** Format a number with commas: 1,234,567 */
 export function formatNumber(num: number): string {
   return new Intl.NumberFormat('en-US').format(num);
@@ -22,7 +32,8 @@ export function formatPercent(pct: number): string {
 }
 
 /** Format a date for display */
-export function formatDate(date: Date | string): string {
+export function formatDate(date: Date | string | null | undefined): string {
+  if (!date) return '';
   const d = typeof date === 'string' ? new Date(date) : date;
   return format(d, 'MMM d, yyyy');
 }

@@ -1,14 +1,18 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Fragment } from 'react';
+import dynamic from 'next/dynamic';
 import {
-  CreditCard, DollarSign, FileText, Clock, Users, TrendingUp,
-  ArrowUpRight, ArrowDownRight, Filter, Download, ChevronRight,
-  Percent, History, AlertCircle, CheckCircle, Send, Eye
+  CreditCard, DollarSign, FileText, Users, TrendingUp,
+  ArrowUpRight, Filter, ChevronRight,
+  Percent, History, AlertCircle, CheckCircle, Eye
 } from 'lucide-react';
 import {
-  BRAND_COLORS, BRAND_DISPLAY_NAMES, ACTIVE_BRANDS, getBrandColor
+  BRAND_DISPLAY_NAMES, ACTIVE_BRANDS, getBrandColor
 } from '@/lib/utils/constants';
+import { formatCurrency, formatCurrencyExact, formatDate } from '@/lib/utils/format';
+
+const Chart = dynamic(() => import('react-apexcharts'), { ssr: false });
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -32,6 +36,12 @@ interface RetainerCreator {
   retainer_start_date: string;
   status: string;
   payment_status: string;
+  account_1?: string | null;
+  account_2?: string | null;
+  account_3?: string | null;
+  account_4?: string | null;
+  account_5?: string | null;
+  real_name?: string | null;
 }
 
 interface CommissionData {
@@ -77,19 +87,6 @@ interface AuditLog {
 
 const TABS = ['Overview', 'Retainer Tracking', 'Commissions', 'Invoices', 'History'] as const;
 type Tab = typeof TABS[number];
-
-function formatCurrency(n: number): string {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n);
-}
-
-function formatCurrencyExact(n: number): string {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
-}
-
-function formatDate(d: string | null): string {
-  if (!d) return '';
-  return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-}
 
 function brandDisplayName(slug: string): string {
   return BRAND_DISPLAY_NAMES[slug] || slug;
@@ -192,36 +189,51 @@ function SummaryCard({ title, value, subtitle, icon: Icon, gradient }: {
 
 function BrandSpendChart({ data }: { data: Record<string, number> }) {
   const entries = Object.entries(data).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
-  const max = Math.max(...entries.map(([, v]) => v), 1);
 
   if (entries.length === 0) {
     return (
       <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
-        <h3 className="text-sm font-semibold text-[#1A1B3A] mb-4">Monthly Spend by Brand</h3>
+        <h3 className="text-sm font-semibold text-[#1A1B3A] mb-4">Monthly Retainer Spend by Brand</h3>
         <p className="text-sm text-gray-400 text-center py-8">No spend data available yet</p>
       </div>
     );
   }
 
+  const options: ApexCharts.ApexOptions = {
+    chart: { type: 'bar', toolbar: { show: false }, background: 'transparent', animations: { enabled: true, speed: 400 } },
+    plotOptions: {
+      bar: { horizontal: true, borderRadius: 5, barHeight: '55%', distributed: true },
+    },
+    dataLabels: { enabled: false },
+    xaxis: {
+      categories: entries.map(([brand]) => brandDisplayName(brand)),
+      labels: {
+        formatter: (v: string) => formatCurrency(Number(v)),
+        style: { fontSize: '11px', colors: Array(entries.length).fill('#9ca3af') },
+      },
+      axisBorder: { show: false },
+      axisTicks: { show: false },
+    },
+    yaxis: {
+      labels: { style: { fontSize: '12px', fontWeight: '600', colors: Array(entries.length).fill('#1A1B3A') } },
+    },
+    colors: entries.map(([brand]) => getBrandColor(brand)),
+    legend: { show: false },
+    grid: { borderColor: '#f3f4f6', strokeDashArray: 4, xaxis: { lines: { show: true } }, yaxis: { lines: { show: false } } },
+    tooltip: { y: { formatter: (v: number) => formatCurrency(v) }, theme: 'light' },
+  };
+
+  const series = [{ name: 'Retainer', data: entries.map(([, v]) => v) }];
+
   return (
     <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
-      <h3 className="text-sm font-semibold text-[#1A1B3A] mb-4">Monthly Retainer Spend by Brand</h3>
-      <div className="space-y-3">
-        {entries.map(([brand, amount]) => (
-          <div key={brand}>
-            <div className="flex items-center justify-between text-sm mb-1">
-              <span className="font-medium text-[#1A1B3A]">{brandDisplayName(brand)}</span>
-              <span className="text-gray-500">{formatCurrency(amount)}</span>
-            </div>
-            <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
-              <div
-                className="h-full rounded-full transition-all duration-500"
-                style={{ width: `${(amount / max) * 100}%`, backgroundColor: getBrandColor(brand) }}
-              />
-            </div>
-          </div>
-        ))}
-      </div>
+      <h3 className="text-sm font-semibold text-[#1A1B3A] mb-2">Monthly Retainer Spend by Brand</h3>
+      <Chart
+        type="bar"
+        options={options}
+        series={series}
+        height={Math.max(180, entries.length * 52)}
+      />
     </div>
   );
 }
@@ -391,26 +403,83 @@ function RetainerTab() {
                 </tr>
               </thead>
               <tbody>
-                {data.creators.map((c) => (
-                  <tr
-                    key={`${c.creator_name}-${c.brand}`}
-                    className="border-b border-gray-50 hover:bg-gray-50/50 cursor-pointer transition-colors"
-                    onClick={() => setExpandedCreator(expandedCreator === `${c.creator_name}|${c.brand}` ? null : `${c.creator_name}|${c.brand}`)}
-                  >
-                    <td className="px-6 py-3">
-                      <div className="flex items-center gap-2">
-                        <ChevronRight className={`h-4 w-4 text-gray-400 transition-transform ${expandedCreator === `${c.creator_name}|${c.brand}` ? 'rotate-90' : ''}`} />
-                        <span className="text-sm font-medium text-[#1A1B3A]">{c.creator_name}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3"><BrandPill brand={c.brand} /></td>
-                    <td className="px-4 py-3 text-right text-sm font-semibold text-[#1A1B3A]">{formatCurrency(c.retainer)}</td>
-                    <td className="px-4 py-3 text-center text-sm text-gray-600">{c.monthly_post_requirement || c.posts_required || 0}</td>
-                    <td className="px-4 py-3 text-center text-sm text-gray-600">{c.posts_found}</td>
-                    <td className="px-4 py-3 text-center"><RetainerStatusBadge status={c.status} /></td>
-                    <td className="px-4 py-3 text-sm text-gray-500">{formatDate(c.retainer_start_date)}</td>
-                  </tr>
-                ))}
+                {data.creators.map((c) => {
+                  const key = `${c.creator_name}|${c.brand}`;
+                  const isExpanded = expandedCreator === key;
+                  const postsReq = c.monthly_post_requirement || c.posts_required || 0;
+                  const postsPct = postsReq > 0 ? Math.min(100, (c.posts_found / postsReq) * 100) : 0;
+                  const accounts = [c.account_1, c.account_2, c.account_3, c.account_4, c.account_5].filter(Boolean) as string[];
+
+                  return (
+                    <Fragment key={key}>
+                      <tr
+                        className="border-b border-gray-50 hover:bg-gray-50/50 cursor-pointer transition-colors select-none"
+                        onClick={() => setExpandedCreator(isExpanded ? null : key)}
+                      >
+                        <td className="px-6 py-3">
+                          <div className="flex items-center gap-2">
+                            <ChevronRight className={`h-4 w-4 text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                            <span className="text-sm font-medium text-[#1A1B3A]">{c.creator_name}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3"><BrandPill brand={c.brand} /></td>
+                        <td className="px-4 py-3 text-right text-sm font-semibold text-[#1A1B3A]">{formatCurrency(c.retainer)}</td>
+                        <td className="px-4 py-3 text-center text-sm text-gray-600">{postsReq}</td>
+                        <td className="px-4 py-3 text-center text-sm text-gray-600">{c.posts_found}</td>
+                        <td className="px-4 py-3 text-center"><RetainerStatusBadge status={c.status} /></td>
+                        <td className="px-4 py-3 text-sm text-gray-500">{formatDate(c.retainer_start_date)}</td>
+                      </tr>
+                      {isExpanded && (
+                        <tr className="bg-gray-50/70 border-b border-gray-100">
+                          <td colSpan={7} className="px-8 py-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                              {/* Post progress */}
+                              <div>
+                                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Post Progress</p>
+                                <div className="flex items-center gap-2">
+                                  <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                                    <div
+                                      className={`h-full rounded-full transition-all ${
+                                        c.status === 'At Risk' ? 'bg-red-400' :
+                                        c.status === 'Behind' ? 'bg-yellow-400' : 'bg-emerald-400'
+                                      }`}
+                                      style={{ width: `${postsPct}%` }}
+                                    />
+                                  </div>
+                                  <span className="text-xs font-semibold text-gray-600 tabular-nums w-10">
+                                    {c.posts_found}/{postsReq}
+                                  </span>
+                                </div>
+                                <p className="text-[11px] text-gray-400 mt-1">{Math.round(postsPct)}% of monthly requirement</p>
+                              </div>
+
+                              {/* Payment info */}
+                              <div>
+                                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Payment Status</p>
+                                <StatusBadge status={c.payment_status} />
+                                <p className="text-[11px] text-gray-400 mt-1.5">Started {formatDate(c.retainer_start_date) || '—'}</p>
+                              </div>
+
+                              {/* Accounts */}
+                              {accounts.length > 0 && (
+                                <div>
+                                  <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Accounts</p>
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {accounts.map((a) => (
+                                      <span key={a} className="inline-flex items-center px-2 py-0.5 rounded-md bg-white border border-gray-200 text-xs font-medium text-[#1A1B3A]">
+                                        @{a.replace(/^@/, '')}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>
