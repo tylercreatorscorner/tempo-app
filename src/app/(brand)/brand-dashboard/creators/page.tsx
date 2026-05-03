@@ -33,6 +33,7 @@ export default async function BrandCreatorsPage({ searchParams }: PageProps) {
   const page = Math.max(1, parseInt(params.page ?? '1', 10) || 1);
   const period: BrandPortalPeriod = (() => {
     switch (params.period) {
+      case 'yesterday':
       case '30d':
       case 'this_month':
       case 'last_month':

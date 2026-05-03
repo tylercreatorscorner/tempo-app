@@ -9,7 +9,13 @@ import { BRAND_UUID_MAP } from '@/lib/utils/constants';
 
 export const dynamic = 'force-dynamic';
 
-const PERIODS = new Set<BrandPortalPeriod>(['7d', '30d', 'this_month', 'last_month']);
+const PERIODS = new Set<BrandPortalPeriod>([
+  'yesterday',
+  '7d',
+  '30d',
+  'this_month',
+  'last_month',
+]);
 
 export async function GET(request: Request) {
   const ctx = await loadBrandPortalContext();
@@ -54,8 +60,8 @@ export async function GET(request: Request) {
         v.postDate ? v.postDate.toISOString().split('T')[0] : '',
         v.creatorHandle,
         v.title,
-        v.gmv.toFixed(2),
-        String(v.orders),
+        v.lifetimeGmv.toFixed(2),
+        String(v.lifetimeOrders),
         v.periodGmv.toFixed(2),
         String(v.periodOrders),
         v.url ?? `https://www.tiktok.com/@${v.creatorHandle}/video/${v.videoId}`,

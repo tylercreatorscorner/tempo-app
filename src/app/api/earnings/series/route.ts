@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth/require-admin';
 import { getEarnings, type EarningsResult } from '@/lib/data/earnings';
+import { currentMonth } from '@/lib/utils/format';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
@@ -40,11 +41,6 @@ export async function GET(req: NextRequest) {
   }));
 
   return NextResponse.json({ series });
-}
-
-function currentMonth(): string {
-  const d = new Date();
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
 function buildMonthList(endMonth: string, count: number): string[] {

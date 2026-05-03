@@ -52,10 +52,10 @@ const INSIGHTS_SECTION: NavSection = {
     { href: '/analytics', label: 'Analytics', icon: BarChart3 },
     { href: '/posts',     label: 'Posts',     icon: PlaySquare },
     { href: '/reporting', label: 'Reporting', icon: FileBarChart },
-    { href: '/brands',    label: 'Brands',    icon: Store },
-    // /products was folded into per-brand drill-down (Brands → Products tab).
-    // Keep the route alive at /products in case anything (schedules, deep
-    // links) still references it, but it's no longer in the sidebar.
+    // /brands and /products routes still exist in case schedules / deep
+    // links reference them, but they're no longer in the sidebar — both
+    // felt redundant for daily use per Tyler. Per-brand info now flows
+    // through Analytics (filter by brand) and Reporting (brand client deck).
   ],
 };
 

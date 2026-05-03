@@ -7,7 +7,7 @@ import {
   type BrandPortalPeriod,
 } from '@/lib/data/brand-portal-overview';
 
-const PERIOD_ORDER: BrandPortalPeriod[] = ['7d', '30d', 'this_month', 'last_month'];
+const PERIOD_ORDER: BrandPortalPeriod[] = ['yesterday', '7d', '30d', 'this_month', 'last_month'];
 
 interface Props {
   current: BrandPortalPeriod;

@@ -15,7 +15,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { X, Loader2, Receipt, ChevronDown, Sparkles, ExternalLink, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { formatCurrency } from '@/lib/utils/format';
+import { formatCurrency, buildMonthOptions } from '@/lib/utils/format';
 import type { Invoice } from './invoice-detail-sheet';
 
 interface BrandOption {
@@ -43,20 +43,8 @@ interface Props {
   onViewExisting: (id: string) => void;
 }
 
-function buildMonthOptions(): { value: string; label: string }[] {
-  const opts: { value: string; label: string }[] = [];
-  const now = new Date();
-  for (let i = 0; i < 13; i++) {
-    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
-    const value = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
-    const label = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
-    opts.push({ value, label });
-  }
-  return opts;
-}
-
 export function NewInvoiceModal({ open, defaultMonth, onClose, onCreated, onViewExisting }: Props) {
-  const monthOptions = useMemo(buildMonthOptions, []);
+  const monthOptions = useMemo(() => buildMonthOptions(13), []);
   const [month, setMonth] = useState(defaultMonth);
   const [brands, setBrands] = useState<BrandOption[]>([]);
   const [selectedBrand, setSelectedBrand] = useState<string | null>(null);

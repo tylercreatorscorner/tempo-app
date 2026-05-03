@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { X, Save, Download, Trash2, Loader2, Send, CheckCircle2, RotateCcw, RefreshCw, Users } from 'lucide-react';
+import { X, Save, Download, Trash2, Loader2, Send, CheckCircle2, RotateCcw, RefreshCw, Users, Ban } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
 
@@ -25,7 +25,7 @@ export interface Invoice {
   product_retainer: number | string;
   launch_fee: number | string;
   total_amount: number | string;
-  status: 'pending' | 'sent' | 'paid';
+  status: 'pending' | 'sent' | 'paid' | 'void';
   generated_at: string;
   sent_at: string | null;
   paid_at: string | null;
@@ -111,7 +111,7 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
     }
   }
 
-  async function handleStatus(newStatus: 'pending' | 'sent' | 'paid') {
+  async function handleStatus(newStatus: 'pending' | 'sent' | 'paid' | 'void') {
     setStatusUpdating(true);
     setError(null);
     try {
@@ -188,6 +188,7 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
             {invoice.status === 'pending' && <>Generated {formatDate(invoice.generated_at)}</>}
             {invoice.status === 'sent' && invoice.sent_at && <>Sent {formatDate(invoice.sent_at)}</>}
             {invoice.status === 'paid' && invoice.paid_at && <>Paid {formatDate(invoice.paid_at)}</>}
+            {invoice.status === 'void' && <>Voided</>}
           </div>
           <div className="basis-full" />
           {invoice.status === 'pending' && (
@@ -210,14 +211,28 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
               Mark as Paid
             </button>
           )}
-          {(invoice.status === 'sent' || invoice.status === 'paid') && (
+          {(invoice.status === 'sent' || invoice.status === 'paid' || invoice.status === 'void') && (
             <button
               onClick={() => handleStatus('pending')}
               disabled={statusUpdating}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 text-xs font-semibold hover:bg-white disabled:opacity-50 transition-colors"
             >
               <RotateCcw className="h-3.5 w-3.5" />
-              Revert
+              {invoice.status === 'void' ? 'Reopen' : 'Revert'}
+            </button>
+          )}
+          {(invoice.status === 'pending' || invoice.status === 'sent') && (
+            <button
+              onClick={() => {
+                if (confirm(`Void invoice ${invoice.invoice_number}? It stays on file but won't count toward outstanding.`)) {
+                  handleStatus('void');
+                }
+              }}
+              disabled={statusUpdating}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-200 text-red-600 text-xs font-semibold hover:bg-red-50 disabled:opacity-50 transition-colors"
+            >
+              <Ban className="h-3.5 w-3.5" />
+              Void
             </button>
           )}
           {invoice.status === 'pending' && (
@@ -362,9 +377,10 @@ function fmtPeriod(ym: string) {
 
 function StatusPill({ status }: { status: string }) {
   const config: Record<string, { bg: string; text: string; label: string }> = {
-    pending: { bg: 'bg-amber-100', text: 'text-amber-800', label: 'Pending' },
-    sent: { bg: 'bg-blue-100', text: 'text-blue-800', label: 'Sent' },
-    paid: { bg: 'bg-emerald-100', text: 'text-emerald-800', label: 'Paid' },
+    pending: { bg: 'bg-amber-100',   text: 'text-amber-800',   label: 'Pending' },
+    sent:    { bg: 'bg-blue-100',    text: 'text-blue-800',    label: 'Sent' },
+    paid:    { bg: 'bg-emerald-100', text: 'text-emerald-800', label: 'Paid' },
+    void:    { bg: 'bg-gray-200',    text: 'text-gray-600',    label: 'Void' },
   };
   const c = config[status] ?? { bg: 'bg-gray-100', text: 'text-gray-700', label: status };
   return (

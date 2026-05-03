@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { requireAdmin } from '@/lib/auth/require-admin';
+import { currentMonth } from '@/lib/utils/format';
 import { EarningsClient } from './earnings-client';
 
 export const dynamic = 'force-dynamic';
@@ -7,11 +8,6 @@ export const metadata = { title: 'Earnings — Tempo' };
 
 interface Props {
   searchParams: Promise<{ month?: string }>;
-}
-
-function currentMonth(): string {
-  const d = new Date();
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
 export default async function EarningsPage({ searchParams }: Props) {

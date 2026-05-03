@@ -1,4 +1,4 @@
-import { Search, ExternalLink } from 'lucide-react';
+import { Search, ExternalLink, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import Link from 'next/link';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { requireBrandPortalContext } from '@/lib/data/brand-portal';
@@ -15,7 +15,7 @@ export const dynamic = 'force-dynamic';
 
 const PAGE_SIZE = 50;
 
-type SortColumn = 'title' | 'creator' | 'date' | 'gmv' | 'orders';
+type SortColumn = 'title' | 'creator' | 'date' | 'gmv' | 'orders' | 'lifetime_gmv' | 'change';
 
 interface PageProps {
   searchParams: Promise<{
@@ -34,6 +34,7 @@ export default async function BrandVideosPage({ searchParams }: PageProps) {
   const page = Math.max(1, parseInt(params.page ?? '1', 10) || 1);
   const period: BrandPortalPeriod = (() => {
     switch (params.period) {
+      case 'yesterday':
       case '30d':
       case 'this_month':
       case 'last_month':
@@ -48,6 +49,8 @@ export default async function BrandVideosPage({ searchParams }: PageProps) {
       case 'creator':
       case 'date':
       case 'orders':
+      case 'lifetime_gmv':
+      case 'change':
         return params.sort;
       default:
         return 'gmv';
@@ -121,8 +124,8 @@ export default async function BrandVideosPage({ searchParams }: PageProps) {
       </div>
 
       <p className="text-xs text-gray-400 -mt-3">
-        GMV is lifetime — cumulative sales from each post since it went live.
-        Videos shown are those active in the selected period.
+        GMV is the sales each post generated <strong>during the selected period</strong>.
+        Lifetime GMV (totals since posting) is shown as a secondary number.
       </p>
 
       <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
@@ -166,8 +169,16 @@ export default async function BrandVideosPage({ searchParams }: PageProps) {
                       className="hidden md:table-cell"
                     />
                     <SortableHeader
-                      label="GMV"
+                      label="GMV (period)"
                       column="gmv"
+                      activeColumn={sortColumn}
+                      activeDir={sortDir}
+                      buildHref={(c, d) => buildHref({ sort: c, dir: d })}
+                      align="right"
+                    />
+                    <SortableHeader
+                      label="vs Prior"
+                      column="change"
                       activeColumn={sortColumn}
                       activeDir={sortDir}
                       buildHref={(c, d) => buildHref({ sort: c, dir: d })}
@@ -180,7 +191,15 @@ export default async function BrandVideosPage({ searchParams }: PageProps) {
                       activeDir={sortDir}
                       buildHref={(c, d) => buildHref({ sort: c, dir: d })}
                       align="right"
-                      className="px-4"
+                    />
+                    <SortableHeader
+                      label="Lifetime GMV"
+                      column="lifetime_gmv"
+                      activeColumn={sortColumn}
+                      activeDir={sortDir}
+                      buildHref={(c, d) => buildHref({ sort: c, dir: d })}
+                      align="right"
+                      className="px-4 hidden lg:table-cell"
                     />
                     <th className="w-8"></th>
                   </tr>
@@ -220,10 +239,16 @@ export default async function BrandVideosPage({ searchParams }: PageProps) {
                           {v.postDate ? fmtDate(v.postDate) : '—'}
                         </td>
                         <td className="text-right px-3 py-2.5 tabular-nums font-medium">
-                          {fmtCurrency(v.gmv)}
+                          {fmtCurrency(v.periodGmv)}
                         </td>
-                        <td className="text-right px-4 py-2.5 tabular-nums text-gray-700">
-                          {fmtNumber(v.orders)}
+                        <td className="text-right px-3 py-2.5">
+                          <ChangePill curr={v.periodGmv} prior={v.priorGmv} />
+                        </td>
+                        <td className="text-right px-3 py-2.5 tabular-nums text-gray-700">
+                          {fmtNumber(v.periodOrders)}
+                        </td>
+                        <td className="text-right px-4 py-2.5 tabular-nums text-gray-500 hidden lg:table-cell">
+                          {fmtCurrency(v.lifetimeGmv)}
                         </td>
                         <td className="text-right pr-3">
                           <a
@@ -302,10 +327,52 @@ function sortValue(
     case 'date':
       return v.postDate?.getTime() ?? 0;
     case 'gmv':
-      return v.gmv;
+      return v.periodGmv;
     case 'orders':
-      return v.orders;
+      return v.periodOrders;
+    case 'lifetime_gmv':
+      return v.lifetimeGmv;
+    case 'change':
+      return changePctOf(v.periodGmv, v.priorGmv) ?? -Infinity;
   }
+}
+
+function changePctOf(curr: number, prior: number): number | null {
+  if (prior === 0) return curr > 0 ? null : 0;
+  return ((curr - prior) / prior) * 100;
+}
+
+function ChangePill({ curr, prior }: { curr: number; prior: number }) {
+  const pct = changePctOf(curr, prior);
+  if (pct === null) {
+    return (
+      <span className="inline-flex items-center gap-0.5 text-[11px] font-semibold text-emerald-600">
+        <TrendingUp className="h-3 w-3" />
+        New
+      </span>
+    );
+  }
+  if (Math.abs(pct) < 0.1) {
+    return (
+      <span className="inline-flex items-center gap-0.5 text-[11px] text-gray-400">
+        <Minus className="h-3 w-3" />
+        0%
+      </span>
+    );
+  }
+  const positive = pct > 0;
+  const Icon = positive ? TrendingUp : TrendingDown;
+  return (
+    <span
+      className={`inline-flex items-center gap-0.5 text-[11px] font-semibold ${
+        positive ? 'text-emerald-600' : 'text-rose-600'
+      }`}
+    >
+      <Icon className="h-3 w-3" />
+      {positive ? '+' : ''}
+      {Math.abs(pct) >= 1000 ? `${(pct / 100).toFixed(0)}×` : `${pct.toFixed(1)}%`}
+    </span>
+  );
 }
 
 function SearchBox({

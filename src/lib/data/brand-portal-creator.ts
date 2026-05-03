@@ -182,12 +182,14 @@ export async function getBrandCreatorDetail(
       .lte('report_date', priorEndStr)
       .in('tiktok_username', handles)
       .range(0, 9999),
-    // Cumulative-GMV videos via RPC (same as the Videos page)
+    // Per-video aggregates via RPC (same as the Videos page)
     supabase.rpc('brand_portal_videos', {
       p_brand_id: brandUuid,
       p_handles: handles,
       p_start_date: startStr,
       p_end_date: endStr,
+      p_prior_start: priorStartStr,
+      p_prior_end: priorEndStr,
     }),
   ]);
 
@@ -235,15 +237,15 @@ export async function getBrandCreatorDetail(
   });
 
   // Videos
-  // Videos are pre-aggregated by the brand_portal_videos RPC (cumulative GMV).
-  // Already sorted by total_gmv DESC.
+  // Videos are pre-aggregated by the brand_portal_videos RPC.
+  // Sorted by period_gmv DESC. Show period GMV (matches the page concept).
   const videos = ((videoRows.data ?? []) as any[]).map((r) => ({
     videoId: r.video_id,
     title: r.video_title || '(untitled)',
     url: r.video_url || null,
     postDate: r.post_date ? new Date(r.post_date) : null,
-    gmv: Number(r.total_gmv ?? 0),
-    orders: Number(r.total_orders ?? 0),
+    gmv: Number(r.period_gmv ?? 0),
+    orders: Number(r.period_orders ?? 0),
   }));
 
   const periodLabel = `${startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${actualEndDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, ${actualEndDate.getUTCFullYear()}`;

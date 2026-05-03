@@ -2,26 +2,22 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Receipt, FileText, Clock, CheckCircle2, Filter, RefreshCw, Download, Plus, AlertCircle } from 'lucide-react';
+import { Receipt, FileText, Clock, CheckCircle2, Filter, RefreshCw, Download, Plus, AlertCircle, Ban } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { formatCurrency, formatDate } from '@/lib/utils/format';
+import { formatCurrency, formatDate, formatPeriod, currentMonth } from '@/lib/utils/format';
 import { StatCard } from '@/components/dashboard/stat-card';
 import { InvoiceDetailSheet, type Invoice } from './components/invoice-detail-sheet';
 import { NewInvoiceModal } from './components/new-invoice-modal';
 
-type Status = 'all' | 'pending' | 'sent' | 'paid';
+type Status = 'all' | 'pending' | 'sent' | 'paid' | 'void';
 
 const STATUS_TABS: { value: Status; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-  { value: 'all', label: 'All', icon: FileText },
+  { value: 'all',     label: 'All',     icon: FileText },
   { value: 'pending', label: 'Pending', icon: Clock },
-  { value: 'sent', label: 'Sent', icon: Receipt },
-  { value: 'paid', label: 'Paid', icon: CheckCircle2 },
+  { value: 'sent',    label: 'Sent',    icon: Receipt },
+  { value: 'paid',    label: 'Paid',    icon: CheckCircle2 },
+  { value: 'void',    label: 'Void',    icon: Ban },
 ];
-
-function currentMonth(): string {
-  const d = new Date();
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
-}
 
 interface Props {
   /** When set on initial load, auto-open the matching invoice in the detail drawer. */
@@ -77,22 +73,27 @@ export function InvoicingClient({ initialOpenId }: Props) {
     return Array.from(set).sort();
   }, [invoices]);
 
-  // Stats
+  // Stats — all dollar amounts, with counts shown as subtitles for context.
   const stats = useMemo(() => {
-    let outstanding = 0;
-    let paidThisYear = 0;
+    let pendingAmount = 0;
     let pendingCount = 0;
+    let sentAmount = 0;
     let sentCount = 0;
+    let paidThisYearAmount = 0;
+    let paidThisYearCount = 0;
+    let outstandingAmount = 0;
     const yearStart = new Date(new Date().getFullYear(), 0, 1).toISOString();
     for (const inv of invoices) {
-      if (inv.status !== 'paid') outstanding += Number(inv.total_amount);
-      if (inv.status === 'pending') pendingCount += 1;
-      if (inv.status === 'sent') sentCount += 1;
+      const amt = Number(inv.total_amount);
+      if (inv.status === 'pending') { pendingAmount += amt; pendingCount += 1; }
+      if (inv.status === 'sent') { sentAmount += amt; sentCount += 1; }
+      if (inv.status !== 'paid' && inv.status !== 'void') outstandingAmount += amt;
       if (inv.status === 'paid' && inv.paid_at && inv.paid_at >= yearStart) {
-        paidThisYear += Number(inv.total_amount);
+        paidThisYearAmount += amt;
+        paidThisYearCount += 1;
       }
     }
-    return { outstanding, paidThisYear, pendingCount, sentCount };
+    return { outstandingAmount, pendingAmount, pendingCount, sentAmount, sentCount, paidThisYearAmount, paidThisYearCount };
   }, [invoices]);
 
   const handleCreated = useCallback((created: Invoice) => {
@@ -133,12 +134,32 @@ export function InvoicingClient({ initialOpenId }: Props) {
         </button>
       </div>
 
-      {/* Stats row */}
+      {/* Stats row — all $ amounts with counts as context */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard label="Outstanding" value={formatCurrency(stats.outstanding)} accentColor="#FF4D8D" />
-        <StatCard label="Pending" value={String(stats.pendingCount)} accentColor="#F59E0B" />
-        <StatCard label="Sent" value={String(stats.sentCount)} accentColor="#2196F3" />
-        <StatCard label="Paid This Year" value={formatCurrency(stats.paidThisYear)} accentColor="#10B981" />
+        <StatCard
+          label="Outstanding"
+          value={formatCurrency(stats.outstandingAmount)}
+          subValue={`${stats.pendingCount + stats.sentCount} unpaid`}
+          accentColor="#FF4D8D"
+        />
+        <StatCard
+          label="Pending"
+          value={formatCurrency(stats.pendingAmount)}
+          subValue={`${stats.pendingCount} invoice${stats.pendingCount === 1 ? '' : 's'}`}
+          accentColor="#F59E0B"
+        />
+        <StatCard
+          label="Sent"
+          value={formatCurrency(stats.sentAmount)}
+          subValue={`${stats.sentCount} invoice${stats.sentCount === 1 ? '' : 's'}`}
+          accentColor="#2196F3"
+        />
+        <StatCard
+          label="Paid This Year"
+          value={formatCurrency(stats.paidThisYearAmount)}
+          subValue={`${stats.paidThisYearCount} invoice${stats.paidThisYearCount === 1 ? '' : 's'}`}
+          accentColor="#10B981"
+        />
       </div>
 
       {/* Filter bar */}
@@ -275,11 +296,7 @@ export function InvoicingClient({ initialOpenId }: Props) {
 
 // ── Helpers / sub-components ──────────────────────────────────────────
 
-function fmtPeriod(ym: string) {
-  if (!/^\d{4}-\d{2}$/.test(ym)) return ym;
-  const [y, m] = ym.split('-').map(Number);
-  return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' });
-}
+const fmtPeriod = (ym: string) => formatPeriod(ym, { short: true });
 
 function Th({ children, align = 'left' }: { children: React.ReactNode; align?: 'left' | 'right' | 'center' }) {
   return (
@@ -296,9 +313,10 @@ function Th({ children, align = 'left' }: { children: React.ReactNode; align?: '
 
 function StatusBadge({ status }: { status: string }) {
   const config: Record<string, { bg: string; text: string; label: string }> = {
-    pending: { bg: 'bg-amber-50 border-amber-200', text: 'text-amber-700', label: 'Pending' },
-    sent: { bg: 'bg-blue-50 border-blue-200', text: 'text-blue-700', label: 'Sent' },
-    paid: { bg: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700', label: 'Paid' },
+    pending: { bg: 'bg-amber-50 border-amber-200',   text: 'text-amber-700',  label: 'Pending' },
+    sent:    { bg: 'bg-blue-50 border-blue-200',     text: 'text-blue-700',   label: 'Sent' },
+    paid:    { bg: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700', label: 'Paid' },
+    void:    { bg: 'bg-gray-100 border-gray-300',    text: 'text-gray-500',   label: 'Void' },
   };
   const c = config[status] ?? { bg: 'bg-gray-50 border-gray-200', text: 'text-gray-700', label: status };
   return (

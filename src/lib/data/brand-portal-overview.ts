@@ -13,9 +13,15 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-export type BrandPortalPeriod = '7d' | '30d' | 'this_month' | 'last_month';
+export type BrandPortalPeriod =
+  | 'yesterday'
+  | '7d'
+  | '30d'
+  | 'this_month'
+  | 'last_month';
 
 export const PERIOD_LABELS: Record<BrandPortalPeriod, string> = {
+  yesterday: 'Yesterday',
   '7d': 'Last 7 days',
   '30d': 'Last 30 days',
   this_month: 'This month',
@@ -45,14 +51,15 @@ export interface BrandRosterVideo {
   url: string | null;
   creatorHandle: string;
   postDate: Date | null;
-  /** Cumulative (lifetime) GMV across all daily rows for this video. */
-  gmv: number;
-  /** Cumulative (lifetime) orders. */
-  orders: number;
-  /** GMV during the selected period only. */
+  /** GMV during the selected period (the headline number on the page). */
   periodGmv: number;
-  /** Orders during the selected period only. */
   periodOrders: number;
+  /** GMV during the equivalent prior-period window (for change %). */
+  priorGmv: number;
+  priorOrders: number;
+  /** Cumulative (lifetime) GMV — total since the post went live. */
+  lifetimeGmv: number;
+  lifetimeOrders: number;
 }
 
 export interface BrandPortalDashboard {
@@ -130,7 +137,14 @@ export async function getBrandPortalDashboard(
   let priorStart: Date;
   let priorEnd: Date;
 
-  if (period === 'this_month') {
+  if (period === 'yesterday') {
+    // 1-day window = the latest data day. Prior = the day before.
+    startDate = new Date(endDate);
+    periodLengthDays = 1;
+    priorStart = new Date(endDate);
+    priorStart.setUTCDate(endDate.getUTCDate() - 1);
+    priorEnd = new Date(priorStart);
+  } else if (period === 'this_month') {
     startDate = new Date(Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), 1, 12));
     periodLengthDays =
       Math.round((endDate.getTime() - startDate.getTime()) / 86_400_000) + 1;
@@ -235,14 +249,15 @@ export async function getBrandPortalDashboard(
       .lte('report_date', priorEndStr)
       .in('tiktok_username', allHandles)
       .range(0, 9999),
-    // Cumulative GMV per video — uses an RPC to aggregate at the DB layer
-    // (otherwise we'd have to pull 10k+ raw rows). Returns videos with at
-    // least one report row in the period; total_gmv is lifetime.
+    // Per-video aggregates via RPC — returns period_gmv (headline),
+    // prior_gmv (for change %), and total_gmv (lifetime).
     supabase.rpc('brand_portal_videos', {
       p_brand_id: brandUuid,
       p_handles: allHandles,
       p_start_date: startStr,
       p_end_date: endStr,
+      p_prior_start: priorStartStr,
+      p_prior_end: priorEndStr,
     }),
     // Trailing 30-day GMV per handle (for ROI column on creator roster).
     supabase
@@ -322,19 +337,20 @@ export async function getBrandPortalDashboard(
     return { priorDate, gmv };
   });
 
-  // Videos — pre-aggregated by the brand_portal_videos RPC. Each row is
-  // already a single video with cumulative + period GMV. No cap — the
-  // page paginates client-side.
+  // Videos — pre-aggregated by the brand_portal_videos RPC. Already
+  // sorted by period_gmv DESC. No cap — the page paginates client-side.
   const videos: BrandRosterVideo[] = ((videoRows.data ?? []) as any[]).map((r) => ({
     videoId: r.video_id,
     title: r.video_title || '(untitled)',
     url: r.video_url || null,
     creatorHandle: normHandle(r.tiktok_username),
     postDate: r.post_date ? new Date(r.post_date) : null,
-    gmv: Number(r.total_gmv ?? 0),
-    orders: Number(r.total_orders ?? 0),
     periodGmv: Number(r.period_gmv ?? 0),
     periodOrders: Number(r.period_orders ?? 0),
+    priorGmv: Number(r.prior_gmv ?? 0),
+    priorOrders: Number(r.prior_orders ?? 0),
+    lifetimeGmv: Number(r.total_gmv ?? 0),
+    lifetimeOrders: Number(r.total_orders ?? 0),
   }));
 
   // ── 4. Build the final creator rows

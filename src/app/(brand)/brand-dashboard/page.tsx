@@ -26,6 +26,7 @@ export default async function BrandOverview({ searchParams }: PageProps) {
   const params = await searchParams;
   const period: BrandPortalPeriod = (() => {
     switch (params.period) {
+      case 'yesterday':
       case '30d':
       case 'this_month':
       case 'last_month':
@@ -155,11 +156,11 @@ export default async function BrandOverview({ searchParams }: PageProps) {
           </div>
         </Card>
 
-        {/* Top posts (compact) — already sorted by GMV desc by the RPC */}
+        {/* Top posts (compact) — sorted by period GMV desc by the RPC */}
         <Card>
           <CardHeaderWithLink
             title="Top posts"
-            subtitle="Highest-grossing posts this period (lifetime GMV)"
+            subtitle="Highest-grossing posts in this period"
             href={`/brand-dashboard/videos?period=${period}`}
             linkLabel="View all"
           />
@@ -196,7 +197,7 @@ export default async function BrandOverview({ searchParams }: PageProps) {
                     className="text-sm font-semibold tabular-nums shrink-0"
                     style={{ color: accent }}
                   >
-                    {fmtCurrency(v.gmv)}
+                    {fmtCurrency(v.periodGmv)}
                   </p>
                   <ExternalLink className="h-4 w-4 text-gray-300 shrink-0" />
                 </a>
@@ -263,6 +264,7 @@ function EmptyRow({ text }: { text: string }) {
 // ── Helpers ──
 
 const PERIOD_SHORT: Record<BrandPortalPeriod, string> = {
+  yesterday: 'yesterday',
   '7d': 'last 7 days',
   '30d': 'last 30 days',
   this_month: 'this month',
@@ -271,6 +273,8 @@ const PERIOD_SHORT: Record<BrandPortalPeriod, string> = {
 
 function priorLabel(period: BrandPortalPeriod): string {
   switch (period) {
+    case 'yesterday':
+      return 'the day before';
     case '7d':
       return 'the prior 7 days';
     case '30d':

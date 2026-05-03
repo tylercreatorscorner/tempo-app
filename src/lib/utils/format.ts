@@ -43,6 +43,36 @@ export function toISODate(date: Date): string {
   return format(date, 'yyyy-MM-dd');
 }
 
+/** Current month as "YYYY-MM" in UTC. Used as the default month for earnings/invoicing surfaces. */
+export function currentMonth(): string {
+  const d = new Date();
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
+/** Format a "YYYY-MM" string as a friendly month-year label, e.g. "April 2026". */
+export function formatPeriod(ym: string, opts: { short?: boolean } = {}): string {
+  if (!/^\d{4}-\d{2}$/.test(ym)) return ym;
+  const [y, m] = ym.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString('en-US', {
+    month: opts.short ? 'short' : 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+}
+
+/** Build a list of recent month options for selectors: current + N prior months. */
+export function buildMonthOptions(count = 13): { value: string; label: string }[] {
+  const opts: { value: string; label: string }[] = [];
+  const now = new Date();
+  for (let i = 0; i < count; i++) {
+    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
+    const value = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+    const label = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+    opts.push({ value, label });
+  }
+  return opts;
+}
+
 /** Get a date range from a preset */
 export function getDateRange(preset: DateRangePreset): DateRange {
   const now = new Date();

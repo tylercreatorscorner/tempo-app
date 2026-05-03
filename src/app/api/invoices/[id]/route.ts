@@ -19,7 +19,7 @@ const STRING_OR_NULL_FIELDS = new Set([
   'notes', 'due_date', 'bill_to_name', 'bill_to_email', 'bill_to_address', 'payment_instructions',
 ]);
 const STATUS_FIELD = 'status';
-const STATUSES = new Set(['pending', 'sent', 'paid']);
+const STATUSES = new Set(['pending', 'sent', 'paid', 'void']);
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const profile = await requireAdmin();

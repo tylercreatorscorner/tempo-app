@@ -23,6 +23,7 @@ export default async function BrandCreatorDetailPage({ params, searchParams }: P
 
   const period: BrandPortalPeriod = (() => {
     switch (sp.period) {
+      case 'yesterday':
       case '30d':
       case 'this_month':
       case 'last_month':

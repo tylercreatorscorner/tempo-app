@@ -14,11 +14,11 @@
  * UX has been removed in favor of the dedicated edit panel.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, Fragment } from 'react';
 import { useRouter } from 'next/navigation';
-import { ChevronDown, RefreshCw, Pencil, ArrowUp, ArrowDown, Receipt, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, RefreshCw, Pencil, ArrowUp, ArrowDown, Receipt, Loader2, AlertCircle, CheckCircle2, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { formatCurrency } from '@/lib/utils/format';
+import { formatCurrency, buildMonthOptions } from '@/lib/utils/format';
 import { StatCard } from '@/components/dashboard/stat-card';
 import { EarningsTrendChart, type SeriesPoint } from './components/earnings-trend-chart';
 import { BrandRevenueChart } from './components/brand-revenue-chart';
@@ -53,6 +53,7 @@ interface BrandRow {
   paymentInstructions: string | null;
   compensationModel: CompensationModel;
   revshareMaxOutcome: { winner: 'retainer' | 'commission'; activeAmount: number; comparison: number } | null;
+  creators: Array<{ name: string; gmv: number; rate: number; commission: number }>;
 }
 
 interface EarningsResponse {
@@ -76,21 +77,9 @@ interface EarningsResponse {
 type SortKey =
   | 'brandLabel' | 'totalGmv' | 'rate' | 'commission' | 'retainer' | 'launchFee' | 'total';
 
-function buildMonthOptions(): { value: string; label: string }[] {
-  const opts: { value: string; label: string }[] = [];
-  const now = new Date();
-  for (let i = 0; i < 13; i++) {
-    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
-    const value = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
-    const label = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
-    opts.push({ value, label });
-  }
-  return opts;
-}
-
 export function EarningsClient({ initialMonth }: { initialMonth: string }) {
   const router = useRouter();
-  const monthOptions = useMemo(buildMonthOptions, []);
+  const monthOptions = useMemo(() => buildMonthOptions(13), []);
   const [month, setMonth] = useState(initialMonth);
   const [data, setData] = useState<EarningsResponse | null>(null);
   const [series, setSeries] = useState<SeriesPoint[] | null>(null);
@@ -429,6 +418,13 @@ function BrandTable({
   generatingBrand: string | null;
   totals: EarningsResponse['totals'] | null;
 }) {
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const toggle = (brand: string) => setExpanded((prev) => {
+    const next = new Set(prev);
+    if (next.has(brand)) next.delete(brand); else next.add(brand);
+    return next;
+  });
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
@@ -445,16 +441,25 @@ function BrandTable({
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => (
+          {rows.map((row) => {
+            const isExpanded = expanded.has(row.brand);
+            return (
+            <Fragment key={row.brand}>
             <tr
-              key={row.brand}
               className="border-b border-gray-50 hover:bg-[#FFF0F5]/40 cursor-pointer transition-colors group"
-              onClick={() => onEdit(row)}
+              onClick={() => toggle(row.brand)}
             >
               <td className="px-4 py-3">
                 <div className="flex items-center gap-2">
+                  <ChevronRight className={cn('h-3.5 w-3.5 text-gray-300 transition-transform', isExpanded && 'rotate-90 text-[#FF4D8D]')} />
                   <span className="font-semibold text-[#1A1B3A]">{row.brandLabel}</span>
                   <ModelBadge model={row.compensationModel} outcome={row.revshareMaxOutcome} />
+                  {row.creators.length > 0 && (
+                    <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-gray-400" title={`${row.creators.length} managed creators contributed to this brand`}>
+                      <Users className="h-3 w-3" />
+                      {row.creators.length}
+                    </span>
+                  )}
                 </div>
               </td>
               <td className="px-4 py-3 text-right tabular-nums">
@@ -522,7 +527,16 @@ function BrandTable({
                 </div>
               </td>
             </tr>
-          ))}
+            {isExpanded && (
+              <tr className="bg-gray-50/40 border-b border-gray-100">
+                <td colSpan={8} className="px-4 py-4">
+                  <CreatorBreakdownPanel row={row} />
+                </td>
+              </tr>
+            )}
+            </Fragment>
+          );
+          })}
         </tbody>
         {totals && (
           <tfoot>
@@ -566,6 +580,73 @@ function SortHeader({ k, label, align, sortKey, sortDir, onSort }: {
         {active && (sortDir === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
       </span>
     </th>
+  );
+}
+
+function CreatorBreakdownPanel({ row }: { row: BrandRow }) {
+  if (row.creators.length === 0) {
+    return (
+      <div className="text-xs text-gray-400 text-center py-4">
+        No managed creators contributed GMV to this brand for this month.
+      </div>
+    );
+  }
+  const top = row.creators.slice(0, 25);
+  const remaining = row.creators.length - top.length;
+  const remainingGmv = row.creators.slice(25).reduce((s, c) => s + c.gmv, 0);
+  const remainingCommission = row.creators.slice(25).reduce((s, c) => s + c.commission, 0);
+
+  return (
+    <div className="rounded-xl bg-white border border-gray-100 overflow-hidden">
+      <div className="px-4 py-2.5 flex items-baseline justify-between border-b border-gray-100 bg-gray-50/40">
+        <h4 className="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-500">
+          Creator Breakdown
+        </h4>
+        <span className="text-[11px] text-gray-400">
+          {row.creators.length} creator{row.creators.length === 1 ? '' : 's'} · {formatCurrency(row.affiliateGmv)} affiliate GMV
+        </span>
+      </div>
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="border-b border-gray-100">
+            <th className="px-4 py-2 text-left text-[9px] font-bold uppercase tracking-wider text-gray-400">Creator</th>
+            <th className="px-4 py-2 text-right text-[9px] font-bold uppercase tracking-wider text-gray-400">GMV</th>
+            <th className="px-4 py-2 text-right text-[9px] font-bold uppercase tracking-wider text-gray-400">Rate</th>
+            <th className="px-4 py-2 text-right text-[9px] font-bold uppercase tracking-wider text-gray-400">Commission</th>
+          </tr>
+        </thead>
+        <tbody>
+          {top.map((c, i) => {
+            const isOverride = Math.abs(c.rate - row.rate) > 0.01;
+            return (
+              <tr key={`${c.name}-${i}`} className="border-b border-gray-50 last:border-0">
+                <td className="px-4 py-1.5 font-medium text-[#1A1B3A]">
+                  {c.name.startsWith('@') ? c.name : `@${c.name}`}
+                </td>
+                <td className="px-4 py-1.5 text-right tabular-nums text-gray-600">{formatCurrency(c.gmv)}</td>
+                <td className="px-4 py-1.5 text-right tabular-nums">
+                  <span className={cn(isOverride ? 'text-[#FF4D8D] font-semibold' : 'text-gray-500')}>
+                    {c.rate.toFixed(2)}%
+                  </span>
+                  {isOverride && <span className="ml-1 text-[9px] text-[#FF4D8D]" title="Per-creator rate override">*</span>}
+                </td>
+                <td className="px-4 py-1.5 text-right tabular-nums text-emerald-600 font-semibold">{formatCurrency(c.commission)}</td>
+              </tr>
+            );
+          })}
+          {remaining > 0 && (
+            <tr className="border-b border-gray-50 last:border-0 bg-gray-50/30">
+              <td className="px-4 py-1.5 italic text-gray-500">
+                + {remaining} more creator{remaining === 1 ? '' : 's'}
+              </td>
+              <td className="px-4 py-1.5 text-right tabular-nums text-gray-500">{formatCurrency(remainingGmv)}</td>
+              <td className="px-4 py-1.5" />
+              <td className="px-4 py-1.5 text-right tabular-nums text-gray-500">{formatCurrency(remainingCommission)}</td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
   );
 }
 

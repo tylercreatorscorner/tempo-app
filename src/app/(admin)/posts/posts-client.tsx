@@ -182,15 +182,12 @@ export function PostsClient({
 
   function handleRowClick(p: PostRow) {
     if (!p.video_id) return;
-    openVideo({
-      video_id: p.video_id,
-      video_title: p.video_title,
-      creator_name: p.creator_handle,
-      brand: p.brand_slug,
-      gmv: p.gmv,
-      orders: p.orders,
-      items_sold: p.items_sold,
-    });
+    // Navigate to the per-post review page (with brand context).
+    // The `openVideo` panel is still imported and could be wired to a small
+    // inline preview button later if useful — for now, clicking a row goes
+    // straight to the review page where reviews + KPIs live together.
+    void openVideo;
+    router.push(`/posts/${encodeURIComponent(p.video_id)}?brand=${encodeURIComponent(p.brand_slug)}`);
   }
 
   return (
@@ -211,7 +208,7 @@ export function PostsClient({
             >
               {managedOnly ? 'managed creators' : 'all creators (managed + organic)'}
             </button>
-            {' '}— click any row to open the video.
+            {' '}— click any row to open the review page (rate + leave notes).
           </p>
         </div>
         <DateRangePicker />
