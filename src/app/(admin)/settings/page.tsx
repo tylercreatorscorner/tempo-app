@@ -6,6 +6,7 @@ import { User, Building2, Database, Bell, Key, Shield } from 'lucide-react';
 import { TikTokConnect } from '@/components/onboarding/tiktok-connect';
 import { PlanSelector } from '@/components/onboarding/plan-selector';
 import { UserManagement } from '@/components/settings/user-management';
+import { CreatorInvitesSection } from '@/components/settings/creator-invites-section';
 import { BRAND_COLORS } from '@/lib/utils/constants';
 
 export default async function SettingsPage() {
@@ -220,6 +221,14 @@ export default async function SettingsPage() {
           brands={brands}
           tenantId={profile.tenant_id}
           currentUserId={user?.id ?? ''}
+        />
+      )}
+
+      {/* Creator Invites — admin only. Generates per-brand /join/[code] links. */}
+      {(profile?.role === 'owner' || profile?.role === 'admin') && profile?.tenant_id && (
+        <CreatorInvitesSection
+          tenantId={profile.tenant_id}
+          brands={brands.map(b => ({ slug: b.slug, name: b.name, display_name: b.display_name }))}
         />
       )}
 
