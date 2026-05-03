@@ -17,6 +17,7 @@ import { format, subDays, differenceInDays } from 'date-fns';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { BrandTabs } from './brand-tabs';
+import { AmNoteEditor } from './am-note-editor';
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -48,13 +49,33 @@ export default async function BrandDetailPage({ params, searchParams }: Props) {
   const prevStartDate = format(prevStart, 'yyyy-MM-dd');
   const prevEndDate = format(prevEnd, 'yyyy-MM-dd');
 
-  const [summaryArr, prevSummaryArr, creators, products, trendData] = await Promise.all([
+  const [summaryArr, prevSummaryArr, creators, products, trendData, settingsRes] = await Promise.all([
     getBrandSummary(slug, startDate, endDate).catch(() => []),
     getBrandSummary(slug, prevStartDate, prevEndDate).catch(() => []),
     getCreatorRankings(slug, startDate, endDate, 50).catch(() => []),
     getProductSummary(slug, startDate, endDate, 50).catch(() => []),
     getDailyTrend(slug, startDate, endDate).catch(() => []),
+    supabase
+      .from('brand_settings')
+      .select('brand_overview_note, brand_overview_note_updated_at, brand_overview_note_updated_by')
+      .eq('brand', slug)
+      .maybeSingle(),
   ]);
+
+  const noteRow = settingsRes.data as {
+    brand_overview_note: string | null;
+    brand_overview_note_updated_at: string | null;
+    brand_overview_note_updated_by: string | null;
+  } | null;
+  let noteAuthor: string | null = null;
+  if (noteRow?.brand_overview_note_updated_by) {
+    const { data: author } = await supabase
+      .from('user_profiles')
+      .select('name')
+      .eq('user_id', noteRow.brand_overview_note_updated_by)
+      .maybeSingle();
+    noteAuthor = author?.name ?? null;
+  }
 
   const summary = summaryArr[0] ?? null;
   const prevSummary = prevSummaryArr[0] ?? null;
@@ -113,9 +134,17 @@ export default async function BrandDetailPage({ params, searchParams }: Props) {
           inside each brand's drill-down where it has the most context. */}
       <BrandTabs
         overview={
-          <div className="rounded-xl border border-border bg-card p-6">
-            <h3 className="text-lg font-semibold mb-4">GMV Trend</h3>
-            <GmvTrendChart data={chartData} brands={[slug]} />
+          <div className="space-y-6">
+            <AmNoteEditor
+              brandSlug={slug}
+              initialNote={noteRow?.brand_overview_note ?? ''}
+              initialUpdatedAt={noteRow?.brand_overview_note_updated_at ?? null}
+              initialAuthorName={noteAuthor}
+            />
+            <div className="rounded-xl border border-border bg-card p-6">
+              <h3 className="text-lg font-semibold mb-4">GMV Trend</h3>
+              <GmvTrendChart data={chartData} brands={[slug]} />
+            </div>
           </div>
         }
         creators={<CreatorTable creators={await aggregateCreatorsByRealName(creators)} />}

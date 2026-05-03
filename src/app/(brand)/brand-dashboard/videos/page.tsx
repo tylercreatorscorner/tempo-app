@@ -15,7 +15,7 @@ export const dynamic = 'force-dynamic';
 
 const PAGE_SIZE = 50;
 
-type SortColumn = 'title' | 'creator' | 'date' | 'gmv' | 'orders' | 'lifetime_gmv' | 'change';
+type SortColumn = 'title' | 'creator' | 'date' | 'gmv' | 'orders' | 'lifetime_gmv' | 'change' | 'views';
 
 interface PageProps {
   searchParams: Promise<{
@@ -51,6 +51,7 @@ export default async function BrandVideosPage({ searchParams }: PageProps) {
       case 'orders':
       case 'lifetime_gmv':
       case 'change':
+      case 'views':
         return params.sort;
       default:
         return 'gmv';
@@ -169,6 +170,14 @@ export default async function BrandVideosPage({ searchParams }: PageProps) {
                       className="hidden md:table-cell"
                     />
                     <SortableHeader
+                      label="Views"
+                      column="views"
+                      activeColumn={sortColumn}
+                      activeDir={sortDir}
+                      buildHref={(c, d) => buildHref({ sort: c, dir: d })}
+                      align="right"
+                    />
+                    <SortableHeader
                       label="GMV (period)"
                       column="gmv"
                       activeColumn={sortColumn}
@@ -237,6 +246,9 @@ export default async function BrandVideosPage({ searchParams }: PageProps) {
                         </td>
                         <td className="px-3 py-2.5 hidden md:table-cell text-gray-500 text-xs">
                           {v.postDate ? fmtDate(v.postDate) : '—'}
+                        </td>
+                        <td className="text-right px-3 py-2.5 tabular-nums text-gray-700">
+                          {v.impressions > 0 ? fmtCompact(v.impressions) : <span className="text-gray-300">—</span>}
                         </td>
                         <td className="text-right px-3 py-2.5 tabular-nums font-medium">
                           {fmtCurrency(v.periodGmv)}
@@ -334,6 +346,8 @@ function sortValue(
       return v.lifetimeGmv;
     case 'change':
       return changePctOf(v.periodGmv, v.priorGmv) ?? -Infinity;
+    case 'views':
+      return v.impressions;
   }
 }
 
@@ -403,6 +417,12 @@ function fmtCurrency(n: number): string {
 }
 
 function fmtNumber(n: number): string {
+  return n.toLocaleString('en-US');
+}
+
+function fmtCompact(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
   return n.toLocaleString('en-US');
 }
 

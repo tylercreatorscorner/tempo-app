@@ -60,6 +60,10 @@ export interface BrandRosterVideo {
   /** Cumulative (lifetime) GMV — total since the post went live. */
   lifetimeGmv: number;
   lifetimeOrders: number;
+  /** Lifetime engagement (no daily breakdown available). */
+  impressions: number;
+  likes: number;
+  comments: number;
 }
 
 export interface BrandPortalDashboard {
@@ -72,6 +76,8 @@ export interface BrandPortalDashboard {
   periodLengthDays: number;
 
   managedCount: number;
+  /** Sum of monthly retainer across all active managed creators on this brand. */
+  monthlyRetainerTotal: number;
   totalGmv: number;
   totalPosts: number;
 
@@ -82,6 +88,54 @@ export interface BrandPortalDashboard {
 
   /** Daily series for the *current* period — has entries only for days
    * with data (not zero-filled). Use `priorPoints` for prior comparison. */
+  /** Highlights for "what changed" callouts on the Overview. Each may be null
+   * if there's not enough data to derive a meaningful highlight. */
+  highlights: {
+    peakDay: { date: Date; gmv: number } | null;
+    topCreator: { handle: string; realName: string | null; gmv: number; posts: number } | null;
+    topViralPost: { videoId: string; title: string; url: string | null; creatorHandle: string; impressions: number } | null;
+  };
+  /** Engagement metrics — views/likes/comments for videos POSTED in the period. */
+  engagement: {
+    posts: number;
+    impressions: number;
+    likes: number;
+    comments: number;
+    /** (likes + comments) / impressions, as a percentage. */
+    engagementRate: number;
+    priorImpressions: number;
+    priorEngagementRate: number;
+    impressionsChangePct: number | null;
+  };
+  /** Account-manager note to surface on the Overview, if set. */
+  amNote: {
+    text: string;
+    updatedAt: Date | null;
+    authorName: string | null;
+    authorEmail: string | null;
+  } | null;
+  /** Goal progress for the current calendar month — null if no goal set. */
+  goalProgress: {
+    monthlyGoal: number;
+    mtdGmv: number;
+    pctOfGoal: number;
+    /** Linear projection of EOM GMV based on pace so far. */
+    projectedEomGmv: number;
+    projectedPctOfGoal: number;
+    daysElapsed: number;
+    daysInMonth: number;
+  } | null;
+  /** Managed vs organic split for the period — managed = your roster's
+   * contribution, organic = everyone else selling the brand's products. */
+  split: {
+    managedGmv: number;
+    organicGmv: number;
+    totalGmv: number;
+    managedPosts: number;
+    organicPosts: number;
+    totalPosts: number;
+    managedPctOfGmv: number;
+  };
   dailyPerformance: { date: Date; gmv: number; posts: number }[];
   /** Prior-period daily GMV, parallel to dailyPerformance.
    * `gmv` is null when that prior day has no data row (gap). */
@@ -232,7 +286,7 @@ export async function getBrandPortalDashboard(
   const trailing30StartStr = fmt(trailing30Start);
   const trailing30EndStr = fmt(endDate);
 
-  const [statsCur, statsPrev, videoRows, stats30d] = await Promise.all([
+  const [statsCur, statsPrev, videoRows, stats30d, brandTotals, settingsRow, mtdRow, engagementRows] = await Promise.all([
     supabase
       .from('daily_creator_stats')
       .select('tiktok_username, gmv, orders, videos, report_date')
@@ -268,6 +322,39 @@ export async function getBrandPortalDashboard(
       .lte('report_date', trailing30EndStr)
       .in('tiktok_username', allHandles)
       .range(0, 9999),
+    // Brand-wide totals (managed + organic) for the split panel
+    supabase.rpc('brand_total_period_gmv', {
+      p_brand_id: brandUuid,
+      p_start_date: startStr,
+      p_end_date: endStr,
+    }),
+    // Brand settings — AM note + monthly GMV goal
+    supabase
+      .from('brand_settings')
+      .select(
+        'monthly_gmv_goal, brand_overview_note, brand_overview_note_updated_at, brand_overview_note_updated_by',
+      )
+      .eq('brand', brandSlug)
+      .maybeSingle(),
+    // Month-to-date brand-wide GMV (calendar month, regardless of selected period)
+    (async () => {
+      const monthStart = new Date(Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), 1, 12));
+      return supabase.rpc('brand_total_period_gmv', {
+        p_brand_id: brandUuid,
+        p_start_date: fmt(monthStart),
+        p_end_date: fmt(endDate),
+      });
+    })(),
+    // Engagement metrics — videos table by managed creator handles.
+    // Pull a wide window so we can compute both current and prior period totals.
+    supabase
+      .from('videos')
+      .select('video_id, post_date, impressions, likes, comments')
+      .eq('brand', brandSlug)
+      .gte('post_date', priorStartStr)
+      .lte('post_date', endStr)
+      .in('creator_name', allHandles)
+      .range(0, 19999),
   ]);
 
   // ── 3. Aggregate per-managed-creator stats
@@ -337,21 +424,155 @@ export async function getBrandPortalDashboard(
     return { priorDate, gmv };
   });
 
+  // ── Brand settings: AM note + monthly goal ──
+  const settings = (settingsRow.data ?? null) as {
+    monthly_gmv_goal: number | string | null;
+    brand_overview_note: string | null;
+    brand_overview_note_updated_at: string | null;
+    brand_overview_note_updated_by: string | null;
+  } | null;
+
+  let amNote: BrandPortalDashboard['amNote'] = null;
+  if (settings?.brand_overview_note?.trim()) {
+    let authorName: string | null = null;
+    let authorEmail: string | null = null;
+    if (settings.brand_overview_note_updated_by) {
+      const { data: author } = await supabase
+        .from('user_profiles')
+        .select('name, email')
+        .eq('user_id', settings.brand_overview_note_updated_by)
+        .maybeSingle();
+      authorName = author?.name ?? null;
+      authorEmail = author?.email ?? null;
+    }
+    amNote = {
+      text: settings.brand_overview_note.trim(),
+      updatedAt: settings.brand_overview_note_updated_at
+        ? new Date(settings.brand_overview_note_updated_at)
+        : null,
+      authorName,
+      authorEmail,
+    };
+  }
+
+  // Goal progress — only when a positive monthly_gmv_goal is set on brand_settings.
+  let goalProgress: BrandPortalDashboard['goalProgress'] = null;
+  const monthlyGoal = Number(settings?.monthly_gmv_goal ?? 0);
+  if (monthlyGoal > 0) {
+    const mtdGmvRaw = (mtdRow.data ?? [])[0] as { total_gmv?: number | string } | undefined;
+    const mtdGmv = Number(mtdGmvRaw?.total_gmv ?? 0);
+    const monthStart = new Date(Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), 1, 12));
+    const monthEnd = new Date(Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth() + 1, 0, 12));
+    const daysElapsed = Math.round((endDate.getTime() - monthStart.getTime()) / 86_400_000) + 1;
+    const daysInMonth = Math.round((monthEnd.getTime() - monthStart.getTime()) / 86_400_000) + 1;
+    const projectedEomGmv = daysElapsed > 0 ? (mtdGmv / daysElapsed) * daysInMonth : 0;
+    goalProgress = {
+      monthlyGoal,
+      mtdGmv,
+      pctOfGoal: (mtdGmv / monthlyGoal) * 100,
+      projectedEomGmv,
+      projectedPctOfGoal: (projectedEomGmv / monthlyGoal) * 100,
+      daysElapsed,
+      daysInMonth,
+    };
+  }
+
+  // ── Engagement aggregates (current vs prior period) ──
+  type EngRow = {
+    video_id: string;
+    post_date: string | null;
+    impressions: number | null;
+    likes: number | null;
+    comments: number | null;
+  };
+  const engRows = (engagementRows.data ?? []) as EngRow[];
+  let curImpressions = 0,
+    curLikes = 0,
+    curComments = 0,
+    curPosts = 0;
+  let priorImpressions = 0,
+    priorLikes = 0,
+    priorComments = 0,
+    priorPostsCount = 0;
+  for (const r of engRows) {
+    if (!r.post_date) continue;
+    const imp = Number(r.impressions ?? 0);
+    const lk = Number(r.likes ?? 0);
+    const cm = Number(r.comments ?? 0);
+    if (r.post_date >= startStr && r.post_date <= endStr) {
+      curImpressions += imp;
+      curLikes += lk;
+      curComments += cm;
+      curPosts += 1;
+    } else if (r.post_date >= priorStartStr && r.post_date <= priorEndStr) {
+      priorImpressions += imp;
+      priorLikes += lk;
+      priorComments += cm;
+      priorPostsCount += 1;
+    }
+  }
+  const engagement = {
+    posts: curPosts,
+    impressions: curImpressions,
+    likes: curLikes,
+    comments: curComments,
+    engagementRate:
+      curImpressions > 0 ? ((curLikes + curComments) / curImpressions) * 100 : 0,
+    priorImpressions,
+    priorEngagementRate:
+      priorImpressions > 0
+        ? ((priorLikes + priorComments) / priorImpressions) * 100
+        : 0,
+    impressionsChangePct: pctChange(curImpressions, priorImpressions),
+  };
+  // Per-video engagement lookup (for the Videos page enrichment, separate task)
+  const engagementByVideoId = new Map<string, { impressions: number; likes: number; comments: number }>();
+  for (const r of engRows) {
+    engagementByVideoId.set(r.video_id, {
+      impressions: Number(r.impressions ?? 0),
+      likes: Number(r.likes ?? 0),
+      comments: Number(r.comments ?? 0),
+    });
+  }
+
+  // Managed vs organic split — total brand sales minus managed contribution.
+  const brandTotalRow = (brandTotals.data ?? [])[0] as any;
+  const brandWideGmv = Number(brandTotalRow?.total_gmv ?? 0);
+  const brandWidePosts = Number(brandTotalRow?.total_posts ?? 0);
+  const organicGmv = Math.max(0, brandWideGmv - totalGmv);
+  const organicPosts = Math.max(0, brandWidePosts - totalPosts);
+  const split = {
+    managedGmv: totalGmv,
+    organicGmv,
+    totalGmv: brandWideGmv,
+    managedPosts: totalPosts,
+    organicPosts,
+    totalPosts: brandWidePosts,
+    managedPctOfGmv: brandWideGmv > 0 ? (totalGmv / brandWideGmv) * 100 : 0,
+  };
+
   // Videos — pre-aggregated by the brand_portal_videos RPC. Already
   // sorted by period_gmv DESC. No cap — the page paginates client-side.
-  const videos: BrandRosterVideo[] = ((videoRows.data ?? []) as any[]).map((r) => ({
-    videoId: r.video_id,
-    title: r.video_title || '(untitled)',
-    url: r.video_url || null,
-    creatorHandle: normHandle(r.tiktok_username),
-    postDate: r.post_date ? new Date(r.post_date) : null,
-    periodGmv: Number(r.period_gmv ?? 0),
-    periodOrders: Number(r.period_orders ?? 0),
-    priorGmv: Number(r.prior_gmv ?? 0),
-    priorOrders: Number(r.prior_orders ?? 0),
-    lifetimeGmv: Number(r.total_gmv ?? 0),
-    lifetimeOrders: Number(r.total_orders ?? 0),
-  }));
+  // Enriched with engagement totals from the videos table where matched.
+  const videos: BrandRosterVideo[] = ((videoRows.data ?? []) as any[]).map((r) => {
+    const eng = engagementByVideoId.get(r.video_id);
+    return {
+      videoId: r.video_id,
+      title: r.video_title || '(untitled)',
+      url: r.video_url || null,
+      creatorHandle: normHandle(r.tiktok_username),
+      postDate: r.post_date ? new Date(r.post_date) : null,
+      periodGmv: Number(r.period_gmv ?? 0),
+      periodOrders: Number(r.period_orders ?? 0),
+      priorGmv: Number(r.prior_gmv ?? 0),
+      priorOrders: Number(r.prior_orders ?? 0),
+      lifetimeGmv: Number(r.total_gmv ?? 0),
+      lifetimeOrders: Number(r.total_orders ?? 0),
+      impressions: eng?.impressions ?? 0,
+      likes: eng?.likes ?? 0,
+      comments: eng?.comments ?? 0,
+    };
+  });
 
   // ── 4. Build the final creator rows
   const creators: BrandRosterCreator[] = roster
@@ -374,6 +595,35 @@ export async function getBrandPortalDashboard(
     })
     .sort((a, b) => b.gmv - a.gmv);
 
+  // ── Highlights for "what changed" callouts ──
+  const peakDayEntry = dailyPerformance.reduce<{ date: Date; gmv: number } | null>(
+    (best, d) => (best === null || d.gmv > best.gmv ? { date: d.date, gmv: d.gmv } : best),
+    null,
+  );
+  const topCreator = creators.length > 0 && creators[0].gmv > 0
+    ? {
+        handle: creators[0].primaryHandle,
+        realName: creators[0].realName,
+        gmv: creators[0].gmv,
+        posts: creators[0].posts,
+      }
+    : null;
+  const topViralEntry = videos.reduce<typeof videos[number] | null>(
+    (best, v) => (best === null || v.impressions > best.impressions ? v : best),
+    null,
+  );
+  const topViralPost =
+    topViralEntry && topViralEntry.impressions > 0
+      ? {
+          videoId: topViralEntry.videoId,
+          title: topViralEntry.title,
+          url: topViralEntry.url,
+          creatorHandle: topViralEntry.creatorHandle,
+          impressions: topViralEntry.impressions,
+        }
+      : null;
+  const highlights = { peakDay: peakDayEntry, topCreator, topViralPost };
+
   const periodLabel = `${startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${actualEndDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, ${actualEndDate.getUTCFullYear()}`;
 
   return {
@@ -385,6 +635,7 @@ export async function getBrandPortalDashboard(
     periodLengthDays,
 
     managedCount: roster.length,
+    monthlyRetainerTotal: roster.reduce((s, r) => s + (r.retainer ?? 0), 0),
     totalGmv,
     totalPosts,
 
@@ -393,6 +644,11 @@ export async function getBrandPortalDashboard(
     gmvChangePct: pctChange(totalGmv, priorTotalGmv),
     postsChangePct: pctChange(totalPosts, priorTotalPosts),
 
+    highlights,
+    engagement,
+    amNote,
+    goalProgress,
+    split,
     dailyPerformance,
     priorPoints,
     creators,
@@ -416,12 +672,35 @@ function emptyDashboard(
     periodLabel,
     periodLengthDays,
     managedCount: 0,
+    monthlyRetainerTotal: 0,
     totalGmv: 0,
     totalPosts: 0,
     priorTotalGmv: 0,
     priorTotalPosts: 0,
     gmvChangePct: null,
     postsChangePct: null,
+    highlights: { peakDay: null, topCreator: null, topViralPost: null },
+    engagement: {
+      posts: 0,
+      impressions: 0,
+      likes: 0,
+      comments: 0,
+      engagementRate: 0,
+      priorImpressions: 0,
+      priorEngagementRate: 0,
+      impressionsChangePct: null,
+    },
+    amNote: null,
+    goalProgress: null,
+    split: {
+      managedGmv: 0,
+      organicGmv: 0,
+      totalGmv: 0,
+      managedPosts: 0,
+      organicPosts: 0,
+      totalPosts: 0,
+      managedPctOfGmv: 0,
+    },
     dailyPerformance: [],
     priorPoints: [],
     creators: [],
