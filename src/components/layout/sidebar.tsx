@@ -4,11 +4,13 @@ import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import {
   LayoutDashboard, BarChart3, UserCheck, CreditCard,
-  Mail, Compass, FileBarChart, Store, Upload, Package, Calculator, Receipt, PlaySquare,
+  Mail, Compass, FileBarChart, Upload, Calculator, Receipt, PlaySquare,
+  Settings as SettingsIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TempoLogo } from '@/components/ui/tempo-logo';
 import { BrandSwitcher } from '@/components/layout/brand-switcher';
+import { SystemStatusFooter } from '@/components/layout/system-status-footer';
 
 interface NavItem {
   href: string;
@@ -23,39 +25,47 @@ interface NavSection {
   adminOnly?: boolean;
 }
 
-const MAIN_SECTION: NavSection = {
+// Option A nav structure (entity-based). Standard SaaS pattern — each
+// section corresponds to a domain object the user thinks about.
+//
+// HOME    → Dashboard (today's snapshot)
+// CREATORS → roster, messages, discover
+// CONTENT → posts (with reviews), reporting (output)
+// INSIGHTS → analytics
+// FINANCE  → earnings, invoicing, payments
+// ADMIN    → upload, settings (bottom)
+//
+// System health is surfaced as a footer status indicator, not a nav item.
+// Brands + Products + Discord-Scan routes still exist but live outside
+// the sidebar; can be reached by direct URL or future deeper sections.
+
+const HOME_SECTION: NavSection = {
   items: [
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { href: '/discover', label: 'Discover', icon: Compass },
   ],
 };
 
-const MANAGE_SECTION: NavSection = {
-  label: 'Manage Creators',
+const CREATORS_SECTION: NavSection = {
+  label: 'Creators',
   items: [
-    { href: '/roster', label: 'My Creators', icon: UserCheck },
-    { href: '/messages', label: 'Messages', icon: Mail },
+    { href: '/roster',   label: 'My Creators', icon: UserCheck },
+    { href: '/messages', label: 'Messages',    icon: Mail },
+    { href: '/discover', label: 'Discover',    icon: Compass },
   ],
 };
 
-const DATA_SECTION: NavSection = {
-  label: 'Data',
-  adminOnly: true,
+const CONTENT_SECTION: NavSection = {
+  label: 'Content',
   items: [
-    { href: '/upload', label: 'Upload', icon: Upload },
+    { href: '/posts',     label: 'Posts',     icon: PlaySquare },
+    { href: '/reporting', label: 'Reporting', icon: FileBarChart },
   ],
 };
 
 const INSIGHTS_SECTION: NavSection = {
-  label: 'Track Performance',
+  label: 'Insights',
   items: [
     { href: '/analytics', label: 'Analytics', icon: BarChart3 },
-    { href: '/posts',     label: 'Posts',     icon: PlaySquare },
-    { href: '/reporting', label: 'Reporting', icon: FileBarChart },
-    // /brands and /products routes still exist in case schedules / deep
-    // links reference them, but they're no longer in the sidebar — both
-    // felt redundant for daily use per Tyler. Per-brand info now flows
-    // through Analytics (filter by brand) and Reporting (brand client deck).
   ],
 };
 
@@ -63,9 +73,18 @@ const FINANCE_SECTION: NavSection = {
   label: 'Finance',
   adminOnly: true,
   items: [
-    { href: '/earnings', label: 'Earnings', icon: Calculator },
+    { href: '/earnings',  label: 'Earnings',  icon: Calculator },
     { href: '/invoicing', label: 'Invoicing', icon: Receipt },
-    { href: '/payments', label: 'Payments', icon: CreditCard },
+    { href: '/payments',  label: 'Payments',  icon: CreditCard },
+  ],
+};
+
+const ADMIN_SECTION: NavSection = {
+  label: 'Admin',
+  adminOnly: true,
+  items: [
+    { href: '/upload',   label: 'Upload',   icon: Upload },
+    { href: '/settings', label: 'Settings', icon: SettingsIcon },
   ],
 };
 
@@ -87,10 +106,10 @@ export function Sidebar({ className, userRole = 'customer' }: SidebarProps) {
   // Filter admin-only sections out for non-admin roles. Server-side gating on
   // the actual pages/APIs is the real security boundary — this is purely UX.
   const isAdmin = effectiveRole === 'owner';
-  // Order: Main → Manage → Track Performance → Finance → Data (bottom).
-  // Data lives at the bottom because it's an admin maintenance surface,
-  // not a daily-use section like the things above it.
-  const sections = [MAIN_SECTION, MANAGE_SECTION, INSIGHTS_SECTION, FINANCE_SECTION, DATA_SECTION]
+  // Option A entity-based order: Home → Creators → Content → Insights → Finance → Admin.
+  // Admin (with Upload + Settings) lives at the bottom because both are
+  // maintenance/configuration surfaces, not daily-use destinations.
+  const sections = [HOME_SECTION, CREATORS_SECTION, CONTENT_SECTION, INSIGHTS_SECTION, FINANCE_SECTION, ADMIN_SECTION]
     .filter(s => !s.adminOnly || isAdmin);
 
   function withBrand(href: string) {
@@ -150,6 +169,14 @@ export function Sidebar({ className, userRole = 'customer' }: SidebarProps) {
         {sections.map((s, i) => renderSection(s, `section-${i}`))}
 
       </nav>
+
+      {/* System status — admin-only footer indicator. Pings /api/system/health
+          and shows green/amber/red dot. Click → /system for full detail. */}
+      {isAdmin && (
+        <div className="px-2 pt-2 border-t border-gray-100">
+          <SystemStatusFooter />
+        </div>
+      )}
 
       {/* Brand selector pinned to bottom */}
       <div className="px-2 pb-4 pt-2 border-t border-gray-100">
