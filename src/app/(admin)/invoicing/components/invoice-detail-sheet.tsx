@@ -34,6 +34,7 @@ export interface Invoice {
   bill_to_name: string | null;
   bill_to_email: string | null;
   bill_to_address: string | null;
+  payment_instructions: string | null;
   creator_breakdown?: InvoiceCreator[] | null;
 }
 
@@ -55,6 +56,7 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
     bill_to_name: invoice.bill_to_name ?? '',
     bill_to_email: invoice.bill_to_email ?? '',
     bill_to_address: invoice.bill_to_address ?? '',
+    payment_instructions: invoice.payment_instructions ?? '',
   });
   const [saving, setSaving] = useState(false);
   const [statusUpdating, setStatusUpdating] = useState(false);
@@ -72,6 +74,7 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
       bill_to_name: invoice.bill_to_name ?? '',
       bill_to_email: invoice.bill_to_email ?? '',
       bill_to_address: invoice.bill_to_address ?? '',
+      payment_instructions: invoice.payment_instructions ?? '',
     });
   }, [invoice]);
 
@@ -95,6 +98,7 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
           bill_to_name: draft.bill_to_name || null,
           bill_to_email: draft.bill_to_email || null,
           bill_to_address: draft.bill_to_address || null,
+          payment_instructions: draft.payment_instructions || null,
         }),
       });
       const j = await res.json();
@@ -300,8 +304,15 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
             <Field label="Due Date">
               <TextInput type="date" value={draft.due_date} onChange={(v) => setDraft({ ...draft, due_date: v })} />
             </Field>
-            <Field label="Notes" hint="Appears on the PDF">
-              <TextArea value={draft.notes} onChange={(v) => setDraft({ ...draft, notes: v })} placeholder="e.g. Net 30 — wire to..." />
+            <Field label="Payment Instructions" hint="Appears on the PDF">
+              <TextArea
+                value={draft.payment_instructions}
+                onChange={(v) => setDraft({ ...draft, payment_instructions: v })}
+                placeholder="Wire to:&#10;  Bank: ...&#10;  Routing #: ...&#10;  Account #: ..."
+              />
+            </Field>
+            <Field label="Notes" hint="Optional · appears on the PDF below payment instructions">
+              <TextArea value={draft.notes} onChange={(v) => setDraft({ ...draft, notes: v })} placeholder="e.g. Net 30, internal PO #, thanks message" />
             </Field>
           </Section>
 

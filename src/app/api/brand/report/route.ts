@@ -40,13 +40,24 @@ export async function GET(request: Request) {
   let csv: string;
   if (type === 'videos') {
     const rows = [
-      ['Posted', 'Creator handle', 'Title', 'GMV (USD)', 'Orders', 'TikTok URL'],
+      [
+        'Posted',
+        'Creator handle',
+        'Title',
+        'Lifetime GMV (USD)',
+        'Lifetime orders',
+        `Period GMV (${period})`,
+        `Period orders (${period})`,
+        'TikTok URL',
+      ],
       ...data.videos.map((v) => [
         v.postDate ? v.postDate.toISOString().split('T')[0] : '',
         v.creatorHandle,
         v.title,
         v.gmv.toFixed(2),
         String(v.orders),
+        v.periodGmv.toFixed(2),
+        String(v.periodOrders),
         v.url ?? `https://www.tiktok.com/@${v.creatorHandle}/video/${v.videoId}`,
       ]),
     ];

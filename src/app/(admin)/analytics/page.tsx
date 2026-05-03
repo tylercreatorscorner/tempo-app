@@ -7,10 +7,7 @@ import {
 import { resolveDateRange } from '@/lib/data/date-utils';
 import { DateRangePicker } from '@/components/dashboard/date-range-picker';
 import { BrandFilter } from '@/components/creators/brand-filter';
-import { AnalyticsTabs } from '@/components/analytics/analytics-tabs';
 import { PerformanceChart, type DailyMetrics } from '@/components/analytics/performance-chart';
-import { TopPostsCard } from '@/components/analytics/top-posts-card';
-import { TopCreatorsCard } from '@/components/analytics/top-creators-card';
 import { NotableChanges, type BrandChange, type CreatorBreakout, type HotPost } from '@/components/analytics/notable-changes';
 import { StatCard } from '@/components/dashboard/stat-card';
 import { BRAND_DISPLAY_NAMES, BRAND_COLORS } from '@/lib/utils/constants';
@@ -458,18 +455,11 @@ export default async function AnalyticsPage({ searchParams }: Props) {
         );
       })()}
 
-      {/* Top Posts + Top Creators — first-class sections side by side on wide screens */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-        <TopCreatorsCard creators={creators} limit={10} />
-        <TopPostsCard posts={videos} limit={10} />
-      </div>
-
-      {/* Full-detail tabs — use these to drill in */}
-      <div>
-        <h3 className="text-sm font-bold text-[#1A1B3A] mb-1">All Detail</h3>
-        <p className="text-xs text-gray-400 mb-3">Sortable, searchable, and paginated for deep dives.</p>
-        <AnalyticsTabs creators={creators} products={products} videos={videos} />
-      </div>
+      {/* Top Posts / Top Creators / All Detail tables removed:
+            - For top posts → use /posts (sortable, full engagement metrics)
+            - For top creators → use /roster's leaderboard sort
+            - For per-product detail → use /brands → product tab
+          Analytics is now charts-only — the "what's the trajectory" view. */}
     </div>
   );
 }

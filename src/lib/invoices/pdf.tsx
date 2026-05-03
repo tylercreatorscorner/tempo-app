@@ -75,6 +75,7 @@ export interface InvoicePdfData {
   launchFee: number;
   totalAmount: number;
   notes: string | null;
+  paymentInstructions: string | null;
   billTo: {
     name: string | null;
     email: string | null;
@@ -203,10 +204,33 @@ const s = StyleSheet.create({
   grandHint: { fontSize: 8, color: '#A0A4D8' },
   grandValue: { fontSize: 22, fontWeight: 700, color: COLORS.white, letterSpacing: -0.5 },
 
-  // Notes
+  // Payment instructions block — practical / informational tone
+  payBlock: {
+    padding: 16,
+    backgroundColor: COLORS.faintBg,
+    borderRadius: 8,
+    marginBottom: 16,
+    borderLeftWidth: 3,
+    borderLeftColor: COLORS.ink,
+  },
+  payLabel: { fontSize: 8, color: COLORS.ink, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 6, fontWeight: 700 },
+  payText: { fontSize: 10, color: COLORS.inkSoft, lineHeight: 1.55 },
+
+  // Notes — softer/optional tone
   notesBlock: { padding: 16, backgroundColor: COLORS.pinkSoft, borderRadius: 8, marginBottom: 24, borderLeftWidth: 3, borderLeftColor: COLORS.pink },
   notesLabel: { fontSize: 8, color: COLORS.pinkDeep, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 6, fontWeight: 700 },
   notesText: { fontSize: 10, color: COLORS.ink, lineHeight: 1.55 },
+
+  // Thank-you line
+  thanksLine: {
+    fontSize: 10,
+    color: COLORS.muted,
+    textAlign: 'center',
+    marginTop: 8,
+    marginBottom: 16,
+    fontWeight: 500,
+    letterSpacing: 0.2,
+  },
 
   // Footer
   footer: {
@@ -386,6 +410,14 @@ function InvoicePdfDoc({ data }: { data: InvoicePdfData }) {
           <Text style={s.grandValue}>{fmtCurrency(data.totalAmount)}</Text>
         </View>
 
+        {/* Payment instructions */}
+        {data.paymentInstructions && (
+          <View style={s.payBlock} wrap={false}>
+            <Text style={s.payLabel}>Payment Instructions</Text>
+            <Text style={s.payText}>{data.paymentInstructions}</Text>
+          </View>
+        )}
+
         {/* Notes */}
         {data.notes && (
           <View style={s.notesBlock} wrap={false}>
@@ -393,6 +425,9 @@ function InvoicePdfDoc({ data }: { data: InvoicePdfData }) {
             <Text style={s.notesText}>{data.notes}</Text>
           </View>
         )}
+
+        {/* Thank-you line */}
+        <Text style={s.thanksLine}>Thank you for your business.</Text>
 
         {/* Footer */}
         <View style={s.footer} fixed>

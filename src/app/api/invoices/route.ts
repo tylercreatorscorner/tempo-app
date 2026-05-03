@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth/require-admin';
 import { createAdminClient } from '@/lib/supabase/server';
 import { getEarnings } from '@/lib/data/earnings';
+import { DEFAULT_PAYMENT_INSTRUCTIONS } from '@/lib/invoices/defaults';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
@@ -75,10 +76,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `Brand "${brand}" not found in earnings for ${month}` }, { status: 404 });
   }
 
-  // Pull bill-to defaults from brand_settings.
+  // Pull bill-to + payment instruction defaults from brand_settings.
   const { data: settings } = await supabase
     .from('brand_settings')
-    .select('bill_to_name, bill_to_email, bill_to_address')
+    .select('bill_to_name, bill_to_email, bill_to_address, payment_instructions')
     .eq('brand', brand)
     .maybeSingle();
 
@@ -112,6 +113,7 @@ export async function POST(req: NextRequest) {
     bill_to_name: settings?.bill_to_name ?? null,
     bill_to_email: settings?.bill_to_email ?? null,
     bill_to_address: settings?.bill_to_address ?? null,
+    payment_instructions: settings?.payment_instructions ?? DEFAULT_PAYMENT_INSTRUCTIONS,
     creator_breakdown: row.creators,
     created_by: profile.email ?? null,
   };

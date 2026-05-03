@@ -47,6 +47,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     launchFee: Number(invoice.launch_fee ?? 0),
     totalAmount: Number(invoice.total_amount ?? 0),
     notes: invoice.notes,
+    paymentInstructions: invoice.payment_instructions,
     billTo: {
       name: invoice.bill_to_name,
       email: invoice.bill_to_email,

@@ -40,6 +40,7 @@ const STRING_OR_NULL_FIELDS = new Set([
   'bill_to_name',
   'bill_to_email',
   'bill_to_address',
+  'payment_instructions',
 ]);
 
 const ENUM_FIELD = 'compensation_model';

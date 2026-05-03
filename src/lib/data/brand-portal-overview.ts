@@ -45,8 +45,14 @@ export interface BrandRosterVideo {
   url: string | null;
   creatorHandle: string;
   postDate: Date | null;
+  /** Cumulative (lifetime) GMV across all daily rows for this video. */
   gmv: number;
+  /** Cumulative (lifetime) orders. */
   orders: number;
+  /** GMV during the selected period only. */
+  periodGmv: number;
+  /** Orders during the selected period only. */
+  periodOrders: number;
 }
 
 export interface BrandPortalDashboard {
@@ -229,16 +235,15 @@ export async function getBrandPortalDashboard(
       .lte('report_date', priorEndStr)
       .in('tiktok_username', allHandles)
       .range(0, 9999),
-    // daily_video_stats lags (some brands' latest is months old). Use the
-    // per-product variant — it's fresher and we just dedupe by video_id.
-    supabase
-      .from('daily_video_product_stats')
-      .select('video_id, video_title, video_url, tiktok_username, post_date, gmv, orders')
-      .eq('brand_id', brandUuid)
-      .gte('report_date', startStr)
-      .lte('report_date', endStr)
-      .in('tiktok_username', allHandles)
-      .range(0, 9999),
+    // Cumulative GMV per video — uses an RPC to aggregate at the DB layer
+    // (otherwise we'd have to pull 10k+ raw rows). Returns videos with at
+    // least one report row in the period; total_gmv is lifetime.
+    supabase.rpc('brand_portal_videos', {
+      p_brand_id: brandUuid,
+      p_handles: allHandles,
+      p_start_date: startStr,
+      p_end_date: endStr,
+    }),
     // Trailing 30-day GMV per handle (for ROI column on creator roster).
     supabase
       .from('daily_creator_stats')
@@ -317,35 +322,20 @@ export async function getBrandPortalDashboard(
     return { priorDate, gmv };
   });
 
-  // Recent videos — dedupe per video_id
-  const videoMap = new Map<string, BrandRosterVideo>();
-  for (const r of (videoRows.data ?? []) as any[]) {
-    const id = r.video_id;
-    if (!id) continue;
-    const handle = normHandle(r.tiktok_username);
-    if (!videoMap.has(id)) {
-      videoMap.set(id, {
-        videoId: id,
-        title: r.video_title || '(untitled)',
-        url: r.video_url || null,
-        creatorHandle: handle,
-        postDate: r.post_date ? new Date(r.post_date) : null,
-        gmv: 0,
-        orders: 0,
-      });
-    }
-    const v = videoMap.get(id)!;
-    v.gmv += Number(r.gmv ?? 0);
-    v.orders += Number(r.orders ?? 0);
-  }
-  const videos = [...videoMap.values()]
-    .sort((a, b) => {
-      const ad = a.postDate?.getTime() ?? 0;
-      const bd = b.postDate?.getTime() ?? 0;
-      if (bd !== ad) return bd - ad;
-      return b.gmv - a.gmv;
-    })
-    .slice(0, 30);
+  // Videos — pre-aggregated by the brand_portal_videos RPC. Each row is
+  // already a single video with cumulative + period GMV. No cap — the
+  // page paginates client-side.
+  const videos: BrandRosterVideo[] = ((videoRows.data ?? []) as any[]).map((r) => ({
+    videoId: r.video_id,
+    title: r.video_title || '(untitled)',
+    url: r.video_url || null,
+    creatorHandle: normHandle(r.tiktok_username),
+    postDate: r.post_date ? new Date(r.post_date) : null,
+    gmv: Number(r.total_gmv ?? 0),
+    orders: Number(r.total_orders ?? 0),
+    periodGmv: Number(r.period_gmv ?? 0),
+    periodOrders: Number(r.period_orders ?? 0),
+  }));
 
   // ── 4. Build the final creator rows
   const creators: BrandRosterCreator[] = roster

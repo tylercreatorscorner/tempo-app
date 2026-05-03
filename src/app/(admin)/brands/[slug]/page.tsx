@@ -16,6 +16,7 @@ import { createClient } from '@/lib/supabase/server';
 import { format, subDays, differenceInDays } from 'date-fns';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
+import { BrandTabs } from './brand-tabs';
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -107,13 +108,19 @@ export default async function BrandDetailPage({ params, searchParams }: Props) {
         <StatCard label="Videos" value={formatNumber(summary?.total_videos ?? 0)} />
       </div>
 
-      <div className="rounded-xl border border-border bg-card p-6">
-        <h3 className="text-lg font-semibold mb-4">GMV Trend</h3>
-        <GmvTrendChart data={chartData} brands={[slug]} />
-      </div>
-
-      <CreatorTable creators={await aggregateCreatorsByRealName(creators)} />
-      <ProductTable products={products} />
+      {/* Tabbed sections — Overview / Creators / Products. The standalone
+          /products page was dropped — per-brand product analytics now lives
+          inside each brand's drill-down where it has the most context. */}
+      <BrandTabs
+        overview={
+          <div className="rounded-xl border border-border bg-card p-6">
+            <h3 className="text-lg font-semibold mb-4">GMV Trend</h3>
+            <GmvTrendChart data={chartData} brands={[slug]} />
+          </div>
+        }
+        creators={<CreatorTable creators={await aggregateCreatorsByRealName(creators)} />}
+        products={<ProductTable products={products} />}
+      />
     </div>
   );
 }

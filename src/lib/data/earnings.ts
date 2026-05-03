@@ -77,6 +77,8 @@ export interface BrandRow {
   billToEmail: string | null;
   /** Default invoice recipient address for this brand. */
   billToAddress: string | null;
+  /** Default payment instructions text used on invoices for this brand. */
+  paymentInstructions: string | null;
   /** Brand's compensation model — how retainer + commission combine. */
   compensationModel: CompensationModel;
   /**
@@ -133,6 +135,7 @@ interface BrandSettingsRow {
   bill_to_name: string | null;
   bill_to_email: string | null;
   bill_to_address: string | null;
+  payment_instructions: string | null;
 }
 
 interface PerfRow {
@@ -396,6 +399,7 @@ export async function getEarnings(month: string): Promise<EarningsResult> {
       billToName: s?.bill_to_name ?? null,
       billToEmail: s?.bill_to_email ?? null,
       billToAddress: s?.bill_to_address ?? null,
+      paymentInstructions: s?.payment_instructions ?? null,
       compensationModel,
       revshareMaxOutcome,
       creators,

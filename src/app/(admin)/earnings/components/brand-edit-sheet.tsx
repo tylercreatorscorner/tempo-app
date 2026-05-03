@@ -20,6 +20,7 @@ export interface BrandSettingsValues {
   bill_to_name: string | null;
   bill_to_email: string | null;
   bill_to_address: string | null;
+  payment_instructions: string | null;
 }
 
 interface Props {
@@ -87,6 +88,7 @@ export function BrandEditSheet({ open, brand, brandLabel, initialValues, marketi
               bill_to_name: values.bill_to_name,
               bill_to_email: values.bill_to_email,
               bill_to_address: values.bill_to_address,
+              payment_instructions: values.payment_instructions,
             },
           }),
         }),
@@ -249,6 +251,17 @@ export function BrandEditSheet({ open, brand, brandLabel, initialValues, marketi
                 value={values.bill_to_address ?? ''}
                 placeholder="123 Main St&#10;Atlanta, GA 30303"
                 onChange={(v) => set('bill_to_address', v || null)}
+              />
+            </Field>
+          </Section>
+
+          {/* Payment instructions (per-brand) */}
+          <Section title="Payment Instructions">
+            <Field label="How this brand pays you" hint="Multi-line · falls back to a global default if blank">
+              <TextArea
+                value={values.payment_instructions ?? ''}
+                placeholder="Wire to:&#10;  Bank: ...&#10;  Routing #: ...&#10;  Account #: ..."
+                onChange={(v) => set('payment_instructions', v || null)}
               />
             </Field>
           </Section>

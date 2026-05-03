@@ -16,7 +16,7 @@ const NUMERIC_FIELDS = new Set([
   'affiliate_gmv', 'marketing_gmv', 'total_gmv', 'total_amount',
 ]);
 const STRING_OR_NULL_FIELDS = new Set([
-  'notes', 'due_date', 'bill_to_name', 'bill_to_email', 'bill_to_address',
+  'notes', 'due_date', 'bill_to_name', 'bill_to_email', 'bill_to_address', 'payment_instructions',
 ]);
 const STATUS_FIELD = 'status';
 const STATUSES = new Set(['pending', 'sent', 'paid']);

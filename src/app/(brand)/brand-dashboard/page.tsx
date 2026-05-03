@@ -155,11 +155,11 @@ export default async function BrandOverview({ searchParams }: PageProps) {
           </div>
         </Card>
 
-        {/* Recent videos (compact) */}
+        {/* Top posts (compact) — already sorted by GMV desc by the RPC */}
         <Card>
           <CardHeaderWithLink
-            title="Recent posts"
-            subtitle="Latest from your managed creators"
+            title="Top posts"
+            subtitle="Highest-grossing posts this period (lifetime GMV)"
             href={`/brand-dashboard/videos?period=${period}`}
             linkLabel="View all"
           />

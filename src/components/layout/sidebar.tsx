@@ -52,8 +52,10 @@ const INSIGHTS_SECTION: NavSection = {
     { href: '/analytics', label: 'Analytics', icon: BarChart3 },
     { href: '/posts',     label: 'Posts',     icon: PlaySquare },
     { href: '/reporting', label: 'Reporting', icon: FileBarChart },
-    { href: '/brands',    label: 'All Brands', icon: Store },
-    { href: '/products',  label: 'Products',  icon: Package },
+    { href: '/brands',    label: 'Brands',    icon: Store },
+    // /products was folded into per-brand drill-down (Brands → Products tab).
+    // Keep the route alive at /products in case anything (schedules, deep
+    // links) still references it, but it's no longer in the sidebar.
   ],
 };
 

@@ -182,16 +182,13 @@ export async function getBrandCreatorDetail(
       .lte('report_date', priorEndStr)
       .in('tiktok_username', handles)
       .range(0, 9999),
-    // daily_video_product_stats has fresher data than daily_video_stats —
-    // dedupe by video_id (rows are per-product).
-    supabase
-      .from('daily_video_product_stats')
-      .select('video_id, video_title, video_url, post_date, gmv, orders')
-      .eq('brand_id', brandUuid)
-      .gte('report_date', startStr)
-      .lte('report_date', endStr)
-      .in('tiktok_username', handles)
-      .range(0, 9999),
+    // Cumulative-GMV videos via RPC (same as the Videos page)
+    supabase.rpc('brand_portal_videos', {
+      p_brand_id: brandUuid,
+      p_handles: handles,
+      p_start_date: startStr,
+      p_end_date: endStr,
+    }),
   ]);
 
   // Aggregate current period
@@ -238,33 +235,16 @@ export async function getBrandCreatorDetail(
   });
 
   // Videos
-  const videoMap = new Map<
-    string,
-    { videoId: string; title: string; url: string | null; postDate: Date | null; gmv: number; orders: number }
-  >();
-  for (const r of (videoRows.data ?? []) as any[]) {
-    const id = r.video_id;
-    if (!id) continue;
-    if (!videoMap.has(id)) {
-      videoMap.set(id, {
-        videoId: id,
-        title: r.video_title || '(untitled)',
-        url: r.video_url || null,
-        postDate: r.post_date ? new Date(r.post_date) : null,
-        gmv: 0,
-        orders: 0,
-      });
-    }
-    const v = videoMap.get(id)!;
-    v.gmv += Number(r.gmv ?? 0);
-    v.orders += Number(r.orders ?? 0);
-  }
-  const videos = [...videoMap.values()].sort((a, b) => {
-    const ad = a.postDate?.getTime() ?? 0;
-    const bd = b.postDate?.getTime() ?? 0;
-    if (bd !== ad) return bd - ad;
-    return b.gmv - a.gmv;
-  });
+  // Videos are pre-aggregated by the brand_portal_videos RPC (cumulative GMV).
+  // Already sorted by total_gmv DESC.
+  const videos = ((videoRows.data ?? []) as any[]).map((r) => ({
+    videoId: r.video_id,
+    title: r.video_title || '(untitled)',
+    url: r.video_url || null,
+    postDate: r.post_date ? new Date(r.post_date) : null,
+    gmv: Number(r.total_gmv ?? 0),
+    orders: Number(r.total_orders ?? 0),
+  }));
 
   const periodLabel = `${startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${actualEndDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, ${actualEndDate.getUTCFullYear()}`;
 

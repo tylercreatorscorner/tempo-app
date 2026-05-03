@@ -1,19 +1,23 @@
 /**
  * Posts data fetcher.
  *
- * Powers the /posts page. Aggregates daily_video_stats over a date range
+ * Powers the /posts page. Aggregates video_performance over a date range
  * into one row per video — every video posted by a managed creator with
  * its lifetime engagement (views/likes/comments) and revenue (GMV/orders).
  *
- * Why daily_video_stats and not video_performance?
- *   daily_video_stats has the engagement columns (impressions, likes,
- *   comments). video_performance has GMV/orders only. We use daily_video_stats
- *   as the source of truth and aggregate both engagement + revenue from it.
+ * Source: video_performance (legacy table). It has BOTH the engagement
+ * columns (impressions, likes, comments, ctr, gpm) AND the GMV/orders/
+ * items columns. The new daily_video_stats table is mostly empty because
+ * the sync trigger writes to daily_video_product_stats instead — so we
+ * read directly from video_performance which has the freshest data.
  *
- * Aggregation rules per video_id:
- *   - GMV, orders, items_sold       → SUM across days (daily snapshots add up)
- *   - impressions, likes, comments  → MAX across days (cumulative; latest
- *                                     snapshot = lifetime total at that point)
+ * Aggregation per video_id (a video may appear multiple times per day if
+ * it promotes multiple products — each row keyed by video_id × product_id):
+ *   - GMV, orders, items_sold       → SUM across days AND products
+ *   - impressions, likes, comments  → MAX across all rows (these are
+ *                                     properties of the video, same across
+ *                                     product rows on the same day; across
+ *                                     days the latest snapshot = lifetime)
  *   - post_date                     → MIN (first time we saw it)
  *   - creator, title, url, brand    → from any row (consistent per video)
  *   - engagement_rate               → (likes + comments) / impressions × 100
@@ -55,9 +59,9 @@ export interface PostsResult {
 interface RawRow {
   video_id: string;
   video_title: string | null;
-  video_url: string | null;
-  tiktok_username: string;
-  brand_id: string;
+  video_link: string | null;
+  creator_name: string;
+  brand: string;
   post_date: string | null;
   report_date: string;
   gmv: number | string;
@@ -98,15 +102,15 @@ export async function getPosts(opts: GetPostsOpts): Promise<PostsResult> {
   const { brand, startDate, endDate, managedOnly = true, limit = 500 } = opts;
 
   // ── 1. Resolve brand list (active, non-umbrella). If brand filter given,
-  //       restrict to just that one. We need brand_id (UUID) for the
-  //       daily_video_stats filter — slug lookup via brands_v2.
+  //       restrict to just that one. video_performance is keyed by brand
+  //       SLUG (text), not brand_id (UUID), so we use slugs throughout.
   let brandQuery = supabase
     .from('brands_v2')
-    .select('id, slug, name')
+    .select('slug, name')
     .eq('is_archived', false);
   if (brand) brandQuery = brandQuery.eq('slug', brand);
   const { data: brandsRaw } = await brandQuery;
-  const brands = (brandsRaw as Array<{ id: string; slug: string; name: string }> | null ?? [])
+  const brands = (brandsRaw as Array<{ slug: string; name: string }> | null ?? [])
     .filter(b => b.slug !== 'leefar'); // umbrella exclusion (no data of its own)
   if (brands.length === 0) {
     return {
@@ -114,19 +118,19 @@ export async function getPosts(opts: GetPostsOpts): Promise<PostsResult> {
       totals: { postCount: 0, totalViews: 0, totalGmv: 0, totalLikes: 0, totalComments: 0, avgEngagement: 0 },
     };
   }
-  const brandIds = brands.map(b => b.id);
+  const brandSlugs = brands.map(b => b.slug);
   const brandBySlug = new Map(brands.map(b => [b.slug, b]));
-  const brandById  = new Map(brands.map(b => [b.id, b]));
 
-  // ── 2. Pull all video stats over the period for these brands. Paginated to
-  //       avoid the 1k row default cap.
+  // ── 2. Pull all video performance rows over the period for these brands.
+  //       Paginated to avoid the 1k default cap (a busy month easily exceeds 5k).
   const allRows: RawRow[] = [];
   let from = 0;
   while (true) {
     const { data, error } = await supabase
-      .from('daily_video_stats')
-      .select('video_id, video_title, video_url, tiktok_username, brand_id, post_date, report_date, gmv, orders, items_sold, impressions, likes, comments')
-      .in('brand_id', brandIds)
+      .from('video_performance')
+      .select('video_id, video_title, video_link, creator_name, brand, post_date, report_date, gmv, orders, items_sold, impressions, likes, comments')
+      .eq('period_type', 'daily')
+      .in('brand', brandSlugs)
       .gte('report_date', startDate)
       .lte('report_date', endDate)
       .range(from, from + PAGE_SIZE - 1);
@@ -159,7 +163,7 @@ export async function getPosts(opts: GetPostsOpts): Promise<PostsResult> {
     video_title: string;
     video_url: string | null;
     creator_handle: string;
-    brand_id: string;
+    brand_slug: string;
     post_date: string | null;
     gmv: number;
     orders: number;
@@ -172,16 +176,16 @@ export async function getPosts(opts: GetPostsOpts): Promise<PostsResult> {
   const aggMap = new Map<string, Agg>();
   for (const row of allRows) {
     if (!row.video_id) continue;
-    const handle = normalizeHandle(row.tiktok_username);
+    const handle = normalizeHandle(row.creator_name);
     if (!handle) continue;
     let agg = aggMap.get(row.video_id);
     if (!agg) {
       agg = {
         video_id: row.video_id,
         video_title: row.video_title ?? '(untitled)',
-        video_url: row.video_url ?? null,
+        video_url: row.video_link ?? null,
         creator_handle: handle,
-        brand_id: row.brand_id,
+        brand_slug: row.brand,
         post_date: row.post_date,
         gmv: 0, orders: 0, items_sold: 0,
         impressions: 0, likes: 0, comments: 0,
@@ -196,7 +200,7 @@ export async function getPosts(opts: GetPostsOpts): Promise<PostsResult> {
     agg.comments      = Math.max(agg.comments,    pInt(row.comments));
     // Title/URL: prefer non-empty
     if (!agg.video_title || agg.video_title === '(untitled)') agg.video_title = row.video_title ?? agg.video_title;
-    if (!agg.video_url) agg.video_url = row.video_url;
+    if (!agg.video_url) agg.video_url = row.video_link;
     // Post date: keep earliest non-null
     if (row.post_date && (!agg.post_date || row.post_date < agg.post_date)) {
       agg.post_date = row.post_date;
@@ -205,9 +209,8 @@ export async function getPosts(opts: GetPostsOpts): Promise<PostsResult> {
 
   // ── 5. Convert to final row shape with brand label + managed flag + engagement rate
   let posts: PostRow[] = Array.from(aggMap.values()).map(a => {
-    const brand = brandById.get(a.brand_id);
-    const brandSlug = brand?.slug ?? 'unknown';
-    const isManaged = managedSet.has(`${a.creator_handle}|||${brandSlug}`);
+    const brandRow = brandBySlug.get(a.brand_slug);
+    const isManaged = managedSet.has(`${a.creator_handle}|||${a.brand_slug}`);
     const engagement = a.impressions > 0
       ? ((a.likes + a.comments) / a.impressions) * 100
       : 0;
@@ -216,8 +219,8 @@ export async function getPosts(opts: GetPostsOpts): Promise<PostsResult> {
       video_title: a.video_title,
       video_url: a.video_url,
       creator_handle: a.creator_handle,
-      brand_slug: brandSlug,
-      brand_name: brand?.name ?? brandSlug,
+      brand_slug: a.brand_slug,
+      brand_name: brandRow?.name ?? a.brand_slug,
       post_date: a.post_date,
       views: a.impressions,
       likes: a.likes,

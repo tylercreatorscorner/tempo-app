@@ -8,13 +8,22 @@ import {
 import { createAdminClient } from '@/lib/supabase/server';
 import { BRAND_UUID_MAP } from '@/lib/utils/constants';
 import { PeriodTabs } from '../period-tabs';
+import { SortableHeader, type SortDir } from '../sortable-header';
 
 export const dynamic = 'force-dynamic';
 
 const PAGE_SIZE = 50;
 
+type SortColumn = 'creator' | 'gmv' | 'orders' | 'posts' | 'retainer' | 'roi';
+
 interface PageProps {
-  searchParams: Promise<{ q?: string; period?: string; page?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    period?: string;
+    page?: string;
+    sort?: string;
+    dir?: string;
+  }>;
 }
 
 export default async function BrandCreatorsPage({ searchParams }: PageProps) {
@@ -32,6 +41,19 @@ export default async function BrandCreatorsPage({ searchParams }: PageProps) {
         return '7d';
     }
   })();
+  const sortColumn: SortColumn = (() => {
+    switch (params.sort) {
+      case 'creator':
+      case 'orders':
+      case 'posts':
+      case 'retainer':
+      case 'roi':
+        return params.sort;
+      default:
+        return 'gmv';
+    }
+  })();
+  const sortDir: SortDir = params.dir === 'asc' ? 'asc' : 'desc';
 
   const accent = ctx.activeBrand.color || '#FF4D8D';
   const admin = await createAdminClient();
@@ -51,18 +73,39 @@ export default async function BrandCreatorsPage({ searchParams }: PageProps) {
           c.handles.some((h) => h.includes(search)) ||
           (c.realName ?? '').toLowerCase().includes(search),
       )
-    : data.creators;
+    : [...data.creators];
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  // Sort in-memory using the requested column
+  const sorted = filtered.sort((a, b) => {
+    const av = sortValue(a, sortColumn);
+    const bv = sortValue(b, sortColumn);
+    if (typeof av === 'string' && typeof bv === 'string') {
+      return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
+    }
+    const an = Number(av ?? 0);
+    const bn = Number(bv ?? 0);
+    return sortDir === 'asc' ? an - bn : bn - an;
+  });
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const startIdx = (safePage - 1) * PAGE_SIZE;
-  const visible = filtered.slice(startIdx, startIdx + PAGE_SIZE);
+  const visible = sorted.slice(startIdx, startIdx + PAGE_SIZE);
 
-  function pageHref(targetPage: number) {
+  function buildHref(opts: {
+    page?: number;
+    sort?: string;
+    dir?: SortDir;
+  }) {
     const sp = new URLSearchParams();
     if (search) sp.set('q', search);
     sp.set('period', period);
-    if (targetPage > 1) sp.set('page', String(targetPage));
+    const finalSort = opts.sort ?? sortColumn;
+    const finalDir = opts.dir ?? sortDir;
+    if (finalSort !== 'gmv') sp.set('sort', finalSort);
+    if (finalDir !== 'desc') sp.set('dir', finalDir);
+    const finalPage = opts.page ?? 1;
+    if (finalPage > 1) sp.set('page', String(finalPage));
     const qs = sp.toString();
     return `/brand-dashboard/creators${qs ? `?${qs}` : ''}`;
   }
@@ -89,18 +132,57 @@ export default async function BrandCreatorsPage({ searchParams }: PageProps) {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50/50">
-                <th className="text-left px-4 py-3">Creator</th>
-                <th className="text-right px-3 py-3">GMV</th>
-                <th className="text-right px-3 py-3">Orders</th>
-                <th className="text-right px-3 py-3">Posts</th>
-                <th className="text-right px-3 py-3">Retainer</th>
-                <th
-                  className="text-right px-4 py-3"
-                  title="Monthly retainer ROI: trailing-30-day GMV ÷ monthly retainer"
-                >
-                  ROI (30d)
-                </th>
+              <tr className="bg-gray-50/50">
+                <SortableHeader
+                  label="Creator"
+                  column="creator"
+                  activeColumn={sortColumn}
+                  activeDir={sortDir}
+                  buildHref={(c, d) => buildHref({ sort: c, dir: d })}
+                  align="left"
+                  className="px-4"
+                />
+                <SortableHeader
+                  label="GMV"
+                  column="gmv"
+                  activeColumn={sortColumn}
+                  activeDir={sortDir}
+                  buildHref={(c, d) => buildHref({ sort: c, dir: d })}
+                  align="right"
+                />
+                <SortableHeader
+                  label="Orders"
+                  column="orders"
+                  activeColumn={sortColumn}
+                  activeDir={sortDir}
+                  buildHref={(c, d) => buildHref({ sort: c, dir: d })}
+                  align="right"
+                />
+                <SortableHeader
+                  label="Posts"
+                  column="posts"
+                  activeColumn={sortColumn}
+                  activeDir={sortDir}
+                  buildHref={(c, d) => buildHref({ sort: c, dir: d })}
+                  align="right"
+                />
+                <SortableHeader
+                  label="Retainer"
+                  column="retainer"
+                  activeColumn={sortColumn}
+                  activeDir={sortDir}
+                  buildHref={(c, d) => buildHref({ sort: c, dir: d })}
+                  align="right"
+                />
+                <SortableHeader
+                  label="ROI (30d)"
+                  column="roi"
+                  activeColumn={sortColumn}
+                  activeDir={sortDir}
+                  buildHref={(c, d) => buildHref({ sort: c, dir: d })}
+                  align="right"
+                  className="px-4"
+                />
                 <th className="w-8"></th>
               </tr>
             </thead>
@@ -172,12 +254,12 @@ export default async function BrandCreatorsPage({ searchParams }: PageProps) {
         {totalPages > 1 && (
           <div className="flex items-center justify-between px-4 py-3 border-t border-gray-50 text-xs text-gray-500">
             <span>
-              {startIdx + 1}–{Math.min(startIdx + PAGE_SIZE, filtered.length)} of {filtered.length}
+              {startIdx + 1}–{Math.min(startIdx + PAGE_SIZE, sorted.length)} of {sorted.length}
             </span>
             <div className="flex items-center gap-1">
               {safePage > 1 ? (
                 <Link
-                  href={pageHref(safePage - 1)}
+                  href={buildHref({ page: safePage - 1 })}
                   className="inline-flex items-center gap-0.5 px-2 py-1 rounded-md hover:bg-gray-50 text-gray-700"
                 >
                   <ChevronLeft className="h-3.5 w-3.5" />
@@ -194,7 +276,7 @@ export default async function BrandCreatorsPage({ searchParams }: PageProps) {
               </span>
               {safePage < totalPages ? (
                 <Link
-                  href={pageHref(safePage + 1)}
+                  href={buildHref({ page: safePage + 1 })}
                   className="inline-flex items-center gap-0.5 px-2 py-1 rounded-md hover:bg-gray-50 text-gray-700"
                 >
                   Next
@@ -212,6 +294,27 @@ export default async function BrandCreatorsPage({ searchParams }: PageProps) {
       </div>
     </div>
   );
+}
+
+// Sort key extractor — handles the synthetic "roi" column as gmv30d / retainer
+function sortValue(
+  c: import('@/lib/data/brand-portal-overview').BrandRosterCreator,
+  col: SortColumn,
+): number | string {
+  switch (col) {
+    case 'creator':
+      return (c.realName ?? c.primaryHandle ?? '').toLowerCase();
+    case 'gmv':
+      return c.gmv;
+    case 'orders':
+      return c.orders;
+    case 'posts':
+      return c.posts;
+    case 'retainer':
+      return c.retainer;
+    case 'roi':
+      return c.retainer > 0 ? c.gmv30d / c.retainer : -1;
+  }
 }
 
 function RoiCell({ gmv30d, retainer }: { gmv30d: number; retainer: number }) {

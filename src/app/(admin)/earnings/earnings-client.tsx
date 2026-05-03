@@ -50,6 +50,7 @@ interface BrandRow {
   billToName: string | null;
   billToEmail: string | null;
   billToAddress: string | null;
+  paymentInstructions: string | null;
   compensationModel: CompensationModel;
   revshareMaxOutcome: { winner: 'retainer' | 'commission'; activeAmount: number; comparison: number } | null;
 }
@@ -372,6 +373,7 @@ export function EarningsClient({ initialMonth }: { initialMonth: string }) {
             bill_to_name: editingBrand.billToName,
             bill_to_email: editingBrand.billToEmail,
             bill_to_address: editingBrand.billToAddress,
+            payment_instructions: editingBrand.paymentInstructions,
           }}
           onClose={() => setEditingBrand(null)}
           onSaved={() => fetchAll(month)}
