@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { X, Save, Download, Trash2, Loader2, Send, CheckCircle2, RotateCcw, RefreshCw, Users, Ban } from 'lucide-react';
+import { X, Save, Download, Trash2, Loader2, Send, CheckCircle2, RotateCcw, RefreshCw, Users, Ban, Link2, Mail, Copy, Check, ExternalLink, Wallet } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
+import { MarkPaidModal } from './mark-paid-modal';
 
 export interface InvoiceCreator {
   name: string;
@@ -35,6 +36,11 @@ export interface Invoice {
   bill_to_email: string | null;
   bill_to_address: string | null;
   payment_instructions: string | null;
+  public_token?: string | null;
+  payment_method?: string | null;
+  payment_reference?: string | null;
+  amount_received?: number | string | null;
+  payment_received_notes?: string | null;
   creator_breakdown?: InvoiceCreator[] | null;
 }
 
@@ -61,6 +67,13 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
   const [saving, setSaving] = useState(false);
   const [statusUpdating, setStatusUpdating] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [sharing, setSharing] = useState(false);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [emailing, setEmailing] = useState(false);
+  const [emailNotice, setEmailNotice] = useState<{ kind: 'success' | 'error'; message: string; hint?: string } | null>(null);
+  const [markPaidOpen, setMarkPaidOpen] = useState(false);
+  const [markingPaid, setMarkingPaid] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -76,6 +89,14 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
       bill_to_address: invoice.bill_to_address ?? '',
       payment_instructions: invoice.payment_instructions ?? '',
     });
+    // Hydrate share URL from existing token (if invoice was previously shared)
+    if (invoice.public_token && typeof window !== 'undefined') {
+      setShareUrl(`${window.location.origin}/share/invoice/${invoice.public_token}`);
+    } else {
+      setShareUrl(null);
+    }
+    setCopied(false);
+    setEmailNotice(null);
   }, [invoice]);
 
   const computedTotal =
@@ -127,6 +148,99 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
       setError(e instanceof Error ? e.message : 'Status update failed');
     } finally {
       setStatusUpdating(false);
+    }
+  }
+
+  async function handleShare() {
+    setSharing(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/invoices/${invoice.id}/share`, { method: 'POST' });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
+      setShareUrl(j.url);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to create share link');
+    } finally {
+      setSharing(false);
+    }
+  }
+
+  async function handleCopy() {
+    if (!shareUrl) return;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Ignore clipboard failures (browser permissions, etc.)
+    }
+  }
+
+  async function handleEmail() {
+    if (!invoice.bill_to_email) {
+      setEmailNotice({ kind: 'error', message: 'No recipient email — set Bill-To Email above before sending.' });
+      return;
+    }
+    if (!confirm(`Email ${invoice.invoice_number} to ${invoice.bill_to_email}?\nThis will mark the invoice as Sent.`)) return;
+    setEmailing(true);
+    setEmailNotice(null);
+    setError(null);
+    try {
+      const res = await fetch(`/api/invoices/${invoice.id}/email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const j = await res.json();
+      if (res.status === 501) {
+        setEmailNotice({ kind: 'error', message: j.error || 'Email not configured', hint: j.hint });
+        return;
+      }
+      if (!res.ok) throw new Error(j.error || j.details?.message || `HTTP ${res.status}`);
+      setEmailNotice({ kind: 'success', message: `Sent to ${invoice.bill_to_email}` });
+      if (j.invoice) onUpdated(j.invoice);
+      if (j.shareUrl) setShareUrl(j.shareUrl);
+    } catch (e) {
+      setEmailNotice({ kind: 'error', message: e instanceof Error ? e.message : 'Send failed' });
+    } finally {
+      setEmailing(false);
+    }
+  }
+
+  async function handleMarkPaid(payload: {
+    payment_method: string;
+    payment_reference: string | null;
+    amount_received: number;
+    payment_received_notes: string | null;
+  }) {
+    setMarkingPaid(true);
+    setError(null);
+    try {
+      // Two PATCHes: one for payment detail, then status='paid' (auto-stamps paid_at).
+      // Could be combined server-side later, but two roundtrips is fine here.
+      const detailRes = await fetch(`/api/invoices/${invoice.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const detailJson = await detailRes.json();
+      if (!detailRes.ok) throw new Error(detailJson.error || `HTTP ${detailRes.status}`);
+
+      const statusRes = await fetch(`/api/invoices/${invoice.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'paid' }),
+      });
+      const statusJson = await statusRes.json();
+      if (!statusRes.ok) throw new Error(statusJson.error || `HTTP ${statusRes.status}`);
+
+      onUpdated(statusJson.invoice);
+      setMarkPaidOpen(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Mark-paid failed');
+    } finally {
+      setMarkingPaid(false);
     }
   }
 
@@ -203,7 +317,7 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
           )}
           {invoice.status === 'sent' && (
             <button
-              onClick={() => handleStatus('paid')}
+              onClick={() => setMarkPaidOpen(true)}
               disabled={statusUpdating}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500 text-white text-xs font-bold hover:bg-emerald-600 disabled:opacity-50 transition-colors"
             >
@@ -246,6 +360,15 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
               {refreshing ? 'Refreshing…' : 'Refresh from Earnings'}
             </button>
           )}
+          <button
+            onClick={handleEmail}
+            disabled={emailing || invoice.status === 'void'}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#FF4D8D] text-white text-xs font-bold hover:bg-[#E91E8C] disabled:opacity-50 transition-colors"
+            title={invoice.bill_to_email ? `Email this invoice to ${invoice.bill_to_email}` : 'Set Bill-To Email to enable'}
+          >
+            {emailing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
+            {emailing ? 'Sending…' : 'Email Invoice'}
+          </button>
           <a
             href={`/api/invoices/${invoice.id}/pdf`}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-gray-700 text-xs font-semibold hover:bg-white transition-colors"
@@ -281,6 +404,73 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
             )}
           </Section>
 
+          {/* Email status notice (success or config-not-set) */}
+          {emailNotice && (
+            <div className={cn(
+              'rounded-xl px-3 py-2.5 text-xs flex items-start gap-2',
+              emailNotice.kind === 'success'
+                ? 'bg-emerald-50 border border-emerald-100 text-emerald-800'
+                : 'bg-amber-50 border border-amber-100 text-amber-900',
+            )}>
+              {emailNotice.kind === 'success'
+                ? <CheckCircle2 className="h-4 w-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+                : <Mail className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />}
+              <div className="flex-1 min-w-0">
+                <p className="font-bold">{emailNotice.message}</p>
+                {emailNotice.hint && <p className="mt-0.5 opacity-80">{emailNotice.hint}</p>}
+              </div>
+            </div>
+          )}
+
+          {/* Share link */}
+          <Section title="Share Link">
+            {shareUrl ? (
+              <div className="space-y-2">
+                <div className="flex items-stretch gap-2 rounded-xl border border-gray-200 bg-gray-50/50 overflow-hidden">
+                  <Link2 className="h-4 w-4 text-gray-400 flex-shrink-0 ml-3 self-center" />
+                  <input
+                    type="text"
+                    readOnly
+                    value={shareUrl}
+                    onClick={(e) => (e.target as HTMLInputElement).select()}
+                    className="flex-1 min-w-0 bg-transparent text-xs text-[#1A1B3A] font-mono py-2 px-1 focus:outline-none"
+                  />
+                  <button
+                    onClick={handleCopy}
+                    className={cn(
+                      'inline-flex items-center gap-1 px-3 text-xs font-semibold transition-colors flex-shrink-0',
+                      copied ? 'bg-emerald-500 text-white' : 'bg-white text-gray-700 hover:bg-gray-100 border-l border-gray-200',
+                    )}
+                  >
+                    {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                    {copied ? 'Copied' : 'Copy'}
+                  </button>
+                  <a
+                    href={shareUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center px-3 bg-white hover:bg-gray-100 border-l border-gray-200 text-gray-600 transition-colors flex-shrink-0"
+                    title="Open share view"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
+                </div>
+                <p className="text-[11px] text-gray-400">
+                  Anyone with this link can view (read-only) and download the PDF without logging in.
+                </p>
+              </div>
+            ) : (
+              <button
+                onClick={handleShare}
+                disabled={sharing}
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-xs font-semibold text-gray-700 disabled:opacity-50 transition-colors w-full justify-center"
+              >
+                {sharing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Link2 className="h-3.5 w-3.5" />}
+                {sharing ? 'Generating link…' : 'Generate share link'}
+              </button>
+            )}
+          </Section>
+
           {/* Line items (editable) */}
           <Section title="Line Items">
             <Field label="Commission" prefix="$">
@@ -300,6 +490,52 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
               <span className="text-xl font-extrabold text-[#FF4D8D] tabular-nums">{formatCurrency(computedTotal)}</span>
             </div>
           </Section>
+
+          {/* Payment received detail (only after paid) */}
+          {invoice.status === 'paid' && (
+            <Section title="Payment Received">
+              <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-4 space-y-2.5">
+                <div className="flex items-baseline justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">Method</span>
+                  <span className="text-sm font-semibold text-[#1A1B3A]">{labelMethod(invoice.payment_method)}</span>
+                </div>
+                {invoice.payment_reference && (
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">Reference</span>
+                    <span className="text-xs font-mono text-[#1A1B3A] truncate">{invoice.payment_reference}</span>
+                  </div>
+                )}
+                <div className="flex items-baseline justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">Amount Received</span>
+                  <span className="text-base font-extrabold tabular-nums text-emerald-700">
+                    {formatCurrency(Number(invoice.amount_received ?? invoice.total_amount))}
+                  </span>
+                </div>
+                {invoice.amount_received !== undefined && invoice.amount_received !== null &&
+                  Math.abs(Number(invoice.amount_received) - Number(invoice.total_amount)) > 0.01 && (
+                    <div className="flex items-baseline justify-between text-[11px] text-amber-700 border-t border-emerald-200/60 pt-2">
+                      <span>{Number(invoice.amount_received) < Number(invoice.total_amount) ? 'Short' : 'Over'}</span>
+                      <span className="tabular-nums">
+                        {formatCurrency(Math.abs(Number(invoice.amount_received) - Number(invoice.total_amount)))}
+                        {' vs '}{formatCurrency(Number(invoice.total_amount))} invoiced
+                      </span>
+                    </div>
+                  )}
+                {invoice.paid_at && (
+                  <div className="flex items-baseline justify-between text-[11px] text-emerald-700/80">
+                    <span>Recorded</span>
+                    <span>{formatDate(invoice.paid_at)}</span>
+                  </div>
+                )}
+                {invoice.payment_received_notes && (
+                  <div className="border-t border-emerald-200/60 pt-2">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 mb-1">Notes</p>
+                    <p className="text-xs text-gray-700 whitespace-pre-line leading-relaxed">{invoice.payment_received_notes}</p>
+                  </div>
+                )}
+              </div>
+            </Section>
+          )}
 
           {/* Bill to */}
           <Section title="Bill To">
@@ -363,8 +599,35 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
           </div>
         </div>
       </div>
+
+      {/* Mark-paid modal */}
+      <MarkPaidModal
+        open={markPaidOpen}
+        invoiceNumber={invoice.invoice_number}
+        totalAmount={Number(invoice.total_amount)}
+        defaultAmount={invoice.amount_received !== undefined && invoice.amount_received !== null ? Number(invoice.amount_received) : undefined}
+        defaultMethod={invoice.payment_method ?? null}
+        defaultReference={invoice.payment_reference ?? null}
+        defaultNotes={invoice.payment_received_notes ?? null}
+        saving={markingPaid}
+        onClose={() => setMarkPaidOpen(false)}
+        onConfirm={handleMarkPaid}
+      />
     </div>
   );
+}
+
+function labelMethod(m: string | null | undefined): string {
+  switch (m) {
+    case 'wire':   return 'Wire Transfer';
+    case 'ach':    return 'ACH';
+    case 'check':  return 'Check';
+    case 'zelle':  return 'Zelle';
+    case 'paypal': return 'PayPal';
+    case 'stripe': return 'Stripe';
+    case 'other':  return 'Other';
+    default:       return m ? m.charAt(0).toUpperCase() + m.slice(1) : '—';
+  }
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────

@@ -1,13 +1,12 @@
 import { redirect } from 'next/navigation';
 import { requireAdmin } from '@/lib/auth/require-admin';
-import { PaymentsClient } from './payments-client';
+import { BrandsSettingsClient } from './brands-client';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Payments — Tempo' };
+export const metadata = { title: 'Brand Settings — Tempo' };
 
-export default async function PaymentsPage() {
+export default async function BrandsSettingsPage() {
   const profile = await requireAdmin();
   if (!profile) redirect('/dashboard');
-
-  return <PaymentsClient />;
+  return <BrandsSettingsClient />;
 }

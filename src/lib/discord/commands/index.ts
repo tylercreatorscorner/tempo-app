@@ -26,12 +26,17 @@ import message from './message';
 import bulk from './bulk-message';
 import reminder from './reminder';
 import scan from './scan';
+import myrank from './myrank';
+import topvideos from './topvideos';
+import brief from './brief';
+import weekly from './weekly';
 
 /** All registered commands */
 export const commands: TempoCommand[] = [
   ping, stats, leaderboard, help,
   alerts, creator, compare, brand,
   message, bulk, reminder, scan,
+  myrank, topvideos, brief, weekly,
 ];
 
 /** Map of command name → handler for fast lookup */

@@ -23,7 +23,7 @@ import {
 import { commands, commandMap } from './commands';
 import { getGuildConfig } from './config';
 import { logMessage } from './relay';
-import { startReminderChecker } from './scheduler';
+import { startReminderChecker, scheduleDailyBriefs } from './scheduler';
 
 /** Create a configured Discord client */
 export function createClient(): Client {
@@ -67,8 +67,8 @@ export async function registerCommands(
 export function setupEventHandlers(client: Client): void {
   client.once(Events.ClientReady, (c) => {
     console.log(`[tempo-bot] Logged in as ${c.user.tag} — serving ${c.guilds.cache.size} guilds`);
-    // Start reminder checker
     startReminderChecker(client);
+    scheduleDailyBriefs(client);
   });
 
   client.on(Events.InteractionCreate, async (interaction: Interaction) => {

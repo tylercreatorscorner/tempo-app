@@ -2,12 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Receipt, FileText, Clock, CheckCircle2, Filter, RefreshCw, Download, Plus, AlertCircle, Ban } from 'lucide-react';
+import { Receipt, FileText, Clock, CheckCircle2, Filter, RefreshCw, Download, Plus, AlertCircle, Ban, Search, X, Send, Loader2, FileDown } from 'lucide-react';
+import { downloadCsv } from '@/lib/utils/csv';
 import { cn } from '@/lib/utils';
 import { formatCurrency, formatDate, formatPeriod, currentMonth } from '@/lib/utils/format';
 import { StatCard } from '@/components/dashboard/stat-card';
 import { InvoiceDetailSheet, type Invoice } from './components/invoice-detail-sheet';
 import { NewInvoiceModal } from './components/new-invoice-modal';
+import { AgingPanel, bucketFor, type AgingBucket } from './components/aging-panel';
 
 type Status = 'all' | 'pending' | 'sent' | 'paid' | 'void';
 
@@ -29,6 +31,10 @@ export function InvoicingClient({ initialOpenId }: Props) {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [status, setStatus] = useState<Status>('all');
   const [brand, setBrand] = useState<string>('all');
+  const [search, setSearch] = useState('');
+  const [agingBucket, setAgingBucket] = useState<AgingBucket>('all');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkAction, setBulkAction] = useState<'sent' | 'paid' | 'void' | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeInvoice, setActiveInvoice] = useState<Invoice | null>(null);
@@ -96,6 +102,107 @@ export function InvoicingClient({ initialOpenId }: Props) {
     return { outstandingAmount, pendingAmount, pendingCount, sentAmount, sentCount, paidThisYearAmount, paidThisYearCount };
   }, [invoices]);
 
+  // Apply client-side aging + search filters on top of the server-filtered list.
+  const filteredInvoices = useMemo(() => {
+    const now = new Date();
+    const q = search.trim().toLowerCase();
+    return invoices.filter((inv) => {
+      // Aging bucket filter
+      if (agingBucket !== 'all') {
+        const b = bucketFor(inv, now);
+        if (b !== agingBucket) return false;
+      }
+      // Search filter
+      if (q) {
+        const haystack = [
+          inv.invoice_number,
+          inv.brand,
+          inv.period_month,
+          inv.notes ?? '',
+          inv.bill_to_name ?? '',
+        ].join(' ').toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [invoices, agingBucket, search]);
+
+  // Selection helpers — selection is keyed by invoice id and persists across filters
+  const visibleSelectedCount = filteredInvoices.filter((i) => selectedIds.has(i.id)).length;
+  const allVisibleSelected = filteredInvoices.length > 0 && visibleSelectedCount === filteredInvoices.length;
+  const toggleAllVisible = () => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allVisibleSelected) {
+        for (const inv of filteredInvoices) next.delete(inv.id);
+      } else {
+        for (const inv of filteredInvoices) next.add(inv.id);
+      }
+      return next;
+    });
+  };
+  const toggleOne = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const handleBulk = useCallback(async (action: 'sent' | 'paid' | 'void') => {
+    if (selectedIds.size === 0) return;
+    const ids = Array.from(selectedIds);
+    if (action === 'void' && !confirm(`Void ${ids.length} invoice${ids.length === 1 ? '' : 's'}? They stay on file but won't count toward outstanding.`)) {
+      return;
+    }
+    setBulkAction(action);
+    setError(null);
+    try {
+      const res = await fetch('/api/invoices/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids, status: action }),
+      });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
+      // Merge updated rows back into local state
+      const updatedById = new Map((j.invoices as Invoice[]).map((inv) => [inv.id, inv]));
+      setInvoices((prev) => prev.map((inv) => updatedById.get(inv.id) ?? inv));
+      setSelectedIds(new Set()); // Clear selection after success
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Bulk action failed');
+    } finally {
+      setBulkAction(null);
+    }
+  }, [selectedIds]);
+
+  const handleExportCsv = useCallback(() => {
+    const list = filteredInvoices.length > 0 ? filteredInvoices : invoices;
+    if (list.length === 0) return;
+    const rows = list.map((inv) => ({
+      invoice_number: inv.invoice_number,
+      brand: inv.brand,
+      period_month: inv.period_month,
+      status: inv.status,
+      affiliate_gmv: Number(inv.affiliate_gmv),
+      marketing_gmv: Number(inv.marketing_gmv),
+      total_gmv: Number(inv.total_gmv),
+      commission: Number(inv.commission),
+      retainer: Number(inv.retainer),
+      product_retainer: Number(inv.product_retainer),
+      launch_fee: Number(inv.launch_fee),
+      total_amount: Number(inv.total_amount),
+      generated_at: inv.generated_at,
+      sent_at: inv.sent_at ?? '',
+      paid_at: inv.paid_at ?? '',
+      due_date: inv.due_date ?? '',
+      bill_to_name: inv.bill_to_name ?? '',
+      bill_to_email: inv.bill_to_email ?? '',
+    }));
+    const stamp = new Date().toISOString().split('T')[0];
+    downloadCsv(`invoices_${stamp}.csv`, rows);
+  }, [filteredInvoices, invoices]);
+
   const handleCreated = useCallback((created: Invoice) => {
     setInvoices((prev) => [created, ...prev]);
     setCreating(false);
@@ -162,6 +269,9 @@ export function InvoicingClient({ initialOpenId }: Props) {
         />
       </div>
 
+      {/* Aging panel */}
+      <AgingPanel invoices={invoices} active={agingBucket} onPick={setAgingBucket} />
+
       {/* Filter bar */}
       <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
         <div className="px-5 py-3 flex items-center gap-3 flex-wrap border-b border-gray-100">
@@ -187,6 +297,19 @@ export function InvoicingClient({ initialOpenId }: Props) {
 
           <BrandFilter value={brand} onChange={setBrand} options={brandOptions} />
 
+          <SearchInput value={search} onChange={setSearch} />
+
+          {agingBucket !== 'all' && (
+            <button
+              onClick={() => setAgingBucket('all')}
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-gray-100 text-xs font-semibold text-gray-600 hover:bg-gray-200 transition-colors"
+              title="Clear aging filter"
+            >
+              Aging: {agingBucket === 'current' ? 'Current' : `${agingBucket} days`}
+              <X className="h-3 w-3" />
+            </button>
+          )}
+
           <button
             onClick={fetchInvoices}
             disabled={loading}
@@ -195,6 +318,16 @@ export function InvoicingClient({ initialOpenId }: Props) {
           >
             <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
             Refresh
+          </button>
+
+          <button
+            onClick={handleExportCsv}
+            disabled={loading || invoices.length === 0}
+            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-600 disabled:opacity-40 transition-colors"
+            title={filteredInvoices.length < invoices.length ? `Export ${filteredInvoices.length} filtered invoices to CSV` : `Export all ${invoices.length} invoices to CSV`}
+          >
+            <FileDown className="h-3.5 w-3.5" />
+            Export
           </button>
         </div>
 
@@ -212,59 +345,143 @@ export function InvoicingClient({ initialOpenId }: Props) {
           </div>
         ) : invoices.length === 0 ? (
           <EmptyState onCreate={() => setCreating(true)} />
+        ) : filteredInvoices.length === 0 ? (
+          <div className="px-6 py-16 text-center">
+            <div className="mx-auto h-12 w-12 rounded-2xl bg-gray-50 flex items-center justify-center mb-3">
+              <Search className="h-5 w-5 text-gray-300" />
+            </div>
+            <p className="text-sm font-bold text-[#1A1B3A]">No invoices match your filters</p>
+            <p className="text-xs text-gray-400 mt-1">Try clearing search, status, or aging filters.</p>
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50/60 border-b border-gray-100">
+                  <th className="px-4 py-3 w-10">
+                    <input
+                      type="checkbox"
+                      checked={allVisibleSelected}
+                      onChange={toggleAllVisible}
+                      className="h-3.5 w-3.5 rounded border-gray-300 text-[#FF4D8D] focus:ring-[#FF4D8D]/30 cursor-pointer"
+                      aria-label="Select all visible"
+                    />
+                  </th>
                   <Th align="left">Invoice #</Th>
                   <Th align="left">Brand</Th>
                   <Th align="left">Period</Th>
                   <Th align="right">Total</Th>
                   <Th align="center">Status</Th>
                   <Th align="left">Issued</Th>
-                  <Th align="left">Due</Th>
+                  <Th align="left">Due / Aging</Th>
                   <Th align="right">Actions</Th>
                 </tr>
               </thead>
               <tbody>
-                {invoices.map((inv) => (
-                  <tr
-                    key={inv.id}
-                    onClick={() => setActiveInvoice(inv)}
-                    className="border-b border-gray-50 hover:bg-[#FFF0F5]/40 cursor-pointer transition-colors group"
-                  >
-                    <td className="px-4 py-3 font-mono text-xs font-semibold text-[#1A1B3A]">{inv.invoice_number}</td>
-                    <td className="px-4 py-3 font-semibold text-[#1A1B3A]">{inv.brand}</td>
-                    <td className="px-4 py-3 text-gray-600">{fmtPeriod(inv.period_month)}</td>
-                    <td className="px-4 py-3 text-right tabular-nums font-bold text-[#1A1B3A]">
-                      {formatCurrency(Number(inv.total_amount))}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <StatusBadge status={inv.status} />
-                    </td>
-                    <td className="px-4 py-3 text-xs text-gray-500">{formatDate(inv.generated_at)}</td>
-                    <td className="px-4 py-3 text-xs text-gray-500">
-                      {inv.due_date ? formatDate(inv.due_date) : <span className="text-gray-300">—</span>}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <a
-                        href={`/api/invoices/${inv.id}/pdf`}
-                        onClick={(e) => e.stopPropagation()}
-                        className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-gray-600 hover:text-[#FF4D8D] hover:bg-white rounded-lg transition-colors"
-                        title="Download PDF"
-                      >
-                        <Download className="h-3.5 w-3.5" />
-                        PDF
-                      </a>
-                    </td>
-                  </tr>
-                ))}
+                {filteredInvoices.map((inv) => {
+                  const isSelected = selectedIds.has(inv.id);
+                  return (
+                    <tr
+                      key={inv.id}
+                      onClick={() => setActiveInvoice(inv)}
+                      className={cn(
+                        'border-b border-gray-50 cursor-pointer transition-colors',
+                        isSelected ? 'bg-[#FFF0F5]/60 hover:bg-[#FFF0F5]/80' : 'hover:bg-[#FFF0F5]/40',
+                      )}
+                    >
+                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleOne(inv.id)}
+                          className="h-3.5 w-3.5 rounded border-gray-300 text-[#FF4D8D] focus:ring-[#FF4D8D]/30 cursor-pointer"
+                          aria-label={`Select ${inv.invoice_number}`}
+                        />
+                      </td>
+                      <td className="px-4 py-3 font-mono text-xs font-semibold text-[#1A1B3A]">{inv.invoice_number}</td>
+                      <td className="px-4 py-3 font-semibold text-[#1A1B3A]">{inv.brand}</td>
+                      <td className="px-4 py-3 text-gray-600">{fmtPeriod(inv.period_month)}</td>
+                      <td className="px-4 py-3 text-right tabular-nums font-bold text-[#1A1B3A]">
+                        {formatCurrency(Number(inv.total_amount))}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <StatusBadge status={inv.status} />
+                      </td>
+                      <td className="px-4 py-3 text-xs text-gray-500">{formatDate(inv.generated_at)}</td>
+                      <td className="px-4 py-3 text-xs">
+                        {inv.due_date ? (
+                          <div>
+                            <div className="text-gray-500">{formatDate(inv.due_date)}</div>
+                            <DueIndicator invoice={inv} />
+                          </div>
+                        ) : (
+                          <span className="text-gray-300">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <a
+                          href={`/api/invoices/${inv.id}/pdf`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-gray-600 hover:text-[#FF4D8D] hover:bg-white rounded-lg transition-colors"
+                          title="Download PDF"
+                        >
+                          <Download className="h-3.5 w-3.5" />
+                          PDF
+                        </a>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         )}
       </div>
+
+      {/* Bulk action bar (sticky bottom) */}
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 animate-in slide-in-from-bottom-4">
+          <div className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-[#1A1B3A] text-white shadow-2xl border border-[#2D2E5C]">
+            <span className="text-sm">
+              <span className="font-bold">{selectedIds.size}</span> selected
+            </span>
+            <span className="h-5 w-px bg-white/20" />
+            <button
+              onClick={() => handleBulk('sent')}
+              disabled={bulkAction !== null}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500 text-white text-xs font-bold hover:bg-blue-600 disabled:opacity-50 transition-colors"
+            >
+              {bulkAction === 'sent' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+              Mark as Sent
+            </button>
+            <button
+              onClick={() => handleBulk('paid')}
+              disabled={bulkAction !== null}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500 text-white text-xs font-bold hover:bg-emerald-600 disabled:opacity-50 transition-colors"
+            >
+              {bulkAction === 'paid' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+              Mark as Paid
+            </button>
+            <button
+              onClick={() => handleBulk('void')}
+              disabled={bulkAction !== null}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-400/40 text-red-300 text-xs font-bold hover:bg-red-500/20 disabled:opacity-50 transition-colors"
+            >
+              {bulkAction === 'void' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Ban className="h-3.5 w-3.5" />}
+              Void
+            </button>
+            <span className="h-5 w-px bg-white/20" />
+            <button
+              onClick={() => setSelectedIds(new Set())}
+              className="inline-flex items-center justify-center h-7 w-7 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-colors"
+              title="Clear selection"
+              aria-label="Clear selection"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* New invoice modal */}
       <NewInvoiceModal
@@ -295,6 +512,52 @@ export function InvoicingClient({ initialOpenId }: Props) {
 }
 
 // ── Helpers / sub-components ──────────────────────────────────────────
+
+function SearchInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="relative">
+      <Search className="h-3.5 w-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="Search invoice #, brand, period…"
+        className="bg-white border border-gray-200 rounded-xl pl-9 pr-8 py-2 text-xs text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D] w-56 transition-colors"
+      />
+      {value && (
+        <button
+          onClick={() => onChange('')}
+          className="absolute right-2 top-1/2 -translate-y-1/2 h-5 w-5 rounded-md flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+          aria-label="Clear search"
+        >
+          <X className="h-3 w-3" />
+        </button>
+      )}
+    </div>
+  );
+}
+
+function DueIndicator({ invoice }: { invoice: Invoice }) {
+  if (invoice.status === 'paid' || invoice.status === 'void') return null;
+  if (!invoice.due_date) return null;
+  const due = new Date(invoice.due_date);
+  const days = Math.floor((Date.now() - due.getTime()) / (1000 * 60 * 60 * 24));
+  if (days <= 0) {
+    const inDays = Math.abs(days);
+    return (
+      <div className="text-[10px] text-gray-400 mt-0.5">
+        {inDays === 0 ? 'Due today' : `Due in ${inDays} day${inDays === 1 ? '' : 's'}`}
+      </div>
+    );
+  }
+  const tone = days > 60 ? 'text-red-600' : days > 30 ? 'text-orange-600' : 'text-amber-600';
+  return (
+    <div className={cn('text-[10px] font-bold mt-0.5', tone)}>
+      {days} day{days === 1 ? '' : 's'} overdue
+    </div>
+  );
+}
+
 
 const fmtPeriod = (ym: string) => formatPeriod(ym, { short: true });
 

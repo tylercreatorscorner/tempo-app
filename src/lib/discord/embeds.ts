@@ -101,5 +101,9 @@ export function helpEmbed(): EmbedBuilder {
       { name: '/bulk announce [channel] [text]', value: 'Post formatted announcement', inline: false },
       { name: '/reminder create [creator] [text] [when]', value: 'Schedule a reminder DM', inline: false },
       { name: '/reminder posting [days]', value: 'Remind inactive creators', inline: false },
+      { name: '/myrank [period]', value: 'See your rank & earnings as a creator (only visible to you)', inline: false },
+      { name: '/topvideos [period] [limit]', value: 'Top performing videos ranked by GMV', inline: false },
+      { name: '/brief', value: 'Post the daily performance brief (admin)', inline: false },
+      { name: '/weekly', value: 'Post the weekly recap (admin)', inline: false },
     );
 }

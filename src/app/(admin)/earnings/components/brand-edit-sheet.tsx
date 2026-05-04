@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { X, Loader2, Save } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { CreatorOverridesSection } from './creator-overrides-section';
 
 export type CompensationModel = 'standard' | 'revshare_max' | 'commission_only' | 'retainer_only';
 
@@ -28,9 +29,13 @@ interface Props {
   brand: string;
   brandLabel: string;
   initialValues: BrandSettingsValues;
-  /** Marketing GMV for the active month (read+edit). Lives in marketing_gmv table, not brand_settings. */
-  marketingGmv: number;
-  activeMonth: string;
+  /**
+   * Marketing GMV for the active month (read+edit). Lives in marketing_gmv table.
+   * Pass null when editing brand settings outside a month context (e.g. /settings/brands).
+   */
+  marketingGmv: number | null;
+  /** Active "YYYY-MM" being edited, or null when context-free. */
+  activeMonth: string | null;
   onClose: () => void;
   onSaved: () => void;
 }
@@ -44,14 +49,18 @@ const MODEL_OPTIONS: { value: CompensationModel; label: string; description: str
 
 export function BrandEditSheet({ open, brand, brandLabel, initialValues, marketingGmv, activeMonth, onClose, onSaved }: Props) {
   const [values, setValues] = useState<BrandSettingsValues>(initialValues);
-  const [marketing, setMarketing] = useState<number>(marketingGmv);
+  const [marketing, setMarketing] = useState<number>(marketingGmv ?? 0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Whether we're operating in a month-specific context (i.e. earnings page)
+  // vs context-free (i.e. /settings/brands).
+  const hasMonthContext = activeMonth !== null && marketingGmv !== null;
 
   useEffect(() => {
     if (open) {
       setValues(initialValues);
-      setMarketing(marketingGmv);
+      setMarketing(marketingGmv ?? 0);
       setError(null);
     }
   }, [open, initialValues, marketingGmv]);
@@ -94,8 +103,8 @@ export function BrandEditSheet({ open, brand, brandLabel, initialValues, marketi
         }),
       );
 
-      // Marketing GMV (separate table)
-      if (marketing !== marketingGmv) {
+      // Marketing GMV (separate table) — only when we have a month context
+      if (hasMonthContext && marketing !== marketingGmv) {
         tasks.push(
           fetch('/api/earnings/marketing-gmv', {
             method: 'PATCH',
@@ -230,6 +239,9 @@ export function BrandEditSheet({ open, brand, brandLabel, initialValues, marketi
             </Field>
           </Section>
 
+          {/* Per-creator rate overrides — saves immediately, separate from main form */}
+          <CreatorOverridesSection brand={brand} brandRate={values.commission_rate} />
+
           {/* Bill-to (used for invoices) */}
           <Section title="Invoice Recipient">
             <Field label="Recipient Name" hint="Used as default on invoices">
@@ -266,15 +278,21 @@ export function BrandEditSheet({ open, brand, brandLabel, initialValues, marketi
             </Field>
           </Section>
 
-          {/* Goals & this month */}
-          <Section title={`This Month (${activeMonth})`}>
-            <Field label="Monthly GMV Goal" prefix="$" hint="Used by the goal gauge">
+          {/* Goals — always shown */}
+          <Section title="Goals">
+            <Field label="Monthly GMV Goal" prefix="$" hint="Used by the goal gauge on Earnings">
               <NumberInput value={values.monthly_gmv_goal} step={1000} onChange={(v) => set('monthly_gmv_goal', v)} />
             </Field>
-            <Field label="Marketing GMV" prefix="$" hint="Manual entry for this month only">
-              <NumberInput value={marketing} step={100} onChange={setMarketing} />
-            </Field>
           </Section>
+
+          {/* This-month-specific (only when there's a month context) */}
+          {hasMonthContext && (
+            <Section title={`This Month (${activeMonth})`}>
+              <Field label="Marketing GMV" prefix="$" hint="Manual entry for this month only">
+                <NumberInput value={marketing} step={100} onChange={setMarketing} />
+              </Field>
+            </Section>
+          )}
 
           {error && (
             <div className="rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-700">

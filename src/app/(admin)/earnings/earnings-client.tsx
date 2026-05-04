@@ -16,7 +16,8 @@
 
 import { useCallback, useEffect, useMemo, useState, Fragment } from 'react';
 import { useRouter } from 'next/navigation';
-import { ChevronDown, ChevronRight, RefreshCw, Pencil, ArrowUp, ArrowDown, Receipt, Loader2, AlertCircle, CheckCircle2, Users } from 'lucide-react';
+import { ChevronDown, ChevronRight, RefreshCw, Pencil, ArrowUp, ArrowDown, Receipt, Loader2, AlertCircle, CheckCircle2, Users, Download } from 'lucide-react';
+import { downloadCsv } from '@/lib/utils/csv';
 import { cn } from '@/lib/utils';
 import { formatCurrency, buildMonthOptions } from '@/lib/utils/format';
 import { StatCard } from '@/components/dashboard/stat-card';
@@ -176,6 +177,26 @@ export function EarningsClient({ initialMonth }: { initialMonth: string }) {
     return arr;
   }, [data, sortKey, sortDir]);
 
+  const handleExportCsv = useCallback(() => {
+    if (!data) return;
+    const rows = data.brands.map((b) => ({
+      brand: b.brandLabel,
+      affiliate_gmv: b.affiliateGmv,
+      marketing_gmv: b.marketingGmv,
+      total_gmv: b.totalGmv,
+      brand_rate_pct: b.rate,
+      effective_rate_pct: b.effectiveRate,
+      commission: b.commission,
+      retainer: b.retainer,
+      product_retainer: b.productRetainer,
+      launch_fee: b.launchFee,
+      total: b.total,
+      compensation_model: b.compensationModel,
+      creators_count: b.creators.length,
+    }));
+    downloadCsv(`earnings_${month}.csv`, rows);
+  }, [data, month]);
+
   // Trend % vs prior month — series is oldest-first, last is current month
   const earningsTrend = useMemo(() => {
     if (!series || series.length < 2) return undefined;
@@ -207,6 +228,15 @@ export function EarningsClient({ initialMonth }: { initialMonth: string }) {
         >
           <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
           Refresh
+        </button>
+        <button
+          onClick={handleExportCsv}
+          disabled={!data || loading}
+          className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-600 disabled:opacity-40 transition-colors"
+          title="Export brand breakdown to CSV"
+        >
+          <Download className="h-3.5 w-3.5" />
+          Export
         </button>
         <div className="text-xs text-gray-400 ml-auto">
           {data ? `${data.startDate} → ${data.endDate}` : ''}

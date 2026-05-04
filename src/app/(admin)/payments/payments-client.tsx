@@ -1,20 +1,29 @@
 'use client';
 
-import { useState, useEffect, useCallback, Fragment } from 'react';
-import dynamic from 'next/dynamic';
-import {
-  CreditCard, DollarSign, FileText, Users, TrendingUp,
-  ArrowUpRight, Filter, ChevronRight,
-  Percent, History, AlertCircle, CheckCircle, Eye
-} from 'lucide-react';
-import {
-  BRAND_DISPLAY_NAMES, ACTIVE_BRANDS, getBrandColor
-} from '@/lib/utils/constants';
-import { formatCurrency, formatCurrencyExact, formatDate } from '@/lib/utils/format';
+/**
+ * Payments page — operational view of retainer commitments and the audit
+ * trail of financial changes.
+ *
+ * Scope (after the rebuild):
+ *   1. Stats: total retainer spend, creators on retainer, at-risk count, paid this month
+ *   2. Brand retainer-spend chart
+ *   3. Retainer tracker table (post progress + status per creator)
+ *   4. Audit log feed
+ *
+ * What's no longer here (and why):
+ *   - "Invoices" tab → /invoicing has the dedicated UI now
+ *   - "Commissions" tab → rates live on /earnings, +1% bumps managed in BrandEditSheet
+ *   - "Overview" → its stats lived elsewhere or are folded into this page
+ */
 
-const Chart = dynamic(() => import('react-apexcharts'), { ssr: false });
-
-// ─── Types ───────────────────────────────────────────────────────────
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Users, AlertCircle, CheckCircle2, RefreshCw, DollarSign } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { formatCurrency, formatDate } from '@/lib/utils/format';
+import { StatCard } from '@/components/dashboard/stat-card';
+import { BrandSpendChart } from './components/brand-spend-chart';
+import { RetainerTracker, type RetainerCreator } from './components/retainer-tracker';
+import { AuditFeed, type AuditLog } from './components/audit-feed';
 
 interface OverviewData {
   totalRetainerSpend: number;
@@ -23,778 +32,199 @@ interface OverviewData {
   outstandingAmount: number;
   paidThisMonth: number;
   brandSpend: Record<string, number>;
-  recentActivity: any[];
 }
-
-interface RetainerCreator {
-  creator_name: string;
-  brand: string;
-  retainer: number;
-  posts_required: number;
-  posts_found: number;
-  monthly_post_requirement: number;
-  retainer_start_date: string;
-  status: string;
-  payment_status: string;
-  account_1?: string | null;
-  account_2?: string | null;
-  account_3?: string | null;
-  account_4?: string | null;
-  account_5?: string | null;
-  real_name?: string | null;
-}
-
-interface CommissionData {
-  brandRates: { brand: string; commission_rate: number }[];
-  bumpCreators: { creator_name: string; brand: string; rate: number; created_at: string }[];
-  commissions: any[];
-}
-
-interface Invoice {
-  id: string;
-  invoice_number: string;
-  brand: string;
-  period_month: string;
-  total_amount: number;
-  commission: number;
-  retainer: number;
-  launch_fee: number;
-  affiliate_gmv: number;
-  marketing_gmv: number;
-  total_gmv: number;
-  status: string;
-  generated_at: string;
-  sent_at: string | null;
-  paid_at: string | null;
-  notes: string | null;
-}
-
-interface AuditLog {
-  id: string;
-  entity_type: string;
-  entity_id: string;
-  creator_name: string | null;
-  brand: string | null;
-  field_changed: string;
-  old_value: string | null;
-  new_value: string | null;
-  changed_by: string;
-  reason: string | null;
-  created_at: string;
-}
-
-// ─── Helpers ─────────────────────────────────────────────────────────
-
-const TABS = ['Overview', 'Retainer Tracking', 'Commissions', 'Invoices', 'History'] as const;
-type Tab = typeof TABS[number];
-
-function brandDisplayName(slug: string): string {
-  return BRAND_DISPLAY_NAMES[slug] || slug;
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const colors: Record<string, string> = {
-    pending: 'bg-yellow-50 text-yellow-700 border-yellow-200',
-    approved: 'bg-blue-50 text-blue-700 border-blue-200',
-    sent: 'bg-blue-50 text-blue-700 border-blue-200',
-    paid: 'bg-green-50 text-green-700 border-green-200',
-  };
-  return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${colors[status] || 'bg-gray-50 text-gray-700 border-gray-200'}`}>
-      {status.charAt(0).toUpperCase() + status.slice(1)}
-    </span>
-  );
-}
-
-function BrandPill({ brand }: { brand: string }) {
-  const color = getBrandColor(brand);
-  return (
-    <span
-      className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold text-white"
-      style={{ backgroundColor: color }}
-    >
-      {brandDisplayName(brand)}
-    </span>
-  );
-}
-
-function RetainerStatusBadge({ status }: { status: string }) {
-  const config: Record<string, { bg: string; text: string; icon: any }> = {
-    'On Track': { bg: 'bg-green-50 border-green-200', text: 'text-green-700', icon: CheckCircle },
-    'Behind': { bg: 'bg-yellow-50 border-yellow-200', text: 'text-yellow-700', icon: AlertCircle },
-    'At Risk': { bg: 'bg-red-50 border-red-200', text: 'text-red-700', icon: AlertCircle },
-  };
-  const c = config[status] || config['On Track'];
-  const Icon = c.icon;
-  return (
-    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium border ${c.bg} ${c.text}`}>
-      <Icon className="h-3 w-3" />
-      {status}
-    </span>
-  );
-}
-
-function BrandFilter({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  return (
-    <div className="relative">
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="appearance-none bg-white border border-gray-200 rounded-xl px-4 py-2 pr-8 text-sm font-medium text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-pink-200 focus:border-pink-300 cursor-pointer"
-      >
-        <option value="all">All Brands</option>
-        {ACTIVE_BRANDS.map((b) => (
-          <option key={b} value={b}>{brandDisplayName(b)}</option>
-        ))}
-      </select>
-      <Filter className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
-    </div>
-  );
-}
-
-function CardSkeleton() {
-  return <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-6 animate-pulse h-28" />;
-}
-
-function TableSkeleton() {
-  return (
-    <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-6 space-y-3 animate-pulse">
-      {[...Array(5)].map((_, i) => <div key={i} className="h-10 bg-gray-100 rounded-lg" />)}
-    </div>
-  );
-}
-
-// ─── Summary Card ────────────────────────────────────────────────────
-
-function SummaryCard({ title, value, subtitle, icon: Icon, gradient }: {
-  title: string; value: string; subtitle?: string; icon: any; gradient: string;
-}) {
-  return (
-    <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-6 hover:shadow-md transition-shadow">
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-sm font-medium text-gray-500">{title}</p>
-          <p className="text-2xl font-bold text-[#1A1B3A] mt-1">{value}</p>
-          {subtitle && <p className="text-xs text-gray-400 mt-1">{subtitle}</p>}
-        </div>
-        <div className={`h-11 w-11 rounded-xl flex items-center justify-center ${gradient}`}>
-          <Icon className="h-5 w-5 text-white" />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Brand Spend Bar Chart ───────────────────────────────────────────
-
-function BrandSpendChart({ data }: { data: Record<string, number> }) {
-  const entries = Object.entries(data).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
-
-  if (entries.length === 0) {
-    return (
-      <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
-        <h3 className="text-sm font-semibold text-[#1A1B3A] mb-4">Monthly Retainer Spend by Brand</h3>
-        <p className="text-sm text-gray-400 text-center py-8">No spend data available yet</p>
-      </div>
-    );
-  }
-
-  const options: ApexCharts.ApexOptions = {
-    chart: { type: 'bar', toolbar: { show: false }, background: 'transparent', animations: { enabled: true, speed: 400 } },
-    plotOptions: {
-      bar: { horizontal: true, borderRadius: 5, barHeight: '55%', distributed: true },
-    },
-    dataLabels: { enabled: false },
-    xaxis: {
-      categories: entries.map(([brand]) => brandDisplayName(brand)),
-      labels: {
-        formatter: (v: string) => formatCurrency(Number(v)),
-        style: { fontSize: '11px', colors: Array(entries.length).fill('#9ca3af') },
-      },
-      axisBorder: { show: false },
-      axisTicks: { show: false },
-    },
-    yaxis: {
-      labels: { style: { fontSize: '12px', fontWeight: '600', colors: Array(entries.length).fill('#1A1B3A') } },
-    },
-    colors: entries.map(([brand]) => getBrandColor(brand)),
-    legend: { show: false },
-    grid: { borderColor: '#f3f4f6', strokeDashArray: 4, xaxis: { lines: { show: true } }, yaxis: { lines: { show: false } } },
-    tooltip: { y: { formatter: (v: number) => formatCurrency(v) }, theme: 'light' },
-  };
-
-  const series = [{ name: 'Retainer', data: entries.map(([, v]) => v) }];
-
-  return (
-    <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
-      <h3 className="text-sm font-semibold text-[#1A1B3A] mb-2">Monthly Retainer Spend by Brand</h3>
-      <Chart
-        type="bar"
-        options={options}
-        series={series}
-        height={Math.max(180, entries.length * 52)}
-      />
-    </div>
-  );
-}
-
-// ─── Recent Activity Feed ────────────────────────────────────────────
-
-function ActivityFeed({ items }: { items: any[] }) {
-  if (items.length === 0) {
-    return (
-      <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
-        <h3 className="text-sm font-semibold text-[#1A1B3A] mb-4">Recent Payment Activity</h3>
-        <p className="text-sm text-gray-400 text-center py-8">No recent activity</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
-      <h3 className="text-sm font-semibold text-[#1A1B3A] mb-4">Recent Payment Activity</h3>
-      <div className="space-y-3">
-        {items.slice(0, 8).map((item: any) => (
-          <div key={item.id} className="flex items-center gap-3 py-2 border-b border-gray-50 last:border-0">
-            <div className={`h-8 w-8 rounded-lg flex items-center justify-center ${
-              item.payment_type === 'retainer' ? 'bg-purple-50' : 'bg-green-50'
-            }`}>
-              {item.payment_type === 'retainer'
-                ? <Users className="h-4 w-4 text-purple-500" />
-                : <TrendingUp className="h-4 w-4 text-green-500" />
-              }
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-[#1A1B3A] truncate">
-                {item.creator_name} <span className="text-gray-400 font-normal">{item.payment_type}</span>
-              </p>
-              <p className="text-xs text-gray-400">{formatDate(item.date_submitted)}</p>
-            </div>
-            <div className="text-right">
-              <p className="text-sm font-semibold text-[#1A1B3A]">{formatCurrencyExact(item.amount || 0)}</p>
-              <StatusBadge status={item.status} />
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ─── Overview Tab ────────────────────────────────────────────────────
-
-function OverviewTab() {
-  const [data, setData] = useState<OverviewData | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetch('/api/payments/overview')
-      .then(r => r.json())
-      .then(setData)
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, []);
-
-  if (loading) {
-    return (
-      <div className="space-y-6">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[...Array(4)].map((_, i) => <CardSkeleton key={i} />)}
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <TableSkeleton />
-          <TableSkeleton />
-        </div>
-      </div>
-    );
-  }
-
-  if (!data) return <p className="text-gray-400 text-center py-12">Failed to load overview data</p>;
-
-  return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <SummaryCard
-          title="Total Retainer Spend"
-          value={formatCurrency(data.totalRetainerSpend)}
-          subtitle="This month"
-          icon={Users}
-          gradient="bg-gradient-to-br from-purple-500 to-purple-600"
-        />
-        <SummaryCard
-          title="Commissions Owed"
-          value={formatCurrency(data.totalCommissionsOwed)}
-          subtitle="Pending and approved"
-          icon={TrendingUp}
-          gradient="bg-gradient-to-br from-green-500 to-green-600"
-        />
-        <SummaryCard
-          title="Outstanding Invoices"
-          value={String(data.outstandingInvoices)}
-          subtitle={formatCurrency(data.outstandingAmount) + ' total'}
-          icon={FileText}
-          gradient="bg-gradient-to-br from-[#FF4D8D] to-pink-600"
-        />
-        <SummaryCard
-          title="Paid This Month"
-          value={formatCurrency(data.paidThisMonth)}
-          subtitle="Completed payments"
-          icon={CheckCircle}
-          gradient="bg-gradient-to-br from-blue-500 to-blue-600"
-        />
-      </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <BrandSpendChart data={data.brandSpend} />
-        <ActivityFeed items={data.recentActivity} />
-      </div>
-    </div>
-  );
-}
-
-// ─── Retainer Tracking Tab ───────────────────────────────────────────
-
-function RetainerTab() {
-  const [data, setData] = useState<{ creators: RetainerCreator[]; totalRetainerSpend: number } | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [brand, setBrand] = useState('all');
-  const [expandedCreator, setExpandedCreator] = useState<string | null>(null);
-
-  const fetchData = useCallback(() => {
-    setLoading(true);
-    fetch(`/api/payments/retainers?brand=${brand}`)
-      .then(r => r.json())
-      .then(setData)
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, [brand]);
-
-  useEffect(() => { fetchData(); }, [fetchData]);
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          {data && (
-            <p className="text-sm text-gray-500">
-              Total monthly retainer spend: <span className="font-semibold text-[#1A1B3A]">{formatCurrency(data.totalRetainerSpend)}</span>
-            </p>
-          )}
-        </div>
-        <BrandFilter value={brand} onChange={setBrand} />
-      </div>
-
-      {loading ? <TableSkeleton /> : !data || data.creators.length === 0 ? (
-        <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-12 text-center">
-          <p className="text-gray-400">No creators with active retainers found</p>
-        </div>
-      ) : (
-        <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-100">
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-6 py-3">Creator</th>
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-4 py-3">Brand</th>
-                  <th className="text-right text-xs font-semibold text-gray-500 uppercase tracking-wider px-4 py-3">Retainer</th>
-                  <th className="text-center text-xs font-semibold text-gray-500 uppercase tracking-wider px-4 py-3">Posts Req.</th>
-                  <th className="text-center text-xs font-semibold text-gray-500 uppercase tracking-wider px-4 py-3">Posts Found</th>
-                  <th className="text-center text-xs font-semibold text-gray-500 uppercase tracking-wider px-4 py-3">Status</th>
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-4 py-3">Start Date</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.creators.map((c) => {
-                  const key = `${c.creator_name}|${c.brand}`;
-                  const isExpanded = expandedCreator === key;
-                  const postsReq = c.monthly_post_requirement || c.posts_required || 0;
-                  const postsPct = postsReq > 0 ? Math.min(100, (c.posts_found / postsReq) * 100) : 0;
-                  const accounts = [c.account_1, c.account_2, c.account_3, c.account_4, c.account_5].filter(Boolean) as string[];
-
-                  return (
-                    <Fragment key={key}>
-                      <tr
-                        className="border-b border-gray-50 hover:bg-gray-50/50 cursor-pointer transition-colors select-none"
-                        onClick={() => setExpandedCreator(isExpanded ? null : key)}
-                      >
-                        <td className="px-6 py-3">
-                          <div className="flex items-center gap-2">
-                            <ChevronRight className={`h-4 w-4 text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
-                            <span className="text-sm font-medium text-[#1A1B3A]">{c.creator_name}</span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3"><BrandPill brand={c.brand} /></td>
-                        <td className="px-4 py-3 text-right text-sm font-semibold text-[#1A1B3A]">{formatCurrency(c.retainer)}</td>
-                        <td className="px-4 py-3 text-center text-sm text-gray-600">{postsReq}</td>
-                        <td className="px-4 py-3 text-center text-sm text-gray-600">{c.posts_found}</td>
-                        <td className="px-4 py-3 text-center"><RetainerStatusBadge status={c.status} /></td>
-                        <td className="px-4 py-3 text-sm text-gray-500">{formatDate(c.retainer_start_date)}</td>
-                      </tr>
-                      {isExpanded && (
-                        <tr className="bg-gray-50/70 border-b border-gray-100">
-                          <td colSpan={7} className="px-8 py-4">
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                              {/* Post progress */}
-                              <div>
-                                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Post Progress</p>
-                                <div className="flex items-center gap-2">
-                                  <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
-                                    <div
-                                      className={`h-full rounded-full transition-all ${
-                                        c.status === 'At Risk' ? 'bg-red-400' :
-                                        c.status === 'Behind' ? 'bg-yellow-400' : 'bg-emerald-400'
-                                      }`}
-                                      style={{ width: `${postsPct}%` }}
-                                    />
-                                  </div>
-                                  <span className="text-xs font-semibold text-gray-600 tabular-nums w-10">
-                                    {c.posts_found}/{postsReq}
-                                  </span>
-                                </div>
-                                <p className="text-[11px] text-gray-400 mt-1">{Math.round(postsPct)}% of monthly requirement</p>
-                              </div>
-
-                              {/* Payment info */}
-                              <div>
-                                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Payment Status</p>
-                                <StatusBadge status={c.payment_status} />
-                                <p className="text-[11px] text-gray-400 mt-1.5">Started {formatDate(c.retainer_start_date) || '—'}</p>
-                              </div>
-
-                              {/* Accounts */}
-                              {accounts.length > 0 && (
-                                <div>
-                                  <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Accounts</p>
-                                  <div className="flex flex-wrap gap-1.5">
-                                    {accounts.map((a) => (
-                                      <span key={a} className="inline-flex items-center px-2 py-0.5 rounded-md bg-white border border-gray-200 text-xs font-medium text-[#1A1B3A]">
-                                        @{a.replace(/^@/, '')}
-                                      </span>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Commissions Tab ─────────────────────────────────────────────────
-
-function CommissionsTab() {
-  const [data, setData] = useState<CommissionData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [brand, setBrand] = useState('all');
-
-  const fetchData = useCallback(() => {
-    setLoading(true);
-    fetch(`/api/payments/commissions?brand=${brand}`)
-      .then(r => r.json())
-      .then(setData)
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, [brand]);
-
-  useEffect(() => { fetchData(); }, [fetchData]);
-
-  if (loading) return <TableSkeleton />;
-  if (!data) return <p className="text-gray-400 text-center py-12">Failed to load commission data</p>;
-
-  // Build a set of bump creators for quick lookup
-  const bumpSet = new Set(data.bumpCreators.map(c => `${c.creator_name}|${c.brand}`));
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-end">
-        <BrandFilter value={brand} onChange={setBrand} />
-      </div>
-
-      {/* Commission Rates */}
-      <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
-        <h3 className="text-sm font-semibold text-[#1A1B3A] mb-4 flex items-center gap-2">
-          <Percent className="h-4 w-4 text-[#FF4D8D]" />
-          Base Commission Rates by Brand
-        </h3>
-        {data.brandRates.length === 0 ? (
-          <p className="text-sm text-gray-400 text-center py-4">No commission rates configured</p>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {data.brandRates.map((br) => (
-              <div key={br.brand} className="rounded-xl border border-gray-100 p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="h-3 w-3 rounded-full" style={{ backgroundColor: getBrandColor(br.brand) }} />
-                  <span className="text-sm font-semibold text-[#1A1B3A]">{brandDisplayName(br.brand)}</span>
-                </div>
-                <p className="text-2xl font-bold text-[#1A1B3A]">{br.commission_rate}%</p>
-                <p className="text-xs text-gray-400 mt-1">Base rate</p>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* +1% Bump Creators */}
-        {data.bumpCreators.length > 0 && (
-          <div className="mt-6 pt-4 border-t border-gray-100">
-            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
-              Creators with +1% Commission Bump
-            </h4>
-            <div className="flex flex-wrap gap-2">
-              {data.bumpCreators.map((c) => (
-                <div key={`${c.creator_name}-${c.brand}`} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-50 border border-green-200">
-                  <ArrowUpRight className="h-3 w-3 text-green-600" />
-                  <span className="text-xs font-medium text-green-700">{c.creator_name}</span>
-                  <BrandPill brand={c.brand} />
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Commission Breakdown */}
-      <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
-        <div className="p-6 pb-0">
-          <h3 className="text-sm font-semibold text-[#1A1B3A] mb-4 flex items-center gap-2">
-            <DollarSign className="h-4 w-4 text-[#FF4D8D]" />
-            Commission Breakdown (This Period)
-          </h3>
-        </div>
-        {data.commissions.length === 0 ? (
-          <p className="text-sm text-gray-400 text-center py-8 px-6">No commission payments recorded this period</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-100">
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-6 py-3">Creator</th>
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-4 py-3">Brand</th>
-                  <th className="text-right text-xs font-semibold text-gray-500 uppercase tracking-wider px-4 py-3">GMV</th>
-                  <th className="text-right text-xs font-semibold text-gray-500 uppercase tracking-wider px-4 py-3">Commission</th>
-                  <th className="text-center text-xs font-semibold text-gray-500 uppercase tracking-wider px-4 py-3">Tier</th>
-                  <th className="text-center text-xs font-semibold text-gray-500 uppercase tracking-wider px-6 py-3">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.commissions.map((c: any) => (
-                  <tr key={c.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
-                    <td className="px-6 py-3 text-sm font-medium text-[#1A1B3A]">{c.creator_name}</td>
-                    <td className="px-4 py-3"><BrandPill brand={c.brand} /></td>
-                    <td className="px-4 py-3 text-right text-sm text-gray-600">{formatCurrencyExact(c.gmv_in_period || 0)}</td>
-                    <td className="px-4 py-3 text-right text-sm font-semibold text-[#1A1B3A]">{formatCurrencyExact(c.amount || 0)}</td>
-                    <td className="px-4 py-3 text-center">
-                      {bumpSet.has(`${c.creator_name}|${c.brand}`) ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200">
-                          <ArrowUpRight className="h-3 w-3" /> +1%
-                        </span>
-                      ) : (
-                        <span className="text-xs text-gray-400">Standard</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-3 text-center"><StatusBadge status={c.status} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ─── Invoices Tab ────────────────────────────────────────────────────
-
-function InvoicesTab() {
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetch('/api/payments/invoices')
-      .then(r => r.json())
-      .then(d => setInvoices(d.invoices || []))
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, []);
-
-  if (loading) return <TableSkeleton />;
-
-  return (
-    <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
-      {invoices.length === 0 ? (
-        <div className="p-12 text-center">
-          <div className="mx-auto h-12 w-12 rounded-xl bg-gray-50 flex items-center justify-center mb-3">
-            <FileText className="h-6 w-6 text-gray-300" />
-          </div>
-          <p className="text-sm text-gray-400">No invoices generated yet</p>
-        </div>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-gray-100">
-                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-6 py-3">Invoice #</th>
-                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-4 py-3">Brand</th>
-                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-4 py-3">Period</th>
-                <th className="text-right text-xs font-semibold text-gray-500 uppercase tracking-wider px-4 py-3">Total</th>
-                <th className="text-center text-xs font-semibold text-gray-500 uppercase tracking-wider px-4 py-3">Status</th>
-                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-4 py-3">Generated</th>
-                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-4 py-3">Sent</th>
-                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-4 py-3">Paid</th>
-                <th className="text-center text-xs font-semibold text-gray-500 uppercase tracking-wider px-6 py-3">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {invoices.map((inv) => (
-                <tr key={inv.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
-                  <td className="px-6 py-3 text-sm font-mono font-medium text-[#1A1B3A]">{inv.invoice_number}</td>
-                  <td className="px-4 py-3"><BrandPill brand={inv.brand} /></td>
-                  <td className="px-4 py-3 text-sm text-gray-600">{inv.period_month}</td>
-                  <td className="px-4 py-3 text-right text-sm font-semibold text-[#1A1B3A]">{formatCurrencyExact(inv.total_amount)}</td>
-                  <td className="px-4 py-3 text-center"><StatusBadge status={inv.status} /></td>
-                  <td className="px-4 py-3 text-sm text-gray-500">{formatDate(inv.generated_at)}</td>
-                  <td className="px-4 py-3 text-sm text-gray-500">{formatDate(inv.sent_at)}</td>
-                  <td className="px-4 py-3 text-sm text-gray-500">{formatDate(inv.paid_at)}</td>
-                  <td className="px-6 py-3 text-center">
-                    <button className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-[#FF4D8D] bg-pink-50 rounded-lg hover:bg-pink-100 transition-colors">
-                      <Eye className="h-3 w-3" />
-                      View
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── History Tab ─────────────────────────────────────────────────────
-
-function HistoryTab() {
-  const [logs, setLogs] = useState<AuditLog[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [brand, setBrand] = useState('all');
-
-  const fetchData = useCallback(() => {
-    setLoading(true);
-    fetch(`/api/payments/history?brand=${brand}`)
-      .then(r => r.json())
-      .then(d => setLogs(d.logs || []))
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, [brand]);
-
-  useEffect(() => { fetchData(); }, [fetchData]);
-
-  const entityIcon = (type: string) => {
-    switch (type) {
-      case 'retainer': return <Users className="h-4 w-4 text-purple-500" />;
-      case 'commission_rate': return <Percent className="h-4 w-4 text-green-500" />;
-      case 'payment_status': return <CreditCard className="h-4 w-4 text-blue-500" />;
-      case 'invoice_status': return <FileText className="h-4 w-4 text-pink-500" />;
-      default: return <History className="h-4 w-4 text-gray-400" />;
-    }
-  };
-
-  const entityBg = (type: string) => {
-    switch (type) {
-      case 'retainer': return 'bg-purple-50';
-      case 'commission_rate': return 'bg-green-50';
-      case 'payment_status': return 'bg-blue-50';
-      case 'invoice_status': return 'bg-pink-50';
-      default: return 'bg-gray-50';
-    }
-  };
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium text-gray-500">Payment audit log</h3>
-        <BrandFilter value={brand} onChange={setBrand} />
-      </div>
-
-      {loading ? <TableSkeleton /> : logs.length === 0 ? (
-        <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-12 text-center">
-          <div className="mx-auto h-12 w-12 rounded-xl bg-gray-50 flex items-center justify-center mb-3">
-            <History className="h-6 w-6 text-gray-300" />
-          </div>
-          <p className="text-sm text-gray-400">No audit history recorded yet</p>
-          <p className="text-xs text-gray-300 mt-1">Changes to retainers, commission rates, and payment statuses will appear here</p>
-        </div>
-      ) : (
-        <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
-          <div className="divide-y divide-gray-50">
-            {logs.map((log) => (
-              <div key={log.id} className="flex items-start gap-3 px-6 py-4 hover:bg-gray-50/50 transition-colors">
-                <div className={`h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0 ${entityBg(log.entity_type)}`}>
-                  {entityIcon(log.entity_type)}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-[#1A1B3A]">
-                    <span className="font-medium">{log.field_changed}</span>
-                    {log.creator_name && <> for <span className="font-medium">{log.creator_name}</span></>}
-                    {log.brand && <> ({brandDisplayName(log.brand)})</>}
-                    {' changed'}
-                    {log.old_value && <> from <span className="font-mono text-xs bg-red-50 text-red-600 px-1.5 py-0.5 rounded">{log.old_value}</span></>}
-                    {log.new_value && <> to <span className="font-mono text-xs bg-green-50 text-green-600 px-1.5 py-0.5 rounded">{log.new_value}</span></>}
-                  </p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="text-xs text-gray-400">{formatDate(log.created_at)}</span>
-                    <span className="text-xs text-gray-300">by {log.changed_by}</span>
-                    {log.reason && <span className="text-xs text-gray-400 italic">{log.reason}</span>}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Main Payments Client ────────────────────────────────────────────
 
 export function PaymentsClient() {
-  const [activeTab, setActiveTab] = useState<Tab>('Overview');
+  const [overview, setOverview] = useState<OverviewData | null>(null);
+  const [creators, setCreators] = useState<RetainerCreator[]>([]);
+  const [logs, setLogs] = useState<AuditLog[]>([]);
+  const [loadingOverview, setLoadingOverview] = useState(true);
+  const [loadingCreators, setLoadingCreators] = useState(true);
+  const [loadingHistory, setLoadingHistory] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const [brandFilter, setBrandFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'On Track' | 'Behind' | 'At Risk'>('all');
+  // Stable brand list for the filter dropdown — captured once when 'all' is loaded
+  // so it doesn't shrink to a single brand when the user picks one.
+  const [availableBrands, setAvailableBrands] = useState<string[]>([]);
+
+  const fetchOverview = useCallback(async () => {
+    setLoadingOverview(true);
+    try {
+      const res = await fetch('/api/payments/overview');
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
+      setOverview({
+        totalRetainerSpend: j.totalRetainerSpend ?? 0,
+        totalCommissionsOwed: j.totalCommissionsOwed ?? 0,
+        outstandingInvoices: j.outstandingInvoices ?? 0,
+        outstandingAmount: j.outstandingAmount ?? 0,
+        paidThisMonth: j.paidThisMonth ?? 0,
+        brandSpend: j.brandSpend ?? {},
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load overview');
+    } finally {
+      setLoadingOverview(false);
+    }
+  }, []);
+
+  const fetchCreators = useCallback(async (brand: string) => {
+    setLoadingCreators(true);
+    try {
+      const res = await fetch(`/api/payments/retainers?brand=${encodeURIComponent(brand)}`);
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
+      const list = (j.creators ?? []) as RetainerCreator[];
+      setCreators(list);
+      // Capture the full brand pool when we have an unfiltered view so the
+      // dropdown stays populated even after the user picks a single brand.
+      if (brand === 'all') {
+        const pool = Array.from(new Set(list.map((c) => c.brand))).sort();
+        setAvailableBrands(pool);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load retainers');
+    } finally {
+      setLoadingCreators(false);
+    }
+  }, []);
+
+  const fetchHistory = useCallback(async () => {
+    setLoadingHistory(true);
+    try {
+      const res = await fetch('/api/payments/history');
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
+      setLogs(j.logs ?? []);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load history');
+    } finally {
+      setLoadingHistory(false);
+    }
+  }, []);
+
+  // Initial load — overview + history are independent of brand filter, creators depends on it
+  useEffect(() => {
+    fetchOverview();
+    fetchHistory();
+  }, [fetchOverview, fetchHistory]);
+
+  useEffect(() => {
+    fetchCreators(brandFilter);
+  }, [brandFilter, fetchCreators]);
+
+  const handleRefresh = () => {
+    fetchOverview();
+    fetchCreators(brandFilter);
+    fetchHistory();
+  };
+
+  // Apply status filter client-side on top of server-filtered (by brand) creators
+  const filteredCreators = useMemo(() => {
+    if (statusFilter === 'all') return creators;
+    return creators.filter((c) => c.status === statusFilter);
+  }, [creators, statusFilter]);
+
+  const stats = useMemo(() => {
+    let atRisk = 0;
+    let behind = 0;
+    let onTrack = 0;
+    for (const c of creators) {
+      if (c.status === 'At Risk') atRisk += 1;
+      else if (c.status === 'Behind') behind += 1;
+      else onTrack += 1;
+    }
+    return { atRisk, behind, onTrack };
+  }, [creators]);
+
+  const loading = loadingOverview || loadingCreators;
 
   return (
     <div className="space-y-6">
-      {/* Tab Navigation */}
-      <div className="flex gap-1 overflow-x-auto pb-1">
-        {TABS.map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all ${
-              activeTab === tab
-                ? 'bg-[#FF4D8D] text-white shadow-sm'
-                : 'text-gray-500 hover:text-[#1A1B3A] hover:bg-gray-100'
-            }`}
-          >
-            {tab}
-          </button>
-        ))}
+      {/* Page header */}
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-extrabold text-[#1A1B3A]">Payments</h1>
+          <p className="text-sm text-gray-400 mt-0.5">
+            Track creator retainers and audit trail of financial changes.
+          </p>
+        </div>
+        <button
+          onClick={handleRefresh}
+          disabled={loading}
+          className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-600 disabled:opacity-40 transition-colors"
+        >
+          <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
+          Refresh
+        </button>
       </div>
 
-      {/* Tab Content */}
-      {activeTab === 'Overview' && <OverviewTab />}
-      {activeTab === 'Retainer Tracking' && <RetainerTab />}
-      {activeTab === 'Commissions' && <CommissionsTab />}
-      {activeTab === 'Invoices' && <InvoicesTab />}
-      {activeTab === 'History' && <HistoryTab />}
+      {error && (
+        <div className="rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-700 flex items-center gap-2">
+          <AlertCircle className="h-4 w-4" />
+          {error}
+        </div>
+      )}
+
+      {/* Stat cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <StatCard
+          label="Retainer Spend"
+          value={overview ? formatCurrency(overview.totalRetainerSpend) : '—'}
+          subValue="This month"
+          accentColor="#FF4D8D"
+        />
+        <StatCard
+          label="On Retainer"
+          value={String(creators.length)}
+          subValue={`${stats.onTrack} on track${stats.behind > 0 || stats.atRisk > 0 ? `, ${stats.behind + stats.atRisk} need attention` : ''}`}
+          accentColor="#7C5CFC"
+        />
+        <StatCard
+          label="At Risk"
+          value={String(stats.atRisk + stats.behind)}
+          subValue={`${stats.atRisk} at risk · ${stats.behind} behind`}
+          accentColor={stats.atRisk > 0 ? '#EF4444' : stats.behind > 0 ? '#F59E0B' : '#10B981'}
+        />
+        <StatCard
+          label="Paid This Month"
+          value={overview ? formatCurrency(overview.paidThisMonth) : '—'}
+          subValue="Completed payments"
+          accentColor="#10B981"
+        />
+      </div>
+
+      {/* Brand spend chart */}
+      {overview && Object.values(overview.brandSpend).some((v) => v > 0) && (
+        <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+          <div className="px-5 pt-4 pb-3">
+            <h3 className="text-sm font-bold text-[#1A1B3A]">Retainer Spend by Brand</h3>
+            <p className="text-xs text-gray-400 mt-0.5">Monthly retainer commitments allocated across brands</p>
+          </div>
+          <div className="px-5 pb-5">
+            <BrandSpendChart data={overview.brandSpend} height={Math.max(180, Object.values(overview.brandSpend).filter((v) => v > 0).length * 48)} />
+          </div>
+        </div>
+      )}
+
+      {/* Retainer tracker — main operational view */}
+      <RetainerTracker
+        creators={filteredCreators}
+        loading={loadingCreators}
+        brandFilter={brandFilter}
+        statusFilter={statusFilter}
+        availableBrands={availableBrands}
+        onBrandFilterChange={setBrandFilter}
+        onStatusFilterChange={setStatusFilter}
+      />
+
+      {/* Audit history */}
+      <AuditFeed logs={logs} loading={loadingHistory} />
     </div>
   );
 }
+
+// Re-export for callers that imported these from the old monolithic file (defensive)
+export { formatDate };

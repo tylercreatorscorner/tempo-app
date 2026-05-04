@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import {
   LayoutDashboard, BarChart3, UserCheck, CreditCard,
-  Mail, Compass, FileBarChart, Upload, Calculator, Receipt, PlaySquare,
+  Mail, Compass, FileBarChart, Upload, Calculator, Receipt, PlaySquare, CalendarRange,
   Settings as SettingsIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -74,6 +74,7 @@ const FINANCE_SECTION: NavSection = {
   adminOnly: true,
   items: [
     { href: '/earnings',  label: 'Earnings',  icon: Calculator },
+    { href: '/ytd',       label: 'Year-to-Date', icon: CalendarRange },
     { href: '/invoicing', label: 'Invoicing', icon: Receipt },
     { href: '/payments',  label: 'Payments',  icon: CreditCard },
   ],

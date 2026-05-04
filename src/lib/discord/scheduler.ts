@@ -7,7 +7,7 @@
 
 import type { Client, TextChannel } from 'discord.js';
 import { tempoEmbed } from './embeds';
-import { getGuildConfig, getBrandForGuild } from './config';
+import { getGuildConfig, getBrandForGuild, getRegisteredGuilds } from './config';
 import { getSupabase, daysAgo } from './supabase';
 import { BRAND_DISPLAY_NAMES, brandSlugToUuid } from '@/lib/utils/constants';
 
@@ -99,6 +99,42 @@ export function stopReminderChecker(): void {
     reminderInterval = null;
     console.log('[tempo-bot] Reminder checker stopped');
   }
+}
+
+/**
+ * Schedule automatic daily briefs for all configured guilds.
+ * Fires at TARGET_HOUR_UTC every day (default 14:00 UTC = 9 AM ET).
+ * Uses recursive setTimeout so it self-corrects for clock drift.
+ */
+export function scheduleDailyBriefs(client: Client, targetHourUtc = 14): void {
+  function msUntilNextFire(): number {
+    const now = new Date();
+    const next = new Date(now);
+    next.setUTCHours(targetHourUtc, 0, 0, 0);
+    if (next.getTime() <= now.getTime()) {
+      next.setUTCDate(next.getUTCDate() + 1);
+    }
+    return next.getTime() - now.getTime();
+  }
+
+  async function fire() {
+    console.log('[tempo-bot] Sending scheduled daily briefs...');
+    for (const guildId of getRegisteredGuilds()) {
+      const config = getGuildConfig(guildId);
+      if (config?.channels.dailyBrief) {
+        await sendDailyBrief(client, guildId).catch((err) =>
+          console.error(`[tempo-bot] Daily brief failed for guild ${guildId}:`, err),
+        );
+      }
+    }
+    // Schedule next day
+    setTimeout(fire, msUntilNextFire());
+  }
+
+  const delay = msUntilNextFire();
+  const minutesUntil = Math.round(delay / 60_000);
+  console.log(`[tempo-bot] Daily brief scheduler started — next run in ${minutesUntil} minutes (${targetHourUtc}:00 UTC)`);
+  setTimeout(fire, delay);
 }
 
 /** Generate and post a daily brief to the configured channel */

@@ -1,13 +1,35 @@
+/**
+ * GET /api/payments/retainers?brand=<slug|all>
+ *
+ * Returns the operational retainer tracker — every managed creator with a
+ * retainer > 0, enriched with this period's post count + pace-based status.
+ *
+ * Brand list is sourced from `brands_v2` (filtered to active + non-umbrella)
+ * to avoid drift from a hardcoded constant.
+ */
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/auth/require-admin';
 import { createAdminClient } from '@/lib/supabase/server';
-import { ACTIVE_BRANDS } from '@/lib/utils/constants';
+
+export const runtime = 'nodejs';
 
 export async function GET(request: NextRequest) {
+  const profile = await requireAdmin();
+  if (!profile) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
   try {
     const supabase = await createAdminClient();
     const brand = request.nextUrl.searchParams.get('brand') || 'all';
 
-    // Get managed creators with retainers
+    // Resolve active brand list from brands_v2 (source of truth).
+    const { data: brandRows, error: brandsErr } = await supabase
+      .from('brands_v2')
+      .select('slug')
+      .eq('is_archived', false)
+      .eq('is_umbrella', false);
+    if (brandsErr) throw brandsErr;
+    const activeBrandSlugs = (brandRows ?? []).map((b: { slug: string }) => b.slug);
+
     let query = supabase
       .from('managed_creators')
       .select('*')
@@ -16,13 +38,13 @@ export async function GET(request: NextRequest) {
     if (brand !== 'all') {
       query = query.eq('brand', brand);
     } else {
-      query = query.in('brand', [...ACTIVE_BRANDS]);
+      query = query.in('brand', activeBrandSlugs);
     }
 
     const { data: creators, error } = await query.order('real_name');
     if (error) throw error;
 
-    // Get post counts for current period
+    // Period boundaries for post verification
     const now = new Date();
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, '0');
@@ -38,21 +60,41 @@ export async function GET(request: NextRequest) {
       .eq('payment_type', 'retainer')
       .eq('period_month', `${year}-${month}`);
 
-    const paymentMap: Record<string, any> = {};
-    for (const p of payments || []) {
+    interface PaymentRow {
+      creator_name: string;
+      brand: string;
+      posts_found: number | null;
+      posting_verified: boolean | null;
+      status: string;
+    }
+    const paymentMap: Record<string, PaymentRow> = {};
+    for (const p of (payments as PaymentRow[] | null ?? [])) {
       paymentMap[`${p.creator_name}|${p.brand}`] = p;
     }
 
-    const totalRetainerSpend = (creators || []).reduce((sum: number, c: any) => sum + (c.retainer || 0), 0);
+    interface ManagedCreatorRow {
+      brand: string;
+      retainer: number | null;
+      real_name: string | null;
+      monthly_post_requirement: number | null;
+      retainer_start_date: string | null;
+      account_1: string | null;
+      account_2: string | null;
+      account_3: string | null;
+      account_4: string | null;
+      account_5: string | null;
+    }
 
-    const enriched = (creators || []).map((c: any) => {
-      // Match by account_1 (TikTok handle) since creator_payments uses handle as creator_name
+    const totalRetainerSpend = (creators as ManagedCreatorRow[] | null ?? [])
+      .reduce((sum, c) => sum + (c.retainer ?? 0), 0);
+
+    const enriched = ((creators as ManagedCreatorRow[] | null) ?? []).map((c) => {
       const key = `${c.account_1}|${c.brand}`;
       const payment = paymentMap[key];
       const postsFound = payment?.posts_found ?? 0;
       const postsRequired = c.monthly_post_requirement ?? 0;
 
-      let status = 'On Track';
+      let status: 'On Track' | 'Behind' | 'At Risk' = 'On Track';
       if (postsRequired > 0) {
         const dayOfMonth = now.getDate();
         const daysInMonth = new Date(year, now.getMonth() + 1, 0).getDate();
@@ -80,7 +122,8 @@ export async function GET(request: NextRequest) {
       periodStart,
       periodEnd,
     });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

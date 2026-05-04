@@ -233,7 +233,7 @@ const command: TempoCommand = {
         discord_username: username,
         discord_display_name: displayName,
         discord_avatar_url: avatarUrl,
-        matched_creator_id: match.matched_creator_id,
+        matched_creator_v2_id: match.matched_creator_id, // UUID from creators_v2
         match_type: match.match_type,
         match_confidence: match.match_confidence,
         match_reason: match.match_reason,

@@ -14,9 +14,11 @@ export const runtime = 'nodejs';
 const NUMERIC_FIELDS = new Set([
   'commission', 'retainer', 'product_retainer', 'launch_fee',
   'affiliate_gmv', 'marketing_gmv', 'total_gmv', 'total_amount',
+  'amount_received',
 ]);
 const STRING_OR_NULL_FIELDS = new Set([
   'notes', 'due_date', 'bill_to_name', 'bill_to_email', 'bill_to_address', 'payment_instructions',
+  'payment_method', 'payment_reference', 'payment_received_notes',
 ]);
 const STATUS_FIELD = 'status';
 const STATUSES = new Set(['pending', 'sent', 'paid', 'void']);
