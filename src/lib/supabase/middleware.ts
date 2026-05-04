@@ -9,7 +9,13 @@ const PUBLIC_PATHS = [
   '/onboarding',
   '/join',
   '/creator-login',
+  '/api/auth/creator',
   '/api/webhooks',
+  '/api/og',
+  '/api/newsletter',
+  '/features',
+  '/changelog',
+  '/status',
 ];
 
 // Page paths a brand-role user is allowed to visit. Anything else → bounce home.
@@ -69,6 +75,17 @@ export async function updateSession(request: NextRequest) {
   const isPublicPath = PUBLIC_PATHS.some((p) => path.startsWith(p));
   const isLanding = path === '/';
   const isApi = path.startsWith('/api/');
+
+  // Dev-only escape hatch: if a creator_session cookie is present, allow
+  // /creator-dashboard and /api/dev/* to bypass the supabase auth check.
+  // The creator portal layout still verifies the JWT via getCreatorProfile().
+  const isDev = process.env.NODE_ENV !== 'production';
+  const hasCreatorSession = !!request.cookies.get('creator_session')?.value;
+  const isCreatorDashboard = path === '/creator-dashboard' || path.startsWith('/creator-dashboard/');
+  const isDevApi = path.startsWith('/api/dev/');
+  if (isDev && (isDevApi || (hasCreatorSession && isCreatorDashboard))) {
+    return supabaseResponse;
+  }
 
   const { data: { user } } = await supabase.auth.getUser();
 

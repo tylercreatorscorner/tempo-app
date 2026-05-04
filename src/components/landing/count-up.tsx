@@ -1,6 +1,8 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import ReactCountUp from 'react-countup';
+import { useInView } from 'framer-motion';
+import { useRef } from 'react';
 
 interface CountUpProps {
   end: number;
@@ -10,40 +12,35 @@ interface CountUpProps {
   className?: string;
 }
 
-export function CountUp({ end, prefix = '', suffix = '', duration = 2000, className = '' }: CountUpProps) {
-  const [value, setValue] = useState(end);
+export function CountUp({
+  end,
+  prefix = '',
+  suffix = '',
+  duration = 2000,
+  className = '',
+}: CountUpProps) {
   const ref = useRef<HTMLSpanElement>(null);
-  const started = useRef(false);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting && !started.current) {
-          started.current = true;
-          setValue(0);
-          const start = performance.now();
-          const animate = (now: number) => {
-            const progress = Math.min((now - start) / duration, 1);
-            const eased = 1 - Math.pow(1 - progress, 3);
-            setValue(Math.floor(eased * end));
-            if (progress < 1) requestAnimationFrame(animate);
-            else setValue(end);
-          };
-          requestAnimationFrame(animate);
-          observer.unobserve(el);
-        }
-      },
-      { threshold: 0.3 }
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [end, duration]);
+  const inView = useInView(ref, { once: true, margin: '-40px' });
 
   return (
     <span ref={ref} className={className}>
-      {prefix}{value.toLocaleString()}{suffix}
+      {inView ? (
+        <ReactCountUp
+          end={end}
+          prefix={prefix}
+          suffix={suffix}
+          duration={duration / 1000}
+          separator=","
+          easingFn={(t, b, c, d) => {
+            const x = t / d;
+            return c * (1 - Math.pow(1 - x, 3)) + b;
+          }}
+        />
+      ) : (
+        <>
+          {prefix}0{suffix}
+        </>
+      )}
     </span>
   );
 }

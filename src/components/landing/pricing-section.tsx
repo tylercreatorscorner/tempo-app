@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Check, ArrowRight, Sparkles } from 'lucide-react';
+import { Check, ArrowRight } from 'lucide-react';
 import { ScrollReveal } from './scroll-reveal';
 
 const AGENCY_TIERS = [
@@ -70,8 +70,12 @@ export function PricingSection() {
         {/* Header */}
         <ScrollReveal className="text-center mb-6">
           <p className="text-sm font-semibold text-[#FF4D8D] uppercase tracking-wider mb-3">Pricing</p>
-          <h2 className="text-2xl md:text-5xl font-extrabold text-[#1A1B3A] tracking-tight">Simple, transparent pricing</h2>
-          <p className="text-[#6B7280] mt-4 text-lg">No free tier. No fluff. Just the tools you need to win.</p>
+          <h2 className="text-2xl md:text-5xl font-extrabold text-[#1A1B3A] tracking-tight">
+            One price. Everything included.
+          </h2>
+          <p className="text-[#6B7280] mt-4 text-lg max-w-xl mx-auto">
+            Most brands recoup the monthly fee in week one — usually by spotting a single underperforming creator they were paying retainer to.
+          </p>
         </ScrollReveal>
 
         {/* Brand / Agency Toggle */}
@@ -100,45 +104,59 @@ export function PricingSection() {
               <div className="relative rounded-2xl p-[2px] bg-gradient-to-b from-[#FF4D8D] to-[#7C5CFC]">
                 <div className="rounded-[14px] bg-white p-8 md:p-12">
                   <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 z-10 px-4 py-1 rounded-full bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] text-xs font-semibold text-white whitespace-nowrap">
-                    Everything Included
+                    For Brands
                   </div>
 
                   <h3 className="text-xl md:text-2xl font-bold text-[#1A1B3A] text-center mb-2 pt-4">
-                    Brand
+                    Tempo for Brands
                   </h3>
                   <p className="text-center text-sm text-[#6B7280] mb-8">
-                    Everything you need to manage creators and grow GMV.
+                    Everything to manage your creator program and grow GMV.
                   </p>
 
                   {/* Price */}
-                  <div className="text-center mb-2">
+                  <div className="text-center mb-1">
                     <span className="text-4xl md:text-6xl font-extrabold bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] bg-clip-text text-transparent">
                       $1,999
                     </span>
+                    <span className="text-base text-[#9CA3AF] ml-2 font-medium">/ mo</span>
                   </div>
-                  <p className="text-center text-sm text-[#6B7280] mb-8">
-                    per month
+                  <p className="text-center text-xs text-[#9CA3AF] mb-8">
+                    Billed monthly · Cancel anytime · No long-term contract
                   </p>
 
-                  {/* Features - 2 columns */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8 max-w-lg mx-auto">
+                  {/* Features grouped by category */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-6 mb-8 max-w-xl mx-auto">
                     {[
-                      'Full analytics dashboard',
-                      'Creator rankings & status',
-                      'Tempo Bot (Discord)',
-                      'Bulk messaging & alerts',
-                      'Creator portal',
-                      'Real-time GMV tracking',
-                      'Product performance',
-                      'Video analytics',
-                      'Daily performance briefs',
-                      'Retainer tracking',
-                      'Team collaboration',
-                      'Priority support',
-                    ].map((f) => (
-                      <div key={f} className="flex items-center gap-2.5 text-sm text-[#4B5563]">
-                        <Check className="w-4 h-4 text-[#FF4D8D] flex-shrink-0" />
-                        {f}
+                      {
+                        label: 'Analytics',
+                        items: ['Real-time GMV tracking', 'Product performance', 'Video analytics'],
+                      },
+                      {
+                        label: 'Creator management',
+                        items: ['Creator rankings & status', 'Bulk messaging & alerts', 'Retainer tracking'],
+                      },
+                      {
+                        label: 'Communication',
+                        items: ['Tempo Bot (Discord)', 'Daily performance briefs', 'Creator portal'],
+                      },
+                      {
+                        label: 'Team & support',
+                        items: ['Team collaboration', 'Role-based access', 'Priority support'],
+                      },
+                    ].map((group) => (
+                      <div key={group.label}>
+                        <p className="text-[10px] font-semibold text-[#9CA3AF] uppercase tracking-widest mb-3">
+                          {group.label}
+                        </p>
+                        <ul className="space-y-2">
+                          {group.items.map((item) => (
+                            <li key={item} className="flex items-center gap-2.5 text-sm text-[#4B5563]">
+                              <Check className="w-3.5 h-3.5 text-[#FF4D8D] flex-shrink-0" strokeWidth={3} />
+                              {item}
+                            </li>
+                          ))}
+                        </ul>
                       </div>
                     ))}
                   </div>
@@ -152,6 +170,18 @@ export function PricingSection() {
                       Get Started <ArrowRight className="w-4 h-4" />
                     </a>
                   </div>
+
+                  {/* Cross-link to agency view */}
+                  <p className="text-center text-xs text-[#9CA3AF] mt-6">
+                    Managing multiple brands?{' '}
+                    <button
+                      type="button"
+                      onClick={() => setView('agency')}
+                      className="font-semibold text-[#7C5CFC] hover:text-[#FF4D8D] transition-colors"
+                    >
+                      See agency pricing →
+                    </button>
+                  </p>
                 </div>
               </div>
             </div>
@@ -220,7 +250,7 @@ export function PricingSection() {
         {/* Bottom note */}
         <ScrollReveal className="text-center mt-10">
           <p className="text-sm text-[#9CA3AF]">
-            All plans include SSL encryption, daily backups, and 99.9% uptime SLA.
+            Every plan includes daily backups, row-level data isolation, and a 99.9% uptime SLA.
           </p>
         </ScrollReveal>
       </div>
