@@ -2,20 +2,18 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Sun, Search, BarChart3, Trophy, Bot, BookOpen, Menu, X, LogOut } from 'lucide-react';
+import { Home, Sparkles, BarChart3, Trophy, Menu, X, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TempoLogo } from '@/components/ui/tempo-logo';
 import { useState } from 'react';
 import { BrandSwitcher } from '@/components/creator/brand-switcher';
 import type { CreatorProfile } from '@/lib/data/creator-context';
 
-const NAV_ITEMS = [
-  { href: '/creator-dashboard', label: 'Today', icon: Sun, exact: true },
-  { href: '/creator-dashboard/discover', label: 'Discover', icon: Search },
-  { href: '/creator-dashboard/stats', label: 'My Stats', icon: BarChart3 },
+const NAV_ITEMS: { href: string; label: string; icon: typeof Home; exact?: boolean; badge?: string }[] = [
+  { href: '/creator-dashboard', label: 'Home', icon: Home, exact: true },
+  { href: '/creator-dashboard/stats', label: 'Performance', icon: BarChart3 },
   { href: '/creator-dashboard/rankings', label: 'Rankings', icon: Trophy },
-  { href: '/creator-dashboard/harmony', label: 'Harmony', icon: Bot, badge: 'AI' },
-  { href: '/creator-dashboard/learn', label: 'Learn', icon: BookOpen },
+  { href: '/creator-dashboard/discover', label: 'Inspiration', icon: Sparkles },
 ];
 
 function getInitials(name: string): string {

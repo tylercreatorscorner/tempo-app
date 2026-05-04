@@ -1,31 +1,73 @@
-import { getCreatorStats, getCreatorTopVideos, getCreatorStreak, getDateRange, getBrandTopVideos } from '@/lib/data/creator';
-import { getCreatorProfile, getCreatorUsernames } from '@/lib/data/creator-context';
-import { TodayClient } from './today-client';
 import { redirect } from 'next/navigation';
+import { getCreatorSession, getCurrentBrandCookie } from '@/lib/auth/creator-auth';
+import {
+  loadCreatorPortalProfile,
+  getCreatorSummary,
+  getCreatorStreak,
+  getCreatorTopVideos,
+  getInspirationVideos,
+  getMonthVideoCount,
+  buildCoachingNudge,
+  dateWindow,
+} from '@/lib/data/creator-portal';
+import { HomeClient } from './home-client';
 
-export default async function CreatorDashboardPage() {
-  const profile = await getCreatorProfile();
+export default async function CreatorHomePage() {
+  const session = await getCreatorSession();
+  if (!session) redirect('/creator-login');
+
+  const brandCookie = await getCurrentBrandCookie();
+  const profile = await loadCreatorPortalProfile(String(session.creatorId), brandCookie);
   if (!profile) redirect('/creator-login');
 
-  const usernames = getCreatorUsernames(profile, profile.current_brand);
-  const primaryUsername = usernames[0] ?? '';
-  const brand = profile.current_brand ?? profile.brands[0] ?? '';
-  const { start, end } = getDateRange(7);
+  const window7 = dateWindow(7);
+  const monthlyTarget = profile.contracts
+    .filter((c) => !profile.currentBrand || c.brandSlug === profile.currentBrand)
+    .reduce((sum, c) => sum + (c.monthlyPostRequirement || 0), 0);
 
-  const [stats, streak, topVideos, winningVideos] = await Promise.all([
-    primaryUsername ? getCreatorStats(primaryUsername, brand, start, end).catch(() => null) : null,
-    primaryUsername ? getCreatorStreak(primaryUsername, brand).catch(() => 0) : 0,
-    primaryUsername ? getCreatorTopVideos(primaryUsername, brand, start, end, 6).catch(() => []) : [],
-    brand ? getBrandTopVideos(brand, start, end, 6).catch(() => []) : [],
+  const [summary, streak, topVideos, inspiration, monthVideos] = await Promise.all([
+    getCreatorSummary(profile.handles, profile.currentBrand, window7).catch(() => null),
+    getCreatorStreak(profile.handles, profile.currentBrand).catch(() => 0),
+    getCreatorTopVideos(profile.handles, profile.currentBrand, window7, 6).catch(() => []),
+    getInspirationVideos(profile.currentBrand, window7, 6).catch(() => []),
+    getMonthVideoCount(profile.handles, profile.currentBrand).catch(() => 0),
   ]);
 
+  const daysLeftInMonth = (() => {
+    const now = new Date();
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    return Math.max(0, lastDay - now.getDate());
+  })();
+
+  const nudge = summary
+    ? buildCoachingNudge({
+        monthVideos,
+        monthlyTarget,
+        streak,
+        topVideo: topVideos[0] ?? null,
+        summary,
+        daysLeftInMonth,
+      })
+    : null;
+
+  const currentContract = profile.currentBrand
+    ? profile.contracts.find((c) => c.brandSlug === profile.currentBrand) ?? null
+    : null;
+
   return (
-    <TodayClient
-      creatorName={profile.real_name || primaryUsername}
-      stats={stats}
+    <HomeClient
+      realName={profile.realName}
+      handles={profile.handles}
+      currentBrand={profile.currentBrand}
+      currentBrandDisplay={currentContract?.brandDisplayName ?? null}
+      summary={summary}
       streak={streak}
-      recentVideos={topVideos}
-      winningVideos={winningVideos}
+      monthVideos={monthVideos}
+      monthlyTarget={monthlyTarget}
+      daysLeftInMonth={daysLeftInMonth}
+      topVideos={topVideos}
+      inspiration={inspiration}
+      nudge={nudge}
     />
   );
 }

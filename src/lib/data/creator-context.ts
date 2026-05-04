@@ -1,6 +1,7 @@
 import { getCreatorSession, getCurrentBrandCookie } from '@/lib/auth/creator-auth';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { brandUuidToSlug } from '@/lib/utils/constants';
+import { cookies } from 'next/headers';
 
 export interface CreatorAccount {
   id: string;
@@ -25,7 +26,12 @@ export async function getCreatorProfile(): Promise<CreatorProfile | null> {
   const session = await getCreatorSession();
   if (!session) return null;
 
-  const supabase = await createClient();
+  // Dev preview mode: JWT is already verified — use admin client to bypass RLS
+  // since there's no Supabase auth user to satisfy row policies.
+  const isDev = process.env.NODE_ENV !== 'production';
+  const cookieStore = await cookies();
+  const isDevPreview = isDev && !!cookieStore.get('dev_creator_preview')?.value;
+  const supabase = isDevPreview ? await createAdminClient() : await createClient();
 
   // Get creator record from creators_v2
   const { data: creator } = await supabase

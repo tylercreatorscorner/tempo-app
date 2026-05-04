@@ -1,29 +1,55 @@
-import { getCreatorStats, getCreatorDailyData, getCreatorTopVideos, getDateRange, getAllTimeRange } from '@/lib/data/creator';
-import { getCreatorProfile, getCreatorUsernames } from '@/lib/data/creator-context';
-import { StatsClient } from './stats-client';
 import { redirect } from 'next/navigation';
+import { getCreatorSession, getCurrentBrandCookie } from '@/lib/auth/creator-auth';
+import {
+  loadCreatorPortalProfile,
+  getCreatorSummary,
+  getCreatorDailySeries,
+  getCreatorTopVideos,
+  dateWindow,
+} from '@/lib/data/creator-portal';
+import { PerformanceClient } from './performance-client';
 
-export default async function StatsPage() {
-  const profile = await getCreatorProfile();
+export default async function PerformancePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ range?: string }>;
+}) {
+  const session = await getCreatorSession();
+  if (!session) redirect('/creator-login');
+
+  const brandCookie = await getCurrentBrandCookie();
+  const profile = await loadCreatorPortalProfile(String(session.creatorId), brandCookie);
   if (!profile) redirect('/creator-login');
 
-  const usernames = getCreatorUsernames(profile, profile.current_brand);
-  const primaryUsername = usernames[0] ?? '';
-  const brand = profile.current_brand ?? profile.brands[0] ?? '';
-  const r = getDateRange(7);
+  const params = await searchParams;
+  const rangeDays = parseRange(params.range);
+  const window = dateWindow(rangeDays);
 
-  const [stats, prevStats, dailyData, topVideos] = await Promise.all([
-    primaryUsername ? getCreatorStats(primaryUsername, brand, r.start, r.end).catch(() => null) : null,
-    primaryUsername ? getCreatorStats(primaryUsername, brand, getDateRange(14).start, getDateRange(14).end).catch(() => null) : null,
-    primaryUsername ? getCreatorDailyData(primaryUsername, brand, r.start, r.end).catch(() => []) : [],
-    primaryUsername ? getCreatorTopVideos(primaryUsername, brand, r.start, r.end, 10).catch(() => []) : [],
+  const [summary, daily, topVideos] = await Promise.all([
+    getCreatorSummary(profile.handles, profile.currentBrand, window).catch(() => null),
+    getCreatorDailySeries(profile.handles, profile.currentBrand, window).catch(() => []),
+    getCreatorTopVideos(profile.handles, profile.currentBrand, window, 50).catch(() => []),
   ]);
 
   return (
-    <StatsClient
-      stats={stats}
-      dailyData={dailyData}
+    <PerformanceClient
+      realName={profile.realName}
+      currentBrand={profile.currentBrand}
+      currentBrandDisplay={
+        profile.currentBrand
+          ? profile.contracts.find((c) => c.brandSlug === profile.currentBrand)?.brandDisplayName ?? profile.currentBrand
+          : null
+      }
+      rangeDays={rangeDays}
+      summary={summary}
+      daily={daily}
       topVideos={topVideos}
     />
   );
+}
+
+function parseRange(raw: string | undefined): number {
+  const n = Number(raw);
+  if ([7, 14, 30, 90].includes(n)) return n;
+  return 7;
 }
