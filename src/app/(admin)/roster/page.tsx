@@ -145,21 +145,18 @@ function CreatorPanel({
   const [saving, setSaving]   = useState(false);
   const [saveError, setSaveError] = useState('');
   const [removing, setRemoving] = useState(false);
+  // Inline confirm — replaces native confirm() which Chrome silently blocks
+  // after a couple of dialogs from the same origin.
+  const [confirmRemove, setConfirmRemove] = useState(false);
 
-  const handleRemove = async () => {
-    const name = creator.real_name || creator.account_1 || 'this creator';
-    if (!confirm(
-      `Remove ${name} from the managed roster?\n\n` +
-      `They'll stop appearing in roster, rev share, and renewals. Their GMV ` +
-      `history and audit trail stay intact — this is reversible.`
-    )) return;
-
+  const doRemove = async () => {
+    setConfirmRemove(false);
     setRemoving(true);
     setSaveError('');
     try {
       const res = await fetch(`/api/roster/${creator.id}`, { method: 'DELETE' });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Remove failed');
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || `Remove failed (${res.status})`);
       onRemoved(creator.id);
     } catch (err: unknown) {
       setSaveError(err instanceof Error ? err.message : 'Something went wrong');
@@ -256,7 +253,7 @@ function CreatorPanel({
             {!editing ? (
               <>
                 <button
-                  onClick={handleRemove}
+                  onClick={() => { setSaveError(''); setConfirmRemove(true); }}
                   disabled={removing}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-red-100 text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors"
                   title="Remove from managed roster (reversible)"
@@ -300,6 +297,37 @@ function CreatorPanel({
         <div className="p-6 space-y-5 flex-1">
           {saveError && (
             <p className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2">{saveError}</p>
+          )}
+
+          {confirmRemove && (
+            <div className="rounded-xl border border-red-200 bg-red-50 p-4 space-y-3">
+              <div>
+                <p className="text-sm font-semibold text-red-900">
+                  Remove {creator.real_name || creator.account_1 || 'this creator'}?
+                </p>
+                <p className="text-xs text-red-700 mt-1 leading-relaxed">
+                  They&apos;ll stop appearing in the roster, rev share, and renewals.
+                  Their GMV history and audit trail stay intact — this is reversible.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={doRemove}
+                  disabled={removing}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-600 text-white hover:bg-red-700 disabled:opacity-60 transition-colors"
+                >
+                  {removing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                  {removing ? 'Removing…' : 'Yes, remove'}
+                </button>
+                <button
+                  onClick={() => setConfirmRemove(false)}
+                  disabled={removing}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-60 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
           )}
 
           {editing ? (
