@@ -147,7 +147,8 @@ export async function loadCreatorPortalProfile(
       .or(accountFilters);
 
     const handleSet = new Set(handles);
-    const brandRowMap = new Map<string, typeof mcRows[number]>();
+    type McRow = NonNullable<typeof mcRows>[number];
+    const brandRowMap = new Map<string, McRow>();
     for (const row of mcRows ?? []) {
       const rowHandles = [
         row.account_1, row.account_2, row.account_3, row.account_4, row.account_5,
