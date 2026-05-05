@@ -39,9 +39,25 @@ export const DATE_RANGE_PRESETS = [
   { value: 'thisQuarter', label: 'This quarter' },
 ] as const;
 
-/** Active brands - only these appear in brand tags and filters */
-export const ACTIVE_BRANDS = ['jiyu', 'catakor', 'leefar_nutrition', 'leefar_supplements', 'physicians_choice', 'lemme'] as const;
+/** Active brands - only these appear in brand tags and filters.
+ *
+ * LeeFar lives here as the umbrella slug 'leefar' — managed_creators rows
+ * are keyed to the umbrella, so the brand picker shows ONE LeeFar option.
+ * The underlying store slugs (leefar_nutrition, leefar_supplements) still
+ * exist in BRAND_DISPLAY_NAMES + DATA_ENABLED_BRANDS for performance data
+ * (creator_performance, videos, etc.), which is keyed by store. */
+export const ACTIVE_BRANDS = ['jiyu', 'catakor', 'leefar', 'physicians_choice', 'lemme'] as const;
 export type ActiveBrand = (typeof ACTIVE_BRANDS)[number];
+
+/** LeeFar store slugs — used when expanding 'leefar' to per-store performance lookups. */
+export const LEEFAR_STORE_SLUGS = ['leefar_nutrition', 'leefar_supplements'] as const;
+
+/** Expand a roster brand slug to the actual data-table brand slugs. For LeeFar
+ * the roster uses the umbrella but performance data is keyed by store. */
+export function expandBrandToDataSlugs(brand: string): readonly string[] {
+  if (brand === 'leefar') return LEEFAR_STORE_SLUGS;
+  return [brand];
+}
 
 /**
  * Brands with active data pipelines (scraper/CSV).
@@ -75,6 +91,7 @@ export const BRAND_UUID_MAP: Record<string, string> = {
   physicians_choice: 'b0000000-0000-0000-0000-000000000002',
   jiyu: 'b0000000-0000-0000-0000-000000000003',
   toplux: 'b0000000-0000-0000-0000-000000000004',
+  leefar: 'b0000000-0000-0000-0000-000000000005',
   leefar_nutrition: 'b0000000-0000-0000-0000-000000000006',
   leefar_supplements: 'b0000000-0000-0000-0000-000000000007',
   lemme: 'b0000000-0000-0000-0000-000000000008',
@@ -86,6 +103,7 @@ export const BRAND_SLUG_MAP: Record<string, string> = {
   'b0000000-0000-0000-0000-000000000002': 'physicians_choice',
   'b0000000-0000-0000-0000-000000000003': 'jiyu',
   'b0000000-0000-0000-0000-000000000004': 'toplux',
+  'b0000000-0000-0000-0000-000000000005': 'leefar',
   'b0000000-0000-0000-0000-000000000006': 'leefar_nutrition',
   'b0000000-0000-0000-0000-000000000007': 'leefar_supplements',
   'b0000000-0000-0000-0000-000000000008': 'lemme',

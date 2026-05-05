@@ -36,10 +36,16 @@ export function BrandSwitcher() {
         }
       }
 
+      // Hide LeeFar's per-store slugs from the picker. Roster + management
+      // is keyed to the 'leefar' umbrella; per-store splits live inside the
+      // performance views (videos/posts), not as top-level brand entries.
+      const HIDDEN_STORE_SLUGS = ['leefar_nutrition', 'leefar_supplements'];
+
       let query = supabase
         .from('brands_v2')
         .select('slug, display_name, name, color')
-        .eq('is_archived', false);
+        .eq('is_archived', false)
+        .not('slug', 'in', `(${HIDDEN_STORE_SLUGS.map(s => `"${s}"`).join(',')})`);
       if (allowedBrands) query = query.in('slug', allowedBrands);
       const { data } = await query.order('name');
       if (data && data.length > 0) {

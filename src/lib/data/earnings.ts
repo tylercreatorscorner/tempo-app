@@ -32,6 +32,7 @@
  *   controls how the resulting commission combines with the retainer.
  */
 import { createAdminClient } from '@/lib/supabase/server';
+import { expandBrandToDataSlugs } from '@/lib/utils/constants';
 
 export interface CreatorContribution {
   /** Creator handle as it appears in creator_performance (with @ stripped). */
@@ -259,13 +260,23 @@ export async function getEarnings(month: string): Promise<EarningsResult> {
   // Build "managed creator" lookup keyed by (handle, brand). Only managed
   // creators count toward affiliate GMV — random affiliates aren't in scope
   // for the rev share calc.
+  //
+  // Umbrella brands (e.g. 'leefar') get expanded to their store slugs
+  // (leefar_nutrition, leefar_supplements) so the lookup matches
+  // creator_performance rows, which are keyed by store. A creator under the
+  // LeeFar umbrella counts toward both stores' rev share — exactly the
+  // intended model: one roster row, two stores' worth of GMV.
   const managedLookup = new Set<string>();
   for (const m of (managedRes.data as Array<Record<string, string | null>> | null ?? [])) {
     const brand = m.brand;
     if (!brand) continue;
+    const dataBrands = expandBrandToDataSlugs(brand);
     for (const k of ['account_1','account_2','account_3','account_4','account_5'] as const) {
       const handle = normalizeHandle(m[k]);
-      if (handle) managedLookup.add(`${handle}|||${brand}`);
+      if (!handle) continue;
+      for (const dataBrand of dataBrands) {
+        managedLookup.add(`${handle}|||${dataBrand}`);
+      }
     }
   }
 

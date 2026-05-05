@@ -10,7 +10,7 @@ import { BrandFilter } from '@/components/creators/brand-filter';
 import { PerformanceChart, type DailyMetrics } from '@/components/analytics/performance-chart';
 import { NotableChanges, type BrandChange, type CreatorBreakout, type HotPost } from '@/components/analytics/notable-changes';
 import { StatCard } from '@/components/dashboard/stat-card';
-import { BRAND_DISPLAY_NAMES, BRAND_COLORS } from '@/lib/utils/constants';
+import { BRAND_DISPLAY_NAMES, BRAND_COLORS, expandBrandToDataSlugs } from '@/lib/utils/constants';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
 import { AlertTriangle } from 'lucide-react';
@@ -46,27 +46,45 @@ export default async function AnalyticsPage({ searchParams }: Props) {
   const supabase = await createClient();
   const { getAllowedBrandsForUser } = await import('@/lib/data/brands');
   const allowedBrands = await getAllowedBrandsForUser();
+  // Hide LeeFar's per-store slugs from the UI brand list — the umbrella
+  // 'leefar' is the canonical roster brand. Performance data still uses
+  // store slugs internally (creator_performance, etc.) and we expand
+  // 'leefar' → store slugs at query time below.
+  const HIDDEN_FROM_PICKER = new Set(['leefar_nutrition', 'leefar_supplements']);
+
   let brandsQuery = supabase.from('brands_v2').select('slug').eq('is_archived', false);
   if (allowedBrands) brandsQuery = brandsQuery.in('slug', allowedBrands);
   const { data: dbBrands } = await brandsQuery.order('name');
-  const ALL_BRANDS = (dbBrands ?? []).map(b => b.slug);
+  const ALL_BRANDS = (dbBrands ?? []).map(b => b.slug).filter(s => !HIDDEN_FROM_PICKER.has(s));
 
   // Cross-reference: which (handle|brand) pairs are managed?
+  // Umbrella roster brands ('leefar') get expanded so the lookup matches
+  // creator_performance rows keyed by store ('leefar_nutrition', etc.).
   const admin = await createAdminClient();
   const { data: managedRows } = await admin
     .from('managed_creators')
-    .select('id, brand, account_1, account_2, account_3, account_4, account_5');
+    .select('id, brand, account_1, account_2, account_3, account_4, account_5')
+    .is('archived_at', null);
   const managedSet = new Map<string, string>(); // "handle|||brand" → managed_creators.id
   const norm = (h: string) => h.replace(/^@/, '').trim().toLowerCase();
   for (const m of managedRows ?? []) {
+    if (!m.brand) continue;
+    const dataBrands = expandBrandToDataSlugs(m.brand);
     for (const acct of [m.account_1, m.account_2, m.account_3, m.account_4, m.account_5]) {
-      if (!acct || !m.brand) continue;
-      managedSet.set(`${norm(acct)}|||${m.brand}`, m.id);
+      if (!acct) continue;
+      const handle = norm(acct);
+      for (const db of dataBrands) {
+        managedSet.set(`${handle}|||${db}`, m.id);
+      }
     }
   }
 
   const brandFilter = params.brand && ALL_BRANDS.includes(params.brand) ? params.brand : null;
-  const BRANDS = brandFilter ? [brandFilter] : ALL_BRANDS;
+  // Expand the brand filter to data slugs (e.g. 'leefar' → both stores) so
+  // the underlying RPCs hit the right rows in creator_performance/videos/etc.
+  const BRANDS = brandFilter
+    ? Array.from(expandBrandToDataSlugs(brandFilter))
+    : ALL_BRANDS.flatMap(b => Array.from(expandBrandToDataSlugs(b)));
 
   // Parallel fetch: per-brand summaries (current + prior period), trend series (current + prior), and entity tables
   const [
