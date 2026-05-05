@@ -421,13 +421,99 @@ export async function getEarnings(month: string): Promise<EarningsResult> {
     });
   }
 
+  // ── Roll up LeeFar's two stores into a single 'leefar' umbrella row.
+  // brand_settings is still keyed per-store (one might have the retainer,
+  // both share the rate). We sum the financials and merge creators by handle
+  // so the page shows ONE LeeFar entry — but per-store GMV is still tracked
+  // upstream for any drill-in views that want it.
+  const leefarStoreBrands: BrandRow[] = [];
+  const otherBrands: BrandRow[] = [];
+  for (const b of brands) {
+    if (b.brand === 'leefar_nutrition' || b.brand === 'leefar_supplements') {
+      leefarStoreBrands.push(b);
+    } else {
+      otherBrands.push(b);
+    }
+  }
+
+  const finalBrands: BrandRow[] = otherBrands;
+  if (leefarStoreBrands.length > 0) {
+    // Merge creator contributions across both stores by normalized handle —
+    // same creator posting on both stores shouldn't appear twice.
+    const mergedCreators = new Map<string, CreatorContribution>();
+    for (const b of leefarStoreBrands) {
+      for (const c of b.creators) {
+        const key = normalizeHandle(c.name);
+        const existing = mergedCreators.get(key);
+        if (existing) {
+          existing.gmv += c.gmv;
+          existing.commission += c.commission;
+          // Use whichever rate is higher (override if any). Equal in practice
+          // because both stores share the brand rate.
+          if (c.rate > existing.rate) existing.rate = c.rate;
+        } else {
+          mergedCreators.set(key, { ...c });
+        }
+      }
+    }
+
+    // Pick the first non-zero settings field as the umbrella's value
+    // (retainer, launchFee, productRetainer typically live on one store).
+    const pickFirstNonZero = (...vals: number[]) => vals.find(v => v > 0) ?? 0;
+    const pickFirstString = (...vals: Array<string | null>) => vals.find(v => v != null) ?? null;
+
+    const sumNum = (key: keyof BrandRow) =>
+      leefarStoreBrands.reduce((acc, b) => acc + (Number(b[key]) || 0), 0);
+
+    const first = leefarStoreBrands[0];
+    const merged: BrandRow = {
+      brand: 'leefar',
+      brandLabel: 'LeeFar',
+      affiliateGmv: sumNum('affiliateGmv'),
+      marketingGmv: sumNum('marketingGmv'),
+      totalGmv: sumNum('totalGmv'),
+      rate: first.rate,
+      effectiveRate: (() => {
+        const totalAff = sumNum('affiliateGmv');
+        const totalAffComm = sumNum('affiliateCommission');
+        return totalAff > 0 ? (totalAffComm / totalAff) * 100 : first.rate;
+      })(),
+      affiliateCommission: sumNum('affiliateCommission'),
+      marketingCommission: sumNum('marketingCommission'),
+      commission: sumNum('commission'),
+      retainer: sumNum('retainer'),
+      configuredRetainer: sumNum('configuredRetainer'),
+      productRetainer: sumNum('productRetainer'),
+      productRetainerName: pickFirstString(...leefarStoreBrands.map(b => b.productRetainerName)),
+      launchFee: sumNum('launchFee'),
+      launchFeeName: pickFirstString(...leefarStoreBrands.map(b => b.launchFeeName)),
+      launchFeeEnds: pickFirstString(...leefarStoreBrands.map(b => b.launchFeeEnds)),
+      totalFees: sumNum('totalFees'),
+      total: sumNum('total'),
+      monthlyGoal: sumNum('monthlyGoal'),
+      marketingCommissionRate: first.marketingCommissionRate,
+      billToName: pickFirstString(...leefarStoreBrands.map(b => b.billToName)),
+      billToEmail: pickFirstString(...leefarStoreBrands.map(b => b.billToEmail)),
+      billToAddress: pickFirstString(...leefarStoreBrands.map(b => b.billToAddress)),
+      paymentInstructions: pickFirstString(...leefarStoreBrands.map(b => b.paymentInstructions)),
+      compensationModel: first.compensationModel,
+      revshareMaxOutcome: null, // not meaningful when summing across two stores
+      creators: Array.from(mergedCreators.values()).sort((a, b) => b.commission - a.commission),
+    };
+    void pickFirstNonZero; // currently unused; kept for future per-field pickers
+    finalBrands.push(merged);
+  }
+
+  // Sort: keep stable by total earnings desc (matches what the UI expects)
+  finalBrands.sort((a, b) => b.total - a.total);
+
   const earnings = totalCommission + totalRetainers + totalLaunchFees;
 
   return {
     month,
     startDate,
     endDate,
-    brands,
+    brands: finalBrands,
     totals: {
       affiliateGmv: totalAffiliateGmv,
       marketingGmv: totalMarketingGmv,

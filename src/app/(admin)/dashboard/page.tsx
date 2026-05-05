@@ -11,7 +11,7 @@ import { VideoSection } from '@/components/dashboard/video-section';
 import { aggregateCreatorsByRealName } from '@/lib/data/creator-aggregate';
 import { getDashboardVideos } from '@/lib/data/video-sections';
 import { getCreatorRetainers } from '@/lib/data/retainer';
-import { BRAND_COLORS, BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
+import { BRAND_COLORS, BRAND_DISPLAY_NAMES, expandBrandToDataSlugs } from '@/lib/utils/constants';
 import { createClient } from '@/lib/supabase/server';
 import { getActiveTenantId } from '@/lib/auth/platform-admin';
 import { GmvAreaChart } from '@/components/charts/gmv-area-chart';
@@ -37,11 +37,16 @@ export default async function AdminDashboard({ searchParams }: Props) {
   const { getAllowedBrandsForUser } = await import('@/lib/data/brands');
   const allowedBrands = await getAllowedBrandsForUser();
 
+  // Hide LeeFar's per-store slugs — the umbrella 'leefar' is canonical for
+  // the brand picker. Performance data (creator_performance, etc.) is keyed
+  // by store and is expanded back out at query time below.
+  const HIDDEN_FROM_PICKER = new Set(['leefar_nutrition', 'leefar_supplements']);
+
   let brandsQuery = supabase.from('brands_v2').select('slug').eq('is_archived', false).order('name');
   if (activeTenantId) brandsQuery = brandsQuery.eq('tenant_id', activeTenantId);
   if (allowedBrands) brandsQuery = brandsQuery.in('slug', allowedBrands);
   const { data: dbBrands } = await brandsQuery;
-  const ALL_BRANDS = (dbBrands ?? []).map(b => b.slug);
+  const ALL_BRANDS = (dbBrands ?? []).map(b => b.slug).filter(s => !HIDDEN_FROM_PICKER.has(s));
 
   // No brands = new tenant, show premium onboarding experience
   if (ALL_BRANDS.length === 0) {
@@ -225,7 +230,12 @@ export default async function AdminDashboard({ searchParams }: Props) {
     ? params.brand
     : null;
 
-  const activeBrands = brandFilter ? [brandFilter] : ALL_BRANDS;
+  // Roster-level brand list (umbrella slugs). Used for labels, brand cards, etc.
+  const activeRosterBrands = brandFilter ? [brandFilter] : ALL_BRANDS;
+  // Data-table brand list — expand umbrellas to store slugs so the RPCs
+  // (which read creator_performance / videos) hit real rows.
+  const activeBrands = activeRosterBrands.flatMap(b => Array.from(expandBrandToDataSlugs(b)));
+  const ALL_DATA_BRANDS = ALL_BRANDS.flatMap(b => Array.from(expandBrandToDataSlugs(b)));
 
   // Previous period for comparison
   const start = new Date(startDate);
@@ -261,12 +271,13 @@ export default async function AdminDashboard({ searchParams }: Props) {
   ] = await Promise.all([
     Promise.all(activeBrands.map(b => fetchSummary(b, startDate, endDate))),
     Promise.all(activeBrands.map(b => fetchSummary(b, prevStartDate, prevEndDate))),
-    // Only fetch all-brand summaries when a brand filter is active (used for ticker)
+    // Only fetch all-brand summaries when a brand filter is active (used for ticker).
+    // Use expanded data slugs so LeeFar shows up as both stores in the ticker.
     brandFilter
-      ? Promise.all(ALL_BRANDS.map(b => fetchSummary(b, startDate, endDate)))
+      ? Promise.all(ALL_DATA_BRANDS.map(b => fetchSummary(b, startDate, endDate)))
       : Promise.resolve(null),
     brandFilter
-      ? Promise.all(ALL_BRANDS.map(b => fetchSummary(b, prevStartDate, prevEndDate)))
+      ? Promise.all(ALL_DATA_BRANDS.map(b => fetchSummary(b, prevStartDate, prevEndDate)))
       : Promise.resolve(null),
     Promise.all(
       activeBrands.map(async (brand) => {
@@ -275,7 +286,8 @@ export default async function AdminDashboard({ searchParams }: Props) {
     ),
     getDashboardVideos(brandFilter, startDate, endDate),
     getCreatorRetainers(),
-    supabase.from('managed_creators').select('id', { count: 'exact', head: true }).eq('status', 'Active'),
+    supabase.from('managed_creators').select('id', { count: 'exact', head: true })
+      .eq('status', 'Active').is('archived_at', null),
     Promise.all(activeBrands.map(b => getDailyTrend(b, startDate, endDate).catch(() => []))),
   ]);
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
-import { ACTIVE_BRANDS } from '@/lib/utils/constants';
+import { ACTIVE_BRANDS, expandBrandToDataSlugs } from '@/lib/utils/constants';
 
 
 export interface UniverseCreator {
@@ -63,10 +63,14 @@ export async function GET(request: NextRequest) {
 
   const supabase = await createAdminClient();
 
-  // Determine which brands to query
-  const brandsToQuery = (brandFilter !== 'all' && (ACTIVE_BRANDS as readonly string[]).includes(brandFilter))
+  // Determine which brands to query.
+  // Roster uses umbrella slugs (e.g. 'leefar') but creator_performance is
+  // keyed by store ('leefar_nutrition', 'leefar_supplements'). Expand the
+  // umbrella when querying performance.
+  const rosterBrands = (brandFilter !== 'all' && (ACTIVE_BRANDS as readonly string[]).includes(brandFilter))
     ? [brandFilter]
     : [...ACTIVE_BRANDS];
+  const brandsToQuery = rosterBrands.flatMap(b => Array.from(expandBrandToDataSlugs(b)));
 
   // Fetch creator rankings for relevant brands in parallel
   const rankingResults = await Promise.all(
@@ -82,19 +86,27 @@ export async function GET(request: NextRequest) {
     )
   );
 
-  // Fetch managed creators for this tenant (all brands)
+  // Fetch managed creators for this tenant (all brands).
+  // Skip archived (soft-removed) creators so they don't show up as managed.
   const { data: managedData } = await supabase
     .from('managed_creators')
     .select('id, real_name, brand, account_1, account_2, account_3, account_4, account_5')
-    .eq('tenant_id', tenantId);
+    .eq('tenant_id', tenantId)
+    .is('archived_at', null);
 
-  // Build lookup: "normalized_handle|||brand" → managed creator info
+  // Build lookup: "normalized_handle|||data_brand_slug" → managed creator info.
+  // Umbrella roster brands ('leefar') get expanded so the lookup matches
+  // creator_performance rows keyed by store.
   const managedLookup = new Map<string, { id: string; real_name: string | null }>();
   for (const mc of managedData || []) {
+    if (!mc.brand) continue;
+    const dataBrands = expandBrandToDataSlugs(mc.brand);
     for (const acct of [mc.account_1, mc.account_2, mc.account_3, mc.account_4, mc.account_5]) {
       if (!acct) continue;
-      const key = `${normalizeHandle(acct)}|||${mc.brand}`;
-      managedLookup.set(key, { id: mc.id, real_name: mc.real_name });
+      const handle = normalizeHandle(acct);
+      for (const db of dataBrands) {
+        managedLookup.set(`${handle}|||${db}`, { id: mc.id, real_name: mc.real_name });
+      }
     }
   }
 

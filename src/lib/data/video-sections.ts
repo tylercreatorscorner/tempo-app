@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
-import { ACTIVE_BRANDS, BRAND_UUID_MAP } from '@/lib/utils/constants';
+import { ACTIVE_BRANDS, BRAND_UUID_MAP, expandBrandToDataSlugs } from '@/lib/utils/constants';
 
 export interface DashboardVideo {
   video_id: string;
@@ -26,9 +26,12 @@ export async function getDashboardVideos(
 }> {
   const supabase = await createClient();
 
-  const brandUuids = brandFilter
-    ? [BRAND_UUID_MAP[brandFilter]].filter(Boolean)
-    : [...ACTIVE_BRANDS].map((b) => BRAND_UUID_MAP[b]).filter(Boolean);
+  // Expand umbrella roster slugs (e.g. 'leefar') to per-store data slugs
+  // before mapping to UUIDs — videos are keyed by the store UUID, not the
+  // umbrella's UUID.
+  const rosterBrands = brandFilter ? [brandFilter] : [...ACTIVE_BRANDS];
+  const dataBrands = rosterBrands.flatMap(b => Array.from(expandBrandToDataSlugs(b)));
+  const brandUuids = dataBrands.map(b => BRAND_UUID_MAP[b]).filter(Boolean);
 
   if (brandUuids.length === 0) {
     return { hotNow: [], rising: [], topPerformers: [] };
