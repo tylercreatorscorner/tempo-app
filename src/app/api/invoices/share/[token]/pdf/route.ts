@@ -56,6 +56,11 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ token: str
       email: invoice.bill_to_email,
       address: invoice.bill_to_address,
     },
+    billFrom: {
+      name: invoice.bill_from_name,
+      email: invoice.bill_from_email,
+      address: invoice.bill_from_address,
+    },
     creators: Array.isArray(invoice.creator_breakdown)
       ? invoice.creator_breakdown.map((c: { name?: string; gmv?: number; rate?: number; commission?: number }) => ({
           name: String(c.name ?? ''),

@@ -19,8 +19,11 @@ export async function GET(request: NextRequest) {
   const month = request.nextUrl.searchParams.get('month');
   if (!month) return NextResponse.json({ error: 'Missing month' }, { status: 400 });
 
+  // Optional payee filter — defaults to first team member (Tyler) when unset.
+  const teamMemberId = request.nextUrl.searchParams.get('team_member_id') ?? undefined;
+
   try {
-    const result = await getEarnings(month);
+    const result = await getEarnings(month, teamMemberId);
     return NextResponse.json(result);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Failed to compute earnings';

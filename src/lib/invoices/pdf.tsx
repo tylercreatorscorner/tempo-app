@@ -27,10 +27,12 @@ Font.register({
 // Disable hyphenation for English text — invoice copy looks weird with hyphens.
 Font.registerHyphenationCallback((word) => [word]);
 
-// ── Bill-from constants — UPDATE THESE TO YOUR BUSINESS INFO ─────────
-const BILL_FROM = {
+// ── Bill-from fallback (used only when an invoice was created before the
+// team_members migration and has no bill_from snapshot). New invoices snapshot
+// bill-from at creation from team_members.
+const FALLBACK_BILL_FROM = {
   business: 'Creators Corner',
-  address: '', // Multi-line, e.g. '123 Main St\nAtlanta, GA 30303'
+  address: '',
 };
 
 // ── Brand palette ────────────────────────────────────────────────────
@@ -77,6 +79,13 @@ export interface InvoicePdfData {
   notes: string | null;
   paymentInstructions: string | null;
   billTo: {
+    name: string | null;
+    email: string | null;
+    address: string | null;
+  };
+  /** Who's issuing the invoice — Tyler, Vic, etc. Snapshotted at invoice
+   *  creation time from team_members so the PDF matches what was sent. */
+  billFrom?: {
     name: string | null;
     email: string | null;
     address: string | null;
@@ -322,10 +331,11 @@ function InvoicePdfDoc({ data }: { data: InvoicePdfData }) {
         <View style={s.partiesRow}>
           <View style={s.partyBlock}>
             <Text style={s.partyLabel}>From</Text>
-            <Text style={s.partyName}>{BILL_FROM.business}</Text>
-            {BILL_FROM.address && BILL_FROM.address.split('\n').map((line, i) => (
+            <Text style={s.partyName}>{data.billFrom?.name || FALLBACK_BILL_FROM.business}</Text>
+            {(data.billFrom?.address || FALLBACK_BILL_FROM.address).split('\n').filter(Boolean).map((line, i) => (
               <Text key={i} style={s.partyLine}>{line}</Text>
             ))}
+            {data.billFrom?.email && <Text style={s.partyLine}>{data.billFrom.email}</Text>}
           </View>
           <View style={s.partyBlock}>
             <Text style={s.partyLabel}>Billed To</Text>
@@ -431,7 +441,7 @@ function InvoicePdfDoc({ data }: { data: InvoicePdfData }) {
 
         {/* Footer */}
         <View style={s.footer} fixed>
-          <Text style={s.footerLeft}>{BILL_FROM.business}</Text>
+          <Text style={s.footerLeft}>{data.billFrom?.name || FALLBACK_BILL_FROM.business}</Text>
           <Text style={s.footerRight} render={({ pageNumber, totalPages }) => `${data.invoiceNumber}  ·  Page ${pageNumber} of ${totalPages}`} />
         </View>
       </Page>

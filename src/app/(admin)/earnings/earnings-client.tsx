@@ -91,13 +91,28 @@ export function EarningsClient({ initialMonth }: { initialMonth: string }) {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [generatingBrand, setGeneratingBrand] = useState<string | null>(null);
   const [toast, setToast] = useState<{ kind: 'success' | 'error'; message: string } | null>(null);
+  // Active payee — when set, earnings are filtered to this team member's
+  // compensation arrangements. null = default to first team member (Tyler).
+  const [teamMembers, setTeamMembers] = useState<Array<{ id: string; name: string }>>([]);
+  const [teamMemberId, setTeamMemberId] = useState<string | null>(null);
 
-  const fetchAll = useCallback(async (m: string) => {
+  // Load team members once
+  useEffect(() => {
+    fetch('/api/team-members').then(r => r.json()).then(j => {
+      const list = (j.teamMembers ?? []) as Array<{ id: string; name: string }>;
+      setTeamMembers(list);
+      if (list.length > 0 && !teamMemberId) setTeamMemberId(list[0].id);
+    }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const fetchAll = useCallback(async (m: string, tmId: string | null) => {
     setLoading(true);
     setError(null);
     try {
+      const tmParam = tmId ? `&team_member_id=${tmId}` : '';
       const [earningsRes, seriesRes] = await Promise.all([
-        fetch(`/api/earnings?month=${m}`),
+        fetch(`/api/earnings?month=${m}${tmParam}`),
         fetch(`/api/earnings/series?endMonth=${m}&months=12`),
       ]);
       const earningsJson = await earningsRes.json();
@@ -115,7 +130,7 @@ export function EarningsClient({ initialMonth }: { initialMonth: string }) {
     }
   }, []);
 
-  useEffect(() => { fetchAll(month); }, [month, fetchAll]);
+  useEffect(() => { fetchAll(month, teamMemberId); }, [month, teamMemberId, fetchAll]);
 
   const handleGenerateInvoice = useCallback(async (brand: string) => {
     setGeneratingBrand(brand);
@@ -124,7 +139,7 @@ export function EarningsClient({ initialMonth }: { initialMonth: string }) {
       const res = await fetch('/api/invoices', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ brand, month }),
+        body: JSON.stringify({ brand, month, team_member_id: teamMemberId }),
       });
       const j = await res.json();
       if (!res.ok) {
@@ -143,7 +158,7 @@ export function EarningsClient({ initialMonth }: { initialMonth: string }) {
     } finally {
       setGeneratingBrand(null);
     }
-  }, [month, router]);
+  }, [month, router, teamMemberId]);
 
   // Auto-dismiss toast
   useEffect(() => {
@@ -220,8 +235,22 @@ export function EarningsClient({ initialMonth }: { initialMonth: string }) {
           </select>
           <ChevronDown className="h-4 w-4 absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
         </div>
+        {teamMembers.length > 1 && (
+          <div className="relative">
+            <select
+              value={teamMemberId ?? ''}
+              onChange={(e) => setTeamMemberId(e.target.value || null)}
+              className="appearance-none bg-white border border-gray-200 rounded-xl pl-9 pr-10 py-2 text-sm font-semibold text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D] cursor-pointer"
+              title="View earnings for this team member's compensation arrangements"
+            >
+              {teamMembers.map(tm => <option key={tm.id} value={tm.id}>{tm.name}</option>)}
+            </select>
+            <Users className="h-3.5 w-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            <ChevronDown className="h-4 w-4 absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          </div>
+        )}
         <button
-          onClick={() => fetchAll(month)}
+          onClick={() => fetchAll(month, teamMemberId)}
           disabled={loading}
           className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-600 disabled:opacity-40 transition-colors"
           title="Refresh"
@@ -395,7 +424,7 @@ export function EarningsClient({ initialMonth }: { initialMonth: string }) {
             payment_instructions: editingBrand.paymentInstructions,
           }}
           onClose={() => setEditingBrand(null)}
-          onSaved={() => fetchAll(month)}
+          onSaved={() => fetchAll(month, teamMemberId)}
         />
       )}
     </div>

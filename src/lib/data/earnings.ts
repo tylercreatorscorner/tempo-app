@@ -115,6 +115,9 @@ export interface EarningsResult {
     /** % of monthlyGoal achieved this month */
     goalProgressPct: number;
   };
+  /** The team member whose compensation arrangements drove this calc.
+   *  Null only when no team members exist yet (fresh tenant). */
+  teamMember: { id: string; name: string; email: string | null; address: string | null; paymentInstructions: string | null } | null;
 }
 
 interface BrandSettingsRow {
@@ -176,7 +179,14 @@ function getBrandRatePct(s: BrandSettingsRow | undefined): number {
 
 // ── Main fetcher ───────────────────────────────────────────────────
 
-export async function getEarnings(month: string): Promise<EarningsResult> {
+/**
+ * @param month       YYYY-MM
+ * @param teamMemberId  optional — when set, only this member's compensation
+ *                    arrangements (retainer, commission rate, etc.) are used.
+ *                    When unset, falls back to the first team member found
+ *                    (Tyler) so existing behavior is preserved.
+ */
+export async function getEarnings(month: string, teamMemberId?: string): Promise<EarningsResult> {
   // Validate month "YYYY-MM"
   if (!/^\d{4}-\d{2}$/.test(month)) {
     throw new Error(`Invalid month "${month}" — expected YYYY-MM`);
@@ -188,6 +198,22 @@ export async function getEarnings(month: string): Promise<EarningsResult> {
   const endDate = new Date(Date.UTC(y, m, 0)).toISOString().split('T')[0]; // last day of month
 
   const supabase = await createAdminClient();
+
+  // ── Resolve which team member's compensation we're computing.
+  // No teamMemberId → default to the first non-archived team member
+  // (Tyler in single-tenant ops). Single source of truth for the per-payee
+  // financial fields is now `brand_compensation`, keyed by team_member_id.
+  let activeTeamMemberId = teamMemberId ?? null;
+  if (!activeTeamMemberId) {
+    const { data: tmRow } = await supabase
+      .from('team_members')
+      .select('id')
+      .eq('is_archived', false)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    activeTeamMemberId = tmRow?.id ?? null;
+  }
 
   // ── Resolve the active brand list from brands_v2 (source of truth).
   // Excludes archived brands and umbrella groupings (e.g. "leefar" which
@@ -212,21 +238,44 @@ export async function getEarnings(month: string): Promise<EarningsResult> {
         earnings: 0,
         monthlyGoal: 0, goalProgressPct: 0,
       },
+      teamMember: null,
     };
   }
 
-  // ── Fan out: brand settings, perf data, custom rates, marketing GMV, managed creators
-  // perfRes uses an RPC that aggregates server-side — returns one row per
-  // (brand, creator_name) instead of one per day. Replaces a raw select with
-  // .limit(50000) that silently truncated rows on busy months.
+  // ── Fan out: per-payee compensation, brand-level info, perf data, custom
+  // rates, marketing GMV, managed creators, current team member (for payment
+  // instructions used by invoice flow).
   const [
-    brandSettingsRes,
+    compensationRes,
+    brandLevelRes,
+    teamMemberRes,
     perfRes,
     customRatesRes,
     marketingRes,
     managedRes,
   ] = await Promise.all([
-    supabase.from('brand_settings').select('*').in('brand', activeBrandSlugs),
+    activeTeamMemberId
+      ? supabase
+          .from('brand_compensation')
+          .select('brand, retainer, commission_rate, revenue_share_rate, marketing_commission_rate, product_retainer_amount, product_retainer_name, launch_fee, launch_fee_name, launch_fee_ends, compensation_model')
+          .eq('team_member_id', activeTeamMemberId)
+          .in('brand', activeBrandSlugs)
+      : Promise.resolve({ data: [] as Array<Record<string, unknown>> }),
+    // Brand-level fields stay on brand_settings (bill_to_*, monthly_gmv_goal,
+    // legacy payment_instructions which we DON'T use anymore now that it lives
+    // per-payee on team_members).
+    supabase
+      .from('brand_settings')
+      .select('brand, bill_to_name, bill_to_email, bill_to_address, monthly_gmv_goal')
+      .in('brand', activeBrandSlugs),
+    // Team member info — for paymentInstructions (per-payee, not per-brand).
+    activeTeamMemberId
+      ? supabase
+          .from('team_members')
+          .select('id, name, email, address, payment_instructions')
+          .eq('id', activeTeamMemberId)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
     supabase.rpc('get_creator_brand_gmv', {
       p_start_date: startDate,
       p_end_date: endDate,
@@ -234,15 +283,47 @@ export async function getEarnings(month: string): Promise<EarningsResult> {
     }),
     supabase.from('creator_commission_rates').select('creator_name, brand, rate'),
     supabase.from('marketing_gmv').select('brand, amount').eq('month', month),
-    // Skip archived (soft-removed) creators so they don't count toward
-    // rev share / management metrics.
     supabase.from('managed_creators')
       .select('brand, account_1, account_2, account_3, account_4, account_5')
       .is('archived_at', null),
   ]);
 
-  const settings = (brandSettingsRes.data as BrandSettingsRow[] | null ?? []);
-  const settingsByBrand = new Map(settings.map(s => [s.brand, s]));
+  // Merge per-payee compensation rows with brand-level info into a single
+  // BrandSettingsRow-shaped lookup. The downstream loop is unchanged.
+  const compensationRows = (compensationRes.data as Array<Record<string, unknown>> | null ?? []);
+  const brandLevelRows = (brandLevelRes.data as Array<Record<string, unknown>> | null ?? []);
+  const teamMember = (teamMemberRes.data as { name?: string; email?: string; address?: string; payment_instructions?: string | null } | null);
+
+  const compByBrand = new Map<string, Record<string, unknown>>();
+  for (const r of compensationRows) compByBrand.set(String(r.brand), r);
+  const brandLevelByBrand = new Map<string, Record<string, unknown>>();
+  for (const r of brandLevelRows) brandLevelByBrand.set(String(r.brand), r);
+
+  const settingsByBrand = new Map<string, BrandSettingsRow>();
+  for (const slug of activeBrandSlugs) {
+    const c = compByBrand.get(slug);
+    const b = brandLevelByBrand.get(slug);
+    if (!c && !b) continue;
+    settingsByBrand.set(slug, {
+      brand: slug,
+      revenue_share_rate:        c?.revenue_share_rate as number | string | null ?? null,
+      commission_rate:           c?.commission_rate as number | string | null ?? null,
+      retainer:                  c?.retainer as number | string | null ?? null,
+      launch_fee:                c?.launch_fee as number | string | null ?? null,
+      launch_fee_name:           (c?.launch_fee_name as string | null) ?? null,
+      launch_fee_ends:           (c?.launch_fee_ends as string | null) ?? null,
+      product_retainer_amount:   c?.product_retainer_amount as number | string | null ?? null,
+      product_retainer_name:     (c?.product_retainer_name as string | null) ?? null,
+      monthly_gmv_goal:          b?.monthly_gmv_goal as number | string | null ?? null,
+      compensation_model:        (c?.compensation_model as CompensationModel | null) ?? null,
+      marketing_commission_rate: c?.marketing_commission_rate as number | string | null ?? null,
+      bill_to_name:              (b?.bill_to_name as string | null) ?? null,
+      bill_to_email:             (b?.bill_to_email as string | null) ?? null,
+      bill_to_address:           (b?.bill_to_address as string | null) ?? null,
+      // Payment instructions now live on the team member, not the brand.
+      payment_instructions:      teamMember?.payment_instructions ?? null,
+    });
+  }
 
   const perfData = (perfRes.data as PerfRow[] | null ?? []);
   const customRates = (customRatesRes.data as Array<{ creator_name: string; brand: string; rate: number | string }> | null ?? []);
@@ -509,11 +590,24 @@ export async function getEarnings(month: string): Promise<EarningsResult> {
 
   const earnings = totalCommission + totalRetainers + totalLaunchFees;
 
+  // Resolve teamMember snapshot — same data used downstream by invoices.
+  let resolvedTeamMember: EarningsResult['teamMember'] = null;
+  if (teamMember && activeTeamMemberId) {
+    resolvedTeamMember = {
+      id: activeTeamMemberId,
+      name: teamMember.name ?? '',
+      email: teamMember.email ?? null,
+      address: teamMember.address ?? null,
+      paymentInstructions: teamMember.payment_instructions ?? null,
+    };
+  }
+
   return {
     month,
     startDate,
     endDate,
     brands: finalBrands,
+    teamMember: resolvedTeamMember,
     totals: {
       affiliateGmv: totalAffiliateGmv,
       marketingGmv: totalMarketingGmv,

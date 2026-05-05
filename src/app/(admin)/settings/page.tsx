@@ -7,6 +7,8 @@ import { TikTokConnect } from '@/components/onboarding/tiktok-connect';
 import { PlanSelector } from '@/components/onboarding/plan-selector';
 import { UserManagement } from '@/components/settings/user-management';
 import { CreatorInvitesSection } from '@/components/settings/creator-invites-section';
+import { TeamMembersSection } from '@/components/settings/team-members-section';
+import { CompensationArrangementsSection } from '@/components/settings/compensation-arrangements-section';
 import { BRAND_COLORS } from '@/lib/utils/constants';
 
 export default async function SettingsPage() {
@@ -230,6 +232,18 @@ export default async function SettingsPage() {
           tenantId={profile.tenant_id}
           brands={brands.map(b => ({ slug: b.slug, name: b.name, display_name: b.display_name }))}
         />
+      )}
+
+      {/* Team Members + per-(brand × payee) compensation arrangements.
+          Admin-only. Drives invoicing + earnings split between Tyler / Vic /
+          future collaborators. */}
+      {(profile?.role === 'owner' || profile?.role === 'admin') && (
+        <>
+          <TeamMembersSection />
+          <CompensationArrangementsSection
+            brands={brands.map(b => ({ slug: b.slug, name: b.name, display_name: b.display_name }))}
+          />
+        </>
       )}
 
       {/* API Keys - only show if they have brands */}

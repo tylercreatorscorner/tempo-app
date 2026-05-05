@@ -37,6 +37,7 @@ export async function GET(req: NextRequest) {
 interface PostBody {
   brand?: string;
   month?: string; // YYYY-MM
+  team_member_id?: string; // who's issuing the invoice; defaults to first team member
 }
 
 export async function POST(req: NextRequest) {
@@ -46,7 +47,7 @@ export async function POST(req: NextRequest) {
   let body: PostBody;
   try { body = await req.json(); } catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }); }
 
-  const { brand, month } = body;
+  const { brand, month, team_member_id: teamMemberIdFromBody } = body;
   if (!brand) return NextResponse.json({ error: 'brand is required' }, { status: 400 });
   if (!month || !/^\d{4}-\d{2}$/.test(month)) {
     return NextResponse.json({ error: 'month is required (YYYY-MM)' }, { status: 400 });
@@ -54,32 +55,39 @@ export async function POST(req: NextRequest) {
 
   const supabase = await createAdminClient();
 
-  // Reject if an invoice already exists for this (brand, period). Unique
-  // constraint also enforces this at the DB level.
-  const { data: existing } = await supabase
-    .from('invoices')
-    .select('id, invoice_number, status')
-    .eq('brand', brand)
-    .eq('period_month', month)
-    .maybeSingle();
-  if (existing) {
-    return NextResponse.json(
-      { error: `Invoice already exists for ${brand} ${month}: ${existing.invoice_number}`, existing },
-      { status: 409 },
-    );
+  // Compute earnings for THIS team member's compensation arrangements.
+  const earnings = await getEarnings(month, teamMemberIdFromBody);
+  const teamMemberId = earnings.teamMember?.id ?? null;
+  if (!teamMemberId) {
+    return NextResponse.json({ error: 'No team member configured — add one in Settings → Team Members' }, { status: 400 });
   }
 
-  // Pull earnings for the month — we need the line item amounts for this brand.
-  const earnings = await getEarnings(month);
   const row = earnings.brands.find((b) => b.brand === brand);
   if (!row) {
     return NextResponse.json({ error: `Brand "${brand}" not found in earnings for ${month}` }, { status: 404 });
   }
 
-  // Pull bill-to + payment instruction defaults from brand_settings.
+  // Reject if an invoice already exists for this (brand, period, team_member).
+  // The unique index allows different team members to invoice the same brand
+  // for the same month — which is the whole point.
+  const { data: existing } = await supabase
+    .from('invoices')
+    .select('id, invoice_number, status')
+    .eq('brand', brand)
+    .eq('period_month', month)
+    .eq('team_member_id', teamMemberId)
+    .maybeSingle();
+  if (existing) {
+    return NextResponse.json(
+      { error: `Invoice already exists for ${brand} ${month} (${earnings.teamMember?.name}): ${existing.invoice_number}`, existing },
+      { status: 409 },
+    );
+  }
+
+  // Pull bill-to (brand-level: who at the brand pays) from brand_settings.
   const { data: settings } = await supabase
     .from('brand_settings')
-    .select('bill_to_name, bill_to_email, bill_to_address, payment_instructions')
+    .select('bill_to_name, bill_to_email, bill_to_address')
     .eq('brand', brand)
     .maybeSingle();
 
@@ -100,6 +108,7 @@ export async function POST(req: NextRequest) {
     invoice_number: invoiceNumber,
     brand,
     period_month: month,
+    team_member_id: teamMemberId,
     affiliate_gmv: row.affiliateGmv,
     marketing_gmv: row.marketingGmv,
     total_gmv: row.totalGmv,
@@ -113,7 +122,12 @@ export async function POST(req: NextRequest) {
     bill_to_name: settings?.bill_to_name ?? null,
     bill_to_email: settings?.bill_to_email ?? null,
     bill_to_address: settings?.bill_to_address ?? null,
-    payment_instructions: settings?.payment_instructions ?? DEFAULT_PAYMENT_INSTRUCTIONS,
+    // Snapshot bill-FROM (the team member who's invoicing) at creation time
+    // so future edits to their profile don't change historical invoices.
+    bill_from_name: earnings.teamMember?.name ?? null,
+    bill_from_email: earnings.teamMember?.email ?? null,
+    bill_from_address: earnings.teamMember?.address ?? null,
+    payment_instructions: earnings.teamMember?.paymentInstructions ?? DEFAULT_PAYMENT_INSTRUCTIONS,
     creator_breakdown: row.creators,
     created_by: profile.email ?? null,
   };
