@@ -27,11 +27,15 @@ export function AdminShell({ children, tenantSwitcher }: AdminShellProps) {
     <BrandProvider>
     <BreadcrumbProvider>
     <VideoPanelProvider>
-      <div className="flex h-screen overflow-hidden" style={{ backgroundColor: '#F8F9FC' }}>
+      {/* Body-scroll layout: removed the outer h-screen+overflow-hidden lock
+          so the scroll wheel works from anywhere on the page (including
+          while hovering the sidebar). Sidebar is now `sticky top-0 h-screen`
+          internally so it stays pinned while the document scrolls. */}
+      <div className="flex min-h-screen" style={{ backgroundColor: '#F8F9FC' }}>
         <Sidebar className="hidden lg:flex" userRole={isOwner ? 'owner' : 'customer'} />
         <MobileNav open={mobileNavOpen} onClose={() => setMobileNavOpen(false)} userRole={isOwner ? 'owner' : 'customer'} />
 
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 flex flex-col min-w-0">
           <Header
             onMenuClick={() => setMobileNavOpen(true)}
             tenantName={tenant?.name}
@@ -39,7 +43,7 @@ export function AdminShell({ children, tenantSwitcher }: AdminShellProps) {
             userEmail={userEmail}
             tenantSwitcher={tenantSwitcher}
           />
-          <main className="flex-1 overflow-y-auto animate-fade-in">
+          <main className="flex-1 animate-fade-in">
             <div className="px-3 sm:px-4 md:px-6 pt-3 sm:pt-4">
               <SetupBanner />
             </div>

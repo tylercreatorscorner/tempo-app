@@ -156,7 +156,11 @@ export function Sidebar({ className, userRole = 'customer' }: SidebarProps) {
 
   return (
     <aside className={cn(
-        'flex flex-col w-64 h-screen bg-white border-r border-gray-100',
+        // sticky + h-screen so the sidebar stays in place while the page
+        // body scrolls naturally — keeps scroll-anywhere behavior working
+        // (the previous flex/overflow-hidden lock made wheel events only
+        // work over <main>, breaking expectations).
+        'sticky top-0 flex flex-col w-64 h-screen bg-white border-r border-gray-100 shrink-0',
         className
       )}
     >

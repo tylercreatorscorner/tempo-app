@@ -77,7 +77,7 @@ export function Header({ onMenuClick, tenantName, userName, userEmail, tenantSwi
     : '?';
 
   return (
-    <header className="flex items-center justify-between h-14 px-3 sm:px-5 border-b border-gray-100 bg-white">
+    <header className="sticky top-0 z-30 flex items-center justify-between h-14 px-3 sm:px-5 border-b border-gray-100 bg-white">
       {/* Left: mobile menu + breadcrumb */}
       <div className="flex items-center gap-3">
         <button
