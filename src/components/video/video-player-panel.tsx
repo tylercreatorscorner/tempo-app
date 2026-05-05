@@ -19,14 +19,20 @@ export function VideoPlayerPanel() {
     return () => document.removeEventListener('keydown', handler);
   }, [isOpen, closeVideo]);
 
-  // Lock body scroll when open
+  // Lock body scroll when open. Defensive: always reset on mount so any
+  // stale 'hidden' from a prior render/navigation/hot-reload can't leave the
+  // entire page unscrollable.
+  useEffect(() => {
+    document.body.style.overflow = '';
+    return () => { document.body.style.overflow = ''; };
+  }, []);
+
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = '';
     }
-    return () => { document.body.style.overflow = ''; };
   }, [isOpen]);
 
   const tiktokUrl = video
