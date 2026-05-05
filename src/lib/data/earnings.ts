@@ -233,7 +233,11 @@ export async function getEarnings(month: string): Promise<EarningsResult> {
     }),
     supabase.from('creator_commission_rates').select('creator_name, brand, rate'),
     supabase.from('marketing_gmv').select('brand, amount').eq('month', month),
-    supabase.from('managed_creators').select('brand, account_1, account_2, account_3, account_4, account_5'),
+    // Skip archived (soft-removed) creators so they don't count toward
+    // rev share / management metrics.
+    supabase.from('managed_creators')
+      .select('brand, account_1, account_2, account_3, account_4, account_5')
+      .is('archived_at', null),
   ]);
 
   const settings = (brandSettingsRes.data as BrandSettingsRow[] | null ?? []);

@@ -64,3 +64,38 @@ export async function PATCH(
 
   return NextResponse.json({ data });
 }
+
+// DELETE /api/roster/[id] — soft-remove a managed creator from the roster.
+//
+// Sets archived_at instead of hard-deleting. Hard delete fails because
+// creator_messages and discord_match_queue have NO ACTION FKs, and would
+// orphan creator_performance (SET NULL) — which is exactly the GMV history
+// we want to keep for historical earnings reports.
+//
+// Archived creators:
+//   - disappear from the roster list, renewals, and rev-share calculations
+//   - keep all their performance / messaging / audit data intact
+//   - can be restored by setting archived_at = NULL
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const tenantId = await getTenantId();
+  if (!tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const { id } = await params;
+  const supabase = await createAdminClient();
+
+  const { data, error } = await supabase
+    .from('managed_creators')
+    .update({ archived_at: new Date().toISOString() })
+    .eq('id', id)
+    .eq('tenant_id', tenantId)
+    .select('id, real_name')
+    .single();
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (!data)  return NextResponse.json({ error: 'Creator not found' }, { status: 404 });
+
+  return NextResponse.json({ ok: true, archived: data });
+}

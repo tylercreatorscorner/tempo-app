@@ -49,6 +49,7 @@ export async function GET(request: NextRequest) {
     .from('managed_creators')
     .select(COLUMNS, { count: 'exact' })
     .eq('tenant_id', tenantId)
+    .is('archived_at', null) // hide soft-deleted ("removed") creators
     .order(sortCol, { ascending, nullsFirst: false })
     .range(offset, offset + limit - 1);
 
@@ -68,7 +69,8 @@ export async function GET(request: NextRequest) {
   let aggQuery = supabase
     .from('managed_creators')
     .select('retainer, status')
-    .eq('tenant_id', tenantId);
+    .eq('tenant_id', tenantId)
+    .is('archived_at', null);
   if (brand && brand !== 'all') aggQuery = aggQuery.eq('brand', brand);
   if (status && status !== 'all') aggQuery = aggQuery.eq('status', status);
   if (search) {
