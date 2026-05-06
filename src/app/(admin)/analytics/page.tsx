@@ -10,7 +10,8 @@ import { BrandFilter } from '@/components/creators/brand-filter';
 import { PerformanceChart, type DailyMetrics } from '@/components/analytics/performance-chart';
 import { NotableChanges, type BrandChange, type CreatorBreakout, type HotPost } from '@/components/analytics/notable-changes';
 import { StatCard } from '@/components/dashboard/stat-card';
-import { BRAND_DISPLAY_NAMES, BRAND_COLORS, expandBrandToDataSlugs } from '@/lib/utils/constants';
+import { BRAND_DISPLAY_NAMES, BRAND_COLORS, HIDDEN_FROM_PICKER, expandBrandToDataSlugs } from '@/lib/utils/constants';
+import { pctChange } from '@/lib/utils/trend';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
 import { AlertTriangle } from 'lucide-react';
@@ -32,12 +33,6 @@ function priorPeriod(startDate: string, endDate: string): { prevStart: string; p
   return { prevStart: fmt(prevStart), prevEnd: fmt(prevEnd) };
 }
 
-/** % change vs prior. undefined when prior is 0 and current is 0 too (no signal). */
-function trendPct(current: number, previous: number): number | undefined {
-  if (previous === 0) return current > 0 ? 100 : undefined;
-  return ((current - previous) / previous) * 100;
-}
-
 export default async function AnalyticsPage({ searchParams }: Props) {
   const params = await searchParams;
   const { startDate, endDate } = resolveDateRange(params.range, params.start, params.end);
@@ -46,12 +41,6 @@ export default async function AnalyticsPage({ searchParams }: Props) {
   const supabase = await createClient();
   const { getAllowedBrandsForUser } = await import('@/lib/data/brands');
   const allowedBrands = await getAllowedBrandsForUser();
-  // Hide LeeFar's per-store slugs from the UI brand list — the umbrella
-  // 'leefar' is the canonical roster brand. Performance data still uses
-  // store slugs internally (creator_performance, etc.) and we expand
-  // 'leefar' → store slugs at query time below.
-  const HIDDEN_FROM_PICKER = new Set(['leefar_nutrition', 'leefar_supplements']);
-
   let brandsQuery = supabase.from('brands_v2').select('slug').eq('is_archived', false);
   if (allowedBrands) brandsQuery = brandsQuery.in('slug', allowedBrands);
   const { data: dbBrands } = await brandsQuery.order('name');
@@ -371,7 +360,7 @@ export default async function AnalyticsPage({ searchParams }: Props) {
         <StatCard
           label="Total GMV"
           value={formatCurrency(totals.gmv)}
-          trend={trendPct(totals.gmv, prevTotals.gmv)}
+          trend={pctChange(totals.gmv, prevTotals.gmv)}
           trendLabel="vs prior period"
           sparklineData={aggregatedTrend.map(d => d.gmv)}
           hero
@@ -380,34 +369,34 @@ export default async function AnalyticsPage({ searchParams }: Props) {
         <StatCard
           label="Orders"
           value={formatNumber(totals.orders)}
-          trend={trendPct(totals.orders, prevTotals.orders)}
+          trend={pctChange(totals.orders, prevTotals.orders)}
           trendLabel="vs prior period"
           sparklineData={aggregatedTrend.map(d => d.orders)}
         />
         <StatCard
           label="Items Sold"
           value={formatNumber(totals.items)}
-          trend={trendPct(totals.items, prevTotals.items)}
+          trend={pctChange(totals.items, prevTotals.items)}
           trendLabel="vs prior period"
           sparklineData={aggregatedTrend.map(d => d.items)}
         />
         <StatCard
           label="Videos"
           value={formatNumber(totals.videos)}
-          trend={trendPct(totals.videos, prevTotals.videos)}
+          trend={pctChange(totals.videos, prevTotals.videos)}
           trendLabel="vs prior period"
           sparklineData={aggregatedTrend.map(d => d.videos)}
         />
         <StatCard
           label="Active Creators"
           value={formatNumber(totals.creators)}
-          trend={trendPct(totals.creators, prevTotals.creators)}
+          trend={pctChange(totals.creators, prevTotals.creators)}
           trendLabel="vs prior period"
         />
         <StatCard
           label="Avg GMV / Video"
           value={totals.videos > 0 ? formatCurrency(avgGmvPerVideo) : '—'}
-          trend={trendPct(avgGmvPerVideo, prevAvgGmvPerVideo)}
+          trend={pctChange(avgGmvPerVideo, prevAvgGmvPerVideo)}
           trendLabel="vs prior period"
         />
       </div>

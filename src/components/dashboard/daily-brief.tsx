@@ -6,13 +6,15 @@ import { DayComparisonChart } from '@/components/charts/day-comparison-chart';
 export interface DailyBriefActionItem {
   name: string;
   detail: string;
-  type: 'warning' | 'breakout' | 'crushing';
+  type: 'underperforming' | 'breakout' | 'crushing';
 }
 
 interface Props {
   brandName: string | null;
-  date: string;
-  prevDateLabel: string;
+  /** Friendly label for the *current* period (e.g. "Yesterday", "Last 7 days", "Apr 1 – Apr 30"). */
+  periodLabel: string;
+  /** Friendly label for the *prior* comparison period. */
+  prevPeriodLabel: string;
   currentGmv: number;
   prevGmv: number;
   currentOrders: number;
@@ -25,10 +27,14 @@ interface Props {
   color?: string;
 }
 
+/**
+ * Period Brief — narrative-led hero card on the admin dashboard.
+ * Works for any date range (single-day, multi-day, custom).
+ */
 export function DailyBrief({
   brandName,
-  date,
-  prevDateLabel,
+  periodLabel,
+  prevPeriodLabel,
   currentGmv,
   prevGmv,
   currentOrders,
@@ -42,15 +48,19 @@ export function DailyBrief({
 }: Props) {
   const name = brandName ?? 'Your portfolio';
   const isPositive = gmvTrend !== undefined && gmvTrend >= 0;
+  // Lower-case "yesterday"/"last 7 days" mid-sentence; preserve exact period strings.
+  const inlinePeriod = /^(Yesterday|Today|Last \d+ days?|This (?:week|month|quarter|year)|Last (?:week|month|quarter))$/i.test(periodLabel)
+    ? periodLabel.toLowerCase()
+    : periodLabel;
 
   let headline: string;
   if (currentGmv === 0) {
-    headline = `No sales data for ${name} on ${date} yet — TikTok Shop data typically syncs within 24 hours. Try Last 7 Days for current data.`;
+    headline = `No sales data for ${name} for ${inlinePeriod} yet — TikTok Shop data typically syncs within 24 hours.`;
   } else if (gmvTrend === undefined) {
-    headline = `${name} generated ${formatCurrency(currentGmv)} yesterday.`;
+    headline = `${name} generated ${formatCurrency(currentGmv)} ${inlinePeriod}.`;
   } else {
     const dir = isPositive ? 'up' : 'down';
-    headline = `${name} generated ${formatCurrency(currentGmv)} yesterday — ${dir} ${Math.abs(gmvTrend).toFixed(1)}% from ${prevDateLabel}.`;
+    headline = `${name} generated ${formatCurrency(currentGmv)} ${inlinePeriod} — ${dir} ${Math.abs(gmvTrend).toFixed(1)}% from ${prevPeriodLabel}.`;
   }
 
   const ordersTrend =
@@ -62,9 +72,9 @@ export function DailyBrief({
       <div className="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-gray-50/80 to-white">
         <div className="flex items-center gap-2">
           <span className="text-base">📰</span>
-          <h3 className="font-semibold text-[#1A1B3A] text-sm">Daily Brief</h3>
+          <h3 className="font-semibold text-[#1A1B3A] text-sm">Period Brief</h3>
         </div>
-        <span className="text-xs text-gray-400 font-medium">{date}</span>
+        <span className="text-xs text-gray-400 font-medium">{periodLabel}</span>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_260px] divide-y lg:divide-y-0 lg:divide-x divide-gray-100">
@@ -129,7 +139,7 @@ export function DailyBrief({
                 {actionItems.slice(0, 3).map((item, i) => (
                   <div key={i} className="flex items-start gap-2 text-sm">
                     <span className="flex-shrink-0 mt-0.5">
-                      {item.type === 'warning' ? '⚠️' : item.type === 'crushing' ? '🔥' : '⭐'}
+                      {item.type === 'underperforming' ? '⚠️' : item.type === 'crushing' ? '🔥' : '⭐'}
                     </span>
                     <p className="text-gray-500 leading-snug">
                       <span className="font-semibold text-[#1A1B3A]">{item.name}</span>
@@ -147,20 +157,20 @@ export function DailyBrief({
         {/* Right: GMV comparison chart */}
         <div className="p-4">
           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 px-1">
-            GMV vs Prior Day
+            GMV vs Prior Period
           </p>
           <DayComparisonChart
             currentGmv={currentGmv}
             previousGmv={prevGmv}
-            currentLabel="Yesterday"
-            previousLabel={prevDateLabel}
+            currentLabel={periodLabel}
+            previousLabel={prevPeriodLabel}
             color={color}
             height={170}
           />
           {/* Orders row */}
           <div className="flex items-center justify-between px-2 pt-2 border-t border-gray-100">
             <div>
-              <p className="text-[10px] text-gray-400">Orders yesterday</p>
+              <p className="text-[10px] text-gray-400">Orders</p>
               <p className="text-sm font-bold text-[#1A1B3A]">{formatNumber(currentOrders)}</p>
             </div>
             {ordersTrend !== undefined && (
@@ -169,7 +179,7 @@ export function DailyBrief({
               </span>
             )}
             <div className="text-right">
-              <p className="text-[10px] text-gray-400">Prior day</p>
+              <p className="text-[10px] text-gray-400">Prior</p>
               <p className="text-sm font-bold text-gray-400">{formatNumber(prevOrders)}</p>
             </div>
           </div>

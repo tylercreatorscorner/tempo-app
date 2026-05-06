@@ -52,6 +52,15 @@ export type ActiveBrand = (typeof ACTIVE_BRANDS)[number];
 /** LeeFar store slugs — used when expanding 'leefar' to per-store performance lookups. */
 export const LEEFAR_STORE_SLUGS = ['leefar_nutrition', 'leefar_supplements'] as const;
 
+/** Brand slugs that exist in the data layer but should not appear in the UI brand
+ * picker. LeeFar's per-store slugs are hidden because the umbrella 'leefar' is
+ * the canonical roster brand — performance queries expand the umbrella back to
+ * the store slugs at fetch time. */
+export const HIDDEN_FROM_PICKER: ReadonlySet<string> = new Set([
+  'leefar_nutrition',
+  'leefar_supplements',
+]);
+
 /** Expand a roster brand slug to the actual data-table brand slugs. For LeeFar
  * the roster uses the umbrella but performance data is keyed by store. */
 export function expandBrandToDataSlugs(brand: string): readonly string[] {
