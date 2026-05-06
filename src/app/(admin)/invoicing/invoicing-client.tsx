@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Receipt, FileText, Clock, CheckCircle2, Filter, RefreshCw, Download, Plus, AlertCircle, Ban, Search, X, Send, Loader2, FileDown } from 'lucide-react';
+import { Receipt, FileText, Clock, CheckCircle2, Filter, RefreshCw, Download, Plus, AlertCircle, Ban, Search, X, Send, Loader2, FileDown, Users } from 'lucide-react';
 import { downloadCsv } from '@/lib/utils/csv';
 import { cn } from '@/lib/utils';
 import { formatCurrency, formatDate, formatPeriod, currentMonth } from '@/lib/utils/format';
@@ -40,6 +40,17 @@ export function InvoicingClient({ initialOpenId }: Props) {
   const [activeInvoice, setActiveInvoice] = useState<Invoice | null>(null);
   const [creating, setCreating] = useState(false);
   const [pendingOpenId, setPendingOpenId] = useState<string | null>(initialOpenId ?? null);
+  // Team member filter — 'all' shows everyone's invoices; otherwise filters
+  // to a single payee. Loaded once on mount.
+  const [teamMembers, setTeamMembers] = useState<Array<{ id: string; name: string }>>([]);
+  const [teamMemberFilter, setTeamMemberFilter] = useState<string>('all');
+
+  useEffect(() => {
+    fetch('/api/team-members')
+      .then(r => r.json())
+      .then(j => setTeamMembers((j.teamMembers ?? []) as Array<{ id: string; name: string }>))
+      .catch(() => {});
+  }, []);
 
   const fetchInvoices = useCallback(async () => {
     setLoading(true);
@@ -48,6 +59,7 @@ export function InvoicingClient({ initialOpenId }: Props) {
       const params = new URLSearchParams();
       if (status !== 'all') params.set('status', status);
       if (brand !== 'all') params.set('brand', brand);
+      if (teamMemberFilter !== 'all') params.set('team_member_id', teamMemberFilter);
       const res = await fetch(`/api/invoices?${params.toString()}`);
       const j = await res.json();
       if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
@@ -57,7 +69,14 @@ export function InvoicingClient({ initialOpenId }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [status, brand]);
+  }, [status, brand, teamMemberFilter]);
+
+  // Lookup map: team_member_id → name (used for the per-row issuer label).
+  const memberNameById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const tm of teamMembers) m.set(tm.id, tm.name);
+    return m;
+  }, [teamMembers]);
 
   useEffect(() => { fetchInvoices(); }, [fetchInvoices]);
 
@@ -297,6 +316,14 @@ export function InvoicingClient({ initialOpenId }: Props) {
 
           <BrandFilter value={brand} onChange={setBrand} options={brandOptions} />
 
+          {teamMembers.length > 1 && (
+            <TeamMemberFilter
+              value={teamMemberFilter}
+              onChange={setTeamMemberFilter}
+              members={teamMembers}
+            />
+          )}
+
           <SearchInput value={search} onChange={setSearch} />
 
           {agingBucket !== 'all' && (
@@ -398,7 +425,16 @@ export function InvoicingClient({ initialOpenId }: Props) {
                           aria-label={`Select ${inv.invoice_number}`}
                         />
                       </td>
-                      <td className="px-4 py-3 font-mono text-xs font-semibold text-[#1A1B3A]">{inv.invoice_number}</td>
+                      <td className="px-4 py-3 font-mono text-xs font-semibold text-[#1A1B3A]">
+                        <div>{inv.invoice_number}</div>
+                        {/* Show issuer name when there's > 1 team member, so Tyler's
+                            and Vic's invoices are distinguishable in the unfiltered view. */}
+                        {teamMembers.length > 1 && inv.team_member_id && (
+                          <div className="text-[10px] font-normal text-gray-400 mt-0.5 normal-case">
+                            {memberNameById.get(inv.team_member_id) ?? '—'}
+                          </div>
+                        )}
+                      </td>
                       <td className="px-4 py-3 font-semibold text-[#1A1B3A]">{inv.brand}</td>
                       <td className="px-4 py-3 text-gray-600">{fmtPeriod(inv.period_month)}</td>
                       <td className="px-4 py-3 text-right tabular-nums font-bold text-[#1A1B3A]">
@@ -605,6 +641,27 @@ function BrandFilter({ value, onChange, options }: {
         {options.map((b) => <option key={b} value={b}>{b}</option>)}
       </select>
       <Filter className="h-3.5 w-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+    </div>
+  );
+}
+
+function TeamMemberFilter({ value, onChange, members }: {
+  value: string;
+  onChange: (v: string) => void;
+  members: Array<{ id: string; name: string }>;
+}) {
+  return (
+    <div className="relative">
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="appearance-none bg-white border border-gray-200 rounded-xl pl-9 pr-8 py-2 text-xs font-semibold text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D] cursor-pointer"
+        title="Filter invoices by who issued them"
+      >
+        <option value="all">All payees</option>
+        {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+      </select>
+      <Users className="h-3.5 w-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
     </div>
   );
 }

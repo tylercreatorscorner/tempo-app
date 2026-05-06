@@ -22,11 +22,13 @@ export async function GET(req: NextRequest) {
   const status = url.searchParams.get('status');
   const brand = url.searchParams.get('brand');
   const month = url.searchParams.get('month');
+  const teamMemberId = url.searchParams.get('team_member_id');
 
   let query = supabase.from('invoices').select('*').order('generated_at', { ascending: false });
   if (status && status !== 'all') query = query.eq('status', status);
   if (brand && brand !== 'all') query = query.eq('brand', brand);
   if (month && month !== 'all') query = query.eq('period_month', month);
+  if (teamMemberId && teamMemberId !== 'all') query = query.eq('team_member_id', teamMemberId);
 
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

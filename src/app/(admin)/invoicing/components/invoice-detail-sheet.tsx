@@ -36,6 +36,11 @@ export interface Invoice {
   bill_to_email: string | null;
   bill_to_address: string | null;
   payment_instructions: string | null;
+  /** Issuer (Tyler / Vic / etc.) — used to filter and label invoices. */
+  team_member_id?: string | null;
+  bill_from_name?: string | null;
+  bill_from_email?: string | null;
+  bill_from_address?: string | null;
   public_token?: string | null;
   payment_method?: string | null;
   payment_reference?: string | null;
