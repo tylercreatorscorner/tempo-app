@@ -49,7 +49,7 @@ export default async function BrandReportsPage() {
       </div>
 
       {/* Footer help */}
-      <div className="rounded-2xl border border-gray-100 bg-white p-5 flex items-start gap-3">
+      <div className="rounded-2xl border border-border bg-white p-5 flex items-start gap-3">
         <div className="h-9 w-9 rounded-lg bg-[#FF4D8D]/10 flex items-center justify-center flex-shrink-0">
           <Sparkles className="h-4 w-4 text-[#FF4D8D]" />
         </div>

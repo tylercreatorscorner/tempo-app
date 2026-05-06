@@ -26,7 +26,7 @@ export function PeriodTabs({ current, accentColor }: Props) {
   }
 
   return (
-    <div className="inline-flex bg-white border border-gray-100 rounded-lg p-0.5 shadow-sm flex-wrap">
+    <div className="inline-flex bg-white border border-border rounded-lg p-0.5 shadow-sm flex-wrap">
       {PERIOD_ORDER.map((p) => {
         const active = current === p;
         return (

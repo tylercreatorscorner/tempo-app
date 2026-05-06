@@ -49,7 +49,8 @@ export async function loadBrandPortalContext(): Promise<
     .eq('user_id', user.id)
     .maybeSingle();
 
-  if (!profile || profile.role !== 'brand') {
+  // 'brand' is canonical; 'brand_contact' is legacy for the same thing.
+  if (!profile || (profile.role !== 'brand' && profile.role !== 'brand_contact')) {
     // Wrong role — middleware should already have redirected, but double-check here.
     redirect('/dashboard');
   }

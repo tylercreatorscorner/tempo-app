@@ -24,7 +24,7 @@ export async function setActiveBrand(brandSlug: string) {
     .select('role')
     .eq('user_id', user.id)
     .maybeSingle();
-  if (!profile || profile.role !== 'brand') {
+  if (!profile || (profile.role !== 'brand' && profile.role !== 'brand_contact')) {
     throw new Error('Not a brand-portal user.');
   }
 

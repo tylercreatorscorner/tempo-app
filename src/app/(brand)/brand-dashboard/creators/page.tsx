@@ -129,11 +129,11 @@ export default async function BrandCreatorsPage({ searchParams }: PageProps) {
         </div>
       </div>
 
-      <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+      <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-50/50">
+              <tr className="bg-muted/30">
                 <SortableHeader
                   label="Creator"
                   column="creator"
@@ -187,7 +187,7 @@ export default async function BrandCreatorsPage({ searchParams }: PageProps) {
                 <th className="w-8"></th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-border/40">
               {visible.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-4 py-12 text-center text-sm text-gray-400">
@@ -198,7 +198,7 @@ export default async function BrandCreatorsPage({ searchParams }: PageProps) {
                 </tr>
               ) : (
                 visible.map((c) => (
-                  <tr key={c.managedId} className="hover:bg-gray-50/60 transition-colors">
+                  <tr key={c.managedId} className="hover:bg-muted/30 transition-colors">
                     <td className="px-4 py-2.5">
                       {c.primaryHandle ? (
                         <Link
@@ -253,7 +253,7 @@ export default async function BrandCreatorsPage({ searchParams }: PageProps) {
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-gray-50 text-xs text-gray-500">
+          <div className="flex items-center justify-between px-4 py-3 border-t border-border/50 text-xs text-gray-500">
             <span>
               {startIdx + 1}–{Math.min(startIdx + PAGE_SIZE, sorted.length)} of {sorted.length}
             </span>
@@ -261,7 +261,7 @@ export default async function BrandCreatorsPage({ searchParams }: PageProps) {
               {safePage > 1 ? (
                 <Link
                   href={buildHref({ page: safePage - 1 })}
-                  className="inline-flex items-center gap-0.5 px-2 py-1 rounded-md hover:bg-gray-50 text-gray-700"
+                  className="inline-flex items-center gap-0.5 px-2 py-1 rounded-md hover:bg-muted/30 text-gray-700"
                 >
                   <ChevronLeft className="h-3.5 w-3.5" />
                   Prev
@@ -278,7 +278,7 @@ export default async function BrandCreatorsPage({ searchParams }: PageProps) {
               {safePage < totalPages ? (
                 <Link
                   href={buildHref({ page: safePage + 1 })}
-                  className="inline-flex items-center gap-0.5 px-2 py-1 rounded-md hover:bg-gray-50 text-gray-700"
+                  className="inline-flex items-center gap-0.5 px-2 py-1 rounded-md hover:bg-muted/30 text-gray-700"
                 >
                   Next
                   <ChevronRight className="h-3.5 w-3.5" />
@@ -352,7 +352,7 @@ function SearchBox({
         name="q"
         defaultValue={initialQuery}
         placeholder="Search creators…"
-        className="bg-white border border-gray-100 rounded-lg pl-9 pr-3 py-2 text-sm shadow-sm w-full sm:w-56 focus:outline-none focus:border-gray-300 transition-colors"
+        className="bg-white border border-border rounded-lg pl-9 pr-3 py-2 text-sm shadow-sm w-full sm:w-56 focus:outline-none focus:border-gray-300 transition-colors"
       />
     </form>
   );

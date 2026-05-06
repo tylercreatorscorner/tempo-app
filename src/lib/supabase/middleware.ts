@@ -24,19 +24,19 @@ const BRAND_ALLOWED_PREFIXES = ['/brand-dashboard'];
 // Page paths a creator-role user is allowed to visit.
 const CREATOR_ALLOWED_PREFIXES = ['/creator-dashboard'];
 
+// 'brand' is the canonical brand-portal role; 'brand_contact' is a legacy
+// label for the same thing (kept supported defensively for users invited
+// before the dropdown was deduped).
+const BRAND_PORTAL_ROLES = new Set(['brand', 'brand_contact']);
+
 function homeRouteForRole(role: string | null | undefined): string {
-  switch (role) {
-    case 'brand':
-      return '/brand-dashboard';
-    case 'creator':
-      return '/creator-dashboard';
-    default:
-      return '/dashboard';
-  }
+  if (role && BRAND_PORTAL_ROLES.has(role)) return '/brand-dashboard';
+  if (role === 'creator') return '/creator-dashboard';
+  return '/dashboard';
 }
 
 function pathAllowedForRole(path: string, role: string | null | undefined): boolean {
-  if (role === 'brand') {
+  if (role && BRAND_PORTAL_ROLES.has(role)) {
     return BRAND_ALLOWED_PREFIXES.some((p) => path === p || path.startsWith(`${p}/`));
   }
   if (role === 'creator') {

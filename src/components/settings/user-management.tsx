@@ -5,12 +5,15 @@ import { Users, Plus, Trash2, ChevronDown, Shield, Check } from 'lucide-react';
 import { inviteUser, updateUserRole, removeUser, updateBrandAccess } from '@/app/actions/users';
 import { cn } from '@/lib/utils';
 
+// Note: 'brand_contact' is the legacy value for the same thing as 'brand'
+// (the brand portal role). Existing rows are silently treated as 'brand'
+// in the brand-portal middleware/loader. The dropdown now only offers
+// 'brand' (labeled "Brand Contact") so new invites land in one place.
 const ROLE_OPTIONS = [
   { value: 'admin', label: 'Admin', description: 'Full access to everything' },
   { value: 'manager', label: 'Manager', description: 'Manage creators, scoped to brands' },
   { value: 'analyst', label: 'Analyst', description: 'Read-only, scoped to brands' },
-  { value: 'brand_contact', label: 'Brand Contact', description: 'View their brand only' },
-  { value: 'brand', label: 'Client', description: 'External client viewing their brand only' },
+  { value: 'brand', label: 'Brand Contact', description: 'External client viewing their brand portal' },
 ];
 
 const ROLE_COLORS: Record<string, string> = {
@@ -18,7 +21,7 @@ const ROLE_COLORS: Record<string, string> = {
   admin: 'bg-blue-100 text-blue-700',
   manager: 'bg-emerald-100 text-emerald-700',
   analyst: 'bg-amber-100 text-amber-700',
-  brand_contact: 'bg-orange-100 text-orange-700',
+  brand_contact: 'bg-pink-100 text-pink-700', // legacy — same color as brand
   brand: 'bg-pink-100 text-pink-700',
 };
 
@@ -128,7 +131,8 @@ export function UserManagement({ users, brands, tenantId, currentUserId }: Props
   }
 
   const needsBrandScope = (role: string) => ['manager', 'analyst', 'brand_contact', 'brand'].includes(role);
-  const isClientRole = (role: string) => role === 'brand';
+  // Both legacy and canonical brand-contact roles require brand assignment at invite time
+  const isClientRole = (role: string) => role === 'brand' || role === 'brand_contact';
 
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden">

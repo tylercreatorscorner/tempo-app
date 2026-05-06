@@ -119,7 +119,7 @@ function BrandSidebar({
   return (
     <aside
       className={cn(
-        'flex flex-col w-64 h-screen bg-white border-r border-gray-100',
+        'flex flex-col w-64 h-screen bg-white border-r border-border',
         className,
       )}
     >
@@ -180,7 +180,7 @@ function BrandSidebar({
       </nav>
 
       {/* Brand identity at the bottom — dropdown switcher when user has multiple brands */}
-      <div className="px-3 pb-4 pt-3 border-t border-gray-100">
+      <div className="px-3 pb-4 pt-3 border-t border-border">
         <BrandSwitcher
           activeBrand={activeBrand}
           brands={brands}
@@ -226,7 +226,7 @@ function BrandSwitcher({
   if (!hasMultiple) {
     // Single-brand: static pill with the same shape as the trigger button
     return (
-      <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-medium text-gray-900">
+      <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl border border-border bg-white text-sm font-medium text-gray-900">
         {activeColor ? (
           <span
             className="w-3 h-3 rounded-full flex-shrink-0 ring-2 ring-white shadow-sm"
@@ -244,7 +244,7 @@ function BrandSwitcher({
     <div className="relative" ref={ref}>
       {/* Dropdown — opens upward */}
       {open && (
-        <div className="absolute bottom-full left-0 right-0 mb-1.5 bg-white border border-gray-200 rounded-xl shadow-xl shadow-black/10 py-1.5 z-50 animate-fade-in max-h-[60vh] overflow-y-auto">
+        <div className="absolute bottom-full left-0 right-0 mb-1.5 bg-white border border-border rounded-xl shadow-xl shadow-black/10 py-1.5 z-50 animate-fade-in max-h-[60vh] overflow-y-auto">
           <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-gray-400 select-none">
             Switch Brand
           </p>
@@ -295,7 +295,7 @@ function BrandSwitcher({
           'border hover:shadow-sm',
           open
             ? 'bg-gray-50 border-gray-300 text-gray-900'
-            : 'bg-white border-gray-200 text-gray-900 hover:bg-gray-50',
+            : 'bg-white border-border text-gray-900 hover:bg-gray-50',
         )}
       >
         <span
@@ -362,7 +362,7 @@ function BrandHeader({
     : '?';
 
   return (
-    <header className="flex items-center justify-between h-14 px-3 sm:px-5 border-b border-gray-100 bg-white">
+    <header className="sticky top-0 z-30 flex items-center justify-between h-14 px-3 sm:px-5 border-b border-border bg-white">
       <div className="flex items-center gap-3">
         <button
           onClick={onMenuClick}
@@ -400,8 +400,8 @@ function BrandHeader({
           </button>
 
           {menuOpen && (
-            <div className="absolute right-0 top-full mt-1.5 w-56 bg-white border border-gray-100 rounded-xl shadow-xl shadow-black/8 py-1.5 z-50">
-              <div className="px-4 py-3 border-b border-gray-100">
+            <div className="absolute right-0 top-full mt-1.5 w-56 bg-white border border-border rounded-xl shadow-xl shadow-black/8 py-1.5 z-50">
+              <div className="px-4 py-3 border-b border-border">
                 <p className="text-sm font-semibold text-gray-900 truncate">
                   {userName || 'Brand User'}
                 </p>

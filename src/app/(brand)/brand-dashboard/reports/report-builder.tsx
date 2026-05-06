@@ -43,7 +43,7 @@ export function ReportBuilder({ accentColor }: Props) {
   const filename = filenameFor(type, period);
 
   return (
-    <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+    <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
       <div className="p-5 sm:p-6 space-y-5">
         {/* Step 1: Report type */}
         <Step number={1} title="What do you want to report on?">
@@ -60,7 +60,7 @@ export function ReportBuilder({ accentColor }: Props) {
                     'group relative flex items-start gap-3 p-4 rounded-xl border-2 text-left transition-all',
                     active
                       ? 'shadow-sm'
-                      : 'border-gray-100 hover:border-gray-200 bg-white',
+                      : 'border-border hover:border-gray-200 bg-white',
                   )}
                   style={
                     active
@@ -105,7 +105,7 @@ export function ReportBuilder({ accentColor }: Props) {
                     'px-3 py-1.5 rounded-lg border text-sm font-medium transition-all',
                     active
                       ? 'border-transparent shadow-sm'
-                      : 'border-gray-100 bg-white text-gray-700 hover:border-gray-200',
+                      : 'border-border bg-white text-gray-700 hover:border-gray-200',
                   )}
                   style={
                     active
@@ -122,7 +122,7 @@ export function ReportBuilder({ accentColor }: Props) {
 
         {/* Step 3: Format (single option for now) */}
         <Step number={3} title="Format">
-          <div className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-100 bg-gray-50/60">
+          <div className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-gray-50/60">
             <FileSpreadsheet className="h-4 w-4 text-gray-400" />
             <span className="text-sm font-medium text-gray-700">CSV</span>
             <span className="text-[11px] text-gray-400 uppercase tracking-wider ml-1">
@@ -137,7 +137,7 @@ export function ReportBuilder({ accentColor }: Props) {
       </div>
 
       {/* Action bar */}
-      <div className="px-5 sm:px-6 py-4 border-t border-gray-50 bg-gray-50/40 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <div className="px-5 sm:px-6 py-4 border-t border-border/50 bg-muted/30 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="text-xs text-gray-500 font-mono truncate min-w-0">{filename}</div>
         <a
           href={downloadHref}

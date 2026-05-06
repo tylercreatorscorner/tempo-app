@@ -19,7 +19,7 @@ export async function updateBrandUserName(name: string) {
     .select('role')
     .eq('user_id', user.id)
     .maybeSingle();
-  if (!profile || profile.role !== 'brand') {
+  if (!profile || (profile.role !== 'brand' && profile.role !== 'brand_contact')) {
     throw new Error('Only brand users can update their profile here.');
   }
 

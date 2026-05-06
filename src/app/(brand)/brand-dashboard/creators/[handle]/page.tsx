@@ -59,7 +59,7 @@ export default async function BrandCreatorDetailPage({ params, searchParams }: P
       </Link>
 
       {/* Header card */}
-      <div className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
+      <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 px-5 pt-5 pb-4">
           <div>
             <div className="flex items-center gap-2">
@@ -83,7 +83,7 @@ export default async function BrandCreatorDetailPage({ params, searchParams }: P
           <PeriodTabs current={period} accentColor={accent} />
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 border-t border-gray-50">
+        <div className="grid grid-cols-2 sm:grid-cols-4 border-t border-border/50">
           <CreatorStat
             label="GMV"
             value={fmtCurrency(detail.totalGmv)}
@@ -145,14 +145,14 @@ export default async function BrandCreatorDetailPage({ params, searchParams }: P
             No posts from this creator in this period.
           </div>
         ) : (
-          <div className="divide-y divide-gray-50">
+          <div className="divide-y divide-border/40">
             {detail.videos.map((v) => (
               <a
                 key={v.videoId}
                 href={v.url ?? `https://www.tiktok.com/@${detail.primaryHandle}/video/${v.videoId}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50/60 transition-colors"
+                className="flex items-center gap-3 px-4 py-3 hover:bg-muted/30 transition-colors"
               >
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-900 truncate" title={v.title}>
@@ -183,7 +183,7 @@ export default async function BrandCreatorDetailPage({ params, searchParams }: P
         detail.handles.length > 1) && (
         <Card>
           <CardHeader title="Contract details" />
-          <dl className="divide-y divide-gray-50">
+          <dl className="divide-y divide-border/40">
             {detail.retainer > 0 && (
               <div className="flex items-center justify-between px-4 py-3">
                 <dt className="text-xs text-gray-500">Monthly retainer</dt>
@@ -219,7 +219,7 @@ export default async function BrandCreatorDetailPage({ params, searchParams }: P
 
 function Card({ children }: { children: React.ReactNode }) {
   return (
-    <div className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
+    <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
       {children}
     </div>
   );
@@ -227,7 +227,7 @@ function Card({ children }: { children: React.ReactNode }) {
 
 function CardHeader({ title, subtitle }: { title: string; subtitle?: string }) {
   return (
-    <div className="px-4 pt-4 pb-3 border-b border-gray-50">
+    <div className="px-4 pt-4 pb-3 border-b border-border/50">
       <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
       {subtitle && <p className="text-xs text-gray-500 mt-0.5">{subtitle}</p>}
     </div>

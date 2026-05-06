@@ -173,7 +173,7 @@ export default async function BrandOverview({ searchParams }: PageProps) {
             href={`/brand-dashboard/creators?period=${period}`}
             linkLabel="View all"
           />
-          <div className="divide-y divide-gray-50">
+          <div className="divide-y divide-border/40">
             {data.creators.length === 0 ? (
               <EmptyRow text="No managed creators yet." />
             ) : (
@@ -181,7 +181,7 @@ export default async function BrandOverview({ searchParams }: PageProps) {
                 <Link
                   key={c.managedId}
                   href={`/brand-dashboard/creators/${c.primaryHandle}?period=${period}`}
-                  className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50/60 transition-colors"
+                  className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/30 transition-colors"
                 >
                   <span className="text-xs text-gray-400 w-5 tabular-nums">{i + 1}</span>
                   <div className="flex-1 min-w-0">
@@ -215,7 +215,7 @@ export default async function BrandOverview({ searchParams }: PageProps) {
             href={`/brand-dashboard/videos?period=${period}`}
             linkLabel="View all"
           />
-          <div className="divide-y divide-gray-50">
+          <div className="divide-y divide-border/40">
             {data.videos.length === 0 ? (
               <EmptyRow text="No posts in this period." />
             ) : (
@@ -228,7 +228,7 @@ export default async function BrandOverview({ searchParams }: PageProps) {
                   }
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50/60 transition-colors"
+                  className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/30 transition-colors"
                 >
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-[#1A1B3A] truncate" title={v.title}>
@@ -279,7 +279,7 @@ function AmNoteCard({
     : null;
   return (
     <div
-      className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden relative"
+      className="rounded-2xl border border-border bg-white shadow-sm overflow-hidden relative"
       style={{
         background: `linear-gradient(135deg, ${accent}08 0%, #FFFFFF 60%)`,
       }}
@@ -332,7 +332,7 @@ function GoalProgressCard({
   const clampedPct = Math.min(100, goal.pctOfGoal);
 
   return (
-    <div className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden">
+    <div className="rounded-2xl border border-border bg-white shadow-sm overflow-hidden">
       <div className="p-5 sm:p-6 space-y-4">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2.5">
@@ -432,12 +432,12 @@ function HighlightsCard({
   period: BrandPortalPeriod;
 }) {
   return (
-    <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
-      <div className="px-4 pt-4 pb-3 border-b border-gray-50 flex items-center gap-2">
+    <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+      <div className="px-4 pt-4 pb-3 border-b border-border/50 flex items-center gap-2">
         <Sparkles className="h-4 w-4" style={{ color: accent }} />
         <h3 className="text-sm font-semibold text-[#1A1B3A]">Highlights this period</h3>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-gray-50">
+      <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-border/40">
         {highlights.peakDay && (
           <HighlightItem
             icon={Calendar}
@@ -545,12 +545,12 @@ function HighlightItem({
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className="block hover:bg-gray-50/40 transition-colors"
+      className="block hover:bg-muted/30 transition-colors"
     >
       {inner}
     </a>
   ) : (
-    <Link href={href} className="block hover:bg-gray-50/40 transition-colors">
+    <Link href={href} className="block hover:bg-muted/30 transition-colors">
       {inner}
     </Link>
   );
@@ -566,8 +566,8 @@ function EngagementStrip({
   accent: string;
 }) {
   return (
-    <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
-      <div className="px-4 pt-4 pb-3 border-b border-gray-50 flex items-end justify-between gap-2">
+    <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+      <div className="px-4 pt-4 pb-3 border-b border-border/50 flex items-end justify-between gap-2">
         <div>
           <h3 className="text-sm font-semibold text-[#1A1B3A]">Reach &amp; engagement</h3>
           <p className="text-xs text-gray-500 mt-0.5">
@@ -575,7 +575,7 @@ function EngagementStrip({
           </p>
         </div>
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-gray-50">
+      <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-border/40">
         <EngagementStat
           icon={Eye}
           label="Views"
@@ -681,8 +681,8 @@ function ManagedSplitPanel({
   const managedPct = split.managedPctOfGmv;
   const organicPct = Math.max(0, 100 - managedPct);
   return (
-    <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
-      <div className="px-4 pt-4 pb-3 border-b border-gray-50 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-1">
+    <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+      <div className="px-4 pt-4 pb-3 border-b border-border/50 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-1">
         <div>
           <h3 className="text-sm font-semibold text-[#1A1B3A]">
             Your roster vs total brand sales
@@ -776,7 +776,7 @@ function SplitRow({
 
 function Card({ children }: { children: React.ReactNode }) {
   return (
-    <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+    <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
       {children}
     </div>
   );
@@ -784,7 +784,7 @@ function Card({ children }: { children: React.ReactNode }) {
 
 function CardHeader({ title, subtitle }: { title: string; subtitle?: string }) {
   return (
-    <div className="px-4 pt-4 pb-3 border-b border-gray-50">
+    <div className="px-4 pt-4 pb-3 border-b border-border/50">
       <h3 className="text-sm font-semibold text-[#1A1B3A]">{title}</h3>
       {subtitle && <p className="text-xs text-gray-500 mt-0.5">{subtitle}</p>}
     </div>
@@ -803,7 +803,7 @@ function CardHeaderWithLink({
   linkLabel: string;
 }) {
   return (
-    <div className="px-4 pt-4 pb-3 border-b border-gray-50 flex items-start justify-between gap-3">
+    <div className="px-4 pt-4 pb-3 border-b border-border/50 flex items-start justify-between gap-3">
       <div>
         <h3 className="text-sm font-semibold text-[#1A1B3A]">{title}</h3>
         {subtitle && <p className="text-xs text-gray-500 mt-0.5">{subtitle}</p>}

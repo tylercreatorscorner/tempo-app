@@ -27,7 +27,7 @@ export function NoBrandAccess({ email }: Props) {
         <TempoLogo size="lg" animated />
       </div>
 
-      <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-8 max-w-md w-full text-center">
+      <div className="rounded-xl border border-border bg-card shadow-sm p-8 max-w-md w-full text-center">
         <div className="h-12 w-12 mx-auto rounded-full bg-amber-50 flex items-center justify-center mb-4">
           <ShieldOff className="h-6 w-6 text-amber-600" />
         </div>

@@ -85,7 +85,7 @@ export default async function BrandSettingsPage() {
             </div>
             <a
               href={`mailto:${accountManager.email}`}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-100 hover:border-gray-300 text-xs font-medium text-gray-700 hover:text-[#1A1B3A] transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border hover:border-gray-300 text-xs font-medium text-gray-700 hover:text-[#1A1B3A] transition-colors"
             >
               <Mail className="h-3.5 w-3.5" />
               Email
@@ -138,7 +138,7 @@ export default async function BrandSettingsPage() {
         title="Your profile"
         description="Update your display name. Email is locked to your sign-in identity."
       >
-        <dl className="divide-y divide-gray-50">
+        <dl className="divide-y divide-border/40">
           <EditableName initialName={ctx.user.name ?? ''} />
           <div className="flex items-center justify-between px-5 py-3">
             <dt className="text-xs text-gray-500">Email</dt>
@@ -160,7 +160,7 @@ export default async function BrandSettingsPage() {
             : `${teammates.length + 1} ${teammates.length + 1 === 1 ? 'person has' : 'people have'} access — including you.`
         }
       >
-        <div className="divide-y divide-gray-50">
+        <div className="divide-y divide-border/40">
           {/* Self */}
           <TeammateRow
             name={ctx.user.name}
@@ -178,7 +178,7 @@ export default async function BrandSettingsPage() {
           ))}
         </div>
         {accountManager && (
-          <div className="px-5 py-3 border-t border-gray-50 bg-gray-50/40">
+          <div className="px-5 py-3 border-t border-border/50 bg-muted/30">
             <p className="text-xs text-gray-500">
               Want to invite someone else from your team?{' '}
               <a
@@ -210,8 +210,8 @@ function SectionCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
-      <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-50">
+    <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+      <div className="flex items-center gap-3 px-5 py-4 border-b border-border/50">
         <div className="h-9 w-9 rounded-lg bg-gray-50 flex items-center justify-center">
           <Icon className="h-4 w-4 text-gray-400" />
         </div>
