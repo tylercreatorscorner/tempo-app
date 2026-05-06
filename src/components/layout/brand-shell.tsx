@@ -49,10 +49,14 @@ export function BrandShell({ context, children }: BrandShellProps) {
   const { activeBrand, user } = context;
   const accentColor = activeBrand.color || '#FF4D8D';
 
+  // Body-scroll layout (matches admin shell): outer is min-h-screen so the
+  // page scrolls naturally; sidebar/header are sticky-pinned. Without this,
+  // mouse-wheel scrolling only works when the cursor is over <main>, which
+  // is unintuitive (every other website scrolls regardless of cursor position).
   return (
-    <div className="flex h-screen overflow-hidden" style={{ backgroundColor: '#F8F9FC' }}>
+    <div className="flex min-h-screen" style={{ backgroundColor: '#F8F9FC' }}>
       <BrandSidebar
-        className="hidden lg:flex"
+        className="hidden lg:flex sticky top-0 h-screen"
         accentColor={accentColor}
         activeBrand={activeBrand}
         brands={context.brands}
@@ -82,14 +86,14 @@ export function BrandShell({ context, children }: BrandShellProps) {
         </div>
       )}
 
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0">
         <BrandHeader
           onMenuClick={() => setMobileNavOpen(true)}
           userName={user.name}
           userEmail={user.email}
           brandName={activeBrand.display_name || activeBrand.name}
         />
-        <main className="flex-1 overflow-y-auto animate-fade-in">
+        <main className="flex-1 animate-fade-in">
           <div className="p-3 sm:p-4 md:p-6">{children}</div>
         </main>
       </div>
