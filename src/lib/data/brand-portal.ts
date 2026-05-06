@@ -1,5 +1,7 @@
 import { redirect } from 'next/navigation';
+import { cookies } from 'next/headers';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
+import { ACTIVE_BRAND_COOKIE } from '@/app/actions/brand-switch';
 
 export interface BrandPortalBrand {
   id: string;
@@ -78,7 +80,20 @@ export async function loadBrandPortalContext(): Promise<
     return { user: portalUser, brands: [], activeBrand: null };
   }
 
-  return { user: portalUser, brands, activeBrand: brands[0] };
+  // Sort brands by name for stable ordering (also gives a sensible default
+  // when no cookie is set).
+  const sorted = [...brands].sort((a, b) =>
+    (a.display_name ?? a.name).localeCompare(b.display_name ?? b.name),
+  );
+
+  // Honor the active-brand cookie if it points to a brand the user actually
+  // has access to. Otherwise default to the first sorted brand.
+  const cookieStore = await cookies();
+  const cookieSlug = cookieStore.get(ACTIVE_BRAND_COOKIE)?.value;
+  const activeBrand =
+    (cookieSlug && sorted.find((b) => b.slug === cookieSlug)) || sorted[0];
+
+  return { user: portalUser, brands: sorted, activeBrand };
 }
 
 /**
