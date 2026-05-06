@@ -3,8 +3,7 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
-
-export const ACTIVE_BRAND_COOKIE = 'bp_active_brand';
+import { ACTIVE_BRAND_COOKIE } from '@/lib/brand-portal-cookies';
 
 /**
  * Switches which brand the current brand-role user is viewing in the portal.

@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
-import { ACTIVE_BRAND_COOKIE } from '@/app/actions/brand-switch';
+import { ACTIVE_BRAND_COOKIE } from '@/lib/brand-portal-cookies';
 
 export interface BrandPortalBrand {
   id: string;
