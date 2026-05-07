@@ -34,7 +34,14 @@ export interface PostRow {
   orders: number;
   items_sold: number;
   is_managed: boolean;
+  // Review aggregates (computed from video_reviews join)
+  review_count: number;
+  avg_rating: number | null;      // null when no rated reviews exist
+  flagged: boolean;               // any review tagged "⚠️ off-brand" or "✏️ needs rework"
+  has_my_review: boolean;         // current user has reviewed this post
 }
+
+export type ReviewFilter = 'all' | 'unreviewed' | 'reviewed-by-me' | 'flagged';
 
 export interface PostsResult {
   posts: PostRow[];
@@ -45,10 +52,20 @@ export interface PostsResult {
     totalLikes: number;
     totalComments: number;
     avgEngagement: number;
+    // Review counts over the in-scope post set (before reviewFilter is applied)
+    // so the filter pills can show how many posts each filter would surface.
+    reviewedCount: number;
+    unreviewedCount: number;
+    flaggedCount: number;
+    reviewedByMeCount: number;
   };
   startDate: string;
   endDate: string;
 }
+
+// Tags that surface a post in the "Flagged" review queue. Mirrors the
+// presets in post-review-client.tsx — keep them in sync if presets change.
+const FLAGGED_TAGS = new Set(['⚠️ off-brand', '✏️ needs rework']);
 
 interface RawRow {
   video_id: string;
@@ -89,11 +106,21 @@ interface GetPostsOpts {
   endDate: string;            // YYYY-MM-DD
   managedOnly?: boolean;
   limit?: number;
+  /** Required when reviewFilter='reviewed-by-me' or to compute has_my_review. */
+  currentUserId?: string;
+  /**
+   * Surface filter for the review queue:
+   *   - 'all'             → no extra filter (default)
+   *   - 'unreviewed'      → posts with zero reviews
+   *   - 'reviewed-by-me'  → posts the current user has reviewed
+   *   - 'flagged'         → posts tagged with off-brand or needs-rework
+   */
+  reviewFilter?: ReviewFilter;
 }
 
 export async function getPosts(opts: GetPostsOpts): Promise<PostsResult> {
   const supabase = await createAdminClient();
-  const { brand, startDate, endDate, managedOnly = true, limit = 500 } = opts;
+  const { brand, startDate, endDate, managedOnly = true, limit = 500, currentUserId, reviewFilter = 'all' } = opts;
 
   // ── 1. Resolve active brands (excluding archived + umbrella). videos uses
   //       brand text slug.
@@ -112,7 +139,10 @@ export async function getPosts(opts: GetPostsOpts): Promise<PostsResult> {
   if (brands.length === 0) {
     return {
       posts: [], startDate, endDate,
-      totals: { postCount: 0, totalViews: 0, totalGmv: 0, totalLikes: 0, totalComments: 0, avgEngagement: 0 },
+      totals: {
+        postCount: 0, totalViews: 0, totalGmv: 0, totalLikes: 0, totalComments: 0, avgEngagement: 0,
+        reviewedCount: 0, unreviewedCount: 0, flaggedCount: 0, reviewedByMeCount: 0,
+      },
     };
   }
   const brandSlugs = brands.map(b => b.slug);
@@ -186,6 +216,12 @@ export async function getPosts(opts: GetPostsOpts): Promise<PostsResult> {
         orders: pInt(r.orders),
         items_sold: pInt(r.items_sold),
         is_managed: isManaged,
+        // Filled in by step 5 below (review join). Defaults so the type is
+        // stable even when video_reviews is empty.
+        review_count: 0,
+        avg_rating: null,
+        flagged: false,
+        has_my_review: false,
       };
     });
 
@@ -198,7 +234,72 @@ export async function getPosts(opts: GetPostsOpts): Promise<PostsResult> {
   posts.sort((a, b) => b.gmv - a.gmv);
   posts = posts.slice(0, limit);
 
-  // ── 5. Totals
+  // ── 5. Review aggregates. One round-trip pulls every review for the in-scope
+  //       video_ids; we group in JS so we don't pay for SQL array aggregation.
+  //       Empty list short-circuits — getPosts on a brand with no posts in the
+  //       window shouldn't fire a SELECT against video_reviews.
+  if (posts.length > 0) {
+    const videoIds = Array.from(new Set(posts.map(p => p.video_id)));
+    const { data: reviewsRaw } = await supabase
+      .from('video_reviews')
+      .select('video_id, brand, reviewer_user_id, rating, tags')
+      .in('video_id', videoIds);
+
+    interface ReviewRow {
+      video_id: string;
+      brand: string;
+      reviewer_user_id: string | null;
+      rating: number | null;
+      tags: string[] | null;
+    }
+    interface Aggregate {
+      count: number;
+      ratings: number[];
+      tags: Set<string>;
+      reviewers: Set<string>;
+    }
+    const aggregateByKey = new Map<string, Aggregate>();
+    for (const r of (reviewsRaw as ReviewRow[] | null) ?? []) {
+      const key = `${r.video_id}|||${r.brand}`;
+      const agg = aggregateByKey.get(key) ?? { count: 0, ratings: [], tags: new Set<string>(), reviewers: new Set<string>() };
+      agg.count++;
+      if (typeof r.rating === 'number') agg.ratings.push(r.rating);
+      if (Array.isArray(r.tags)) for (const t of r.tags) agg.tags.add(t);
+      if (r.reviewer_user_id) agg.reviewers.add(r.reviewer_user_id);
+      aggregateByKey.set(key, agg);
+    }
+
+    posts = posts.map(p => {
+      const agg = aggregateByKey.get(`${p.video_id}|||${p.brand_slug}`);
+      if (!agg) return p;
+      const flagged = [...agg.tags].some(t => FLAGGED_TAGS.has(t));
+      const avg = agg.ratings.length > 0
+        ? agg.ratings.reduce((a, b) => a + b, 0) / agg.ratings.length
+        : null;
+      return {
+        ...p,
+        review_count: agg.count,
+        avg_rating: avg,
+        flagged,
+        has_my_review: currentUserId ? agg.reviewers.has(currentUserId) : false,
+      };
+    });
+  }
+
+  // Pre-filter review counts so the UI can show how many posts each pill
+  // would surface (e.g. "Unreviewed (12)") without a second round-trip.
+  const reviewedCount = posts.filter(p => p.review_count > 0).length;
+  const unreviewedCount = posts.length - reviewedCount;
+  const flaggedCount = posts.filter(p => p.flagged).length;
+  const reviewedByMeCount = posts.filter(p => p.has_my_review).length;
+
+  // Apply the review-queue filter last — totals above reflect the unfiltered
+  // scope so pill counts stay stable when the user toggles between filters.
+  if (reviewFilter === 'unreviewed') posts = posts.filter(p => p.review_count === 0);
+  else if (reviewFilter === 'reviewed-by-me') posts = posts.filter(p => p.has_my_review);
+  else if (reviewFilter === 'flagged') posts = posts.filter(p => p.flagged);
+
+  // ── 6. Totals (over the displayed subset)
   const totalViews = posts.reduce((s, p) => s + p.views, 0);
   const totalGmv = posts.reduce((s, p) => s + p.gmv, 0);
   const totalLikes = posts.reduce((s, p) => s + p.likes, 0);
@@ -207,7 +308,11 @@ export async function getPosts(opts: GetPostsOpts): Promise<PostsResult> {
 
   return {
     posts,
-    totals: { postCount: posts.length, totalViews, totalGmv, totalLikes, totalComments, avgEngagement },
+    totals: {
+      postCount: posts.length,
+      totalViews, totalGmv, totalLikes, totalComments, avgEngagement,
+      reviewedCount, unreviewedCount, flaggedCount, reviewedByMeCount,
+    },
     startDate, endDate,
   };
 }
