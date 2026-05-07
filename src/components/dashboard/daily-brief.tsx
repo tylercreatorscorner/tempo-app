@@ -23,6 +23,8 @@ interface Props {
   currentCreators: number;
   gmvTrend?: number;
   topCreator?: { name: string; gmv: number } | null;
+  /** Top brand for this period — preferred over topCreator on All Brands view. */
+  topBrand?: { name: string; gmv: number } | null;
   actionItems: DailyBriefActionItem[];
   color?: string;
 }
@@ -43,6 +45,7 @@ export function DailyBrief({
   currentCreators,
   gmvTrend,
   topCreator,
+  topBrand,
   actionItems,
   color = '#FF4D8D',
 }: Props) {
@@ -113,7 +116,15 @@ export function DailyBrief({
               value={formatNumber(currentCreators)}
               color={color}
             />
-            {topCreator ? (
+            {topBrand ? (
+              <MiniStat
+                icon={<TrendingUp className="h-3.5 w-3.5" />}
+                label="Top Brand"
+                value={topBrand.name}
+                sub={formatCurrency(topBrand.gmv)}
+                color={color}
+              />
+            ) : topCreator ? (
               <MiniStat
                 icon={<TrendingUp className="h-3.5 w-3.5" />}
                 label="Top Creator"
