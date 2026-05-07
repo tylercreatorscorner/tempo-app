@@ -1,24 +1,51 @@
 import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
+import { randomBytes } from 'node:crypto';
 
 const COOKIE_NAME = 'creator_session';
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.CREATOR_JWT_SECRET || 'tempo-dev-secret'
-);
+const MAGIC_LINK_TTL_SECONDS = 15 * 60;
+
+function loadJwtSecret(): Uint8Array {
+  const fromEnv = process.env.CREATOR_JWT_SECRET;
+  if (fromEnv && fromEnv.length >= 32) {
+    return new TextEncoder().encode(fromEnv);
+  }
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(
+      'CREATOR_JWT_SECRET must be set to a 32+ character secret in production. ' +
+      'Without it, anyone reading the source can mint valid creator session tokens.'
+    );
+  }
+  // Dev fallback: stable per-process secret so hot-reloads don't invalidate cookies.
+  return new TextEncoder().encode('tempo-dev-secret-not-for-production-use-only');
+}
+
+const JWT_SECRET = loadJwtSecret();
 
 export interface CreatorTokenPayload {
   creatorId: number;
   email: string;
-  tenantId: string;
+  jti?: string; // unique token id, used for magic-link replay protection
 }
 
-/** Generate a magic link token (valid 15 minutes) */
-export async function generateMagicToken(payload: CreatorTokenPayload): Promise<string> {
-  return new SignJWT({ ...payload })
+/**
+ * Generate a magic-link token (valid 15 minutes) with a fresh JTI for
+ * single-use replay protection. The verify route inserts the JTI into
+ * `creator_magic_link_tokens` on consume; a second consume hits the PK
+ * uniqueness constraint and is rejected.
+ */
+export async function generateMagicToken(
+  payload: CreatorTokenPayload
+): Promise<{ token: string; jti: string; expiresAt: Date }> {
+  const jti = randomBytes(24).toString('base64url');
+  const expiresAt = new Date(Date.now() + MAGIC_LINK_TTL_SECONDS * 1000);
+  const token = await new SignJWT({ ...payload, jti })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
-    .setExpirationTime('15m')
+    .setJti(jti)
+    .setExpirationTime(`${MAGIC_LINK_TTL_SECONDS}s`)
     .sign(JWT_SECRET);
+  return { token, jti, expiresAt };
 }
 
 /** Generate a session token (valid 30 days) */
