@@ -7,6 +7,8 @@ import { SparklineChart } from '@/components/charts/sparkline-chart';
 export interface BrandRowData {
   slug: string;
   currentGmv: number;
+  /** GMV driven by managed creators only — i.e. the agency's contribution. */
+  managedGmv: number;
   prevGmv: number;
   trend: number | undefined;
   sparkline: number[];
@@ -23,6 +25,11 @@ interface Props {
  * Lets a multi-brand operator see "which brand is up, which is down" at a glance,
  * and click any row to filter the dashboard to that brand. Only renders when the
  * tenant has >1 brand and no brand filter is currently applied.
+ *
+ * Two GMV columns: Total GMV (everything) and Managed GMV (just creators on
+ * the agency's roster). The Managed column shows the % of total managed below
+ * the dollar amount so the agency operator can see their contribution share
+ * brand-by-brand.
  */
 export function BrandPerformance({ brands, range }: Props) {
   if (brands.length === 0) return null;
@@ -45,18 +52,32 @@ export function BrandPerformance({ brands, range }: Props) {
         <h3 className="text-sm font-semibold text-[#1A1B3A]">Brand Performance</h3>
         <span className="text-xs text-gray-400 ml-auto">Click a brand to drill in</span>
       </div>
+
+      {/* Column header row — anchors the two-GMV-column layout */}
+      <div className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] items-center gap-4 px-5 py-2 border-b border-gray-50 bg-gray-50/40">
+        <span className="w-2.5" />
+        <span />
+        <span className="hidden sm:block w-24" />
+        <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 text-right min-w-[80px]">Total</span>
+        <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 text-right min-w-[90px]">Managed</span>
+        <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 text-right min-w-[68px]">Trend</span>
+      </div>
+
       <div className="divide-y divide-gray-50">
         {rows.map((b) => {
           const color = BRAND_COLORS[b.slug] ?? '#6B7280';
           const name  = BRAND_DISPLAY_NAMES[b.slug] ?? b.slug;
           const sharePct = totalGmv > 0 ? (b.currentGmv / totalGmv) * 100 : 0;
+          const managedPctOfBrand = b.currentGmv > 0
+            ? (b.managedGmv / b.currentGmv) * 100
+            : 0;
           const isPositive = b.trend !== undefined && b.trend >= 0;
 
           return (
             <Link
               key={b.slug}
               href={hrefFor(b.slug)}
-              className="grid grid-cols-[auto_1fr_auto_auto_auto] items-center gap-4 px-5 py-3 hover:bg-gray-50/60 transition-colors group"
+              className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] items-center gap-4 px-5 py-3 hover:bg-gray-50/60 transition-colors group"
             >
               {/* Brand color dot */}
               <span
@@ -64,7 +85,7 @@ export function BrandPerformance({ brands, range }: Props) {
                 style={{ backgroundColor: color }}
               />
 
-              {/* Brand name + share of total */}
+              {/* Brand name + share of portfolio */}
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-[#1A1B3A] truncate group-hover:text-[#FF4D8D] transition-colors">
                   {name}
@@ -81,10 +102,22 @@ export function BrandPerformance({ brands, range }: Props) {
                 )}
               </div>
 
-              {/* GMV */}
+              {/* Total GMV */}
               <p className="text-sm font-bold text-[#1A1B3A] tabular-nums text-right min-w-[80px]">
                 {formatCurrency(b.currentGmv)}
               </p>
+
+              {/* Managed GMV — what the agency is actually driving for this brand */}
+              <div className="text-right min-w-[90px]">
+                <p className="text-sm font-bold text-[#10B981] tabular-nums">
+                  {formatCurrency(b.managedGmv)}
+                </p>
+                {b.currentGmv > 0 && (
+                  <p className="text-[10px] text-gray-400 tabular-nums">
+                    {managedPctOfBrand.toFixed(0)}% of total
+                  </p>
+                )}
+              </div>
 
               {/* Trend */}
               <div className="min-w-[68px] text-right">
