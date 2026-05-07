@@ -23,7 +23,8 @@ import { StatCard } from '@/components/dashboard/stat-card';
 import { DateRangePicker } from '@/components/dashboard/date-range-picker';
 import { DailyBrief, type DailyBriefActionItem } from '@/components/dashboard/daily-brief';
 import { CommunityHighlights } from '@/components/dashboard/community-highlights';
-import { CreatorAlerts } from '@/components/dashboard/creator-alerts';
+import { CreatorAlerts, type BrandMover } from '@/components/dashboard/creator-alerts';
+import { BrandPerformance, type BrandRowData } from '@/components/dashboard/brand-performance';
 import { StaleDataBanner } from '@/components/dashboard/stale-data-banner';
 import { DashboardOnboarding } from '@/components/dashboard/dashboard-onboarding';
 import { TodaysStandouts, TodaysStandoutsSkeleton } from '@/components/dashboard/todays-standouts';
@@ -138,6 +139,63 @@ export default async function AdminDashboard({ searchParams }: Props) {
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([date, gmv]) => ({ date, gmv }));
 
+  // ── Per-roster-brand stats — drives BrandPerformance card, brand movers,
+  //    and the "Top Brand" mini-stat in the Period Brief. We aggregate across
+  //    data slugs (e.g. leefar_nutrition + leefar_supplements → leefar). ───
+  const rosterBrandStats: BrandRowData[] = activeRosterBrands.map((rosterSlug) => {
+    const dataSlugSet = new Set(expandBrandToDataSlugs(rosterSlug));
+    let currentGmv = 0;
+    let prevGmv    = 0;
+    for (const s of summaries)     if (dataSlugSet.has(s.brand)) currentGmv += s.data?.total_gmv ?? 0;
+    for (const s of prevSummaries) if (dataSlugSet.has(s.brand)) prevGmv    += s.data?.total_gmv ?? 0;
+
+    // Sparkline = daily GMV across this brand's data slugs
+    const sparkByDate = new Map<string, number>();
+    for (let i = 0; i < activeBrands.length; i++) {
+      if (!dataSlugSet.has(activeBrands[i])) continue;
+      for (const day of trendsByBrandRaw[i]) {
+        sparkByDate.set(day.report_date, (sparkByDate.get(day.report_date) ?? 0) + day.daily_gmv);
+      }
+    }
+    const sparkline = Array.from(sparkByDate.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([, gmv]) => gmv);
+
+    return {
+      slug: rosterSlug,
+      currentGmv,
+      prevGmv,
+      trend: pctChange(currentGmv, prevGmv),
+      sparkline,
+    };
+  });
+
+  // Brand movers — biggest riser + biggest faller. Skip when:
+  //  - brand-filtered (only 1 brand visible, no comparison)
+  //  - tenant only has 1 brand (uninteresting)
+  //  - bases too small to be meaningful (under $500 in either period)
+  const moverEligible = rosterBrandStats
+    .filter(b => (b.currentGmv > 500 || b.prevGmv > 500) && b.trend !== undefined);
+  const showBrandMovers = !brandFilter && rosterBrandStats.length > 1 && moverEligible.length > 0;
+
+  let brandRiser:  BrandMover | null = null;
+  let brandFaller: BrandMover | null = null;
+  if (showBrandMovers) {
+    const sortedByTrend = [...moverEligible].sort((a, b) => (b.trend ?? 0) - (a.trend ?? 0));
+    const top = sortedByTrend[0];
+    const bot = sortedByTrend[sortedByTrend.length - 1];
+    if (top && (top.trend ?? 0) > 0) brandRiser  = { slug: top.slug, currentGmv: top.currentGmv, trend: top.trend! };
+    if (bot && (bot.trend ?? 0) < 0) brandFaller = { slug: bot.slug, currentGmv: bot.currentGmv, trend: bot.trend! };
+  }
+
+  // Top brand — used by the Period Brief mini-stat on All Brands view.
+  const topBrandStat = !brandFilter
+    ? [...rosterBrandStats].sort((a, b) => b.currentGmv - a.currentGmv)[0]
+    : null;
+  const topBrandForBrief = topBrandStat && topBrandStat.currentGmv > 0
+    ? { name: BRAND_DISPLAY_NAMES[topBrandStat.slug] ?? topBrandStat.slug, gmv: topBrandStat.currentGmv }
+    : null;
+
   // ── Creator aggregation + managed/unmanaged split ───────────────────────
   const allCreators = creatorsNested.flat().sort((a, b) => (b.total_gmv ?? 0) - (a.total_gmv ?? 0));
   const groupedCreators = await aggregateCreatorsByRealName(allCreators, brandFilter);
@@ -224,7 +282,9 @@ export default async function AdminDashboard({ searchParams }: Props) {
         </div>
       </div>
 
-      {/* Period Brief — narrative-led hero (all date ranges) */}
+      {/* Period Brief — narrative-led hero (all date ranges).
+          On All Brands view we surface Top Brand instead of Top Creator —
+          that's the more actionable signal for an agency-style operator. */}
       <DailyBrief
         brandName={activeBrandName}
         periodLabel={labels.current}
@@ -237,6 +297,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
         currentCreators={totals.creators}
         gmvTrend={gmvTrend}
         topCreator={groupedCreators[0] ? { name: groupedCreators[0].display_name, gmv: groupedCreators[0].total_gmv } : null}
+        topBrand={topBrandForBrief}
         actionItems={briefActionItems}
         color={activeBrandColor ?? '#FF4D8D'}
       />
@@ -296,10 +357,23 @@ export default async function AdminDashboard({ searchParams }: Props) {
         </div>
       )}
 
-      {/* Highlights + Alerts — paired, complementary creator views */}
+      {/* Brand Performance — multi-brand-only. The agency operator's most
+          important section: brand-by-brand GMV / trend / sparkline, with
+          click-to-filter. Only renders for tenants with >1 brand on the
+          unfiltered All Brands view. */}
+      {!brandFilter && rosterBrandStats.length > 1 && (
+        <BrandPerformance brands={rosterBrandStats} range={params.range} />
+      )}
+
+      {/* Highlights + Alerts — paired, complementary creator views.
+          Alerts also surfaces brand riser/faller when on All Brands view. */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <CommunityHighlights creators={groupedCreators} />
-        <CreatorAlerts alerts={allAlerts} />
+        <CreatorAlerts
+          alerts={allAlerts}
+          brandRiser={brandRiser}
+          brandFaller={brandFaller}
+        />
       </div>
 
       {/* Today's Standouts — single curated video section, streams in via Suspense */}
