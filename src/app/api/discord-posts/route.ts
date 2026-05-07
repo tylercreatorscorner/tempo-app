@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/auth/require-admin';
+import { throttle } from '@/lib/rate-limit';
 import {
   getWhatsCookingData,
   getWhosCookingData,
@@ -15,11 +17,30 @@ import {
 } from '@/lib/data/discord-posts';
 import { BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
 
+const VALID_TYPES = new Set([
+  'whats-cooking', 'whos-cooking', 'daily-drop',
+  'weekly-wrap', 'monthly-recap', 'brand-client-update',
+]);
+
 export async function GET(request: NextRequest) {
+  const profile = await requireAdmin();
+  if (!profile) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
+  if (!throttle(`discord-posts:${profile.user_id}`, 3000)) {
+    return NextResponse.json({ error: 'Too many requests, please wait a moment' }, { status: 429 });
+  }
+
   const { searchParams } = request.nextUrl;
   const type = searchParams.get('type') || 'whats-cooking';
   const brand = searchParams.get('brand') || 'all';
   const period = (searchParams.get('period') || '7d') as '7d' | '30d';
+
+  if (!VALID_TYPES.has(type)) {
+    return NextResponse.json({ error: 'Invalid type' }, { status: 400 });
+  }
+  if (period !== '7d' && period !== '30d') {
+    return NextResponse.json({ error: 'Invalid period' }, { status: 400 });
+  }
 
   const brandName = brand === 'all'
     ? 'All Brands'

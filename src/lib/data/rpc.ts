@@ -148,8 +148,145 @@ export async function getVideoSummary(
     total_orders: Number(r.total_orders) || 0,
     total_items_sold: Number(r.total_items_sold) || 0,
     total_est_commission: Number(r.total_est_commission) || 0,
-    total_views: Number(r.total_views) || 0,
     days_active: Number(r.days_active) || 0,
+  }));
+}
+
+/* ------------------------------------------------------------------ */
+/*  Multi-brand analytics RPCs (migration 036)                         */
+/*  These collapse the per-brand fan-out on /analytics into single     */
+/*  calls that return rows tagged with brand slug.                     */
+/* ------------------------------------------------------------------ */
+
+export interface AnalyticsBrandSummary {
+  brand_id: string;
+  brand_slug: string;
+  total_gmv: number;
+  total_orders: number;
+  total_items_sold: number;
+  total_videos: number;
+  unique_creators: number;
+}
+
+export async function getAnalyticsBrandSummaries(
+  brandIds: string[],
+  startDate: string,
+  endDate: string,
+): Promise<AnalyticsBrandSummary[]> {
+  if (brandIds.length === 0) return [];
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc('analytics_brand_summaries', {
+    p_brand_ids: brandIds,
+    p_start_date: startDate,
+    p_end_date: endDate,
+  });
+  if (error) throw new RPCError('analytics_brand_summaries', error.message);
+  if (!data) return [];
+  return data.map((r: Record<string, unknown>) => ({
+    brand_id: String(r.brand_id),
+    brand_slug: String(r.brand_slug),
+    total_gmv: Number(r.total_gmv) || 0,
+    total_orders: Number(r.total_orders) || 0,
+    total_items_sold: Number(r.total_items_sold) || 0,
+    total_videos: Number(r.total_videos) || 0,
+    unique_creators: Number(r.unique_creators) || 0,
+  }));
+}
+
+export interface AnalyticsCreatorRanking {
+  brand_slug: string;
+  creator_name: string;
+  total_gmv: number;
+  total_orders: number;
+  total_items_sold: number;
+  total_videos: number;
+}
+
+export async function getAnalyticsCreatorRankings(
+  brandIds: string[],
+  startDate: string,
+  endDate: string,
+  limit = 500,
+): Promise<AnalyticsCreatorRanking[]> {
+  if (brandIds.length === 0) return [];
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc('analytics_creator_rankings', {
+    p_brand_ids: brandIds,
+    p_start_date: startDate,
+    p_end_date: endDate,
+    p_limit: limit,
+  });
+  if (error) throw new RPCError('analytics_creator_rankings', error.message);
+  if (!data) return [];
+  return data.map((r: Record<string, unknown>) => ({
+    brand_slug: String(r.brand_slug),
+    creator_name: String(r.creator_name ?? ''),
+    total_gmv: Number(r.total_gmv) || 0,
+    total_orders: Number(r.total_orders) || 0,
+    total_items_sold: Number(r.total_items_sold) || 0,
+    total_videos: Number(r.total_videos) || 0,
+  }));
+}
+
+export interface AnalyticsVideo {
+  brand_slug: string;
+  video_id: string;
+  video_title: string;
+  creator_name: string;
+  total_gmv: number;
+  total_orders: number;
+  total_items_sold: number;
+  days_active: number;
+}
+
+export async function getAnalyticsVideos(
+  brandIds: string[],
+  startDate: string,
+  endDate: string,
+  limit = 200,
+): Promise<AnalyticsVideo[]> {
+  if (brandIds.length === 0) return [];
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc('analytics_videos', {
+    p_brand_ids: brandIds,
+    p_start_date: startDate,
+    p_end_date: endDate,
+    p_limit: limit,
+  });
+  if (error) throw new RPCError('analytics_videos', error.message);
+  if (!data) return [];
+  return data.map((r: Record<string, unknown>) => ({
+    brand_slug: String(r.brand_slug),
+    video_id: String(r.video_id),
+    video_title: String(r.video_title ?? ''),
+    creator_name: String(r.creator_name ?? ''),
+    total_gmv: Number(r.total_gmv) || 0,
+    total_orders: Number(r.total_orders) || 0,
+    total_items_sold: Number(r.total_items_sold) || 0,
+    days_active: Number(r.days_active) || 0,
+  }));
+}
+
+export async function getAnalyticsDailyTrend(
+  brandIds: string[],
+  startDate: string,
+  endDate: string,
+): Promise<DailyTrend[]> {
+  if (brandIds.length === 0) return [];
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc('analytics_daily_trend', {
+    p_brand_ids: brandIds,
+    p_start_date: startDate,
+    p_end_date: endDate,
+  });
+  if (error) throw new RPCError('analytics_daily_trend', error.message);
+  if (!data) return [];
+  return data.map((r: Record<string, unknown>) => ({
+    report_date: String(r.report_date),
+    daily_gmv: Number(r.daily_gmv) || 0,
+    daily_orders: Number(r.daily_orders) || 0,
+    daily_items_sold: Number(r.daily_items_sold) || 0,
+    daily_videos: Number(r.daily_videos) || 0,
   }));
 }
 

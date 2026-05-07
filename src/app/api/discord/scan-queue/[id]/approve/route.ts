@@ -1,22 +1,27 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { requireAdmin } from '@/lib/auth/require-admin';
+import { createAdminClient } from '@/lib/supabase/server';
 
-function getSupabase() {
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
+interface QueueEntry {
+  id: string;
+  matched_creator_id: number | null;
+  discord_user_id: string | null;
+  discord_avatar_url: string | null;
 }
 
-export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const body = await request.json();
-  const { reviewed_by } = body as { reviewed_by: string };
-  const supabase = getSupabase();
+export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const profile = await requireAdmin();
+  if (!profile) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
-  // Get the queue entry
+  const { id } = await params;
+  const reviewedBy = profile.email || profile.name || profile.user_id;
+  const supabase = await createAdminClient();
+
   const { data: entry, error: fetchErr } = await supabase
     .from('discord_match_queue')
-    .select('*')
+    .select('id, matched_creator_id, discord_user_id, discord_avatar_url')
     .eq('id', id)
-    .single();
+    .single<QueueEntry>();
 
   if (fetchErr || !entry) {
     return NextResponse.json({ error: 'Entry not found' }, { status: 404 });
@@ -26,17 +31,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'No creator matched — use reassign instead' }, { status: 400 });
   }
 
-  // Update queue entry
   const { error: updateErr } = await supabase
     .from('discord_match_queue')
-    .update({ status: 'approved', reviewed_by, reviewed_at: new Date().toISOString() })
+    .update({ status: 'approved', reviewed_by: reviewedBy, reviewed_at: new Date().toISOString() })
     .eq('id', id);
 
   if (updateErr) {
     return NextResponse.json({ error: updateErr.message }, { status: 500 });
   }
 
-  // Link discord ID to managed_creator
   const { error: linkErr } = await supabase
     .from('managed_creators')
     .update({ discord_id: entry.discord_user_id, discord_avatar: entry.discord_avatar_url })

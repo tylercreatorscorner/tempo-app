@@ -1,23 +1,20 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  );
-}
+import { requireAdmin } from '@/lib/auth/require-admin';
+import { createAdminClient } from '@/lib/supabase/server';
 
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const profile = await requireAdmin();
+  if (!profile) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
   const { id } = await params;
   const body = await request.json().catch(() => ({}));
-  const reviewedBy = (body.reviewed_by as string | undefined) ?? 'admin';
-  const reason = (body.reason as string | undefined) ?? null;
+  const reviewedBy = profile.email || profile.name || profile.user_id;
+  const reason = typeof body.reason === 'string' ? body.reason.slice(0, 1000) : null;
 
-  const supabase = getSupabase();
+  const supabase = await createAdminClient();
 
   const { error } = await supabase
     .from('pending_creator_links')

@@ -31,6 +31,15 @@ export function formatPercent(pct: number): string {
   return `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%`;
 }
 
+/**
+ * Engagement rate as a percentage: (likes + comments) / views × 100.
+ * Returns 0 when views is 0 or missing — never NaN/Infinity.
+ */
+export function engagementRate(views: number, likes: number, comments: number): number {
+  if (!views || views <= 0) return 0;
+  return ((likes + comments) / views) * 100;
+}
+
 /** Format a date for display */
 export function formatDate(date: Date | string | null | undefined): string {
   if (!date) return '';

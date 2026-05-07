@@ -1,36 +1,46 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { requireAdmin } from '@/lib/auth/require-admin';
+import { createAdminClient } from '@/lib/supabase/server';
 
-function getSupabase() {
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
+interface QueueEntry {
+  id: string;
+  discord_user_id: string | null;
+  discord_avatar_url: string | null;
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const body = await request.json();
-  const { creator_id, reviewed_by } = body as { creator_id: number; reviewed_by: string };
-  const supabase = getSupabase();
+  const profile = await requireAdmin();
+  if (!profile) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
-  // Get the queue entry
+  const { id } = await params;
+  const body = await request.json().catch(() => ({}));
+  const creatorId = typeof body.creator_id === 'number' ? body.creator_id : undefined;
+  const reviewedBy = profile.email || profile.name || profile.user_id;
+
+  if (creatorId === undefined) {
+    return NextResponse.json({ error: 'creator_id required' }, { status: 400 });
+  }
+
+  const supabase = await createAdminClient();
+
   const { data: entry, error: fetchErr } = await supabase
     .from('discord_match_queue')
-    .select('*')
+    .select('id, discord_user_id, discord_avatar_url')
     .eq('id', id)
-    .single();
+    .single<QueueEntry>();
 
   if (fetchErr || !entry) {
     return NextResponse.json({ error: 'Entry not found' }, { status: 404 });
   }
 
-  // Update queue entry
   const { error: updateErr } = await supabase
     .from('discord_match_queue')
     .update({
-      matched_creator_id: creator_id,
+      matched_creator_id: creatorId,
       match_type: 'fuzzy',
-      match_reason: `Manually reassigned by ${reviewed_by}`,
+      match_reason: `Manually reassigned by ${reviewedBy}`,
       status: 'approved',
-      reviewed_by,
+      reviewed_by: reviewedBy,
       reviewed_at: new Date().toISOString(),
     })
     .eq('id', id);
@@ -39,11 +49,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: updateErr.message }, { status: 500 });
   }
 
-  // Link discord ID to the specified managed_creator
   const { error: linkErr } = await supabase
     .from('managed_creators')
     .update({ discord_id: entry.discord_user_id, discord_avatar: entry.discord_avatar_url })
-    .eq('id', creator_id);
+    .eq('id', creatorId);
 
   if (linkErr) {
     return NextResponse.json({ error: linkErr.message }, { status: 500 });
