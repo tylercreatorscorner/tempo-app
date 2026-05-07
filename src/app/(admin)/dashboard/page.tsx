@@ -5,7 +5,7 @@ import { format, subDays, differenceInDays } from 'date-fns';
 
 import { getBrandSummary, getCreatorRankings, getDailyTrend } from '@/lib/data/rpc';
 import { resolveDateRange } from '@/lib/data/date-utils';
-import { aggregateCreatorsByRealName } from '@/lib/data/creator-aggregate';
+import { aggregateCreatorsByRealName, computeManagedGmvByBrand } from '@/lib/data/creator-aggregate';
 import { getCreatorRetainers } from '@/lib/data/retainer';
 import { buildCreatorAlerts } from '@/lib/data/creator-alerts';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
@@ -139,15 +139,28 @@ export default async function AdminDashboard({ searchParams }: Props) {
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([date, gmv]) => ({ date, gmv }));
 
-  // ── Per-roster-brand stats — drives BrandPerformance card, brand movers,
-  //    and the "Top Brand" mini-stat in the Period Brief. We aggregate across
-  //    data slugs (e.g. leefar_nutrition + leefar_supplements → leefar). ───
+  // ── Creator-side parallel fetch: managed-GMV-by-brand (for the
+  //    BrandPerformance "Managed" column) and the grouped creator list
+  //    (for highlights, alerts, top-creator). Both share an underlying
+  //    handle→creator lookup; running them in parallel keeps it to the
+  //    same wall-clock time as one query. ─────────────────────────────────
+  const allCreators = creatorsNested.flat().sort((a, b) => (b.total_gmv ?? 0) - (a.total_gmv ?? 0));
+  const [managedGmvByBrand, groupedCreators] = await Promise.all([
+    computeManagedGmvByBrand(allCreators),
+    aggregateCreatorsByRealName(allCreators, brandFilter),
+  ]);
+
+  // ── Per-roster-brand stats — drives BrandPerformance card and the
+  //    "Top Brand" mini-stat in the Period Brief. Aggregates across
+  //    data slugs (e.g. leefar_nutrition + leefar_supplements → leefar). ──
   const rosterBrandStats: BrandRowData[] = activeRosterBrands.map((rosterSlug) => {
     const dataSlugSet = new Set(expandBrandToDataSlugs(rosterSlug));
     let currentGmv = 0;
     let prevGmv    = 0;
+    let managedGmvForBrand = 0;
     for (const s of summaries)     if (dataSlugSet.has(s.brand)) currentGmv += s.data?.total_gmv ?? 0;
     for (const s of prevSummaries) if (dataSlugSet.has(s.brand)) prevGmv    += s.data?.total_gmv ?? 0;
+    for (const ds of dataSlugSet)  managedGmvForBrand += managedGmvByBrand.get(ds) ?? 0;
 
     // Sparkline = daily GMV across this brand's data slugs
     const sparkByDate = new Map<string, number>();
@@ -164,6 +177,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
     return {
       slug: rosterSlug,
       currentGmv,
+      managedGmv: managedGmvForBrand,
       prevGmv,
       trend: pctChange(currentGmv, prevGmv),
       sparkline,
@@ -182,10 +196,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
     ? { name: BRAND_DISPLAY_NAMES[topBrandStat.slug] ?? topBrandStat.slug, gmv: topBrandStat.currentGmv }
     : null;
 
-  // ── Creator aggregation + managed/unmanaged split ───────────────────────
-  const allCreators = creatorsNested.flat().sort((a, b) => (b.total_gmv ?? 0) - (a.total_gmv ?? 0));
-  const groupedCreators = await aggregateCreatorsByRealName(allCreators, brandFilter);
-
+  // ── Managed/unmanaged GMV split (portfolio-level — feeds the KPI card) ──
   let managedGmv = 0;
   let unmanagedGmv = 0;
   for (const c of groupedCreators) {
