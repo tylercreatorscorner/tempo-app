@@ -165,8 +165,24 @@ export default async function AnalyticsPage({ searchParams }: Props) {
     return acc;
   }, { gmv: 0, orders: 0, items: 0, videos: 0, creators: 0 });
 
-  const avgGmvPerVideo = totals.videos > 0 ? totals.gmv / totals.videos : 0;
-  const prevAvgGmvPerVideo = prevTotals.videos > 0 ? prevTotals.gmv / prevTotals.videos : 0;
+  // Per-order economics — answers "what's the basket math right now?"
+  const aov           = totals.orders > 0 ? totals.gmv   / totals.orders : 0;
+  const prevAov       = prevTotals.orders > 0 ? prevTotals.gmv   / prevTotals.orders : 0;
+  const itemsPerOrder = totals.orders > 0 ? totals.items / totals.orders : 0;
+  const prevItemsPerOrder = prevTotals.orders > 0 ? prevTotals.items / prevTotals.orders : 0;
+
+  // Managed-vs-unmanaged GMV split — agency-relevant. Sum only creators flagged
+  // is_managed via the (handle|brand_slug) lookup against managed_creators.
+  const managedGmv = creatorsCur.reduce(
+    (s, c) => s + (managedSet.has(`${norm(c.creator_name)}|||${c.brand_slug}`) ? c.total_gmv : 0),
+    0,
+  );
+  const prevManagedGmv = creatorsPrev.reduce(
+    (s, c) => s + (managedSet.has(`${norm(c.creator_name)}|||${c.brand_slug}`) ? c.total_gmv : 0),
+    0,
+  );
+  const managedShare     = totals.gmv > 0 ? (managedGmv     / totals.gmv)     * 100 : 0;
+  const prevManagedShare = prevTotals.gmv > 0 ? (prevManagedGmv / prevTotals.gmv) * 100 : 0;
 
   // Aggregate daily trend across brands — keep all 4 metrics for the multi-metric chart.
   // Zero-fills missing dates so current/prior/YoY series have identical length, which
@@ -369,8 +385,12 @@ export default async function AnalyticsPage({ searchParams }: Props) {
         />
       ) : (
       <>
-      {/* KPI strip — sparklines on the 4 trended metrics give context at a glance */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+      {/* KPI strip — 7 cards (hero spans 2 cols). Trended metrics (GMV, Orders,
+          Videos) carry sparklines; derived ratios (AOV, Items/Order, Active
+          Creators, Managed Share) don't because they'd need a separate per-day
+          fetch. Items Sold + Avg GMV/Video dropped — AOV and Managed Share carry
+          more decision-making weight for an agency exec. */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-4">
         <StatCard
           label="Total GMV"
           value={formatCurrency(totals.gmv)}
@@ -378,7 +398,7 @@ export default async function AnalyticsPage({ searchParams }: Props) {
           trendLabel="vs prior period"
           sparklineData={aggregatedTrend.map(d => d.gmv)}
           hero
-          className="col-span-2 sm:col-span-1"
+          className="col-span-2 sm:col-span-2 lg:col-span-2"
         />
         <StatCard
           label="Orders"
@@ -388,11 +408,16 @@ export default async function AnalyticsPage({ searchParams }: Props) {
           sparklineData={aggregatedTrend.map(d => d.orders)}
         />
         <StatCard
-          label="Items Sold"
-          value={formatNumber(totals.items)}
-          trend={pctChange(totals.items, prevTotals.items)}
+          label="AOV"
+          value={totals.orders > 0 ? formatCurrency(aov) : '—'}
+          trend={pctChange(aov, prevAov)}
           trendLabel="vs prior period"
-          sparklineData={aggregatedTrend.map(d => d.items)}
+        />
+        <StatCard
+          label="Items / Order"
+          value={totals.orders > 0 ? itemsPerOrder.toFixed(2) : '—'}
+          trend={pctChange(itemsPerOrder, prevItemsPerOrder)}
+          trendLabel="vs prior period"
         />
         <StatCard
           label="Videos"
@@ -408,9 +433,9 @@ export default async function AnalyticsPage({ searchParams }: Props) {
           trendLabel="vs prior period"
         />
         <StatCard
-          label="Avg GMV / Video"
-          value={totals.videos > 0 ? formatCurrency(avgGmvPerVideo) : '—'}
-          trend={pctChange(avgGmvPerVideo, prevAvgGmvPerVideo)}
+          label="Managed Share"
+          value={totals.gmv > 0 ? `${managedShare.toFixed(0)}%` : '—'}
+          trend={pctChange(managedShare, prevManagedShare)}
           trendLabel="vs prior period"
         />
       </div>

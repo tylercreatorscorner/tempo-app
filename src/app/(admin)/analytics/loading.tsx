@@ -49,13 +49,13 @@ export default function AnalyticsLoading() {
       {/* Brand filter pill row */}
       <div className="h-9 w-full rounded-full bg-gray-100 animate-pulse" />
 
-      {/* KPI strip — 6 placeholder cards (1 hero + 5 standard) */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-        <div className="rounded-2xl bg-gradient-to-br from-[#1A1B3A]/95 via-[#2D1B69]/95 to-[#1A1B3A]/95 p-5 col-span-2 sm:col-span-1">
+      {/* KPI strip — 7 placeholder cards (hero spans 2 cols + 6 standard) */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-4">
+        <div className="rounded-2xl bg-gradient-to-br from-[#1A1B3A]/95 via-[#2D1B69]/95 to-[#1A1B3A]/95 p-5 col-span-2 sm:col-span-2 lg:col-span-2">
           <div className="h-3 w-20 rounded bg-white/20 animate-pulse mb-2" />
           <div className="h-7 w-24 rounded bg-white/20 animate-pulse" />
         </div>
-        {Array.from({ length: 5 }).map((_, i) => (
+        {Array.from({ length: 6 }).map((_, i) => (
           <StatCardSkeleton key={i} />
         ))}
       </div>
