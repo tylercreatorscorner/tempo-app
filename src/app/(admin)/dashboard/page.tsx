@@ -23,7 +23,7 @@ import { StatCard } from '@/components/dashboard/stat-card';
 import { DateRangePicker } from '@/components/dashboard/date-range-picker';
 import { DailyBrief, type DailyBriefActionItem } from '@/components/dashboard/daily-brief';
 import { CommunityHighlights } from '@/components/dashboard/community-highlights';
-import { CreatorAlerts, type BrandMover } from '@/components/dashboard/creator-alerts';
+import { CreatorAlerts } from '@/components/dashboard/creator-alerts';
 import { BrandPerformance, type BrandRowData } from '@/components/dashboard/brand-performance';
 import { StaleDataBanner } from '@/components/dashboard/stale-data-banner';
 import { DashboardOnboarding } from '@/components/dashboard/dashboard-onboarding';
@@ -170,23 +170,9 @@ export default async function AdminDashboard({ searchParams }: Props) {
     };
   });
 
-  // Brand movers — biggest riser + biggest faller. Skip when:
-  //  - brand-filtered (only 1 brand visible, no comparison)
-  //  - tenant only has 1 brand (uninteresting)
-  //  - bases too small to be meaningful (under $500 in either period)
-  const moverEligible = rosterBrandStats
-    .filter(b => (b.currentGmv > 500 || b.prevGmv > 500) && b.trend !== undefined);
-  const showBrandMovers = !brandFilter && rosterBrandStats.length > 1 && moverEligible.length > 0;
-
-  let brandRiser:  BrandMover | null = null;
-  let brandFaller: BrandMover | null = null;
-  if (showBrandMovers) {
-    const sortedByTrend = [...moverEligible].sort((a, b) => (b.trend ?? 0) - (a.trend ?? 0));
-    const top = sortedByTrend[0];
-    const bot = sortedByTrend[sortedByTrend.length - 1];
-    if (top && (top.trend ?? 0) > 0) brandRiser  = { slug: top.slug, currentGmv: top.currentGmv, trend: top.trend! };
-    if (bot && (bot.trend ?? 0) < 0) brandFaller = { slug: bot.slug, currentGmv: bot.currentGmv, trend: bot.trend! };
-  }
+  // Brand movers used to live here too — they're now exclusive to /analytics's
+  // Notable Changes section so the same period-vs-prior comparison only has
+  // one canonical home.
 
   // Top brand — used by the Period Brief mini-stat on All Brands view.
   const topBrandStat = !brandFilter
@@ -369,11 +355,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
           Alerts also surfaces brand riser/faller when on All Brands view. */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <CommunityHighlights creators={groupedCreators} />
-        <CreatorAlerts
-          alerts={allAlerts}
-          brandRiser={brandRiser}
-          brandFaller={brandFaller}
-        />
+        <CreatorAlerts alerts={allAlerts} />
       </div>
 
       {/* Today's Standouts — single curated video section, streams in via Suspense */}
