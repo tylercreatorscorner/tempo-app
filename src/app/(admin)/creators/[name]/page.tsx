@@ -79,8 +79,12 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
   } else {
     const id = await getCreatorIdByHandle(slug);
     if (id) {
-      const qs = sp.range ? `?range=${sp.range}` : '';
-      redirect(`/creators/${id}${qs}`);
+      const qs = new URLSearchParams();
+      if (sp.range) qs.set('range', sp.range);
+      if (sp.brand) qs.set('brand', sp.brand);
+      if (sp.tab) qs.set('tab', sp.tab);
+      const qsStr = qs.toString();
+      redirect(`/creators/${id}${qsStr ? `?${qsStr}` : ''}`);
     }
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6 text-center px-4">

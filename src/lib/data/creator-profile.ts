@@ -1,12 +1,29 @@
+/**
+ * Admin-side creator profile data layer.
+ *
+ * Source-of-truth split (per project memory):
+ *   creators_v2          — identity (id, real_name, email, phone, notes, status, role)
+ *   tiktok_accounts      — creator → tiktok handles (creator_id ↔ tiktok_username)
+ *   managed_creators     — per-brand contracts (retainer, post quota, tier).
+ *                          Bridged via tiktok handle overlap (account_1..account_10),
+ *                          NOT email.
+ *   daily_video_product_stats — canonical per-video, per-product, per-day stats.
+ *                                Queried by tiktok_username (+ optional brand_id of
+ *                                the brand whose product was sold, NOT the creator's
+ *                                brand assignment).
+ *
+ * GMV follows the handle. Filtering by `brand` here filters to videos that sold
+ * that brand's products — independent of which brand the creator is contracted to.
+ */
 import { createClient } from '@/lib/supabase/server';
-import { ACTIVE_BRANDS, brandSlugToUuid, brandUuidToSlug } from '@/lib/utils/constants';
+import { brandSlugToUuid, brandUuidToSlug } from '@/lib/utils/constants';
 
 // --- Types ---
 
 export interface CreatorProfile {
   id: string; // UUID
   real_name: string;
-  brand: string; // primary brand slug (from first creator_brands row)
+  brand: string; // primary brand slug (highest-retainer managed contract)
   role: string | null;
   status: string | null;
   email: string | null;
@@ -80,80 +97,155 @@ export interface CreatorLifetimeStats {
   months_active: number;
 }
 
-// --- Query Functions ---
+// --- Pagination helper ---
+//
+// daily_video_product_stats is per-video × per-product × per-day, so a single
+// creator's window can easily exceed Supabase's 1000-row default limit.
 
-/**
- * Get distinct brands (as slugs) from daily_creator_stats for given handles.
- */
-async function getBrandsForHandles(handles: string[]): Promise<string[]> {
-  if (handles.length === 0) return [];
+const PAGE = 1000;
+
+type Filter =
+  | { column: string; op: 'eq' | 'gte' | 'lte'; value: string | number }
+  | { column: string; op: 'in'; value: readonly string[] };
+
+async function paginated(
+  table: string,
+  columns: string,
+  filters: Filter[]
+): Promise<Record<string, unknown>[]> {
   const supabase = await createClient();
-  const { data } = await supabase
-    .from('daily_creator_stats')
-    .select('brand_id')
-    .in('tiktok_username', handles);
-  const brands = new Set<string>();
-  for (const r of data ?? []) {
-    const slug = brandUuidToSlug(r.brand_id as string);
-    if (slug) brands.add(slug);
+  const all: Record<string, unknown>[] = [];
+  let from = 0;
+  while (true) {
+    let q = supabase.from(table).select(columns).range(from, from + PAGE - 1) as ReturnType<
+      ReturnType<typeof supabase.from>['select']
+    >;
+    for (const f of filters) {
+      switch (f.op) {
+        case 'eq': q = q.eq(f.column, f.value); break;
+        case 'in': q = q.in(f.column, f.value as readonly string[]); break;
+        case 'gte': q = q.gte(f.column, f.value); break;
+        case 'lte': q = q.lte(f.column, f.value); break;
+      }
+    }
+    const { data, error } = await q;
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    all.push(...(data as Record<string, unknown>[]));
+    if (data.length < PAGE) break;
+    from += PAGE;
   }
-  return Array.from(brands);
+  return all;
 }
 
-/**
- * Get distinct brands per handle from daily_creator_stats.
- */
+function brandFilters(brand?: string): Filter[] {
+  if (!brand) return [];
+  const uuid = brandSlugToUuid(brand);
+  return uuid ? [{ column: 'brand_id', op: 'eq', value: uuid }] : [];
+}
+
+// --- Brand discovery (from product stats) ---
+
+/** Map each handle → distinct product-brands it has sold. */
 async function getBrandsByHandle(handles: string[]): Promise<Map<string, string[]>> {
   if (handles.length === 0) return new Map();
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from('daily_creator_stats')
-    .select('tiktok_username, brand_id')
-    .in('tiktok_username', handles);
-
+  const rows = await paginated(
+    'daily_video_product_stats',
+    'tiktok_username, brand_id',
+    [{ column: 'tiktok_username', op: 'in', value: handles }]
+  );
   const map = new Map<string, Set<string>>();
-  for (const r of data ?? []) {
+  for (const r of rows) {
     const handle = r.tiktok_username as string;
     const slug = brandUuidToSlug(r.brand_id as string);
     if (!handle || !slug) continue;
     if (!map.has(handle)) map.set(handle, new Set());
     map.get(handle)!.add(slug);
   }
-
-  const result = new Map<string, string[]>();
-  for (const [handle, brands] of map) {
-    result.set(handle, Array.from(brands));
-  }
-  return result;
+  const out = new Map<string, string[]>();
+  for (const [h, s] of map) out.set(h, Array.from(s));
+  return out;
 }
+
+// --- Managed contract resolution ---
+
+const MANAGED_CREATOR_COLUMNS =
+  'id, brand, retainer, monthly_post_requirement, notes, status, employment_status, retainer_start_date, ' +
+  'account_1, account_2, account_3, account_4, account_5, account_6, account_7, account_8, account_9, account_10';
+
+interface ManagedRow {
+  id: number;
+  brand: string;
+  retainer: number | null;
+  monthly_post_requirement: number | null;
+  notes: string | null;
+  status: string | null;
+  employment_status: string | null;
+  retainer_start_date: string | null;
+  account_1: string | null; account_2: string | null; account_3: string | null;
+  account_4: string | null; account_5: string | null; account_6: string | null;
+  account_7: string | null; account_8: string | null; account_9: string | null;
+  account_10: string | null;
+}
+
+/**
+ * Find every managed_creators row whose account_1..10 overlap with the given
+ * handles. Deduped to one row per brand (most-retainer wins).
+ */
+async function getManagedRowsForHandles(handles: string[]): Promise<ManagedRow[]> {
+  if (handles.length === 0) return [];
+  const supabase = await createClient();
+
+  const lowered = handles.map((h) => h.trim().toLowerCase()).filter(Boolean);
+  if (lowered.length === 0) return [];
+
+  const orFilter = Array.from({ length: 10 }, (_, i) =>
+    `account_${i + 1}.in.(${lowered.map((h) => `"${h}"`).join(',')})`
+  ).join(',');
+
+  const { data, error } = await supabase
+    .from('managed_creators')
+    .select(MANAGED_CREATOR_COLUMNS)
+    .or(orFilter);
+  if (error) throw error;
+
+  const handleSet = new Set(lowered);
+  const byBrand = new Map<string, ManagedRow>();
+  for (const row of ((data ?? []) as unknown) as ManagedRow[]) {
+    const rowHandles = [
+      row.account_1, row.account_2, row.account_3, row.account_4, row.account_5,
+      row.account_6, row.account_7, row.account_8, row.account_9, row.account_10,
+    ]
+      .map((h) => (h ?? '').trim().toLowerCase())
+      .filter(Boolean);
+    if (!rowHandles.some((h) => handleSet.has(h))) continue;
+    const existing = byBrand.get(row.brand);
+    const r = (Number(row.retainer) || 0);
+    if (!existing || r > (Number(existing.retainer) || 0)) {
+      byBrand.set(row.brand, row);
+    }
+  }
+  return Array.from(byBrand.values()).sort(
+    (a, b) => (Number(b.retainer) || 0) - (Number(a.retainer) || 0)
+  );
+}
+
+// --- Query Functions ---
 
 /**
  * Fetch a creator profile by creators_v2 ID (UUID), including all linked accounts.
  */
 export async function getCreatorProfile(creatorId: string | number): Promise<CreatorProfile | null> {
   const supabase = await createClient();
-
-  // For backwards compat, accept number but treat as string
   const id = String(creatorId);
 
-  // Get creator from creators_v2
   const { data: creator, error } = await supabase
     .from('creators_v2')
     .select('*')
     .eq('id', id)
     .single();
-
   if (error || !creator) return null;
 
-  // Get brand-specific data from creator_brands
-  const { data: brandRows } = await supabase
-    .from('creator_brands')
-    .select('*')
-    .eq('creator_id', id);
-
-  const primaryBrand = brandRows?.[0];
-
-  // Get accounts from tiktok_accounts
   const { data: accounts } = await supabase
     .from('tiktok_accounts')
     .select('tiktok_username, brand_id, is_primary, verified')
@@ -168,40 +260,55 @@ export async function getCreatorProfile(creatorId: string | number): Promise<Cre
   }));
 
   const handles = accountList.map((a) => a.tiktok_username).filter(Boolean);
-  const brandsByHandle = await getBrandsByHandle(handles);
+
+  // Fetch managed contracts (canonical retainer/role/status source) and
+  // per-handle product-brand registrations in parallel.
+  const [managedRows, brandsByHandle] = await Promise.all([
+    getManagedRowsForHandles(handles),
+    getBrandsByHandle(handles),
+  ]);
 
   // Populate per-account brands
   for (const account of accountList) {
     account.brands = brandsByHandle.get(account.tiktok_username) ?? [];
   }
 
-  // All brands across all accounts (from performance data)
-  const allBrands = new Set<string>();
+  const perfBrands = new Set<string>();
   for (const brands of brandsByHandle.values()) {
-    for (const b of brands) allBrands.add(b);
+    for (const b of brands) perfBrands.add(b);
   }
 
-  // Also include brands from tiktok_accounts (registered but maybe no perf data yet)
   const accountBrands = new Set<string>();
   for (const a of accountList) {
     if (a.brand) accountBrands.add(a.brand);
   }
 
-  const perfBrands = new Set(allBrands);
-  const combinedBrands = new Set([...allBrands, ...accountBrands]);
+  // Also include managed-contract brands so a freshly-signed creator
+  // shows their contract brand even before performance data lands.
+  const contractBrands = new Set<string>(managedRows.map((r) => r.brand));
+  const combinedBrands = new Set([...perfBrands, ...accountBrands, ...contractBrands]);
+
+  // Primary brand = highest-retainer managed contract, else first perf brand,
+  // else first registered account brand.
+  const primary = managedRows[0];
+  const primaryBrand =
+    primary?.brand ??
+    Array.from(perfBrands)[0] ??
+    Array.from(accountBrands)[0] ??
+    '';
 
   return {
     id: creator.id,
     real_name: creator.real_name ?? 'Unknown',
-    brand: primaryBrand ? (brandUuidToSlug(primaryBrand.brand_id) ?? primaryBrand.brand_id) : '',
-    role: primaryBrand?.role ?? null,
-    status: primaryBrand?.status ?? null,
+    brand: primaryBrand,
+    role: (creator.role as string | null) ?? null,
+    status: (creator.status as string | null) ?? primary?.employment_status ?? null,
     email: creator.email ?? null,
     phone: creator.phone ?? null,
     notes: creator.notes ?? null,
-    retainer: primaryBrand?.retainer ?? null,
-    monthly_post_requirement: primaryBrand?.monthly_post_requirement ?? null,
-    retainer_start_date: primaryBrand?.retainer_start_date ?? null,
+    retainer: primary ? Number(primary.retainer) || 0 : null,
+    monthly_post_requirement: primary ? Number(primary.monthly_post_requirement) || 0 : null,
+    retainer_start_date: primary?.retainer_start_date ?? null,
     accounts: accountList,
     brands: Array.from(combinedBrands),
     brandsWithData: Array.from(perfBrands),
@@ -213,7 +320,6 @@ export async function getCreatorProfile(creatorId: string | number): Promise<Cre
  */
 export async function getCreatorIdByHandle(handle: string): Promise<string | null> {
   const supabase = await createClient();
-  // Use ilike for case-insensitive match — handles stored in mixed case won't hard-404
   const { data, error } = await supabase
     .from('tiktok_accounts')
     .select('creator_id')
@@ -233,7 +339,9 @@ async function getHandles(creatorId: string): Promise<string[]> {
     .from('tiktok_accounts')
     .select('tiktok_username')
     .eq('creator_id', creatorId);
-  return (data ?? []).map((r: Record<string, unknown>) => r.tiktok_username as string).filter(Boolean);
+  return (data ?? [])
+    .map((r: Record<string, unknown>) => r.tiktok_username as string)
+    .filter(Boolean);
 }
 
 /** Helper: compute date diff for prior period comparison */
@@ -247,7 +355,10 @@ function getPriorPeriod(startDate: string, endDate: string): { prevStart: string
   return { prevStart: fmt(prevStart), prevEnd: fmt(prevEnd) };
 }
 
-/** Aggregate performance from daily_creator_stats for given handles and date range */
+/**
+ * Aggregate performance from daily_video_product_stats for given handles + range.
+ * `videos` is COUNT(DISTINCT video_id) since the table is per-row-per-product.
+ */
 async function aggregatePerformance(
   handles: string[],
   startDate: string,
@@ -256,31 +367,33 @@ async function aggregatePerformance(
 ): Promise<{ gmv: number; orders: number; items_sold: number; videos: number; commission: number }> {
   if (handles.length === 0) return { gmv: 0, orders: 0, items_sold: 0, videos: 0, commission: 0 };
 
-  const supabase = await createClient();
-  let query = supabase
-    .from('daily_creator_stats')
-    .select('gmv, orders, items_sold, videos, est_commission')
-    .in('tiktok_username', handles)
-    .gte('report_date', startDate)
-    .lte('report_date', endDate);
-  if (brand) {
-    const brandUuid = brandSlugToUuid(brand);
-    if (brandUuid) query = query.eq('brand_id', brandUuid);
-  }
-  const { data } = await query;
+  const filters: Filter[] = [
+    { column: 'tiktok_username', op: 'in', value: handles },
+    { column: 'report_date', op: 'gte', value: startDate },
+    { column: 'report_date', op: 'lte', value: endDate },
+    ...brandFilters(brand),
+  ];
 
-  const rows = data ?? [];
-  return {
-    gmv: rows.reduce((s: number, r: Record<string, unknown>) => s + (Number(r.gmv) || 0), 0),
-    orders: rows.reduce((s: number, r: Record<string, unknown>) => s + (Number(r.orders) || 0), 0),
-    items_sold: rows.reduce((s: number, r: Record<string, unknown>) => s + (Number(r.items_sold) || 0), 0),
-    videos: rows.reduce((s: number, r: Record<string, unknown>) => s + (Number(r.videos) || 0), 0),
-    commission: rows.reduce((s: number, r: Record<string, unknown>) => s + (Number(r.est_commission) || 0), 0),
-  };
+  const rows = await paginated(
+    'daily_video_product_stats',
+    'video_id, gmv, orders, items_sold, est_commission',
+    filters
+  );
+
+  const videoIds = new Set<string>();
+  let gmv = 0, orders = 0, items_sold = 0, commission = 0;
+  for (const r of rows) {
+    gmv += Number(r.gmv) || 0;
+    orders += Number(r.orders) || 0;
+    items_sold += Number(r.items_sold) || 0;
+    commission += Number(r.est_commission) || 0;
+    if (r.video_id) videoIds.add(r.video_id as string);
+  }
+  return { gmv, orders, items_sold, videos: videoIds.size, commission };
 }
 
 /**
- * Get aggregated summary for a creator across all accounts, with trend vs prior period.
+ * Aggregated summary across all of a creator's accounts, with prior-period delta.
  */
 export async function getCreatorSummary(
   creatorId: string | number,
@@ -326,58 +439,68 @@ export async function getCreatorAccountBreakdown(
     .from('tiktok_accounts')
     .select('tiktok_username, brand_id')
     .eq('creator_id', id);
-
   if (!accounts || accounts.length === 0) return [];
 
-  const handles = accounts.map((a: Record<string, unknown>) => a.tiktok_username as string).filter(Boolean);
+  const handles = accounts
+    .map((a: Record<string, unknown>) => a.tiktok_username as string)
+    .filter(Boolean);
 
-  let perfQuery = supabase
-    .from('daily_creator_stats')
-    .select('tiktok_username, brand_id, gmv, orders, items_sold, videos')
-    .in('tiktok_username', handles)
-    .gte('report_date', startDate)
-    .lte('report_date', endDate);
-  if (brand) {
-    const brandUuid = brandSlugToUuid(brand);
-    if (brandUuid) perfQuery = perfQuery.eq('brand_id', brandUuid);
-  }
-  const { data: perf } = await perfQuery;
+  const filters: Filter[] = [
+    { column: 'tiktok_username', op: 'in', value: handles },
+    { column: 'report_date', op: 'gte', value: startDate },
+    { column: 'report_date', op: 'lte', value: endDate },
+    ...brandFilters(brand),
+  ];
 
-  const map = new Map<string, AccountBreakdownRow>();
+  const rows = await paginated(
+    'daily_video_product_stats',
+    'tiktok_username, brand_id, video_id, gmv, orders, items_sold',
+    filters
+  );
+
+  type Acc = AccountBreakdownRow & { videoIds: Set<string>; brandSet: Set<string> };
+  const map = new Map<string, Acc>();
   for (const a of accounts) {
     const handle = a.tiktok_username as string;
     if (!handle) continue;
-    map.set(handle, { tiktok_username: handle, brands: [], gmv: 0, orders: 0, items_sold: 0, videos: 0 });
+    map.set(handle, {
+      tiktok_username: handle,
+      brands: [],
+      gmv: 0,
+      orders: 0,
+      items_sold: 0,
+      videos: 0,
+      videoIds: new Set(),
+      brandSet: new Set(),
+    });
   }
 
-  const brandSets = new Map<string, Set<string>>();
-  for (const handle of handles) {
-    brandSets.set(handle, new Set());
+  for (const r of rows) {
+    const acc = map.get(r.tiktok_username as string);
+    if (!acc) continue;
+    acc.gmv += Number(r.gmv) || 0;
+    acc.orders += Number(r.orders) || 0;
+    acc.items_sold += Number(r.items_sold) || 0;
+    if (r.video_id) acc.videoIds.add(r.video_id as string);
+    const slug = brandUuidToSlug(r.brand_id as string);
+    if (slug) acc.brandSet.add(slug);
   }
 
-  for (const r of perf ?? []) {
-    const handle = r.tiktok_username as string;
-    const row = map.get(handle);
-    if (row) {
-      row.gmv += Number(r.gmv) || 0;
-      row.orders += Number(r.orders) || 0;
-      row.items_sold += Number(r.items_sold) || 0;
-      row.videos += Number(r.videos) || 0;
-      const slug = brandUuidToSlug(r.brand_id as string);
-      if (slug) brandSets.get(handle)?.add(slug);
-    }
-  }
-
-  for (const [handle, brands] of brandSets) {
-    const row = map.get(handle);
-    if (row) row.brands = Array.from(brands);
-  }
-
-  return Array.from(map.values()).sort((a, b) => b.gmv - a.gmv);
+  return Array.from(map.values())
+    .map((a) => ({
+      tiktok_username: a.tiktok_username,
+      brands: Array.from(a.brandSet),
+      gmv: a.gmv,
+      orders: a.orders,
+      items_sold: a.items_sold,
+      videos: a.videoIds.size,
+    }))
+    .sort((a, b) => b.gmv - a.gmv);
 }
 
 /**
- * Per-brand performance breakdown.
+ * Per-brand performance breakdown (across all of a creator's handles).
+ * Brand here = product brand, not contract assignment.
  */
 export async function getCreatorBrandBreakdown(
   creatorId: string | number,
@@ -387,37 +510,49 @@ export async function getCreatorBrandBreakdown(
   const handles = await getHandles(String(creatorId));
   if (handles.length === 0) return [];
 
-  const supabase = await createClient();
-  const { data: perf } = await supabase
-    .from('daily_creator_stats')
-    .select('brand_id, gmv, orders, items_sold, videos, est_commission')
-    .in('tiktok_username', handles)
-    .gte('report_date', startDate)
-    .lte('report_date', endDate);
+  const rows = await paginated(
+    'daily_video_product_stats',
+    'brand_id, video_id, gmv, orders, items_sold, est_commission',
+    [
+      { column: 'tiktok_username', op: 'in', value: handles },
+      { column: 'report_date', op: 'gte', value: startDate },
+      { column: 'report_date', op: 'lte', value: endDate },
+    ]
+  );
 
-  const map = new Map<string, BrandBreakdownRow>();
-  for (const r of perf ?? []) {
+  type Acc = Omit<BrandBreakdownRow, 'videos'> & { videoIds: Set<string> };
+  const map = new Map<string, Acc>();
+  for (const r of rows) {
     const slug = brandUuidToSlug(r.brand_id as string) ?? (r.brand_id as string);
-    const existing = map.get(slug);
-    if (existing) {
-      existing.gmv += Number(r.gmv) || 0;
-      existing.orders += Number(r.orders) || 0;
-      existing.items_sold += Number(r.items_sold) || 0;
-      existing.videos += Number(r.videos) || 0;
-      existing.commission += Number(r.est_commission) || 0;
-    } else {
-      map.set(slug, {
+    let acc = map.get(slug);
+    if (!acc) {
+      acc = {
         brand: slug,
-        gmv: Number(r.gmv) || 0,
-        orders: Number(r.orders) || 0,
-        items_sold: Number(r.items_sold) || 0,
-        videos: Number(r.videos) || 0,
-        commission: Number(r.est_commission) || 0,
-      });
+        gmv: 0,
+        orders: 0,
+        items_sold: 0,
+        commission: 0,
+        videoIds: new Set(),
+      };
+      map.set(slug, acc);
     }
+    acc.gmv += Number(r.gmv) || 0;
+    acc.orders += Number(r.orders) || 0;
+    acc.items_sold += Number(r.items_sold) || 0;
+    acc.commission += Number(r.est_commission) || 0;
+    if (r.video_id) acc.videoIds.add(r.video_id as string);
   }
 
-  return Array.from(map.values()).sort((a, b) => b.gmv - a.gmv);
+  return Array.from(map.values())
+    .map((a) => ({
+      brand: a.brand,
+      gmv: a.gmv,
+      orders: a.orders,
+      items_sold: a.items_sold,
+      videos: a.videoIds.size,
+      commission: a.commission,
+    }))
+    .sort((a, b) => b.gmv - a.gmv);
 }
 
 /**
@@ -433,124 +568,140 @@ export async function getCreatorVideos(
   const handles = await getHandles(String(creatorId));
   if (handles.length === 0) return [];
 
-  const supabase = await createClient();
-  let query = supabase
-    .from('daily_video_product_stats')
-    .select('video_id, video_title, tiktok_username, brand_id, product_name, gmv, orders, items_sold, report_date')
-    .in('tiktok_username', handles)
-    .gte('report_date', startDate)
-    .lte('report_date', endDate);
-  if (brand) {
-    const brandUuid = brandSlugToUuid(brand);
-    if (brandUuid) query = query.eq('brand_id', brandUuid);
-  }
-  const { data } = await query;
+  const rows = await paginated(
+    'daily_video_product_stats',
+    'video_id, video_title, tiktok_username, brand_id, product_name, gmv, orders, items_sold, report_date',
+    [
+      { column: 'tiktok_username', op: 'in', value: handles },
+      { column: 'report_date', op: 'gte', value: startDate },
+      { column: 'report_date', op: 'lte', value: endDate },
+      ...brandFilters(brand),
+    ]
+  );
 
-  if (!data || data.length === 0) return [];
-
-  const map = new Map<string, {
+  type Acc = {
     video_id: string;
     video_title: string;
     creator_name: string;
     brand: string;
-    product_name: string;
+    productGmv: Map<string, number>;
     gmv: number;
     orders: number;
     items_sold: number;
     dates: Set<string>;
-  }>();
-
-  for (const r of data) {
+  };
+  const map = new Map<string, Acc>();
+  for (const r of rows) {
     const vid = r.video_id as string;
     if (!vid) continue;
-    const existing = map.get(vid);
-    if (existing) {
-      existing.gmv += Number(r.gmv) || 0;
-      existing.orders += Number(r.orders) || 0;
-      existing.items_sold += Number(r.items_sold) || 0;
-      if (r.report_date) existing.dates.add(r.report_date as string);
-    } else {
-      map.set(vid, {
+    let acc = map.get(vid);
+    if (!acc) {
+      acc = {
         video_id: vid,
         video_title: (r.video_title as string) || 'Untitled',
         creator_name: r.tiktok_username as string,
         brand: brandUuidToSlug(r.brand_id as string) ?? (r.brand_id as string),
-        product_name: (r.product_name as string) || '',
-        gmv: Number(r.gmv) || 0,
-        orders: Number(r.orders) || 0,
-        items_sold: Number(r.items_sold) || 0,
-        dates: new Set(r.report_date ? [r.report_date as string] : []),
-      });
+        productGmv: new Map(),
+        gmv: 0,
+        orders: 0,
+        items_sold: 0,
+        dates: new Set(),
+      };
+      map.set(vid, acc);
     }
+    const g = Number(r.gmv) || 0;
+    acc.gmv += g;
+    acc.orders += Number(r.orders) || 0;
+    acc.items_sold += Number(r.items_sold) || 0;
+    if (r.report_date) acc.dates.add(r.report_date as string);
+    const pname = (r.product_name as string) || '';
+    if (pname) acc.productGmv.set(pname, (acc.productGmv.get(pname) ?? 0) + g);
   }
 
   return Array.from(map.values())
     .sort((a, b) => b.gmv - a.gmv)
     .slice(0, limit)
-    .map((v) => ({
-      video_id: v.video_id,
-      video_title: v.video_title,
-      creator_name: v.creator_name,
-      brand: v.brand,
-      product_name: v.product_name,
-      gmv: v.gmv,
-      orders: v.orders,
-      items_sold: v.items_sold,
-      days_selling: v.dates.size,
-    }));
+    .map((v) => {
+      // Pick top product by GMV for the row (a video can sell multiple products).
+      let topProduct = '';
+      let topGmv = -1;
+      for (const [name, g] of v.productGmv) {
+        if (g > topGmv) { topProduct = name; topGmv = g; }
+      }
+      return {
+        video_id: v.video_id,
+        video_title: v.video_title,
+        creator_name: v.creator_name,
+        brand: v.brand,
+        product_name: topProduct,
+        gmv: v.gmv,
+        orders: v.orders,
+        items_sold: v.items_sold,
+        days_selling: v.dates.size,
+      };
+    });
 }
 
 /**
- * Get posts this month for retainer tracking.
+ * Distinct videos posted this calendar month — for retainer pace.
  */
-export async function getPostsThisMonth(creatorId: string | number, brand?: string): Promise<number> {
+export async function getPostsThisMonth(
+  creatorId: string | number,
+  brand?: string
+): Promise<number> {
   const handles = await getHandles(String(creatorId));
   if (handles.length === 0) return 0;
 
   const now = new Date();
   const startOfMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
-  const endOfMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()).padStart(2, '0')}`;
+  const lastDay = String(new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()).padStart(2, '0');
+  const endOfMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${lastDay}`;
 
-  const supabase = await createClient();
-  let query = supabase
-    .from('daily_creator_stats')
-    .select('videos')
-    .in('tiktok_username', handles)
-    .gte('report_date', startOfMonth)
-    .lte('report_date', endOfMonth);
-  if (brand) {
-    const brandUuid = brandSlugToUuid(brand);
-    if (brandUuid) query = query.eq('brand_id', brandUuid);
-  }
-  const { data } = await query;
+  const rows = await paginated(
+    'daily_video_product_stats',
+    'video_id',
+    [
+      { column: 'tiktok_username', op: 'in', value: handles },
+      { column: 'report_date', op: 'gte', value: startOfMonth },
+      { column: 'report_date', op: 'lte', value: endOfMonth },
+      ...brandFilters(brand),
+    ]
+  );
 
-  return (data ?? []).reduce((s: number, r: Record<string, unknown>) => s + (Number(r.videos) || 0), 0);
+  const ids = new Set<string>();
+  for (const r of rows) if (r.video_id) ids.add(r.video_id as string);
+  return ids.size;
 }
 
 /**
- * Get lifetime stats for a creator (all-time, no date filter).
+ * Lifetime stats for a creator (all-time, no date filter).
+ * `total_videos` = COUNT(DISTINCT video_id).
  */
-export async function getCreatorLifetimeStats(creatorId: string | number): Promise<CreatorLifetimeStats> {
+export async function getCreatorLifetimeStats(
+  creatorId: string | number
+): Promise<CreatorLifetimeStats> {
   const handles = await getHandles(String(creatorId));
   if (handles.length === 0) {
-    return { total_gmv: 0, total_orders: 0, total_videos: 0, total_commission: 0, first_active_date: null, months_active: 0 };
+    return {
+      total_gmv: 0, total_orders: 0, total_videos: 0, total_commission: 0,
+      first_active_date: null, months_active: 0,
+    };
   }
 
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from('daily_creator_stats')
-    .select('gmv, orders, videos, est_commission, report_date')
-    .in('tiktok_username', handles);
+  const rows = await paginated(
+    'daily_video_product_stats',
+    'video_id, gmv, orders, est_commission, report_date',
+    [{ column: 'tiktok_username', op: 'in', value: handles }]
+  );
 
-  const rows = data ?? [];
+  const videoIds = new Set<string>();
   let minDate: string | null = null;
-  let gmv = 0, orders = 0, videos = 0, commission = 0;
-
+  let gmv = 0, orders = 0, commission = 0;
   for (const r of rows) {
     gmv += Number(r.gmv) || 0;
     orders += Number(r.orders) || 0;
-    videos += Number(r.videos) || 0;
     commission += Number(r.est_commission) || 0;
+    if (r.video_id) videoIds.add(r.video_id as string);
     const d = r.report_date as string;
     if (d && (!minDate || d < minDate)) minDate = d;
   }
@@ -559,16 +710,25 @@ export async function getCreatorLifetimeStats(creatorId: string | number): Promi
   if (minDate) {
     const first = new Date(minDate);
     const now = new Date();
-    monthsActive = (now.getFullYear() - first.getFullYear()) * 12 + (now.getMonth() - first.getMonth()) + 1;
+    monthsActive =
+      (now.getFullYear() - first.getFullYear()) * 12 +
+      (now.getMonth() - first.getMonth()) + 1;
     if (monthsActive < 1) monthsActive = 1;
   }
 
-  return { total_gmv: gmv, total_orders: orders, total_videos: videos, total_commission: commission, first_active_date: minDate, months_active: monthsActive };
+  return {
+    total_gmv: gmv,
+    total_orders: orders,
+    total_videos: videoIds.size,
+    total_commission: commission,
+    first_active_date: minDate,
+    months_active: monthsActive,
+  };
 }
 
 /**
- * Check if a creator is in the managed roster by their TikTok handles.
- * Returns the managed_creators row if found, null otherwise.
+ * Returns the creator's primary managed contract row (one per brand, highest
+ * retainer wins). Scans all 10 account columns, not just account_1.
  */
 export async function getManagedCreatorInfo(creatorId: string): Promise<{
   retainer: number;
@@ -580,15 +740,17 @@ export async function getManagedCreatorInfo(creatorId: string): Promise<{
   const handles = await getHandles(creatorId);
   if (handles.length === 0) return null;
 
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from('managed_creators')
-    .select('retainer, monthly_post_requirement, notes, status, brand')
-    .in('account_1', handles)
-    .limit(1)
-    .single();
+  const rows = await getManagedRowsForHandles(handles);
+  if (rows.length === 0) return null;
 
-  return data ?? null;
+  const top = rows[0];
+  return {
+    retainer: Number(top.retainer) || 0,
+    monthly_post_requirement: Number(top.monthly_post_requirement) || 0,
+    notes: top.notes,
+    status: top.status ?? top.employment_status ?? '',
+    brand: top.brand ?? null,
+  };
 }
 
 /**
@@ -603,7 +765,7 @@ export async function getCreatorLatestReportDate(
 
   const supabase = await createClient();
   const { data } = await supabase
-    .from('daily_creator_stats')
+    .from('daily_video_product_stats')
     .select('report_date')
     .in('tiktok_username', handles)
     .order('report_date', { ascending: false })
@@ -612,3 +774,4 @@ export async function getCreatorLatestReportDate(
 
   return (data?.report_date as string) ?? null;
 }
+
