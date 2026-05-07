@@ -17,6 +17,8 @@ import { BrandBreakdownDonut } from '@/components/analytics/brand-breakdown-donu
 import { AnalyticsEmptyState } from '@/components/analytics/empty-state';
 import { PacingTile } from '@/components/analytics/pacing-tile';
 import { ConcentrationCard, type ConcentrationStats } from '@/components/analytics/concentration-card';
+import { NarrativeCard } from '@/components/analytics/narrative-card';
+import type { NarrativeInput } from '@/lib/ai/analytics-narrative';
 import { StatCard } from '@/components/dashboard/stat-card';
 import { BRAND_DISPLAY_NAMES, BRAND_COLORS, HIDDEN_FROM_PICKER, expandBrandToDataSlugs } from '@/lib/utils/constants';
 import { pctChange } from '@/lib/utils/trend';
@@ -389,6 +391,43 @@ export default async function AnalyticsPage({ searchParams }: Props) {
   // Hide the card when we don't have enough creators to make the framing meaningful
   const showConcentration = allCreators.length >= 10 && totals.gmv > 0;
 
+  // ─── Narrative input — packs the same numbers used elsewhere on the page
+  // into a small brief the LLM uses to write the period summary. Built here
+  // server-side so the client component just hands it back to the action. ──
+  const fmtRangeLabel = (s: string, e: string) =>
+    `${new Date(s).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${new Date(e).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+  const narrativeInput: NarrativeInput = {
+    periodLabel: fmtRangeLabel(startDate, endDate),
+    prevPeriodLabel: fmtRangeLabel(prevStart, prevEnd),
+    brandFilter,
+    totals: {
+      gmv: totals.gmv,
+      orders: totals.orders,
+      videos: totals.videos,
+      creators: totals.creators,
+      aov,
+      managedSharePct: managedShare,
+    },
+    prevTotals: {
+      gmv: prevTotals.gmv,
+      orders: prevTotals.orders,
+      videos: prevTotals.videos,
+      creators: prevTotals.creators,
+      aov: prevAov,
+      managedSharePct: prevManagedShare,
+    },
+    brandRiser: meaningfulRiser,
+    brandFaller: meaningfulFaller,
+    creatorBreakout,
+    hotPost,
+    topProduct,
+    concentration: showConcentration ? {
+      totalCreators: allCreators.length,
+      top1Pct:  totals.gmv > 0 ? (concentrationStats.top1Gmv  / totals.gmv) * 100 : 0,
+      top10Pct: totals.gmv > 0 ? (concentrationStats.top10Gmv / totals.gmv) * 100 : 0,
+    } : undefined,
+  };
+
   return (
     <div className="space-y-6">
       {/* Pacing tile — only shows on month-to-date views (in-progress period) */}
@@ -524,6 +563,10 @@ export default async function AnalyticsPage({ searchParams }: Props) {
         hotPost={hotPost}
         topProduct={topProduct}
       />
+
+      {/* AI narrative — click-to-generate; never auto-runs to keep API spend
+          intentional. Pulls from the same numbers as the cards above. */}
+      <NarrativeCard input={narrativeInput} />
 
       {/* Performance Overview — multi-metric chart with prior-period and YoY compare toggles */}
       <PerformanceChart
