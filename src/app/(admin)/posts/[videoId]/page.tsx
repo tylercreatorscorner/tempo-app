@@ -10,12 +10,38 @@ interface Props {
   searchParams: Promise<{ brand?: string }>;
 }
 
+interface VideoRow {
+  video_id: string;
+  brand: string;
+  creator_name: string | null;
+  video_name: string | null;
+  video_link: string | null;
+  post_date: string | null;
+  impressions: number | string | null;
+  likes: number | string | null;
+  comments: number | string | null;
+  total_gmv: number | string | null;
+  affiliate_gmv: number | string | null;
+  items_sold: number | string | null;
+  orders: number | string | null;
+}
+
+const BRAND_SLUG_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
+
 export default async function PostReviewPage({ params, searchParams }: Props) {
   const profile = await requireAdmin();
   if (!profile) redirect('/dashboard');
 
   const { videoId } = await params;
   const sp = await searchParams;
+
+  // Lightweight sanity-check on URL params before hitting the DB. Supabase
+  // parameterizes the query so this isn't an injection guard — it just stops
+  // accidental garbage URLs from cluttering the logs with "no rows" errors.
+  if (!videoId || videoId.length === 0 || videoId.length > 256) {
+    notFound();
+  }
+  const brandFilter = sp.brand && BRAND_SLUG_RE.test(sp.brand) ? sp.brand : null;
 
   const admin = await createAdminClient();
 
@@ -25,33 +51,39 @@ export default async function PostReviewPage({ params, searchParams }: Props) {
   let q = admin.from('videos')
     .select('video_id, brand, creator_name, video_name, video_link, post_date, impressions, likes, comments, total_gmv, affiliate_gmv, items_sold, orders')
     .eq('video_id', videoId);
-  if (sp.brand) q = q.eq('brand', sp.brand);
-  const { data: rows } = await q.limit(1);
+  if (brandFilter) q = q.eq('brand', brandFilter);
+  const { data: rows } = await q.limit(1).returns<VideoRow[]>();
 
-  const video = (rows as Array<Record<string, unknown>> | null ?? [])[0];
+  const video = rows?.[0];
   if (!video) notFound();
 
   // Resolve brand display name for the header
   const { data: brandRow } = await admin
     .from('brands_v2')
     .select('name')
-    .eq('slug', String(video.brand))
-    .maybeSingle();
+    .eq('slug', video.brand)
+    .maybeSingle<{ name: string }>();
+
+  const toNum = (v: number | string | null): number => {
+    if (v === null || v === '') return 0;
+    const n = typeof v === 'number' ? v : parseFloat(v);
+    return Number.isNaN(n) ? 0 : n;
+  };
 
   const meta: VideoMeta = {
-    video_id: String(video.video_id),
-    brand_slug: String(video.brand),
-    brand_name: (brandRow as { name?: string } | null)?.name ?? String(video.brand),
-    creator_handle: String(video.creator_name ?? '').replace(/^@/, ''),
-    title: String(video.video_name ?? '(untitled)'),
-    video_url: video.video_link ? String(video.video_link) : null,
-    post_date: video.post_date ? String(video.post_date) : null,
-    views: Number(video.impressions ?? 0),
-    likes: Number(video.likes ?? 0),
-    comments: Number(video.comments ?? 0),
-    gmv: Number(video.affiliate_gmv ?? video.total_gmv ?? 0),
-    orders: Number(video.orders ?? 0),
-    items_sold: Number(video.items_sold ?? 0),
+    video_id: video.video_id,
+    brand_slug: video.brand,
+    brand_name: brandRow?.name ?? video.brand,
+    creator_handle: (video.creator_name ?? '').replace(/^@/, ''),
+    title: video.video_name ?? '(untitled)',
+    video_url: video.video_link,
+    post_date: video.post_date,
+    views: Math.round(toNum(video.impressions)),
+    likes: Math.round(toNum(video.likes)),
+    comments: Math.round(toNum(video.comments)),
+    gmv: toNum(video.affiliate_gmv) > 0 ? toNum(video.affiliate_gmv) : toNum(video.total_gmv),
+    orders: Math.round(toNum(video.orders)),
+    items_sold: Math.round(toNum(video.items_sold)),
   };
 
   return <PostReviewClient meta={meta} />;

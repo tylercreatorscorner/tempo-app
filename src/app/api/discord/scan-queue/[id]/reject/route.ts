@@ -1,19 +1,18 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { requireAdmin } from '@/lib/auth/require-admin';
+import { createAdminClient } from '@/lib/supabase/server';
 
-function getSupabase() {
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
-}
+export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const profile = await requireAdmin();
+  if (!profile) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
-export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const body = await request.json();
-  const { reviewed_by } = body as { reviewed_by: string };
-  const supabase = getSupabase();
+  const reviewedBy = profile.email || profile.name || profile.user_id;
+  const supabase = await createAdminClient();
 
   const { error } = await supabase
     .from('discord_match_queue')
-    .update({ status: 'rejected', reviewed_by, reviewed_at: new Date().toISOString() })
+    .update({ status: 'rejected', reviewed_by: reviewedBy, reviewed_at: new Date().toISOString() })
     .eq('id', id);
 
   if (error) {

@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { BRAND_COLORS } from '@/lib/utils/constants';
-import { formatCurrency, formatNumber } from '@/lib/utils/format';
+import { engagementRate, formatCurrency, formatNumber } from '@/lib/utils/format';
 
 export interface VideoMeta {
   video_id: string;
@@ -143,7 +143,7 @@ export function PostReviewClient({ meta }: { meta: VideoMeta }) {
 
   const myReview = reviews.find(r => r.reviewer_user_id === currentUserId);
   const otherReviews = reviews.filter(r => r.reviewer_user_id !== currentUserId);
-  const engagement = meta.views > 0 ? ((meta.likes + meta.comments) / meta.views) * 100 : 0;
+  const engagement = engagementRate(meta.views, meta.likes, meta.comments);
   const brandColor = BRAND_COLORS[meta.brand_slug] ?? '#6B7280';
 
   return (
@@ -156,7 +156,7 @@ export function PostReviewClient({ meta }: { meta: VideoMeta }) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
             <span className="inline-flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: brandColor }} />
+              <span aria-hidden="true" className="h-2 w-2 rounded-full" style={{ backgroundColor: brandColor }} />
               {meta.brand_name}
             </span>
             <span>·</span>

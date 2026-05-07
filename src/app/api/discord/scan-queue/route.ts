@@ -1,19 +1,22 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { requireAdmin } from '@/lib/auth/require-admin';
+import { createAdminClient } from '@/lib/supabase/server';
 
-function getSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-  return createClient(url, key);
+interface CountRow {
+  status: string;
+  match_type: string | null;
 }
 
 export async function GET(request: Request) {
+  const profile = await requireAdmin();
+  if (!profile) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
   const { searchParams } = new URL(request.url);
   const status = searchParams.get('status') || 'pending';
   const guildId = searchParams.get('guild_id');
   const matchType = searchParams.get('match_type');
 
-  const supabase = getSupabase();
+  const supabase = await createAdminClient();
 
   let query = supabase
     .from('discord_match_queue')
@@ -31,45 +34,28 @@ export async function GET(request: Request) {
     query = query.eq('match_type', matchType);
   }
 
-  const { data, error } = await query;
+  // Single tally query (replaces 4× count round-trips).
+  let statsQuery = supabase
+    .from('discord_match_queue')
+    .select('status, match_type');
+  if (guildId) statsQuery = statsQuery.eq('guild_id', guildId);
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  const [listResult, statsResult] = await Promise.all([query, statsQuery]);
+
+  if (listResult.error) {
+    return NextResponse.json({ error: listResult.error.message }, { status: 500 });
   }
 
-  // Also get summary stats
-  const { data: allData } = await supabase
-    .from('discord_match_queue')
-    .select('status, match_type')
-    .eq(guildId ? 'guild_id' : 'id', guildId || '');
-
-  // Get stats with a separate simpler query
-  const { count: totalCount } = await supabase
-    .from('discord_match_queue')
-    .select('*', { count: 'exact', head: true });
-
-  const { count: pendingCount } = await supabase
-    .from('discord_match_queue')
-    .select('*', { count: 'exact', head: true })
-    .eq('status', 'pending');
-
-  const { count: exactCount } = await supabase
-    .from('discord_match_queue')
-    .select('*', { count: 'exact', head: true })
-    .eq('match_type', 'exact');
-
-  const { count: fuzzyCount } = await supabase
-    .from('discord_match_queue')
-    .select('*', { count: 'exact', head: true })
-    .eq('match_type', 'fuzzy');
+  const stats = { total: 0, pending: 0, exact: 0, fuzzy: 0 };
+  for (const row of (statsResult.data ?? []) as CountRow[]) {
+    stats.total++;
+    if (row.status === 'pending') stats.pending++;
+    if (row.match_type === 'exact') stats.exact++;
+    else if (row.match_type === 'fuzzy') stats.fuzzy++;
+  }
 
   return NextResponse.json({
-    entries: data,
-    stats: {
-      total: totalCount ?? 0,
-      pending: pendingCount ?? 0,
-      exact: exactCount ?? 0,
-      fuzzy: fuzzyCount ?? 0,
-    },
+    entries: listResult.data,
+    stats,
   });
 }

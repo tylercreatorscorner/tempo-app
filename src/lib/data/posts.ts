@@ -16,6 +16,7 @@
  * the date range. Each video appears once.
  */
 import { createAdminClient } from '@/lib/supabase/server';
+import { engagementRate } from '@/lib/utils/format';
 
 export interface PostRow {
   video_id: string;
@@ -162,7 +163,7 @@ export async function getPosts(opts: GetPostsOpts): Promise<PostsResult> {
       const views    = pInt(r.impressions);
       const likes    = pInt(r.likes);
       const comments = pInt(r.comments);
-      const engagement = views > 0 ? ((likes + comments) / views) * 100 : 0;
+      const engagement = engagementRate(views, likes, comments);
       // Prefer affiliate_gmv (creator-attributed) — it's the right lens for
       // the managed-creator view on this page. Falls back to total_gmv.
       const aff = pNum(r.affiliate_gmv);
@@ -198,9 +199,7 @@ export async function getPosts(opts: GetPostsOpts): Promise<PostsResult> {
   const totalGmv = posts.reduce((s, p) => s + p.gmv, 0);
   const totalLikes = posts.reduce((s, p) => s + p.likes, 0);
   const totalComments = posts.reduce((s, p) => s + p.comments, 0);
-  const avgEngagement = totalViews > 0
-    ? ((totalLikes + totalComments) / totalViews) * 100
-    : 0;
+  const avgEngagement = engagementRate(totalViews, totalLikes, totalComments);
 
   return {
     posts,

@@ -7,9 +7,41 @@ import {
   CalendarDays, CalendarRange, Wand2, Sparkles, AlertCircle, Download, Briefcase,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { ACTIVE_BRANDS, BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
+import { BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
 import { useTenant } from '@/hooks/use-tenant';
 import { FREQUENCIES } from '@/lib/data/schedule-frequency';
+
+interface BrandListEntry {
+  slug: string;
+  name: string;
+  is_archived: boolean;
+  is_umbrella: boolean;
+}
+
+/**
+ * Live brand list — single source-of-truth fetched once at page mount and
+ * shared across all dropdowns via the BrandsContext below. Replaces the old
+ * hardcoded ACTIVE_BRANDS constant so adding a brand to brands_v2 shows up
+ * here without a redeploy.
+ */
+function useLiveBrands(): BrandListEntry[] | null {
+  const [brands, setBrands] = useState<BrandListEntry[] | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/brands')
+      .then(r => r.json())
+      .then((d: { brands?: BrandListEntry[] }) => {
+        if (cancelled) return;
+        const live = (d.brands ?? [])
+          .filter(b => !b.is_archived && !b.is_umbrella)
+          .map(b => ({ slug: b.slug, name: b.name, is_archived: b.is_archived, is_umbrella: b.is_umbrella }));
+        setBrands(live);
+      })
+      .catch(() => { if (!cancelled) setBrands([]); });
+    return () => { cancelled = true; };
+  }, []);
+  return brands;
+}
 
 const TABS = [
   { id: 'generate',  label: 'Generate',  icon: Wand2 },
@@ -20,22 +52,29 @@ type TabId = typeof TABS[number]['id'];
 
 /**
  * Hook: returns the brand options the current user is allowed to see.
- * Built from ACTIVE_BRANDS, filtered by allowed_brands (RBAC), with an "All Brands" entry
- * prepended unless the user is restricted to a single brand.
+ * Sourced live from /api/brands → brands_v2 (filtered by allowed_brands RBAC),
+ * with an "All Brands" entry prepended unless the user is restricted to one brand.
+ *
+ * Falls back to an empty list while the brands fetch is in flight; consumers
+ * default to 'all' so dropdowns are still usable during the brief loading window.
  */
 function useBrandOptions() {
   const { allowedBrands } = useTenant();
+  const brands = useLiveBrands();
   return useMemo(() => {
-    const visibleSlugs = allowedBrands && allowedBrands.length > 0
-      ? ACTIVE_BRANDS.filter((b) => allowedBrands.includes(b))
-      : [...ACTIVE_BRANDS];
-    const opts = visibleSlugs.map((slug) => ({
-      value: slug,
-      label: BRAND_DISPLAY_NAMES[slug] ?? slug,
+    if (!brands) return [{ value: 'all', label: 'All Brands' }];
+    const visible = allowedBrands && allowedBrands.length > 0
+      ? brands.filter(b => allowedBrands.includes(b.slug))
+      : brands;
+    const opts = visible.map(b => ({
+      value: b.slug,
+      // Prefer the static display-name override (e.g. emoji-prefixed labels)
+      // when present; otherwise fall back to the canonical name from brands_v2.
+      label: BRAND_DISPLAY_NAMES[b.slug] ?? b.name,
     }));
-    if (visibleSlugs.length === 1) return opts; // Restricted to one brand → no "All"
+    if (visible.length === 1) return opts; // Restricted to one brand → no "All"
     return [{ value: 'all', label: 'All Brands' }, ...opts];
-  }, [allowedBrands]);
+  }, [allowedBrands, brands]);
 }
 
 // ── Main Page ───────────────────────────────────────────────────────
@@ -172,7 +211,7 @@ function AudienceSection({
   return (
     <section className="space-y-4">
       <div className="flex items-start gap-3">
-        <div className={cn('h-2 w-2 rounded-full mt-2.5', styles.dot)} />
+        <div aria-hidden="true" className={cn('h-2 w-2 rounded-full mt-2.5', styles.dot)} />
         <div>
           <div className={cn('text-[10px] font-bold uppercase tracking-[0.15em]', styles.eyebrow)}>{eyebrow}</div>
           <h2 className="text-xl font-bold text-[#1A1B3A] mt-0.5">{title}</h2>
@@ -209,7 +248,7 @@ function FreshnessBanner() {
     <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 flex items-start gap-3">
       <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
       <div className="text-xs text-amber-900">
-        <strong>Data is {state.daysOld} days old.</strong> Last upload processed: {dateLabel}.
+        <strong>Data is {state.daysOld} days old.</strong> Last upload processed: {dateLabel} (UTC).
         Reports below anchor to that date — period windows will show the most recent data available, not today's.
       </div>
     </div>
@@ -786,9 +825,13 @@ function ReportCard({
 
   const handleCopy = async () => {
     if (!text) return;
-    await navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setError('Copy failed — clipboard access blocked. Select and copy manually from the preview.');
+    }
   };
 
   return (
@@ -948,9 +991,13 @@ function PostCard({
 
   const handleCopy = async () => {
     if (!text) return;
-    await navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setError('Copy failed — clipboard access blocked. Select and copy manually from the preview.');
+    }
   };
 
   return (
@@ -1127,6 +1174,22 @@ function renderDiscordMarkdown(text: string, mentionMap: Record<string, string> 
   });
 }
 
+/**
+ * Reject anything that isn't a plain http/https URL. Stops the markdown link
+ * pattern from emitting `javascript:` or `data:` URLs even though the source
+ * text is generated by our own server — defence in depth in case future
+ * report content ever incorporates user-supplied strings.
+ */
+function safeHref(raw: string): string | null {
+  try {
+    const url = new URL(raw);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
 function parseInline(text: string, mentionMap: Record<string, string> = {}): React.ReactNode {
   const parts: (string | React.ReactElement)[] = [];
   let remaining = text;
@@ -1138,7 +1201,17 @@ function parseInline(text: string, mentionMap: Record<string, string> = {}): Rea
     const italicMatch = remaining.match(/^\*(.+?)\*/);
     if (italicMatch) { parts.push(<em key={key++} className="italic text-[#b9bbbe]">{italicMatch[1]}</em>); remaining = remaining.slice(italicMatch[0].length); continue; }
     const linkMatch = remaining.match(/^\[(.+?)\]\((.+?)\)/);
-    if (linkMatch) { parts.push(<a key={key++} href={linkMatch[2]} target="_blank" rel="noopener noreferrer" className="text-[#00AFF4] hover:underline">{linkMatch[1]}</a>); remaining = remaining.slice(linkMatch[0].length); continue; }
+    if (linkMatch) {
+      const href = safeHref(linkMatch[2]);
+      if (href) {
+        parts.push(<a key={key++} href={href} target="_blank" rel="noopener noreferrer" className="text-[#00AFF4] hover:underline">{linkMatch[1]}</a>);
+      } else {
+        // Render as plain text so we never emit a dangerous href.
+        parts.push(<span key={key++}>{linkMatch[1]}</span>);
+      }
+      remaining = remaining.slice(linkMatch[0].length);
+      continue;
+    }
     const mentionMatch = remaining.match(/^<@(\d+)>/);
     if (mentionMatch) { parts.push(<span key={key++} className="bg-[#5865F2]/20 text-[#dee0fc] rounded px-1">@{mentionMap[mentionMatch[1]] || 'user'}</span>); remaining = remaining.slice(mentionMatch[0].length); continue; }
     const nextSpecial = remaining.slice(1).search(/[\*\[<]/);

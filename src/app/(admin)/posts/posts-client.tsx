@@ -17,7 +17,7 @@
  * don't include it as a column. If we want shares, it's a column add to
  * daily_video_stats + an upload column-map update.
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Download, Eye, Heart, Loader2, MessageCircle, Search, ExternalLink,
 } from 'lucide-react';
@@ -27,7 +27,6 @@ import { BRAND_COLORS } from '@/lib/utils/constants';
 import { DateRangePicker } from '@/components/dashboard/date-range-picker';
 import { BrandFilter } from '@/components/creators/brand-filter';
 import { StatCard } from '@/components/dashboard/stat-card';
-import { useVideoPanel } from '@/components/video/video-panel-context';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
 
 interface PostRow {
@@ -65,6 +64,11 @@ interface PostsResponse {
 type SortKey = 'gmv' | 'views' | 'likes' | 'comments' | 'engagement_rate' | 'post_date' | 'creator_handle';
 type SortDir = 'asc' | 'desc';
 
+const SORT_KEYS: SortKey[] = ['gmv', 'views', 'likes', 'comments', 'engagement_rate', 'post_date', 'creator_handle'];
+function isSortKey(v: string | null): v is SortKey {
+  return v !== null && (SORT_KEYS as string[]).includes(v);
+}
+
 export function PostsClient({
   brands, selectedBrand, startDate, endDate, managedOnly,
 }: {
@@ -76,14 +80,36 @@ export function PostsClient({
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { openVideo } = useVideoPanel();
 
   const [data, setData] = useState<PostsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [search, setSearch] = useState('');
-  const [sortKey, setSortKey] = useState<SortKey>('gmv');
-  const [sortDir, setSortDir] = useState<SortDir>('desc');
+  // Initialize sort + search from URL so refreshes / shares preserve state.
+  const [search, setSearch] = useState(searchParams.get('q') ?? '');
+  const [sortKey, setSortKey] = useState<SortKey>(() => {
+    const fromUrl = searchParams.get('sort');
+    return isSortKey(fromUrl) ? fromUrl : 'gmv';
+  });
+  const [sortDir, setSortDir] = useState<SortDir>(() => {
+    return searchParams.get('dir') === 'asc' ? 'asc' : 'desc';
+  });
+
+  // Sync sort/search to URL (without re-triggering data fetch) — debounced
+  // for search so we're not pushing a history entry per keystroke.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const params = new URLSearchParams(searchParams.toString());
+      if (sortKey === 'gmv') params.delete('sort'); else params.set('sort', sortKey);
+      if (sortDir === 'desc') params.delete('dir'); else params.set('dir', sortDir);
+      if (!search) params.delete('q'); else params.set('q', search);
+      const next = params.toString();
+      const current = searchParams.toString();
+      if (next !== current) {
+        router.replace(next ? `?${next}` : '?', { scroll: false });
+      }
+    }, 250);
+    return () => clearTimeout(t);
+  }, [sortKey, sortDir, search, router, searchParams]);
 
   // Fetch on mount + whenever filters change
   useEffect(() => {
@@ -182,11 +208,6 @@ export function PostsClient({
 
   function handleRowClick(p: PostRow) {
     if (!p.video_id) return;
-    // Navigate to the per-post review page (with brand context).
-    // The `openVideo` panel is still imported and could be wired to a small
-    // inline preview button later if useful — for now, clicking a row goes
-    // straight to the review page where reviews + KPIs live together.
-    void openVideo;
     router.push(`/posts/${encodeURIComponent(p.video_id)}?brand=${encodeURIComponent(p.brand_slug)}`);
   }
 
@@ -239,15 +260,16 @@ export function PostsClient({
               {visiblePosts.length} of {data?.posts.length ?? 0}
             </span>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="relative">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="relative flex-1 sm:flex-initial">
               <Search className="h-3.5 w-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search title or creator..."
-                className="text-sm bg-white border border-gray-200 rounded-xl pl-8 pr-3 py-1.5 w-64 focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/20 focus:border-[#E91E8C]"
+                aria-label="Search posts"
+                className="text-sm bg-white border border-gray-200 rounded-xl pl-8 pr-3 py-1.5 w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/20 focus:border-[#E91E8C]"
               />
             </div>
             <button
@@ -316,7 +338,7 @@ function PostRowView({ post: p, onClick }: { post: PostRow; onClick: (p: PostRow
       </td>
       <td className="px-4 py-3 align-top">
         <span className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-600">
-          <span className="h-2 w-2 rounded-full" style={{ backgroundColor: brandColor }} />
+          <span aria-hidden="true" className="h-2 w-2 rounded-full" style={{ backgroundColor: brandColor }} />
           {p.brand_name}
         </span>
       </td>
