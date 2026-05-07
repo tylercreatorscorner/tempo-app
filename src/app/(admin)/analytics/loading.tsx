@@ -88,6 +88,24 @@ export default function AnalyticsLoading() {
         <div className="h-[280px] rounded bg-gradient-to-r from-gray-50 via-gray-100 to-gray-50 animate-pulse" />
       </div>
 
+      {/* Concentration card */}
+      <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-5">
+        <div className="space-y-1.5 mb-3">
+          <div className="h-4 w-44 rounded bg-gray-200 animate-pulse" />
+          <div className="h-3 w-64 rounded bg-gray-100 animate-pulse" />
+        </div>
+        <div className="h-3 w-full rounded-full bg-gray-100 animate-pulse mb-3" />
+        <div className="grid grid-cols-3 gap-2 sm:gap-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="rounded-xl bg-gray-50 px-3 py-2.5">
+              <div className="h-2.5 w-12 rounded bg-gray-200 animate-pulse mb-1" />
+              <div className="h-4 w-10 rounded bg-gray-200 animate-pulse mb-1" />
+              <div className="h-2.5 w-16 rounded bg-gray-100 animate-pulse" />
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* Brand Breakdown donut */}
       <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-5">
         <div className="space-y-1.5 mb-3">

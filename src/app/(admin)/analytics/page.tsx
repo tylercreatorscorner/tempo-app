@@ -15,6 +15,8 @@ import { PerformanceChart, type DailyMetrics } from '@/components/analytics/perf
 import { NotableChanges, type BrandChange, type CreatorBreakout, type HotPost, type TopProduct } from '@/components/analytics/notable-changes';
 import { BrandBreakdownDonut } from '@/components/analytics/brand-breakdown-donut';
 import { AnalyticsEmptyState } from '@/components/analytics/empty-state';
+import { PacingTile } from '@/components/analytics/pacing-tile';
+import { ConcentrationCard, type ConcentrationStats } from '@/components/analytics/concentration-card';
 import { StatCard } from '@/components/dashboard/stat-card';
 import { BRAND_DISPLAY_NAMES, BRAND_COLORS, HIDDEN_FROM_PICKER, expandBrandToDataSlugs } from '@/lib/utils/constants';
 import { pctChange } from '@/lib/utils/trend';
@@ -67,7 +69,7 @@ function dateRange(startDate: string, endDate: string): string[] {
 
 export default async function AnalyticsPage({ searchParams }: Props) {
   const params = await searchParams;
-  const { startDate, endDate } = resolveDateRange(params.range, params.start, params.end);
+  const { startDate, endDate, preset } = resolveDateRange(params.range, params.start, params.end);
   const { prevStart, prevEnd } = priorPeriod(startDate, endDate);
 
   const supabase = await createClient();
@@ -350,8 +352,55 @@ export default async function AnalyticsPage({ searchParams }: Props) {
     };
   })() : null;
 
+  // ─── Pacing — only for in-progress periods (today: just "thisMonth") ──────
+  // Linear projection: run-rate × period length. Skipped when the date range is
+  // already complete (last7, last30, lastMonth, custom ranges, etc.) because
+  // there's nothing to project — what you see is what you got.
+  const pacing = (() => {
+    if (preset !== 'thisMonth') return null;
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const daysElapsed = Math.max(1, Math.round((end.getTime() - start.getTime()) / 86400000) + 1);
+    // Period = full calendar month containing startDate
+    const monthStart = new Date(start.getFullYear(), start.getMonth(), 1);
+    const monthEnd   = new Date(start.getFullYear(), start.getMonth() + 1, 0); // last day of month
+    const periodLength = Math.round((monthEnd.getTime() - monthStart.getTime()) / 86400000) + 1;
+    if (daysElapsed >= periodLength) return null; // month is already over
+    return {
+      daysElapsed,
+      periodLength,
+      gmvToDate: totals.gmv,
+      periodLabel: monthStart.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+    };
+  })();
+
+  // ─── Creator concentration — Top 1 / 5 / 10 / 25 share of GMV ─────────────
+  // allCreators is already sorted GMV desc by the RPC. Just take prefix sums.
+  const cumGmv = (n: number) =>
+    allCreators.slice(0, n).reduce((s, c) => s + c.total_gmv, 0);
+  const concentrationStats: ConcentrationStats = {
+    totalCreators: allCreators.length,
+    totalGmv: totals.gmv,
+    top1Gmv:  cumGmv(1),
+    top5Gmv:  cumGmv(5),
+    top10Gmv: cumGmv(10),
+    top25Gmv: cumGmv(25),
+  };
+  // Hide the card when we don't have enough creators to make the framing meaningful
+  const showConcentration = allCreators.length >= 10 && totals.gmv > 0;
+
   return (
     <div className="space-y-6">
+      {/* Pacing tile — only shows on month-to-date views (in-progress period) */}
+      {pacing && (
+        <PacingTile
+          daysElapsed={pacing.daysElapsed}
+          periodLength={pacing.periodLength}
+          gmvToDate={pacing.gmvToDate}
+          periodLabel={pacing.periodLabel}
+        />
+      )}
+
       {/* Stale-data banner */}
       {isStale && latestRealDate && (
         <div className="rounded-2xl bg-amber-50 border border-amber-200 p-4 flex items-start gap-3">
@@ -488,6 +537,9 @@ export default async function AnalyticsPage({ searchParams }: Props) {
       {!brandFilter && brandBreakdown.length > 1 && (
         <BrandBreakdownDonut rows={brandBreakdown} />
       )}
+
+      {/* Creator concentration — surfaces "single-creator dependence" risk */}
+      {showConcentration && <ConcentrationCard stats={concentrationStats} />}
       </>
       )}
 
