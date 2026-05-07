@@ -125,6 +125,13 @@ export default async function AnalyticsPage({ searchParams }: Props) {
 
   // Single multi-brand call per period × per dataset — collapses the old
   // 5×N×3 fan-out (≈30+ round-trips for 5 brands) down to 10 RPCs flat.
+  // Errors are logged but swallowed so one failing RPC doesn't blank the page;
+  // empty arrays cascade into the empty-state at the bottom.
+  const logRpc = (name: string) => (err: unknown) => {
+    console.error(`[analytics] ${name} failed:`, err instanceof Error ? err.message : err);
+    return [] as never[];
+  };
+
   const [
     brandSummariesCur,
     brandSummariesPrev,
@@ -137,16 +144,16 @@ export default async function AnalyticsPage({ searchParams }: Props) {
     productsCur,
     productsPrev,
   ] = await Promise.all([
-    getAnalyticsBrandSummaries(BRAND_IDS, startDate, endDate).catch(() => []),
-    getAnalyticsBrandSummaries(BRAND_IDS, prevStart, prevEnd).catch(() => []),
-    getAnalyticsDailyTrend(BRAND_IDS, startDate, endDate).catch(() => []),
-    getAnalyticsDailyTrend(BRAND_IDS, prevStart, prevEnd).catch(() => []),
-    getAnalyticsDailyTrend(BRAND_IDS, yoy.start, yoy.end).catch(() => []),
-    getAnalyticsCreatorRankings(BRAND_IDS, startDate, endDate, 500).catch(() => []),
-    getAnalyticsCreatorRankings(BRAND_IDS, prevStart, prevEnd, 500).catch(() => []),
-    getAnalyticsVideos(BRAND_IDS, startDate, endDate, 200).catch(() => []),
-    getAnalyticsProducts(BRAND_IDS, startDate, endDate, 50).catch(() => []),
-    getAnalyticsProducts(BRAND_IDS, prevStart, prevEnd, 200).catch(() => []),
+    getAnalyticsBrandSummaries(BRAND_IDS, startDate, endDate).catch(logRpc('analytics_brand_summaries cur')),
+    getAnalyticsBrandSummaries(BRAND_IDS, prevStart, prevEnd).catch(logRpc('analytics_brand_summaries prev')),
+    getAnalyticsDailyTrend(BRAND_IDS, startDate, endDate).catch(logRpc('analytics_daily_trend cur')),
+    getAnalyticsDailyTrend(BRAND_IDS, prevStart, prevEnd).catch(logRpc('analytics_daily_trend prev')),
+    getAnalyticsDailyTrend(BRAND_IDS, yoy.start, yoy.end).catch(logRpc('analytics_daily_trend yoy')),
+    getAnalyticsCreatorRankings(BRAND_IDS, startDate, endDate, 500).catch(logRpc('analytics_creator_rankings cur')),
+    getAnalyticsCreatorRankings(BRAND_IDS, prevStart, prevEnd, 500).catch(logRpc('analytics_creator_rankings prev')),
+    getAnalyticsVideos(BRAND_IDS, startDate, endDate, 200).catch(logRpc('analytics_videos')),
+    getAnalyticsProducts(BRAND_IDS, startDate, endDate, 50).catch(logRpc('analytics_products cur')),
+    getAnalyticsProducts(BRAND_IDS, prevStart, prevEnd, 200).catch(logRpc('analytics_products prev')),
   ]);
 
   // Light-weight reshape so the rest of this page can stay slug-keyed while the
