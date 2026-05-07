@@ -31,38 +31,50 @@ function fmtLabel(dateStr: string) {
   return `${parseInt(m)}/${parseInt(d)}`;
 }
 
+type CompareMode = 'off' | 'prior' | 'yoy';
+
 interface Props {
   data: DailyMetrics[];
-  /** Optional prior-period series for the comparison overlay */
+  /** Optional prior-period series (immediately preceding range, same length) */
   priorData?: DailyMetrics[];
+  /** Optional same-period-last-year series (only passed if there's any non-zero data) */
+  yoyData?: DailyMetrics[];
   /** Override accent color (e.g. when filtered to a single brand) */
   accentColor?: string;
 }
 
-export function PerformanceChart({ data, priorData, accentColor }: Props) {
+export function PerformanceChart({ data, priorData, yoyData, accentColor }: Props) {
   const [metric, setMetric] = useState<Metric>('gmv');
-  const [compare, setCompare] = useState(false);
+  const [compare, setCompare] = useState<CompareMode>('off');
 
   const cfg = METRICS.find((m) => m.key === metric)!;
   const color = accentColor ?? cfg.color;
-
-  // Prior totals for the delta strip
-  const priorTotal = (priorData ?? []).reduce((sum, row) => sum + row[metric], 0);
 
   // Day total — useful single-day fallback display
   const total = data.reduce((sum, row) => sum + row[metric], 0);
 
   const categories = data.map((d) => fmtLabel(d.date));
   const values = data.map((d) => Number(d[metric].toFixed(2)));
-  // For comparison overlay: align prior data to current data positions by index
-  const priorValues = compare && priorData && priorData.length === data.length
-    ? priorData.map((d) => Number(d[metric].toFixed(2)))
-    : null;
 
-  const series = priorValues
+  // Comparison overlay aligns by index. Page.tsx zero-fills missing dates so
+  // current/prior/YoY all share the same length — here we just trim to be safe.
+  const overlay = (() => {
+    if (compare === 'prior' && priorData?.length) {
+      const trimmed = priorData.slice(0, data.length);
+      return { name: 'Prior period', values: trimmed.map((d) => Number(d[metric].toFixed(2))) };
+    }
+    if (compare === 'yoy' && yoyData?.length) {
+      const trimmed = yoyData.slice(0, data.length);
+      return { name: 'Same period last year', values: trimmed.map((d) => Number(d[metric].toFixed(2))) };
+    }
+    return null;
+  })();
+  const overlayTotal = overlay ? overlay.values.reduce((s, v) => s + v, 0) : null;
+
+  const series = overlay
     ? [
         { name: cfg.label, data: values, type: 'area' as const },
-        { name: 'Prior period', data: priorValues, type: 'line' as const },
+        { name: overlay.name, data: overlay.values, type: 'line' as const },
       ]
     : [{ name: cfg.label, data: values }];
 
@@ -74,19 +86,19 @@ export function PerformanceChart({ data, priorData, accentColor }: Props) {
       animations: { enabled: true, speed: 250 },
       sparkline: { enabled: false },
     },
-    stroke: { curve: 'smooth', width: priorValues ? [2.5, 1.5] : 2.5, dashArray: priorValues ? [0, 5] : undefined },
+    stroke: { curve: 'smooth', width: overlay ? [2.5, 1.5] : 2.5, dashArray: overlay ? [0, 5] : undefined },
     fill: {
-      type: priorValues ? ['gradient', 'solid'] : 'gradient',
+      type: overlay ? ['gradient', 'solid'] : 'gradient',
       gradient: {
         shadeIntensity: 1,
         opacityFrom: 0.35,
         opacityTo: 0.0,
         stops: [0, 100],
       },
-      opacity: priorValues ? [1, 0] : 1,
+      opacity: overlay ? [1, 0] : 1,
     },
-    colors: priorValues ? [color, '#9CA3AF'] : [color],
-    legend: priorValues ? { show: true, position: 'top', horizontalAlign: 'right' } : { show: false },
+    colors: overlay ? [color, '#9CA3AF'] : [color],
+    legend: overlay ? { show: true, position: 'top', horizontalAlign: 'right' } : { show: false },
     dataLabels: { enabled: false },
     grid: {
       borderColor: '#F3F4F6',
@@ -123,11 +135,16 @@ export function PerformanceChart({ data, priorData, accentColor }: Props) {
     },
   };
 
-  // % change vs prior period for the active metric
-  const priorDelta =
-    priorData && priorData.length > 0 && priorTotal > 0
-      ? ((total - priorTotal) / priorTotal) * 100
+  // % change vs the active overlay (prior period or YoY) for the active metric.
+  // Falls back to prior period whenever no overlay is selected so the badge keeps showing.
+  const fallbackPriorTotal = (priorData ?? []).reduce((s, r) => s + r[metric], 0);
+  const compareTotal = overlayTotal ?? (priorData?.length ? fallbackPriorTotal : null);
+  const compareDelta =
+    compareTotal && compareTotal > 0
+      ? ((total - compareTotal) / compareTotal) * 100
       : null;
+  const compareBadgeLabel =
+    compare === 'yoy' ? 'vs last year' : 'vs prior period';
 
   return (
     <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-5">
@@ -138,35 +155,44 @@ export function PerformanceChart({ data, priorData, accentColor }: Props) {
           <p className="text-xs text-gray-400 mt-0.5">
             Total in period:{' '}
             <span className="font-semibold text-[#1A1B3A] tabular-nums">{cfg.format(total)}</span>
-            {priorDelta !== null && (
+            {compareDelta !== null && (
               <span
                 className={cn(
                   'ml-2 inline-flex items-center px-1.5 py-0.5 rounded-md text-[11px] font-semibold',
-                  priorDelta >= 0 ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-500'
+                  compareDelta >= 0 ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-500'
                 )}
+                title={compareBadgeLabel}
               >
-                {priorDelta >= 0 ? '+' : ''}{priorDelta.toFixed(1)}%
+                {compareDelta >= 0 ? '+' : ''}{compareDelta.toFixed(1)}%
               </span>
             )}
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {/* Compare toggle */}
-          {priorData && priorData.length > 1 && (
-            <button
-              onClick={() => setCompare(c => !c)}
-              className={cn(
-                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors',
-                compare
-                  ? 'bg-[#1A1B3A] text-white border-[#1A1B3A]'
-                  : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
-              )}
-              title="Overlay prior period"
-            >
-              <span className="h-2 w-3 border-t-2 border-dashed border-current" />
-              Compare prior
-            </button>
+          {/* Compare toggle — segmented "off / prior / YoY" pill (YoY hidden when no data) */}
+          {(priorData?.length ?? 0) > 1 && (
+            <div className="flex gap-0.5 p-0.5 bg-gray-100 rounded-lg" role="group" aria-label="Compare overlay">
+              {([
+                { key: 'off',   label: 'No compare' },
+                { key: 'prior', label: 'Prior' },
+                ...(yoyData?.length ? [{ key: 'yoy' as const, label: 'YoY' }] : []),
+              ] as Array<{ key: CompareMode; label: string }>).map(({ key, label }) => (
+                <button
+                  key={key}
+                  onClick={() => setCompare(key)}
+                  className={cn(
+                    'px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors',
+                    compare === key
+                      ? 'bg-white text-[#1A1B3A] shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                  )}
+                  aria-pressed={compare === key}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           )}
 
           {/* Metric toggle */}

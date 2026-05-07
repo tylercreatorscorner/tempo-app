@@ -171,7 +171,7 @@ export async function generatePerformanceSummary(brand: string, period: ReportPe
         ? (v.video_title || 'Untitled').slice(0, 77) + '…'
         : (v.video_title || 'Untitled');
       lines.push(`${i + 1}. ${titleTrim}`);
-      lines.push(`   @${v.creator_name}${brandTag} — ${fmtCurrency(v.total_gmv)} · ${fmtNumber(v.total_views)} views`);
+      lines.push(`   @${v.creator_name}${brandTag} — ${fmtCurrency(v.total_gmv)} · ${fmtNumber(v.total_orders)} orders`);
     });
   }
 
@@ -331,7 +331,7 @@ export async function generateBrandReport(brand: string, period: ReportPeriod): 
         ? (v.video_title || 'Untitled').slice(0, 97) + '…'
         : (v.video_title || 'Untitled');
       lines.push(`${i + 1}. ${titleTrim}`);
-      lines.push(`   @${v.creator_name} — ${fmtCurrency(v.total_gmv)} · ${fmtNumber(v.total_views)} views · ${v.days_active} days active`);
+      lines.push(`   @${v.creator_name} — ${fmtCurrency(v.total_gmv)} · ${fmtNumber(v.total_orders)} orders · ${v.days_active} days active`);
     });
   }
   lines.push('');

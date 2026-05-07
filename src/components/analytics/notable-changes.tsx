@@ -161,10 +161,9 @@ export function NotableChanges({ brandRiser, brandFaller, creatorBreakout, hotPo
             iconBg="#FF6B3518"
             eyebrow="Hottest Post"
             title={hotPost.video_title}
-            subtitle={`@${hotPost.creator_name} · ${BRAND_DISPLAY_NAMES[hotPost.brand] ?? hotPost.brand}`}
-            valueLabel={`${hotPost.days_active}d live`}
+            subtitle={`@${hotPost.creator_name} · ${BRAND_DISPLAY_NAMES[hotPost.brand] ?? hotPost.brand} · ${hotPost.days_active}d live`}
+            valueLabel={`${formatCurrency(hotPost.velocity)}/day`}
             value={formatCurrency(hotPost.total_gmv)}
-            delta={hotPost.velocity > 0 ? Math.round((hotPost.velocity / Math.max(hotPost.total_gmv / Math.max(hotPost.days_active, 1), 1) - 1) * 100) : undefined}
           />
         )}
       </div>
