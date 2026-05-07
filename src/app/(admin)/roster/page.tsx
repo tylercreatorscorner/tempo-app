@@ -1758,6 +1758,65 @@ function RosterContent() {
         </div>
       )}
 
+      {/* ── Floating bulk-action bar ──
+          Appears when 1+ creators are selected. Sticky to the bottom
+          of the viewport so it's reachable while scrolling the table.
+          Click outside the bar still propagates to the table (rows stay
+          clickable). Selection persists within the visible page only;
+          the load effect drops out-of-view IDs. */}
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 px-4 py-3 rounded-2xl bg-[#1A1B3A] text-white shadow-2xl border border-[#1A1B3A]/20 max-w-[calc(100vw-2rem)]">
+          <span className="text-sm font-semibold whitespace-nowrap">
+            {selectedIds.size} selected
+          </span>
+          <span className="h-5 w-px bg-white/20" />
+          <button
+            onClick={exportSelectedCsv}
+            disabled={bulkUpdating}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/10 hover:bg-white/20 disabled:opacity-50 transition-colors"
+          >
+            <Download className="h-3.5 w-3.5" /> Export CSV
+          </button>
+          <div className="relative">
+            <button
+              onClick={() => setBulkStatusOpen((o) => !o)}
+              disabled={bulkUpdating}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/10 hover:bg-white/20 disabled:opacity-50 transition-colors"
+            >
+              {bulkUpdating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Pencil className="h-3.5 w-3.5" />}
+              {bulkUpdating ? 'Saving…' : 'Set status'}
+            </button>
+            {bulkStatusOpen && !bulkUpdating && (
+              <div className="absolute bottom-full mb-2 right-0 bg-white rounded-xl shadow-xl border border-gray-100 py-1 min-w-[140px] text-[#1A1B3A]">
+                {(['Active', 'On Hold', 'Churned', 'Inactive'] as const).map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => bulkChangeStatus(s)}
+                    className="block w-full text-left px-3 py-2 text-xs font-medium hover:bg-gray-50 transition-colors"
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          {bulkError && (
+            <span className="text-xs text-red-300 max-w-[200px] truncate" title={bulkError}>
+              {bulkError}
+            </span>
+          )}
+          <span className="h-5 w-px bg-white/20" />
+          <button
+            onClick={() => { setSelectedIds(new Set()); setBulkError(null); }}
+            disabled={bulkUpdating}
+            className="p-1.5 rounded-lg hover:bg-white/10 disabled:opacity-50 transition-colors"
+            aria-label="Clear selection"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
       {/* Creator detail panel — key forces remount when switching creators so form state is fresh */}
       {selectedCreator && (
         <CreatorPanel
