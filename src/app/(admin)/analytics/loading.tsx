@@ -49,25 +49,25 @@ export default function AnalyticsLoading() {
       {/* Brand filter pill row */}
       <div className="h-9 w-full rounded-full bg-gray-100 animate-pulse" />
 
-      {/* KPI strip — 6 placeholder cards (1 hero + 5 standard) */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-        <div className="rounded-2xl bg-gradient-to-br from-[#1A1B3A]/95 via-[#2D1B69]/95 to-[#1A1B3A]/95 p-5 col-span-2 sm:col-span-1">
+      {/* KPI strip — 7 placeholder cards (hero spans 2 cols + 6 standard) */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-4">
+        <div className="rounded-2xl bg-gradient-to-br from-[#1A1B3A]/95 via-[#2D1B69]/95 to-[#1A1B3A]/95 p-5 col-span-2 sm:col-span-2 lg:col-span-2">
           <div className="h-3 w-20 rounded bg-white/20 animate-pulse mb-2" />
           <div className="h-7 w-24 rounded bg-white/20 animate-pulse" />
         </div>
-        {Array.from({ length: 5 }).map((_, i) => (
+        {Array.from({ length: 6 }).map((_, i) => (
           <StatCardSkeleton key={i} />
         ))}
       </div>
 
-      {/* Notable Changes — 4 cards */}
+      {/* Notable Changes — 5 cards */}
       <div>
         <div className="flex items-center gap-2 mb-3">
           <div className="h-4 w-4 rounded bg-gray-200 animate-pulse" />
           <div className="h-3 w-32 rounded bg-gray-200 animate-pulse" />
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {Array.from({ length: 4 }).map((_, i) => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          {Array.from({ length: 5 }).map((_, i) => (
             <NotableCardSkeleton key={i} />
           ))}
         </div>
@@ -86,6 +86,24 @@ export default function AnalyticsLoading() {
           </div>
         </div>
         <div className="h-[280px] rounded bg-gradient-to-r from-gray-50 via-gray-100 to-gray-50 animate-pulse" />
+      </div>
+
+      {/* Concentration card */}
+      <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-5">
+        <div className="space-y-1.5 mb-3">
+          <div className="h-4 w-44 rounded bg-gray-200 animate-pulse" />
+          <div className="h-3 w-64 rounded bg-gray-100 animate-pulse" />
+        </div>
+        <div className="h-3 w-full rounded-full bg-gray-100 animate-pulse mb-3" />
+        <div className="grid grid-cols-3 gap-2 sm:gap-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="rounded-xl bg-gray-50 px-3 py-2.5">
+              <div className="h-2.5 w-12 rounded bg-gray-200 animate-pulse mb-1" />
+              <div className="h-4 w-10 rounded bg-gray-200 animate-pulse mb-1" />
+              <div className="h-2.5 w-16 rounded bg-gray-100 animate-pulse" />
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Brand Breakdown donut */}

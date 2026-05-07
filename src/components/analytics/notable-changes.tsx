@@ -1,6 +1,6 @@
 'use client';
 
-import { TrendingUp, TrendingDown, Sparkles, Flame } from 'lucide-react';
+import { TrendingUp, TrendingDown, Sparkles, Flame, Package } from 'lucide-react';
 import Link from 'next/link';
 import { formatCurrency } from '@/lib/utils/format';
 import { BRAND_COLORS, BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
@@ -32,11 +32,20 @@ export interface HotPost {
   velocity: number;
 }
 
+export interface TopProduct {
+  product_name: string;
+  brand: string;
+  current_gmv: number;
+  prior_gmv: number;
+  delta_pct: number;
+}
+
 interface Props {
   brandRiser?: BrandChange | null;
   brandFaller?: BrandChange | null;
   creatorBreakout?: CreatorBreakout | null;
   hotPost?: HotPost | null;
+  topProduct?: TopProduct | null;
 }
 
 function ChangeCard({
@@ -97,9 +106,9 @@ function ChangeCard({
   );
 }
 
-export function NotableChanges({ brandRiser, brandFaller, creatorBreakout, hotPost }: Props) {
+export function NotableChanges({ brandRiser, brandFaller, creatorBreakout, hotPost, topProduct }: Props) {
   // Don't render the section at all if there's nothing notable
-  if (!brandRiser && !brandFaller && !creatorBreakout && !hotPost) return null;
+  if (!brandRiser && !brandFaller && !creatorBreakout && !hotPost && !topProduct) return null;
 
   return (
     <div>
@@ -108,7 +117,7 @@ export function NotableChanges({ brandRiser, brandFaller, creatorBreakout, hotPo
         <h3 className="text-sm font-bold text-[#1A1B3A]">Notable Changes</h3>
         <span className="text-xs text-gray-400">vs prior period</span>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {brandRiser && (
           <ChangeCard
             icon={<TrendingUp className="h-3.5 w-3.5" />}
@@ -164,6 +173,20 @@ export function NotableChanges({ brandRiser, brandFaller, creatorBreakout, hotPo
             subtitle={`@${hotPost.creator_name} · ${BRAND_DISPLAY_NAMES[hotPost.brand] ?? hotPost.brand} · ${hotPost.days_active}d live`}
             valueLabel={`${formatCurrency(hotPost.velocity)}/day`}
             value={formatCurrency(hotPost.total_gmv)}
+          />
+        )}
+
+        {topProduct && (
+          <ChangeCard
+            icon={<Package className="h-3.5 w-3.5" />}
+            iconColor="#0EA5E9"
+            iconBg="#0EA5E918"
+            eyebrow="Top Product"
+            title={topProduct.product_name}
+            subtitle={BRAND_DISPLAY_NAMES[topProduct.brand] ?? topProduct.brand}
+            valueLabel="GMV"
+            value={formatCurrency(topProduct.current_gmv)}
+            delta={topProduct.prior_gmv > 0 ? topProduct.delta_pct : undefined}
           />
         )}
       </div>

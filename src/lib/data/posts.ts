@@ -99,12 +99,16 @@ export async function getPosts(opts: GetPostsOpts): Promise<PostsResult> {
   //       brand text slug.
   let brandQuery = supabase
     .from('brands_v2')
-    .select('slug, name')
+    .select('slug, name, is_umbrella')
     .eq('is_archived', false);
   if (brand) brandQuery = brandQuery.eq('slug', brand);
   const { data: brandsRaw } = await brandQuery;
-  const brands = (brandsRaw as Array<{ slug: string; name: string }> | null ?? [])
-    .filter(b => b.slug !== 'leefar');
+  // Exclude umbrella brands (e.g. Leefar with multiple TikTok shops) so
+  // their stats don't double-count alongside the child shops they cover.
+  // is_umbrella is the canonical flag on brands_v2 — replaces the old
+  // hardcoded `slug !== 'leefar'` check so any future umbrella auto-excludes.
+  const brands = (brandsRaw as Array<{ slug: string; name: string; is_umbrella: boolean | null }> | null ?? [])
+    .filter(b => !b.is_umbrella);
   if (brands.length === 0) {
     return {
       posts: [], startDate, endDate,

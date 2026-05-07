@@ -6,14 +6,19 @@ import {
   getAnalyticsCreatorRankings,
   getAnalyticsVideos,
   getAnalyticsDailyTrend,
+  getAnalyticsProducts,
 } from '@/lib/data/rpc';
 import { resolveDateRange } from '@/lib/data/date-utils';
 import { DateRangePicker } from '@/components/dashboard/date-range-picker';
 import { BrandFilter } from '@/components/creators/brand-filter';
 import { PerformanceChart, type DailyMetrics } from '@/components/analytics/performance-chart';
-import { NotableChanges, type BrandChange, type CreatorBreakout, type HotPost } from '@/components/analytics/notable-changes';
+import { NotableChanges, type BrandChange, type CreatorBreakout, type HotPost, type TopProduct } from '@/components/analytics/notable-changes';
 import { BrandBreakdownDonut } from '@/components/analytics/brand-breakdown-donut';
 import { AnalyticsEmptyState } from '@/components/analytics/empty-state';
+import { PacingTile } from '@/components/analytics/pacing-tile';
+import { ConcentrationCard, type ConcentrationStats } from '@/components/analytics/concentration-card';
+import { NarrativeCard } from '@/components/analytics/narrative-card';
+import type { NarrativeInput } from '@/lib/ai/analytics-narrative';
 import { StatCard } from '@/components/dashboard/stat-card';
 import { BRAND_DISPLAY_NAMES, BRAND_COLORS, HIDDEN_FROM_PICKER, expandBrandToDataSlugs } from '@/lib/utils/constants';
 import { pctChange } from '@/lib/utils/trend';
@@ -66,7 +71,7 @@ function dateRange(startDate: string, endDate: string): string[] {
 
 export default async function AnalyticsPage({ searchParams }: Props) {
   const params = await searchParams;
-  const { startDate, endDate } = resolveDateRange(params.range, params.start, params.end);
+  const { startDate, endDate, preset } = resolveDateRange(params.range, params.start, params.end);
   const { prevStart, prevEnd } = priorPeriod(startDate, endDate);
 
   const supabase = await createClient();
@@ -119,7 +124,7 @@ export default async function AnalyticsPage({ searchParams }: Props) {
   const yoy = yoyPeriod(startDate, endDate);
 
   // Single multi-brand call per period × per dataset — collapses the old
-  // 5×N×3 fan-out (≈30+ round-trips for 5 brands) down to 8 RPCs flat.
+  // 5×N×3 fan-out (≈30+ round-trips for 5 brands) down to 10 RPCs flat.
   const [
     brandSummariesCur,
     brandSummariesPrev,
@@ -129,6 +134,8 @@ export default async function AnalyticsPage({ searchParams }: Props) {
     creatorsCur,
     creatorsPrev,
     videosRaw,
+    productsCur,
+    productsPrev,
   ] = await Promise.all([
     getAnalyticsBrandSummaries(BRAND_IDS, startDate, endDate).catch(() => []),
     getAnalyticsBrandSummaries(BRAND_IDS, prevStart, prevEnd).catch(() => []),
@@ -138,6 +145,8 @@ export default async function AnalyticsPage({ searchParams }: Props) {
     getAnalyticsCreatorRankings(BRAND_IDS, startDate, endDate, 500).catch(() => []),
     getAnalyticsCreatorRankings(BRAND_IDS, prevStart, prevEnd, 500).catch(() => []),
     getAnalyticsVideos(BRAND_IDS, startDate, endDate, 200).catch(() => []),
+    getAnalyticsProducts(BRAND_IDS, startDate, endDate, 50).catch(() => []),
+    getAnalyticsProducts(BRAND_IDS, prevStart, prevEnd, 200).catch(() => []),
   ]);
 
   // Light-weight reshape so the rest of this page can stay slug-keyed while the
@@ -165,8 +174,24 @@ export default async function AnalyticsPage({ searchParams }: Props) {
     return acc;
   }, { gmv: 0, orders: 0, items: 0, videos: 0, creators: 0 });
 
-  const avgGmvPerVideo = totals.videos > 0 ? totals.gmv / totals.videos : 0;
-  const prevAvgGmvPerVideo = prevTotals.videos > 0 ? prevTotals.gmv / prevTotals.videos : 0;
+  // Per-order economics — answers "what's the basket math right now?"
+  const aov           = totals.orders > 0 ? totals.gmv   / totals.orders : 0;
+  const prevAov       = prevTotals.orders > 0 ? prevTotals.gmv   / prevTotals.orders : 0;
+  const itemsPerOrder = totals.orders > 0 ? totals.items / totals.orders : 0;
+  const prevItemsPerOrder = prevTotals.orders > 0 ? prevTotals.items / prevTotals.orders : 0;
+
+  // Managed-vs-unmanaged GMV split — agency-relevant. Sum only creators flagged
+  // is_managed via the (handle|brand_slug) lookup against managed_creators.
+  const managedGmv = creatorsCur.reduce(
+    (s, c) => s + (managedSet.has(`${norm(c.creator_name)}|||${c.brand_slug}`) ? c.total_gmv : 0),
+    0,
+  );
+  const prevManagedGmv = creatorsPrev.reduce(
+    (s, c) => s + (managedSet.has(`${norm(c.creator_name)}|||${c.brand_slug}`) ? c.total_gmv : 0),
+    0,
+  );
+  const managedShare     = totals.gmv > 0 ? (managedGmv     / totals.gmv)     * 100 : 0;
+  const prevManagedShare = prevTotals.gmv > 0 ? (prevManagedGmv / prevTotals.gmv) * 100 : 0;
 
   // Aggregate daily trend across brands — keep all 4 metrics for the multi-metric chart.
   // Zero-fills missing dates so current/prior/YoY series have identical length, which
@@ -307,8 +332,114 @@ export default async function AnalyticsPage({ searchParams }: Props) {
     }
   }
 
+  // Top product — best-selling product right now, with its delta vs prior period.
+  // analytics_products already returns sorted by GMV desc, so productsCur[0] is the
+  // top performer. We look up the same (brand, product_name) in the prior fetch
+  // for the comparison; if it didn't exist or had zero GMV, delta is unknown.
+  const topProductRow = productsCur[0] ?? null;
+  const topProduct: TopProduct | null = topProductRow ? (() => {
+    const priorRow = productsPrev.find(
+      p => p.brand_slug === topProductRow.brand_slug && p.product_name === topProductRow.product_name,
+    );
+    const priorGmv = priorRow?.total_gmv ?? 0;
+    const deltaPct = priorGmv === 0
+      ? (topProductRow.total_gmv > 0 ? 100 : 0)
+      : ((topProductRow.total_gmv - priorGmv) / priorGmv) * 100;
+    return {
+      product_name: topProductRow.product_name,
+      brand: topProductRow.brand_slug,
+      current_gmv: topProductRow.total_gmv,
+      prior_gmv: priorGmv,
+      delta_pct: deltaPct,
+    };
+  })() : null;
+
+  // ─── Pacing — only for in-progress periods (today: just "thisMonth") ──────
+  // Linear projection: run-rate × period length. Skipped when the date range is
+  // already complete (last7, last30, lastMonth, custom ranges, etc.) because
+  // there's nothing to project — what you see is what you got.
+  const pacing = (() => {
+    if (preset !== 'thisMonth') return null;
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const daysElapsed = Math.max(1, Math.round((end.getTime() - start.getTime()) / 86400000) + 1);
+    // Period = full calendar month containing startDate
+    const monthStart = new Date(start.getFullYear(), start.getMonth(), 1);
+    const monthEnd   = new Date(start.getFullYear(), start.getMonth() + 1, 0); // last day of month
+    const periodLength = Math.round((monthEnd.getTime() - monthStart.getTime()) / 86400000) + 1;
+    if (daysElapsed >= periodLength) return null; // month is already over
+    return {
+      daysElapsed,
+      periodLength,
+      gmvToDate: totals.gmv,
+      periodLabel: monthStart.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+    };
+  })();
+
+  // ─── Creator concentration — Top 1 / 5 / 10 / 25 share of GMV ─────────────
+  // allCreators is already sorted GMV desc by the RPC. Just take prefix sums.
+  const cumGmv = (n: number) =>
+    allCreators.slice(0, n).reduce((s, c) => s + c.total_gmv, 0);
+  const concentrationStats: ConcentrationStats = {
+    totalCreators: allCreators.length,
+    totalGmv: totals.gmv,
+    top1Gmv:  cumGmv(1),
+    top5Gmv:  cumGmv(5),
+    top10Gmv: cumGmv(10),
+    top25Gmv: cumGmv(25),
+  };
+  // Hide the card when we don't have enough creators to make the framing meaningful
+  const showConcentration = allCreators.length >= 10 && totals.gmv > 0;
+
+  // ─── Narrative input — packs the same numbers used elsewhere on the page
+  // into a small brief the LLM uses to write the period summary. Built here
+  // server-side so the client component just hands it back to the action. ──
+  const fmtRangeLabel = (s: string, e: string) =>
+    `${new Date(s).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${new Date(e).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+  const narrativeInput: NarrativeInput = {
+    periodLabel: fmtRangeLabel(startDate, endDate),
+    prevPeriodLabel: fmtRangeLabel(prevStart, prevEnd),
+    brandFilter,
+    totals: {
+      gmv: totals.gmv,
+      orders: totals.orders,
+      videos: totals.videos,
+      creators: totals.creators,
+      aov,
+      managedSharePct: managedShare,
+    },
+    prevTotals: {
+      gmv: prevTotals.gmv,
+      orders: prevTotals.orders,
+      videos: prevTotals.videos,
+      creators: prevTotals.creators,
+      aov: prevAov,
+      managedSharePct: prevManagedShare,
+    },
+    brandRiser: meaningfulRiser,
+    brandFaller: meaningfulFaller,
+    creatorBreakout,
+    hotPost,
+    topProduct,
+    concentration: showConcentration ? {
+      totalCreators: allCreators.length,
+      top1Pct:  totals.gmv > 0 ? (concentrationStats.top1Gmv  / totals.gmv) * 100 : 0,
+      top10Pct: totals.gmv > 0 ? (concentrationStats.top10Gmv / totals.gmv) * 100 : 0,
+    } : undefined,
+  };
+
   return (
     <div className="space-y-6">
+      {/* Pacing tile — only shows on month-to-date views (in-progress period) */}
+      {pacing && (
+        <PacingTile
+          daysElapsed={pacing.daysElapsed}
+          periodLength={pacing.periodLength}
+          gmvToDate={pacing.gmvToDate}
+          periodLabel={pacing.periodLabel}
+        />
+      )}
+
       {/* Stale-data banner */}
       {isStale && latestRealDate && (
         <div className="rounded-2xl bg-amber-50 border border-amber-200 p-4 flex items-start gap-3">
@@ -369,8 +500,12 @@ export default async function AnalyticsPage({ searchParams }: Props) {
         />
       ) : (
       <>
-      {/* KPI strip — sparklines on the 4 trended metrics give context at a glance */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+      {/* KPI strip — 7 cards (hero spans 2 cols). Trended metrics (GMV, Orders,
+          Videos) carry sparklines; derived ratios (AOV, Items/Order, Active
+          Creators, Managed Share) don't because they'd need a separate per-day
+          fetch. Items Sold + Avg GMV/Video dropped — AOV and Managed Share carry
+          more decision-making weight for an agency exec. */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-4">
         <StatCard
           label="Total GMV"
           value={formatCurrency(totals.gmv)}
@@ -378,7 +513,7 @@ export default async function AnalyticsPage({ searchParams }: Props) {
           trendLabel="vs prior period"
           sparklineData={aggregatedTrend.map(d => d.gmv)}
           hero
-          className="col-span-2 sm:col-span-1"
+          className="col-span-2 sm:col-span-2 lg:col-span-2"
         />
         <StatCard
           label="Orders"
@@ -388,11 +523,16 @@ export default async function AnalyticsPage({ searchParams }: Props) {
           sparklineData={aggregatedTrend.map(d => d.orders)}
         />
         <StatCard
-          label="Items Sold"
-          value={formatNumber(totals.items)}
-          trend={pctChange(totals.items, prevTotals.items)}
+          label="AOV"
+          value={totals.orders > 0 ? formatCurrency(aov) : '—'}
+          trend={pctChange(aov, prevAov)}
           trendLabel="vs prior period"
-          sparklineData={aggregatedTrend.map(d => d.items)}
+        />
+        <StatCard
+          label="Items / Order"
+          value={totals.orders > 0 ? itemsPerOrder.toFixed(2) : '—'}
+          trend={pctChange(itemsPerOrder, prevItemsPerOrder)}
+          trendLabel="vs prior period"
         />
         <StatCard
           label="Videos"
@@ -408,9 +548,9 @@ export default async function AnalyticsPage({ searchParams }: Props) {
           trendLabel="vs prior period"
         />
         <StatCard
-          label="Avg GMV / Video"
-          value={totals.videos > 0 ? formatCurrency(avgGmvPerVideo) : '—'}
-          trend={pctChange(avgGmvPerVideo, prevAvgGmvPerVideo)}
+          label="Managed Share"
+          value={totals.gmv > 0 ? `${managedShare.toFixed(0)}%` : '—'}
+          trend={pctChange(managedShare, prevManagedShare)}
           trendLabel="vs prior period"
         />
       </div>
@@ -421,7 +561,12 @@ export default async function AnalyticsPage({ searchParams }: Props) {
         brandFaller={meaningfulFaller}
         creatorBreakout={creatorBreakout}
         hotPost={hotPost}
+        topProduct={topProduct}
       />
+
+      {/* AI narrative — click-to-generate; never auto-runs to keep API spend
+          intentional. Pulls from the same numbers as the cards above. */}
+      <NarrativeCard input={narrativeInput} />
 
       {/* Performance Overview — multi-metric chart with prior-period and YoY compare toggles */}
       <PerformanceChart
@@ -435,6 +580,9 @@ export default async function AnalyticsPage({ searchParams }: Props) {
       {!brandFilter && brandBreakdown.length > 1 && (
         <BrandBreakdownDonut rows={brandBreakdown} />
       )}
+
+      {/* Creator concentration — surfaces "single-creator dependence" risk */}
+      {showConcentration && <ConcentrationCard stats={concentrationStats} />}
       </>
       )}
 

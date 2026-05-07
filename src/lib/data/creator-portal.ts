@@ -221,23 +221,6 @@ export async function loadCreatorPortalProfile(
 
 const PAGE = 1000;
 
-async function fetchAllPages<T>(
-  query: ReturnType<SupabaseClient['from']>['select'] extends (...args: any[]) => infer Q ? Q : never
-): Promise<T[]> {
-  const all: T[] = [];
-  let from = 0;
-  // Re-execute the query with range. Caller must pass a builder that supports range().
-  while (true) {
-    const { data, error } = await (query as any).range(from, from + PAGE - 1);
-    if (error) throw error;
-    if (!data || data.length === 0) break;
-    all.push(...(data as T[]));
-    if (data.length < PAGE) break;
-    from += PAGE;
-  }
-  return all;
-}
-
 async function paginated(
   supabase: SupabaseClient,
   table: string,
@@ -299,7 +282,7 @@ function brandFilter(brandSlug: string | null) {
 }
 
 function pctChange(curr: number, prior: number): number | null {
-  if (prior === 0) return curr === 0 ? null : null;
+  if (prior === 0) return null;
   return ((curr - prior) / prior) * 100;
 }
 

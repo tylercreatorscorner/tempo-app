@@ -3,17 +3,19 @@
 import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
-  UserPlus, Search, Users, DollarSign, UserCheck, X,
-  ChevronLeft, ChevronRight, ExternalLink, TrendingUp, Loader2,
+  UserPlus, Search, Users, UserCheck, X,
+  ChevronLeft, ChevronRight, ExternalLink, Loader2,
   UserX, Globe, Pencil, Check, Plus, Trash2, ArrowUp, ArrowDown, ArrowUpDown,
-  RefreshCcw,
+  RefreshCcw, AlertTriangle, MoonStar, TrendingDown, Download,
 } from 'lucide-react';
 import Link from 'next/link';
-import { BRAND_DISPLAY_NAMES, ACTIVE_BRANDS } from '@/lib/utils/constants';
+import { BRAND_DISPLAY_NAMES, BRAND_COLORS, ACTIVE_BRANDS } from '@/lib/utils/constants';
 import type { UniverseCreator } from '@/app/api/creators/universe/route';
 import { RenewalsTab } from '@/components/roster/renewals-tab';
 
 const PAGE_SIZE = 50;
+
+type CreatorHealth = 'healthy' | 'behind' | 'silent' | 'churned' | 'no_data';
 
 interface Creator {
   id: string;
@@ -31,6 +33,15 @@ interface Creator {
   account_3: string | null;
   account_4: string | null;
   account_5: string | null;
+  // ── Perf signals (added by /api/roster) ──
+  gmv_30d: number;
+  posts_this_month: number;
+  last_post_date: string | null;
+  health: CreatorHealth;
+  roi_30d: number | null;
+  // ── Messaging signals ──
+  last_message_at: string | null;
+  unread_count: number;
 }
 
 function getExtraAccounts(c: Creator): string[] {
@@ -55,6 +66,194 @@ function StatusBadge({ status }: { status: string | null }) {
       {status}
     </span>
   );
+}
+
+// ─── Perf-cell presentational helpers ─────────────────────────────────────
+//
+// These render the new performance columns on the Managed Roster table.
+// Health drives the row-level color story; the other helpers are about
+// fast scanning ("at a glance, is this creator on track?").
+
+function HealthBadge({ health }: { health: CreatorHealth }) {
+  const STYLE: Record<CreatorHealth, { label: string; cls: string }> = {
+    healthy: { label: 'Healthy', cls: 'bg-green-50 text-green-700 border-green-100' },
+    behind:  { label: 'Behind',  cls: 'bg-orange-50 text-orange-700 border-orange-100' },
+    silent:  { label: 'Silent',  cls: 'bg-red-50 text-red-700 border-red-100' },
+    churned: { label: 'Churned', cls: 'bg-gray-100 text-gray-500 border-gray-200' },
+    no_data: { label: '—',       cls: 'text-gray-300 border-transparent' },
+  };
+  const { label, cls } = STYLE[health];
+  return (
+    <span className={`inline-flex items-center text-[11px] font-semibold px-2 py-0.5 rounded-full border ${cls}`}>
+      {label}
+    </span>
+  );
+}
+
+function LastPostCell({ date }: { date: string | null }) {
+  if (!date) return <span className="text-gray-300">—</span>;
+  const ms = Date.now() - new Date(date + 'T00:00:00Z').getTime();
+  const days = Math.max(0, Math.floor(ms / (1000 * 60 * 60 * 24)));
+  const cls =
+    days >= 30 ? 'text-red-600 font-semibold'
+    : days >= 14 ? 'text-orange-600 font-semibold'
+    : days >= 7 ? 'text-gray-600'
+    : 'text-gray-400';
+  const label = days === 0 ? 'today' : days === 1 ? '1d ago' : `${days}d ago`;
+  return <span className={`text-xs ${cls}`}>{label}</span>;
+}
+
+function PostsProgressCell({ posts, target }: { posts: number; target: number }) {
+  if (!target) return <span className="text-xs text-gray-400">{posts || 0}</span>;
+  const pct = Math.min(1, posts / target);
+  // Pace expected at this point in the month — 10% slack.
+  const now = new Date();
+  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const expected = now.getDate() / lastDay;
+  const behind = pct < expected - 0.1;
+  const colorClass = behind ? 'text-orange-600 font-semibold' : posts >= target ? 'text-green-600 font-semibold' : 'text-gray-700';
+  const barColor = behind ? 'bg-orange-400' : posts >= target ? 'bg-green-400' : 'bg-gray-300';
+  return (
+    <div className="inline-flex flex-col items-center gap-0.5 min-w-[56px]">
+      <span className={`text-xs tabular-nums ${colorClass}`}>{posts}<span className="text-gray-300"> / {target}</span></span>
+      <div className="w-12 h-1 bg-gray-100 rounded-full overflow-hidden">
+        <div className={`h-full ${barColor}`} style={{ width: `${Math.round(pct * 100)}%` }} />
+      </div>
+    </div>
+  );
+}
+
+// Brand pill. Solid-fill in the brand color when active, soft chip when not.
+// All Brands ("all") gets a neutral treatment.
+function BrandPill({
+  slug, label, color, active, onClick,
+}: {
+  slug: string;
+  label: string;
+  color?: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  const isAll = slug === 'all';
+  if (active) {
+    return (
+      <button
+        onClick={onClick}
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold text-white shadow-sm"
+        style={{ backgroundColor: isAll ? '#1A1B3A' : (color ?? '#6B7280') }}
+      >
+        {label}
+      </button>
+    );
+  }
+  return (
+    <button
+      onClick={onClick}
+      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-colors"
+    >
+      {!isAll && (
+        <span
+          className="h-2 w-2 rounded-full inline-block"
+          style={{ backgroundColor: color ?? '#6B7280' }}
+        />
+      )}
+      {label}
+    </button>
+  );
+}
+
+// Action-oriented stat card. Clickable cards toggle a health filter on the
+// table; the active card gets a colored ring so the user always knows what
+// the table is filtered to.
+function StatCard({
+  icon, label, value, hint, tone = 'gray', active = false, onClick,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  hint?: string;
+  tone?: 'gray' | 'orange' | 'red' | 'purple';
+  active?: boolean;
+  onClick?: () => void;
+}) {
+  const TONE_RING: Record<string, string> = {
+    gray:   'ring-gray-200',
+    orange: 'ring-orange-300',
+    red:    'ring-red-300',
+    purple: 'ring-purple-300',
+  };
+  const TONE_VALUE: Record<string, string> = {
+    gray:   'text-[#1A1B3A]',
+    orange: 'text-orange-600',
+    red:    'text-red-600',
+    purple: 'text-purple-600',
+  };
+  const ringCls = active ? `ring-2 ${TONE_RING[tone]}` : 'ring-0';
+  const interactive = !!onClick;
+  const Wrapper = interactive ? 'button' : 'div';
+  return (
+    <Wrapper
+      onClick={onClick}
+      className={`text-left rounded-2xl bg-white border border-gray-100 shadow-sm p-5 transition-all ${ringCls} ${interactive ? 'cursor-pointer hover:border-gray-200 hover:shadow' : ''}`}
+    >
+      <div className="flex items-center gap-2 mb-2">
+        {icon}
+        <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">{label}</p>
+      </div>
+      <p className={`text-2xl font-extrabold ${TONE_VALUE[tone]}`}>{value}</p>
+      {hint && <p className="text-[11px] text-gray-400 mt-0.5">{hint}</p>}
+    </Wrapper>
+  );
+}
+
+// "Last DM" cell. Shows relative time + a red unread badge when there are
+// unanswered inbound messages. Renders an em-dash when the creator has no
+// linked discord identity yet OR has never been contacted.
+function LastDmCell({ at, unread }: { at: string | null; unread: number }) {
+  if (!at) {
+    if (unread > 0) {
+      // Edge case: unread without timestamp — still surface the unread badge.
+      return (
+        <span className="inline-flex items-center gap-1.5 text-xs">
+          <span className="text-gray-300">—</span>
+          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-500 text-white">
+            {unread}
+          </span>
+        </span>
+      );
+    }
+    return <span className="text-gray-300">—</span>;
+  }
+  const ms = Date.now() - new Date(at).getTime();
+  const days = Math.max(0, Math.floor(ms / (1000 * 60 * 60 * 24)));
+  const hours = Math.floor(ms / (1000 * 60 * 60));
+  const label =
+    hours < 1 ? 'just now'
+    : hours < 24 ? `${hours}h ago`
+    : days === 1 ? '1d ago'
+    : days < 30 ? `${days}d ago`
+    : days < 365 ? `${Math.floor(days / 30)}mo ago`
+    : `${Math.floor(days / 365)}y ago`;
+  return (
+    <span className="inline-flex items-center gap-1.5 text-xs text-gray-600 tabular-nums">
+      {label}
+      {unread > 0 && (
+        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-500 text-white" title={`${unread} unread inbound`}>
+          {unread}
+        </span>
+      )}
+    </span>
+  );
+}
+
+function RoiCell({ roi }: { roi: number | null }) {
+  if (roi === null) return <span className="text-xs text-gray-300">—</span>;
+  const cls =
+    roi >= 2 ? 'text-green-700 font-semibold'
+    : roi >= 1 ? 'text-green-600'
+    : roi >= 0.5 ? 'text-orange-600'
+    : 'text-red-600 font-semibold';
+  return <span className={`text-xs tabular-nums ${cls}`}>{roi.toFixed(1)}×</span>;
 }
 
 function ExtraAccountsBadge({ creator }: { creator: Creator }) {
@@ -978,26 +1177,55 @@ function AllCreatorsTab({
 
 function RosterContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const brand = searchParams.get('brand') || 'all';
   const showBrandColumn = brand === 'all';
+
+  // Update the ?brand= URL param. Pills below + the global sidebar selector
+  // both write through this so they stay in sync.
+  const setBrand = (next: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (next === 'all') params.delete('brand');
+    else params.set('brand', next);
+    const qs = params.toString();
+    router.push(qs ? `?${qs}` : '?');
+  };
 
   const [activeTab, setActiveTab] = useState<'roster' | 'all' | 'renewals'>('roster');
   const [roster, setRoster] = useState<Creator[]>([]);
   const [total, setTotal] = useState(0);
-  const [totalRetainer, setTotalRetainer] = useState(0);
-  const [activeCount, setActiveCount] = useState(0);
-  const [onRetainerCount, setOnRetainerCount] = useState(0);
+  // Action-oriented aggregates (drive the new stat cards)
+  const [behindCount, setBehindCount]   = useState(0);
+  const [silentCount, setSilentCount]   = useState(0);
+  const [healthyCount, setHealthyCount] = useState(0);
+  const [lowRoiCount, setLowRoiCount]   = useState(0);
+  const [unreadDms, setUnreadDms]       = useState(0);
+  // Bulk-action selection. Holds managed_creators.id values across pages.
+  // Cleared on filter/brand changes since the visible set has changed.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkStatusOpen, setBulkStatusOpen] = useState(false);
+  const [bulkUpdating, setBulkUpdating] = useState(false);
+  const [bulkError, setBulkError] = useState<string | null>(null);
+  // Total managed (count of all matching rows, regardless of health filter).
+  // The /api/roster `total` field reflects the *filtered* set, so we keep a
+  // separate count of the unfiltered roster for the "Total managed" card.
+  const [unfilteredTotal, setUnfilteredTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  type HealthFilter = 'all' | 'behind' | 'silent' | 'low_roi' | 'healthy';
+  const [healthFilter, setHealthFilter] = useState<HealthFilter>('all');
   const [selectedCreator, setSelectedCreator] = useState<Creator | null>(null);
   const [page, setPage] = useState(1);
   const [addModalPrefill, setAddModalPrefill] = useState<{ account_1?: string; brand?: string } | null>(null);
   const [allCreatorsRefreshKey, setAllCreatorsRefreshKey] = useState(0);
 
   // Sort state for the Managed Roster table
-  type RosterSortCol = 'retainer' | 'real_name' | 'monthly_post_requirement' | 'created_at' | 'status';
+  type RosterSortCol =
+    | 'retainer' | 'real_name' | 'monthly_post_requirement' | 'created_at' | 'status'
+    | 'gmv_30d' | 'posts_this_month' | 'last_post_date' | 'health' | 'roi_30d'
+    | 'last_message_at' | 'unread_count';
   const [sortBy, setSortBy] = useState<RosterSortCol>('retainer');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const toggleSort = (col: RosterSortCol) => {
@@ -1029,35 +1257,160 @@ function RosterContent() {
       });
       if (brand && brand !== 'all') params.set('brand', brand);
       if (statusFilter !== 'all') params.set('status', statusFilter);
+      if (healthFilter !== 'all') params.set('health', healthFilter);
       if (search) params.set('search', search);
 
       const res = await fetch(`/api/roster?${params}`);
       const json = await res.json();
       setRoster(json.data || []);
       setTotal(json.total || 0);
-      setTotalRetainer(json.total_retainer || 0);
-      setActiveCount(json.active_count ?? 0);
-      setOnRetainerCount(json.on_retainer_count ?? 0);
+      setBehindCount(json.behind_count ?? 0);
+      setSilentCount(json.silent_count ?? 0);
+      setHealthyCount(json.healthy_count ?? 0);
+      setLowRoiCount(json.low_roi_count ?? 0);
+      setUnreadDms(json.unread_dms_total ?? 0);
+      // The "Total managed" card should always reflect the unfiltered count.
+      // The API's `total` is post-health-filter; sum the four health buckets
+      // plus any not yet captured (churned, no_data) to reconstruct the total.
+      // Easiest accurate read: when health filter is off, `total` is the truth;
+      // otherwise carry the previously-known total.
+      if (healthFilter === 'all') setUnfilteredTotal(json.total || 0);
     } catch (err) {
       console.error('Failed to fetch roster:', err);
     } finally {
       setLoading(false);
     }
-  }, [brand, statusFilter, search, page, sortBy, sortDir]);
+  }, [brand, statusFilter, healthFilter, search, page, sortBy, sortDir]);
 
   useEffect(() => {
     fetchRoster();
   }, [fetchRoster]);
 
-  // Reset page + status filter when brand changes
-  useEffect(() => { setPage(1); setStatusFilter('all'); setSearchInput(''); }, [brand]);
-  // Reset page when status filter or sort changes
-  useEffect(() => { setPage(1); }, [statusFilter, sortBy, sortDir]);
+  // Reset page + status/health filters when brand changes
+  useEffect(() => {
+    setPage(1);
+    setStatusFilter('all');
+    setHealthFilter('all');
+    setSearchInput('');
+    setSelectedIds(new Set());
+  }, [brand]);
+  // Reset page when status/health filter or sort changes
+  useEffect(() => { setPage(1); }, [statusFilter, healthFilter, sortBy, sortDir]);
+  // Drop selections that have left the visible set (e.g. after a filter change).
+  useEffect(() => {
+    setSelectedIds((prev) => {
+      if (prev.size === 0) return prev;
+      const visibleIds = new Set(roster.map((c) => c.id));
+      const next = new Set<string>();
+      for (const id of prev) if (visibleIds.has(id)) next.add(id);
+      return next.size === prev.size ? prev : next;
+    });
+  }, [roster]);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const fmt = (n: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(n);
+
+  // ── Bulk-action helpers ───────────────────────────────────────────────
+  // Both operate on `selectedIds`. CSV export is client-side only; status
+  // change fires N parallel PATCH calls and refreshes the roster on
+  // completion.
+
+  const csvEscape = (v: unknown): string => {
+    if (v === null || v === undefined) return '';
+    const s = String(v);
+    if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+    return s;
+  };
+
+  const exportSelectedCsv = () => {
+    const rows = roster.filter((c) => selectedIds.has(c.id));
+    if (rows.length === 0) return;
+    const header = [
+      'Name', 'Handle', 'Brand', 'Status', 'Health',
+      'Retainer', 'Posts (this month)', 'Posts target',
+      'Last post', 'Last DM', 'GMV (30d)', 'ROI (30d)', 'Unread DMs',
+    ];
+    const body = rows.map((c) => [
+      c.real_name ?? '',
+      c.account_1 ?? '',
+      c.brand ? (BRAND_DISPLAY_NAMES[c.brand] ?? c.brand) : '',
+      c.status ?? '',
+      c.health,
+      c.retainer ?? 0,
+      c.posts_this_month ?? 0,
+      c.monthly_post_requirement ?? 0,
+      c.last_post_date ?? '',
+      c.last_message_at ?? '',
+      Math.round(c.gmv_30d ?? 0),
+      c.roi_30d !== null ? c.roi_30d.toFixed(2) : '',
+      c.unread_count ?? 0,
+    ]);
+    const csv = [header, ...body].map((r) => r.map(csvEscape).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `my-creators-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const bulkChangeStatus = async (newStatus: string) => {
+    if (selectedIds.size === 0) return;
+    setBulkUpdating(true);
+    setBulkError(null);
+    setBulkStatusOpen(false);
+    try {
+      const ids = Array.from(selectedIds);
+      const results = await Promise.allSettled(
+        ids.map((id) =>
+          fetch(`/api/roster/${id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: newStatus }),
+          }),
+        ),
+      );
+      const failed = results.filter((r) => r.status === 'rejected' || (r.status === 'fulfilled' && !(r.value as Response).ok)).length;
+      if (failed > 0) {
+        setBulkError(`${failed} of ${ids.length} updates failed. Refresh and retry the failed rows.`);
+      }
+      setSelectedIds(new Set());
+      fetchRoster();
+    } catch (e) {
+      setBulkError(e instanceof Error ? e.message : 'Bulk update failed');
+    } finally {
+      setBulkUpdating(false);
+    }
+  };
+
+  // Header checkbox state — derived, not stored. "Indeterminate" reflects
+  // partial selection on the visible page.
+  const visibleIds = roster.map((c) => c.id);
+  const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id));
+  const someVisibleSelected = !allVisibleSelected && visibleIds.some((id) => selectedIds.has(id));
+  const toggleAllVisible = () => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allVisibleSelected) {
+        for (const id of visibleIds) next.delete(id);
+      } else {
+        for (const id of visibleIds) next.add(id);
+      }
+      return next;
+    });
+  };
+  const toggleOne = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
 
   const brandDisplayName = brand !== 'all' ? (BRAND_DISPLAY_NAMES[brand] || brand.replace(/_/g, ' ')) : '';
 
@@ -1078,6 +1431,28 @@ function RosterContent() {
           <UserPlus className="h-4 w-4" />
           Add Creator
         </button>
+      </div>
+
+      {/* Brand pill row — quick filter, mirrors the ?brand= URL param.
+          Lets the manager scan brand-by-brand health in one click rather
+          than going through the global sidebar dropdown each time. */}
+      <div className="flex flex-wrap gap-2 items-center">
+        <BrandPill
+          slug="all"
+          label="All brands"
+          active={brand === 'all'}
+          onClick={() => setBrand('all')}
+        />
+        {ACTIVE_BRANDS.map((b) => (
+          <BrandPill
+            key={b}
+            slug={b}
+            label={BRAND_DISPLAY_NAMES[b] ?? b}
+            color={BRAND_COLORS[b]}
+            active={brand === b}
+            onClick={() => setBrand(b)}
+          />
+        ))}
       </div>
 
       {/* Tab toggle */}
@@ -1123,24 +1498,76 @@ function RosterContent() {
       )}
 
       {/* Managed Roster tab content */}
-      {activeTab === 'roster' && (<><div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {loading && roster.length === 0
-          ? Array.from({ length: 4 }).map((_, i) => <SkeletonStatCard key={i} />)
-          : [
-              { icon: <Users className="h-4 w-4 text-gray-400" />, label: 'Total Creators', value: total.toLocaleString() },
-              { icon: <DollarSign className="h-4 w-4 text-[#E91E8C]" />, label: 'Monthly Retainer', value: fmt(totalRetainer) },
-              { icon: <UserCheck className="h-4 w-4 text-green-500" />, label: 'Active', value: activeCount.toLocaleString() },
-              { icon: <TrendingUp className="h-4 w-4 text-blue-400" />, label: 'On Retainer', value: onRetainerCount.toLocaleString() },
-            ].map(({ icon, label, value }) => (
-              <div key={label} className="rounded-2xl bg-white border border-gray-100 shadow-sm p-5">
-                <div className="flex items-center gap-2 mb-2">
-                  {icon}
-                  <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">{label}</p>
-                </div>
-                <p className="text-2xl font-extrabold text-[#1A1B3A]">{value}</p>
-              </div>
-            ))}
+      {activeTab === 'roster' && (<>
+      {/* ── Action-oriented stat cards ──
+          Each card except "Total managed" toggles a health filter on click,
+          turning the cards into a triage triage strip. When a card is active,
+          it gets a colored ring + the underlying table is filtered to that
+          health cohort. Re-clicking the active card clears the filter. */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {loading && roster.length === 0 ? (
+          Array.from({ length: 4 }).map((_, i) => <SkeletonStatCard key={i} />)
+        ) : (
+          <>
+            <StatCard
+              icon={<Users className="h-4 w-4 text-gray-400" />}
+              label="Total managed"
+              value={(unfilteredTotal || total).toLocaleString()}
+              hint="creators on your roster"
+            />
+            <StatCard
+              icon={<TrendingDown className="h-4 w-4 text-orange-500" />}
+              label="Behind quota"
+              value={behindCount.toLocaleString()}
+              hint="below pace this month"
+              tone="orange"
+              active={healthFilter === 'behind'}
+              onClick={() => setHealthFilter(healthFilter === 'behind' ? 'all' : 'behind')}
+            />
+            <StatCard
+              icon={<MoonStar className="h-4 w-4 text-red-500" />}
+              label="Silent 14d+"
+              value={silentCount.toLocaleString()}
+              hint="no post in 2 weeks"
+              tone="red"
+              active={healthFilter === 'silent'}
+              onClick={() => setHealthFilter(healthFilter === 'silent' ? 'all' : 'silent')}
+            />
+            <StatCard
+              icon={<AlertTriangle className="h-4 w-4 text-purple-500" />}
+              label="ROI < 1.0×"
+              value={lowRoiCount.toLocaleString()}
+              hint="GMV(30d) < retainer"
+              tone="purple"
+              active={healthFilter === 'low_roi'}
+              onClick={() => setHealthFilter(healthFilter === 'low_roi' ? 'all' : 'low_roi')}
+            />
+          </>
+        )}
       </div>
+      {/* Healthy count is shown as a small status row when no filter active —
+          gives the manager a positive baseline without taking up a card slot. */}
+      {healthFilter === 'all' && !loading && (unfilteredTotal || total) > 0 && (
+        <p className="text-xs text-gray-400 -mt-2">
+          <span className="text-green-600 font-semibold">{healthyCount.toLocaleString()}</span>{' '}
+          healthy of {(unfilteredTotal || total).toLocaleString()} managed
+          {unreadDms > 0 && (
+            <>
+              {' · '}
+              <span className="text-red-600 font-semibold">{unreadDms.toLocaleString()}</span>{' '}
+              unread inbound DM{unreadDms === 1 ? '' : 's'}
+            </>
+          )}
+        </p>
+      )}
+      {healthFilter !== 'all' && (
+        <button
+          onClick={() => setHealthFilter('all')}
+          className="text-xs text-[#E91E8C] hover:underline -mt-2 inline-flex items-center gap-1"
+        >
+          <X className="h-3 w-3" /> Clear filter
+        </button>
+      )}
 
       {/* Search + Filter */}
       <div className="flex flex-col sm:flex-row gap-3">
@@ -1182,6 +1609,16 @@ function RosterContent() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50/60">
+                  <th className="px-3 py-3.5 w-10">
+                    <input
+                      type="checkbox"
+                      aria-label="Select all visible"
+                      checked={allVisibleSelected}
+                      ref={(el) => { if (el) el.indeterminate = someVisibleSelected; }}
+                      onChange={toggleAllVisible}
+                      className="h-4 w-4 rounded border-gray-300 text-[#E91E8C] focus:ring-[#E91E8C]/30 cursor-pointer"
+                    />
+                  </th>
                   <th className="text-left px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
                     <button onClick={() => toggleSort('real_name')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors">
                       Name <SortIcon col="real_name" />
@@ -1189,27 +1626,46 @@ function RosterContent() {
                   </th>
                   <th className="text-left px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">Handle</th>
                   {showBrandColumn && <th className="text-left px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">Brand</th>}
-                  <th className="text-left px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">Discord</th>
                   <th className="text-right px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
                     <button onClick={() => toggleSort('retainer')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors">
                       Retainer <SortIcon col="retainer" />
                     </button>
                   </th>
                   <th className="text-center px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
-                    <button onClick={() => toggleSort('monthly_post_requirement')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors mx-auto">
-                      Posts/Mo <SortIcon col="monthly_post_requirement" />
+                    <button onClick={() => toggleSort('posts_this_month')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors mx-auto">
+                      Posts <SortIcon col="posts_this_month" />
+                    </button>
+                  </th>
+                  <th className="text-left px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
+                    <button onClick={() => toggleSort('last_post_date')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors">
+                      Last post <SortIcon col="last_post_date" />
+                    </button>
+                  </th>
+                  <th className="text-right px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
+                    <button onClick={() => toggleSort('gmv_30d')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors">
+                      GMV (30d) <SortIcon col="gmv_30d" />
+                    </button>
+                  </th>
+                  <th className="text-right px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
+                    <button onClick={() => toggleSort('roi_30d')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors">
+                      ROI <SortIcon col="roi_30d" />
+                    </button>
+                  </th>
+                  <th className="text-left px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
+                    <button onClick={() => toggleSort('last_message_at')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors">
+                      Last DM <SortIcon col="last_message_at" />
                     </button>
                   </th>
                   <th className="text-center px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
-                    <button onClick={() => toggleSort('status')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors mx-auto">
-                      Status <SortIcon col="status" />
+                    <button onClick={() => toggleSort('health')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors mx-auto">
+                      Health <SortIcon col="health" />
                     </button>
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {loading && roster.length === 0 && Array.from({ length: 8 }).map((_, i) => (
-                  <SkeletonRow key={i} cols={showBrandColumn ? 7 : 6} />
+                  <SkeletonRow key={i} cols={showBrandColumn ? 10 : 9} />
                 ))}
                 {!loading && roster.map((c) => (
                   <tr
@@ -1243,29 +1699,33 @@ function RosterContent() {
                         </span>
                       </td>
                     )}
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center gap-2">
-                        {c.discord_avatar && (
-                          <img
-                            src={c.discord_avatar}
-                            alt=""
-                            className="h-6 w-6 rounded-full flex-shrink-0"
-                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                          />
-                        )}
-                        <span className="text-xs text-gray-500">{c.discord_name || <span className="text-gray-300">—</span>}</span>
-                      </div>
-                    </td>
                     <td className="px-5 py-3.5 text-right font-semibold text-[#1A1B3A]">
                       {(c.retainer || 0) > 0
                         ? fmt(c.retainer!)
                         : <span className="text-gray-300 font-normal">—</span>}
                     </td>
-                    <td className="px-5 py-3.5 text-center text-gray-600 text-sm">
-                      {c.monthly_post_requirement || 30}
+                    <td className="px-5 py-3.5 text-center">
+                      <PostsProgressCell
+                        posts={c.posts_this_month ?? 0}
+                        target={c.monthly_post_requirement ?? 0}
+                      />
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <LastPostCell date={c.last_post_date} />
+                    </td>
+                    <td className="px-5 py-3.5 text-right tabular-nums">
+                      {(c.gmv_30d || 0) > 0
+                        ? <span className="text-[#1A1B3A] font-semibold">{fmt(c.gmv_30d)}</span>
+                        : <span className="text-gray-300">—</span>}
+                    </td>
+                    <td className="px-5 py-3.5 text-right">
+                      <RoiCell roi={c.roi_30d} />
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <LastDmCell at={c.last_message_at} unread={c.unread_count} />
                     </td>
                     <td className="px-5 py-3.5 text-center">
-                      <StatusBadge status={c.status} />
+                      <HealthBadge health={c.health} />
                     </td>
                   </tr>
                 ))}
@@ -1295,6 +1755,65 @@ function RosterContent() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── Floating bulk-action bar ──
+          Appears when 1+ creators are selected. Sticky to the bottom
+          of the viewport so it's reachable while scrolling the table.
+          Click outside the bar still propagates to the table (rows stay
+          clickable). Selection persists within the visible page only;
+          the load effect drops out-of-view IDs. */}
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 px-4 py-3 rounded-2xl bg-[#1A1B3A] text-white shadow-2xl border border-[#1A1B3A]/20 max-w-[calc(100vw-2rem)]">
+          <span className="text-sm font-semibold whitespace-nowrap">
+            {selectedIds.size} selected
+          </span>
+          <span className="h-5 w-px bg-white/20" />
+          <button
+            onClick={exportSelectedCsv}
+            disabled={bulkUpdating}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/10 hover:bg-white/20 disabled:opacity-50 transition-colors"
+          >
+            <Download className="h-3.5 w-3.5" /> Export CSV
+          </button>
+          <div className="relative">
+            <button
+              onClick={() => setBulkStatusOpen((o) => !o)}
+              disabled={bulkUpdating}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/10 hover:bg-white/20 disabled:opacity-50 transition-colors"
+            >
+              {bulkUpdating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Pencil className="h-3.5 w-3.5" />}
+              {bulkUpdating ? 'Saving…' : 'Set status'}
+            </button>
+            {bulkStatusOpen && !bulkUpdating && (
+              <div className="absolute bottom-full mb-2 right-0 bg-white rounded-xl shadow-xl border border-gray-100 py-1 min-w-[140px] text-[#1A1B3A]">
+                {(['Active', 'On Hold', 'Churned', 'Inactive'] as const).map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => bulkChangeStatus(s)}
+                    className="block w-full text-left px-3 py-2 text-xs font-medium hover:bg-gray-50 transition-colors"
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          {bulkError && (
+            <span className="text-xs text-red-300 max-w-[200px] truncate" title={bulkError}>
+              {bulkError}
+            </span>
+          )}
+          <span className="h-5 w-px bg-white/20" />
+          <button
+            onClick={() => { setSelectedIds(new Set()); setBulkError(null); }}
+            disabled={bulkUpdating}
+            className="p-1.5 rounded-lg hover:bg-white/10 disabled:opacity-50 transition-colors"
+            aria-label="Clear selection"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
       )}
 

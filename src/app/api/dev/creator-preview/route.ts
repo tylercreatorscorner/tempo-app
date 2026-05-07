@@ -205,7 +205,6 @@ ${withoutData.map(renderRow).join('\n')}
   await setCreatorSession({
     creatorId: creator.id as unknown as number,
     email: creator.email ?? '',
-    tenantId: '',
   });
 
   // Marker cookie so getCreatorProfile() uses the admin client to bypass RLS

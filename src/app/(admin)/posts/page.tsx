@@ -19,16 +19,18 @@ export default async function PostsPage({ searchParams }: Props) {
   const { startDate, endDate } = resolveDateRange(params.range, params.start, params.end);
 
   // Pull active brands dynamically so the filter pills stay in sync with
-  // brands_v2 (no hardcoded list).
+  // brands_v2 (no hardcoded list). Umbrella brands are excluded so their
+  // stats don't double-count alongside their child shops — `is_umbrella`
+  // is the canonical flag (replaces the old hardcoded `slug !== 'leefar'`).
   const supabase = await createAdminClient();
   const { data: dbBrands } = await supabase
     .from('brands_v2')
-    .select('slug')
+    .select('slug, is_umbrella')
     .eq('is_archived', false)
     .order('name');
   const brands = (dbBrands ?? [])
-    .map((b: { slug: string }) => b.slug)
-    .filter(slug => slug !== 'leefar'); // umbrella excluded
+    .filter((b: { slug: string; is_umbrella: boolean | null }) => !b.is_umbrella)
+    .map((b: { slug: string }) => b.slug);
 
   const selectedBrand = params.brand && brands.includes(params.brand) ? params.brand : null;
   // Default: managed creators only (Tyler's spec). ?managed=false to include all.

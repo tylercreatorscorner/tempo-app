@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.95.1",
     "@expo-google-fonts/inter": "^0.4.2",
     "@fontsource/inter": "^5.2.8",
     "@react-pdf/renderer": "^4.5.1",

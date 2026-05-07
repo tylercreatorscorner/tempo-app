@@ -1,7 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { TempoLogo } from '@/components/ui/tempo-logo';
+
+const VERIFY_ERROR_MESSAGES: Record<string, string> = {
+  missing_token: 'That sign-in link is missing its token. Request a new one below.',
+  invalid_token: 'That sign-in link is invalid or has expired. Request a new one below.',
+  token_already_used: 'That sign-in link has already been used. Request a new one below.',
+  verify_failed: 'We couldn\'t finish signing you in. Please try again.',
+};
 
 export default function CreatorLoginPage() {
   const [email, setEmail] = useState('');
@@ -9,6 +16,12 @@ export default function CreatorLoginPage() {
   const [devUrl, setDevUrl] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Surface ?error=... codes set by the verify route on failure redirects.
+  useEffect(() => {
+    const code = new URLSearchParams(window.location.search).get('error');
+    if (code) setError(VERIFY_ERROR_MESSAGES[code] ?? 'Sign-in failed. Please try again.');
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
