@@ -6,12 +6,13 @@ import {
   getAnalyticsCreatorRankings,
   getAnalyticsVideos,
   getAnalyticsDailyTrend,
+  getAnalyticsProducts,
 } from '@/lib/data/rpc';
 import { resolveDateRange } from '@/lib/data/date-utils';
 import { DateRangePicker } from '@/components/dashboard/date-range-picker';
 import { BrandFilter } from '@/components/creators/brand-filter';
 import { PerformanceChart, type DailyMetrics } from '@/components/analytics/performance-chart';
-import { NotableChanges, type BrandChange, type CreatorBreakout, type HotPost } from '@/components/analytics/notable-changes';
+import { NotableChanges, type BrandChange, type CreatorBreakout, type HotPost, type TopProduct } from '@/components/analytics/notable-changes';
 import { BrandBreakdownDonut } from '@/components/analytics/brand-breakdown-donut';
 import { AnalyticsEmptyState } from '@/components/analytics/empty-state';
 import { StatCard } from '@/components/dashboard/stat-card';
@@ -119,7 +120,7 @@ export default async function AnalyticsPage({ searchParams }: Props) {
   const yoy = yoyPeriod(startDate, endDate);
 
   // Single multi-brand call per period × per dataset — collapses the old
-  // 5×N×3 fan-out (≈30+ round-trips for 5 brands) down to 8 RPCs flat.
+  // 5×N×3 fan-out (≈30+ round-trips for 5 brands) down to 10 RPCs flat.
   const [
     brandSummariesCur,
     brandSummariesPrev,
@@ -129,6 +130,8 @@ export default async function AnalyticsPage({ searchParams }: Props) {
     creatorsCur,
     creatorsPrev,
     videosRaw,
+    productsCur,
+    productsPrev,
   ] = await Promise.all([
     getAnalyticsBrandSummaries(BRAND_IDS, startDate, endDate).catch(() => []),
     getAnalyticsBrandSummaries(BRAND_IDS, prevStart, prevEnd).catch(() => []),
@@ -138,6 +141,8 @@ export default async function AnalyticsPage({ searchParams }: Props) {
     getAnalyticsCreatorRankings(BRAND_IDS, startDate, endDate, 500).catch(() => []),
     getAnalyticsCreatorRankings(BRAND_IDS, prevStart, prevEnd, 500).catch(() => []),
     getAnalyticsVideos(BRAND_IDS, startDate, endDate, 200).catch(() => []),
+    getAnalyticsProducts(BRAND_IDS, startDate, endDate, 50).catch(() => []),
+    getAnalyticsProducts(BRAND_IDS, prevStart, prevEnd, 200).catch(() => []),
   ]);
 
   // Light-weight reshape so the rest of this page can stay slug-keyed while the
@@ -323,6 +328,28 @@ export default async function AnalyticsPage({ searchParams }: Props) {
     }
   }
 
+  // Top product — best-selling product right now, with its delta vs prior period.
+  // analytics_products already returns sorted by GMV desc, so productsCur[0] is the
+  // top performer. We look up the same (brand, product_name) in the prior fetch
+  // for the comparison; if it didn't exist or had zero GMV, delta is unknown.
+  const topProductRow = productsCur[0] ?? null;
+  const topProduct: TopProduct | null = topProductRow ? (() => {
+    const priorRow = productsPrev.find(
+      p => p.brand_slug === topProductRow.brand_slug && p.product_name === topProductRow.product_name,
+    );
+    const priorGmv = priorRow?.total_gmv ?? 0;
+    const deltaPct = priorGmv === 0
+      ? (topProductRow.total_gmv > 0 ? 100 : 0)
+      : ((topProductRow.total_gmv - priorGmv) / priorGmv) * 100;
+    return {
+      product_name: topProductRow.product_name,
+      brand: topProductRow.brand_slug,
+      current_gmv: topProductRow.total_gmv,
+      prior_gmv: priorGmv,
+      delta_pct: deltaPct,
+    };
+  })() : null;
+
   return (
     <div className="space-y-6">
       {/* Stale-data banner */}
@@ -446,6 +473,7 @@ export default async function AnalyticsPage({ searchParams }: Props) {
         brandFaller={meaningfulFaller}
         creatorBreakout={creatorBreakout}
         hotPost={hotPost}
+        topProduct={topProduct}
       />
 
       {/* Performance Overview — multi-metric chart with prior-period and YoY compare toggles */}

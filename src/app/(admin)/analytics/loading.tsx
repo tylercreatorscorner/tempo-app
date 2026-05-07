@@ -60,14 +60,14 @@ export default function AnalyticsLoading() {
         ))}
       </div>
 
-      {/* Notable Changes — 4 cards */}
+      {/* Notable Changes — 5 cards */}
       <div>
         <div className="flex items-center gap-2 mb-3">
           <div className="h-4 w-4 rounded bg-gray-200 animate-pulse" />
           <div className="h-3 w-32 rounded bg-gray-200 animate-pulse" />
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {Array.from({ length: 4 }).map((_, i) => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          {Array.from({ length: 5 }).map((_, i) => (
             <NotableCardSkeleton key={i} />
           ))}
         </div>

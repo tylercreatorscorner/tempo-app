@@ -267,6 +267,39 @@ export async function getAnalyticsVideos(
   }));
 }
 
+export interface AnalyticsProduct {
+  brand_slug: string;
+  product_name: string;
+  total_gmv: number;
+  total_orders: number;
+  total_items_sold: number;
+}
+
+export async function getAnalyticsProducts(
+  brandIds: string[],
+  startDate: string,
+  endDate: string,
+  limit = 50,
+): Promise<AnalyticsProduct[]> {
+  if (brandIds.length === 0) return [];
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc('analytics_products', {
+    p_brand_ids: brandIds,
+    p_start_date: startDate,
+    p_end_date: endDate,
+    p_limit: limit,
+  });
+  if (error) throw new RPCError('analytics_products', error.message);
+  if (!data) return [];
+  return data.map((r: Record<string, unknown>) => ({
+    brand_slug: String(r.brand_slug),
+    product_name: String(r.product_name ?? ''),
+    total_gmv: Number(r.total_gmv) || 0,
+    total_orders: Number(r.total_orders) || 0,
+    total_items_sold: Number(r.total_items_sold) || 0,
+  }));
+}
+
 export async function getAnalyticsDailyTrend(
   brandIds: string[],
   startDate: string,
