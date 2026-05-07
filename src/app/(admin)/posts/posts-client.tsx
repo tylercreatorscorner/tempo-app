@@ -361,7 +361,7 @@ function PostRowView({ post: p, onClick }: { post: PostRow; onClick: (p: PostRow
       </td>
       <td className="px-4 py-3 align-top text-xs text-gray-500 whitespace-nowrap">
         {p.post_date
-          ? new Date(p.post_date + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })
+          ? new Date(p.post_date + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit', timeZone: 'America/Chicago' })
           : '—'}
       </td>
       <td className="px-4 py-3 align-top text-right tabular-nums text-gray-700">{formatNumber(p.views)}</td>
