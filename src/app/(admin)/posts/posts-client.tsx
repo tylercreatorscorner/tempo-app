@@ -20,6 +20,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   Download, Eye, Heart, Loader2, MessageCircle, Search, ExternalLink,
+  AlertTriangle, MessageSquare, Star,
 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { cn } from '@/lib/utils';
@@ -45,6 +46,10 @@ interface PostRow {
   orders: number;
   items_sold: number;
   is_managed: boolean;
+  review_count: number;
+  avg_rating: number | null;
+  flagged: boolean;
+  has_my_review: boolean;
 }
 
 interface PostsResponse {
@@ -56,6 +61,10 @@ interface PostsResponse {
     totalLikes: number;
     totalComments: number;
     avgEngagement: number;
+    reviewedCount: number;
+    unreviewedCount: number;
+    flaggedCount: number;
+    reviewedByMeCount: number;
   };
   startDate: string;
   endDate: string;
@@ -63,10 +72,16 @@ interface PostsResponse {
 
 type SortKey = 'gmv' | 'views' | 'likes' | 'comments' | 'engagement_rate' | 'post_date' | 'creator_handle';
 type SortDir = 'asc' | 'desc';
+type ReviewFilter = 'all' | 'unreviewed' | 'reviewed-by-me' | 'flagged';
 
 const SORT_KEYS: SortKey[] = ['gmv', 'views', 'likes', 'comments', 'engagement_rate', 'post_date', 'creator_handle'];
 function isSortKey(v: string | null): v is SortKey {
   return v !== null && (SORT_KEYS as string[]).includes(v);
+}
+
+const REVIEW_FILTERS: ReviewFilter[] = ['all', 'unreviewed', 'reviewed-by-me', 'flagged'];
+function isReviewFilter(v: string | null): v is ReviewFilter {
+  return v !== null && (REVIEW_FILTERS as string[]).includes(v);
 }
 
 export function PostsClient({
@@ -93,15 +108,21 @@ export function PostsClient({
   const [sortDir, setSortDir] = useState<SortDir>(() => {
     return searchParams.get('dir') === 'asc' ? 'asc' : 'desc';
   });
+  const [reviewFilter, setReviewFilter] = useState<ReviewFilter>(() => {
+    const fromUrl = searchParams.get('review');
+    return isReviewFilter(fromUrl) ? fromUrl : 'all';
+  });
 
-  // Sync sort/search to URL (without re-triggering data fetch) — debounced
-  // for search so we're not pushing a history entry per keystroke.
+  // Sync sort/search/review filter to URL (without re-triggering data fetch
+  // unnecessarily) — debounced for search so we're not pushing a history
+  // entry per keystroke.
   useEffect(() => {
     const t = setTimeout(() => {
       const params = new URLSearchParams(searchParams.toString());
       if (sortKey === 'gmv') params.delete('sort'); else params.set('sort', sortKey);
       if (sortDir === 'desc') params.delete('dir'); else params.set('dir', sortDir);
       if (!search) params.delete('q'); else params.set('q', search);
+      if (reviewFilter === 'all') params.delete('review'); else params.set('review', reviewFilter);
       const next = params.toString();
       const current = searchParams.toString();
       if (next !== current) {
@@ -109,9 +130,11 @@ export function PostsClient({
       }
     }, 250);
     return () => clearTimeout(t);
-  }, [sortKey, sortDir, search, router, searchParams]);
+  }, [sortKey, sortDir, search, reviewFilter, router, searchParams]);
 
-  // Fetch on mount + whenever filters change
+  // Fetch on mount + whenever filters change. The reviewFilter is part of
+  // the request because the server applies it before returning rows; the
+  // pre-filter pill counts come back in `totals`.
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -121,6 +144,7 @@ export function PostsClient({
     params.set('start', startDate);
     params.set('end', endDate);
     if (!managedOnly) params.set('managed', 'false');
+    if (reviewFilter !== 'all') params.set('review', reviewFilter);
     fetch(`/api/posts?${params.toString()}`)
       .then(r => r.json())
       .then((d: PostsResponse | { error: string }) => {
@@ -131,7 +155,7 @@ export function PostsClient({
       .catch(() => { if (!cancelled) setError('Failed to load posts'); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [selectedBrand, startDate, endDate, managedOnly]);
+  }, [selectedBrand, startDate, endDate, managedOnly, reviewFilter]);
 
   const brandsWithData = useMemo(() => {
     if (!data) return [] as string[];
@@ -238,6 +262,16 @@ export function PostsClient({
       {/* Brand pills */}
       <BrandFilter brands={brands} brandsWithData={brandsWithData} selectedBrand={selectedBrand} />
 
+      {/* Review queue filter — pills with live counts so you can see at a
+          glance how much work is queued. Counts come from `totals` and
+          reflect the unfiltered scope, so flipping pills doesn't make the
+          numbers shift around under your cursor. */}
+      <ReviewFilterPills
+        active={reviewFilter}
+        onChange={setReviewFilter}
+        totals={data?.totals}
+      />
+
       {error && (
         <div className="rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-700">{error}</div>
       )}
@@ -295,18 +329,29 @@ export function PostsClient({
                 <SortableTh label="Comments"     sortKey="comments"       current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
                 <SortableTh label="Engagement"   sortKey="engagement_rate" current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
                 <SortableTh label="GMV"          sortKey="gmv"            current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
+                <Th>Reviews</Th>
               </tr>
             </thead>
             <tbody>
               {loading && !data ? (
-                <tr><td colSpan={9} className="text-center text-gray-400 py-12 text-sm">
+                <tr><td colSpan={10} className="text-center text-gray-400 py-12 text-sm">
                   <Loader2 className="h-4 w-4 animate-spin inline mr-2" />Loading posts...
                 </td></tr>
               ) : visiblePosts.length === 0 ? (
-                <tr><td colSpan={9} className="text-center text-gray-400 py-12">
+                <tr><td colSpan={10} className="text-center text-gray-400 py-12">
                   <Eye className="h-8 w-8 mx-auto mb-2 text-gray-300" />
-                  <div className="text-sm font-medium">No posts in this window</div>
-                  <div className="text-xs mt-1">Try a wider date range, different brand, or include unmanaged creators.</div>
+                  <div className="text-sm font-medium">
+                    {reviewFilter === 'all'
+                      ? 'No posts in this window'
+                      : reviewFilter === 'unreviewed'
+                        ? 'Inbox zero — every post in this window has a review.'
+                        : reviewFilter === 'reviewed-by-me'
+                          ? 'You haven\'t reviewed anything in this window yet.'
+                          : 'Nothing flagged. Nice.'}
+                  </div>
+                  {reviewFilter === 'all' && (
+                    <div className="text-xs mt-1">Try a wider date range, different brand, or include unmanaged creators.</div>
+                  )}
                 </td></tr>
               ) : (
                 visiblePosts.map(p => <PostRowView key={p.video_id} post={p} onClick={handleRowClick} />)
@@ -384,7 +429,93 @@ function PostRowView({ post: p, onClick }: { post: PostRow; onClick: (p: PostRow
         </span>
       </td>
       <td className="px-4 py-3 align-top text-right tabular-nums font-bold text-[#E91E8C]">{formatCurrency(p.gmv)}</td>
+      <td className="px-4 py-3 align-top">
+        <ReviewCell post={p} />
+      </td>
     </tr>
+  );
+}
+
+// ── Review cell — count + avg rating + flag/me indicators ──────────
+function ReviewCell({ post: p }: { post: PostRow }) {
+  if (p.review_count === 0) {
+    return (
+      <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-gray-300">
+        <MessageSquare className="h-3 w-3" />
+        none
+      </span>
+    );
+  }
+  return (
+    <div className="flex items-center gap-2 text-xs">
+      <span className="inline-flex items-center gap-1 text-gray-700 font-semibold tabular-nums">
+        <MessageSquare className="h-3 w-3 text-gray-400" />
+        {p.review_count}
+      </span>
+      {p.avg_rating !== null && (
+        <span className="inline-flex items-center gap-0.5 text-amber-500 tabular-nums">
+          <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+          <span className="text-gray-700 font-medium">{p.avg_rating.toFixed(1)}</span>
+        </span>
+      )}
+      {p.flagged && (
+        <span title="Flagged: off-brand or needs rework" className="inline-flex items-center gap-0.5 text-amber-600">
+          <AlertTriangle className="h-3 w-3" />
+        </span>
+      )}
+      {p.has_my_review && (
+        <span title="You reviewed this" className="text-[9px] font-bold uppercase tracking-wider text-[#E91E8C] bg-pink-50 ring-1 ring-pink-200 rounded px-1 py-0.5">
+          you
+        </span>
+      )}
+    </div>
+  );
+}
+
+// ── Review filter pill bar ─────────────────────────────────────────
+function ReviewFilterPills({
+  active, onChange, totals,
+}: {
+  active: ReviewFilter;
+  onChange: (next: ReviewFilter) => void;
+  totals?: PostsResponse['totals'];
+}) {
+  // Counts come from the unfiltered scope so they stay stable as the user
+  // switches between pills. Show "—" while data is in flight.
+  const fmt = (n: number | undefined) => (n === undefined ? '—' : n.toLocaleString());
+  const items: Array<{ key: ReviewFilter; label: string; count?: number; icon?: React.ReactNode }> = [
+    { key: 'all',             label: 'All',           count: totals?.postCount },
+    { key: 'unreviewed',      label: 'Unreviewed',    count: totals?.unreviewedCount, icon: <MessageSquare className="h-3 w-3" /> },
+    { key: 'reviewed-by-me',  label: 'Reviewed by me', count: totals?.reviewedByMeCount },
+    { key: 'flagged',         label: 'Flagged',       count: totals?.flaggedCount, icon: <AlertTriangle className="h-3 w-3" /> },
+  ];
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {items.map(it => {
+        const isActive = active === it.key;
+        return (
+          <button
+            key={it.key}
+            onClick={() => onChange(it.key)}
+            className={cn(
+              'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors',
+              isActive
+                ? 'bg-[#E91E8C] text-white'
+                : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50',
+            )}
+          >
+            {it.icon}
+            {it.label}
+            <span className={cn(
+              'text-[10px] tabular-nums px-1.5 py-0.5 rounded-full',
+              isActive ? 'bg-white/20' : 'bg-gray-100 text-gray-500',
+            )}>
+              {fmt(it.count)}
+            </span>
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
