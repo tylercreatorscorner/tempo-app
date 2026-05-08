@@ -90,6 +90,38 @@ export async function removeUser(userId: string) {
   revalidatePath('/settings');
 }
 
+/**
+ * Sends a fresh magic-link / OTP code email to an existing team member.
+ * Useful when a client lost the email, hit an expired code, or had their
+ * link consumed by an email scanner. Tenant-scoped (can't resend to users
+ * in other tenants) and gated to owner/admin.
+ */
+export async function resendMagicLink(userId: string) {
+  const { admin, tenantId } = await assertOwnerOrAdmin();
+
+  const { data: target } = await admin
+    .from('user_profiles')
+    .select('email, tenant_id')
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (!target) throw new Error('User not found.');
+  if (target.tenant_id !== tenantId) throw new Error('User is not in your tenant.');
+  if (!target.email) throw new Error('User has no email on file.');
+
+  const anon = createAnonClient();
+  const { error } = await anon.auth.signInWithOtp({
+    email: target.email,
+    options: {
+      shouldCreateUser: false,
+      emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback`,
+    },
+  });
+  if (error) throw new Error(`Failed to send: ${error.message}`);
+
+  revalidatePath('/settings');
+  return { ok: true, email: target.email };
+}
+
 export async function updateBrandAccess(userId: string, brandIds: string[], tenantId: string) {
   const { admin } = await assertOwnerOrAdmin();
   // Replace all brand access for this user
