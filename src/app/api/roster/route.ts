@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
-import { brandSlugToUuid } from '@/lib/utils/constants';
+import { brandSlugToUuid, brandUuidToSlug } from '@/lib/utils/constants';
 
 async function getTenantId() {
   const supabase = await createClient();
@@ -134,6 +134,19 @@ interface EnrichedRow extends ManagedRow {
   // Both null/0 when there's no linked discord identity OR no message history.
   last_message_at: string | null;
   unread_count: number;
+  // Distinguishes managed_creators rows (true) from unmanaged universe candidates
+  // (false). Unmanaged rows are appended when ?include=all and have empty contract
+  // fields, no health (rendered as "no_data"), and surface "+ Add to roster" in UI.
+  is_managed: boolean;
+}
+
+interface UnmanagedPerfRow {
+  tiktok_username: string;
+  brand_id: string | null;
+  real_name: string | null;
+  gmv_30d: string | number;
+  posts_this_month: number;
+  last_post_date: string | null;
 }
 
 function handlesFor(c: ManagedRow): string[] {
@@ -176,6 +189,13 @@ export async function GET(request: NextRequest) {
   const healthFilter: HealthFilter = (HEALTH_FILTERS as readonly string[]).includes(healthParam)
     ? healthParam
     : 'all';
+
+  // ?include=managed (default) or ?include=all to also surface unmanaged
+  // creators with recent GMV (sourcing-while-triaging). The unmanaged rows
+  // come from the get_unmanaged_top_perf RPC; managed rows use the normal
+  // roster path.
+  const includeParam = searchParams.get('include') || 'managed';
+  const includeUnmanaged = includeParam === 'all';
 
   const supabase = await createAdminClient();
 
@@ -280,26 +300,89 @@ export async function GET(request: NextRequest) {
       roi_30d: roi,
       last_message_at: lastMsg,
       unread_count: unread,
+      is_managed: true,
     };
   });
 
+  // ── 3b. When ?include=all, append unmanaged creators with recent GMV.
+  // The RPC takes the set of currently-managed handles to exclude and
+  // returns the top N by 30d GMV. We shape each result into an EnrichedRow
+  // with empty contract fields + is_managed: false.
+  if (includeUnmanaged) {
+    const brandUuid = brand && brand !== 'all' ? brandSlugToUuid(brand) : null;
+    const { data: unmanagedRows, error: unmanagedErr } = await supabase.rpc(
+      'get_unmanaged_top_perf',
+      {
+        managed_handles: allHandles,
+        brand_filter: brandUuid ?? null,
+        limit_count: 500,
+      },
+    );
+    if (unmanagedErr) {
+      console.error('[/api/roster] unmanaged RPC failed:', unmanagedErr.message);
+    } else {
+      for (const u of (unmanagedRows as UnmanagedPerfRow[] | null) ?? []) {
+        // Optional client-side search: same shape as managed rows so we don't
+        // surprise the caller. We don't push search down to the RPC because
+        // it'd complicate the SQL — the population is small (≤500) so a
+        // post-filter here is fine.
+        if (search) {
+          const q = search.toLowerCase();
+          const hayName = (u.real_name ?? '').toLowerCase();
+          const hayHandle = (u.tiktok_username ?? '').toLowerCase();
+          if (!hayName.includes(q) && !hayHandle.includes(q)) continue;
+        }
+        const slug = brandUuidToSlug(u.brand_id ?? '') ?? null;
+        enriched.push({
+          // Synthetic id keyed on handle so React's key stays stable across
+          // refetches and so the UI can detect "this is unmanaged" without
+          // relying on the is_managed flag alone.
+          id: `unmanaged:${u.tiktok_username}`,
+          real_name: u.real_name,
+          brand: slug,
+          status: null,
+          retainer: 0,
+          monthly_post_requirement: 0,
+          discord_name: null,
+          discord_avatar: null,
+          notes: null,
+          created_at: null,
+          account_1: u.tiktok_username,
+          account_2: null,
+          account_3: null,
+          account_4: null,
+          account_5: null,
+          gmv_30d: Number(u.gmv_30d) || 0,
+          posts_this_month: Number(u.posts_this_month) || 0,
+          last_post_date: u.last_post_date,
+          // No contract → no derived health. Use a dedicated "unmanaged"-flavored
+          // signal in the UI rather than reusing 'no_data'.
+          health: 'no_data',
+          roi_30d: null,
+          last_message_at: null,
+          unread_count: 0,
+          is_managed: false,
+        });
+      }
+    }
+  }
+
   // ── 4. Compute aggregate counts BEFORE applying the health filter (cards
   // should always show the full picture so they remain useful as filter
-  // triggers). Total retainer + active counts kept for back-compat.
-  const total_retainer    = enriched.reduce((s, r) => s + (Number(r.retainer) || 0), 0);
-  const active_count      = enriched.filter((r) => r.status === 'Active').length;
-  const on_retainer_count = enriched.filter((r) => (Number(r.retainer) || 0) > 0).length;
-
-  // New action-oriented counts.
-  const behind_count  = enriched.filter((r) => r.health === 'behind').length;
-  const silent_count  = enriched.filter((r) => r.health === 'silent').length;
-  const healthy_count = enriched.filter((r) => r.health === 'healthy').length;
+  // triggers). Restrict to managed rows so "Include unmanaged" doesn't
+  // inflate the action-card numbers — the cards are about MY roster's
+  // health, not the universe.
+  const managedRows  = enriched.filter((r) => r.is_managed);
+  const total_managed = managedRows.length;
+  const behind_count  = managedRows.filter((r) => r.health === 'behind').length;
+  const silent_count  = managedRows.filter((r) => r.health === 'silent').length;
+  const healthy_count = managedRows.filter((r) => r.health === 'healthy').length;
   // Retainer ROI < 1.0× — only meaningful for creators on retainer with stats.
-  const low_roi_count = enriched.filter(
+  const low_roi_count = managedRows.filter(
     (r) => r.roi_30d !== null && r.roi_30d < 1 && r.health !== 'churned',
   ).length;
-  // Total inbound DMs awaiting a reply across the (filtered) roster.
-  const unread_dms_total = enriched.reduce((s, r) => s + (r.unread_count || 0), 0);
+  // Total inbound DMs awaiting a reply across the managed roster.
+  const unread_dms_total = managedRows.reduce((s, r) => s + (r.unread_count || 0), 0);
 
   // ── 5. Apply health filter.
   let filtered = enriched;
@@ -344,13 +427,10 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     data: slice,
     total,
+    total_managed, // count of managed rows in unfiltered set (for the "Total managed" card)
     page,
     limit,
-    // Existing aggregates (back-compat with any other callers)
-    total_retainer,
-    active_count,
-    on_retainer_count,
-    // New action-oriented aggregates
+    // Action-oriented aggregates (managed-only — the cards filter the table)
     behind_count,
     silent_count,
     healthy_count,

@@ -10,7 +10,6 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { BRAND_DISPLAY_NAMES, BRAND_COLORS, ACTIVE_BRANDS } from '@/lib/utils/constants';
-import type { UniverseCreator } from '@/app/api/creators/universe/route';
 import { RenewalsTab } from '@/components/roster/renewals-tab';
 
 const PAGE_SIZE = 50;
@@ -42,6 +41,10 @@ interface Creator {
   // ── Messaging signals ──
   last_message_at: string | null;
   unread_count: number;
+  // True for managed_creators rows; false for unmanaged universe candidates
+  // (returned only when ?include=all). Drives the row's action cell + cell-by-cell
+  // dimming for fields that don't apply to unmanaged creators.
+  is_managed: boolean;
 }
 
 function getExtraAccounts(c: Creator): string[] {
@@ -915,263 +918,10 @@ function AddCreatorModal({ prefill, onClose, onSuccess }: AddCreatorModalProps) 
   );
 }
 
-// ─── All Creators Tab ────────────────────────────────────────────────────────
-
-const DAYS_OPTIONS = [
-  { label: '30d', value: 30 },
-  { label: '60d', value: 60 },
-  { label: '90d', value: 90 },
-];
-
-function AllCreatorsTab({
-  brand,
-  refreshTrigger,
-  onAddCreator,
-}: {
-  brand: string;
-  refreshTrigger: number;
-  onAddCreator: (prefill: { account_1: string; brand: string }) => void;
-}) {
-  const router = useRouter();
-  const [creators, setCreators] = useState<UniverseCreator[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [searchInput, setSearchInput] = useState('');
-  const [search, setSearch] = useState('');
-  const [days, setDays] = useState(90);
-  const [managedFilter, setManagedFilter] = useState<'all' | 'managed' | 'unmanaged'>('all');
-  const [page, setPage] = useState(1);
-  const [sortBy, setSortBy]       = useState<'gmv' | 'orders' | 'videos' | 'creator_name'>('gmv');
-  const [sortDir, setSortDir]     = useState<'asc' | 'desc'>('desc');
-  const PAGE = 50;
-
-  useEffect(() => {
-    const t = setTimeout(() => { setSearch(searchInput); setPage(1); }, 300);
-    return () => clearTimeout(t);
-  }, [searchInput]);
-
-  useEffect(() => { setPage(1); }, [days, managedFilter, sortBy, sortDir]);
-
-  useEffect(() => { setPage(1); }, [brand]);
-
-  const fetchCreators = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams({
-        page: String(page),
-        limit: String(PAGE),
-        days: String(days),
-        sort: sortBy,
-        dir: sortDir,
-      });
-      if (search) params.set('search', search);
-      if (brand && brand !== 'all') params.set('brand', brand);
-      if (managedFilter !== 'all') params.set('managed', managedFilter);
-
-      const res = await fetch(`/api/creators/universe?${params}`);
-      const json = await res.json();
-
-      setCreators(json.data || []);
-      setTotal(json.total || 0);
-    } catch (err) {
-      console.error('Failed to fetch all creators:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [brand, page, search, days, managedFilter, sortBy, sortDir]);
-
-  // Refetch whenever filters/sort change OR parent bumps the refreshTrigger
-  useEffect(() => { fetchCreators(); }, [fetchCreators, refreshTrigger]);
-
-  const toggleSort = (col: typeof sortBy) => {
-    if (sortBy === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
-    else { setSortBy(col); setSortDir(col === 'creator_name' ? 'asc' : 'desc'); }
-  };
-
-  const SortIcon = ({ col }: { col: typeof sortBy }) => {
-    if (sortBy !== col) return <ArrowUpDown className="h-3 w-3 opacity-30" />;
-    return sortDir === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />;
-  };
-
-  const fmt  = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(n);
-  const totalPages = Math.max(1, Math.ceil(total / PAGE));
-
-  return (
-    <div className="space-y-5">
-      {/* Controls */}
-      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search by handle..."
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
-          />
-        </div>
-
-        {/* Managed filter */}
-        <div className="flex rounded-xl border border-gray-200 overflow-hidden text-sm font-medium">
-          {(['all', 'managed', 'unmanaged'] as const).map(f => (
-            <button
-              key={f}
-              onClick={() => setManagedFilter(f)}
-              className={`px-3.5 py-2 capitalize transition-colors ${managedFilter === f ? 'bg-[#E91E8C] text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
-            >
-              {f}
-            </button>
-          ))}
-        </div>
-
-        {/* Days toggle */}
-        <div className="flex rounded-xl border border-gray-200 overflow-hidden text-sm font-medium">
-          {DAYS_OPTIONS.map(o => (
-            <button
-              key={o.value}
-              onClick={() => setDays(o.value)}
-              className={`px-3.5 py-2 transition-colors ${days === o.value ? 'bg-gray-800 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
-            >
-              {o.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {creators.length === 0 && !loading ? (
-        <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-16 text-center">
-          <Globe className="h-8 w-8 text-gray-200 mx-auto mb-3" />
-          <p className="text-gray-500 text-sm font-medium">No creators found</p>
-          {(search || managedFilter !== 'all') && (
-            <p className="text-gray-400 text-xs mt-1">Try adjusting your search or filters</p>
-          )}
-        </div>
-      ) : (
-        <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-100 bg-gray-50/60">
-                  <th className="text-left px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
-                    <button onClick={() => toggleSort('creator_name')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors">
-                      Creator <SortIcon col="creator_name" />
-                    </button>
-                  </th>
-                  <th className="text-left px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">Brand</th>
-                  <th className="text-right px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
-                    <button onClick={() => toggleSort('gmv')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors">
-                      GMV ({days}d) <SortIcon col="gmv" />
-                    </button>
-                  </th>
-                  <th className="text-right px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
-                    <button onClick={() => toggleSort('orders')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors">
-                      Orders <SortIcon col="orders" />
-                    </button>
-                  </th>
-                  <th className="text-right px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
-                    <button onClick={() => toggleSort('videos')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors">
-                      Videos <SortIcon col="videos" />
-                    </button>
-                  </th>
-                  <th className="text-center px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">Status</th>
-                  <th className="px-5 py-3.5" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {loading && Array.from({ length: 8 }).map((_, i) => <SkeletonRow key={i} cols={7} />)}
-                {!loading && creators.map((c) => (
-                  <tr
-                    key={`${c.creator_name}|||${c.brand}`}
-                    className={`hover:bg-gray-50/60 transition-colors ${c.is_managed && c.managed_id ? 'cursor-pointer' : ''}`}
-                    onClick={() => {
-                      if (c.is_managed && c.managed_id) {
-                        router.push(`/creators/${encodeURIComponent(c.creator_name)}`);
-                      }
-                    }}
-                  >
-                    <td className="px-5 py-3.5">
-                      <div>
-                        <a
-                          href={`https://tiktok.com/@${c.creator_name}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="font-medium text-[#E91E8C] hover:underline"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          @{c.creator_name}
-                        </a>
-                        {c.managed_real_name && (
-                          <p className="text-xs text-gray-400 mt-0.5">{c.managed_real_name}</p>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-gray-100 text-gray-600">
-                        {BRAND_DISPLAY_NAMES[c.brand] || c.brand}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3.5 text-right font-semibold text-[#1A1B3A]">
-                      {fmt(c.total_gmv)}
-                    </td>
-                    <td className="px-5 py-3.5 text-right text-gray-500">
-                      {c.total_orders.toLocaleString()}
-                    </td>
-                    <td className="px-5 py-3.5 text-right text-gray-500">
-                      {c.total_videos.toLocaleString()}
-                    </td>
-                    <td className="px-5 py-3.5 text-center">
-                      {c.is_managed ? (
-                        <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full bg-green-50 text-green-600">
-                          <UserCheck className="h-3 w-3" /> Managed
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full bg-gray-100 text-gray-500">
-                          <UserX className="h-3 w-3" /> Unmanaged
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-5 py-3.5 text-right">
-                      {!c.is_managed && (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); onAddCreator({ account_1: c.creator_name, brand: c.brand }); }}
-                          className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-[#E91E8C] text-white hover:bg-[#d1177d] transition-colors whitespace-nowrap"
-                        >
-                          + Add to Roster
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="flex items-center justify-between px-5 py-3.5 border-t border-gray-100 bg-gray-50/40">
-            <p className="text-xs text-gray-400">
-              {total.toLocaleString()} {managedFilter === 'all' ? 'creators' : managedFilter} · page {page} of {totalPages}
-            </p>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setPage(p => Math.max(1, p - 1))}
-                disabled={page === 1}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-200 bg-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
-              >
-                <ChevronLeft className="h-3.5 w-3.5" /> Previous
-              </button>
-              <button
-                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                disabled={page === totalPages}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-200 bg-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
-              >
-                Next <ChevronRight className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+// ─── (Removed) AllCreatorsTab ─────────────────────────────────────────────
+// Merged into the Managed Roster tab. Unmanaged candidates now surface inline
+// via the ?include=all toggle on /api/roster (see get_unmanaged_top_perf RPC).
+// The action cell renders "+ Add to roster" for unmanaged rows.
 
 // ─── Managed Roster Tab ───────────────────────────────────────────────────────
 
@@ -1191,7 +941,12 @@ function RosterContent() {
     router.push(qs ? `?${qs}` : '?');
   };
 
-  const [activeTab, setActiveTab] = useState<'roster' | 'all' | 'renewals'>('roster');
+  const [activeTab, setActiveTab] = useState<'roster' | 'renewals'>('roster');
+  // ?include=all toggle — when on, the Roster table also surfaces unmanaged
+  // creators (top-N by 30d GMV, deduped against managed handles), so you can
+  // sort them alongside your managed roster and identify recruitment targets
+  // without leaving the page.
+  const [includeUnmanaged, setIncludeUnmanaged] = useState(false);
   const [roster, setRoster] = useState<Creator[]>([]);
   const [total, setTotal] = useState(0);
   // Action-oriented aggregates (drive the new stat cards)
@@ -1219,7 +974,6 @@ function RosterContent() {
   const [selectedCreator, setSelectedCreator] = useState<Creator | null>(null);
   const [page, setPage] = useState(1);
   const [addModalPrefill, setAddModalPrefill] = useState<{ account_1?: string; brand?: string } | null>(null);
-  const [allCreatorsRefreshKey, setAllCreatorsRefreshKey] = useState(0);
 
   // Sort state for the Managed Roster table
   type RosterSortCol =
@@ -1259,6 +1013,7 @@ function RosterContent() {
       if (statusFilter !== 'all') params.set('status', statusFilter);
       if (healthFilter !== 'all') params.set('health', healthFilter);
       if (search) params.set('search', search);
+      if (includeUnmanaged) params.set('include', 'all');
 
       const res = await fetch(`/api/roster?${params}`);
       const json = await res.json();
@@ -1269,18 +1024,17 @@ function RosterContent() {
       setHealthyCount(json.healthy_count ?? 0);
       setLowRoiCount(json.low_roi_count ?? 0);
       setUnreadDms(json.unread_dms_total ?? 0);
-      // The "Total managed" card should always reflect the unfiltered count.
-      // The API's `total` is post-health-filter; sum the four health buckets
-      // plus any not yet captured (churned, no_data) to reconstruct the total.
-      // Easiest accurate read: when health filter is off, `total` is the truth;
-      // otherwise carry the previously-known total.
-      if (healthFilter === 'all') setUnfilteredTotal(json.total || 0);
+      // The "Total managed" card should always reflect the unfiltered managed
+      // count. The API now returns `total_managed` directly (count of managed
+      // rows in the unfiltered set, regardless of include=all or health filter),
+      // so we just consume that.
+      if (typeof json.total_managed === 'number') setUnfilteredTotal(json.total_managed);
     } catch (err) {
       console.error('Failed to fetch roster:', err);
     } finally {
       setLoading(false);
     }
-  }, [brand, statusFilter, healthFilter, search, page, sortBy, sortDir]);
+  }, [brand, statusFilter, healthFilter, search, page, sortBy, sortDir, includeUnmanaged]);
 
   useEffect(() => {
     fetchRoster();
@@ -1291,11 +1045,12 @@ function RosterContent() {
     setPage(1);
     setStatusFilter('all');
     setHealthFilter('all');
+    setIncludeUnmanaged(false);
     setSearchInput('');
     setSelectedIds(new Set());
   }, [brand]);
-  // Reset page when status/health filter or sort changes
-  useEffect(() => { setPage(1); }, [statusFilter, healthFilter, sortBy, sortDir]);
+  // Reset page when status/health/include filter or sort changes
+  useEffect(() => { setPage(1); }, [statusFilter, healthFilter, sortBy, sortDir, includeUnmanaged]);
   // Drop selections that have left the visible set (e.g. after a filter change).
   useEffect(() => {
     setSelectedIds((prev) => {
@@ -1389,17 +1144,22 @@ function RosterContent() {
   };
 
   // Header checkbox state — derived, not stored. "Indeterminate" reflects
-  // partial selection on the visible page.
-  const visibleIds = roster.map((c) => c.id);
-  const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id));
-  const someVisibleSelected = !allVisibleSelected && visibleIds.some((id) => selectedIds.has(id));
+  // partial selection on the visible page. Bulk actions operate on
+  // managed_creators IDs (PATCH /api/roster/[id]), so unmanaged rows are
+  // never selectable — their `id` is a synthetic `unmanaged:<handle>` string
+  // and there's nothing to PATCH.
+  const visibleSelectableIds = roster.filter((c) => c.is_managed).map((c) => c.id);
+  const allVisibleSelected = visibleSelectableIds.length > 0
+    && visibleSelectableIds.every((id) => selectedIds.has(id));
+  const someVisibleSelected = !allVisibleSelected
+    && visibleSelectableIds.some((id) => selectedIds.has(id));
   const toggleAllVisible = () => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (allVisibleSelected) {
-        for (const id of visibleIds) next.delete(id);
+        for (const id of visibleSelectableIds) next.delete(id);
       } else {
-        for (const id of visibleIds) next.add(id);
+        for (const id of visibleSelectableIds) next.add(id);
       }
       return next;
     });
@@ -1455,7 +1215,10 @@ function RosterContent() {
         ))}
       </div>
 
-      {/* Tab toggle */}
+      {/* Tab toggle — Roster | Renewals (the old "All Creators" tab is now an
+          inline toggle on the Roster table itself, so unmanaged candidates can
+          be sorted and compared alongside managed creators rather than living
+          in their own siloed view). */}
       <div className="flex gap-1 p-1 bg-gray-100 rounded-xl w-fit">
         <button
           onClick={() => setActiveTab('roster')}
@@ -1466,14 +1229,6 @@ function RosterContent() {
           <UserCheck className="h-4 w-4" /> Managed Roster
         </button>
         <button
-          onClick={() => setActiveTab('all')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
-            activeTab === 'all' ? 'bg-white text-[#1A1B3A] shadow-sm' : 'text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          <Globe className="h-4 w-4" /> All Creators
-        </button>
-        <button
           onClick={() => setActiveTab('renewals')}
           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
             activeTab === 'renewals' ? 'bg-white text-[#1A1B3A] shadow-sm' : 'text-gray-500 hover:text-gray-700'
@@ -1482,15 +1237,6 @@ function RosterContent() {
           <RefreshCcw className="h-4 w-4" /> Renewals
         </button>
       </div>
-
-      {/* All Creators tab */}
-      {activeTab === 'all' && (
-        <AllCreatorsTab
-          brand={brand}
-          refreshTrigger={allCreatorsRefreshKey}
-          onAddCreator={(prefill) => setAddModalPrefill(prefill)}
-        />
-      )}
 
       {/* Renewals tab */}
       {activeTab === 'renewals' && (
@@ -1592,6 +1338,23 @@ function RosterContent() {
           <option value="Churned">Churned</option>
           <option value="Inactive">Inactive</option>
         </select>
+        {/* Include-unmanaged toggle. Replaces the old "All Creators" tab —
+            unmanaged candidates with recent GMV are appended into the same
+            sortable table so you can see who's worth recruiting alongside
+            who's underperforming on contract. */}
+        <button
+          onClick={() => setIncludeUnmanaged(v => !v)}
+          aria-pressed={includeUnmanaged}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-semibold transition-colors whitespace-nowrap ${
+            includeUnmanaged
+              ? 'bg-[#1A1B3A] text-white border-[#1A1B3A]'
+              : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+          }`}
+          title="Show top unmanaged creators with recent GMV alongside your managed roster"
+        >
+          <Globe className="h-4 w-4" />
+          {includeUnmanaged ? 'Unmanaged shown' : 'Include unmanaged'}
+        </button>
       </div>
 
       {/* Table */}
@@ -1665,16 +1428,56 @@ function RosterContent() {
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {loading && roster.length === 0 && Array.from({ length: 8 }).map((_, i) => (
-                  <SkeletonRow key={i} cols={showBrandColumn ? 10 : 9} />
+                  <SkeletonRow key={i} cols={showBrandColumn ? 11 : 10} />
                 ))}
                 {!loading && roster.map((c) => (
                   <tr
                     key={c.id}
-                    className="hover:bg-pink-50/20 transition-colors cursor-pointer group"
-                    onClick={() => setSelectedCreator(c)}
+                    className={`transition-colors cursor-pointer group ${
+                      c.is_managed
+                        ? 'hover:bg-pink-50/20'
+                        // Unmanaged rows: subtle slate background to visually
+                        // group them as "candidates" rather than roster members.
+                        : 'bg-slate-50/40 hover:bg-slate-100/50'
+                    }`}
+                    onClick={() => {
+                      if (c.is_managed) {
+                        setSelectedCreator(c);
+                      } else {
+                        // Open the Add Creator modal pre-filled with the
+                        // candidate's handle + (best-guess) brand.
+                        setAddModalPrefill({
+                          account_1: c.account_1 ?? '',
+                          brand: c.brand ?? '',
+                        });
+                      }
+                    }}
                   >
+                    {/* Per-row select checkbox. Disabled for unmanaged rows —
+                        bulk actions PATCH /api/roster/[id], and unmanaged rows
+                        have synthetic IDs with nothing in managed_creators to
+                        update. */}
+                    <td className="px-3 py-3.5 w-10" onClick={(e) => e.stopPropagation()}>
+                      {c.is_managed ? (
+                        <input
+                          type="checkbox"
+                          aria-label={`Select ${c.real_name || c.account_1 || 'creator'}`}
+                          checked={selectedIds.has(c.id)}
+                          onChange={() => toggleOne(c.id)}
+                          className="h-4 w-4 rounded border-gray-300 text-[#E91E8C] focus:ring-[#E91E8C]/30 cursor-pointer"
+                        />
+                      ) : (
+                        // Visual placeholder so column alignment stays clean.
+                        <span className="block h-4 w-4" aria-hidden="true" />
+                      )}
+                    </td>
                     <td className="px-5 py-3.5 font-medium text-[#1A1B3A]">
-                      {c.real_name || <span className="text-gray-400">—</span>}
+                      {c.real_name || (c.is_managed
+                        ? <span className="text-gray-400">—</span>
+                        // Unmanaged often has no creators_v2 link → fall back
+                        // to the handle so the row isn't anonymous.
+                        : <span className="text-gray-500 italic">@{c.account_1}</span>
+                      )}
                     </td>
                     <td className="px-5 py-3.5">
                       {c.account_1 ? (
@@ -1725,7 +1528,27 @@ function RosterContent() {
                       <LastDmCell at={c.last_message_at} unread={c.unread_count} />
                     </td>
                     <td className="px-5 py-3.5 text-center">
-                      <HealthBadge health={c.health} />
+                      {c.is_managed ? (
+                        <HealthBadge health={c.health} />
+                      ) : (
+                        // For unmanaged rows, the "Health" slot becomes an
+                        // affordance: clearly signals the row is a candidate
+                        // and gives a one-click way to recruit them. The whole
+                        // row is also clickable (same handler) so this is just
+                        // a visual cue + tap target.
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setAddModalPrefill({
+                              account_1: c.account_1 ?? '',
+                              brand: c.brand ?? '',
+                            });
+                          }}
+                          className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full border border-pink-200 bg-pink-50 text-[#E91E8C] hover:bg-pink-100 transition-colors"
+                        >
+                          <Plus className="h-3 w-3" /> Add to roster
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -1831,28 +1654,29 @@ function RosterContent() {
             fetchRoster();
           }}
           onRemoved={(removedId) => {
-            // Drop the row, close the panel, refresh aggregates + the All
-            // Creators tab so the now-unmanaged badge updates.
+            // Drop the row, close the panel, re-fetch so aggregates update
+            // and the just-removed creator reappears as unmanaged if the
+            // "Include unmanaged" toggle is on.
             setRoster(prev => prev.filter(c => c.id !== removedId));
             setSelectedCreator(null);
             fetchRoster();
-            setAllCreatorsRefreshKey(k => k + 1);
           }}
         />
       )}
       </>)}
 
-      {/* Add Creator modal — available from both tabs */}
+      {/* Add Creator modal — opens from the "+ Add to roster" action on
+          unmanaged rows in the inline table OR from the page-level Add button. */}
       {addModalPrefill !== null && (
         <AddCreatorModal
           prefill={addModalPrefill}
           onClose={() => setAddModalPrefill(null)}
           onSuccess={() => {
             setAddModalPrefill(null);
+            // Re-fetch so the just-added creator now shows as managed in the
+            // unified table (if "Include unmanaged" is on, they migrate from
+            // the unmanaged segment into the managed one with full health/ROI).
             fetchRoster();
-            // Bump refresh key so the All Creators tab (if mounted) refetches and the
-            // just-added creator's "Unmanaged" badge flips to "Managed"
-            setAllCreatorsRefreshKey(k => k + 1);
           }}
         />
       )}
