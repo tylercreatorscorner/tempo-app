@@ -1,0 +1,117 @@
+name: Agent scope check
+
+# Hard-enforces section ownership for agent/* PRs. If a PR comes from
+# `agent/<section>` and touches files exclusively owned by another section,
+# this check fails and the PR can't be merged via `gh pr merge` until either:
+#   1) the cross-section files are removed from the PR, or
+#   2) the work is resubmitted from a non-agent branch (e.g. chore/...).
+#
+# Non-agent branches (chore/*, fix/*, feat/*, etc.) skip this check entirely
+# — humans can touch anything.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+jobs:
+  scope:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Verify changed files match agent's section
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const branch = context.payload.pull_request.head.ref;
+            if (!branch.startsWith('agent/')) {
+              core.info(`Branch '${branch}' is not an agent branch — skipping scope check.`);
+              return;
+            }
+            const section = branch.slice('agent/'.length);
+
+            // Exclusive paths per section. Anything not listed here is
+            // "shared" (src/lib/, src/components/ui/, etc.) and any agent
+            // may touch it. Keep this in sync with .github/CODEOWNERS.
+            const SECTIONS = {
+              dashboard: [
+                'src/app/(admin)/dashboard/',
+                'src/components/dashboard/',
+              ],
+              creators: [
+                'src/app/(admin)/roster/',
+                'src/app/(admin)/creators/',
+                'src/app/(admin)/messages/',
+                'src/app/(admin)/discover/',
+                'src/app/(admin)/invites/',
+                'src/components/creators/',
+                'src/components/messages/',
+              ],
+              content: [
+                'src/app/(admin)/posts/',
+                'src/app/(admin)/reporting/',
+                'src/app/(admin)/discord-posts/',
+                'src/app/(admin)/discord-scan/',
+                'src/app/(admin)/discord-links/',
+                'src/components/posts/',
+                'src/components/reporting/',
+              ],
+              insights: [
+                'src/app/(admin)/analytics/',
+                'src/components/analytics/',
+              ],
+              finance: [
+                'src/app/(admin)/earnings/',
+                'src/app/(admin)/invoicing/',
+                'src/app/(admin)/payments/',
+                'src/app/(admin)/ytd/',
+                'src/components/finance/',
+                'src/components/invoicing/',
+              ],
+            };
+
+            if (!SECTIONS[section]) {
+              core.setFailed(
+                `Unknown agent section: '${section}'.\n` +
+                `Allowed: ${Object.keys(SECTIONS).join(', ')}.\n` +
+                `If this is a new section, add it to SECTIONS in this workflow ` +
+                `and to .github/CODEOWNERS.`
+              );
+              return;
+            }
+
+            // Other sections' exclusive paths = forbidden for this agent.
+            const forbidden = Object.entries(SECTIONS)
+              .filter(([key]) => key !== section)
+              .flatMap(([, paths]) => paths);
+
+            // Fetch changed files for this PR.
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number,
+              per_page: 100,
+            });
+
+            const violations = files
+              .map(f => f.filename)
+              .filter(name => forbidden.some(p => name.startsWith(p)));
+
+            if (violations.length > 0) {
+              const lines = [
+                `❌ PR from \`agent/${section}\` touches paths owned by other sections:`,
+                '',
+                ...violations.map(v => `  - \`${v}\``),
+                '',
+                'Fix one of two ways:',
+                `  1) Remove the cross-section changes from this PR (keep them in agent/${section}'s scope only).`,
+                `  2) Submit the cross-cutting change as a separate PR from a non-agent branch (e.g. \`chore/...\` or \`infra/...\`).`,
+                '',
+                `If this is a false positive (e.g. a section moved), update SECTIONS in .github/workflows/agent-scope-check.yml.`,
+              ];
+              core.setFailed(lines.join('\n'));
+              return;
+            }
+
+            core.info(`✅ All ${files.length} changed files respect agent/${section}'s scope.`);

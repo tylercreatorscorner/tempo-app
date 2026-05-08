@@ -1,0 +1,71 @@
+# CODEOWNERS — section ownership for tempo-app
+# https://docs.github.com/en/repositories/managing-your-repositories-settings-and-security/customizing-your-repository/about-code-owners
+#
+# Each app section is owned by a specific agent (one Claude Code session,
+# working in its own git worktree on the matching `agent/<section>` branch).
+# Because Tyler is the only human user, the GitHub-side "owner" for every
+# path resolves to @tylercreatorscorner — the labels in comments tell you
+# (and any future maintainer) which agent's branch should be touching what.
+#
+# Hard enforcement (i.e. blocking a dashboard agent's PR from merging if it
+# touches /finance/ files) lives in .github/workflows/agent-scope-check.yml.
+# This file is for documentation, auto-assignment, and future team-based
+# ownership if you add collaborators.
+
+# ─── Default ─────────────────────────────────────────────────────────────
+*                                       @tylercreatorscorner
+
+# ─── Dashboard agent ─────────────────────────────────────────────────────
+src/app/(admin)/dashboard/              @tylercreatorscorner  # owner: agent/dashboard
+src/components/dashboard/               @tylercreatorscorner  # owner: agent/dashboard
+
+# ─── Creators agent ──────────────────────────────────────────────────────
+src/app/(admin)/roster/                 @tylercreatorscorner  # owner: agent/creators
+src/app/(admin)/creators/               @tylercreatorscorner  # owner: agent/creators
+src/app/(admin)/messages/               @tylercreatorscorner  # owner: agent/creators
+src/app/(admin)/discover/               @tylercreatorscorner  # owner: agent/creators
+src/app/(admin)/invites/                @tylercreatorscorner  # owner: agent/creators
+src/components/creators/                @tylercreatorscorner  # owner: agent/creators
+src/components/messages/                @tylercreatorscorner  # owner: agent/creators
+
+# ─── Content agent ───────────────────────────────────────────────────────
+src/app/(admin)/posts/                  @tylercreatorscorner  # owner: agent/content
+src/app/(admin)/reporting/              @tylercreatorscorner  # owner: agent/content
+src/app/(admin)/discord-posts/          @tylercreatorscorner  # owner: agent/content
+src/app/(admin)/discord-scan/           @tylercreatorscorner  # owner: agent/content
+src/app/(admin)/discord-links/          @tylercreatorscorner  # owner: agent/content
+src/components/posts/                   @tylercreatorscorner  # owner: agent/content
+src/components/reporting/               @tylercreatorscorner  # owner: agent/content
+
+# ─── Insights agent ──────────────────────────────────────────────────────
+src/app/(admin)/analytics/              @tylercreatorscorner  # owner: agent/insights
+src/components/analytics/               @tylercreatorscorner  # owner: agent/insights
+
+# ─── Finance agent ───────────────────────────────────────────────────────
+src/app/(admin)/earnings/               @tylercreatorscorner  # owner: agent/finance
+src/app/(admin)/invoicing/              @tylercreatorscorner  # owner: agent/finance
+src/app/(admin)/payments/               @tylercreatorscorner  # owner: agent/finance
+src/app/(admin)/ytd/                    @tylercreatorscorner  # owner: agent/finance
+src/components/finance/                 @tylercreatorscorner  # owner: agent/finance
+src/components/invoicing/               @tylercreatorscorner  # owner: agent/finance
+
+# ─── Shared / cross-cutting (any agent may touch with care) ─────────────
+# These paths intentionally have no agent label. The scope-check workflow
+# treats anything not listed above as "shared" — any agent can edit, but
+# changes here ripple across sections, so they should be small and obvious.
+#   src/lib/                  Shared utilities, data layer, RPCs
+#   src/components/ui/        Design-system primitives
+#   src/components/layout/    Sidebar, shell, navigation
+#   src/components/charts/    Shared chart components
+#   src/types/                TypeScript types
+#   src/app/api/              Backend API routes
+#   src/app/actions/          Server actions
+#
+# ─── Out of bounds for agents (humans only) ──────────────────────────────
+# Schema migrations, dependency changes, and platform admin pages should
+# come from non-agent branches (e.g. `chore/...`, `infra/...`):
+#   supabase/migrations/      DB schema changes
+#   package.json              Dependency changes
+#   tsconfig.json, next.config, etc.
+#   src/app/(admin)/settings/, /upload/, /system/, /brands/
+#   .github/                  CI/CD config (this file lives here)
