@@ -1,8 +1,14 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { Users, Plus, Trash2, ChevronDown, Shield, Check } from 'lucide-react';
-import { inviteUser, updateUserRole, removeUser, updateBrandAccess } from '@/app/actions/users';
+import { Users, Plus, Trash2, ChevronDown, Shield, Check, Send, Loader2 } from 'lucide-react';
+import {
+  inviteUser,
+  updateUserRole,
+  removeUser,
+  updateBrandAccess,
+  resendMagicLink,
+} from '@/app/actions/users';
 import { cn } from '@/lib/utils';
 
 // Note: 'brand_contact' is the legacy value for the same thing as 'brand'
@@ -113,6 +119,23 @@ export function UserManagement({ users, brands, tenantId, currentUserId }: Props
         flash('User removed', 'success');
       } catch (e) {
         flash((e as Error).message, 'error');
+      }
+    });
+  }
+
+  // Track which user_id is currently mid-resend so the button can show
+  // a spinner without blocking other rows.
+  const [resendingId, setResendingId] = useState<string | null>(null);
+  function handleResend(userId: string, email: string) {
+    setResendingId(userId);
+    startTransition(async () => {
+      try {
+        await resendMagicLink(userId);
+        flash(`Sign-in code sent to ${email}`, 'success');
+      } catch (e) {
+        flash((e as Error).message, 'error');
+      } finally {
+        setResendingId(null);
       }
     });
   }
@@ -288,6 +311,22 @@ export function UserManagement({ users, brands, tenantId, currentUserId }: Props
                     className="text-xs px-2 py-1 rounded-lg border border-border hover:bg-muted/50 transition-colors text-gray-500"
                   >
                     Brands
+                  </button>
+                )}
+
+                {/* Resend magic link — for any non-owner team member */}
+                {u.role !== 'owner' && u.user_id !== currentUserId && (
+                  <button
+                    onClick={() => handleResend(u.user_id, u.email)}
+                    disabled={isPending || resendingId === u.user_id}
+                    title="Send a fresh sign-in code to this user"
+                    className="p-1.5 rounded-lg text-gray-300 hover:text-[#1A1B3A] hover:bg-muted/50 transition-colors disabled:opacity-50"
+                  >
+                    {resendingId === u.user_id ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Send className="h-3.5 w-3.5" />
+                    )}
                   </button>
                 )}
 
