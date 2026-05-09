@@ -11,10 +11,10 @@
  */
 
 import { useMemo, useState } from 'react';
-import { Plug, AlertCircle, CheckCircle2, Clock, X, MessageSquare, ShoppingBag, Mail, MessageCircle, Sparkles, Database, type LucideIcon, Plus, ExternalLink } from 'lucide-react';
+import { Plug, AlertCircle, CheckCircle2, Clock, X, MessageSquare, ShoppingBag, Mail, MessageCircle, Sparkles, Database, type LucideIcon, Plus, ExternalLink, Send, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { IntegrationView } from '@/lib/data/integrations';
-import { TYPE_LABELS, INTEGRATION_TYPE_CATALOG } from '@/lib/data/integrations';
+import type { IntegrationView } from '@/lib/data/integration-catalog';
+import { TYPE_LABELS, INTEGRATION_TYPE_CATALOG } from '@/lib/data/integration-catalog';
 
 const ICON_FOR_TYPE: Record<string, LucideIcon> = {
   discord: MessageSquare,
@@ -55,7 +55,17 @@ export function IntegrationsClient({
 }: {
   initialIntegrations: IntegrationView[];
 }) {
-  const [integrations] = useState<IntegrationView[]>(initialIntegrations);
+  const [integrations, setIntegrations] = useState<IntegrationView[]>(initialIntegrations);
+  const [active, setActive] = useState<IntegrationView | null>(null);
+
+  async function refresh() {
+    try {
+      const res = await fetch('/api/integrations');
+      if (!res.ok) return;
+      const j = await res.json() as { integrations: IntegrationView[] };
+      setIntegrations(j.integrations ?? []);
+    } catch { /* ignore */ }
+  }
 
   // Group connected integrations by brand, with tenant-scoped at the bottom.
   const byBrand = useMemo(() => {
@@ -121,7 +131,11 @@ export function IntegrationsClient({
                 </p>
                 <div className="rounded-2xl border border-gray-100 bg-white overflow-hidden divide-y divide-gray-50">
                   {group.rows.map(row => (
-                    <IntegrationRow key={row.id} integration={row} />
+                    <IntegrationRow
+                      key={row.id}
+                      integration={row}
+                      onClick={() => setActive(row)}
+                    />
                   ))}
                 </div>
               </div>
@@ -129,6 +143,15 @@ export function IntegrationsClient({
           </div>
         )}
       </section>
+
+      {/* Detail drawer for the selected integration */}
+      {active && (
+        <IntegrationDetailDrawer
+          integration={active}
+          onClose={() => setActive(null)}
+          onAfterAction={async () => { await refresh(); }}
+        />
+      )}
 
       {/* Available section */}
       <section className="space-y-4">
@@ -150,11 +173,14 @@ export function IntegrationsClient({
   );
 }
 
-function IntegrationRow({ integration }: { integration: IntegrationView }) {
+function IntegrationRow({ integration, onClick }: { integration: IntegrationView; onClick: () => void }) {
   const Icon = ICON_FOR_TYPE[integration.type] ?? Plug;
   const StatusIcon = STATUS_ICON[integration.status];
   return (
-    <div className="flex items-start gap-4 p-4 hover:bg-gray-50/40 transition-colors">
+    <button
+      onClick={onClick}
+      className="w-full text-left flex items-start gap-4 p-4 hover:bg-gray-50/40 transition-colors"
+    >
       <div className="h-10 w-10 rounded-xl bg-gray-50 flex items-center justify-center flex-shrink-0">
         <Icon className="h-5 w-5 text-gray-500" />
       </div>
@@ -188,6 +214,200 @@ function IntegrationRow({ integration }: { integration: IntegrationView }) {
           </p>
         )}
       </div>
+    </button>
+  );
+}
+
+// ─── Detail drawer ───────────────────────────────────────────────────────
+
+function IntegrationDetailDrawer({
+  integration,
+  onClose,
+  onAfterAction,
+}: {
+  integration: IntegrationView;
+  onClose: () => void;
+  onAfterAction: () => Promise<void>;
+}) {
+  const Icon = ICON_FOR_TYPE[integration.type] ?? Plug;
+  const supportsTestSend = integration.type === 'discord';
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/20 backdrop-blur-[2px]" />
+      <div
+        className="relative w-full max-w-md bg-white shadow-2xl h-full overflow-y-auto flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between z-10">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="h-10 w-10 rounded-xl bg-gray-50 flex items-center justify-center flex-shrink-0">
+              <Icon className="h-5 w-5 text-gray-500" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-400">
+                {TYPE_LABELS[integration.type] ?? integration.type}
+              </p>
+              <h2 className="text-base font-bold text-[#1A1B3A] truncate">
+                {integration.displayName}
+              </h2>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors flex-shrink-0">
+            <X className="h-5 w-5 text-gray-400" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="p-6 space-y-5 flex-1">
+          <DetailRow label="Status">
+            <span className={cn('inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded-full', STATUS_STYLE[integration.status])}>
+              {integration.status}
+            </span>
+          </DetailRow>
+          {integration.brandName && (
+            <DetailRow label="Brand">
+              <span className="text-sm">{integration.brandName}</span>
+            </DetailRow>
+          )}
+          {integration.summary && (
+            <DetailRow label="Details">
+              <span className="text-sm text-gray-700 break-all">{integration.summary}</span>
+            </DetailRow>
+          )}
+          {integration.lastUsedAt && (
+            <DetailRow label="Last used">
+              <span className="text-sm text-gray-700">
+                {new Date(integration.lastUsedAt).toLocaleString()}
+              </span>
+            </DetailRow>
+          )}
+          {integration.lastErrorMessage && (
+            <div className="rounded-xl border border-red-100 bg-red-50 p-3">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-red-700 mb-1">Last error</p>
+              <p className="text-xs text-red-700 leading-relaxed">{integration.lastErrorMessage}</p>
+            </div>
+          )}
+          {!integration.managed && (
+            <div className="rounded-xl border border-amber-100 bg-amber-50 p-3">
+              <p className="text-xs text-amber-800 leading-relaxed">
+                This connection was auto-detected from existing data. The first time you fire a test send,
+                it will be promoted into the managed integrations table — meaning it becomes editable and
+                appears in automation history.
+              </p>
+            </div>
+          )}
+
+          {/* Test send (Discord only for now) */}
+          {supportsTestSend && (
+            <TestSendSection integration={integration} onSent={onAfterAction} />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1">{label}</p>
+      <div>{children}</div>
+    </div>
+  );
+}
+
+function TestSendSection({
+  integration,
+  onSent,
+}: {
+  integration: IntegrationView;
+  onSent: () => Promise<void>;
+}) {
+  const [channelId, setChannelId] = useState('');
+  const [content, setContent] = useState('Test message from Tempo 👋');
+  const [sending, setSending] = useState(false);
+  const [result, setResult] = useState<
+    | { kind: 'success'; messageId?: string }
+    | { kind: 'error'; message: string }
+    | null
+  >(null);
+
+  async function send() {
+    setSending(true);
+    setResult(null);
+    try {
+      const res = await fetch(`/api/integrations/${encodeURIComponent(integration.id)}/test-send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channel_id: channelId.trim(), content: content.trim() }),
+      });
+      const j = await res.json() as { ok: boolean; error?: string; message_id?: string };
+      if (j.ok) {
+        setResult({ kind: 'success', messageId: j.message_id });
+        await onSent();
+      } else {
+        setResult({ kind: 'error', message: j.error ?? 'Send failed' });
+      }
+    } catch (e) {
+      setResult({ kind: 'error', message: e instanceof Error ? e.message : 'Network error' });
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <div className="rounded-xl border border-gray-100 bg-gray-50/60 p-4 space-y-3">
+      <div>
+        <p className="text-sm font-semibold text-[#1A1B3A]">Test send</p>
+        <p className="text-xs text-gray-500 mt-0.5">
+          Post a single message to a channel to confirm the bot can write here. Logs an automation run regardless of outcome.
+        </p>
+      </div>
+      <div>
+        <label className="block text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1">Channel ID</label>
+        <input
+          type="text"
+          value={channelId}
+          onChange={(e) => setChannelId(e.target.value)}
+          placeholder="1465474331365736552"
+          className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm font-mono bg-white focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D]"
+        />
+        <p className="text-[10px] text-gray-400 mt-1">
+          In Discord: enable Developer Mode → right-click channel → Copy Channel ID.
+        </p>
+      </div>
+      <div>
+        <label className="block text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1">Message</label>
+        <textarea
+          rows={3}
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D] resize-none"
+        />
+      </div>
+      <button
+        onClick={send}
+        disabled={sending || !channelId.trim()}
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#FF4D8D] text-white hover:bg-[#E91E8C] disabled:opacity-50 transition-colors"
+      >
+        {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+        {sending ? 'Sending…' : 'Send test message'}
+      </button>
+
+      {result?.kind === 'success' && (
+        <div className="rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2">
+          <p className="text-xs text-emerald-700 font-medium">
+            Sent successfully{result.messageId ? ` (message ${result.messageId})` : ''}.
+          </p>
+        </div>
+      )}
+      {result?.kind === 'error' && (
+        <div className="rounded-lg border border-red-100 bg-red-50 px-3 py-2">
+          <p className="text-xs text-red-700">{result.message}</p>
+        </div>
+      )}
     </div>
   );
 }
