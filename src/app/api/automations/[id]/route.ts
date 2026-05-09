@@ -11,7 +11,8 @@ import { createAdminClient } from '@/lib/supabase/server';
 
 export const runtime = 'nodejs';
 
-const ALLOWED = ['name', 'description', 'brand_id', 'trigger_config', 'steps', 'enabled'] as const;
+const ALLOWED = ['name', 'description', 'brand_id', 'trigger_type', 'trigger_config', 'steps', 'enabled'] as const;
+const VALID_TRIGGERS = new Set(['cron', 'event', 'manual']);
 
 export async function GET(
   _req: NextRequest,
@@ -57,6 +58,15 @@ export async function PATCH(
   }
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
+  }
+
+  // Validate trigger_type if it's being changed — the DB has a CHECK constraint
+  // but we want a friendly 400 instead of a Postgres error.
+  if ('trigger_type' in updates) {
+    const tt = updates.trigger_type;
+    if (typeof tt !== 'string' || !VALID_TRIGGERS.has(tt)) {
+      return NextResponse.json({ error: 'trigger_type must be one of cron|event|manual' }, { status: 400 });
+    }
   }
 
   updates.updated_at = new Date().toISOString();
