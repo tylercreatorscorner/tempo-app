@@ -69,6 +69,10 @@ jobs:
                 'src/components/finance/',
                 'src/components/invoicing/',
               ],
+              workflows: [
+                'src/app/(admin)/workflows/',
+                'src/components/workflows/',
+              ],
             };
 
             if (!SECTIONS[section]) {

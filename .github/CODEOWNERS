@@ -49,6 +49,15 @@ src/app/(admin)/ytd/                    @tylercreatorscorner  # owner: agent/fin
 src/components/finance/                 @tylercreatorscorner  # owner: agent/finance
 src/components/invoicing/               @tylercreatorscorner  # owner: agent/finance
 
+# ─── Workflows agent ─────────────────────────────────────────────────────
+# Integrations, automations, outreach campaigns. Owns the entire /workflows
+# section UI plus its components. The integrations data layer (src/lib/data/
+# integrations.ts) and API routes (src/app/api/integrations/, /automations/,
+# /outreach/) intentionally remain shared so any agent can read connection
+# state — but the workflows agent is the one who creates and maintains them.
+src/app/(admin)/workflows/              @tylercreatorscorner  # owner: agent/workflows
+src/components/workflows/               @tylercreatorscorner  # owner: agent/workflows
+
 # ─── Shared / cross-cutting (any agent may touch with care) ─────────────
 # These paths intentionally have no agent label. The scope-check workflow
 # treats anything not listed above as "shared" — any agent can edit, but
