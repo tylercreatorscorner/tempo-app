@@ -12,6 +12,7 @@
  */
 
 import { sendDiscordMessage, listDiscordChannels } from './discord';
+import { sendSlackMessage, listSlackChannels } from './slack';
 
 // ─── Public types ──────────────────────────────────────────────────────────
 
@@ -49,6 +50,10 @@ export interface IntegrationContext {
   id: string;
   type: string;
   config: Record<string, unknown>;
+  /** Per-install secrets (OAuth access tokens, API keys). Some actions read
+   *  from env (Discord bot token, Tempo's Anthropic key) so they leave this
+   *  null. Others (Slack, Twilio when user-provided) need it. */
+  credentials: Record<string, unknown> | null;
 }
 
 export interface ActionDef {
@@ -101,8 +106,43 @@ const DISCORD_SEND_MESSAGE: ActionDef = {
   },
 };
 
+const SLACK_SEND_MESSAGE: ActionDef = {
+  integrationType: 'slack',
+  action: 'send_message',
+  label: 'Send a message',
+  description: 'Posts a single message to a channel in this Slack workspace.',
+  params: [
+    {
+      key: 'channel_id',
+      label: 'Channel',
+      type: 'channel-picker',
+      required: true,
+      helpText: 'Pick the channel to post in. The bot must be a member of private channels.',
+    },
+    {
+      key: 'content',
+      label: 'Message',
+      type: 'textarea',
+      required: true,
+      rows: 4,
+      placeholder: 'Hello from Tempo 👋',
+      helpText: 'Slack mrkdwn supported (`*bold*`, `_italic_`, `<https://...|link text>`).',
+    },
+  ],
+  async handler(integration, params) {
+    const token = (integration.credentials?.access_token as string | undefined) ?? '';
+    const channelId = String(params.channel_id ?? '').trim();
+    const text = String(params.content ?? '').trim();
+    const result = await sendSlackMessage({ channelId, text, token });
+    return result.ok
+      ? { ok: true, externalId: result.ts, summary: `Sent to ${result.channel ?? channelId}` }
+      : { ok: false, status: result.status, error: result.error };
+  },
+};
+
 const ACTIONS: ActionDef[] = [
   DISCORD_SEND_MESSAGE,
+  SLACK_SEND_MESSAGE,
 ];
 
 // ─── Public API ────────────────────────────────────────────────────────────
@@ -133,7 +173,11 @@ export interface PickerOption {
   badge?: string;
 }
 
-export async function resolveChannelPicker(integrationType: string, config: Record<string, unknown>): Promise<{ ok: boolean; options?: PickerOption[]; error?: string }> {
+export async function resolveChannelPicker(
+  integrationType: string,
+  config: Record<string, unknown>,
+  credentials: Record<string, unknown> | null,
+): Promise<{ ok: boolean; options?: PickerOption[]; error?: string }> {
   if (integrationType === 'discord') {
     const guildId = (config.guild_id as string | undefined) ?? '';
     if (!guildId) return { ok: false, error: 'No Discord guild configured for this integration' };
@@ -146,6 +190,21 @@ export async function resolveChannelPicker(integrationType: string, config: Reco
         label: c.name,
         groupLabel: c.parentName ?? 'Uncategorized',
         badge: c.isAnnouncement ? '📢' : undefined,
+      })),
+    };
+  }
+  if (integrationType === 'slack') {
+    const token = (credentials?.access_token as string | undefined) ?? '';
+    if (!token) return { ok: false, error: 'Slack access token missing — re-connect the integration' };
+    const r = await listSlackChannels(token);
+    if (!r.ok) return { ok: false, error: r.error };
+    return {
+      ok: true,
+      options: (r.channels ?? []).map(c => ({
+        value: c.id,
+        label: c.name,
+        groupLabel: c.isPrivate ? 'Private channels' : 'Public channels',
+        badge: c.isPrivate ? '🔒' : undefined,
       })),
     };
   }

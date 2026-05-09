@@ -53,7 +53,7 @@ export interface IntegrationTypeOption {
 
 export const INTEGRATION_TYPE_CATALOG: IntegrationTypeOption[] = [
   { type: 'discord', label: 'Discord', category: 'messaging', description: 'Per-server bot access for daily drops, alerts, and creator messages.' },
-  { type: 'slack', label: 'Slack', category: 'messaging', description: 'Workspace + channel for ops alerts and team-internal notifications.', comingSoon: true },
+  { type: 'slack', label: 'Slack', category: 'messaging', description: 'Workspace + channel for ops alerts and team-internal notifications.' },
   { type: 'resend', label: 'Resend (Email)', category: 'messaging', description: 'Branded email send for invoices, creator outreach, weekly recaps.', comingSoon: true },
   { type: 'twilio', label: 'Twilio (SMS)', category: 'messaging', description: 'Mass-text creators or send 1:1 alerts.', comingSoon: true },
   { type: 'tiktok_shop', label: 'TikTok Shop', category: 'data', description: 'Affiliate / Seller Center scrape session per brand.' },

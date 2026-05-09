@@ -50,13 +50,53 @@ const CATEGORY_LABELS: Record<string, string> = {
   ai:        'AI Providers',
 };
 
+interface BrandOption {
+  id: string;
+  slug: string;
+  name: string;
+  displayName: string;
+}
+
 export function IntegrationsClient({
   initialIntegrations,
+  brands,
 }: {
   initialIntegrations: IntegrationView[];
+  brands: BrandOption[];
 }) {
   const [integrations, setIntegrations] = useState<IntegrationView[]>(initialIntegrations);
   const [active, setActive] = useState<IntegrationView | null>(null);
+  const [connecting, setConnecting] = useState<{ type: string; label: string } | null>(null);
+  const [flash, setFlash] = useState<{ kind: 'success' | 'error'; message: string } | null>(null);
+
+  // On mount, check the URL for an OAuth callback flash (?connected=slack or
+  // ?connect_error=...). Show a banner and clean the URL so a refresh doesn't
+  // re-trigger it.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const u = new URL(window.location.href);
+    const connected = u.searchParams.get('connected');
+    const connectError = u.searchParams.get('connect_error');
+    const workspace = u.searchParams.get('workspace');
+    if (connected) {
+      setFlash({ kind: 'success', message: `Connected ${connected}${workspace ? ` workspace "${workspace}"` : ''}.` });
+    } else if (connectError) {
+      setFlash({ kind: 'error', message: `Connection failed: ${connectError}` });
+    }
+    if (connected || connectError) {
+      u.searchParams.delete('connected');
+      u.searchParams.delete('connect_error');
+      u.searchParams.delete('workspace');
+      window.history.replaceState({}, '', u.pathname + u.search);
+    }
+  }, []);
+
+  // Auto-dismiss flash after 6s
+  useEffect(() => {
+    if (!flash) return;
+    const t = setTimeout(() => setFlash(null), 6000);
+    return () => clearTimeout(t);
+  }, [flash]);
 
   async function refresh() {
     try {
@@ -65,6 +105,10 @@ export function IntegrationsClient({
       const j = await res.json() as { integrations: IntegrationView[] };
       setIntegrations(j.integrations ?? []);
     } catch { /* ignore */ }
+  }
+
+  function startConnect(type: string, label: string) {
+    setConnecting({ type, label });
   }
 
   // Group connected integrations by brand, with tenant-scoped at the bottom.
@@ -144,12 +188,34 @@ export function IntegrationsClient({
         )}
       </section>
 
+      {/* Flash banner — shown after OAuth callback with success/error */}
+      {flash && (
+        <div className={cn(
+          'fixed top-6 right-6 z-50 rounded-xl px-4 py-3 shadow-xl border text-sm font-medium max-w-md',
+          flash.kind === 'success'
+            ? 'bg-emerald-50 border-emerald-100 text-emerald-800'
+            : 'bg-red-50 border-red-100 text-red-800',
+        )}>
+          {flash.message}
+        </div>
+      )}
+
       {/* Detail drawer for the selected integration */}
       {active && (
         <IntegrationDetailDrawer
           integration={active}
           onClose={() => setActive(null)}
           onAfterAction={async () => { await refresh(); }}
+        />
+      )}
+
+      {/* Connect modal — picks brand association before kicking off OAuth */}
+      {connecting && (
+        <ConnectModal
+          type={connecting.type}
+          label={connecting.label}
+          brands={brands}
+          onClose={() => setConnecting(null)}
         />
       )}
 
@@ -163,7 +229,11 @@ export function IntegrationsClient({
             <p className="text-xs font-semibold text-gray-500 mb-2">{CATEGORY_LABELS[cat] ?? cat}</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {items.map(item => (
-                <CatalogCard key={item.type} item={item} />
+                <CatalogCard
+                  key={item.type}
+                  item={item}
+                  onConnect={() => startConnect(item.type, item.label)}
+                />
               ))}
             </div>
           </div>
@@ -215,6 +285,107 @@ function IntegrationRow({ integration, onClick }: { integration: IntegrationView
         )}
       </div>
     </button>
+  );
+}
+
+// ─── Connect modal ───────────────────────────────────────────────────────
+//
+// Asks the user which brand the new integration should belong to (or
+// "Workspace-wide"), then redirects to the type-specific OAuth start route.
+// For now only Slack uses this — Discord is bot-token-only and auto-detected
+// from existing data.
+
+function ConnectModal({
+  type, label, brands, onClose,
+}: {
+  type: string;
+  label: string;
+  brands: BrandOption[];
+  onClose: () => void;
+}) {
+  const [brandId, setBrandId] = useState<string>('workspace');
+
+  // Slack is the only OAuth-installable type so far. Future: branch on `type`
+  // to dispatch to the right /api/integrations/<type>/oauth/start route.
+  const oauthSupported = type === 'slack';
+
+  function go() {
+    if (!oauthSupported) return;
+    const url = new URL(`/api/integrations/${type}/oauth/start`, window.location.origin);
+    url.searchParams.set('brand_id', brandId);
+    window.location.assign(url.toString());
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/30" />
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl"
+      >
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Connect</p>
+            <h3 className="text-base font-bold text-[#1A1B3A]">{label}</h3>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
+            <X className="h-4 w-4 text-gray-400" />
+          </button>
+        </div>
+
+        <div className="p-5 space-y-4">
+          {!oauthSupported ? (
+            <p className="text-sm text-gray-600">
+              {label} doesn&apos;t support a self-serve install yet. We&apos;ll add it next.
+            </p>
+          ) : (
+            <>
+              <div>
+                <label className="block text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1">
+                  Associate with
+                </label>
+                <select
+                  value={brandId}
+                  onChange={(e) => setBrandId(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30"
+                >
+                  <option value="workspace">Workspace-wide (no brand)</option>
+                  {brands.map(b => (
+                    <option key={b.id} value={b.id}>{b.displayName}</option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-gray-500 mt-1 leading-relaxed">
+                  Pick the brand whose Slack workspace you&apos;re about to connect, or
+                  &quot;Workspace-wide&quot; if it&apos;s shared across all brands.
+                </p>
+              </div>
+
+              <p className="text-[11px] text-gray-500 leading-relaxed">
+                You&apos;ll be redirected to {label} to authorize Tempo. After approving,
+                we&apos;ll come back here and the connection will appear under the chosen brand.
+              </p>
+            </>
+          )}
+        </div>
+
+        <div className="px-5 py-3 border-t border-gray-100 flex items-center gap-2 justify-end">
+          <button
+            onClick={onClose}
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+          >
+            Cancel
+          </button>
+          {oauthSupported && (
+            <button
+              onClick={go}
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#FF4D8D] text-white hover:bg-[#E91E8C] transition-colors"
+            >
+              Continue to {label}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -492,12 +663,17 @@ function TestSendSection({
   );
 }
 
-function CatalogCard({ item }: { item: (typeof INTEGRATION_TYPE_CATALOG)[number] }) {
+function CatalogCard({
+  item, onConnect,
+}: {
+  item: (typeof INTEGRATION_TYPE_CATALOG)[number];
+  onConnect: () => void;
+}) {
   const Icon = ICON_FOR_TYPE[item.type] ?? Plug;
   return (
     <div className={cn(
       'relative rounded-2xl border bg-white p-4 transition-shadow',
-      item.comingSoon ? 'border-gray-100' : 'border-gray-100 hover:shadow-md cursor-pointer',
+      item.comingSoon ? 'border-gray-100' : 'border-gray-100 hover:shadow-md',
     )}>
       <div className="flex items-start gap-3">
         <div className="h-9 w-9 rounded-xl bg-gray-50 flex items-center justify-center flex-shrink-0">
@@ -516,7 +692,10 @@ function CatalogCard({ item }: { item: (typeof INTEGRATION_TYPE_CATALOG)[number]
         </div>
       </div>
       {!item.comingSoon && (
-        <button className="absolute top-3 right-3 inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-lg bg-[#FF4D8D]/10 text-[#FF4D8D] hover:bg-[#FF4D8D]/15 transition-colors">
+        <button
+          onClick={onConnect}
+          className="absolute top-3 right-3 inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-lg bg-[#FF4D8D]/10 text-[#FF4D8D] hover:bg-[#FF4D8D]/15 transition-colors"
+        >
           <Plus className="h-3 w-3" />
           Connect
         </button>

@@ -196,7 +196,7 @@ async function resolveIntegration(id: string): Promise<ResolveOk | ResolveErr> {
         config: { guild_id: brand.discord_guild_id },
         status: 'connected',
       })
-      .select('id, type, config')
+      .select('id, type, config, credentials')
       .single();
     if (createErr || !created) {
       return { ok: false, error: createErr?.message ?? 'Failed to promote legacy integration' };
@@ -204,13 +204,18 @@ async function resolveIntegration(id: string): Promise<ResolveOk | ResolveErr> {
     return {
       ok: true,
       promoted: true,
-      integration: { id: created.id, type: created.type, config: (created.config ?? {}) as Record<string, unknown> },
+      integration: {
+        id: created.id,
+        type: created.type,
+        config: (created.config ?? {}) as Record<string, unknown>,
+        credentials: (created.credentials ?? null) as Record<string, unknown> | null,
+      },
     };
   }
 
   const { data: row, error: loadErr } = await supabase
     .from('integrations')
-    .select('id, type, config')
+    .select('id, type, config, credentials')
     .eq('id', id)
     .maybeSingle();
   if (loadErr) return { ok: false, error: loadErr.message };
@@ -218,6 +223,11 @@ async function resolveIntegration(id: string): Promise<ResolveOk | ResolveErr> {
   return {
     ok: true,
     promoted: false,
-    integration: { id: row.id, type: row.type, config: (row.config ?? {}) as Record<string, unknown> },
+    integration: {
+      id: row.id,
+      type: row.type,
+      config: (row.config ?? {}) as Record<string, unknown>,
+      credentials: (row.credentials ?? null) as Record<string, unknown> | null,
+    },
   };
 }
