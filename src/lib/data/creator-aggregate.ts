@@ -58,6 +58,33 @@ async function fetchHandleToRealName(handles: string[]): Promise<Map<string, { r
 }
 
 /**
+ * Per-data-slug managed GMV split for the BrandPerformance card.
+ *
+ * Uses the same handle→creator mapping as `aggregateCreatorsByRealName` so
+ * "managed" stays consistent across the dashboard: a creator counts as
+ * managed when their TikTok handle resolves to a row in `creators_v2`.
+ *
+ * Returns a Map keyed by **data slug** (e.g. `leefar_nutrition`, not the
+ * umbrella `leefar`); callers expand umbrella roster slugs back to their
+ * stores at the call site.
+ */
+export async function computeManagedGmvByBrand(
+  creators: RawCreator[],
+): Promise<Map<string, number>> {
+  const handles = creators.map(c => c.creator_name);
+  const handleMap = await fetchHandleToRealName(handles);
+
+  const managedByBrand = new Map<string, number>();
+  for (const c of creators) {
+    if (!c.brand) continue;
+    const isManaged = handleMap.has(c.creator_name.toLowerCase());
+    if (!isManaged) continue;
+    managedByBrand.set(c.brand, (managedByBrand.get(c.brand) ?? 0) + (c.total_gmv ?? 0));
+  }
+  return managedByBrand;
+}
+
+/**
  * Groups raw creator rows by real name (or by handle if unmanaged).
  * Aggregates GMV, orders, items, videos across multiple handles.
  */

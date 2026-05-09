@@ -5,6 +5,7 @@ import { usePathname, useSearchParams } from 'next/navigation';
 import {
   LayoutDashboard, BarChart3, UserCheck, CreditCard,
   Mail, Compass, FileBarChart, Upload, Calculator, Receipt, PlaySquare, CalendarRange,
+  Plug, Zap, Megaphone,
   Settings as SettingsIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -69,6 +70,16 @@ const INSIGHTS_SECTION: NavSection = {
   ],
 };
 
+const WORKFLOWS_SECTION: NavSection = {
+  label: 'Workflows',
+  adminOnly: true,
+  items: [
+    { href: '/workflows/integrations', label: 'Integrations', icon: Plug },
+    { href: '/workflows/automations',  label: 'Automations',  icon: Zap },
+    { href: '/workflows/outreach',     label: 'Outreach',     icon: Megaphone },
+  ],
+};
+
 const FINANCE_SECTION: NavSection = {
   label: 'Finance',
   adminOnly: true,
@@ -110,7 +121,7 @@ export function Sidebar({ className, userRole = 'customer' }: SidebarProps) {
   // Option A entity-based order: Home → Creators → Content → Insights → Finance → Admin.
   // Admin (with Upload + Settings) lives at the bottom because both are
   // maintenance/configuration surfaces, not daily-use destinations.
-  const sections = [HOME_SECTION, CREATORS_SECTION, CONTENT_SECTION, INSIGHTS_SECTION, FINANCE_SECTION, ADMIN_SECTION]
+  const sections = [HOME_SECTION, CREATORS_SECTION, CONTENT_SECTION, INSIGHTS_SECTION, WORKFLOWS_SECTION, FINANCE_SECTION, ADMIN_SECTION]
     .filter(s => !s.adminOnly || isAdmin);
 
   function withBrand(href: string) {
