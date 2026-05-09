@@ -10,7 +10,7 @@
  *   2. Available to add (catalog of supported types, with comingSoon flags)
  */
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Plug, AlertCircle, CheckCircle2, Clock, X, MessageSquare, ShoppingBag, Mail, MessageCircle, Sparkles, Database, type LucideIcon, Plus, ExternalLink, Send, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { IntegrationView } from '@/lib/data/integration-catalog';
@@ -318,6 +318,13 @@ function DetailRow({ label, children }: { label: string; children: React.ReactNo
   );
 }
 
+interface DiscordChannel {
+  id: string;
+  name: string;
+  parentName: string | null;
+  isAnnouncement: boolean;
+}
+
 function TestSendSection({
   integration,
   onSent,
@@ -333,6 +340,36 @@ function TestSendSection({
     | { kind: 'error'; message: string }
     | null
   >(null);
+
+  // Channel list — lazy-loaded once on first render so a brand with 50 channels
+  // doesn't pay the round-trip until the drawer is actually opened.
+  const [channels, setChannels] = useState<DiscordChannel[] | null>(null);
+  const [loadingChannels, setLoadingChannels] = useState(false);
+  const [channelsError, setChannelsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      setLoadingChannels(true);
+      setChannelsError(null);
+      try {
+        const res = await fetch(`/api/integrations/${encodeURIComponent(integration.id)}/channels`);
+        const j = await res.json() as { channels?: DiscordChannel[]; error?: string };
+        if (cancelled) return;
+        if (j.channels) {
+          setChannels(j.channels);
+        } else {
+          setChannelsError(j.error ?? 'Failed to load channels');
+        }
+      } catch (e) {
+        if (!cancelled) setChannelsError(e instanceof Error ? e.message : 'Network error');
+      } finally {
+        if (!cancelled) setLoadingChannels(false);
+      }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [integration.id]);
 
   async function send() {
     setSending(true);
@@ -357,6 +394,18 @@ function TestSendSection({
     }
   }
 
+  // Group channels by category for visual structure in the dropdown
+  const grouped = useMemo(() => {
+    if (!channels) return null;
+    const map = new Map<string, DiscordChannel[]>();
+    for (const c of channels) {
+      const key = c.parentName ?? 'Uncategorized';
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(c);
+    }
+    return Array.from(map.entries());
+  }, [channels]);
+
   return (
     <div className="rounded-xl border border-gray-100 bg-gray-50/60 p-4 space-y-3">
       <div>
@@ -366,17 +415,48 @@ function TestSendSection({
         </p>
       </div>
       <div>
-        <label className="block text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1">Channel ID</label>
-        <input
-          type="text"
-          value={channelId}
-          onChange={(e) => setChannelId(e.target.value)}
-          placeholder="1465474331365736552"
-          className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm font-mono bg-white focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D]"
-        />
-        <p className="text-[10px] text-gray-400 mt-1">
-          In Discord: enable Developer Mode → right-click channel → Copy Channel ID.
-        </p>
+        <label className="block text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1">Channel</label>
+        {loadingChannels ? (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 bg-white">
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-400" />
+            <span className="text-xs text-gray-500">Loading channels…</span>
+          </div>
+        ) : channelsError ? (
+          <div>
+            <input
+              type="text"
+              value={channelId}
+              onChange={(e) => setChannelId(e.target.value)}
+              placeholder="1465474331365736552"
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm font-mono bg-white focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D]"
+            />
+            <p className="text-[10px] text-amber-600 mt-1">
+              Couldn&apos;t list channels: {channelsError}. Paste a channel ID manually.
+            </p>
+          </div>
+        ) : grouped && grouped.length > 0 ? (
+          <select
+            value={channelId}
+            onChange={(e) => setChannelId(e.target.value)}
+            className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D]"
+          >
+            <option value="">— pick a channel —</option>
+            {grouped.map(([category, items]) => (
+              <optgroup key={category} label={category}>
+                {items.map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.isAnnouncement ? '📢 ' : '#'}
+                    {c.name}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+        ) : (
+          <div className="px-3 py-2 rounded-lg border border-gray-200 bg-white">
+            <p className="text-xs text-gray-500">No postable channels found in this server.</p>
+          </div>
+        )}
       </div>
       <div>
         <label className="block text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1">Message</label>
