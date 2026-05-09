@@ -13,8 +13,8 @@
 import { useMemo, useState } from 'react';
 import { Plug, AlertCircle, CheckCircle2, Clock, X, MessageSquare, ShoppingBag, Mail, MessageCircle, Sparkles, Database, type LucideIcon, Plus, ExternalLink, Send, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { IntegrationView } from '@/lib/data/integrations';
-import { TYPE_LABELS, INTEGRATION_TYPE_CATALOG } from '@/lib/data/integrations';
+import type { IntegrationView } from '@/lib/data/integration-catalog';
+import { TYPE_LABELS, INTEGRATION_TYPE_CATALOG } from '@/lib/data/integration-catalog';
 
 const ICON_FOR_TYPE: Record<string, LucideIcon> = {
   discord: MessageSquare,

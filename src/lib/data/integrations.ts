@@ -7,28 +7,18 @@
  * own tables for historical reasons. This view surfaces all of them in a
  * single shape so the /workflows/integrations page can render one coherent
  * list day 1, with no migration required.
+ *
+ * NOTE: this file imports `createAdminClient` (server-only — uses next/headers).
+ * Pure-data exports (the IntegrationView type, TYPE_LABELS,
+ * INTEGRATION_TYPE_CATALOG) live in `./integration-catalog.ts` so client
+ * components can import them without dragging in server deps.
  */
 import { createAdminClient } from '@/lib/supabase/server';
-
-export interface IntegrationView {
-  /** Stable identifier — either an integrations.id or `legacy:<source>:<key>`. */
-  id: string;
-  /** Connection type: 'discord' | 'tiktok_shop' | 'resend' | 'slack' | ... */
-  type: string;
-  /** User-set name, falling back to the brand or system name. */
-  displayName: string;
-  /** When set, this connection is brand-scoped. */
-  brandId: string | null;
-  brandSlug: string | null;
-  brandName: string | null;
-  status: 'connected' | 'error' | 'revoked' | 'pending';
-  /** Compact summary string shown in the list — e.g. guild ID, last scrape, channel name. */
-  summary: string | null;
-  lastUsedAt: string | null;
-  lastErrorMessage: string | null;
-  /** True when this row comes from the new integrations table (vs. legacy auto-detected). */
-  managed: boolean;
-}
+import { TYPE_LABELS } from './integration-catalog';
+import type { IntegrationView } from './integration-catalog';
+// Re-export for ergonomic server-side use (one import path for everything).
+export type { IntegrationView, IntegrationTypeOption } from './integration-catalog';
+export { TYPE_LABELS, INTEGRATION_TYPE_CATALOG } from './integration-catalog';
 
 interface BrandRow {
   id: string;
@@ -206,38 +196,3 @@ function summarizeConfig(type: string, config: Record<string, unknown>): string 
       return null;
   }
 }
-
-export const TYPE_LABELS: Record<string, string> = {
-  discord: 'Discord',
-  slack: 'Slack',
-  tiktok_shop: 'TikTok Shop',
-  resend: 'Resend (Email)',
-  twilio: 'Twilio (SMS)',
-  klaviyo: 'Klaviyo',
-  hubspot: 'HubSpot',
-  notion: 'Notion',
-  anthropic: 'Anthropic (Claude)',
-  openai: 'OpenAI',
-};
-
-/** Categories used to group integration types in the "Add Integration" picker. */
-export interface IntegrationTypeOption {
-  type: string;
-  label: string;
-  category: 'messaging' | 'data' | 'crm' | 'ai';
-  description: string;
-  comingSoon?: boolean;
-}
-
-export const INTEGRATION_TYPE_CATALOG: IntegrationTypeOption[] = [
-  { type: 'discord', label: 'Discord', category: 'messaging', description: 'Per-server bot access for daily drops, alerts, and creator messages.' },
-  { type: 'slack', label: 'Slack', category: 'messaging', description: 'Workspace + channel for ops alerts and team-internal notifications.', comingSoon: true },
-  { type: 'resend', label: 'Resend (Email)', category: 'messaging', description: 'Branded email send for invoices, creator outreach, weekly recaps.', comingSoon: true },
-  { type: 'twilio', label: 'Twilio (SMS)', category: 'messaging', description: 'Mass-text creators or send 1:1 alerts.', comingSoon: true },
-  { type: 'tiktok_shop', label: 'TikTok Shop', category: 'data', description: 'Affiliate / Seller Center scrape session per brand.' },
-  { type: 'hubspot', label: 'HubSpot', category: 'crm', description: 'Sync contacts and creator outreach into HubSpot CRM.', comingSoon: true },
-  { type: 'klaviyo', label: 'Klaviyo', category: 'crm', description: 'Push creator + brand events into Klaviyo flows.', comingSoon: true },
-  { type: 'notion', label: 'Notion', category: 'data', description: 'Mirror brand notes / creator docs in Notion.', comingSoon: true },
-  { type: 'anthropic', label: 'Anthropic Claude', category: 'ai', description: 'Power AI workflows — summaries, brand client reports, creator analysis.', comingSoon: true },
-  { type: 'openai', label: 'OpenAI', category: 'ai', description: 'Alternative AI provider for workflow steps.', comingSoon: true },
-];
