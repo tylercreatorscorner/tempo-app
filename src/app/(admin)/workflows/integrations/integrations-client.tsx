@@ -401,7 +401,11 @@ function IntegrationDetailDrawer({
   onAfterAction: () => Promise<void>;
 }) {
   const Icon = ICON_FOR_TYPE[integration.type] ?? Plug;
-  const supportsTestSend = integration.type === 'discord';
+  // Test-send is supported wherever the registry has at least one action
+  // with a 'channel-picker' param (= post-a-message style). Today: Discord,
+  // Slack. Resend / Twilio will swap in 'recipient' params and use their
+  // own test fields, not channel-picker.
+  const supportsTestSend = integration.type === 'discord' || integration.type === 'slack';
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>

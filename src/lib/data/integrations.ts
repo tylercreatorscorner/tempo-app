@@ -182,7 +182,9 @@ function summarizeConfig(type: string, config: Record<string, unknown>): string 
       return [guild && `Guild ${guild}`, channel && `#${channel}`].filter(Boolean).join(' · ') || null;
     }
     case 'slack': {
-      const ws = config.workspace_name as string | undefined;
+      // OAuth callback writes config.team_name (Slack's term); also accept
+      // workspace_name as a forward-compat alias.
+      const ws = (config.team_name as string | undefined) ?? (config.workspace_name as string | undefined);
       const channel = config.default_channel_name as string | undefined;
       return [ws, channel && `#${channel}`].filter(Boolean).join(' · ') || null;
     }
