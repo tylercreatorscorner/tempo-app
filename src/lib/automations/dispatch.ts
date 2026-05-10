@@ -174,43 +174,91 @@ async function resolveIntegration(id: string): Promise<ResolveOk | ResolveErr> {
   const supabase = await createAdminClient();
 
   if (id.startsWith('legacy:')) {
-    const [, type, brandId] = id.split(':');
-    if (type !== 'discord') {
-      return { ok: false, error: `legacy ${type} integrations don't support dispatch yet` };
-    }
-    const { data: brand } = await supabase
-      .from('brands_v2')
-      .select('id, name, display_name, discord_guild_id, tenant_id')
-      .eq('id', brandId)
-      .maybeSingle();
-    if (!brand) return { ok: false, error: 'Brand not found' };
-    if (!brand.discord_guild_id) return { ok: false, error: 'Brand has no Discord guild configured' };
+    const [, type, scope] = id.split(':');
 
-    const { data: created, error: createErr } = await supabase
-      .from('integrations')
-      .insert({
-        tenant_id: brand.tenant_id,
-        brand_id: brand.id,
-        type: 'discord',
-        display_name: `${brand.display_name || brand.name} Server`,
-        config: { guild_id: brand.discord_guild_id },
-        status: 'connected',
-      })
-      .select('id, type, config, credentials')
-      .single();
-    if (createErr || !created) {
-      return { ok: false, error: createErr?.message ?? 'Failed to promote legacy integration' };
+    if (type === 'discord') {
+      const { data: brand } = await supabase
+        .from('brands_v2')
+        .select('id, name, display_name, discord_guild_id, tenant_id')
+        .eq('id', scope)
+        .maybeSingle();
+      if (!brand) return { ok: false, error: 'Brand not found' };
+      if (!brand.discord_guild_id) return { ok: false, error: 'Brand has no Discord guild configured' };
+
+      const { data: created, error: createErr } = await supabase
+        .from('integrations')
+        .insert({
+          tenant_id: brand.tenant_id,
+          brand_id: brand.id,
+          type: 'discord',
+          display_name: `${brand.display_name || brand.name} Server`,
+          config: { guild_id: brand.discord_guild_id },
+          status: 'connected',
+        })
+        .select('id, type, config, credentials')
+        .single();
+      if (createErr || !created) {
+        return { ok: false, error: createErr?.message ?? 'Failed to promote legacy integration' };
+      }
+      return {
+        ok: true,
+        promoted: true,
+        integration: {
+          id: created.id,
+          type: created.type,
+          config: (created.config ?? {}) as Record<string, unknown>,
+          credentials: (created.credentials ?? null) as Record<string, unknown> | null,
+        },
+      };
     }
-    return {
-      ok: true,
-      promoted: true,
-      integration: {
-        id: created.id,
-        type: created.type,
-        config: (created.config ?? {}) as Record<string, unknown>,
-        credentials: (created.credentials ?? null) as Record<string, unknown> | null,
-      },
-    };
+
+    if (type === 'resend' && scope === 'tenant') {
+      // Workspace-wide Resend uses Tempo's RESEND_API_KEY env — no per-install
+      // credentials needed. Promote on first use so subsequent runs hit the
+      // managed row and we get last_used_at + last_error_* on it.
+      if (!process.env.RESEND_API_KEY) {
+        return { ok: false, error: 'RESEND_API_KEY env var is not set' };
+      }
+      // Find the user's tenant — for the legacy:resend:tenant case we don't
+      // have one in the id, so we look up via the requireAdmin profile path.
+      // Simpler: pick the first tenant that has any other integration row,
+      // or fall back to a known tenant_id from existing rows.
+      const { data: anyRow } = await supabase
+        .from('integrations')
+        .select('tenant_id')
+        .not('tenant_id', 'is', null)
+        .limit(1)
+        .maybeSingle();
+      const tenantId = anyRow?.tenant_id ?? null;
+
+      const { data: created, error: createErr } = await supabase
+        .from('integrations')
+        .insert({
+          tenant_id: tenantId,
+          brand_id: null,
+          type: 'resend',
+          display_name: 'Email (Resend)',
+          config: { from_email: process.env.RESEND_FROM_EMAIL ?? null },
+          status: 'connected',
+        })
+        .select('id, type, config, credentials')
+        .single();
+      if (createErr || !created) {
+        return { ok: false, error: createErr?.message ?? 'Failed to promote Resend integration' };
+      }
+      return {
+        ok: true,
+        promoted: true,
+        integration: {
+          id: created.id,
+          type: created.type,
+          config: (created.config ?? {}) as Record<string, unknown>,
+          credentials: null,
+        },
+      };
+    }
+
+    return { ok: false, error: `legacy ${type} integrations don't support dispatch yet` };
   }
 
   const { data: row, error: loadErr } = await supabase

@@ -13,6 +13,7 @@
 
 import { sendDiscordMessage, listDiscordChannels } from './discord';
 import { sendSlackMessage, listSlackChannels } from './slack';
+import { sendEmail } from './resend';
 
 // ─── Public types ──────────────────────────────────────────────────────────
 
@@ -140,9 +141,61 @@ const SLACK_SEND_MESSAGE: ActionDef = {
   },
 };
 
+const RESEND_SEND_EMAIL: ActionDef = {
+  integrationType: 'resend',
+  action: 'send_email',
+  label: 'Send an email',
+  description: 'Sends a transactional email to one or more recipients via Resend.',
+  params: [
+    {
+      key: 'to',
+      label: 'To',
+      type: 'text',
+      required: true,
+      placeholder: 'creator@example.com',
+      helpText: 'One address, or several comma-separated.',
+    },
+    {
+      key: 'subject',
+      label: 'Subject',
+      type: 'text',
+      required: true,
+      placeholder: 'Your weekly Tempo recap',
+    },
+    {
+      key: 'body',
+      label: 'Body',
+      type: 'textarea',
+      required: true,
+      rows: 8,
+      placeholder: 'Hey there,\n\nHere is what happened this week...',
+      helpText: 'Plain text. Blank lines start a new paragraph.',
+    },
+    {
+      key: 'reply_to',
+      label: 'Reply-to (optional)',
+      type: 'text',
+      placeholder: 'tyler@creatorscorner.com',
+      helpText: 'Where replies should land. Defaults to the From address.',
+    },
+  ],
+  async handler(_integration, params) {
+    const to = String(params.to ?? '').trim();
+    const subject = String(params.subject ?? '').trim();
+    const body = String(params.body ?? '').trim();
+    const replyTo = params.reply_to ? String(params.reply_to).trim() || undefined : undefined;
+    const cc = params.cc ? String(params.cc).trim() || undefined : undefined;
+    const result = await sendEmail({ to, subject, body, replyTo, cc });
+    return result.ok
+      ? { ok: true, externalId: result.id, summary: `Sent to ${to}` }
+      : { ok: false, status: result.status, error: result.error };
+  },
+};
+
 const ACTIONS: ActionDef[] = [
   DISCORD_SEND_MESSAGE,
   SLACK_SEND_MESSAGE,
+  RESEND_SEND_EMAIL,
 ];
 
 // ─── Public API ────────────────────────────────────────────────────────────

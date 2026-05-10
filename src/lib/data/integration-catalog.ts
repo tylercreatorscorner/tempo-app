@@ -54,7 +54,10 @@ export interface IntegrationTypeOption {
 export const INTEGRATION_TYPE_CATALOG: IntegrationTypeOption[] = [
   { type: 'discord', label: 'Discord', category: 'messaging', description: 'Per-server bot access for daily drops, alerts, and creator messages.' },
   { type: 'slack', label: 'Slack', category: 'messaging', description: 'Workspace + channel for ops alerts and team-internal notifications.' },
-  { type: 'resend', label: 'Resend (Email)', category: 'messaging', description: 'Branded email send for invoices, creator outreach, weekly recaps.', comingSoon: true },
+  // Resend is auto-connected when RESEND_API_KEY is present in env, so it
+  // doesn't show up in "Available to add" — it shows up directly in
+  // "Connected" via listIntegrations(). Kept the type label here for
+  // displayName fallback in the UI.
   { type: 'twilio', label: 'Twilio (SMS)', category: 'messaging', description: 'Mass-text creators or send 1:1 alerts.', comingSoon: true },
   { type: 'tiktok_shop', label: 'TikTok Shop', category: 'data', description: 'Affiliate / Seller Center scrape session per brand.' },
   { type: 'hubspot', label: 'HubSpot', category: 'crm', description: 'Sync contacts and creator outreach into HubSpot CRM.', comingSoon: true },

@@ -15,12 +15,14 @@ import { Plug, AlertCircle, CheckCircle2, Clock, X, MessageSquare, ShoppingBag, 
 import { cn } from '@/lib/utils';
 import type { IntegrationView } from '@/lib/data/integration-catalog';
 import { TYPE_LABELS, INTEGRATION_TYPE_CATALOG } from '@/lib/data/integration-catalog';
+import { ParamField, type ActionParam } from '@/components/workflows/param-field';
 
 const ICON_FOR_TYPE: Record<string, LucideIcon> = {
   discord: MessageSquare,
   slack: MessageCircle,
   tiktok_shop: ShoppingBag,
   resend: Mail,
+  email: Mail,
   twilio: MessageCircle,
   klaviyo: Mail,
   hubspot: Database,
@@ -401,11 +403,9 @@ function IntegrationDetailDrawer({
   onAfterAction: () => Promise<void>;
 }) {
   const Icon = ICON_FOR_TYPE[integration.type] ?? Plug;
-  // Test-send is supported wherever the registry has at least one action
-  // with a 'channel-picker' param (= post-a-message style). Today: Discord,
-  // Slack. Resend / Twilio will swap in 'recipient' params and use their
-  // own test fields, not channel-picker.
-  const supportsTestSend = integration.type === 'discord' || integration.type === 'slack';
+  // Test-send is now generic — driven by the registry's action paramSchema.
+  // Renders for any integration type that has at least one registered action.
+  const supportsTestSend = true;
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
@@ -493,11 +493,12 @@ function DetailRow({ label, children }: { label: string; children: React.ReactNo
   );
 }
 
-interface DiscordChannel {
-  id: string;
-  name: string;
-  parentName: string | null;
-  isAnnouncement: boolean;
+interface ActionDef {
+  integrationType: string;
+  action: string;
+  label: string;
+  description: string;
+  params: ActionParam[];
 }
 
 function TestSendSection({
@@ -507,154 +508,132 @@ function TestSendSection({
   integration: IntegrationView;
   onSent: () => Promise<void>;
 }) {
-  const [channelId, setChannelId] = useState('');
-  const [content, setContent] = useState('Test message from Tempo 👋');
+  // Pull the action catalog at mount and pick the first action matching this
+  // integration's type. Renders that action's paramSchema as the test form.
+  const [actions, setActions] = useState<ActionDef[] | null>(null);
+  const [params, setParams] = useState<Record<string, unknown>>({});
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<
-    | { kind: 'success'; messageId?: string }
+    | { kind: 'success'; externalId?: string }
     | { kind: 'error'; message: string }
     | null
   >(null);
 
-  // Channel list — lazy-loaded once on first render so a brand with 50 channels
-  // doesn't pay the round-trip until the drawer is actually opened.
-  const [channels, setChannels] = useState<DiscordChannel[] | null>(null);
-  const [loadingChannels, setLoadingChannels] = useState(false);
-  const [channelsError, setChannelsError] = useState<string | null>(null);
-
   useEffect(() => {
     let cancelled = false;
-    async function load() {
-      setLoadingChannels(true);
-      setChannelsError(null);
-      try {
-        const res = await fetch(`/api/integrations/${encodeURIComponent(integration.id)}/channels`);
-        const j = await res.json() as { channels?: DiscordChannel[]; error?: string };
-        if (cancelled) return;
-        if (j.channels) {
-          setChannels(j.channels);
-        } else {
-          setChannelsError(j.error ?? 'Failed to load channels');
-        }
-      } catch (e) {
-        if (!cancelled) setChannelsError(e instanceof Error ? e.message : 'Network error');
-      } finally {
-        if (!cancelled) setLoadingChannels(false);
+    fetch('/api/integrations/actions')
+      .then(r => r.json())
+      .then((j: { actions?: ActionDef[] }) => {
+        if (!cancelled) setActions(j.actions ?? []);
+      })
+      .catch(() => { if (!cancelled) setActions([]); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const action = useMemo(
+    () => actions?.find(a => a.integrationType === integration.type),
+    [actions, integration.type],
+  );
+
+  // Pre-fill default-value params (e.g. body placeholder for Discord)
+  useEffect(() => {
+    if (!action) return;
+    const init: Record<string, unknown> = {};
+    for (const p of action.params) {
+      if (p.defaultValue !== undefined) init[p.key] = p.defaultValue;
+      // For 'content' / 'body' specifically, seed a friendly default message
+      if ((p.key === 'content' || p.key === 'body') && !init[p.key]) {
+        init[p.key] = 'Test message from Tempo 👋';
       }
     }
-    load();
-    return () => { cancelled = true; };
-  }, [integration.id]);
+    setParams(prev => ({ ...init, ...prev }));
+  }, [action]);
+
+  function setParam(key: string, value: unknown) {
+    setParams(prev => ({ ...prev, [key]: value }));
+  }
 
   async function send() {
+    if (!action) return;
     setSending(true);
     setResult(null);
     try {
+      // Validate required params client-side for nicer error messages
+      for (const p of action.params) {
+        const v = params[p.key];
+        if (p.required && (v == null || String(v).trim() === '')) {
+          throw new Error(`${p.label} is required`);
+        }
+      }
       const res = await fetch(`/api/integrations/${encodeURIComponent(integration.id)}/test-send`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ channel_id: channelId.trim(), content: content.trim() }),
+        body: JSON.stringify({ action: action.action, params }),
       });
-      const j = await res.json() as { ok: boolean; error?: string; message_id?: string };
+      const j = await res.json() as { ok: boolean; error?: string; external_id?: string; message_id?: string };
       if (j.ok) {
-        setResult({ kind: 'success', messageId: j.message_id });
+        setResult({ kind: 'success', externalId: j.external_id ?? j.message_id });
         await onSent();
       } else {
         setResult({ kind: 'error', message: j.error ?? 'Send failed' });
       }
     } catch (e) {
-      setResult({ kind: 'error', message: e instanceof Error ? e.message : 'Network error' });
+      setResult({ kind: 'error', message: e instanceof Error ? e.message : 'Send failed' });
     } finally {
       setSending(false);
     }
   }
 
-  // Group channels by category for visual structure in the dropdown
-  const grouped = useMemo(() => {
-    if (!channels) return null;
-    const map = new Map<string, DiscordChannel[]>();
-    for (const c of channels) {
-      const key = c.parentName ?? 'Uncategorized';
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(c);
-    }
-    return Array.from(map.entries());
-  }, [channels]);
+  if (actions === null) {
+    return (
+      <div className="rounded-xl border border-gray-100 bg-gray-50/60 p-4">
+        <p className="text-sm text-gray-500 flex items-center gap-2">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading test form…
+        </p>
+      </div>
+    );
+  }
+
+  if (!action) {
+    return (
+      <div className="rounded-xl border border-gray-100 bg-gray-50/60 p-4">
+        <p className="text-sm text-gray-500">
+          No test action available for {TYPE_LABELS[integration.type] ?? integration.type} yet.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="rounded-xl border border-gray-100 bg-gray-50/60 p-4 space-y-3">
       <div>
-        <p className="text-sm font-semibold text-[#1A1B3A]">Test send</p>
-        <p className="text-xs text-gray-500 mt-0.5">
-          Post a single message to a channel to confirm the bot can write here. Logs an automation run regardless of outcome.
-        </p>
+        <p className="text-sm font-semibold text-[#1A1B3A]">{action.label}</p>
+        <p className="text-xs text-gray-500 mt-0.5">{action.description} Logs an automation run regardless of outcome.</p>
       </div>
-      <div>
-        <label className="block text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1">Channel</label>
-        {loadingChannels ? (
-          <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 bg-white">
-            <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-400" />
-            <span className="text-xs text-gray-500">Loading channels…</span>
-          </div>
-        ) : channelsError ? (
-          <div>
-            <input
-              type="text"
-              value={channelId}
-              onChange={(e) => setChannelId(e.target.value)}
-              placeholder="1465474331365736552"
-              className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm font-mono bg-white focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D]"
-            />
-            <p className="text-[10px] text-amber-600 mt-1">
-              Couldn&apos;t list channels: {channelsError}. Paste a channel ID manually.
-            </p>
-          </div>
-        ) : grouped && grouped.length > 0 ? (
-          <select
-            value={channelId}
-            onChange={(e) => setChannelId(e.target.value)}
-            className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D]"
-          >
-            <option value="">— pick a channel —</option>
-            {grouped.map(([category, items]) => (
-              <optgroup key={category} label={category}>
-                {items.map(c => (
-                  <option key={c.id} value={c.id}>
-                    {c.isAnnouncement ? '📢 ' : '#'}
-                    {c.name}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
-        ) : (
-          <div className="px-3 py-2 rounded-lg border border-gray-200 bg-white">
-            <p className="text-xs text-gray-500">No postable channels found in this server.</p>
-          </div>
-        )}
-      </div>
-      <div>
-        <label className="block text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1">Message</label>
-        <textarea
-          rows={3}
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D] resize-none"
+
+      {action.params.map(p => (
+        <ParamField
+          key={p.key}
+          param={p}
+          value={params[p.key]}
+          onChange={(v) => setParam(p.key, v)}
+          integrationId={integration.id}
         />
-      </div>
+      ))}
+
       <button
         onClick={send}
-        disabled={sending || !channelId.trim()}
+        disabled={sending}
         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#FF4D8D] text-white hover:bg-[#E91E8C] disabled:opacity-50 transition-colors"
       >
         {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-        {sending ? 'Sending…' : 'Send test message'}
+        {sending ? 'Sending…' : `Send test ${action.action.replace(/_/g, ' ').replace(/^send /, '')}`}
       </button>
 
       {result?.kind === 'success' && (
         <div className="rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2">
           <p className="text-xs text-emerald-700 font-medium">
-            Sent successfully{result.messageId ? ` (message ${result.messageId})` : ''}.
+            Sent successfully{result.externalId ? ` (id ${result.externalId})` : ''}.
           </p>
         </div>
       )}

@@ -144,10 +144,30 @@ export async function listIntegrations(): Promise<IntegrationView[]> {
     });
   }
 
-  // 4. Resend (email) at tenant level — detected purely via env. We can't tell
-  //    from the DB whether it's wired, so we report it as connected when the
-  //    env var exists at request time. Keep this client-side concern off the
-  //    server response; render a static row instead.
+  // 4. Resend (email) at tenant level — auto-detected when RESEND_API_KEY is
+  //    set. No "Connect" button needed; Tempo absorbs the email cost so the
+  //    integration is live for any tenant whenever the env is configured.
+  //    Skip if a managed Resend row already exists (post-promotion).
+  if (process.env.RESEND_API_KEY) {
+    const alreadyManaged = integrations.some(i => i.type === 'resend' && !i.brand_id);
+    if (!alreadyManaged) {
+      out.push({
+        id: 'legacy:resend:tenant',
+        type: 'resend',
+        displayName: 'Email (Resend)',
+        brandId: null,
+        brandSlug: null,
+        brandName: null,
+        status: 'connected',
+        summary: process.env.RESEND_FROM_EMAIL
+          ? `From: ${process.env.RESEND_FROM_EMAIL}`
+          : 'Tempo-managed email send',
+        lastUsedAt: null,
+        lastErrorMessage: null,
+        managed: false,
+      });
+    }
+  }
 
   // Sort: errors first, then connected, then by brand → type.
   out.sort((a, b) => {
