@@ -29,6 +29,39 @@ export async function sendSlackMessage({ channelId, text, token }: SendArgs): Pr
   if (!token) return { ok: false, error: 'Slack access_token missing — re-connect the integration' };
   if (!text.trim()) return { ok: false, error: 'message cannot be empty' };
 
+  // First attempt
+  let r = await postMessage({ channelId, text, token });
+  if (r.ok) return r;
+
+  // If the bot isn't in the channel, try to auto-join (public channels only)
+  // and retry. Private channels can't be self-joined — surface a clearer
+  // error telling the user how to fix it.
+  if (r.error === 'not_in_channel') {
+    const join = await joinChannel({ channelId, token });
+    if (join.ok) {
+      r = await postMessage({ channelId, text, token });
+      if (r.ok) return r;
+    } else if (join.error === 'method_not_supported_for_channel_type' || join.error === 'is_archived' || join.error === 'channel_not_found') {
+      return {
+        ok: false,
+        status: r.status,
+        error: 'Bot can’t self-join this channel (likely private). In Slack, run "/invite @Tempo" in the channel and try again.',
+      };
+    } else if (join.error === 'missing_scope') {
+      return {
+        ok: false,
+        status: r.status,
+        error: 'Bot is missing the channels:join scope. Reinstall the Slack app to grant it.',
+      };
+    } else {
+      return { ok: false, status: r.status, error: `Couldn’t auto-join the channel: ${join.error ?? 'unknown error'}` };
+    }
+  }
+
+  return r;
+}
+
+async function postMessage({ channelId, text, token }: SendArgs): Promise<SlackSendResult> {
   try {
     const res = await fetch(`${API_BASE}/chat.postMessage`, {
       method: 'POST',
@@ -38,18 +71,34 @@ export async function sendSlackMessage({ channelId, text, token }: SendArgs): Pr
       },
       body: JSON.stringify({ channel: channelId, text }),
     });
-
     const j = (await res.json().catch(() => ({}))) as {
       ok?: boolean;
       ts?: string;
       channel?: string;
       error?: string;
     };
-
-    if (!j.ok) {
-      return { ok: false, status: res.status, error: j.error ?? `HTTP ${res.status}` };
-    }
+    if (!j.ok) return { ok: false, status: res.status, error: j.error ?? `HTTP ${res.status}` };
     return { ok: true, ts: j.ts, channel: j.channel };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Network error' };
+  }
+}
+
+interface JoinResult { ok: boolean; status?: number; error?: string }
+
+async function joinChannel({ channelId, token }: { channelId: string; token: string }): Promise<JoinResult> {
+  try {
+    const res = await fetch(`${API_BASE}/conversations.join`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json; charset=utf-8',
+      },
+      body: JSON.stringify({ channel: channelId }),
+    });
+    const j = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+    if (!j.ok) return { ok: false, status: res.status, error: j.error };
+    return { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Network error' };
   }
