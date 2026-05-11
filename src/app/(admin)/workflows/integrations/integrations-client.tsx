@@ -11,7 +11,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { Plug, AlertCircle, CheckCircle2, Clock, X, MessageSquare, ShoppingBag, Mail, MessageCircle, Sparkles, Database, type LucideIcon, Plus, ExternalLink, Send, Loader2 } from 'lucide-react';
+import { Plug, AlertCircle, CheckCircle2, Clock, X, MessageSquare, ShoppingBag, Mail, MessageCircle, Phone, Sparkles, Database, type LucideIcon, Plus, ExternalLink, Send, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { IntegrationView } from '@/lib/data/integration-catalog';
 import { TYPE_LABELS, INTEGRATION_TYPE_CATALOG } from '@/lib/data/integration-catalog';
@@ -23,7 +23,8 @@ const ICON_FOR_TYPE: Record<string, LucideIcon> = {
   tiktok_shop: ShoppingBag,
   resend: Mail,
   email: Mail,
-  twilio: MessageCircle,
+  twilio: Phone,
+  sms: Phone,
   klaviyo: Mail,
   hubspot: Database,
   notion: Database,

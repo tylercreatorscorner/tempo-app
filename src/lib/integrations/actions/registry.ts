@@ -14,6 +14,7 @@
 import { sendDiscordMessage, listDiscordChannels } from './discord';
 import { sendSlackMessage, listSlackChannels } from './slack';
 import { sendEmail } from './resend';
+import { sendSms } from './twilio';
 
 // ─── Public types ──────────────────────────────────────────────────────────
 
@@ -192,10 +193,60 @@ const RESEND_SEND_EMAIL: ActionDef = {
   },
 };
 
+const TWILIO_SEND_SMS: ActionDef = {
+  integrationType: 'twilio',
+  action: 'send_sms',
+  label: 'Send an SMS',
+  description: 'Texts one or more phone numbers. Each recipient is billed separately.',
+  params: [
+    {
+      key: 'to',
+      label: 'To',
+      type: 'text',
+      required: true,
+      placeholder: '+18885551234',
+      helpText: 'E.164 format with country code. Several can be comma-separated (up to 100 per send).',
+    },
+    {
+      key: 'body',
+      label: 'Message',
+      type: 'textarea',
+      required: true,
+      rows: 4,
+      placeholder: 'Hey {first_name}, your renewal is up next week — text back any questions!',
+      helpText: '160 chars = 1 segment (1 billing unit). Longer messages auto-segment. Reply STOP/HELP is handled by Twilio.',
+    },
+  ],
+  async handler(_integration, params) {
+    const to = String(params.to ?? '').trim();
+    const body = String(params.body ?? '').trim();
+    const result = await sendSms({ to, body });
+    if (!result.ok) {
+      return { ok: false, status: result.status, error: result.error };
+    }
+    // Partial-success (some recipients failed): treat the action as ok but
+    // surface the failure detail in the summary so the run log shows it.
+    if (result.failures && result.failures.length > 0) {
+      return {
+        ok: true,
+        externalId: result.sid,
+        summary: `Sent ${result.sentCount} of ${result.sentCount! + result.failures.length} (${result.failures.length} failed)`,
+        output: { failures: result.failures },
+      };
+    }
+    return {
+      ok: true,
+      externalId: result.sid,
+      summary: result.sentCount && result.sentCount > 1 ? `Sent to ${result.sentCount} recipients` : `Sent to ${to}`,
+    };
+  },
+};
+
 const ACTIONS: ActionDef[] = [
   DISCORD_SEND_MESSAGE,
   SLACK_SEND_MESSAGE,
   RESEND_SEND_EMAIL,
+  TWILIO_SEND_SMS,
 ];
 
 // ─── Public API ────────────────────────────────────────────────────────────

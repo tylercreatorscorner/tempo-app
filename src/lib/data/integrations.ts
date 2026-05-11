@@ -169,6 +169,31 @@ export async function listIntegrations(): Promise<IntegrationView[]> {
     }
   }
 
+  // 5. Twilio (SMS) at tenant level — same auto-detect pattern as Resend.
+  //    Requires both the Account SID + Auth Token to be set; the from-number
+  //    is checked at send time so a missing one surfaces as a clear runtime
+  //    error rather than a silent absence from this list.
+  if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
+    const alreadyManaged = integrations.some(i => i.type === 'twilio' && !i.brand_id);
+    if (!alreadyManaged) {
+      out.push({
+        id: 'legacy:twilio:tenant',
+        type: 'twilio',
+        displayName: 'SMS (Twilio)',
+        brandId: null,
+        brandSlug: null,
+        brandName: null,
+        status: 'connected',
+        summary: process.env.TWILIO_FROM_NUMBER
+          ? `From: ${process.env.TWILIO_FROM_NUMBER}`
+          : 'TWILIO_FROM_NUMBER not set — sends will fail until configured',
+        lastUsedAt: null,
+        lastErrorMessage: null,
+        managed: false,
+      });
+    }
+  }
+
   // Sort: errors first, then connected, then by brand → type.
   out.sort((a, b) => {
     const sa = statusOrder(a.status), sb = statusOrder(b.status);

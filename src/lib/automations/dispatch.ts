@@ -212,17 +212,19 @@ async function resolveIntegration(id: string): Promise<ResolveOk | ResolveErr> {
       };
     }
 
-    if (type === 'resend' && scope === 'tenant') {
-      // Workspace-wide Resend uses Tempo's RESEND_API_KEY env — no per-install
-      // credentials needed. Promote on first use so subsequent runs hit the
-      // managed row and we get last_used_at + last_error_* on it.
-      if (!process.env.RESEND_API_KEY) {
+    if ((type === 'resend' || type === 'twilio') && scope === 'tenant') {
+      // Workspace-wide integration using Tempo's env credentials. Promote on
+      // first use so subsequent runs hit the managed row and accumulate
+      // last_used_at / last_error_*.
+      if (type === 'resend' && !process.env.RESEND_API_KEY) {
         return { ok: false, error: 'RESEND_API_KEY env var is not set' };
       }
-      // Find the user's tenant — for the legacy:resend:tenant case we don't
-      // have one in the id, so we look up via the requireAdmin profile path.
-      // Simpler: pick the first tenant that has any other integration row,
-      // or fall back to a known tenant_id from existing rows.
+      if (type === 'twilio' && (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN)) {
+        return { ok: false, error: 'TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN env vars are required' };
+      }
+
+      // Pick a tenant — for workspace-scoped legacy ids we don't carry one in
+      // the id itself, so we infer from existing rows.
       const { data: anyRow } = await supabase
         .from('integrations')
         .select('tenant_id')
@@ -231,20 +233,25 @@ async function resolveIntegration(id: string): Promise<ResolveOk | ResolveErr> {
         .maybeSingle();
       const tenantId = anyRow?.tenant_id ?? null;
 
+      const config: Record<string, unknown> = type === 'resend'
+        ? { from_email: process.env.RESEND_FROM_EMAIL ?? null }
+        : { from_number: process.env.TWILIO_FROM_NUMBER ?? null };
+      const displayName = type === 'resend' ? 'Email (Resend)' : 'SMS (Twilio)';
+
       const { data: created, error: createErr } = await supabase
         .from('integrations')
         .insert({
           tenant_id: tenantId,
           brand_id: null,
-          type: 'resend',
-          display_name: 'Email (Resend)',
-          config: { from_email: process.env.RESEND_FROM_EMAIL ?? null },
+          type,
+          display_name: displayName,
+          config,
           status: 'connected',
         })
         .select('id, type, config, credentials')
         .single();
       if (createErr || !created) {
-        return { ok: false, error: createErr?.message ?? 'Failed to promote Resend integration' };
+        return { ok: false, error: createErr?.message ?? `Failed to promote ${type} integration` };
       }
       return {
         ok: true,

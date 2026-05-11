@@ -58,7 +58,9 @@ export const INTEGRATION_TYPE_CATALOG: IntegrationTypeOption[] = [
   // doesn't show up in "Available to add" — it shows up directly in
   // "Connected" via listIntegrations(). Kept the type label here for
   // displayName fallback in the UI.
-  { type: 'twilio', label: 'Twilio (SMS)', category: 'messaging', description: 'Mass-text creators or send 1:1 alerts.', comingSoon: true },
+  // Twilio is auto-connected when TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN are
+  // set, same as Resend. Stays out of the "Available to add" list to avoid
+  // showing it as both connected and connectable.
   { type: 'tiktok_shop', label: 'TikTok Shop', category: 'data', description: 'Affiliate / Seller Center scrape session per brand.' },
   { type: 'hubspot', label: 'HubSpot', category: 'crm', description: 'Sync contacts and creator outreach into HubSpot CRM.', comingSoon: true },
   { type: 'klaviyo', label: 'Klaviyo', category: 'crm', description: 'Push creator + brand events into Klaviyo flows.', comingSoon: true },
