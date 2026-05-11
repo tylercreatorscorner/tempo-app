@@ -20,6 +20,7 @@ import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/utils/format';
 import { BrandEditSheet, type CompensationModel } from '@/app/(admin)/earnings/components/brand-edit-sheet';
 import { NewClientWizard } from '@/components/brands/new-client-wizard';
+import { invalidateBrandList } from '@/hooks/use-brand-list';
 
 interface BrandRow {
   id: string;
@@ -78,6 +79,7 @@ export function BrandsSettingsClient() {
       const j = await res.json();
       if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
       setBrands((prev) => prev.map((b) => (b.id === brand.id ? { ...b, is_archived: archived } : b)));
+      invalidateBrandList();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Archive failed');
     } finally {

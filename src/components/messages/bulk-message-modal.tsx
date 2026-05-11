@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { X, Send, Loader2, Users, Filter, ChevronRight, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { ACTIVE_BRANDS, BRAND_DISPLAY_NAMES, getBrandColor } from '@/lib/utils/constants';
+import { useBrandList } from '@/hooks/use-brand-list';
 import { ALL_STATUSES, STATUS_CONFIG, type CreatorStatus } from '@/lib/data/creator-status';
 import { ChannelIcon } from './channel-icon';
 
@@ -23,6 +23,7 @@ interface Props {
 type Step = 'filters' | 'preview' | 'compose' | 'confirm';
 
 export function BulkMessageModal({ open, onClose }: Props) {
+  const { brands: brandOptions } = useBrandList();
   const [step, setStep] = useState<Step>('filters');
   const [creators, setCreators] = useState<Creator[]>([]);
   const [loading, setLoading] = useState(false);
@@ -146,22 +147,22 @@ export function BulkMessageModal({ open, onClose }: Props) {
                 >
                   All Brands
                 </button>
-                {ACTIVE_BRANDS.map(b => (
+                {brandOptions.map(b => (
                   <button
-                    key={b}
-                    onClick={() => setBrandFilter(b)}
+                    key={b.slug}
+                    onClick={() => setBrandFilter(b.slug)}
                     className={cn(
                       'px-3 py-1.5 rounded-lg text-xs font-medium border transition-all',
-                      brandFilter === b
+                      brandFilter === b.slug
                         ? 'text-white'
                         : 'border-gray-200 text-gray-500 hover:border-gray-300'
                     )}
-                    style={brandFilter === b ? {
-                      backgroundColor: getBrandColor(b),
-                      borderColor: getBrandColor(b),
+                    style={brandFilter === b.slug ? {
+                      backgroundColor: b.color,
+                      borderColor: b.color,
                     } : undefined}
                   >
-                    {BRAND_DISPLAY_NAMES[b]}
+                    {b.name}
                   </button>
                 ))}
               </div>
@@ -257,14 +258,14 @@ export function BulkMessageModal({ open, onClose }: Props) {
                 <div key={c.id} className="flex items-center gap-3 px-6 py-2.5 border-b border-gray-50 hover:bg-gray-50/50">
                   <div
                     className="h-7 w-7 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0"
-                    style={{ backgroundColor: getBrandColor(c.brand) }}
+                    style={{ backgroundColor: brandOptions.find(b => b.slug === c.brand)?.color || '#6B7280' }}
                   >
                     {c.real_name.charAt(0).toUpperCase()}
                   </div>
                   <div className="min-w-0 flex-1">
                     <span className="text-sm font-medium text-[#1A1B3A]">{c.real_name}</span>
                     <span className="text-xs text-gray-400 ml-2">
-                      {BRAND_DISPLAY_NAMES[c.brand] || c.brand}
+                      {brandOptions.find(b => b.slug === c.brand)?.name || c.brand}
                     </span>
                   </div>
                   {c.discord_id ? (

@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useCallback, type ReactNode } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
-import { ACTIVE_BRANDS, BRAND_DISPLAY_NAMES, BRAND_COLORS } from '@/lib/utils/constants';
+import { BRAND_DISPLAY_NAMES, BRAND_COLORS } from '@/lib/utils/constants';
 
 interface BrandContextValue {
   /** Current brand slug, or 'all' */
@@ -24,9 +24,13 @@ export function BrandProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
+  // Accept any slug-shaped value. We used to gate this against the hardcoded
+  // ACTIVE_BRANDS list, which silently dropped newly-created brands (the
+  // picker would set ?brand=cosrx but state would revert to 'all'). The
+  // canonical active-brands list now lives in brands_v2 — the picker reads
+  // from there directly, and pages handle "no data for this brand" gracefully.
   const current = searchParams.get('brand') || 'all';
-  const isValid = current === 'all' || (ACTIVE_BRANDS as readonly string[]).includes(current);
-  const brand = isValid ? current : 'all';
+  const brand = current === 'all' || /^[a-z0-9_]+$/.test(current) ? current : 'all';
 
   const setBrand = useCallback(
     (next: string) => {

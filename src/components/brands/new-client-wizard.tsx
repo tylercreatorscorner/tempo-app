@@ -19,6 +19,7 @@ import {
   Check, Trash2, AlertCircle, Mail, Building2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { invalidateBrandList } from '@/hooks/use-brand-list';
 
 type CompensationModel = 'standard' | 'revshare_max' | 'commission_only' | 'retainer_only';
 
@@ -212,6 +213,9 @@ export function NewClientWizard({ open, onClose, onCreated }: Props) {
       setWarnings(j.warnings ?? []);
       setContactResults(j.contacts ?? []);
       setSuccessBrand({ id: j.brand.id, slug: j.brand.slug, name: j.brand.name });
+      // Bust the brand cache so the new client shows up in every picker
+      // (roster, brand switcher, messages) without a page reload.
+      invalidateBrandList();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Create failed');
     } finally {

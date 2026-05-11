@@ -9,7 +9,8 @@ import {
   RefreshCcw, AlertTriangle, MoonStar, TrendingDown, Download,
 } from 'lucide-react';
 import Link from 'next/link';
-import { BRAND_DISPLAY_NAMES, BRAND_COLORS, ACTIVE_BRANDS } from '@/lib/utils/constants';
+import { BRAND_DISPLAY_NAMES, BRAND_COLORS } from '@/lib/utils/constants';
+import { useBrandList } from '@/hooks/use-brand-list';
 import { RenewalsTab } from '@/components/roster/renewals-tab';
 
 const PAGE_SIZE = 50;
@@ -343,6 +344,7 @@ function CreatorPanel({
   const fmt = (n: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(n);
 
+  const { brands: brandOptions } = useBrandList();
   const [editing, setEditing] = useState(false);
   const [saving, setSaving]   = useState(false);
   const [saveError, setSaveError] = useState('');
@@ -448,7 +450,9 @@ function CreatorPanel({
           <div>
             <h2 className="text-base font-bold text-[#1A1B3A]">{displayName}</h2>
             {creator.brand && !editing && (
-              <p className="text-xs text-gray-400 mt-0.5">{BRAND_DISPLAY_NAMES[creator.brand] || creator.brand}</p>
+              <p className="text-xs text-gray-400 mt-0.5">
+                {brandOptions.find(b => b.slug === creator.brand)?.name || BRAND_DISPLAY_NAMES[creator.brand] || creator.brand}
+              </p>
             )}
           </div>
           <div className="flex items-center gap-2">
@@ -554,8 +558,8 @@ function CreatorPanel({
                     className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
                   >
                     <option value="">— none —</option>
-                    {ACTIVE_BRANDS.map(b => (
-                      <option key={b} value={b}>{BRAND_DISPLAY_NAMES[b] || b}</option>
+                    {brandOptions.map(b => (
+                      <option key={b.slug} value={b.slug}>{b.name}</option>
                     ))}
                   </select>
                 </div>
@@ -759,6 +763,7 @@ interface AddCreatorModalProps {
 }
 
 function AddCreatorModal({ prefill, onClose, onSuccess }: AddCreatorModalProps) {
+  const { brands: brandOptions } = useBrandList();
   const [form, setForm] = useState({
     real_name: '', account_1: prefill?.account_1 || '', brand: prefill?.brand || '',
     retainer: '', monthly_post_requirement: '30', discord_name: '', notes: '',
@@ -842,8 +847,8 @@ function AddCreatorModal({ prefill, onClose, onSuccess }: AddCreatorModalProps) 
               className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
             >
               <option value="">Select brand...</option>
-              {ACTIVE_BRANDS.map(b => (
-                <option key={b} value={b}>{BRAND_DISPLAY_NAMES[b] || b}</option>
+              {brandOptions.map(b => (
+                <option key={b.slug} value={b.slug}>{b.name}</option>
               ))}
             </select>
           </div>
@@ -930,6 +935,7 @@ function RosterContent() {
   const router = useRouter();
   const brand = searchParams.get('brand') || 'all';
   const showBrandColumn = brand === 'all';
+  const { brands: brandOptions } = useBrandList();
 
   // Update the ?brand= URL param. Pills below + the global sidebar selector
   // both write through this so they stay in sync.
@@ -1090,7 +1096,7 @@ function RosterContent() {
     const body = rows.map((c) => [
       c.real_name ?? '',
       c.account_1 ?? '',
-      c.brand ? (BRAND_DISPLAY_NAMES[c.brand] ?? c.brand) : '',
+      c.brand ? (brandOptions.find(b => b.slug === c.brand)?.name ?? BRAND_DISPLAY_NAMES[c.brand] ?? c.brand) : '',
       c.status ?? '',
       c.health,
       c.retainer ?? 0,
@@ -1172,7 +1178,9 @@ function RosterContent() {
     });
   };
 
-  const brandDisplayName = brand !== 'all' ? (BRAND_DISPLAY_NAMES[brand] || brand.replace(/_/g, ' ')) : '';
+  const brandDisplayName = brand !== 'all'
+    ? (brandOptions.find(b => b.slug === brand)?.name || BRAND_DISPLAY_NAMES[brand] || brand.replace(/_/g, ' '))
+    : '';
 
   return (
     <div className="space-y-6">
@@ -1203,14 +1211,14 @@ function RosterContent() {
           active={brand === 'all'}
           onClick={() => setBrand('all')}
         />
-        {ACTIVE_BRANDS.map((b) => (
+        {brandOptions.map((b) => (
           <BrandPill
-            key={b}
-            slug={b}
-            label={BRAND_DISPLAY_NAMES[b] ?? b}
-            color={BRAND_COLORS[b]}
-            active={brand === b}
-            onClick={() => setBrand(b)}
+            key={b.slug}
+            slug={b.slug}
+            label={b.name}
+            color={b.color}
+            active={brand === b.slug}
+            onClick={() => setBrand(b.slug)}
           />
         ))}
       </div>
@@ -1498,7 +1506,7 @@ function RosterContent() {
                     {showBrandColumn && (
                       <td className="px-5 py-3.5">
                         <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-gray-100 text-gray-600">
-                          {BRAND_DISPLAY_NAMES[c.brand || ''] || c.brand?.replace(/_/g, ' ') || '—'}
+                          {brandOptions.find(b => b.slug === c.brand)?.name || BRAND_DISPLAY_NAMES[c.brand || ''] || c.brand?.replace(/_/g, ' ') || '—'}
                         </span>
                       </td>
                     )}

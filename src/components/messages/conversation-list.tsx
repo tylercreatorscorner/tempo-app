@@ -14,7 +14,8 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ChannelBadge } from './channel-icon';
-import { getBrandColor, BRAND_DISPLAY_NAMES, ACTIVE_BRANDS } from '@/lib/utils/constants';
+import { getBrandColor, BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
+import { useBrandList } from '@/hooks/use-brand-list';
 import {
   STATUS_CONFIG,
   ALL_STATUSES,
@@ -100,6 +101,12 @@ interface Props {
 }
 
 export function ConversationList({ conversations, activeKey, onSelect }: Props) {
+  const { brands: brandOptions } = useBrandList();
+  const brandNameOf = (slug: string | null | undefined) =>
+    (slug && brandOptions.find(b => b.slug === slug)?.name) || (slug ? BRAND_DISPLAY_NAMES[slug] || slug : '');
+  const brandColorOf = (slug: string | null | undefined) =>
+    (slug && brandOptions.find(b => b.slug === slug)?.color) || (slug ? getBrandColor(slug) : '#6B7280');
+
   const [search, setSearch] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [brandFilter, setBrandFilter] = useState<string | null>(null);
@@ -305,13 +312,13 @@ export function ConversationList({ conversations, activeKey, onSelect }: Props) 
                 >
                   All
                 </button>
-                {ACTIVE_BRANDS.map((b) => {
-                  const color = getBrandColor(b);
-                  const isActive = brandFilter === b;
+                {brandOptions.map((b) => {
+                  const color = b.color;
+                  const isActive = brandFilter === b.slug;
                   return (
                     <button
-                      key={b}
-                      onClick={() => setBrandFilter(isActive ? null : b)}
+                      key={b.slug}
+                      onClick={() => setBrandFilter(isActive ? null : b.slug)}
                       className={cn(
                         'px-2.5 py-1 rounded-lg text-xs font-medium transition-all border',
                         isActive ? 'text-white' : 'hover:opacity-80'
@@ -322,7 +329,7 @@ export function ConversationList({ conversations, activeKey, onSelect }: Props) 
                         color: isActive ? 'white' : color,
                       }}
                     >
-                      {BRAND_DISPLAY_NAMES[b] || b}
+                      {b.name}
                     </button>
                   );
                 })}
@@ -520,7 +527,7 @@ export function ConversationList({ conversations, activeKey, onSelect }: Props) 
                           className="h-10 w-10 rounded-full flex items-center justify-center text-white text-sm font-semibold border-2 border-white shadow-sm"
                           style={{
                             backgroundColor: conv.brand
-                              ? getBrandColor(conv.brand)
+                              ? brandColorOf(conv.brand)
                               : '#7C5CFC',
                           }}
                         >
@@ -546,17 +553,17 @@ export function ConversationList({ conversations, activeKey, onSelect }: Props) 
                             <span
                               key={b}
                               className="text-[10px] font-medium"
-                              style={{ color: getBrandColor(b) }}
+                              style={{ color: brandColorOf(b) }}
                             >
-                              {BRAND_DISPLAY_NAMES[b] || b}
+                              {brandNameOf(b)}
                             </span>
                           ))
                         ) : conv.brand ? (
                           <span
                             className="text-[10px] font-medium"
-                            style={{ color: getBrandColor(conv.brand) }}
+                            style={{ color: brandColorOf(conv.brand) }}
                           >
-                            {BRAND_DISPLAY_NAMES[conv.brand] || conv.brand}
+                            {brandNameOf(conv.brand)}
                           </span>
                         ) : null}
                         {sortBy === 'gmv_desc' && conv.total_gmv_7d > 0 && (
