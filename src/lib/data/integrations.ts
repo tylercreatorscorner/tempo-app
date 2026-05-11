@@ -194,6 +194,29 @@ export async function listIntegrations(): Promise<IntegrationView[]> {
     }
   }
 
+  // 6. Anthropic (Tempo-managed AI) — Tempo holds the API key; users don't
+  //    BYOK. Shown to every tenant as "Included" when ANTHROPIC_API_KEY is
+  //    set in env. The richer "Usage this month" string is computed
+  //    server-side from ai_usage_log for the requesting tenant.
+  if (process.env.ANTHROPIC_API_KEY) {
+    const alreadyManaged = integrations.some(i => i.type === 'anthropic' && !i.brand_id);
+    if (!alreadyManaged) {
+      out.push({
+        id: 'legacy:anthropic:tenant',
+        type: 'anthropic',
+        displayName: 'Tempo AI',
+        brandId: null,
+        brandSlug: null,
+        brandName: null,
+        status: 'connected',
+        summary: 'Included with your plan — Claude-powered workflow actions',
+        lastUsedAt: null,
+        lastErrorMessage: null,
+        managed: false,
+      });
+    }
+  }
+
   // Sort: errors first, then connected, then by brand → type.
   out.sort((a, b) => {
     const sa = statusOrder(a.status), sb = statusOrder(b.status);

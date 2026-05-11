@@ -15,6 +15,7 @@ import { sendDiscordMessage, listDiscordChannels } from './discord';
 import { sendSlackMessage, listSlackChannels } from './slack';
 import { sendEmail } from './resend';
 import { sendSms } from './twilio';
+import { generateDailyDrop } from './anthropic';
 
 // ─── Public types ──────────────────────────────────────────────────────────
 
@@ -58,6 +59,15 @@ export interface IntegrationContext {
   credentials: Record<string, unknown> | null;
 }
 
+/** Context the dispatcher hands to action handlers — used by AI actions to
+ *  log token usage tied to the run + tenant, and by future actions that
+ *  need the current run id for chaining. Optional for handlers that don't
+ *  care (Discord/Slack/Resend/Twilio). */
+export interface ActionContext {
+  automationRunId?: string | null;
+  tenantId?: string | null;
+}
+
 export interface ActionDef {
   /** Integration type this action operates on. */
   integrationType: string;
@@ -70,6 +80,7 @@ export interface ActionDef {
   handler: (
     integration: IntegrationContext,
     params: Record<string, unknown>,
+    ctx: ActionContext,
   ) => Promise<ActionResult>;
 }
 
@@ -242,11 +253,44 @@ const TWILIO_SEND_SMS: ActionDef = {
   },
 };
 
+const ANTHROPIC_GENERATE_DAILY_DROP: ActionDef = {
+  integrationType: 'anthropic',
+  action: 'generate_daily_drop',
+  label: 'Generate Daily Drop',
+  description: 'Drafts a Discord-ready Daily Drop post for a brand using yesterday\'s GMV, top creators, and top video.',
+  params: [
+    {
+      key: 'brand_slug',
+      label: 'Brand',
+      type: 'text',
+      required: true,
+      placeholder: 'catakor',
+      helpText: 'The brand slug (e.g. catakor, jiyu, leefar, physicians_choice).',
+    },
+    {
+      key: 'tone',
+      label: 'Tone',
+      type: 'text',
+      defaultValue: 'energetic and concise',
+      helpText: 'How the post should feel — "energetic and concise", "playful", "serious and analytical", etc.',
+    },
+  ],
+  async handler(integration, params, ctx) {
+    return generateDailyDrop({
+      integration,
+      params,
+      automationRunId: ctx.automationRunId ?? null,
+      tenantId: ctx.tenantId ?? null,
+    });
+  },
+};
+
 const ACTIONS: ActionDef[] = [
   DISCORD_SEND_MESSAGE,
   SLACK_SEND_MESSAGE,
   RESEND_SEND_EMAIL,
   TWILIO_SEND_SMS,
+  ANTHROPIC_GENERATE_DAILY_DROP,
 ];
 
 // ─── Public API ────────────────────────────────────────────────────────────

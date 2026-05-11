@@ -13,6 +13,10 @@ import { createAdminClient } from '@/lib/supabase/server';
 import type { ActionResult, IntegrationContext } from '@/lib/integrations/actions/registry';
 import { findAction } from '@/lib/integrations/actions/registry';
 
+interface IntegrationRowMeta {
+  tenant_id: string | null;
+}
+
 export interface DispatchStep {
   /** Action identifier — e.g. 'send_message'. */
   action: string;
@@ -76,6 +80,14 @@ export async function dispatch(opts: DispatchOptions): Promise<DispatchResult> {
     .single();
   const runId = run?.id ?? null;
 
+  // Resolve tenant_id so AI usage logging can attribute cost correctly.
+  const { data: tenantRow } = await supabase
+    .from('integrations')
+    .select('tenant_id')
+    .eq('id', integration.id)
+    .maybeSingle<IntegrationRowMeta>();
+  const tenantId = tenantRow?.tenant_id ?? null;
+
   // Execute steps in order. Stop on first failure (no partial-recovery for v1).
   const stepResults: Array<ActionResult & { action: string }> = [];
   let firstError: string | null = null;
@@ -88,7 +100,7 @@ export async function dispatch(opts: DispatchOptions): Promise<DispatchResult> {
       break;
     }
     try {
-      const r = await def.handler(integration, step.params);
+      const r = await def.handler(integration, step.params, { automationRunId: runId, tenantId });
       stepResults.push({ action: step.action, ...r });
       if (!r.ok) {
         firstError = firstError ?? r.error ?? 'Step failed';
@@ -212,7 +224,7 @@ async function resolveIntegration(id: string): Promise<ResolveOk | ResolveErr> {
       };
     }
 
-    if ((type === 'resend' || type === 'twilio') && scope === 'tenant') {
+    if ((type === 'resend' || type === 'twilio' || type === 'anthropic') && scope === 'tenant') {
       // Workspace-wide integration using Tempo's env credentials. Promote on
       // first use so subsequent runs hit the managed row and accumulate
       // last_used_at / last_error_*.
@@ -221,6 +233,9 @@ async function resolveIntegration(id: string): Promise<ResolveOk | ResolveErr> {
       }
       if (type === 'twilio' && (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN)) {
         return { ok: false, error: 'TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN env vars are required' };
+      }
+      if (type === 'anthropic' && !process.env.ANTHROPIC_API_KEY) {
+        return { ok: false, error: 'ANTHROPIC_API_KEY env var is not set' };
       }
 
       // Pick a tenant — for workspace-scoped legacy ids we don't carry one in
@@ -233,10 +248,16 @@ async function resolveIntegration(id: string): Promise<ResolveOk | ResolveErr> {
         .maybeSingle();
       const tenantId = anyRow?.tenant_id ?? null;
 
-      const config: Record<string, unknown> = type === 'resend'
-        ? { from_email: process.env.RESEND_FROM_EMAIL ?? null }
-        : { from_number: process.env.TWILIO_FROM_NUMBER ?? null };
-      const displayName = type === 'resend' ? 'Email (Resend)' : 'SMS (Twilio)';
+      const configByType: Record<string, Record<string, unknown>> = {
+        resend: { from_email: process.env.RESEND_FROM_EMAIL ?? null },
+        twilio: { from_number: process.env.TWILIO_FROM_NUMBER ?? null },
+        anthropic: { model: 'claude-haiku-4-5' },
+      };
+      const displayByType: Record<string, string> = {
+        resend: 'Email (Resend)',
+        twilio: 'SMS (Twilio)',
+        anthropic: 'Tempo AI',
+      };
 
       const { data: created, error: createErr } = await supabase
         .from('integrations')
@@ -244,8 +265,8 @@ async function resolveIntegration(id: string): Promise<ResolveOk | ResolveErr> {
           tenant_id: tenantId,
           brand_id: null,
           type,
-          display_name: displayName,
-          config,
+          display_name: displayByType[type],
+          config: configByType[type],
           status: 'connected',
         })
         .select('id, type, config, credentials')

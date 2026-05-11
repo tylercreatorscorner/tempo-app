@@ -65,6 +65,8 @@ export const INTEGRATION_TYPE_CATALOG: IntegrationTypeOption[] = [
   { type: 'hubspot', label: 'HubSpot', category: 'crm', description: 'Sync contacts and creator outreach into HubSpot CRM.', comingSoon: true },
   { type: 'klaviyo', label: 'Klaviyo', category: 'crm', description: 'Push creator + brand events into Klaviyo flows.', comingSoon: true },
   { type: 'notion', label: 'Notion', category: 'data', description: 'Mirror brand notes / creator docs in Notion.', comingSoon: true },
-  { type: 'anthropic', label: 'Anthropic Claude', category: 'ai', description: 'Power AI workflows — summaries, brand client reports, creator analysis.', comingSoon: true },
-  { type: 'openai', label: 'OpenAI', category: 'ai', description: 'Alternative AI provider for workflow steps.', comingSoon: true },
+  // Anthropic is auto-connected for every tenant via Tempo's ANTHROPIC_API_KEY
+  // (no BYOK — Tempo absorbs the cost). Shows up directly in "Connected" as
+  // "Tempo AI" via listIntegrations(). OpenAI removed from the catalog
+  // entirely — we standardize on Anthropic for v1.
 ];
