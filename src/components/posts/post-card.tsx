@@ -37,10 +37,11 @@ export interface PostCardData {
   avg_rating: number | null;
   flagged: boolean;
   has_my_review: boolean;
-  // Optional — falls back to brand-gradient placeholder when null/empty.
-  // Wired up in a follow-up PR once migration 039 (thumbnail_url) lands
-  // and the backfill script runs.
-  thumbnail_url?: string | null;
+  // Falls back to brand-gradient placeholder when null/empty. The data
+  // layer always emits this field (since migration 039); it's null when
+  // the backfill hasn't reached the row, empty string when oEmbed had
+  // nothing for the video.
+  thumbnail_url: string | null;
 }
 
 interface Props {

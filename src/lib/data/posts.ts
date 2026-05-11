@@ -39,6 +39,11 @@ export interface PostRow {
   avg_rating: number | null;      // null when no rated reviews exist
   flagged: boolean;               // any review tagged "⚠️ off-brand" or "✏️ needs rework"
   has_my_review: boolean;         // current user has reviewed this post
+  // Cached TikTok thumbnail (migration 039 + backfill). null when the
+  // backfill hasn't reached this row yet; empty string when oEmbed
+  // returned nothing (deleted / private video). The UI treats both
+  // as missing and falls back to a brand-gradient placeholder.
+  thumbnail_url: string | null;
 }
 
 export type ReviewFilter = 'all' | 'unreviewed' | 'reviewed-by-me' | 'flagged';
@@ -81,6 +86,7 @@ interface RawRow {
   affiliate_gmv: number | string | null;
   items_sold: number | string | null;
   orders: number | string | null;
+  thumbnail_url: string | null;
 }
 
 function pNum(v: unknown): number {
@@ -156,7 +162,7 @@ export async function getPosts(opts: GetPostsOpts): Promise<PostsResult> {
   while (true) {
     const { data, error } = await supabase
       .from('videos')
-      .select('video_id, video_name, video_link, creator_name, brand, post_date, impressions, likes, comments, total_gmv, affiliate_gmv, items_sold, orders')
+      .select('video_id, video_name, video_link, creator_name, brand, post_date, impressions, likes, comments, total_gmv, affiliate_gmv, items_sold, orders, thumbnail_url')
       .in('brand', brandSlugs)
       .gte('post_date', startDate)
       .lte('post_date', endDate)
@@ -222,6 +228,7 @@ export async function getPosts(opts: GetPostsOpts): Promise<PostsResult> {
         avg_rating: null,
         flagged: false,
         has_my_review: false,
+        thumbnail_url: r.thumbnail_url,
       };
     });
 

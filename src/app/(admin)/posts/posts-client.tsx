@@ -51,6 +51,7 @@ interface PostRow {
   avg_rating: number | null;
   flagged: boolean;
   has_my_review: boolean;
+  thumbnail_url: string | null;
 }
 
 interface PostsResponse {
