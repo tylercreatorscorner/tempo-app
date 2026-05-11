@@ -20,7 +20,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   Download, Eye, Heart, Loader2, MessageCircle, Search, ExternalLink,
-  AlertTriangle, MessageSquare, Star,
+  AlertTriangle, MessageSquare, Star, LayoutGrid, List,
 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { cn } from '@/lib/utils';
@@ -28,6 +28,7 @@ import { BRAND_COLORS } from '@/lib/utils/constants';
 import { DateRangePicker } from '@/components/dashboard/date-range-picker';
 import { BrandFilter } from '@/components/creators/brand-filter';
 import { StatCard } from '@/components/dashboard/stat-card';
+import { PostCard } from '@/components/posts/post-card';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
 
 interface PostRow {
@@ -73,6 +74,12 @@ interface PostsResponse {
 type SortKey = 'gmv' | 'views' | 'likes' | 'comments' | 'engagement_rate' | 'post_date' | 'creator_handle';
 type SortDir = 'asc' | 'desc';
 type ReviewFilter = 'all' | 'unreviewed' | 'reviewed-by-me' | 'flagged';
+type ViewMode = 'cards' | 'table';
+
+const VIEW_MODES: ViewMode[] = ['cards', 'table'];
+function isViewMode(v: string | null): v is ViewMode {
+  return v !== null && (VIEW_MODES as string[]).includes(v);
+}
 
 const SORT_KEYS: SortKey[] = ['gmv', 'views', 'likes', 'comments', 'engagement_rate', 'post_date', 'creator_handle'];
 function isSortKey(v: string | null): v is SortKey {
@@ -112,10 +119,18 @@ export function PostsClient({
     const fromUrl = searchParams.get('review');
     return isReviewFilter(fromUrl) ? fromUrl : 'all';
   });
+  // View mode defaults to 'cards' — the Posts page is primarily a creative-
+  // review surface, and the table is the analytical fallback. Explicit
+  // `?view=table` opts into the dense view. The choice is persisted in
+  // the URL so refresh / share preserves it.
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    const fromUrl = searchParams.get('view');
+    return isViewMode(fromUrl) ? fromUrl : 'cards';
+  });
 
-  // Sync sort/search/review filter to URL (without re-triggering data fetch
-  // unnecessarily) — debounced for search so we're not pushing a history
-  // entry per keystroke.
+  // Sync sort/search/review filter/view to URL (without re-triggering data
+  // fetch unnecessarily) — debounced for search so we're not pushing a
+  // history entry per keystroke.
   useEffect(() => {
     const t = setTimeout(() => {
       const params = new URLSearchParams(searchParams.toString());
@@ -123,6 +138,7 @@ export function PostsClient({
       if (sortDir === 'desc') params.delete('dir'); else params.set('dir', sortDir);
       if (!search) params.delete('q'); else params.set('q', search);
       if (reviewFilter === 'all') params.delete('review'); else params.set('review', reviewFilter);
+      if (viewMode === 'cards') params.delete('view'); else params.set('view', viewMode);
       const next = params.toString();
       const current = searchParams.toString();
       if (next !== current) {
@@ -130,7 +146,7 @@ export function PostsClient({
       }
     }, 250);
     return () => clearTimeout(t);
-  }, [sortKey, sortDir, search, reviewFilter, router, searchParams]);
+  }, [sortKey, sortDir, search, reviewFilter, viewMode, router, searchParams]);
 
   // Fetch on mount + whenever filters change. The reviewFilter is part of
   // the request because the server applies it before returning rows; the
@@ -285,81 +301,201 @@ export function PostsClient({
         <StatCard label="Total GMV"    value={data ? formatCurrency(data.totals.totalGmv)   : '—'} />
       </div>
 
-      {/* Table */}
-      <div className="rounded-2xl bg-white border border-gray-100 shadow-sm">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-5 py-3 border-b border-gray-100">
-          <div className="flex items-center gap-3">
-            <h2 className="text-sm font-bold text-[#1A1B3A]">All posts</h2>
-            <span className="text-xs text-gray-400">
-              {visiblePosts.length} of {data?.posts.length ?? 0}
-            </span>
-          </div>
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <div className="relative flex-1 sm:flex-initial">
-              <Search className="h-3.5 w-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search title or creator..."
-                aria-label="Search posts"
-                className="text-sm bg-white border border-gray-200 rounded-xl pl-8 pr-3 py-1.5 w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/20 focus:border-[#E91E8C]"
-              />
-            </div>
-            <button
-              onClick={downloadCsv}
-              disabled={!visiblePosts.length}
-              className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-600 disabled:opacity-40 transition-colors"
-            >
-              <Download className="h-3.5 w-3.5" /> CSV
-            </button>
-          </div>
+      {/* Header bar — shared between card + table views. Title + count on
+          the left, view toggle / sort dropdown / search / CSV on the right. */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-1">
+        <div className="flex items-center gap-3">
+          <h2 className="text-sm font-bold text-[#1A1B3A]">All posts</h2>
+          <span className="text-xs text-gray-400">
+            {visiblePosts.length} of {data?.posts.length ?? 0}
+          </span>
         </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left">
-                <SortableTh label="Creator"      sortKey="creator_handle" current={sortKey} dir={sortDir} onClick={changeSort} />
-                <Th>Brand</Th>
-                <Th>Post</Th>
-                <SortableTh label="Posted"       sortKey="post_date"      current={sortKey} dir={sortDir} onClick={changeSort} />
-                <SortableTh label="Views"        sortKey="views"          current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
-                <SortableTh label="Likes"        sortKey="likes"          current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
-                <SortableTh label="Comments"     sortKey="comments"       current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
-                <SortableTh label="Engagement"   sortKey="engagement_rate" current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
-                <SortableTh label="GMV"          sortKey="gmv"            current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
-                <Th>Reviews</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading && !data ? (
-                <tr><td colSpan={10} className="text-center text-gray-400 py-12 text-sm">
-                  <Loader2 className="h-4 w-4 animate-spin inline mr-2" />Loading posts...
-                </td></tr>
-              ) : visiblePosts.length === 0 ? (
-                <tr><td colSpan={10} className="text-center text-gray-400 py-12">
-                  <Eye className="h-8 w-8 mx-auto mb-2 text-gray-300" />
-                  <div className="text-sm font-medium">
-                    {reviewFilter === 'all'
-                      ? 'No posts in this window'
-                      : reviewFilter === 'unreviewed'
-                        ? 'Inbox zero — every post in this window has a review.'
-                        : reviewFilter === 'reviewed-by-me'
-                          ? 'You haven\'t reviewed anything in this window yet.'
-                          : 'Nothing flagged. Nice.'}
-                  </div>
-                  {reviewFilter === 'all' && (
-                    <div className="text-xs mt-1">Try a wider date range, different brand, or include unmanaged creators.</div>
-                  )}
-                </td></tr>
-              ) : (
-                visiblePosts.map(p => <PostRowView key={p.video_id} post={p} onClick={handleRowClick} />)
-              )}
-            </tbody>
-          </table>
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          {/* View toggle — small segmented control. Cards is the default; the
+              icon ordering (grid → list) follows YouTube Studio / TikTok
+              Studio convention. */}
+          <ViewToggle value={viewMode} onChange={setViewMode} />
+          {/* In card view we can't sort via table headers, so we surface a
+              compact sort dropdown. In table view this stays mounted but
+              hidden — the header arrows handle it there. */}
+          {viewMode === 'cards' && (
+            <SortDropdown sortKey={sortKey} sortDir={sortDir} onChange={(k, d) => { setSortKey(k); setSortDir(d); }} />
+          )}
+          <div className="relative flex-1 sm:flex-initial">
+            <Search className="h-3.5 w-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search title or creator..."
+              aria-label="Search posts"
+              className="text-sm bg-white border border-gray-200 rounded-xl pl-8 pr-3 py-1.5 w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/20 focus:border-[#E91E8C]"
+            />
+          </div>
+          <button
+            onClick={downloadCsv}
+            disabled={!visiblePosts.length}
+            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-600 disabled:opacity-40 transition-colors"
+          >
+            <Download className="h-3.5 w-3.5" /> CSV
+          </button>
         </div>
       </div>
+
+      {/* Body — cards (default) or table (analytical fallback) */}
+      {viewMode === 'cards' ? (
+        loading && !data ? (
+          <CardLoadingGrid />
+        ) : visiblePosts.length === 0 ? (
+          <EmptyState reviewFilter={reviewFilter} />
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {visiblePosts.map(p => <PostCard key={p.video_id} post={p} onClick={handleRowClick} />)}
+          </div>
+        )
+      ) : (
+        <div className="rounded-2xl bg-white border border-gray-100 shadow-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left">
+                  <SortableTh label="Creator"      sortKey="creator_handle" current={sortKey} dir={sortDir} onClick={changeSort} />
+                  <Th>Brand</Th>
+                  <Th>Post</Th>
+                  <SortableTh label="Posted"       sortKey="post_date"      current={sortKey} dir={sortDir} onClick={changeSort} />
+                  <SortableTh label="Views"        sortKey="views"          current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
+                  <SortableTh label="Likes"        sortKey="likes"          current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
+                  <SortableTh label="Comments"     sortKey="comments"       current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
+                  <SortableTh label="Engagement"   sortKey="engagement_rate" current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
+                  <SortableTh label="GMV"          sortKey="gmv"            current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
+                  <Th>Reviews</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading && !data ? (
+                  <tr><td colSpan={10} className="text-center text-gray-400 py-12 text-sm">
+                    <Loader2 className="h-4 w-4 animate-spin inline mr-2" />Loading posts...
+                  </td></tr>
+                ) : visiblePosts.length === 0 ? (
+                  <tr><td colSpan={10} className="py-0"><EmptyState reviewFilter={reviewFilter} /></td></tr>
+                ) : (
+                  visiblePosts.map(p => <PostRowView key={p.video_id} post={p} onClick={handleRowClick} />)
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── View toggle (segmented control) ────────────────────────────────
+function ViewToggle({ value, onChange }: { value: ViewMode; onChange: (v: ViewMode) => void }) {
+  return (
+    <div className="inline-flex rounded-xl border border-gray-200 bg-white overflow-hidden" role="group" aria-label="View mode">
+      <button
+        type="button"
+        onClick={() => onChange('cards')}
+        aria-pressed={value === 'cards'}
+        title="Card view"
+        className={cn(
+          'px-2.5 py-1.5 text-xs font-semibold transition-colors',
+          value === 'cards' ? 'bg-[#E91E8C] text-white' : 'text-gray-500 hover:bg-gray-50',
+        )}
+      >
+        <LayoutGrid className="h-3.5 w-3.5" />
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange('table')}
+        aria-pressed={value === 'table'}
+        title="Table view"
+        className={cn(
+          'px-2.5 py-1.5 text-xs font-semibold transition-colors border-l border-gray-200',
+          value === 'table' ? 'bg-[#E91E8C] text-white' : 'text-gray-500 hover:bg-gray-50',
+        )}
+      >
+        <List className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  );
+}
+
+// ── Sort dropdown (card view only) ─────────────────────────────────
+function SortDropdown({
+  sortKey, sortDir, onChange,
+}: {
+  sortKey: SortKey;
+  sortDir: SortDir;
+  onChange: (key: SortKey, dir: SortDir) => void;
+}) {
+  const SORT_LABELS: Record<SortKey, string> = {
+    gmv: 'GMV',
+    views: 'Views',
+    likes: 'Likes',
+    comments: 'Comments',
+    engagement_rate: 'Engagement',
+    post_date: 'Posted',
+    creator_handle: 'Creator',
+  };
+  return (
+    <div className="inline-flex rounded-xl border border-gray-200 bg-white overflow-hidden">
+      <select
+        value={sortKey}
+        onChange={(e) => onChange(e.target.value as SortKey, sortDir)}
+        aria-label="Sort by"
+        className="text-xs font-semibold pl-2.5 pr-1 py-1.5 bg-transparent focus:outline-none cursor-pointer text-gray-700"
+      >
+        {SORT_KEYS.map(k => <option key={k} value={k}>{SORT_LABELS[k]}</option>)}
+      </select>
+      <button
+        type="button"
+        onClick={() => onChange(sortKey, sortDir === 'asc' ? 'desc' : 'asc')}
+        title={sortDir === 'asc' ? 'Ascending — click for descending' : 'Descending — click for ascending'}
+        aria-label="Toggle sort direction"
+        className="px-2 py-1.5 text-xs font-semibold text-gray-500 hover:bg-gray-50 border-l border-gray-200"
+      >
+        {sortDir === 'asc' ? '↑' : '↓'}
+      </button>
+    </div>
+  );
+}
+
+// ── Card loading skeleton ──────────────────────────────────────────
+function CardLoadingGrid() {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+      {Array.from({ length: 8 }).map((_, i) => (
+        <div key={i} className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden animate-pulse">
+          <div className="aspect-video bg-gray-100" />
+          <div className="p-4 space-y-3">
+            <div className="h-3 w-2/3 bg-gray-100 rounded" />
+            <div className="h-3 w-full bg-gray-100 rounded" />
+            <div className="h-3 w-1/2 bg-gray-100 rounded" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Empty state ────────────────────────────────────────────────────
+function EmptyState({ reviewFilter }: { reviewFilter: ReviewFilter }) {
+  const copy = reviewFilter === 'all'
+    ? 'No posts in this window'
+    : reviewFilter === 'unreviewed'
+      ? 'Inbox zero — every post in this window has a review.'
+      : reviewFilter === 'reviewed-by-me'
+        ? 'You haven\'t reviewed anything in this window yet.'
+        : 'Nothing flagged. Nice.';
+  return (
+    <div className="rounded-2xl bg-white border border-gray-100 shadow-sm text-center text-gray-400 py-12 px-6">
+      <Eye className="h-8 w-8 mx-auto mb-2 text-gray-300" />
+      <div className="text-sm font-medium">{copy}</div>
+      {reviewFilter === 'all' && (
+        <div className="text-xs mt-1">Try a wider date range, different brand, or include unmanaged creators.</div>
+      )}
     </div>
   );
 }
