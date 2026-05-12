@@ -1,6 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
-import { brandSlugToUuid, brandUuidToSlug } from '@/lib/utils/constants';
+import {
+  brandSlugToUuid,
+  brandUuidToSlug,
+  expandBrandToDataSlugs,
+  BRAND_UUID_MAP,
+} from '@/lib/utils/constants';
+
+/**
+ * Expand a brand filter (e.g. 'leefar', the umbrella) into the array of
+ * data-level brand UUIDs that exist in daily_video_product_stats
+ * (['leefar_nutrition', 'leefar_supplements'] → their UUIDs).
+ * Non-umbrella brands return a single-element array. NULL/no-filter returns
+ * null so the RPCs aggregate across all brands.
+ */
+function brandSlugToDataUuids(brandSlug: string | null | undefined): string[] | null {
+  if (!brandSlug || brandSlug === 'all') return null;
+  const dataSlugs = expandBrandToDataSlugs(brandSlug);
+  const uuids = Array.from(dataSlugs)
+    .map((s) => BRAND_UUID_MAP[s])
+    .filter((u): u is string => !!u);
+  return uuids.length > 0 ? uuids : null;
+}
 
 async function getTenantId() {
   const supabase = await createClient();
@@ -225,9 +246,17 @@ export async function GET(request: NextRequest) {
   const perfByHandle = new Map<string, { gmv_30d: number; posts_this_month: number; last_post_date: string | null }>();
   const msgByHandle = new Map<string, { last_message_at: string | null; unread_count: number }>();
 
+  // Convert the brand filter (umbrella slug like 'leefar') to the array of
+  // store-level UUIDs the perf table actually keys on. Null when no filter
+  // is active so the RPC aggregates across all brands.
+  const brandIds = brandSlugToDataUuids(brand);
+
   if (allHandles.length > 0) {
     const [perfRes, msgRes] = await Promise.all([
-      supabase.rpc('get_creator_handle_perf', { handles: allHandles }),
+      supabase.rpc('get_creator_handle_perf', {
+        handles: allHandles,
+        brand_ids: brandIds,
+      }),
       supabase.rpc('get_creator_message_signals', { handles: allHandles }),
     ]);
 
@@ -309,12 +338,15 @@ export async function GET(request: NextRequest) {
   // returns the top N by 30d GMV. We shape each result into an EnrichedRow
   // with empty contract fields + is_managed: false.
   if (includeUnmanaged) {
-    const brandUuid = brand && brand !== 'all' ? brandSlugToUuid(brand) : null;
+    // Same umbrella-aware brand expansion as the managed perf RPC.
+    // Without this, filtering to LeeFar would pass the umbrella UUID
+    // which doesn't exist in daily_video_product_stats → zero unmanaged
+    // candidates surfaced.
     const { data: unmanagedRows, error: unmanagedErr } = await supabase.rpc(
       'get_unmanaged_top_perf',
       {
         managed_handles: allHandles,
-        brand_filter: brandUuid ?? null,
+        brand_ids: brandIds,
         limit_count: 500,
       },
     );
