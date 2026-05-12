@@ -29,6 +29,14 @@ interface Creator {
   discord_avatar: string | null;
   notes: string | null;
   created_at: string | null;
+  // FK to creators_v2. Null for unmanaged universe rows; populated for
+  // post-backfill managed_creators rows.
+  creator_id: string | null;
+  // Canonical handle list (from tiktok_accounts via the API, primary first,
+  // unlimited length). The account_1..5 columns below are kept on the wire
+  // for backward compatibility during the migration; new rendering reads
+  // from `handles`.
+  handles: string[];
   account_1: string | null;
   account_2: string | null;
   account_3: string | null;
@@ -49,7 +57,19 @@ interface Creator {
   is_managed: boolean;
 }
 
-function getExtraAccounts(c: Creator): string[] {
+/**
+ * Primary handle (first in the canonical list). Falls back to the legacy
+ * account_1 column only if `handles` is empty (shouldn't happen post-migration
+ * but kept defensive).
+ */
+function primaryHandle(c: Creator): string | null {
+  return c.handles?.[0] ?? c.account_1 ?? null;
+}
+
+/** Handles beyond the primary, used for the "+N" badge. */
+function extraHandles(c: Creator): string[] {
+  if (c.handles && c.handles.length > 1) return c.handles.slice(1);
+  // Fallback for any row that didn't get `handles` populated.
   return [c.account_2, c.account_3, c.account_4, c.account_5].filter(Boolean) as string[];
 }
 
@@ -262,7 +282,7 @@ function RoiCell({ roi }: { roi: number | null }) {
 }
 
 function ExtraAccountsBadge({ creator }: { creator: Creator }) {
-  const extras = getExtraAccounts(creator);
+  const extras = extraHandles(creator);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -304,7 +324,8 @@ function ExtraAccountsBadge({ creator }: { creator: Creator }) {
   );
 }
 
-const ACCOUNT_KEYS = ['account_1', 'account_2', 'account_3', 'account_4', 'account_5'] as const;
+// (ACCOUNT_KEYS removed: handle storage moved to tiktok_accounts; the legacy
+// account_1..5 columns are now only read as a backward-compat fallback.)
 
 // ─── Skeleton loaders ─────────────────────────────────────────────────────────
 function SkeletonStatCard() {
@@ -369,7 +390,17 @@ function CreatorPanel({
     }
   };
 
-  // Edit form state — mirrors the Creator interface fields we allow editing
+  // Initial handle list for the edit form: prefer the canonical `handles`
+  // array (post-Path-B), fall back to scanning the legacy account_N columns.
+  const initialHandles = (() => {
+    if (creator.handles && creator.handles.length > 0) return [...creator.handles];
+    const legacy = [creator.account_1, creator.account_2, creator.account_3, creator.account_4, creator.account_5]
+      .filter((v): v is string => !!v && v.trim() !== '');
+    return legacy.length > 0 ? legacy : [''];
+  })();
+
+  // Edit form state. Handles live in a separate array so they can grow
+  // unbounded; the rest of the form is keyed by field name as before.
   const [form, setForm] = useState({
     real_name:               creator.real_name || '',
     brand:                   creator.brand || '',
@@ -378,24 +409,30 @@ function CreatorPanel({
     monthly_post_requirement: String(creator.monthly_post_requirement ?? 30),
     discord_name:            creator.discord_name || '',
     notes:                   creator.notes || '',
-    account_1:               creator.account_1 || '',
-    account_2:               creator.account_2 || '',
-    account_3:               creator.account_3 || '',
-    account_4:               creator.account_4 || '',
-    account_5:               creator.account_5 || '',
   });
+  const [handles, setHandles] = useState<string[]>(initialHandles);
 
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
+  const setHandleAt = (i: number, v: string) =>
+    setHandles((h) => h.map((x, idx) => (idx === i ? v.trim().replace(/^@/, '') : x)));
+  const addHandle = () => setHandles((h) => [...h, '']);
+  const removeHandle = (i: number) =>
+    setHandles((h) => (h.length === 1 ? [''] : h.filter((_, idx) => idx !== i)));
 
   const handleSave = async () => {
     setSaving(true);
     setSaveError('');
     try {
+      // Drop empty / duplicate handles before sending.
+      const cleanHandles = Array.from(new Set(
+        handles.map((h) => h.trim().replace(/^@/, '')).filter(Boolean),
+      ));
       const res = await fetch(`/api/roster/${creator.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...form,
+          handles: cleanHandles,
           retainer: form.retainer !== '' ? parseFloat(form.retainer) : 0,
           monthly_post_requirement: parseInt(form.monthly_post_requirement) || 30,
         }),
@@ -412,7 +449,7 @@ function CreatorPanel({
   };
 
   const handleCancel = () => {
-    // Reset form to original values
+    // Reset form + handles to original values
     setForm({
       real_name:               creator.real_name || '',
       brand:                   creator.brand || '',
@@ -421,22 +458,13 @@ function CreatorPanel({
       monthly_post_requirement: String(creator.monthly_post_requirement ?? 30),
       discord_name:            creator.discord_name || '',
       notes:                   creator.notes || '',
-      account_1:               creator.account_1 || '',
-      account_2:               creator.account_2 || '',
-      account_3:               creator.account_3 || '',
-      account_4:               creator.account_4 || '',
-      account_5:               creator.account_5 || '',
     });
+    setHandles(initialHandles);
     setSaveError('');
     setEditing(false);
-    setVisibleSlots(initialSlots);
   };
 
-  // Track how many handle slots are visible — starts at however many are already populated
-  const initialSlots = Math.max(1, ACCOUNT_KEYS.filter(k => !!creator[k as keyof Creator]).length);
-  const [visibleSlots, setVisibleSlots] = useState(initialSlots);
-
-  const displayName = creator.real_name || creator.account_1 || 'Creator';
+  const displayName = creator.real_name || primaryHandle(creator) || 'Creator';
 
   // ── Portal target + body-scroll lock ──
   // The panel was previously rendered inline inside the page tree, which lives
@@ -533,7 +561,7 @@ function CreatorPanel({
             <div className="rounded-xl border border-red-200 bg-red-50 p-4 space-y-3">
               <div>
                 <p className="text-sm font-semibold text-red-900">
-                  Remove {creator.real_name || creator.account_1 || 'this creator'}?
+                  Remove {creator.real_name || primaryHandle(creator) || 'this creator'}?
                 </p>
                 <p className="text-xs text-red-700 mt-1 leading-relaxed">
                   They&apos;ll stop appearing in the roster, rev share, and renewals.
@@ -592,38 +620,37 @@ function CreatorPanel({
               <div>
                 <label className="block text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1.5">TikTok Accounts</label>
                 <div className="space-y-2">
-                  {ACCOUNT_KEYS.slice(0, visibleSlots).map((key, idx) => (
-                    <div key={key} className="flex items-center gap-2">
+                  {handles.map((h, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
                       <span className="text-xs text-gray-400 w-4 shrink-0">{idx + 1}</span>
                       <input
                         type="text"
-                        value={form[key]}
-                        onChange={e => set(key, e.target.value)}
+                        value={h}
+                        onChange={(e) => setHandleAt(idx, e.target.value)}
                         placeholder={idx === 0 ? 'primary handle' : 'additional handle'}
                         className="flex-1 px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
                       />
-                      {idx > 0 && (
+                      {(handles.length > 1 || h !== '') && (
                         <button
                           type="button"
-                          onClick={() => { set(key, ''); setVisibleSlots(s => s - 1); }}
+                          onClick={() => removeHandle(idx)}
                           className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 transition-colors"
                           title="Remove handle"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       )}
-                      {idx === visibleSlots - 1 && visibleSlots < 5 && (
-                        <button
-                          type="button"
-                          onClick={() => setVisibleSlots(s => s + 1)}
-                          className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 transition-colors"
-                          title="Add another handle"
-                        >
-                          <Plus className="h-3.5 w-3.5" />
-                        </button>
-                      )}
                     </div>
                   ))}
+                  {/* Unlimited "+ Add handle" — no upper bound. handles[] persists
+                      to tiktok_accounts on save, replacing the old 5-slot cap. */}
+                  <button
+                    type="button"
+                    onClick={addHandle}
+                    className="inline-flex items-center gap-1 text-xs font-medium text-[#E91E8C] hover:underline mt-1"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Add another handle
+                  </button>
                 </div>
               </div>
 
@@ -715,8 +742,8 @@ function CreatorPanel({
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">TikTok Accounts</p>
                 <div className="space-y-1">
-                  {[creator.account_1, ...getExtraAccounts(creator)].filter(Boolean).length > 0
-                    ? [creator.account_1, ...getExtraAccounts(creator)].filter(Boolean).map((h) => (
+                  {creator.handles && creator.handles.length > 0
+                    ? creator.handles.map((h) => (
                       <a
                         key={h}
                         href={`https://tiktok.com/@${h}`}
@@ -763,9 +790,9 @@ function CreatorPanel({
                 </div>
               )}
 
-              {creator.account_1 && (
+              {primaryHandle(creator) && (
                 <Link
-                  href={`/creators/${encodeURIComponent(creator.account_1)}`}
+                  href={`/creators/${encodeURIComponent(primaryHandle(creator)!)}`}
                   className="flex items-center justify-center gap-2 w-full mt-2 px-4 py-3 rounded-xl bg-[#E91E8C] text-white text-sm font-semibold hover:bg-[#d1177d] transition-colors"
                 >
                   <ExternalLink className="h-4 w-4" />
@@ -790,18 +817,30 @@ interface AddCreatorModalProps {
 function AddCreatorModal({ prefill, onClose, onSuccess }: AddCreatorModalProps) {
   const { brands: brandOptions } = useBrandList();
   const [form, setForm] = useState({
-    real_name: '', account_1: prefill?.account_1 || '', brand: prefill?.brand || '',
+    real_name: '', brand: prefill?.brand || '',
     retainer: '', monthly_post_requirement: '30', discord_name: '', notes: '',
   });
+  // Handles live in their own array so creators can have unlimited TikTok
+  // accounts. The first slot is pre-filled if we got a prefill handle
+  // (e.g., from "+ Add to roster" on an unmanaged universe row).
+  const [handles, setHandles] = useState<string[]>([prefill?.account_1 || '']);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
+  const setHandleAt = (i: number, v: string) =>
+    setHandles((h) => h.map((x, idx) => (idx === i ? v.trim().replace(/^@/, '') : x)));
+  const addHandle = () => setHandles((h) => [...h, '']);
+  const removeHandle = (i: number) =>
+    setHandles((h) => (h.length === 1 ? [''] : h.filter((_, idx) => idx !== i)));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.real_name && !form.account_1) {
-      setError('Name or TikTok handle is required.');
+    const cleanHandles = Array.from(new Set(
+      handles.map((h) => h.trim().replace(/^@/, '')).filter(Boolean),
+    ));
+    if (!form.real_name && cleanHandles.length === 0) {
+      setError('Name or at least one TikTok handle is required.');
       return;
     }
     setSaving(true);
@@ -812,6 +851,7 @@ function AddCreatorModal({ prefill, onClose, onSuccess }: AddCreatorModalProps) 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...form,
+          handles: cleanHandles,
           retainer: form.retainer ? parseFloat(form.retainer) : 0,
           monthly_post_requirement: parseInt(form.monthly_post_requirement) || 30,
         }),
@@ -841,26 +881,51 @@ function AddCreatorModal({ prefill, onClose, onSuccess }: AddCreatorModalProps) 
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Real Name</label>
-              <input
-                type="text"
-                placeholder="e.g. Jane Smith"
-                value={form.real_name}
-                onChange={(e) => set('real_name', e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">TikTok Handle</label>
-              <input
-                type="text"
-                placeholder="@handle"
-                value={form.account_1}
-                onChange={(e) => set('account_1', e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
-              />
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Real Name</label>
+            <input
+              type="text"
+              placeholder="e.g. Jane Smith"
+              value={form.real_name}
+              onChange={(e) => set('real_name', e.target.value)}
+              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+            />
+          </div>
+
+          {/* TikTok handles — unlimited. handles[] persists to tiktok_accounts
+              on save, with the first row treated as primary. */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">TikTok Handles</label>
+            <div className="space-y-2">
+              {handles.map((h, idx) => (
+                <div key={idx} className="flex items-center gap-2">
+                  <span className="text-xs text-gray-400 w-4 shrink-0">{idx + 1}</span>
+                  <input
+                    type="text"
+                    placeholder={idx === 0 ? '@primary_handle' : '@additional_handle'}
+                    value={h}
+                    onChange={(e) => setHandleAt(idx, e.target.value)}
+                    className="flex-1 px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+                  />
+                  {(handles.length > 1 || h !== '') && (
+                    <button
+                      type="button"
+                      onClick={() => removeHandle(idx)}
+                      className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 transition-colors"
+                      title="Remove handle"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={addHandle}
+                className="inline-flex items-center gap-1 text-xs font-medium text-[#E91E8C] hover:underline mt-1"
+              >
+                <Plus className="h-3.5 w-3.5" /> Add another handle
+              </button>
             </div>
           </div>
 
@@ -1114,13 +1179,14 @@ function RosterContent() {
     const rows = roster.filter((c) => selectedIds.has(c.id));
     if (rows.length === 0) return;
     const header = [
-      'Name', 'Handle', 'Brand', 'Status', 'Health',
+      'Name', 'Handles', 'Brand', 'Status', 'Health',
       'Retainer', 'Posts (this month)', 'Posts target',
       'Last post', 'Last DM', 'GMV (30d)', 'ROI (30d)', 'Unread DMs',
     ];
     const body = rows.map((c) => [
       c.real_name ?? '',
-      c.account_1 ?? '',
+      // Comma-join all handles so multi-handle creators are exported faithfully.
+      (c.handles?.length ? c.handles : [c.account_1].filter(Boolean)).map((h) => `@${h}`).join(', '),
       c.brand ? (brandOptions.find(b => b.slug === c.brand)?.name ?? BRAND_DISPLAY_NAMES[c.brand] ?? c.brand) : '',
       c.status ?? '',
       c.health,
@@ -1480,7 +1546,7 @@ function RosterContent() {
                         // Open the Add Creator modal pre-filled with the
                         // candidate's handle + (best-guess) brand.
                         setAddModalPrefill({
-                          account_1: c.account_1 ?? '',
+                          account_1: primaryHandle(c) ?? '',
                           brand: c.brand ?? '',
                         });
                       }
@@ -1494,7 +1560,7 @@ function RosterContent() {
                       {c.is_managed ? (
                         <input
                           type="checkbox"
-                          aria-label={`Select ${c.real_name || c.account_1 || 'creator'}`}
+                          aria-label={`Select ${c.real_name || primaryHandle(c) || 'creator'}`}
                           checked={selectedIds.has(c.id)}
                           onChange={() => toggleOne(c.id)}
                           className="h-4 w-4 rounded border-gray-300 text-[#E91E8C] focus:ring-[#E91E8C]/30 cursor-pointer"
@@ -1509,24 +1575,28 @@ function RosterContent() {
                         ? <span className="text-gray-400">—</span>
                         // Unmanaged often has no creators_v2 link → fall back
                         // to the handle so the row isn't anonymous.
-                        : <span className="text-gray-500 italic">@{c.account_1}</span>
+                        : <span className="text-gray-500 italic">@{primaryHandle(c)}</span>
                       )}
                     </td>
                     <td className="px-5 py-3.5">
-                      {c.account_1 ? (
-                        <span className="flex items-center">
-                          <a
-                            href={`https://tiktok.com/@${c.account_1}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-[#E91E8C] hover:underline font-medium"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            @{c.account_1}
-                          </a>
-                          <ExtraAccountsBadge creator={c} />
-                        </span>
-                      ) : <span className="text-gray-400">—</span>}
+                      {(() => {
+                        const primary = primaryHandle(c);
+                        if (!primary) return <span className="text-gray-400">—</span>;
+                        return (
+                          <span className="flex items-center">
+                            <a
+                              href={`https://tiktok.com/@${primary}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[#E91E8C] hover:underline font-medium"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              @{primary}
+                            </a>
+                            <ExtraAccountsBadge creator={c} />
+                          </span>
+                        );
+                      })()}
                     </td>
                     {showBrandColumn && (
                       <td className="px-5 py-3.5">
@@ -1573,7 +1643,7 @@ function RosterContent() {
                           onClick={(e) => {
                             e.stopPropagation();
                             setAddModalPrefill({
-                              account_1: c.account_1 ?? '',
+                              account_1: primaryHandle(c) ?? '',
                               brand: c.brand ?? '',
                             });
                           }}
