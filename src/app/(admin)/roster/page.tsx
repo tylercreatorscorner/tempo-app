@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
+import { createPortal } from 'react-dom';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
   UserPlus, Search, Users, UserCheck, X,
@@ -437,7 +438,30 @@ function CreatorPanel({
 
   const displayName = creator.real_name || creator.account_1 || 'Creator';
 
-  return (
+  // ── Portal target + body-scroll lock ──
+  // The panel was previously rendered inline inside the page tree, which lives
+  // under <main class="animate-fade-in">. The CSS `animation` on <main> creates
+  // a stacking context, trapping the panel's z-50 inside that subtree. The top
+  // app bar (a sibling of <main>, z-30) then paints OVER the panel header — so
+  // managers couldn't see the Remove/Edit/X buttons and couldn't enter edit
+  // mode. Portaling to <body> escapes the trap.
+  //
+  // Same fix solves the secondary report ("page scrolls behind the panel"):
+  // a fixed overlay rendered inline doesn't cleanly lock body scroll because
+  // wheel events bubble through to the (now-portaled-out-of) ancestor scroll
+  // container. The useEffect adds an explicit body overflow lock for the
+  // panel's lifetime.
+  const [portalReady, setPortalReady] = useState(false);
+  useEffect(() => { setPortalReady(true); }, []);
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+
+  if (!portalReady) return null;
+
+  return createPortal(
     <div className="fixed inset-0 z-50 flex justify-end" onClick={editing ? undefined : onClose}>
       <div className="absolute inset-0 bg-black/20 backdrop-blur-[2px]" onClick={editing ? undefined : onClose} />
       <div
@@ -752,7 +776,8 @@ function CreatorPanel({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
