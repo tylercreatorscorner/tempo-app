@@ -1111,6 +1111,7 @@ function RosterContent() {
   const [lowRoiCount, setLowRoiCount]   = useState(0);
   const [unreadDms, setUnreadDms]       = useState(0);
   const [totalGmvPeriod, setTotalGmvPeriod] = useState(0);
+  const [totalRetainer, setTotalRetainer] = useState(0);
 
   // ── Period selector ──
   // Days back for GMV / ROI / total. Health and posts-this-month are NOT
@@ -1213,6 +1214,7 @@ function RosterContent() {
       setLowRoiCount(json.low_roi_count ?? 0);
       setUnreadDms(json.unread_dms_total ?? 0);
       setTotalGmvPeriod(json.total_gmv_period ?? 0);
+      setTotalRetainer(json.total_retainer ?? 0);
       // The "Total managed" card should always reflect the unfiltered managed
       // count. The API now returns `total_managed` directly (count of managed
       // rows in the unfiltered set, regardless of include=all or health filter),
@@ -1474,13 +1476,25 @@ function RosterContent() {
           column / ROI column / this banner. Health, posts, last-post are
           intentionally NOT period-driven (they're monthly contract signals). */}
       <div className="rounded-2xl bg-gradient-to-br from-[#1A1B3A] to-[#2A2D5A] text-white p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-white/60">
-            GMV · {periodLabel}{brand && brand !== 'all' ? ` · ${brandOptions.find(b => b.slug === brand)?.name || BRAND_DISPLAY_NAMES[brand] || brand}` : ''}
-          </p>
-          <p className="text-3xl font-extrabold mt-1 tabular-nums">
-            {loading ? '…' : fmt(totalGmvPeriod)}
-          </p>
+        <div className="flex flex-wrap items-end gap-x-10 gap-y-3">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-white/60">
+              GMV · {periodLabel}{brand && brand !== 'all' ? ` · ${brandOptions.find(b => b.slug === brand)?.name || BRAND_DISPLAY_NAMES[brand] || brand}` : ''}
+            </p>
+            <p className="text-3xl font-extrabold mt-1 tabular-nums">
+              {loading ? '…' : fmt(totalGmvPeriod)}
+            </p>
+          </div>
+          {/* Monthly retainer commitment — period-independent (fixed monthly
+              contract figure). Shows what this brand-scoped roster costs us. */}
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-white/60">
+              Monthly retainer
+            </p>
+            <p className="text-2xl font-bold mt-1 tabular-nums text-white/90">
+              {loading ? '…' : fmt(totalRetainer)}
+            </p>
+          </div>
         </div>
         {/* Period selector — segmented control */}
         <div className="flex gap-1 p-1 bg-white/10 rounded-xl">

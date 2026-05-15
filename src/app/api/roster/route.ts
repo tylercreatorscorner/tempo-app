@@ -8,19 +8,51 @@ import {
 } from '@/lib/utils/constants';
 
 /**
- * Expand a brand filter (e.g. 'leefar', the umbrella) into the array of
- * data-level brand UUIDs that exist in daily_video_product_stats
- * (['leefar_nutrition', 'leefar_supplements'] → their UUIDs).
- * Non-umbrella brands return a single-element array. NULL/no-filter returns
- * null so the RPCs aggregate across all brands.
+ * Sentinel returned when a real brand is selected but we couldn't resolve any
+ * data-level UUID for it. Filtering on this (a UUID that exists in no row)
+ * makes the RPCs return ZERO — the honest answer for a brand with no uploaded
+ * data. This is deliberately NOT `null`: returning null means "no filter →
+ * aggregate every brand", which would mislabel other brands' GMV as this one
+ * (the COSRX bug). Unknown brand must show nothing, never everything.
  */
-function brandSlugToDataUuids(brandSlug: string | null | undefined): string[] | null {
+const NO_MATCH_BRAND_ID = '00000000-0000-0000-0000-000000000000';
+
+/**
+ * Resolve a brand filter to the array of data-level brand UUIDs that
+ * daily_video_product_stats actually keys on.
+ *
+ * Fast path: the hardcoded BRAND_UUID_MAP (also handles umbrella expansion,
+ * e.g. 'leefar' → both store UUIDs). Fallback: look the slug up in brands_v2
+ * (the canonical brand table the dynamic picker reads from) so brands created
+ * via the UI but not yet in the constant still filter correctly.
+ *
+ * Returns:
+ *   - null              → no brand selected ('all'/empty): aggregate all
+ *   - [uuid, ...]        → resolved brand(s)
+ *   - [NO_MATCH_BRAND_ID] → real brand, no resolvable UUID → show zero
+ */
+async function resolveBrandDataUuids(
+  brandSlug: string | null | undefined,
+  supabase: Awaited<ReturnType<typeof createAdminClient>>,
+): Promise<string[] | null> {
   if (!brandSlug || brandSlug === 'all') return null;
+
   const dataSlugs = expandBrandToDataSlugs(brandSlug);
-  const uuids = Array.from(dataSlugs)
+  const fromConstant = Array.from(dataSlugs)
     .map((s) => BRAND_UUID_MAP[s])
     .filter((u): u is string => !!u);
-  return uuids.length > 0 ? uuids : null;
+  if (fromConstant.length > 0) return fromConstant;
+
+  // Not in the hardcoded map — resolve via brands_v2 (canonical source).
+  const { data: brandRow } = await supabase
+    .from('brands_v2')
+    .select('id')
+    .eq('slug', brandSlug)
+    .maybeSingle();
+  if (brandRow?.id) return [brandRow.id as string];
+
+  // Real selection but unresolvable → show zero, never all.
+  return [NO_MATCH_BRAND_ID];
 }
 
 async function getTenantId() {
@@ -318,10 +350,9 @@ export async function GET(request: NextRequest) {
   const brandGmvByHandle = new Map<string, Map<string, number>>();
   const msgByHandle = new Map<string, { last_message_at: string | null; unread_count: number }>();
 
-  // Convert the brand filter (umbrella slug like 'leefar') to the array of
-  // store-level UUIDs the perf table actually keys on. Null when no filter
-  // is active so the RPC aggregates across all brands.
-  const brandIds = brandSlugToDataUuids(brand);
+  // Resolve the brand filter to data-level UUIDs. null = no filter (all);
+  // [NO_MATCH_BRAND_ID] = real brand with no data → zero (never all).
+  const brandIds = await resolveBrandDataUuids(brand, supabase);
 
   if (allHandles.length > 0) {
     const [perfRes, brandGmvRes, msgRes] = await Promise.all([
@@ -521,6 +552,10 @@ export async function GET(request: NextRequest) {
     (r) => r.roi_period !== null && r.roi_period < 1 && r.health !== 'churned',
   ).length;
   const unread_dms_total = managedRows.reduce((s, r) => s + (r.unread_count || 0), 0);
+  // Total monthly retainer commitment across the brand-scoped managed roster.
+  // NOT period-driven — retainer is a fixed monthly contract figure, so this
+  // is the same whether the period selector is on Yesterday or YTD.
+  const total_retainer = managedRows.reduce((s, r) => s + (Number(r.retainer) || 0), 0);
   // Total GMV in the selected period for the banner. Brand + store-sub-filter
   // are *scope* changes, so they affect this. The health filter is *triage*
   // (not scope) so it doesn't.
@@ -599,6 +634,8 @@ export async function GET(request: NextRequest) {
     // Total GMV across the (unfiltered) managed roster for the period.
     // Drives the "Total GMV" banner at the top of My Creators.
     total_gmv_period,
+    // Total monthly retainer commitment (period-independent).
+    total_retainer,
   });
 }
 
