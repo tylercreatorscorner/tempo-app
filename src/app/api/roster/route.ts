@@ -132,9 +132,16 @@ interface ManagedRow {
 
 interface PerfRow {
   tiktok_username: string;
-  gmv_30d: string | number;
+  gmv_period: string | number;
   posts_this_month: number;
   last_post_date: string | null;
+}
+
+interface BrandGmvRow {
+  tiktok_username: string;
+  brand_id: string | null;
+  gmv_period: string | number;
+  posts_period: number;
 }
 
 interface MessageRow {
@@ -144,20 +151,23 @@ interface MessageRow {
 }
 
 interface EnrichedRow extends ManagedRow {
-  gmv_30d: number;
+  // Period-driven (selector controls these)
+  gmv_period: number;
+  // Per-(brand-slug) GMV split for the same period — used by the side-panel
+  // "Revenue by store" section, the row's store-mix indicator, and the
+  // store sub-pill filter. Keys are data-level brand slugs (e.g.
+  // 'leefar_nutrition'). Empty object when there's no data.
+  gmv_by_store: Record<string, number>;
+  // Calendar-month, not period-driven (post quotas are monthly contracts)
   posts_this_month: number;
+  // Independent of period — most recent post in last 365d (or null)
   last_post_date: string | null;
   health: CreatorHealth;
-  // Convenience: trailing-30d GMV ÷ retainer (proxy for "is the contract paying off this month").
+  // Period gmv ÷ retainer (proxy for "is the contract paying off in this window").
   // null when retainer is 0.
-  roi_30d: number | null;
-  // Messaging signals (sourced from creator_messages via discord_id bridge).
-  // Both null/0 when there's no linked discord identity OR no message history.
+  roi_period: number | null;
   last_message_at: string | null;
   unread_count: number;
-  // Distinguishes managed_creators rows (true) from unmanaged universe candidates
-  // (false). Unmanaged rows are appended when ?include=all and have empty contract
-  // fields, no health (rendered as "no_data"), and surface "+ Add to roster" in UI.
   is_managed: boolean;
 }
 
@@ -165,7 +175,7 @@ interface UnmanagedPerfRow {
   tiktok_username: string;
   brand_id: string | null;
   real_name: string | null;
-  gmv_30d: string | number;
+  gmv_period: string | number;
   posts_this_month: number;
   last_post_date: string | null;
 }
@@ -177,7 +187,7 @@ function handlesFor(c: ManagedRow): string[] {
 }
 
 const SORTABLE_DB = ['retainer', 'real_name', 'monthly_post_requirement', 'created_at', 'status', 'brand'] as const;
-const SORTABLE_COMPUTED = ['gmv_30d', 'posts_this_month', 'last_post_date', 'health', 'roi_30d', 'last_message_at', 'unread_count'] as const;
+const SORTABLE_COMPUTED = ['gmv_period', 'posts_this_month', 'last_post_date', 'health', 'roi_period', 'last_message_at', 'unread_count'] as const;
 type DbSort = typeof SORTABLE_DB[number];
 type ComputedSort = typeof SORTABLE_COMPUTED[number];
 type SortCol = DbSort | ComputedSort;
@@ -218,6 +228,19 @@ export async function GET(request: NextRequest) {
   const includeParam = searchParams.get('include') || 'managed';
   const includeUnmanaged = includeParam === 'all';
 
+  // ?period=N — number of days back for GMV / ROI / total GMV computations.
+  // Defaults to 30 (back-compat). Clamped to [1, 366] to keep RPCs bounded.
+  // posts_this_month + health + last_post stay independent of this.
+  const periodParam = parseInt(searchParams.get('period') || '30', 10);
+  const periodDays = Number.isFinite(periodParam)
+    ? Math.max(1, Math.min(366, periodParam))
+    : 30;
+
+  // ?store=<slug> — optional sub-filter when an umbrella brand is active.
+  // Filters managed rows down to those whose period-GMV came primarily from
+  // that store. Applied client-side after enrichment; null = no sub-filter.
+  const storeFilter = searchParams.get('store');
+
   const supabase = await createAdminClient();
 
   // ── 1. Fetch ALL matching managed creators (no DB pagination yet — we need
@@ -241,9 +264,11 @@ export async function GET(request: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   const allRows: ManagedRow[] = rawRows ?? [];
 
-  // ── 2. Bulk-fetch perf + message signals for every handle in parallel.
+  // ── 2. Bulk-fetch perf + per-brand-GMV + message signals in parallel.
   const allHandles = Array.from(new Set(allRows.flatMap(handlesFor)));
-  const perfByHandle = new Map<string, { gmv_30d: number; posts_this_month: number; last_post_date: string | null }>();
+  const perfByHandle = new Map<string, { gmv_period: number; posts_this_month: number; last_post_date: string | null }>();
+  // brand_id (uuid string) → gmv for that handle on that brand, for the period
+  const brandGmvByHandle = new Map<string, Map<string, number>>();
   const msgByHandle = new Map<string, { last_message_at: string | null; unread_count: number }>();
 
   // Convert the brand filter (umbrella slug like 'leefar') to the array of
@@ -252,24 +277,41 @@ export async function GET(request: NextRequest) {
   const brandIds = brandSlugToDataUuids(brand);
 
   if (allHandles.length > 0) {
-    const [perfRes, msgRes] = await Promise.all([
+    const [perfRes, brandGmvRes, msgRes] = await Promise.all([
       supabase.rpc('get_creator_handle_perf', {
         handles: allHandles,
         brand_ids: brandIds,
+        days_back: periodDays,
+      }),
+      supabase.rpc('get_creator_handle_brand_gmv', {
+        handles: allHandles,
+        brand_ids: brandIds,
+        days_back: periodDays,
       }),
       supabase.rpc('get_creator_message_signals', { handles: allHandles }),
     ]);
 
     if (perfRes.error) {
-      // Don't hard-fail the page if perf is unavailable — degrade gracefully.
       console.error('[/api/roster] perf RPC failed:', perfRes.error.message);
     } else {
       for (const r of (perfRes.data as PerfRow[] | null) ?? []) {
         perfByHandle.set(r.tiktok_username.toLowerCase(), {
-          gmv_30d: Number(r.gmv_30d) || 0,
+          gmv_period: Number(r.gmv_period) || 0,
           posts_this_month: Number(r.posts_this_month) || 0,
           last_post_date: r.last_post_date,
         });
+      }
+    }
+
+    if (brandGmvRes.error) {
+      console.error('[/api/roster] brand-gmv RPC failed:', brandGmvRes.error.message);
+    } else {
+      for (const r of (brandGmvRes.data as BrandGmvRow[] | null) ?? []) {
+        if (!r.brand_id) continue;
+        const handle = r.tiktok_username.toLowerCase();
+        const slot = brandGmvByHandle.get(handle) ?? new Map<string, number>();
+        slot.set(r.brand_id, Number(r.gmv_period) || 0);
+        brandGmvByHandle.set(handle, slot);
       }
     }
 
@@ -285,7 +327,8 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // ── 3. Enrich each row: sum across its handles, compute health + ROI.
+  // ── 3. Enrich each row: sum across its handles, compute health + ROI,
+  // build per-store GMV breakdown (keyed by data-level brand slug).
   const enriched: EnrichedRow[] = allRows.map((row) => {
     const hs = handlesFor(row);
     let gmv = 0;
@@ -293,10 +336,14 @@ export async function GET(request: NextRequest) {
     let lastPost: string | null = null;
     let lastMsg: string | null = null;
     let unread = 0;
+    // Per-(data brand slug) GMV split for the row. Sums per brand across
+    // all of the row's handles. Renders in the side panel "Revenue by store"
+    // section and drives the row's store-mix indicator.
+    const gmvByStore: Record<string, number> = {};
     for (const h of hs) {
       const p = perfByHandle.get(h);
       if (p) {
-        gmv += p.gmv_30d;
+        gmv += p.gmv_period;
         posts += p.posts_this_month;
         if (p.last_post_date && (!lastPost || p.last_post_date > lastPost)) {
           lastPost = p.last_post_date;
@@ -307,6 +354,13 @@ export async function GET(request: NextRequest) {
         unread += m.unread_count;
         if (m.last_message_at && (!lastMsg || m.last_message_at > lastMsg)) {
           lastMsg = m.last_message_at;
+        }
+      }
+      const bg = brandGmvByHandle.get(h);
+      if (bg) {
+        for (const [brandUuid, brandGmv] of bg) {
+          const slug = brandUuidToSlug(brandUuid) ?? brandUuid;
+          gmvByStore[slug] = (gmvByStore[slug] ?? 0) + brandGmv;
         }
       }
     }
@@ -322,11 +376,12 @@ export async function GET(request: NextRequest) {
     const roi = retainer > 0 ? gmv / retainer : null;
     return {
       ...row,
-      gmv_30d: gmv,
+      gmv_period: gmv,
+      gmv_by_store: gmvByStore,
       posts_this_month: posts,
       last_post_date: lastPost,
       health,
-      roi_30d: roi,
+      roi_period: roi,
       last_message_at: lastMsg,
       unread_count: unread,
       is_managed: true,
@@ -348,6 +403,7 @@ export async function GET(request: NextRequest) {
         managed_handles: allHandles,
         brand_ids: brandIds,
         limit_count: 500,
+        days_back: periodDays,
       },
     );
     if (unmanagedErr) {
@@ -365,10 +421,15 @@ export async function GET(request: NextRequest) {
           if (!hayName.includes(q) && !hayHandle.includes(q)) continue;
         }
         const slug = brandUuidToSlug(u.brand_id ?? '') ?? null;
+        // Build per-store breakdown from the same brand-gmv map used by managed
+        // rows. Unmanaged rows' single handle was included in the bulk RPC fetch
+        // earlier — wait, actually no: unmanaged handles weren't in `allHandles`
+        // (which was built from managed_creators only). So we'd have no
+        // breakdown for them. We fall back to a single-store breakdown using
+        // their representative brand_id from the universe RPC.
+        const unmanagedBreakdown: Record<string, number> = {};
+        if (slug) unmanagedBreakdown[slug] = Number(u.gmv_period) || 0;
         enriched.push({
-          // Synthetic id keyed on handle so React's key stays stable across
-          // refetches and so the UI can detect "this is unmanaged" without
-          // relying on the is_managed flag alone.
           id: `unmanaged:${u.tiktok_username}`,
           real_name: u.real_name,
           brand: slug,
@@ -384,13 +445,12 @@ export async function GET(request: NextRequest) {
           account_3: null,
           account_4: null,
           account_5: null,
-          gmv_30d: Number(u.gmv_30d) || 0,
+          gmv_period: Number(u.gmv_period) || 0,
+          gmv_by_store: unmanagedBreakdown,
           posts_this_month: Number(u.posts_this_month) || 0,
           last_post_date: u.last_post_date,
-          // No contract → no derived health. Use a dedicated "unmanaged"-flavored
-          // signal in the UI rather than reusing 'no_data'.
           health: 'no_data',
-          roi_30d: null,
+          roi_period: null,
           last_message_at: null,
           unread_count: 0,
           is_managed: false,
@@ -399,31 +459,46 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // ── 4. Compute aggregate counts BEFORE applying the health filter (cards
-  // should always show the full picture so they remain useful as filter
-  // triggers). Restrict to managed rows so "Include unmanaged" doesn't
-  // inflate the action-card numbers — the cards are about MY roster's
-  // health, not the universe.
+  // ── 4. Aggregate counts BEFORE filters (so cards stay useful as triggers).
+  // Managed-only — the cards are about MY roster, not the universe.
   const managedRows  = enriched.filter((r) => r.is_managed);
   const total_managed = managedRows.length;
   const behind_count  = managedRows.filter((r) => r.health === 'behind').length;
   const silent_count  = managedRows.filter((r) => r.health === 'silent').length;
   const healthy_count = managedRows.filter((r) => r.health === 'healthy').length;
-  // Retainer ROI < 1.0× — only meaningful for creators on retainer with stats.
   const low_roi_count = managedRows.filter(
-    (r) => r.roi_30d !== null && r.roi_30d < 1 && r.health !== 'churned',
+    (r) => r.roi_period !== null && r.roi_period < 1 && r.health !== 'churned',
   ).length;
-  // Total inbound DMs awaiting a reply across the managed roster.
   const unread_dms_total = managedRows.reduce((s, r) => s + (r.unread_count || 0), 0);
+  // Total GMV in the selected period for the banner. Brand + store-sub-filter
+  // are *scope* changes, so they affect this. The health filter is *triage*
+  // (not scope) so it doesn't.
+  const total_gmv_period = storeFilter
+    ? managedRows.reduce((s, r) => s + (r.gmv_by_store?.[storeFilter] ?? 0), 0)
+    : managedRows.reduce((s, r) => s + (r.gmv_period || 0), 0);
 
   // ── 5. Apply health filter.
   let filtered = enriched;
   if (healthFilter !== 'all') {
     if (healthFilter === 'low_roi') {
-      filtered = filtered.filter((r) => r.roi_30d !== null && r.roi_30d < 1 && r.health !== 'churned');
+      filtered = filtered.filter((r) => r.roi_period !== null && r.roi_period < 1 && r.health !== 'churned');
     } else {
       filtered = filtered.filter((r) => r.health === healthFilter);
     }
+  }
+
+  // ── 5b. Apply store sub-filter (e.g. LeeFar → Nutrition-only). Keeps a row
+  // if the period GMV for that store is the dominant share (>= 50% of the
+  // row's umbrella-scoped GMV, OR the only store with GMV at all). Skips
+  // unmanaged rows since they only have a representative-brand breakdown.
+  if (storeFilter) {
+    filtered = filtered.filter((r) => {
+      if (!r.is_managed) return false;
+      const storeGmv = r.gmv_by_store[storeFilter] ?? 0;
+      const totalForRow = Object.values(r.gmv_by_store).reduce((a, b) => a + b, 0);
+      if (totalForRow === 0) return false;
+      return storeGmv > 0 && storeGmv >= totalForRow * 0.5;
+    });
   }
 
   // ── 6. Sort. DB-column sorts use the original field; computed sorts use
@@ -459,15 +534,20 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     data: slice,
     total,
-    total_managed, // count of managed rows in unfiltered set (for the "Total managed" card)
+    total_managed,
     page,
     limit,
+    // Period echo so the UI can label "GMV (7d)" etc. without re-deriving
+    period_days: periodDays,
     // Action-oriented aggregates (managed-only — the cards filter the table)
     behind_count,
     silent_count,
     healthy_count,
     low_roi_count,
     unread_dms_total,
+    // Total GMV across the (unfiltered) managed roster for the period.
+    // Drives the "Total GMV" banner at the top of My Creators.
+    total_gmv_period,
   });
 }
 

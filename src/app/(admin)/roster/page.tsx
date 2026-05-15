@@ -35,11 +35,18 @@ interface Creator {
   account_4: string | null;
   account_5: string | null;
   // ── Perf signals (added by /api/roster) ──
-  gmv_30d: number;
+  // Period-driven: changes when the period selector moves.
+  gmv_period: number;
+  // Per-(data brand slug) GMV split for the same period. Empty object when
+  // there's no data. Powers the side-panel "Revenue by store" section, the
+  // row's store-mix indicator, and the LeeFar Nutrition/Supplements sub-pill.
+  gmv_by_store: Record<string, number>;
+  // Calendar-month — independent of the period selector.
   posts_this_month: number;
   last_post_date: string | null;
   health: CreatorHealth;
-  roi_30d: number | null;
+  // Period-driven: gmv_period ÷ retainer, null when retainer is 0.
+  roi_period: number | null;
   // ── Messaging signals ──
   last_message_at: string | null;
   unread_count: number;
@@ -125,6 +132,38 @@ function PostsProgressCell({ posts, target }: { posts: number; target: number })
         <div className={`h-full ${barColor}`} style={{ width: `${Math.round(pct * 100)}%` }} />
       </div>
     </div>
+  );
+}
+
+/**
+ * StoreMixIndicator — small letter badge next to the brand pill showing
+ * which store(s) generated this creator's GMV in the current period.
+ *
+ * Today this is LeeFar-specific (two stores: Nutrition / Supplements). It's
+ * shaped to extend — any future umbrella brand with multiple stores can drop
+ * its store slugs into MULTI_STORE_BRANDS below and the component picks it up.
+ */
+const MULTI_STORE_BRANDS: Record<string, { slug: string; letter: string }[]> = {
+  leefar: [
+    { slug: 'leefar_nutrition',   letter: 'N' },
+    { slug: 'leefar_supplements', letter: 'S' },
+  ],
+};
+
+function StoreMixIndicator({ creator }: { creator: Creator }) {
+  if (!creator.brand) return null;
+  const stores = MULTI_STORE_BRANDS[creator.brand];
+  if (!stores) return null;
+  const active = stores.filter((s) => (creator.gmv_by_store?.[s.slug] ?? 0) > 0);
+  if (active.length === 0) return null;
+  const label = active.map((s) => s.letter).join('+');
+  return (
+    <span
+      className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-white border border-gray-200 text-gray-500"
+      title={`Revenue from: ${active.map((s) => BRAND_DISPLAY_NAMES[s.slug] ?? s.slug).join(', ')}`}
+    >
+      {label}
+    </span>
   );
 }
 
@@ -707,6 +746,43 @@ function CreatorPanel({
                 </div>
               </div>
 
+              {/* Revenue by store — only shown when the creator's contract brand is
+                  an umbrella (e.g. LeeFar) and the breakdown has multiple stores
+                  with GMV. Hidden for single-brand creators where there's nothing
+                  to break down. */}
+              {(() => {
+                const breakdown = creator.gmv_by_store ?? {};
+                const entries = Object.entries(breakdown)
+                  .filter(([, gmv]) => gmv > 0)
+                  .sort((a, b) => b[1] - a[1]);
+                if (entries.length < 2) return null;
+                const total = entries.reduce((s, [, g]) => s + g, 0);
+                return (
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">Revenue by store</p>
+                    <div className="space-y-1.5">
+                      {entries.map(([slug, gmv]) => {
+                        const pct = total > 0 ? Math.round((gmv / total) * 100) : 0;
+                        const color = BRAND_COLORS[slug] ?? '#94a3b8';
+                        return (
+                          <div key={slug} className="flex items-center gap-3 text-sm">
+                            <span
+                              className="h-2.5 w-2.5 rounded-full flex-shrink-0"
+                              style={{ backgroundColor: color }}
+                            />
+                            <span className="text-gray-700 flex-1 truncate">
+                              {BRAND_DISPLAY_NAMES[slug] ?? slug}
+                            </span>
+                            <span className="text-[#1A1B3A] font-semibold tabular-nums">{fmt(gmv)}</span>
+                            <span className="text-xs text-gray-400 w-9 text-right tabular-nums">{pct}%</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
+
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">Status</p>
                 <StatusBadge status={creator.status} />
@@ -986,6 +1062,37 @@ function RosterContent() {
   const [healthyCount, setHealthyCount] = useState(0);
   const [lowRoiCount, setLowRoiCount]   = useState(0);
   const [unreadDms, setUnreadDms]       = useState(0);
+  const [totalGmvPeriod, setTotalGmvPeriod] = useState(0);
+
+  // ── Period selector ──
+  // Days back for GMV / ROI / total. Health and posts-this-month are NOT
+  // driven by this (those are calendar-month / contract-based).
+  // YTD is computed at fetch time so it tracks the calendar year.
+  type PeriodKey = '1d' | '7d' | '30d' | '90d' | 'ytd';
+  const [periodKey, setPeriodKey] = useState<PeriodKey>('30d');
+  const periodDays = (() => {
+    if (periodKey === '1d')  return 1;
+    if (periodKey === '7d')  return 7;
+    if (periodKey === '30d') return 30;
+    if (periodKey === '90d') return 90;
+    // YTD: number of days from Jan 1 of current year (inclusive of today).
+    const now = new Date();
+    const start = new Date(now.getFullYear(), 0, 1);
+    return Math.max(1, Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+  })();
+  const periodLabel = (() => {
+    switch (periodKey) {
+      case '1d':  return 'Yesterday';
+      case '7d':  return 'Last 7 days';
+      case '30d': return 'Last 30 days';
+      case '90d': return 'Last 90 days';
+      case 'ytd': return 'Year to date';
+    }
+  })();
+
+  // ── Store sub-filter (only meaningful when brand=leefar) ──
+  type StoreFilter = null | 'leefar_nutrition' | 'leefar_supplements';
+  const [storeFilter, setStoreFilter] = useState<StoreFilter>(null);
   // Bulk-action selection. Holds managed_creators.id values across pages.
   // Cleared on filter/brand changes since the visible set has changed.
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -1009,7 +1116,7 @@ function RosterContent() {
   // Sort state for the Managed Roster table
   type RosterSortCol =
     | 'retainer' | 'real_name' | 'monthly_post_requirement' | 'created_at' | 'status'
-    | 'gmv_30d' | 'posts_this_month' | 'last_post_date' | 'health' | 'roi_30d'
+    | 'gmv_period' | 'posts_this_month' | 'last_post_date' | 'health' | 'roi_period'
     | 'last_message_at' | 'unread_count';
   const [sortBy, setSortBy] = useState<RosterSortCol>('retainer');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
@@ -1045,6 +1152,8 @@ function RosterContent() {
       if (healthFilter !== 'all') params.set('health', healthFilter);
       if (search) params.set('search', search);
       if (includeUnmanaged) params.set('include', 'all');
+      params.set('period', String(periodDays));
+      if (storeFilter) params.set('store', storeFilter);
 
       const res = await fetch(`/api/roster?${params}`);
       const json = await res.json();
@@ -1055,6 +1164,7 @@ function RosterContent() {
       setHealthyCount(json.healthy_count ?? 0);
       setLowRoiCount(json.low_roi_count ?? 0);
       setUnreadDms(json.unread_dms_total ?? 0);
+      setTotalGmvPeriod(json.total_gmv_period ?? 0);
       // The "Total managed" card should always reflect the unfiltered managed
       // count. The API now returns `total_managed` directly (count of managed
       // rows in the unfiltered set, regardless of include=all or health filter),
@@ -1065,7 +1175,7 @@ function RosterContent() {
     } finally {
       setLoading(false);
     }
-  }, [brand, statusFilter, healthFilter, search, page, sortBy, sortDir, includeUnmanaged]);
+  }, [brand, statusFilter, healthFilter, search, page, sortBy, sortDir, includeUnmanaged, periodDays, storeFilter]);
 
   useEffect(() => {
     fetchRoster();
@@ -1079,9 +1189,11 @@ function RosterContent() {
     setIncludeUnmanaged(false);
     setSearchInput('');
     setSelectedIds(new Set());
+    // Drop the store sub-filter — only meaningful for the brand we just left.
+    setStoreFilter(null);
   }, [brand]);
-  // Reset page when status/health/include filter or sort changes
-  useEffect(() => { setPage(1); }, [statusFilter, healthFilter, sortBy, sortDir, includeUnmanaged]);
+  // Reset page when status/health/include/period/store filter or sort changes
+  useEffect(() => { setPage(1); }, [statusFilter, healthFilter, sortBy, sortDir, includeUnmanaged, periodDays, storeFilter]);
   // Drop selections that have left the visible set (e.g. after a filter change).
   useEffect(() => {
     setSelectedIds((prev) => {
@@ -1116,7 +1228,7 @@ function RosterContent() {
     const header = [
       'Name', 'Handle', 'Brand', 'Status', 'Health',
       'Retainer', 'Posts (this month)', 'Posts target',
-      'Last post', 'Last DM', 'GMV (30d)', 'ROI (30d)', 'Unread DMs',
+      'Last post', 'Last DM', `GMV (${periodLabel})`, `ROI (${periodLabel})`, 'Unread DMs',
     ];
     const body = rows.map((c) => [
       c.real_name ?? '',
@@ -1129,8 +1241,8 @@ function RosterContent() {
       c.monthly_post_requirement ?? 0,
       c.last_post_date ?? '',
       c.last_message_at ?? '',
-      Math.round(c.gmv_30d ?? 0),
-      c.roi_30d !== null ? c.roi_30d.toFixed(2) : '',
+      Math.round(c.gmv_period ?? 0),
+      c.roi_period !== null ? c.roi_period.toFixed(2) : '',
       c.unread_count ?? 0,
     ]);
     const csv = [header, ...body].map((r) => r.map(csvEscape).join(',')).join('\n');
@@ -1248,6 +1360,36 @@ function RosterContent() {
         ))}
       </div>
 
+      {/* LeeFar store sub-filter — only visible when LeeFar is the active brand.
+          The umbrella aggregates revenue across both stores; this lets a
+          manager drill down to "creators primarily selling Nutrition" or
+          "Supplements" specifically. */}
+      {brand === 'leefar' && (
+        <div className="flex flex-wrap gap-2 items-center text-xs">
+          <span className="text-gray-400 font-medium uppercase tracking-wider">Store:</span>
+          {([
+            { val: null,                   label: 'Both stores' },
+            { val: 'leefar_nutrition' as const,  label: 'Nutrition only' },
+            { val: 'leefar_supplements' as const, label: 'Supplements only' },
+          ]).map((opt) => {
+            const active = storeFilter === opt.val;
+            return (
+              <button
+                key={opt.label}
+                onClick={() => setStoreFilter(opt.val)}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                  active
+                    ? 'bg-[#1A1B3A] text-white'
+                    : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* Tab toggle — Roster | Renewals (the old "All Creators" tab is now an
           inline toggle on the Roster table itself, so unmanaged candidates can
           be sorted and compared alongside managed creators rather than living
@@ -1278,9 +1420,47 @@ function RosterContent() {
 
       {/* Managed Roster tab content */}
       {activeTab === 'roster' && (<>
+      {/* ── Total GMV banner + period selector ──
+          The headline number on the page: how much GMV did this roster
+          generate in the selected period? Period selector controls GMV
+          column / ROI column / this banner. Health, posts, last-post are
+          intentionally NOT period-driven (they're monthly contract signals). */}
+      <div className="rounded-2xl bg-gradient-to-br from-[#1A1B3A] to-[#2A2D5A] text-white p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-white/60">
+            GMV · {periodLabel}{brand && brand !== 'all' ? ` · ${brandOptions.find(b => b.slug === brand)?.name || BRAND_DISPLAY_NAMES[brand] || brand}` : ''}
+          </p>
+          <p className="text-3xl font-extrabold mt-1 tabular-nums">
+            {loading ? '…' : fmt(totalGmvPeriod)}
+          </p>
+        </div>
+        {/* Period selector — segmented control */}
+        <div className="flex gap-1 p-1 bg-white/10 rounded-xl">
+          {([
+            { key: '1d' as const,  label: 'Yesterday' },
+            { key: '7d' as const,  label: '7d' },
+            { key: '30d' as const, label: '30d' },
+            { key: '90d' as const, label: '90d' },
+            { key: 'ytd' as const, label: 'YTD' },
+          ]).map((p) => (
+            <button
+              key={p.key}
+              onClick={() => setPeriodKey(p.key)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                periodKey === p.key
+                  ? 'bg-white text-[#1A1B3A] shadow'
+                  : 'text-white/70 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* ── Action-oriented stat cards ──
           Each card except "Total managed" toggles a health filter on click,
-          turning the cards into a triage triage strip. When a card is active,
+          turning the cards into a triage strip. When a card is active,
           it gets a colored ring + the underlying table is filtered to that
           health cohort. Re-clicking the active card clears the filter. */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -1438,13 +1618,14 @@ function RosterContent() {
                     </button>
                   </th>
                   <th className="text-right px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
-                    <button onClick={() => toggleSort('gmv_30d')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors">
-                      GMV (30d) <SortIcon col="gmv_30d" />
+                    <button onClick={() => toggleSort('gmv_period')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors">
+                      GMV ({periodKey === '1d' ? '1d' : periodKey === 'ytd' ? 'YTD' : periodKey})
+                      <SortIcon col="gmv_period" />
                     </button>
                   </th>
                   <th className="text-right px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
-                    <button onClick={() => toggleSort('roi_30d')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors">
-                      ROI <SortIcon col="roi_30d" />
+                    <button onClick={() => toggleSort('roi_period')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors">
+                      ROI <SortIcon col="roi_period" />
                     </button>
                   </th>
                   <th className="text-left px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
@@ -1530,8 +1711,9 @@ function RosterContent() {
                     </td>
                     {showBrandColumn && (
                       <td className="px-5 py-3.5">
-                        <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-gray-100 text-gray-600">
+                        <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-gray-100 text-gray-600">
                           {brandOptions.find(b => b.slug === c.brand)?.name || BRAND_DISPLAY_NAMES[c.brand || ''] || c.brand?.replace(/_/g, ' ') || '—'}
+                          <StoreMixIndicator creator={c} />
                         </span>
                       </td>
                     )}
@@ -1550,12 +1732,12 @@ function RosterContent() {
                       <LastPostCell date={c.last_post_date} />
                     </td>
                     <td className="px-5 py-3.5 text-right tabular-nums">
-                      {(c.gmv_30d || 0) > 0
-                        ? <span className="text-[#1A1B3A] font-semibold">{fmt(c.gmv_30d)}</span>
+                      {(c.gmv_period || 0) > 0
+                        ? <span className="text-[#1A1B3A] font-semibold">{fmt(c.gmv_period)}</span>
                         : <span className="text-gray-300">—</span>}
                     </td>
                     <td className="px-5 py-3.5 text-right">
-                      <RoiCell roi={c.roi_30d} />
+                      <RoiCell roi={c.roi_period} />
                     </td>
                     <td className="px-5 py-3.5">
                       <LastDmCell at={c.last_message_at} unread={c.unread_count} />
