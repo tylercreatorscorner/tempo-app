@@ -38,9 +38,12 @@ async function getTenantId() {
   return profile?.tenant_id || null;
 }
 
+// account_1..5 stay on the wire for back-compat, but the canonical handle
+// list now comes from tiktok_accounts via creator_id. Once all consumers use
+// `handles`, the account_N columns can be dropped from the SELECT + schema.
 const COLUMNS = [
   'id', 'real_name', 'brand', 'status', 'retainer', 'monthly_post_requirement',
-  'discord_name', 'discord_avatar', 'notes', 'created_at',
+  'discord_name', 'discord_avatar', 'notes', 'created_at', 'creator_id',
   'account_1', 'account_2', 'account_3', 'account_4', 'account_5',
 ].join(', ');
 
@@ -123,6 +126,11 @@ interface ManagedRow {
   discord_avatar: string | null;
   notes: string | null;
   created_at: string | null;
+  // FK to creators_v2 — canonical identity link (Path-B backfill populated it
+  // for every row; nullable in schema until other agents migrate).
+  creator_id: string | null;
+  // Legacy denormalized handle columns; kept for back-compat during the
+  // migration. New code reads from `handles` (built via tiktok_accounts).
   account_1: string | null;
   account_2: string | null;
   account_3: string | null;
@@ -151,6 +159,9 @@ interface MessageRow {
 }
 
 interface EnrichedRow extends ManagedRow {
+  // Canonical handle list (from tiktok_accounts, primary first, unlimited).
+  // account_1..5 above stay for back-compat; consumers should read `handles`.
+  handles: string[];
   // Period-driven (selector controls these)
   gmv_period: number;
   // Per-(brand-slug) GMV split for the same period — used by the side-panel
@@ -180,7 +191,12 @@ interface UnmanagedPerfRow {
   last_post_date: string | null;
 }
 
-function handlesFor(c: ManagedRow): string[] {
+/**
+ * Fallback handle extraction from the legacy denormalized columns. Used only
+ * when a managed_creators row has no creator_id link (shouldn't happen after
+ * the Path-B backfill, but kept defensive).
+ */
+function legacyColumnHandles(c: ManagedRow): string[] {
   return [c.account_1, c.account_2, c.account_3, c.account_4, c.account_5]
     .map((h) => (h || '').trim().toLowerCase())
     .filter(Boolean);
@@ -264,8 +280,39 @@ export async function GET(request: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   const allRows: ManagedRow[] = rawRows ?? [];
 
+  // ── 1b. Resolve handles per row via tiktok_accounts (one query for the
+  // page). Canonical handle source post-Path-B; account_1..5 are only a
+  // fallback for rows that somehow lack a creator_id link.
+  const creatorIds = allRows.map((r) => r.creator_id).filter((v): v is string => !!v);
+  const handlesByCreatorId = new Map<string, string[]>();
+  if (creatorIds.length > 0) {
+    const { data: taRows, error: taErr } = await supabase
+      .from('tiktok_accounts')
+      .select('creator_id, tiktok_username, is_primary')
+      .in('creator_id', creatorIds)
+      .order('is_primary', { ascending: false })
+      .order('id', { ascending: true });
+    if (taErr) {
+      console.error('[/api/roster] tiktok_accounts join failed:', taErr.message);
+    } else {
+      for (const row of (taRows as { creator_id: string; tiktok_username: string }[] | null) ?? []) {
+        if (!row.tiktok_username) continue;
+        const list = handlesByCreatorId.get(row.creator_id) ?? [];
+        list.push(row.tiktok_username);
+        handlesByCreatorId.set(row.creator_id, list);
+      }
+    }
+  }
+  const handlesByRow = new Map<string, string[]>();
+  for (const r of allRows) {
+    const fromAccounts = r.creator_id ? handlesByCreatorId.get(r.creator_id) : undefined;
+    handlesByRow.set(r.id, fromAccounts && fromAccounts.length > 0 ? fromAccounts : legacyColumnHandles(r));
+  }
+
   // ── 2. Bulk-fetch perf + per-brand-GMV + message signals in parallel.
-  const allHandles = Array.from(new Set(allRows.flatMap(handlesFor)));
+  const allHandles = Array.from(new Set(
+    Array.from(handlesByRow.values()).flat().map((h) => h.toLowerCase()),
+  ));
   const perfByHandle = new Map<string, { gmv_period: number; posts_this_month: number; last_post_date: string | null }>();
   // brand_id (uuid string) → gmv for that handle on that brand, for the period
   const brandGmvByHandle = new Map<string, Map<string, number>>();
@@ -330,7 +377,8 @@ export async function GET(request: NextRequest) {
   // ── 3. Enrich each row: sum across its handles, compute health + ROI,
   // build per-store GMV breakdown (keyed by data-level brand slug).
   const enriched: EnrichedRow[] = allRows.map((row) => {
-    const hs = handlesFor(row);
+    const handles = handlesByRow.get(row.id) ?? [];
+    const hs = handles.map((h) => h.toLowerCase());
     let gmv = 0;
     let posts = 0;
     let lastPost: string | null = null;
@@ -376,6 +424,7 @@ export async function GET(request: NextRequest) {
     const roi = retainer > 0 ? gmv / retainer : null;
     return {
       ...row,
+      handles,
       gmv_period: gmv,
       gmv_by_store: gmvByStore,
       posts_this_month: posts,
@@ -440,11 +489,13 @@ export async function GET(request: NextRequest) {
           discord_avatar: null,
           notes: null,
           created_at: null,
+          creator_id: null,
           account_1: u.tiktok_username,
           account_2: null,
           account_3: null,
           account_4: null,
           account_5: null,
+          handles: [u.tiktok_username],
           gmv_period: Number(u.gmv_period) || 0,
           gmv_by_store: unmanagedBreakdown,
           posts_this_month: Number(u.posts_this_month) || 0,
@@ -551,26 +602,42 @@ export async function GET(request: NextRequest) {
   });
 }
 
-// POST /api/roster — add a single creator
+// POST /api/roster — add a creator with N TikTok handles.
+//
+// Body: { real_name, brand, retainer, monthly_post_requirement, discord_name,
+//         notes, handles: string[] }. Legacy account_1-only body still works.
 export async function POST(request: NextRequest) {
   const tenantId = await getTenantId();
   if (!tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const body = await request.json();
-  const { brand, real_name, account_1, retainer, discord_name, notes, monthly_post_requirement } = body;
+  const { brand, real_name, retainer, discord_name, notes, monthly_post_requirement } = body;
 
-  if (!real_name && !account_1) {
-    return NextResponse.json({ error: 'real_name or account_1 is required' }, { status: 400 });
+  const rawHandles: string[] = Array.isArray(body.handles)
+    ? body.handles
+    : (body.account_1 ? [body.account_1] : []);
+  const handles: string[] = Array.from(new Set(
+    rawHandles
+      .map((h: unknown) => (typeof h === 'string' ? h.trim().replace(/^@/, '') : ''))
+      .filter(Boolean),
+  ));
+
+  if (!real_name && handles.length === 0) {
+    return NextResponse.json({ error: 'real_name or at least one handle is required' }, { status: 400 });
   }
 
   const supabase = await createAdminClient();
+
+  // Dual-write account_1..5 from handles[] for back-compat with readers still
+  // on the legacy columns. tiktok_accounts is the canonical store.
+  const accountColumns: Record<string, string | null> = {};
+  for (let i = 0; i < 5; i++) accountColumns[`account_${i + 1}`] = handles[i] ?? null;
 
   const { data, error } = await supabase
     .from('managed_creators')
     .insert({
       brand: brand || null,
       real_name: real_name || null,
-      account_1: account_1 ? account_1.replace(/^@/, '') : null,
       retainer: retainer || 0,
       discord_name: discord_name || null,
       notes: notes || null,
@@ -578,73 +645,75 @@ export async function POST(request: NextRequest) {
       status: 'Active',
       employment_status: 'active',
       tenant_id: tenantId,
+      ...accountColumns,
     })
     .select()
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Auto-provision creators_v2 + tiktok_accounts + creator_brands so
-  // "View Full Profile" works immediately for newly added creators.
-  const handle = data.account_1;
-  if (handle) {
-    const brandUuid = brand ? brandSlugToUuid(brand) : undefined;
-
-    // 1. Check if a creators_v2 record already exists for this handle+tenant
+  // Resolve or create the creators_v2 identity, then link + provision.
+  let creatorId: string | null = null;
+  if (handles.length > 0) {
     const { data: existing } = await supabase
       .from('tiktok_accounts')
       .select('creator_id')
-      .ilike('tiktok_username', handle)
+      .in('tiktok_username', handles)
       .eq('tenant_id', tenantId)
       .limit(1)
       .maybeSingle();
+    creatorId = existing?.creator_id ?? null;
+  }
 
-    let creatorId: string | null = existing?.creator_id ?? null;
+  if (!creatorId) {
+    const { data: cv } = await supabase
+      .from('creators_v2')
+      .insert({
+        tenant_id: tenantId,
+        real_name: real_name || handles[0] || 'Unnamed Creator',
+        notes: notes || null,
+        discord_username: discord_name || null,
+      })
+      .select('id')
+      .single();
+    creatorId = cv?.id ?? null;
+  }
 
-    if (!creatorId) {
-      // 2. Create creators_v2 record
-      const { data: cv } = await supabase
-        .from('creators_v2')
-        .insert({
-          tenant_id: tenantId,
-          real_name: real_name || null,
-          notes: notes || null,
-          discord_username: discord_name || null,
-        })
-        .select('id')
-        .single();
+  if (creatorId) {
+    // Link managed_creators → creators_v2.
+    await supabase
+      .from('managed_creators')
+      .update({ creator_id: creatorId })
+      .eq('id', data.id);
 
-      creatorId = cv?.id ?? null;
-    }
-
-    if (creatorId) {
-      // 3. Ensure tiktok_accounts row exists for primary handle
+    // One tiktok_accounts row per handle (first = primary).
+    const brandUuid = brand ? brandSlugToUuid(brand) : undefined;
+    for (let i = 0; i < handles.length; i++) {
       await supabase
         .from('tiktok_accounts')
         .upsert({
           creator_id: creatorId,
           tenant_id: tenantId,
-          tiktok_username: handle,
+          tiktok_username: handles[i],
           brand_id: brandUuid ?? null,
-          is_primary: true,
+          is_primary: i === 0,
         }, { onConflict: 'tenant_id,tiktok_username,brand_id', ignoreDuplicates: true });
+    }
 
-      // 4. Ensure creator_brands row exists
-      if (brandUuid) {
-        await supabase
-          .from('creator_brands')
-          .upsert({
-            creator_id: creatorId,
-            brand_id: brandUuid,
-            tenant_id: tenantId,
-            is_managed: true,
-            status: 'active',
-            retainer: retainer || 0,
-            monthly_post_requirement: monthly_post_requirement || 30,
-          }, { onConflict: 'creator_id,brand_id', ignoreDuplicates: true });
-      }
+    if (brandUuid) {
+      await supabase
+        .from('creator_brands')
+        .upsert({
+          creator_id: creatorId,
+          brand_id: brandUuid,
+          tenant_id: tenantId,
+          is_managed: true,
+          status: 'active',
+          retainer: retainer || 0,
+          monthly_post_requirement: monthly_post_requirement || 30,
+        }, { onConflict: 'creator_id,brand_id', ignoreDuplicates: true });
     }
   }
 
-  return NextResponse.json({ data }, { status: 201 });
+  return NextResponse.json({ data: { ...data, creator_id: creatorId } }, { status: 201 });
 }
