@@ -16,7 +16,11 @@ async function getTenantId() {
   return profile?.tenant_id || null;
 }
 
-// PATCH /api/roster/[id] — update a managed creator
+// PATCH /api/roster/[id] — update a managed creator.
+//
+// Accepts a `handles: string[]` array (unlimited) reconciled against
+// tiktok_accounts (insert new, delete removed). Dual-writes the first 5 into
+// the legacy account_1..5 columns for back-compat until they're dropped.
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -27,26 +31,35 @@ export async function PATCH(
   const { id } = await params;
   const body = await request.json();
 
-  // Whitelist of editable fields
   const ALLOWED = [
     'real_name', 'brand', 'status', 'retainer', 'monthly_post_requirement',
     'discord_name', 'notes',
-    'account_1', 'account_2', 'account_3', 'account_4', 'account_5',
   ];
-
   const updates: Record<string, unknown> = {};
   for (const key of ALLOWED) {
-    if (!(key in body)) continue;
-    // Strip @ prefix from handle fields, empty string → null
-    if (key.startsWith('account_')) {
-      const v = typeof body[key] === 'string' ? body[key].replace(/^@/, '').trim() : '';
-      updates[key] = v || null;
-    } else {
-      updates[key] = body[key] ?? null;
+    if (key in body) updates[key] = body[key] ?? null;
+  }
+
+  let normalizedHandles: string[] | null = null;
+  if (Array.isArray(body.handles)) {
+    normalizedHandles = Array.from(new Set(
+      (body.handles as unknown[])
+        .map((h) => (typeof h === 'string' ? h.trim().replace(/^@/, '') : ''))
+        .filter((h): h is string => h.length > 0),
+    ));
+    for (let i = 0; i < 5; i++) updates[`account_${i + 1}`] = normalizedHandles[i] ?? null;
+  } else {
+    // Legacy single-slot path.
+    for (let i = 1; i <= 5; i++) {
+      const key = `account_${i}`;
+      if (key in body) {
+        const v = typeof body[key] === 'string' ? body[key].replace(/^@/, '').trim() : '';
+        updates[key] = v || null;
+      }
     }
   }
 
-  if (Object.keys(updates).length === 0) {
+  if (Object.keys(updates).length === 0 && !normalizedHandles) {
     return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
   }
 
@@ -61,6 +74,38 @@ export async function PATCH(
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Reconcile tiktok_accounts when handles[] was sent.
+  if (normalizedHandles && data.creator_id) {
+    const creatorId = data.creator_id as string;
+    const lowered = normalizedHandles.map((h) => h.toLowerCase());
+
+    if (lowered.length > 0) {
+      await supabase
+        .from('tiktok_accounts')
+        .delete()
+        .eq('creator_id', creatorId)
+        .eq('tenant_id', tenantId)
+        .not('tiktok_username', 'in', `(${lowered.map((h) => `"${h}"`).join(',')})`);
+    } else {
+      await supabase
+        .from('tiktok_accounts')
+        .delete()
+        .eq('creator_id', creatorId)
+        .eq('tenant_id', tenantId);
+    }
+
+    for (let i = 0; i < normalizedHandles.length; i++) {
+      await supabase
+        .from('tiktok_accounts')
+        .upsert({
+          creator_id: creatorId,
+          tenant_id: tenantId,
+          tiktok_username: normalizedHandles[i],
+          is_primary: i === 0,
+        }, { onConflict: 'tenant_id,tiktok_username,brand_id', ignoreDuplicates: true });
+    }
+  }
 
   return NextResponse.json({ data });
 }
