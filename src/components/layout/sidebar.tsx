@@ -96,11 +96,13 @@ const FINANCE_SECTION: NavSection = {
   ],
 };
 
+// Settings is visible to all Workspace roles (managers get a scoped
+// Profile-only view; owner/admin get full agency config). Upload stays
+// owner/admin-only.
 const ADMIN_SECTION: NavSection = {
   label: 'Admin',
-  adminOnly: true,
   items: [
-    { href: '/upload',   label: 'Upload',   icon: Upload },
+    { href: '/upload',   label: 'Upload',   icon: Upload, adminOnly: true },
     { href: '/settings', label: 'Settings', icon: SettingsIcon },
   ],
 };

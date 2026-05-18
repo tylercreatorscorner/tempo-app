@@ -10,8 +10,56 @@ import { CreatorInvitesSection } from '@/components/settings/creator-invites-sec
 import { TeamMembersSection } from '@/components/settings/team-members-section';
 import { CompensationArrangementsSection } from '@/components/settings/compensation-arrangements-section';
 import { BRAND_COLORS } from '@/lib/utils/constants';
+import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 
 export default async function SettingsPage() {
+  // Managers get a minimal, scoped Settings (Profile only). The full agency
+  // config below (TikTok/billing/brand mgmt/team/compensation/API) is
+  // owner/admin only — this page previously had NO gate, so a manager
+  // hitting /settings directly would have seen all of it.
+  const scope = await getWorkspaceScope();
+  if (scope && scope.brandScope.kind === 'scoped') {
+    return (
+      <div className="space-y-6 max-w-4xl">
+        <div>
+          <h1 className="text-2xl font-bold">Settings</h1>
+          <p className="text-sm text-muted-foreground mt-1">Your account details</p>
+        </div>
+        <div className="rounded-xl border border-border bg-card overflow-hidden">
+          <div className="p-6 border-b border-border flex items-center gap-3">
+            <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+              <User className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <h2 className="font-semibold text-lg">Profile</h2>
+              <p className="text-sm text-muted-foreground">Your account details</p>
+            </div>
+          </div>
+          <div className="p-6 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+              <label className="text-sm text-muted-foreground w-32 shrink-0">Display Name</label>
+              <input type="text" defaultValue={scope.name ?? ''} disabled className="flex-1 px-3 py-2 rounded-lg border border-border bg-muted/30 text-sm disabled:opacity-60" />
+            </div>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+              <label className="text-sm text-muted-foreground w-32 shrink-0">Email</label>
+              <input type="email" defaultValue={scope.email} disabled className="flex-1 px-3 py-2 rounded-lg border border-border bg-muted/30 text-sm disabled:opacity-60" />
+            </div>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+              <label className="text-sm text-muted-foreground w-32 shrink-0">Role</label>
+              <span className="inline-flex items-center px-3 py-1 rounded-full bg-primary/20 text-primary text-sm font-medium">
+                <Shield className="h-3 w-3 mr-1" /> Manager
+              </span>
+            </div>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+              <label className="text-sm text-muted-foreground w-32 shrink-0">Timezone</label>
+              <input type="text" defaultValue="America/Chicago (CST)" disabled className="flex-1 px-3 py-2 rounded-lg border border-border bg-muted/30 text-sm disabled:opacity-60" />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
