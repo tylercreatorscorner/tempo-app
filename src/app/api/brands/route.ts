@@ -8,20 +8,38 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth/require-admin';
 import { createAdminClient } from '@/lib/supabase/server';
+import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 
 export const runtime = 'nodejs';
 
 export async function GET() {
-  const profile = await requireAdmin();
-  if (!profile) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  // Any Workspace user may list brands they can see (managers need this for
+  // the reporting/brand pickers). owner/admin/viewer → all brands + financial
+  // settings; manager → only their user_brand_access brands, and NO financial
+  // settings (brand_settings is finance — owner/admin only).
+  const scope = await getWorkspaceScope();
+  if (!scope) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const bs = scope.brandScope;
+  const managerScoped = bs.kind === 'scoped';
 
   const supabase = await createAdminClient();
-  const { data: brandsRows, error: brandsErr } = await supabase
+  let brandsQuery = supabase
     .from('brands_v2')
     .select('id, slug, name, color, is_archived, is_umbrella, created_at')
     .order('is_archived', { ascending: true })
     .order('name');
+  if (bs.kind === 'scoped') {
+    const ids = bs.brandIds;
+    brandsQuery = brandsQuery.in('id', ids.length ? ids : ['00000000-0000-0000-0000-000000000000']);
+  }
+  const { data: brandsRows, error: brandsErr } = await brandsQuery;
   if (brandsErr) return NextResponse.json({ error: brandsErr.message }, { status: 500 });
+
+  // Managers never get financial settings.
+  if (managerScoped) {
+    const brands = (brandsRows ?? []).map((b) => ({ ...b, settings: null }));
+    return NextResponse.json({ brands });
+  }
 
   const slugs = (brandsRows ?? []).map((b: { slug: string }) => b.slug);
   const { data: settingsRows } = await supabase

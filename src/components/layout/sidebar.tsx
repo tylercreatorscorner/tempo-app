@@ -17,6 +17,8 @@ interface NavItem {
   href: string;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
+  /** When true, only owner/admin see this item (server-side gated too). */
+  adminOnly?: boolean;
 }
 
 interface NavSection {
@@ -58,7 +60,7 @@ const CREATORS_SECTION: NavSection = {
 const CONTENT_SECTION: NavSection = {
   label: 'Content',
   items: [
-    { href: '/posts',     label: 'Posts',     icon: PlaySquare },
+    { href: '/posts',     label: 'Posts',     icon: PlaySquare, adminOnly: true },
     { href: '/reporting', label: 'Reporting', icon: FileBarChart },
   ],
 };
@@ -161,7 +163,7 @@ export function Sidebar({ className, userRole = 'customer' }: SidebarProps) {
           {section.label}
         </p>
       )}
-      {section.items.map(renderItem)}
+      {section.items.filter(it => !it.adminOnly || isAdmin).map(renderItem)}
     </div>
   );
 
