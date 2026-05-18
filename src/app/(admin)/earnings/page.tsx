@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { requireAdmin } from '@/lib/auth/require-admin';
+import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 import { currentMonth } from '@/lib/utils/format';
 import { EarningsClient } from './earnings-client';
 
@@ -11,8 +11,11 @@ interface Props {
 }
 
 export default async function EarningsPage({ searchParams }: Props) {
-  const profile = await requireAdmin();
-  if (!profile) redirect('/dashboard');
+  // Any Workspace user may view earnings; the /api/earnings route scopes the
+  // numbers to the caller's brands (managers → their brands only).
+  const scope = await getWorkspaceScope();
+  if (!scope) redirect('/dashboard');
+  const scoped = scope.brandScope.kind === 'scoped';
 
   const params = await searchParams;
   const month = /^\d{4}-\d{2}$/.test(params.month ?? '') ? params.month! : currentMonth();
@@ -22,7 +25,9 @@ export default async function EarningsPage({ searchParams }: Props) {
       <div>
         <h1 className="text-2xl font-extrabold text-[#1A1B3A]">Earnings</h1>
         <p className="text-sm text-gray-400 mt-0.5">
-          Your monthly take across all brands — commission + retainers + launch fees.
+          {scoped
+            ? 'Monthly earnings for your brands — commission + retainers + launch fees.'
+            : 'Your monthly take across all brands — commission + retainers + launch fees.'}
         </p>
       </div>
       <EarningsClient initialMonth={month} />

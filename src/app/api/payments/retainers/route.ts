@@ -8,18 +8,24 @@
  * to avoid drift from a hardcoded constant.
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/auth/require-admin';
+import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 import { createAdminClient } from '@/lib/supabase/server';
 
 export const runtime = 'nodejs';
 
 export async function GET(request: NextRequest) {
-  const profile = await requireAdmin();
-  if (!profile) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const scope = await getWorkspaceScope();
+  if (!scope) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const scopedSlugs = scope.brandScope.kind === 'scoped' ? scope.brandScope.brandSlugs : null;
 
   try {
     const supabase = await createAdminClient();
     const brand = request.nextUrl.searchParams.get('brand') || 'all';
+
+    // Scoped (manager) requesting a brand outside their access → nothing.
+    if (scopedSlugs && brand !== 'all' && !scopedSlugs.includes(brand)) {
+      return NextResponse.json({ error: 'Forbidden: brand not in your access' }, { status: 403 });
+    }
 
     // Resolve active brand list from brands_v2 (source of truth).
     const { data: brandRows, error: brandsErr } = await supabase
@@ -28,7 +34,9 @@ export async function GET(request: NextRequest) {
       .eq('is_archived', false)
       .eq('is_umbrella', false);
     if (brandsErr) throw brandsErr;
-    const activeBrandSlugs = (brandRows ?? []).map((b: { slug: string }) => b.slug);
+    let activeBrandSlugs = (brandRows ?? []).map((b: { slug: string }) => b.slug);
+    // Managers: restrict the "all" set to their brands.
+    if (scopedSlugs) activeBrandSlugs = activeBrandSlugs.filter((s) => scopedSlugs.includes(s));
 
     let query = supabase
       .from('managed_creators')

@@ -1,13 +1,14 @@
 import { redirect } from 'next/navigation';
-import { requireAdmin } from '@/lib/auth/require-admin';
+import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 import { PaymentsClient } from './payments-client';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Payments — Tempo' };
 
 export default async function PaymentsPage() {
-  const profile = await requireAdmin();
-  if (!profile) redirect('/dashboard');
+  // Any Workspace user; the /api/payments/* routes scope figures to brands.
+  const scope = await getWorkspaceScope();
+  if (!scope) redirect('/dashboard');
 
   return <PaymentsClient />;
 }

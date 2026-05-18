@@ -1,14 +1,18 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
-import { requireAdmin } from '@/lib/auth/require-admin';
+import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 import { ACTIVE_BRANDS } from '@/lib/utils/constants';
 
 export async function GET() {
   try {
-    const profile = await requireAdmin();
-    if (!profile) {
+    const scope = await getWorkspaceScope();
+    if (!scope) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
+    // Managers: every figure is restricted to their brands. owner/admin: all.
+    const scopedSlugs = scope.brandScope.kind === 'scoped'
+      ? (scope.brandScope.brandSlugs.length ? scope.brandScope.brandSlugs : ['__none__'])
+      : null;
 
     const supabase = await createAdminClient();
     const now = new Date();
@@ -17,39 +21,47 @@ export async function GET() {
     const currentPeriod = `${year}-${month}`;
 
     // Total retainer spend this month
-    const { data: retainerData } = await supabase
+    let retainerQ = supabase
       .from('creator_payments')
-      .select('amount')
+      .select('amount, brand')
       .eq('payment_type', 'retainer')
       .eq('period_month', currentPeriod);
+    if (scopedSlugs) retainerQ = retainerQ.in('brand', scopedSlugs);
+    const { data: retainerData } = await retainerQ;
 
     const totalRetainerSpend = (retainerData || []).reduce((sum: number, r: any) => sum + (r.amount || 0), 0);
 
     // Total commissions owed (pending/approved, not yet paid)
-    const { data: commissionData } = await supabase
+    let commissionQ = supabase
       .from('creator_payments')
-      .select('amount')
+      .select('amount, brand')
       .eq('payment_type', 'commission')
       .in('status', ['pending', 'approved']);
+    if (scopedSlugs) commissionQ = commissionQ.in('brand', scopedSlugs);
+    const { data: commissionData } = await commissionQ;
 
     const totalCommissionsOwed = (commissionData || []).reduce((sum: number, r: any) => sum + (r.amount || 0), 0);
 
     // Outstanding invoices
-    const { data: outstandingInvoices } = await supabase
+    let outstandingQ = supabase
       .from('invoices')
-      .select('id, total_amount')
+      .select('id, total_amount, brand')
       .in('status', ['pending', 'sent']);
+    if (scopedSlugs) outstandingQ = outstandingQ.in('brand', scopedSlugs);
+    const { data: outstandingInvoices } = await outstandingQ;
 
     const outstandingCount = (outstandingInvoices || []).length;
     const outstandingAmount = (outstandingInvoices || []).reduce((sum: number, i: any) => sum + (i.total_amount || 0), 0);
 
     // Paid this month
     const monthStart = `${year}-${month}-01`;
-    const { data: paidData } = await supabase
+    let paidQ = supabase
       .from('creator_payments')
-      .select('amount')
+      .select('amount, brand')
       .eq('status', 'paid')
       .gte('date_paid', monthStart);
+    if (scopedSlugs) paidQ = paidQ.in('brand', scopedSlugs);
+    const { data: paidData } = await paidQ;
 
     const paidThisMonth = (paidData || []).reduce((sum: number, r: any) => sum + (r.amount || 0), 0);
 
@@ -57,7 +69,7 @@ export async function GET() {
     const { data: brandRetainers } = await supabase
       .from('managed_creators')
       .select('brand, retainer')
-      .in('brand', [...ACTIVE_BRANDS]);
+      .in('brand', scopedSlugs ?? [...ACTIVE_BRANDS]);
 
     const brandSpend: Record<string, number> = {};
     for (const r of brandRetainers || []) {
@@ -68,11 +80,13 @@ export async function GET() {
     }
 
     // Recent activity
-    const { data: recentPayments } = await supabase
+    let recentQ = supabase
       .from('creator_payments')
       .select('*')
       .order('date_submitted', { ascending: false })
       .limit(10);
+    if (scopedSlugs) recentQ = recentQ.in('brand', scopedSlugs);
+    const { data: recentPayments } = await recentQ;
 
     return NextResponse.json({
       totalRetainerSpend,

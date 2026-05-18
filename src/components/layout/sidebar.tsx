@@ -82,9 +82,12 @@ const WORKFLOWS_SECTION: NavSection = {
   ],
 };
 
+// Finance is visible to all Workspace roles. The pages + /api/earnings,
+// /api/invoices, /api/payments routes scope every figure to the caller's
+// brands (managers → their brands only; owner/admin → all). Rate-config
+// editors (brand-settings, creator-rates) remain owner/admin-gated.
 const FINANCE_SECTION: NavSection = {
   label: 'Finance',
-  adminOnly: true,
   items: [
     { href: '/earnings',  label: 'Earnings',  icon: Calculator },
     { href: '/ytd',       label: 'Year-to-Date', icon: CalendarRange },

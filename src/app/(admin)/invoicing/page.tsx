@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { requireAdmin } from '@/lib/auth/require-admin';
+import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 import { InvoicingClient } from './invoicing-client';
 
 export const dynamic = 'force-dynamic';
@@ -10,8 +10,9 @@ interface Props {
 }
 
 export default async function InvoicingPage({ searchParams }: Props) {
-  const profile = await requireAdmin();
-  if (!profile) redirect('/dashboard');
+  // Any Workspace user; /api/invoices scopes the list to their brands.
+  const scope = await getWorkspaceScope();
+  if (!scope) redirect('/dashboard');
 
   const params = await searchParams;
 

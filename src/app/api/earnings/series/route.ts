@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/auth/require-admin';
+import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 import { getEarnings, type EarningsResult } from '@/lib/data/earnings';
 import { currentMonth } from '@/lib/utils/format';
 
@@ -15,8 +15,11 @@ export const maxDuration = 30;
  * Defaults to the last 12 months ending at the current month.
  */
 export async function GET(req: NextRequest) {
-  const profile = await requireAdmin();
-  if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const scope = await getWorkspaceScope();
+  if (!scope) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const brandFilterSlugs = scope.brandScope.kind === 'scoped'
+    ? scope.brandScope.brandSlugs
+    : null;
 
   const url = req.nextUrl;
   const monthsParam = parseInt(url.searchParams.get('months') ?? '12', 10);
@@ -28,7 +31,7 @@ export async function GET(req: NextRequest) {
   }
 
   const monthList = buildMonthList(endMonth, months);
-  const results = await Promise.all(monthList.map((m) => getEarnings(m)));
+  const results = await Promise.all(monthList.map((m) => getEarnings(m, undefined, brandFilterSlugs)));
 
   const series = results.map((r: EarningsResult) => ({
     month: r.month,

@@ -5,7 +5,7 @@
  * POST — generate an invoice from a brand's earnings for a given month
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/auth/require-admin';
+import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 import { createAdminClient } from '@/lib/supabase/server';
 import { getEarnings } from '@/lib/data/earnings';
 import { DEFAULT_PAYMENT_INSTRUCTIONS } from '@/lib/invoices/defaults';
@@ -14,8 +14,9 @@ export const runtime = 'nodejs';
 export const maxDuration = 30;
 
 export async function GET(req: NextRequest) {
-  const profile = await requireAdmin();
-  if (!profile) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const scope = await getWorkspaceScope();
+  if (!scope) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const scopedSlugs = scope.brandScope.kind === 'scoped' ? scope.brandScope.brandSlugs : null;
 
   const supabase = await createAdminClient();
   const url = req.nextUrl;
@@ -24,9 +25,15 @@ export async function GET(req: NextRequest) {
   const month = url.searchParams.get('month');
   const teamMemberId = url.searchParams.get('team_member_id');
 
+  // Scoped (manager) requesting a brand outside their access → nothing.
+  if (scopedSlugs && brand && brand !== 'all' && !scopedSlugs.includes(brand)) {
+    return NextResponse.json({ error: 'Forbidden: brand not in your access' }, { status: 403 });
+  }
+
   let query = supabase.from('invoices').select('*').order('generated_at', { ascending: false });
   if (status && status !== 'all') query = query.eq('status', status);
   if (brand && brand !== 'all') query = query.eq('brand', brand);
+  else if (scopedSlugs) query = query.in('brand', scopedSlugs.length ? scopedSlugs : ['__none__']);
   if (month && month !== 'all') query = query.eq('period_month', month);
   if (teamMemberId && teamMemberId !== 'all') query = query.eq('team_member_id', teamMemberId);
 
@@ -43,8 +50,9 @@ interface PostBody {
 }
 
 export async function POST(req: NextRequest) {
-  const profile = await requireAdmin();
-  if (!profile) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const scope = await getWorkspaceScope();
+  if (!scope) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const scopedSlugs = scope.brandScope.kind === 'scoped' ? scope.brandScope.brandSlugs : null;
 
   let body: PostBody;
   try { body = await req.json(); } catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }); }
@@ -54,11 +62,16 @@ export async function POST(req: NextRequest) {
   if (!month || !/^\d{4}-\d{2}$/.test(month)) {
     return NextResponse.json({ error: 'month is required (YYYY-MM)' }, { status: 400 });
   }
+  // A manager may only generate invoices for their own brands.
+  if (scopedSlugs && !scopedSlugs.includes(brand)) {
+    return NextResponse.json({ error: 'Forbidden: brand not in your access' }, { status: 403 });
+  }
 
   const supabase = await createAdminClient();
 
-  // Compute earnings for THIS team member's compensation arrangements.
-  const earnings = await getEarnings(month, teamMemberIdFromBody);
+  // Compute earnings for THIS team member's compensation arrangements
+  // (brand-scoped for managers so cross-brand earnings can't leak in).
+  const earnings = await getEarnings(month, teamMemberIdFromBody, scopedSlugs);
   const teamMemberId = earnings.teamMember?.id ?? null;
   if (!teamMemberId) {
     return NextResponse.json({ error: 'No team member configured — add one in Settings → Team Members' }, { status: 400 });
@@ -131,7 +144,7 @@ export async function POST(req: NextRequest) {
     bill_from_address: earnings.teamMember?.address ?? null,
     payment_instructions: earnings.teamMember?.paymentInstructions ?? DEFAULT_PAYMENT_INSTRUCTIONS,
     creator_breakdown: row.creators,
-    created_by: profile.email ?? null,
+    created_by: scope.email ?? null,
   };
 
   const { data: created, error } = await supabase

@@ -1,16 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
-import { requireAdmin } from '@/lib/auth/require-admin';
+import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 
 export async function GET(request: NextRequest) {
   try {
-    const profile = await requireAdmin();
-    if (!profile) {
+    const scope = await getWorkspaceScope();
+    if (!scope) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
+    const scopedSlugs = scope.brandScope.kind === 'scoped' ? scope.brandScope.brandSlugs : null;
 
     const supabase = await createAdminClient();
     const brand = request.nextUrl.searchParams.get('brand') || 'all';
+
+    // Scoped (manager) requesting a brand outside their access → nothing.
+    if (scopedSlugs && brand !== 'all' && !scopedSlugs.includes(brand)) {
+      return NextResponse.json({ error: 'Forbidden: brand not in your access' }, { status: 403 });
+    }
 
     let query = supabase
       .from('payment_audit_log')
@@ -20,6 +26,8 @@ export async function GET(request: NextRequest) {
 
     if (brand !== 'all') {
       query = query.eq('brand', brand);
+    } else if (scopedSlugs) {
+      query = query.in('brand', scopedSlugs.length ? scopedSlugs : ['__none__']);
     }
 
     const { data: logs, error } = await query;

@@ -9,15 +9,18 @@
  * (or all 12 if year is in the past).
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/auth/require-admin';
+import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 import { getEarnings, type EarningsResult } from '@/lib/data/earnings';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
 export async function GET(req: NextRequest) {
-  const profile = await requireAdmin();
-  if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const scope = await getWorkspaceScope();
+  if (!scope) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const brandFilterSlugs = scope.brandScope.kind === 'scoped'
+    ? scope.brandScope.brandSlugs
+    : null;
 
   const url = req.nextUrl;
   const now = new Date();
@@ -39,7 +42,7 @@ export async function GET(req: NextRequest) {
     monthList.push(`${year}-${String(m).padStart(2, '0')}`);
   }
 
-  const results = await Promise.all(monthList.map((m) => getEarnings(m)));
+  const results = await Promise.all(monthList.map((m) => getEarnings(m, undefined, brandFilterSlugs)));
 
   // Per-month totals (compact form)
   const months = results.map((r: EarningsResult) => ({

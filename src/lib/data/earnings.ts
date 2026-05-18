@@ -186,7 +186,16 @@ function getBrandRatePct(s: BrandSettingsRow | undefined): number {
  *                    When unset, falls back to the first team member found
  *                    (Tyler) so existing behavior is preserved.
  */
-export async function getEarnings(month: string, teamMemberId?: string): Promise<EarningsResult> {
+/**
+ * @param brandFilterSlugs When provided (non-null), restrict the computation
+ *   to these brand slugs only — used to scope a manager to their own brands.
+ *   null/undefined = all active brands (owner/admin behavior, unchanged).
+ */
+export async function getEarnings(
+  month: string,
+  teamMemberId?: string,
+  brandFilterSlugs?: string[] | null,
+): Promise<EarningsResult> {
   // Validate month "YYYY-MM"
   if (!/^\d{4}-\d{2}$/.test(month)) {
     throw new Error(`Invalid month "${month}" — expected YYYY-MM`);
@@ -224,7 +233,13 @@ export async function getEarnings(month: string, teamMemberId?: string): Promise
     .eq('is_archived', false)
     .eq('is_umbrella', false)
     .order('name');
-  const activeBrandRows = (brandsRaw as Array<{ slug: string; name: string }> | null ?? []);
+  let activeBrandRows = (brandsRaw as Array<{ slug: string; name: string }> | null ?? []);
+  // Manager scoping: restrict to the caller's brands. An empty filter array
+  // means "no brands" → empty result (fail-closed), never "all".
+  if (brandFilterSlugs != null) {
+    const allowed = new Set(brandFilterSlugs);
+    activeBrandRows = activeBrandRows.filter(b => allowed.has(b.slug));
+  }
   const activeBrandSlugs = activeBrandRows.map(b => b.slug);
   const brandLabelBySlug = new Map(activeBrandRows.map(b => [b.slug, b.name]));
 

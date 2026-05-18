@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { requireAdmin } from '@/lib/auth/require-admin';
+import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 import { YtdClient } from './ytd-client';
 
 export const dynamic = 'force-dynamic';
@@ -10,8 +10,9 @@ interface Props {
 }
 
 export default async function YtdPage({ searchParams }: Props) {
-  const profile = await requireAdmin();
-  if (!profile) redirect('/dashboard');
+  // Any Workspace user; /api/earnings/ytd scopes numbers to their brands.
+  const scope = await getWorkspaceScope();
+  if (!scope) redirect('/dashboard');
 
   const params = await searchParams;
   const yearParam = parseInt(params.year ?? '', 10);

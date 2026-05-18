@@ -6,10 +6,32 @@
  * DELETE — remove an invoice (only if status = 'pending')
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/auth/require-admin';
+import { getWorkspaceScope, type WorkspaceScope } from '@/lib/auth/workspace-scope';
 import { createAdminClient } from '@/lib/supabase/server';
 
 export const runtime = 'nodejs';
+
+/**
+ * Confirms the caller may act on this invoice. Managers are limited to
+ * invoices for brands in their user_brand_access; owner/admin unrestricted.
+ * Returns a NextResponse to return on failure, or null to proceed.
+ */
+async function authorizeInvoice(
+  scope: WorkspaceScope,
+  supabase: Awaited<ReturnType<typeof createAdminClient>>,
+  id: string,
+): Promise<NextResponse | null> {
+  const { data: inv } = await supabase
+    .from('invoices').select('brand').eq('id', id).maybeSingle();
+  if (!inv) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  if (
+    scope.brandScope.kind === 'scoped' &&
+    !(inv.brand && scope.brandScope.brandSlugs.includes(inv.brand))
+  ) {
+    return NextResponse.json({ error: 'Forbidden: brand not in your access' }, { status: 403 });
+  }
+  return null;
+}
 
 const NUMERIC_FIELDS = new Set([
   'commission', 'retainer', 'product_retainer', 'launch_fee',
@@ -24,11 +46,13 @@ const STATUS_FIELD = 'status';
 const STATUSES = new Set(['pending', 'sent', 'paid', 'void']);
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const profile = await requireAdmin();
-  if (!profile) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const scope = await getWorkspaceScope();
+  if (!scope) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const { id } = await ctx.params;
   const supabase = await createAdminClient();
+  const denied = await authorizeInvoice(scope, supabase, id);
+  if (denied) return denied;
   const { data, error } = await supabase.from('invoices').select('*').eq('id', id).maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!data) return NextResponse.json({ error: 'Not found' }, { status: 404 });
@@ -36,8 +60,8 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
 }
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const profile = await requireAdmin();
-  if (!profile) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const scope = await getWorkspaceScope();
+  if (!scope) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const { id } = await ctx.params;
 
@@ -78,6 +102,9 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const lineItemsChanged = ['commission', 'retainer', 'product_retainer', 'launch_fee'].some((k) => k in update);
   const supabase = await createAdminClient();
 
+  const denied = await authorizeInvoice(scope, supabase, id);
+  if (denied) return denied;
+
   if (lineItemsChanged) {
     const { data: current } = await supabase.from('invoices').select('commission, retainer, product_retainer, launch_fee').eq('id', id).maybeSingle();
     if (current) {
@@ -99,11 +126,14 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 }
 
 export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const profile = await requireAdmin();
-  if (!profile) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const scope = await getWorkspaceScope();
+  if (!scope) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const { id } = await ctx.params;
   const supabase = await createAdminClient();
+
+  const denied = await authorizeInvoice(scope, supabase, id);
+  if (denied) return denied;
 
   const { data: existing } = await supabase.from('invoices').select('status').eq('id', id).maybeSingle();
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });

@@ -5,7 +5,7 @@
  * the server (Node runtime). Filename: TEMPO-{invoice_number}.pdf
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/auth/require-admin';
+import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 import { createAdminClient } from '@/lib/supabase/server';
 import { renderInvoicePdf, type InvoicePdfData } from '@/lib/invoices/pdf';
 
@@ -13,8 +13,8 @@ export const runtime = 'nodejs';
 export const maxDuration = 30;
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const profile = await requireAdmin();
-  if (!profile) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const scope = await getWorkspaceScope();
+  if (!scope) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const { id } = await ctx.params;
   const supabase = await createAdminClient();
@@ -22,6 +22,14 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   const { data: invoice, error } = await supabase.from('invoices').select('*').eq('id', id).maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!invoice) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
+  // Managers may only pull PDFs for their own brands' invoices.
+  if (
+    scope.brandScope.kind === 'scoped' &&
+    !(invoice.brand && scope.brandScope.brandSlugs.includes(invoice.brand))
+  ) {
+    return NextResponse.json({ error: 'Forbidden: brand not in your access' }, { status: 403 });
+  }
 
   // Resolve brand display name
   const { data: brandRow } = await supabase
