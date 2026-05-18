@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient, createAdminClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/server';
 import {
   brandSlugToUuid,
   brandUuidToSlug,
   expandBrandToDataSlugs,
   BRAND_UUID_MAP,
 } from '@/lib/utils/constants';
+import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 
 /**
  * Sentinel returned when a real brand is selected but we couldn't resolve any
@@ -55,20 +56,6 @@ async function resolveBrandDataUuids(
   return [NO_MATCH_BRAND_ID];
 }
 
-async function getTenantId() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
-
-  const admin = await createAdminClient();
-  const { data: profile } = await admin
-    .from('user_profiles')
-    .select('tenant_id')
-    .eq('user_id', user.id)
-    .maybeSingle();
-
-  return profile?.tenant_id || null;
-}
 
 // account_1..5 stay on the wire for back-compat, but the canonical handle
 // list now comes from tiktok_accounts via creator_id. Once all consumers use
@@ -245,11 +232,21 @@ type HealthFilter = typeof HEALTH_FILTERS[number];
 
 // GET /api/roster?brand=&status=&search=&page=1&limit=50&sort=&dir=&health=
 export async function GET(request: NextRequest) {
-  const tenantId = await getTenantId();
-  if (!tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const scope = await getWorkspaceScope();
+  if (!scope) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const tenantId = scope.tenantId;
+
+  // Manager = brand-scoped. owner/admin/viewer = full tenant (brandScope 'all').
+  const scoped = scope.brandScope.kind === 'scoped';
+  const allowedSlugs = scope.brandScope.kind === 'scoped' ? scope.brandScope.brandSlugs : null;
 
   const { searchParams } = new URL(request.url);
   const brand  = searchParams.get('brand');
+
+  // A scoped user requesting a brand outside their access gets nothing.
+  if (scoped && brand && brand !== 'all' && !allowedSlugs!.includes(brand)) {
+    return NextResponse.json({ error: 'Forbidden: brand not in your access' }, { status: 403 });
+  }
   const status = searchParams.get('status');
   const search = searchParams.get('search');
   const page   = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
@@ -301,6 +298,7 @@ export async function GET(request: NextRequest) {
     .is('archived_at', null);
 
   if (brand && brand !== 'all') baseQuery = baseQuery.eq('brand', brand);
+  else if (scoped) baseQuery = baseQuery.in('brand', allowedSlugs!); // [] → no rows (fail-closed)
   if (status && status !== 'all') baseQuery = baseQuery.eq('status', status);
   if (search) {
     baseQuery = baseQuery.or(
@@ -472,11 +470,13 @@ export async function GET(request: NextRequest) {
   // The RPC takes the set of currently-managed handles to exclude and
   // returns the top N by 30d GMV. We shape each result into an EnrichedRow
   // with empty contract fields + is_managed: false.
-  if (includeUnmanaged) {
-    // Same umbrella-aware brand expansion as the managed perf RPC.
-    // Without this, filtering to LeeFar would pass the umbrella UUID
-    // which doesn't exist in daily_video_product_stats → zero unmanaged
-    // candidates surfaced.
+  // Brand expansion to data-level UUIDs is handled by `brandIds`
+  // (resolveBrandDataUuids) shared with the managed perf RPC. For scoped
+  // (manager) users the unmanaged RPC is only brand_ids-filtered, so with no
+  // specific brand selected it would surface all-brand top performers — only
+  // run it for an explicit in-scope brand.
+  const unmanagedAllowed = includeUnmanaged && !(scoped && (!brand || brand === 'all'));
+  if (unmanagedAllowed) {
     const { data: unmanagedRows, error: unmanagedErr } = await supabase.rpc(
       'get_unmanaged_top_perf',
       {
@@ -644,8 +644,9 @@ export async function GET(request: NextRequest) {
 // Body: { real_name, brand, retainer, monthly_post_requirement, discord_name,
 //         notes, handles: string[] }. Legacy account_1-only body still works.
 export async function POST(request: NextRequest) {
-  const tenantId = await getTenantId();
-  if (!tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const scope = await getWorkspaceScope();
+  if (!scope) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const tenantId = scope.tenantId;
 
   const body = await request.json();
   const { brand, real_name, retainer, discord_name, notes, monthly_post_requirement } = body;
@@ -661,6 +662,14 @@ export async function POST(request: NextRequest) {
 
   if (!real_name && handles.length === 0) {
     return NextResponse.json({ error: 'real_name or at least one handle is required' }, { status: 400 });
+  }
+
+  // A scoped user may only add creators to brands they have access to.
+  if (scope.brandScope.kind === 'scoped') {
+    if (!brand || !scope.brandScope.brandSlugs.includes(brand)) {
+      return NextResponse.json(
+        { error: 'Forbidden: brand not in your access' }, { status: 403 });
+    }
   }
 
   const supabase = await createAdminClient();

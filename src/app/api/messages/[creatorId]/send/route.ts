@@ -1,5 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
+import { getWorkspaceScope, type WorkspaceScope } from '@/lib/auth/workspace-scope';
+
+/**
+ * Confirms the creator is in the caller's tenant and — for scoped managers —
+ * linked to one of their brands. Service-role bypasses RLS, so enforce here.
+ */
+async function authorizeCreator(
+  scope: WorkspaceScope,
+  supabase: Awaited<ReturnType<typeof createAdminClient>>,
+  creatorId: string,
+): Promise<NextResponse | null> {
+  const { data: row } = await supabase
+    .from('creators_v2').select('id')
+    .eq('id', creatorId).eq('tenant_id', scope.tenantId).maybeSingle();
+  if (!row) return NextResponse.json({ error: 'Creator not found' }, { status: 404 });
+  if (scope.brandScope.kind === 'scoped') {
+    const ids = scope.brandScope.brandIds;
+    const { data: link } = await supabase
+      .from('creator_brands').select('id').eq('creator_id', creatorId)
+      .in('brand_id', ids.length ? ids : ['00000000-0000-0000-0000-000000000000'])
+      .limit(1);
+    if (!link || link.length === 0) {
+      return NextResponse.json({ error: 'Forbidden: creator not in your brands' }, { status: 403 });
+    }
+  }
+  return null;
+}
 
 const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
 
@@ -42,6 +69,9 @@ export async function POST(
   { params }: { params: Promise<{ creatorId: string }> }
 ) {
   try {
+    const scope = await getWorkspaceScope();
+    if (!scope) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
     const { creatorId } = await params;
     const { content } = await request.json();
 
@@ -50,6 +80,9 @@ export async function POST(
     }
 
     const supabase = await createAdminClient();
+
+    const denied = await authorizeCreator(scope, supabase, creatorId);
+    if (denied) return denied;
 
     // Look up creator's Discord user ID
     const { data: creator } = await supabase

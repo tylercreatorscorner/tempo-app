@@ -2,18 +2,29 @@ import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import { classifyCreator } from '@/lib/data/creator-status';
 import { ACTIVE_BRANDS, BRAND_UUID_MAP, brandUuidToSlug } from '@/lib/utils/constants';
+import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 
 const ACTIVE_BRAND_UUIDS = [...ACTIVE_BRANDS].map(b => BRAND_UUID_MAP[b]).filter(Boolean);
 
 export async function GET() {
   try {
+    const scope = await getWorkspaceScope();
+    if (!scope) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
     const supabase = await createAdminClient();
 
-    // 1. Fetch creator_brands with creators_v2 for active brands
+    // Scoped (manager): only their brands. owner/admin: existing behavior.
+    // The conversation list is emitted strictly from these brandRows, so this
+    // bounds the manager's entire view. Empty scoped list → no rows.
+    const brandUuids = scope.brandScope.kind === 'scoped'
+      ? scope.brandScope.brandIds
+      : ACTIVE_BRAND_UUIDS;
+
+    // 1. Fetch creator_brands with creators_v2 for the allowed brands
     const { data: brandRows, error: brandErr } = await supabase
       .from('creator_brands')
       .select('creator_id, brand_id, retainer, creator:creators_v2(id, real_name, discord_id, discord_avatar)')
-      .in('brand_id', ACTIVE_BRAND_UUIDS);
+      .in('brand_id', brandUuids);
 
     if (brandErr) throw brandErr;
 

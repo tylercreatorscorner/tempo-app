@@ -1,9 +1,15 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
+import { requireAdmin } from '@/lib/auth/require-admin';
 import { ACTIVE_BRANDS } from '@/lib/utils/constants';
 
 export async function GET() {
   try {
+    const profile = await requireAdmin();
+    if (!profile) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const supabase = await createAdminClient();
     const now = new Date();
     const year = now.getFullYear();

@@ -13,6 +13,7 @@ import { ProductTable } from '@/components/dashboard/product-table';
 import { DateRangePicker } from '@/components/dashboard/date-range-picker';
 import { aggregateCreatorsByRealName } from '@/lib/data/creator-aggregate';
 import { createClient } from '@/lib/supabase/server';
+import { getAllowedBrandsForUser } from '@/lib/data/brands';
 import { format, subDays, differenceInDays } from 'date-fns';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
@@ -26,6 +27,13 @@ interface Props {
 
 export default async function BrandDetailPage({ params, searchParams }: Props) {
   const { slug } = await params;
+
+  // Scoped (manager) users may only open brands in their access. null =
+  // owner/admin (no restriction). Treat out-of-scope as not-found so the
+  // page doesn't even confirm the brand exists.
+  const allowedBrands = await getAllowedBrandsForUser();
+  if (allowedBrands && !allowedBrands.includes(slug)) notFound();
+
   // Validate brand exists in tenant's brands (RLS-scoped)
   const supabase = await createClient();
   const { data: brand } = await supabase

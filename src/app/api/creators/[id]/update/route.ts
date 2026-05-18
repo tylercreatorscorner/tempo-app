@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
+import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const scope = await getWorkspaceScope();
+  if (!scope) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
   const { id } = await params;
   const creatorId = id; // UUID string now
 
@@ -31,23 +35,53 @@ export async function POST(
 
   const supabase = await createAdminClient();
 
+  // The creator must belong to the caller's tenant (the service-role client
+  // bypasses RLS, so this is enforced explicitly).
+  const { data: creatorRow } = await supabase
+    .from('creators_v2')
+    .select('id')
+    .eq('id', creatorId)
+    .eq('tenant_id', scope.tenantId)
+    .maybeSingle();
+  if (!creatorRow) return NextResponse.json({ error: 'Creator not found' }, { status: 404 });
+
+  // Scoped (manager): the creator must be linked to at least one of the
+  // caller's brands, and brand-relationship edits are limited to those brands.
+  const scopedBrandIds =
+    scope.brandScope.kind === 'scoped' ? scope.brandScope.brandIds : null;
+  if (scopedBrandIds) {
+    const { data: link } = await supabase
+      .from('creator_brands')
+      .select('id')
+      .eq('creator_id', creatorId)
+      .in('brand_id', scopedBrandIds.length ? scopedBrandIds : ['00000000-0000-0000-0000-000000000000'])
+      .limit(1);
+    if (!link || link.length === 0) {
+      return NextResponse.json(
+        { error: 'Forbidden: creator not in your brands' }, { status: 403 });
+    }
+  }
+
   if (Object.keys(creatorUpdates).length > 0) {
     const { error } = await supabase
       .from('creators_v2')
       .update(creatorUpdates)
-      .eq('id', creatorId);
+      .eq('id', creatorId)
+      .eq('tenant_id', scope.tenantId);
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
   }
 
   if (Object.keys(brandUpdates).length > 0) {
-    // Update creator_brands — update all brand rows for this creator
-    // In the future, accept a brand_id param to update a specific brand relationship
-    const { error } = await supabase
+    let cbQuery = supabase
       .from('creator_brands')
       .update(brandUpdates)
-      .eq('creator_id', creatorId);
+      .eq('creator_id', creatorId)
+      .eq('tenant_id', scope.tenantId);
+    // Managers may only alter the relationship rows for their own brands.
+    if (scopedBrandIds) cbQuery = cbQuery.in('brand_id', scopedBrandIds);
+    const { error } = await cbQuery;
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }

@@ -3,24 +3,41 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { classifyCreator } from '@/lib/data/creator-status';
 import { STATUS_CONFIG } from '@/lib/data/creator-status';
 import { brandUuidToSlug } from '@/lib/utils/constants';
+import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ creatorId: string }> }
 ) {
   try {
+    const scope = await getWorkspaceScope();
+    if (!scope) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
     const { creatorId } = await params;
     const supabase = await createAdminClient();
 
-    // Get creator info from creators_v2
+    // Get creator info from creators_v2 — tenant-pinned (service role bypasses RLS)
     const { data: creator, error } = await supabase
       .from('creators_v2')
       .select('id, real_name, discord_id, discord_avatar')
       .eq('id', creatorId)
+      .eq('tenant_id', scope.tenantId)
       .single();
 
     if (error || !creator) {
       return NextResponse.json({ creator: null });
+    }
+
+    // Scoped (manager): creator must be linked to one of their brands.
+    if (scope.brandScope.kind === 'scoped') {
+      const ids = scope.brandScope.brandIds;
+      const { data: link } = await supabase
+        .from('creator_brands').select('id').eq('creator_id', creator.id)
+        .in('brand_id', ids.length ? ids : ['00000000-0000-0000-0000-000000000000'])
+        .limit(1);
+      if (!link || link.length === 0) {
+        return NextResponse.json({ error: 'Forbidden: creator not in your brands' }, { status: 403 });
+      }
     }
 
     // Get brand-specific data

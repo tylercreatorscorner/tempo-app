@@ -16,6 +16,10 @@ const PUBLIC_PATHS = [
   '/features',
   '/changelog',
   '/status',
+  // Public invoice share — gated by opaque token in the URL, not by auth.
+  // Brands view invoices without an account.
+  '/share/invoice',
+  '/api/invoices/share',
 ];
 
 // Page paths a brand-role user is allowed to visit. Anything else → bounce home.
@@ -94,6 +98,29 @@ export async function updateSession(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     return NextResponse.redirect(url);
+  }
+
+  // Systemic Workspace-API gate (default-deny for portal roles).
+  //
+  // The role-based routing below intentionally skips API paths, so without
+  // this block ANY authenticated user — including the 150+ creator-role and
+  // brand-role portal users — could call any Workspace `/api/*` (the per-route
+  // handlers historically assumed something upstream gated them; nothing did).
+  // The creator/brand portals are server-rendered and do NOT client-call
+  // `/api/*` (their only API, /api/auth/creator, is public above), so denying
+  // portal roles here is safe and closes the whole class at one chokepoint.
+  // owner/admin/manager/viewer pass through to the per-route requireAdmin /
+  // getWorkspaceScope checks that enforce finer (incl. per-brand) authz.
+  if (user && isApi && !isPublicPath) {
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('role')
+      .eq('user_id', user.id)
+      .maybeSingle();
+    const role = profile?.role ?? null;
+    if (role && (BRAND_PORTAL_ROLES.has(role) || role === 'creator')) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
   }
 
   // Authenticated: route based on role. Skip API routes — let route handlers + RLS enforce.

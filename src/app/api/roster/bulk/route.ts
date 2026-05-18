@@ -1,14 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
+import { requireAdmin } from '@/lib/auth/require-admin';
 
-// POST /api/roster/bulk — bulk add creators from parsed CSV data
-// Expects: { tenant_id, brand_id?, creators: Array<{ creator_handle, creator_name?, retainer_amount?, start_date? }> }
+// POST /api/roster/bulk — bulk add creators from parsed CSV data.
+// Owner/admin only (bulk CSV import is an admin operation; managers add
+// single creators via the brand-scoped /api/roster). tenant_id is taken
+// from the authenticated profile — NEVER from the request body.
+// Expects: { brand_id?, creators: Array<{ creator_handle, creator_name?, retainer_amount?, start_date? }> }
 export async function POST(request: NextRequest) {
-  const body = await request.json();
-  const { tenant_id, brand_id, creators } = body;
+  const profile = await requireAdmin();
+  if (!profile) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const tenant_id = profile.tenant_id;
+  if (!tenant_id) return NextResponse.json({ error: 'No tenant' }, { status: 400 });
 
-  if (!tenant_id || !Array.isArray(creators) || creators.length === 0) {
-    return NextResponse.json({ error: 'tenant_id and creators array are required' }, { status: 400 });
+  const body = await request.json();
+  const { brand_id, creators } = body;
+
+  if (!Array.isArray(creators) || creators.length === 0) {
+    return NextResponse.json({ error: 'creators array is required' }, { status: 400 });
   }
 
   if (creators.length > 500) {

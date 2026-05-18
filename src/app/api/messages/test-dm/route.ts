@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
+import { requireAdmin } from '@/lib/auth/require-admin';
 
 const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
 
+// Diagnostic: DMs an arbitrary Discord user id. Owner/admin only — an
+// arbitrary-DM primitive must never be reachable by managers.
 export async function POST(request: NextRequest) {
   try {
+    const profile = await requireAdmin();
+    if (!profile) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
     const { discordUserId, content } = await request.json();
 
     if (!discordUserId?.trim() || !content?.trim()) {

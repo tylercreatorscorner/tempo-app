@@ -1,24 +1,25 @@
 import { createClient } from '@/lib/supabase/server';
+import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 import type { Brand } from '@/types';
 
 /**
- * Get the current user's allowed brand slugs from their user_profile.
- * Returns null if the user has no restriction (= full access).
+ * Get the current user's allowed brand slugs.
+ *
+ * Canonical source is the Workspace scope (role + user_brand_access), NOT the
+ * legacy `user_profiles.allowed_brands` column — that column was vestigial
+ * (1/216 rows, and that row already agreed with user_brand_access).
+ * Unifying here keeps every caller (analytics, dashboard, products, brands
+ * pages) consistent with the brand portal and the API layer.
+ *
+ *   owner / admin / viewer  → null  (no restriction = all brands)
+ *   manager                 → their user_brand_access brand slugs
+ *   no Workspace scope      → null  (unchanged; these pages aren't reached
+ *                                    by brand/creator roles anyway)
  */
 export async function getAllowedBrandsForUser(): Promise<string[] | null> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
-
-  const { data } = await supabase
-    .from('user_profiles')
-    .select('allowed_brands')
-    .eq('user_id', user.id)
-    .maybeSingle();
-
-  if (Array.isArray(data?.allowed_brands) && data.allowed_brands.length > 0) {
-    return data.allowed_brands;
-  }
+  const scope = await getWorkspaceScope();
+  if (!scope) return null;
+  if (scope.brandScope.kind === 'scoped') return scope.brandScope.brandSlugs;
   return null;
 }
 

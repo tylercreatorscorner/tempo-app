@@ -1,19 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient, createAdminClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/server';
+import { getWorkspaceScope, type WorkspaceScope } from '@/lib/auth/workspace-scope';
 
-async function getTenantId() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
-
-  const admin = await createAdminClient();
-  const { data: profile } = await admin
-    .from('user_profiles')
-    .select('tenant_id')
-    .eq('user_id', user.id)
+/**
+ * Loads the managed_creators row and confirms the caller may act on it.
+ * Scoped (manager) users may only touch rows whose brand is in their access.
+ * Returns the row's brand on success, or a NextResponse to return on failure.
+ */
+async function authorizeRosterRow(
+  scope: WorkspaceScope,
+  admin: Awaited<ReturnType<typeof createAdminClient>>,
+  id: string,
+): Promise<{ brand: string | null } | NextResponse> {
+  const { data: row } = await admin
+    .from('managed_creators')
+    .select('brand')
+    .eq('id', id)
+    .eq('tenant_id', scope.tenantId)
     .maybeSingle();
-
-  return profile?.tenant_id || null;
+  if (!row) return NextResponse.json({ error: 'Creator not found' }, { status: 404 });
+  if (
+    scope.brandScope.kind === 'scoped' &&
+    !(row.brand && scope.brandScope.brandSlugs.includes(row.brand))
+  ) {
+    return NextResponse.json(
+      { error: 'Forbidden: brand not in your access' }, { status: 403 });
+  }
+  return { brand: row.brand };
 }
 
 // PATCH /api/roster/[id] — update a managed creator.
@@ -25,8 +38,9 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const tenantId = await getTenantId();
-  if (!tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const scope = await getWorkspaceScope();
+  if (!scope) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const tenantId = scope.tenantId;
 
   const { id } = await params;
   const body = await request.json();
@@ -64,6 +78,19 @@ export async function PATCH(
   }
 
   const supabase = await createAdminClient();
+
+  // Scoped users may only edit rows in their brands…
+  const authz = await authorizeRosterRow(scope, supabase, id);
+  if (authz instanceof NextResponse) return authz;
+  // …and may not move a creator into a brand outside their access.
+  if (
+    scope.brandScope.kind === 'scoped' &&
+    'brand' in updates &&
+    !(typeof updates.brand === 'string' && scope.brandScope.brandSlugs.includes(updates.brand))
+  ) {
+    return NextResponse.json(
+      { error: 'Forbidden: target brand not in your access' }, { status: 403 });
+  }
 
   const { data, error } = await supabase
     .from('managed_creators')
@@ -125,11 +152,15 @@ export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const tenantId = await getTenantId();
-  if (!tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const scope = await getWorkspaceScope();
+  if (!scope) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const tenantId = scope.tenantId;
 
   const { id } = await params;
   const supabase = await createAdminClient();
+
+  const authz = await authorizeRosterRow(scope, supabase, id);
+  if (authz instanceof NextResponse) return authz;
 
   const { data, error } = await supabase
     .from('managed_creators')

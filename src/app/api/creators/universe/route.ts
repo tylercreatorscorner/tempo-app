@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient, createAdminClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/server';
 import { ACTIVE_BRANDS, expandBrandToDataSlugs } from '@/lib/utils/constants';
+import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 
 
 export interface UniverseCreator {
@@ -18,29 +19,22 @@ function normalizeHandle(h: string): string {
   return h.replace(/^@/, '').trim().toLowerCase();
 }
 
-async function getTenantId() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
-
-  const admin = await createAdminClient();
-  const { data: profile } = await admin
-    .from('user_profiles')
-    .select('tenant_id')
-    .eq('user_id', user.id)
-    .maybeSingle();
-
-  return profile?.tenant_id || null;
-}
-
 // GET /api/creators/universe?search=&page=1&limit=50&days=90
 export async function GET(request: NextRequest) {
-  const tenantId = await getTenantId();
-  if (!tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const scope = await getWorkspaceScope();
+  if (!scope) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const tenantId = scope.tenantId;
+  const scoped = scope.brandScope.kind === 'scoped';
+  const allowedSlugs = scope.brandScope.kind === 'scoped' ? scope.brandScope.brandSlugs : null;
 
   const { searchParams } = new URL(request.url);
   const search        = searchParams.get('search')?.toLowerCase() || '';
   const brandFilter   = searchParams.get('brand') || 'all';
+
+  // A scoped (manager) user requesting a brand outside their access gets nothing.
+  if (scoped && brandFilter !== 'all' && !allowedSlugs!.includes(brandFilter)) {
+    return NextResponse.json({ error: 'Forbidden: brand not in your access' }, { status: 403 });
+  }
   const managedFilter = searchParams.get('managed') || 'all'; // 'all' | 'managed' | 'unmanaged'
   const page          = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
   const limit         = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '50', 10)));
@@ -67,9 +61,12 @@ export async function GET(request: NextRequest) {
   // Roster uses umbrella slugs (e.g. 'leefar') but creator_performance is
   // keyed by store ('leefar_nutrition', 'leefar_supplements'). Expand the
   // umbrella when querying performance.
-  const rosterBrands = (brandFilter !== 'all' && (ACTIVE_BRANDS as readonly string[]).includes(brandFilter))
+  const brandIsSpecific = brandFilter !== 'all' && (
+    scoped ? allowedSlugs!.includes(brandFilter) : (ACTIVE_BRANDS as readonly string[]).includes(brandFilter)
+  );
+  const rosterBrands = brandIsSpecific
     ? [brandFilter]
-    : [...ACTIVE_BRANDS];
+    : scoped ? allowedSlugs! : [...ACTIVE_BRANDS]; // scoped+[] → no brands (fail-closed)
   const brandsToQuery = rosterBrands.flatMap(b => Array.from(expandBrandToDataSlugs(b)));
 
   // Fetch creator rankings for relevant brands in parallel
@@ -88,11 +85,13 @@ export async function GET(request: NextRequest) {
 
   // Fetch managed creators for this tenant (all brands).
   // Skip archived (soft-removed) creators so they don't show up as managed.
-  const { data: managedData } = await supabase
+  let managedQuery = supabase
     .from('managed_creators')
     .select('id, real_name, brand, account_1, account_2, account_3, account_4, account_5')
     .eq('tenant_id', tenantId)
     .is('archived_at', null);
+  if (scoped) managedQuery = managedQuery.in('brand', allowedSlugs!); // [] → none
+  const { data: managedData } = await managedQuery;
 
   // Build lookup: "normalized_handle|||data_brand_slug" → managed creator info.
   // Umbrella roster brands ('leefar') get expanded so the lookup matches

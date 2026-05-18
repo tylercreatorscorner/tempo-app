@@ -90,10 +90,13 @@ export default async function AnalyticsPage({ searchParams }: Props) {
   // Umbrella roster brands ('leefar') get expanded so the lookup matches
   // creator_performance rows keyed by store ('leefar_nutrition', etc.).
   const admin = await createAdminClient();
-  const { data: managedRows } = await admin
+  let managedRowsQuery = admin
     .from('managed_creators')
     .select('id, brand, account_1, account_2, account_3, account_4, account_5')
     .is('archived_at', null);
+  // Scoped (manager) users: never pull other brands' roster into the lookup.
+  if (allowedBrands) managedRowsQuery = managedRowsQuery.in('brand', allowedBrands);
+  const { data: managedRows } = await managedRowsQuery;
   const managedSet = new Map<string, string>(); // "handle|||brand" → managed_creators.id
   const norm = (h: string) => h.replace(/^@/, '').trim().toLowerCase();
   for (const m of managedRows ?? []) {

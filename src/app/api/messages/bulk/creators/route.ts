@@ -1,15 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import { classifyCreator, type CreatorStatus } from '@/lib/data/creator-status';
+import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 
 export async function GET(request: NextRequest) {
   try {
+    const scope = await getWorkspaceScope();
+    if (!scope) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
     const url = new URL(request.url);
     const brand = url.searchParams.get('brand');
     const statusesParam = url.searchParams.get('statuses');
     const hasDiscord = url.searchParams.get('has_discord');
 
     const supabase = await createAdminClient();
+
+    const scopedBrandIds =
+      scope.brandScope.kind === 'scoped' ? scope.brandScope.brandIds : null;
 
     // Query creator_brands joined with creators_v2
     let query = supabase
@@ -19,7 +26,15 @@ export async function GET(request: NextRequest) {
     if (brand) {
       const { brandSlugToUuid } = await import('@/lib/utils/constants');
       const brandUuid = brandSlugToUuid(brand);
+      // A scoped user requesting a brand outside their access gets nothing.
+      if (scopedBrandIds && (!brandUuid || !scopedBrandIds.includes(brandUuid))) {
+        return NextResponse.json({ error: 'Forbidden: brand not in your access' }, { status: 403 });
+      }
       if (brandUuid) query = query.eq('brand_id', brandUuid);
+    } else if (scopedBrandIds) {
+      // No brand specified: a manager sees only their brands' creators.
+      query = query.in('brand_id',
+        scopedBrandIds.length ? scopedBrandIds : ['00000000-0000-0000-0000-000000000000']);
     }
 
     const { data: rows, error } = await query;
