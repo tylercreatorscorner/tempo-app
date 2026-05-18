@@ -1,11 +1,18 @@
 import { Suspense } from 'react';
+import { redirect } from 'next/navigation';
 import { listIntegrations } from '@/lib/data/integrations';
 import { createAdminClient } from '@/lib/supabase/server';
+import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 import { IntegrationsClient } from './integrations-client';
 
 export const dynamic = 'force-dynamic';
 
 export default async function IntegrationsPage() {
+  // Tenant integration infra (Slack OAuth, API keys) is owner/admin only.
+  // This page had no gate — a manager direct-navigating must be bounced.
+  const scope = await getWorkspaceScope();
+  if (!scope || scope.brandScope.kind === 'scoped') redirect('/workflows/automations');
+
   const supabase = await createAdminClient();
   const [integrations, brandsRes] = await Promise.all([
     listIntegrations(),

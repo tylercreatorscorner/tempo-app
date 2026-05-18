@@ -9,7 +9,7 @@
  * we add a new action type — the registry validates on dispatch.
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/auth/require-admin';
+import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 import { createAdminClient } from '@/lib/supabase/server';
 
 export const runtime = 'nodejs';
@@ -31,13 +31,19 @@ interface PostBody {
 const VALID_TRIGGERS = new Set(['cron', 'event', 'manual']);
 
 export async function GET(req: NextRequest) {
-  const profile = await requireAdmin();
-  if (!profile) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const scope = await getWorkspaceScope();
+  if (!scope) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const scopedBrandIds = scope.brandScope.kind === 'scoped' ? scope.brandScope.brandIds : null;
 
   const url = req.nextUrl;
   const brandId = url.searchParams.get('brand_id');
   const enabledParam = url.searchParams.get('enabled');
   const triggerType = url.searchParams.get('trigger_type');
+
+  // Scoped (manager) requesting a brand outside their access → nothing.
+  if (scopedBrandIds && brandId && brandId !== 'all' && !scopedBrandIds.includes(brandId)) {
+    return NextResponse.json({ error: 'Forbidden: brand not in your access' }, { status: 403 });
+  }
 
   const supabase = await createAdminClient();
   let query = supabase
@@ -46,6 +52,8 @@ export async function GET(req: NextRequest) {
     .order('updated_at', { ascending: false });
 
   if (brandId && brandId !== 'all') query = query.eq('brand_id', brandId);
+  // Managers only ever see their brands' automations (never global/null).
+  else if (scopedBrandIds) query = query.in('brand_id', scopedBrandIds.length ? scopedBrandIds : ['00000000-0000-0000-0000-000000000000']);
   if (enabledParam === 'true') query = query.eq('enabled', true);
   if (enabledParam === 'false') query = query.eq('enabled', false);
   if (triggerType && triggerType !== 'all') query = query.eq('trigger_type', triggerType);
@@ -56,12 +64,23 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const profile = await requireAdmin();
-  if (!profile) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const scope = await getWorkspaceScope();
+  if (!scope) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   let body: PostBody;
   try { body = await req.json(); }
   catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }); }
+
+  // Managers may only create automations targeting one of their brands —
+  // never a global (brand_id=null) or other-brand automation.
+  if (scope.brandScope.kind === 'scoped') {
+    if (!body.brand_id || !scope.brandScope.brandIds.includes(body.brand_id)) {
+      return NextResponse.json(
+        { error: 'Managers must target one of their own brands (no global automations)' },
+        { status: 403 },
+      );
+    }
+  }
 
   if (!body.name?.trim()) {
     return NextResponse.json({ error: 'name is required' }, { status: 400 });
@@ -82,7 +101,7 @@ export async function POST(req: NextRequest) {
   const { data, error } = await supabase
     .from('automations')
     .insert({
-      tenant_id: profile.tenant_id,
+      tenant_id: scope.tenantId,
       brand_id: body.brand_id ?? null,
       name: body.name.trim(),
       description: body.description ?? null,

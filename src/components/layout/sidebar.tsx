@@ -72,13 +72,15 @@ const INSIGHTS_SECTION: NavSection = {
   ],
 };
 
+// Automations is brand-scoped (managers see/create/edit/run only their
+// brands' automations; /api/automations enforces it). Integrations (tenant
+// infra: Slack OAuth, API keys) and Outreach (mass-send) stay owner/admin.
 const WORKFLOWS_SECTION: NavSection = {
   label: 'Workflows',
-  adminOnly: true,
   items: [
-    { href: '/workflows/integrations', label: 'Integrations', icon: Plug },
+    { href: '/workflows/integrations', label: 'Integrations', icon: Plug, adminOnly: true },
     { href: '/workflows/automations',  label: 'Automations',  icon: Zap },
-    { href: '/workflows/outreach',     label: 'Outreach',     icon: Megaphone },
+    { href: '/workflows/outreach',     label: 'Outreach',     icon: Megaphone, adminOnly: true },
   ],
 };
 

@@ -8,7 +8,7 @@
  *   - Manual-trigger automations that have no cron at all
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/auth/require-admin';
+import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 import { createAdminClient } from '@/lib/supabase/server';
 import { dispatch } from '@/lib/automations/dispatch';
 
@@ -19,19 +19,28 @@ export async function POST(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const profile = await requireAdmin();
-  if (!profile) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const scope = await getWorkspaceScope();
+  if (!scope) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const { id } = await params;
   const supabase = await createAdminClient();
 
   const { data: automation, error } = await supabase
     .from('automations')
-    .select('id, steps')
+    .select('id, steps, brand_id')
     .eq('id', id)
     .maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!automation) return NextResponse.json({ error: 'Automation not found' }, { status: 404 });
+
+  // A manager may only run automations for brands in their access
+  // (never a global/null or other-brand automation).
+  if (
+    scope.brandScope.kind === 'scoped' &&
+    !(automation.brand_id && scope.brandScope.brandIds.includes(automation.brand_id))
+  ) {
+    return NextResponse.json({ error: 'Forbidden: not in your access' }, { status: 403 });
+  }
 
   const steps = automation.steps as Array<{ integration_id: string; action: string; params: Record<string, unknown> }>;
   if (!Array.isArray(steps) || steps.length === 0) {
@@ -49,7 +58,7 @@ export async function POST(
   const result = await dispatch({
     integrationId,
     automationId: id,
-    triggeredBy: `manual:${profile.user_id}`,
+    triggeredBy: `manual:${scope.userId}`,
     steps: steps.map(s => ({ action: s.action, params: s.params })),
   });
 

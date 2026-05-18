@@ -1,9 +1,16 @@
 import { Megaphone, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
+import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 
 export const dynamic = 'force-dynamic';
 
-export default function OutreachPage() {
+export default async function OutreachPage() {
+  // Mass-send (email/SMS blasts) is owner/admin only in v1. This page had
+  // no gate — a manager direct-navigating must be bounced.
+  const scope = await getWorkspaceScope();
+  if (!scope || scope.brandScope.kind === 'scoped') redirect('/workflows/automations');
+
   return (
     <div className="space-y-6 max-w-3xl">
       <div>
