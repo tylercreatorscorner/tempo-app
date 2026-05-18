@@ -116,11 +116,17 @@ interface GetPostsOpts {
    *   - 'flagged'         → posts tagged with off-brand or needs-rework
    */
   reviewFilter?: ReviewFilter;
+  /**
+   * When provided (non-null), restrict to these brand slugs only — used to
+   * scope a manager to their own brands. null/undefined = all active brands
+   * (owner/admin behavior, unchanged).
+   */
+  allowedBrandSlugs?: string[] | null;
 }
 
 export async function getPosts(opts: GetPostsOpts): Promise<PostsResult> {
   const supabase = await createAdminClient();
-  const { brand, startDate, endDate, managedOnly = true, limit = 500, currentUserId, reviewFilter = 'all' } = opts;
+  const { brand, startDate, endDate, managedOnly = true, limit = 500, currentUserId, reviewFilter = 'all', allowedBrandSlugs } = opts;
 
   // ── 1. Resolve active brands (excluding archived + umbrella). videos uses
   //       brand text slug.
@@ -134,8 +140,14 @@ export async function getPosts(opts: GetPostsOpts): Promise<PostsResult> {
   // their stats don't double-count alongside the child shops they cover.
   // is_umbrella is the canonical flag on brands_v2 — replaces the old
   // hardcoded `slug !== 'leefar'` check so any future umbrella auto-excludes.
-  const brands = (brandsRaw as Array<{ slug: string; name: string; is_umbrella: boolean | null }> | null ?? [])
+  let brands = (brandsRaw as Array<{ slug: string; name: string; is_umbrella: boolean | null }> | null ?? [])
     .filter(b => !b.is_umbrella);
+  // Manager scoping: restrict to the caller's brands. Empty filter → no
+  // brands → empty result (fail-closed), never "all".
+  if (allowedBrandSlugs != null) {
+    const allowed = new Set(allowedBrandSlugs);
+    brands = brands.filter(b => allowed.has(b.slug));
+  }
   if (brands.length === 0) {
     return {
       posts: [], startDate, endDate,

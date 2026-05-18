@@ -60,7 +60,7 @@ const CREATORS_SECTION: NavSection = {
 const CONTENT_SECTION: NavSection = {
   label: 'Content',
   items: [
-    { href: '/posts',     label: 'Posts',     icon: PlaySquare, adminOnly: true },
+    { href: '/posts',     label: 'Posts',     icon: PlaySquare },
     { href: '/reporting', label: 'Reporting', icon: FileBarChart },
   ],
 };

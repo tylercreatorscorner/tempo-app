@@ -11,8 +11,19 @@
  * All routes admin-gated.
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/auth/require-admin';
+import { getWorkspaceScope, type WorkspaceScope } from '@/lib/auth/workspace-scope';
 import { createAdminClient } from '@/lib/supabase/server';
+
+/** Managers may only review posts for brands in their access. */
+function brandDenied(scope: WorkspaceScope, brand: string): NextResponse | null {
+  if (
+    scope.brandScope.kind === 'scoped' &&
+    !scope.brandScope.brandSlugs.includes(brand)
+  ) {
+    return NextResponse.json({ error: 'Forbidden: brand not in your access' }, { status: 403 });
+  }
+  return null;
+}
 
 export const runtime = 'nodejs';
 
@@ -30,12 +41,14 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ videoId: string }> },
 ) {
-  const profile = await requireAdmin();
-  if (!profile) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const scope = await getWorkspaceScope();
+  if (!scope) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const { videoId } = await params;
   const brand = request.nextUrl.searchParams.get('brand');
   if (!brand) return NextResponse.json({ error: 'Missing brand' }, { status: 400 });
+  const denied = brandDenied(scope, brand);
+  if (denied) return denied;
 
   const admin = await createAdminClient();
   const { data, error } = await admin
@@ -49,7 +62,7 @@ export async function GET(
 
   return NextResponse.json({
     reviews: data ?? [],
-    currentUserId: profile.user_id,
+    currentUserId: scope.userId,
   });
 }
 
@@ -57,8 +70,8 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ videoId: string }> },
 ) {
-  const profile = await requireAdmin();
-  if (!profile) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const scope = await getWorkspaceScope();
+  if (!scope) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const { videoId } = await params;
   let body: UpsertBody;
@@ -67,6 +80,8 @@ export async function POST(
 
   const { brand, rating, notes, tags } = body;
   if (!brand) return NextResponse.json({ error: 'Missing brand' }, { status: 400 });
+  const denied = brandDenied(scope, brand);
+  if (denied) return denied;
 
   // Validation
   if (rating !== undefined && rating !== null) {
@@ -91,8 +106,8 @@ export async function POST(
     .upsert({
       video_id: videoId,
       brand,
-      reviewer_user_id: profile.user_id,
-      reviewer_name: profile.name ?? profile.email ?? 'unknown',
+      reviewer_user_id: scope.userId,
+      reviewer_name: scope.name ?? scope.email ?? 'unknown',
       rating: rating ?? null,
       notes: notes ?? null,
       tags: safeTags ?? [],
@@ -108,12 +123,14 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ videoId: string }> },
 ) {
-  const profile = await requireAdmin();
-  if (!profile) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const scope = await getWorkspaceScope();
+  if (!scope) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const { videoId } = await params;
   const brand = request.nextUrl.searchParams.get('brand');
   if (!brand) return NextResponse.json({ error: 'Missing brand' }, { status: 400 });
+  const denied = brandDenied(scope, brand);
+  if (denied) return denied;
 
   const admin = await createAdminClient();
   const { error } = await admin
@@ -121,7 +138,7 @@ export async function DELETE(
     .delete()
     .eq('video_id', videoId)
     .eq('brand', brand)
-    .eq('reviewer_user_id', profile.user_id);
+    .eq('reviewer_user_id', scope.userId);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
