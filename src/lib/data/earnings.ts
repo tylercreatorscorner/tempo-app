@@ -462,6 +462,14 @@ export async function getEarnings(month: string, teamMemberId?: string): Promise
     const totalFees = retainer + productRetainer + launchFee;
     const total = commission + totalFees;
 
+    // If commission ends up at $0 (model zeroed it, or rate is 0%), the
+    // per-creator breakdown is meaningless / misleading — drop it so the
+    // PDF section stops rendering. The earnings page can still show GMV
+    // and total separately.
+    if (commission === 0 && creators.length > 0) {
+      creators.length = 0;
+    }
+
     totalAffiliateGmv += affiliateGmv;
     totalMarketingGmv += marketingGmv;
     totalGmv += gmv;
