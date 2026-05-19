@@ -81,7 +81,7 @@ function getBrandUuids(brandFilter: string): string[] | null {
 async function resolveAnchorToday(
   supabase: any,
   brandUuids: string[] | null,
-  table: 'daily_creator_stats' | 'daily_video_stats' | 'daily_product_stats' = 'daily_creator_stats'
+  table: 'daily_creator_stats' | 'daily_video_product_stats' = 'daily_creator_stats'
 ): Promise<Date> {
   let query = supabase
     .from(table)
@@ -201,7 +201,7 @@ export async function getWhatsCookingData(brandFilter: string, period: '7d' | '3
 
   // What's Cooking queries daily_video_stats — anchor to that table specifically
   // so we always show the most recent video data we have (may lag creator data).
-  const today = await resolveAnchorToday(supabase, brandUuids, 'daily_video_stats');
+  const today = await resolveAnchorToday(supabase, brandUuids, 'daily_video_product_stats');
   const yesterday = new Date(today);
   yesterday.setDate(today.getDate() - 1);
 
@@ -247,7 +247,7 @@ export async function getWhatsCookingData(brandFilter: string, period: '7d' | '3
   }
   const rawData = await paginatedFetch(
     supabase,
-    'daily_video_stats',
+    'daily_video_product_stats',
     'video_id, video_url, video_title, tiktok_username, gmv, orders, post_date, brand_id, report_date',
     videoFilters
   );
@@ -517,8 +517,8 @@ export async function getDailyDropData(brandFilter: string): Promise<DailyDropDa
   // sections still show the freshest data they have, instead of empty results.
   const [creatorAnchor, videoAnchor, productAnchor] = await Promise.all([
     resolveAnchorToday(supabase, brandUuids, 'daily_creator_stats'),
-    resolveAnchorToday(supabase, brandUuids, 'daily_video_stats'),
-    resolveAnchorToday(supabase, brandUuids, 'daily_product_stats'),
+    resolveAnchorToday(supabase, brandUuids, 'daily_video_product_stats'),
+    resolveAnchorToday(supabase, brandUuids, 'daily_video_product_stats'),
   ]);
 
   // Header date / "yesterday" math uses the creator anchor (most authoritative
@@ -592,9 +592,9 @@ export async function getDailyDropData(brandFilter: string): Promise<DailyDropDa
     paginatedFetch(supabase, 'daily_creator_stats', 'tiktok_username, gmv', ycFilters),
     paginatedFetch(supabase, 'daily_creator_stats', 'gmv', dbFilters),
     paginatedFetch(supabase, 'daily_creator_stats', 'gmv', mtdFilters),
-    paginatedFetch(supabase, 'daily_video_stats', 'video_id, tiktok_username, gmv', yvFilters),
-    paginatedFetch(supabase, 'daily_product_stats', 'product_name, gmv', ypFilters),
-    paginatedFetch(supabase, 'daily_video_stats', 'video_id, tiktok_username, gmv, post_date, report_date', otwFilters),
+    paginatedFetch(supabase, 'daily_video_product_stats', 'video_id, tiktok_username, gmv', yvFilters),
+    paginatedFetch(supabase, 'daily_video_product_stats', 'product_name, gmv', ypFilters),
+    paginatedFetch(supabase, 'daily_video_product_stats', 'video_id, tiktok_username, gmv, post_date, report_date', otwFilters),
     getDiscordMap(supabase, brandUuids),
   ]);
 
@@ -610,7 +610,8 @@ export async function getDailyDropData(brandFilter: string): Promise<DailyDropDa
   });
   const topVideos = Array.from(videoMap.values()).sort((a, b) => b.gmv - a.gmv).slice(0, 5);
 
-  // Aggregate products from daily_product_stats (one row per product per day)
+  // Aggregate products from daily_video_product_stats (rows are per
+  // video×product×day, so sum gmv by product_name).
   const productMap = new Map<string, number>();
   (yesterdayProducts || []).forEach((p: any) => {
     const name = p.product_name || 'Unknown Product';
@@ -741,7 +742,7 @@ export async function getWeeklyWrapData(brandFilter: string): Promise<WeeklyWrap
     { column: 'gmv', op: 'gt', value: 0 },
   ];
   if (brandUuids) wvFilters.push({ column: 'brand_id', op: 'in', value: brandUuids });
-  const weekVideoData = await paginatedFetch(supabase, 'daily_video_stats', 'video_id, tiktok_username, gmv, post_date, report_date', wvFilters);
+  const weekVideoData = await paginatedFetch(supabase, 'daily_video_product_stats', 'video_id, tiktok_username, gmv, post_date, report_date', wvFilters);
 
   // Aggregate this week creators
   const thisWeekMap = new Map<string, { name: string; gmv: number; videos: number }>();
@@ -877,7 +878,7 @@ export async function getMonthlyRecapData(brandFilter: string): Promise<MonthlyR
     { column: 'gmv', op: 'gt', value: 0 },
   ];
   if (brandUuids) vFilters.push({ column: 'brand_id', op: 'in', value: brandUuids });
-  const monthVideoData = await paginatedFetch(supabase, 'daily_video_stats', 'video_id, tiktok_username, gmv, post_date, report_date', vFilters);
+  const monthVideoData = await paginatedFetch(supabase, 'daily_video_product_stats', 'video_id, tiktok_username, gmv, post_date, report_date', vFilters);
 
   // Aggregate creators this month
   const thisMap = new Map<string, { name: string; gmv: number; videos: number }>();
@@ -1011,7 +1012,7 @@ export async function getBrandClientUpdateData(brandFilter: string): Promise<Bra
     { column: 'gmv', op: 'gt', value: 0 },
   ];
   if (brandUuids) vFilters.push({ column: 'brand_id', op: 'in', value: brandUuids });
-  const videoData = await paginatedFetch(supabase, 'daily_video_stats', 'video_id, tiktok_username, gmv', vFilters);
+  const videoData = await paginatedFetch(supabase, 'daily_video_product_stats', 'video_id, tiktok_username, gmv', vFilters);
 
   // Aggregate
   const creatorMap = new Map<string, { name: string; gmv: number; videos: number }>();

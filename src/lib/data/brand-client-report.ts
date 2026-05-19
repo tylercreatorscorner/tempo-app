@@ -139,10 +139,13 @@ function pctChange(curr: number, prior: number): number | null {
 // Using the oldest shared date guarantees every section reports on the
 // same window, even if it means the report is a few weeks behind real time.
 async function resolveSharedAnchor(supabase: any, brandUuids: string[] | null): Promise<Date> {
-  const tables: ('daily_creator_stats' | 'daily_video_stats' | 'daily_product_stats')[] = [
+  // Only the live tables. daily_video_stats / daily_product_stats stopped
+  // populating; including them dragged the shared anchor (oldest latest-date)
+  // weeks back and made the whole report stale. daily_video_product_stats
+  // covers both video- and product-level data.
+  const tables: ('daily_creator_stats' | 'daily_video_product_stats')[] = [
     'daily_creator_stats',
-    'daily_video_stats',
-    'daily_product_stats',
+    'daily_video_product_stats',
   ];
   const latests = await Promise.all(tables.map(async (t) => {
     let q = supabase.from(t).select('report_date').order('report_date', { ascending: false }).limit(1);
@@ -289,10 +292,10 @@ export async function getBrandClientReportData(
     paginatedFetch(supabase, 'daily_creator_stats',
       'tiktok_username, gmv, orders, videos',
       dateRange(priorStartStr, priorEndStr)),
-    paginatedFetch(supabase, 'daily_video_stats',
+    paginatedFetch(supabase, 'daily_video_product_stats',
       'video_id, video_title, video_url, tiktok_username, gmv, orders',
       dateRange(startStr, endStr)),
-    paginatedFetch(supabase, 'daily_product_stats',
+    paginatedFetch(supabase, 'daily_video_product_stats',
       'product_name, gmv, orders',
       dateRange(startStr, endStr)),
     paginatedFetch(supabase, 'daily_video_product_stats',
