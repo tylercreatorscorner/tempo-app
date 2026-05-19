@@ -390,7 +390,7 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
           {data.topCreator && (
             <View style={styles.highlightCard}>
               <View style={[styles.highlightTopBar, { backgroundColor: COLORS.gold }]} />
-              <Text style={[styles.highlightLabel, { color: COLORS.gold }]}>🏆 TOP CREATOR</Text>
+              <Text style={[styles.highlightLabel, { color: COLORS.gold }]}>TOP CREATOR</Text>
               <Text style={styles.highlightTitle}>@{data.topCreator.name.replace('@','')}</Text>
               <Text style={styles.highlightValue}>{fmtCurrency(data.topCreator.gmv)}</Text>
               <Text style={styles.highlightSub}>{fmtNumber(data.topCreator.orders)} orders · {fmtNumber(data.topCreator.videos)} videos</Text>
@@ -399,7 +399,7 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
           {data.topVideo && (
             <View style={styles.highlightCard}>
               <View style={[styles.highlightTopBar, { backgroundColor: COLORS.blue }]} />
-              <Text style={[styles.highlightLabel, { color: COLORS.blue }]}>🎬 TOP VIDEO</Text>
+              <Text style={[styles.highlightLabel, { color: COLORS.blue }]}>TOP VIDEO</Text>
               <Text style={styles.highlightTitle}>{data.topVideo.title.length > 32 ? data.topVideo.title.slice(0, 32) + '...' : data.topVideo.title}</Text>
               <Text style={styles.highlightValue}>{fmtCurrency(data.topVideo.gmv)}</Text>
               <Text style={styles.highlightSub}>by @{data.topVideo.creator.replace('@','')}</Text>
@@ -408,7 +408,7 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
           {data.bestDay && (
             <View style={styles.highlightCard}>
               <View style={[styles.highlightTopBar, { backgroundColor: COLORS.positive }]} />
-              <Text style={[styles.highlightLabel, { color: COLORS.positive }]}>📅 BEST DAY</Text>
+              <Text style={[styles.highlightLabel, { color: COLORS.positive }]}>BEST DAY</Text>
               <Text style={styles.highlightTitle}>{data.bestDay.weekday.slice(0, 3)}, {data.bestDay.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</Text>
               <Text style={styles.highlightValue}>{fmtCurrency(data.bestDay.gmv)}</Text>
               <Text style={styles.highlightSub}>{fmtNumber(data.bestDay.orders)} orders</Text>
@@ -418,7 +418,7 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
 
         {/* Total GMV Hero */}
         <View style={styles.heroCard}>
-          <Text style={styles.heroLabel}>💰 TOTAL GMV GENERATED</Text>
+          <Text style={styles.heroLabel}>TOTAL GMV GENERATED</Text>
           <Text style={styles.heroValue}>{fmtCurrency(data.totalGmv)}</Text>
         </View>
       </Page>
@@ -433,17 +433,17 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
           <Text style={styles.sectionTitle}>Performance Overview</Text>
           <View style={[styles.kpiRow, { marginTop: 10 }]}>
             <View style={styles.kpiCard}>
-              <Text style={styles.kpiLabel}>📦 ORDERS</Text>
+              <Text style={styles.kpiLabel}>ORDERS</Text>
               <Text style={styles.kpiValue}>{fmtNumber(data.totalOrders)}</Text>
               <DeltaPill pct={data.orderChangePct} />
             </View>
             <View style={styles.kpiCard}>
-              <Text style={styles.kpiLabel}>👥 ACTIVE CREATORS</Text>
+              <Text style={styles.kpiLabel}>ACTIVE CREATORS</Text>
               <Text style={styles.kpiValue}>{fmtNumber(data.activeCreators)}</Text>
               <DeltaPill pct={data.creatorChangePct} />
             </View>
             <View style={styles.kpiCard}>
-              <Text style={styles.kpiLabel}>🎬 VIDEOS POSTED</Text>
+              <Text style={styles.kpiLabel}>VIDEOS POSTED</Text>
               <Text style={styles.kpiValue}>{fmtNumber(data.totalVideos)}</Text>
               <DeltaPill pct={data.videoChangePct} />
             </View>
@@ -505,7 +505,7 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
               <Text style={styles.nvrSub}>GMV from new creators</Text>
             </View>
             <View style={styles.nvrCardRet}>
-              <Text style={[styles.nvrLabel, { color: COLORS.blue }]}>🔄 RETURNING</Text>
+              <Text style={[styles.nvrLabel, { color: COLORS.blue }]}>RETURNING</Text>
               <Text style={[styles.nvrCount, { color: COLORS.blue }]}>{fmtNumber(data.returningCreators.count)}</Text>
               <Text style={styles.nvrPctRow}>creators ({Math.round(data.activeCreators > 0 ? (data.returningCreators.count / data.activeCreators) * 100 : 0)}%)</Text>
               <Text style={[styles.nvrGmv, { color: COLORS.blue }]}>{fmtCurrency(data.returningCreators.gmv)}</Text>
@@ -778,7 +778,7 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
                     <Text style={styles.pcName}>{nameClipped}</Text>
                     <Text style={styles.pcPrice}>{fmtCurrency(p.productGmv)}</Text>
                   </View>
-                  <Text style={styles.pcMeta}>📦 {fmtNumber(p.productOrders)} orders · {fmtPct(p.pctOfTotal, 1)} of total GMV</Text>
+                  <Text style={styles.pcMeta}>{fmtNumber(p.productOrders)} orders · {fmtPct(p.pctOfTotal, 1)} of total GMV</Text>
                   {p.topCreators.length > 0 && (
                     <View style={styles.pcChipRow}>
                       <Text style={styles.pcChipLabel}>TOP CREATORS</Text>
@@ -800,9 +800,9 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
             <Text style={styles.footerWordmark}>TEMPO</Text>
             <View style={styles.footerDivider} />
             <View style={styles.footerTagsRow}>
-              <Text style={styles.footerTag}>🎯 TikTok Shop Marketing</Text>
-              <Text style={styles.footerTag}>📊 Creator Management</Text>
-              <Text style={styles.footerTag}>📈 Performance Analytics</Text>
+              <Text style={styles.footerTag}>TikTok Shop Marketing</Text>
+              <Text style={styles.footerTag}>Creator Management</Text>
+              <Text style={styles.footerTag}>Performance Analytics</Text>
             </View>
             <Text style={styles.footerStamp}>
               Report generated on {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
