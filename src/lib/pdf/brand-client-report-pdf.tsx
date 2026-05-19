@@ -545,7 +545,118 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
         </View>
       </Page>
 
-      {/* ───────────── PAGE 4: Top Creators leaderboard ───────────── */}
+      {/* ───────────── PAGE 4: What Creators Corner Is Delivering ───────────── */}
+      <Page size="LETTER" style={styles.page}>
+        <PageHead brandName={data.brandName} periodLabel={data.periodLabel} />
+
+        {/* Contribution headline + trend */}
+        <View style={styles.section}>
+          <Text style={styles.sectionEyebrow}>YOUR CREATORS CORNER TEAM</Text>
+          <Text style={styles.sectionTitle}>What Creators Corner Is Delivering</Text>
+          <View style={styles.splitRow}>
+            <View style={styles.splitLeftCard}>
+              <Text style={[styles.splitLabel, { color: COLORS.pinkDeep }]}>✓ MANAGED GMV THIS PERIOD</Text>
+              <Text style={[styles.splitGmv, { color: COLORS.pinkDeep }]}>{fmtCurrency(data.creatorsCorner.gmv)}</Text>
+              <Text style={styles.splitMeta}>
+                {fmtPct(data.creatorsCorner.pctOfStoreGmv, 1)} of total store GMV · {fmtNumber(data.creatorsCorner.orders)} orders
+              </Text>
+              <View style={{ marginTop: 4, flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={[styles.splitMeta, { marginRight: 6 }]}>vs prior period</Text>
+                <DeltaPill pct={data.creatorsCorner.gmvChangePct} />
+              </View>
+            </View>
+            <View style={styles.splitRightCard}>
+              <Text style={[styles.splitLabel, { color: COLORS.muted }]}>EST. VALUE DELIVERED</Text>
+              <Text style={[styles.splitGmv, { color: COLORS.ink }]}>{fmtCurrency(data.creatorsCorner.commission)}</Text>
+              <Text style={styles.splitMeta}>
+                {fmtNumber(data.creatorsCorner.videos)} videos from signed creators
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Roster activation */}
+        <View style={styles.section}>
+          <Text style={styles.sectionEyebrow}>ROSTER ACTIVATION</Text>
+          <Text style={styles.sectionTitle}>Signed Creators At Work</Text>
+          <Text style={styles.splitMeta}>
+            {fmtNumber(data.creatorsCorner.activeCreatorCount)} of {fmtNumber(data.creatorsCorner.signedCreatorCount)} signed creators were active this period
+            {data.creatorsCorner.newlyActivatedCount > 0
+              ? ` · ${fmtNumber(data.creatorsCorner.newlyActivatedCount)} newly activated`
+              : ''}
+          </Text>
+        </View>
+
+        {/* Efficiency vs organic */}
+        <View style={styles.section}>
+          <Text style={styles.sectionEyebrow}>EFFICIENCY</Text>
+          <Text style={styles.sectionTitle}>Managed vs Organic, Per Creator</Text>
+          <View style={styles.splitRow}>
+            <View style={styles.splitLeftCard}>
+              <Text style={[styles.splitLabel, { color: COLORS.pinkDeep }]}>✓ MANAGED CREATORS</Text>
+              <Text style={[styles.splitGmv, { color: COLORS.pinkDeep, fontSize: 14 }]}>{fmtCurrency(data.creatorsCorner.managedGmvPerCreator)} / creator</Text>
+              <Text style={styles.splitMeta}>{fmtCurrency(data.creatorsCorner.managedAov)} avg order value</Text>
+            </View>
+            <View style={styles.splitRightCard}>
+              <Text style={[styles.splitLabel, { color: COLORS.muted }]}>ORGANIC / AFFILIATE</Text>
+              <Text style={[styles.splitGmv, { color: COLORS.ink, fontSize: 14 }]}>{fmtCurrency(data.creatorsCorner.organicGmvPerCreator)} / creator</Text>
+              <Text style={styles.splitMeta}>{fmtCurrency(data.creatorsCorner.organicAov)} avg order value</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Top managed creators */}
+        <View style={styles.section}>
+          <Text style={styles.sectionEyebrow}>LEADERBOARD</Text>
+          <Text style={styles.sectionTitle}>Top Creators Corner Creators</Text>
+          {data.creatorsCorner.topCreators.length === 0 ? (
+            <Text style={[styles.lbMeta, { marginTop: 10 }]}>No signed-creator activity in this period.</Text>
+          ) : data.creatorsCorner.topCreators.map((c, i) => {
+            const isTop3 = i < 3;
+            return (
+              <View key={c.name + i} style={isTop3 ? styles.lbRowTop : styles.lbRow}>
+                <Text style={styles.lbRank}>{medal(i) || `${i + 1}.`}</Text>
+                <View style={styles.lbBody}>
+                  <Text style={styles.lbName}>@{c.name.replace('@','')} <Text style={[styles.lbMeta, { color: COLORS.muted, fontFamily: 'Helvetica' }]}>· {fmtNumber(c.videos)} videos</Text></Text>
+                  <View style={styles.lbBarTrack}>
+                    <View style={[styles.lbBarFill, { width: `${Math.min(100, c.pctOfManaged)}%` }]} />
+                  </View>
+                </View>
+                <View style={styles.lbGmvBox}>
+                  <Text style={styles.lbGmv}>{fmtCurrency(c.gmv)}</Text>
+                  <Text style={styles.lbPct}>{fmtPct(c.pctOfManaged, 1)} of managed</Text>
+                </View>
+              </View>
+            );
+          })}
+        </View>
+
+        {/* Top managed videos */}
+        <View style={styles.section}>
+          <Text style={styles.sectionEyebrow}>CONTENT</Text>
+          <Text style={styles.sectionTitle}>Top Videos From Your Signed Creators</Text>
+          {data.creatorsCorner.topVideos.length === 0 ? (
+            <Text style={[styles.lbMeta, { marginTop: 10 }]}>No signed-creator videos with sales in this period.</Text>
+          ) : data.creatorsCorner.topVideos.map((v, i) => {
+            const isTop3 = i < 3;
+            const titleClipped = v.title.length > 56 ? v.title.slice(0, 56) + '…' : v.title;
+            return (
+              <View key={v.title + i} style={isTop3 ? styles.lbRowTop : styles.lbRow}>
+                <Text style={styles.lbRank}>{medal(i) || `${i + 1}.`}</Text>
+                <View style={styles.lbBody}>
+                  <Text style={styles.lbName}>{titleClipped}</Text>
+                  <Text style={styles.lbMeta}>by @{v.creator.replace('@','')} · {fmtNumber(v.orders)} orders</Text>
+                </View>
+                <View style={styles.lbGmvBox}>
+                  <Text style={styles.lbGmv}>{fmtCurrency(v.gmv)}</Text>
+                </View>
+              </View>
+            );
+          })}
+        </View>
+      </Page>
+
+      {/* ───────────── PAGE 5: Top Creators leaderboard ───────────── */}
       <Page size="LETTER" style={styles.page}>
         <PageHead brandName={data.brandName} periodLabel={data.periodLabel} />
         <View style={styles.section}>

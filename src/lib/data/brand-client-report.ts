@@ -62,6 +62,35 @@ export interface BrandClientReportData {
   organic: { gmv: number; creatorCount: number; orders: number };
   managedPct: number;            // 0–100
 
+  // Dedicated "What Creators Corner Is Delivering" section. All figures are
+  // the managed (signed-creator) subset of this brand's store performance.
+  creatorsCorner: {
+    // Contribution + trend
+    gmv: number;
+    orders: number;
+    creatorCount: number;        // signed creators active this period
+    videos: number;
+    commission: number;          // estimated, managed subset
+    pctOfStoreGmv: number;       // managed GMV / total store GMV * 100
+    priorGmv: number;
+    priorOrders: number;
+    priorCreatorCount: number;
+    gmvChangePct: number | null; // null = "from zero" (render as "new")
+    orderChangePct: number | null;
+    // Efficiency vs organic (managed creators usually outperform; honest when not)
+    managedAov: number;
+    organicAov: number;
+    managedGmvPerCreator: number;
+    organicGmvPerCreator: number;
+    // Roster activation
+    signedCreatorCount: number;  // total signed creators on the brand
+    activeCreatorCount: number;  // signed creators active this period
+    newlyActivatedCount: number; // active now, not active prior period
+    // Leaderboards (managed only)
+    topCreators: { name: string; videos: number; gmv: number; orders: number; pctOfManaged: number }[];
+    topVideos: { title: string; creator: string; gmv: number; orders: number; videoUrl: string | null }[];
+  };
+
   // New vs Returning
   newCreators: { count: number; gmv: number };
   returningCreators: { count: number; gmv: number };
@@ -459,6 +488,81 @@ export async function getBrandClientReportData(
     ? { date: peakDay.date, weekday: peakDay.weekday, gmv: peakDay.gmv, orders: peakDay.orders, creators: peakDay.creators }
     : null;
 
+  // ── Creators Corner (managed) contribution detail
+  // Prior-period managed totals (for the contribution trend).
+  let ccPriorGmv = 0, ccPriorOrders = 0;
+  const ccPriorCreators = new Set<string>();
+  for (const [handle, p] of priorCreatorMap) {
+    if (managedHandles.has(handle)) {
+      ccPriorGmv += p.gmv; ccPriorOrders += p.orders; ccPriorCreators.add(handle);
+    }
+  }
+  // Current managed creators (videos, commission, leaderboard).
+  let ccVideos = 0, ccCommission = 0;
+  const ccCreatorRows: { name: string; gmv: number; orders: number; videos: number }[] = [];
+  for (const [handle, c] of creatorMap) {
+    if (!managedHandles.has(handle)) continue;
+    ccVideos += c.videos;
+    ccCommission += c.commission;
+    ccCreatorRows.push({ name: c.name, gmv: c.gmv, orders: c.orders, videos: c.videos });
+  }
+  ccCreatorRows.sort((a, b) => b.gmv - a.gmv);
+  const ccTopCreators = ccCreatorRows.slice(0, 5).map(c => ({
+    ...c,
+    pctOfManaged: managedGmv > 0 ? (c.gmv / managedGmv) * 100 : 0,
+  }));
+  // Top videos from managed creators only.
+  const ccVideoMap = new Map<string, { title: string; creator: string; gmv: number; orders: number; videoUrl: string | null }>();
+  for (const row of (videoRows || []) as any[]) {
+    const h = (row.tiktok_username || '').toLowerCase().replace('@', '');
+    if (!h || !managedHandles.has(h)) continue;
+    const id = row.video_id;
+    if (!id) continue;
+    if (!ccVideoMap.has(id)) {
+      ccVideoMap.set(id, {
+        title: row.video_title || '(untitled)',
+        creator: row.tiktok_username || '',
+        gmv: 0, orders: 0,
+        videoUrl: row.video_url || null,
+      });
+    }
+    const v = ccVideoMap.get(id)!;
+    v.gmv += parseFloat(row.gmv) || 0;
+    v.orders += parseInt(row.orders) || 0;
+  }
+  const ccTopVideos = Array.from(ccVideoMap.values()).sort((a, b) => b.gmv - a.gmv).slice(0, 5);
+  // Roster activation.
+  let ccNewlyActivated = 0;
+  for (const h of managedSet) { if (!priorCreatorMap.has(h)) ccNewlyActivated += 1; }
+  // Efficiency vs organic.
+  const ccManagedAov = managedOrders > 0 ? managedGmv / managedOrders : 0;
+  const ccOrganicAov = organicOrders > 0 ? organicGmv / organicOrders : 0;
+  const ccManagedPerCreator = managedSet.size > 0 ? managedGmv / managedSet.size : 0;
+  const ccOrganicPerCreator = organicSet.size > 0 ? organicGmv / organicSet.size : 0;
+
+  const creatorsCorner = {
+    gmv: managedGmv,
+    orders: managedOrders,
+    creatorCount: managedSet.size,
+    videos: ccVideos,
+    commission: ccCommission > 0 ? ccCommission : managedGmv * 0.20,
+    pctOfStoreGmv: managedPct,
+    priorGmv: ccPriorGmv,
+    priorOrders: ccPriorOrders,
+    priorCreatorCount: ccPriorCreators.size,
+    gmvChangePct: pctChange(managedGmv, ccPriorGmv),
+    orderChangePct: pctChange(managedOrders, ccPriorOrders),
+    managedAov: ccManagedAov,
+    organicAov: ccOrganicAov,
+    managedGmvPerCreator: ccManagedPerCreator,
+    organicGmvPerCreator: ccOrganicPerCreator,
+    signedCreatorCount: managedHandles.size,
+    activeCreatorCount: managedSet.size,
+    newlyActivatedCount: ccNewlyActivated,
+    topCreators: ccTopCreators,
+    topVideos: ccTopVideos,
+  };
+
   // ── Period label
   const periodLabel = `${startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, ${endDate.getFullYear()}`;
 
@@ -494,6 +598,7 @@ export async function getBrandClientReportData(
     managed: { gmv: managedGmv, creatorCount: managedSet.size, orders: managedOrders },
     organic: { gmv: organicGmv, creatorCount: organicSet.size, orders: organicOrders },
     managedPct,
+    creatorsCorner,
 
     newCreators: { count: newCount, gmv: newGmv },
     returningCreators: { count: returningCount, gmv: returningGmv },
