@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/auth/require-admin';
+import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 import { throttle } from '@/lib/rate-limit';
 import {
   getWhatsCookingData,
@@ -23,10 +23,10 @@ const VALID_TYPES = new Set([
 ]);
 
 export async function GET(request: NextRequest) {
-  const profile = await requireAdmin();
-  if (!profile) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const scope = await getWorkspaceScope();
+  if (!scope) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
-  if (!throttle(`discord-posts:${profile.user_id}`, 3000)) {
+  if (!throttle(`discord-posts:${scope.userId}`, 3000)) {
     return NextResponse.json({ error: 'Too many requests, please wait a moment' }, { status: 429 });
   }
 
@@ -40,6 +40,12 @@ export async function GET(request: NextRequest) {
   }
   if (period !== '7d' && period !== '30d') {
     return NextResponse.json({ error: 'Invalid period' }, { status: 400 });
+  }
+  // Managers may only generate posts for one of their own brands.
+  if (scope.brandScope.kind === 'scoped'
+    && (brand === 'all' || !scope.brandScope.brandSlugs.includes(brand))) {
+    return NextResponse.json(
+      { error: 'Select one of your brands to generate a post' }, { status: 403 });
   }
 
   const brandName = brand === 'all'

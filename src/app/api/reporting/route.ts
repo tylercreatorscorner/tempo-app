@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/auth/require-admin';
+import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 import { generateReport, type ReportType, type ReportPeriod } from '@/lib/data/reports';
 import { throttle } from '@/lib/rate-limit';
 
@@ -7,12 +7,12 @@ const VALID_TYPES: ReportType[] = ['performance-summary', 'creator-activity', 'b
 const VALID_PERIODS: ReportPeriod[] = ['7d', '30d'];
 
 export async function GET(request: NextRequest) {
-  const profile = await requireAdmin();
-  if (!profile) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const scope = await getWorkspaceScope();
+  if (!scope) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   // Throttle: 1 generation per 3s per user. Reports are expensive; this stops
   // accidental click-spam from blocking the worker queue.
-  if (!throttle(`reporting:${profile.user_id}`, 3000)) {
+  if (!throttle(`reporting:${scope.userId}`, 3000)) {
     return NextResponse.json({ error: 'Too many requests, please wait a moment' }, { status: 429 });
   }
 
@@ -26,6 +26,13 @@ export async function GET(request: NextRequest) {
   }
   if (!VALID_PERIODS.includes(period)) {
     return NextResponse.json({ error: 'Invalid period' }, { status: 400 });
+  }
+  // Managers may only generate reports for one of their own brands (no
+  // all-brands aggregate, which would span brands they don't manage).
+  if (scope.brandScope.kind === 'scoped'
+    && (brand === 'all' || !scope.brandScope.brandSlugs.includes(brand))) {
+    return NextResponse.json(
+      { error: 'Select one of your brands to generate a report' }, { status: 403 });
   }
 
   try {
