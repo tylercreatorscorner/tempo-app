@@ -337,7 +337,7 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
     >
       {/* ───────────── PAGE 1: Cover + Executive Summary + Highlights ───────────── */}
       <Page size="LETTER" style={styles.coverPage}>
-        <View style={styles.coverCard}>
+        <View style={styles.coverCard} wrap={false}>
           <View style={styles.coverAccentBar} />
           <Text style={styles.coverEyebrow}>PREPARED BY</Text>
           <Text style={styles.coverWordmark}>TEMPO</Text>
@@ -353,7 +353,7 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
         </View>
 
         {/* Executive Summary */}
-        <View style={[styles.summaryCard, { marginTop: 22 }]}>
+        <View style={[styles.summaryCard, { marginTop: 22 }]} wrap={false}>
           <Text style={styles.summaryEyebrow}>OVERVIEW</Text>
           <Text style={styles.summaryTitle}>Executive Summary</Text>
           <Text style={styles.summaryBody}>
@@ -386,7 +386,7 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
         </View>
 
         {/* Highlight 3-card row */}
-        <View style={styles.highlightRow}>
+        <View style={styles.highlightRow} wrap={false}>
           {data.topCreator && (
             <View style={styles.highlightCard}>
               <View style={[styles.highlightTopBar, { backgroundColor: COLORS.gold }]} />
@@ -417,7 +417,7 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
         </View>
 
         {/* Total GMV Hero */}
-        <View style={styles.heroCard}>
+        <View style={styles.heroCard} wrap={false}>
           <Text style={styles.heroLabel}>TOTAL GMV GENERATED</Text>
           <Text style={styles.heroValue}>{fmtCurrency(data.totalGmv)}</Text>
         </View>
@@ -431,7 +431,7 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
         <View style={styles.section}>
           <Text style={styles.sectionEyebrow}>KEY METRICS</Text>
           <Text style={styles.sectionTitle}>Performance Overview</Text>
-          <View style={[styles.kpiRow, { marginTop: 10 }]}>
+          <View style={[styles.kpiRow, { marginTop: 10 }]} wrap={false}>
             <View style={styles.kpiCard}>
               <Text style={styles.kpiLabel}>ORDERS</Text>
               <Text style={styles.kpiValue}>{fmtNumber(data.totalOrders)}</Text>
@@ -450,7 +450,7 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
           </View>
 
           {/* Secondary KPIs row */}
-          <View style={styles.kpiRow}>
+          <View style={styles.kpiRow} wrap={false}>
             <View style={[styles.kpiCard, { backgroundColor: COLORS.bgCard }]}>
               <Text style={styles.kpiLabel}>AVG ORDER VALUE</Text>
               <Text style={[styles.kpiValue, { fontSize: 16 }]}>{fmtCurrency(data.avgOrderValue, 2)}</Text>
@@ -470,7 +470,7 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
         <View style={styles.section}>
           <Text style={styles.sectionEyebrow}>PERFORMANCE SPLIT</Text>
           <Text style={styles.sectionTitle}>Managed vs Organic</Text>
-          <View style={styles.splitRow}>
+          <View style={styles.splitRow} wrap={false}>
             <View style={styles.splitLeftCard}>
               <Text style={[styles.splitLabel, { color: COLORS.pinkDeep }]}>MANAGED CREATORS</Text>
               <Text style={[styles.splitGmv, { color: COLORS.pinkDeep }]}>{fmtCurrency(data.managed.gmv)}</Text>
@@ -496,7 +496,7 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
         <View style={styles.section}>
           <Text style={styles.sectionEyebrow}>CREATOR MIX</Text>
           <Text style={styles.sectionTitle}>New vs Returning Creators</Text>
-          <View style={styles.nvrRow}>
+          <View style={styles.nvrRow} wrap={false}>
             <View style={styles.nvrCardNew}>
               <Text style={[styles.nvrLabel, { color: COLORS.positive }]}>NEW THIS PERIOD</Text>
               <Text style={[styles.nvrCount, { color: COLORS.positive }]}>{fmtNumber(data.newCreators.count)}</Text>
@@ -522,7 +522,7 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
         <View style={styles.section}>
           <Text style={styles.sectionEyebrow}>WEEKLY RHYTHM</Text>
           <Text style={styles.sectionTitle}>Performance by Day of Week</Text>
-          <View style={styles.dowRow}>
+          <View style={styles.dowRow} wrap={false}>
             {data.dayOfWeek.map(d => {
               const heightPct = peakDow > 0 ? (d.gmv / peakDow) * 100 : 0;
               const barHeight = Math.max(2, (heightPct / 100) * 70);
@@ -574,7 +574,7 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
         <View style={styles.section}>
           <Text style={styles.sectionEyebrow}>YOUR CREATORS CORNER TEAM</Text>
           <Text style={styles.sectionTitle}>What Creators Corner Is Delivering</Text>
-          <View style={styles.splitRow}>
+          <View style={styles.splitRow} wrap={false}>
             <View style={styles.splitLeftCard}>
               <Text style={[styles.splitLabel, { color: COLORS.pinkDeep }]}>MANAGED GMV THIS PERIOD</Text>
               <Text style={[styles.splitGmv, { color: COLORS.pinkDeep }]}>{fmtCurrency(data.creatorsCorner.gmv)}</Text>
@@ -612,7 +612,7 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
         <View style={styles.section}>
           <Text style={styles.sectionEyebrow}>EFFICIENCY</Text>
           <Text style={styles.sectionTitle}>Managed vs Organic, Per Creator</Text>
-          <View style={styles.splitRow}>
+          <View style={styles.splitRow} wrap={false}>
             <View style={styles.splitLeftCard}>
               <Text style={[styles.splitLabel, { color: COLORS.pinkDeep }]}>MANAGED CREATORS</Text>
               <Text style={[styles.splitGmv, { color: COLORS.pinkDeep, fontSize: 14 }]}>{fmtCurrency(data.creatorsCorner.managedGmvPerCreator)} / creator</Text>
@@ -635,7 +635,7 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
           ) : data.creatorsCorner.topCreators.map((c, i) => {
             const isTop3 = i < 3;
             return (
-              <View key={c.name + i} style={isTop3 ? styles.lbRowTop : styles.lbRow}>
+              <View key={c.name + i} style={isTop3 ? styles.lbRowTop : styles.lbRow} wrap={false}>
                 <Text style={styles.lbRank}>{medal(i) || `${i + 1}.`}</Text>
                 <View style={styles.lbBody}>
                   <Text style={styles.lbName}>@{c.name.replace('@','')} <Text style={[styles.lbMeta, { color: COLORS.muted, fontFamily: 'Inter' }]}>· {fmtNumber(c.videos)} videos</Text></Text>
@@ -662,7 +662,7 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
             const isTop3 = i < 3;
             const titleClipped = v.title.length > 56 ? v.title.slice(0, 56) + '...' : v.title;
             return (
-              <View key={v.title + i} style={isTop3 ? styles.lbRowTop : styles.lbRow}>
+              <View key={v.title + i} style={isTop3 ? styles.lbRowTop : styles.lbRow} wrap={false}>
                 <Text style={styles.lbRank}>{medal(i) || `${i + 1}.`}</Text>
                 <View style={styles.lbBody}>
                   <Text style={styles.lbName}>{titleClipped}</Text>
@@ -688,7 +688,7 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
           ) : data.topCreators.map((c, i) => {
             const isTop3 = i < 3;
             return (
-              <View key={c.name + i} style={isTop3 ? styles.lbRowTop : styles.lbRow}>
+              <View key={c.name + i} style={isTop3 ? styles.lbRowTop : styles.lbRow} wrap={false}>
                 <Text style={styles.lbRank}>{medal(i) || `${i + 1}.`}</Text>
                 <View style={styles.lbBody}>
                   <Text style={styles.lbName}>@{c.name.replace('@','')} <Text style={[styles.lbMeta, { color: COLORS.muted, fontFamily: 'Inter' }]}>· {fmtNumber(c.videos)} videos</Text></Text>
@@ -718,7 +718,7 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
             const isTop3 = i < 3;
             const titleClipped = v.title.length > 56 ? v.title.slice(0, 56) + '...' : v.title;
             return (
-              <View key={v.title + i} style={isTop3 ? styles.lbRowTop : styles.lbRow}>
+              <View key={v.title + i} style={isTop3 ? styles.lbRowTop : styles.lbRow} wrap={false}>
                 <Text style={styles.lbRank}>{medal(i) || `${i + 1}.`}</Text>
                 <View style={styles.lbBody}>
                   <Text style={styles.lbName}>{titleClipped}</Text>
@@ -746,7 +746,7 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
             const isTop3 = i < 3;
             const nameClipped = p.name.length > 70 ? p.name.slice(0, 70) + '...' : p.name;
             return (
-              <View key={p.name + i} style={isTop3 ? styles.lbRowTop : styles.lbRow}>
+              <View key={p.name + i} style={isTop3 ? styles.lbRowTop : styles.lbRow} wrap={false}>
                 <Text style={styles.lbRank}>{medal(i) || `${i + 1}.`}</Text>
                 <View style={styles.lbBody}>
                   <Text style={styles.lbName}>{nameClipped}</Text>
@@ -795,7 +795,7 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
           </View>
 
           {/* Footer card on the last page */}
-          <View style={styles.footerCard}>
+          <View style={styles.footerCard} wrap={false}>
             <Text style={styles.footerEyebrow}>PREPARED BY</Text>
             <Text style={styles.footerWordmark}>TEMPO</Text>
             <View style={styles.footerDivider} />
