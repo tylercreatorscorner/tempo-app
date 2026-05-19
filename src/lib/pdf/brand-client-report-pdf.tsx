@@ -335,7 +335,7 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
       author="Tempo"
       subject="Weekly performance report"
     >
-      {/* ───────────── PAGE 1: Cover + Executive Summary + Highlights ───────────── */}
+      {/* ───────────── PAGE 1: Cover ───────────── */}
       <Page size="LETTER" style={styles.coverPage}>
         <View style={styles.coverCard} wrap={false}>
           <View style={styles.coverAccentBar} />
@@ -351,9 +351,14 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
             </View>
           </View>
         </View>
+      </Page>
+
+      {/* ───────────── PAGE 2: Executive Summary + Highlights + GMV Hero ───────────── */}
+      <Page size="LETTER" style={styles.page}>
+        <PageHead brandName={data.brandName} periodLabel={data.periodLabel} />
 
         {/* Executive Summary */}
-        <View style={[styles.summaryCard, { marginTop: 22 }]} wrap={false}>
+        <View style={styles.summaryCard} wrap={false}>
           <Text style={styles.summaryEyebrow}>OVERVIEW</Text>
           <Text style={styles.summaryTitle}>Executive Summary</Text>
           <Text style={styles.summaryBody}>
@@ -794,7 +799,12 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
             })}
           </View>
 
-          {/* Footer card on the last page */}
+        </Page>
+      )}
+
+      {/* ───────────── Closing page (always rendered) ───────────── */}
+      <Page size="LETTER" style={styles.page}>
+        <View style={{ flexGrow: 1, justifyContent: 'center' }}>
           <View style={styles.footerCard} wrap={false}>
             <Text style={styles.footerEyebrow}>PREPARED BY</Text>
             <Text style={styles.footerWordmark}>TEMPO</Text>
@@ -808,8 +818,8 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
               Report generated on {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
             </Text>
           </View>
-        </Page>
-      )}
+        </View>
+      </Page>
     </Document>
   );
 }
