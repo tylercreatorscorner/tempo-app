@@ -21,8 +21,28 @@
  * Uses Tempo's brand colors (pink #E91E8C primary, dark #1A1B3A ink) instead
  * of the old dash's green palette. Green is reserved for positive deltas.
  */
-import { Document, Page, Text, View, StyleSheet, Svg, Circle, Path } from '@react-pdf/renderer';
+import { Document, Page, Text, View, StyleSheet, Font, Svg, Circle, Path } from '@react-pdf/renderer';
+import path from 'node:path';
 import type { BrandClientReportData } from '@/lib/data/brand-client-report';
+
+// ── Font registration (Inter, matching the invoices PDF + dashboard) ──
+// Built-in Helvetica has no glyphs for emoji/symbols and looks off next to
+// the rest of the product. Resolved against node_modules so it works in
+// dev + serverless production.
+function fontPath(weight: '400Regular' | '600SemiBold' | '700Bold' | '800ExtraBold') {
+  return path.join(process.cwd(), 'node_modules', '@expo-google-fonts', 'inter', weight, `Inter_${weight}.ttf`);
+}
+
+Font.register({
+  family: 'Inter',
+  fonts: [
+    { src: fontPath('400Regular'),   fontWeight: 400 },
+    { src: fontPath('600SemiBold'),  fontWeight: 600 },
+    { src: fontPath('700Bold'),      fontWeight: 700 },
+    { src: fontPath('800ExtraBold'), fontWeight: 800 },
+  ],
+});
+Font.registerHyphenationCallback((word) => [word]);
 
 const COLORS = {
   pink:        '#E91E8C',
@@ -56,7 +76,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 48,
     fontSize: 10,
     color: COLORS.body,
-    fontFamily: 'Helvetica',
+    fontFamily: 'Inter',
     backgroundColor: COLORS.bg,
   },
   // ── Cover page
@@ -66,7 +86,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 48,
     fontSize: 10,
     color: COLORS.body,
-    fontFamily: 'Helvetica',
+    fontFamily: 'Inter',
     backgroundColor: COLORS.bg,
   },
   coverCard: {
@@ -77,21 +97,21 @@ const styles = StyleSheet.create({
     minHeight: 280,
     position: 'relative',
   },
-  coverEyebrow:    { fontSize: 8, color: COLORS.faint, fontFamily: 'Helvetica-Bold', letterSpacing: 1.6, marginBottom: 6 },
-  coverWordmark:   { fontSize: 14, color: '#FFFFFF', fontFamily: 'Helvetica-Bold', letterSpacing: 1.4, marginBottom: 38 },
+  coverEyebrow:    { fontSize: 8, color: COLORS.faint, fontFamily: 'Inter', fontWeight: 700, letterSpacing: 1.6, marginBottom: 6 },
+  coverWordmark:   { fontSize: 14, color: '#FFFFFF', fontFamily: 'Inter', fontWeight: 700, letterSpacing: 1.4, marginBottom: 38 },
   coverDivider:    { height: 0.5, backgroundColor: '#3a3b5a', marginVertical: 14 },
-  coverClientLabel:{ fontSize: 8, color: COLORS.faint, fontFamily: 'Helvetica-Bold', letterSpacing: 1.6, marginBottom: 8 },
+  coverClientLabel:{ fontSize: 8, color: COLORS.faint, fontFamily: 'Inter', fontWeight: 700, letterSpacing: 1.6, marginBottom: 8 },
   coverClientRow:  { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', marginTop: 4 },
-  coverClientName: { fontSize: 28, color: '#FFFFFF', fontFamily: 'Helvetica-Bold', flexShrink: 1 },
+  coverClientName: { fontSize: 28, color: '#FFFFFF', fontFamily: 'Inter', fontWeight: 700, flexShrink: 1 },
   coverPeriodCol:  { alignItems: 'flex-end' },
-  coverPeriodLabel:{ fontSize: 8, color: COLORS.faint, fontFamily: 'Helvetica-Bold', letterSpacing: 1.6, marginBottom: 6 },
-  coverPeriod:     { fontSize: 13, color: COLORS.pink, fontFamily: 'Helvetica-Bold' },
+  coverPeriodLabel:{ fontSize: 8, color: COLORS.faint, fontFamily: 'Inter', fontWeight: 700, letterSpacing: 1.6, marginBottom: 6 },
+  coverPeriod:     { fontSize: 13, color: COLORS.pink, fontFamily: 'Inter', fontWeight: 700 },
   coverAccentBar:  { position: 'absolute', top: 0, left: 24, height: 4, width: 60, backgroundColor: COLORS.pink, borderRadius: 2 },
 
   // ── Section
   section:        { marginBottom: 22 },
-  sectionTitle:   { fontSize: 11, fontFamily: 'Helvetica-Bold', color: COLORS.ink, marginBottom: 4 },
-  sectionEyebrow: { fontSize: 7, color: COLORS.muted, fontFamily: 'Helvetica-Bold', letterSpacing: 1.4, marginBottom: 4 },
+  sectionTitle:   { fontSize: 11, fontFamily: 'Inter', fontWeight: 700, color: COLORS.ink, marginBottom: 4 },
+  sectionEyebrow: { fontSize: 7, color: COLORS.muted, fontFamily: 'Inter', fontWeight: 700, letterSpacing: 1.4, marginBottom: 4 },
 
   // Reusable card
   card: { backgroundColor: COLORS.bg, borderWidth: 1, borderColor: COLORS.rule, borderRadius: 10, padding: 16 },
@@ -107,21 +127,21 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     padding: 18,
   },
-  summaryEyebrow: { fontSize: 7, color: COLORS.muted, fontFamily: 'Helvetica-Bold', letterSpacing: 1.4, marginBottom: 4 },
-  summaryTitle:   { fontSize: 14, fontFamily: 'Helvetica-Bold', color: COLORS.ink, marginBottom: 10 },
+  summaryEyebrow: { fontSize: 7, color: COLORS.muted, fontFamily: 'Inter', fontWeight: 700, letterSpacing: 1.4, marginBottom: 4 },
+  summaryTitle:   { fontSize: 14, fontFamily: 'Inter', fontWeight: 700, color: COLORS.ink, marginBottom: 10 },
   summaryBody:    { fontSize: 11, color: COLORS.body, lineHeight: 1.6 },
-  highlightPos:   { color: COLORS.positive, fontFamily: 'Helvetica-Bold' },
-  highlightNeg:   { color: COLORS.negative, fontFamily: 'Helvetica-Bold' },
-  highlightPink:  { color: COLORS.pink, fontFamily: 'Helvetica-Bold' },
-  highlightInk:   { color: COLORS.ink, fontFamily: 'Helvetica-Bold' },
+  highlightPos:   { color: COLORS.positive, fontFamily: 'Inter', fontWeight: 700 },
+  highlightNeg:   { color: COLORS.negative, fontFamily: 'Inter', fontWeight: 700 },
+  highlightPink:  { color: COLORS.pink, fontFamily: 'Inter', fontWeight: 700 },
+  highlightInk:   { color: COLORS.ink, fontFamily: 'Inter', fontWeight: 700 },
 
   // ── Highlight 3-card row
   highlightRow:  { flexDirection: 'row', gap: 10, marginTop: 14 },
   highlightCard: { flex: 1, borderWidth: 1, borderColor: COLORS.rule, borderRadius: 10, padding: 14, backgroundColor: COLORS.bg },
   highlightTopBar:{ height: 3, borderTopLeftRadius: 10, borderTopRightRadius: 10, marginHorizontal: -14, marginTop: -14, marginBottom: 12 },
-  highlightLabel:{ fontSize: 8, fontFamily: 'Helvetica-Bold', letterSpacing: 1.2, marginBottom: 8 },
-  highlightTitle:{ fontSize: 12, color: COLORS.ink, fontFamily: 'Helvetica-Bold', marginBottom: 4 },
-  highlightValue:{ fontSize: 18, color: COLORS.pink, fontFamily: 'Helvetica-Bold', marginTop: 2 },
+  highlightLabel:{ fontSize: 8, fontFamily: 'Inter', fontWeight: 700, letterSpacing: 1.2, marginBottom: 8 },
+  highlightTitle:{ fontSize: 12, color: COLORS.ink, fontFamily: 'Inter', fontWeight: 700, marginBottom: 4 },
+  highlightValue:{ fontSize: 18, color: COLORS.pink, fontFamily: 'Inter', fontWeight: 700, marginTop: 2 },
   highlightSub:  { fontSize: 8, color: COLORS.muted, marginTop: 4 },
 
   // ── Hero GMV
@@ -133,42 +153,42 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginVertical: 14,
   },
-  heroLabel: { fontSize: 9, color: '#fff', fontFamily: 'Helvetica-Bold', letterSpacing: 1.4, opacity: 0.85, marginBottom: 10 },
-  heroValue: { fontSize: 36, color: '#fff', fontFamily: 'Helvetica-Bold' },
+  heroLabel: { fontSize: 9, color: '#fff', fontFamily: 'Inter', fontWeight: 700, letterSpacing: 1.4, opacity: 0.85, marginBottom: 10 },
+  heroValue: { fontSize: 36, color: '#fff', fontFamily: 'Inter', fontWeight: 700 },
 
   // ── KPI cards
   kpiRow:        { flexDirection: 'row', gap: 10, marginBottom: 10 },
   kpiCard:       { flex: 1, padding: 14, borderRadius: 10, backgroundColor: COLORS.bg, borderWidth: 1, borderColor: COLORS.rule },
-  kpiLabel:      { fontSize: 7, color: COLORS.muted, fontFamily: 'Helvetica-Bold', letterSpacing: 1.2, marginBottom: 8 },
-  kpiValue:      { fontSize: 20, fontFamily: 'Helvetica-Bold', color: COLORS.ink },
-  kpiDeltaPos:   { fontSize: 8, color: COLORS.positive, fontFamily: 'Helvetica-Bold', marginTop: 6, paddingHorizontal: 6, paddingVertical: 2, backgroundColor: COLORS.positiveBg, borderRadius: 999, alignSelf: 'flex-start' },
-  kpiDeltaNeg:   { fontSize: 8, color: COLORS.negative, fontFamily: 'Helvetica-Bold', marginTop: 6, paddingHorizontal: 6, paddingVertical: 2, backgroundColor: COLORS.negativeBg, borderRadius: 999, alignSelf: 'flex-start' },
-  kpiDeltaNew:   { fontSize: 8, color: COLORS.muted, fontFamily: 'Helvetica-Bold', marginTop: 6, paddingHorizontal: 6, paddingVertical: 2, backgroundColor: COLORS.ruleSoft, borderRadius: 999, alignSelf: 'flex-start' },
+  kpiLabel:      { fontSize: 7, color: COLORS.muted, fontFamily: 'Inter', fontWeight: 700, letterSpacing: 1.2, marginBottom: 8 },
+  kpiValue:      { fontSize: 20, fontFamily: 'Inter', fontWeight: 700, color: COLORS.ink },
+  kpiDeltaPos:   { fontSize: 8, color: COLORS.positive, fontFamily: 'Inter', fontWeight: 700, marginTop: 6, paddingHorizontal: 6, paddingVertical: 2, backgroundColor: COLORS.positiveBg, borderRadius: 999, alignSelf: 'flex-start' },
+  kpiDeltaNeg:   { fontSize: 8, color: COLORS.negative, fontFamily: 'Inter', fontWeight: 700, marginTop: 6, paddingHorizontal: 6, paddingVertical: 2, backgroundColor: COLORS.negativeBg, borderRadius: 999, alignSelf: 'flex-start' },
+  kpiDeltaNew:   { fontSize: 8, color: COLORS.muted, fontFamily: 'Inter', fontWeight: 700, marginTop: 6, paddingHorizontal: 6, paddingVertical: 2, backgroundColor: COLORS.ruleSoft, borderRadius: 999, alignSelf: 'flex-start' },
 
   // ── Managed vs Organic
   splitRow:      { flexDirection: 'row', gap: 10, alignItems: 'center', marginTop: 10 },
   splitLeftCard: { flex: 1, padding: 14, borderRadius: 10, backgroundColor: COLORS.pinkSoft, borderWidth: 1, borderColor: '#F8C0DD' },
   splitRightCard:{ flex: 1, padding: 14, borderRadius: 10, backgroundColor: COLORS.bgCard, borderWidth: 1, borderColor: COLORS.rule },
-  splitLabel:    { fontSize: 8, fontFamily: 'Helvetica-Bold', letterSpacing: 1.2, marginBottom: 6 },
-  splitGmv:      { fontSize: 18, fontFamily: 'Helvetica-Bold' },
+  splitLabel:    { fontSize: 8, fontFamily: 'Inter', fontWeight: 700, letterSpacing: 1.2, marginBottom: 6 },
+  splitGmv:      { fontSize: 18, fontFamily: 'Inter', fontWeight: 700 },
   splitMeta:     { fontSize: 8, color: COLORS.muted, marginTop: 6 },
   donutWrap:     { width: 90, alignItems: 'center', justifyContent: 'center' },
-  donutLabel:    { fontSize: 14, fontFamily: 'Helvetica-Bold', color: COLORS.ink },
-  donutSubLabel: { fontSize: 7, color: COLORS.muted, fontFamily: 'Helvetica-Bold', letterSpacing: 1.2 },
+  donutLabel:    { fontSize: 14, fontFamily: 'Inter', fontWeight: 700, color: COLORS.ink },
+  donutSubLabel: { fontSize: 7, color: COLORS.muted, fontFamily: 'Inter', fontWeight: 700, letterSpacing: 1.2 },
   splitBar:      { height: 4, borderRadius: 2, backgroundColor: COLORS.rule, marginTop: 12, overflow: 'hidden' },
   splitBarFill:  { height: 4, backgroundColor: COLORS.pink, borderRadius: 2 },
   splitBarLabels:{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 },
-  splitBarText:  { fontSize: 7, color: COLORS.muted, fontFamily: 'Helvetica-Bold' },
-  splitBarTextR: { fontSize: 7, color: COLORS.muted, fontFamily: 'Helvetica-Bold', textAlign: 'right' },
+  splitBarText:  { fontSize: 7, color: COLORS.muted, fontFamily: 'Inter', fontWeight: 700 },
+  splitBarTextR: { fontSize: 7, color: COLORS.muted, fontFamily: 'Inter', fontWeight: 700, textAlign: 'right' },
 
   // ── New vs Returning
   nvrRow:        { flexDirection: 'row', gap: 10, marginTop: 10 },
   nvrCardNew:    { flex: 1, padding: 14, borderRadius: 10, backgroundColor: COLORS.positiveBg, borderWidth: 1, borderColor: '#A7F3D0' },
   nvrCardRet:    { flex: 1, padding: 14, borderRadius: 10, backgroundColor: COLORS.blueSoft, borderWidth: 1, borderColor: '#BFDBFE' },
-  nvrLabel:      { fontSize: 8, fontFamily: 'Helvetica-Bold', letterSpacing: 1.2 },
-  nvrCount:      { fontSize: 22, fontFamily: 'Helvetica-Bold', marginTop: 6 },
+  nvrLabel:      { fontSize: 8, fontFamily: 'Inter', fontWeight: 700, letterSpacing: 1.2 },
+  nvrCount:      { fontSize: 22, fontFamily: 'Inter', fontWeight: 700, marginTop: 6 },
   nvrPctRow:     { fontSize: 8, color: COLORS.muted, marginTop: 2 },
-  nvrGmv:        { fontSize: 12, fontFamily: 'Helvetica-Bold', marginTop: 8 },
+  nvrGmv:        { fontSize: 12, fontFamily: 'Inter', fontWeight: 700, marginTop: 8 },
   nvrSub:        { fontSize: 7, color: COLORS.muted },
 
   // ── Day-of-week bars
@@ -176,31 +196,31 @@ const styles = StyleSheet.create({
   dowItem:       { flex: 1, alignItems: 'center', marginHorizontal: 2 },
   dowBar:        { width: '70%', backgroundColor: COLORS.blue, borderTopLeftRadius: 2, borderTopRightRadius: 2 },
   dowBarPeak:    { width: '70%', backgroundColor: COLORS.pink, borderTopLeftRadius: 2, borderTopRightRadius: 2 },
-  dowDay:        { fontSize: 8, color: COLORS.muted, marginTop: 4, fontFamily: 'Helvetica-Bold' },
-  dowDayPeak:    { fontSize: 8, color: COLORS.pink, marginTop: 4, fontFamily: 'Helvetica-Bold' },
+  dowDay:        { fontSize: 8, color: COLORS.muted, marginTop: 4, fontFamily: 'Inter', fontWeight: 700 },
+  dowDayPeak:    { fontSize: 8, color: COLORS.pink, marginTop: 4, fontFamily: 'Inter', fontWeight: 700 },
   dowGmv:        { fontSize: 7, color: COLORS.muted, marginBottom: 3 },
-  dowGmvPeak:    { fontSize: 7, color: COLORS.pink, marginBottom: 3, fontFamily: 'Helvetica-Bold' },
+  dowGmvPeak:    { fontSize: 7, color: COLORS.pink, marginBottom: 3, fontFamily: 'Inter', fontWeight: 700 },
 
   // ── Daily perf table
   table:           { borderWidth: 1, borderColor: COLORS.rule, borderRadius: 8, marginTop: 12, overflow: 'hidden' },
   tableHeader:     { flexDirection: 'row', backgroundColor: COLORS.bgCard, paddingVertical: 8, paddingHorizontal: 10, borderBottomWidth: 1, borderBottomColor: COLORS.rule },
-  tableHeaderCell: { fontSize: 7, color: COLORS.muted, fontFamily: 'Helvetica-Bold', letterSpacing: 1.2 },
+  tableHeaderCell: { fontSize: 7, color: COLORS.muted, fontFamily: 'Inter', fontWeight: 700, letterSpacing: 1.2 },
   tableRow:        { flexDirection: 'row', paddingVertical: 8, paddingHorizontal: 10, borderBottomWidth: 0.5, borderBottomColor: COLORS.ruleSoft },
   tableRowPeak:    { flexDirection: 'row', paddingVertical: 8, paddingHorizontal: 10, borderBottomWidth: 0.5, borderBottomColor: COLORS.ruleSoft, backgroundColor: COLORS.pinkSoft },
   tableRowLast:    { flexDirection: 'row', paddingVertical: 8, paddingHorizontal: 10 },
   tableCell:       { fontSize: 9, color: COLORS.ink },
   tableCellRight:  { fontSize: 9, color: COLORS.ink, textAlign: 'right' },
-  tableCellMoney:  { fontSize: 9, color: COLORS.pink, fontFamily: 'Helvetica-Bold', textAlign: 'right' },
-  peakBadge:       { fontSize: 7, color: '#fff', fontFamily: 'Helvetica-Bold', backgroundColor: COLORS.pink, paddingHorizontal: 5, paddingVertical: 1, borderRadius: 3, marginLeft: 6 },
+  tableCellMoney:  { fontSize: 9, color: COLORS.pink, fontFamily: 'Inter', fontWeight: 700, textAlign: 'right' },
+  peakBadge:       { fontSize: 7, color: '#fff', fontFamily: 'Inter', fontWeight: 700, backgroundColor: COLORS.pink, paddingHorizontal: 5, paddingVertical: 1, borderRadius: 3, marginLeft: 6 },
 
   // ── Leaderboard rows
   lbRow:          { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 0.5, borderBottomColor: COLORS.ruleSoft },
   lbRowTop:       { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, marginBottom: 4, borderRadius: 8, paddingHorizontal: 12, backgroundColor: COLORS.pinkSoft, borderWidth: 1, borderColor: '#F8C0DD' },
-  lbRank:         { width: 22, fontSize: 10, color: COLORS.faint, fontFamily: 'Helvetica-Bold' },
+  lbRank:         { width: 22, fontSize: 10, color: COLORS.faint, fontFamily: 'Inter', fontWeight: 700 },
   lbBody:         { flex: 1 },
-  lbName:         { fontSize: 11, color: COLORS.ink, fontFamily: 'Helvetica-Bold' },
+  lbName:         { fontSize: 11, color: COLORS.ink, fontFamily: 'Inter', fontWeight: 700 },
   lbMeta:         { fontSize: 8, color: COLORS.muted, marginTop: 2 },
-  lbGmv:          { fontSize: 12, color: COLORS.pink, fontFamily: 'Helvetica-Bold', textAlign: 'right' },
+  lbGmv:          { fontSize: 12, color: COLORS.pink, fontFamily: 'Inter', fontWeight: 700, textAlign: 'right' },
   lbGmvBox:       { width: 100, alignItems: 'flex-end' },
   lbPct:          { fontSize: 7, color: COLORS.muted, marginTop: 2, textAlign: 'right' },
   lbBarTrack:     { height: 3, backgroundColor: COLORS.rule, borderRadius: 2, marginTop: 6, overflow: 'hidden' },
@@ -209,26 +229,26 @@ const styles = StyleSheet.create({
   // ── Per-product creator breakdown
   pcCard:        { borderLeftWidth: 3, borderLeftColor: COLORS.pink, backgroundColor: COLORS.bg, borderTopWidth: 1, borderRightWidth: 1, borderBottomWidth: 1, borderColor: COLORS.rule, borderRadius: 6, padding: 14, marginBottom: 10 },
   pcRow:         { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  pcName:        { fontSize: 11, color: COLORS.ink, fontFamily: 'Helvetica-Bold', flex: 1, paddingRight: 12 },
-  pcPrice:       { fontSize: 16, color: COLORS.pink, fontFamily: 'Helvetica-Bold', textAlign: 'right' },
+  pcName:        { fontSize: 11, color: COLORS.ink, fontFamily: 'Inter', fontWeight: 700, flex: 1, paddingRight: 12 },
+  pcPrice:       { fontSize: 16, color: COLORS.pink, fontFamily: 'Inter', fontWeight: 700, textAlign: 'right' },
   pcMeta:        { fontSize: 8, color: COLORS.muted, marginTop: 4 },
   pcChipRow:     { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10, paddingTop: 10, borderTopWidth: 0.5, borderTopColor: COLORS.ruleSoft },
-  pcChipLabel:   { fontSize: 7, color: COLORS.muted, fontFamily: 'Helvetica-Bold', letterSpacing: 1.2, width: '100%', marginBottom: 4 },
+  pcChipLabel:   { fontSize: 7, color: COLORS.muted, fontFamily: 'Inter', fontWeight: 700, letterSpacing: 1.2, width: '100%', marginBottom: 4 },
   pcChip:        { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4, backgroundColor: COLORS.bgCard, borderWidth: 1, borderColor: COLORS.rule },
-  pcChipText:    { fontSize: 9, color: COLORS.ink, fontFamily: 'Helvetica-Bold' },
+  pcChipText:    { fontSize: 9, color: COLORS.ink, fontFamily: 'Inter', fontWeight: 700 },
 
   // ── Footer
   footerCard:    { backgroundColor: COLORS.ink, borderRadius: 12, padding: 28, alignItems: 'center', marginTop: 24 },
-  footerEyebrow: { fontSize: 8, color: COLORS.faint, fontFamily: 'Helvetica-Bold', letterSpacing: 1.6, marginBottom: 6 },
-  footerWordmark:{ fontSize: 16, color: '#fff', fontFamily: 'Helvetica-Bold', letterSpacing: 1.4 },
+  footerEyebrow: { fontSize: 8, color: COLORS.faint, fontFamily: 'Inter', fontWeight: 700, letterSpacing: 1.6, marginBottom: 6 },
+  footerWordmark:{ fontSize: 16, color: '#fff', fontFamily: 'Inter', fontWeight: 700, letterSpacing: 1.4 },
   footerDivider: { height: 0.5, backgroundColor: '#3a3b5a', marginTop: 14, marginBottom: 14, alignSelf: 'stretch' },
   footerTagsRow: { flexDirection: 'row', gap: 18, marginBottom: 10 },
-  footerTag:     { fontSize: 8, color: COLORS.faint, fontFamily: 'Helvetica-Bold' },
+  footerTag:     { fontSize: 8, color: COLORS.faint, fontFamily: 'Inter', fontWeight: 700 },
   footerStamp:   { fontSize: 7, color: COLORS.faint, marginTop: 8 },
 
   // Page header on continuation pages
   pageHead:        { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: COLORS.rule },
-  pageHeadBrand:   { fontSize: 9, color: COLORS.pink, fontFamily: 'Helvetica-Bold' },
+  pageHeadBrand:   { fontSize: 9, color: COLORS.pink, fontFamily: 'Inter', fontWeight: 700 },
   pageHeadPeriod:  { fontSize: 8, color: COLORS.muted },
 });
 
@@ -246,9 +266,10 @@ function fmtCurrencyShort(n: number): string {
 function fmtNumber(n: number): string { return Math.round(n || 0).toLocaleString(); }
 function fmtPct(n: number, decimals = 0): string { return (n || 0).toFixed(decimals) + '%'; }
 function medal(rank: number): string {
-  if (rank === 0) return '🥇';
-  if (rank === 1) return '🥈';
-  if (rank === 2) return '🥉';
+  // Ranks render as "1." "2." "3." via the `medal(i) || \`${i+1}.\`` callers.
+  // Top-3 rows already get distinct styling (lbRowTop), so no icon needed,
+  // and emoji have no glyph in the embedded font (caused tofu over text).
+  void rank;
   return '';
 }
 
@@ -298,8 +319,8 @@ function Donut({ pct }: { pct: number }) {
 function DeltaPill({ pct }: { pct: number | null }) {
   if (pct === null) return <Text style={styles.kpiDeltaNew}>NEW</Text>;
   const rounded = Math.round(Math.abs(pct));
-  if (pct >= 0) return <Text style={styles.kpiDeltaPos}>↑ {rounded}%</Text>;
-  return <Text style={styles.kpiDeltaNeg}>↓ {rounded}%</Text>;
+  if (pct >= 0) return <Text style={styles.kpiDeltaPos}>+{rounded}%</Text>;
+  return <Text style={styles.kpiDeltaNeg}>-{rounded}%</Text>;
 }
 
 // ── Main Document ──────────────────────────────────────────────────
@@ -379,7 +400,7 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
             <View style={styles.highlightCard}>
               <View style={[styles.highlightTopBar, { backgroundColor: COLORS.blue }]} />
               <Text style={[styles.highlightLabel, { color: COLORS.blue }]}>🎬 TOP VIDEO</Text>
-              <Text style={styles.highlightTitle}>{data.topVideo.title.length > 32 ? data.topVideo.title.slice(0, 32) + '…' : data.topVideo.title}</Text>
+              <Text style={styles.highlightTitle}>{data.topVideo.title.length > 32 ? data.topVideo.title.slice(0, 32) + '...' : data.topVideo.title}</Text>
               <Text style={styles.highlightValue}>{fmtCurrency(data.topVideo.gmv)}</Text>
               <Text style={styles.highlightSub}>by @{data.topVideo.creator.replace('@','')}</Text>
             </View>
@@ -451,7 +472,7 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
           <Text style={styles.sectionTitle}>Managed vs Organic</Text>
           <View style={styles.splitRow}>
             <View style={styles.splitLeftCard}>
-              <Text style={[styles.splitLabel, { color: COLORS.pinkDeep }]}>✓ MANAGED CREATORS</Text>
+              <Text style={[styles.splitLabel, { color: COLORS.pinkDeep }]}>MANAGED CREATORS</Text>
               <Text style={[styles.splitGmv, { color: COLORS.pinkDeep }]}>{fmtCurrency(data.managed.gmv)}</Text>
               <Text style={styles.splitMeta}>{fmtNumber(data.managed.creatorCount)} creators · {fmtNumber(data.managed.orders)} orders</Text>
             </View>
@@ -466,7 +487,7 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
             <View style={[styles.splitBarFill, { width: `${Math.min(100, data.managedPct)}%` }]} />
           </View>
           <View style={styles.splitBarLabels}>
-            <Text style={[styles.splitBarText, { color: COLORS.pink }]}>✓ {fmtPct(data.managedPct, 1)} from Managed Creators</Text>
+            <Text style={[styles.splitBarText, { color: COLORS.pink }]}>{fmtPct(data.managedPct, 1)} from Managed Creators</Text>
             <Text style={styles.splitBarTextR}>{fmtPct(100 - data.managedPct, 1)} Organic</Text>
           </View>
         </View>
@@ -477,7 +498,7 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
           <Text style={styles.sectionTitle}>New vs Returning Creators</Text>
           <View style={styles.nvrRow}>
             <View style={styles.nvrCardNew}>
-              <Text style={[styles.nvrLabel, { color: COLORS.positive }]}>🆕 NEW THIS PERIOD</Text>
+              <Text style={[styles.nvrLabel, { color: COLORS.positive }]}>NEW THIS PERIOD</Text>
               <Text style={[styles.nvrCount, { color: COLORS.positive }]}>{fmtNumber(data.newCreators.count)}</Text>
               <Text style={styles.nvrPctRow}>creators ({Math.round(data.activeCreators > 0 ? (data.newCreators.count / data.activeCreators) * 100 : 0)}%)</Text>
               <Text style={[styles.nvrGmv, { color: COLORS.positive }]}>{fmtCurrency(data.newCreators.gmv)}</Text>
@@ -555,7 +576,7 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
           <Text style={styles.sectionTitle}>What Creators Corner Is Delivering</Text>
           <View style={styles.splitRow}>
             <View style={styles.splitLeftCard}>
-              <Text style={[styles.splitLabel, { color: COLORS.pinkDeep }]}>✓ MANAGED GMV THIS PERIOD</Text>
+              <Text style={[styles.splitLabel, { color: COLORS.pinkDeep }]}>MANAGED GMV THIS PERIOD</Text>
               <Text style={[styles.splitGmv, { color: COLORS.pinkDeep }]}>{fmtCurrency(data.creatorsCorner.gmv)}</Text>
               <Text style={styles.splitMeta}>
                 {fmtPct(data.creatorsCorner.pctOfStoreGmv, 1)} of total store GMV · {fmtNumber(data.creatorsCorner.orders)} orders
@@ -593,7 +614,7 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
           <Text style={styles.sectionTitle}>Managed vs Organic, Per Creator</Text>
           <View style={styles.splitRow}>
             <View style={styles.splitLeftCard}>
-              <Text style={[styles.splitLabel, { color: COLORS.pinkDeep }]}>✓ MANAGED CREATORS</Text>
+              <Text style={[styles.splitLabel, { color: COLORS.pinkDeep }]}>MANAGED CREATORS</Text>
               <Text style={[styles.splitGmv, { color: COLORS.pinkDeep, fontSize: 14 }]}>{fmtCurrency(data.creatorsCorner.managedGmvPerCreator)} / creator</Text>
               <Text style={styles.splitMeta}>{fmtCurrency(data.creatorsCorner.managedAov)} avg order value</Text>
             </View>
@@ -617,7 +638,7 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
               <View key={c.name + i} style={isTop3 ? styles.lbRowTop : styles.lbRow}>
                 <Text style={styles.lbRank}>{medal(i) || `${i + 1}.`}</Text>
                 <View style={styles.lbBody}>
-                  <Text style={styles.lbName}>@{c.name.replace('@','')} <Text style={[styles.lbMeta, { color: COLORS.muted, fontFamily: 'Helvetica' }]}>· {fmtNumber(c.videos)} videos</Text></Text>
+                  <Text style={styles.lbName}>@{c.name.replace('@','')} <Text style={[styles.lbMeta, { color: COLORS.muted, fontFamily: 'Inter' }]}>· {fmtNumber(c.videos)} videos</Text></Text>
                   <View style={styles.lbBarTrack}>
                     <View style={[styles.lbBarFill, { width: `${Math.min(100, c.pctOfManaged)}%` }]} />
                   </View>
@@ -639,7 +660,7 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
             <Text style={[styles.lbMeta, { marginTop: 10 }]}>No signed-creator videos with sales in this period.</Text>
           ) : data.creatorsCorner.topVideos.map((v, i) => {
             const isTop3 = i < 3;
-            const titleClipped = v.title.length > 56 ? v.title.slice(0, 56) + '…' : v.title;
+            const titleClipped = v.title.length > 56 ? v.title.slice(0, 56) + '...' : v.title;
             return (
               <View key={v.title + i} style={isTop3 ? styles.lbRowTop : styles.lbRow}>
                 <Text style={styles.lbRank}>{medal(i) || `${i + 1}.`}</Text>
@@ -670,7 +691,7 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
               <View key={c.name + i} style={isTop3 ? styles.lbRowTop : styles.lbRow}>
                 <Text style={styles.lbRank}>{medal(i) || `${i + 1}.`}</Text>
                 <View style={styles.lbBody}>
-                  <Text style={styles.lbName}>@{c.name.replace('@','')} <Text style={[styles.lbMeta, { color: COLORS.muted, fontFamily: 'Helvetica' }]}>· {fmtNumber(c.videos)} videos</Text></Text>
+                  <Text style={styles.lbName}>@{c.name.replace('@','')} <Text style={[styles.lbMeta, { color: COLORS.muted, fontFamily: 'Inter' }]}>· {fmtNumber(c.videos)} videos</Text></Text>
                   <View style={styles.lbBarTrack}>
                     <View style={[styles.lbBarFill, { width: `${Math.min(100, c.pctOfTotal * 4)}%` }]} />
                   </View>
@@ -695,7 +716,7 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
             <Text style={[styles.lbMeta, { marginTop: 10 }]}>No videos with sales in this period.</Text>
           ) : data.topVideos.map((v, i) => {
             const isTop3 = i < 3;
-            const titleClipped = v.title.length > 56 ? v.title.slice(0, 56) + '…' : v.title;
+            const titleClipped = v.title.length > 56 ? v.title.slice(0, 56) + '...' : v.title;
             return (
               <View key={v.title + i} style={isTop3 ? styles.lbRowTop : styles.lbRow}>
                 <Text style={styles.lbRank}>{medal(i) || `${i + 1}.`}</Text>
@@ -723,7 +744,7 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
             <Text style={[styles.lbMeta, { marginTop: 10 }]}>No product data in this period.</Text>
           ) : data.topProducts.map((p, i) => {
             const isTop3 = i < 3;
-            const nameClipped = p.name.length > 70 ? p.name.slice(0, 70) + '…' : p.name;
+            const nameClipped = p.name.length > 70 ? p.name.slice(0, 70) + '...' : p.name;
             return (
               <View key={p.name + i} style={isTop3 ? styles.lbRowTop : styles.lbRow}>
                 <Text style={styles.lbRank}>{medal(i) || `${i + 1}.`}</Text>
@@ -750,7 +771,7 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
             <Text style={styles.sectionTitle}>Product Breakdown by Creator</Text>
             <Text style={[styles.lbMeta, { marginBottom: 12 }]}>Top 5 products and the creators driving them</Text>
             {data.productCreatorBreakdown.map((p, i) => {
-              const nameClipped = p.productName.length > 80 ? p.productName.slice(0, 80) + '…' : p.productName;
+              const nameClipped = p.productName.length > 80 ? p.productName.slice(0, 80) + '...' : p.productName;
               return (
                 <View key={p.productName + i} style={styles.pcCard} wrap={false}>
                   <View style={styles.pcRow}>
