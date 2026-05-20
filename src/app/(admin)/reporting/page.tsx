@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
 import { BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
 import { useTenant } from '@/hooks/use-tenant';
 import { FREQUENCIES } from '@/lib/data/schedule-frequency';
+import { ModalOverlay } from '@/components/ui/modal-overlay';
 
 interface BrandListEntry {
   slug: string;
@@ -642,7 +643,8 @@ function ScheduleModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+    <ModalOverlay onClose={onClose}>
+    <div className="absolute inset-0 flex items-center justify-center p-4" onClick={onClose}>
       <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" />
       <div
         className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4"
@@ -785,6 +787,7 @@ function ScheduleModal({
         </div>
       </div>
     </div>
+    </ModalOverlay>
   );
 }
 

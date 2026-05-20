@@ -17,6 +17,7 @@ import { X, Loader2, Receipt, ChevronDown, Sparkles, ExternalLink, AlertTriangle
 import { cn } from '@/lib/utils';
 import { formatCurrency, buildMonthOptions } from '@/lib/utils/format';
 import type { Invoice } from './invoice-detail-sheet';
+import { ModalOverlay } from '@/components/ui/modal-overlay';
 
 interface BrandOption {
   brand: string;
@@ -118,7 +119,8 @@ export function NewInvoiceModal({ open, defaultMonth, onClose, onCreated, onView
   const selectedBrandData = brands.find((b) => b.brand === selectedBrand) ?? null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <ModalOverlay onClose={onClose} closeOnBackdropClick={false}>
+    <div className="absolute inset-0 flex items-center justify-center p-4">
       <button aria-label="Close" className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
 
       <div className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200">
@@ -280,6 +282,7 @@ export function NewInvoiceModal({ open, defaultMonth, onClose, onCreated, onView
         </div>
       </div>
     </div>
+    </ModalOverlay>
   );
 }
 

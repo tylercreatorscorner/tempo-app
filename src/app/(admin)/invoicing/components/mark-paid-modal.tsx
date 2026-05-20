@@ -10,6 +10,7 @@ import { useEffect, useState } from 'react';
 import { X, CheckCircle2, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/utils/format';
+import { ModalOverlay } from '@/components/ui/modal-overlay';
 
 const METHODS = [
   { value: 'wire',   label: 'Wire Transfer' },
@@ -82,7 +83,8 @@ export function MarkPaidModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+    <ModalOverlay onClose={onClose} closeOnBackdropClick={false}>
+    <div className="absolute inset-0 flex items-center justify-center p-4">
       <button aria-label="Close" className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
 
       <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200">
@@ -189,6 +191,7 @@ export function MarkPaidModal({
         </div>
       </div>
     </div>
+    </ModalOverlay>
   );
 }
 

@@ -17,6 +17,7 @@ import {
   Trash2, Pencil, Calendar, Hand, ChevronDown,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ModalOverlay } from '@/components/ui/modal-overlay';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -510,7 +511,8 @@ function BuilderDrawer({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
+    <ModalOverlay onClose={onClose}>
+    <div className="absolute inset-0 flex justify-end" onClick={onClose}>
       <div className="absolute inset-0 bg-black/20 backdrop-blur-[2px]" />
       <div
         className="relative w-full max-w-lg bg-white shadow-2xl h-full overflow-y-auto flex flex-col"
@@ -713,6 +715,7 @@ function BuilderDrawer({
         </div>
       </div>
     </div>
+    </ModalOverlay>
   );
 }
 

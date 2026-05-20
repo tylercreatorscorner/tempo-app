@@ -13,6 +13,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Plug, AlertCircle, CheckCircle2, Clock, X, MessageSquare, ShoppingBag, Mail, MessageCircle, Phone, Sparkles, Database, type LucideIcon, Plus, ExternalLink, Send, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ModalOverlay } from '@/components/ui/modal-overlay';
 import type { IntegrationView } from '@/lib/data/integration-catalog';
 import { TYPE_LABELS, INTEGRATION_TYPE_CATALOG } from '@/lib/data/integration-catalog';
 import { ParamField, type ActionParam } from '@/components/workflows/param-field';
@@ -320,7 +321,8 @@ function ConnectModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+    <ModalOverlay onClose={onClose}>
+    <div className="absolute inset-0 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/30" />
       <div
         onClick={(e) => e.stopPropagation()}
@@ -389,6 +391,7 @@ function ConnectModal({
         </div>
       </div>
     </div>
+    </ModalOverlay>
   );
 }
 
@@ -409,7 +412,8 @@ function IntegrationDetailDrawer({
   const supportsTestSend = true;
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
+    <ModalOverlay onClose={onClose}>
+    <div className="absolute inset-0 flex justify-end">
       <div className="absolute inset-0 bg-black/20 backdrop-blur-[2px]" />
       <div
         className="relative w-full max-w-md bg-white shadow-2xl h-full overflow-y-auto flex flex-col"
@@ -482,6 +486,7 @@ function IntegrationDetailDrawer({
         </div>
       </div>
     </div>
+    </ModalOverlay>
   );
 }
 

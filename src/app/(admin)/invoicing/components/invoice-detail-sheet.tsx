@@ -5,6 +5,7 @@ import { X, Save, Download, Trash2, Loader2, Send, CheckCircle2, RotateCcw, Refr
 import { cn } from '@/lib/utils';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
 import { MarkPaidModal } from './mark-paid-modal';
+import { ModalOverlay } from '@/components/ui/modal-overlay';
 
 export interface InvoiceCreator {
   name: string;
@@ -280,7 +281,8 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex">
+    <ModalOverlay onClose={onClose} closeOnBackdropClick={false}>
+    <div className="absolute inset-0 flex">
       <button aria-label="Close" className="flex-1 bg-black/30 backdrop-blur-sm" onClick={onClose} />
 
       <div className="w-full max-w-lg bg-white shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
@@ -619,6 +621,7 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
         onConfirm={handleMarkPaid}
       />
     </div>
+    </ModalOverlay>
   );
 }
 

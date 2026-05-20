@@ -13,6 +13,7 @@ import Link from 'next/link';
 import { BRAND_DISPLAY_NAMES, BRAND_COLORS } from '@/lib/utils/constants';
 import { useBrandList } from '@/hooks/use-brand-list';
 import { RenewalsTab } from '@/components/roster/renewals-tab';
+import { ModalOverlay } from '@/components/ui/modal-overlay';
 
 const PAGE_SIZE = 50;
 
@@ -1108,13 +1109,14 @@ function AddCreatorModal({ prefill, onClose, onSuccess }: AddCreatorModalProps) 
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={onClose}>
+    <ModalOverlay onClose={onClose}>
       <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" />
+      <div className="fixed inset-0 flex items-center justify-center pointer-events-none">
       <div
-        className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl mx-4"
+        className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl mx-4 max-h-[90vh] overflow-y-auto pointer-events-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 sticky top-0 bg-white z-10">
           <h2 className="text-base font-bold text-[#1A1B3A]">Add Creator</h2>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
             <X className="h-5 w-5 text-gray-400" />
@@ -1249,7 +1251,8 @@ function AddCreatorModal({ prefill, onClose, onSuccess }: AddCreatorModalProps) 
           </div>
         </form>
       </div>
-    </div>
+      </div>
+    </ModalOverlay>
   );
 }
 

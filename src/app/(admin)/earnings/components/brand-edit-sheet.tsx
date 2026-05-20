@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { X, Loader2, Save } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CreatorOverridesSection } from './creator-overrides-section';
+import { ModalOverlay } from '@/components/ui/modal-overlay';
 
 export type CompensationModel = 'standard' | 'revshare_max' | 'commission_only' | 'retainer_only';
 
@@ -131,7 +132,8 @@ export function BrandEditSheet({ open, brand, brandLabel, initialValues, marketi
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex">
+    <ModalOverlay onClose={onClose} closeOnBackdropClick={false}>
+    <div className="absolute inset-0 flex">
       {/* Backdrop */}
       <button
         aria-label="Close"
@@ -321,6 +323,7 @@ export function BrandEditSheet({ open, brand, brandLabel, initialValues, marketi
         </div>
       </div>
     </div>
+    </ModalOverlay>
   );
 }
 
