@@ -252,22 +252,25 @@ function BrandSelect({
     };
   }, [open]);
 
-  // Non-passive wheel listener on the scrollable list. React's synthetic
-  // onWheel attaches passive listeners, where preventDefault is a no-op —
-  // so we manually attach a native non-passive listener and call preventDefault
-  // ourselves after scrolling the list, forcing the browser to drop the
-  // wheel event without chaining it to any ancestor scroll container.
+  // Non-passive wheel listener on the OUTER popover. React's synthetic
+  // onWheel attaches passive listeners, where preventDefault is a no-op,
+  // so we manually attach a native non-passive listener. We catch wheel
+  // events anywhere inside the popover (including the search bar and any
+  // gap region) — preventDefault first, then scroll the list manually.
+  // Attaching on the inner list alone misses wheel events on the search
+  // bar header, letting the page scroll by default.
   useEffect(() => {
     if (!open) return;
-    const el = listScrollRef.current;
-    if (!el) return;
+    const popover = popoverRef.current;
+    const list = listScrollRef.current;
+    if (!popover || !list) return;
     const onWheel = (e: WheelEvent) => {
-      el.scrollTop += e.deltaY;
       e.preventDefault();
+      list.scrollTop += e.deltaY;
     };
-    el.addEventListener('wheel', onWheel, { passive: false });
-    return () => el.removeEventListener('wheel', onWheel);
-  }, [open]);
+    popover.addEventListener('wheel', onWheel, { passive: false });
+    return () => popover.removeEventListener('wheel', onWheel);
+  }, [open, portalReady, anchorRect]);
 
   const current = value === 'all'
     ? { slug: 'all', name: 'All brands', color: undefined as string | undefined }
