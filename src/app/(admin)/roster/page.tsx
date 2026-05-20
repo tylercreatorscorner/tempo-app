@@ -1562,32 +1562,50 @@ function RosterContent() {
     : '';
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-[#1A1B3A]">My Creators</h1>
-          <p className="text-sm text-gray-400 mt-0.5">
-            {brandDisplayName ? `${brandDisplayName} · ` : ''}Your managed talent roster
-          </p>
+    <div className="space-y-4">
+      {/* Consolidated header: title + subtitle on the left, brand selector +
+          tab toggle in the middle-left toolbar, Add Creator on the right.
+          Collapsing what were three separate vertical rows into one band
+          reclaims ~80px of vertical real-estate. */}
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-5 flex-wrap">
+          <div>
+            <h1 className="text-2xl font-bold text-[#1A1B3A] leading-tight">My Creators</h1>
+            <p className="text-xs text-gray-400 mt-0.5">
+              {brandDisplayName ? `${brandDisplayName} · ` : ''}Your managed talent roster
+            </p>
+          </div>
+          <BrandSelect
+            value={brand || 'all'}
+            options={brandOptions}
+            onChange={setBrand}
+          />
+          <div className="flex gap-1 p-1 bg-gray-100 rounded-xl w-fit">
+            <button
+              onClick={() => setActiveTab('roster')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                activeTab === 'roster' ? 'bg-white text-[#1A1B3A] shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <UserCheck className="h-3.5 w-3.5" /> Roster
+            </button>
+            <button
+              onClick={() => setActiveTab('renewals')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                activeTab === 'renewals' ? 'bg-white text-[#1A1B3A] shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <RefreshCcw className="h-3.5 w-3.5" /> Renewals
+            </button>
+          </div>
         </div>
         <button
           onClick={() => setAddModalPrefill({})}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#E91E8C] text-sm font-semibold text-white hover:bg-[#d1177d] transition-colors shadow-sm"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#E91E8C] text-sm font-semibold text-white hover:bg-[#d1177d] transition-colors shadow-sm self-start lg:self-auto"
         >
           <UserPlus className="h-4 w-4" />
           Add Creator
         </button>
-      </div>
-
-      {/* Brand selector — searchable dropdown. The old pill row didn't scale
-          past ~10 brands; with 20+ this collapses to a single button. */}
-      <div className="flex flex-wrap gap-2 items-center">
-        <BrandSelect
-          value={brand || 'all'}
-          options={brandOptions}
-          onChange={setBrand}
-        />
       </div>
 
       {/* LeeFar store sub-filter — only visible when LeeFar is the active brand.
@@ -1595,7 +1613,7 @@ function RosterContent() {
           manager drill down to "creators primarily selling Nutrition" or
           "Supplements" specifically. */}
       {brand === 'leefar' && (
-        <div className="flex flex-wrap gap-2 items-center text-xs">
+        <div className="flex flex-wrap gap-2 items-center text-xs -mt-1">
           <span className="text-gray-400 font-medium uppercase tracking-wider">Store:</span>
           {([
             { val: null,                   label: 'Both stores' },
@@ -1619,29 +1637,6 @@ function RosterContent() {
           })}
         </div>
       )}
-
-      {/* Tab toggle — Roster | Renewals (the old "All Creators" tab is now an
-          inline toggle on the Roster table itself, so unmanaged candidates can
-          be sorted and compared alongside managed creators rather than living
-          in their own siloed view). */}
-      <div className="flex gap-1 p-1 bg-gray-100 rounded-xl w-fit">
-        <button
-          onClick={() => setActiveTab('roster')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
-            activeTab === 'roster' ? 'bg-white text-[#1A1B3A] shadow-sm' : 'text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          <UserCheck className="h-4 w-4" /> Managed Roster
-        </button>
-        <button
-          onClick={() => setActiveTab('renewals')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
-            activeTab === 'renewals' ? 'bg-white text-[#1A1B3A] shadow-sm' : 'text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          <RefreshCcw className="h-4 w-4" /> Renewals
-        </button>
-      </div>
 
       {/* Renewals tab */}
       {activeTab === 'renewals' && (
