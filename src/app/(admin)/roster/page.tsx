@@ -258,8 +258,11 @@ function BrandSelect({
       </button>
 
       {open && (
-        <div className="absolute z-30 mt-1 w-72 rounded-xl border border-gray-200 bg-white shadow-lg overflow-hidden">
-          <div className="p-2 border-b border-gray-100">
+        // Single scroll boundary on the OUTER container so wheel events on
+        // the search bar / gap regions are captured here instead of bubbling
+        // to the page. overscroll-contain stops chaining at the boundary.
+        <div className="absolute z-30 mt-1 w-72 rounded-xl border border-gray-200 bg-white shadow-lg max-h-96 overflow-y-auto overscroll-contain">
+          <div className="p-2 border-b border-gray-100 sticky top-0 bg-white z-10">
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
               <input
@@ -272,7 +275,7 @@ function BrandSelect({
               />
             </div>
           </div>
-          <div className="max-h-72 overflow-y-auto py-1">
+          <div className="py-1">
             <button
               type="button"
               onClick={() => { onChange('all'); setOpen(false); setQuery(''); }}
