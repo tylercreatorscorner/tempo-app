@@ -79,7 +79,9 @@ export async function GET(request: NextRequest) {
     const videosByHandle = new Map<string, Set<string>>();
     if (allHandles.length > 0) {
       const { data: vids } = await supabase
-        .from('daily_video_stats')
+        // daily_video_product_stats is per video×product; Set<video_id>
+        // below dedupes so per-creator video counts stay correct.
+        .from('daily_video_product_stats')
         .select('tiktok_username, video_id')
         .gte('post_date', sevenDaysAgo)
         .in('tiktok_username', allHandles);

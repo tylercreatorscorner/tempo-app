@@ -127,7 +127,9 @@ export async function GET() {
     const postsByCreator = new Map<string, Set<string>>();
     while (hasMore) {
       const { data: vids } = await supabase
-        .from('daily_video_stats')
+        // daily_video_product_stats is per video×product; Set<video_id>
+        // below dedupes so video counts stay correct.
+        .from('daily_video_product_stats')
         .select('video_id, tiktok_username')
         .gte('post_date', sevenDaysAgo)
         .range(vidPage * vpPageSize, (vidPage + 1) * vpPageSize - 1);

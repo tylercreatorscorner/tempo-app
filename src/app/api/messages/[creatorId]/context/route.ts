@@ -100,9 +100,10 @@ export async function GET(
             brandGmvMap.set(b, (brandGmvMap.get(b) || 0) + (Number(v.gmv) || 0));
           }
 
-          // Post counts from daily_video_stats
+          // Post counts. Source: daily_video_product_stats (rows are per
+          // video×product; Set<video_id> below dedupes correctly).
           const { data: postRows } = await supabase
-            .from('daily_video_stats')
+            .from('daily_video_product_stats')
             .select('video_id, tiktok_username, brand_id')
             .in('tiktok_username', usernames)
             .gte('post_date', dateStr);

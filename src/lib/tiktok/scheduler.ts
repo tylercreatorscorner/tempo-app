@@ -137,15 +137,15 @@ export async function syncBrand(
     errors.push(`Product ingestion failed: ${msg}`);
   }
 
-  // Update connection status
+  // Update connection status. tiktok_shop_connections has last_api_call +
+  // last_error (no separate status column); status is derived downstream
+  // from whether last_error is null.
   const supabase = await createAdminClient();
-  const syncStatus = errors.length === 0 ? 'success' : 'error';
   await supabase
     .from('tiktok_shop_connections')
     .update({
-      last_sync_at: new Date().toISOString(),
-      last_sync_status: syncStatus,
-      last_sync_error: errors.length > 0 ? errors.join('; ') : null,
+      last_api_call: new Date().toISOString(),
+      last_error: errors.length > 0 ? errors.join('; ') : null,
       updated_at: new Date().toISOString(),
     })
     .eq('id', connection.id);
