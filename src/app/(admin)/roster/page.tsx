@@ -206,17 +206,43 @@ function BrandSelect({
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
-  const ref = useRef<HTMLDivElement>(null);
+  const [portalReady, setPortalReady] = useState(false);
+  const [anchorRect, setAnchorRect] = useState<{ left: number; top: number; width: number } | null>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const listScrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { setPortalReady(true); }, []);
+
+  // Recompute popover position when it opens, on resize, and when the page
+  // scrolls — keeps the popover anchored under the button at all times.
+  useEffect(() => {
+    if (!open) return;
+    const updateRect = () => {
+      const r = buttonRef.current?.getBoundingClientRect();
+      if (r) setAnchorRect({ left: r.left, top: r.bottom + 4, width: r.width });
+    };
+    updateRect();
+    window.addEventListener('resize', updateRect);
+    window.addEventListener('scroll', updateRect, true); // capture scrolls in any container
+    return () => {
+      window.removeEventListener('resize', updateRect);
+      window.removeEventListener('scroll', updateRect, true);
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (
+        wrapperRef.current && !wrapperRef.current.contains(t)
+        && popoverRef.current && !popoverRef.current.contains(t)
+      ) setOpen(false);
     };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
-    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
     document.addEventListener('mousedown', onDown);
     document.addEventListener('keydown', onKey);
     setTimeout(() => inputRef.current?.focus(), 0);
@@ -224,6 +250,23 @@ function BrandSelect({
       document.removeEventListener('mousedown', onDown);
       document.removeEventListener('keydown', onKey);
     };
+  }, [open]);
+
+  // Non-passive wheel listener on the scrollable list. React's synthetic
+  // onWheel attaches passive listeners, where preventDefault is a no-op —
+  // so we manually attach a native non-passive listener and call preventDefault
+  // ourselves after scrolling the list, forcing the browser to drop the
+  // wheel event without chaining it to any ancestor scroll container.
+  useEffect(() => {
+    if (!open) return;
+    const el = listScrollRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      el.scrollTop += e.deltaY;
+      e.preventDefault();
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
   }, [open]);
 
   const current = value === 'all'
@@ -236,8 +279,9 @@ function BrandSelect({
     : options;
 
   return (
-    <div ref={ref} className="relative inline-block">
+    <div ref={wrapperRef} className="relative inline-block">
       <button
+        ref={buttonRef}
         type="button"
         onClick={() => setOpen(o => !o)}
         className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-[#1A1B3A] hover:bg-gray-50 hover:border-gray-300 transition-colors min-w-[180px]"
@@ -257,12 +301,24 @@ function BrandSelect({
         </svg>
       </button>
 
-      {open && (
-        // Single scroll boundary on the OUTER container so wheel events on
-        // the search bar / gap regions are captured here instead of bubbling
-        // to the page. overscroll-contain stops chaining at the boundary.
-        <div className="absolute z-30 mt-1 w-72 rounded-xl border border-gray-200 bg-white shadow-lg max-h-96 overflow-y-auto overscroll-contain">
-          <div className="p-2 border-b border-gray-100 sticky top-0 bg-white z-10">
+      {open && portalReady && anchorRect && createPortal(
+        // Portal to <body> so the popover escapes <main class="animate-fade-in">
+        // (which creates a stacking context that traps z-30 inside the page
+        // subtree and causes wheel events to chain to the page scroll
+        // container). With fixed positioning + body parent, wheel events
+        // fire against the popover whose nearest scrollable ancestor IS
+        // itself — no chaining possible.
+        <div
+          ref={popoverRef}
+          style={{
+            position: 'fixed',
+            left: anchorRect.left,
+            top: anchorRect.top,
+            minWidth: Math.max(288, anchorRect.width),
+          }}
+          className="z-[60] rounded-xl border border-gray-200 bg-white shadow-lg flex flex-col max-h-96"
+        >
+          <div className="p-2 border-b border-gray-100 bg-white">
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
               <input
@@ -275,7 +331,7 @@ function BrandSelect({
               />
             </div>
           </div>
-          <div className="py-1">
+          <div ref={listScrollRef} className="flex-1 min-h-0 overflow-y-auto overscroll-contain py-1">
             <button
               type="button"
               onClick={() => { onChange('all'); setOpen(false); setQuery(''); }}
@@ -308,7 +364,8 @@ function BrandSelect({
               </button>
             ))}
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
