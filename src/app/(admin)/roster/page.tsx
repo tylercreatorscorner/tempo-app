@@ -48,6 +48,8 @@ interface Creator {
   gmv_by_store: Record<string, number>;
   // Calendar-month — independent of the period selector.
   posts_this_month: number;
+  // Rolling 7-day distinct video count — drives the Posts/7D column.
+  posts_7d: number;
   last_post_date: string | null;
   health: CreatorHealth;
   // Period-driven: gmv_period ÷ retainer, null when retainer is 0.
@@ -127,24 +129,35 @@ function LastPostCell({ date }: { date: string | null }) {
   return <span className={`text-xs ${cls}`}>{label}</span>;
 }
 
-function PostsProgressCell({ posts, target }: { posts: number; target: number }) {
-  if (!target) return <span className="text-xs text-gray-400">{posts || 0}</span>;
-  const pct = Math.min(1, posts / target);
-  // Pace expected at this point in the month — 10% slack.
-  const now = new Date();
-  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-  const expected = now.getDate() / lastDay;
-  const behind = pct < expected - 0.1;
-  const colorClass = behind ? 'text-orange-600 font-semibold' : posts >= target ? 'text-green-600 font-semibold' : 'text-gray-700';
-  const barColor = behind ? 'bg-orange-400' : posts >= target ? 'bg-green-400' : 'bg-gray-300';
+/**
+ * Posts/7D badge — color-coded thresholds matching the old Netlify dashboard.
+ * 0 = red (silent), 1-3 = orange, 4-5 = yellow, 6-9 = green, 10+ = blue.
+ */
+function Posts7dBadge({ posts }: { posts: number }) {
+  const n = Number(posts) || 0;
+  const cls =
+    n === 0   ? 'bg-red-50 text-red-700 border-red-100'
+    : n <= 3  ? 'bg-orange-50 text-orange-700 border-orange-100'
+    : n <= 5  ? 'bg-yellow-50 text-yellow-700 border-yellow-100'
+    : n <= 9  ? 'bg-green-50 text-green-700 border-green-100'
+    :           'bg-blue-50 text-blue-700 border-blue-100';
   return (
-    <div className="inline-flex flex-col items-center gap-0.5 min-w-[56px]">
-      <span className={`text-xs tabular-nums ${colorClass}`}>{posts}<span className="text-gray-300"> / {target}</span></span>
-      <div className="w-12 h-1 bg-gray-100 rounded-full overflow-hidden">
-        <div className={`h-full ${barColor}`} style={{ width: `${Math.round(pct * 100)}%` }} />
-      </div>
-    </div>
+    <span className={`inline-flex items-center justify-center min-w-[2.25rem] text-xs font-semibold tabular-nums px-2 py-0.5 rounded-full border ${cls}`}>
+      {n}
+    </span>
   );
+}
+
+/**
+ * Join Date cell — shows the managed_creators.created_at as a short date.
+ * Returns em-dash for unmanaged or missing values.
+ */
+function JoinDateCell({ date }: { date: string | null }) {
+  if (!date) return <span className="text-gray-300">—</span>;
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return <span className="text-gray-300">—</span>;
+  const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' });
+  return <span className="text-xs text-gray-600 tabular-nums">{label}</span>;
 }
 
 /**
@@ -1165,7 +1178,7 @@ function RosterContent() {
   // Sort state for the Managed Roster table
   type RosterSortCol =
     | 'retainer' | 'real_name' | 'monthly_post_requirement' | 'created_at' | 'status'
-    | 'gmv_period' | 'posts_this_month' | 'last_post_date' | 'health' | 'roi_period'
+    | 'gmv_period' | 'posts_this_month' | 'posts_7d' | 'last_post_date' | 'health' | 'roi_period'
     | 'last_message_at' | 'unread_count';
   const [sortBy, setSortBy] = useState<RosterSortCol>('retainer');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
@@ -1277,8 +1290,8 @@ function RosterContent() {
     if (rows.length === 0) return;
     const header = [
       'Name', 'Handles', 'Brand', 'Status', 'Health',
-      'Retainer', 'Posts (this month)', 'Posts target',
-      'Last post', 'Last DM', `GMV (${periodLabel})`, `ROI (${periodLabel})`, 'Unread DMs',
+      'Retainer', 'Posts (7d)', 'Posts (this month)', 'Posts target',
+      'Last post', 'Joined', 'Last DM', `GMV (${periodLabel})`, `ROI (${periodLabel})`, 'Unread DMs',
     ];
     const body = rows.map((c) => [
       c.real_name ?? '',
@@ -1287,9 +1300,11 @@ function RosterContent() {
       c.status ?? '',
       c.health,
       c.retainer ?? 0,
+      c.posts_7d ?? 0,
       c.posts_this_month ?? 0,
       c.monthly_post_requirement ?? 0,
       c.last_post_date ?? '',
+      c.created_at ?? '',
       c.last_message_at ?? '',
       Math.round(c.gmv_period ?? 0),
       c.roi_period !== null ? c.roi_period.toFixed(2) : '',
@@ -1670,13 +1685,18 @@ function RosterContent() {
                     </button>
                   </th>
                   <th className="text-center px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
-                    <button onClick={() => toggleSort('posts_this_month')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors mx-auto">
-                      Posts <SortIcon col="posts_this_month" />
+                    <button onClick={() => toggleSort('posts_7d')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors mx-auto">
+                      Posts/7D <SortIcon col="posts_7d" />
                     </button>
                   </th>
                   <th className="text-left px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
                     <button onClick={() => toggleSort('last_post_date')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors">
                       Last post <SortIcon col="last_post_date" />
+                    </button>
+                  </th>
+                  <th className="text-left px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
+                    <button onClick={() => toggleSort('created_at')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors">
+                      Joined <SortIcon col="created_at" />
                     </button>
                   </th>
                   <th className="text-right px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
@@ -1704,7 +1724,7 @@ function RosterContent() {
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {loading && roster.length === 0 && Array.from({ length: 8 }).map((_, i) => (
-                  <SkeletonRow key={i} cols={showBrandColumn ? 11 : 10} />
+                  <SkeletonRow key={i} cols={showBrandColumn ? 12 : 11} />
                 ))}
                 {!loading && roster.map((c) => (
                   <tr
@@ -1785,13 +1805,13 @@ function RosterContent() {
                         : <span className="text-gray-300 font-normal">—</span>}
                     </td>
                     <td className="px-5 py-3.5 text-center">
-                      <PostsProgressCell
-                        posts={c.posts_this_month ?? 0}
-                        target={c.monthly_post_requirement ?? 0}
-                      />
+                      <Posts7dBadge posts={c.posts_7d ?? 0} />
                     </td>
                     <td className="px-5 py-3.5">
                       <LastPostCell date={c.last_post_date} />
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <JoinDateCell date={c.created_at} />
                     </td>
                     <td className="px-5 py-3.5 text-right tabular-nums">
                       {(c.gmv_period || 0) > 0

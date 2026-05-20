@@ -188,8 +188,13 @@ interface EnrichedRow extends ManagedRow {
   // store sub-pill filter. Keys are data-level brand slugs (e.g.
   // 'leefar_nutrition'). Empty object when there's no data.
   gmv_by_store: Record<string, number>;
-  // Calendar-month, not period-driven (post quotas are monthly contracts)
+  // Calendar-month, not period-driven (post quotas are monthly contracts).
+  // Still computed server-side because the Health badge depends on it.
   posts_this_month: number;
+  // Rolling 7-day post count (distinct video_id from daily_video_product_stats
+  // over the last 7 days; summed across the row's handles). Drives the
+  // Posts/7D column in the UI — replaces the Posts/Mo display.
+  posts_7d: number;
   // Independent of period — most recent post in last 365d (or null)
   last_post_date: string | null;
   health: CreatorHealth;
@@ -222,7 +227,7 @@ function legacyColumnHandles(c: ManagedRow): string[] {
 }
 
 const SORTABLE_DB = ['retainer', 'real_name', 'monthly_post_requirement', 'created_at', 'status', 'brand'] as const;
-const SORTABLE_COMPUTED = ['gmv_period', 'posts_this_month', 'last_post_date', 'health', 'roi_period', 'last_message_at', 'unread_count'] as const;
+const SORTABLE_COMPUTED = ['gmv_period', 'posts_this_month', 'posts_7d', 'last_post_date', 'health', 'roi_period', 'last_message_at', 'unread_count'] as const;
 type DbSort = typeof SORTABLE_DB[number];
 type ComputedSort = typeof SORTABLE_COMPUTED[number];
 type SortCol = DbSort | ComputedSort;
@@ -347,13 +352,49 @@ export async function GET(request: NextRequest) {
   // brand_id (uuid string) → gmv for that handle on that brand, for the period
   const brandGmvByHandle = new Map<string, Map<string, number>>();
   const msgByHandle = new Map<string, { last_message_at: string | null; unread_count: number }>();
+  // Distinct video_ids per handle from the last 7 days, drives Posts/7D.
+  let posts7dByHandle = new Map<string, Set<string>>();
 
   // Resolve the brand filter to data-level UUIDs. null = no filter (all);
   // [NO_MATCH_BRAND_ID] = real brand with no data → zero (never all).
   const brandIds = await resolveBrandDataUuids(brand, supabase);
 
   if (allHandles.length > 0) {
-    const [perfRes, brandGmvRes, msgRes] = await Promise.all([
+    // 7-day post fetch: paginated, period-independent. daily_video_product_stats
+    // is per video×product, so a Set<video_id> per handle dedupes correctly.
+    const sevenDaysAgoStr = (() => {
+      const d = new Date();
+      d.setDate(d.getDate() - 7);
+      return d.toISOString().split('T')[0];
+    })();
+    const fetchPosts7d = async (): Promise<Map<string, Set<string>>> => {
+      const out = new Map<string, Set<string>>();
+      const PAGE = 1000;
+      let pageIdx = 0;
+      while (true) {
+        const { data, error: pErr } = await supabase
+          .from('daily_video_product_stats')
+          .select('tiktok_username, video_id')
+          .in('tiktok_username', allHandles)
+          .gte('post_date', sevenDaysAgoStr)
+          .range(pageIdx * PAGE, (pageIdx + 1) * PAGE - 1);
+        if (pErr) {
+          console.error('[/api/roster] posts_7d fetch failed:', pErr.message);
+          break;
+        }
+        for (const r of data ?? []) {
+          const h = r.tiktok_username?.toLowerCase();
+          if (!h || !r.video_id) continue;
+          if (!out.has(h)) out.set(h, new Set());
+          out.get(h)!.add(r.video_id);
+        }
+        if ((data?.length ?? 0) < PAGE) break;
+        pageIdx++;
+      }
+      return out;
+    };
+
+    const [perfRes, brandGmvRes, msgRes, posts7dRes] = await Promise.all([
       supabase.rpc('get_creator_handle_perf', {
         handles: allHandles,
         brand_ids: brandIds,
@@ -365,7 +406,9 @@ export async function GET(request: NextRequest) {
         days_back: periodDays,
       }),
       supabase.rpc('get_creator_message_signals', { handles: allHandles }),
+      fetchPosts7d(),
     ]);
+    posts7dByHandle = posts7dRes;
 
     if (perfRes.error) {
       console.error('[/api/roster] perf RPC failed:', perfRes.error.message);
@@ -410,6 +453,7 @@ export async function GET(request: NextRequest) {
     const hs = handles.map((h) => h.toLowerCase());
     let gmv = 0;
     let posts = 0;
+    let posts7d = 0;
     let lastPost: string | null = null;
     let lastMsg: string | null = null;
     let unread = 0;
@@ -426,6 +470,8 @@ export async function GET(request: NextRequest) {
           lastPost = p.last_post_date;
         }
       }
+      const s7 = posts7dByHandle.get(h);
+      if (s7) posts7d += s7.size;
       const m = msgByHandle.get(h);
       if (m) {
         unread += m.unread_count;
@@ -457,6 +503,7 @@ export async function GET(request: NextRequest) {
       gmv_period: gmv,
       gmv_by_store: gmvByStore,
       posts_this_month: posts,
+      posts_7d: posts7d,
       last_post_date: lastPost,
       health,
       roi_period: roi,
@@ -530,6 +577,7 @@ export async function GET(request: NextRequest) {
           gmv_period: Number(u.gmv_period) || 0,
           gmv_by_store: unmanagedBreakdown,
           posts_this_month: Number(u.posts_this_month) || 0,
+          posts_7d: 0,
           last_post_date: u.last_post_date,
           health: 'no_data',
           roi_period: null,
