@@ -192,42 +192,210 @@ function StoreMixIndicator({ creator }: { creator: Creator }) {
   );
 }
 
-// Brand pill. Solid-fill in the brand color when active, soft chip when not.
-// All Brands ("all") gets a neutral treatment.
-function BrandPill({
-  slug, label, color, active, onClick,
+// Searchable brand selector — replaces the wall-of-pills pattern. Renders
+// a single button showing the current selection; click opens a popover
+// with a search box + scrollable brand list. Designed for rosters with
+// 20+ brands where pills would wrap to multiple rows.
+function BrandSelect({
+  value, options, onChange,
 }: {
-  slug: string;
-  label: string;
-  color?: string;
-  active: boolean;
-  onClick: () => void;
+  value: string; // 'all' or a brand slug
+  options: { slug: string; name: string; color?: string }[];
+  onChange: (slug: string) => void;
 }) {
-  const isAll = slug === 'all';
-  if (active) {
-    return (
-      <button
-        onClick={onClick}
-        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold text-white shadow-sm"
-        style={{ backgroundColor: isAll ? '#1A1B3A' : (color ?? '#6B7280') }}
-      >
-        {label}
-      </button>
-    );
-  }
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const ref = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    setTimeout(() => inputRef.current?.focus(), 0);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  const current = value === 'all'
+    ? { slug: 'all', name: 'All brands', color: undefined as string | undefined }
+    : options.find(o => o.slug === value) ?? { slug: value, name: value, color: undefined };
+
+  const q = query.trim().toLowerCase();
+  const filtered = q
+    ? options.filter(o => o.name.toLowerCase().includes(q) || o.slug.toLowerCase().includes(q))
+    : options;
+
   return (
-    <button
-      onClick={onClick}
-      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-colors"
-    >
-      {!isAll && (
-        <span
-          className="h-2 w-2 rounded-full inline-block"
-          style={{ backgroundColor: color ?? '#6B7280' }}
-        />
+    <div ref={ref} className="relative inline-block">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-[#1A1B3A] hover:bg-gray-50 hover:border-gray-300 transition-colors min-w-[180px]"
+      >
+        {current.slug !== 'all' && (
+          <span
+            className="h-2.5 w-2.5 rounded-full inline-block flex-shrink-0"
+            style={{ backgroundColor: current.color ?? '#6B7280' }}
+          />
+        )}
+        <span className="flex-1 text-left truncate">{current.name}</span>
+        <span className="text-[10px] font-normal text-gray-400">
+          {value === 'all' ? `${options.length}` : ''}
+        </span>
+        <svg className={`h-4 w-4 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="currentColor">
+          <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.06l3.71-3.83a.75.75 0 111.08 1.04l-4.25 4.39a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="absolute z-30 mt-1 w-72 rounded-xl border border-gray-200 bg-white shadow-lg overflow-hidden">
+          <div className="p-2 border-b border-gray-100">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+              <input
+                ref={inputRef}
+                type="text"
+                placeholder="Search brands…"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/20 focus:border-[#E91E8C]"
+              />
+            </div>
+          </div>
+          <div className="max-h-72 overflow-y-auto py-1">
+            <button
+              type="button"
+              onClick={() => { onChange('all'); setOpen(false); setQuery(''); }}
+              className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 transition-colors text-left ${
+                value === 'all' ? 'bg-pink-50/40 text-[#E91E8C] font-semibold' : 'text-gray-700'
+              }`}
+            >
+              <Globe className="h-3.5 w-3.5 text-gray-400" />
+              <span className="flex-1">All brands</span>
+              <span className="text-[10px] text-gray-400">{options.length}</span>
+              {value === 'all' && <Check className="h-3.5 w-3.5" />}
+            </button>
+            {filtered.length === 0 ? (
+              <p className="px-3 py-4 text-xs text-gray-400 text-center">No brands match &quot;{query}&quot;</p>
+            ) : filtered.map((b) => (
+              <button
+                type="button"
+                key={b.slug}
+                onClick={() => { onChange(b.slug); setOpen(false); setQuery(''); }}
+                className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 transition-colors text-left ${
+                  value === b.slug ? 'bg-pink-50/40 text-[#E91E8C] font-semibold' : 'text-gray-700'
+                }`}
+              >
+                <span
+                  className="h-2.5 w-2.5 rounded-full inline-block flex-shrink-0"
+                  style={{ backgroundColor: b.color ?? '#6B7280' }}
+                />
+                <span className="flex-1 truncate">{b.name}</span>
+                {value === b.slug && <Check className="h-3.5 w-3.5" />}
+              </button>
+            ))}
+          </div>
+        </div>
       )}
-      {label}
-    </button>
+    </div>
+  );
+}
+
+// Period selector — segmented control with primary chips + overflow menu.
+// Primary chips fit common day-to-day triage cadences; the menu carries the
+// longer/calendar-anchored ranges. Designed to be readable on a narrow card.
+type PeriodChipKey = '1d' | '7d' | '14d' | '30d' | '60d' | '90d' | 'mtd' | 'ytd';
+function PeriodSelector({
+  value, onChange,
+}: {
+  value: PeriodChipKey;
+  onChange: (k: PeriodChipKey) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  const primary: { key: PeriodChipKey; label: string }[] = [
+    { key: '1d',  label: '1d' },
+    { key: '7d',  label: '7d' },
+    { key: '30d', label: '30d' },
+    { key: 'mtd', label: 'MTD' },
+    { key: 'ytd', label: 'YTD' },
+  ];
+  const overflow: { key: PeriodChipKey; label: string }[] = [
+    { key: '14d', label: 'Last 14 days' },
+    { key: '60d', label: 'Last 60 days' },
+    { key: '90d', label: 'Last 90 days' },
+  ];
+  // If the active value lives in the overflow menu, surface it on the bar as
+  // the "More" label so the user always sees their current selection.
+  const overflowActive = overflow.find(o => o.key === value);
+
+  return (
+    <div ref={ref} className="relative flex gap-1 p-1 bg-white/10 rounded-xl">
+      {primary.map((p) => (
+        <button
+          key={p.key}
+          onClick={() => onChange(p.key)}
+          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+            value === p.key
+              ? 'bg-white text-[#1A1B3A] shadow'
+              : 'text-white/70 hover:text-white hover:bg-white/10'
+          }`}
+        >
+          {p.label}
+        </button>
+      ))}
+      <button
+        onClick={() => setOpen(o => !o)}
+        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors inline-flex items-center gap-1 ${
+          overflowActive
+            ? 'bg-white text-[#1A1B3A] shadow'
+            : 'text-white/70 hover:text-white hover:bg-white/10'
+        }`}
+      >
+        {overflowActive ? overflowActive.label.replace('Last ', '') : 'More'}
+        <svg className={`h-3 w-3 transition-transform ${open ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="currentColor">
+          <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.06l3.71-3.83a.75.75 0 111.08 1.04l-4.25 4.39a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 z-30 w-44 rounded-xl border border-gray-200 bg-white shadow-lg py-1">
+          {overflow.map((p) => (
+            <button
+              key={p.key}
+              onClick={() => { onChange(p.key); setOpen(false); }}
+              className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-50 transition-colors ${
+                value === p.key ? 'text-[#E91E8C] font-semibold bg-pink-50/40' : 'text-gray-700'
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -1129,16 +1297,22 @@ function RosterContent() {
   // ── Period selector ──
   // Days back for GMV / ROI / total. Health and posts-this-month are NOT
   // driven by this (those are calendar-month / contract-based).
-  // YTD is computed at fetch time so it tracks the calendar year.
-  type PeriodKey = '1d' | '7d' | '30d' | '90d' | 'ytd';
+  // MTD/YTD are computed at fetch time so they track the calendar.
+  type PeriodKey = '1d' | '7d' | '14d' | '30d' | '60d' | '90d' | 'mtd' | 'ytd';
   const [periodKey, setPeriodKey] = useState<PeriodKey>('30d');
   const periodDays = (() => {
     if (periodKey === '1d')  return 1;
     if (periodKey === '7d')  return 7;
+    if (periodKey === '14d') return 14;
     if (periodKey === '30d') return 30;
+    if (periodKey === '60d') return 60;
     if (periodKey === '90d') return 90;
-    // YTD: number of days from Jan 1 of current year (inclusive of today).
     const now = new Date();
+    if (periodKey === 'mtd') {
+      const start = new Date(now.getFullYear(), now.getMonth(), 1);
+      return Math.max(1, Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+    }
+    // YTD: number of days from Jan 1 of current year (inclusive of today).
     const start = new Date(now.getFullYear(), 0, 1);
     return Math.max(1, Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1);
   })();
@@ -1146,8 +1320,11 @@ function RosterContent() {
     switch (periodKey) {
       case '1d':  return 'Yesterday';
       case '7d':  return 'Last 7 days';
+      case '14d': return 'Last 14 days';
       case '30d': return 'Last 30 days';
+      case '60d': return 'Last 60 days';
       case '90d': return 'Last 90 days';
+      case 'mtd': return 'Month to date';
       case 'ytd': return 'Year to date';
     }
   })();
@@ -1403,26 +1580,14 @@ function RosterContent() {
         </button>
       </div>
 
-      {/* Brand pill row — quick filter, mirrors the ?brand= URL param.
-          Lets the manager scan brand-by-brand health in one click rather
-          than going through the global sidebar dropdown each time. */}
+      {/* Brand selector — searchable dropdown. The old pill row didn't scale
+          past ~10 brands; with 20+ this collapses to a single button. */}
       <div className="flex flex-wrap gap-2 items-center">
-        <BrandPill
-          slug="all"
-          label="All brands"
-          active={brand === 'all'}
-          onClick={() => setBrand('all')}
+        <BrandSelect
+          value={brand || 'all'}
+          options={brandOptions}
+          onChange={setBrand}
         />
-        {brandOptions.map((b) => (
-          <BrandPill
-            key={b.slug}
-            slug={b.slug}
-            label={b.name}
-            color={b.color}
-            active={brand === b.slug}
-            onClick={() => setBrand(b.slug)}
-          />
-        ))}
       </div>
 
       {/* LeeFar store sub-filter — only visible when LeeFar is the active brand.
@@ -1511,28 +1676,10 @@ function RosterContent() {
             </p>
           </div>
         </div>
-        {/* Period selector — segmented control */}
-        <div className="flex gap-1 p-1 bg-white/10 rounded-xl">
-          {([
-            { key: '1d' as const,  label: 'Yesterday' },
-            { key: '7d' as const,  label: '7d' },
-            { key: '30d' as const, label: '30d' },
-            { key: '90d' as const, label: '90d' },
-            { key: 'ytd' as const, label: 'YTD' },
-          ]).map((p) => (
-            <button
-              key={p.key}
-              onClick={() => setPeriodKey(p.key)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                periodKey === p.key
-                  ? 'bg-white text-[#1A1B3A] shadow'
-                  : 'text-white/70 hover:text-white hover:bg-white/10'
-              }`}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
+        {/* Period selector — segmented control. Common ranges (7d/30d/MTD/YTD)
+            sit on the bar; the rest tuck behind a "More" popover so the bar
+            stays readable on narrow screens. */}
+        <PeriodSelector value={periodKey} onChange={setPeriodKey} />
       </div>
 
       {/* ── Action-oriented stat cards ──
@@ -1596,14 +1743,47 @@ function RosterContent() {
           )}
         </p>
       )}
-      {healthFilter !== 'all' && (
-        <button
-          onClick={() => setHealthFilter('all')}
-          className="text-xs text-[#E91E8C] hover:underline -mt-2 inline-flex items-center gap-1"
-        >
-          <X className="h-3 w-3" /> Clear filter
-        </button>
-      )}
+      {/* Active filters strip — surfaces every applied filter as a chip with
+          an X to clear it. Brand and period selectors live elsewhere so they
+          aren't part of this strip; everything else funnels through here. */}
+      {(() => {
+        const HEALTH_LABEL: Record<HealthFilter, string> = {
+          all: '', healthy: 'Healthy', behind: 'Behind', silent: 'Silent',
+          low_roi: 'ROI < 1.0×',
+        };
+        const chips: { key: string; label: string; clear: () => void }[] = [];
+        if (search) chips.push({ key: 'search', label: `Search: "${search}"`, clear: () => { setSearch(''); setSearchInput(''); } });
+        if (statusFilter !== 'all') chips.push({ key: 'status', label: `Status: ${statusFilter}`, clear: () => setStatusFilter('all') });
+        if (healthFilter !== 'all') chips.push({ key: 'health', label: HEALTH_LABEL[healthFilter], clear: () => setHealthFilter('all') });
+        if (storeFilter) chips.push({ key: 'store', label: `Store: ${storeFilter.replace(/^leefar_/, '').replace(/_/g, ' ')}`, clear: () => setStoreFilter(null) });
+        if (includeUnmanaged) chips.push({ key: 'unmanaged', label: 'Unmanaged shown', clear: () => setIncludeUnmanaged(false) });
+        if (chips.length === 0) return null;
+        return (
+          <div className="flex flex-wrap items-center gap-2 -mt-1">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+              Filters
+            </span>
+            {chips.map((c) => (
+              <button
+                key={c.key}
+                onClick={c.clear}
+                className="inline-flex items-center gap-1 pl-2.5 pr-1.5 py-1 rounded-full bg-pink-50 border border-pink-100 text-[11px] font-medium text-[#E91E8C] hover:bg-pink-100 transition-colors"
+              >
+                {c.label}
+                <X className="h-3 w-3" />
+              </button>
+            ))}
+            {chips.length > 1 && (
+              <button
+                onClick={() => { chips.forEach(c => c.clear()); }}
+                className="text-[11px] font-medium text-gray-500 hover:text-gray-700 underline-offset-2 hover:underline ml-1"
+              >
+                Clear all
+              </button>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Search + Filter */}
       <div className="flex flex-col sm:flex-row gap-3">
