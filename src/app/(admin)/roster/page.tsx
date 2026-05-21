@@ -252,25 +252,27 @@ function BrandSelect({
     };
   }, [open]);
 
-  // Non-passive wheel listener on the OUTER popover. React's synthetic
-  // onWheel attaches passive listeners, where preventDefault is a no-op,
-  // so we manually attach a native non-passive listener. We catch wheel
-  // events anywhere inside the popover (including the search bar and any
-  // gap region) — preventDefault first, then scroll the list manually.
-  // Attaching on the inner list alone misses wheel events on the search
-  // bar header, letting the page scroll by default.
+  // Document-level wheel listener in CAPTURE phase. This is the only
+  // approach we've found that reliably blocks page scroll under all
+  // browser quirks: the capture-phase listener fires before the event
+  // reaches any element, preventDefault is honored (non-passive), and
+  // it doesn't depend on refs being attached at the right tick. When
+  // the wheel target is inside the popover, we scroll the list manually
+  // and consume the event; otherwise we let it through.
   useEffect(() => {
     if (!open) return;
-    const popover = popoverRef.current;
-    const list = listScrollRef.current;
-    if (!popover || !list) return;
     const onWheel = (e: WheelEvent) => {
+      const popover = popoverRef.current;
+      const list = listScrollRef.current;
+      if (!popover || !list) return;
+      if (!popover.contains(e.target as Node)) return;
       e.preventDefault();
+      e.stopPropagation();
       list.scrollTop += e.deltaY;
     };
-    popover.addEventListener('wheel', onWheel, { passive: false });
-    return () => popover.removeEventListener('wheel', onWheel);
-  }, [open, portalReady, anchorRect]);
+    document.addEventListener('wheel', onWheel, { capture: true, passive: false });
+    return () => document.removeEventListener('wheel', onWheel, { capture: true });
+  }, [open]);
 
   const current = value === 'all'
     ? { slug: 'all', name: 'All brands', color: undefined as string | undefined }
@@ -1528,41 +1530,116 @@ function RosterContent() {
     return s;
   };
 
-  const exportSelectedCsv = () => {
-    const rows = roster.filter((c) => selectedIds.has(c.id));
-    if (rows.length === 0) return;
-    const header = [
-      'Name', 'Handles', 'Brand', 'Status', 'Health',
-      'Retainer', 'Posts (7d)', 'Posts (this month)', 'Posts target',
-      'Last post', 'Joined', 'Last DM', `GMV (${periodLabel})`, `ROI (${periodLabel})`, 'Unread DMs',
-    ];
-    const body = rows.map((c) => [
-      c.real_name ?? '',
-      (c.handles?.length ? c.handles : [c.account_1].filter(Boolean)).map((h) => `@${h}`).join(', '),
-      c.brand ? (brandOptions.find(b => b.slug === c.brand)?.name ?? BRAND_DISPLAY_NAMES[c.brand] ?? c.brand) : '',
-      c.status ?? '',
-      c.health,
-      c.retainer ?? 0,
-      c.posts_7d ?? 0,
-      c.posts_this_month ?? 0,
-      c.monthly_post_requirement ?? 0,
-      c.last_post_date ?? '',
-      c.created_at ?? '',
-      c.last_message_at ?? '',
-      Math.round(c.gmv_period ?? 0),
-      c.roi_period !== null ? c.roi_period.toFixed(2) : '',
-      c.unread_count ?? 0,
-    ]);
-    const csv = [header, ...body].map((r) => r.map(csvEscape).join(',')).join('\n');
+  // Header schema + row mapper shared between Selected and All exports so
+  // the column order can't drift. Keep aligned with the table view.
+  const CSV_HEADER = [
+    'Name', 'Handles', 'Brand', 'Status', 'Health',
+    'Retainer', 'Posts (7d)', 'Posts (this month)', 'Posts target',
+    'Last post', 'Joined', 'Last DM', 'GMV', 'ROI', 'Unread DMs',
+  ];
+  const csvRow = (c: Creator) => [
+    c.real_name ?? '',
+    (c.handles?.length ? c.handles : [c.account_1].filter(Boolean)).map((h) => `@${h}`).join(', '),
+    c.brand ? (brandOptions.find(b => b.slug === c.brand)?.name ?? BRAND_DISPLAY_NAMES[c.brand] ?? c.brand) : '',
+    c.status ?? '',
+    c.health,
+    c.retainer ?? 0,
+    c.posts_7d ?? 0,
+    c.posts_this_month ?? 0,
+    c.monthly_post_requirement ?? 0,
+    c.last_post_date ?? '',
+    c.created_at ?? '',
+    c.last_message_at ?? '',
+    Math.round(c.gmv_period ?? 0),
+    c.roi_period !== null ? c.roi_period.toFixed(2) : '',
+    c.unread_count ?? 0,
+  ];
+  const downloadCsv = (filename: string, headerRow: string[], bodyRows: unknown[][]) => {
+    const csv = [headerRow, ...bodyRows].map((r) => r.map(csvEscape).join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `my-creators-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  };
+
+  const exportSelectedCsv = () => {
+    const rows = roster.filter((c) => selectedIds.has(c.id));
+    if (rows.length === 0) return;
+    const header = [
+      ...CSV_HEADER.slice(0, 12),
+      `GMV (${periodLabel})`,
+      `ROI (${periodLabel})`,
+      ...CSV_HEADER.slice(14),
+    ];
+    downloadCsv(
+      `my-creators-selected-${new Date().toISOString().slice(0, 10)}.csv`,
+      header,
+      rows.map(csvRow),
+    );
+  };
+
+  // Export all creators matching the current filter set (brand, status,
+  // health, search, period, include-unmanaged, store) — NOT just the
+  // current page. Pages through the API at the route's per-request
+  // cap and concatenates results client-side. Doesn't depend on the
+  // selection bar.
+  const [exportingAll, setExportingAll] = useState(false);
+  const exportAllCsv = async () => {
+    if (exportingAll) return;
+    setExportingAll(true);
+    try {
+      const all: Creator[] = [];
+      const PAGE = 100; // route caps limit at 100
+      let p = 1;
+      while (true) {
+        const params = new URLSearchParams({
+          page: String(p),
+          limit: String(PAGE),
+          sort: sortBy,
+          dir: sortDir,
+        });
+        if (brand && brand !== 'all') params.set('brand', brand);
+        if (statusFilter !== 'all') params.set('status', statusFilter);
+        if (healthFilter !== 'all') params.set('health', healthFilter);
+        if (search) params.set('search', search);
+        if (includeUnmanaged) params.set('include', 'all');
+        params.set('period', String(periodDays));
+        if (storeFilter) params.set('store', storeFilter);
+        const res = await fetch(`/api/roster?${params}`);
+        if (!res.ok) throw new Error(`Export failed at page ${p}`);
+        const json = await res.json();
+        const batch: Creator[] = json.data || [];
+        all.push(...batch);
+        if (batch.length < PAGE) break;
+        p++;
+        if (p > 50) break; // safety cap (5,000 rows)
+      }
+      if (all.length === 0) return;
+      const header = [
+        ...CSV_HEADER.slice(0, 12),
+        `GMV (${periodLabel})`,
+        `ROI (${periodLabel})`,
+        ...CSV_HEADER.slice(14),
+      ];
+      const scope = brand && brand !== 'all'
+        ? brand.replace(/[^a-z0-9_-]/gi, '_')
+        : 'all-brands';
+      downloadCsv(
+        `creators-${scope}-${new Date().toISOString().slice(0, 10)}.csv`,
+        header,
+        all.map(csvRow),
+      );
+    } catch (err) {
+      console.error('Export failed:', err);
+      alert(err instanceof Error ? err.message : 'Export failed');
+    } finally {
+      setExportingAll(false);
+    }
   };
 
   const bulkChangeStatus = async (newStatus: string) => {
@@ -1885,6 +1962,18 @@ function RosterContent() {
         >
           <Globe className="h-4 w-4" />
           {includeUnmanaged ? 'Unmanaged shown' : 'Include unmanaged'}
+        </button>
+        {/* Export — pages through the API with current filters and
+            downloads a CSV. Independent of the selection bar (which only
+            exports the rows the user has explicitly ticked). */}
+        <button
+          onClick={exportAllCsv}
+          disabled={exportingAll || loading}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+          title="Export the current filtered roster as CSV (all pages)"
+        >
+          {exportingAll ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+          {exportingAll ? 'Exporting…' : 'Export CSV'}
         </button>
       </div>
 
