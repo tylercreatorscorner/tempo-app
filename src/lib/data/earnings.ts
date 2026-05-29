@@ -299,7 +299,7 @@ export async function getEarnings(
     supabase.from('creator_commission_rates').select('creator_name, brand, rate'),
     supabase.from('marketing_gmv').select('brand, amount').eq('month', month),
     supabase.from('managed_creators')
-      .select('brand, account_1, account_2, account_3, account_4, account_5')
+      .select('brand, creator_id, account_1, account_2, account_3, account_4, account_5')
       .is('archived_at', null),
   ]);
 
@@ -357,19 +357,57 @@ export async function getEarnings(
   // creators count toward affiliate GMV — random affiliates aren't in scope
   // for the rev share calc.
   //
+  // Handles come from tiktok_accounts (canonical, unlimited per creator),
+  // matching how the /roster ("My Creators") page resolves them. The legacy
+  // account_1..5 columns are only a fallback for rows lacking a creator_id
+  // link — reading just those five under-counted GMV for creators with more
+  // than five handles (or whose handles live only in tiktok_accounts).
+  //
   // Umbrella brands (e.g. 'leefar') get expanded to their store slugs
   // (leefar_nutrition, leefar_supplements) so the lookup matches
   // creator_performance rows, which are keyed by store. A creator under the
   // LeeFar umbrella counts toward both stores' rev share — exactly the
   // intended model: one roster row, two stores' worth of GMV.
+  const managedRows = (managedRes.data as Array<{
+    brand: string | null;
+    creator_id: string | null;
+    account_1: string | null; account_2: string | null; account_3: string | null;
+    account_4: string | null; account_5: string | null;
+  }> | null ?? []);
+
+  // Resolve canonical handles per creator_id from tiktok_accounts (one query).
+  const managedCreatorIds = Array.from(new Set(
+    managedRows.map(m => m.creator_id).filter((v): v is string => !!v),
+  ));
+  const handlesByCreatorId = new Map<string, string[]>();
+  if (managedCreatorIds.length > 0) {
+    const { data: taRows } = await supabase
+      .from('tiktok_accounts')
+      .select('creator_id, tiktok_username')
+      .in('creator_id', managedCreatorIds);
+    for (const r of (taRows as Array<{ creator_id: string; tiktok_username: string | null }> | null ?? [])) {
+      const handle = normalizeHandle(r.tiktok_username);
+      if (!handle) continue;
+      const list = handlesByCreatorId.get(r.creator_id) ?? [];
+      list.push(handle);
+      handlesByCreatorId.set(r.creator_id, list);
+    }
+  }
+
   const managedLookup = new Set<string>();
-  for (const m of (managedRes.data as Array<Record<string, string | null>> | null ?? [])) {
+  for (const m of managedRows) {
     const brand = m.brand;
     if (!brand) continue;
     const dataBrands = expandBrandToDataSlugs(brand);
-    for (const k of ['account_1','account_2','account_3','account_4','account_5'] as const) {
-      const handle = normalizeHandle(m[k]);
-      if (!handle) continue;
+    // Prefer canonical tiktok_accounts handles; fall back to the legacy
+    // columns only when this row has no creator_id link / no accounts rows.
+    const fromAccounts = m.creator_id ? handlesByCreatorId.get(m.creator_id) : undefined;
+    const handles = (fromAccounts && fromAccounts.length > 0)
+      ? fromAccounts
+      : [m.account_1, m.account_2, m.account_3, m.account_4, m.account_5]
+          .map(normalizeHandle)
+          .filter(Boolean);
+    for (const handle of handles) {
       for (const dataBrand of dataBrands) {
         managedLookup.add(`${handle}|||${dataBrand}`);
       }
