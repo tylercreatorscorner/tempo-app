@@ -398,27 +398,72 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
     }
 
     // 7. Upsert via server route
-    appendLog(item.id, 'info', `Uploading ${parsed.records.length.toLocaleString()} rows to ${table}...`);
+    //
+    // Vercel caps request bodies at ~4.5 MB. Video List is the only table
+    // that's cumulative-all-time (rather than a daily snapshot), so for a
+    // big brand it can easily exceed that limit and the platform returns
+    // a plain-text "Request Entity Too Large" the client can't parse as
+    // JSON. The `videos` RPC is keyed by (video_id, brand) and is pure
+    // upsert (no destructive delete), so chunking is safe — each chunk is
+    // an independent idempotent upsert. Daily-snapshot tables stay as a
+    // single atomic call to preserve their delete-then-insert transaction.
+    const VIDEOS_CHUNK_SIZE = 5000;
+    const chunks: unknown[][] =
+      table === 'videos' && parsed.records.length > VIDEOS_CHUNK_SIZE
+        ? Array.from(
+            { length: Math.ceil(parsed.records.length / VIDEOS_CHUNK_SIZE) },
+            (_, i) => parsed.records.slice(i * VIDEOS_CHUNK_SIZE, (i + 1) * VIDEOS_CHUNK_SIZE),
+          )
+        : [parsed.records];
+
+    if (chunks.length > 1) {
+      appendLog(item.id, 'info', `Uploading ${parsed.records.length.toLocaleString()} rows to ${table} in ${chunks.length} chunks of up to ${VIDEOS_CHUNK_SIZE.toLocaleString()}...`);
+    } else {
+      appendLog(item.id, 'info', `Uploading ${parsed.records.length.toLocaleString()} rows to ${table}...`);
+    }
+
     try {
-      const res = await fetch('/api/upload/run', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          table,
-          brand: item.brand,
-          reportDate: item.reportDate,
-          records: parsed.records,
-          overwrite,
-        }),
-      });
-      const j = await res.json();
-      if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
-      if (j.idempotent) {
-        appendLog(item.id, 'info', j.message ?? 'Identical upload was already processed (idempotency).');
+      let totalUpserted = 0;
+      for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i];
+        const res = await fetch('/api/upload/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            table,
+            brand: item.brand,
+            reportDate: item.reportDate,
+            records: chunk,
+            overwrite,
+          }),
+        });
+        // Body-too-large surfaces as a non-JSON plain-text response from the
+        // platform (not our route) — read as text first and surface clearly
+        // instead of dying on JSON.parse.
+        const text = await res.text();
+        let j: { error?: string; upserted?: number; idempotent?: boolean; message?: string };
+        try {
+          j = JSON.parse(text);
+        } catch {
+          throw new Error(
+            res.status === 413
+              ? `Chunk ${i + 1}/${chunks.length} rejected as too large (${chunk.length.toLocaleString()} rows). Lower VIDEOS_CHUNK_SIZE.`
+              : `HTTP ${res.status}: ${text.slice(0, 200)}`
+          );
+        }
+        if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
+        if (j.idempotent) {
+          appendLog(item.id, 'info', j.message ?? 'Identical chunk was already processed (idempotency).');
+        }
+        totalUpserted += j.upserted ?? 0;
+        if (chunks.length > 1) {
+          appendLog(item.id, 'info', `Chunk ${i + 1}/${chunks.length}: ${(j.upserted ?? 0).toLocaleString()} rows upserted.`);
+        }
       }
+
       appendLog(
         item.id, 'success',
-        `${j.upserted.toLocaleString()} rows upserted. Total GMV: $${totalGmv.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}, Orders: ${totalOrders.toLocaleString()}.`
+        `${totalUpserted.toLocaleString()} rows upserted. Total GMV: $${totalGmv.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}, Orders: ${totalOrders.toLocaleString()}.`
       );
       updateItem(item.id, {
         status: 'success',

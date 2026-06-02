@@ -51,6 +51,7 @@ const BRAND_MAP: Record<string, string> = {
   'leefar':              'leefar_nutrition',
   'lemme':               'lemme',
   'toplux':              'toplux',
+  'cosrx':               'cosrx',
 };
 
 /** Detect file type from filename. */
