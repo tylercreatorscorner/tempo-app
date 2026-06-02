@@ -17,7 +17,7 @@
  * don't include it as a column. If we want shares, it's a column add to
  * daily_video_stats + an upload column-map update.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Download, Eye, Heart, Loader2, MessageCircle, Search, ExternalLink,
   AlertTriangle, MessageSquare, Star, LayoutGrid, List,
@@ -67,9 +67,19 @@ interface PostsResponse {
     flaggedCount: number;
     reviewedByMeCount: number;
   };
+  // How many rows the server actually returned (deduped, pre review-filter).
+  deliveredCount: number;
+  // True when the window has more posts than were shipped (totals stay exact).
+  capped: boolean;
   startDate: string;
   endDate: string;
 }
+
+// How many cards/rows to mount at once. The full result set (which can be
+// thousands of posts) stays in memory for instant sort/search; we just grow
+// the rendered slice as the user scrolls so we never mount thousands of DOM
+// nodes up front.
+const RENDER_CHUNK = 300;
 
 type SortKey = 'gmv' | 'views' | 'likes' | 'comments' | 'engagement_rate' | 'post_date' | 'creator_handle';
 type SortDir = 'asc' | 'desc';
@@ -127,6 +137,10 @@ export function PostsClient({
     const fromUrl = searchParams.get('view');
     return isViewMode(fromUrl) ? fromUrl : 'cards';
   });
+  // How many of the matching posts are currently mounted. Grows as the user
+  // scrolls (see the sentinel below) or clicks "Show more".
+  const [renderLimit, setRenderLimit] = useState(RENDER_CHUNK);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   // Sync sort/search/review filter/view to URL (without re-triggering data
   // fetch unnecessarily) — debounced for search so we're not pushing a
@@ -201,6 +215,30 @@ export function PostsClient({
     });
     return list;
   }, [data, search, sortKey, sortDir]);
+
+  // Reset the rendered window whenever the matching set changes, so we don't
+  // stay scrolled deep into a stale slice after a new search/sort/filter.
+  useEffect(() => { setRenderLimit(RENDER_CHUNK); }, [search, sortKey, sortDir, reviewFilter, data]);
+
+  const renderedPosts = useMemo(
+    () => visiblePosts.slice(0, renderLimit),
+    [visiblePosts, renderLimit],
+  );
+  const hasMore = renderedPosts.length < visiblePosts.length;
+
+  // Auto-grow the rendered slice as the sentinel scrolls into view (infinite
+  // scroll). The full list is already in memory — this only controls how many
+  // DOM nodes are mounted.
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el || !hasMore) return;
+    const io = new IntersectionObserver(
+      (entries) => { if (entries[0]?.isIntersecting) setRenderLimit(n => n + RENDER_CHUNK); },
+      { rootMargin: '800px' },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [hasMore, visiblePosts.length]);
 
   function changeSort(key: SortKey) {
     if (sortKey === key) {
@@ -301,13 +339,27 @@ export function PostsClient({
         <StatCard label="Total GMV"    value={data ? formatCurrency(data.totals.totalGmv)   : '—'} />
       </div>
 
+      {/* Capped-window notice. The KPI totals above are always computed over
+          the full window server-side; this only fires when the row payload
+          itself was bounded (very large all-creators ranges). */}
+      {data?.capped && (
+        <div className="rounded-xl bg-amber-50 border border-amber-100 px-4 py-2.5 text-xs text-amber-800">
+          Showing the top {data.deliveredCount.toLocaleString()} posts by GMV of{' '}
+          {data.totals.postCount.toLocaleString()} in this range. The totals above
+          still reflect all {data.totals.postCount.toLocaleString()} — narrow the
+          date range to load every post into the table.
+        </div>
+      )}
+
       {/* Header bar — shared between card + table views. Title + count on
           the left, view toggle / sort dropdown / search / CSV on the right. */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-1">
         <div className="flex items-center gap-3">
           <h2 className="text-sm font-bold text-[#1A1B3A]">All posts</h2>
           <span className="text-xs text-gray-400">
-            {visiblePosts.length} of {data?.posts.length ?? 0}
+            {hasMore
+              ? `Showing ${renderedPosts.length.toLocaleString()} of ${visiblePosts.length.toLocaleString()}`
+              : `${visiblePosts.length.toLocaleString()} ${visiblePosts.length === 1 ? 'post' : 'posts'}`}
           </span>
         </div>
         <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -350,7 +402,7 @@ export function PostsClient({
           <EmptyState reviewFilter={reviewFilter} />
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {visiblePosts.map(p => <PostCard key={p.video_id} post={p} onClick={handleRowClick} />)}
+            {renderedPosts.map(p => <PostCard key={`${p.video_id}|${p.brand_slug}`} post={p} onClick={handleRowClick} />)}
           </div>
         )
       ) : (
@@ -379,11 +431,25 @@ export function PostsClient({
                 ) : visiblePosts.length === 0 ? (
                   <tr><td colSpan={10} className="py-0"><EmptyState reviewFilter={reviewFilter} /></td></tr>
                 ) : (
-                  visiblePosts.map(p => <PostRowView key={p.video_id} post={p} onClick={handleRowClick} />)
+                  renderedPosts.map(p => <PostRowView key={`${p.video_id}|${p.brand_slug}`} post={p} onClick={handleRowClick} />)
                 )}
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* Infinite-scroll sentinel + explicit fallback. The sentinel grows the
+          mounted slice as it nears the viewport; the button is there for
+          keyboard users and when the observer doesn't fire. */}
+      {hasMore && (
+        <div ref={sentinelRef} className="flex justify-center pt-2">
+          <button
+            onClick={() => setRenderLimit(n => n + RENDER_CHUNK)}
+            className="text-xs font-semibold px-4 py-2 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-600 transition-colors"
+          >
+            Show more ({(visiblePosts.length - renderedPosts.length).toLocaleString()} more)
+          </button>
         </div>
       )}
     </div>

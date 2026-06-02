@@ -1,19 +1,25 @@
 /**
  * Posts data fetcher.
  *
- * Powers the /posts page. Reads directly from the `videos` table — the
- * canonical persistent catalog of every video, with engagement snapshots
- * (impressions/likes/comments) and revenue (total_gmv/affiliate_gmv).
+ * Powers the /posts page. The heavy lifting lives in two RPCs (migration
+ * 043_posts_page_rpc):
  *
- * Why videos and not video_performance?
- *   - video_performance is daily × product (multiple rows per video) and
- *     has no engagement columns
- *   - daily_video_stats is mostly empty (sync trigger writes elsewhere)
- *   - videos is one row per (video_id, brand), populated by uploads, has
- *     all the engagement we need + GMV
+ *   - get_managed_posts        → one row per UNIQUE video_id, deduped across
+ *                                brands (a video_id is one video and must
+ *                                never count under two shops), filtered to
+ *                                active non-umbrella brands + the date window
+ *                                + (by default) managed creators, ordered by
+ *                                GMV desc and capped at p_limit.
+ *   - get_managed_posts_totals → the KPI aggregate over the FULL window
+ *                                (uncapped), so the headline numbers add up
+ *                                no matter how many rows the table renders.
  *
- * Filtered by post_date (when the video was originally posted) being in
- * the date range. Each video appears once.
+ * Why `videos` and not the v2 stats tables: engagement (impressions / likes /
+ * comments) only exists on `videos`. daily_video_stats is empty and
+ * daily_video_product_stats has GMV but no engagement.
+ *
+ * Filtered by post_date (when the video was originally posted) being in the
+ * date range. Each unique video appears once.
  */
 import { createAdminClient } from '@/lib/supabase/server';
 import { engagementRate } from '@/lib/utils/format';
@@ -30,7 +36,7 @@ export interface PostRow {
   likes: number;
   comments: number;
   engagement_rate: number;        // % — (likes + comments) / views × 100
-  gmv: number;                    // affiliate_gmv (creator-attributed)
+  gmv: number;                    // affiliate_gmv (creator-attributed), falls back to total_gmv
   orders: number;
   items_sold: number;
   is_managed: boolean;
@@ -46,7 +52,7 @@ export type ReviewFilter = 'all' | 'unreviewed' | 'reviewed-by-me' | 'flagged';
 export interface PostsResult {
   posts: PostRow[];
   totals: {
-    postCount: number;
+    postCount: number;            // distinct videos in the window (full scope)
     totalViews: number;
     totalGmv: number;
     totalLikes: number;
@@ -59,6 +65,13 @@ export interface PostsResult {
     flaggedCount: number;
     reviewedByMeCount: number;
   };
+  // How many rows the RPC actually returned (deduped, before reviewFilter).
+  // Equals totals.postCount in every normal window; only differs when a huge
+  // (e.g. all-creators) window exceeds ROW_CAP.
+  deliveredCount: number;
+  // True when the window has more posts than we shipped — narrow the range
+  // to see them all. Totals stay correct (computed in-DB over everything).
+  capped: boolean;
   startDate: string;
   endDate: string;
 }
@@ -67,20 +80,27 @@ export interface PostsResult {
 // presets in post-review-client.tsx — keep them in sync if presets change.
 const FLAGGED_TAGS = new Set(['⚠️ off-brand', '✏️ needs rework']);
 
-interface RawRow {
+// Safety bound on rows shipped to the browser in one request. Managed windows
+// (the default) are well under this even at 90 days; only pathological
+// all-creators ranges hit it, and when they do the KPI totals still reflect
+// the full set (they come from the uncapped totals RPC).
+const ROW_CAP = 20000;
+
+interface RpcRow {
   video_id: string;
-  video_name: string | null;
-  video_link: string | null;
-  creator_name: string;
-  brand: string;
+  video_title: string | null;
+  video_url: string | null;
+  creator_handle: string | null;
+  brand_slug: string;
+  brand_name: string | null;
   post_date: string | null;
-  impressions: number | string | null;
+  views: number | string | null;
   likes: number | string | null;
   comments: number | string | null;
-  total_gmv: number | string | null;
-  affiliate_gmv: number | string | null;
-  items_sold: number | string | null;
+  gmv: number | string | null;
   orders: number | string | null;
+  items_sold: number | string | null;
+  is_managed: boolean | null;
 }
 
 function pNum(v: unknown): number {
@@ -88,17 +108,6 @@ function pNum(v: unknown): number {
   const n = typeof v === 'number' ? v : parseFloat(String(v));
   return Number.isNaN(n) ? 0 : n;
 }
-function pInt(v: unknown): number {
-  if (v === null || v === undefined || v === '') return 0;
-  const n = typeof v === 'number' ? Math.round(v) : parseInt(String(v), 10);
-  return Number.isNaN(n) ? 0 : n;
-}
-function normalizeHandle(h: string | null | undefined): string {
-  if (!h) return '';
-  return h.replace(/^@/, '').trim().toLowerCase();
-}
-
-const PAGE_SIZE = 1000;
 
 interface GetPostsOpts {
   brand: string | null;
@@ -124,138 +133,111 @@ interface GetPostsOpts {
   allowedBrandSlugs?: string[] | null;
 }
 
+function emptyResult(startDate: string, endDate: string): PostsResult {
+  return {
+    posts: [],
+    totals: {
+      postCount: 0, totalViews: 0, totalGmv: 0, totalLikes: 0, totalComments: 0, avgEngagement: 0,
+      reviewedCount: 0, unreviewedCount: 0, flaggedCount: 0, reviewedByMeCount: 0,
+    },
+    deliveredCount: 0,
+    capped: false,
+    startDate, endDate,
+  };
+}
+
 export async function getPosts(opts: GetPostsOpts): Promise<PostsResult> {
   const supabase = await createAdminClient();
-  const { brand, startDate, endDate, managedOnly = true, limit = 500, currentUserId, reviewFilter = 'all', allowedBrandSlugs } = opts;
+  const { brand, startDate, endDate, managedOnly = true, limit = ROW_CAP, currentUserId, reviewFilter = 'all', allowedBrandSlugs } = opts;
 
-  // ── 1. Resolve active brands (excluding archived + umbrella). videos uses
-  //       brand text slug.
+  // ── 1. Resolve the brand-slug allow-list. Active, non-umbrella brands
+  //       (umbrella brands like Leefar are excluded so they don't
+  //       double-count alongside the child shops they cover). Optional
+  //       single-brand filter + manager scoping. Empty → fail closed.
   let brandQuery = supabase
     .from('brands_v2')
-    .select('slug, name, is_umbrella')
+    .select('slug, is_umbrella')
     .eq('is_archived', false);
   if (brand) brandQuery = brandQuery.eq('slug', brand);
   const { data: brandsRaw } = await brandQuery;
-  // Exclude umbrella brands (e.g. Leefar with multiple TikTok shops) so
-  // their stats don't double-count alongside the child shops they cover.
-  // is_umbrella is the canonical flag on brands_v2 — replaces the old
-  // hardcoded `slug !== 'leefar'` check so any future umbrella auto-excludes.
-  let brands = (brandsRaw as Array<{ slug: string; name: string; is_umbrella: boolean | null }> | null ?? [])
-    .filter(b => !b.is_umbrella);
-  // Manager scoping: restrict to the caller's brands. Empty filter → no
-  // brands → empty result (fail-closed), never "all".
+  let brandSlugs = (brandsRaw as Array<{ slug: string; is_umbrella: boolean | null }> | null ?? [])
+    .filter(b => !b.is_umbrella)
+    .map(b => b.slug);
   if (allowedBrandSlugs != null) {
     const allowed = new Set(allowedBrandSlugs);
-    brands = brands.filter(b => allowed.has(b.slug));
+    brandSlugs = brandSlugs.filter(s => allowed.has(s));
   }
-  if (brands.length === 0) {
+  if (brandSlugs.length === 0) return emptyResult(startDate, endDate);
+
+  // ── 2. Deduped rows (capped) + full-window totals, in parallel. The RPCs
+  //       do the managed-handle join and the dedupe-by-video_id in SQL.
+  const [rowsRes, totalsRes] = await Promise.all([
+    supabase.rpc('get_managed_posts', {
+      p_brand_slugs: brandSlugs,
+      p_start_date: startDate,
+      p_end_date: endDate,
+      p_managed_only: managedOnly,
+      p_limit: limit,
+    }),
+    supabase.rpc('get_managed_posts_totals', {
+      p_brand_slugs: brandSlugs,
+      p_start_date: startDate,
+      p_end_date: endDate,
+      p_managed_only: managedOnly,
+    }),
+  ]);
+  if (rowsRes.error) throw rowsRes.error;
+  if (totalsRes.error) throw totalsRes.error;
+
+  const rpcRows = (rowsRes.data as RpcRow[] | null) ?? [];
+  const tot = ((totalsRes.data as Array<Record<string, unknown>> | null) ?? [])[0] ?? {};
+  const postCount    = pNum(tot.post_count);
+  const totalViews   = pNum(tot.total_views);
+  const totalLikes   = pNum(tot.total_likes);
+  const totalComments = pNum(tot.total_comments);
+  const totalGmv     = pNum(tot.total_gmv);
+
+  // ── 3. Map RPC rows → PostRow. Engagement uses the shared util so the
+  //       per-row % and the headline avg are computed identically.
+  let posts: PostRow[] = rpcRows.map(r => {
+    const views = pNum(r.views);
+    const likes = pNum(r.likes);
+    const comments = pNum(r.comments);
     return {
-      posts: [], startDate, endDate,
-      totals: {
-        postCount: 0, totalViews: 0, totalGmv: 0, totalLikes: 0, totalComments: 0, avgEngagement: 0,
-        reviewedCount: 0, unreviewedCount: 0, flaggedCount: 0, reviewedByMeCount: 0,
-      },
+      video_id: r.video_id,
+      video_title: r.video_title ?? '(untitled)',
+      video_url: r.video_url,
+      creator_handle: r.creator_handle ?? '',
+      brand_slug: r.brand_slug,
+      brand_name: r.brand_name ?? r.brand_slug,
+      post_date: r.post_date,
+      views, likes, comments,
+      engagement_rate: engagementRate(views, likes, comments),
+      gmv: pNum(r.gmv),
+      orders: pNum(r.orders),
+      items_sold: pNum(r.items_sold),
+      is_managed: !!r.is_managed,
+      // Filled in by step 4 (review join). Defaults keep the type stable
+      // when video_reviews is empty.
+      review_count: 0,
+      avg_rating: null,
+      flagged: false,
+      has_my_review: false,
     };
-  }
-  const brandSlugs = brands.map(b => b.slug);
-  const brandBySlug = new Map(brands.map(b => [b.slug, b]));
+  });
 
-  // ── 2. Pull videos with post_date in the window. Paginated to avoid the
-  //       1k row default cap. The query is cheap because we have indexes
-  //       on (brand) and post_date isn't huge per brand per week.
-  const allRows: RawRow[] = [];
-  let from = 0;
-  while (true) {
-    const { data, error } = await supabase
-      .from('videos')
-      .select('video_id, video_name, video_link, creator_name, brand, post_date, impressions, likes, comments, total_gmv, affiliate_gmv, items_sold, orders')
-      .in('brand', brandSlugs)
-      .gte('post_date', startDate)
-      .lte('post_date', endDate)
-      .order('total_gmv', { ascending: false, nullsFirst: false })
-      .range(from, from + PAGE_SIZE - 1);
-    if (error) throw error;
-    const batch = (data as RawRow[] | null) ?? [];
-    if (batch.length === 0) break;
-    allRows.push(...batch);
-    if (batch.length < PAGE_SIZE) break;
-    from += PAGE_SIZE;
-    // Cap upstream — we only care about top `limit` posts anyway, and pulling
-    // 50k rows per request is wasteful when default sort is by GMV desc.
-    if (allRows.length >= limit * 4) break;
-  }
+  const deliveredCount = posts.length;
+  const capped = deliveredCount >= limit && postCount > deliveredCount;
 
-  // ── 3. Build managed-creator handle set to flag and (optionally) filter.
-  const { data: managedRaw } = await supabase
-    .from('managed_creators')
-    .select('brand, account_1, account_2, account_3, account_4, account_5, account_6, account_7, account_8, account_9, account_10');
-  const managedSet = new Set<string>();
-  for (const m of (managedRaw as Array<Record<string, string | null>> | null ?? [])) {
-    const brandSlug = m.brand;
-    if (!brandSlug) continue;
-    for (const k of ['account_1','account_2','account_3','account_4','account_5','account_6','account_7','account_8','account_9','account_10'] as const) {
-      const handle = normalizeHandle(m[k]);
-      if (handle) managedSet.add(`${handle}|||${brandSlug}`);
-    }
-  }
-
-  // ── 4. Map raw rows to final shape — one row per video (no aggregation
-  //       needed since videos table is already keyed by video_id+brand).
-  let posts: PostRow[] = allRows
-    .filter(r => r.video_id && r.creator_name)
-    .map(r => {
-      const handle = normalizeHandle(r.creator_name);
-      const isManaged = managedSet.has(`${handle}|||${r.brand}`);
-      const views    = pInt(r.impressions);
-      const likes    = pInt(r.likes);
-      const comments = pInt(r.comments);
-      const engagement = engagementRate(views, likes, comments);
-      // Prefer affiliate_gmv (creator-attributed) — it's the right lens for
-      // the managed-creator view on this page. Falls back to total_gmv.
-      const aff = pNum(r.affiliate_gmv);
-      const gmv = aff > 0 ? aff : pNum(r.total_gmv);
-      return {
-        video_id: r.video_id,
-        video_title: r.video_name ?? '(untitled)',
-        video_url: r.video_link,
-        creator_handle: handle,
-        brand_slug: r.brand,
-        brand_name: brandBySlug.get(r.brand)?.name ?? r.brand,
-        post_date: r.post_date,
-        views, likes, comments,
-        engagement_rate: engagement,
-        gmv,
-        orders: pInt(r.orders),
-        items_sold: pInt(r.items_sold),
-        is_managed: isManaged,
-        // Filled in by step 5 below (review join). Defaults so the type is
-        // stable even when video_reviews is empty.
-        review_count: 0,
-        avg_rating: null,
-        flagged: false,
-        has_my_review: false,
-      };
-    });
-
-  if (managedOnly) {
-    posts = posts.filter(p => p.is_managed);
-  }
-
-  // Default sort by GMV desc (videos query already orders by total_gmv but
-  // we use affiliate_gmv as the display GMV, so re-sort to be exact)
-  posts.sort((a, b) => b.gmv - a.gmv);
-  posts = posts.slice(0, limit);
-
-  // ── 5. Review aggregates. One round-trip pulls every review for the in-scope
-  //       video_ids; we group in JS so we don't pay for SQL array aggregation.
-  //       Empty list short-circuits — getPosts on a brand with no posts in the
-  //       window shouldn't fire a SELECT against video_reviews.
+  // ── 4. Review aggregates. video_reviews is keyed (video_id, brand) and is
+  //       small (hand-entered creative reviews), so we pull it by brand —
+  //       far cheaper than an .in() over thousands of video_ids — and group
+  //       in JS. Short-circuits when there are no posts.
   if (posts.length > 0) {
-    const videoIds = Array.from(new Set(posts.map(p => p.video_id)));
     const { data: reviewsRaw } = await supabase
       .from('video_reviews')
       .select('video_id, brand, reviewer_user_id, rating, tags')
-      .in('video_id', videoIds);
+      .in('brand', brandSlugs);
 
     interface ReviewRow {
       video_id: string;
@@ -281,29 +263,32 @@ export async function getPosts(opts: GetPostsOpts): Promise<PostsResult> {
       aggregateByKey.set(key, agg);
     }
 
-    posts = posts.map(p => {
-      const agg = aggregateByKey.get(`${p.video_id}|||${p.brand_slug}`);
-      if (!agg) return p;
-      const flagged = [...agg.tags].some(t => FLAGGED_TAGS.has(t));
-      const avg = agg.ratings.length > 0
-        ? agg.ratings.reduce((a, b) => a + b, 0) / agg.ratings.length
-        : null;
-      return {
-        ...p,
-        review_count: agg.count,
-        avg_rating: avg,
-        flagged,
-        has_my_review: currentUserId ? agg.reviewers.has(currentUserId) : false,
-      };
-    });
+    if (aggregateByKey.size > 0) {
+      posts = posts.map(p => {
+        const agg = aggregateByKey.get(`${p.video_id}|||${p.brand_slug}`);
+        if (!agg) return p;
+        const flagged = [...agg.tags].some(t => FLAGGED_TAGS.has(t));
+        const avg = agg.ratings.length > 0
+          ? agg.ratings.reduce((a, b) => a + b, 0) / agg.ratings.length
+          : null;
+        return {
+          ...p,
+          review_count: agg.count,
+          avg_rating: avg,
+          flagged,
+          has_my_review: currentUserId ? agg.reviewers.has(currentUserId) : false,
+        };
+      });
+    }
   }
 
-  // Pre-filter review counts so the UI can show how many posts each pill
-  // would surface (e.g. "Unreviewed (12)") without a second round-trip.
+  // Pre-filter review counts so the pills can show how many posts each filter
+  // would surface. unreviewedCount is taken against the TRUE total so the
+  // pill still matches the "Posts" KPI even in a capped window.
   const reviewedCount = posts.filter(p => p.review_count > 0).length;
-  const unreviewedCount = posts.length - reviewedCount;
   const flaggedCount = posts.filter(p => p.flagged).length;
   const reviewedByMeCount = posts.filter(p => p.has_my_review).length;
+  const unreviewedCount = Math.max(postCount - reviewedCount, 0);
 
   // Apply the review-queue filter last — totals above reflect the unfiltered
   // scope so pill counts stay stable when the user toggles between filters.
@@ -311,20 +296,17 @@ export async function getPosts(opts: GetPostsOpts): Promise<PostsResult> {
   else if (reviewFilter === 'reviewed-by-me') posts = posts.filter(p => p.has_my_review);
   else if (reviewFilter === 'flagged') posts = posts.filter(p => p.flagged);
 
-  // ── 6. Totals (over the displayed subset)
-  const totalViews = posts.reduce((s, p) => s + p.views, 0);
-  const totalGmv = posts.reduce((s, p) => s + p.gmv, 0);
-  const totalLikes = posts.reduce((s, p) => s + p.likes, 0);
-  const totalComments = posts.reduce((s, p) => s + p.comments, 0);
   const avgEngagement = engagementRate(totalViews, totalLikes, totalComments);
 
   return {
     posts,
     totals: {
-      postCount: posts.length,
+      postCount,
       totalViews, totalGmv, totalLikes, totalComments, avgEngagement,
       reviewedCount, unreviewedCount, flaggedCount, reviewedByMeCount,
     },
+    deliveredCount,
+    capped,
     startDate, endDate,
   };
 }
