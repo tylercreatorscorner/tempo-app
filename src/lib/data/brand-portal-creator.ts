@@ -8,6 +8,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { BrandPortalPeriod } from './brand-portal-overview';
+import { resolveBrandDataUuids } from '@/lib/utils/constants';
 
 export interface BrandCreatorDetail {
   managedId: number;
@@ -75,6 +76,10 @@ export async function getBrandCreatorDetail(
   const targetHandle = normHandle(handleParam);
   if (!targetHandle) return null;
 
+  // Umbrella-aware brand resolution (see brand-portal-overview for rationale).
+  // 'leefar' → both store UUIDs; normal brand → its single UUID.
+  const brandIds = resolveBrandDataUuids(brandSlug, brandUuid);
+
   // 1. Find the managed_creators row that owns this handle on this brand.
   // Each row has up to 10 handles; we OR-match across all account_N columns.
   const accountSelect = ACCOUNT_COLS.join(', ');
@@ -115,7 +120,7 @@ export async function getBrandCreatorDetail(
   const { data: anchorRow } = await supabase
     .from('daily_creator_stats')
     .select('report_date')
-    .eq('brand_id', brandUuid)
+    .in('brand_id', brandIds)
     .order('report_date', { ascending: false })
     .limit(1);
 
@@ -169,7 +174,7 @@ export async function getBrandCreatorDetail(
     supabase
       .from('daily_creator_stats')
       .select('gmv, orders, videos, report_date')
-      .eq('brand_id', brandUuid)
+      .in('brand_id', brandIds)
       .gte('report_date', startStr)
       .lte('report_date', endStr)
       .in('tiktok_username', handles)
@@ -177,14 +182,14 @@ export async function getBrandCreatorDetail(
     supabase
       .from('daily_creator_stats')
       .select('gmv, videos, report_date')
-      .eq('brand_id', brandUuid)
+      .in('brand_id', brandIds)
       .gte('report_date', priorStartStr)
       .lte('report_date', priorEndStr)
       .in('tiktok_username', handles)
       .range(0, 9999),
     // Per-video aggregates via RPC (same as the Videos page)
     supabase.rpc('brand_portal_videos', {
-      p_brand_id: brandUuid,
+      p_brand_ids: brandIds,
       p_handles: handles,
       p_start_date: startStr,
       p_end_date: endStr,
