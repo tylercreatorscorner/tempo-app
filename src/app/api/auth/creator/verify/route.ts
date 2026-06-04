@@ -57,5 +57,17 @@ export async function GET(request: NextRequest) {
     email: payload.email,
   });
 
-  return NextResponse.redirect(new URL('/creator-dashboard', request.url));
+  // First-time creators (never prompted for contact info) go to the
+  // contact-collection onboarding step once. Returning creators — and anyone
+  // who's already saved or skipped — go straight to the dashboard.
+  const { data: cv } = await supabase
+    .from('creators_v2')
+    .select('contact_onboarding_at')
+    .eq('id', String(payload.creatorId))
+    .maybeSingle();
+  const dest = (cv as { contact_onboarding_at: string | null } | null)?.contact_onboarding_at
+    ? '/creator-dashboard'
+    : '/creator-onboarding';
+
+  return NextResponse.redirect(new URL(dest, request.url));
 }
