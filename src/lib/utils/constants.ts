@@ -128,6 +128,30 @@ export function brandUuidToSlug(uuid: string): string | undefined {
   return BRAND_SLUG_MAP[uuid];
 }
 
+/**
+ * Resolve a roster brand slug to the array of data-table UUIDs it maps to.
+ *
+ * Umbrella brands (leefar) expand to their per-store UUIDs (nutrition +
+ * supplements) — the umbrella's own UUID exists in NO stats row, so filtering
+ * on it returns zero. This is the single source of truth both the admin roster
+ * and the brand portal use so they stay in sync.
+ *
+ *   - normal brand   → [its uuid]
+ *   - umbrella brand → [store uuid, store uuid, ...]
+ *   - unmapped slug  → [fallbackUuid] if given, else []
+ *
+ * Pass the fallbackUuid when you already hold the brand's real UUID (e.g. the
+ * brand portal loads it from brands_v2) so an unmapped-but-real brand still
+ * filters correctly instead of silently matching nothing.
+ */
+export function resolveBrandDataUuids(brandSlug: string, fallbackUuid?: string): string[] {
+  const fromMap = expandBrandToDataSlugs(brandSlug)
+    .map((s) => BRAND_UUID_MAP[s])
+    .filter((u): u is string => !!u);
+  if (fromMap.length > 0) return fromMap;
+  return fallbackUuid ? [fallbackUuid] : [];
+}
+
 /** App name */
 export const APP_NAME = 'Tempo';
 export const APP_DESCRIPTION = 'TikTok Shop Analytics';

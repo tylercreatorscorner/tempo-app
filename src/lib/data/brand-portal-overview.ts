@@ -12,6 +12,7 @@
  * undercounts (e.g. catakor: 108 handles in v2 vs 350 in legacy).
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { resolveBrandDataUuids, expandBrandToDataSlugs } from '@/lib/utils/constants';
 
 export type BrandPortalPeriod =
   | 'yesterday'
@@ -169,11 +170,23 @@ export async function getBrandPortalDashboard(
   brandName: string,
   period: BrandPortalPeriod = '7d',
 ): Promise<BrandPortalDashboard> {
+  // Umbrella-aware brand resolution. 'leefar' expands to both store UUIDs;
+  // a normal brand resolves to its single UUID. We pass brandUuid as the
+  // fallback so an unmapped-but-real brand still filters on its own UUID
+  // rather than matching nothing. All stats queries below filter on this
+  // array (.in) instead of a single UUID (.eq).
+  const brandIds = resolveBrandDataUuids(brandSlug, brandUuid);
+  // Slug-keyed *data* tables (videos) are keyed by the per-store slug for
+  // umbrella brands, so expand here too. Roster/settings tables
+  // (managed_creators, brand_settings) stay keyed by the umbrella slug and
+  // must NOT be expanded — those keep .eq('brand', brandSlug).
+  const dataSlugs = expandBrandToDataSlugs(brandSlug);
+
   // ── Resolve the period window
   const { data: anchorRow } = await supabase
     .from('daily_creator_stats')
     .select('report_date')
-    .eq('brand_id', brandUuid)
+    .in('brand_id', brandIds)
     .order('report_date', { ascending: false })
     .limit(1);
 
@@ -290,7 +303,7 @@ export async function getBrandPortalDashboard(
     supabase
       .from('daily_creator_stats')
       .select('tiktok_username, gmv, orders, videos, report_date')
-      .eq('brand_id', brandUuid)
+      .in('brand_id', brandIds)
       .gte('report_date', startStr)
       .lte('report_date', endStr)
       .in('tiktok_username', allHandles)
@@ -298,7 +311,7 @@ export async function getBrandPortalDashboard(
     supabase
       .from('daily_creator_stats')
       .select('tiktok_username, gmv, videos, report_date')
-      .eq('brand_id', brandUuid)
+      .in('brand_id', brandIds)
       .gte('report_date', priorStartStr)
       .lte('report_date', priorEndStr)
       .in('tiktok_username', allHandles)
@@ -306,7 +319,7 @@ export async function getBrandPortalDashboard(
     // Per-video aggregates via RPC — returns period_gmv (headline),
     // prior_gmv (for change %), and total_gmv (lifetime).
     supabase.rpc('brand_portal_videos', {
-      p_brand_id: brandUuid,
+      p_brand_ids: brandIds,
       p_handles: allHandles,
       p_start_date: startStr,
       p_end_date: endStr,
@@ -317,14 +330,14 @@ export async function getBrandPortalDashboard(
     supabase
       .from('daily_creator_stats')
       .select('tiktok_username, gmv')
-      .eq('brand_id', brandUuid)
+      .in('brand_id', brandIds)
       .gte('report_date', trailing30StartStr)
       .lte('report_date', trailing30EndStr)
       .in('tiktok_username', allHandles)
       .range(0, 9999),
     // Brand-wide totals (managed + organic) for the split panel
     supabase.rpc('brand_total_period_gmv', {
-      p_brand_id: brandUuid,
+      p_brand_ids: brandIds,
       p_start_date: startStr,
       p_end_date: endStr,
     }),
@@ -340,7 +353,7 @@ export async function getBrandPortalDashboard(
     (async () => {
       const monthStart = new Date(Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), 1, 12));
       return supabase.rpc('brand_total_period_gmv', {
-        p_brand_id: brandUuid,
+        p_brand_ids: brandIds,
         p_start_date: fmt(monthStart),
         p_end_date: fmt(endDate),
       });
@@ -350,7 +363,7 @@ export async function getBrandPortalDashboard(
     supabase
       .from('videos')
       .select('video_id, post_date, impressions, likes, comments')
-      .eq('brand', brandSlug)
+      .in('brand', dataSlugs)
       .gte('post_date', priorStartStr)
       .lte('post_date', endStr)
       .in('creator_name', allHandles)
