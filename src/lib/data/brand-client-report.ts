@@ -8,12 +8,17 @@
  *   Managed vs Organic · New vs Returning · Day-of-Week · Daily Perf ·
  *   Top Creators · Top Videos · Top Products · Product↔Creator Breakdown
  *
- * Uses 5 tables in parallel:
- *   daily_creator_stats          — current + prior period creators (for GMV, orders, videos, WoW deltas, new/returning)
- *   daily_video_stats            — top videos with titles & URLs
- *   daily_product_stats          — top products by GMV
- *   daily_video_product_stats    — joins videos↔products for the per-product creator breakdown
- *   managed_creators             — flags which tiktok handles are signed (managed vs organic split)
+ * Reads the CSV-fed source-of-truth tables (keyed by brand SLUG), same as the
+ * roster and text reports after migration 042. The v2 daily_* tables were a
+ * lossy ~17-22% subset fed by a sync trigger that silently dropped whole brands
+ * (e.g. cosrx), so the client PDF disagreed with the roster — repointing here
+ * fixes that and makes every brand's report consistent.
+ *
+ *   creator_performance  — creator-level daily rows (GMV, orders, videos,
+ *                          est_commission, WoW deltas, new/returning, daily perf)
+ *   video_performance    — video×product daily rows (top videos with titles/links,
+ *                          top products, per-product creator breakdown)
+ *   managed_creators     — flags which tiktok handles are signed (managed vs organic)
  *
  * Like discord-posts, anchors the period to the latest report_date in the
  * data tables — uploads are usually a few days behind real time and we'd
@@ -21,7 +26,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
-import { BRAND_UUID_MAP } from '@/lib/utils/constants';
+import { expandBrandToDataSlugs } from '@/lib/utils/constants';
 
 export type ReportPeriod = '7d' | '30d';
 
@@ -120,10 +125,15 @@ function formatDate(d: Date): string {
   return d.toISOString().split('T')[0];
 }
 
-function getBrandUuids(brandFilter: string): string[] | null {
+/**
+ * Resolve a roster brand slug to the data-table brand slugs to filter on.
+ * Umbrella brands (leefar) expand to their per-store slugs — creator_performance
+ * and video_performance are keyed by store slug, not the umbrella. 'all' (or
+ * empty) returns null = no brand filter (every brand).
+ */
+function getBrandDataSlugs(brandFilter: string): string[] | null {
   if (!brandFilter || brandFilter === 'all') return null;
-  const uuid = BRAND_UUID_MAP[brandFilter];
-  return uuid ? [uuid] : null;
+  return [...expandBrandToDataSlugs(brandFilter)];
 }
 
 function pctChange(curr: number, prior: number): number | null {
@@ -138,18 +148,18 @@ function pctChange(curr: number, prior: number): number | null {
 // headline GMV is from one week and "Top Videos" is from another (or empty).
 // Using the oldest shared date guarantees every section reports on the
 // same window, even if it means the report is a few weeks behind real time.
-async function resolveSharedAnchor(supabase: any, brandUuids: string[] | null): Promise<Date> {
-  // Only the live tables. daily_video_stats / daily_product_stats stopped
-  // populating; including them dragged the shared anchor (oldest latest-date)
-  // weeks back and made the whole report stale. daily_video_product_stats
-  // covers both video- and product-level data.
-  const tables: ('daily_creator_stats' | 'daily_video_product_stats')[] = [
-    'daily_creator_stats',
-    'daily_video_product_stats',
+async function resolveSharedAnchor(supabase: any, brandSlugs: string[] | null): Promise<Date> {
+  // Anchor to the oldest of the latest dates across the creator- and
+  // video-level source tables so every section reports on the same window.
+  const tables: ('creator_performance' | 'video_performance')[] = [
+    'creator_performance',
+    'video_performance',
   ];
   const latests = await Promise.all(tables.map(async (t) => {
-    let q = supabase.from(t).select('report_date').order('report_date', { ascending: false }).limit(1);
-    if (brandUuids) q = q.in('brand_id', brandUuids);
+    let q = supabase.from(t).select('report_date')
+      .eq('period_type', 'daily')
+      .order('report_date', { ascending: false }).limit(1);
+    if (brandSlugs) q = q.in('brand', brandSlugs);
     const { data } = await q;
     if (!data || data.length === 0) return null;
     return new Date(data[0].report_date + 'T12:00:00Z');
@@ -245,13 +255,13 @@ export async function getBrandClientReportData(
   clientOverride?: SupabaseClient,
 ): Promise<BrandClientReportData> {
   const supabase = clientOverride ?? (await createClient());
-  const brandUuids = getBrandUuids(brandSlug);
+  const brandSlugs = getBrandDataSlugs(brandSlug);
   const periodDays = period === '30d' ? 30 : 7;
 
   // ── Resolve the time window — anchor to the oldest of the latest dates
   // across creator/video/product tables so every section reports on the
   // same window (no cross-section date mixing in a client-facing deliverable).
-  const today = await resolveSharedAnchor(supabase, brandUuids);
+  const today = await resolveSharedAnchor(supabase, brandSlugs);
   const endDate = new Date(today);
   endDate.setDate(today.getDate() - 1);
   const startDate = new Date(endDate);
@@ -267,17 +277,22 @@ export async function getBrandClientReportData(
   const priorStartStr = formatDate(priorStart);
   const priorEndStr = formatDate(priorEnd);
 
-  // ── Filter builders (keep DRY)
+  // ── Filter builders (keep DRY). Source tables are keyed by brand SLUG and
+  // hold multiple period_types — scope to daily so we never double-count.
   const dateRange = (s: string, e: string) => {
     const f: { column: string; op: string; value: any }[] = [
       { column: 'report_date', op: 'gte', value: s },
       { column: 'report_date', op: 'lte', value: e },
+      { column: 'period_type', op: 'eq', value: 'daily' },
     ];
-    if (brandUuids) f.push({ column: 'brand_id', op: 'in', value: brandUuids });
+    if (brandSlugs) f.push({ column: 'brand', op: 'in', value: brandSlugs });
     return f;
   };
 
-  // ── Fire all queries in parallel
+  // ── Fire all queries in parallel.
+  // creator_performance is creator-level (one row per creator/day); the three
+  // video_performance pulls are video×product grained — top videos aggregate by
+  // video_id, products by product_name, and the breakdown joins product↔creator.
   const [
     creatorRowsCur,
     creatorRowsPrior,
@@ -286,20 +301,20 @@ export async function getBrandClientReportData(
     videoProductRows,
     managedHandles,
   ] = await Promise.all([
-    paginatedFetch(supabase, 'daily_creator_stats',
-      'tiktok_username, gmv, orders, videos, est_commission, report_date',
+    paginatedFetch(supabase, 'creator_performance',
+      'creator_name, gmv, orders, videos, est_commission, report_date',
       dateRange(startStr, endStr)),
-    paginatedFetch(supabase, 'daily_creator_stats',
-      'tiktok_username, gmv, orders, videos',
+    paginatedFetch(supabase, 'creator_performance',
+      'creator_name, gmv, orders, videos',
       dateRange(priorStartStr, priorEndStr)),
-    paginatedFetch(supabase, 'daily_video_product_stats',
-      'video_id, video_title, video_url, tiktok_username, gmv, orders',
+    paginatedFetch(supabase, 'video_performance',
+      'video_id, video_title, video_link, creator_name, gmv, orders',
       dateRange(startStr, endStr)),
-    paginatedFetch(supabase, 'daily_video_product_stats',
+    paginatedFetch(supabase, 'video_performance',
       'product_name, gmv, orders',
       dateRange(startStr, endStr)),
-    paginatedFetch(supabase, 'daily_video_product_stats',
-      'product_name, tiktok_username, gmv',
+    paginatedFetch(supabase, 'video_performance',
+      'product_name, creator_name, gmv',
       dateRange(startStr, endStr)),
     getManagedHandleSet(supabase, brandSlug),
   ]);
@@ -310,10 +325,10 @@ export async function getBrandClientReportData(
   let totalCommission = 0;
 
   for (const row of (creatorRowsCur || []) as any[]) {
-    const handle = (row.tiktok_username || '').toLowerCase().replace('@', '');
+    const handle = (row.creator_name || '').toLowerCase().replace('@', '');
     if (!handle) continue;
     if (!creatorMap.has(handle)) {
-      creatorMap.set(handle, { name: row.tiktok_username || handle, gmv: 0, orders: 0, videos: 0, commission: 0 });
+      creatorMap.set(handle, { name: row.creator_name || handle, gmv: 0, orders: 0, videos: 0, commission: 0 });
     }
     const c = creatorMap.get(handle)!;
     const gmv = parseFloat(row.gmv) || 0;
@@ -335,7 +350,7 @@ export async function getBrandClientReportData(
   // ── Aggregate creators (prior period — just GMV per handle, for new/returning + WoW)
   const priorCreatorMap = new Map<string, { gmv: number; orders: number; videos: number }>();
   for (const row of (creatorRowsPrior || []) as any[]) {
-    const handle = (row.tiktok_username || '').toLowerCase().replace('@', '');
+    const handle = (row.creator_name || '').toLowerCase().replace('@', '');
     if (!handle) continue;
     if (!priorCreatorMap.has(handle)) priorCreatorMap.set(handle, { gmv: 0, orders: 0, videos: 0 });
     const p = priorCreatorMap.get(handle)!;
@@ -432,10 +447,10 @@ export async function getBrandClientReportData(
     if (!videoMap.has(id)) {
       videoMap.set(id, {
         title: row.video_title || '(untitled)',
-        creator: row.tiktok_username || '',
+        creator: row.creator_name || '',
         gmv: 0,
         orders: 0,
-        videoUrl: row.video_url || null,
+        videoUrl: row.video_link || null,
       });
     }
     const v = videoMap.get(id)!;
@@ -462,7 +477,7 @@ export async function getBrandClientReportData(
   const productCreatorMap = new Map<string, Map<string, number>>();
   for (const row of (videoProductRows || []) as any[]) {
     const pname = row.product_name || 'Unknown Product';
-    const handle = (row.tiktok_username || '').replace('@', '');
+    const handle = (row.creator_name || '').replace('@', '');
     if (!handle) continue;
     if (!productCreatorMap.has(pname)) productCreatorMap.set(pname, new Map());
     const m = productCreatorMap.get(pname)!;
@@ -517,16 +532,16 @@ export async function getBrandClientReportData(
   // Top videos from managed creators only.
   const ccVideoMap = new Map<string, { title: string; creator: string; gmv: number; orders: number; videoUrl: string | null }>();
   for (const row of (videoRows || []) as any[]) {
-    const h = (row.tiktok_username || '').toLowerCase().replace('@', '');
+    const h = (row.creator_name || '').toLowerCase().replace('@', '');
     if (!h || !managedHandles.has(h)) continue;
     const id = row.video_id;
     if (!id) continue;
     if (!ccVideoMap.has(id)) {
       ccVideoMap.set(id, {
         title: row.video_title || '(untitled)',
-        creator: row.tiktok_username || '',
+        creator: row.creator_name || '',
         gmv: 0, orders: 0,
-        videoUrl: row.video_url || null,
+        videoUrl: row.video_link || null,
       });
     }
     const v = ccVideoMap.get(id)!;

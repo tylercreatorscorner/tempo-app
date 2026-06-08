@@ -8,6 +8,7 @@ export const BRAND_COLORS: Record<string, string> = {
   leefar_nutrition: '#8BC34A',
   leefar_supplements: '#66BB6A',
   lemme: '#FFC700',
+  cosrx: '#00BCD4',
 };
 
 /** Brand display name mapping */
@@ -20,6 +21,7 @@ export const BRAND_DISPLAY_NAMES: Record<string, string> = {
   leefar_nutrition: 'LeeFar Nutrition',
   leefar_supplements: 'LeeFar Supplements',
   lemme: 'Lemme',
+  cosrx: 'COSRX',
 };
 
 /** Get brand color with fallback */
