@@ -1,9 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { X, Save, Download, Trash2, Loader2, Send, CheckCircle2, RotateCcw, RefreshCw, Users, Ban, Link2, Mail, Copy, Check, ExternalLink, Wallet } from 'lucide-react';
+import { X, Save, Download, Trash2, Loader2, Send, CheckCircle2, RotateCcw, RefreshCw, Users, Ban, Link2, Mail, Copy, Check, ExternalLink, Wallet, FileSpreadsheet } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
+import { downloadCsv } from '@/lib/utils/csv';
+import { downloadXlsx } from '@/lib/utils/xlsx';
 import { MarkPaidModal } from './mark-paid-modal';
 import { ModalOverlay } from '@/components/ui/modal-overlay';
 
@@ -265,6 +267,30 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
     }
   }
 
+  function handleExportCsv() {
+    const creators = invoiceCreatorRows(invoice);
+    if (creators.length > 0) {
+      // One row per creator, with the invoice identity repeated so the file
+      // stands on its own when pulled into a spreadsheet.
+      const rows = creators.map((r) => ({
+        invoice_number: invoice.invoice_number,
+        brand: invoice.brand,
+        period_month: invoice.period_month,
+        ...r,
+      }));
+      downloadCsv(`${invoice.invoice_number}_creators.csv`, rows);
+    } else {
+      downloadCsv(`${invoice.invoice_number}.csv`, invoiceSummaryRows(invoice));
+    }
+  }
+
+  async function handleExportXlsx() {
+    await downloadXlsx(`${invoice.invoice_number}.xlsx`, [
+      { name: 'Summary', rows: invoiceSummaryRows(invoice), columns: ['field', 'value'] },
+      { name: 'Creators', rows: invoiceCreatorRows(invoice), columns: ['creator', 'gmv', 'rate_pct', 'commission'] },
+    ]);
+  }
+
   async function handleDelete() {
     if (!confirm(`Delete invoice ${invoice.invoice_number}? This can't be undone.`)) return;
     setSaving(true);
@@ -383,6 +409,22 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
             <Download className="h-3.5 w-3.5" />
             Download PDF
           </a>
+          <button
+            onClick={handleExportCsv}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-gray-700 text-xs font-semibold hover:bg-white transition-colors"
+            title="Export this invoice (creator breakdown) as CSV"
+          >
+            <Download className="h-3.5 w-3.5" />
+            CSV
+          </button>
+          <button
+            onClick={handleExportXlsx}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-gray-700 text-xs font-semibold hover:bg-white transition-colors"
+            title="Export this invoice (summary + creator breakdown) as Excel"
+          >
+            <FileSpreadsheet className="h-3.5 w-3.5" />
+            Excel
+          </button>
         </div>
 
         {/* Form body */}
@@ -639,6 +681,43 @@ function labelMethod(m: string | null | undefined): string {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────
+
+/** Key/value summary of one invoice — used for the CSV fallback and the Excel "Summary" tab. */
+function invoiceSummaryRows(inv: Invoice): Array<{ field: string; value: string | number }> {
+  const total =
+    Number(inv.total_amount) ||
+    Number(inv.commission) + Number(inv.retainer) + Number(inv.product_retainer) + Number(inv.launch_fee);
+  return [
+    { field: 'Invoice Number', value: inv.invoice_number },
+    { field: 'Brand', value: inv.brand },
+    { field: 'Period', value: fmtPeriod(inv.period_month) },
+    { field: 'Status', value: inv.status },
+    { field: 'Affiliate GMV', value: Number(inv.affiliate_gmv) },
+    { field: 'Marketing GMV', value: Number(inv.marketing_gmv) },
+    { field: 'Total GMV', value: Number(inv.total_gmv) },
+    { field: 'Commission', value: Number(inv.commission) },
+    { field: 'Retainer', value: Number(inv.retainer) },
+    { field: 'Product Retainer', value: Number(inv.product_retainer) },
+    { field: 'Launch Fee', value: Number(inv.launch_fee) },
+    { field: 'Total Amount', value: total },
+    { field: 'Bill To Name', value: inv.bill_to_name ?? '' },
+    { field: 'Bill To Email', value: inv.bill_to_email ?? '' },
+    { field: 'Due Date', value: inv.due_date ?? '' },
+    { field: 'Generated', value: inv.generated_at ?? '' },
+    { field: 'Sent', value: inv.sent_at ?? '' },
+    { field: 'Paid', value: inv.paid_at ?? '' },
+  ];
+}
+
+/** Per-creator line items for one invoice — empty array if the breakdown isn't populated. */
+function invoiceCreatorRows(inv: Invoice): Array<{ creator: string; gmv: number; rate_pct: number; commission: number }> {
+  return (Array.isArray(inv.creator_breakdown) ? inv.creator_breakdown : []).map((c) => ({
+    creator: c.name,
+    gmv: Number(c.gmv),
+    rate_pct: Number(c.rate),
+    commission: Number(c.commission),
+  }));
+}
 
 function fmtPeriod(ym: string) {
   if (!/^\d{4}-\d{2}$/.test(ym)) return ym;

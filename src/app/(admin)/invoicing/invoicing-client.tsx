@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Receipt, FileText, Clock, CheckCircle2, Filter, RefreshCw, Download, Plus, AlertCircle, Ban, Search, X, Send, Loader2, FileDown, Users } from 'lucide-react';
+import { Receipt, FileText, Clock, CheckCircle2, Filter, RefreshCw, Download, Plus, AlertCircle, Ban, Search, X, Send, Loader2, FileDown, Users, FileSpreadsheet } from 'lucide-react';
 import { downloadCsv } from '@/lib/utils/csv';
+import { downloadXlsx } from '@/lib/utils/xlsx';
 import { cn } from '@/lib/utils';
 import { formatCurrency, formatDate, formatPeriod, currentMonth } from '@/lib/utils/format';
 import { StatCard } from '@/components/dashboard/stat-card';
@@ -195,10 +196,9 @@ export function InvoicingClient({ initialOpenId }: Props) {
     }
   }, [selectedIds]);
 
-  const handleExportCsv = useCallback(() => {
+  const buildExportRows = useCallback(() => {
     const list = filteredInvoices.length > 0 ? filteredInvoices : invoices;
-    if (list.length === 0) return;
-    const rows = list.map((inv) => ({
+    return list.map((inv) => ({
       invoice_number: inv.invoice_number,
       brand: inv.brand,
       period_month: inv.period_month,
@@ -218,9 +218,21 @@ export function InvoicingClient({ initialOpenId }: Props) {
       bill_to_name: inv.bill_to_name ?? '',
       bill_to_email: inv.bill_to_email ?? '',
     }));
+  }, [filteredInvoices, invoices]);
+
+  const handleExportCsv = useCallback(() => {
+    const rows = buildExportRows();
+    if (rows.length === 0) return;
     const stamp = new Date().toISOString().split('T')[0];
     downloadCsv(`invoices_${stamp}.csv`, rows);
-  }, [filteredInvoices, invoices]);
+  }, [buildExportRows]);
+
+  const handleExportXlsx = useCallback(() => {
+    const rows = buildExportRows();
+    if (rows.length === 0) return;
+    const stamp = new Date().toISOString().split('T')[0];
+    void downloadXlsx(`invoices_${stamp}.xlsx`, [{ name: 'Invoices', rows }]);
+  }, [buildExportRows]);
 
   const handleCreated = useCallback((created: Invoice) => {
     setInvoices((prev) => [created, ...prev]);
@@ -354,7 +366,17 @@ export function InvoicingClient({ initialOpenId }: Props) {
             title={filteredInvoices.length < invoices.length ? `Export ${filteredInvoices.length} filtered invoices to CSV` : `Export all ${invoices.length} invoices to CSV`}
           >
             <FileDown className="h-3.5 w-3.5" />
-            Export
+            CSV
+          </button>
+
+          <button
+            onClick={handleExportXlsx}
+            disabled={loading || invoices.length === 0}
+            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-600 disabled:opacity-40 transition-colors"
+            title={filteredInvoices.length < invoices.length ? `Export ${filteredInvoices.length} filtered invoices to Excel` : `Export all ${invoices.length} invoices to Excel`}
+          >
+            <FileSpreadsheet className="h-3.5 w-3.5" />
+            Excel
           </button>
         </div>
 
