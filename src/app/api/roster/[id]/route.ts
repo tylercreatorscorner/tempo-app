@@ -103,34 +103,70 @@ export async function PATCH(
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   // Reconcile tiktok_accounts when handles[] was sent.
+  //
+  // A handle can legitimately own several rows here — one per brand the creator
+  // sells for — so we reconcile by DISTINCT handle, never by brand. The old
+  // path upserted on (tenant_id, tiktok_username, brand_id) with brand_id unset
+  // (null); because Postgres treats NULL as DISTINCT in a unique index, the
+  // conflict target never matched and every save INSERTED a fresh duplicate row
+  // (the bug where removing a handle and saving multiplied it instead). We now
+  // diff against the rows that already exist: delete the handles that are gone,
+  // insert only the handles that are genuinely new, and leave the rest alone.
   if (normalizedHandles && data.creator_id) {
     const creatorId = data.creator_id as string;
-    const lowered = normalizedHandles.map((h) => h.toLowerCase());
+    const desired = Array.from(new Set(normalizedHandles.map((h) => h.toLowerCase())));
 
-    if (lowered.length > 0) {
-      await supabase
-        .from('tiktok_accounts')
-        .delete()
-        .eq('creator_id', creatorId)
-        .eq('tenant_id', tenantId)
-        .not('tiktok_username', 'in', `(${lowered.map((h) => `"${h}"`).join(',')})`);
-    } else {
-      await supabase
-        .from('tiktok_accounts')
-        .delete()
-        .eq('creator_id', creatorId)
-        .eq('tenant_id', tenantId);
+    const { data: existingRows } = await supabase
+      .from('tiktok_accounts')
+      .select('id, tiktok_username')
+      .eq('creator_id', creatorId)
+      .eq('tenant_id', tenantId);
+    const existing =
+      (existingRows as { id: string; tiktok_username: string | null }[] | null) ?? [];
+
+    // Handles that already have at least one row → never re-insert.
+    const existingHandles = new Set(
+      existing.map((r) => (r.tiktok_username ?? '').toLowerCase()).filter(Boolean),
+    );
+
+    // Delete every row whose handle is no longer desired. Targeting by row id
+    // (not a handle IN-list) sidesteps case/quoting pitfalls and removes ALL of
+    // a dropped handle's brand rows in one shot.
+    const idsToDelete = existing
+      .filter((r) => !desired.includes((r.tiktok_username ?? '').toLowerCase()))
+      .map((r) => r.id);
+    if (idsToDelete.length > 0) {
+      await supabase.from('tiktok_accounts').delete().in('id', idsToDelete);
     }
 
-    for (let i = 0; i < normalizedHandles.length; i++) {
+    // Insert only handles that don't exist yet (brand_id left null — the row is
+    // brand-agnostic until a brand-scoped flow claims it).
+    const firstHandle = desired[0];
+    for (const lower of desired) {
+      if (existingHandles.has(lower)) continue;
+      const original = normalizedHandles.find((h) => h.toLowerCase() === lower) ?? lower;
+      await supabase.from('tiktok_accounts').insert({
+        creator_id: creatorId,
+        tenant_id: tenantId,
+        tiktok_username: original,
+        is_primary: lower === firstHandle,
+      });
+    }
+
+    // Keep is_primary in sync with the new ordering: the first handle's row(s)
+    // are primary, everything else is not. Idempotent; case-insensitive.
+    if (firstHandle) {
       await supabase
         .from('tiktok_accounts')
-        .upsert({
-          creator_id: creatorId,
-          tenant_id: tenantId,
-          tiktok_username: normalizedHandles[i],
-          is_primary: i === 0,
-        }, { onConflict: 'tenant_id,tiktok_username,brand_id', ignoreDuplicates: true });
+        .update({ is_primary: false })
+        .eq('creator_id', creatorId)
+        .eq('tenant_id', tenantId);
+      await supabase
+        .from('tiktok_accounts')
+        .update({ is_primary: true })
+        .eq('creator_id', creatorId)
+        .eq('tenant_id', tenantId)
+        .ilike('tiktok_username', firstHandle);
     }
   }
 
