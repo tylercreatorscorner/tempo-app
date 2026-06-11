@@ -102,7 +102,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
           href="/roster"
           className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#E91E8C] text-white text-sm font-semibold hover:bg-[#d1177d] transition-colors"
         >
-          <ArrowLeft className="h-4 w-4" /> Back to My Creators
+          <ArrowLeft className="h-4 w-4" /> Back to Creators
         </Link>
       </div>
     );

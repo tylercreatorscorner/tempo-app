@@ -32,7 +32,7 @@ interface NavSection {
 // section corresponds to a domain object the user thinks about.
 //
 // HOME    → Dashboard (today's snapshot)
-// CREATORS → roster, messages, discover
+// CRM     → creators (roster), messages, discover
 // CONTENT → posts (with reviews), reporting (output)
 // INSIGHTS → analytics
 // FINANCE  → earnings, invoicing, payments
@@ -49,9 +49,9 @@ const HOME_SECTION: NavSection = {
 };
 
 const CREATORS_SECTION: NavSection = {
-  label: 'Creators',
+  label: 'CRM',
   items: [
-    { href: '/roster',   label: 'My Creators', icon: UserCheck },
+    { href: '/roster',   label: 'Creators', icon: UserCheck },
     { href: '/messages', label: 'Messages',    icon: Mail },
     { href: '/discover', label: 'Discover',    icon: Compass },
   ],
