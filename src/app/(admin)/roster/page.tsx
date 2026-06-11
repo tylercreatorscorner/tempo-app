@@ -7,12 +7,10 @@ import {
   UserPlus, Search, Users, UserCheck, X,
   ChevronLeft, ChevronRight, ExternalLink, Loader2,
   UserX, Globe, Pencil, Check, Plus, Trash2, ArrowUp, ArrowDown, ArrowUpDown,
-  RefreshCcw, AlertTriangle, MoonStar, TrendingDown, Download,
 } from 'lucide-react';
 import Link from 'next/link';
 import { BRAND_DISPLAY_NAMES, BRAND_COLORS } from '@/lib/utils/constants';
 import { useBrandList } from '@/hooks/use-brand-list';
-import { RenewalsTab } from '@/components/roster/renewals-tab';
 import { ModalOverlay } from '@/components/ui/modal-overlay';
 
 const PAGE_SIZE = 50;
@@ -47,11 +45,13 @@ interface Creator {
   // there's no data. Powers the side-panel "Revenue by store" section, the
   // row's store-mix indicator, and the LeeFar Nutrition/Supplements sub-pill.
   gmv_by_store: Record<string, number>;
-  // Calendar-month — independent of the period selector.
-  posts_this_month: number;
-  // Rolling 7-day distinct video count — drives the Posts/7D column.
+  // Distinct posts over the selected period — drives the Posts column.
+  posts_period: number;
+  // Rolling 7-day distinct video count — legacy, unused by the simple page.
   posts_7d: number;
   last_post_date: string | null;
+  // When the creator joined the roster (joined_at ?? created_at). Null for unmanaged.
+  joined: string | null;
   health: CreatorHealth;
   // Period-driven: gmv_period ÷ retainer, null when retainer is 0.
   roi_period: number | null;
@@ -101,21 +101,6 @@ function StatusBadge({ status }: { status: string | null }) {
 // Health drives the row-level color story; the other helpers are about
 // fast scanning ("at a glance, is this creator on track?").
 
-function HealthBadge({ health }: { health: CreatorHealth }) {
-  const STYLE: Record<CreatorHealth, { label: string; cls: string }> = {
-    healthy: { label: 'Healthy', cls: 'bg-green-50 text-green-700 border-green-100' },
-    behind:  { label: 'Behind',  cls: 'bg-orange-50 text-orange-700 border-orange-100' },
-    silent:  { label: 'Silent',  cls: 'bg-red-50 text-red-700 border-red-100' },
-    churned: { label: 'Churned', cls: 'bg-gray-100 text-gray-500 border-gray-200' },
-    no_data: { label: '—',       cls: 'text-gray-300 border-transparent' },
-  };
-  const { label, cls } = STYLE[health];
-  return (
-    <span className={`inline-flex items-center text-[11px] font-semibold px-2 py-0.5 rounded-full border ${cls}`}>
-      {label}
-    </span>
-  );
-}
 
 function LastPostCell({ date }: { date: string | null }) {
   if (!date) return <span className="text-gray-300">—</span>;
@@ -134,20 +119,6 @@ function LastPostCell({ date }: { date: string | null }) {
  * Posts/7D badge — color-coded thresholds matching the old Netlify dashboard.
  * 0 = red (silent), 1-3 = orange, 4-5 = yellow, 6-9 = green, 10+ = blue.
  */
-function Posts7dBadge({ posts }: { posts: number }) {
-  const n = Number(posts) || 0;
-  const cls =
-    n === 0   ? 'bg-red-50 text-red-700 border-red-100'
-    : n <= 3  ? 'bg-orange-50 text-orange-700 border-orange-100'
-    : n <= 5  ? 'bg-yellow-50 text-yellow-700 border-yellow-100'
-    : n <= 9  ? 'bg-green-50 text-green-700 border-green-100'
-    :           'bg-blue-50 text-blue-700 border-blue-100';
-  return (
-    <span className={`inline-flex items-center justify-center min-w-[2.25rem] text-xs font-semibold tabular-nums px-2 py-0.5 rounded-full border ${cls}`}>
-      {n}
-    </span>
-  );
-}
 
 /**
  * Join Date cell — shows the managed_creators.created_at as a short date.
@@ -169,29 +140,7 @@ function JoinDateCell({ date }: { date: string | null }) {
  * shaped to extend — any future umbrella brand with multiple stores can drop
  * its store slugs into MULTI_STORE_BRANDS below and the component picks it up.
  */
-const MULTI_STORE_BRANDS: Record<string, { slug: string; letter: string }[]> = {
-  leefar: [
-    { slug: 'leefar_nutrition',   letter: 'N' },
-    { slug: 'leefar_supplements', letter: 'S' },
-  ],
-};
 
-function StoreMixIndicator({ creator }: { creator: Creator }) {
-  if (!creator.brand) return null;
-  const stores = MULTI_STORE_BRANDS[creator.brand];
-  if (!stores) return null;
-  const active = stores.filter((s) => (creator.gmv_by_store?.[s.slug] ?? 0) > 0);
-  if (active.length === 0) return null;
-  const label = active.map((s) => s.letter).join('+');
-  return (
-    <span
-      className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-white border border-gray-200 text-gray-500"
-      title={`Revenue from: ${active.map((s) => BRAND_DISPLAY_NAMES[s.slug] ?? s.slug).join(', ')}`}
-    >
-      {label}
-    </span>
-  );
-}
 
 // Searchable brand selector — replaces the wall-of-pills pattern. Renders
 // a single button showing the current selection; click opens a popover
@@ -465,89 +414,6 @@ function PeriodSelector({
   );
 }
 
-// Action-oriented stat card. Clickable cards toggle a health filter on the
-// table; the active card gets a colored ring so the user always knows what
-// the table is filtered to.
-function StatCard({
-  icon, label, value, hint, tone = 'gray', active = false, onClick,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  hint?: string;
-  tone?: 'gray' | 'orange' | 'red' | 'purple';
-  active?: boolean;
-  onClick?: () => void;
-}) {
-  const TONE_RING: Record<string, string> = {
-    gray:   'ring-gray-200',
-    orange: 'ring-orange-300',
-    red:    'ring-red-300',
-    purple: 'ring-purple-300',
-  };
-  const TONE_VALUE: Record<string, string> = {
-    gray:   'text-[#1A1B3A]',
-    orange: 'text-orange-600',
-    red:    'text-red-600',
-    purple: 'text-purple-600',
-  };
-  const ringCls = active ? `ring-2 ${TONE_RING[tone]}` : 'ring-0';
-  const interactive = !!onClick;
-  const Wrapper = interactive ? 'button' : 'div';
-  return (
-    <Wrapper
-      onClick={onClick}
-      className={`text-left rounded-2xl bg-white border border-gray-100 shadow-sm p-5 transition-all ${ringCls} ${interactive ? 'cursor-pointer hover:border-gray-200 hover:shadow' : ''}`}
-    >
-      <div className="flex items-center gap-2 mb-2">
-        {icon}
-        <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">{label}</p>
-      </div>
-      <p className={`text-2xl font-extrabold ${TONE_VALUE[tone]}`}>{value}</p>
-      {hint && <p className="text-[11px] text-gray-400 mt-0.5">{hint}</p>}
-    </Wrapper>
-  );
-}
-
-// "Last DM" cell. Shows relative time + a red unread badge when there are
-// unanswered inbound messages. Renders an em-dash when the creator has no
-// linked discord identity yet OR has never been contacted.
-function LastDmCell({ at, unread }: { at: string | null; unread: number }) {
-  if (!at) {
-    if (unread > 0) {
-      // Edge case: unread without timestamp — still surface the unread badge.
-      return (
-        <span className="inline-flex items-center gap-1.5 text-xs">
-          <span className="text-gray-300">—</span>
-          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-500 text-white">
-            {unread}
-          </span>
-        </span>
-      );
-    }
-    return <span className="text-gray-300">—</span>;
-  }
-  const ms = Date.now() - new Date(at).getTime();
-  const days = Math.max(0, Math.floor(ms / (1000 * 60 * 60 * 24)));
-  const hours = Math.floor(ms / (1000 * 60 * 60));
-  const label =
-    hours < 1 ? 'just now'
-    : hours < 24 ? `${hours}h ago`
-    : days === 1 ? '1d ago'
-    : days < 30 ? `${days}d ago`
-    : days < 365 ? `${Math.floor(days / 30)}mo ago`
-    : `${Math.floor(days / 365)}y ago`;
-  return (
-    <span className="inline-flex items-center gap-1.5 text-xs text-gray-600 tabular-nums">
-      {label}
-      {unread > 0 && (
-        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-500 text-white" title={`${unread} unread inbound`}>
-          {unread}
-        </span>
-      )}
-    </span>
-  );
-}
 
 function RoiCell({ roi }: { roi: number | null }) {
   if (roi === null) return <span className="text-xs text-gray-300">—</span>;
@@ -605,18 +471,6 @@ function ExtraAccountsBadge({ creator }: { creator: Creator }) {
 // (ACCOUNT_KEYS removed — handle storage moved to tiktok_accounts; the
 // account_1..5 columns are only a backward-compat fallback now.)
 
-// ─── Skeleton loaders ─────────────────────────────────────────────────────────
-function SkeletonStatCard() {
-  return (
-    <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-5">
-      <div className="flex items-center gap-2 mb-2">
-        <div className="h-4 w-4 rounded bg-gray-200 animate-pulse" />
-        <div className="h-3 w-24 rounded bg-gray-200 animate-pulse" />
-      </div>
-      <div className="h-7 w-20 rounded bg-gray-200 animate-pulse" />
-    </div>
-  );
-}
 
 function SkeletonRow({ cols }: { cols: number }) {
   return (
@@ -1326,8 +1180,6 @@ function AddCreatorModal({ prefill, onClose, onSuccess }: AddCreatorModalProps) 
 // via the ?include=all toggle on /api/roster (see get_unmanaged_top_perf RPC).
 // The action cell renders "+ Add to roster" for unmanaged rows.
 
-// ─── Managed Roster Tab ───────────────────────────────────────────────────────
-
 function RosterContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -1335,8 +1187,6 @@ function RosterContent() {
   const showBrandColumn = brand === 'all';
   const { brands: brandOptions } = useBrandList();
 
-  // Update the ?brand= URL param. Pills below + the global sidebar selector
-  // both write through this so they stay in sync.
   const setBrand = (next: string) => {
     const params = new URLSearchParams(searchParams.toString());
     if (next === 'all') params.delete('brand');
@@ -1345,29 +1195,22 @@ function RosterContent() {
     router.push(qs ? `?${qs}` : '?');
   };
 
-  const [activeTab, setActiveTab] = useState<'roster' | 'renewals'>('roster');
-  // ?include=all toggle — when on, the Roster table also surfaces unmanaged
-  // creators (top-N by 30d GMV, deduped against managed handles), so you can
-  // sort them alongside your managed roster and identify recruitment targets
-  // without leaving the page.
-  const [includeUnmanaged, setIncludeUnmanaged] = useState(false);
+  // All / Managed / Unmanaged view. Managed is the default; the page doubles
+  // as a full reference when switched to All or Unmanaged.
+  type View = 'managed' | 'all' | 'unmanaged';
+  const [view, setView] = useState<View>('managed');
+  const showManagedTag = view !== 'managed';
+  const showAddAction = view !== 'managed';
+
   const [roster, setRoster] = useState<Creator[]>([]);
   const [total, setTotal] = useState(0);
-  // Action-oriented aggregates (drive the new stat cards)
-  const [behindCount, setBehindCount]   = useState(0);
-  const [silentCount, setSilentCount]   = useState(0);
-  const [healthyCount, setHealthyCount] = useState(0);
-  const [lowRoiCount, setLowRoiCount]   = useState(0);
-  const [unreadDms, setUnreadDms]       = useState(0);
   const [totalGmvPeriod, setTotalGmvPeriod] = useState(0);
   const [totalRetainer, setTotalRetainer] = useState(0);
+  const [loading, setLoading] = useState(true);
 
-  // ── Period selector ──
-  // Days back for GMV / ROI / total. Health and posts-this-month are NOT
-  // driven by this (those are calendar-month / contract-based).
-  // MTD/YTD are computed at fetch time so they track the calendar.
-  type PeriodKey = '1d' | '7d' | '14d' | '30d' | '60d' | '90d' | 'mtd' | 'ytd';
-  const [periodKey, setPeriodKey] = useState<PeriodKey>('30d');
+  // Period selector drives the GMV column, ROI, Posts, and the top Total GMV.
+  // The Total Retainers figure is the fixed monthly commitment (not period-driven).
+  const [periodKey, setPeriodKey] = useState<PeriodChipKey>('30d');
   const periodDays = (() => {
     if (periodKey === '1d')  return 1;
     if (periodKey === '7d')  return 7;
@@ -1378,11 +1221,10 @@ function RosterContent() {
     const now = new Date();
     if (periodKey === 'mtd') {
       const start = new Date(now.getFullYear(), now.getMonth(), 1);
-      return Math.max(1, Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+      return Math.max(1, Math.floor((now.getTime() - start.getTime()) / 86_400_000) + 1);
     }
-    // YTD: number of days from Jan 1 of current year (inclusive of today).
     const start = new Date(now.getFullYear(), 0, 1);
-    return Math.max(1, Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+    return Math.max(1, Math.floor((now.getTime() - start.getTime()) / 86_400_000) + 1);
   })();
   const periodLabel = (() => {
     switch (periodKey) {
@@ -1396,52 +1238,40 @@ function RosterContent() {
       case 'ytd': return 'Year to date';
     }
   })();
+  const periodShort = (() => {
+    switch (periodKey) {
+      case '1d': return '1d';
+      case 'mtd': return 'MTD';
+      case 'ytd': return 'YTD';
+      default: return periodKey;
+    }
+  })();
 
-  // ── Store sub-filter (only meaningful when brand=leefar) ──
-  type StoreFilter = null | 'leefar_nutrition' | 'leefar_supplements';
-  const [storeFilter, setStoreFilter] = useState<StoreFilter>(null);
-  // Bulk-action selection. Holds managed_creators.id values across pages.
-  // Cleared on filter/brand changes since the visible set has changed.
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [bulkStatusOpen, setBulkStatusOpen] = useState(false);
-  const [bulkUpdating, setBulkUpdating] = useState(false);
-  const [bulkError, setBulkError] = useState<string | null>(null);
-  // Total managed (count of all matching rows, regardless of health filter).
-  // The /api/roster `total` field reflects the *filtered* set, so we keep a
-  // separate count of the unfiltered roster for the "Total managed" card.
-  const [unfilteredTotal, setUnfilteredTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  type HealthFilter = 'all' | 'behind' | 'silent' | 'low_roi' | 'healthy';
-  const [healthFilter, setHealthFilter] = useState<HealthFilter>('all');
-  const [selectedCreator, setSelectedCreator] = useState<Creator | null>(null);
   const [page, setPage] = useState(1);
+  const [selectedCreator, setSelectedCreator] = useState<Creator | null>(null);
   const [addModalPrefill, setAddModalPrefill] = useState<{ account_1?: string; brand?: string } | null>(null);
 
-  // Sort state for the Managed Roster table
-  type RosterSortCol =
-    | 'retainer' | 'real_name' | 'monthly_post_requirement' | 'created_at' | 'status'
-    | 'gmv_period' | 'posts_this_month' | 'posts_7d' | 'last_post_date' | 'health' | 'roi_period'
-    | 'last_message_at' | 'unread_count';
-  const [sortBy, setSortBy] = useState<RosterSortCol>('retainer');
+  // Sort
+  type SortCol = 'real_name' | 'retainer' | 'posts_period' | 'last_post_date' | 'joined' | 'gmv_period' | 'roi_period';
+  const [sortBy, setSortBy] = useState<SortCol>('gmv_period');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
-  const toggleSort = (col: RosterSortCol) => {
-    if (sortBy === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+  const toggleSort = (col: SortCol) => {
+    if (sortBy === col) setSortDir(d => (d === 'asc' ? 'desc' : 'asc'));
     else { setSortBy(col); setSortDir(col === 'real_name' ? 'asc' : 'desc'); }
   };
-  const SortIcon = ({ col }: { col: RosterSortCol }) => {
+  const SortIcon = ({ col }: { col: SortCol }) => {
     if (sortBy !== col) return <ArrowUpDown className="h-3 w-3 opacity-30" />;
     return sortDir === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />;
   };
 
-  // Debounce search: only fire API after 300ms of no typing
+  const fmt = (n: number) =>
+    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(n);
+
+  // Debounce search.
   useEffect(() => {
-    const t = setTimeout(() => {
-      setSearch(searchInput);
-      setPage(1);
-    }, 300);
+    const t = setTimeout(() => { setSearch(searchInput); setPage(1); }, 300);
     return () => clearTimeout(t);
   }, [searchInput]);
 
@@ -1453,528 +1283,112 @@ function RosterContent() {
         limit: String(PAGE_SIZE),
         sort: sortBy,
         dir: sortDir,
+        period: String(periodDays),
       });
       if (brand && brand !== 'all') params.set('brand', brand);
-      if (statusFilter !== 'all') params.set('status', statusFilter);
-      if (healthFilter !== 'all') params.set('health', healthFilter);
       if (search) params.set('search', search);
-      if (includeUnmanaged) params.set('include', 'all');
-      params.set('period', String(periodDays));
-      if (storeFilter) params.set('store', storeFilter);
+      if (view !== 'managed') params.set('include', 'all');
+      if (view === 'unmanaged') params.set('managed', 'unmanaged');
 
       const res = await fetch(`/api/roster?${params}`);
       const json = await res.json();
       setRoster(json.data || []);
       setTotal(json.total || 0);
-      setBehindCount(json.behind_count ?? 0);
-      setSilentCount(json.silent_count ?? 0);
-      setHealthyCount(json.healthy_count ?? 0);
-      setLowRoiCount(json.low_roi_count ?? 0);
-      setUnreadDms(json.unread_dms_total ?? 0);
       setTotalGmvPeriod(json.total_gmv_period ?? 0);
       setTotalRetainer(json.total_retainer ?? 0);
-      // The "Total managed" card should always reflect the unfiltered managed
-      // count. The API now returns `total_managed` directly (count of managed
-      // rows in the unfiltered set, regardless of include=all or health filter),
-      // so we just consume that.
-      if (typeof json.total_managed === 'number') setUnfilteredTotal(json.total_managed);
     } catch (err) {
       console.error('Failed to fetch roster:', err);
     } finally {
       setLoading(false);
     }
-  }, [brand, statusFilter, healthFilter, search, page, sortBy, sortDir, includeUnmanaged, periodDays, storeFilter]);
+  }, [brand, view, search, page, sortBy, sortDir, periodDays]);
 
-  useEffect(() => {
-    fetchRoster();
-  }, [fetchRoster]);
+  useEffect(() => { fetchRoster(); }, [fetchRoster]);
 
-  // Reset page + status/health filters when brand changes
-  useEffect(() => {
-    setPage(1);
-    setStatusFilter('all');
-    setHealthFilter('all');
-    setIncludeUnmanaged(false);
-    setSearchInput('');
-    setSelectedIds(new Set());
-    // Drop the store sub-filter — only meaningful for the brand we just left.
-    setStoreFilter(null);
-  }, [brand]);
-  // Reset page when status/health/include/period/store filter or sort changes
-  useEffect(() => { setPage(1); }, [statusFilter, healthFilter, sortBy, sortDir, includeUnmanaged, periodDays, storeFilter]);
-  // Drop selections that have left the visible set (e.g. after a filter change).
-  useEffect(() => {
-    setSelectedIds((prev) => {
-      if (prev.size === 0) return prev;
-      const visibleIds = new Set(roster.map((c) => c.id));
-      const next = new Set<string>();
-      for (const id of prev) if (visibleIds.has(id)) next.add(id);
-      return next.size === prev.size ? prev : next;
-    });
-  }, [roster]);
+  // Reset to page 1 when scope/sort/period change.
+  useEffect(() => { setPage(1); }, [brand, view, sortBy, sortDir, periodDays]);
+  // Clear search + reset view scope when the brand changes.
+  useEffect(() => { setSearchInput(''); setView('managed'); }, [brand]);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
-  const fmt = (n: number) =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(n);
-
-  // ── Bulk-action helpers ───────────────────────────────────────────────
-  // Both operate on `selectedIds`. CSV export is client-side only; status
-  // change fires N parallel PATCH calls and refreshes the roster on
-  // completion.
-
-  const csvEscape = (v: unknown): string => {
-    if (v === null || v === undefined) return '';
-    const s = String(v);
-    if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
-    return s;
-  };
-
-  // Header schema + row mapper shared between Selected and All exports so
-  // the column order can't drift. Keep aligned with the table view.
-  const CSV_HEADER = [
-    'Name', 'Handles', 'Brand', 'Status', 'Health',
-    'Retainer', 'Posts (7d)', 'Posts (this month)', 'Posts target',
-    'Last post', 'Joined', 'Last DM', 'GMV', 'ROI', 'Unread DMs',
-  ];
-  const csvRow = (c: Creator) => [
-    c.real_name ?? '',
-    (c.handles?.length ? c.handles : [c.account_1].filter(Boolean)).map((h) => `@${h}`).join(', '),
-    c.brand ? (brandOptions.find(b => b.slug === c.brand)?.name ?? BRAND_DISPLAY_NAMES[c.brand] ?? c.brand) : '',
-    c.status ?? '',
-    c.health,
-    c.retainer ?? 0,
-    c.posts_7d ?? 0,
-    c.posts_this_month ?? 0,
-    c.monthly_post_requirement ?? 0,
-    c.last_post_date ?? '',
-    c.created_at ?? '',
-    c.last_message_at ?? '',
-    Math.round(c.gmv_period ?? 0),
-    c.roi_period !== null ? c.roi_period.toFixed(2) : '',
-    c.unread_count ?? 0,
-  ];
-  const downloadCsv = (filename: string, headerRow: string[], bodyRows: unknown[][]) => {
-    const csv = [headerRow, ...bodyRows].map((r) => r.map(csvEscape).join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
-  const exportSelectedCsv = () => {
-    const rows = roster.filter((c) => selectedIds.has(c.id));
-    if (rows.length === 0) return;
-    const header = [
-      ...CSV_HEADER.slice(0, 12),
-      `GMV (${periodLabel})`,
-      `ROI (${periodLabel})`,
-      ...CSV_HEADER.slice(14),
-    ];
-    downloadCsv(
-      `my-creators-selected-${new Date().toISOString().slice(0, 10)}.csv`,
-      header,
-      rows.map(csvRow),
-    );
-  };
-
-  // Export all creators matching the current filter set (brand, status,
-  // health, search, period, include-unmanaged, store) — NOT just the
-  // current page. Pages through the API at the route's per-request
-  // cap and concatenates results client-side. Doesn't depend on the
-  // selection bar.
-  const [exportingAll, setExportingAll] = useState(false);
-  const exportAllCsv = async () => {
-    if (exportingAll) return;
-    setExportingAll(true);
-    try {
-      const all: Creator[] = [];
-      const PAGE = 100; // route caps limit at 100
-      let p = 1;
-      while (true) {
-        const params = new URLSearchParams({
-          page: String(p),
-          limit: String(PAGE),
-          sort: sortBy,
-          dir: sortDir,
-        });
-        if (brand && brand !== 'all') params.set('brand', brand);
-        if (statusFilter !== 'all') params.set('status', statusFilter);
-        if (healthFilter !== 'all') params.set('health', healthFilter);
-        if (search) params.set('search', search);
-        if (includeUnmanaged) params.set('include', 'all');
-        params.set('period', String(periodDays));
-        if (storeFilter) params.set('store', storeFilter);
-        const res = await fetch(`/api/roster?${params}`);
-        if (!res.ok) throw new Error(`Export failed at page ${p}`);
-        const json = await res.json();
-        const batch: Creator[] = json.data || [];
-        all.push(...batch);
-        if (batch.length < PAGE) break;
-        p++;
-        if (p > 50) break; // safety cap (5,000 rows)
-      }
-      if (all.length === 0) return;
-      const header = [
-        ...CSV_HEADER.slice(0, 12),
-        `GMV (${periodLabel})`,
-        `ROI (${periodLabel})`,
-        ...CSV_HEADER.slice(14),
-      ];
-      const scope = brand && brand !== 'all'
-        ? brand.replace(/[^a-z0-9_-]/gi, '_')
-        : 'all-brands';
-      downloadCsv(
-        `creators-${scope}-${new Date().toISOString().slice(0, 10)}.csv`,
-        header,
-        all.map(csvRow),
-      );
-    } catch (err) {
-      console.error('Export failed:', err);
-      alert(err instanceof Error ? err.message : 'Export failed');
-    } finally {
-      setExportingAll(false);
-    }
-  };
-
-  const bulkChangeStatus = async (newStatus: string) => {
-    if (selectedIds.size === 0) return;
-    setBulkUpdating(true);
-    setBulkError(null);
-    setBulkStatusOpen(false);
-    try {
-      const ids = Array.from(selectedIds);
-      const results = await Promise.allSettled(
-        ids.map((id) =>
-          fetch(`/api/roster/${id}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ status: newStatus }),
-          }),
-        ),
-      );
-      const failed = results.filter((r) => r.status === 'rejected' || (r.status === 'fulfilled' && !(r.value as Response).ok)).length;
-      if (failed > 0) {
-        setBulkError(`${failed} of ${ids.length} updates failed. Refresh and retry the failed rows.`);
-      }
-      setSelectedIds(new Set());
-      fetchRoster();
-    } catch (e) {
-      setBulkError(e instanceof Error ? e.message : 'Bulk update failed');
-    } finally {
-      setBulkUpdating(false);
-    }
-  };
-
-  // Header checkbox state — derived, not stored. "Indeterminate" reflects
-  // partial selection on the visible page. Bulk actions operate on
-  // managed_creators IDs (PATCH /api/roster/[id]), so unmanaged rows are
-  // never selectable — their `id` is a synthetic `unmanaged:<handle>` string
-  // and there's nothing to PATCH.
-  const visibleSelectableIds = roster.filter((c) => c.is_managed).map((c) => c.id);
-  const allVisibleSelected = visibleSelectableIds.length > 0
-    && visibleSelectableIds.every((id) => selectedIds.has(id));
-  const someVisibleSelected = !allVisibleSelected
-    && visibleSelectableIds.some((id) => selectedIds.has(id));
-  const toggleAllVisible = () => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (allVisibleSelected) {
-        for (const id of visibleSelectableIds) next.delete(id);
-      } else {
-        for (const id of visibleSelectableIds) next.add(id);
-      }
-      return next;
-    });
-  };
-  const toggleOne = (id: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  };
-
-  const brandDisplayName = brand !== 'all'
-    ? (brandOptions.find(b => b.slug === brand)?.name || BRAND_DISPLAY_NAMES[brand] || brand.replace(/_/g, ' '))
-    : '';
+  // Total column count for skeleton rows.
+  const cols = 2 + (showBrandColumn ? 1 : 0) + (showManagedTag ? 1 : 0) + 6 + (showAddAction ? 1 : 0);
 
   return (
-    <div className="space-y-4">
-      {/* Consolidated header: title + subtitle on the left, brand selector +
-          tab toggle in the middle-left toolbar, Add Creator on the right.
-          Collapsing what were three separate vertical rows into one band
-          reclaims ~80px of vertical real-estate. */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-5 flex-wrap">
-          <div>
-            <h1 className="text-2xl font-bold text-[#1A1B3A] leading-tight">My Creators</h1>
-            <p className="text-xs text-gray-400 mt-0.5">
-              {brandDisplayName ? `${brandDisplayName} · ` : ''}Your managed talent roster
-            </p>
-          </div>
-          <BrandSelect
-            value={brand || 'all'}
-            options={brandOptions}
-            onChange={setBrand}
-          />
-          <div className="flex gap-1 p-1 bg-gray-100 rounded-xl w-fit">
-            <button
-              onClick={() => setActiveTab('roster')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                activeTab === 'roster' ? 'bg-white text-[#1A1B3A] shadow-sm' : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              <UserCheck className="h-3.5 w-3.5" /> Roster
-            </button>
-            <button
-              onClick={() => setActiveTab('renewals')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                activeTab === 'renewals' ? 'bg-white text-[#1A1B3A] shadow-sm' : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              <RefreshCcw className="h-3.5 w-3.5" /> Renewals
-            </button>
-          </div>
+    <div className="space-y-5">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-[#1A1B3A]">My Creators</h1>
+          <p className="text-sm text-gray-400 mt-0.5">
+            A reference for who&apos;s posting and whether they&apos;re worth the cost.
+          </p>
         </div>
         <button
           onClick={() => setAddModalPrefill({})}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#E91E8C] text-sm font-semibold text-white hover:bg-[#d1177d] transition-colors shadow-sm self-start lg:self-auto"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#E91E8C] text-sm font-semibold text-white hover:bg-[#d1177d] transition-colors shadow-sm self-start sm:self-auto"
         >
           <UserPlus className="h-4 w-4" />
           Add Creator
         </button>
       </div>
 
-      {/* LeeFar store sub-filter — only visible when LeeFar is the active brand.
-          The umbrella aggregates revenue across both stores; this lets a
-          manager drill down to "creators primarily selling Nutrition" or
-          "Supplements" specifically. */}
-      {brand === 'leefar' && (
-        <div className="flex flex-wrap gap-2 items-center text-xs -mt-1">
-          <span className="text-gray-400 font-medium uppercase tracking-wider">Store:</span>
-          {([
-            { val: null,                   label: 'Both stores' },
-            { val: 'leefar_nutrition' as const,  label: 'Nutrition only' },
-            { val: 'leefar_supplements' as const, label: 'Supplements only' },
-          ]).map((opt) => {
-            const active = storeFilter === opt.val;
-            return (
-              <button
-                key={opt.label}
-                onClick={() => setStoreFilter(opt.val)}
-                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                  active
-                    ? 'bg-[#1A1B3A] text-white'
-                    : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
-                }`}
-              >
-                {opt.label}
-              </button>
-            );
-          })}
+      {/* Summary banner: brand + period selectors, total GMV, total retainers */}
+      <div className="rounded-2xl bg-gradient-to-br from-[#1A1B3A] to-[#2A2D5A] text-white p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <BrandSelect value={brand} options={brandOptions} onChange={setBrand} />
+          <PeriodSelector value={periodKey} onChange={setPeriodKey} />
         </div>
-      )}
-
-      {/* Renewals tab */}
-      {activeTab === 'renewals' && (
-        <RenewalsTab brand={brand && brand !== 'all' ? brand : null} />
-      )}
-
-      {/* Managed Roster tab content */}
-      {activeTab === 'roster' && (<>
-      {/* ── Total GMV banner + period selector ──
-          The headline number on the page: how much GMV did this roster
-          generate in the selected period? Period selector controls GMV
-          column / ROI column / this banner. Health, posts, last-post are
-          intentionally NOT period-driven (they're monthly contract signals). */}
-      <div className="rounded-2xl bg-gradient-to-br from-[#1A1B3A] to-[#2A2D5A] text-white p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex flex-wrap items-end gap-x-10 gap-y-3">
+        <div className="flex flex-wrap items-end gap-x-12 gap-y-4 mt-5">
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-white/60">
-              GMV · {periodLabel}{brand && brand !== 'all' ? ` · ${brandOptions.find(b => b.slug === brand)?.name || BRAND_DISPLAY_NAMES[brand] || brand}` : ''}
+            <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-white/55">
+              Total GMV · {periodLabel}
             </p>
             <p className="text-3xl font-extrabold mt-1 tabular-nums">
               {loading ? '…' : fmt(totalGmvPeriod)}
             </p>
           </div>
-          {/* Monthly retainer commitment — period-independent (fixed monthly
-              contract figure). Shows what this brand-scoped roster costs us. */}
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-white/60">
-              Monthly retainer
+            <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-white/55">
+              Total retainers · this month
             </p>
             <p className="text-2xl font-bold mt-1 tabular-nums text-white/90">
               {loading ? '…' : fmt(totalRetainer)}
             </p>
           </div>
         </div>
-        {/* Period selector — segmented control. Common ranges (7d/30d/MTD/YTD)
-            sit on the bar; the rest tuck behind a "More" popover so the bar
-            stays readable on narrow screens. */}
-        <PeriodSelector value={periodKey} onChange={setPeriodKey} />
       </div>
 
-      {/* ── Action-oriented stat cards ──
-          Each card except "Total managed" toggles a health filter on click,
-          turning the cards into a triage strip. When a card is active,
-          it gets a colored ring + the underlying table is filtered to that
-          health cohort. Re-clicking the active card clears the filter. */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {loading && roster.length === 0 ? (
-          Array.from({ length: 4 }).map((_, i) => <SkeletonStatCard key={i} />)
-        ) : (
-          <>
-            <StatCard
-              icon={<Users className="h-4 w-4 text-gray-400" />}
-              label="Total managed"
-              value={(unfilteredTotal || total).toLocaleString()}
-              hint="creators on your roster"
-            />
-            <StatCard
-              icon={<TrendingDown className="h-4 w-4 text-orange-500" />}
-              label="Behind quota"
-              value={behindCount.toLocaleString()}
-              hint="below pace this month"
-              tone="orange"
-              active={healthFilter === 'behind'}
-              onClick={() => setHealthFilter(healthFilter === 'behind' ? 'all' : 'behind')}
-            />
-            <StatCard
-              icon={<MoonStar className="h-4 w-4 text-red-500" />}
-              label="Silent 14d+"
-              value={silentCount.toLocaleString()}
-              hint="no post in 2 weeks"
-              tone="red"
-              active={healthFilter === 'silent'}
-              onClick={() => setHealthFilter(healthFilter === 'silent' ? 'all' : 'silent')}
-            />
-            <StatCard
-              icon={<AlertTriangle className="h-4 w-4 text-purple-500" />}
-              label="ROI < 1.0×"
-              value={lowRoiCount.toLocaleString()}
-              hint="GMV(30d) < retainer"
-              tone="purple"
-              active={healthFilter === 'low_roi'}
-              onClick={() => setHealthFilter(healthFilter === 'low_roi' ? 'all' : 'low_roi')}
-            />
-          </>
-        )}
-      </div>
-      {/* Healthy count is shown as a small status row when no filter active —
-          gives the manager a positive baseline without taking up a card slot. */}
-      {healthFilter === 'all' && !loading && (unfilteredTotal || total) > 0 && (
-        <p className="text-xs text-gray-400 -mt-2">
-          <span className="text-green-600 font-semibold">{healthyCount.toLocaleString()}</span>{' '}
-          healthy of {(unfilteredTotal || total).toLocaleString()} managed
-          {unreadDms > 0 && (
-            <>
-              {' · '}
-              <span className="text-red-600 font-semibold">{unreadDms.toLocaleString()}</span>{' '}
-              unread inbound DM{unreadDms === 1 ? '' : 's'}
-            </>
-          )}
-        </p>
-      )}
-      {/* Active filters strip — surfaces every applied filter as a chip with
-          an X to clear it. Brand and period selectors live elsewhere so they
-          aren't part of this strip; everything else funnels through here. */}
-      {(() => {
-        const HEALTH_LABEL: Record<HealthFilter, string> = {
-          all: '', healthy: 'Healthy', behind: 'Behind', silent: 'Silent',
-          low_roi: 'ROI < 1.0×',
-        };
-        const chips: { key: string; label: string; clear: () => void }[] = [];
-        if (search) chips.push({ key: 'search', label: `Search: "${search}"`, clear: () => { setSearch(''); setSearchInput(''); } });
-        if (statusFilter !== 'all') chips.push({ key: 'status', label: `Status: ${statusFilter}`, clear: () => setStatusFilter('all') });
-        if (healthFilter !== 'all') chips.push({ key: 'health', label: HEALTH_LABEL[healthFilter], clear: () => setHealthFilter('all') });
-        if (storeFilter) chips.push({ key: 'store', label: `Store: ${storeFilter.replace(/^leefar_/, '').replace(/_/g, ' ')}`, clear: () => setStoreFilter(null) });
-        if (includeUnmanaged) chips.push({ key: 'unmanaged', label: 'Unmanaged shown', clear: () => setIncludeUnmanaged(false) });
-        if (chips.length === 0) return null;
-        return (
-          <div className="flex flex-wrap items-center gap-2 -mt-1">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">
-              Filters
-            </span>
-            {chips.map((c) => (
-              <button
-                key={c.key}
-                onClick={c.clear}
-                className="inline-flex items-center gap-1 pl-2.5 pr-1.5 py-1 rounded-full bg-pink-50 border border-pink-100 text-[11px] font-medium text-[#E91E8C] hover:bg-pink-100 transition-colors"
-              >
-                {c.label}
-                <X className="h-3 w-3" />
-              </button>
-            ))}
-            {chips.length > 1 && (
-              <button
-                onClick={() => { chips.forEach(c => c.clear()); }}
-                className="text-[11px] font-medium text-gray-500 hover:text-gray-700 underline-offset-2 hover:underline ml-1"
-              >
-                Clear all
-              </button>
-            )}
-          </div>
-        );
-      })()}
-
-      {/* Search + Filter */}
+      {/* Filter row: All / Managed / Unmanaged + search */}
       <div className="flex flex-col sm:flex-row gap-3">
+        <div className="flex rounded-xl border border-gray-200 overflow-hidden text-sm font-semibold self-start">
+          {([
+            { key: 'managed' as const,   label: 'Managed' },
+            { key: 'all' as const,       label: 'All creators' },
+            { key: 'unmanaged' as const, label: 'Unmanaged' },
+          ]).map((v) => (
+            <button
+              key={v.key}
+              onClick={() => setView(v.key)}
+              className={`px-4 py-2 transition-colors ${
+                view === v.key ? 'bg-[#E91E8C] text-white' : 'bg-white text-gray-500 hover:bg-gray-50'
+              }`}
+            >
+              {v.label}
+            </button>
+          ))}
+        </div>
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
           <input
             type="text"
-            placeholder="Search by name, handle, or Discord..."
+            placeholder="Search by name or handle…"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
           />
         </div>
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="px-4 py-2.5 rounded-xl border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30"
-        >
-          <option value="all">All Status</option>
-          <option value="Active">Active</option>
-          <option value="On Hold">On Hold</option>
-          <option value="Churned">Churned</option>
-          <option value="Inactive">Inactive</option>
-        </select>
-        {/* Include-unmanaged toggle. Replaces the old "All Creators" tab —
-            unmanaged candidates with recent GMV are appended into the same
-            sortable table so you can see who's worth recruiting alongside
-            who's underperforming on contract. */}
-        <button
-          onClick={() => setIncludeUnmanaged(v => !v)}
-          aria-pressed={includeUnmanaged}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-semibold transition-colors whitespace-nowrap ${
-            includeUnmanaged
-              ? 'bg-[#1A1B3A] text-white border-[#1A1B3A]'
-              : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
-          }`}
-          title="Show top unmanaged creators with recent GMV alongside your managed roster"
-        >
-          <Globe className="h-4 w-4" />
-          {includeUnmanaged ? 'Unmanaged shown' : 'Include unmanaged'}
-        </button>
-        {/* Export — pages through the API with current filters and
-            downloads a CSV. Independent of the selection bar (which only
-            exports the rows the user has explicitly ticked). */}
-        <button
-          onClick={exportAllCsv}
-          disabled={exportingAll || loading}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
-          title="Export the current filtered roster as CSV (all pages)"
-        >
-          {exportingAll ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-          {exportingAll ? 'Exporting…' : 'Export CSV'}
-        </button>
       </div>
 
       {/* Table */}
@@ -1982,9 +1396,7 @@ function RosterContent() {
         <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-16 text-center">
           <Users className="h-8 w-8 text-gray-200 mx-auto mb-3" />
           <p className="text-gray-500 text-sm font-medium">No creators found</p>
-          {(search || statusFilter !== 'all') && (
-            <p className="text-gray-400 text-xs mt-1">Try adjusting your search or filters</p>
-          )}
+          {search && <p className="text-gray-400 text-xs mt-1">Try a different search.</p>}
         </div>
       ) : (
         <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
@@ -1992,16 +1404,6 @@ function RosterContent() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50/60">
-                  <th className="px-3 py-3.5 w-10">
-                    <input
-                      type="checkbox"
-                      aria-label="Select all visible"
-                      checked={allVisibleSelected}
-                      ref={(el) => { if (el) el.indeterminate = someVisibleSelected; }}
-                      onChange={toggleAllVisible}
-                      className="h-4 w-4 rounded border-gray-300 text-[#E91E8C] focus:ring-[#E91E8C]/30 cursor-pointer"
-                    />
-                  </th>
                   <th className="text-left px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
                     <button onClick={() => toggleSort('real_name')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors">
                       Name <SortIcon col="real_name" />
@@ -2009,14 +1411,15 @@ function RosterContent() {
                   </th>
                   <th className="text-left px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">Handle</th>
                   {showBrandColumn && <th className="text-left px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">Brand</th>}
+                  {showManagedTag && <th className="text-center px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">Managed</th>}
                   <th className="text-right px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
                     <button onClick={() => toggleSort('retainer')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors">
                       Retainer <SortIcon col="retainer" />
                     </button>
                   </th>
                   <th className="text-center px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
-                    <button onClick={() => toggleSort('posts_7d')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors mx-auto">
-                      Posts/7D <SortIcon col="posts_7d" />
+                    <button onClick={() => toggleSort('posts_period')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors mx-auto">
+                      Posts ({periodShort}) <SortIcon col="posts_period" />
                     </button>
                   </th>
                   <th className="text-left px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
@@ -2025,14 +1428,13 @@ function RosterContent() {
                     </button>
                   </th>
                   <th className="text-left px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
-                    <button onClick={() => toggleSort('created_at')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors">
-                      Joined <SortIcon col="created_at" />
+                    <button onClick={() => toggleSort('joined')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors">
+                      Joined <SortIcon col="joined" />
                     </button>
                   </th>
                   <th className="text-right px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
                     <button onClick={() => toggleSort('gmv_period')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors">
-                      GMV ({periodKey === '1d' ? '1d' : periodKey === 'ytd' ? 'YTD' : periodKey})
-                      <SortIcon col="gmv_period" />
+                      GMV ({periodShort}) <SortIcon col="gmv_period" />
                     </button>
                   </th>
                   <th className="text-right px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
@@ -2040,154 +1442,101 @@ function RosterContent() {
                       ROI <SortIcon col="roi_period" />
                     </button>
                   </th>
-                  <th className="text-left px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
-                    <button onClick={() => toggleSort('last_message_at')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors">
-                      Last DM <SortIcon col="last_message_at" />
-                    </button>
-                  </th>
-                  <th className="text-center px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
-                    <button onClick={() => toggleSort('health')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors mx-auto">
-                      Health <SortIcon col="health" />
-                    </button>
-                  </th>
+                  {showAddAction && <th className="px-5 py-3.5" />}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {loading && roster.length === 0 && Array.from({ length: 8 }).map((_, i) => (
-                  <SkeletonRow key={i} cols={showBrandColumn ? 12 : 11} />
+                  <SkeletonRow key={i} cols={cols} />
                 ))}
-                {!loading && roster.map((c) => (
-                  <tr
-                    key={c.id}
-                    className={`transition-colors cursor-pointer group ${
-                      c.is_managed
-                        ? 'hover:bg-pink-50/20'
-                        // Unmanaged rows: subtle slate background to visually
-                        // group them as "candidates" rather than roster members.
-                        : 'bg-slate-50/40 hover:bg-slate-100/50'
-                    }`}
-                    onClick={() => {
-                      if (c.is_managed) {
-                        setSelectedCreator(c);
-                      } else {
-                        // Open the Add Creator modal pre-filled with the
-                        // candidate's handle + (best-guess) brand.
-                        setAddModalPrefill({
-                          account_1: primaryHandle(c) ?? '',
-                          brand: c.brand ?? '',
-                        });
-                      }
-                    }}
-                  >
-                    {/* Per-row select checkbox. Disabled for unmanaged rows —
-                        bulk actions PATCH /api/roster/[id], and unmanaged rows
-                        have synthetic IDs with nothing in managed_creators to
-                        update. */}
-                    <td className="px-3 py-3.5 w-10" onClick={(e) => e.stopPropagation()}>
-                      {c.is_managed ? (
-                        <input
-                          type="checkbox"
-                          aria-label={`Select ${c.real_name || primaryHandle(c) || 'creator'}`}
-                          checked={selectedIds.has(c.id)}
-                          onChange={() => toggleOne(c.id)}
-                          className="h-4 w-4 rounded border-gray-300 text-[#E91E8C] focus:ring-[#E91E8C]/30 cursor-pointer"
-                        />
-                      ) : (
-                        // Visual placeholder so column alignment stays clean.
-                        <span className="block h-4 w-4" aria-hidden="true" />
-                      )}
-                    </td>
-                    <td className="px-5 py-3.5 font-medium text-[#1A1B3A]">
-                      {c.real_name || (c.is_managed
-                        ? <span className="text-gray-400">—</span>
-                        // Unmanaged often has no creators_v2 link → fall back
-                        // to the handle so the row isn't anonymous.
-                        : <span className="text-gray-500 italic">@{primaryHandle(c)}</span>
-                      )}
-                    </td>
-                    <td className="px-5 py-3.5">
-                      {primaryHandle(c) ? (
-                        <span className="flex items-center">
-                          <a
-                            href={`https://tiktok.com/@${primaryHandle(c)}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-[#E91E8C] hover:underline font-medium"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            @{primaryHandle(c)}
-                          </a>
-                          <ExtraAccountsBadge creator={c} />
-                        </span>
-                      ) : <span className="text-gray-400">—</span>}
-                    </td>
-                    {showBrandColumn && (
-                      <td className="px-5 py-3.5">
-                        <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-gray-100 text-gray-600">
-                          {brandOptions.find(b => b.slug === c.brand)?.name || BRAND_DISPLAY_NAMES[c.brand || ''] || c.brand?.replace(/_/g, ' ') || '—'}
-                          <StoreMixIndicator creator={c} />
-                        </span>
+                {!loading && roster.map((c) => {
+                  const primary = primaryHandle(c);
+                  return (
+                    <tr
+                      key={c.id}
+                      className={`transition-colors cursor-pointer ${c.is_managed ? 'hover:bg-pink-50/20' : 'bg-slate-50/40 hover:bg-slate-100/50'}`}
+                      onClick={() => {
+                        if (c.is_managed) setSelectedCreator(c);
+                        else setAddModalPrefill({ account_1: primary ?? '', brand: c.brand ?? '' });
+                      }}
+                    >
+                      <td className="px-5 py-3.5 font-medium text-[#1A1B3A]">
+                        {c.real_name || (c.is_managed
+                          ? <span className="text-gray-400">—</span>
+                          : <span className="text-gray-500 italic">@{primary}</span>)}
                       </td>
-                    )}
-                    <td className="px-5 py-3.5 text-right font-semibold text-[#1A1B3A]">
-                      {(c.retainer || 0) > 0
-                        ? fmt(c.retainer!)
-                        : <span className="text-gray-300 font-normal">—</span>}
-                    </td>
-                    <td className="px-5 py-3.5 text-center">
-                      <Posts7dBadge posts={c.posts_7d ?? 0} />
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <LastPostCell date={c.last_post_date} />
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <JoinDateCell date={c.created_at} />
-                    </td>
-                    <td className="px-5 py-3.5 text-right tabular-nums">
-                      {(c.gmv_period || 0) > 0
-                        ? <span className="text-[#1A1B3A] font-semibold">{fmt(c.gmv_period)}</span>
-                        : <span className="text-gray-300">—</span>}
-                    </td>
-                    <td className="px-5 py-3.5 text-right">
-                      <RoiCell roi={c.roi_period} />
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <LastDmCell at={c.last_message_at} unread={c.unread_count} />
-                    </td>
-                    <td className="px-5 py-3.5 text-center">
-                      {c.is_managed ? (
-                        <HealthBadge health={c.health} />
-                      ) : (
-                        // For unmanaged rows, the "Health" slot becomes an
-                        // affordance: clearly signals the row is a candidate
-                        // and gives a one-click way to recruit them. The whole
-                        // row is also clickable (same handler) so this is just
-                        // a visual cue + tap target.
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setAddModalPrefill({
-                              account_1: primaryHandle(c) ?? '',
-                              brand: c.brand ?? '',
-                            });
-                          }}
-                          className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full border border-pink-200 bg-pink-50 text-[#E91E8C] hover:bg-pink-100 transition-colors"
-                        >
-                          <Plus className="h-3 w-3" /> Add to roster
-                        </button>
+                      <td className="px-5 py-3.5">
+                        {primary ? (
+                          <span className="flex items-center">
+                            <a
+                              href={`https://tiktok.com/@${primary}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[#E91E8C] hover:underline font-medium"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              @{primary}
+                            </a>
+                            <ExtraAccountsBadge creator={c} />
+                          </span>
+                        ) : <span className="text-gray-400">—</span>}
+                      </td>
+                      {showBrandColumn && (
+                        <td className="px-5 py-3.5">
+                          <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-gray-100 text-gray-600">
+                            {brandOptions.find(b => b.slug === c.brand)?.name || BRAND_DISPLAY_NAMES[c.brand || ''] || c.brand?.replace(/_/g, ' ') || '—'}
+                          </span>
+                        </td>
                       )}
-                    </td>
-                  </tr>
-                ))}
+                      {showManagedTag && (
+                        <td className="px-5 py-3.5 text-center">
+                          {c.is_managed ? (
+                            <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full bg-green-50 text-green-600">
+                              <UserCheck className="h-3 w-3" /> Managed
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full bg-gray-100 text-gray-500">
+                              <UserX className="h-3 w-3" /> Unmanaged
+                            </span>
+                          )}
+                        </td>
+                      )}
+                      <td className="px-5 py-3.5 text-right font-semibold text-[#1A1B3A]">
+                        {(c.retainer || 0) > 0 ? fmt(c.retainer!) : <span className="text-gray-300 font-normal">—</span>}
+                      </td>
+                      <td className="px-5 py-3.5 text-center tabular-nums text-gray-700">
+                        {c.posts_period || 0}
+                      </td>
+                      <td className="px-5 py-3.5"><LastPostCell date={c.last_post_date} /></td>
+                      <td className="px-5 py-3.5"><JoinDateCell date={c.joined} /></td>
+                      <td className="px-5 py-3.5 text-right tabular-nums">
+                        {(c.gmv_period || 0) > 0
+                          ? <span className="text-[#1A1B3A] font-semibold">{fmt(c.gmv_period)}</span>
+                          : <span className="text-gray-300">—</span>}
+                      </td>
+                      <td className="px-5 py-3.5 text-right"><RoiCell roi={c.roi_period} /></td>
+                      {showAddAction && (
+                        <td className="px-5 py-3.5 text-right">
+                          {!c.is_managed && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setAddModalPrefill({ account_1: primary ?? '', brand: c.brand ?? '' }); }}
+                              className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border border-pink-200 bg-pink-50 text-[#E91E8C] hover:bg-pink-100 transition-colors whitespace-nowrap"
+                            >
+                              <Plus className="h-3 w-3" /> Add to roster
+                            </button>
+                          )}
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
 
           {/* Pagination */}
           <div className="flex items-center justify-between px-5 py-3.5 border-t border-gray-100 bg-gray-50/40">
-            <p className="text-xs text-gray-400">
-              {total.toLocaleString()} total · page {page} of {totalPages}
-            </p>
+            <p className="text-xs text-gray-400">{total.toLocaleString()} total · page {page} of {totalPages}</p>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setPage(p => Math.max(1, p - 1))}
@@ -2208,103 +1557,31 @@ function RosterContent() {
         </div>
       )}
 
-      {/* ── Floating bulk-action bar ──
-          Appears when 1+ creators are selected. Sticky to the bottom
-          of the viewport so it's reachable while scrolling the table.
-          Click outside the bar still propagates to the table (rows stay
-          clickable). Selection persists within the visible page only;
-          the load effect drops out-of-view IDs. */}
-      {selectedIds.size > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 px-4 py-3 rounded-2xl bg-[#1A1B3A] text-white shadow-2xl border border-[#1A1B3A]/20 max-w-[calc(100vw-2rem)]">
-          <span className="text-sm font-semibold whitespace-nowrap">
-            {selectedIds.size} selected
-          </span>
-          <span className="h-5 w-px bg-white/20" />
-          <button
-            onClick={exportSelectedCsv}
-            disabled={bulkUpdating}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/10 hover:bg-white/20 disabled:opacity-50 transition-colors"
-          >
-            <Download className="h-3.5 w-3.5" /> Export CSV
-          </button>
-          <div className="relative">
-            <button
-              onClick={() => setBulkStatusOpen((o) => !o)}
-              disabled={bulkUpdating}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/10 hover:bg-white/20 disabled:opacity-50 transition-colors"
-            >
-              {bulkUpdating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Pencil className="h-3.5 w-3.5" />}
-              {bulkUpdating ? 'Saving…' : 'Set status'}
-            </button>
-            {bulkStatusOpen && !bulkUpdating && (
-              <div className="absolute bottom-full mb-2 right-0 bg-white rounded-xl shadow-xl border border-gray-100 py-1 min-w-[140px] text-[#1A1B3A]">
-                {(['Active', 'On Hold', 'Churned', 'Inactive'] as const).map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => bulkChangeStatus(s)}
-                    className="block w-full text-left px-3 py-2 text-xs font-medium hover:bg-gray-50 transition-colors"
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-          {bulkError && (
-            <span className="text-xs text-red-300 max-w-[200px] truncate" title={bulkError}>
-              {bulkError}
-            </span>
-          )}
-          <span className="h-5 w-px bg-white/20" />
-          <button
-            onClick={() => { setSelectedIds(new Set()); setBulkError(null); }}
-            disabled={bulkUpdating}
-            className="p-1.5 rounded-lg hover:bg-white/10 disabled:opacity-50 transition-colors"
-            aria-label="Clear selection"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-      )}
-
-      {/* Creator detail panel — key forces remount when switching creators so form state is fresh */}
+      {/* Creator detail / edit panel */}
       {selectedCreator && (
         <CreatorPanel
           key={selectedCreator.id}
           creator={selectedCreator}
           onClose={() => setSelectedCreator(null)}
           onSaved={(updated) => {
-            // Update the row in-place so the table reflects the save immediately
-            setRoster(prev => prev.map(c => c.id === updated.id ? updated : c));
+            setRoster(prev => prev.map(c => (c.id === updated.id ? updated : c)));
             setSelectedCreator(updated);
-            // Re-fetch to keep aggregates accurate
             fetchRoster();
           }}
           onRemoved={(removedId) => {
-            // Drop the row, close the panel, re-fetch so aggregates update
-            // and the just-removed creator reappears as unmanaged if the
-            // "Include unmanaged" toggle is on.
             setRoster(prev => prev.filter(c => c.id !== removedId));
             setSelectedCreator(null);
             fetchRoster();
           }}
         />
       )}
-      </>)}
 
-      {/* Add Creator modal — opens from the "+ Add to roster" action on
-          unmanaged rows in the inline table OR from the page-level Add button. */}
+      {/* Add Creator modal */}
       {addModalPrefill !== null && (
         <AddCreatorModal
           prefill={addModalPrefill}
           onClose={() => setAddModalPrefill(null)}
-          onSuccess={() => {
-            setAddModalPrefill(null);
-            // Re-fetch so the just-added creator now shows as managed in the
-            // unified table (if "Include unmanaged" is on, they migrate from
-            // the unmanaged segment into the managed one with full health/ROI).
-            fetchRoster();
-          }}
+          onSuccess={() => { setAddModalPrefill(null); fetchRoster(); }}
         />
       )}
 
