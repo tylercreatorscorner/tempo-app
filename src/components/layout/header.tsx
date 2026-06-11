@@ -24,7 +24,7 @@ const BREADCRUMB_MAP: Record<string, string> = {
   '/analytics': 'Analytics',
   '/payments': 'Payments',
   '/settings': 'Settings',
-  '/roster': 'My Creators',
+  '/roster': 'Creators',
   '/messages': 'Messages',
   '/discover': 'Discover',
   '/reporting': 'Reporting',
@@ -98,7 +98,7 @@ export function Header({ onMenuClick, tenantName, userName, userEmail, tenantSwi
           <ChevronRight className="h-3 w-3 text-gray-300 hidden sm:block" />
           {isCreatorDetail && (
             <>
-              <Link href="/roster" className="text-gray-400 hover:text-gray-700 text-xs transition-colors hidden sm:inline">My Creators</Link>
+              <Link href="/roster" className="text-gray-400 hover:text-gray-700 text-xs transition-colors hidden sm:inline">Creators</Link>
               <ChevronRight className="h-3 w-3 text-gray-300 hidden sm:block" />
             </>
           )}

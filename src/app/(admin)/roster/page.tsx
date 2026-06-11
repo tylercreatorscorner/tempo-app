@@ -1210,7 +1210,7 @@ function RosterContent() {
 
   // Period selector drives the GMV column, ROI, Posts, and the top Total GMV.
   // The Total Retainers figure is the fixed monthly commitment (not period-driven).
-  const [periodKey, setPeriodKey] = useState<PeriodChipKey>('30d');
+  const [periodKey, setPeriodKey] = useState<PeriodChipKey>('7d');
   const periodDays = (() => {
     if (periodKey === '1d')  return 1;
     if (periodKey === '7d')  return 7;
@@ -1320,7 +1320,7 @@ function RosterContent() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-[#1A1B3A]">My Creators</h1>
+          <h1 className="text-2xl font-bold text-[#1A1B3A]">Creators</h1>
           <p className="text-sm text-gray-400 mt-0.5">
             A reference for who&apos;s posting and whether they&apos;re worth the cost.
           </p>
@@ -1364,8 +1364,8 @@ function RosterContent() {
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="flex rounded-xl border border-gray-200 overflow-hidden text-sm font-semibold self-start">
           {([
+            { key: 'all' as const,       label: 'All Creators' },
             { key: 'managed' as const,   label: 'Managed' },
-            { key: 'all' as const,       label: 'All creators' },
             { key: 'unmanaged' as const, label: 'Unmanaged' },
           ]).map((v) => (
             <button
