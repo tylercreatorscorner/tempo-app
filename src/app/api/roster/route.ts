@@ -62,7 +62,7 @@ async function resolveBrandDataUuids(
 // `handles`, the account_N columns can be dropped from the SELECT + schema.
 const COLUMNS = [
   'id', 'real_name', 'brand', 'status', 'retainer', 'monthly_post_requirement',
-  'discord_name', 'discord_avatar', 'notes', 'created_at', 'creator_id',
+  'discord_name', 'discord_avatar', 'notes', 'created_at', 'joined_at', 'creator_id',
   'account_1', 'account_2', 'account_3', 'account_4', 'account_5',
 ].join(', ');
 
@@ -145,6 +145,9 @@ interface ManagedRow {
   discord_avatar: string | null;
   notes: string | null;
   created_at: string | null;
+  // When the creator joined the managed roster / campaign. Falls back to
+  // created_at when null. Surfaced as the "Joined" column.
+  joined_at: string | null;
   // FK to creators_v2 — canonical identity link (Path-B backfill populated it
   // for every row; nullable in schema until other agents migrate).
   creator_id: string | null;
@@ -160,7 +163,7 @@ interface ManagedRow {
 interface PerfRow {
   tiktok_username: string;
   gmv_period: string | number;
-  posts_this_month: number;
+  posts_period: number;
   last_post_date: string | null;
 }
 
@@ -188,15 +191,16 @@ interface EnrichedRow extends ManagedRow {
   // store sub-pill filter. Keys are data-level brand slugs (e.g.
   // 'leefar_nutrition'). Empty object when there's no data.
   gmv_by_store: Record<string, number>;
-  // Calendar-month, not period-driven (post quotas are monthly contracts).
-  // Still computed server-side because the Health badge depends on it.
-  posts_this_month: number;
-  // Rolling 7-day post count (distinct video_id from daily_video_product_stats
-  // over the last 7 days; summed across the row's handles). Drives the
-  // Posts/7D column in the UI — replaces the Posts/Mo display.
+  // Distinct posts over the selected period (days_back). Drives the "Posts"
+  // column on the simplified reference page.
+  posts_period: number;
+  // Rolling 7-day post count (legacy; retained, unused by the simple page).
   posts_7d: number;
   // Independent of period — most recent post in last 365d (or null)
   last_post_date: string | null;
+  // When the creator joined the roster (joined_at ?? created_at). Null for
+  // unmanaged universe rows. Surfaced as the "Joined" column.
+  joined: string | null;
   health: CreatorHealth;
   // Period gmv ÷ retainer (proxy for "is the contract paying off in this window").
   // null when retainer is 0.
@@ -211,7 +215,7 @@ interface UnmanagedPerfRow {
   brand_id: string | null;
   real_name: string | null;
   gmv_period: string | number;
-  posts_this_month: number;
+  posts_period: number;
   last_post_date: string | null;
 }
 
@@ -227,7 +231,7 @@ function legacyColumnHandles(c: ManagedRow): string[] {
 }
 
 const SORTABLE_DB = ['retainer', 'real_name', 'monthly_post_requirement', 'created_at', 'status', 'brand'] as const;
-const SORTABLE_COMPUTED = ['gmv_period', 'posts_this_month', 'posts_7d', 'last_post_date', 'health', 'roi_period', 'last_message_at', 'unread_count'] as const;
+const SORTABLE_COMPUTED = ['gmv_period', 'posts_period', 'posts_7d', 'last_post_date', 'health', 'roi_period', 'last_message_at', 'unread_count', 'joined'] as const;
 type DbSort = typeof SORTABLE_DB[number];
 type ComputedSort = typeof SORTABLE_COMPUTED[number];
 type SortCol = DbSort | ComputedSort;
@@ -359,7 +363,7 @@ export async function GET(request: NextRequest) {
   const allHandles = Array.from(new Set(
     Array.from(handlesByRow.values()).flat().map((h) => h.toLowerCase()),
   ));
-  const perfByHandle = new Map<string, { gmv_period: number; posts_this_month: number; last_post_date: string | null }>();
+  const perfByHandle = new Map<string, { gmv_period: number; posts_period: number; last_post_date: string | null }>();
   // brand_id (uuid string) → gmv for that handle on that brand, for the period
   const brandGmvByHandle = new Map<string, Map<string, number>>();
   const msgByHandle = new Map<string, { last_message_at: string | null; unread_count: number }>();
@@ -435,7 +439,7 @@ export async function GET(request: NextRequest) {
       for (const r of (perfRes.data as PerfRow[] | null) ?? []) {
         perfByHandle.set(r.tiktok_username.toLowerCase(), {
           gmv_period: Number(r.gmv_period) || 0,
-          posts_this_month: Number(r.posts_this_month) || 0,
+          posts_period: Number(r.posts_period) || 0,
           last_post_date: r.last_post_date,
         });
       }
@@ -490,7 +494,7 @@ export async function GET(request: NextRequest) {
       const p = perfByHandle.get(h);
       if (p) {
         gmv += p.gmv_period;
-        posts += p.posts_this_month;
+        posts += p.posts_period;
         if (p.last_post_date && (!lastPost || p.last_post_date > lastPost)) {
           lastPost = p.last_post_date;
         }
@@ -532,7 +536,7 @@ export async function GET(request: NextRequest) {
       handles,
       gmv_period: gmv,
       gmv_by_store: gmvByStore,
-      posts_this_month: posts,
+      posts_period: posts,
       posts_7d: posts7d,
       last_post_date: lastPost,
       health,
@@ -540,6 +544,7 @@ export async function GET(request: NextRequest) {
       last_message_at: lastMsg,
       unread_count: unread,
       is_managed: true,
+      joined: row.joined_at ?? row.created_at,
     };
   });
 
@@ -597,6 +602,7 @@ export async function GET(request: NextRequest) {
           discord_avatar: null,
           notes: null,
           created_at: null,
+          joined_at: null,
           creator_id: null,
           account_1: u.tiktok_username,
           account_2: null,
@@ -606,7 +612,7 @@ export async function GET(request: NextRequest) {
           handles: [u.tiktok_username],
           gmv_period: Number(u.gmv_period) || 0,
           gmv_by_store: unmanagedBreakdown,
-          posts_this_month: Number(u.posts_this_month) || 0,
+          posts_period: Number(u.posts_period) || 0,
           posts_7d: 0,
           last_post_date: u.last_post_date,
           health: 'no_data',
@@ -614,6 +620,7 @@ export async function GET(request: NextRequest) {
           last_message_at: null,
           unread_count: 0,
           is_managed: false,
+          joined: null,
         });
       }
     }
@@ -663,6 +670,13 @@ export async function GET(request: NextRequest) {
       if (totalForRow === 0) return false;
       return storeGmv > 0 && storeGmv >= totalForRow * 0.5;
     });
+  }
+
+  // ── 5c. Managed-view filter for the My Creators All/Managed/Unmanaged
+  // toggle. 'managed' is already the default (no include flag). 'unmanaged'
+  // narrows the include=all set to just the candidates.
+  if (searchParams.get('managed') === 'unmanaged') {
+    filtered = filtered.filter((r) => !r.is_managed);
   }
 
   // ── 6. Sort. DB-column sorts use the original field; computed sorts use
