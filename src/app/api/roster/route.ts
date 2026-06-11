@@ -330,8 +330,19 @@ export async function GET(request: NextRequest) {
     if (taErr) {
       console.error('[/api/roster] tiktok_accounts join failed:', taErr.message);
     } else {
+      // A handle can legitimately own several rows — one per brand the creator
+      // sells for (e.g. the same handle registered under catakor + jiyu). For
+      // the roster's handle list we want each DISTINCT handle once. taRows is
+      // ordered is_primary DESC, id ASC, so the first occurrence is the
+      // primary/oldest row — the one we keep.
+      const seenByCreator = new Map<string, Set<string>>();
       for (const row of (taRows as { creator_id: string; tiktok_username: string }[] | null) ?? []) {
         if (!row.tiktok_username) continue;
+        const key = row.tiktok_username.toLowerCase();
+        const seen = seenByCreator.get(row.creator_id) ?? new Set<string>();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        seenByCreator.set(row.creator_id, seen);
         const list = handlesByCreatorId.get(row.creator_id) ?? [];
         list.push(row.tiktok_username);
         handlesByCreatorId.set(row.creator_id, list);
@@ -799,18 +810,35 @@ export async function POST(request: NextRequest) {
       .update({ creator_id: creatorId })
       .eq('id', data.id);
 
-    // One tiktok_accounts row per handle (first = primary).
+    // One tiktok_accounts row per (handle, brand) — but only for combos that
+    // don't already exist. The old onConflict target (tenant, username,
+    // brand_id) can't dedupe a null brand_id (NULL is DISTINCT in a Postgres
+    // unique index), so re-adding a handle that was already registered inserted
+    // a fresh duplicate row. We diff in JS, treating null == null, to prevent
+    // that while still allowing the same handle under a genuinely new brand.
     const brandUuid = brand ? brandSlugToUuid(brand) : undefined;
+    const { data: existingForCreator } = await supabase
+      .from('tiktok_accounts')
+      .select('tiktok_username, brand_id')
+      .eq('creator_id', creatorId)
+      .eq('tenant_id', tenantId);
+    const existingCombos = new Set(
+      ((existingForCreator as { tiktok_username: string | null; brand_id: string | null }[] | null) ?? [])
+        .map((r) => `${(r.tiktok_username ?? '').toLowerCase()}|${r.brand_id ?? 'null'}`),
+    );
     for (let i = 0; i < handles.length; i++) {
+      const combo = `${handles[i].toLowerCase()}|${brandUuid ?? 'null'}`;
+      if (existingCombos.has(combo)) continue;
+      existingCombos.add(combo);
       await supabase
         .from('tiktok_accounts')
-        .upsert({
+        .insert({
           creator_id: creatorId,
           tenant_id: tenantId,
           tiktok_username: handles[i],
           brand_id: brandUuid ?? null,
           is_primary: i === 0,
-        }, { onConflict: 'tenant_id,tiktok_username,brand_id', ignoreDuplicates: true });
+        });
     }
 
     if (brandUuid) {
