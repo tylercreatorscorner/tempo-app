@@ -231,8 +231,13 @@ export function parseVideoListRows(
 ): ParseResult<VideoListRecord> {
   const audit = auditCols(rows, 'videos');
 
-  function extractVideoId(url: string): string | null {
-    const m = String(url || '').match(/\/video\/(\d+)/);
+  // Pull the real TikTok video id. Prefer the "Video ID" column (always the
+  // 19-digit id); only fall back to scraping it from the link. The fallback
+  // also handles photo/carousel posts (/photo/<id>), not just /video/<id>.
+  // CDN links (.../video/tos/...) carry no real id, so for those the column is
+  // the only way — which is exactly the case the old URL-only path dropped.
+  function extractVideoIdFromUrl(url: string): string | null {
+    const m = String(url || '').match(/\/(?:video|photo)\/(\d+)/);
     return m ? m[1] : null;
   }
 
@@ -242,7 +247,8 @@ export function parseVideoListRows(
   const records: VideoListRecord[] = [];
   for (const row of rows) {
     const videoLink = sanitizeText(findColumn(row, 'video_link', 'videos')).slice(0, 1000);
-    const videoId = extractVideoId(videoLink);
+    const idColumn = String(findColumn(row, 'video_id', 'videos') ?? '').trim();
+    const videoId = /^\d+$/.test(idColumn) ? idColumn : extractVideoIdFromUrl(videoLink);
     if (!videoId) continue;
     const creatorName = sanitizeText(findColumn(row, 'creator_name', 'videos')).toLowerCase();
     if (!creatorName) continue;
