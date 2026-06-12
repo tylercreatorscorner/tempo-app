@@ -22,6 +22,17 @@ function initials(label: string): string {
   return (words[0][0] + words[1][0]).toUpperCase();
 }
 
+/** Pick a readable initials color for a brand-color background — dark on light
+ * fills (Lemme yellow, light greens), white on dark. Relative-luminance test. */
+function readableText(hex: string): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return '#ffffff';
+  const n = parseInt(m[1], 16);
+  const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.62 ? '#1A1B3A' : '#ffffff';
+}
+
 /** Brand avatar — colored rounded square with initials, or a grid tile for "All Brands". */
 function BrandAvatar({ color, label, size = 'md' }: { color: string | null; label: string; size?: 'sm' | 'md' }) {
   const dim = size === 'sm' ? 'h-6 w-6 text-[9px] rounded-md' : 'h-7 w-7 text-[10px] rounded-lg';
@@ -34,8 +45,8 @@ function BrandAvatar({ color, label, size = 'md' }: { color: string | null; labe
   }
   return (
     <span
-      className={cn(dim, 'flex items-center justify-center font-bold text-white shadow-sm flex-shrink-0')}
-      style={{ backgroundColor: color }}
+      className={cn(dim, 'flex items-center justify-center font-bold shadow-sm flex-shrink-0')}
+      style={{ backgroundColor: color, color: readableText(color) }}
     >
       {initials(label)}
     </span>
