@@ -31,12 +31,13 @@ interface Props {
   brandLabel: string;
   initialValues: BrandSettingsValues;
   /**
-   * Marketing GMV for the active month (read+edit). Lives in marketing_gmv table.
-   * Pass null when editing brand settings outside a month context (e.g. /settings/brands).
+   * @deprecated Marketing GMV is now edited inline on the Earnings table, not in
+   * this drawer. Retained as optional props so existing callers keep compiling;
+   * the drawer no longer renders a Marketing GMV field.
    */
-  marketingGmv: number | null;
-  /** Active "YYYY-MM" being edited, or null when context-free. */
-  activeMonth: string | null;
+  marketingGmv?: number | null;
+  /** @deprecated See marketingGmv — no longer used by the drawer. */
+  activeMonth?: string | null;
   onClose: () => void;
   onSaved: () => void;
 }
@@ -48,23 +49,17 @@ const MODEL_OPTIONS: { value: CompensationModel; label: string; description: str
   { value: 'retainer_only', label: 'Retainer Only', description: 'Flat retainer, no commission.' },
 ];
 
-export function BrandEditSheet({ open, brand, brandLabel, initialValues, marketingGmv, activeMonth, onClose, onSaved }: Props) {
+export function BrandEditSheet({ open, brand, brandLabel, initialValues, onClose, onSaved }: Props) {
   const [values, setValues] = useState<BrandSettingsValues>(initialValues);
-  const [marketing, setMarketing] = useState<number>(marketingGmv ?? 0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // Whether we're operating in a month-specific context (i.e. earnings page)
-  // vs context-free (i.e. /settings/brands).
-  const hasMonthContext = activeMonth !== null && marketingGmv !== null;
 
   useEffect(() => {
     if (open) {
       setValues(initialValues);
-      setMarketing(marketingGmv ?? 0);
       setError(null);
     }
-  }, [open, initialValues, marketingGmv]);
+  }, [open, initialValues]);
 
   if (!open) return null;
 
@@ -103,17 +98,6 @@ export function BrandEditSheet({ open, brand, brandLabel, initialValues, marketi
           }),
         }),
       );
-
-      // Marketing GMV (separate table) — only when we have a month context
-      if (hasMonthContext && marketing !== marketingGmv) {
-        tasks.push(
-          fetch('/api/earnings/marketing-gmv', {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ brand, month: activeMonth, amount: marketing }),
-          }),
-        );
-      }
 
       const results = await Promise.all(tasks);
       for (const r of results) {
@@ -286,15 +270,6 @@ export function BrandEditSheet({ open, brand, brandLabel, initialValues, marketi
               <NumberInput value={values.monthly_gmv_goal} step={1000} onChange={(v) => set('monthly_gmv_goal', v)} />
             </Field>
           </Section>
-
-          {/* This-month-specific (only when there's a month context) */}
-          {hasMonthContext && (
-            <Section title={`This Month (${activeMonth})`}>
-              <Field label="Marketing GMV" prefix="$" hint="Manual entry for this month only">
-                <NumberInput value={marketing} step={100} onChange={setMarketing} />
-              </Field>
-            </Section>
-          )}
 
           {error && (
             <div className="rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-700">
