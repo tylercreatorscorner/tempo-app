@@ -14,12 +14,13 @@
  * UX has been removed in favor of the dedicated edit panel.
  */
 
-import { useCallback, useEffect, useMemo, useState, Fragment } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, Fragment } from 'react';
 import { useRouter } from 'next/navigation';
-import { ChevronDown, ChevronRight, RefreshCw, Pencil, ArrowUp, ArrowDown, Receipt, Loader2, AlertCircle, CheckCircle2, Users, Download, FileSpreadsheet } from 'lucide-react';
+import { ChevronDown, ChevronRight, RefreshCw, Pencil, ArrowUp, ArrowDown, Receipt, Loader2, AlertCircle, CheckCircle2, Users, Download, FileSpreadsheet, Plus } from 'lucide-react';
 import { downloadCsv } from '@/lib/utils/csv';
 import { downloadXlsx } from '@/lib/utils/xlsx';
 import { cn } from '@/lib/utils';
+import { expandBrandToDataSlugs } from '@/lib/utils/constants';
 import { formatCurrency, buildMonthOptions } from '@/lib/utils/format';
 import { StatCard } from '@/components/dashboard/stat-card';
 import { EarningsTrendChart, type SeriesPoint } from './components/earnings-trend-chart';
@@ -419,6 +420,12 @@ export function EarningsClient({ initialMonth }: { initialMonth: string }) {
             onGenerateInvoice={handleGenerateInvoice}
             generatingBrand={generatingBrand}
             totals={data?.totals ?? null}
+            month={month}
+            onMarketingSaved={() => {
+              setToast({ kind: 'success', message: 'Marketing GMV updated' });
+              fetchAll(month, teamMemberId);
+            }}
+            onMarketingError={(m) => setToast({ kind: 'error', message: m })}
           />
         )}
       </Panel>
@@ -448,8 +455,6 @@ export function EarningsClient({ initialMonth }: { initialMonth: string }) {
           open
           brand={editingBrand.brand}
           brandLabel={editingBrand.brandLabel}
-          marketingGmv={editingBrand.marketingGmv}
-          activeMonth={month}
           initialValues={{
             commission_rate: editingBrand.rate,
             retainer: editingBrand.configuredRetainer,
@@ -506,10 +511,124 @@ function EmptyState({ message }: { message: string }) {
   );
 }
 
+// ── Marketing GMV inline editor ───────────────────────────────────────
+
+/**
+ * Map a (possibly umbrella) brand to the marketing_gmv writes needed to store
+ * one number. LeeFar shows as a single umbrella row, but marketing GMV is keyed
+ * per store — the earnings calc reads leefar_nutrition / leefar_supplements,
+ * never 'leefar', so a 'leefar' write would silently vanish. Park the whole
+ * amount on the first store slug and zero the rest so the single value the user
+ * types round-trips correctly through the per-store calc.
+ */
+function marketingWritesFor(brand: string, amount: number): Array<{ brand: string; amount: number }> {
+  return expandBrandToDataSlugs(brand).map((slug, i) => ({ brand: slug, amount: i === 0 ? amount : 0 }));
+}
+
+/**
+ * Inline-editable Marketing GMV figure inside the brand row's GMV cell. Click to
+ * edit, Enter / blur to save, Esc to cancel. Writes straight to
+ * /api/earnings/marketing-gmv, then asks the parent to refetch.
+ */
+function MarketingGmvEditor({ row, month, onSaved, onError }: {
+  row: BrandRow;
+  month: string;
+  onSaved: () => void;
+  onError: (message: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(row.marketingGmv ? String(row.marketingGmv) : '');
+  const [saving, setSaving] = useState(false);
+  // Set just before an Escape-triggered blur so onBlur cancels instead of saves.
+  const cancelledRef = useRef(false);
+
+  useEffect(() => {
+    setDraft(row.marketingGmv ? String(row.marketingGmv) : '');
+  }, [row.marketingGmv]);
+
+  const cancel = () => {
+    setDraft(row.marketingGmv ? String(row.marketingGmv) : '');
+    setEditing(false);
+  };
+
+  async function commit() {
+    const amount = draft.trim() === '' ? 0 : parseFloat(draft);
+    if (!Number.isFinite(amount) || amount < 0) { cancel(); return; }
+    if (amount === row.marketingGmv) { setEditing(false); return; }
+    setSaving(true);
+    try {
+      for (const w of marketingWritesFor(row.brand, amount)) {
+        const res = await fetch('/api/earnings/marketing-gmv', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ brand: w.brand, month, amount: w.amount }),
+        });
+        if (!res.ok) {
+          const j = await res.json().catch(() => ({}));
+          throw new Error(j.error || `HTTP ${res.status}`);
+        }
+      }
+      setEditing(false);
+      onSaved();
+    } catch (e) {
+      onError(e instanceof Error ? e.message : 'Failed to save marketing GMV');
+      cancel();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (editing) {
+    return (
+      <span className="inline-flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+        <span className="text-gray-400">$</span>
+        <input
+          autoFocus
+          type="number"
+          min={0}
+          step={100}
+          value={draft}
+          disabled={saving}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); }
+            else if (e.key === 'Escape') { e.preventDefault(); cancelledRef.current = true; e.currentTarget.blur(); }
+          }}
+          onBlur={() => {
+            if (cancelledRef.current) { cancelledRef.current = false; cancel(); return; }
+            commit();
+          }}
+          className="w-24 px-1.5 py-0.5 text-[11px] tabular-nums rounded-md border border-[#FF4D8D]/50 bg-white focus:outline-none focus:ring-1 focus:ring-[#FF4D8D]/40"
+        />
+        {saving && <Loader2 className="h-3 w-3 animate-spin text-[#FF4D8D]" />}
+      </span>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={(e) => { e.stopPropagation(); setEditing(true); }}
+      className="group/mkt inline-flex items-center gap-1 hover:text-[#FF4D8D] transition-colors"
+      title="Edit marketing GMV for this month"
+    >
+      {row.marketingGmv > 0 ? (
+        <span className="tabular-nums">{formatCurrency(row.marketingGmv)} mkt</span>
+      ) : (
+        <span className="inline-flex items-center gap-0.5 text-gray-300 group-hover/mkt:text-[#FF4D8D]">
+          <Plus className="h-2.5 w-2.5" /> marketing
+        </span>
+      )}
+      <Pencil className="h-2.5 w-2.5 opacity-0 group-hover/mkt:opacity-100 transition-opacity" />
+    </button>
+  );
+}
+
 // ── Brand table ───────────────────────────────────────────────────────
 
 function BrandTable({
   rows, sortKey, sortDir, onSort, onEdit, onGenerateInvoice, generatingBrand, totals,
+  month, onMarketingSaved, onMarketingError,
 }: {
   rows: BrandRow[];
   sortKey: SortKey;
@@ -519,6 +638,9 @@ function BrandTable({
   onGenerateInvoice: (brand: string) => void;
   generatingBrand: string | null;
   totals: EarningsResponse['totals'] | null;
+  month: string;
+  onMarketingSaved: () => void;
+  onMarketingError: (message: string) => void;
 }) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const toggle = (brand: string) => setExpanded((prev) => {
@@ -566,11 +688,17 @@ function BrandTable({
               </td>
               <td className="px-4 py-3 text-right tabular-nums">
                 <div className="font-semibold text-[#1A1B3A]">{formatCurrency(row.totalGmv)}</div>
-                {row.marketingGmv > 0 && (
-                  <div className="text-[10px] text-gray-400 mt-0.5">
-                    {formatCurrency(row.affiliateGmv)} aff · {formatCurrency(row.marketingGmv)} mkt
-                  </div>
-                )}
+                <div className="mt-0.5 flex items-center justify-end gap-1 text-[10px] text-gray-400">
+                  {row.affiliateGmv > 0 && (
+                    <span className="tabular-nums">{formatCurrency(row.affiliateGmv)} aff ·</span>
+                  )}
+                  <MarketingGmvEditor
+                    row={row}
+                    month={month}
+                    onSaved={onMarketingSaved}
+                    onError={onMarketingError}
+                  />
+                </div>
               </td>
               <td className="px-4 py-3 text-right tabular-nums">
                 <span className="font-medium text-gray-700">{row.rate.toFixed(2)}%</span>
@@ -579,9 +707,19 @@ function BrandTable({
                     eff: {row.effectiveRate.toFixed(2)}%
                   </div>
                 )}
+                {row.marketingGmv > 0 && (
+                  <div className="text-[10px] text-gray-400 mt-0.5" title="Marketing commission rate applied to marketing GMV">
+                    mkt: {(row.marketingCommissionRate * 100).toFixed(2)}%
+                  </div>
+                )}
               </td>
               <td className="px-4 py-3 text-right tabular-nums text-emerald-600 font-semibold">
                 {formatCurrency(row.commission)}
+                {row.commission > 0 && row.marketingCommission > 0 && (
+                  <div className="text-[10px] font-normal text-gray-400 mt-0.5" title="Affiliate vs marketing commission split">
+                    {formatCurrency(row.affiliateCommission)} aff · {formatCurrency(row.marketingCommission)} mkt
+                  </div>
+                )}
               </td>
               <td className="px-4 py-3 text-right tabular-nums">
                 <div>{formatCurrency(row.retainer + row.productRetainer)}</div>

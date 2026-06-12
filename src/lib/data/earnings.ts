@@ -448,7 +448,16 @@ export async function getEarnings(
     const s = settingsByBrand.get(brand);
     const ratePct = getBrandRatePct(s);
     const rateMul = ratePct / 100;
-    const marketingMul = pNum(s?.marketing_commission_rate) || 0.02;
+    // Honor an explicitly configured marketing rate — INCLUDING 0% (a brand
+    // that pays no marketing commission). Only fall back to the 2% default when
+    // the brand has no rate set at all (null/blank). The old `pNum(...) || 0.02`
+    // treated a real 0 as "unset" and silently charged 2% — so the rate the UI
+    // showed didn't match the commission that was actually computed.
+    const rawMarketingRate = s?.marketing_commission_rate;
+    const marketingMul =
+      rawMarketingRate === null || rawMarketingRate === undefined || rawMarketingRate === ''
+        ? 0.02
+        : pNum(rawMarketingRate);
     const affiliateGmv = brandAffiliateGmv[brand];
     const marketingGmv = marketingByBrand.get(brand) ?? 0;
     const gmv = affiliateGmv + marketingGmv;
