@@ -43,7 +43,7 @@ export function DataMatrix({ refreshKey = 0 }: { refreshKey?: number }) {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    fetch(`/api/upload/matrix?fileType=${tab}`)
+    fetch(`/api/upload/matrix?fileType=${tab}`, { cache: 'no-store' })
       .then(r => r.json())
       .then((d: MatrixResponse | { error: string }) => {
         if (cancelled) return;

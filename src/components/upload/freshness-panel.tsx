@@ -63,7 +63,7 @@ export function FreshnessPanel({ refreshKey = 0 }: { refreshKey?: number }) {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    fetch('/api/upload/freshness')
+    fetch('/api/upload/freshness', { cache: 'no-store' })
       .then(r => r.json())
       .then((d: FreshnessResponse | { error: string }) => {
         if (cancelled) return;
