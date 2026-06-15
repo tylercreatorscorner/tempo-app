@@ -7,6 +7,7 @@ export const BRAND_COLORS: Record<string, string> = {
   leefar: '#8BC34A',
   leefar_nutrition: '#8BC34A',
   leefar_supplements: '#66BB6A',
+  leefar_us: '#43A047',
   lemme: '#FFC700',
   cosrx: '#00BCD4',
 };
@@ -20,6 +21,7 @@ export const BRAND_DISPLAY_NAMES: Record<string, string> = {
   leefar: 'LeeFar',
   leefar_nutrition: 'LeeFar Nutrition',
   leefar_supplements: 'LeeFar Supplements',
+  leefar_us: 'LeeFar US',
   lemme: 'Lemme',
   cosrx: 'COSRX',
 };
@@ -52,7 +54,7 @@ export const ACTIVE_BRANDS = ['jiyu', 'catakor', 'leefar', 'physicians_choice', 
 export type ActiveBrand = (typeof ACTIVE_BRANDS)[number];
 
 /** LeeFar store slugs — used when expanding 'leefar' to per-store performance lookups. */
-export const LEEFAR_STORE_SLUGS = ['leefar_nutrition', 'leefar_supplements'] as const;
+export const LEEFAR_STORE_SLUGS = ['leefar_nutrition', 'leefar_supplements', 'leefar_us'] as const;
 
 /** Brand slugs that exist in the data layer but should not appear in the UI brand
  * picker. LeeFar's per-store slugs are hidden because the umbrella 'leefar' is
@@ -61,6 +63,7 @@ export const LEEFAR_STORE_SLUGS = ['leefar_nutrition', 'leefar_supplements'] as 
 export const HIDDEN_FROM_PICKER: ReadonlySet<string> = new Set([
   'leefar_nutrition',
   'leefar_supplements',
+  'leefar_us',
 ]);
 
 /** Expand a roster brand slug to the actual data-table brand slugs. For LeeFar
@@ -75,13 +78,14 @@ export function expandBrandToDataSlugs(brand: string): readonly string[] {
  * ONLY these brand IDs are allowed to write to v2 data tables.
  * Toplux is excluded — no data access, no writes, ever.
  */
-export const DATA_ENABLED_BRANDS = ['jiyu', 'catakor', 'physicians_choice', 'leefar_nutrition', 'leefar_supplements', 'lemme'] as const;
+export const DATA_ENABLED_BRANDS = ['jiyu', 'catakor', 'physicians_choice', 'leefar_nutrition', 'leefar_supplements', 'leefar_us', 'lemme'] as const;
 export const DATA_ENABLED_BRAND_IDS = new Set([
   'b0000000-0000-0000-0000-000000000001', // catakor
   'b0000000-0000-0000-0000-000000000002', // physicians_choice
   'b0000000-0000-0000-0000-000000000003', // jiyu
   'b0000000-0000-0000-0000-000000000006', // leefar_nutrition
   'b0000000-0000-0000-0000-000000000007', // leefar_supplements
+  'b0000000-0000-0000-0000-000000000009', // leefar_us
   'b0000000-0000-0000-0000-000000000008', // lemme
 ]);
 
@@ -105,6 +109,7 @@ export const BRAND_UUID_MAP: Record<string, string> = {
   leefar: 'b0000000-0000-0000-0000-000000000005',
   leefar_nutrition: 'b0000000-0000-0000-0000-000000000006',
   leefar_supplements: 'b0000000-0000-0000-0000-000000000007',
+  leefar_us: 'b0000000-0000-0000-0000-000000000009',
   lemme: 'b0000000-0000-0000-0000-000000000008',
 };
 
@@ -117,6 +122,7 @@ export const BRAND_SLUG_MAP: Record<string, string> = {
   'b0000000-0000-0000-0000-000000000005': 'leefar',
   'b0000000-0000-0000-0000-000000000006': 'leefar_nutrition',
   'b0000000-0000-0000-0000-000000000007': 'leefar_supplements',
+  'b0000000-0000-0000-0000-000000000009': 'leefar_us',
   'b0000000-0000-0000-0000-000000000008': 'lemme',
 };
 
