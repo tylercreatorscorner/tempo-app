@@ -37,7 +37,7 @@ export function UploadHistory({ refreshKey = 0 }: { refreshKey?: number }) {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    fetch('/api/upload/history?limit=20')
+    fetch('/api/upload/history?limit=20', { cache: 'no-store' })
       .then(r => r.json())
       .then((d: { items?: HistoryItem[] }) => {
         if (cancelled) return;
