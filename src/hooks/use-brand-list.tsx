@@ -29,7 +29,7 @@ export interface BrandListItem {
 // Per-store splits that should never appear in the brand picker. The umbrella
 // slug ('leefar') is the canonical roster brand; the store slugs only exist
 // for performance-data lookups under the hood.
-const HIDDEN_FROM_PICKER = new Set(['leefar_nutrition', 'leefar_supplements']);
+const HIDDEN_FROM_PICKER = new Set(['leefar_nutrition', 'leefar_supplements', 'leefar_us']);
 
 let cache: BrandListItem[] | null = null;
 let inflight: Promise<BrandListItem[]> | null = null;

@@ -83,7 +83,7 @@ export function BrandSwitcher() {
       // Hide LeeFar's per-store slugs from the picker. Roster + management
       // is keyed to the 'leefar' umbrella; per-store splits live inside the
       // performance views (videos/posts), not as top-level brand entries.
-      const HIDDEN_STORE_SLUGS = ['leefar_nutrition', 'leefar_supplements'];
+      const HIDDEN_STORE_SLUGS = ['leefar_nutrition', 'leefar_supplements', 'leefar_us'];
 
       let query = supabase
         .from('brands_v2')

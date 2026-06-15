@@ -32,7 +32,7 @@
  *   controls how the resulting commission combines with the retainer.
  */
 import { createAdminClient } from '@/lib/supabase/server';
-import { expandBrandToDataSlugs } from '@/lib/utils/constants';
+import { expandBrandToDataSlugs, LEEFAR_STORE_SLUGS } from '@/lib/utils/constants';
 
 export interface CreatorContribution {
   /** Creator handle as it appears in creator_performance (with @ stripped). */
@@ -580,7 +580,7 @@ export async function getEarnings(
   const leefarStoreBrands: BrandRow[] = [];
   const otherBrands: BrandRow[] = [];
   for (const b of brands) {
-    if (b.brand === 'leefar_nutrition' || b.brand === 'leefar_supplements') {
+    if ((LEEFAR_STORE_SLUGS as readonly string[]).includes(b.brand)) {
       leefarStoreBrands.push(b);
     } else {
       otherBrands.push(b);
