@@ -5,6 +5,7 @@ import { X, ExternalLink } from 'lucide-react';
 import { useVideoPanel } from './video-panel-context';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
 import { BRAND_COLORS, BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
+import { useBodyScrollLock } from '@/hooks/use-body-scroll-lock';
 
 export function VideoPlayerPanel() {
   const { video, isOpen, closeVideo } = useVideoPanel();
@@ -19,21 +20,9 @@ export function VideoPlayerPanel() {
     return () => document.removeEventListener('keydown', handler);
   }, [isOpen, closeVideo]);
 
-  // Lock body scroll when open. Defensive: always reset on mount so any
-  // stale 'hidden' from a prior render/navigation/hot-reload can't leave the
-  // entire page unscrollable.
-  useEffect(() => {
-    document.body.style.overflow = '';
-    return () => { document.body.style.overflow = ''; };
-  }, []);
-
-  useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
-  }, [isOpen]);
+  // Lock body scroll while the panel is open. Reference-counted so it can't
+  // clobber (or be clobbered by) a modal/sheet that's open at the same time.
+  useBodyScrollLock(isOpen);
 
   const tiktokUrl = video
     ? `https://www.tiktok.com/@${video.creator_name}/video/${video.video_id}`
