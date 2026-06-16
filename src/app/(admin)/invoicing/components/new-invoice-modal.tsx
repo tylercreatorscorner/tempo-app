@@ -123,7 +123,7 @@ export function NewInvoiceModal({ open, defaultMonth, onClose, onCreated, onView
     <div className="absolute inset-0 flex items-center justify-center p-4">
       <button aria-label="Close" className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
 
-      <div className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200">
+      <div className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
         <div className="px-6 py-5 border-b border-gray-100 flex items-start justify-between gap-3">
           <div className="flex items-start gap-3 min-w-0">
@@ -146,7 +146,7 @@ export function NewInvoiceModal({ open, defaultMonth, onClose, onCreated, onView
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5 space-y-5">
           {/* Month picker */}
           <div>
             <label className="block text-xs font-semibold text-gray-700 mb-1.5">Period</label>

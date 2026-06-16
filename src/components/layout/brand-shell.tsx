@@ -131,7 +131,7 @@ function BrandSidebar({
         <TempoLogo size="md" animated />
       </div>
 
-      <nav className="flex-1 px-2 py-1 overflow-y-auto space-y-0.5">
+      <nav className="flex-1 min-h-0 px-2 py-1 overflow-y-auto space-y-0.5">
         {NAV_ITEMS.map((item) => {
           // Reports / Settings: active when path is in their subtree
           // Overview: active for /brand-dashboard and any nested path NOT in another section
