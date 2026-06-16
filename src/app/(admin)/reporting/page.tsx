@@ -263,15 +263,36 @@ function FreshnessBanner() {
 function BrandClientReportCard() {
   const brandOptions = useBrandOptions();
   const [brand, setBrand] = useState(brandOptions[0]?.value ?? 'all');
-  const [period, setPeriod] = useState<'7d' | '30d'>('7d');
-  const [loading, setLoading] = useState(false);
+
+  // Custom reporting window — defaults to the last 7 days.
+  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const [startDate, setStartDate] = useState(() => new Date(Date.now() - 6 * 86_400_000).toISOString().slice(0, 10));
+  const [endDate, setEndDate] = useState(() => new Date().toISOString().slice(0, 10));
+
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [slackLoading, setSlackLoading] = useState(false);
+  const [slackText, setSlackText] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const brandLabel = brandOptions.find(b => b.value === brand)?.label ?? brand;
+  const rangeValid = startDate <= endDate;
+  const query = `brand=${encodeURIComponent(brand)}&start=${startDate}&end=${endDate}&name=${encodeURIComponent(brandLabel)}`;
+
+  const applyPreset = (kind: '7d' | '30d' | 'mtd') => {
+    const end = new Date();
+    const start = kind === 'mtd'
+      ? new Date(end.getFullYear(), end.getMonth(), 1)
+      : new Date(Date.now() - (kind === '30d' ? 29 : 6) * 86_400_000);
+    setStartDate(start.toISOString().slice(0, 10));
+    setEndDate(end.toISOString().slice(0, 10));
+  };
+
   const downloadPdf = useCallback(async () => {
-    setLoading(true);
+    setPdfLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/brand-client-pdf?brand=${brand}&period=${period}`);
+      const res = await fetch(`/api/brand-client-pdf?${query}`);
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error || `HTTP ${res.status}`);
@@ -287,11 +308,36 @@ function BrandClientReportCard() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'PDF download failed');
     } finally {
-      setLoading(false);
+      setPdfLoading(false);
     }
-  }, [brand, period]);
+  }, [query]);
 
-  const brandLabel = brandOptions.find(b => b.value === brand)?.label ?? brand;
+  const generateSlack = useCallback(async () => {
+    setSlackLoading(true);
+    setError(null);
+    setSlackText(null);
+    try {
+      const res = await fetch(`/api/brand-client-summary?${query}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      setSlackText(data.text);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to build Slack message');
+    } finally {
+      setSlackLoading(false);
+    }
+  }, [query]);
+
+  const copySlack = async () => {
+    if (!slackText) return;
+    try {
+      await navigator.clipboard.writeText(slackText);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setError('Copy failed — select and copy manually from the preview.');
+    }
+  };
 
   return (
     <div className="col-span-full rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
@@ -304,54 +350,97 @@ function BrandClientReportCard() {
             </div>
             <div>
               <h3 className="text-base font-bold text-[#1A1B3A]">Brand Client Report</h3>
-              <p className="text-xs text-gray-500 mt-0.5">Polished multi-page PDF. Send to your brand contacts in Slack, email, or WhatsApp.</p>
+              <p className="text-xs text-gray-500 mt-0.5">Polished PDF + a ready-to-paste Slack message. Send both to your brand contacts.</p>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Brand</label>
-              <select
-                value={brand}
-                onChange={e => setBrand(e.target.value)}
-                className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
-              >
-                {brandOptions.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}
-              </select>
+          <div>
+            <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Brand</label>
+            <select
+              value={brand}
+              onChange={e => setBrand(e.target.value)}
+              className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+            >
+              {brandOptions.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Reporting period</label>
+            <div className="flex gap-1 p-1 bg-gray-100 rounded-xl mb-2">
+              {[{ k: '7d', l: 'Last 7d' }, { k: '30d', l: 'Last 30d' }, { k: 'mtd', l: 'This month' }].map(p => (
+                <button
+                  key={p.k}
+                  onClick={() => applyPreset(p.k as '7d' | '30d' | 'mtd')}
+                  className="flex-1 text-xs font-semibold py-1.5 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-white/70 transition-colors"
+                >
+                  {p.l}
+                </button>
+              ))}
             </div>
-            <div>
-              <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Period</label>
-              <div className="flex gap-1 p-1 bg-gray-100 rounded-xl">
-                {[{ v: '7d', l: 'Weekly (7d)' }, { v: '30d', l: 'Monthly (30d)' }].map(p => (
-                  <button
-                    key={p.v}
-                    onClick={() => setPeriod(p.v as '7d' | '30d')}
-                    className={cn(
-                      'flex-1 text-sm font-semibold py-1.5 rounded-lg transition-colors',
-                      period === p.v ? 'bg-white text-[#1A1B3A] shadow-sm' : 'text-gray-500 hover:text-gray-700'
-                    )}
-                  >
-                    {p.l}
-                  </button>
-                ))}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="relative">
+                <input
+                  type="date" value={startDate} max={endDate}
+                  onChange={e => setStartDate(e.target.value)}
+                  className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+                />
+              </div>
+              <div className="relative">
+                <input
+                  type="date" value={endDate} min={startDate} max={today}
+                  onChange={e => setEndDate(e.target.value)}
+                  className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+                />
               </div>
             </div>
+            {!rangeValid && <p className="text-[11px] text-red-500 mt-1">Start date must be on or before the end date.</p>}
           </div>
 
           {error && (
             <div className="px-3 py-2 rounded-lg bg-red-50 text-red-600 text-xs">{error}</div>
           )}
 
-          <button
-            onClick={downloadPdf}
-            disabled={loading}
-            className="w-full py-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-semibold text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-          >
-            {loading ? <><Loader2 className="h-4 w-4 animate-spin" />Building report (~10–20s)…</> : <><Download className="h-4 w-4" />Generate PDF Report</>}
-          </button>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <button
+              onClick={downloadPdf}
+              disabled={pdfLoading || !rangeValid}
+              className="flex-1 py-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-semibold text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {pdfLoading ? <><Loader2 className="h-4 w-4 animate-spin" />Building (~10–20s)…</> : <><Download className="h-4 w-4" />Download PDF</>}
+            </button>
+            <button
+              onClick={generateSlack}
+              disabled={slackLoading || !rangeValid}
+              className="flex-1 py-3 rounded-xl border border-gray-200 hover:bg-gray-50 text-[#1A1B3A] font-semibold text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {slackLoading ? <><Loader2 className="h-4 w-4 animate-spin" />Building…</> : <><Send className="h-4 w-4" />Slack message</>}
+            </button>
+          </div>
+
+          {/* Slack message — copy/paste alongside the PDF */}
+          {slackText && (
+            <div className="rounded-xl border border-gray-200 overflow-hidden">
+              <div className="px-4 py-2 bg-[#4A154B] flex items-center justify-between">
+                <span className="text-xs font-semibold text-white flex items-center gap-1.5">📨 Slack message</span>
+                <button
+                  onClick={copySlack}
+                  className={cn(
+                    'flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold transition-colors',
+                    copied ? 'bg-green-500 text-white' : 'bg-white/15 hover:bg-white/25 text-white'
+                  )}
+                >
+                  {copied ? <><Check className="h-3.5 w-3.5" />Copied</> : <><Clipboard className="h-3.5 w-3.5" />Copy</>}
+                </button>
+              </div>
+              <div className="p-4 bg-white border-l-4 border-[#4A154B] max-h-[320px] overflow-auto">
+                <pre className="text-sm text-gray-800 whitespace-pre-wrap font-sans leading-relaxed">{slackText}</pre>
+              </div>
+            </div>
+          )}
 
           <p className="text-[11px] text-gray-400 leading-relaxed">
-            Filename: <code className="text-gray-500">{brandLabel.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-{period === '30d' ? 'monthly' : 'weekly'}-report-YYYY-MM-DD.pdf</code>
+            Filename: <code className="text-gray-500">{brandLabel.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-custom-report-{endDate}.pdf</code>
           </p>
         </div>
 
