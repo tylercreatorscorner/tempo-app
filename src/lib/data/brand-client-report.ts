@@ -245,7 +245,7 @@ function buildLeaderboard<T extends { gmv: number }>(
 export async function getBrandClientReportData(
   brandSlug: string,
   brandName: string,
-  period: ReportPeriod = '7d',
+  period: ReportPeriod | { start: string; end: string } = '7d',
   /**
    * Optional pre-built Supabase client. The brand portal passes the admin
    * client here to bypass RLS — access is already validated at the layout
@@ -256,17 +256,27 @@ export async function getBrandClientReportData(
 ): Promise<BrandClientReportData> {
   const supabase = clientOverride ?? (await createClient());
   const brandSlugs = getBrandDataSlugs(brandSlug);
-  const periodDays = period === '30d' ? 30 : 7;
 
-  // ── Resolve the time window — anchor to the oldest of the latest dates
-  // across creator/video/product tables so every section reports on the
-  // same window (no cross-section date mixing in a client-facing deliverable).
-  const today = await resolveSharedAnchor(supabase, brandSlugs);
-  const endDate = new Date(today);
-  endDate.setDate(today.getDate() - 1);
-  const startDate = new Date(endDate);
-  startDate.setDate(endDate.getDate() - (periodDays - 1));   // inclusive — N days through endDate
+  // ── Resolve the time window. A preset ('7d'/'30d') anchors to the oldest of
+  // the latest dates across creator/video tables so every section reports on
+  // the same window. A custom { start, end } uses the picked dates verbatim —
+  // the operator chose them, so we don't anchor.
+  let startDate: Date, endDate: Date, periodDays: number;
+  if (typeof period === 'object') {
+    startDate = new Date(period.start + 'T12:00:00Z');
+    endDate = new Date(period.end + 'T12:00:00Z');
+    periodDays = Math.max(1, Math.round((endDate.getTime() - startDate.getTime()) / 86_400_000) + 1);
+  } else {
+    periodDays = period === '30d' ? 30 : 7;
+    const today = await resolveSharedAnchor(supabase, brandSlugs);
+    endDate = new Date(today);
+    endDate.setDate(today.getDate() - 1);
+    startDate = new Date(endDate);
+    startDate.setDate(endDate.getDate() - (periodDays - 1));   // inclusive — N days through endDate
+  }
 
+  // Prior window = the same-length window immediately before the selected one
+  // (drives the WoW/MoM deltas).
   const priorEnd = new Date(startDate);
   priorEnd.setDate(startDate.getDate() - 1);
   const priorStart = new Date(priorEnd);
@@ -629,4 +639,56 @@ export async function getBrandClientReportData(
     topProducts,
     productCreatorBreakdown,
   };
+}
+
+// ── Slack message builder ──────────────────────────────────────────
+// A concise, copy-paste Slack message the operator sends to the brand contact
+// alongside the PDF. Slack markdown: *bold*, _italic_, bullets via "•".
+
+function money(n: number): string {
+  return '$' + Math.round(n).toLocaleString('en-US');
+}
+
+function deltaTag(pct: number | null, days: number): string {
+  if (pct === null) return ' _(new)_';
+  const arrow = pct >= 0 ? '▲' : '▼';
+  return ` (${arrow} ${Math.abs(pct).toFixed(0)}% vs prior ${days}d)`;
+}
+
+export function buildBrandClientSlackMessage(data: BrandClientReportData): string {
+  const cc = data.creatorsCorner;
+  const lines: string[] = [];
+
+  lines.push(`*${data.brandName} — creator performance*`);
+  lines.push(`🗓️ ${data.periodLabel}`);
+  lines.push('');
+  lines.push(`*${money(data.totalGmv)} GMV*${deltaTag(data.gmvChangePct, data.periodLengthDays)}`);
+  lines.push(
+    `• ${data.totalVideos} posts · ${data.activeCreators} creators · ` +
+    `${data.totalOrders.toLocaleString('en-US')} orders · ${money(data.avgOrderValue)} AOV`,
+  );
+  lines.push('');
+  lines.push(
+    `🤝 *Creators Corner delivered ${money(cc.gmv)}* — ${cc.pctOfStoreGmv.toFixed(0)}% of store GMV ` +
+    `from ${cc.activeCreatorCount} signed creator${cc.activeCreatorCount === 1 ? '' : 's'}` +
+    `${cc.newlyActivatedCount > 0 ? `, ${cc.newlyActivatedCount} newly activated` : ''}.`,
+  );
+
+  if (data.topCreator) {
+    lines.push(
+      `🏆 Top creator: *${data.topCreator.name}* — ${money(data.topCreator.gmv)} ` +
+      `(${data.topCreator.videos} post${data.topCreator.videos === 1 ? '' : 's'})`,
+    );
+  }
+  if (data.topVideo) {
+    lines.push(`🎬 Top video: ${data.topVideo.title} — ${money(data.topVideo.gmv)} (${data.topVideo.creator})`);
+  }
+  if (data.bestDay) {
+    lines.push(`📈 Best day: ${data.bestDay.weekday} — ${money(data.bestDay.gmv)}`);
+  }
+
+  lines.push('');
+  lines.push('📎 Full breakdown in the attached report.');
+
+  return lines.join('\n');
 }

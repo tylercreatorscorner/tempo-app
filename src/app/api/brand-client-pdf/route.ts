@@ -22,10 +22,18 @@ export const maxDuration = 60;
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
   const brand = searchParams.get('brand') || 'all';
-  const period = (searchParams.get('period') === '30d' ? '30d' : '7d') as ReportPeriod;
+  // Custom date range (start/end) takes precedence over the 7d/30d preset.
+  const startParam = searchParams.get('start');
+  const endParam = searchParams.get('end');
+  const isDate = (s: string | null): s is string => !!s && /^\d{4}-\d{2}-\d{2}$/.test(s);
+  const period: ReportPeriod | { start: string; end: string } =
+    isDate(startParam) && isDate(endParam)
+      ? { start: startParam, end: endParam }
+      : (searchParams.get('period') === '30d' ? '30d' : '7d');
+  const customRange = typeof period === 'object';
   const brandName = brand === 'all'
     ? 'All Brands'
-    : (BRAND_DISPLAY_NAMES[brand] ?? brand);
+    : (searchParams.get('name') || BRAND_DISPLAY_NAMES[brand] || brand);
 
   try {
     const data = await getBrandClientReportData(brand, brandName, period);
@@ -35,7 +43,7 @@ export async function GET(request: NextRequest) {
 
     const safeBrand = brandName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
     const dateStamp = data.endDate.toISOString().slice(0, 10);
-    const periodTag = period === '30d' ? 'monthly' : 'weekly';
+    const periodTag = customRange ? 'custom' : (period === '30d' ? 'monthly' : 'weekly');
     const filename = `${safeBrand}-${periodTag}-report-${dateStamp}.pdf`;
 
     return new NextResponse(new Uint8Array(pdf), {
