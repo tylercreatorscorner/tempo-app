@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { ChevronsUpDown, Check, Search, LayoutGrid, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
@@ -59,16 +59,26 @@ export function BrandSwitcher() {
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
   const [options, setOptions] = useState<BrandOption[]>([]);
+  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    async function load() {
-      const supabase = createClient();
-      // Pull allowed_brands from the user's profile to enforce per-user brand restrictions
+  // Load the brand list. Resilient by design: any failure (a transient network
+  // blip, a session that resolved a beat late, a stale cached bundle) lands in
+  // an 'error' state that the trigger ignores and the dropdown lets you retry —
+  // it must NEVER leave the switcher blank. That's why the component renders the
+  // trigger regardless of whether this succeeds, and why we don't swallow errors.
+  const loadBrands = useCallback(async () => {
+    const supabase = createClient();
+    setStatus(s => (s === 'ready' ? s : 'loading'));
+
+    // Per-user brand restriction (allowed_brands) is best-effort: if the auth or
+    // profile lookup hiccups, fall back to no extra client filter and let RLS
+    // scope the list — never abort the whole load over it.
+    let allowedBrands: string[] | null = null;
+    try {
       const { data: { user } } = await supabase.auth.getUser();
-      let allowedBrands: string[] | null = null;
       if (user) {
         const { data: profile } = await supabase
           .from('user_profiles')
@@ -79,33 +89,50 @@ export function BrandSwitcher() {
           allowedBrands = profile.allowed_brands;
         }
       }
-
-      // Hide LeeFar's per-store slugs from the picker. Roster + management
-      // is keyed to the 'leefar' umbrella; per-store splits live inside the
-      // performance views (videos/posts), not as top-level brand entries.
-      const HIDDEN_STORE_SLUGS = ['leefar_nutrition', 'leefar_supplements', 'leefar_us'];
-
-      let query = supabase
-        .from('brands_v2')
-        .select('slug, display_name, name, color')
-        .eq('is_archived', false)
-        .not('slug', 'in', `(${HIDDEN_STORE_SLUGS.map(s => `"${s}"`).join(',')})`);
-      if (allowedBrands) query = query.in('slug', allowedBrands);
-      const { data } = await query.order('name');
-      if (data && data.length > 0) {
-        setOptions([
-          ...(data.length > 1 ? [{ key: 'all', label: 'All Brands', color: null as string | null }] : []),
-          ...data.map(b => ({
-            key: b.slug,
-            label: b.display_name || BRAND_DISPLAY_NAMES[b.slug] || b.name,
-            color: b.color || BRAND_COLORS[b.slug] || '#6B7280',
-          })),
-        ]);
-        if (data.length === 1) setBrand(data[0].slug);
-      }
+    } catch (e) {
+      console.warn('[BrandSwitcher] allowed_brands lookup failed; relying on RLS', e);
     }
-    load();
-  }, []);
+
+    // Hide LeeFar's per-store slugs from the picker. Roster + management
+    // is keyed to the 'leefar' umbrella; per-store splits live inside the
+    // performance views (videos/posts), not as top-level brand entries.
+    const HIDDEN_STORE_SLUGS = ['leefar_nutrition', 'leefar_supplements', 'leefar_us'];
+
+    let req = supabase
+      .from('brands_v2')
+      .select('slug, display_name, name, color')
+      .eq('is_archived', false)
+      .not('slug', 'in', `(${HIDDEN_STORE_SLUGS.map(s => `"${s}"`).join(',')})`);
+    if (allowedBrands) req = req.in('slug', allowedBrands);
+
+    const { data, error } = await req.order('name');
+    if (error) {
+      // Surface it — don't swallow. The dropdown shows a Retry affordance.
+      console.error('[BrandSwitcher] failed to load brands:', error.message);
+      setStatus('error');
+      return;
+    }
+
+    const rows = data ?? [];
+    setOptions([
+      ...(rows.length > 1 ? [{ key: 'all', label: 'All Brands', color: null as string | null }] : []),
+      ...rows.map(b => ({
+        key: b.slug,
+        label: b.display_name || BRAND_DISPLAY_NAMES[b.slug] || b.name,
+        color: b.color || BRAND_COLORS[b.slug] || '#6B7280',
+      })),
+    ]);
+    setStatus('ready');
+    if (rows.length === 1) setBrand(rows[0].slug);
+  }, [setBrand]);
+
+  useEffect(() => { loadBrands(); }, [loadBrands]);
+
+  // Self-heal: if the menu is opened after a failed load, try again so the user
+  // isn't stuck with an empty list.
+  useEffect(() => {
+    if (open && status === 'error') loadBrands();
+  }, [open, status, loadBrands]);
 
   // Filter by name or slug as the user types.
   const filtered = useMemo(() => {
@@ -165,7 +192,9 @@ export function BrandSwitcher() {
     }
   }
 
-  if (options.length === 0) return null;
+  // NOTE: intentionally NOT returning null on an empty list. The trigger always
+  // renders (it only needs the global brand), so the switcher can never vanish;
+  // the dropdown handles the loading / failed / empty states inline.
 
   return (
     <div ref={containerRef} className="relative">
@@ -205,7 +234,23 @@ export function BrandSwitcher() {
 
             {/* List */}
             <div ref={listRef} id="brand-switcher-list" role="listbox" className="max-h-72 overflow-y-auto px-1.5 py-1.5">
-              {filtered.length === 0 ? (
+              {options.length === 0 ? (
+                <div className="px-3 py-8 text-center">
+                  {status === 'loading' ? (
+                    <p className="text-sm text-gray-400">Loading brands…</p>
+                  ) : (
+                    <>
+                      <p className="text-sm text-gray-400">Couldn&rsquo;t load brands</p>
+                      <button
+                        onClick={() => loadBrands()}
+                        className="mt-2 text-xs font-medium text-[#FF4D8D] hover:underline"
+                      >
+                        Retry
+                      </button>
+                    </>
+                  )}
+                </div>
+              ) : filtered.length === 0 ? (
                 <div className="px-3 py-8 text-center">
                   <p className="text-sm text-gray-400">No brands match</p>
                   <p className="text-xs text-gray-300 mt-0.5 truncate">&ldquo;{query}&rdquo;</p>
