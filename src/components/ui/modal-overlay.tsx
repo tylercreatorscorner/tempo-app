@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { useBodyScrollLock } from '@/hooks/use-body-scroll-lock';
 
 /**
  * Renders children inside a viewport-fixed overlay portaled to <body>.
@@ -40,11 +41,9 @@ export function ModalOverlay({
   const [portalReady, setPortalReady] = useState(false);
   useEffect(() => { setPortalReady(true); }, []);
 
-  useEffect(() => {
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = prev; };
-  }, []);
+  // Reference-counted (see the hook) so this composes safely with any other
+  // open overlay — e.g. a modal opened from inside a sheet, or the video panel.
+  useBodyScrollLock();
 
   useEffect(() => {
     if (!closeOnEsc) return;

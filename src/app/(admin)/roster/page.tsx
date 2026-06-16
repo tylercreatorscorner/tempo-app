@@ -11,6 +11,7 @@ import {
 import Link from 'next/link';
 import { BRAND_DISPLAY_NAMES, BRAND_COLORS } from '@/lib/utils/constants';
 import { useBrandList } from '@/hooks/use-brand-list';
+import { useBodyScrollLock } from '@/hooks/use-body-scroll-lock';
 import { ModalOverlay } from '@/components/ui/modal-overlay';
 
 const PAGE_SIZE = 50;
@@ -605,15 +606,11 @@ function CreatorPanel({
   // Same fix solves the secondary report ("page scrolls behind the panel"):
   // a fixed overlay rendered inline doesn't cleanly lock body scroll because
   // wheel events bubble through to the (now-portaled-out-of) ancestor scroll
-  // container. The useEffect adds an explicit body overflow lock for the
-  // panel's lifetime.
+  // container. The reference-counted lock keeps the body frozen for the panel's
+  // lifetime and composes safely with any modal opened on top of it.
   const [portalReady, setPortalReady] = useState(false);
   useEffect(() => { setPortalReady(true); }, []);
-  useEffect(() => {
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = prev; };
-  }, []);
+  useBodyScrollLock();
 
   if (!portalReady) return null;
 
