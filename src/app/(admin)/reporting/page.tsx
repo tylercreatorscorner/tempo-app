@@ -7,7 +7,7 @@ import {
   Wand2, Sparkles, AlertCircle, Download, Briefcase,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
+import { BRAND_DISPLAY_NAMES, HIDDEN_FROM_PICKER } from '@/lib/utils/constants';
 import { useTenant } from '@/hooks/use-tenant';
 import { FREQUENCIES } from '@/lib/data/schedule-frequency';
 import { ModalOverlay } from '@/components/ui/modal-overlay';
@@ -34,7 +34,7 @@ function useLiveBrands(): BrandListEntry[] | null {
       .then((d: { brands?: BrandListEntry[] }) => {
         if (cancelled) return;
         const live = (d.brands ?? [])
-          .filter(b => !b.is_archived && !b.is_umbrella)
+          .filter(b => !b.is_archived)
           .map(b => ({ slug: b.slug, name: b.name, is_archived: b.is_archived, is_umbrella: b.is_umbrella }));
         setBrands(live);
       })
@@ -59,23 +59,33 @@ type TabId = typeof TABS[number]['id'];
  * Falls back to an empty list while the brands fetch is in flight; consumers
  * default to 'all' so dropdowns are still usable during the brief loading window.
  */
-function useBrandOptions() {
+function useBrandOptions(opts?: { collapseUmbrella?: boolean }) {
   const { allowedBrands } = useTenant();
   const brands = useLiveBrands();
+  const collapseUmbrella = opts?.collapseUmbrella ?? false;
   return useMemo(() => {
     if (!brands) return [{ value: 'all', label: 'All Brands' }];
-    const visible = allowedBrands && allowedBrands.length > 0
+    const allowed = allowedBrands && allowedBrands.length > 0
       ? brands.filter(b => allowedBrands.includes(b.slug))
       : brands;
-    const opts = visible.map(b => ({
+    // Two views of an umbrella brand (LeeFar). Generators that aggregate the
+    // umbrella back to its stores (Discord posts, Brand Client Report — both
+    // expand via expandBrandToDataSlugs) show the single umbrella and hide the
+    // per-store slugs, so the user picks "LeeFar" once and gets one consolidated
+    // output. The text reports are per-store (they don't aggregate), so they keep
+    // showing the stores and hide the umbrella (its slug has no data of its own).
+    const visible = collapseUmbrella
+      ? allowed.filter(b => !HIDDEN_FROM_PICKER.has(b.slug))
+      : allowed.filter(b => !b.is_umbrella);
+    const brandOpts = visible.map(b => ({
       value: b.slug,
       // Prefer the static display-name override (e.g. emoji-prefixed labels)
       // when present; otherwise fall back to the canonical name from brands_v2.
       label: BRAND_DISPLAY_NAMES[b.slug] ?? b.name,
     }));
-    if (visible.length === 1) return opts; // Restricted to one brand → no "All"
-    return [{ value: 'all', label: 'All Brands' }, ...opts];
-  }, [allowedBrands, brands]);
+    if (visible.length === 1) return brandOpts; // Restricted to one brand → no "All"
+    return [{ value: 'all', label: 'All Brands' }, ...brandOpts];
+  }, [allowedBrands, brands, collapseUmbrella]);
 }
 
 // ── Main Page ───────────────────────────────────────────────────────
@@ -257,7 +267,7 @@ function FreshnessBanner() {
 // (cover · exec summary · KPIs · managed/organic · new/returning · daily perf ·
 // top creators · top videos · top products · per-product creator breakdown).
 function BrandClientReportCard() {
-  const brandOptions = useBrandOptions();
+  const brandOptions = useBrandOptions({ collapseUmbrella: true });
   const [brand, setBrand] = useState(brandOptions[0]?.value ?? 'all');
 
   // Custom reporting window — defaults to the last 7 days.
@@ -667,8 +677,10 @@ function SchedulesTab() {
 function ScheduleModal({
   editing, onClose, onSaved,
 }: { editing: ScheduleRow | null; onClose: () => void; onSaved: () => void }) {
-  const brandOptions = useBrandOptions();
   const [source, setSource] = useState<string>(editing?.source ?? 'discord-posts');
+  // Discord-post schedules aggregate the LeeFar umbrella; text-report schedules
+  // are per-store. Collapse the umbrella only for the former.
+  const brandOptions = useBrandOptions({ collapseUmbrella: source === 'discord-posts' });
   const [reportType, setReportType] = useState<string>(editing?.report_type ?? 'daily-drop');
   const [brand, setBrand] = useState(editing?.brand ?? brandOptions[0]?.value ?? 'all');
   const [period, setPeriod] = useState(editing?.period ?? '7d');
@@ -1009,7 +1021,7 @@ function PostCard({
   title: string; icon: typeof Flame; type: string; showPeriod?: boolean; description: string;
   slackOnly?: boolean; pdfEndpoint?: string;
 }) {
-  const brandOptions = useBrandOptions();
+  const brandOptions = useBrandOptions({ collapseUmbrella: true });
   const [brand, setBrand] = useState(brandOptions[0]?.value ?? 'all');
   const [period, setPeriod] = useState<'7d' | '30d'>('7d');
   const [format, setFormat] = useState<'discord' | 'slack'>(slackOnly ? 'slack' : 'discord');
