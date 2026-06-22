@@ -15,6 +15,11 @@ const VALID_TYPES = new Set([
   'whats-cooking', 'whos-cooking', 'daily-drop',
 ]);
 
+// Headline GMV numbers paginate over daily_creator_stats; a high-volume brand's
+// month-to-date can be tens of thousands of rows, so give the function headroom.
+export const runtime = 'nodejs';
+export const maxDuration = 60;
+
 export async function GET(request: NextRequest) {
   const scope = await getWorkspaceScope();
   if (!scope) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });

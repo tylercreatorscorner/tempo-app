@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
-import { BRAND_UUID_MAP, BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
+import { BRAND_UUID_MAP, BRAND_DISPLAY_NAMES, expandBrandToDataSlugs } from '@/lib/utils/constants';
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -55,10 +55,23 @@ function formatDate(d: Date): string {
   return d.toISOString().split('T')[0];
 }
 
-function getBrandUuids(brandFilter: string): string[] | null {
+// Resolve a roster brand slug to the brand_id UUIDs the daily_* tables are keyed
+// by. DB-driven (reads brands_v2) so ANY brand with a row resolves. The old
+// hardcoded BRAND_UUID_MAP silently returned null for newer brands (cosrx,
+// neurogum, m3, …), and callers treat null as "no brand filter" — so the queries
+// scanned every brand and statement-timed-out on the big daily_creator_stats
+// table (e.g. cosrx's MTD was a 259k-row all-brands scan instead of 84k scoped).
+// 'all'/empty → null (no filter). An unknown specific brand → [] so it scopes to
+// nothing rather than widening to all brands.
+async function getBrandUuids(supabase: any, brandFilter: string): Promise<string[] | null> {
   if (!brandFilter || brandFilter === 'all') return null;
-  const uuid = BRAND_UUID_MAP[brandFilter];
-  return uuid ? [uuid] : null;
+  // Umbrella brands (leefar) expand to per-store slugs; daily_* tables are keyed per store.
+  const slugs = [...expandBrandToDataSlugs(brandFilter)];
+  const { data } = await supabase.from('brands_v2').select('id').in('slug', slugs);
+  const uuids = (data ?? []).map((r: { id: string }) => r.id);
+  if (uuids.length > 0) return uuids;
+  const legacy = BRAND_UUID_MAP[brandFilter];
+  return legacy ? [legacy] : [];
 }
 
 /**
@@ -104,7 +117,7 @@ async function resolveAnchorToday(
  */
 export async function getLatestReportDate(brandFilter: string): Promise<Date | null> {
   const supabase = await createClient();
-  const brandUuids = getBrandUuids(brandFilter);
+  const brandUuids = await getBrandUuids(supabase, brandFilter);
   let query = supabase
     .from('daily_creator_stats')
     .select('report_date')
@@ -197,7 +210,7 @@ async function paginatedFetch(
 
 export async function getWhatsCookingData(brandFilter: string, period: '7d' | '30d'): Promise<WhatsCookingData> {
   const supabase = await createClient();
-  const brandUuids = getBrandUuids(brandFilter);
+  const brandUuids = await getBrandUuids(supabase, brandFilter);
 
   // What's Cooking queries daily_video_stats — anchor to that table specifically
   // so we always show the most recent video data we have (may lag creator data).
@@ -312,7 +325,7 @@ export async function getWhatsCookingData(brandFilter: string, period: '7d' | '3
 
 export async function getWhosCookingData(brandFilter: string, period: '7d' | '30d'): Promise<WhosCookingData> {
   const supabase = await createClient();
-  const brandUuids = getBrandUuids(brandFilter);
+  const brandUuids = await getBrandUuids(supabase, brandFilter);
 
   const today = await resolveAnchorToday(supabase, brandUuids);
   const yesterday = new Date(today);
@@ -509,7 +522,7 @@ export interface DailyDropData {
 
 export async function getDailyDropData(brandFilter: string): Promise<DailyDropData> {
   const supabase = await createClient();
-  const brandUuids = getBrandUuids(brandFilter);
+  const brandUuids = await getBrandUuids(supabase, brandFilter);
 
   // Each table can have its own latest upload date. For JiYu, daily_creator_stats
   // is current through Apr but daily_video_stats and daily_product_stats stopped
