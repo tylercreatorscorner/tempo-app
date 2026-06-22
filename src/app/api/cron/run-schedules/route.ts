@@ -21,9 +21,7 @@ import { deliverToWebhook } from '@/lib/messaging/webhook';
 import { nextRunFromLabel } from '@/lib/data/schedule-frequency';
 import {
   getWhatsCookingData, getWhosCookingData, getDailyDropData,
-  getWeeklyWrapData, getMonthlyRecapData, getBrandClientUpdateData,
   formatWhatsCookingDiscord, formatWhosCookingDiscord, formatDailyDropDiscord,
-  formatWeeklyWrapDiscord, formatMonthlyRecapDiscord, formatBrandClientUpdateSlack,
 } from '@/lib/data/discord-posts';
 import { BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
 
@@ -59,18 +57,6 @@ async function generateForSchedule(s: ScheduleRow): Promise<string> {
       case 'daily-drop': {
         const data = await getDailyDropData(s.brand);
         return formatDailyDropDiscord(data, brandName);
-      }
-      case 'weekly-wrap': {
-        const data = await getWeeklyWrapData(s.brand);
-        return formatWeeklyWrapDiscord(data, brandName);
-      }
-      case 'monthly-recap': {
-        const data = await getMonthlyRecapData(s.brand);
-        return formatMonthlyRecapDiscord(data, brandName);
-      }
-      case 'brand-client-update': {
-        const data = await getBrandClientUpdateData(s.brand);
-        return formatBrandClientUpdateSlack(data, brandName);
       }
       default:
         throw new Error(`Unknown discord-posts type: ${s.report_type}`);

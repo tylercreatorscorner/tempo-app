@@ -5,21 +5,14 @@ import {
   getWhatsCookingData,
   getWhosCookingData,
   getDailyDropData,
-  getWeeklyWrapData,
-  getMonthlyRecapData,
-  getBrandClientUpdateData,
   formatWhatsCookingDiscord,
   formatWhosCookingDiscord,
   formatDailyDropDiscord,
-  formatWeeklyWrapDiscord,
-  formatMonthlyRecapDiscord,
-  formatBrandClientUpdateSlack,
 } from '@/lib/data/discord-posts';
 import { BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
 
 const VALID_TYPES = new Set([
   'whats-cooking', 'whos-cooking', 'daily-drop',
-  'weekly-wrap', 'monthly-recap', 'brand-client-update',
 ]);
 
 export async function GET(request: NextRequest) {
@@ -99,51 +92,6 @@ export async function GET(request: NextRequest) {
           totalGmv: data.yesterdayGmv,
           videoCount: data.topVideos.length,
           creatorCount: data.topCreators.length,
-        },
-      });
-    } else if (type === 'weekly-wrap') {
-      const data = await getWeeklyWrapData(brand);
-      const text = formatWeeklyWrapDiscord(data, brandName);
-      const mentionMap: Record<string, string> = {};
-      data.discordMap.forEach((v) => {
-        if (v.discord_id && v.discord_name) mentionMap[v.discord_id] = v.discord_name;
-      });
-      return NextResponse.json({
-        text,
-        mentionMap,
-        stats: {
-          totalGmv: data.weekTotal,
-          videoCount: data.hotVideos.length,
-          creatorCount: data.topCreators.length,
-        },
-      });
-    } else if (type === 'monthly-recap') {
-      const data = await getMonthlyRecapData(brand);
-      const text = formatMonthlyRecapDiscord(data, brandName);
-      const mentionMap: Record<string, string> = {};
-      data.discordMap.forEach((v) => {
-        if (v.discord_id && v.discord_name) mentionMap[v.discord_id] = v.discord_name;
-      });
-      return NextResponse.json({
-        text,
-        mentionMap,
-        stats: {
-          totalGmv: data.monthTotal,
-          videoCount: data.bestVideo ? 1 : 0,
-          creatorCount: data.topCreators.length,
-        },
-      });
-    } else if (type === 'brand-client-update') {
-      // Always Slack-formatted; client-facing weekly recap.
-      const data = await getBrandClientUpdateData(brand);
-      const text = formatBrandClientUpdateSlack(data, brandName);
-      return NextResponse.json({
-        text,
-        mentionMap: {},
-        stats: {
-          totalGmv: data.weekTotal,
-          videoCount: data.videoCount,
-          creatorCount: data.creatorCount,
         },
       });
     } else {
