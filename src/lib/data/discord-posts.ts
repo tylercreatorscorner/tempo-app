@@ -1095,9 +1095,10 @@ export function formatWhatsCookingDiscord(
       : `> ${i + 1}. ${mention} — **${formatCurrency(v.gmv)}**`;
   };
 
-  let text = `# 🍳 WHAT'S COOKING | ${brandName} | ${headerLabel}\n\n`;
+  const subtitle = period === '30d' ? "Top performers this month" : 'Performance from the last 7 days';
+  let text = `🍳 **What's Cooking?** | ${brandName} | ${headerLabel}\n`;
+  text += `*${subtitle}*\n\n`;
   text += `📊 *${rangeLabel}* — **${formatCurrency(data.totalGmv)}** GMV from **${data.videoCount}** videos and **${data.creatorCount}** creators\n\n`;
-  text += `━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
 
   // Hot — videos posted within the most recent 7 days, regardless of period
   text += `**__🔥 HOT VIDEOS (posted last 7 days)__**\n`;
@@ -1106,7 +1107,7 @@ export function formatWhatsCookingDiscord(
   } else {
     data.hotVideos.slice(0, 10).forEach((v, i) => { text += formatVideo(v, i) + '\n'; });
   }
-  text += `\n━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+  text += `\n`;
 
   // Rising — posted 7–14 days ago and still pulling sales
   text += `**__📈 RISING (posted 7–14 days ago)__**\n`;
@@ -1115,14 +1116,14 @@ export function formatWhatsCookingDiscord(
   } else {
     data.risingVideos.slice(0, 10).forEach((v, i) => { text += formatVideo(v, i) + '\n'; });
   }
-  text += `\n━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+  text += `\n`;
 
   // All-time leaders within window — money printers regardless of post date
-  text += `**__🏆 TOP GMV (in window)__**\n`;
+  text += `**__🏆 TOP PERFORMERS (highest GMV)__**\n`;
   if (data.topVideos.length === 0) {
     text += `> No standout performers yet.\n`;
   } else {
-    data.topVideos.slice(0, 5).forEach((v, i) => { text += formatVideo(v, i) + '\n'; });
+    data.topVideos.slice(0, 10).forEach((v, i) => { text += formatVideo(v, i) + '\n'; });
   }
   text += `\n@everyone`;
 
@@ -1144,9 +1145,10 @@ export function formatWhosCookingDiscord(
   const comparisonLabel = period === '30d' ? 'vs last month' : 'vs last week';
   const totalDays = period === '30d' ? 30 : 7;
 
-  let text = `# 👨‍🍳 WHO'S COOKING | ${brandName} | ${headerLabel}\n\n`;
+  const subtitle = period === '30d' ? 'Top performers this month' : 'Top performers from the last 7 days';
+  let text = `👨‍🍳 **Who's Cooking?** | ${brandName} | ${headerLabel}\n`;
+  text += `*${subtitle}*\n\n`;
   text += `📊 *${rangeLabel}* — **${formatCurrency(data.totalGmv)}** GMV across **${data.creatorCount}** creators (${data.videoCount} videos)\n\n`;
-  text += `━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
 
   // Leaderboard — top 10 with podium medals on first three
   text += `**__👑 LEADERBOARD__**\n`;
@@ -1167,23 +1169,22 @@ export function formatWhosCookingDiscord(
   if (data.mostProlific && data.mostProlific.videos >= 3) {
     const m = data.mostProlific;
     const mention = getMention(m.tiktok_username.replace('@', ''), m.discord_id, m.discord_name);
-    shoutouts.push(`> 🎬 **Most Prolific** — ${mention} dropped **${m.videos}** videos this ${period === '30d' ? 'month' : 'week'}`);
+    shoutouts.push(`> 🎬 **Most Prolific**: ${mention} dropped **${m.videos}** videos this ${period === '30d' ? 'month' : 'week'}!`);
   }
   if (data.ironChef) {
     const ic = data.ironChef;
     const mention = getMention(ic.tiktok_username.replace('@', ''), ic.discord_id, ic.discord_name);
     const dayText = ic.daysPosted >= totalDays ? '**every single day**' : `**${ic.daysPosted} of ${totalDays}** days`;
-    shoutouts.push(`> 📅 **Iron Chef** — ${mention} posted ${dayText}`);
+    shoutouts.push(`> 📅 **Iron Chef**: ${mention} posted ${dayText}!`);
   }
   if (data.breakoutStar) {
     const bs = data.breakoutStar;
     const mention = getMention(bs.tiktok_username.replace('@', ''), bs.discord_id, bs.discord_name);
-    shoutouts.push(`> 🚀 **Breakout Star** — ${mention} up **${Math.round(bs.breakoutPct)}%** ${comparisonLabel}`);
+    shoutouts.push(`> 📈 **Breakout Star**: ${mention} up **${Math.round(bs.breakoutPct)}%** ${comparisonLabel}!`);
   }
 
   if (shoutouts.length > 0) {
-    text += `\n━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
-    text += `**__⭐ SPECIAL SHOUTOUTS__**\n`;
+    text += `\n**__⭐ SPECIAL SHOUTOUTS__**\n`;
     text += shoutouts.join('\n') + '\n';
   }
 
