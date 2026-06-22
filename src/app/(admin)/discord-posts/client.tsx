@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { Clipboard, Check, Loader2, ChefHat, Flame, TrendingUp, BarChart3 } from 'lucide-react';
+import { Clipboard, Check, Loader2, ChefHat, Flame, TrendingUp } from 'lucide-react';
 
 const BRANDS = [
   { value: 'all', label: 'All Brands' },
@@ -29,7 +29,7 @@ function PostCard({
 }: {
   title: string;
   icon: typeof Flame;
-  type: 'whats-cooking' | 'whos-cooking' | 'daily-drop' | 'weekly-wrap' | 'monthly-recap';
+  type: 'whats-cooking' | 'whos-cooking' | 'daily-drop';
   showPeriod?: boolean;
 }) {
   const [brand, setBrand] = useState('all');
@@ -232,12 +232,6 @@ export function DiscordPostsClient() {
         title="Daily Drop"
         icon={TrendingUp}
         type="daily-drop"
-        showPeriod={false}
-      />
-      <PostCard
-        title="Weekly Wrap"
-        icon={BarChart3}
-        type="weekly-wrap"
         showPeriod={false}
       />
     </div>

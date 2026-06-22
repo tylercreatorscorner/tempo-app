@@ -4,7 +4,7 @@ import { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   Clipboard, Check, Loader2, ChefHat, Flame, TrendingUp,
   BarChart3, Calendar, Clock, Send, Users, Trash2, Pencil,
-  CalendarDays, CalendarRange, Wand2, Sparkles, AlertCircle, Download, Briefcase,
+  Wand2, Sparkles, AlertCircle, Download, Briefcase,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
@@ -133,10 +133,6 @@ function GenerateTab() {
       >
         <PostCard title="Daily Drop" icon={TrendingUp} type="daily-drop" showPeriod={false}
           description="Yesterday's numbers at a glance." />
-        <PostCard title="Weekly Wrap" icon={CalendarDays} type="weekly-wrap" showPeriod={false}
-          description="Tight weekly recap: headline number, hot videos, top creators, risers." />
-        <PostCard title="Monthly Recap" icon={CalendarRange} type="monthly-recap" showPeriod={false}
-          description="Best video, best creator, MoM trend, top movers." />
         <PostCard title="What's Cooking?" icon={Flame} type="whats-cooking"
           description="Top performing videos of the period — hot content that's driving sales." />
         <PostCard title="Who's Cooking?" icon={ChefHat} type="whos-cooking"
@@ -498,9 +494,6 @@ const REPORT_TYPE_LABELS: Record<string, string> = {
   'daily-drop':           'Daily Drop',
   'whats-cooking':        "What's Cooking?",
   'whos-cooking':         "Who's Cooking?",
-  'weekly-wrap':          'Weekly Wrap',
-  'monthly-recap':        'Monthly Recap',
-  'brand-client-update':  'Brand Client Update',
   // reporting source
   'performance-summary':  'Performance Summary',
   'creator-activity':     'Creator Activity',
@@ -690,9 +683,6 @@ function ScheduleModal({
         { value: 'daily-drop',          label: 'Daily Drop' },
         { value: 'whats-cooking',       label: "What's Cooking?" },
         { value: 'whos-cooking',        label: "Who's Cooking?" },
-        { value: 'weekly-wrap',         label: 'Weekly Wrap' },
-        { value: 'monthly-recap',       label: 'Monthly Recap' },
-        { value: 'brand-client-update', label: 'Brand Client Update (Slack)' },
       ]
     : [
         { value: 'performance-summary', label: 'Performance Summary' },
