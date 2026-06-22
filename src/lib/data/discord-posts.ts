@@ -1249,20 +1249,25 @@ export function formatDailyDropDiscord(data: DailyDropData, brandName: string): 
     pacingNote = `⚡ Need **${formatCurrency(neededPerDay)}/day** to hit goal`;
   }
 
-  let msg = `# 📈 DAILY DROP | ${brandName} | ${dateFull}\n\n`;
-  msg += `💰 Yesterday's GMV: **${formatCurrency(data.yesterdayGmv)}**${dodChange}\n`;
-  msg += `📊 ${monthName} progress: ${progressBar} **${progressPercent}%** (${formatCurrency(data.mtdGmv)} / ${formatCurrency(data.monthlyGoal)})\n`;
-  msg += `${pacingNote}\n\n`;
-  msg += `━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+  const DIV = `━━━━━━━━━━━━━━━━━━━━━━━━`;
 
-  // Top 5 Creators
-  msg += `**__👑 TOP CREATORS__**\n`;
+  // Header — brand kept in the title; old divider framing restored.
+  let msg = `# 📈 DAILY DROP | ${brandName} | ${dateFull}\n\n`;
+  msg += `${DIV}\n\n`;
+  msg += `💰 YESTERDAY'S GMV: **${formatCurrency(data.yesterdayGmv)}**${dodChange}\n`;
+  msg += `📊 ${monthName} GOAL: **${formatCurrency(data.monthlyGoal)}**\n`;
+  msg += `🔥 PROGRESS: ${progressBar} **${progressPercent}%** (${formatCurrency(data.mtdGmv)})\n`;
+  msg += `${pacingNote}\n\n`;
+  msg += `${DIV}\n\n`;
+
+  // Top 5 Creators — @handle linked to their TikTok profile (clean, no mass-ping)
+  msg += `**__👑 TOP 5 CREATORS (Yesterday)__**\n`;
   if (data.topCreators.length === 0) {
-    msg += `> No creator data yesterday.\n`;
+    msg += `> No creator data available\n`;
   } else {
-    data.topCreators.forEach((c, i) => {
-      const tag = getDailyDropMention(c.tiktok_username, data.discordMap);
-      msg += `> ${i + 1}. ${tag} — **${formatCurrency(c.gmv)}**\n`;
+    data.topCreators.slice(0, 5).forEach((c, i) => {
+      const handle = (c.tiktok_username || '').replace('@', '');
+      msg += `> ${i + 1}. [@${handle}](https://www.tiktok.com/@${handle}) — **${formatCurrency(c.gmv)}**\n`;
     });
   }
   msg += `\n━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
@@ -1274,15 +1279,15 @@ export function formatDailyDropDiscord(data: DailyDropData, brandName: string): 
   const videoStaleLabel = videoAsOfStr !== yesterdayStr2
     ? ` _(as of ${data.videoAsOf.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})_`
     : '';
-  msg += `**__🎬 TOP VIDEOS__**${videoStaleLabel}\n`;
+  msg += `**__🎬 TOP 5 VIDEOS (Yesterday)__**${videoStaleLabel}\n`;
   if (data.topVideos.length === 0) {
-    msg += `> No video data available.\n`;
+    msg += `> No video data available\n`;
   } else {
-    data.topVideos.forEach((v, i) => {
+    data.topVideos.slice(0, 5).forEach((v, i) => {
       const handle = (v.tiktok_username || '').replace('@', '');
       const url = getTikTokUrl(v.tiktok_username, v.video_id);
       if (url) {
-        msg += `> ${i + 1}. @${handle} — [**${formatCurrency(v.gmv)}**](${url})\n`;
+        msg += `> ${i + 1}. [@${handle}](${url}) — **${formatCurrency(v.gmv)}**\n`;
       } else {
         msg += `> ${i + 1}. @${handle} — **${formatCurrency(v.gmv)}**\n`;
       }
@@ -1295,28 +1300,29 @@ export function formatDailyDropDiscord(data: DailyDropData, brandName: string): 
   const productStaleLabel = productAsOfStr !== yesterdayStr2
     ? ` _(as of ${data.productAsOf.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})_`
     : '';
-  msg += `**__📦 TOP PRODUCTS__**${productStaleLabel}\n`;
+  msg += `**__📦 TOP 5 PRODUCTS (Yesterday)__**${productStaleLabel}\n`;
   if (data.topProducts.length === 0) {
-    msg += `> No product data available.\n`;
+    msg += `> No product data available\n`;
   } else {
-    data.topProducts.forEach((p, i) => {
+    data.topProducts.slice(0, 5).forEach((p, i) => {
       msg += `> ${i + 1}. ${p.name} — **${formatCurrency(p.gmv)}**\n`;
     });
   }
   msg += `\n━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
 
-  // One to Watch
+  // One to Watch — two-line narrative with the naked link (Discord shows a preview)
   msg += `**__👀 ONE TO WATCH__**\n`;
   if (data.oneToWatch) {
     const handle = (data.oneToWatch.tiktok_username || '').replace('@', '');
     const url = getTikTokUrl(data.oneToWatch.tiktok_username, data.oneToWatch.video_id);
-    const linkLabel = url ? `[@${handle}'s post](${url})` : `@${handle}'s post`;
-    msg += `> ${linkLabel} — posted ${data.oneToWatch.hoursAgo}h ago, already at **${formatCurrency(data.oneToWatch.gmv)}** 🚀\n`;
+    msg += `> @${handle} — ${url || 'Link unavailable'}\n`;
+    msg += `> Posted ${data.oneToWatch.hoursAgo} hours ago. Already at **${formatCurrency(data.oneToWatch.gmv)}** and climbing.\n`;
   } else {
-    msg += `> No standout new posts to highlight.\n`;
+    msg += `> No trending videos to highlight today.\n`;
   }
 
-  msg += `\nLet's get it today 🔥`;
+  msg += `\n${DIV}\n\n`;
+  msg += `Let's get it today. 🔥`;
 
   return msg;
 }
