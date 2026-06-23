@@ -15,7 +15,7 @@ import { Fragment, useEffect, useMemo, useState } from 'react';
 import { ChevronRight, ChevronLeft, ChevronsLeft, ChevronsRight, CheckCircle2, AlertTriangle, AlertCircle, Filter, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
-import { BRAND_DISPLAY_NAMES, getBrandColor } from '@/lib/utils/constants';
+import { useBrandMeta } from '@/hooks/use-brand-meta';
 
 const PAGE_SIZE_OPTIONS = [25, 50, 100, 0] as const; // 0 = "All"
 
@@ -48,10 +48,6 @@ interface Props {
   onStatusFilterChange: (v: 'all' | 'On Track' | 'Behind' | 'At Risk') => void;
 }
 
-function brandLabel(slug: string) {
-  return BRAND_DISPLAY_NAMES[slug] ?? slug;
-}
-
 const STATUS_TABS = [
   { value: 'all', label: 'All', icon: Users },
   { value: 'On Track', label: 'On Track', icon: CheckCircle2 },
@@ -62,6 +58,7 @@ const STATUS_TABS = [
 export function RetainerTracker({
   creators, loading, brandFilter, statusFilter, availableBrands = [], onBrandFilterChange, onStatusFilterChange,
 }: Props) {
+  const brandMeta = useBrandMeta();
   const [expanded, setExpanded] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState<number>(25);
@@ -120,7 +117,7 @@ export function RetainerTracker({
           >
             <option value="all">All brands</option>
             {availableBrands.map((b) => (
-              <option key={b} value={b}>{brandLabel(b)}</option>
+              <option key={b} value={b}>{brandMeta.label(b)}</option>
             ))}
           </select>
           <Filter className="h-3.5 w-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
@@ -314,13 +311,14 @@ function PageButton({
 // ── Sub-components ────────────────────────────────────────────────────
 
 function BrandPill({ brand }: { brand: string }) {
-  const color = getBrandColor(brand);
+  const brandMeta = useBrandMeta();
+  const color = brandMeta.color(brand);
   return (
     <span
       className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold text-white uppercase tracking-wider"
       style={{ backgroundColor: color }}
     >
-      {brandLabel(brand)}
+      {brandMeta.label(brand)}
     </span>
   );
 }

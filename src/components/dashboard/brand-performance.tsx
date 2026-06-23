@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils/format';
-import { BRAND_COLORS, BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
+import { getBrandRegistry, brandLabel, brandColor } from '@/lib/data/brand-registry';
 import { SparklineChart } from '@/components/charts/sparkline-chart';
 
 export interface BrandRowData {
@@ -31,8 +31,10 @@ interface Props {
  * the dollar amount so the agency operator can see their contribution share
  * brand-by-brand.
  */
-export function BrandPerformance({ brands, range }: Props) {
+export async function BrandPerformance({ brands, range }: Props) {
   if (brands.length === 0) return null;
+
+  const reg = await getBrandRegistry();
 
   // Sort by current GMV desc — most-impactful brands at the top.
   const rows = [...brands].sort((a, b) => b.currentGmv - a.currentGmv);
@@ -65,8 +67,8 @@ export function BrandPerformance({ brands, range }: Props) {
 
       <div className="divide-y divide-gray-50">
         {rows.map((b) => {
-          const color = BRAND_COLORS[b.slug] ?? '#6B7280';
-          const name  = BRAND_DISPLAY_NAMES[b.slug] ?? b.slug;
+          const color = brandColor(reg, b.slug);
+          const name  = brandLabel(reg, b.slug);
           const sharePct = totalGmv > 0 ? (b.currentGmv / totalGmv) * 100 : 0;
           const managedPctOfBrand = b.currentGmv > 0
             ? (b.managedGmv / b.currentGmv) * 100

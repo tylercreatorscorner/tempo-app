@@ -20,7 +20,8 @@ import { ConcentrationCard, type ConcentrationStats } from '@/components/analyti
 import { NarrativeCard } from '@/components/analytics/narrative-card';
 import type { NarrativeInput } from '@/lib/ai/analytics-narrative';
 import { StatCard } from '@/components/dashboard/stat-card';
-import { BRAND_DISPLAY_NAMES, BRAND_COLORS, HIDDEN_FROM_PICKER, expandBrandToDataSlugs } from '@/lib/utils/constants';
+import { HIDDEN_FROM_PICKER, expandBrandToDataSlugs } from '@/lib/utils/constants';
+import { getBrandRegistry, brandLabel } from '@/lib/data/brand-registry';
 import { pctChange } from '@/lib/utils/trend';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
@@ -77,6 +78,7 @@ export default async function AnalyticsPage({ searchParams }: Props) {
   const supabase = await createClient();
   const { getAllowedBrandsForUser } = await import('@/lib/data/brands');
   const allowedBrands = await getAllowedBrandsForUser();
+  const reg = await getBrandRegistry();
   // Pull id+slug so we can resolve roster slugs to the brand_ids the new
   // analytics_* RPCs expect (id-keyed instead of text-keyed).
   let brandsQuery = supabase.from('brands_v2').select('id, slug').eq('is_archived', false);
@@ -472,7 +474,7 @@ export default async function AnalyticsPage({ searchParams }: Props) {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-extrabold text-[#1A1B3A]">
-            {brandFilter ? `${BRAND_DISPLAY_NAMES[brandFilter] ?? brandFilter} Analytics` : 'Analytics'}
+            {brandFilter ? `${brandLabel(reg, brandFilter)} Analytics` : 'Analytics'}
           </h1>
           <div className="flex items-center gap-3 mt-0.5">
             <p className="text-sm text-gray-400">Performance insights across creators, products, and videos</p>
@@ -583,7 +585,7 @@ export default async function AnalyticsPage({ searchParams }: Props) {
         data={aggregatedTrend}
         priorData={aggregatedPrevTrend}
         yoyData={yoyHasData ? aggregatedYoyTrend : undefined}
-        accentColor={brandFilter ? (BRAND_COLORS[brandFilter] ?? undefined) : undefined}
+        accentColor={brandFilter ? (reg.bySlug.get(brandFilter)?.color ?? undefined) : undefined}
       />
 
       {/* Brand breakdown — only on All Brands view with >1 brand having data */}

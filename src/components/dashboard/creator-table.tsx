@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
 import { cn } from '@/lib/utils';
 import { type CreatorStatus, ALL_STATUSES, STATUS_CONFIG } from '@/lib/data/creator-status';
-import { BRAND_COLORS, BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
+import { useBrandMeta } from '@/hooks/use-brand-meta';
 
 interface Creator {
   display_name: string;
@@ -47,8 +47,9 @@ function StatusDot({ status }: { status?: CreatorStatus }) {
 }
 
 function BrandPill({ brand }: { brand: string }) {
-  const color = BRAND_COLORS[brand] ?? '#6B7280';
-  const name = BRAND_DISPLAY_NAMES[brand] ?? brand;
+  const brandMeta = useBrandMeta();
+  const color = brandMeta.color(brand);
+  const name = brandMeta.label(brand);
   return (
     <span
       className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium"

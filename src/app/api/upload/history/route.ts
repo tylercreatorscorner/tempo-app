@@ -8,7 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth/require-admin';
-import { BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
+import { getBrandRegistry, brandLabel } from '@/lib/data/brand-registry';
 
 export const runtime = 'nodejs';
 
@@ -50,6 +50,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  const reg = await getBrandRegistry();
   const items = (data as ActivityRow[] | null ?? []).map((r) => {
     const details = r.details ?? {};
     return {
@@ -58,7 +59,7 @@ export async function GET(request: NextRequest) {
       table: details.table ?? '',
       tableLabel: details.table ? (TABLE_LABELS[details.table] ?? details.table) : '',
       brand: details.brand ?? '',
-      brandLabel: details.brand ? (BRAND_DISPLAY_NAMES[details.brand] ?? details.brand) : '',
+      brandLabel: details.brand ? brandLabel(reg, details.brand) : '',
       reportDate: details.report_date ?? null,
       rowCount: details.row_count ?? 0,
       uploadedBy: details.uploaded_by ?? 'unknown',

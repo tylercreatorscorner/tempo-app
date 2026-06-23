@@ -2,7 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import type { ApexOptions } from 'apexcharts';
-import { BRAND_COLORS, BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
+import { useBrandMeta } from '@/hooks/use-brand-meta';
 
 const ApexChart = dynamic(() => import('react-apexcharts'), { ssr: false });
 
@@ -28,6 +28,7 @@ function fmtY(val: number) {
 }
 
 export function GmvTrendChart({ data, brands }: Props) {
+  const brandMeta = useBrandMeta();
   if (!data || data.length === 0) {
     return (
       <div className="h-72 flex items-center justify-center text-gray-400 text-sm">
@@ -39,7 +40,7 @@ export function GmvTrendChart({ data, brands }: Props) {
   const categories = data.map(d => fmtLabel(d.date));
 
   const series = brands.map(brand => ({
-    name: BRAND_DISPLAY_NAMES[brand] ?? brand,
+    name: brandMeta.label(brand),
     data: data.map(d => parseFloat(Number(d[brand] ?? 0).toFixed(2))),
   }));
 
@@ -53,7 +54,7 @@ export function GmvTrendChart({ data, brands }: Props) {
       background: 'transparent',
     },
     stroke: { curve: 'smooth', width: 2.5 },
-    colors: brands.map(b => BRAND_COLORS[b] ?? '#6B7280'),
+    colors: brands.map(b => brandMeta.color(b)),
     dataLabels: { enabled: false },
     markers: { size: 0, hover: { size: 5 } },
     xaxis: {

@@ -5,7 +5,6 @@ import { notFound } from 'next/navigation';
 import { getBrandSummary, getCreatorRankings, getProductSummary, getDailyTrend } from '@/lib/data/rpc';
 import { resolveDateRange } from '@/lib/data/date-utils';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
-import { BRAND_COLORS, BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
 import { StatCard } from '@/components/dashboard/stat-card';
 import { GmvTrendChart } from '@/components/dashboard/gmv-trend-chart';
 import { CreatorTable } from '@/components/dashboard/creator-table';
@@ -38,15 +37,15 @@ export default async function BrandDetailPage({ params, searchParams }: Props) {
   const supabase = await createClient();
   const { data: brand } = await supabase
     .from('brands_v2')
-    .select('slug, display_name, color')
+    .select('slug, name, display_name, color')
     .eq('slug', slug)
     .single();
   if (!brand) notFound();
 
   const sp = await searchParams;
   const { startDate, endDate } = resolveDateRange(sp.range);
-  const color = BRAND_COLORS[slug] ?? '#6B7280';
-  const displayName = BRAND_DISPLAY_NAMES[slug] ?? slug;
+  const color = brand.color ?? '#6B7280';
+  const displayName = brand.display_name || brand.name || slug;
 
   // Previous period
   const start = new Date(startDate);

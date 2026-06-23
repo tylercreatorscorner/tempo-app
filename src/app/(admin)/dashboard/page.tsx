@@ -10,12 +10,8 @@ import { getCreatorRetainers } from '@/lib/data/retainer';
 import { buildCreatorAlerts } from '@/lib/data/creator-alerts';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
 import { pctChange } from '@/lib/utils/trend';
-import {
-  BRAND_COLORS,
-  BRAND_DISPLAY_NAMES,
-  HIDDEN_FROM_PICKER,
-  expandBrandToDataSlugs,
-} from '@/lib/utils/constants';
+import { HIDDEN_FROM_PICKER, expandBrandToDataSlugs } from '@/lib/utils/constants';
+import { getBrandRegistry, brandLabel } from '@/lib/data/brand-registry';
 import { createClient } from '@/lib/supabase/server';
 import { getActiveTenantId } from '@/lib/auth/platform-admin';
 
@@ -188,12 +184,14 @@ export default async function AdminDashboard({ searchParams }: Props) {
   // Notable Changes section so the same period-vs-prior comparison only has
   // one canonical home.
 
+  const reg = await getBrandRegistry();
+
   // Top brand — used by the Period Brief mini-stat on All Brands view.
   const topBrandStat = !brandFilter
     ? [...rosterBrandStats].sort((a, b) => b.currentGmv - a.currentGmv)[0]
     : null;
   const topBrandForBrief = topBrandStat && topBrandStat.currentGmv > 0
-    ? { name: BRAND_DISPLAY_NAMES[topBrandStat.slug] ?? topBrandStat.slug, gmv: topBrandStat.currentGmv }
+    ? { name: brandLabel(reg, topBrandStat.slug), gmv: topBrandStat.currentGmv }
     : null;
 
   // ── Managed/unmanaged GMV split (portfolio-level — feeds the KPI card) ──
@@ -245,8 +243,8 @@ export default async function AdminDashboard({ searchParams }: Props) {
   const isStale    = daysStale != null && daysStale > 3;
 
   // ── Header copy ─────────────────────────────────────────────────────────
-  const activeBrandColor = brandFilter ? BRAND_COLORS[brandFilter] ?? null : null;
-  const activeBrandName  = brandFilter ? BRAND_DISPLAY_NAMES[brandFilter] ?? brandFilter : null;
+  const activeBrandColor = brandFilter ? (reg.bySlug.get(brandFilter)?.color ?? null) : null;
+  const activeBrandName  = brandFilter ? brandLabel(reg, brandFilter) : null;
   const headerLabel      = brandFilter ? `${activeBrandName} Today` : 'Today';
   const headerSub        = brandFilter ? 'Brand performance brief' : 'Portfolio brief';
   const dataThroughLabel = latestDate

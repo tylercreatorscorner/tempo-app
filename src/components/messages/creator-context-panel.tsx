@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { ChevronRight, ChevronLeft, User, ExternalLink, DollarSign, Video, Calendar, Loader2, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { getBrandColor, BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
+import { useBrandMeta, type BrandMeta } from '@/hooks/use-brand-meta';
 import { STATUS_CONFIG, type CreatorStatus } from '@/lib/data/creator-status';
 import { TOPIC_LABELS, TOPIC_COLORS, type MessageTopic } from '@/lib/messages/classify-topic';
 
@@ -40,7 +40,7 @@ interface Props {
  * Builds a topic-specific starter reply using available creator context.
  * Returns null if no useful template for this topic.
  */
-function buildDraftReply(topic: MessageTopic, ctx: CreatorContext): string | null {
+function buildDraftReply(topic: MessageTopic, ctx: CreatorContext, brandMeta: BrandMeta): string | null {
   const firstName = ctx.real_name.split(' ')[0];
   const gmv = ctx.gmv_7d > 0
     ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(ctx.gmv_7d)
@@ -48,7 +48,7 @@ function buildDraftReply(topic: MessageTopic, ctx: CreatorContext): string | nul
   const retainer = ctx.retainer_amount
     ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(ctx.retainer_amount)
     : null;
-  const brand = BRAND_DISPLAY_NAMES[ctx.brand] || ctx.brand;
+  const brand = brandMeta.label(ctx.brand);
 
   switch (topic) {
     case 'payment':
@@ -74,11 +74,11 @@ function buildDraftReply(topic: MessageTopic, ctx: CreatorContext): string | nul
  * Short context snippet per topic that shows "what you should look at first" when
  * answering a question of this type.
  */
-function topicBullets(topic: MessageTopic, ctx: CreatorContext): string[] {
+function topicBullets(topic: MessageTopic, ctx: CreatorContext, brandMeta: BrandMeta): string[] {
   const retainer = ctx.retainer_amount
     ? `$${ctx.retainer_amount.toLocaleString()}/mo retainer`
     : 'No retainer set';
-  const brand = BRAND_DISPLAY_NAMES[ctx.brand] || ctx.brand;
+  const brand = brandMeta.label(ctx.brand);
 
   switch (topic) {
     case 'payment':
@@ -99,6 +99,7 @@ function topicBullets(topic: MessageTopic, ctx: CreatorContext): string[] {
 }
 
 export function CreatorContextPanel({ creatorId, topic, onDraftReply }: Props) {
+  const brandMeta = useBrandMeta();
   const [context, setContext] = useState<CreatorContext | null>(null);
   const [loading, setLoading] = useState(true);
   const [collapsed, setCollapsed] = useState(false);
@@ -155,8 +156,8 @@ export function CreatorContextPanel({ creatorId, topic, onDraftReply }: Props) {
           {topic && topic !== 'other' && (() => {
             const t = topic as MessageTopic;
             const colors = TOPIC_COLORS[t];
-            const bullets = topicBullets(t, context);
-            const draft = buildDraftReply(t, context);
+            const bullets = topicBullets(t, context, brandMeta);
+            const draft = buildDraftReply(t, context, brandMeta);
             return (
               <div className={cn('rounded-xl border p-3', colors?.bg, 'border-transparent')}>
                 <div className="flex items-center gap-2 mb-2">
@@ -214,9 +215,9 @@ export function CreatorContextPanel({ creatorId, topic, onDraftReply }: Props) {
             <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Brand</p>
             <span
               className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium text-white"
-              style={{ backgroundColor: getBrandColor(context.brand) }}
+              style={{ backgroundColor: brandMeta.color(context.brand) }}
             >
-              {BRAND_DISPLAY_NAMES[context.brand] || context.brand}
+              {brandMeta.label(context.brand)}
             </span>
           </div>
 
@@ -270,9 +271,9 @@ export function CreatorContextPanel({ creatorId, topic, onDraftReply }: Props) {
                   <div key={b.brand} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
                     <span
                       className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium text-white"
-                      style={{ backgroundColor: getBrandColor(b.brand) }}
+                      style={{ backgroundColor: brandMeta.color(b.brand) }}
                     >
-                      {BRAND_DISPLAY_NAMES[b.brand] || b.brand}
+                      {brandMeta.label(b.brand)}
                     </span>
                     <div className="flex items-center gap-3 text-xs text-[#1A1B3A]">
                       <span>{b.posts_7d} posts</span>
