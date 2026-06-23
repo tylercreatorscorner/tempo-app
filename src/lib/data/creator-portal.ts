@@ -20,7 +20,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createAdminClient } from '@/lib/supabase/server';
-import { BRAND_UUID_MAP, BRAND_SLUG_MAP } from '@/lib/utils/constants';
+import { BRAND_UUID_MAP, BRAND_SLUG_MAP, expandBrandToDataSlugs } from '@/lib/utils/constants';
 
 // ---- Types ---------------------------------------------------------------
 
@@ -275,10 +275,20 @@ export function priorWindow(window: DateWindow): DateWindow {
   };
 }
 
-function brandFilter(brandSlug: string | null) {
+// Resolve a brand slug to the data-table brand_id(s). Expands the LeeFar umbrella
+// to its stores and resolves from brands_v2 (DB-driven). The old version did
+// BRAND_UUID_MAP[slug] with no expansion, so 'leefar' mapped to the umbrella UUID
+// (which has ZERO daily_video_product_stats rows → LeeFar creators saw $0) and a
+// newer brand missing from the map dropped the filter entirely (over-count).
+// null = no brand filter; [] = a known-but-unresolvable brand → scope to nothing.
+async function brandFilter(supabase: any, brandSlug: string | null): Promise<string[] | null> {
   if (!brandSlug) return null;
-  const uuid = BRAND_UUID_MAP[brandSlug];
-  return uuid || null;
+  const slugs = [...expandBrandToDataSlugs(brandSlug)];
+  const { data } = await supabase.from('brands_v2').select('id').in('slug', slugs);
+  const uuids = (data ?? []).map((r: { id: string }) => r.id);
+  if (uuids.length > 0) return uuids;
+  const legacy = BRAND_UUID_MAP[brandSlug];
+  return legacy ? [legacy] : [];
 }
 
 function pctChange(curr: number, prior: number): number | null {
@@ -294,14 +304,14 @@ export async function getCreatorSummary(
 ): Promise<CreatorSummary> {
   if (handles.length === 0) return emptySummary();
   const supabase = await createAdminClient();
-  const brandUuid = brandFilter(brandSlug);
+  const brandUuid = await brandFilter(supabase, brandSlug);
 
   const filters: { column: string; op: 'eq' | 'in' | 'gte' | 'lte'; value: any }[] = [
     { column: 'tiktok_username', op: 'in', value: handles },
     { column: 'report_date', op: 'gte', value: window.start },
     { column: 'report_date', op: 'lte', value: window.end },
   ];
-  if (brandUuid) filters.push({ column: 'brand_id', op: 'eq', value: brandUuid });
+  if (brandUuid) filters.push({ column: 'brand_id', op: 'in', value: brandUuid });
 
   const rows = await paginated(
     supabase,
@@ -337,7 +347,7 @@ export async function getCreatorSummary(
     { column: 'report_date', op: 'gte', value: prior.start },
     { column: 'report_date', op: 'lte', value: prior.end },
   ];
-  if (brandUuid) priorFilters.push({ column: 'brand_id', op: 'eq', value: brandUuid });
+  if (brandUuid) priorFilters.push({ column: 'brand_id', op: 'in', value: brandUuid });
 
   const priorRows = await paginated(
     supabase,
@@ -388,14 +398,14 @@ export async function getCreatorDailySeries(
 ): Promise<CreatorDailyPoint[]> {
   if (handles.length === 0) return [];
   const supabase = await createAdminClient();
-  const brandUuid = brandFilter(brandSlug);
+  const brandUuid = await brandFilter(supabase, brandSlug);
 
   const filters: { column: string; op: 'eq' | 'in' | 'gte' | 'lte'; value: any }[] = [
     { column: 'tiktok_username', op: 'in', value: handles },
     { column: 'report_date', op: 'gte', value: window.start },
     { column: 'report_date', op: 'lte', value: window.end },
   ];
-  if (brandUuid) filters.push({ column: 'brand_id', op: 'eq', value: brandUuid });
+  if (brandUuid) filters.push({ column: 'brand_id', op: 'in', value: brandUuid });
 
   const rows = await paginated(
     supabase,
@@ -440,14 +450,14 @@ export async function getCreatorTopVideos(
 ): Promise<CreatorVideoRow[]> {
   if (handles.length === 0) return [];
   const supabase = await createAdminClient();
-  const brandUuid = brandFilter(brandSlug);
+  const brandUuid = await brandFilter(supabase, brandSlug);
 
   const filters: { column: string; op: 'eq' | 'in' | 'gte' | 'lte'; value: any }[] = [
     { column: 'tiktok_username', op: 'in', value: handles },
     { column: 'report_date', op: 'gte', value: window.start },
     { column: 'report_date', op: 'lte', value: window.end },
   ];
-  if (brandUuid) filters.push({ column: 'brand_id', op: 'eq', value: brandUuid });
+  if (brandUuid) filters.push({ column: 'brand_id', op: 'in', value: brandUuid });
 
   const rows = await paginated(
     supabase,
@@ -537,7 +547,7 @@ export async function getCreatorStreak(
 ): Promise<number> {
   if (handles.length === 0) return 0;
   const supabase = await createAdminClient();
-  const brandUuid = brandFilter(brandSlug);
+  const brandUuid = await brandFilter(supabase, brandSlug);
 
   const today = new Date();
   const start = new Date(today);
@@ -547,7 +557,7 @@ export async function getCreatorStreak(
     { column: 'tiktok_username', op: 'in', value: handles },
     { column: 'report_date', op: 'gte', value: start.toISOString().slice(0, 10) },
   ];
-  if (brandUuid) filters.push({ column: 'brand_id', op: 'eq', value: brandUuid });
+  if (brandUuid) filters.push({ column: 'brand_id', op: 'in', value: brandUuid });
 
   const rows = await paginated(
     supabase,
@@ -583,7 +593,7 @@ export async function getMonthVideoCount(
 ): Promise<number> {
   if (handles.length === 0) return 0;
   const supabase = await createAdminClient();
-  const brandUuid = brandFilter(brandSlug);
+  const brandUuid = await brandFilter(supabase, brandSlug);
 
   const now = new Date();
   const start = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-01`;
@@ -594,7 +604,7 @@ export async function getMonthVideoCount(
     { column: 'report_date', op: 'gte', value: start },
     { column: 'report_date', op: 'lte', value: end },
   ];
-  if (brandUuid) filters.push({ column: 'brand_id', op: 'eq', value: brandUuid });
+  if (brandUuid) filters.push({ column: 'brand_id', op: 'in', value: brandUuid });
 
   const rows = await paginated(
     supabase,
@@ -615,13 +625,13 @@ export async function getBrandRankings(
   limit = 50
 ): Promise<RankingEntry[]> {
   const supabase = await createAdminClient();
-  const brandUuid = brandFilter(brandSlug);
+  const brandUuid = await brandFilter(supabase, brandSlug);
 
   const filters: { column: string; op: 'eq' | 'in' | 'gte' | 'lte'; value: any }[] = [
     { column: 'report_date', op: 'gte', value: window.start },
     { column: 'report_date', op: 'lte', value: window.end },
   ];
-  if (brandUuid) filters.push({ column: 'brand_id', op: 'eq', value: brandUuid });
+  if (brandUuid) filters.push({ column: 'brand_id', op: 'in', value: brandUuid });
 
   const rows = await paginated(
     supabase,
@@ -711,13 +721,13 @@ export async function getInspirationVideos(
   limit = 24
 ): Promise<(CreatorVideoRow & { isMine: boolean })[]> {
   const supabase = await createAdminClient();
-  const brandUuid = brandFilter(brandSlug);
+  const brandUuid = await brandFilter(supabase, brandSlug);
 
   const filters: { column: string; op: 'eq' | 'in' | 'gte' | 'lte'; value: any }[] = [
     { column: 'report_date', op: 'gte', value: window.start },
     { column: 'report_date', op: 'lte', value: window.end },
   ];
-  if (brandUuid) filters.push({ column: 'brand_id', op: 'eq', value: brandUuid });
+  if (brandUuid) filters.push({ column: 'brand_id', op: 'in', value: brandUuid });
 
   const rows = await paginated(
     supabase,
