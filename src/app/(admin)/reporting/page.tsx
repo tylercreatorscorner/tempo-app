@@ -7,7 +7,8 @@ import {
   Wand2, Sparkles, AlertCircle, Download, Briefcase,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { BRAND_DISPLAY_NAMES, HIDDEN_FROM_PICKER } from '@/lib/utils/constants';
+import { HIDDEN_FROM_PICKER } from '@/lib/utils/constants';
+import { useBrandMeta } from '@/hooks/use-brand-meta';
 import { useTenant } from '@/hooks/use-tenant';
 import { FREQUENCIES } from '@/lib/data/schedule-frequency';
 import { ModalOverlay } from '@/components/ui/modal-overlay';
@@ -62,6 +63,7 @@ type TabId = typeof TABS[number]['id'];
 function useBrandOptions(opts?: { collapseUmbrella?: boolean }) {
   const { allowedBrands } = useTenant();
   const brands = useLiveBrands();
+  const brandMeta = useBrandMeta();
   const collapseUmbrella = opts?.collapseUmbrella ?? false;
   return useMemo(() => {
     if (!brands) return [{ value: 'all', label: 'All Brands' }];
@@ -79,13 +81,13 @@ function useBrandOptions(opts?: { collapseUmbrella?: boolean }) {
       : allowed.filter(b => !b.is_umbrella);
     const brandOpts = visible.map(b => ({
       value: b.slug,
-      // Prefer the static display-name override (e.g. emoji-prefixed labels)
-      // when present; otherwise fall back to the canonical name from brands_v2.
-      label: BRAND_DISPLAY_NAMES[b.slug] ?? b.name,
+      // Prefer the DB-driven display name (or static override fallback) when
+      // present; otherwise fall back to the canonical name from brands_v2.
+      label: brandMeta.label(b.slug) || b.name,
     }));
     if (visible.length === 1) return brandOpts; // Restricted to one brand → no "All"
     return [{ value: 'all', label: 'All Brands' }, ...brandOpts];
-  }, [allowedBrands, brands, collapseUmbrella]);
+  }, [allowedBrands, brands, collapseUmbrella, brandMeta]);
 }
 
 // ── Main Page ───────────────────────────────────────────────────────
@@ -540,6 +542,7 @@ function SchedulesTab() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<ScheduleRow | null>(null);
+  const brandMeta = useBrandMeta();
 
   const fetchSchedules = useCallback(async () => {
     try {
@@ -609,7 +612,7 @@ function SchedulesTab() {
               {schedules.map(s => (
                 <tr key={s.id} className="hover:bg-gray-50/60 transition-colors">
                   <td className="py-3 px-4 font-medium text-[#1A1B3A]">{REPORT_TYPE_LABELS[s.report_type] ?? s.report_type}</td>
-                  <td className="py-3 px-4 text-gray-500">{s.brand === 'all' ? 'All Brands' : (BRAND_DISPLAY_NAMES[s.brand] ?? s.brand)}</td>
+                  <td className="py-3 px-4 text-gray-500">{brandMeta.label(s.brand)}</td>
                   <td className="py-3 px-4 text-gray-500 text-xs">{s.cron_label}</td>
                   <td className="py-3 px-4">
                     <span className={cn(

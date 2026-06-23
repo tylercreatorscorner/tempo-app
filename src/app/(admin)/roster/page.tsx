@@ -9,7 +9,7 @@ import {
   UserX, Globe, Pencil, Check, Plus, Trash2, ArrowUp, ArrowDown, ArrowUpDown,
 } from 'lucide-react';
 import Link from 'next/link';
-import { BRAND_DISPLAY_NAMES, BRAND_COLORS } from '@/lib/utils/constants';
+import { useBrandMeta } from '@/hooks/use-brand-meta';
 import { useBrandList } from '@/hooks/use-brand-list';
 import { useBodyScrollLock } from '@/hooks/use-body-scroll-lock';
 import { ModalOverlay } from '@/components/ui/modal-overlay';
@@ -500,6 +500,7 @@ function CreatorPanel({
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(n);
 
   const { brands: brandOptions } = useBrandList();
+  const brandMeta = useBrandMeta();
   const [editing, setEditing] = useState(false);
   const [saving, setSaving]   = useState(false);
   const [saveError, setSaveError] = useState('');
@@ -628,7 +629,7 @@ function CreatorPanel({
             <h2 className="text-base font-bold text-[#1A1B3A]">{displayName}</h2>
             {creator.brand && !editing && (
               <p className="text-xs text-gray-400 mt-0.5">
-                {brandOptions.find(b => b.slug === creator.brand)?.name || BRAND_DISPLAY_NAMES[creator.brand] || creator.brand}
+                {brandOptions.find(b => b.slug === creator.brand)?.name || brandMeta.label(creator.brand)}
               </p>
             )}
           </div>
@@ -875,7 +876,7 @@ function CreatorPanel({
                     <div className="space-y-1.5">
                       {entries.map(([slug, gmv]) => {
                         const pct = total > 0 ? Math.round((gmv / total) * 100) : 0;
-                        const color = BRAND_COLORS[slug] ?? '#94a3b8';
+                        const color = brandMeta.color(slug);
                         return (
                           <div key={slug} className="flex items-center gap-3 text-sm">
                             <span
@@ -883,7 +884,7 @@ function CreatorPanel({
                               style={{ backgroundColor: color }}
                             />
                             <span className="text-gray-700 flex-1 truncate">
-                              {BRAND_DISPLAY_NAMES[slug] ?? slug}
+                              {brandMeta.label(slug)}
                             </span>
                             <span className="text-[#1A1B3A] font-semibold tabular-nums">{fmt(gmv)}</span>
                             <span className="text-xs text-gray-400 w-9 text-right tabular-nums">{pct}%</span>
@@ -1183,6 +1184,7 @@ function RosterContent() {
   const brand = searchParams.get('brand') || 'all';
   const showBrandColumn = brand === 'all';
   const { brands: brandOptions } = useBrandList();
+  const brandMeta = useBrandMeta();
 
   const setBrand = (next: string) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -1481,7 +1483,7 @@ function RosterContent() {
                       {showBrandColumn && (
                         <td className="px-5 py-3.5">
                           <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-gray-100 text-gray-600">
-                            {brandOptions.find(b => b.slug === c.brand)?.name || BRAND_DISPLAY_NAMES[c.brand || ''] || c.brand?.replace(/_/g, ' ') || '—'}
+                            {brandOptions.find(b => b.slug === c.brand)?.name || brandMeta.label(c.brand) || c.brand?.replace(/_/g, ' ') || '—'}
                           </span>
                         </td>
                       )}

@@ -4,11 +4,12 @@ import { useEffect, useRef } from 'react';
 import { X, ExternalLink } from 'lucide-react';
 import { useVideoPanel } from './video-panel-context';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
-import { BRAND_COLORS, BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
 import { useBodyScrollLock } from '@/hooks/use-body-scroll-lock';
+import { useBrandMeta } from '@/hooks/use-brand-meta';
 
 export function VideoPlayerPanel() {
   const { video, isOpen, closeVideo } = useVideoPanel();
+  const brandMeta = useBrandMeta();
   const panelRef = useRef<HTMLDivElement>(null);
 
   // Close on Escape
@@ -81,11 +82,11 @@ export function VideoPlayerPanel() {
                 <span
                   className="inline-block text-xs px-2.5 py-0.5 rounded-full font-medium"
                   style={{
-                    backgroundColor: `${BRAND_COLORS[video.brand] ?? '#6B7280'}15`,
-                    color: BRAND_COLORS[video.brand] ?? '#6B7280',
+                    backgroundColor: `${brandMeta.color(video.brand)}15`,
+                    color: brandMeta.color(video.brand),
                   }}
                 >
-                  {BRAND_DISPLAY_NAMES[video.brand] ?? video.brand}
+                  {brandMeta.label(video.brand)}
                 </span>
               )}
 
