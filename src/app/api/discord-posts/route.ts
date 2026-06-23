@@ -9,7 +9,7 @@ import {
   formatWhosCookingDiscord,
   formatDailyDropDiscord,
 } from '@/lib/data/discord-posts';
-import { BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
+import { getBrandRegistry, brandLabel } from '@/lib/data/brand-registry';
 
 const VALID_TYPES = new Set([
   'whats-cooking', 'whos-cooking', 'daily-drop',
@@ -46,9 +46,10 @@ export async function GET(request: NextRequest) {
       { error: 'Select one of your brands to generate a post' }, { status: 403 });
   }
 
+  const reg = await getBrandRegistry();
   const brandName = brand === 'all'
     ? 'All Brands'
-    : BRAND_DISPLAY_NAMES[brand] || brand;
+    : brandLabel(reg, brand);
 
   try {
     if (type === 'whats-cooking') {

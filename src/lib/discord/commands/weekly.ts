@@ -6,8 +6,9 @@ import {
 } from 'discord.js';
 import { tempoEmbed, errorEmbed } from '../embeds';
 import { getGuildConfig, getBrandForGuild } from '../config';
-import { getSupabase, daysAgo } from '../supabase';
-import { BRAND_DISPLAY_NAMES, brandSlugToUuid } from '@/lib/utils/constants';
+import { getSupabase, daysAgo, getBotBrandRegistry } from '../supabase';
+import { brandSlugToUuid } from '@/lib/utils/constants';
+import { brandLabel } from '@/lib/data/brand-registry-core';
 import { generateWeeklyRecapPost } from '../generators';
 import type { TempoCommand } from './index';
 import type { BrandSummary, CreatorRanking, ProductSummary } from '@/types/database';
@@ -38,6 +39,7 @@ const command: TempoCommand = {
 
     await interaction.deferReply({ ephemeral: true });
     const supabase = getSupabase();
+    const reg = await getBotBrandRegistry();
     const brandUuid = brandSlugToUuid(brand);
     const since = daysAgo(7);
 
@@ -114,7 +116,7 @@ const command: TempoCommand = {
       weekStart.setDate(now.getDate() - 7);
       const dateLabel = `${weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
 
-      const message = generateWeeklyRecapPost(brand, summary, topCreators, topProducts, dateLabel);
+      const message = generateWeeklyRecapPost(brandLabel(reg, brand), summary, topCreators, topProducts, dateLabel);
 
       // Post to the daily brief channel, or fall back to current channel
       const channelId = guildConfig.channels.dailyBrief;

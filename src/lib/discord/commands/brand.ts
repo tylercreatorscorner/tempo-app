@@ -1,8 +1,9 @@
 import { SlashCommandBuilder, type ChatInputCommandInteraction } from 'discord.js';
 import { tempoEmbed, errorEmbed } from '../embeds';
 import { getGuildConfig } from '../config';
-import { getSupabase, daysAgo } from '../supabase';
-import { BRAND_DISPLAY_NAMES, BRAND_COLORS, brandSlugToUuid } from '@/lib/utils/constants';
+import { getSupabase, daysAgo, getBotBrandRegistry } from '../supabase';
+import { brandSlugToUuid } from '@/lib/utils/constants';
+import { brandLabel } from '@/lib/data/brand-registry-core';
 import type { TempoCommand } from './index';
 
 const command: TempoCommand = {
@@ -73,8 +74,9 @@ const command: TempoCommand = {
         new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(n);
       const fmt = (n: number) => new Intl.NumberFormat('en-US').format(n);
 
-      const brandColor = BRAND_COLORS[brandSlug];
-      const brandName = BRAND_DISPLAY_NAMES[brandSlug] ?? brandSlug;
+      const reg = await getBotBrandRegistry();
+      const brandColor = reg.bySlug.get(brandSlug)?.color;
+      const brandName = brandLabel(reg, brandSlug);
 
       const medals = ['🥇', '🥈', '🥉', '4.', '5.'];
       const creatorLines = topCreators.map(([name, gmv], i) =>

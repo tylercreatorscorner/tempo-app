@@ -8,8 +8,9 @@
 import type { Client, TextChannel } from 'discord.js';
 import { tempoEmbed } from './embeds';
 import { getGuildConfig, getBrandForGuild, getRegisteredGuilds } from './config';
-import { getSupabase, daysAgo } from './supabase';
-import { BRAND_DISPLAY_NAMES, brandSlugToUuid } from '@/lib/utils/constants';
+import { getSupabase, daysAgo, getBotBrandRegistry } from './supabase';
+import { brandSlugToUuid } from '@/lib/utils/constants';
+import { brandLabel } from '@/lib/data/brand-registry-core';
 
 interface ScheduledMessage {
   guildId: string;
@@ -149,7 +150,8 @@ export async function sendDailyBrief(client: Client, guildId: string): Promise<v
   if (!brand) return;
 
   const supabase = getSupabase();
-  const brandName = BRAND_DISPLAY_NAMES[brand] ?? brand;
+  const reg = await getBotBrandRegistry();
+  const brandName = brandLabel(reg, brand);
 
   try {
     // Yesterday's performance

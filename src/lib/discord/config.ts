@@ -5,7 +5,7 @@
  * This is the source of truth for which server belongs to which brand.
  */
 
-import { BRAND_COLORS, BRAND_DISPLAY_NAMES, ACTIVE_BRANDS } from '@/lib/utils/constants';
+import { ACTIVE_BRANDS } from '@/lib/utils/constants';
 
 export interface ChannelMapping {
   /** Channel for daily brief posts */
@@ -48,8 +48,8 @@ const GUILD_MAP: Record<string, GuildConfig> = {
   // JiYu Discord server
   '1339335585776533708': {
     brandSlug: 'jiyu',
-    displayName: BRAND_DISPLAY_NAMES['jiyu'] ?? 'JiYu',
-    color: BRAND_COLORS['jiyu'] ?? '#E91E8C',
+    displayName: 'JiYu',
+    color: '#E91E8C',
     allowedChannels: [],
     adminRoles: [],
     channels: {},
@@ -58,8 +58,8 @@ const GUILD_MAP: Record<string, GuildConfig> = {
   // Toplux Nutrition Discord server
   '1452562452733759531': {
     brandSlug: 'toplux',
-    displayName: BRAND_DISPLAY_NAMES['toplux'] ?? 'Toplux Nutrition',
-    color: BRAND_COLORS['toplux'] ?? '#FF9800',
+    displayName: 'Toplux',
+    color: '#FF9800',
     allowedChannels: [],
     adminRoles: [],
     channels: {},
@@ -68,8 +68,8 @@ const GUILD_MAP: Record<string, GuildConfig> = {
   // Cata-Kor Discord server
   '1166776019655602236': {
     brandSlug: 'catakor',
-    displayName: BRAND_DISPLAY_NAMES['catakor'] ?? 'Cata-Kor',
-    color: BRAND_COLORS['catakor'] ?? '#00C853',
+    displayName: 'Cata-Kor',
+    color: '#00C853',
     allowedChannels: [],
     adminRoles: [],
     channels: {},
@@ -78,8 +78,8 @@ const GUILD_MAP: Record<string, GuildConfig> = {
   // Physician's Choice Discord server
   '1181985490363240499': {
     brandSlug: 'physicians_choice',
-    displayName: BRAND_DISPLAY_NAMES['physicians_choice'] ?? "Physician's Choice",
-    color: BRAND_COLORS['physicians_choice'] ?? '#2196F3',
+    displayName: "Physician's Choice",
+    color: '#2196F3',
     allowedChannels: [],
     adminRoles: [],
     channels: {},

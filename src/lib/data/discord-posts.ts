@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
-import { BRAND_UUID_MAP, BRAND_DISPLAY_NAMES, expandBrandToDataSlugs } from '@/lib/utils/constants';
+import { BRAND_UUID_MAP, expandBrandToDataSlugs } from '@/lib/utils/constants';
 
 // ─── Types ──────────────────────────────────────────────────────
 
