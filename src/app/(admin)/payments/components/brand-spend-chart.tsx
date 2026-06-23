@@ -2,7 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import type { ApexOptions } from 'apexcharts';
-import { BRAND_DISPLAY_NAMES, getBrandColor } from '@/lib/utils/constants';
+import { useBrandMeta } from '@/hooks/use-brand-meta';
 
 const ApexChart = dynamic(() => import('react-apexcharts'), { ssr: false });
 
@@ -19,11 +19,8 @@ function fmtCompact(val: number) {
   if (val >= 1000) return `$${(val / 1000).toFixed(0)}k`;
   return `$${val.toFixed(0)}`;
 }
-function brandLabel(slug: string) {
-  return BRAND_DISPLAY_NAMES[slug] ?? slug;
-}
-
 export function BrandSpendChart({ data, height = 220 }: Props) {
+  const brandMeta = useBrandMeta();
   const entries = Object.entries(data).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
   if (entries.length === 0) {
     return (
@@ -45,7 +42,7 @@ export function BrandSpendChart({ data, height = 220 }: Props) {
     dataLabels: { enabled: false },
     legend: { show: false },
     xaxis: {
-      categories: entries.map(([brand]) => brandLabel(brand)),
+      categories: entries.map(([brand]) => brandMeta.label(brand)),
       labels: {
         formatter: (v: string) => fmtCompact(Number(v)),
         style: { colors: Array(entries.length).fill('#9CA3AF'), fontSize: '11px' },
@@ -56,7 +53,7 @@ export function BrandSpendChart({ data, height = 220 }: Props) {
     yaxis: {
       labels: { style: { colors: Array(entries.length).fill('#1A1B3A'), fontSize: '12px', fontWeight: '600' } },
     },
-    colors: entries.map(([brand]) => getBrandColor(brand)),
+    colors: entries.map(([brand]) => brandMeta.color(brand)),
     grid: {
       borderColor: '#F3F4F6',
       strokeDashArray: 4,

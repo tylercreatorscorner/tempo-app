@@ -23,7 +23,7 @@ import {
   getWhatsCookingData, getWhosCookingData, getDailyDropData,
   formatWhatsCookingDiscord, formatWhosCookingDiscord, formatDailyDropDiscord,
 } from '@/lib/data/discord-posts';
-import { BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
+import { getBrandRegistry, brandLabel, type BrandRegistry } from '@/lib/data/brand-registry';
 
 interface ScheduleRow {
   id: string;
@@ -37,8 +37,8 @@ interface ScheduleRow {
   webhook_url: string;
 }
 
-async function generateForSchedule(s: ScheduleRow): Promise<string> {
-  const brandName = s.brand === 'all' ? 'All Brands' : (BRAND_DISPLAY_NAMES[s.brand] ?? s.brand);
+async function generateForSchedule(s: ScheduleRow, reg: BrandRegistry): Promise<string> {
+  const brandName = s.brand === 'all' ? 'All Brands' : brandLabel(reg, s.brand);
   const period = (s.period || '7d') as '7d' | '30d';
 
   if (s.source === 'reporting') {
@@ -89,12 +89,14 @@ export async function GET(request: NextRequest) {
 
   const results: Array<{ id: string; ok: boolean; error?: string }> = [];
 
+  const reg = await getBrandRegistry();
+
   for (const s of (due ?? []) as ScheduleRow[]) {
     let ok = false;
     let errorMsg: string | undefined;
 
     try {
-      const content = await generateForSchedule(s);
+      const content = await generateForSchedule(s, reg);
       const delivery = await deliverToWebhook(s.webhook_url, content);
       ok = delivery.ok;
       if (!delivery.ok) errorMsg = `${delivery.status}: ${delivery.error}`;

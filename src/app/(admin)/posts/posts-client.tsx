@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { BRAND_COLORS } from '@/lib/utils/constants';
+import { useBrandMeta } from '@/hooks/use-brand-meta';
 import { DateRangePicker } from '@/components/dashboard/date-range-picker';
 import { BrandFilter } from '@/components/creators/brand-filter';
 import { StatCard } from '@/components/dashboard/stat-card';
@@ -569,7 +569,8 @@ function EmptyState({ reviewFilter }: { reviewFilter: ReviewFilter }) {
 // ── Row + cells ────────────────────────────────────────────────────
 
 function PostRowView({ post: p, onClick }: { post: PostRow; onClick: (p: PostRow) => void }) {
-  const brandColor = BRAND_COLORS[p.brand_slug] ?? '#6B7280';
+  const brandMeta = useBrandMeta();
+  const brandColor = brandMeta.color(p.brand_slug);
   const titleClipped = p.video_title.length > 90 ? p.video_title.slice(0, 90) + '…' : p.video_title;
 
   return (

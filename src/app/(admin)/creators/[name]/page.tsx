@@ -5,7 +5,8 @@ import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
 import { resolveDateRange } from '@/lib/data/date-utils';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
-import { BRAND_COLORS, BRAND_DISPLAY_NAMES, ACTIVE_BRANDS } from '@/lib/utils/constants';
+import { ACTIVE_BRANDS } from '@/lib/utils/constants';
+import { getBrandRegistry, brandLabel, brandColor } from '@/lib/data/brand-registry';
 import { StatCard } from '@/components/dashboard/stat-card';
 import { DateRangePicker } from '@/components/dashboard/date-range-picker';
 import { CreatorEditButton } from '@/components/creators/creator-edit-panel';
@@ -44,7 +45,7 @@ function trendPct(current: number, previous: number): number | undefined {
 }
 
 /** Initials avatar — picks a color from the brand or falls back to pink gradient */
-function CreatorAvatar({ name, brand }: { name: string; brand: string }) {
+function CreatorAvatar({ name, color }: { name: string; color: string }) {
   // Only consider words that START with an alphanumeric character — skips emoji like 💎
   const initials = name
     .split(/\s+/)
@@ -52,8 +53,6 @@ function CreatorAvatar({ name, brand }: { name: string; brand: string }) {
     .slice(0, 2)
     .map((w) => w[0].toUpperCase())
     .join('');
-
-  const color = BRAND_COLORS[brand] ?? '#E91E8C';
 
   return (
     <div
@@ -114,6 +113,8 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
   const { startDate, endDate } = resolveDateRange(sp.range);
   const selectedBrand = sp.brand || null;
   const activeTab = sp.tab || 'overview';
+
+  const reg = await getBrandRegistry();
 
   const activeBrands = profile.brands.filter((b) => (ACTIVE_BRANDS as readonly string[]).includes(b));
   const activeBrandsWithData = profile.brandsWithData.filter((b) => (ACTIVE_BRANDS as readonly string[]).includes(b));
@@ -188,7 +189,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
           className="h-1.5 w-full"
           style={{
             background: primaryBrand
-              ? `linear-gradient(90deg, ${BRAND_COLORS[primaryBrand] ?? '#E91E8C'}, ${BRAND_COLORS[primaryBrand] ?? '#E91E8C'}66)`
+              ? `linear-gradient(90deg, ${brandColor(reg, primaryBrand, '#E91E8C')}, ${brandColor(reg, primaryBrand, '#E91E8C')}66)`
               : 'linear-gradient(90deg, #E91E8C, #E91E8C66)',
           }}
         />
@@ -197,7 +198,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
           <div className="flex flex-col sm:flex-row sm:items-start gap-4">
             {/* Left: avatar + info (breadcrumb handles back navigation) */}
             <div className="flex items-start gap-4 flex-1 min-w-0">
-              <CreatorAvatar name={profile.real_name} brand={primaryBrand} />
+              <CreatorAvatar name={profile.real_name} color={brandColor(reg, primaryBrand, '#E91E8C')} />
 
               <div className="min-w-0 flex-1">
                 {/* Name row */}
@@ -294,14 +295,14 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                   <div className="flex flex-wrap gap-1.5 mt-2.5">
                     {activeBrands.map((b) => {
                       const hasData = activeBrandsWithData.includes(b);
-                      const color = BRAND_COLORS[b] ?? '#6B7280';
+                      const color = brandColor(reg, b);
                       return (
                         <span
                           key={b}
                           className={cn('text-xs px-2 py-0.5 rounded-full font-medium', !hasData && 'opacity-40')}
                           style={{ backgroundColor: `${color}18`, color }}
                         >
-                          {BRAND_DISPLAY_NAMES[b] ?? b}
+                          {brandLabel(reg, b)}
                         </span>
                       );
                     })}
@@ -465,9 +466,9 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                                     <span
                                       key={b}
                                       className="text-xs px-2 py-0.5 rounded-full font-medium"
-                                      style={{ backgroundColor: `${BRAND_COLORS[b] ?? '#6B7280'}18`, color: BRAND_COLORS[b] ?? '#6B7280' }}
+                                      style={{ backgroundColor: `${brandColor(reg, b)}18`, color: brandColor(reg, b) }}
                                     >
-                                      {BRAND_DISPLAY_NAMES[b] ?? b}
+                                      {brandLabel(reg, b)}
                                     </span>
                                   ))}
                               </div>
@@ -508,8 +509,8 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                           <tr key={b.brand} className="hover:bg-gray-50/60 transition-colors">
                             <td className="px-5 py-3.5">
                               <div className="flex items-center gap-2">
-                                <div className="h-2.5 w-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: BRAND_COLORS[b.brand] ?? '#6B7280' }} />
-                                <span className="font-medium text-[#1A1B3A]">{BRAND_DISPLAY_NAMES[b.brand] ?? b.brand}</span>
+                                <div className="h-2.5 w-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: brandColor(reg, b.brand) }} />
+                                <span className="font-medium text-[#1A1B3A]">{brandLabel(reg, b.brand)}</span>
                               </div>
                             </td>
                             <td className="px-5 py-3.5 text-right font-semibold text-[#1A1B3A]">{formatCurrency(b.gmv)}</td>
@@ -534,7 +535,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                   <h3 className="text-sm font-bold text-[#1A1B3A]">Top Videos by GMV</h3>
                   <p className="text-xs text-gray-400 mt-0.5">
                     {selectedBrand
-                      ? `Filtered to ${BRAND_DISPLAY_NAMES[selectedBrand] ?? selectedBrand}`
+                      ? `Filtered to ${brandLabel(reg, selectedBrand)}`
                       : 'Across all accounts'}
                     {summary.total_videos > 20 ? ` · showing top 20 of ${formatNumber(summary.total_videos)}` : ''}
                   </p>
@@ -583,9 +584,9 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                         <td className="px-5 py-3.5">
                           <span
                             className="text-xs px-2 py-0.5 rounded-full font-medium"
-                            style={{ backgroundColor: `${BRAND_COLORS[v.brand] ?? '#6B7280'}18`, color: BRAND_COLORS[v.brand] ?? '#6B7280' }}
+                            style={{ backgroundColor: `${brandColor(reg, v.brand)}18`, color: brandColor(reg, v.brand) }}
                           >
-                            {BRAND_DISPLAY_NAMES[v.brand] ?? v.brand}
+                            {brandLabel(reg, v.brand)}
                           </span>
                         </td>
                         <td className="px-5 py-3.5 text-gray-500 text-xs max-w-[160px] truncate">{v.product_name || '—'}</td>

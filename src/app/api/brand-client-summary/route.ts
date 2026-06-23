@@ -12,7 +12,7 @@ import {
   buildBrandClientSlackMessage,
   type ReportPeriod,
 } from '@/lib/data/brand-client-report';
-import { BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
+import { getBrandRegistry, brandLabel } from '@/lib/data/brand-registry';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -27,9 +27,10 @@ export async function GET(request: NextRequest) {
     isDate(startParam) && isDate(endParam)
       ? { start: startParam, end: endParam }
       : (searchParams.get('period') === '30d' ? '30d' : '7d');
+  const reg = await getBrandRegistry();
   const brandName = brand === 'all'
     ? 'All Brands'
-    : (searchParams.get('name') || BRAND_DISPLAY_NAMES[brand] || brand);
+    : (searchParams.get('name') || brandLabel(reg, brand));
 
   try {
     const data = await getBrandClientReportData(brand, brandName, period);

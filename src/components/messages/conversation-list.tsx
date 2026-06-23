@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ChannelBadge } from './channel-icon';
-import { getBrandColor, BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
+import { useBrandMeta } from '@/hooks/use-brand-meta';
 import { useBrandList } from '@/hooks/use-brand-list';
 import {
   STATUS_CONFIG,
@@ -102,10 +102,11 @@ interface Props {
 
 export function ConversationList({ conversations, activeKey, onSelect }: Props) {
   const { brands: brandOptions } = useBrandList();
+  const brandMeta = useBrandMeta();
   const brandNameOf = (slug: string | null | undefined) =>
-    (slug && brandOptions.find(b => b.slug === slug)?.name) || (slug ? BRAND_DISPLAY_NAMES[slug] || slug : '');
+    (slug && brandOptions.find(b => b.slug === slug)?.name) || brandMeta.label(slug ?? '');
   const brandColorOf = (slug: string | null | undefined) =>
-    (slug && brandOptions.find(b => b.slug === slug)?.color) || (slug ? getBrandColor(slug) : '#6B7280');
+    (slug && brandOptions.find(b => b.slug === slug)?.color) || brandMeta.color(slug ?? '');
 
   const [search, setSearch] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);

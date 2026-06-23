@@ -12,7 +12,7 @@
 import { History, Users, Percent, CreditCard, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatDate } from '@/lib/utils/format';
-import { BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
+import { useBrandMeta } from '@/hooks/use-brand-meta';
 
 export interface AuditLog {
   id: string;
@@ -33,10 +33,6 @@ interface Props {
   loading: boolean;
 }
 
-function brandLabel(slug: string) {
-  return BRAND_DISPLAY_NAMES[slug] ?? slug;
-}
-
 function entityIconAndBg(type: string): { icon: React.ComponentType<{ className?: string }>; tint: string; iconColor: string } {
   switch (type) {
     case 'retainer':         return { icon: Users,      tint: 'bg-purple-50',   iconColor: 'text-purple-500' };
@@ -48,6 +44,7 @@ function entityIconAndBg(type: string): { icon: React.ComponentType<{ className?
 }
 
 export function AuditFeed({ logs, loading }: Props) {
+  const brandMeta = useBrandMeta();
   if (loading && logs.length === 0) {
     return (
       <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-12 text-center">
@@ -90,7 +87,7 @@ export function AuditFeed({ logs, loading }: Props) {
                 <p className="text-sm text-[#1A1B3A]">
                   <span className="font-semibold">{log.field_changed}</span>
                   {log.creator_name && <> for <span className="font-semibold">{log.creator_name}</span></>}
-                  {log.brand && <span className="text-gray-500"> · {brandLabel(log.brand)}</span>}
+                  {log.brand && <span className="text-gray-500"> · {brandMeta.label(log.brand)}</span>}
                   {' '}changed
                   {log.old_value !== null && log.old_value !== '' && (
                     <> from <code className="font-mono text-[11px] bg-red-50 text-red-700 px-1.5 py-0.5 rounded">{log.old_value}</code></>

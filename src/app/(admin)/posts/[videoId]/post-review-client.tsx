@@ -21,7 +21,7 @@ import {
   Save, Star, Trash2, X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { BRAND_COLORS } from '@/lib/utils/constants';
+import { useBrandMeta } from '@/hooks/use-brand-meta';
 import { engagementRate, formatCurrency, formatNumber } from '@/lib/utils/format';
 
 export interface VideoMeta {
@@ -54,6 +54,7 @@ interface ReviewRow {
 const TAG_PRESETS = ['🔥 banger', '✏️ needs rework', '📣 shoutout', '⚠️ off-brand', '💡 inspo'];
 
 export function PostReviewClient({ meta }: { meta: VideoMeta }) {
+  const brandMeta = useBrandMeta();
   const [reviews, setReviews] = useState<ReviewRow[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -144,7 +145,7 @@ export function PostReviewClient({ meta }: { meta: VideoMeta }) {
   const myReview = reviews.find(r => r.reviewer_user_id === currentUserId);
   const otherReviews = reviews.filter(r => r.reviewer_user_id !== currentUserId);
   const engagement = engagementRate(meta.views, meta.likes, meta.comments);
-  const brandColor = BRAND_COLORS[meta.brand_slug] ?? '#6B7280';
+  const brandColor = brandMeta.color(meta.brand_slug);
 
   return (
     <div className="space-y-5">

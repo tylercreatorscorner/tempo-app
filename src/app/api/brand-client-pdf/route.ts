@@ -13,7 +13,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { renderToBuffer } from '@react-pdf/renderer';
 import { getBrandClientReportData, type ReportPeriod } from '@/lib/data/brand-client-report';
 import { BrandClientReportPDF } from '@/lib/pdf/brand-client-report-pdf';
-import { BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
+import { getBrandRegistry, brandLabel } from '@/lib/data/brand-registry';
 
 export const runtime = 'nodejs';
 // Allow up to 60s for the heavy multi-table data pull + PDF render
@@ -31,9 +31,10 @@ export async function GET(request: NextRequest) {
       ? { start: startParam, end: endParam }
       : (searchParams.get('period') === '30d' ? '30d' : '7d');
   const customRange = typeof period === 'object';
+  const reg = await getBrandRegistry();
   const brandName = brand === 'all'
     ? 'All Brands'
-    : (searchParams.get('name') || BRAND_DISPLAY_NAMES[brand] || brand);
+    : (searchParams.get('name') || brandLabel(reg, brand));
 
   try {
     const data = await getBrandClientReportData(brand, brandName, period);
