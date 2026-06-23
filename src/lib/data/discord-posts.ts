@@ -573,12 +573,10 @@ export async function getDailyDropData(brandFilter: string): Promise<DailyDropDa
   ];
   if (brandUuids) dbFilters.push({ column: 'brand_id', op: 'in', value: brandUuids });
 
-  // MTD creator stats - paginated
-  const mtdFilters: { column: string; op: string; value: any }[] = [
-    { column: 'report_date', op: 'gte', value: monthStartStr },
-    { column: 'report_date', op: 'lte', value: yesterdayStr },
-  ];
-  if (brandUuids) mtdFilters.push({ column: 'brand_id', op: 'in', value: brandUuids });
+  // MTD GMV is a single SQL aggregate (dcs_gmv_sum RPC), NOT a paginate-every-row
+  // sum. For a multi-store umbrella (LeeFar ~47k MTD rows) or the all-brands drop
+  // (~259k) the old paginated sum was dozens/hundreds of deep-offset round-trips
+  // and timed the function out (504). brandUuids null = all brands.
 
   // Video sections use the video table's anchor (may differ from creator anchor).
   const yvFilters: { column: string; op: string; value: any }[] = [
@@ -601,10 +599,10 @@ export async function getDailyDropData(brandFilter: string): Promise<DailyDropDa
   ];
   if (brandUuids) otwFilters.push({ column: 'brand_id', op: 'in', value: brandUuids });
 
-  const [yesterdayCreators, dayBeforeCreators, mtdData, yesterdayVideos, yesterdayProducts, recentVideoStats, discordMap] = await Promise.all([
+  const [yesterdayCreators, dayBeforeCreators, mtdSumRes, yesterdayVideos, yesterdayProducts, recentVideoStats, discordMap] = await Promise.all([
     paginatedFetch(supabase, 'daily_creator_stats', 'tiktok_username, gmv', ycFilters),
     paginatedFetch(supabase, 'daily_creator_stats', 'gmv', dbFilters),
-    paginatedFetch(supabase, 'daily_creator_stats', 'gmv', mtdFilters),
+    supabase.rpc('dcs_gmv_sum', { p_brand_ids: brandUuids, p_start: monthStartStr, p_end: yesterdayStr }),
     paginatedFetch(supabase, 'daily_video_product_stats', 'video_id, tiktok_username, gmv', yvFilters),
     paginatedFetch(supabase, 'daily_video_product_stats', 'product_name, gmv', ypFilters),
     paginatedFetch(supabase, 'daily_video_product_stats', 'video_id, tiktok_username, gmv, post_date, report_date', otwFilters),
@@ -669,7 +667,7 @@ export async function getDailyDropData(brandFilter: string): Promise<DailyDropDa
 
   const yesterdayGmv = (yesterdayCreators || []).reduce((s: number, c: any) => s + (parseFloat(c.gmv) || 0), 0);
   const dayBeforeGmv = (dayBeforeCreators || []).reduce((s: number, c: any) => s + (parseFloat(c.gmv) || 0), 0);
-  const mtdGmv = (mtdData || []).reduce((s: number, c: any) => s + (parseFloat(c.gmv) || 0), 0);
+  const mtdGmv = Number((mtdSumRes as { data?: number | string | null })?.data ?? 0) || 0;
 
   return {
     yesterdayGmv,
