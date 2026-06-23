@@ -79,26 +79,6 @@ export function expandBrandToDataSlugs(brand: string): readonly string[] {
  * Toplux is excluded — no data access, no writes, ever.
  */
 export const DATA_ENABLED_BRANDS = ['jiyu', 'catakor', 'physicians_choice', 'leefar_nutrition', 'leefar_supplements', 'leefar_us', 'lemme'] as const;
-export const DATA_ENABLED_BRAND_IDS = new Set([
-  'b0000000-0000-0000-0000-000000000001', // catakor
-  'b0000000-0000-0000-0000-000000000002', // physicians_choice
-  'b0000000-0000-0000-0000-000000000003', // jiyu
-  'b0000000-0000-0000-0000-000000000006', // leefar_nutrition
-  'b0000000-0000-0000-0000-000000000007', // leefar_supplements
-  'b0000000-0000-0000-0000-000000000009', // leefar_us
-  'b0000000-0000-0000-0000-000000000008', // lemme
-]);
-
-/** Validate a brand_id is allowed to have data written. Throws if not. */
-export function assertDataWriteAllowed(brandId: string, context?: string): void {
-  if (!DATA_ENABLED_BRAND_IDS.has(brandId)) {
-    throw new Error(
-      `DATA WRITE BLOCKED: brand_id ${brandId} is not in DATA_ENABLED_BRAND_IDS. ` +
-      `Only brands with active data pipelines can write data. ` +
-      (context ? `Context: ${context}` : '')
-    );
-  }
-}
 
 /** Brand slug → UUID mapping for v2 database tables */
 export const BRAND_UUID_MAP: Record<string, string> = {
