@@ -27,7 +27,7 @@ import {
   ChevronDown, ChevronRight, Download, Loader2, Package, Search,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { BRAND_DISPLAY_NAMES, BRAND_COLORS } from '@/lib/utils/constants';
+import { useBrandMeta } from '@/hooks/use-brand-meta';
 import { DateRangePicker } from '@/components/dashboard/date-range-picker';
 import { BrandFilter } from '@/components/creators/brand-filter';
 import { StatCard } from '@/components/dashboard/stat-card';
@@ -84,6 +84,7 @@ interface ProductsClientProps {
 }
 
 export function ProductsClient({ brands, selectedBrand, startDate, endDate }: ProductsClientProps) {
+  const brandMeta = useBrandMeta();
   const [data, setData] = useState<ProductsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -167,7 +168,7 @@ export function ProductsClient({ brands, selectedBrand, startDate, endDate }: Pr
     const headers = ['Product', 'Brand', 'Category', 'GMV', 'Orders', 'Items Sold', 'Refunds', 'Videos', 'Avg Creators / Day', 'Est. Commission'];
     const rows = visibleProducts.map(p => [
       p.product_name || 'Unknown',
-      BRAND_DISPLAY_NAMES[p.brand] ?? p.brand,
+      brandMeta.label(p.brand),
       p.product_category ?? '',
       p.gmv.toFixed(2),
       p.orders,
@@ -200,7 +201,7 @@ export function ProductsClient({ brands, selectedBrand, startDate, endDate }: Pr
           <p className="text-sm text-gray-400 mt-0.5">
             Per-product performance for{' '}
             <span className="font-medium text-gray-600">
-              {selectedBrand ? (BRAND_DISPLAY_NAMES[selectedBrand] ?? selectedBrand) : 'all brands'}
+              {selectedBrand ? brandMeta.label(selectedBrand) : 'all brands'}
             </span>
             . Click any row to see the creators driving it.
           </p>
@@ -304,7 +305,7 @@ export function ProductsClient({ brands, selectedBrand, startDate, endDate }: Pr
                 visibleProducts.map(p => {
                   const key = `${p.product_id}|||${p.brand}`;
                   const isExpanded = expanded.has(key);
-                  const brandColor = BRAND_COLORS[p.brand] ?? '#6B7280';
+                  const brandColor = brandMeta.color(p.brand);
                   return (
                     <ProductRowGroup
                       key={key}
@@ -374,6 +375,7 @@ function ProductRowGroup({
   startDate: string;
   endDate: string;
 }) {
+  const brandMeta = useBrandMeta();
   const [creators, setCreators] = useState<CreatorBreakdownRow[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -431,7 +433,7 @@ function ProductRowGroup({
         <td className="px-4 py-3 align-top">
           <span className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-600">
             <span className="h-2 w-2 rounded-full" style={{ backgroundColor: brandColor }} />
-            {BRAND_DISPLAY_NAMES[product.brand] ?? product.brand}
+            {brandMeta.label(product.brand)}
           </span>
         </td>
         <td className="px-4 py-3 text-right font-bold text-[#E91E8C] tabular-nums">{formatCurrency(product.gmv)}</td>
@@ -516,6 +518,7 @@ function TopProductsCard({
   totalGmv: number;
   loading: boolean;
 }) {
+  const brandMeta = useBrandMeta();
   const top = products.slice(0, 5);
   return (
     <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-5">
@@ -536,7 +539,7 @@ function TopProductsCard({
             const titleClipped = (p.product_name || '(unnamed)').length > 60
               ? (p.product_name || '').slice(0, 60) + '…'
               : (p.product_name || '(unnamed)');
-            const brandColor = BRAND_COLORS[p.brand] ?? '#6B7280';
+            const brandColor = brandMeta.color(p.brand);
             return (
               <div key={`${p.product_id}|||${p.brand}`} className="flex items-center gap-3">
                 <span className="w-6 text-xs text-gray-400 font-bold tabular-nums">{i + 1}</span>
@@ -544,7 +547,7 @@ function TopProductsCard({
                   <div className="text-sm font-medium text-[#1A1B3A] truncate" title={p.product_name}>{titleClipped}</div>
                   <div className="flex items-center gap-1.5 text-[11px] text-gray-500 mt-0.5">
                     <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: brandColor }} />
-                    {BRAND_DISPLAY_NAMES[p.brand] ?? p.brand}
+                    {brandMeta.label(p.brand)}
                   </div>
                   <div className="mt-1.5 h-1 bg-gray-100 rounded-full overflow-hidden">
                     <div className="h-full bg-[#E91E8C]" style={{ width: `${Math.min(100, share)}%` }} />

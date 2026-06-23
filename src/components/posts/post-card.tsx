@@ -14,7 +14,7 @@
  */
 import { ExternalLink, Eye, Heart, MessageCircle, MessageSquare, Star, AlertTriangle, PlayCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { BRAND_COLORS } from '@/lib/utils/constants';
+import { useBrandMeta } from '@/hooks/use-brand-meta';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
 
 export interface PostCardData {
@@ -49,7 +49,8 @@ interface Props {
 }
 
 export function PostCard({ post: p, onClick }: Props) {
-  const brandColor = BRAND_COLORS[p.brand_slug] ?? '#6B7280';
+  const brandMeta = useBrandMeta();
+  const brandColor = brandMeta.color(p.brand_slug);
   const hasThumb = !!p.thumbnail_url;
 
   return (

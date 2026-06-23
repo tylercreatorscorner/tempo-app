@@ -3,7 +3,7 @@
 import { TrendingUp, TrendingDown, Sparkles, Flame, Package } from 'lucide-react';
 import Link from 'next/link';
 import { formatCurrency } from '@/lib/utils/format';
-import { BRAND_COLORS, BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
+import { useBrandMeta } from '@/hooks/use-brand-meta';
 
 export interface BrandChange {
   brand: string;
@@ -107,6 +107,7 @@ function ChangeCard({
 }
 
 export function NotableChanges({ brandRiser, brandFaller, creatorBreakout, hotPost, topProduct }: Props) {
+  const brandMeta = useBrandMeta();
   // Don't render the section at all if there's nothing notable
   if (!brandRiser && !brandFaller && !creatorBreakout && !hotPost && !topProduct) return null;
 
@@ -121,10 +122,10 @@ export function NotableChanges({ brandRiser, brandFaller, creatorBreakout, hotPo
         {brandRiser && (
           <ChangeCard
             icon={<TrendingUp className="h-3.5 w-3.5" />}
-            iconColor={BRAND_COLORS[brandRiser.brand] ?? '#00C853'}
-            iconBg={`${BRAND_COLORS[brandRiser.brand] ?? '#00C853'}18`}
+            iconColor={brandMeta.color(brandRiser.brand)}
+            iconBg={`${brandMeta.color(brandRiser.brand)}18`}
             eyebrow="Top Brand Riser"
-            title={BRAND_DISPLAY_NAMES[brandRiser.brand] ?? brandRiser.brand}
+            title={brandMeta.label(brandRiser.brand)}
             subtitle={`Up from ${formatCurrency(brandRiser.prior)} last period`}
             valueLabel="GMV"
             value={formatCurrency(brandRiser.current)}
@@ -135,10 +136,10 @@ export function NotableChanges({ brandRiser, brandFaller, creatorBreakout, hotPo
         {brandFaller && (
           <ChangeCard
             icon={<TrendingDown className="h-3.5 w-3.5" />}
-            iconColor={BRAND_COLORS[brandFaller.brand] ?? '#F44336'}
-            iconBg={`${BRAND_COLORS[brandFaller.brand] ?? '#F44336'}18`}
+            iconColor={brandMeta.color(brandFaller.brand)}
+            iconBg={`${brandMeta.color(brandFaller.brand)}18`}
             eyebrow="Biggest Drop"
-            title={BRAND_DISPLAY_NAMES[brandFaller.brand] ?? brandFaller.brand}
+            title={brandMeta.label(brandFaller.brand)}
             subtitle={`Down from ${formatCurrency(brandFaller.prior)} last period`}
             valueLabel="GMV"
             value={formatCurrency(brandFaller.current)}
@@ -153,7 +154,7 @@ export function NotableChanges({ brandRiser, brandFaller, creatorBreakout, hotPo
             iconBg="#7C5CFC18"
             eyebrow="Breakout Creator"
             title={`@${creatorBreakout.creator_name}`}
-            subtitle={`${BRAND_DISPLAY_NAMES[creatorBreakout.brand] ?? creatorBreakout.brand} · ${
+            subtitle={`${brandMeta.label(creatorBreakout.brand)} · ${
               creatorBreakout.is_managed ? 'managed' : 'unmanaged'
             }`}
             valueLabel="GMV"
@@ -170,7 +171,7 @@ export function NotableChanges({ brandRiser, brandFaller, creatorBreakout, hotPo
             iconBg="#FF6B3518"
             eyebrow="Hottest Post"
             title={hotPost.video_title}
-            subtitle={`@${hotPost.creator_name} · ${BRAND_DISPLAY_NAMES[hotPost.brand] ?? hotPost.brand} · ${hotPost.days_active}d live`}
+            subtitle={`@${hotPost.creator_name} · ${brandMeta.label(hotPost.brand)} · ${hotPost.days_active}d live`}
             valueLabel={`${formatCurrency(hotPost.velocity)}/day`}
             value={formatCurrency(hotPost.total_gmv)}
           />
@@ -183,7 +184,7 @@ export function NotableChanges({ brandRiser, brandFaller, creatorBreakout, hotPo
             iconBg="#0EA5E918"
             eyebrow="Top Product"
             title={topProduct.product_name}
-            subtitle={BRAND_DISPLAY_NAMES[topProduct.brand] ?? topProduct.brand}
+            subtitle={brandMeta.label(topProduct.brand)}
             valueLabel="GMV"
             value={formatCurrency(topProduct.current_gmv)}
             delta={topProduct.prior_gmv > 0 ? topProduct.delta_pct : undefined}

@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useCallback, type ReactNode } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
-import { BRAND_DISPLAY_NAMES, BRAND_COLORS } from '@/lib/utils/constants';
+import { useBrandMeta } from '@/hooks/use-brand-meta';
 
 interface BrandContextValue {
   /** Current brand slug, or 'all' */
@@ -46,8 +46,9 @@ export function BrandProvider({ children }: { children: ReactNode }) {
     [router, pathname, searchParams]
   );
 
-  const brandLabel = brand === 'all' ? 'All Brands' : (BRAND_DISPLAY_NAMES[brand] ?? brand);
-  const brandColor = brand === 'all' ? null : (BRAND_COLORS[brand] ?? null);
+  const brandMeta = useBrandMeta();
+  const brandLabel = brandMeta.label(brand); // handles 'all' -> 'All Brands'
+  const brandColor = brand === 'all' ? null : brandMeta.color(brand);
 
   return (
     <BrandContext.Provider value={{ brand, setBrand, brandLabel, brandColor, isFiltered: brand !== 'all' }}>

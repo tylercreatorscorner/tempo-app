@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { BRAND_COLORS, BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
+import { useBrandMeta } from '@/hooks/use-brand-meta';
 import { cn } from '@/lib/utils';
 
 interface BrandFilterProps {
@@ -13,6 +13,7 @@ interface BrandFilterProps {
 export function BrandFilter({ brands, brandsWithData, selectedBrand }: BrandFilterProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const brandMeta = useBrandMeta();
 
   const handleSelect = (brand: string | null) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -40,7 +41,7 @@ export function BrandFilter({ brands, brandsWithData, selectedBrand }: BrandFilt
       {brands.map((brand) => {
         const isActive = selectedBrand === brand;
         const hasData = brandsWithData.includes(brand);
-        const color = BRAND_COLORS[brand] ?? '#6B7280';
+        const color = brandMeta.color(brand);
         return (
           <button
             key={brand}
@@ -59,7 +60,7 @@ export function BrandFilter({ brands, brandsWithData, selectedBrand }: BrandFilt
                 : { borderColor: `${color}40`, color }
             }
           >
-            {BRAND_DISPLAY_NAMES[brand] ?? brand}
+            {brandMeta.label(brand)}
             {!hasData && !isActive && (
               <span className="ml-1 text-[10px] opacity-60">(no data)</span>
             )}

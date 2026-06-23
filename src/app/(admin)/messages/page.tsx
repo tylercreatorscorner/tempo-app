@@ -8,7 +8,7 @@ import { ChatThread } from '@/components/messages/chat-thread';
 import { CreatorContextPanel } from '@/components/messages/creator-context-panel';
 import { BulkMessageModal } from '@/components/messages/bulk-message-modal';
 import { TestDmModal } from '@/components/messages/test-dm-modal';
-import { BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
+import { useBrandMeta } from '@/hooks/use-brand-meta';
 import { useTenant } from '@/hooks/use-tenant';
 
 function MessagesSetup() {
@@ -75,6 +75,7 @@ export default function MessagesPage() {
   // Draft injected from context panel → chat thread. Cleared by thread after consuming.
   const [draftToInject, setDraftToInject] = useState<string | null>(null);
   const { tenant } = useTenant();
+  const brandMeta = useBrandMeta();
 
   const fetchConversations = useCallback(async () => {
     try {
@@ -184,7 +185,7 @@ export default function MessagesPage() {
                 creatorId={activeConv.creator_id}
                 creatorName={activeConv.creator_name}
                 discordUserId={activeConv.discord_user_id}
-                brandName={activeConv.brand ? (BRAND_DISPLAY_NAMES[activeConv.brand] || activeConv.brand) : undefined}
+                brandName={activeConv.brand ? brandMeta.label(activeConv.brand) : undefined}
                 postCount={activeConv.total_videos_7d}
                 gmv={activeConv.total_gmv_7d}
                 draftToInject={draftToInject}

@@ -16,7 +16,7 @@ import {
   Clipboard, Loader2, Minus, Star, X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { BRAND_DISPLAY_NAMES, BRAND_COLORS } from '@/lib/utils/constants';
+import { useBrandMeta, type BrandMeta } from '@/hooks/use-brand-meta';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
 
 interface RenewalCreator {
@@ -108,6 +108,7 @@ const ACCENT_TEXT = {
 // ── Main component ─────────────────────────────────────────────────
 
 export function RenewalsTab({ brand }: RenewalsTabProps) {
+  const brandMeta = useBrandMeta();
   const [data, setData] = useState<RenewalsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -192,7 +193,7 @@ export function RenewalsTab({ brand }: RenewalsTabProps) {
           <p className="text-sm font-medium text-gray-500">No retainer creators found</p>
           <p className="text-xs text-gray-400 mt-1 max-w-sm mx-auto">
             {brand
-              ? `Nothing on retainer for ${BRAND_DISPLAY_NAMES[brand] ?? brand}. Switch brand or check All Brands.`
+              ? `Nothing on retainer for ${brandMeta.label(brand)}. Switch brand or check All Brands.`
               : 'Add at least one managed creator with a retainer to see renewal recommendations here.'}
           </p>
         </div>
@@ -250,14 +251,15 @@ function RenewalSection({
   onToggleCollapse: () => void;
   brand: string | null;
 }) {
+  const brandMeta = useBrandMeta();
   const [copied, setCopied] = useState(false);
 
   const handleCopy = useCallback(() => {
-    const text = formatDiscordText(section.id, creators, brand);
+    const text = formatDiscordText(section.id, creators, brand, brandMeta);
     navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-  }, [section.id, creators, brand]);
+  }, [section.id, creators, brand, brandMeta]);
 
   const Icon = section.icon;
 
@@ -330,7 +332,8 @@ const PACE_LABEL = {
 } as const;
 
 function RenewalRow({ creator: c }: { creator: RenewalCreator }) {
-  const brandColor = BRAND_COLORS[c.brand] ?? '#6B7280';
+  const brandMeta = useBrandMeta();
+  const brandColor = brandMeta.color(c.brand);
   const trendIcon = c.roiTrend === 'up'   ? <ArrowUp className="h-3 w-3 text-emerald-500" />
                   : c.roiTrend === 'down' ? <ArrowDown className="h-3 w-3 text-red-500" />
                   :                         <Minus className="h-3 w-3 text-gray-300" />;
@@ -360,7 +363,7 @@ function RenewalRow({ creator: c }: { creator: RenewalCreator }) {
           </div>
           <div className="flex items-center gap-1.5 text-[11px] text-gray-500 mt-0.5">
             <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: brandColor }} />
-            <span className="truncate">{BRAND_DISPLAY_NAMES[c.brand] ?? c.brand}</span>
+            <span className="truncate">{brandMeta.label(c.brand)}</span>
           </div>
         </div>
       </div>
@@ -432,8 +435,9 @@ function formatDiscordText(
   section: 'cut' | 'watch' | 'keep',
   creators: RenewalCreator[],
   brand: string | null,
+  brandMeta: BrandMeta,
 ): string {
-  const brandLabel = brand ? (BRAND_DISPLAY_NAMES[brand] ?? brand) : 'All Brands';
+  const brandLabel = brand ? brandMeta.label(brand) : 'All Brands';
   const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   const list = creators.slice(0, 20);
 

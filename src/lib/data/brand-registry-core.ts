@@ -97,3 +97,7 @@ export function brandLabel(reg: BrandRegistry, slug: string): string {
   const b = reg.bySlug.get(slug);
   return b?.display_name || b?.name || slug;
 }
+
+export function brandColor(reg: BrandRegistry, slug: string, fallback = '#6B7280'): string {
+  return reg.bySlug.get(slug)?.color || fallback;
+}

@@ -3,7 +3,7 @@
 import dynamic from 'next/dynamic';
 import type { ApexOptions } from 'apexcharts';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
-import { BRAND_COLORS, BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
+import { useBrandMeta } from '@/hooks/use-brand-meta';
 
 const ApexChart = dynamic(() => import('react-apexcharts'), { ssr: false });
 
@@ -22,9 +22,10 @@ interface Props {
  * stacked-bar visualization — donut reads share-of-mix faster, and the right
  * column keeps the per-brand secondary metrics that the bars also showed. */
 export function BrandBreakdownDonut({ rows }: Props) {
+  const brandMeta = useBrandMeta();
   const totalGmv = rows.reduce((s, r) => s + r.gmv, 0);
-  const labels = rows.map(r => BRAND_DISPLAY_NAMES[r.brand] ?? r.brand);
-  const colors = rows.map(r => BRAND_COLORS[r.brand] ?? '#6B7280');
+  const labels = rows.map(r => brandMeta.label(r.brand));
+  const colors = rows.map(r => brandMeta.color(r.brand));
   const series = rows.map(r => Number(r.gmv.toFixed(2)));
 
   const options: ApexOptions = {
@@ -83,14 +84,14 @@ export function BrandBreakdownDonut({ rows }: Props) {
         <ul className="space-y-2.5">
           {rows.map((r) => {
             const sharePct = totalGmv > 0 ? (r.gmv / totalGmv) * 100 : 0;
-            const color = BRAND_COLORS[r.brand] ?? '#6B7280';
+            const color = brandMeta.color(r.brand);
             return (
               <li key={r.brand} className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2.5 min-w-0">
                   <span className="h-2.5 w-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
                   <div className="min-w-0">
                     <p className="text-xs font-semibold text-[#1A1B3A] truncate">
-                      {BRAND_DISPLAY_NAMES[r.brand] ?? r.brand}
+                      {brandMeta.label(r.brand)}
                     </p>
                     <p className="text-[10px] text-gray-400">
                       {formatNumber(r.videos)} videos · {formatNumber(r.orders)} orders
