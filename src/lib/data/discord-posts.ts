@@ -250,73 +250,40 @@ export async function getWhatsCookingData(brandFilter: string, period: '7d' | '3
     fullStartDate = formatDate(fourteenDaysAgo);
   }
 
-  // Fetch video stats - paginated to handle large datasets (JiYu alone has 140K+ rows/month)
-  const videoFilters: { column: string; op: string; value: any }[] = [
-    { column: 'report_date', op: 'gte', value: fullStartDate },
-    { column: 'report_date', op: 'lte', value: endDate },
-  ];
-  if (brandUuids) {
-    videoFilters.push({ column: 'brand_id', op: 'in', value: brandUuids });
-  }
-  const rawData = await paginatedFetch(
-    supabase,
-    'daily_video_product_stats',
-    'video_id, video_url, video_title, tiktok_username, gmv, orders, post_date, brand_id, report_date',
-    videoFilters
-  );
+  // Hot/Rising GMV thresholds (constant across periods).
+  const hotThreshold = 100;
+  const risingThreshold = 50;
 
-  // Aggregate by video_id (may have multiple report_dates)
-  const videoMap = new Map<string, VideoEntry>();
-  (rawData || []).forEach((row: any) => {
-    const existing = videoMap.get(row.video_id);
-    if (!existing) {
-      videoMap.set(row.video_id, {
-        video_id: row.video_id,
-        video_url: row.video_url,
-        video_title: row.video_title,
-        tiktok_username: row.tiktok_username,
-        gmv: parseFloat(row.gmv) || 0,
-        orders: parseInt(row.orders) || 0,
-        post_date: row.post_date,
-        brand_id: row.brand_id,
-      });
-    } else {
-      existing.gmv += parseFloat(row.gmv) || 0;
-      existing.orders += parseInt(row.orders) || 0;
-    }
+  // Aggregation runs in Postgres (whats_cooking_agg) and returns only the top
+  // videos per tier + totals — NOT the full 14-30 day window of rows, which for
+  // a high-volume / umbrella / all-brands selection timed the function out.
+  const { data: agg, error } = await supabase.rpc('whats_cooking_agg', {
+    p_brand_ids: brandUuids,
+    p_full_start: fullStartDate,
+    p_end: endDate,
+    p_hot_start: hotStartDate,
+    p_rising_start: risingStartDate,
+    p_rising_end: risingEndDate,
+    p_hot_threshold: hotThreshold,
+    p_rising_threshold: risingThreshold,
   });
+  if (error) throw error;
+  const a = (agg ?? {}) as {
+    totalGmv?: number; videoCount?: number; creatorCount?: number;
+    hotVideos?: VideoEntry[]; risingVideos?: VideoEntry[]; topVideos?: VideoEntry[];
+  };
 
-  const allVideos = Array.from(videoMap.values());
-
-  const hotThreshold = period === '30d' ? 100 : 100;
-  const risingThreshold = period === '30d' ? 50 : 50;
-
-  const hotVideos = allVideos
-    .filter(v => v.post_date && v.post_date >= hotStartDate && v.gmv >= hotThreshold)
-    .sort((a, b) => b.gmv - a.gmv);
-
-  const risingVideos = allVideos
-    .filter(v => v.post_date && v.post_date >= risingStartDate && v.post_date < risingEndDate && v.gmv >= risingThreshold)
-    .sort((a, b) => b.gmv - a.gmv);
-
-  const topVideos = [...allVideos]
-    .sort((a, b) => b.gmv - a.gmv)
-    .slice(0, 20);
-
-  // Get Discord mappings
+  // Discord mention map stays in JS — it isn't brand-volume-dependent.
   const discordMap = await getDiscordMap(supabase, brandUuids);
 
-  const totalGmv = allVideos.reduce((sum, v) => sum + v.gmv, 0);
-  const creatorCount = new Set(allVideos.map(v => v.tiktok_username.toLowerCase())).size;
-
   return {
-    hotVideos,
-    risingVideos,
-    topVideos,
+    hotVideos: a.hotVideos ?? [],
+    risingVideos: a.risingVideos ?? [],
+    topVideos: a.topVideos ?? [],
     discordMap,
-    totalGmv,
-    videoCount: allVideos.length,
-    creatorCount,
+    totalGmv: Number(a.totalGmv ?? 0),
+    videoCount: Number(a.videoCount ?? 0),
+    creatorCount: Number(a.creatorCount ?? 0),
     endDate: yesterday,
   };
 }
@@ -356,130 +323,55 @@ export async function getWhosCookingData(brandFilter: string, period: '7d' | '30
     priorEnd = formatDate(sevenDaysAgo);
   }
 
-  // Current period data - paginated (JiYu has 23K+ rows/month)
-  const currentFilters: { column: string; op: string; value: any }[] = [
-    { column: 'report_date', op: 'gte', value: currentStart },
-    { column: 'report_date', op: 'lte', value: endDate },
-  ];
-  if (brandUuids) {
-    currentFilters.push({ column: 'brand_id', op: 'in', value: brandUuids });
-  }
-  const currentData = await paginatedFetch(
-    supabase,
-    'daily_creator_stats',
-    'tiktok_username, gmv, orders, items_sold, videos, brand_id, report_date',
-    currentFilters
-  );
-
-  // Prior period data - paginated
-  const priorFilters: { column: string; op: string; value: any }[] = [
-    { column: 'report_date', op: 'gte', value: priorStart },
-    { column: 'report_date', op: 'lt', value: priorEnd },
-  ];
-  if (brandUuids) {
-    priorFilters.push({ column: 'brand_id', op: 'in', value: brandUuids });
-  }
-  const priorData = await paginatedFetch(
-    supabase,
-    'daily_creator_stats',
-    'tiktok_username, gmv, brand_id, report_date',
-    priorFilters
-  );
-
-  // Aggregate current period by creator
-  const creatorMap = new Map<string, {
-    tiktok_username: string;
-    gmv: number;
-    orders: number;
-    items_sold: number;
-    videos: number;
-    brand_id: string;
-    daysPosted: Set<string>;
-  }>();
-
-  (currentData || []).forEach((row: any) => {
-    const handle = (row.tiktok_username || '').toLowerCase().replace('@', '');
-    const existing = creatorMap.get(handle);
-    if (!existing) {
-      creatorMap.set(handle, {
-        tiktok_username: row.tiktok_username,
-        gmv: parseFloat(row.gmv) || 0,
-        orders: parseInt(row.orders) || 0,
-        items_sold: parseInt(row.items_sold) || 0,
-        videos: parseInt(row.videos) || 0,
-        brand_id: row.brand_id,
-        daysPosted: new Set([row.report_date]),
-      });
-    } else {
-      existing.gmv += parseFloat(row.gmv) || 0;
-      existing.orders += parseInt(row.orders) || 0;
-      existing.items_sold += parseInt(row.items_sold) || 0;
-      existing.videos += parseInt(row.videos) || 0;
-      existing.daysPosted.add(row.report_date);
-    }
-  });
-
-  // Aggregate prior period GMV by creator
-  const priorGmvMap = new Map<string, number>();
-  (priorData || []).forEach((row: any) => {
-    const handle = (row.tiktok_username || '').toLowerCase().replace('@', '');
-    priorGmvMap.set(handle, (priorGmvMap.get(handle) || 0) + (parseFloat(row.gmv) || 0));
-  });
-
-  // Get Discord mappings
-  const discordMap = await getDiscordMap(supabase, brandUuids);
-
-  // Build creator list with breakout %
-  const creators = Array.from(creatorMap.entries())
-    .filter(([, c]) => c.gmv > 0)
-    .map(([handle, c]) => {
-      const prior = priorGmvMap.get(handle) || 0;
-      const breakoutPct = prior > 0 ? ((c.gmv - prior) / prior * 100) : (c.gmv > 0 ? 999 : 0);
-      const discord = discordMap.get(handle);
-      return {
-        tiktok_username: c.tiktok_username,
-        gmv: c.gmv,
-        orders: c.orders,
-        items_sold: c.items_sold,
-        videos: c.videos,
-        brand_id: c.brand_id,
-        discord_id: discord?.discord_id || null,
-        discord_name: discord?.discord_name || null,
-        daysPosted: c.daysPosted.size,
-        priorGmv: prior,
-        breakoutPct,
-      };
-    });
-
-  // Sort by GMV for leaderboard
-  const leaderboard = [...creators].sort((a, b) => b.gmv - a.gmv).slice(0, 10);
-
-  // Special shoutouts - exclude top 3
-  const top3 = new Set(leaderboard.slice(0, 3).map(c => c.tiktok_username.toLowerCase()));
-  const eligible = creators.filter(c => !top3.has(c.tiktok_username.toLowerCase()));
-
-  const mostProlific = [...eligible].sort((a, b) => b.videos - a.videos).find(c => c.videos >= 3) || null;
-
   const ironChefMinDays = period === '30d' ? 20 : 5;
-  const ironChef = [...eligible]
-    .filter(c => c.daysPosted >= ironChefMinDays)
-    .sort((a, b) => b.daysPosted - a.daysPosted)[0] || null;
 
-  const breakoutStar = [...eligible]
-    .filter(c => c.priorGmv > 50 && c.breakoutPct >= 50 && c.breakoutPct < 999)
-    .sort((a, b) => b.breakoutPct - a.breakoutPct)[0] || null;
+  // Aggregation runs in Postgres (whos_cooking_agg): leaderboard (top 10), the
+  // three shoutout candidates, and totals — NOT the full current+prior window of
+  // creator-day rows, which for a high-volume / umbrella / all-brands selection
+  // timed the function out.
+  const { data: agg, error } = await supabase.rpc('whos_cooking_agg', {
+    p_brand_ids: brandUuids,
+    p_current_start: currentStart,
+    p_end: endDate,
+    p_prior_start: priorStart,
+    p_prior_end: priorEnd,
+    p_iron_chef_min: ironChefMinDays,
+  });
+  if (error) throw error;
+  const a = (agg ?? {}) as {
+    totalGmv?: number; creatorCount?: number; videoCount?: number;
+    leaderboard?: any[]; mostProlific?: any; ironChef?: any; breakoutStar?: any;
+  };
 
-  const totalGmv = creators.reduce((sum, c) => sum + c.gmv, 0);
-  const totalVideos = creators.reduce((sum, c) => sum + c.videos, 0);
+  // Discord mention map stays in JS — it isn't brand-volume-dependent. Attach
+  // the mention id/name to each creator by handle.
+  const discordMap = await getDiscordMap(supabase, brandUuids);
+  const attach = (c: any) => {
+    const handle = (c.tiktok_username || '').toLowerCase().replace('@', '');
+    const d = discordMap.get(handle);
+    return {
+      tiktok_username: c.tiktok_username,
+      gmv: Number(c.gmv) || 0,
+      orders: Number(c.orders) || 0,
+      items_sold: Number(c.items_sold) || 0,
+      videos: Number(c.videos) || 0,
+      brand_id: c.brand_id,
+      discord_id: d?.discord_id ?? null,
+      discord_name: d?.discord_name ?? null,
+      daysPosted: Number(c.daysPosted) || 0,
+      priorGmv: Number(c.priorGmv) || 0,
+      breakoutPct: Number(c.breakoutPct) || 0,
+    };
+  };
 
   return {
-    leaderboard,
-    mostProlific: mostProlific ? { ...mostProlific } : null,
-    ironChef: ironChef ? { ...ironChef } : null,
-    breakoutStar: breakoutStar ? { ...breakoutStar } : null,
-    totalGmv,
-    creatorCount: creators.length,
-    videoCount: totalVideos,
+    leaderboard: (a.leaderboard ?? []).map(attach),
+    mostProlific: a.mostProlific ? attach(a.mostProlific) : null,
+    ironChef: a.ironChef ? attach(a.ironChef) : null,
+    breakoutStar: a.breakoutStar ? attach(a.breakoutStar) : null,
+    totalGmv: Number(a.totalGmv ?? 0),
+    creatorCount: Number(a.creatorCount ?? 0),
+    videoCount: Number(a.videoCount ?? 0),
     endDate: yesterday,
   };
 }
