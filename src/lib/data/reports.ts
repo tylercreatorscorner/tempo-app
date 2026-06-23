@@ -17,7 +17,8 @@ import {
   getVideoSummary,
   getDailyTrend,
 } from './rpc';
-import { ACTIVE_BRANDS, BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
+import { ACTIVE_BRANDS } from '@/lib/utils/constants';
+import { getBrandRegistry, brandLabel, type BrandRegistry } from '@/lib/data/brand-registry';
 import { format, subDays } from 'date-fns';
 import { toZonedTime } from 'date-fns-tz';
 
@@ -66,9 +67,9 @@ function periodLabel(period: ReportPeriod): string {
   return period === '30d' ? 'Last 30 Days' : 'Last 7 Days';
 }
 
-function brandHeading(brand: string): string {
+function brandHeading(reg: BrandRegistry, brand: string): string {
   if (!brand || brand === 'all') return 'All Brands';
-  return BRAND_DISPLAY_NAMES[brand] ?? brand;
+  return brandLabel(reg, brand);
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -76,6 +77,7 @@ function brandHeading(brand: string): string {
 // ────────────────────────────────────────────────────────────────────────────
 
 export async function generatePerformanceSummary(brand: string, period: ReportPeriod): Promise<string> {
+  const reg = await getBrandRegistry();
   const { start, end, prevStart, prevEnd } = resolveRanges(period);
   const brands = brandsToQuery(brand);
   if (brands.length === 0) return 'No brands available for this user.';
@@ -120,7 +122,7 @@ export async function generatePerformanceSummary(brand: string, period: ReportPe
   const topVideos   = [...videosByBrand].sort((a, b) => b.total_gmv - a.total_gmv).slice(0, 10);
 
   const lines: string[] = [];
-  lines.push(`# Performance Summary — ${brandHeading(brand)}`);
+  lines.push(`# Performance Summary — ${brandHeading(reg, brand)}`);
   lines.push(`${periodLabel(period)} · ${start} → ${end}`);
   lines.push('');
   lines.push('## Headline Numbers');
@@ -142,7 +144,7 @@ export async function generatePerformanceSummary(brand: string, period: ReportPe
       const totalBrand = breakdown.reduce((s, b) => s + b.gmv, 0);
       for (const b of breakdown) {
         const share = totalBrand > 0 ? (b.gmv / totalBrand) * 100 : 0;
-        lines.push(`- **${BRAND_DISPLAY_NAMES[b.brand] ?? b.brand}**: ${fmtCurrency(b.gmv)} (${share.toFixed(1)}%)`);
+        lines.push(`- **${brandLabel(reg, b.brand)}**: ${fmtCurrency(b.gmv)} (${share.toFixed(1)}%)`);
       }
       lines.push('');
     }
@@ -154,7 +156,7 @@ export async function generatePerformanceSummary(brand: string, period: ReportPe
     lines.push('_No creator data in this period._');
   } else {
     topCreators.forEach((c, i) => {
-      const brandTag = brands.length > 1 ? ` · ${BRAND_DISPLAY_NAMES[c.brand] ?? c.brand}` : '';
+      const brandTag = brands.length > 1 ? ` · ${brandLabel(reg, c.brand)}` : '';
       lines.push(`${i + 1}. **@${c.creator_name}**${brandTag} — ${fmtCurrency(c.total_gmv)} · ${fmtNumber(c.total_videos)} posts`);
     });
   }
@@ -166,7 +168,7 @@ export async function generatePerformanceSummary(brand: string, period: ReportPe
     lines.push('_No video data in this period._');
   } else {
     topVideos.forEach((v, i) => {
-      const brandTag = brands.length > 1 ? ` · ${BRAND_DISPLAY_NAMES[v.brand] ?? v.brand}` : '';
+      const brandTag = brands.length > 1 ? ` · ${brandLabel(reg, v.brand)}` : '';
       const titleTrim = (v.video_title || 'Untitled').length > 80
         ? (v.video_title || 'Untitled').slice(0, 77) + '…'
         : (v.video_title || 'Untitled');
@@ -192,6 +194,7 @@ function bucketByVideos(videos: number): 'star' | 'on_track' | 'at_risk' | 'behi
 }
 
 export async function generateCreatorActivity(brand: string, period: ReportPeriod): Promise<string> {
+  const reg = await getBrandRegistry();
   const { start, end } = resolveRanges(period);
   const brands = brandsToQuery(brand);
   if (brands.length === 0) return 'No brands available for this user.';
@@ -218,7 +221,7 @@ export async function generateCreatorActivity(brand: string, period: ReportPerio
   const totalCreators = creatorsByBrand.length;
 
   const lines: string[] = [];
-  lines.push(`# Creator Activity — ${brandHeading(brand)}`);
+  lines.push(`# Creator Activity — ${brandHeading(reg, brand)}`);
   lines.push(`${periodLabel(period)} · ${start} → ${end}`);
   lines.push('');
   lines.push('## Roster Health');
@@ -236,7 +239,7 @@ export async function generateCreatorActivity(brand: string, period: ReportPerio
     if (list.length === 0) return;
     lines.push(`## ${label} — ${list.length} creator${list.length === 1 ? '' : 's'}`);
     list.slice(0, max).forEach((c, i) => {
-      const brandTag = brands.length > 1 ? ` · ${BRAND_DISPLAY_NAMES[c.brand] ?? c.brand}` : '';
+      const brandTag = brands.length > 1 ? ` · ${brandLabel(reg, c.brand)}` : '';
       lines.push(`${i + 1}. **@${c.creator_name}**${brandTag} — ${fmtCurrency(c.total_gmv)} · ${c.total_videos} posts`);
     });
     if (list.length > max) {
@@ -263,6 +266,7 @@ export async function generateBrandReport(brand: string, period: ReportPeriod): 
     // Brand reports are always brand-scoped — pick first active brand if user picked "all"
     return 'Please select a specific brand for a brand report.';
   }
+  const reg = await getBrandRegistry();
   const { start, end, prevStart, prevEnd } = resolveRanges(period);
   const brands = brandsToQuery(brand);
   if (brands.length === 0) return 'Brand not available.';
@@ -288,13 +292,13 @@ export async function generateBrandReport(brand: string, period: ReportPeriod): 
     : null;
 
   const lines: string[] = [];
-  lines.push(`# ${BRAND_DISPLAY_NAMES[b] ?? b} — Performance Report`);
+  lines.push(`# ${brandLabel(reg, b)} — Performance Report`);
   lines.push(`Reporting Period: ${start} → ${end} (${periodLabel(period)})`);
   lines.push(`Generated: ${format(new Date(), 'MMMM d, yyyy')}`);
   lines.push('');
   lines.push('## Executive Summary');
   lines.push('');
-  lines.push(`Over the past ${period === '30d' ? '30 days' : 'week'}, ${BRAND_DISPLAY_NAMES[b] ?? b} generated **${fmtCurrency(totalGmv)}** in GMV across **${fmtNumber(totalVideos)}** videos from **${fmtNumber(uniqueCreators)}** active creators. This represents a **${pctDelta(totalGmv, prevTotalGmv)}** change versus the previous period.`);
+  lines.push(`Over the past ${period === '30d' ? '30 days' : 'week'}, ${brandLabel(reg, b)} generated **${fmtCurrency(totalGmv)}** in GMV across **${fmtNumber(totalVideos)}** videos from **${fmtNumber(uniqueCreators)}** active creators. This represents a **${pctDelta(totalGmv, prevTotalGmv)}** change versus the previous period.`);
   lines.push('');
 
   lines.push('## Key Metrics');

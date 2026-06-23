@@ -2,7 +2,7 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import { formatCurrency } from '@/lib/utils/format';
-import { BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
+import { getBrandRegistry, brandLabel, type BrandRegistry } from '@/lib/data/brand-registry';
 
 /**
  * Compact metric pack that the LLM uses to write the narrative. Kept small
@@ -50,9 +50,9 @@ export type NarrativeResult =
  * we ask for plain markdown so the UI can dangerouslySetInnerHTML or just render
  * via a markdown-aware text component. We keep the brief itself compact to
  * minimize tokens. */
-function buildBrief(input: NarrativeInput): string {
-  const brandLabel = input.brandFilter
-    ? (BRAND_DISPLAY_NAMES[input.brandFilter] ?? input.brandFilter)
+function buildBrief(reg: BrandRegistry, input: NarrativeInput): string {
+  const scopeLabel = input.brandFilter
+    ? brandLabel(reg, input.brandFilter)
     : 'all brands';
 
   const fmt = (v: number) => formatCurrency(v);
@@ -60,7 +60,7 @@ function buildBrief(input: NarrativeInput): string {
     prev === 0 ? (cur > 0 ? '+100%+' : '0%') : `${cur >= prev ? '+' : ''}${(((cur - prev) / prev) * 100).toFixed(1)}%`;
 
   const lines: string[] = [];
-  lines.push(`Scope: ${brandLabel}`);
+  lines.push(`Scope: ${scopeLabel}`);
   lines.push(`Period: ${input.periodLabel} vs ${input.prevPeriodLabel}`);
   lines.push('');
   lines.push(`Totals:`);
@@ -73,22 +73,22 @@ function buildBrief(input: NarrativeInput): string {
   lines.push('');
 
   if (input.brandRiser) {
-    const name = BRAND_DISPLAY_NAMES[input.brandRiser.brand] ?? input.brandRiser.brand;
+    const name = brandLabel(reg, input.brandRiser.brand);
     lines.push(`Top brand riser: ${name} — ${fmt(input.brandRiser.current)} (${input.brandRiser.delta_pct >= 0 ? '+' : ''}${input.brandRiser.delta_pct.toFixed(1)}%)`);
   }
   if (input.brandFaller) {
-    const name = BRAND_DISPLAY_NAMES[input.brandFaller.brand] ?? input.brandFaller.brand;
+    const name = brandLabel(reg, input.brandFaller.brand);
     lines.push(`Biggest brand drop: ${name} — ${fmt(input.brandFaller.current)} (${input.brandFaller.delta_pct.toFixed(1)}%)`);
   }
   if (input.creatorBreakout) {
     const tag = input.creatorBreakout.is_managed ? 'managed' : 'unmanaged';
-    lines.push(`Breakout creator: @${input.creatorBreakout.creator_name} (${tag}, ${BRAND_DISPLAY_NAMES[input.creatorBreakout.brand] ?? input.creatorBreakout.brand}) — ${fmt(input.creatorBreakout.current_gmv)} (+${input.creatorBreakout.delta_pct.toFixed(0)}%)`);
+    lines.push(`Breakout creator: @${input.creatorBreakout.creator_name} (${tag}, ${brandLabel(reg, input.creatorBreakout.brand)}) — ${fmt(input.creatorBreakout.current_gmv)} (+${input.creatorBreakout.delta_pct.toFixed(0)}%)`);
   }
   if (input.hotPost) {
     lines.push(`Hot post: "${input.hotPost.video_title}" by @${input.hotPost.creator_name} — ${fmt(input.hotPost.total_gmv)} in ${input.hotPost.days_active}d live`);
   }
   if (input.topProduct) {
-    const name = BRAND_DISPLAY_NAMES[input.topProduct.brand] ?? input.topProduct.brand;
+    const name = brandLabel(reg, input.topProduct.brand);
     lines.push(`Top product: ${input.topProduct.product_name} (${name}) — ${fmt(input.topProduct.current_gmv)}${input.topProduct.prior_gmv > 0 ? ` (${input.topProduct.delta_pct >= 0 ? '+' : ''}${input.topProduct.delta_pct.toFixed(1)}%)` : ''}`);
   }
   if (input.concentration && input.concentration.totalCreators >= 10) {
@@ -116,7 +116,8 @@ export async function generateAnalyticsNarrative(input: NarrativeInput): Promise
     return { ok: false, error: 'ANTHROPIC_API_KEY not configured' };
   }
 
-  const brief = buildBrief(input);
+  const reg = await getBrandRegistry();
+  const brief = buildBrief(reg, input);
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
   try {
