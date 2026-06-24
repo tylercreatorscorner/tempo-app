@@ -5,8 +5,6 @@
  * This is the source of truth for which server belongs to which brand.
  */
 
-import { ACTIVE_BRANDS } from '@/lib/utils/constants';
-
 export interface ChannelMapping {
   /** Channel for daily brief posts */
   dailyBrief?: string;
@@ -121,5 +119,4 @@ export const TEMPO_DEFAULTS = {
   color: 0x6C5CE7, // purple
   iconUrl: '', // TODO: add Tempo bot avatar URL
   footerText: 'Tempo — TikTok Shop Analytics',
-  activeBrands: ACTIVE_BRANDS,
 } as const;

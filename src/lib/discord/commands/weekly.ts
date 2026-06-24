@@ -7,8 +7,7 @@ import {
 import { tempoEmbed, errorEmbed } from '../embeds';
 import { getGuildConfig, getBrandForGuild } from '../config';
 import { getSupabase, daysAgo, getBotBrandRegistry } from '../supabase';
-import { brandSlugToUuid } from '@/lib/utils/constants';
-import { brandLabel } from '@/lib/data/brand-registry-core';
+import { brandLabel, slugToUuid } from '@/lib/data/brand-registry-core';
 import { generateWeeklyRecapPost } from '../generators';
 import type { TempoCommand } from './index';
 import type { BrandSummary, CreatorRanking, ProductSummary } from '@/types/database';
@@ -40,7 +39,7 @@ const command: TempoCommand = {
     await interaction.deferReply({ ephemeral: true });
     const supabase = getSupabase();
     const reg = await getBotBrandRegistry();
-    const brandUuid = brandSlugToUuid(brand);
+    const brandUuid = slugToUuid(reg, brand);
     const since = daysAgo(7);
 
     try {

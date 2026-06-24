@@ -2,8 +2,7 @@ import { SlashCommandBuilder, type ChatInputCommandInteraction } from 'discord.j
 import { leaderboardEmbed, errorEmbed } from '../embeds';
 import { getGuildConfig, getBrandForGuild } from '../config';
 import { getSupabase, daysAgo, periodToDays, getBotBrandRegistry } from '../supabase';
-import { brandSlugToUuid } from '@/lib/utils/constants';
-import { brandLabel } from '@/lib/data/brand-registry-core';
+import { brandLabel, slugToUuid } from '@/lib/data/brand-registry-core';
 import type { TempoCommand } from './index';
 
 const command: TempoCommand = {
@@ -38,7 +37,8 @@ const command: TempoCommand = {
 
     await interaction.deferReply();
     const supabase = getSupabase();
-    const brandUuid = brandSlugToUuid(brand);
+    const reg = await getBotBrandRegistry();
+    const brandUuid = slugToUuid(reg, brand.toLowerCase().replace(/['\s]/g, '_'));
     const days = periodToDays(period);
     const since = daysAgo(days);
 
@@ -82,7 +82,6 @@ const command: TempoCommand = {
         .sort((a, b) => b.gmv - a.gmv)
         .slice(0, 10);
 
-      const reg = await getBotBrandRegistry();
       const brandName = brandLabel(reg, brand);
       const periodLabels: Record<string, string> = {
         '7d': 'Last 7 days', '14d': 'Last 14 days', '30d': 'Last 30 days',
