@@ -1,5 +1,4 @@
 import { createClient } from '@/lib/supabase/server';
-import { brandSlugToUuid, brandUuidToSlug } from '@/lib/utils/constants';
 
 export interface RetainerInfo {
   retainer: number;

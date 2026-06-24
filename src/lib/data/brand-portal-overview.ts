@@ -12,7 +12,7 @@
  * undercounts (e.g. catakor: 108 handles in v2 vs 350 in legacy).
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { resolveBrandDataUuids, expandBrandToDataSlugs } from '@/lib/utils/constants';
+import { getBrandRegistry, resolveUuids, expandSlugs } from '@/lib/data/brand-registry';
 
 export type BrandPortalPeriod =
   | 'yesterday'
@@ -175,12 +175,13 @@ export async function getBrandPortalDashboard(
   // fallback so an unmapped-but-real brand still filters on its own UUID
   // rather than matching nothing. All stats queries below filter on this
   // array (.in) instead of a single UUID (.eq).
-  const brandIds = resolveBrandDataUuids(brandSlug, brandUuid);
+  const reg = await getBrandRegistry();
+  const brandIds = resolveUuids(reg, brandSlug, brandUuid) ?? [brandUuid];
   // Slug-keyed *data* tables (videos) are keyed by the per-store slug for
   // umbrella brands, so expand here too. Roster/settings tables
   // (managed_creators, brand_settings) stay keyed by the umbrella slug and
   // must NOT be expanded — those keep .eq('brand', brandSlug).
-  const dataSlugs = expandBrandToDataSlugs(brandSlug);
+  const dataSlugs = expandSlugs(reg, brandSlug);
 
   // ── Resolve the period window
   const { data: anchorRow } = await supabase

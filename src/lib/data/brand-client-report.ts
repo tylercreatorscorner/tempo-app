@@ -26,7 +26,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
-import { expandBrandToDataSlugs } from '@/lib/utils/constants';
+import { getBrandRegistry, expandSlugs, type BrandRegistry } from '@/lib/data/brand-registry';
 
 export type ReportPeriod = '7d' | '30d';
 
@@ -131,9 +131,9 @@ function formatDate(d: Date): string {
  * and video_performance are keyed by store slug, not the umbrella. 'all' (or
  * empty) returns null = no brand filter (every brand).
  */
-function getBrandDataSlugs(brandFilter: string): string[] | null {
+function getBrandDataSlugs(reg: BrandRegistry, brandFilter: string): string[] | null {
   if (!brandFilter || brandFilter === 'all') return null;
-  return [...expandBrandToDataSlugs(brandFilter)];
+  return expandSlugs(reg, brandFilter);
 }
 
 function pctChange(curr: number, prior: number): number | null {
@@ -255,7 +255,8 @@ export async function getBrandClientReportData(
   clientOverride?: SupabaseClient,
 ): Promise<BrandClientReportData> {
   const supabase = clientOverride ?? (await createClient());
-  const brandSlugs = getBrandDataSlugs(brandSlug);
+  const reg = await getBrandRegistry();
+  const brandSlugs = getBrandDataSlugs(reg, brandSlug);
 
   // ── Resolve the time window. A preset ('7d'/'30d') anchors to the oldest of
   // the latest dates across creator/video tables so every section reports on

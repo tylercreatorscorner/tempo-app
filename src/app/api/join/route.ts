@@ -30,8 +30,9 @@ export async function POST(request: NextRequest) {
     // Check if any TikTok username matches an existing creator
     const usernamesToCheck = tiktok_usernames.map((u: string) => u.toLowerCase().trim().replace(/^@/, ''));
 
-    const { brandSlugToUuid } = await import('@/lib/utils/constants');
-    const brandUuid = brandSlugToUuid(brand) ?? brand;
+    const { getBrandRegistry, slugToUuid } = await import('@/lib/data/brand-registry');
+    const reg = await getBrandRegistry();
+    const brandUuid = slugToUuid(reg, brand) ?? brand;
 
     // Check tiktok_accounts table first
     const { data: existingAccounts } = await supabase

@@ -1,11 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
-import {
-  brandSlugToUuid,
-  brandUuidToSlug,
-  expandBrandToDataSlugs,
-  BRAND_UUID_MAP,
-} from '@/lib/utils/constants';
+import { getBrandRegistry, slugToUuid, uuidToSlug, expandSlugs, resolveUuids } from '@/lib/data/brand-registry';
 import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 
 /**
@@ -17,44 +12,6 @@ import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
  * (the COSRX bug). Unknown brand must show nothing, never everything.
  */
 const NO_MATCH_BRAND_ID = '00000000-0000-0000-0000-000000000000';
-
-/**
- * Resolve a brand filter to the array of data-level brand UUIDs that
- * daily_video_product_stats actually keys on.
- *
- * Fast path: the hardcoded BRAND_UUID_MAP (also handles umbrella expansion,
- * e.g. 'leefar' → both store UUIDs). Fallback: look the slug up in brands_v2
- * (the canonical brand table the dynamic picker reads from) so brands created
- * via the UI but not yet in the constant still filter correctly.
- *
- * Returns:
- *   - null              → no brand selected ('all'/empty): aggregate all
- *   - [uuid, ...]        → resolved brand(s)
- *   - [NO_MATCH_BRAND_ID] → real brand, no resolvable UUID → show zero
- */
-async function resolveBrandDataUuids(
-  brandSlug: string | null | undefined,
-  supabase: Awaited<ReturnType<typeof createAdminClient>>,
-): Promise<string[] | null> {
-  if (!brandSlug || brandSlug === 'all') return null;
-
-  const dataSlugs = expandBrandToDataSlugs(brandSlug);
-  const fromConstant = Array.from(dataSlugs)
-    .map((s) => BRAND_UUID_MAP[s])
-    .filter((u): u is string => !!u);
-  if (fromConstant.length > 0) return fromConstant;
-
-  // Not in the hardcoded map — resolve via brands_v2 (canonical source).
-  const { data: brandRow } = await supabase
-    .from('brands_v2')
-    .select('id')
-    .eq('slug', brandSlug)
-    .maybeSingle();
-  if (brandRow?.id) return [brandRow.id as string];
-
-  // Real selection but unresolvable → show zero, never all.
-  return [NO_MATCH_BRAND_ID];
-}
 
 
 // account_1..5 stay on the wire for back-compat, but the canonical handle
@@ -296,6 +253,7 @@ export async function GET(request: NextRequest) {
   const storeFilter = searchParams.get('store');
 
   const supabase = await createAdminClient();
+  const reg = await getBrandRegistry();
 
   // ── 1. Fetch ALL matching managed creators (no DB pagination yet — we need
   // the full set to compute health-aggregates and to support filtering by
@@ -375,7 +333,8 @@ export async function GET(request: NextRequest) {
 
   // Resolve the brand filter to data-level UUIDs. null = no filter (all);
   // [NO_MATCH_BRAND_ID] = real brand with no data → zero (never all).
-  const brandIds = await resolveBrandDataUuids(brand, supabase);
+  const resolved = resolveUuids(reg, brand);
+  const brandIds = resolved && resolved.length === 0 ? [NO_MATCH_BRAND_ID] : resolved;
 
   if (allHandles.length > 0) {
     // 7-day post fetch: paginated, period-independent. daily_video_product_stats
@@ -404,7 +363,7 @@ export async function GET(request: NextRequest) {
         for (const r of data ?? []) {
           const h = r.tiktok_username?.toLowerCase();
           if (!h || !r.video_id) continue;
-          const slug = brandUuidToSlug(r.brand_id) ?? r.brand_id ?? 'unknown';
+          const slug = uuidToSlug(reg, r.brand_id) ?? r.brand_id ?? 'unknown';
           let byBrand = out.get(h);
           if (!byBrand) { byBrand = new Map(); out.set(h, byBrand); }
           let set = byBrand.get(slug);
@@ -478,7 +437,7 @@ export async function GET(request: NextRequest) {
     // brand. Umbrella brands (e.g. 'leefar') expand to their data-level
     // children ('leefar_nutrition', 'leefar_supplements').
     const rowBrandSlugs = row.brand
-      ? Array.from(expandBrandToDataSlugs(row.brand))
+      ? expandSlugs(reg, row.brand)
       : [];
     let gmv = 0;
     let posts = 0;
@@ -516,7 +475,7 @@ export async function GET(request: NextRequest) {
       const bg = brandGmvByHandle.get(h);
       if (bg) {
         for (const [brandUuid, brandGmv] of bg) {
-          const slug = brandUuidToSlug(brandUuid) ?? brandUuid;
+          const slug = uuidToSlug(reg, brandUuid) ?? brandUuid;
           gmvByStore[slug] = (gmvByStore[slug] ?? 0) + brandGmv;
         }
       }
@@ -553,7 +512,7 @@ export async function GET(request: NextRequest) {
   // returns the top N by 30d GMV. We shape each result into an EnrichedRow
   // with empty contract fields + is_managed: false.
   // Brand expansion to data-level UUIDs is handled by `brandIds`
-  // (resolveBrandDataUuids) shared with the managed perf RPC. For scoped
+  // (resolveUuids) shared with the managed perf RPC. For scoped
   // (manager) users the unmanaged RPC is only brand_ids-filtered, so with no
   // specific brand selected it would surface all-brand top performers — only
   // run it for an explicit in-scope brand.
@@ -582,7 +541,7 @@ export async function GET(request: NextRequest) {
           const hayHandle = (u.tiktok_username ?? '').toLowerCase();
           if (!hayName.includes(q) && !hayHandle.includes(q)) continue;
         }
-        const slug = brandUuidToSlug(u.brand_id ?? '') ?? null;
+        const slug = uuidToSlug(reg, u.brand_id ?? '') ?? null;
         // Build per-store breakdown from the same brand-gmv map used by managed
         // rows. Unmanaged rows' single handle was included in the bulk RPC fetch
         // earlier — wait, actually no: unmanaged handles weren't in `allHandles`
@@ -765,6 +724,7 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = await createAdminClient();
+  const reg = await getBrandRegistry();
 
   // Dual-write account_1..5 from handles[] for back-compat with readers still
   // on the legacy columns. tiktok_accounts is the canonical store.
@@ -830,7 +790,7 @@ export async function POST(request: NextRequest) {
     // unique index), so re-adding a handle that was already registered inserted
     // a fresh duplicate row. We diff in JS, treating null == null, to prevent
     // that while still allowing the same handle under a genuinely new brand.
-    const brandUuid = brand ? brandSlugToUuid(brand) : undefined;
+    const brandUuid = brand ? slugToUuid(reg, brand) : undefined;
     const { data: existingForCreator } = await supabase
       .from('tiktok_accounts')
       .select('tiktok_username, brand_id')

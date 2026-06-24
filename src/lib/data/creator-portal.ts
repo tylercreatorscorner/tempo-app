@@ -20,7 +20,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createAdminClient } from '@/lib/supabase/server';
-import { BRAND_UUID_MAP, BRAND_SLUG_MAP, expandBrandToDataSlugs } from '@/lib/utils/constants';
+import { getBrandRegistry, resolveUuids, uuidToSlug, type BrandRegistry } from '@/lib/data/brand-registry';
 
 // ---- Types ---------------------------------------------------------------
 
@@ -281,14 +281,8 @@ export function priorWindow(window: DateWindow): DateWindow {
 // (which has ZERO daily_video_product_stats rows → LeeFar creators saw $0) and a
 // newer brand missing from the map dropped the filter entirely (over-count).
 // null = no brand filter; [] = a known-but-unresolvable brand → scope to nothing.
-async function brandFilter(supabase: any, brandSlug: string | null): Promise<string[] | null> {
-  if (!brandSlug) return null;
-  const slugs = [...expandBrandToDataSlugs(brandSlug)];
-  const { data } = await supabase.from('brands_v2').select('id').in('slug', slugs);
-  const uuids = (data ?? []).map((r: { id: string }) => r.id);
-  if (uuids.length > 0) return uuids;
-  const legacy = BRAND_UUID_MAP[brandSlug];
-  return legacy ? [legacy] : [];
+function brandFilter(reg: BrandRegistry, brandSlug: string | null): string[] | null {
+  return resolveUuids(reg, brandSlug);
 }
 
 function pctChange(curr: number, prior: number): number | null {
@@ -304,7 +298,8 @@ export async function getCreatorSummary(
 ): Promise<CreatorSummary> {
   if (handles.length === 0) return emptySummary();
   const supabase = await createAdminClient();
-  const brandUuid = await brandFilter(supabase, brandSlug);
+  const reg = await getBrandRegistry();
+  const brandUuid = brandFilter(reg, brandSlug);
 
   const filters: { column: string; op: 'eq' | 'in' | 'gte' | 'lte'; value: any }[] = [
     { column: 'tiktok_username', op: 'in', value: handles },
@@ -398,7 +393,8 @@ export async function getCreatorDailySeries(
 ): Promise<CreatorDailyPoint[]> {
   if (handles.length === 0) return [];
   const supabase = await createAdminClient();
-  const brandUuid = await brandFilter(supabase, brandSlug);
+  const reg = await getBrandRegistry();
+  const brandUuid = brandFilter(reg, brandSlug);
 
   const filters: { column: string; op: 'eq' | 'in' | 'gte' | 'lte'; value: any }[] = [
     { column: 'tiktok_username', op: 'in', value: handles },
@@ -450,7 +446,8 @@ export async function getCreatorTopVideos(
 ): Promise<CreatorVideoRow[]> {
   if (handles.length === 0) return [];
   const supabase = await createAdminClient();
-  const brandUuid = await brandFilter(supabase, brandSlug);
+  const reg = await getBrandRegistry();
+  const brandUuid = brandFilter(reg, brandSlug);
 
   const filters: { column: string; op: 'eq' | 'in' | 'gte' | 'lte'; value: any }[] = [
     { column: 'tiktok_username', op: 'in', value: handles },
@@ -490,7 +487,7 @@ export async function getCreatorTopVideos(
         url: r.video_url || null,
         postDate: r.post_date || null,
         username: r.tiktok_username,
-        brandSlug: BRAND_SLUG_MAP[r.brand_id] || r.brand_id,
+        brandSlug: uuidToSlug(reg, r.brand_id) || r.brand_id,
         gmv: 0,
         orders: 0,
         itemsSold: 0,
@@ -547,7 +544,8 @@ export async function getCreatorStreak(
 ): Promise<number> {
   if (handles.length === 0) return 0;
   const supabase = await createAdminClient();
-  const brandUuid = await brandFilter(supabase, brandSlug);
+  const reg = await getBrandRegistry();
+  const brandUuid = brandFilter(reg, brandSlug);
 
   const today = new Date();
   const start = new Date(today);
@@ -593,7 +591,8 @@ export async function getMonthVideoCount(
 ): Promise<number> {
   if (handles.length === 0) return 0;
   const supabase = await createAdminClient();
-  const brandUuid = await brandFilter(supabase, brandSlug);
+  const reg = await getBrandRegistry();
+  const brandUuid = brandFilter(reg, brandSlug);
 
   const now = new Date();
   const start = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-01`;
@@ -625,7 +624,8 @@ export async function getBrandRankings(
   limit = 50
 ): Promise<RankingEntry[]> {
   const supabase = await createAdminClient();
-  const brandUuid = await brandFilter(supabase, brandSlug);
+  const reg = await getBrandRegistry();
+  const brandUuid = brandFilter(reg, brandSlug);
 
   const filters: { column: string; op: 'eq' | 'in' | 'gte' | 'lte'; value: any }[] = [
     { column: 'report_date', op: 'gte', value: window.start },
@@ -721,7 +721,8 @@ export async function getInspirationVideos(
   limit = 24
 ): Promise<(CreatorVideoRow & { isMine: boolean })[]> {
   const supabase = await createAdminClient();
-  const brandUuid = await brandFilter(supabase, brandSlug);
+  const reg = await getBrandRegistry();
+  const brandUuid = brandFilter(reg, brandSlug);
 
   const filters: { column: string; op: 'eq' | 'in' | 'gte' | 'lte'; value: any }[] = [
     { column: 'report_date', op: 'gte', value: window.start },
@@ -760,7 +761,7 @@ export async function getInspirationVideos(
         url: r.video_url || null,
         postDate: r.post_date || null,
         username: r.tiktok_username,
-        brandSlug: BRAND_SLUG_MAP[r.brand_id] || r.brand_id,
+        brandSlug: uuidToSlug(reg, r.brand_id) || r.brand_id,
         gmv: 0,
         orders: 0,
         itemsSold: 0,

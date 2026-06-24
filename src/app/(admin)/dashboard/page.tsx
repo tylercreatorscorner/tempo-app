@@ -10,8 +10,7 @@ import { getCreatorRetainers } from '@/lib/data/retainer';
 import { buildCreatorAlerts } from '@/lib/data/creator-alerts';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
 import { pctChange } from '@/lib/utils/trend';
-import { HIDDEN_FROM_PICKER, expandBrandToDataSlugs } from '@/lib/utils/constants';
-import { getBrandRegistry, brandLabel } from '@/lib/data/brand-registry';
+import { getBrandRegistry, brandLabel, expandSlugs } from '@/lib/data/brand-registry';
 import { createClient } from '@/lib/supabase/server';
 import { getActiveTenantId } from '@/lib/auth/platform-admin';
 
@@ -57,6 +56,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
 
   // ── Tenant + brand context ──────────────────────────────────────────────
   const supabase = await createClient();
+  const reg = await getBrandRegistry();
   const activeTenantId = await getActiveTenantId();
   const { getAllowedBrandsForUser } = await import('@/lib/data/brands');
   const allowedBrands = await getAllowedBrandsForUser();
@@ -65,7 +65,8 @@ export default async function AdminDashboard({ searchParams }: Props) {
   if (activeTenantId) brandsQuery = brandsQuery.eq('tenant_id', activeTenantId);
   if (allowedBrands)  brandsQuery = brandsQuery.in('slug', allowedBrands);
   const { data: dbBrands } = await brandsQuery;
-  const ALL_BRANDS = (dbBrands ?? []).map(b => b.slug).filter(s => !HIDDEN_FROM_PICKER.has(s));
+  const hiddenSlugs = new Set(reg.rows.filter(r => r.parent_brand_id != null).map(r => r.slug));
+  const ALL_BRANDS = (dbBrands ?? []).map(b => b.slug).filter(s => !hiddenSlugs.has(s));
 
   // ── Empty-tenant onboarding ─────────────────────────────────────────────
   if (ALL_BRANDS.length === 0) {
@@ -91,7 +92,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
   // ── Resolve brand filter + expand to data slugs ─────────────────────────
   const brandFilter = params.brand && ALL_BRANDS.includes(params.brand) ? params.brand : null;
   const activeRosterBrands = brandFilter ? [brandFilter] : ALL_BRANDS;
-  const activeBrands = activeRosterBrands.flatMap(b => Array.from(expandBrandToDataSlugs(b)));
+  const activeBrands = activeRosterBrands.flatMap(b => expandSlugs(reg, b));
 
   // ── Period bookkeeping ──────────────────────────────────────────────────
   const periodLength    = differenceInDays(new Date(endDate), new Date(startDate)) + 1;
@@ -150,7 +151,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
   //    "Top Brand" mini-stat in the Period Brief. Aggregates across
   //    data slugs (e.g. leefar_nutrition + leefar_supplements → leefar). ──
   const rosterBrandStats: BrandRowData[] = activeRosterBrands.map((rosterSlug) => {
-    const dataSlugSet = new Set(expandBrandToDataSlugs(rosterSlug));
+    const dataSlugSet = new Set(expandSlugs(reg, rosterSlug));
     let currentGmv = 0;
     let prevGmv    = 0;
     let managedGmvForBrand = 0;
@@ -183,8 +184,6 @@ export default async function AdminDashboard({ searchParams }: Props) {
   // Brand movers used to live here too — they're now exclusive to /analytics's
   // Notable Changes section so the same period-vs-prior comparison only has
   // one canonical home.
-
-  const reg = await getBrandRegistry();
 
   // Top brand — used by the Period Brief mini-stat on All Brands view.
   const topBrandStat = !brandFilter

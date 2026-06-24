@@ -5,8 +5,7 @@ import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
 import { resolveDateRange } from '@/lib/data/date-utils';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
-import { ACTIVE_BRANDS } from '@/lib/utils/constants';
-import { getBrandRegistry, brandLabel, brandColor } from '@/lib/data/brand-registry';
+import { getBrandRegistry, brandLabel, brandColor, activeBrandSlugs } from '@/lib/data/brand-registry';
 import { StatCard } from '@/components/dashboard/stat-card';
 import { DateRangePicker } from '@/components/dashboard/date-range-picker';
 import { CreatorEditButton } from '@/components/creators/creator-edit-panel';
@@ -115,9 +114,10 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
   const activeTab = sp.tab || 'overview';
 
   const reg = await getBrandRegistry();
+  const activeSlugs = new Set(activeBrandSlugs(reg));
 
-  const activeBrands = profile.brands.filter((b) => (ACTIVE_BRANDS as readonly string[]).includes(b));
-  const activeBrandsWithData = profile.brandsWithData.filter((b) => (ACTIVE_BRANDS as readonly string[]).includes(b));
+  const activeBrands = profile.brands.filter((b) => activeSlugs.has(b));
+  const activeBrandsWithData = profile.brandsWithData.filter((b) => activeSlugs.has(b));
 
   const [summary, accountBreakdown, brandBreakdown, videos, postsThisMonth, lifetimeStats, managedInfo, latestReportDate] =
     await Promise.all([
@@ -138,7 +138,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
   const isStale = daysStale != null && daysStale > 3;
 
   const filteredBrandBreakdown = brandBreakdown.filter((b) =>
-    (ACTIVE_BRANDS as readonly string[]).includes(b.brand)
+    activeSlugs.has(b.brand)
   );
 
   // If the period has no data (data is stale OR truly inactive), classify by lifetime videos instead —
@@ -461,7 +461,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                             <td className="px-5 py-3.5">
                               <div className="flex flex-wrap gap-1">
                                 {a.brands
-                                  .filter((b) => (ACTIVE_BRANDS as readonly string[]).includes(b))
+                                  .filter((b) => activeSlugs.has(b))
                                   .map((b) => (
                                     <span
                                       key={b}

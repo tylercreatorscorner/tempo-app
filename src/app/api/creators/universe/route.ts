@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
-import { ACTIVE_BRANDS, expandBrandToDataSlugs } from '@/lib/utils/constants';
+import { getBrandRegistry, expandSlugs, activeBrandSlugs } from '@/lib/data/brand-registry';
 import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 
 
@@ -56,18 +56,19 @@ export async function GET(request: NextRequest) {
   const end   = fmt(yesterday);
 
   const supabase = await createAdminClient();
+  const reg = await getBrandRegistry();
 
   // Determine which brands to query.
   // Roster uses umbrella slugs (e.g. 'leefar') but creator_performance is
   // keyed by store ('leefar_nutrition', 'leefar_supplements'). Expand the
   // umbrella when querying performance.
   const brandIsSpecific = brandFilter !== 'all' && (
-    scoped ? allowedSlugs!.includes(brandFilter) : (ACTIVE_BRANDS as readonly string[]).includes(brandFilter)
+    scoped ? allowedSlugs!.includes(brandFilter) : activeBrandSlugs(reg).includes(brandFilter)
   );
   const rosterBrands = brandIsSpecific
     ? [brandFilter]
-    : scoped ? allowedSlugs! : [...ACTIVE_BRANDS]; // scoped+[] → no brands (fail-closed)
-  const brandsToQuery = rosterBrands.flatMap(b => Array.from(expandBrandToDataSlugs(b)));
+    : scoped ? allowedSlugs! : activeBrandSlugs(reg); // scoped+[] → no brands (fail-closed)
+  const brandsToQuery = rosterBrands.flatMap(b => expandSlugs(reg, b));
 
   // Fetch creator rankings for relevant brands in parallel
   const rankingResults = await Promise.all(
@@ -99,7 +100,7 @@ export async function GET(request: NextRequest) {
   const managedLookup = new Map<string, { id: string; real_name: string | null }>();
   for (const mc of managedData || []) {
     if (!mc.brand) continue;
-    const dataBrands = expandBrandToDataSlugs(mc.brand);
+    const dataBrands = expandSlugs(reg, mc.brand);
     for (const acct of [mc.account_1, mc.account_2, mc.account_3, mc.account_4, mc.account_5]) {
       if (!acct) continue;
       const handle = normalizeHandle(acct);

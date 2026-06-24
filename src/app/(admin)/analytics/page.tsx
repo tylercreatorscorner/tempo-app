@@ -20,8 +20,7 @@ import { ConcentrationCard, type ConcentrationStats } from '@/components/analyti
 import { NarrativeCard } from '@/components/analytics/narrative-card';
 import type { NarrativeInput } from '@/lib/ai/analytics-narrative';
 import { StatCard } from '@/components/dashboard/stat-card';
-import { HIDDEN_FROM_PICKER, expandBrandToDataSlugs } from '@/lib/utils/constants';
-import { getBrandRegistry, brandLabel } from '@/lib/data/brand-registry';
+import { getBrandRegistry, brandLabel, expandSlugs } from '@/lib/data/brand-registry';
 import { pctChange } from '@/lib/utils/trend';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
@@ -86,7 +85,8 @@ export default async function AnalyticsPage({ searchParams }: Props) {
   const { data: dbBrands } = await brandsQuery.order('name');
   const slugToId = new Map<string, string>();
   for (const b of dbBrands ?? []) slugToId.set(b.slug, b.id);
-  const ALL_BRANDS = (dbBrands ?? []).map(b => b.slug).filter(s => !HIDDEN_FROM_PICKER.has(s));
+  const hiddenSlugs = new Set(reg.rows.filter(r => r.parent_brand_id != null).map(r => r.slug));
+  const ALL_BRANDS = (dbBrands ?? []).map(b => b.slug).filter(s => !hiddenSlugs.has(s));
 
   // Cross-reference: which (handle|brand) pairs are managed?
   // Umbrella roster brands ('leefar') get expanded so the lookup matches
@@ -103,7 +103,7 @@ export default async function AnalyticsPage({ searchParams }: Props) {
   const norm = (h: string) => h.replace(/^@/, '').trim().toLowerCase();
   for (const m of managedRows ?? []) {
     if (!m.brand) continue;
-    const dataBrands = expandBrandToDataSlugs(m.brand);
+    const dataBrands = expandSlugs(reg, m.brand);
     for (const acct of [m.account_1, m.account_2, m.account_3, m.account_4, m.account_5]) {
       if (!acct) continue;
       const handle = norm(acct);
@@ -119,8 +119,8 @@ export default async function AnalyticsPage({ searchParams }: Props) {
   // both umbrella ('leefar') and child stores ('leefar_nutrition', etc.) — we
   // want the children since that's what the stats tables key on.
   const dataSlugs = brandFilter
-    ? Array.from(expandBrandToDataSlugs(brandFilter))
-    : ALL_BRANDS.flatMap(b => Array.from(expandBrandToDataSlugs(b)));
+    ? expandSlugs(reg, brandFilter)
+    : ALL_BRANDS.flatMap(b => expandSlugs(reg, b));
   const BRAND_IDS = dataSlugs
     .map(s => slugToId.get(s))
     .filter((id): id is string => Boolean(id));

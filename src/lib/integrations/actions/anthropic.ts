@@ -19,7 +19,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { createAdminClient } from '@/lib/supabase/server';
 import type { ActionResult, IntegrationContext } from './registry';
-import { expandBrandToDataSlugs } from '@/lib/utils/constants';
+import { getBrandRegistry, expandSlugs } from '@/lib/data/brand-registry';
 
 const MODEL = 'claude-haiku-4-5';
 
@@ -158,10 +158,11 @@ export async function generateDailyDrop({
   if (!brandSlug) return { ok: false, error: 'brand_slug is required' };
 
   const supabase = await createAdminClient();
+  const reg = await getBrandRegistry();
 
   // Resolve the brand. Accept umbrella slugs (e.g. 'leefar') by expanding to
   // store slugs for the data lookup.
-  const dataSlugs = Array.from(expandBrandToDataSlugs(brandSlug));
+  const dataSlugs = expandSlugs(reg, brandSlug);
   const { data: brand } = await supabase
     .from('brands_v2')
     .select('name, display_name')
