@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
-import { getBrandRegistry, slugToUuid, uuidToSlug, expandSlugs, resolveUuids } from '@/lib/data/brand-registry';
+import { getBrandRegistry, slugToUuid, uuidToSlug, resolveUuids } from '@/lib/data/brand-registry';
 import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 
 /**
@@ -325,11 +325,6 @@ export async function GET(request: NextRequest) {
   // brand_id (uuid string) → gmv for that handle on that brand, for the period
   const brandGmvByHandle = new Map<string, Map<string, number>>();
   const msgByHandle = new Map<string, { last_message_at: string | null; unread_count: number }>();
-  // Distinct video_ids per (handle, brand_slug) from the last 7 days. Keyed
-  // by brand so a creator who posts across multiple brands counts each only
-  // against the row that represents that brand — without this scope, a Tawny
-  // row on brand=catakor would surface her physicians_choice posts and lie.
-  let posts7dByHandle = new Map<string, Map<string, Set<string>>>();
 
   // Resolve the brand filter to data-level UUIDs. null = no filter (all);
   // [NO_MATCH_BRAND_ID] = real brand with no data → zero (never all).
@@ -337,46 +332,7 @@ export async function GET(request: NextRequest) {
   const brandIds = resolved && resolved.length === 0 ? [NO_MATCH_BRAND_ID] : resolved;
 
   if (allHandles.length > 0) {
-    // 7-day post fetch: paginated, period-independent. daily_video_product_stats
-    // is per video×product, so a Set<video_id> per handle dedupes correctly.
-    const sevenDaysAgoStr = (() => {
-      const d = new Date();
-      d.setDate(d.getDate() - 7);
-      return d.toISOString().split('T')[0];
-    })();
-    const fetchPosts7d = async (): Promise<Map<string, Map<string, Set<string>>>> => {
-      const out = new Map<string, Map<string, Set<string>>>();
-      const PAGE = 1000;
-      let pageIdx = 0;
-      while (true) {
-        const { data, error: pErr } = await supabase
-          .from('daily_video_product_stats')
-          .select('tiktok_username, video_id, brand_id')
-          .in('tiktok_username', allHandles)
-          .gte('post_date', sevenDaysAgoStr)
-          .order('video_id', { ascending: true })
-          .range(pageIdx * PAGE, (pageIdx + 1) * PAGE - 1);
-        if (pErr) {
-          console.error('[/api/roster] posts_7d fetch failed:', pErr.message);
-          break;
-        }
-        for (const r of data ?? []) {
-          const h = r.tiktok_username?.toLowerCase();
-          if (!h || !r.video_id) continue;
-          const slug = uuidToSlug(reg, r.brand_id) ?? r.brand_id ?? 'unknown';
-          let byBrand = out.get(h);
-          if (!byBrand) { byBrand = new Map(); out.set(h, byBrand); }
-          let set = byBrand.get(slug);
-          if (!set) { set = new Set(); byBrand.set(slug, set); }
-          set.add(r.video_id);
-        }
-        if ((data?.length ?? 0) < PAGE) break;
-        pageIdx++;
-      }
-      return out;
-    };
-
-    const [perfRes, brandGmvRes, msgRes, posts7dRes] = await Promise.all([
+    const [perfRes, brandGmvRes, msgRes] = await Promise.all([
       supabase.rpc('get_creator_handle_perf', {
         handles: allHandles,
         brand_ids: brandIds,
@@ -388,9 +344,7 @@ export async function GET(request: NextRequest) {
         days_back: periodDays,
       }),
       supabase.rpc('get_creator_message_signals', { handles: allHandles }),
-      fetchPosts7d(),
     ]);
-    posts7dByHandle = posts7dRes;
 
     if (perfRes.error) {
       console.error('[/api/roster] perf RPC failed:', perfRes.error.message);
@@ -433,15 +387,8 @@ export async function GET(request: NextRequest) {
   const enriched: EnrichedRow[] = allRows.map((row) => {
     const handles = handlesByRow.get(row.id) ?? [];
     const hs = handles.map((h) => h.toLowerCase());
-    // posts_7d is brand-scoped: only count videos posted under this row's
-    // brand. Umbrella brands (e.g. 'leefar') expand to their data-level
-    // children ('leefar_nutrition', 'leefar_supplements').
-    const rowBrandSlugs = row.brand
-      ? expandSlugs(reg, row.brand)
-      : [];
     let gmv = 0;
     let posts = 0;
-    let posts7d = 0;
     let lastPost: string | null = null;
     let lastMsg: string | null = null;
     let unread = 0;
@@ -456,13 +403,6 @@ export async function GET(request: NextRequest) {
         posts += p.posts_period;
         if (p.last_post_date && (!lastPost || p.last_post_date > lastPost)) {
           lastPost = p.last_post_date;
-        }
-      }
-      const s7byBrand = posts7dByHandle.get(h);
-      if (s7byBrand) {
-        for (const slug of rowBrandSlugs) {
-          const set = s7byBrand.get(slug);
-          if (set) posts7d += set.size;
         }
       }
       const m = msgByHandle.get(h);
@@ -496,7 +436,7 @@ export async function GET(request: NextRequest) {
       gmv_period: gmv,
       gmv_by_store: gmvByStore,
       posts_period: posts,
-      posts_7d: posts7d,
+      posts_7d: 0,
       last_post_date: lastPost,
       health,
       roi_period: roi,
