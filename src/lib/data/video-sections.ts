@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
-import { ACTIVE_BRANDS, BRAND_UUID_MAP, expandBrandToDataSlugs } from '@/lib/utils/constants';
+import { ACTIVE_BRANDS } from '@/lib/utils/constants';
+import { getBrandRegistry, slugToUuid, expandSlugs } from '@/lib/data/brand-registry';
 
 export interface DashboardVideo {
   video_id: string;
@@ -25,13 +26,16 @@ export async function getDashboardVideos(
   topPerformers: DashboardVideo[];
 }> {
   const supabase = await createClient();
+  const reg = await getBrandRegistry();
 
   // Expand umbrella roster slugs (e.g. 'leefar') to per-store data slugs
   // before mapping to UUIDs — videos are keyed by the store UUID, not the
-  // umbrella's UUID.
+  // umbrella's UUID. (Null branch stays ACTIVE_BRANDS, NOT activeBrandSlugs:
+  // getDashboardVideos isn't workspace-scoped, so widening to all active brands
+  // would fail-open a manager's standouts — that's a separate scoped-roster fix.)
   const rosterBrands = brandFilter ? [brandFilter] : [...ACTIVE_BRANDS];
-  const dataBrands = rosterBrands.flatMap(b => Array.from(expandBrandToDataSlugs(b)));
-  const brandUuids = dataBrands.map(b => BRAND_UUID_MAP[b]).filter(Boolean);
+  const dataBrands = rosterBrands.flatMap(b => expandSlugs(reg, b));
+  const brandUuids = dataBrands.map(b => slugToUuid(reg, b)).filter((x): x is string => Boolean(x));
 
   if (brandUuids.length === 0) {
     return { hotNow: [], rising: [], topPerformers: [] };
