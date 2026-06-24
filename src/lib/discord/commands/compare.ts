@@ -1,13 +1,13 @@
 import { SlashCommandBuilder, type ChatInputCommandInteraction, type AutocompleteInteraction } from 'discord.js';
 import { tempoEmbed, errorEmbed } from '../embeds';
 import { getGuildConfig, getBrandForGuild } from '../config';
-import { getSupabase, daysAgo } from '../supabase';
-import { brandSlugToUuid } from '@/lib/utils/constants';
+import { getSupabase, daysAgo, getBotBrandRegistry } from '../supabase';
+import { slugToUuid, type BrandRegistry } from '@/lib/data/brand-registry-core';
 import type { TempoCommand } from './index';
 
-async function getCreatorStats(brand: string, name: string) {
+async function getCreatorStats(brand: string, name: string, reg: BrandRegistry) {
   const supabase = getSupabase();
-  const brandUuid = brandSlugToUuid(brand);
+  const brandUuid = slugToUuid(reg, brand);
   const since7 = daysAgo(7);
   const since14 = daysAgo(14);
   const since30 = daysAgo(30);
@@ -86,11 +86,12 @@ const command: TempoCommand = {
     }
 
     await interaction.deferReply();
+    const reg = await getBotBrandRegistry();
 
     try {
       const [s1, s2] = await Promise.all([
-        getCreatorStats(brand, c1),
-        getCreatorStats(brand, c2),
+        getCreatorStats(brand, c1, reg),
+        getCreatorStats(brand, c2, reg),
       ]);
 
       const fmtUsd = (n: number) =>

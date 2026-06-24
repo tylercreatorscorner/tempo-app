@@ -2,8 +2,7 @@ import { SlashCommandBuilder, type ChatInputCommandInteraction } from 'discord.j
 import { tempoEmbed, errorEmbed } from '../embeds';
 import { getGuildConfig } from '../config';
 import { getSupabase, daysAgo, getBotBrandRegistry } from '../supabase';
-import { brandSlugToUuid } from '@/lib/utils/constants';
-import { brandLabel } from '@/lib/data/brand-registry-core';
+import { brandLabel, slugToUuid } from '@/lib/data/brand-registry-core';
 import type { TempoCommand } from './index';
 
 const command: TempoCommand = {
@@ -26,7 +25,8 @@ const command: TempoCommand = {
   async execute(interaction: ChatInputCommandInteraction) {
     const guildConfig = interaction.guildId ? getGuildConfig(interaction.guildId) : undefined;
     const brandSlug = interaction.options.getString('name', true);
-    const brandUuid = brandSlugToUuid(brandSlug);
+    const reg = await getBotBrandRegistry();
+    const brandUuid = slugToUuid(reg, brandSlug);
 
     await interaction.deferReply();
     const supabase = getSupabase();
@@ -74,7 +74,6 @@ const command: TempoCommand = {
         new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(n);
       const fmt = (n: number) => new Intl.NumberFormat('en-US').format(n);
 
-      const reg = await getBotBrandRegistry();
       const brandColor = reg.bySlug.get(brandSlug)?.color;
       const brandName = brandLabel(reg, brandSlug);
 

@@ -1,8 +1,8 @@
 import { SlashCommandBuilder, type ChatInputCommandInteraction } from 'discord.js';
 import { tempoEmbed, errorEmbed } from '../embeds';
 import { getGuildConfig, getBrandForGuild } from '../config';
-import { getSupabase, daysAgo, periodToDays } from '../supabase';
-import { brandSlugToUuid } from '@/lib/utils/constants';
+import { getSupabase, daysAgo, periodToDays, getBotBrandRegistry } from '../supabase';
+import { slugToUuid } from '@/lib/data/brand-registry-core';
 import type { TempoCommand } from './index';
 
 const command: TempoCommand = {
@@ -38,7 +38,8 @@ const command: TempoCommand = {
 
     await interaction.deferReply();
     const supabase = getSupabase();
-    const brandUuid = brandSlugToUuid(brand);
+    const reg = await getBotBrandRegistry();
+    const brandUuid = slugToUuid(reg, brand);
     const period = interaction.options.getString('period') ?? '7d';
     const limit = Math.min(Math.max(interaction.options.getInteger('limit') ?? 5, 1), 10);
     const days = periodToDays(period);

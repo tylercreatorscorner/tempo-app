@@ -9,8 +9,7 @@ import type { Client, TextChannel } from 'discord.js';
 import { tempoEmbed } from './embeds';
 import { getGuildConfig, getBrandForGuild, getRegisteredGuilds } from './config';
 import { getSupabase, daysAgo, getBotBrandRegistry } from './supabase';
-import { brandSlugToUuid } from '@/lib/utils/constants';
-import { brandLabel } from '@/lib/data/brand-registry-core';
+import { brandLabel, slugToUuid } from '@/lib/data/brand-registry-core';
 
 interface ScheduledMessage {
   guildId: string;
@@ -156,7 +155,7 @@ export async function sendDailyBrief(client: Client, guildId: string): Promise<v
   try {
     // Yesterday's performance
     const yesterday = daysAgo(1);
-    const brandUuid = brandSlugToUuid(brand);
+    const brandUuid = slugToUuid(reg, brand);
     const { data: yesterdayData } = await supabase
       .from('daily_creator_stats')
       .select('gmv, orders, items_sold')

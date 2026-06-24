@@ -8,8 +8,8 @@ import {
 } from 'discord.js';
 import { tempoEmbed } from '../embeds';
 import { getGuildConfig, getBrandForGuild } from '../config';
-import { getSupabase } from '../supabase';
-import { brandSlugToUuid } from '@/lib/utils/constants';
+import { getSupabase, getBotBrandRegistry } from '../supabase';
+import { slugToUuid } from '@/lib/data/brand-registry-core';
 import type { TempoCommand } from './index';
 
 /** Simple Levenshtein distance */
@@ -160,7 +160,8 @@ const command: TempoCommand = {
     await interaction.deferReply();
 
     const supabase = getSupabase();
-    const brandUuid = brandSlugToUuid(brand);
+    const reg = await getBotBrandRegistry();
+    const brandUuid = slugToUuid(reg, brand);
 
     // Fetch creators for this brand via creator_brands → creators_v2
     const { data: brandCreators, error: creatorsErr } = await supabase
