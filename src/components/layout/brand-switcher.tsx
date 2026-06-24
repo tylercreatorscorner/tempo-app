@@ -5,7 +5,6 @@ import { ChevronsUpDown, Check, Search, LayoutGrid, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { useGlobalBrand } from '@/hooks/use-global-brand';
-import { BRAND_DISPLAY_NAMES, BRAND_COLORS } from '@/lib/utils/constants';
 import { createClient } from '@/lib/supabase/client';
 
 interface BrandOption {
@@ -118,8 +117,8 @@ export function BrandSwitcher() {
       ...(rows.length > 1 ? [{ key: 'all', label: 'All Brands', color: null as string | null }] : []),
       ...rows.map(b => ({
         key: b.slug,
-        label: b.display_name || BRAND_DISPLAY_NAMES[b.slug] || b.name,
-        color: b.color || BRAND_COLORS[b.slug] || '#6B7280',
+        label: b.display_name || b.name,
+        color: b.color || '#6B7280',
       })),
     ]);
     setStatus('ready');

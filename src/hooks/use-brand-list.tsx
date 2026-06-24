@@ -9,19 +9,17 @@
  * pickers so adding a brand via the New Client wizard immediately makes it
  * available in every dropdown.
  *
- * Falls back to BRAND_DISPLAY_NAMES + BRAND_COLORS constants only for legacy
- * slugs where the DB row lacks display_name/color — new wizard-created brands
- * populate those columns directly, so the constants are belt-and-suspenders.
+ * Name/color come straight from brands_v2 (display_name || name || slug; color,
+ * else a neutral gray) — every brand row carries them, so no hardcoded fallback.
  */
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { BRAND_DISPLAY_NAMES, BRAND_COLORS } from '@/lib/utils/constants';
 
 export interface BrandListItem {
   slug: string;
-  name: string;          // display_name || name, falling back to BRAND_DISPLAY_NAMES, then slug
-  color: string;         // brands_v2.color || BRAND_COLORS, then gray default
+  name: string;          // brands_v2.display_name || name, then slug
+  color: string;         // brands_v2.color, then gray default
   rawName: string;       // brands_v2.name (for cases where display_name shouldn't be used)
   id: string;
 }
@@ -68,8 +66,8 @@ async function fetchBrands(): Promise<BrandListItem[]> {
       id: b.id,
       slug: b.slug,
       rawName: b.name,
-      name: b.display_name || b.name || BRAND_DISPLAY_NAMES[b.slug] || b.slug,
-      color: b.color || BRAND_COLORS[b.slug] || '#6B7280',
+      name: b.display_name || b.name || b.slug,
+      color: b.color || '#6B7280',
     }));
 
     cache = result;

@@ -6,7 +6,6 @@ import { createClient } from '@/lib/supabase/server';
 import { getBrandSummary } from '@/lib/data/rpc';
 import { resolveDateRange } from '@/lib/data/date-utils';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
-import { BRAND_COLORS, BRAND_DISPLAY_NAMES } from '@/lib/utils/constants';
 import { DateRangePicker } from '@/components/dashboard/date-range-picker';
 import { DollarSign, ShoppingCart, Users, Package } from 'lucide-react';
 import { BrandsActions } from './brands-actions';
@@ -35,7 +34,7 @@ export default async function BrandsPage({ searchParams }: Props) {
   const brands = (dbBrands ?? []).map(b => ({
     slug: b.slug,
     name: b.display_name || b.name,
-    color: b.color || BRAND_COLORS[b.slug] || '#6B7280',
+    color: b.color || '#6B7280',
   }));
 
   // Fetch summaries for each brand
@@ -117,7 +116,7 @@ export default async function BrandsPage({ searchParams }: Props) {
         {summaries.map(({ brand: slug, data }) => {
           const brandInfo = brands.find(b => b.slug === slug);
           const color = brandInfo?.color ?? '#6B7280';
-          const displayName = brandInfo?.name ?? BRAND_DISPLAY_NAMES[slug] ?? slug;
+          const displayName = brandInfo?.name ?? slug;
           const gmv = data?.total_gmv ?? 0;
           const gmvShare = portfolioTotals.gmv > 0 ? (gmv / portfolioTotals.gmv) * 100 : 0;
 
