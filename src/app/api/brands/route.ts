@@ -25,7 +25,7 @@ export async function GET() {
   const supabase = await createAdminClient();
   let brandsQuery = supabase
     .from('brands_v2')
-    .select('id, slug, name, color, is_archived, is_umbrella, created_at')
+    .select('id, slug, name, color, is_archived, is_umbrella, parent_brand_id, created_at')
     .order('is_archived', { ascending: true })
     .order('name');
   if (bs.kind === 'scoped') {
