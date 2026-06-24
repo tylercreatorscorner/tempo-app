@@ -26,11 +26,6 @@ export interface BrandListItem {
   id: string;
 }
 
-// Per-store splits that should never appear in the brand picker. The umbrella
-// slug ('leefar') is the canonical roster brand; the store slugs only exist
-// for performance-data lookups under the hood.
-const HIDDEN_FROM_PICKER = new Set(['leefar_nutrition', 'leefar_supplements', 'leefar_us']);
-
 let cache: BrandListItem[] | null = null;
 let inflight: Promise<BrandListItem[]> | null = null;
 
@@ -56,7 +51,7 @@ async function fetchBrands(): Promise<BrandListItem[]> {
 
     let query = supabase
       .from('brands_v2')
-      .select('id, slug, name, display_name, color')
+      .select('id, slug, name, display_name, color, parent_brand_id')
       .eq('is_archived', false);
     if (allowedBrands) query = query.in('slug', allowedBrands);
 
@@ -66,7 +61,9 @@ async function fetchBrands(): Promise<BrandListItem[]> {
       return [];
     }
 
-    const filtered = (data ?? []).filter((b) => !HIDDEN_FROM_PICKER.has(b.slug));
+    // Per-store children (parent_brand_id set) never appear in the picker — the
+    // umbrella slug is the canonical roster brand. Replaces the old hidden literal.
+    const filtered = (data ?? []).filter((b) => b.parent_brand_id == null);
     const result: BrandListItem[] = filtered.map((b) => ({
       id: b.id,
       slug: b.slug,

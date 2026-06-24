@@ -7,7 +7,6 @@ import {
   Wand2, Sparkles, AlertCircle, Download, Briefcase,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { HIDDEN_FROM_PICKER } from '@/lib/utils/constants';
 import { useBrandMeta } from '@/hooks/use-brand-meta';
 import { useTenant } from '@/hooks/use-tenant';
 import { FREQUENCIES } from '@/lib/data/schedule-frequency';
@@ -18,6 +17,9 @@ interface BrandListEntry {
   name: string;
   is_archived: boolean;
   is_umbrella: boolean;
+  /** Set when this is a per-store child of an umbrella (e.g. leefar_nutrition).
+   *  Null for top-level brands. Replaces the hardcoded HIDDEN_FROM_PICKER set. */
+  parent_brand_id: string | null;
 }
 
 /**
@@ -36,7 +38,7 @@ function useLiveBrands(): BrandListEntry[] | null {
         if (cancelled) return;
         const live = (d.brands ?? [])
           .filter(b => !b.is_archived)
-          .map(b => ({ slug: b.slug, name: b.name, is_archived: b.is_archived, is_umbrella: b.is_umbrella }));
+          .map(b => ({ slug: b.slug, name: b.name, is_archived: b.is_archived, is_umbrella: b.is_umbrella, parent_brand_id: b.parent_brand_id ?? null }));
         setBrands(live);
       })
       .catch(() => { if (!cancelled) setBrands([]); });
@@ -77,7 +79,7 @@ function useBrandOptions(opts?: { collapseUmbrella?: boolean }) {
     // output. The text reports are per-store (they don't aggregate), so they keep
     // showing the stores and hide the umbrella (its slug has no data of its own).
     const visible = collapseUmbrella
-      ? allowed.filter(b => !HIDDEN_FROM_PICKER.has(b.slug))
+      ? allowed.filter(b => b.parent_brand_id == null)
       : allowed.filter(b => !b.is_umbrella);
     const brandOpts = visible.map(b => ({
       value: b.slug,
