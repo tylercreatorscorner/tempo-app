@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
-import { BRAND_UUID_MAP, expandBrandToDataSlugs } from '@/lib/utils/constants';
+import { getBrandRegistry, resolveUuids } from '@/lib/data/brand-registry';
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -63,15 +63,10 @@ function formatDate(d: Date): string {
 // table (e.g. cosrx's MTD was a 259k-row all-brands scan instead of 84k scoped).
 // 'all'/empty → null (no filter). An unknown specific brand → [] so it scopes to
 // nothing rather than widening to all brands.
-async function getBrandUuids(supabase: any, brandFilter: string): Promise<string[] | null> {
+async function getBrandUuids(_supabase: any, brandFilter: string): Promise<string[] | null> {
   if (!brandFilter || brandFilter === 'all') return null;
-  // Umbrella brands (leefar) expand to per-store slugs; daily_* tables are keyed per store.
-  const slugs = [...expandBrandToDataSlugs(brandFilter)];
-  const { data } = await supabase.from('brands_v2').select('id').in('slug', slugs);
-  const uuids = (data ?? []).map((r: { id: string }) => r.id);
-  if (uuids.length > 0) return uuids;
-  const legacy = BRAND_UUID_MAP[brandFilter];
-  return legacy ? [legacy] : [];
+  const reg = await getBrandRegistry();
+  return resolveUuids(reg, brandFilter);
 }
 
 /**

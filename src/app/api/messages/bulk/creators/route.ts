@@ -24,8 +24,9 @@ export async function GET(request: NextRequest) {
       .select('creator_id, brand_id, creator:creators_v2(id, real_name, discord_id)');
 
     if (brand) {
-      const { brandSlugToUuid } = await import('@/lib/utils/constants');
-      const brandUuid = brandSlugToUuid(brand);
+      const { getBrandRegistry, slugToUuid } = await import('@/lib/data/brand-registry');
+      const reg = await getBrandRegistry();
+      const brandUuid = slugToUuid(reg, brand);
       // A scoped user requesting a brand outside their access gets nothing.
       if (scopedBrandIds && (!brandUuid || !scopedBrandIds.includes(brandUuid))) {
         return NextResponse.json({ error: 'Forbidden: brand not in your access' }, { status: 403 });

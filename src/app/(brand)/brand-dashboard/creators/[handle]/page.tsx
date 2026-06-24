@@ -4,7 +4,7 @@ import { ArrowLeft, ExternalLink, TrendingUp, TrendingDown } from 'lucide-react'
 import { requireBrandPortalContext } from '@/lib/data/brand-portal';
 import { getBrandCreatorDetail } from '@/lib/data/brand-portal-creator';
 import { createAdminClient } from '@/lib/supabase/server';
-import { BRAND_UUID_MAP } from '@/lib/utils/constants';
+import { getBrandRegistry, slugToUuid } from '@/lib/data/brand-registry';
 import { GmvComparisonChart } from '@/components/charts/gmv-comparison-chart';
 import { PeriodTabs } from '../../period-tabs';
 import type { BrandPortalPeriod } from '@/lib/data/brand-portal-overview';
@@ -34,7 +34,8 @@ export default async function BrandCreatorDetailPage({ params, searchParams }: P
   })();
 
   const admin = await createAdminClient();
-  const brandUuid = BRAND_UUID_MAP[ctx.activeBrand.slug] ?? ctx.activeBrand.id;
+  const reg = await getBrandRegistry();
+  const brandUuid = slugToUuid(reg, ctx.activeBrand.slug) ?? ctx.activeBrand.id;
   const detail = await getBrandCreatorDetail(
     admin,
     brandUuid,

@@ -8,7 +8,6 @@ import {
   type BrandPortalPeriod,
 } from '@/lib/data/brand-portal-overview';
 import { createAdminClient } from '@/lib/supabase/server';
-import { BRAND_UUID_MAP } from '@/lib/utils/constants';
 import { StatCard } from '@/components/dashboard/stat-card';
 import { GmvComparisonChart } from '@/components/charts/gmv-comparison-chart';
 import { PeriodTabs } from './period-tabs';
@@ -38,7 +37,7 @@ export default async function BrandOverview({ searchParams }: PageProps) {
   })();
 
   const admin = await createAdminClient();
-  const brandUuid = BRAND_UUID_MAP[ctx.activeBrand.slug] ?? ctx.activeBrand.id;
+  const brandUuid = ctx.activeBrand.id;
   const data = await getBrandPortalDashboard(
     admin,
     brandUuid,

@@ -5,7 +5,6 @@ import {
   type BrandPortalPeriod,
 } from '@/lib/data/brand-portal-overview';
 import { createAdminClient } from '@/lib/supabase/server';
-import { BRAND_UUID_MAP } from '@/lib/utils/constants';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,7 +30,7 @@ export async function GET(request: Request) {
     : '7d';
 
   const admin = await createAdminClient();
-  const brandUuid = BRAND_UUID_MAP[ctx.activeBrand.slug] ?? ctx.activeBrand.id;
+  const brandUuid = ctx.activeBrand.id;
   const data = await getBrandPortalDashboard(
     admin,
     brandUuid,

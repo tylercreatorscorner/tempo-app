@@ -7,7 +7,7 @@ import {
   type BrandPortalPeriod,
 } from '@/lib/data/brand-portal-overview';
 import { createAdminClient } from '@/lib/supabase/server';
-import { BRAND_UUID_MAP } from '@/lib/utils/constants';
+import { getBrandRegistry, slugToUuid } from '@/lib/data/brand-registry';
 import { PeriodTabs } from '../period-tabs';
 import { SortableHeader, type SortDir } from '../sortable-header';
 
@@ -61,7 +61,8 @@ export default async function BrandVideosPage({ searchParams }: PageProps) {
 
   const accent = ctx.activeBrand.color || '#FF4D8D';
   const admin = await createAdminClient();
-  const brandUuid = BRAND_UUID_MAP[ctx.activeBrand.slug] ?? ctx.activeBrand.id;
+  const reg = await getBrandRegistry();
+  const brandUuid = slugToUuid(reg, ctx.activeBrand.slug) ?? ctx.activeBrand.id;
   const data = await getBrandPortalDashboard(
     admin,
     brandUuid,

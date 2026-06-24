@@ -16,7 +16,8 @@
  * that brand's products — independent of which brand the creator is contracted to.
  */
 import { createClient } from '@/lib/supabase/server';
-import { brandSlugToUuid, brandUuidToSlug } from '@/lib/utils/constants';
+import { getBrandRegistry, type BrandRegistry } from '@/lib/data/brand-registry';
+import { slugToUuid, uuidToSlug } from '@/lib/data/brand-registry-core';
 
 // --- Types ---
 
@@ -138,16 +139,16 @@ async function paginated(
   return all;
 }
 
-function brandFilters(brand?: string): Filter[] {
+function brandFilters(reg: BrandRegistry, brand?: string): Filter[] {
   if (!brand) return [];
-  const uuid = brandSlugToUuid(brand);
+  const uuid = slugToUuid(reg, brand);
   return uuid ? [{ column: 'brand_id', op: 'eq', value: uuid }] : [];
 }
 
 // --- Brand discovery (from product stats) ---
 
 /** Map each handle → distinct product-brands it has sold. */
-async function getBrandsByHandle(handles: string[]): Promise<Map<string, string[]>> {
+async function getBrandsByHandle(reg: BrandRegistry, handles: string[]): Promise<Map<string, string[]>> {
   if (handles.length === 0) return new Map();
   const rows = await paginated(
     'daily_video_product_stats',
@@ -157,7 +158,7 @@ async function getBrandsByHandle(handles: string[]): Promise<Map<string, string[
   const map = new Map<string, Set<string>>();
   for (const r of rows) {
     const handle = r.tiktok_username as string;
-    const slug = brandUuidToSlug(r.brand_id as string);
+    const slug = uuidToSlug(reg, r.brand_id as string);
     if (!handle || !slug) continue;
     if (!map.has(handle)) map.set(handle, new Set());
     map.get(handle)!.add(slug);
@@ -237,6 +238,7 @@ async function getManagedRowsForHandles(handles: string[]): Promise<ManagedRow[]
  */
 export async function getCreatorProfile(creatorId: string | number): Promise<CreatorProfile | null> {
   const supabase = await createClient();
+  const reg = await getBrandRegistry();
   const id = String(creatorId);
 
   const { data: creator, error } = await supabase
@@ -253,7 +255,7 @@ export async function getCreatorProfile(creatorId: string | number): Promise<Cre
 
   const accountList = (accounts ?? []).map((a: Record<string, unknown>) => ({
     tiktok_username: a.tiktok_username as string,
-    brand: brandUuidToSlug(a.brand_id as string) ?? (a.brand_id as string),
+    brand: uuidToSlug(reg, a.brand_id as string) ?? (a.brand_id as string),
     is_primary: !!a.is_primary,
     verified: !!a.verified,
     brands: [] as string[],
@@ -265,7 +267,7 @@ export async function getCreatorProfile(creatorId: string | number): Promise<Cre
   // per-handle product-brand registrations in parallel.
   const [managedRows, brandsByHandle] = await Promise.all([
     getManagedRowsForHandles(handles),
-    getBrandsByHandle(handles),
+    getBrandsByHandle(reg, handles),
   ]);
 
   // Populate per-account brands
@@ -360,6 +362,7 @@ function getPriorPeriod(startDate: string, endDate: string): { prevStart: string
  * `videos` is COUNT(DISTINCT video_id) since the table is per-row-per-product.
  */
 async function aggregatePerformance(
+  reg: BrandRegistry,
   handles: string[],
   startDate: string,
   endDate: string,
@@ -371,7 +374,7 @@ async function aggregatePerformance(
     { column: 'tiktok_username', op: 'in', value: handles },
     { column: 'report_date', op: 'gte', value: startDate },
     { column: 'report_date', op: 'lte', value: endDate },
-    ...brandFilters(brand),
+    ...brandFilters(reg, brand),
   ];
 
   const rows = await paginated(
@@ -401,12 +404,13 @@ export async function getCreatorSummary(
   endDate: string,
   brand?: string
 ): Promise<CreatorSummaryData> {
+  const reg = await getBrandRegistry();
   const handles = await getHandles(String(creatorId));
   const { prevStart, prevEnd } = getPriorPeriod(startDate, endDate);
 
   const [current, previous] = await Promise.all([
-    aggregatePerformance(handles, startDate, endDate, brand),
-    aggregatePerformance(handles, prevStart, prevEnd, brand),
+    aggregatePerformance(reg, handles, startDate, endDate, brand),
+    aggregatePerformance(reg, handles, prevStart, prevEnd, brand),
   ]);
 
   return {
@@ -433,6 +437,7 @@ export async function getCreatorAccountBreakdown(
   brand?: string
 ): Promise<AccountBreakdownRow[]> {
   const supabase = await createClient();
+  const reg = await getBrandRegistry();
   const id = String(creatorId);
 
   const { data: accounts } = await supabase
@@ -449,7 +454,7 @@ export async function getCreatorAccountBreakdown(
     { column: 'tiktok_username', op: 'in', value: handles },
     { column: 'report_date', op: 'gte', value: startDate },
     { column: 'report_date', op: 'lte', value: endDate },
-    ...brandFilters(brand),
+    ...brandFilters(reg, brand),
   ];
 
   const rows = await paginated(
@@ -482,7 +487,7 @@ export async function getCreatorAccountBreakdown(
     acc.orders += Number(r.orders) || 0;
     acc.items_sold += Number(r.items_sold) || 0;
     if (r.video_id) acc.videoIds.add(r.video_id as string);
-    const slug = brandUuidToSlug(r.brand_id as string);
+    const slug = uuidToSlug(reg, r.brand_id as string);
     if (slug) acc.brandSet.add(slug);
   }
 
@@ -507,6 +512,7 @@ export async function getCreatorBrandBreakdown(
   startDate: string,
   endDate: string
 ): Promise<BrandBreakdownRow[]> {
+  const reg = await getBrandRegistry();
   const handles = await getHandles(String(creatorId));
   if (handles.length === 0) return [];
 
@@ -523,7 +529,7 @@ export async function getCreatorBrandBreakdown(
   type Acc = Omit<BrandBreakdownRow, 'videos'> & { videoIds: Set<string> };
   const map = new Map<string, Acc>();
   for (const r of rows) {
-    const slug = brandUuidToSlug(r.brand_id as string) ?? (r.brand_id as string);
+    const slug = uuidToSlug(reg, r.brand_id as string) ?? (r.brand_id as string);
     let acc = map.get(slug);
     if (!acc) {
       acc = {
@@ -565,6 +571,7 @@ export async function getCreatorVideos(
   limit = 20,
   brand?: string
 ): Promise<CreatorVideo[]> {
+  const reg = await getBrandRegistry();
   const handles = await getHandles(String(creatorId));
   if (handles.length === 0) return [];
 
@@ -575,7 +582,7 @@ export async function getCreatorVideos(
       { column: 'tiktok_username', op: 'in', value: handles },
       { column: 'report_date', op: 'gte', value: startDate },
       { column: 'report_date', op: 'lte', value: endDate },
-      ...brandFilters(brand),
+      ...brandFilters(reg, brand),
     ]
   );
 
@@ -600,7 +607,7 @@ export async function getCreatorVideos(
         video_id: vid,
         video_title: (r.video_title as string) || 'Untitled',
         creator_name: r.tiktok_username as string,
-        brand: brandUuidToSlug(r.brand_id as string) ?? (r.brand_id as string),
+        brand: uuidToSlug(reg, r.brand_id as string) ?? (r.brand_id as string),
         productGmv: new Map(),
         gmv: 0,
         orders: 0,
@@ -649,6 +656,7 @@ export async function getPostsThisMonth(
   creatorId: string | number,
   brand?: string
 ): Promise<number> {
+  const reg = await getBrandRegistry();
   const handles = await getHandles(String(creatorId));
   if (handles.length === 0) return 0;
 
@@ -664,7 +672,7 @@ export async function getPostsThisMonth(
       { column: 'tiktok_username', op: 'in', value: handles },
       { column: 'report_date', op: 'gte', value: startOfMonth },
       { column: 'report_date', op: 'lte', value: endOfMonth },
-      ...brandFilters(brand),
+      ...brandFilters(reg, brand),
     ]
   );
 

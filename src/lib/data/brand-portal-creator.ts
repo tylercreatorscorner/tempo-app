@@ -8,7 +8,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { BrandPortalPeriod } from './brand-portal-overview';
-import { resolveBrandDataUuids } from '@/lib/utils/constants';
+import { getBrandRegistry, resolveUuids } from '@/lib/data/brand-registry';
 
 export interface BrandCreatorDetail {
   managedId: number;
@@ -78,7 +78,8 @@ export async function getBrandCreatorDetail(
 
   // Umbrella-aware brand resolution (see brand-portal-overview for rationale).
   // 'leefar' → both store UUIDs; normal brand → its single UUID.
-  const brandIds = resolveBrandDataUuids(brandSlug, brandUuid);
+  const reg = await getBrandRegistry();
+  const brandIds = resolveUuids(reg, brandSlug, brandUuid) ?? [];
 
   // 1. Find the managed_creators row that owns this handle on this brand.
   // Each row has up to 10 handles; we OR-match across all account_N columns.

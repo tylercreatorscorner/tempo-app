@@ -17,8 +17,7 @@ import {
   getVideoSummary,
   getDailyTrend,
 } from './rpc';
-import { ACTIVE_BRANDS } from '@/lib/utils/constants';
-import { getBrandRegistry, brandLabel, type BrandRegistry } from '@/lib/data/brand-registry';
+import { getBrandRegistry, brandLabel, activeBrandSlugs, type BrandRegistry } from '@/lib/data/brand-registry';
 import { format, subDays } from 'date-fns';
 import { toZonedTime } from 'date-fns-tz';
 
@@ -46,9 +45,10 @@ function resolveRanges(period: ReportPeriod) {
 }
 
 /** Brands to query based on the user's brand filter. */
-function brandsToQuery(brand: string): string[] {
-  if (!brand || brand === 'all') return [...ACTIVE_BRANDS];
-  if ((ACTIVE_BRANDS as readonly string[]).includes(brand)) return [brand];
+function brandsToQuery(reg: BrandRegistry, brand: string): string[] {
+  const active = activeBrandSlugs(reg);
+  if (!brand || brand === 'all') return active;
+  if (active.includes(brand)) return [brand];
   return [];
 }
 
@@ -79,7 +79,7 @@ function brandHeading(reg: BrandRegistry, brand: string): string {
 export async function generatePerformanceSummary(brand: string, period: ReportPeriod): Promise<string> {
   const reg = await getBrandRegistry();
   const { start, end, prevStart, prevEnd } = resolveRanges(period);
-  const brands = brandsToQuery(brand);
+  const brands = brandsToQuery(reg, brand);
   if (brands.length === 0) return 'No brands available for this user.';
 
   // Fan out: per-brand summaries (current + prior), top creators, top videos, daily trend
@@ -196,7 +196,7 @@ function bucketByVideos(videos: number): 'star' | 'on_track' | 'at_risk' | 'behi
 export async function generateCreatorActivity(brand: string, period: ReportPeriod): Promise<string> {
   const reg = await getBrandRegistry();
   const { start, end } = resolveRanges(period);
-  const brands = brandsToQuery(brand);
+  const brands = brandsToQuery(reg, brand);
   if (brands.length === 0) return 'No brands available for this user.';
 
   const creatorsByBrand = await Promise.all(
@@ -268,7 +268,7 @@ export async function generateBrandReport(brand: string, period: ReportPeriod): 
   }
   const reg = await getBrandRegistry();
   const { start, end, prevStart, prevEnd } = resolveRanges(period);
-  const brands = brandsToQuery(brand);
+  const brands = brandsToQuery(reg, brand);
   if (brands.length === 0) return 'Brand not available.';
   const b = brands[0];
 
