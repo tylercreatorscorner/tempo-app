@@ -1207,6 +1207,14 @@ function RosterContent() {
   const [totalGmvPeriod, setTotalGmvPeriod] = useState(0);
   const [totalRetainer, setTotalRetainer] = useState(0);
   const [loading, setLoading] = useState(true);
+  // Gate the load bar behind a short delay so it doesn't flash on the now-fast
+  // (~0.3s) loads — it only appears when a fetch genuinely drags.
+  const [showLoadBar, setShowLoadBar] = useState(false);
+  useEffect(() => {
+    if (!loading) { setShowLoadBar(false); return; }
+    const t = setTimeout(() => setShowLoadBar(true), 150);
+    return () => clearTimeout(t);
+  }, [loading]);
 
   // Period selector drives the GMV column, ROI, Posts, and the top Total GMV.
   // The Total Retainers figure is the fixed monthly commitment (not period-driven).
@@ -1471,8 +1479,16 @@ function RosterContent() {
           {search && <p className="text-gray-400 text-xs mt-1">Try a different search.</p>}
         </div>
       ) : (
-        <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
+        <div className="relative rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+          {/* Indeterminate load bar — shows on first load AND every refetch
+              (brand / period / sort / page change), even with rows on screen.
+              Gated by showLoadBar (150ms delay) so fast loads don't flash it. */}
+          {showLoadBar && (
+            <div className="absolute inset-x-0 top-0 z-10 h-[3px] overflow-hidden bg-pink-100/50">
+              <div className="roster-loadbar absolute inset-y-0 w-1/3 rounded-full bg-[#E91E8C]" />
+            </div>
+          )}
+          <div className={`overflow-x-auto transition-opacity duration-200 ${showLoadBar && roster.length > 0 ? 'opacity-60' : 'opacity-100'}`}>
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50/60">
@@ -1698,6 +1714,13 @@ function RosterContent() {
         @keyframes slideInRight {
           from { transform: translateX(100%); }
           to   { transform: translateX(0); }
+        }
+        @keyframes rosterLoadbar {
+          0%   { left: -35%; }
+          100% { left: 100%; }
+        }
+        .roster-loadbar {
+          animation: rosterLoadbar 1.05s ease-in-out infinite;
         }
       `}</style>
     </div>
