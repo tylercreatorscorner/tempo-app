@@ -20,7 +20,6 @@ import { ChevronDown, ChevronRight, RefreshCw, Pencil, ArrowUp, ArrowDown, Recei
 import { downloadCsv } from '@/lib/utils/csv';
 import { downloadXlsx } from '@/lib/utils/xlsx';
 import { cn } from '@/lib/utils';
-import { expandBrandToDataSlugs } from '@/lib/utils/constants';
 import { formatCurrency, buildMonthOptions } from '@/lib/utils/format';
 import { StatCard } from '@/components/dashboard/stat-card';
 import { EarningsTrendChart, type SeriesPoint } from './components/earnings-trend-chart';
@@ -514,21 +513,10 @@ function EmptyState({ message }: { message: string }) {
 // ── Marketing GMV inline editor ───────────────────────────────────────
 
 /**
- * Map a (possibly umbrella) brand to the marketing_gmv writes needed to store
- * one number. LeeFar shows as a single umbrella row, but marketing GMV is keyed
- * per store — the earnings calc reads leefar_nutrition / leefar_supplements,
- * never 'leefar', so a 'leefar' write would silently vanish. Park the whole
- * amount on the first store slug and zero the rest so the single value the user
- * types round-trips correctly through the per-store calc.
- */
-function marketingWritesFor(brand: string, amount: number): Array<{ brand: string; amount: number }> {
-  return expandBrandToDataSlugs(brand).map((slug, i) => ({ brand: slug, amount: i === 0 ? amount : 0 }));
-}
-
-/**
  * Inline-editable Marketing GMV figure inside the brand row's GMV cell. Click to
- * edit, Enter / blur to save, Esc to cancel. Writes straight to
- * /api/earnings/marketing-gmv, then asks the parent to refetch.
+ * edit, Enter / blur to save, Esc to cancel. Sends the roster brand + amount to
+ * /api/earnings/marketing-gmv (which expands umbrella → per-store writes
+ * server-side), then asks the parent to refetch.
  */
 function MarketingGmvEditor({ row, month, onSaved, onError }: {
   row: BrandRow;
@@ -557,16 +545,14 @@ function MarketingGmvEditor({ row, month, onSaved, onError }: {
     if (amount === row.marketingGmv) { setEditing(false); return; }
     setSaving(true);
     try {
-      for (const w of marketingWritesFor(row.brand, amount)) {
-        const res = await fetch('/api/earnings/marketing-gmv', {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ brand: w.brand, month, amount: w.amount }),
-        });
-        if (!res.ok) {
-          const j = await res.json().catch(() => ({}));
-          throw new Error(j.error || `HTTP ${res.status}`);
-        }
+      const res = await fetch('/api/earnings/marketing-gmv', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ brand: row.brand, month, amount }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.error || `HTTP ${res.status}`);
       }
       setEditing(false);
       onSaved();

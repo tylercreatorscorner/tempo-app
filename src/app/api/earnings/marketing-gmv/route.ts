@@ -1,14 +1,20 @@
 /**
  * PATCH /api/earnings/marketing-gmv
  *
- * Upsert the manually-entered marketing GMV for (brand, month).
- * The marketing_gmv table is keyed by (brand, month).
+ * Upsert the manually-entered marketing GMV for a brand + month.
+ *
+ * Accepts a ROSTER brand slug (e.g. 'leefar') and expands it to its data-store
+ * slugs server-side. marketing_gmv is keyed per store, and the earnings calc
+ * reads the stores (leefar_nutrition / leefar_supplements / …), never the
+ * umbrella — so the single amount the user types is parked on the first store
+ * and the rest zeroed. A non-umbrella brand expands to just itself.
  *
  * Body: { brand: string, month: 'YYYY-MM', amount: number }
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth/require-admin';
 import { createAdminClient } from '@/lib/supabase/server';
+import { getBrandRegistry, expandSlugs } from '@/lib/data/brand-registry';
 
 export const runtime = 'nodejs';
 
@@ -32,12 +38,22 @@ export async function PATCH(request: NextRequest) {
   }
 
   const admin = await createAdminClient();
+  const reg = await getBrandRegistry();
+
+  // Park the whole amount on the first store slug, zero the rest (the earnings
+  // calc sums the stores back into the single umbrella figure).
+  const now = new Date().toISOString();
+  const rows = expandSlugs(reg, brand).map((slug, i) => ({
+    brand: slug,
+    month,
+    amount: i === 0 ? amount : 0,
+    updated_at: now,
+    created_by: profile.email,
+  }));
+
   const { error } = await admin
     .from('marketing_gmv')
-    .upsert(
-      { brand, month, amount, updated_at: new Date().toISOString(), created_by: profile.email },
-      { onConflict: 'brand,month' },
-    );
+    .upsert(rows, { onConflict: 'brand,month' });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
