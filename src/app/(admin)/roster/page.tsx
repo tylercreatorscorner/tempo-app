@@ -1471,8 +1471,15 @@ function RosterContent() {
           {search && <p className="text-gray-400 text-xs mt-1">Try a different search.</p>}
         </div>
       ) : (
-        <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
+        <div className="relative rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+          {/* Indeterminate load bar — shows on first load AND every refetch
+              (brand / period / sort / page change), even with rows on screen. */}
+          {loading && (
+            <div className="absolute inset-x-0 top-0 z-10 h-[3px] overflow-hidden bg-pink-100/50">
+              <div className="roster-loadbar absolute inset-y-0 w-1/3 rounded-full bg-[#E91E8C]" />
+            </div>
+          )}
+          <div className={`overflow-x-auto transition-opacity duration-200 ${loading && roster.length > 0 ? 'opacity-60' : 'opacity-100'}`}>
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50/60">
@@ -1698,6 +1705,13 @@ function RosterContent() {
         @keyframes slideInRight {
           from { transform: translateX(100%); }
           to   { transform: translateX(0); }
+        }
+        @keyframes rosterLoadbar {
+          0%   { left: -35%; }
+          100% { left: 100%; }
+        }
+        .roster-loadbar {
+          animation: rosterLoadbar 1.05s ease-in-out infinite;
         }
       `}</style>
     </div>
