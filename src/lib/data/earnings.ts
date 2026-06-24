@@ -32,7 +32,7 @@
  *   controls how the resulting commission combines with the retainer.
  */
 import { createAdminClient } from '@/lib/supabase/server';
-import { expandBrandToDataSlugs, LEEFAR_STORE_SLUGS } from '@/lib/utils/constants';
+import { getBrandRegistry, expandSlugs } from '@/lib/data/brand-registry';
 
 export interface CreatorContribution {
   /** Creator handle as it appears in creator_performance (with @ stripped). */
@@ -207,6 +207,7 @@ export async function getEarnings(
   const endDate = new Date(Date.UTC(y, m, 0)).toISOString().split('T')[0]; // last day of month
 
   const supabase = await createAdminClient();
+  const reg = await getBrandRegistry();
 
   // ── Resolve which team member's compensation we're computing.
   // No teamMemberId → default to the first non-archived team member
@@ -398,7 +399,7 @@ export async function getEarnings(
   for (const m of managedRows) {
     const brand = m.brand;
     if (!brand) continue;
-    const dataBrands = expandBrandToDataSlugs(brand);
+    const dataBrands = expandSlugs(reg, brand);
     // Prefer canonical tiktok_accounts handles; fall back to the legacy
     // columns only when this row has no creator_id link / no accounts rows.
     const fromAccounts = m.creator_id ? handlesByCreatorId.get(m.creator_id) : undefined;
@@ -577,10 +578,18 @@ export async function getEarnings(
   // both share the rate). We sum the financials and merge creators by handle
   // so the page shows ONE LeeFar entry — but per-store GMV is still tracked
   // upstream for any drill-in views that want it.
+  // LeeFar's own store slugs, from the registry (children of the 'leefar'
+  // umbrella). Replaces the hardcoded LEEFAR_STORE_SLUGS — byte-identical today,
+  // and scoped to LeeFar specifically so a future 2nd umbrella's stores won't get
+  // mis-merged into this hardcoded 'leefar' row.
+  const leefarUmbrella = reg.bySlug.get('leefar');
+  const leefarStoreSlugs = new Set(
+    (leefarUmbrella ? reg.childrenByParentId.get(leefarUmbrella.id) ?? [] : []).map((s) => s.slug),
+  );
   const leefarStoreBrands: BrandRow[] = [];
   const otherBrands: BrandRow[] = [];
   for (const b of brands) {
-    if ((LEEFAR_STORE_SLUGS as readonly string[]).includes(b.brand)) {
+    if (leefarStoreSlugs.has(b.brand)) {
       leefarStoreBrands.push(b);
     } else {
       otherBrands.push(b);
