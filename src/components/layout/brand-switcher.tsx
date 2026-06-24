@@ -170,18 +170,21 @@ export function BrandSwitcher() {
     el?.scrollIntoView({ block: 'nearest' });
   }, [activeIndex, query]);
 
-  // The app's body-scroll layout makes native wheel-scroll over this absolutely-
-  // positioned dropdown unreliable — the wheel scrolls the page, not the list, so
-  // the brand list appears frozen (now noticeable since it lists all ~25 brands).
-  // Same fix the roster brand popover uses: capture wheel events over the list and
-  // scroll it manually. Scoped to while-open + wheel-over-the-list, so normal page
-  // scrolling everywhere else is untouched.
+  // The app wraps everything in Lenis smooth-scroll, which hijacks wheel events
+  // and scrolls the PAGE programmatically — so wheeling over this absolutely-
+  // positioned dropdown moves the page, not the list (and the list looked frozen).
+  // Same fix the roster brand popover uses: a capture-phase document wheel listener
+  // that, when the wheel is over the list, scrolls it manually, kills the native
+  // scroll (preventDefault — needs passive:false), AND stops the event before Lenis
+  // sees it (stopPropagation) so the page doesn't also move. Scoped to while-open +
+  // wheel-over-the-list, so page scrolling everywhere else is untouched.
   useEffect(() => {
     if (!open) return;
     const onWheel = (e: WheelEvent) => {
       const list = listRef.current;
       if (!list || !list.contains(e.target as Node)) return;
       e.preventDefault();
+      e.stopPropagation();
       list.scrollTop += e.deltaY;
     };
     document.addEventListener('wheel', onWheel, { capture: true, passive: false });
