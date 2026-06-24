@@ -1,6 +1,6 @@
 import { getCreatorSession, getCurrentBrandCookie } from '@/lib/auth/creator-auth';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
-import { brandUuidToSlug } from '@/lib/utils/constants';
+import { getBrandRegistry, uuidToSlug } from '@/lib/data/brand-registry';
 import { cookies } from 'next/headers';
 
 export interface CreatorAccount {
@@ -48,11 +48,12 @@ export async function getCreatorProfile(): Promise<CreatorProfile | null> {
     .select('id, tiktok_username, brand_id, is_primary, verified')
     .eq('creator_id', creator.id);
 
+  const reg = await getBrandRegistry();
   const accts: CreatorAccount[] = (accounts ?? []).map((a: any) => ({
     id: a.id,
     tiktok_username: a.tiktok_username,
     brand_id: a.brand_id,
-    brand: brandUuidToSlug(a.brand_id) ?? a.brand_id,
+    brand: uuidToSlug(reg, a.brand_id) ?? a.brand_id,
     is_primary: !!a.is_primary,
     verified: !!a.verified,
   }));

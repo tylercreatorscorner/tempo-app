@@ -31,14 +31,16 @@ export async function GET() {
     // For each brand, get row counts from the last sync date
     const statuses: SyncStatus[] = [];
 
+    const { getBrandRegistry, slugToUuid } = await import('@/lib/data/brand-registry');
+    const reg = await getBrandRegistry();
+
     for (const conn of connections) {
       let rowsSynced = null;
 
       if (conn.last_sync_at) {
         const syncDate = conn.last_sync_at.split('T')[0];
 
-        const { brandSlugToUuid } = await import('@/lib/utils/constants');
-        const brandUuid = brandSlugToUuid(conn.brand);
+        const brandUuid = slugToUuid(reg, conn.brand);
         const [videoCount, creatorCount, productCount] = await Promise.all([
           supabase
             .from('daily_video_product_stats')
