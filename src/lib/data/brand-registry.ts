@@ -14,7 +14,6 @@
  *
  * Server-only: reads via the admin client. Pickers/clients use /api/brands.
  */
-import { createAdminClient } from '@/lib/supabase/server';
 import {
   buildRegistry,
   expandSlugs,
@@ -28,6 +27,13 @@ export * from './brand-registry-core';
 
 /** One read of brands_v2 → indexed registry. Call once per request and reuse. */
 export async function getBrandRegistry(): Promise<BrandRegistry> {
+  // Dynamic import keeps this module's STATIC import graph pure (just
+  // brand-registry-core). createAdminClient pulls in next/headers; importing it
+  // at top level poisons any CLIENT bundle that transitively imports this module
+  // — e.g. a 'use client' component importing a const/type from a server data
+  // fetcher that imports the registry. getBrandRegistry is only ever called
+  // server-side, so loading createAdminClient lazily is free.
+  const { createAdminClient } = await import('@/lib/supabase/server');
   const supabase = await createAdminClient();
   const { data } = await supabase
     .from('brands_v2')
