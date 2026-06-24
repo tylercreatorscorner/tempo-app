@@ -3,10 +3,7 @@
 import { useState } from 'react';
 import { Users, Video, Download, FileSpreadsheet } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import {
-  PERIOD_LABELS,
-  type BrandPortalPeriod,
-} from '@/lib/data/brand-portal-overview';
+import { PERIOD_LABELS, type BrandPortalPeriod } from '@/lib/data/brand-portal-periods';
 
 type ReportType = 'roster' | 'videos';
 
