@@ -33,6 +33,7 @@ type Mode = 'paste' | 'csv';
 
 interface BulkResult {
   added: number;
+  restored: number;
   skipped: { handle: string; reason: string }[];
   failed: { handle: string; error: string }[];
   warnings: string[];
@@ -74,7 +75,23 @@ function pick(row: Record<string, string>, keys: string[]): string {
 function toNum(v: string): number | undefined {
   if (!v) return undefined;
   const n = Number(v.replace(/[$,]/g, ''));
-  return Number.isFinite(n) && n > 0 ? n : undefined;
+  // >= 0 so an explicit 0 (e.g. a $0 retainer) survives instead of being
+  // dropped and silently replaced by the batch default downstream.
+  return Number.isFinite(n) && n >= 0 ? n : undefined;
+}
+
+// Dedup by lowercased handle (keep first) so the preview + button count match
+// what the server actually adds — the endpoint dedups the same way.
+function dedupeByHandle(rows: BulkRow[]): BulkRow[] {
+  const seen = new Set<string>();
+  const out: BulkRow[] = [];
+  for (const r of rows) {
+    const k = r.handle.toLowerCase().replace(/^@/, '');
+    if (!k || seen.has(k)) continue;
+    seen.add(k);
+    out.push(r);
+  }
+  return out;
 }
 
 function rowsFromCsv(text: string): { rows: BulkRow[]; error: string | null } {
@@ -134,7 +151,7 @@ export function BulkAddModal({ defaultBrand, initialRows, onClose, onSuccess }: 
   const inputRef = useRef<HTMLInputElement>(null);
 
   const rows = useMemo<BulkRow[]>(
-    () => (hasInitial ? initialRows! : mode === 'paste' ? rowsFromPaste(pasteText) : csvRows),
+    () => dedupeByHandle(hasInitial ? initialRows! : mode === 'paste' ? rowsFromPaste(pasteText) : csvRows),
     [hasInitial, initialRows, mode, pasteText, csvRows],
   );
 
@@ -210,11 +227,27 @@ export function BulkAddModal({ defaultBrand, initialRows, onClose, onSuccess }: 
           {/* ── Result screen ── */}
           {result ? (
             <div className="p-6 space-y-4">
-              <div className="flex items-center gap-2 text-sm font-semibold text-green-700 bg-green-50 rounded-xl px-4 py-3">
-                <CheckCircle2 className="h-5 w-5 shrink-0" />
-                Added {result.added} creator{result.added === 1 ? '' : 's'}
-                {brandName ? <span className="font-normal text-green-600">to {brandName}</span> : null}
-              </div>
+              {result.added > 0 && (
+                <div className="flex items-center gap-2 text-sm font-semibold text-green-700 bg-green-50 rounded-xl px-4 py-3">
+                  <CheckCircle2 className="h-5 w-5 shrink-0" />
+                  Added {result.added} creator{result.added === 1 ? '' : 's'}
+                  {brandName ? <span className="font-normal text-green-600">to {brandName}</span> : null}
+                </div>
+              )}
+
+              {(result.restored ?? 0) > 0 && (
+                <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700 bg-emerald-50 rounded-xl px-4 py-3">
+                  <CheckCircle2 className="h-5 w-5 shrink-0" />
+                  Restored {result.restored} previously-removed creator{result.restored === 1 ? '' : 's'}
+                </div>
+              )}
+
+              {result.added === 0 && (result.restored ?? 0) === 0 && result.failed.length === 0 && (
+                <div className="flex items-center gap-2 text-sm font-semibold text-gray-600 bg-gray-50 rounded-xl px-4 py-3">
+                  <MinusCircle className="h-5 w-5 shrink-0" />
+                  No new creators added — all {result.total} were already on this roster
+                </div>
+              )}
 
               {result.skipped.length > 0 && (
                 <div className="text-sm bg-amber-50 rounded-xl px-4 py-3">
