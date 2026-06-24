@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
-import { ACTIVE_BRANDS } from '@/lib/utils/constants';
+import { getBrandRegistry, activeBrandSlugs } from '@/lib/data/brand-registry';
 
 export async function GET() {
   try {
@@ -15,6 +15,7 @@ export async function GET() {
       : null;
 
     const supabase = await createAdminClient();
+    const reg = await getBrandRegistry();
     const now = new Date();
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, '0');
@@ -69,7 +70,7 @@ export async function GET() {
     const { data: brandRetainers } = await supabase
       .from('managed_creators')
       .select('brand, retainer')
-      .in('brand', scopedSlugs ?? [...ACTIVE_BRANDS]);
+      .in('brand', scopedSlugs ?? activeBrandSlugs(reg));
 
     const brandSpend: Record<string, number> = {};
     for (const r of brandRetainers || []) {
