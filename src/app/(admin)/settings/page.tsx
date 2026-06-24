@@ -9,7 +9,6 @@ import { UserManagement } from '@/components/settings/user-management';
 import { CreatorInvitesSection } from '@/components/settings/creator-invites-section';
 import { TeamMembersSection } from '@/components/settings/team-members-section';
 import { CompensationArrangementsSection } from '@/components/settings/compensation-arrangements-section';
-import { BRAND_COLORS } from '@/lib/utils/constants';
 import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 
 export default async function SettingsPage() {
@@ -187,7 +186,7 @@ export default async function SettingsPage() {
             <p className="text-sm text-muted-foreground py-4 text-center">No brands connected yet. Connect TikTok Shop to get started.</p>
           ) : (
             brands.map((brand) => {
-              const color = brand.color || BRAND_COLORS[brand.slug] || '#6B7280';
+              const color = brand.color || '#6B7280';
               return (
                 <div key={brand.slug} className="flex items-center justify-between p-3 rounded-lg border border-border/50 hover:border-border transition-colors">
                   <div className="flex items-center gap-3">

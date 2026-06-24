@@ -6,13 +6,12 @@
  *
  * Sourced from brands_v2 (ALL rows — including the hidden per-store splits like
  * leefar_nutrition and archived brands — so labels/colors resolve for store-keyed
- * data and retired brands too), DB-first with the legacy BRAND_DISPLAY_NAMES /
- * BRAND_COLORS constants as the fallback during load and for unknown slugs.
+ * data and retired brands too). During the brief first-load fetch window (and for
+ * unknown slugs) it falls back to the slug + a neutral gray.
  *
- * Replaces direct BRAND_DISPLAY_NAMES[slug] / BRAND_COLORS[slug] reads in client
- * components so brands added via the New Client wizard render with the right name
- * and color without a code change. (Server code uses brandLabel/brandColor from
- * brand-registry-core instead.)
+ * The DB-driven source for client components rendering brand name/color, so brands
+ * added via the New Client wizard render correctly without a code change. (Server
+ * code uses brandLabel/brandColor from brand-registry-core instead.)
  *
  * Note this is intentionally the FULL brand set, distinct from useBrandList which
  * returns the picker-filtered active list.
@@ -20,7 +19,6 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { BRAND_DISPLAY_NAMES, BRAND_COLORS } from '@/lib/utils/constants';
 
 const DEFAULT_COLOR = '#6B7280';
 
@@ -55,8 +53,8 @@ async function fetchMeta(): Promise<MetaMap> {
     const map: MetaMap = new Map();
     for (const b of data ?? []) {
       map.set(b.slug, {
-        name: b.display_name || b.name || BRAND_DISPLAY_NAMES[b.slug] || b.slug,
-        color: b.color || BRAND_COLORS[b.slug] || DEFAULT_COLOR,
+        name: b.display_name || b.name || b.slug,
+        color: b.color || DEFAULT_COLOR,
       });
     }
     cache = map;
@@ -78,12 +76,12 @@ export function invalidateBrandMeta() {
 function labelFrom(map: MetaMap | null, slug: string | null | undefined): string {
   if (!slug) return '';
   if (slug === 'all') return 'All Brands';
-  return map?.get(slug)?.name || BRAND_DISPLAY_NAMES[slug] || slug;
+  return map?.get(slug)?.name || slug;
 }
 
 function colorFrom(map: MetaMap | null, slug: string | null | undefined): string {
   if (!slug || slug === 'all') return DEFAULT_COLOR;
-  return map?.get(slug)?.color || BRAND_COLORS[slug] || DEFAULT_COLOR;
+  return map?.get(slug)?.color || DEFAULT_COLOR;
 }
 
 export function useBrandMeta(): BrandMeta {
