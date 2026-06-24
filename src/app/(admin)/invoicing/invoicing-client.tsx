@@ -8,6 +8,8 @@ import { downloadXlsx } from '@/lib/utils/xlsx';
 import { cn } from '@/lib/utils';
 import { formatCurrency, formatDate, formatPeriod, currentMonth } from '@/lib/utils/format';
 import { StatCard } from '@/components/dashboard/stat-card';
+import { useDelayedFlag } from '@/hooks/use-delayed-flag';
+import { TableLoadBar } from '@/components/ui/table-load-bar';
 import { InvoiceDetailSheet, type Invoice } from './components/invoice-detail-sheet';
 import { NewInvoiceModal } from './components/new-invoice-modal';
 import { AgingPanel, bucketFor, type AgingBucket } from './components/aging-panel';
@@ -37,6 +39,9 @@ export function InvoicingClient({ initialOpenId }: Props) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkAction, setBulkAction] = useState<'sent' | 'paid' | 'void' | null>(null);
   const [loading, setLoading] = useState(true);
+  // Gate the load bar behind a short delay so it doesn't flash on fast refetches
+  // (status / brand / payee changes re-query the server) — only shows on slow loads.
+  const showBar = useDelayedFlag(loading);
   const [error, setError] = useState<string | null>(null);
   const [activeInvoice, setActiveInvoice] = useState<Invoice | null>(null);
   const [creating, setCreating] = useState(false);
@@ -304,7 +309,8 @@ export function InvoicingClient({ initialOpenId }: Props) {
       <AgingPanel invoices={invoices} active={agingBucket} onPick={setAgingBucket} />
 
       {/* Filter bar */}
-      <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+      <div className="relative rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+        <TableLoadBar active={showBar} />
         <div className="px-5 py-3 flex items-center gap-3 flex-wrap border-b border-gray-100">
           <div className="flex items-center gap-1 bg-gray-50 rounded-xl p-1">
             {STATUS_TABS.map((tab) => {
@@ -403,7 +409,7 @@ export function InvoicingClient({ initialOpenId }: Props) {
             <p className="text-xs text-gray-400 mt-1">Try clearing search, status, or aging filters.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className={cn('overflow-x-auto', showBar && invoices.length > 0 && 'opacity-60 transition-opacity duration-200')}>
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50/60 border-b border-gray-100">

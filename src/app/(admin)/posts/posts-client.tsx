@@ -30,6 +30,8 @@ import { BrandFilter } from '@/components/creators/brand-filter';
 import { StatCard } from '@/components/dashboard/stat-card';
 import { PostCard } from '@/components/posts/post-card';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
+import { useDelayedFlag } from '@/hooks/use-delayed-flag';
+import { TableLoadBar } from '@/components/ui/table-load-bar';
 
 interface PostRow {
   video_id: string;
@@ -226,6 +228,10 @@ export function PostsClient({
   );
   const hasMore = renderedPosts.length < visiblePosts.length;
 
+  // Thin load bar on refetch (brand/date/managed/review changes). Delayed so it
+  // doesn't flash on fast loads; the skeletons still cover the first empty load.
+  const showBar = useDelayedFlag(loading);
+
   // Auto-grow the rendered slice as the sentinel scrolls into view (infinite
   // scroll). The full list is already in memory — this only controls how many
   // DOM nodes are mounted.
@@ -401,12 +407,19 @@ export function PostsClient({
         ) : visiblePosts.length === 0 ? (
           <EmptyState reviewFilter={reviewFilter} />
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {renderedPosts.map(p => <PostCard key={`${p.video_id}|${p.brand_slug}`} post={p} onClick={handleRowClick} />)}
+          <div className="relative">
+            <TableLoadBar active={showBar} />
+            <div className={cn(
+              'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4',
+              showBar && visiblePosts.length > 0 ? 'opacity-60 transition-opacity duration-200' : 'opacity-100',
+            )}>
+              {renderedPosts.map(p => <PostCard key={`${p.video_id}|${p.brand_slug}`} post={p} onClick={handleRowClick} />)}
+            </div>
           </div>
         )
       ) : (
-        <div className="rounded-2xl bg-white border border-gray-100 shadow-sm">
+        <div className="relative rounded-2xl bg-white border border-gray-100 shadow-sm">
+          <TableLoadBar active={showBar} />
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -423,7 +436,9 @@ export function PostsClient({
                   <Th>Reviews</Th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className={cn(
+                showBar && visiblePosts.length > 0 ? 'opacity-60 transition-opacity duration-200' : 'opacity-100',
+              )}>
                 {loading && !data ? (
                   <tr><td colSpan={10} className="text-center text-gray-400 py-12 text-sm">
                     <Loader2 className="h-4 w-4 animate-spin inline mr-2" />Loading posts...
