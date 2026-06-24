@@ -6,10 +6,11 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import {
   UserPlus, Search, Users, UserCheck, X,
   ChevronLeft, ChevronRight, ExternalLink, Loader2,
-  UserX, Globe, Pencil, Check, Plus, Trash2, ArrowUp, ArrowDown, ArrowUpDown,
+  UserX, Globe, Pencil, Check, Plus, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Upload,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useBrandMeta } from '@/hooks/use-brand-meta';
+import { BulkAddModal, type BulkRow } from '@/components/roster/BulkAddModal';
 import { useBrandList } from '@/hooks/use-brand-list';
 import { useBodyScrollLock } from '@/hooks/use-body-scroll-lock';
 import { ModalOverlay } from '@/components/ui/modal-overlay';
@@ -1252,6 +1253,13 @@ function RosterContent() {
   const [selectedCreator, setSelectedCreator] = useState<Creator | null>(null);
   const [addModalPrefill, setAddModalPrefill] = useState<{ account_1?: string; brand?: string } | null>(null);
 
+  // Bulk add — the unified modal (paste / CSV / pre-selected) + multi-select.
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkInitialRows, setBulkInitialRows] = useState<BulkRow[] | null>(null);
+  // Selected unmanaged candidates, keyed by row id so the choice survives
+  // pagination (we keep the handle + name we need to add them).
+  const [selected, setSelected] = useState<Map<string, { handle: string; name: string | null }>>(new Map());
+
   // Sort
   type SortCol = 'real_name' | 'retainer' | 'posts_period' | 'last_post_date' | 'joined' | 'gmv_period' | 'roi_period';
   const [sortBy, setSortBy] = useState<SortCol>('gmv_period');
@@ -1308,11 +1316,43 @@ function RosterContent() {
   useEffect(() => { setPage(1); }, [brand, view, sortBy, sortDir, periodDays]);
   // Clear search + reset view scope when the brand changes.
   useEffect(() => { setSearchInput(''); setView('managed'); }, [brand]);
+  // Drop any multi-select when the scope changes (selection only applies to the
+  // unmanaged candidates currently in view).
+  useEffect(() => { setSelected(new Map()); }, [brand, view]);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
-  // Total column count for skeleton rows.
-  const cols = 2 + (showBrandColumn ? 1 : 0) + (showManagedTag ? 1 : 0) + 6 + (showAddAction ? 1 : 0);
+  // ── Multi-select over unmanaged candidates (All / Unmanaged views) ──
+  const selectableOnPage = roster.filter((c) => !c.is_managed && primaryHandle(c));
+  const allOnPageSelected = selectableOnPage.length > 0 && selectableOnPage.every((c) => selected.has(c.id));
+  const someOnPageSelected = selectableOnPage.some((c) => selected.has(c.id));
+  const toggleSelect = (c: Creator) => {
+    setSelected((prev) => {
+      const next = new Map(prev);
+      if (next.has(c.id)) next.delete(c.id);
+      else next.set(c.id, { handle: primaryHandle(c) ?? '', name: c.real_name });
+      return next;
+    });
+  };
+  const toggleSelectAllPage = () => {
+    setSelected((prev) => {
+      const next = new Map(prev);
+      if (allOnPageSelected) selectableOnPage.forEach((c) => next.delete(c.id));
+      else selectableOnPage.forEach((c) => next.set(c.id, { handle: primaryHandle(c) ?? '', name: c.real_name }));
+      return next;
+    });
+  };
+  const openBulkFromSelection = () => {
+    const rows: BulkRow[] = Array.from(selected.values())
+      .filter((s) => s.handle)
+      .map((s) => ({ handle: s.handle, name: s.name ?? undefined }));
+    setBulkInitialRows(rows);
+    setBulkOpen(true);
+  };
+
+  // Total column count for skeleton rows. The select + action columns both
+  // appear only in the non-managed views (showAddAction).
+  const cols = 2 + (showBrandColumn ? 1 : 0) + (showManagedTag ? 1 : 0) + 6 + (showAddAction ? 2 : 0);
 
   return (
     <div className="space-y-5">
@@ -1324,13 +1364,22 @@ function RosterContent() {
             A reference for who&apos;s posting and whether they&apos;re worth the cost.
           </p>
         </div>
-        <button
-          onClick={() => setAddModalPrefill({})}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#E91E8C] text-sm font-semibold text-white hover:bg-[#d1177d] transition-colors shadow-sm self-start sm:self-auto"
-        >
-          <UserPlus className="h-4 w-4" />
-          Add Creator
-        </button>
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          <button
+            onClick={() => { setBulkInitialRows(null); setBulkOpen(true); }}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 hover:text-[#1A1B3A] transition-colors shadow-sm"
+          >
+            <Upload className="h-4 w-4" />
+            Bulk add
+          </button>
+          <button
+            onClick={() => setAddModalPrefill({})}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#E91E8C] text-sm font-semibold text-white hover:bg-[#d1177d] transition-colors shadow-sm"
+          >
+            <UserPlus className="h-4 w-4" />
+            Add Creator
+          </button>
+        </div>
       </div>
 
       {/* Summary banner: brand + period selectors, total GMV, total retainers */}
@@ -1390,6 +1439,30 @@ function RosterContent() {
         </div>
       </div>
 
+      {/* Multi-select action bar — appears once candidates are checked */}
+      {selected.size > 0 && (
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-pink-200 bg-pink-50 px-4 py-2.5">
+          <span className="text-sm font-semibold text-[#1A1B3A]">
+            {selected.size} selected
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setSelected(new Map())}
+              className="text-xs font-semibold text-gray-500 hover:text-gray-700 px-2.5 py-1.5"
+            >
+              Clear
+            </button>
+            <button
+              onClick={openBulkFromSelection}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[#E91E8C] text-sm font-semibold text-white hover:bg-[#d1177d] transition-colors"
+            >
+              <Plus className="h-4 w-4" />
+              Add {selected.size} to roster
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Table */}
       {!loading && roster.length === 0 ? (
         <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-16 text-center">
@@ -1403,6 +1476,19 @@ function RosterContent() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50/60">
+                  {showAddAction && (
+                    <th className="w-10 px-5 py-3.5">
+                      <input
+                        type="checkbox"
+                        aria-label="Select all unmanaged on this page"
+                        className="h-4 w-4 rounded border-gray-300 text-[#E91E8C] focus:ring-[#E91E8C]/40 cursor-pointer accent-[#E91E8C]"
+                        checked={allOnPageSelected}
+                        ref={(el) => { if (el) el.indeterminate = someOnPageSelected && !allOnPageSelected; }}
+                        disabled={selectableOnPage.length === 0}
+                        onChange={toggleSelectAllPage}
+                      />
+                    </th>
+                  )}
                   <th className="text-left px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
                     <button onClick={() => toggleSort('real_name')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors">
                       Name <SortIcon col="real_name" />
@@ -1459,6 +1545,19 @@ function RosterContent() {
                         else setAddModalPrefill({ account_1: primary ?? '', brand: c.brand ?? '' });
                       }}
                     >
+                      {showAddAction && (
+                        <td className="px-5 py-3.5" onClick={(e) => e.stopPropagation()}>
+                          {!c.is_managed && primary && (
+                            <input
+                              type="checkbox"
+                              aria-label={`Select @${primary}`}
+                              className="h-4 w-4 rounded border-gray-300 text-[#E91E8C] focus:ring-[#E91E8C]/40 cursor-pointer accent-[#E91E8C]"
+                              checked={selected.has(c.id)}
+                              onChange={() => toggleSelect(c)}
+                            />
+                          )}
+                        </td>
+                      )}
                       <td className="px-5 py-3.5 font-medium text-[#1A1B3A]">
                         {c.real_name || (c.is_managed
                           ? <span className="text-gray-400">—</span>
@@ -1581,6 +1680,17 @@ function RosterContent() {
           prefill={addModalPrefill}
           onClose={() => setAddModalPrefill(null)}
           onSuccess={() => { setAddModalPrefill(null); fetchRoster(); }}
+        />
+      )}
+
+      {/* Bulk add modal — paste / CSV (header button) or pre-selected creators
+          (multi-select bar). One brand per batch, shared endpoint. */}
+      {bulkOpen && (
+        <BulkAddModal
+          defaultBrand={brand}
+          initialRows={bulkInitialRows ?? undefined}
+          onClose={() => { setBulkOpen(false); setBulkInitialRows(null); }}
+          onSuccess={() => { setSelected(new Map()); fetchRoster(); }}
         />
       )}
 
