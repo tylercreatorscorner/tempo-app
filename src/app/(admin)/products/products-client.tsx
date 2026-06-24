@@ -27,6 +27,8 @@ import {
   ChevronDown, ChevronRight, Download, Loader2, Package, Search,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useDelayedFlag } from '@/hooks/use-delayed-flag';
+import { TableLoadBar } from '@/components/ui/table-load-bar';
 import { useBrandMeta } from '@/hooks/use-brand-meta';
 import { DateRangePicker } from '@/components/dashboard/date-range-picker';
 import { BrandFilter } from '@/components/creators/brand-filter';
@@ -87,6 +89,9 @@ export function ProductsClient({ brands, selectedBrand, startDate, endDate }: Pr
   const brandMeta = useBrandMeta();
   const [data, setData] = useState<ProductsResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  // Gate the load bar behind a short delay so it doesn't flash on fast loads —
+  // it only appears when a brand/range refetch genuinely drags.
+  const showBar = useDelayedFlag(loading);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('gmv');
@@ -246,7 +251,11 @@ export function ProductsClient({ brands, selectedBrand, startDate, endDate }: Pr
       <TopProductsCard products={data?.products ?? []} totalGmv={data?.kpis.totalGmv ?? 0} loading={isInitial} />
 
       {/* Table */}
-      <div className="rounded-2xl bg-white border border-gray-100 shadow-sm">
+      <div className="relative rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+        {/* Indeterminate load bar — shows on first load AND every refetch
+            (brand / date-range change). Gated by showBar (150ms delay) so
+            fast loads don't flash it. */}
+        <TableLoadBar active={showBar} />
         {/* Table toolbar */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-5 py-3 border-b border-gray-100">
           <div className="flex items-center gap-3">
@@ -277,7 +286,7 @@ export function ProductsClient({ brands, selectedBrand, startDate, endDate }: Pr
         </div>
 
         {/* Table */}
-        <div className="overflow-x-auto">
+        <div className={`overflow-x-auto transition-opacity duration-200 ${showBar && data ? 'opacity-60' : 'opacity-100'}`}>
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left">

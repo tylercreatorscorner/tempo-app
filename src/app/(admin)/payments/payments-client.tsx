@@ -21,6 +21,8 @@ import { Users, AlertCircle, CheckCircle2, RefreshCw, DollarSign } from 'lucide-
 import { cn } from '@/lib/utils';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
 import { StatCard } from '@/components/dashboard/stat-card';
+import { useDelayedFlag } from '@/hooks/use-delayed-flag';
+import { TableLoadBar } from '@/components/ui/table-load-bar';
 import { BrandSpendChart } from './components/brand-spend-chart';
 import { RetainerTracker, type RetainerCreator } from './components/retainer-tracker';
 import { AuditFeed, type AuditLog } from './components/audit-feed';
@@ -140,6 +142,10 @@ export function PaymentsClient() {
   }, [creators]);
 
   const loading = loadingOverview || loadingCreators;
+  // Indeterminate load bar over the retainer tracker — fires on the
+  // brand-filter-driven refetch (loadingCreators), gated by a 150ms delay so
+  // fast loads don't flash it. Mirrors the roster page pattern.
+  const showBar = useDelayedFlag(loadingCreators);
 
   return (
     <div className="space-y-6">
@@ -209,16 +215,25 @@ export function PaymentsClient() {
         </div>
       )}
 
-      {/* Retainer tracker — main operational view */}
-      <RetainerTracker
-        creators={filteredCreators}
-        loading={loadingCreators}
-        brandFilter={brandFilter}
-        statusFilter={statusFilter}
-        availableBrands={availableBrands}
-        onBrandFilterChange={setBrandFilter}
-        onStatusFilterChange={setStatusFilter}
-      />
+      {/* Retainer tracker — main operational view.
+          Indeterminate load bar pinned to the top of the card on every
+          brand-filter-driven refetch. Rows dim while refetching IF there are
+          already rows on screen (otherwise the component shows its own spinner
+          / empty state — leave those untouched). Mirrors the roster page. */}
+      <div className="relative">
+        <TableLoadBar active={showBar} />
+        <div className={`transition-opacity duration-200 ${showBar && creators.length > 0 ? 'opacity-60' : 'opacity-100'}`}>
+          <RetainerTracker
+            creators={filteredCreators}
+            loading={loadingCreators}
+            brandFilter={brandFilter}
+            statusFilter={statusFilter}
+            availableBrands={availableBrands}
+            onBrandFilterChange={setBrandFilter}
+            onStatusFilterChange={setStatusFilter}
+          />
+        </div>
+      </div>
 
       {/* Audit history */}
       <AuditFeed logs={logs} loading={loadingHistory} />

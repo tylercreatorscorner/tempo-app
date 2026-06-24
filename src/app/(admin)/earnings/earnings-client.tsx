@@ -26,6 +26,8 @@ import { EarningsTrendChart, type SeriesPoint } from './components/earnings-tren
 import { BrandRevenueChart } from './components/brand-revenue-chart';
 import { GoalGauge } from './components/goal-gauge';
 import { BrandEditSheet, type BrandSettingsValues, type CompensationModel } from './components/brand-edit-sheet';
+import { useDelayedFlag } from '@/hooks/use-delayed-flag';
+import { TableLoadBar } from '@/components/ui/table-load-bar';
 
 interface BrandRow {
   brand: string;
@@ -255,6 +257,10 @@ export function EarningsClient({ initialMonth }: { initialMonth: string }) {
     return ((cur - prev) / prev) * 100;
   }, [series]);
 
+  // Refetch load bar — fires on month / team-member change (via fetchAll).
+  // Delayed so it doesn't flash on fast loads; dims existing data while active.
+  const showBar = useDelayedFlag(loading);
+
   return (
     <div className="space-y-6">
       {/* Header bar */}
@@ -321,6 +327,11 @@ export function EarningsClient({ initialMonth }: { initialMonth: string }) {
         </div>
       )}
 
+      {/* Stale-on-refetch data region: KPIs + chart + table. The month/team
+          controls above stay outside so they don't dim/bar during a refetch. */}
+      <div className="relative">
+        <TableLoadBar active={showBar} />
+        <div className={cn('space-y-6', showBar && data && 'opacity-60 transition-opacity duration-200')}>
       {/* Stat cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4">
         <div className="lg:col-span-5">
@@ -428,6 +439,8 @@ export function EarningsClient({ initialMonth }: { initialMonth: string }) {
           />
         )}
       </Panel>
+        </div>
+      </div>
 
       {/* Toast */}
       {toast && (
