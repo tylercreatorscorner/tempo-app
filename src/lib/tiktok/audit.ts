@@ -1,6 +1,6 @@
 import { TikTokClient } from './client';
 import { createAdminClient } from '@/lib/supabase/server';
-import { brandSlugToUuid } from '@/lib/utils/constants';
+import { getBrandRegistry, slugToUuid } from '@/lib/data/brand-registry';
 import type {
   AuditDiscrepancy,
   AuditResult,
@@ -22,6 +22,7 @@ export async function auditBrandData(
   const discrepancies: AuditDiscrepancy[] = [];
   const client = TikTokClient.fromEnv(shop.access_token, shop.shop_id);
   const supabase = await createAdminClient();
+  const reg = await getBrandRegistry();
 
   // --- Audit Video Performance ---
   try {
@@ -54,7 +55,7 @@ export async function auditBrandData(
     } while (pageToken);
 
     // Fetch existing DB data
-    const brandUuid = brandSlugToUuid(shop.brand) ?? shop.brand;
+    const brandUuid = slugToUuid(reg, shop.brand) ?? shop.brand;
     const { data: dbVideos } = await supabase
       .from('daily_video_product_stats')
       .select('video_id, gmv, orders, items_sold, report_date')
@@ -133,7 +134,7 @@ export async function auditBrandData(
 
   // --- Audit Creator Performance ---
   try {
-    const brandUuid = brandSlugToUuid(shop.brand) ?? shop.brand;
+    const brandUuid = slugToUuid(reg, shop.brand) ?? shop.brand;
     const apiCreators = new Map<string, { gmv: number; orders: number }>();
     let pageToken: string | undefined;
 

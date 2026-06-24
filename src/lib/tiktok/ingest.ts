@@ -1,6 +1,6 @@
 import { TikTokClient } from './client';
 import { createAdminClient } from '@/lib/supabase/server';
-import { brandSlugToUuid } from '@/lib/utils/constants';
+import { getBrandRegistry, slugToUuid } from '@/lib/data/brand-registry';
 import type {
   BrandShopIdentifier,
   DateRangeOptions,
@@ -29,6 +29,7 @@ export async function ingestVideoPerformance(
 
   const client = TikTokClient.fromEnv(shop.access_token, shop.shop_id);
   const supabase = await createAdminClient();
+  const reg = await getBrandRegistry();
 
   let pageToken: string | undefined;
 
@@ -52,7 +53,7 @@ export async function ingestVideoPerformance(
       if (videos.length === 0) break;
 
       // Map API response to our table schema
-      const brandUuid = brandSlugToUuid(shop.brand) ?? shop.brand;
+      const brandUuid = slugToUuid(reg, shop.brand) ?? shop.brand;
       const rows = videos.map((v) => ({
         tenant_id: shop.tenant_id,
         brand_id: brandUuid,
@@ -134,6 +135,7 @@ export async function ingestCreatorPerformance(
 
   const client = TikTokClient.fromEnv(shop.access_token, shop.shop_id);
   const supabase = await createAdminClient();
+  const reg = await getBrandRegistry();
 
   // First, build a creator_id -> creator_name lookup
   const creatorNames = new Map<string, string>();
@@ -184,7 +186,7 @@ export async function ingestCreatorPerformance(
       const performances = response.data.creator_performances || [];
       if (performances.length === 0) break;
 
-      const creatorBrandUuid = brandSlugToUuid(shop.brand) ?? shop.brand;
+      const creatorBrandUuid = slugToUuid(reg, shop.brand) ?? shop.brand;
       const rows = performances.map((p) => ({
         tenant_id: shop.tenant_id,
         brand_id: creatorBrandUuid,
@@ -263,6 +265,7 @@ export async function ingestProductPerformance(
 
   const client = TikTokClient.fromEnv(shop.access_token, shop.shop_id);
   const supabase = await createAdminClient();
+  const reg = await getBrandRegistry();
 
   let pageToken: string | undefined;
 
@@ -283,7 +286,7 @@ export async function ingestProductPerformance(
       const products = response.data.shop_products || [];
       if (products.length === 0) break;
 
-      const productBrandUuid = brandSlugToUuid(shop.brand) ?? shop.brand;
+      const productBrandUuid = slugToUuid(reg, shop.brand) ?? shop.brand;
       const rows = products.map((p) => ({
         tenant_id: shop.tenant_id,
         brand_id: productBrandUuid,

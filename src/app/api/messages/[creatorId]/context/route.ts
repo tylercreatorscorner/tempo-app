@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import { classifyCreator } from '@/lib/data/creator-status';
 import { STATUS_CONFIG } from '@/lib/data/creator-status';
-import { brandUuidToSlug } from '@/lib/utils/constants';
+import { getBrandRegistry, uuidToSlug } from '@/lib/data/brand-registry';
 import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 
 export async function GET(
@@ -15,6 +15,7 @@ export async function GET(
 
     const { creatorId } = await params;
     const supabase = await createAdminClient();
+    const reg = await getBrandRegistry();
 
     // Get creator info from creators_v2 — tenant-pinned (service role bypasses RLS)
     const { data: creator, error } = await supabase
@@ -48,7 +49,7 @@ export async function GET(
       .limit(1)
       .single();
 
-    const brandSlug = brandRow ? (brandUuidToSlug(brandRow.brand_id) ?? brandRow.brand_id) : null;
+    const brandSlug = brandRow ? (uuidToSlug(reg, brandRow.brand_id) ?? brandRow.brand_id) : null;
 
     // Get TikTok handle from tiktok_accounts
     const { data: account } = await supabase
@@ -78,7 +79,7 @@ export async function GET(
       const usernames = (allAccounts ?? []).map(a => a.tiktok_username);
       const usernameToBrand: Record<string, string> = {};
       for (const a of allAccounts ?? []) {
-        usernameToBrand[a.tiktok_username.toLowerCase()] = brandUuidToSlug(a.brand_id) ?? a.brand_id;
+        usernameToBrand[a.tiktok_username.toLowerCase()] = uuidToSlug(reg, a.brand_id) ?? a.brand_id;
       }
 
       if (usernames.length > 0) {
@@ -96,7 +97,7 @@ export async function GET(
 
           const brandGmvMap = new Map<string, number>();
           for (const v of salesRows) {
-            const b = brandUuidToSlug(v.brand_id) ?? usernameToBrand[v.tiktok_username?.toLowerCase()] ?? 'unknown';
+            const b = uuidToSlug(reg, v.brand_id) ?? usernameToBrand[v.tiktok_username?.toLowerCase()] ?? 'unknown';
             brandGmvMap.set(b, (brandGmvMap.get(b) || 0) + (Number(v.gmv) || 0));
           }
 
@@ -112,7 +113,7 @@ export async function GET(
           const brandPostMap = new Map<string, Set<string>>();
           for (const v of postRows ?? []) {
             allPosts.add(v.video_id);
-            const b = brandUuidToSlug(v.brand_id) ?? usernameToBrand[v.tiktok_username?.toLowerCase()] ?? 'unknown';
+            const b = uuidToSlug(reg, v.brand_id) ?? usernameToBrand[v.tiktok_username?.toLowerCase()] ?? 'unknown';
             if (!brandPostMap.has(b)) brandPostMap.set(b, new Set());
             brandPostMap.get(b)!.add(v.video_id);
           }

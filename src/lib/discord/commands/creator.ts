@@ -1,8 +1,8 @@
 import { SlashCommandBuilder, type ChatInputCommandInteraction, type AutocompleteInteraction } from 'discord.js';
 import { tempoEmbed, errorEmbed } from '../embeds';
 import { getGuildConfig } from '../config';
-import { getSupabase, daysAgo } from '../supabase';
-import { brandUuidToSlug } from '@/lib/utils/constants';
+import { getSupabase, getBotBrandRegistry, daysAgo } from '../supabase';
+import { uuidToSlug } from '@/lib/data/brand-registry-core';
 import type { TempoCommand } from './index';
 
 const command: TempoCommand = {
@@ -31,6 +31,7 @@ const command: TempoCommand = {
 
     await interaction.deferReply();
     const supabase = getSupabase();
+    const reg = await getBotBrandRegistry();
 
     try {
       // Get creator info from creators_v2
@@ -75,7 +76,7 @@ const command: TempoCommand = {
 
       const brandStats = new Map<string, { gmv: number; orders: number; commission: number }>();
       for (const r of perf ?? []) {
-        const slug = brandUuidToSlug(r.brand_id as string) ?? (r.brand_id as string);
+        const slug = uuidToSlug(reg, r.brand_id as string) ?? (r.brand_id as string);
         const cur = brandStats.get(slug) ?? { gmv: 0, orders: 0, commission: 0 };
         cur.gmv += r.gmv || 0;
         cur.orders += r.orders || 0;
