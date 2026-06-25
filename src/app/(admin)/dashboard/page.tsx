@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 import { Suspense } from 'react';
 import { format, subDays, differenceInDays } from 'date-fns';
 
-import { getBrandSummary, getCreatorRankings, getDailyTrend } from '@/lib/data/rpc';
+import { getCreatorRankings, getDailyTrend, getAnalyticsBrandSummaries } from '@/lib/data/rpc';
 import { resolveDateRange } from '@/lib/data/date-utils';
 import { aggregateCreatorsByRealName, computeManagedGmvByBrand } from '@/lib/data/creator-aggregate';
 import { getCreatorRetainers } from '@/lib/data/retainer';
@@ -97,6 +97,11 @@ export default async function AdminDashboard({ searchParams }: Props) {
   const brandFilter = params.brand && ALL_BRANDS.includes(params.brand) ? params.brand : null;
   const activeRosterBrands = brandFilter ? [brandFilter] : ALL_BRANDS;
   const activeBrands = activeRosterBrands.flatMap(b => expandSlugs(reg, b));
+  // brand_ids for the multi-brand analytics_* RPCs (shared with the fold-in helper).
+  // Resolve via the registry (has every brand's id) rather than the allowedBrands-
+  // scoped brands_v2 read above, so umbrella-scoped managers still resolve their
+  // child stores. activeBrands is already tenant/allowed-scoped, so this stays safe.
+  const BRAND_IDS = activeBrands.map(s => reg.bySlug.get(s)?.id).filter((id): id is string => Boolean(id));
 
   // ── Period bookkeeping ──────────────────────────────────────────────────
   const periodLength    = differenceInDays(new Date(endDate), new Date(startDate)) + 1;
@@ -107,20 +112,19 @@ export default async function AdminDashboard({ searchParams }: Props) {
   const labels          = getPeriodLabels(preset, startDate, endDate, prevStartDate, prevEndDate);
 
   // ── Single parallel fetch ───────────────────────────────────────────────
-  async function fetchSummary(brand: string, start: string, end: string) {
-    try { return { brand, data: (await getBrandSummary(brand, start, end))[0] ?? null }; }
-    catch { return { brand, data: null }; }
-  }
-
+  // Brand summaries come from the multi-brand analytics_* RPC (one call each for
+  // current + prior) instead of a per-brand fan-out — verified identical to the
+  // per-brand sum (GMV/orders/videos/creators match to the penny). The arrays are
+  // also handed to the fold-in helper so it doesn't re-fetch them.
   const [
-    summaries,
-    prevSummaries,
+    brandSummaries,
+    prevBrandSummaries,
     creatorsNested,
     retainerMap,
     trendsByBrandRaw,
   ] = await Promise.all([
-    Promise.all(activeBrands.map(b => fetchSummary(b, startDate,     endDate))),
-    Promise.all(activeBrands.map(b => fetchSummary(b, prevStartDate, prevEndDate))),
+    getAnalyticsBrandSummaries(BRAND_IDS, startDate,     endDate).catch(() => []),
+    getAnalyticsBrandSummaries(BRAND_IDS, prevStartDate, prevEndDate).catch(() => []),
     Promise.all(activeBrands.map(async (brand) => {
       try { return (await getCreatorRankings(brand, startDate, endDate, 50)).map((c) => ({ ...c, brand })); }
       catch { return []; }
@@ -130,15 +134,26 @@ export default async function AdminDashboard({ searchParams }: Props) {
   ]);
 
   // ── Aggregate trend across active brands ────────────────────────────────
+  // gmv-only series for the KPI sparkline, plus a full 4-metric series (summed
+  // across brands) handed to the fold-in chart so the helper skips its own trend
+  // fetch — the per-brand sum is verified identical to the aggregate RPC.
   const trendByDate = new Map<string, number>();
+  const trendFullByDate = new Map<string, { report_date: string; daily_gmv: number; daily_orders: number; daily_items_sold: number; daily_videos: number }>();
   for (const brandTrend of trendsByBrandRaw) {
     for (const day of brandTrend) {
       trendByDate.set(day.report_date, (trendByDate.get(day.report_date) ?? 0) + day.daily_gmv);
+      const e = trendFullByDate.get(day.report_date) ?? { report_date: day.report_date, daily_gmv: 0, daily_orders: 0, daily_items_sold: 0, daily_videos: 0 };
+      e.daily_gmv += day.daily_gmv;
+      e.daily_orders += day.daily_orders;
+      e.daily_items_sold += day.daily_items_sold;
+      e.daily_videos += day.daily_videos;
+      trendFullByDate.set(day.report_date, e);
     }
   }
   const aggregatedTrend = Array.from(trendByDate.entries())
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([date, gmv]) => ({ date, gmv }));
+  const trendCurRows = Array.from(trendFullByDate.values());
 
   // ── Creator-side parallel fetch: managed-GMV-by-brand (for the
   //    BrandPerformance "Managed" column) and the grouped creator list
@@ -160,7 +175,10 @@ export default async function AdminDashboard({ searchParams }: Props) {
     Promise.all(activeBrands.map((b) => getCreatorRankings(b, roiStart, roiEnd, 50)
       .then((r) => r.map((c) => ({ ...c, brand: b })))
       .catch(() => []))),
-    getFoldInAnalytics({ startDate, endDate, preset, brandFilter, allowedBrands, activeTenantId }),
+    getFoldInAnalytics({
+      startDate, endDate, preset, brandFilter, allowedBrands, activeTenantId,
+      prefetched: { brandIds: BRAND_IDS, bsCur: brandSummaries, bsPrev: prevBrandSummaries, trendCur: trendCurRows },
+    }),
   ]);
   const roiManagedByBrand = await computeManagedGmvByBrand(roiCreatorsRaw.flat());
   let managedGmv30 = 0;
@@ -174,8 +192,8 @@ export default async function AdminDashboard({ searchParams }: Props) {
     let currentGmv = 0;
     let prevGmv    = 0;
     let managedGmvForBrand = 0;
-    for (const s of summaries)     if (dataSlugSet.has(s.brand)) currentGmv += s.data?.total_gmv ?? 0;
-    for (const s of prevSummaries) if (dataSlugSet.has(s.brand)) prevGmv    += s.data?.total_gmv ?? 0;
+    for (const s of brandSummaries)     if (dataSlugSet.has(s.brand_slug)) currentGmv += s.total_gmv;
+    for (const s of prevBrandSummaries) if (dataSlugSet.has(s.brand_slug)) prevGmv    += s.total_gmv;
     for (const ds of dataSlugSet)  managedGmvForBrand += managedGmvByBrand.get(ds) ?? 0;
 
     // Sparkline = daily GMV across this brand's data slugs
@@ -221,20 +239,18 @@ export default async function AdminDashboard({ searchParams }: Props) {
   }
 
   // ── Portfolio totals ────────────────────────────────────────────────────
-  const totals = summaries.reduce((acc, { data }) => {
-    if (!data) return acc;
-    acc.gmv      += data.total_gmv      ?? 0;
-    acc.orders   += data.total_orders   ?? 0;
-    acc.items    += data.total_items_sold ?? 0;
-    acc.creators += data.unique_creators ?? 0;
-    acc.videos   += data.total_videos   ?? 0;
+  const totals = brandSummaries.reduce((acc, s) => {
+    acc.gmv      += s.total_gmv;
+    acc.orders   += s.total_orders;
+    acc.items    += s.total_items_sold;
+    acc.creators += s.unique_creators;
+    acc.videos   += s.total_videos;
     return acc;
   }, { gmv: 0, orders: 0, items: 0, creators: 0, videos: 0 });
 
-  const prevTotals = prevSummaries.reduce((acc, { data }) => {
-    if (!data) return acc;
-    acc.gmv    += data.total_gmv    ?? 0;
-    acc.orders += data.total_orders ?? 0;
+  const prevTotals = prevBrandSummaries.reduce((acc, s) => {
+    acc.gmv    += s.total_gmv;
+    acc.orders += s.total_orders;
     return acc;
   }, { gmv: 0, orders: 0 });
 
