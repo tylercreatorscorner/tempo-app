@@ -221,6 +221,8 @@ export async function GET(request: NextRequest) {
   }
   const status = searchParams.get('status');
   const search = searchParams.get('search');
+  // ?product=<product_key> — filter managed creators tagged with that product.
+  const product = searchParams.get('product');
   const page   = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
   const limit  = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '50', 10)));
 
@@ -272,6 +274,7 @@ export async function GET(request: NextRequest) {
 
   if (brand && brand !== 'all') baseQuery = baseQuery.eq('brand', brand);
   else if (scoped) baseQuery = baseQuery.in('brand', allowedSlugs!); // [] → no rows (fail-closed)
+  if (product) baseQuery = baseQuery.contains('product_assignments', [product]);
   if (status && status !== 'all') baseQuery = baseQuery.eq('status', status);
   if (search) {
     baseQuery = baseQuery.or(

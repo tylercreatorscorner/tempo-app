@@ -13,7 +13,7 @@ import { useBrandMeta } from '@/hooks/use-brand-meta';
 import { BulkAddModal, type BulkRow } from '@/components/roster/BulkAddModal';
 import { useDelayedFlag } from '@/hooks/use-delayed-flag';
 import { TableLoadBar } from '@/components/ui/table-load-bar';
-import { ProductTagPicker } from '@/components/roster/product-tag-picker';
+import { ProductTagPicker, ProductFilterSelect } from '@/components/roster/product-tag-picker';
 import { useBrandList } from '@/hooks/use-brand-list';
 import { useBodyScrollLock } from '@/hooks/use-body-scroll-lock';
 import { ModalOverlay } from '@/components/ui/modal-overlay';
@@ -1224,6 +1224,7 @@ function RosterContent() {
   // as a full reference when switched to All or Unmanaged.
   type View = 'managed' | 'all' | 'unmanaged';
   const [view, setView] = useState<View>('managed');
+  const [productFilter, setProductFilter] = useState('');
   const showManagedTag = view !== 'managed';
   const showAddAction = view !== 'managed';
 
@@ -1322,6 +1323,7 @@ function RosterContent() {
       });
       if (brand && brand !== 'all') params.set('brand', brand);
       if (search) params.set('search', search);
+      if (productFilter) params.set('product', productFilter);
       if (view !== 'managed') params.set('include', 'all');
       if (view === 'unmanaged') params.set('managed', 'unmanaged');
 
@@ -1336,14 +1338,14 @@ function RosterContent() {
     } finally {
       setLoading(false);
     }
-  }, [brand, view, search, page, sortBy, sortDir, periodDays]);
+  }, [brand, view, search, productFilter, page, sortBy, sortDir, periodDays]);
 
   useEffect(() => { fetchRoster(); }, [fetchRoster]);
 
   // Reset to page 1 when scope/sort/period change.
-  useEffect(() => { setPage(1); }, [brand, view, sortBy, sortDir, periodDays]);
-  // Clear search + reset view scope when the brand changes.
-  useEffect(() => { setSearchInput(''); setView('managed'); }, [brand]);
+  useEffect(() => { setPage(1); }, [brand, view, sortBy, sortDir, periodDays, productFilter]);
+  // Clear search + product filter + reset view scope when the brand changes.
+  useEffect(() => { setSearchInput(''); setView('managed'); setProductFilter(''); }, [brand]);
   // Drop any multi-select when the scope changes (selection only applies to the
   // unmanaged candidates currently in view).
   useEffect(() => { setSelected(new Map()); }, [brand, view]);
@@ -1465,6 +1467,7 @@ function RosterContent() {
             className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
           />
         </div>
+        <ProductFilterSelect brand={brand} value={productFilter} onChange={setProductFilter} />
       </div>
 
       {/* Multi-select action bar — appears once candidates are checked */}

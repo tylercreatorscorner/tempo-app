@@ -6,6 +6,42 @@ import { Check } from 'lucide-react';
 interface CatalogProduct { product_key: string; display_name: string; status: string }
 
 /**
+ * A select to filter the roster by a brand's product. Renders nothing unless a
+ * specific brand is chosen and it has catalog products.
+ */
+export function ProductFilterSelect({
+  brand, value, onChange,
+}: {
+  brand: string;
+  value: string;
+  onChange: (key: string) => void;
+}) {
+  const [products, setProducts] = useState<CatalogProduct[]>([]);
+  useEffect(() => {
+    if (!brand || brand === 'all') { setProducts([]); return; }
+    let cancelled = false;
+    fetch(`/api/products/catalog?brand=${encodeURIComponent(brand)}`)
+      .then((r) => (r.ok ? r.json() : { products: [] }))
+      .then((d) => { if (!cancelled) setProducts(((d.products ?? []) as CatalogProduct[]).filter((p) => p.status !== 'archived')); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [brand]);
+  if (!brand || brand === 'all' || products.length === 0) return null;
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="px-4 py-2.5 rounded-xl border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C] self-start"
+    >
+      <option value="">All products</option>
+      {products.map((p) => (
+        <option key={p.product_key} value={p.product_key}>{p.display_name}</option>
+      ))}
+    </select>
+  );
+}
+
+/**
  * Toggle-chip multi-select for a brand's products (from the catalog). Optional —
  * selecting nothing is a valid state (creator with creative freedom / a mix).
  */
