@@ -5,7 +5,7 @@ import { usePathname, useSearchParams } from 'next/navigation';
 import {
   LayoutDashboard, BarChart3, UserCheck, CreditCard,
   Mail, Compass, FileBarChart, Upload, Calculator, Receipt, PlaySquare, CalendarRange,
-  Plug, Zap, Megaphone,
+  Plug, Zap, Megaphone, Package, ShoppingBag,
   Settings as SettingsIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -62,6 +62,17 @@ const CONTENT_SECTION: NavSection = {
   items: [
     { href: '/posts',     label: 'Posts',     icon: PlaySquare },
     { href: '/reporting', label: 'Reporting', icon: FileBarChart },
+  ],
+};
+
+// Products: Catalog (define each brand's products → powers creator tagging +
+// per-product GMV) and the Performance view (GMV by product). Owner/admin only.
+const PRODUCTS_SECTION: NavSection = {
+  label: 'Products',
+  adminOnly: true,
+  items: [
+    { href: '/products/catalog', label: 'Catalog',     icon: Package },
+    { href: '/products',         label: 'Performance', icon: ShoppingBag },
   ],
 };
 
@@ -130,7 +141,7 @@ export function Sidebar({ className, userRole = 'customer' }: SidebarProps) {
   // Option A entity-based order: Home → Creators → Content → Insights → Finance → Admin.
   // Admin (with Upload + Settings) lives at the bottom because both are
   // maintenance/configuration surfaces, not daily-use destinations.
-  const sections = [HOME_SECTION, CREATORS_SECTION, CONTENT_SECTION, INSIGHTS_SECTION, WORKFLOWS_SECTION, FINANCE_SECTION, ADMIN_SECTION]
+  const sections = [HOME_SECTION, CREATORS_SECTION, CONTENT_SECTION, PRODUCTS_SECTION, INSIGHTS_SECTION, WORKFLOWS_SECTION, FINANCE_SECTION, ADMIN_SECTION]
     .filter(s => !s.adminOnly || isAdmin);
 
   function withBrand(href: string) {
