@@ -55,8 +55,10 @@ export async function getFoldInAnalytics(opts: {
   preset?: string;
   brandFilter: string | null;
   allowedBrands: string[] | null;
+  /** Platform-admin impersonation: scope brands/roster to one tenant (mirrors the host Dashboard). */
+  activeTenantId?: string | null;
 }): Promise<FoldInAnalytics> {
-  const { startDate, endDate, preset, brandFilter, allowedBrands } = opts;
+  const { startDate, endDate, preset, brandFilter, allowedBrands, activeTenantId } = opts;
   const { prevStart, prevEnd } = priorPeriod(startDate, endDate);
   const yoy = yoyPeriod(startDate, endDate);
 
@@ -64,6 +66,7 @@ export async function getFoldInAnalytics(opts: {
   const supabase = await createClient();
 
   let brandsQuery = supabase.from('brands_v2').select('id, slug').eq('is_archived', false);
+  if (activeTenantId) brandsQuery = brandsQuery.eq('tenant_id', activeTenantId);
   if (allowedBrands) brandsQuery = brandsQuery.in('slug', allowedBrands);
   const { data: dbBrands } = await brandsQuery;
   const slugToId = new Map<string, string>();
@@ -82,6 +85,7 @@ export async function getFoldInAnalytics(opts: {
   let mq = admin.from('managed_creators')
     .select('id, brand, account_1, account_2, account_3, account_4, account_5')
     .is('archived_at', null);
+  if (activeTenantId) mq = mq.eq('tenant_id', activeTenantId);
   if (allowedBrands) mq = mq.in('brand', allowedBrands);
   const { data: managedRows } = await mq;
   const managedSet = new Set<string>();
@@ -101,8 +105,10 @@ export async function getFoldInAnalytics(opts: {
     getAnalyticsDailyTrend(BRAND_IDS, startDate, endDate).catch(swallow),
     getAnalyticsDailyTrend(BRAND_IDS, prevStart, prevEnd).catch(swallow),
     getAnalyticsDailyTrend(BRAND_IDS, yoy.start, yoy.end).catch(swallow),
-    getAnalyticsCreatorRankings(BRAND_IDS, startDate, endDate, 500).catch(swallow),
-    getAnalyticsCreatorRankings(BRAND_IDS, prevStart, prevEnd, 500).catch(swallow),
+    // Only the single top "breakout" creator is surfaced, and rows come back
+    // GMV-desc — 100 is ample (was 500, which over-fetched ~1000 rows for 1 result).
+    getAnalyticsCreatorRankings(BRAND_IDS, startDate, endDate, 100).catch(swallow),
+    getAnalyticsCreatorRankings(BRAND_IDS, prevStart, prevEnd, 100).catch(swallow),
     getAnalyticsVideos(BRAND_IDS, startDate, endDate, 200).catch(swallow),
     getAnalyticsProducts(BRAND_IDS, startDate, endDate, 50).catch(swallow),
     getAnalyticsProducts(BRAND_IDS, prevStart, prevEnd, 200).catch(swallow),
@@ -138,7 +144,9 @@ export async function getFoldInAnalytics(opts: {
   for (const c of crPrev) prevCreatorMap.set(`${norm(c.creator_name)}|||${c.brand_slug}`, c.total_gmv);
   let creatorBreakout: CreatorBreakout | null = null;
   let bestScore = 0;
-  for (const c of crCur) {
+  // GMV-desc so a tie in score resolves to the bigger creator (matches the
+  // original Analytics page, which pre-sorted before the breakout pass).
+  for (const c of [...crCur].sort((a, b) => b.total_gmv - a.total_gmv)) {
     if (c.total_gmv < 1000) continue;
     const key = `${norm(c.creator_name)}|||${c.brand_slug}`;
     const prior = prevCreatorMap.get(key) ?? 0;

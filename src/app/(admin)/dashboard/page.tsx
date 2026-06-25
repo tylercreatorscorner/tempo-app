@@ -160,7 +160,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
     Promise.all(activeBrands.map((b) => getCreatorRankings(b, roiStart, roiEnd, 50)
       .then((r) => r.map((c) => ({ ...c, brand: b })))
       .catch(() => []))),
-    getFoldInAnalytics({ startDate, endDate, preset, brandFilter, allowedBrands }),
+    getFoldInAnalytics({ startDate, endDate, preset, brandFilter, allowedBrands, activeTenantId }),
   ]);
   const roiManagedByBrand = await computeManagedGmvByBrand(roiCreatorsRaw.flat());
   let managedGmv30 = 0;

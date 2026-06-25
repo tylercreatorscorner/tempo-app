@@ -1,6 +1,6 @@
 'use client';
 
-import { Lock, ArrowRight, BarChart3, MessageSquare, CreditCard, Compass, FileBarChart } from 'lucide-react';
+import { Lock, ArrowRight, MessageSquare, CreditCard, Compass, FileBarChart } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useOnboarding } from '@/hooks/use-onboarding';
@@ -8,11 +8,6 @@ import { useOnboarding } from '@/hooks/use-onboarding';
 const UNGATED_PATHS = ['/settings', '/roster', '/dashboard'];
 
 const PAGE_META: Record<string, { title: string; description: string; icon: React.ReactNode }> = {
-  '/analytics': {
-    title: 'Analytics',
-    description: 'Creator performance, product insights, and video metrics will appear here once your data is syncing.',
-    icon: <BarChart3 className="h-8 w-8 text-white" />,
-  },
   '/messages': {
     title: 'Messages',
     description: 'Send and receive messages with your creators directly from Tempo once Discord is connected.',
