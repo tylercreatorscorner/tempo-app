@@ -1323,6 +1323,11 @@ function RosterContent() {
       if (view === 'unmanaged') params.set('managed', 'unmanaged');
       const res = await fetch(`/api/roster?${params}`);
       const json = await res.json();
+      // Keep exports self-describing: a custom window labels the columns with the
+      // actual dates rather than the literal "Custom".
+      const exportPeriodTag = isCustomPeriod && customStart && customEnd
+        ? `${fmtShortDate(customStart)}–${fmtShortDate(customEnd)}`
+        : periodShort;
       const rows = ((json.data as Creator[]) ?? []).map((c) => ({
         Name: c.real_name ?? '',
         Handles: (c.handles ?? []).join(', '),
@@ -1331,10 +1336,10 @@ function RosterContent() {
         Status: c.status ?? '',
         Retainer: c.retainer ?? 0,
         'Posts/mo target': c.monthly_post_requirement ?? '',
-        [`Posts (${periodShort})`]: c.posts_period ?? 0,
+        [`Posts (${exportPeriodTag})`]: c.posts_period ?? 0,
         'Last post': c.last_post_date ?? '',
         Joined: c.joined ?? '',
-        [`GMV (${periodShort})`]: Math.round(c.gmv_period ?? 0),
+        [`GMV (${exportPeriodTag})`]: Math.round(c.gmv_period ?? 0),
         ROI: c.roi_period != null ? Number(c.roi_period.toFixed(1)) : '',
       }));
       if (rows.length === 0) return;

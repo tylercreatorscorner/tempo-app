@@ -660,8 +660,11 @@ export async function GET(request: NextRequest) {
     total_managed,
     page,
     limit,
-    // Period echo so the UI can label "GMV (7d)" etc. without re-deriving
-    period_days: periodDays,
+    // Period echo. In the range path the window is [period_start, period_end];
+    // period_days is only meaningful on the legacy days_back fallback.
+    period_days: rangeParam ? null : periodDays,
+    period_start: pStartDate,
+    period_end: pEndDate,
     // Action-oriented aggregates (managed-only — the cards filter the table)
     behind_count,
     silent_count,
