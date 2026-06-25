@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import {
-  LayoutDashboard, BarChart3, UserCheck, CreditCard,
+  LayoutDashboard, UserCheck, CreditCard,
   Mail, Compass, FileBarChart, Upload, Calculator, Receipt, PlaySquare, CalendarRange,
   Plug, Zap, Megaphone, Package, ShoppingBag,
   Settings as SettingsIcon,
@@ -76,13 +76,6 @@ const PRODUCTS_SECTION: NavSection = {
   ],
 };
 
-const INSIGHTS_SECTION: NavSection = {
-  label: 'Insights',
-  items: [
-    { href: '/analytics', label: 'Analytics', icon: BarChart3 },
-  ],
-};
-
 // Automations is brand-scoped (managers see/create/edit/run only their
 // brands' automations; /api/automations enforces it). Integrations (tenant
 // infra: Slack OAuth, API keys) and Outreach (mass-send) stay owner/admin.
@@ -141,7 +134,7 @@ export function Sidebar({ className, userRole = 'customer' }: SidebarProps) {
   // Option A entity-based order: Home → Creators → Content → Insights → Finance → Admin.
   // Admin (with Upload + Settings) lives at the bottom because both are
   // maintenance/configuration surfaces, not daily-use destinations.
-  const sections = [HOME_SECTION, CREATORS_SECTION, CONTENT_SECTION, PRODUCTS_SECTION, INSIGHTS_SECTION, WORKFLOWS_SECTION, FINANCE_SECTION, ADMIN_SECTION]
+  const sections = [HOME_SECTION, CREATORS_SECTION, CONTENT_SECTION, PRODUCTS_SECTION, WORKFLOWS_SECTION, FINANCE_SECTION, ADMIN_SECTION]
     .filter(s => !s.adminOnly || isAdmin);
 
   function withBrand(href: string) {

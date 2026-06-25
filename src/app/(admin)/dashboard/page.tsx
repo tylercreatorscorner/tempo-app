@@ -23,6 +23,10 @@ import { BrandPerformance, type BrandRowData } from '@/components/dashboard/bran
 import { StaleDataBanner } from '@/components/dashboard/stale-data-banner';
 import { DashboardOnboarding } from '@/components/dashboard/dashboard-onboarding';
 import { TodaysStandouts, TodaysStandoutsSkeleton } from '@/components/dashboard/todays-standouts';
+import { PerformanceChart } from '@/components/analytics/performance-chart';
+import { NotableChanges } from '@/components/analytics/notable-changes';
+import { PacingTile } from '@/components/analytics/pacing-tile';
+import { getFoldInAnalytics } from '@/lib/data/dashboard-fold-analytics';
 
 interface Props {
   searchParams: Promise<{ range?: string; brand?: string }>;
@@ -149,14 +153,16 @@ export default async function AdminDashboard({ searchParams }: Props) {
 
   // ── ROI numerator: managed GMV over a FIXED trailing-30-day window,
   //    independent of the page's date range (ROI is always trailing 30d).
+  //    Folded-in Analytics (trend chart + movers + pacing) fetches in parallel.
   const roiEnd   = format(new Date(), 'yyyy-MM-dd');
   const roiStart = format(subDays(new Date(), 29), 'yyyy-MM-dd');
-  const roiCreators = (await Promise.all(
-    activeBrands.map((b) => getCreatorRankings(b, roiStart, roiEnd, 50)
+  const [roiCreatorsRaw, foldIn] = await Promise.all([
+    Promise.all(activeBrands.map((b) => getCreatorRankings(b, roiStart, roiEnd, 50)
       .then((r) => r.map((c) => ({ ...c, brand: b })))
-      .catch(() => [])),
-  )).flat();
-  const roiManagedByBrand = await computeManagedGmvByBrand(roiCreators);
+      .catch(() => []))),
+    getFoldInAnalytics({ startDate, endDate, preset, brandFilter, allowedBrands }),
+  ]);
+  const roiManagedByBrand = await computeManagedGmvByBrand(roiCreatorsRaw.flat());
   let managedGmv30 = 0;
   for (const [, g] of roiManagedByBrand) managedGmv30 += g;
 
@@ -346,6 +352,17 @@ export default async function AdminDashboard({ searchParams }: Props) {
         />
       </div>
 
+      {/* Month-to-date pacing — projects where GMV lands (in-progress periods
+          only). Folded in from the retired Analytics page. */}
+      {foldIn.pacing && (
+        <PacingTile
+          daysElapsed={foldIn.pacing.daysElapsed}
+          periodLength={foldIn.pacing.periodLength}
+          gmvToDate={foldIn.pacing.gmvToDate}
+          periodLabel={foldIn.pacing.periodLabel}
+        />
+      )}
+
       {/* Empty-state for a brand-filtered view with no activity */}
       {isEmptyBrand && (
         <div className="rounded-2xl border border-gray-200 bg-white overflow-hidden">
@@ -371,6 +388,29 @@ export default async function AdminDashboard({ searchParams }: Props) {
           unfiltered All Brands view. */}
       {!brandFilter && rosterBrandStats.length > 1 && (
         <BrandPerformance brands={rosterBrandStats} range={params.range} />
+      )}
+
+      {/* Performance over time — portfolio GMV/orders/videos with prior-period
+          and year-over-year overlays. Folded in from the retired Analytics page. */}
+      {!isEmptyBrand && (
+        <PerformanceChart
+          data={foldIn.trend.data}
+          priorData={foldIn.trend.priorData}
+          yoyData={foldIn.trend.yoyData}
+          accentColor={foldIn.trend.accentColor}
+        />
+      )}
+
+      {/* What's moving — auto-surfaced brand risers/fallers, breakout creator,
+          hot post, top product (folded in from Analytics). */}
+      {foldIn.notable.hasAny && (
+        <NotableChanges
+          brandRiser={foldIn.notable.brandRiser}
+          brandFaller={foldIn.notable.brandFaller}
+          creatorBreakout={foldIn.notable.creatorBreakout}
+          hotPost={foldIn.notable.hotPost}
+          topProduct={foldIn.notable.topProduct}
+        />
       )}
 
       {/* Highlights + Alerts — paired, complementary creator views.
