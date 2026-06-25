@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import { getBrandRegistry, slugToUuid, uuidToSlug, resolveUuids } from '@/lib/data/brand-registry';
 import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
+import { resolveDateRange } from '@/lib/data/date-utils';
 
 /**
  * Sentinel returned when a real brand is selected but we couldn't resolve any
@@ -249,13 +250,23 @@ export async function GET(request: NextRequest) {
   const includeParam = searchParams.get('include') || 'managed';
   const includeUnmanaged = includeParam === 'all';
 
-  // ?period=N — number of days back for GMV / ROI / total GMV computations.
-  // Defaults to 30 (back-compat). Clamped to [1, 366] to keep RPCs bounded.
+  // Period window for GMV / ROI / posts. Preferred: ?range=<preset> (+ ?start=&end=
+  // for custom), resolved via the shared resolveDateRange into an explicit
+  // [start, end] window passed to the RPCs as p_start_date / p_end_date. Falls
+  // back to the legacy ?period=N (days_back) when no range is given.
   // posts_this_month + health + last_post stay independent of this.
-  const periodParam = parseInt(searchParams.get('period') || '30', 10);
-  const periodDays = Number.isFinite(periodParam)
-    ? Math.max(1, Math.min(366, periodParam))
-    : 30;
+  const rangeParam = searchParams.get('range');
+  let pStartDate: string | null = null;
+  let pEndDate: string | null = null;
+  let periodDays = 30;
+  if (rangeParam) {
+    const { startDate, endDate } = resolveDateRange(rangeParam, searchParams.get('start'), searchParams.get('end'));
+    pStartDate = startDate;
+    pEndDate = endDate;
+  } else {
+    const periodParam = parseInt(searchParams.get('period') || '30', 10);
+    periodDays = Number.isFinite(periodParam) ? Math.max(1, Math.min(366, periodParam)) : 30;
+  }
 
   // ?store=<slug> — optional sub-filter when an umbrella brand is active.
   // Filters managed rows down to those whose period-GMV came primarily from
@@ -361,11 +372,15 @@ export async function GET(request: NextRequest) {
         handles: allHandles,
         brand_ids: brandIds,
         days_back: periodDays,
+        p_start_date: pStartDate,
+        p_end_date: pEndDate,
       }),
       supabase.rpc('get_creator_handle_brand_gmv', {
         handles: allHandles,
         brand_ids: brandIds,
         days_back: periodDays,
+        p_start_date: pStartDate,
+        p_end_date: pEndDate,
       }),
       supabase.rpc('get_creator_message_signals', { handles: allHandles }),
     ]);
@@ -492,6 +507,8 @@ export async function GET(request: NextRequest) {
         brand_ids: brandIds,
         limit_count: 500,
         days_back: periodDays,
+        p_start_date: pStartDate,
+        p_end_date: pEndDate,
       },
     );
     if (unmanagedErr) {

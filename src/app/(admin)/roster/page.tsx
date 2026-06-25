@@ -6,10 +6,12 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import {
   UserPlus, Search, Users, UserCheck, X,
   ChevronLeft, ChevronRight, ExternalLink, Loader2,
-  UserX, Globe, Pencil, Check, Plus, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Upload, FileDown,
+  UserX, Globe, Pencil, Check, Plus, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Upload, FileDown, Calendar,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useBrandMeta } from '@/hooks/use-brand-meta';
+import { DATE_PRESETS, type DatePreset } from '@/lib/data/date-utils';
+import { CustomRangePopover } from '@/components/dashboard/custom-range-popover';
 import { BulkAddModal, type BulkRow } from '@/components/roster/BulkAddModal';
 import { useDelayedFlag } from '@/hooks/use-delayed-flag';
 import { TableLoadBar } from '@/components/ui/table-load-bar';
@@ -21,6 +23,22 @@ import { useBodyScrollLock } from '@/hooks/use-body-scroll-lock';
 import { ModalOverlay } from '@/components/ui/modal-overlay';
 
 const PAGE_SIZE = 50;
+
+// Compact chip labels for the period presets (the card header is narrow).
+const PERIOD_SHORT: Record<DatePreset, string> = {
+  yesterday: 'Yest',
+  last7: '7d',
+  last14: '14d',
+  last30: '30d',
+  thisMonth: 'This mo',
+  lastMonth: 'Last mo',
+  custom: 'Custom',
+};
+// yyyy-MM-dd → M/D/YY for the custom-range chip + labels.
+const fmtShortDate = (s: string) => {
+  const [y, m, d] = s.split('-');
+  return `${parseInt(m, 10)}/${parseInt(d, 10)}/${y.slice(2)}`;
+};
 
 type CreatorHealth = 'healthy' | 'behind' | 'silent' | 'churned' | 'no_data';
 
@@ -334,90 +352,62 @@ function BrandSelect({
   );
 }
 
-// Period selector — segmented control with primary chips + overflow menu.
-// Primary chips fit common day-to-day triage cadences; the menu carries the
-// longer/calendar-anchored ranges. Designed to be readable on a narrow card.
-type PeriodChipKey = '1d' | '7d' | '14d' | '30d' | '60d' | '90d' | 'mtd' | 'ytd';
+// Period selector — preset chips + a custom date-range popover. Presets come
+// from the shared resolveDateRange engine (same set as the Dashboard + brand
+// portal), so every surface speaks the same [start, end] windows. The Custom
+// chip opens the two-month calendar popover reused from the Dashboard.
 function PeriodSelector({
-  value, onChange,
+  preset, customStart, customEnd, onPreset, onCustom,
 }: {
-  value: PeriodChipKey;
-  onChange: (k: PeriodChipKey) => void;
+  preset: DatePreset;
+  customStart: string | null;
+  customEnd: string | null;
+  onPreset: (p: DatePreset) => void;
+  onCustom: (start: string, end: string) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
-    document.addEventListener('mousedown', onDown);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onDown);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [open]);
-
-  const primary: { key: PeriodChipKey; label: string }[] = [
-    { key: '1d',  label: '1d' },
-    { key: '7d',  label: '7d' },
-    { key: '30d', label: '30d' },
-    { key: 'mtd', label: 'MTD' },
-    { key: 'ytd', label: 'YTD' },
-  ];
-  const overflow: { key: PeriodChipKey; label: string }[] = [
-    { key: '14d', label: 'Last 14 days' },
-    { key: '60d', label: 'Last 60 days' },
-    { key: '90d', label: 'Last 90 days' },
-  ];
-  // If the active value lives in the overflow menu, surface it on the bar as
-  // the "More" label so the user always sees their current selection.
-  const overflowActive = overflow.find(o => o.key === value);
+  const isCustom = preset === 'custom' && !!customStart && !!customEnd;
+  const customLabel = isCustom && customStart && customEnd
+    ? `${fmtShortDate(customStart)} – ${fmtShortDate(customEnd)}`
+    : 'Custom';
 
   return (
-    <div ref={ref} className="relative flex gap-1 p-1 bg-white/10 rounded-xl">
-      {primary.map((p) => (
-        <button
-          key={p.key}
-          onClick={() => onChange(p.key)}
-          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-            value === p.key
-              ? 'bg-white text-[#1A1B3A] shadow'
-              : 'text-white/70 hover:text-white hover:bg-white/10'
-          }`}
-        >
-          {p.label}
-        </button>
-      ))}
+    <div className="relative flex flex-wrap gap-1 p-1 bg-white/10 rounded-xl">
+      {DATE_PRESETS.map((p) => {
+        const active = !isCustom && preset === p.value;
+        return (
+          <button
+            key={p.value}
+            onClick={() => onPreset(p.value)}
+            title={p.label}
+            className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+              active
+                ? 'bg-white text-[#1A1B3A] shadow'
+                : 'text-white/70 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            {PERIOD_SHORT[p.value]}
+          </button>
+        );
+      })}
       <button
         onClick={() => setOpen(o => !o)}
-        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors inline-flex items-center gap-1 ${
-          overflowActive
+        className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors inline-flex items-center gap-1 ${
+          isCustom
             ? 'bg-white text-[#1A1B3A] shadow'
             : 'text-white/70 hover:text-white hover:bg-white/10'
         }`}
       >
-        {overflowActive ? overflowActive.label.replace('Last ', '') : 'More'}
-        <svg className={`h-3 w-3 transition-transform ${open ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="currentColor">
-          <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.06l3.71-3.83a.75.75 0 111.08 1.04l-4.25 4.39a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z" clipRule="evenodd" />
-        </svg>
+        <Calendar className="h-3 w-3" />
+        {customLabel}
       </button>
       {open && (
-        <div className="absolute right-0 top-full mt-1 z-30 w-44 rounded-xl border border-gray-200 bg-white shadow-lg py-1">
-          {overflow.map((p) => (
-            <button
-              key={p.key}
-              onClick={() => { onChange(p.key); setOpen(false); }}
-              className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-50 transition-colors ${
-                value === p.key ? 'text-[#E91E8C] font-semibold bg-pink-50/40' : 'text-gray-700'
-              }`}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
+        <CustomRangePopover
+          initialStart={customStart}
+          initialEnd={customEnd}
+          onApply={(s, e) => { onCustom(s, e); setOpen(false); }}
+          onClose={() => setOpen(false)}
+        />
       )}
     </div>
   );
@@ -1241,42 +1231,16 @@ function RosterContent() {
 
   // Period selector drives the GMV column, ROI, Posts, and the top Total GMV.
   // The Total Retainers figure is the fixed monthly commitment (not period-driven).
-  const [periodKey, setPeriodKey] = useState<PeriodChipKey>('7d');
-  const periodDays = (() => {
-    if (periodKey === '1d')  return 1;
-    if (periodKey === '7d')  return 7;
-    if (periodKey === '14d') return 14;
-    if (periodKey === '30d') return 30;
-    if (periodKey === '60d') return 60;
-    if (periodKey === '90d') return 90;
-    const now = new Date();
-    if (periodKey === 'mtd') {
-      const start = new Date(now.getFullYear(), now.getMonth(), 1);
-      return Math.max(1, Math.floor((now.getTime() - start.getTime()) / 86_400_000) + 1);
-    }
-    const start = new Date(now.getFullYear(), 0, 1);
-    return Math.max(1, Math.floor((now.getTime() - start.getTime()) / 86_400_000) + 1);
-  })();
-  const periodLabel = (() => {
-    switch (periodKey) {
-      case '1d':  return 'Yesterday';
-      case '7d':  return 'Last 7 days';
-      case '14d': return 'Last 14 days';
-      case '30d': return 'Last 30 days';
-      case '60d': return 'Last 60 days';
-      case '90d': return 'Last 90 days';
-      case 'mtd': return 'Month to date';
-      case 'ytd': return 'Year to date';
-    }
-  })();
-  const periodShort = (() => {
-    switch (periodKey) {
-      case '1d': return '1d';
-      case 'mtd': return 'MTD';
-      case 'ytd': return 'YTD';
-      default: return periodKey;
-    }
-  })();
+  const [preset, setPreset] = useState<DatePreset>('last7');
+  const [customStart, setCustomStart] = useState<string | null>(null);
+  const [customEnd, setCustomEnd] = useState<string | null>(null);
+  const isCustomPeriod = preset === 'custom' && !!customStart && !!customEnd;
+  // The API resolves the actual [start, end] window from these (shared engine);
+  // the client just needs the preset + raw custom dates for the request + labels.
+  const periodLabel = isCustomPeriod
+    ? `${fmtShortDate(customStart!)} – ${fmtShortDate(customEnd!)}`
+    : (DATE_PRESETS.find(p => p.value === preset)?.label ?? 'Last 7 Days');
+  const periodShort = isCustomPeriod ? 'Custom' : PERIOD_SHORT[preset];
 
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
@@ -1321,8 +1285,9 @@ function RosterContent() {
         limit: String(PAGE_SIZE),
         sort: sortBy,
         dir: sortDir,
-        period: String(periodDays),
+        range: preset,
       });
+      if (isCustomPeriod && customStart && customEnd) { params.set('start', customStart); params.set('end', customEnd); }
       if (brand && brand !== 'all') params.set('brand', brand);
       if (search) params.set('search', search);
       if (productFilter) params.set('product', productFilter);
@@ -1340,7 +1305,7 @@ function RosterContent() {
     } finally {
       setLoading(false);
     }
-  }, [brand, view, search, productFilter, page, sortBy, sortDir, periodDays]);
+  }, [brand, view, search, productFilter, page, sortBy, sortDir, preset, customStart, customEnd, isCustomPeriod]);
 
   useEffect(() => { fetchRoster(); }, [fetchRoster]);
 
@@ -1349,7 +1314,8 @@ function RosterContent() {
   const handleExport = useCallback(async (format: 'csv' | 'xlsx') => {
     setExporting(true);
     try {
-      const params = new URLSearchParams({ sort: sortBy, dir: sortDir, period: String(periodDays), all: '1' });
+      const params = new URLSearchParams({ sort: sortBy, dir: sortDir, range: preset, all: '1' });
+      if (isCustomPeriod && customStart && customEnd) { params.set('start', customStart); params.set('end', customEnd); }
       if (brand && brand !== 'all') params.set('brand', brand);
       if (search) params.set('search', search);
       if (productFilter) params.set('product', productFilter);
@@ -1365,10 +1331,10 @@ function RosterContent() {
         Status: c.status ?? '',
         Retainer: c.retainer ?? 0,
         'Posts/mo target': c.monthly_post_requirement ?? '',
-        [`Posts (${periodDays}d)`]: c.posts_period ?? 0,
+        [`Posts (${periodShort})`]: c.posts_period ?? 0,
         'Last post': c.last_post_date ?? '',
         Joined: c.joined ?? '',
-        [`GMV (${periodDays}d)`]: Math.round(c.gmv_period ?? 0),
+        [`GMV (${periodShort})`]: Math.round(c.gmv_period ?? 0),
         ROI: c.roi_period != null ? Number(c.roi_period.toFixed(1)) : '',
       }));
       if (rows.length === 0) return;
@@ -1381,10 +1347,10 @@ function RosterContent() {
     } finally {
       setExporting(false);
     }
-  }, [brand, view, search, productFilter, sortBy, sortDir, periodDays, brandOptions, brandMeta]);
+  }, [brand, view, search, productFilter, sortBy, sortDir, preset, customStart, customEnd, isCustomPeriod, periodShort, brandOptions, brandMeta]);
 
   // Reset to page 1 when scope/sort/period change.
-  useEffect(() => { setPage(1); }, [brand, view, sortBy, sortDir, periodDays, productFilter]);
+  useEffect(() => { setPage(1); }, [brand, view, sortBy, sortDir, preset, customStart, customEnd, productFilter]);
   // Clear search + product filter + reset view scope when the brand changes.
   useEffect(() => { setSearchInput(''); setView('managed'); setProductFilter(''); }, [brand]);
   // Drop any multi-select when the scope changes (selection only applies to the
@@ -1457,7 +1423,13 @@ function RosterContent() {
       <div className="rounded-2xl bg-gradient-to-br from-[#1A1B3A] to-[#2A2D5A] text-white p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <BrandSelect value={brand} options={brandOptions} onChange={setBrand} />
-          <PeriodSelector value={periodKey} onChange={setPeriodKey} />
+          <PeriodSelector
+            preset={preset}
+            customStart={customStart}
+            customEnd={customEnd}
+            onPreset={(p) => { setPreset(p); setCustomStart(null); setCustomEnd(null); }}
+            onCustom={(s, e) => { setPreset('custom'); setCustomStart(s); setCustomEnd(e); }}
+          />
         </div>
         <div className="flex flex-wrap items-end gap-x-12 gap-y-4 mt-5">
           <div>
