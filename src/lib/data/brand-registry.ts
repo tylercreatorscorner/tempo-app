@@ -14,6 +14,7 @@
  *
  * Server-only: reads via the admin client. Pickers/clients use /api/brands.
  */
+import { cache } from 'react';
 import { createAdminClient } from '@/lib/supabase/server';
 import {
   buildRegistry,
@@ -26,17 +27,19 @@ import {
 
 export * from './brand-registry-core';
 
-/** One read of brands_v2 → indexed registry. Call once per request and reuse.
+/** One read of brands_v2 → indexed registry. Wrapped in React `cache()` so
+ *  multiple callers in the SAME request (e.g. the Dashboard + its fold-in helper)
+ *  share a single brands_v2 read instead of re-querying.
  *  Server-only (createAdminClient → next/headers): never import this module from
  *  a CLIENT bundle. Client components needing brand label/color use useBrandMeta;
  *  the brand-portal period type/labels live in ./brand-portal-periods (pure). */
-export async function getBrandRegistry(): Promise<BrandRegistry> {
+export const getBrandRegistry = cache(async (): Promise<BrandRegistry> => {
   const supabase = await createAdminClient();
   const { data } = await supabase
     .from('brands_v2')
     .select('id, slug, name, display_name, color, is_archived, is_umbrella, parent_brand_id, store_order');
   return buildRegistry((data ?? []) as BrandRow[]);
-}
+});
 
 // ── Async convenience wrappers (one read each; prefer the pure helpers from
 //    ./brand-registry-core when resolving many brands in a single request) ────
