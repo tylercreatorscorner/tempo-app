@@ -6,7 +6,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import {
   UserPlus, Search, Users, UserCheck, X,
   ChevronLeft, ChevronRight, ExternalLink, Loader2,
-  UserX, Globe, Pencil, Check, Plus, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Upload,
+  UserX, Globe, Pencil, Check, Plus, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Upload, FileDown,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useBrandMeta } from '@/hooks/use-brand-meta';
@@ -14,6 +14,8 @@ import { BulkAddModal, type BulkRow } from '@/components/roster/BulkAddModal';
 import { useDelayedFlag } from '@/hooks/use-delayed-flag';
 import { TableLoadBar } from '@/components/ui/table-load-bar';
 import { ProductTagPicker, ProductFilterSelect } from '@/components/roster/product-tag-picker';
+import { downloadCsv } from '@/lib/utils/csv';
+import { downloadXlsx } from '@/lib/utils/xlsx';
 import { useBrandList } from '@/hooks/use-brand-list';
 import { useBodyScrollLock } from '@/hooks/use-body-scroll-lock';
 import { ModalOverlay } from '@/components/ui/modal-overlay';
@@ -1342,6 +1344,45 @@ function RosterContent() {
 
   useEffect(() => { fetchRoster(); }, [fetchRoster]);
 
+  // Export the current view (all matching rows, not just the page) to CSV/Excel.
+  const [exporting, setExporting] = useState(false);
+  const handleExport = useCallback(async (format: 'csv' | 'xlsx') => {
+    setExporting(true);
+    try {
+      const params = new URLSearchParams({ sort: sortBy, dir: sortDir, period: String(periodDays), all: '1' });
+      if (brand && brand !== 'all') params.set('brand', brand);
+      if (search) params.set('search', search);
+      if (productFilter) params.set('product', productFilter);
+      if (view !== 'managed') params.set('include', 'all');
+      if (view === 'unmanaged') params.set('managed', 'unmanaged');
+      const res = await fetch(`/api/roster?${params}`);
+      const json = await res.json();
+      const rows = ((json.data as Creator[]) ?? []).map((c) => ({
+        Name: c.real_name ?? '',
+        Handles: (c.handles ?? []).join(', '),
+        Brand: brandOptions.find((b) => b.slug === c.brand)?.name ?? brandMeta.label(c.brand) ?? c.brand ?? '',
+        Products: (c.product_tags ?? []).map((t) => t.name).join(', '),
+        Status: c.status ?? '',
+        Retainer: c.retainer ?? 0,
+        'Posts/mo target': c.monthly_post_requirement ?? '',
+        [`Posts (${periodDays}d)`]: c.posts_period ?? 0,
+        'Last post': c.last_post_date ?? '',
+        Joined: c.joined ?? '',
+        [`GMV (${periodDays}d)`]: Math.round(c.gmv_period ?? 0),
+        ROI: c.roi_period != null ? Number(c.roi_period.toFixed(1)) : '',
+      }));
+      if (rows.length === 0) return;
+      const stamp = new Date().toISOString().split('T')[0];
+      const fname = `creators${brand && brand !== 'all' ? `_${brand}` : ''}_${stamp}`;
+      if (format === 'csv') downloadCsv(`${fname}.csv`, rows);
+      else void downloadXlsx(`${fname}.xlsx`, [{ name: 'Creators', rows }]);
+    } catch (err) {
+      console.error('Export failed:', err);
+    } finally {
+      setExporting(false);
+    }
+  }, [brand, view, search, productFilter, sortBy, sortDir, periodDays, brandOptions, brandMeta]);
+
   // Reset to page 1 when scope/sort/period change.
   useEffect(() => { setPage(1); }, [brand, view, sortBy, sortDir, periodDays, productFilter]);
   // Clear search + product filter + reset view scope when the brand changes.
@@ -1468,6 +1509,24 @@ function RosterContent() {
           />
         </div>
         <ProductFilterSelect brand={brand} value={productFilter} onChange={setProductFilter} />
+        <div className="flex items-center gap-2 self-start">
+          <button
+            onClick={() => handleExport('csv')}
+            disabled={exporting || roster.length === 0}
+            className="flex items-center gap-1.5 text-sm font-medium px-3 py-2.5 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-600 disabled:opacity-40 transition-colors"
+            title="Export the current view to CSV"
+          >
+            {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />} CSV
+          </button>
+          <button
+            onClick={() => handleExport('xlsx')}
+            disabled={exporting || roster.length === 0}
+            className="flex items-center gap-1.5 text-sm font-medium px-3 py-2.5 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-600 disabled:opacity-40 transition-colors"
+            title="Export the current view to Excel"
+          >
+            <FileDown className="h-4 w-4" /> Excel
+          </button>
+        </div>
       </div>
 
       {/* Multi-select action bar — appears once candidates are checked */}
