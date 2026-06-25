@@ -21,6 +21,7 @@ const COLUMNS = [
   'id', 'real_name', 'brand', 'status', 'retainer', 'monthly_post_requirement',
   'discord_name', 'discord_avatar', 'notes', 'created_at', 'joined_at', 'creator_id',
   'account_1', 'account_2', 'account_3', 'account_4', 'account_5',
+  'product_assignments',
 ].join(', ');
 
 // ─── Health derivation ───────────────────────────────────────────────────────
@@ -115,6 +116,9 @@ interface ManagedRow {
   account_3: string | null;
   account_4: string | null;
   account_5: string | null;
+  // Product tag keys (reference products.product_key) — which of the brand's
+  // products this creator focuses on. Optional; empty = no specific product.
+  product_assignments: string[] | null;
 }
 
 interface PerfRow {
@@ -165,6 +169,8 @@ interface EnrichedRow extends ManagedRow {
   last_message_at: string | null;
   unread_count: number;
   is_managed: boolean;
+  // Resolved product tags (key + display name) for the row chips.
+  product_tags: { key: string; name: string }[];
 }
 
 interface UnmanagedPerfRow {
@@ -276,6 +282,19 @@ export async function GET(request: NextRequest) {
   const { data: rawRows, error } = await baseQuery as { data: ManagedRow[] | null; error: { message: string } | null };
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   const allRows: ManagedRow[] = rawRows ?? [];
+
+  // Resolve product tag keys → display names for the row chips. One small query
+  // for the whole page (the products catalog is tiny).
+  const productNameByKey = new Map<string, string>();
+  {
+    const { data: prodRows } = await supabase
+      .from('products')
+      .select('product_key, display_name')
+      .eq('tenant_id', tenantId);
+    for (const p of (prodRows ?? []) as { product_key: string; display_name: string | null }[]) {
+      productNameByKey.set(p.product_key, p.display_name || p.product_key);
+    }
+  }
 
   // ── 1b. Resolve handles per row via tiktok_accounts (one query for the
   // page). Canonical handle source post-Path-B; account_1..5 are only a
@@ -444,6 +463,9 @@ export async function GET(request: NextRequest) {
       unread_count: unread,
       is_managed: true,
       joined: row.joined_at ?? row.created_at,
+      product_tags: (row.product_assignments ?? []).map((key) => ({
+        key, name: productNameByKey.get(key) ?? key,
+      })),
     };
   });
 
@@ -508,6 +530,7 @@ export async function GET(request: NextRequest) {
           account_3: null,
           account_4: null,
           account_5: null,
+          product_assignments: null,
           handles: [u.tiktok_username],
           gmv_period: Number(u.gmv_period) || 0,
           gmv_by_store: unmanagedBreakdown,
@@ -520,6 +543,7 @@ export async function GET(request: NextRequest) {
           unread_count: 0,
           is_managed: false,
           joined: null,
+          product_tags: [],
         });
       }
     }
@@ -671,6 +695,11 @@ export async function POST(request: NextRequest) {
   const accountColumns: Record<string, string | null> = {};
   for (let i = 0; i < 5; i++) accountColumns[`account_${i + 1}`] = handles[i] ?? null;
 
+  // Product tag keys (reference products.product_key). Optional.
+  const productAssignments: string[] = Array.isArray(body.product_assignments)
+    ? body.product_assignments.map((k: unknown) => String(k)).filter(Boolean)
+    : [];
+
   const { data, error } = await supabase
     .from('managed_creators')
     .insert({
@@ -683,6 +712,7 @@ export async function POST(request: NextRequest) {
       status: 'Active',
       employment_status: 'active',
       tenant_id: tenantId,
+      product_assignments: productAssignments,
       ...accountColumns,
     })
     .select()

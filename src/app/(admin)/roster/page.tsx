@@ -13,6 +13,7 @@ import { useBrandMeta } from '@/hooks/use-brand-meta';
 import { BulkAddModal, type BulkRow } from '@/components/roster/BulkAddModal';
 import { useDelayedFlag } from '@/hooks/use-delayed-flag';
 import { TableLoadBar } from '@/components/ui/table-load-bar';
+import { ProductTagPicker } from '@/components/roster/product-tag-picker';
 import { useBrandList } from '@/hooks/use-brand-list';
 import { useBodyScrollLock } from '@/hooks/use-body-scroll-lock';
 import { ModalOverlay } from '@/components/ui/modal-overlay';
@@ -66,6 +67,8 @@ interface Creator {
   // (returned only when ?include=all). Drives the row's action cell + cell-by-cell
   // dimming for fields that don't apply to unmanaged creators.
   is_managed: boolean;
+  // Resolved product tags (key + display name). Empty = no specific product.
+  product_tags: { key: string; name: string }[];
 }
 
 /** Primary handle — first in the canonical list, falls back to legacy account_1. */
@@ -546,6 +549,7 @@ function CreatorPanel({
     notes:                   creator.notes || '',
   });
   const [handles, setHandles] = useState<string[]>(initialHandles);
+  const [productTags, setProductTags] = useState<string[]>((creator.product_tags ?? []).map((t) => t.key));
 
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
   const setHandleAt = (i: number, v: string) =>
@@ -567,6 +571,7 @@ function CreatorPanel({
         body: JSON.stringify({
           ...form,
           handles: cleanHandles,
+          product_assignments: productTags,
           retainer: form.retainer !== '' ? parseFloat(form.retainer) : 0,
           monthly_post_requirement: parseInt(form.monthly_post_requirement) || 30,
         }),
@@ -745,6 +750,13 @@ function CreatorPanel({
                   </select>
                 </div>
               </div>
+
+              {form.brand && (
+                <div>
+                  <label className="block text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1.5">Products</label>
+                  <ProductTagPicker brand={form.brand} value={productTags} onChange={setProductTags} />
+                </div>
+              )}
 
               <div>
                 <label className="block text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1.5">TikTok Accounts</label>
@@ -986,6 +998,7 @@ function AddCreatorModal({ prefill, onClose, onSuccess }: AddCreatorModalProps) 
     retainer: '', monthly_post_requirement: '30', discord_name: '', notes: '',
   });
   const [handles, setHandles] = useState<string[]>([prefill?.account_1 || '']);
+  const [productTags, setProductTags] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -1014,6 +1027,7 @@ function AddCreatorModal({ prefill, onClose, onSuccess }: AddCreatorModalProps) 
         body: JSON.stringify({
           ...form,
           handles: cleanHandles,
+          product_assignments: productTags,
           retainer: form.retainer ? parseFloat(form.retainer) : 0,
           monthly_post_requirement: parseInt(form.monthly_post_requirement) || 30,
         }),
@@ -1104,6 +1118,15 @@ function AddCreatorModal({ prefill, onClose, onSuccess }: AddCreatorModalProps) 
               ))}
             </select>
           </div>
+
+          {form.brand && (
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                Products <span className="font-normal text-gray-400 normal-case">(optional)</span>
+              </label>
+              <ProductTagPicker brand={form.brand} value={productTags} onChange={setProductTags} />
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -1571,6 +1594,18 @@ function RosterContent() {
                         {c.real_name || (c.is_managed
                           ? <span className="text-gray-400">—</span>
                           : <span className="text-gray-500 italic">@{primary}</span>)}
+                        {(c.product_tags ?? []).length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {(c.product_tags ?? []).slice(0, 3).map((t) => (
+                              <span key={t.key} className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-pink-50 text-[#E91E8C]">
+                                {t.name}
+                              </span>
+                            ))}
+                            {(c.product_tags ?? []).length > 3 && (
+                              <span className="text-[10px] text-gray-400 self-center">+{(c.product_tags ?? []).length - 3}</span>
+                            )}
+                          </div>
+                        )}
                       </td>
                       <td className="px-5 py-3.5">
                         {primary ? (
