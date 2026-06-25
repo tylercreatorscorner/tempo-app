@@ -223,6 +223,8 @@ export async function GET(request: NextRequest) {
   const search = searchParams.get('search');
   // ?product=<product_key> — filter managed creators tagged with that product.
   const product = searchParams.get('product');
+  // ?all=1 — return every matching row (for CSV/Excel export), not just a page.
+  const exportAll = searchParams.get('all') === '1';
   const page   = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
   const limit  = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '50', 10)));
 
@@ -633,7 +635,7 @@ export async function GET(request: NextRequest) {
   // ── 7. Paginate the filtered set.
   const total = filtered.length;
   const offset = (page - 1) * limit;
-  const slice = filtered.slice(offset, offset + limit);
+  const slice = exportAll ? filtered.slice(0, 5000) : filtered.slice(offset, offset + limit);
 
   return NextResponse.json({
     data: slice,
