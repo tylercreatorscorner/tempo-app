@@ -73,6 +73,11 @@ export async function PATCH(
     }
   }
 
+  // Product tag keys (reference products.product_key). Optional; [] clears them.
+  if (Array.isArray(body.product_assignments)) {
+    updates.product_assignments = (body.product_assignments as unknown[]).map((k) => String(k)).filter(Boolean);
+  }
+
   if (Object.keys(updates).length === 0 && !normalizedHandles) {
     return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
   }

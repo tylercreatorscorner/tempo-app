@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
   const defMpr = Number.isFinite(dm) && dm >= 0 ? dm : 30;
 
   // ── Normalize + dedup the payload by handle (lowercased), keeping the first.
-  type InRow = { handle: string; key: string; name: string | null; retainer: number; mpr: number };
+  type InRow = { handle: string; key: string; name: string | null; retainer: number; mpr: number; products: string[] };
   const seen = new Set<string>();
   const incoming: InRow[] = [];
   for (const c of creators) {
@@ -94,12 +94,16 @@ export async function POST(request: NextRequest) {
     const rr = Number(c.retainer);
     const rm = Number(c.monthly_post_requirement);
     const name = c.name != null && String(c.name).trim() ? String(c.name).trim() : null;
+    const products = Array.isArray(c.product_assignments)
+      ? (c.product_assignments as unknown[]).map((k) => String(k)).filter(Boolean)
+      : [];
     incoming.push({
       handle: raw,
       key,
       name,
       retainer: Number.isFinite(rr) && rr >= 0 ? rr : defRetainer,
       mpr: Number.isFinite(rm) && rm >= 0 ? rm : defMpr,
+      products,
     });
   }
   if (incoming.length === 0) {
@@ -218,6 +222,7 @@ export async function POST(request: NextRequest) {
       creator_id: handleToCreator.get(r.key)!,
       account_1: r.handle,
       account_2: null, account_3: null, account_4: null, account_5: null,
+      product_assignments: r.products,
     }));
     const { error: mcErr } = await supabase.from('managed_creators').insert(managedRows);
     if (mcErr) {
