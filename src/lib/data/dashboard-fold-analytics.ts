@@ -57,28 +57,43 @@ export async function getFoldInAnalytics(opts: {
   allowedBrands: string[] | null;
   /** Platform-admin impersonation: scope brands/roster to one tenant (mirrors the host Dashboard). */
   activeTenantId?: string | null;
+  /** Data the host Dashboard already fetched — reused instead of re-querying. When
+   *  provided, brand_ids + current/prior brand summaries + the current daily trend
+   *  are taken from here (the Dashboard verified them identical to this helper's own
+   *  queries: the per-brand sum equals the multi-brand RPC to the penny). */
+  prefetched?: {
+    brandIds: string[];
+    bsCur: Awaited<ReturnType<typeof getAnalyticsBrandSummaries>>;
+    bsPrev: Awaited<ReturnType<typeof getAnalyticsBrandSummaries>>;
+    trendCur: Awaited<ReturnType<typeof getAnalyticsDailyTrend>>;
+  };
 }): Promise<FoldInAnalytics> {
-  const { startDate, endDate, preset, brandFilter, allowedBrands, activeTenantId } = opts;
+  const { startDate, endDate, preset, brandFilter, allowedBrands, activeTenantId, prefetched } = opts;
   const { prevStart, prevEnd } = priorPeriod(startDate, endDate);
   const yoy = yoyPeriod(startDate, endDate);
 
   const reg = await getBrandRegistry();
-  const supabase = await createClient();
 
-  let brandsQuery = supabase.from('brands_v2').select('id, slug').eq('is_archived', false);
-  if (activeTenantId) brandsQuery = brandsQuery.eq('tenant_id', activeTenantId);
-  if (allowedBrands) brandsQuery = brandsQuery.in('slug', allowedBrands);
-  const { data: dbBrands } = await brandsQuery;
-  const slugToId = new Map<string, string>();
-  for (const b of dbBrands ?? []) slugToId.set(b.slug, b.id);
+  // brand_ids: reuse the Dashboard's resolution when prefetched, else resolve here.
+  let BRAND_IDS: string[];
+  if (prefetched) {
+    BRAND_IDS = prefetched.brandIds;
+  } else {
+    const supabase = await createClient();
+    let brandsQuery = supabase.from('brands_v2').select('slug').eq('is_archived', false);
+    if (activeTenantId) brandsQuery = brandsQuery.eq('tenant_id', activeTenantId);
+    if (allowedBrands) brandsQuery = brandsQuery.in('slug', allowedBrands);
+    const { data: dbBrands } = await brandsQuery;
 
-  const dataSlugs = brandFilter
-    ? expandSlugs(reg, brandFilter)
-    : (dbBrands ?? [])
-        .map((b) => b.slug)
-        .filter((s) => !reg.rows.find((r) => r.slug === s)?.parent_brand_id)
-        .flatMap((b) => expandSlugs(reg, b));
-  const BRAND_IDS = dataSlugs.map((s) => slugToId.get(s)).filter((id): id is string => Boolean(id));
+    const dataSlugs = brandFilter
+      ? expandSlugs(reg, brandFilter)
+      : (dbBrands ?? [])
+          .map((b) => b.slug)
+          .filter((s) => !reg.rows.find((r) => r.slug === s)?.parent_brand_id)
+          .flatMap((b) => expandSlugs(reg, b));
+    // Resolve via the registry (complete id map) so umbrella-scoped slugs resolve.
+    BRAND_IDS = dataSlugs.map((s) => reg.bySlug.get(s)?.id).filter((id): id is string => Boolean(id));
+  }
 
   // managed (handle|||data-slug) lookup
   const admin = await createAdminClient();
@@ -99,10 +114,20 @@ export async function getFoldInAnalytics(opts: {
   }
 
   const swallow = () => [] as never[];
-  const [bsCur, bsPrev, trendCur, trendPrev, trendYoy, crCur, crPrev, videos, prodCur, prodPrev] = await Promise.all([
-    getAnalyticsBrandSummaries(BRAND_IDS, startDate, endDate).catch(swallow),
-    getAnalyticsBrandSummaries(BRAND_IDS, prevStart, prevEnd).catch(swallow),
-    getAnalyticsDailyTrend(BRAND_IDS, startDate, endDate).catch(swallow),
+
+  // Current/prior brand summaries + current daily trend: reuse the Dashboard's
+  // already-fetched copies when prefetched (no second round-trip), else fetch.
+  const [bsCur, bsPrev, trendCur] = prefetched
+    ? [prefetched.bsCur, prefetched.bsPrev, prefetched.trendCur]
+    : await Promise.all([
+        getAnalyticsBrandSummaries(BRAND_IDS, startDate, endDate).catch(swallow),
+        getAnalyticsBrandSummaries(BRAND_IDS, prevStart, prevEnd).catch(swallow),
+        getAnalyticsDailyTrend(BRAND_IDS, startDate, endDate).catch(swallow),
+      ]);
+
+  // Helper-unique data (the Dashboard doesn't fetch these): prior/YoY trend
+  // overlays, breakout-creator rankings, hot-post videos, and top products.
+  const [trendPrev, trendYoy, crCur, crPrev, videos, prodCur, prodPrev] = await Promise.all([
     getAnalyticsDailyTrend(BRAND_IDS, prevStart, prevEnd).catch(swallow),
     getAnalyticsDailyTrend(BRAND_IDS, yoy.start, yoy.end).catch(swallow),
     // Only the single top "breakout" creator is surfaced, and rows come back
