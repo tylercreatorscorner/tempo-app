@@ -147,6 +147,19 @@ export default async function AdminDashboard({ searchParams }: Props) {
     aggregateCreatorsByRealName(allCreators, brandFilter),
   ]);
 
+  // ── ROI numerator: managed GMV over a FIXED trailing-30-day window,
+  //    independent of the page's date range (ROI is always trailing 30d).
+  const roiEnd   = format(new Date(), 'yyyy-MM-dd');
+  const roiStart = format(subDays(new Date(), 29), 'yyyy-MM-dd');
+  const roiCreators = (await Promise.all(
+    activeBrands.map((b) => getCreatorRankings(b, roiStart, roiEnd, 50)
+      .then((r) => r.map((c) => ({ ...c, brand: b })))
+      .catch(() => [])),
+  )).flat();
+  const roiManagedByBrand = await computeManagedGmvByBrand(roiCreators);
+  let managedGmv30 = 0;
+  for (const [, g] of roiManagedByBrand) managedGmv30 += g;
+
   // ── Per-roster-brand stats — drives BrandPerformance card and the
   //    "Top Brand" mini-stat in the Period Brief. Aggregates across
   //    data slugs (e.g. leefar_nutrition + leefar_supplements → leefar). ──
@@ -222,10 +235,11 @@ export default async function AdminDashboard({ searchParams }: Props) {
   const gmvTrend    = pctChange(totals.gmv,    prevTotals.gmv);
   const ordersTrend = pctChange(totals.orders, prevTotals.orders);
 
-  // ROI = current GMV / total retainer spend (on active managed creators)
+  // ROI = managed GMV (trailing 30d) ÷ total monthly retainer — the agency's
+  // return on what it pays its creators, always over a 30-day window.
   let totalRetainerSpend = 0;
   for (const [, info] of retainerMap) totalRetainerSpend += info.retainer ?? 0;
-  const roi = totalRetainerSpend > 0 ? totals.gmv / totalRetainerSpend : 0;
+  const roi = totalRetainerSpend > 0 ? managedGmv30 / totalRetainerSpend : 0;
   const managedSharePct = totals.gmv > 0 ? (managedGmv / totals.gmv) * 100 : 0;
 
   // ── Creator alerts (single source of truth for brief + sidecard) ─────
@@ -325,10 +339,10 @@ export default async function AdminDashboard({ searchParams }: Props) {
           }
         />
         <StatCard
-          label="ROI"
+          label="ROI · 30d"
           value={roi > 0 ? `${roi.toFixed(1)}x` : 'N/A'}
           accentColor={activeBrandColor ?? '#FF4D8D'}
-          subValue={totalRetainerSpend > 0 ? `on ${formatCurrency(totalRetainerSpend)} retainer` : undefined}
+          subValue={totalRetainerSpend > 0 ? `${formatCurrency(managedGmv30)} managed ÷ ${formatCurrency(totalRetainerSpend)}/mo` : undefined}
         />
       </div>
 
