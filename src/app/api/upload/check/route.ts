@@ -33,6 +33,19 @@ export async function GET(request: NextRequest) {
   }
 
   const admin = await createAdminClient();
+
+  // Scope by tenant via the brand: the fact tables are keyed by brand slug and
+  // product_performance has no tenant_id, so verify the brand belongs to the
+  // caller's tenant before counting (otherwise any admin could probe any
+  // tenant's brand/date).
+  const { data: brandRow } = await admin
+    .from('brands_v2')
+    .select('id')
+    .eq('slug', brand)
+    .eq('tenant_id', profile.tenant_id)
+    .maybeSingle();
+  if (!brandRow) return NextResponse.json({ error: 'Brand not in your tenant' }, { status: 404 });
+
   const { count, error } = await admin
     .from(table)
     .select('*', { count: 'exact', head: true })

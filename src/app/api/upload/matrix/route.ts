@@ -47,6 +47,7 @@ export async function GET(request: NextRequest) {
     .from('brands_v2')
     .select('slug, name')
     .eq('is_archived', false)
+    .eq('tenant_id', profile.tenant_id)
     .order('name');
   const activeBrands = (brandRows as Array<{ slug: string; name: string }> | null ?? [])
     .filter(b => !UMBRELLA_BRAND_SLUGS.has(b.slug));

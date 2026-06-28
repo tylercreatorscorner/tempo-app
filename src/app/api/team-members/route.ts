@@ -32,6 +32,7 @@ export async function GET(req: NextRequest) {
   let query = supabase
     .from('team_members')
     .select('id, name, email, address, payment_instructions, is_archived, created_at')
+    .eq('tenant_id', profile.tenant_id)
     .order('created_at', { ascending: true });
   if (!includeArchived) query = query.eq('is_archived', false);
 
