@@ -2,6 +2,7 @@
 
 import { createServerClient } from '@supabase/ssr';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
+import { assertNotImpersonating } from '@/lib/auth/platform-admin';
 import { revalidatePath } from 'next/cache';
 
 /**
@@ -19,6 +20,9 @@ function createAnonClient() {
 }
 
 async function assertOwnerOrAdmin() {
+  // Block all team-management mutations while a platform admin is "viewing as"
+  // a member (server actions bypass the /api/* read-only middleware gate).
+  await assertNotImpersonating();
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Unauthenticated');

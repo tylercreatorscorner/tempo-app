@@ -100,6 +100,21 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // Read-only "view as": when a platform admin is impersonating a member
+  // (platform_active_manager cookie — see lib/auth/platform-admin), block
+  // mutating API calls so a preview can't change data. Exiting/switching is a
+  // server action (a page POST, not /api/*), so it stays allowed.
+  if (
+    user && isApi && !isPublicPath &&
+    request.cookies.get('platform_active_manager')?.value &&
+    ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)
+  ) {
+    return NextResponse.json(
+      { error: 'Read-only while viewing as another user. Exit “view as” to make changes.' },
+      { status: 403 },
+    );
+  }
+
   // Systemic Workspace-API gate (default-deny for portal roles).
   //
   // The role-based routing below intentionally skips API paths, so without
