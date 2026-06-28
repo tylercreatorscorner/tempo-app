@@ -217,22 +217,21 @@ export function PaymentsClient() {
 
       {/* Retainer tracker — main operational view.
           Indeterminate load bar pinned to the top of the card on every
-          brand-filter-driven refetch. Rows dim while refetching IF there are
-          already rows on screen (otherwise the component shows its own spinner
-          / empty state — leave those untouched). Mirrors the roster page. */}
+          brand-filter-driven refetch. Only the table BODY dims while refetching
+          (and only if rows are already on screen) — the filter bar you just
+          interacted with stays crisp. Mirrors the roster page. */}
       <div className="relative">
         <TableLoadBar active={showBar} />
-        <div className={`transition-opacity duration-200 ${showBar && creators.length > 0 ? 'opacity-60' : 'opacity-100'}`}>
-          <RetainerTracker
-            creators={filteredCreators}
-            loading={loadingCreators}
-            brandFilter={brandFilter}
-            statusFilter={statusFilter}
-            availableBrands={availableBrands}
-            onBrandFilterChange={setBrandFilter}
-            onStatusFilterChange={setStatusFilter}
-          />
-        </div>
+        <RetainerTracker
+          creators={filteredCreators}
+          loading={loadingCreators}
+          brandFilter={brandFilter}
+          statusFilter={statusFilter}
+          availableBrands={availableBrands}
+          onBrandFilterChange={setBrandFilter}
+          onStatusFilterChange={setStatusFilter}
+          refetching={showBar && creators.length > 0}
+        />
       </div>
 
       {/* Audit history */}

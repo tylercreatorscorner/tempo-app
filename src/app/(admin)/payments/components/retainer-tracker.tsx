@@ -46,6 +46,8 @@ interface Props {
   availableBrands: string[];
   onBrandFilterChange: (v: string) => void;
   onStatusFilterChange: (v: 'all' | 'On Track' | 'Behind' | 'At Risk') => void;
+  /** Dim the table body during a brand/status refetch — the filter bar stays crisp. */
+  refetching?: boolean;
 }
 
 const STATUS_TABS = [
@@ -56,7 +58,7 @@ const STATUS_TABS = [
 ] as const;
 
 export function RetainerTracker({
-  creators, loading, brandFilter, statusFilter, availableBrands = [], onBrandFilterChange, onStatusFilterChange,
+  creators, loading, brandFilter, statusFilter, availableBrands = [], onBrandFilterChange, onStatusFilterChange, refetching = false,
 }: Props) {
   const brandMeta = useBrandMeta();
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -124,7 +126,8 @@ export function RetainerTracker({
         </div>
       </div>
 
-      {/* Table */}
+      {/* Table + pagination — dims on refetch; the filter bar above stays crisp. */}
+      <div className={cn('transition-opacity duration-200', refetching && 'opacity-60')}>
       {loading && creators.length === 0 ? (
         <div className="p-12 text-center">
           <div className="inline-block h-8 w-8 rounded-full border-2 border-gray-200 border-t-[#FF4D8D] animate-spin" />
@@ -283,6 +286,7 @@ export function RetainerTracker({
           </button>
         </div>
       )}
+      </div>
     </div>
   );
 }
