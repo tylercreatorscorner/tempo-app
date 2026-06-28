@@ -111,7 +111,9 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = await createAdminClient();
-  const handles = incoming.map((r) => r.handle);
+  // r.key is the lowercased handle; tiktok_accounts is stored lowercase, so match
+  // on it (r.handle keeps original case for display only).
+  const handles = incoming.map((r) => r.key);
 
   // ── Read this brand's existing managed_creators (active AND archived) so we
   //    can three-way partition. archived rows still carry their handle in
