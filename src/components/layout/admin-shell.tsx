@@ -16,9 +16,10 @@ import { BreadcrumbProvider } from '@/components/layout/breadcrumb-context';
 interface AdminShellProps {
   children: React.ReactNode;
   tenantSwitcher?: React.ReactNode;
+  viewAsBanner?: React.ReactNode;
 }
 
-export function AdminShell({ children, tenantSwitcher }: AdminShellProps) {
+export function AdminShell({ children, tenantSwitcher, viewAsBanner }: AdminShellProps) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const { tenant, isOwner, userName, userEmail } = useTenant();
 
@@ -44,7 +45,8 @@ export function AdminShell({ children, tenantSwitcher }: AdminShellProps) {
             tenantSwitcher={tenantSwitcher}
           />
           <main className="flex-1 animate-fade-in">
-            <div className="px-3 sm:px-4 md:px-6 pt-3 sm:pt-4">
+            <div className="px-3 sm:px-4 md:px-6 pt-3 sm:pt-4 space-y-3">
+              {viewAsBanner}
               <SetupBanner />
             </div>
             <div className="p-3 sm:p-4 md:p-6 pt-2">

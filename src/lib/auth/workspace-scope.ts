@@ -19,6 +19,7 @@
  * ids)` so the fail-closed behavior is "see nothing", never "see all".
  */
 import { createClient, createAdminClient } from '@/lib/supabase/server';
+import { getActiveManagerId } from '@/lib/auth/platform-admin';
 
 /** Roles that get the full tenant view (no per-brand narrowing). */
 const FULL_TENANT_ROLES = new Set(['owner', 'admin', 'viewer']);
@@ -34,39 +35,32 @@ export interface WorkspaceScope {
   tenantId: string;
   role: string;
   brandScope: BrandScope;
+  /** Set when a platform admin is "viewing as" this member (read-only preview). */
+  impersonating?: { userId: string; name: string | null };
 }
 
-/**
- * Resolves the current user's Workspace scope, or null if they aren't a
- * Workspace user (unauthenticated, no profile, no tenant, or a
- * brand/creator-portal role). Routes should treat null as 401/redirect.
- */
-export async function getWorkspaceScope(): Promise<WorkspaceScope | null> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
+type ProfileRow = {
+  user_id: string; email: string | null; name: string | null;
+  role: string | null; tenant_id: string | null;
+};
 
-  const admin = await createAdminClient();
-  const { data: profile } = await admin
-    .from('user_profiles')
-    .select('user_id, email, name, role, tenant_id')
-    .eq('user_id', user.id)
-    .maybeSingle();
-
+/** Builds a WorkspaceScope from a user_profiles row (the shared role→scope logic
+ *  used for both the caller and an impersonated member). Returns null for
+ *  non-Workspace roles / incomplete profiles (fail-closed). */
+async function scopeFromProfile(
+  admin: Awaited<ReturnType<typeof createAdminClient>>,
+  profile: ProfileRow | null,
+  emailFallback?: string,
+): Promise<WorkspaceScope | null> {
   if (!profile || !profile.tenant_id || !profile.role) return null;
-
-  const role = profile.role as string;
-
-  // brand/creator portal roles are not Workspace users — fail closed.
-  if (role === 'brand' || role === 'brand_contact' || role === 'creator') {
-    return null;
-  }
+  const role = profile.role;
+  if (role === 'brand' || role === 'brand_contact' || role === 'creator') return null;
 
   const base = {
-    userId: profile.user_id as string,
-    email: (profile.email ?? user.email ?? '') as string,
-    name: (profile.name ?? null) as string | null,
-    tenantId: profile.tenant_id as string,
+    userId: profile.user_id,
+    email: profile.email ?? emailFallback ?? '',
+    name: profile.name ?? null,
+    tenantId: profile.tenant_id,
     role,
   };
 
@@ -80,26 +74,57 @@ export async function getWorkspaceScope(): Promise<WorkspaceScope | null> {
       .select('brand_id')
       .eq('user_id', profile.user_id)
       .eq('tenant_id', profile.tenant_id);
-
     const brandIds = [...new Set((accessRows ?? []).map((r) => r.brand_id as string))];
-
     let brandSlugs: string[] = [];
     if (brandIds.length > 0) {
       const { data: brands } = await admin
-        .from('brands_v2')
-        .select('slug')
-        .in('id', brandIds)
-        .eq('tenant_id', profile.tenant_id);
-      brandSlugs = (brands ?? [])
-        .map((b) => b.slug as string | null)
-        .filter((s): s is string => !!s);
+        .from('brands_v2').select('slug').in('id', brandIds).eq('tenant_id', profile.tenant_id);
+      brandSlugs = (brands ?? []).map((b) => b.slug as string | null).filter((s): s is string => !!s);
     }
-
     return { ...base, brandScope: { kind: 'scoped', brandIds, brandSlugs } };
   }
 
   // Unknown internal role — fail closed rather than leak the full tenant.
   return null;
+}
+
+/**
+ * Resolves the current user's Workspace scope, or null if they aren't a
+ * Workspace user (unauthenticated, no profile, no tenant, or a
+ * brand/creator-portal role). Routes should treat null as 401/redirect.
+ */
+export async function getWorkspaceScope(): Promise<WorkspaceScope | null> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const admin = await createAdminClient();
+
+  // "View as" impersonation: a platform admin previewing a specific member.
+  // getActiveManagerId is cookie-first + platform-admin-gated (null otherwise),
+  // so this only fires for an admin who explicitly switched. We resolve scope AS
+  // the target member, so every scope-honoring surface renders their view.
+  const impersonatedId = await getActiveManagerId();
+  if (impersonatedId && impersonatedId !== user.id) {
+    const { data: target } = await admin
+      .from('user_profiles')
+      .select('user_id, email, name, role, tenant_id')
+      .eq('user_id', impersonatedId)
+      .maybeSingle();
+    const targetScope = await scopeFromProfile(admin, target as ProfileRow | null);
+    if (targetScope) {
+      return { ...targetScope, impersonating: { userId: targetScope.userId, name: targetScope.name } };
+    }
+    // Invalid/stale target → fall through to the admin's own scope.
+  }
+
+  const { data: profile } = await admin
+    .from('user_profiles')
+    .select('user_id, email, name, role, tenant_id')
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  return scopeFromProfile(admin, profile as ProfileRow | null, user.email ?? undefined);
 }
 
 /**
