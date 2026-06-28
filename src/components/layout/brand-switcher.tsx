@@ -73,12 +73,11 @@ export function BrandSwitcher() {
       // Source from the scope-aware /api/brands (server resolves getWorkspaceScope)
       // so the picker reflects the caller's actual scope — including platform-admin
       // "view as" impersonation, which lives in a server cookie the browser's own
-      // Supabase session can't see. A scoped user (manager / viewing-as-manager)
-      // gets only their brands, and "All Brands" is hidden.
+      // Supabase session can't see. A scoped user (manager / viewing-as) gets only
+      // their assigned brands (never the full tenant).
       const res = await fetch('/api/brands');
       if (!res.ok) throw new Error(`brands ${res.status}`);
       const json = await res.json();
-      const scoped = !!json.scoped;
 
       // Active, top-level brands only (parent_brand_id excludes the LeeFar per-store
       // splits — roster/management is keyed to the umbrella).
@@ -90,8 +89,9 @@ export function BrandSwitcher() {
         .map(b => ({ key: b.slug, label: b.display_name || b.name, color: b.color || '#6B7280' }));
 
       setOptions([
-        // Only offer "All Brands" to full-tenant (unscoped) users.
-        ...(!scoped && rows.length > 1 ? [{ key: 'all', label: 'All Brands', color: null as string | null }] : []),
+        // "All Brands" = the portfolio view; offered whenever there's more than one
+        // brand. For a scoped user it aggregates only THEIR brands (server-enforced).
+        ...(rows.length > 1 ? [{ key: 'all', label: 'All Brands', color: null as string | null }] : []),
         ...rows,
       ]);
       setStatus('ready');
@@ -104,6 +104,15 @@ export function BrandSwitcher() {
   }, [setBrand]);
 
   useEffect(() => { loadBrands(); }, [loadBrands]);
+
+  // Re-fetch when the platform admin switches tenant / "view as" user — those
+  // server actions update context cookies and dispatch this event, so the picker
+  // reflects the new scope without a manual page refresh.
+  useEffect(() => {
+    const onContextChange = () => loadBrands();
+    window.addEventListener('workspace-context-changed', onContextChange);
+    return () => window.removeEventListener('workspace-context-changed', onContextChange);
+  }, [loadBrands]);
 
   // Self-heal: if the menu is opened after a failed load, try again so the user
   // isn't stuck with an empty list.

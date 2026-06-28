@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { ChevronDown, Building2, Check, Eye } from 'lucide-react';
 import { switchTenant } from '@/app/actions/switch-tenant';
 import { switchManager } from '@/app/actions/switch-manager';
@@ -21,6 +22,14 @@ export function TenantSwitcher({ tenants, activeTenantId, managers, activeManage
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+
+  // After changing tenant / view-as, re-sync the page (server components) and
+  // notify client widgets that self-fetch by scope (e.g. the brand selector).
+  function syncContext() {
+    window.dispatchEvent(new Event('workspace-context-changed'));
+    router.refresh();
+  }
 
   const activeTenant = tenants.find((t) => t.id === activeTenantId) ?? null;
   const activeManager = managers.find((m) => m.id === activeManagerId) ?? null;
@@ -38,11 +47,13 @@ export function TenantSwitcher({ tenants, activeTenantId, managers, activeManage
   async function pickTenant(id: string | null) {
     setPending(true); setOpen(false);
     await switchTenant(id);
+    syncContext();
     setPending(false);
   }
   async function pickManager(id: string | null) {
     setPending(true); setOpen(false);
     await switchManager(id);
+    syncContext();
     setPending(false);
   }
 
