@@ -111,11 +111,16 @@ export async function getWorkspaceScope(): Promise<WorkspaceScope | null> {
       .select('user_id, email, name, role, tenant_id')
       .eq('user_id', impersonatedId)
       .maybeSingle();
-    const targetScope = await scopeFromProfile(admin, target as ProfileRow | null);
-    if (targetScope) {
-      return { ...targetScope, impersonating: { userId: targetScope.userId, name: targetScope.name } };
+    // Only ever impersonate a MANAGER — never resolve a full-tenant role (guards
+    // against role-drift on a stale cookie escalating the view to {kind:'all'}).
+    const targetRow = target as ProfileRow | null;
+    if (targetRow?.role === 'manager') {
+      const targetScope = await scopeFromProfile(admin, targetRow);
+      if (targetScope) {
+        return { ...targetScope, impersonating: { userId: targetScope.userId, name: targetScope.name } };
+      }
     }
-    // Invalid/stale target → fall through to the admin's own scope.
+    // Invalid/stale/non-manager target → fall through to the admin's own scope.
   }
 
   const { data: profile } = await admin

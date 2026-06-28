@@ -21,7 +21,9 @@ export async function switchManager(userId: string | null) {
     if (activeTenantId) q = q.eq('tenant_id', activeTenantId);
     const { data } = await q.maybeSingle();
     if (!data) return; // not a valid manager to impersonate → no-op
-    jar.set(ACTIVE_MANAGER_COOKIE, userId, { path: '/', httpOnly: true, sameSite: 'lax' });
+    jar.set(ACTIVE_MANAGER_COOKIE, userId, {
+      path: '/', httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production',
+    });
   } else {
     jar.delete(ACTIVE_MANAGER_COOKIE);
   }
