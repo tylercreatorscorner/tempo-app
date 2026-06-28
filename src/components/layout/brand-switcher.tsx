@@ -5,7 +5,6 @@ import { ChevronsUpDown, Check, Search, LayoutGrid, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { useGlobalBrand } from '@/hooks/use-global-brand';
-import { createClient } from '@/lib/supabase/client';
 
 interface BrandOption {
   key: string;
@@ -69,60 +68,39 @@ export function BrandSwitcher() {
   // it must NEVER leave the switcher blank. That's why the component renders the
   // trigger regardless of whether this succeeds, and why we don't swallow errors.
   const loadBrands = useCallback(async () => {
-    const supabase = createClient();
     setStatus(s => (s === 'ready' ? s : 'loading'));
-
-    // Per-user brand restriction (allowed_brands) is best-effort: if the auth or
-    // profile lookup hiccups, fall back to no extra client filter and let RLS
-    // scope the list — never abort the whole load over it.
-    let allowedBrands: string[] | null = null;
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: profile } = await supabase
-          .from('user_profiles')
-          .select('allowed_brands')
-          .eq('user_id', user.id)
-          .maybeSingle();
-        if (Array.isArray(profile?.allowed_brands) && profile.allowed_brands.length > 0) {
-          allowedBrands = profile.allowed_brands;
-        }
-      }
+      // Source from the scope-aware /api/brands (server resolves getWorkspaceScope)
+      // so the picker reflects the caller's actual scope — including platform-admin
+      // "view as" impersonation, which lives in a server cookie the browser's own
+      // Supabase session can't see. A scoped user (manager / viewing-as-manager)
+      // gets only their brands, and "All Brands" is hidden.
+      const res = await fetch('/api/brands');
+      if (!res.ok) throw new Error(`brands ${res.status}`);
+      const json = await res.json();
+      const scoped = !!json.scoped;
+
+      // Active, top-level brands only (parent_brand_id excludes the LeeFar per-store
+      // splits — roster/management is keyed to the umbrella).
+      const rows = ((json.brands ?? []) as Array<{
+        slug: string; name: string; display_name: string | null;
+        color: string | null; is_archived: boolean; parent_brand_id: string | null;
+      }>)
+        .filter(b => !b.is_archived && !b.parent_brand_id)
+        .map(b => ({ key: b.slug, label: b.display_name || b.name, color: b.color || '#6B7280' }));
+
+      setOptions([
+        // Only offer "All Brands" to full-tenant (unscoped) users.
+        ...(!scoped && rows.length > 1 ? [{ key: 'all', label: 'All Brands', color: null as string | null }] : []),
+        ...rows,
+      ]);
+      setStatus('ready');
+      if (rows.length === 1) setBrand(rows[0].key);
     } catch (e) {
-      console.warn('[BrandSwitcher] allowed_brands lookup failed; relying on RLS', e);
-    }
-
-    // Hide LeeFar's per-store slugs from the picker. Roster + management
-    // is keyed to the 'leefar' umbrella; per-store splits live inside the
-    // performance views (videos/posts), not as top-level brand entries.
-    const HIDDEN_STORE_SLUGS = ['leefar_nutrition', 'leefar_supplements', 'leefar_us'];
-
-    let req = supabase
-      .from('brands_v2')
-      .select('slug, display_name, name, color')
-      .eq('is_archived', false)
-      .not('slug', 'in', `(${HIDDEN_STORE_SLUGS.map(s => `"${s}"`).join(',')})`);
-    if (allowedBrands) req = req.in('slug', allowedBrands);
-
-    const { data, error } = await req.order('name');
-    if (error) {
       // Surface it — don't swallow. The dropdown shows a Retry affordance.
-      console.error('[BrandSwitcher] failed to load brands:', error.message);
+      console.error('[BrandSwitcher] failed to load brands:', e);
       setStatus('error');
-      return;
     }
-
-    const rows = data ?? [];
-    setOptions([
-      ...(rows.length > 1 ? [{ key: 'all', label: 'All Brands', color: null as string | null }] : []),
-      ...rows.map(b => ({
-        key: b.slug,
-        label: b.display_name || b.name,
-        color: b.color || '#6B7280',
-      })),
-    ]);
-    setStatus('ready');
-    if (rows.length === 1) setBrand(rows[0].slug);
   }, [setBrand]);
 
   useEffect(() => { loadBrands(); }, [loadBrands]);

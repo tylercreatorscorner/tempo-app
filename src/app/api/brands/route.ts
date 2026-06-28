@@ -25,7 +25,7 @@ export async function GET() {
   const supabase = await createAdminClient();
   let brandsQuery = supabase
     .from('brands_v2')
-    .select('id, slug, name, color, is_archived, is_umbrella, parent_brand_id, created_at')
+    .select('id, slug, name, display_name, color, is_archived, is_umbrella, parent_brand_id, created_at')
     .order('is_archived', { ascending: true })
     .order('name');
   if (bs.kind === 'scoped') {
@@ -38,7 +38,7 @@ export async function GET() {
   // Managers never get financial settings.
   if (managerScoped) {
     const brands = (brandsRows ?? []).map((b) => ({ ...b, settings: null }));
-    return NextResponse.json({ brands });
+    return NextResponse.json({ brands, scoped: true });
   }
 
   const slugs = (brandsRows ?? []).map((b: { slug: string }) => b.slug);
@@ -57,7 +57,7 @@ export async function GET() {
     settings: settingsBySlug.get(b.slug) ?? null,
   }));
 
-  return NextResponse.json({ brands });
+  return NextResponse.json({ brands, scoped: false });
 }
 
 interface PostBody {
