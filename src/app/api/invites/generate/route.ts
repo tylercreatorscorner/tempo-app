@@ -1,14 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
+import { requireAdmin } from '@/lib/auth/require-admin';
 import { randomBytes } from 'crypto';
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { brand, tenant_id, created_by, max_uses = 100, expires_days = 7 } = body;
+    // Admin-only, and the tenant is the admin's OWN tenant — never trust a
+    // tenant_id from the body (that let any caller mint invites into any tenant).
+    const admin = await requireAdmin();
+    if (!admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    if (!admin.tenant_id) return NextResponse.json({ error: 'No tenant on profile' }, { status: 400 });
 
-    if (!brand || !tenant_id) {
-      return NextResponse.json({ error: 'brand and tenant_id are required' }, { status: 400 });
+    const body = await request.json();
+    const { brand, max_uses = 100, expires_days = 7 } = body;
+
+    if (!brand) {
+      return NextResponse.json({ error: 'brand is required' }, { status: 400 });
     }
 
     const code = randomBytes(4).toString('hex'); // 8 char hex code
@@ -19,8 +26,8 @@ export async function POST(request: NextRequest) {
       .from('invites')
       .insert({
         brand,
-        tenant_id,
-        created_by: created_by ?? 'admin',
+        tenant_id: admin.tenant_id,
+        created_by: admin.email || admin.user_id,
         code,
         expires_at,
         max_uses,

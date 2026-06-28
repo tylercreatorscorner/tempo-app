@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
+import { requireAdmin } from '@/lib/auth/require-admin';
 import type { SyncStatus } from '@/lib/tiktok/types';
 
 /**
@@ -7,6 +8,8 @@ import type { SyncStatus } from '@/lib/tiktok/types';
  * Returns last sync time, rows synced, and any errors per brand.
  */
 export async function GET() {
+  // Sync status spans all brands — owner/admin only.
+  if (!(await requireAdmin())) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   try {
     const supabase = await createAdminClient();
 
