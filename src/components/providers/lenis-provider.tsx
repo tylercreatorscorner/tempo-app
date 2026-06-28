@@ -17,6 +17,20 @@ export function LenisProvider({ children }: { children: ReactNode }) {
       smoothWheel: true,
       wheelMultiplier: 1,
       touchMultiplier: 1.5,
+      // Don't hijack the wheel when the cursor is over a natively-scrollable
+      // element (dropdown menus, modals, any overflow-auto/scroll area) — let it
+      // scroll itself instead of the page. Without this, Lenis intercepts wheel
+      // at the document level and every inner scroll area scrolls the page
+      // instead. Also honors the explicit `data-lenis-prevent` opt-out.
+      prevent: (node) => {
+        let el: HTMLElement | null = node;
+        for (let i = 0; el && i < 8; i++, el = el.parentElement) {
+          if (el.hasAttribute('data-lenis-prevent')) return true;
+          const oy = window.getComputedStyle(el).overflowY;
+          if ((oy === 'auto' || oy === 'scroll') && el.scrollHeight > el.clientHeight) return true;
+        }
+        return false;
+      },
     });
 
     let frame: number;

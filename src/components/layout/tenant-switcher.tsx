@@ -68,7 +68,7 @@ export function TenantSwitcher({ tenants, activeTenantId, managers, activeManage
 
       {open && (
         <div className="absolute left-0 top-full mt-1 w-64 bg-white border border-gray-200 rounded-xl shadow-lg z-50">
-          <div className="max-h-[70vh] overflow-y-auto overscroll-contain py-1">
+          <div data-lenis-prevent className="max-h-[70vh] overflow-y-auto overscroll-contain py-1">
             {/* Tenant section */}
             <div className="px-3 py-2 border-b border-gray-100">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Super Admin — Switch Tenant</p>
