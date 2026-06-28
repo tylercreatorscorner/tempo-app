@@ -32,6 +32,18 @@ export async function getActiveManagerId(): Promise<string | null> {
   return val;
 }
 
+/**
+ * Throws when the caller is "viewing as" another member — i.e. in read-only
+ * preview mode. Call at the top of every MUTATING server action (server actions
+ * POST to page routes, so the /api/* middleware read-only gate can't see them).
+ * No-op (one cookie read) for normal, non-impersonating requests.
+ */
+export async function assertNotImpersonating(): Promise<void> {
+  if (await getActiveManagerId()) {
+    throw new Error('Read-only while viewing as another user. Exit “view as” to make changes.');
+  }
+}
+
 export async function getAllTenants() {
   const supabase = await createClient();
   const { data } = await supabase.from('tenants').select('id, name, plan').order('name');

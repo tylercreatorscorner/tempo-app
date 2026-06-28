@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
+import { assertNotImpersonating } from '@/lib/auth/platform-admin';
 
 const MAX_NOTE_LEN = 2000;
 
@@ -10,6 +11,7 @@ const MAX_NOTE_LEN = 2000;
  * The note surfaces on the client-facing /brand-dashboard.
  */
 export async function updateBrandOverviewNote(brandSlug: string, note: string) {
+  await assertNotImpersonating(); // read-only while "viewing as" a member
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not signed in.');
