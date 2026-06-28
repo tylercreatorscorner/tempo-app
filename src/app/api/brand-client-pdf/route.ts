@@ -14,6 +14,7 @@ import { renderToBuffer } from '@react-pdf/renderer';
 import { getBrandClientReportData, type ReportPeriod } from '@/lib/data/brand-client-report';
 import { BrandClientReportPDF } from '@/lib/pdf/brand-client-report-pdf';
 import { getBrandRegistry, brandLabel } from '@/lib/data/brand-registry';
+import { getWorkspaceScope, isBrandInScope } from '@/lib/auth/workspace-scope';
 
 export const runtime = 'nodejs';
 // Allow up to 60s for the heavy multi-table data pull + PDF render
@@ -22,6 +23,16 @@ export const maxDuration = 60;
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
   const brand = searchParams.get('brand') || 'all';
+
+  // Scope guard: a client report exposes a full brand's data. Only let the
+  // caller pull reports for brands in their scope (owner/admin = all; the
+  // all-brands report is owner/admin only). Without this any workspace user
+  // could download any brand's report by changing ?brand=.
+  const scope = await getWorkspaceScope();
+  if (!scope) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (brand === 'all' ? scope.brandScope.kind !== 'all' : !isBrandInScope(scope, { slug: brand })) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
   // Custom date range (start/end) takes precedence over the 7d/30d preset.
   const startParam = searchParams.get('start');
   const endParam = searchParams.get('end');

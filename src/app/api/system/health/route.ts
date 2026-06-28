@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import { requireAdmin } from '@/lib/auth/require-admin'
 
 const supabase = createClient(
   process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -7,6 +8,10 @@ const supabase = createClient(
 )
 
 export async function GET() {
+  // System-wide ops data (pipeline runs, alerts, sessions across all brands) —
+  // owner/admin only. The status footer + /system pages are already admin-only;
+  // this gates the API so non-admin workspace users can't pull it directly.
+  if (!(await requireAdmin())) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   try {
     // Brand sessions
     const { data: sessions } = await supabase
@@ -63,6 +68,7 @@ export async function GET() {
 
 // Acknowledge an alert
 export async function PATCH(request: Request) {
+  if (!(await requireAdmin())) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   try {
     const { alertId } = await request.json()
     

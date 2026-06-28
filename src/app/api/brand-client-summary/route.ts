@@ -13,6 +13,7 @@ import {
   type ReportPeriod,
 } from '@/lib/data/brand-client-report';
 import { getBrandRegistry, brandLabel } from '@/lib/data/brand-registry';
+import { getWorkspaceScope, isBrandInScope } from '@/lib/auth/workspace-scope';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -20,6 +21,13 @@ export const maxDuration = 60;
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
   const brand = searchParams.get('brand') || 'all';
+
+  // Scope guard (same data as the PDF): only allow brands in the caller's scope.
+  const scope = await getWorkspaceScope();
+  if (!scope) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (brand === 'all' ? scope.brandScope.kind !== 'all' : !isBrandInScope(scope, { slug: brand })) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
   const startParam = searchParams.get('start');
   const endParam = searchParams.get('end');
   const isDate = (s: string | null): s is string => !!s && /^\d{4}-\d{2}-\d{2}$/.test(s);

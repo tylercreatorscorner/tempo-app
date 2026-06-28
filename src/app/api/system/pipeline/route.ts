@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import { requireAdmin } from '@/lib/auth/require-admin'
 
 const supabase = createClient(
   process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -9,6 +10,8 @@ const supabase = createClient(
 const BRANDS = ['jiyu', 'catakor', 'physicians_choice']
 
 export async function GET() {
+  // System-wide pipeline ops — owner/admin only (consumed by the admin /system pages).
+  if (!(await requireAdmin())) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   try {
     // All recent pipeline runs (last 60)
     const { data: runs } = await supabase
