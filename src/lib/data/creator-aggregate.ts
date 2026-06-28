@@ -32,11 +32,16 @@ export interface GroupedCreator {
  */
 async function fetchHandleToRealName(handles: string[]): Promise<Map<string, { real_name: string; creator_id: string }>> {
   if (handles.length === 0) return new Map();
+  // Case-insensitive lookup: TikTok handles are case-insensitive and stored
+  // lowercased (migration 063 + the normalize-on-write trigger), so lowercase
+  // the lookup keys too. Without this a mixed-case handle silently fails to
+  // resolve as managed (no real name, excluded from managed-share / ROI).
+  const normalized = Array.from(new Set(handles.map((h) => h.toLowerCase())));
   const supabase = await createClient();
   const { data, error } = await supabase
     .from('tiktok_accounts')
     .select('tiktok_username, creator_id, creator:creators_v2(real_name)')
-    .in('tiktok_username', handles);
+    .in('tiktok_username', normalized);
 
   if (error || !data) {
     console.error('Failed to fetch creator account mappings:', error);

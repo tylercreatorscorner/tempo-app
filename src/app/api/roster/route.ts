@@ -696,7 +696,10 @@ export async function POST(request: NextRequest) {
     : (body.account_1 ? [body.account_1] : []);
   const handles: string[] = Array.from(new Set(
     rawHandles
-      .map((h: unknown) => (typeof h === 'string' ? h.trim().replace(/^@/, '') : ''))
+      // lowercase: handles are case-insensitive and tiktok_accounts is stored
+      // lowercase, so this both matches existing creators on resolve and keeps
+      // the dual-written account_1..5 columns consistent.
+      .map((h: unknown) => (typeof h === 'string' ? h.trim().replace(/^@/, '').toLowerCase() : ''))
       .filter(Boolean),
   ));
 

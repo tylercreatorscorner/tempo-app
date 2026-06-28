@@ -113,7 +113,8 @@ export async function DELETE(
     .from('tiktok_accounts')
     .delete()
     .eq('creator_id', creatorId)
-    .eq('tiktok_username', tiktok_username)
+    // tiktok_accounts is stored lowercase — normalize the lookup like the POST handler.
+    .eq('tiktok_username', tiktok_username.replace(/^@/, '').trim().toLowerCase())
     .eq('tenant_id', scope.tenantId);
 
   if (error) {
