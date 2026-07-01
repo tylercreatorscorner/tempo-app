@@ -172,6 +172,9 @@ interface EnrichedRow extends ManagedRow {
   is_managed: boolean;
   // Resolved product tags (key + display name) for the row chips.
   product_tags: { key: string; name: string }[];
+  // Per-day GMV series over the selected window — powers the roster sparkline.
+  // Attached only to the visible page (not on CSV/Excel export).
+  spark?: number[];
 }
 
 interface UnmanagedPerfRow {
@@ -671,8 +674,55 @@ export async function GET(request: NextRequest) {
   const offset = (page - 1) * limit;
   const slice = exportAll ? filtered.slice(0, 5000) : filtered.slice(offset, offset + limit);
 
+  // ── 7b. Attach a per-row GMV sparkline series for the visible page (skipped
+  // for CSV/Excel export). Same window as the perf figures, so the little trend
+  // explains the row's GMV number.
+  let dataOut: EnrichedRow[] = slice;
+  if (!exportAll && slice.length > 0) {
+    const sliceHandles = Array.from(new Set(
+      slice.flatMap((r) => (r.handles ?? []).map((h) => h.toLowerCase())),
+    ));
+    if (sliceHandles.length > 0) {
+      const { data: seriesRows, error: seriesErr } = await supabase.rpc('get_creator_handle_gmv_series', {
+        handles: sliceHandles,
+        brand_ids: brandIds,
+        days_back: periodDays,
+        p_start_date: pStartDate,
+        p_end_date: pEndDate,
+      });
+      if (seriesErr) {
+        console.error('[/api/roster] gmv-series RPC failed:', seriesErr.message);
+      } else {
+        const byHandle = new Map<string, Map<string, number>>();
+        for (const s of (seriesRows as { tiktok_username: string; stat_date: string; gmv: string | number }[] | null) ?? []) {
+          const h = s.tiktok_username.toLowerCase();
+          const day = String(s.stat_date).slice(0, 10);
+          const m = byHandle.get(h) ?? new Map<string, number>();
+          m.set(day, (m.get(day) ?? 0) + (Number(s.gmv) || 0));
+          byHandle.set(h, m);
+        }
+        const endStr = pEndDate ?? new Date().toISOString().slice(0, 10);
+        const startStr = pStartDate ?? (() => {
+          const d = new Date(endStr + 'T00:00:00Z');
+          d.setUTCDate(d.getUTCDate() - periodDays);
+          return d.toISOString().slice(0, 10);
+        })();
+        const endD = new Date(endStr + 'T00:00:00Z');
+        let days: string[] = [];
+        for (let d = new Date(startStr + 'T00:00:00Z'); d <= endD; d.setUTCDate(d.getUTCDate() + 1)) {
+          days.push(d.toISOString().slice(0, 10));
+        }
+        if (days.length > 45) days = days.slice(days.length - 45); // keep the sparkline compact
+        dataOut = slice.map((r) => {
+          const hs = (r.handles ?? []).map((h) => h.toLowerCase());
+          return { ...r, spark: days.map((day) => hs.reduce((sum, h) => sum + (byHandle.get(h)?.get(day) ?? 0), 0)) };
+        });
+      }
+    }
+  }
+
   return NextResponse.json({
-    data: slice,
+    data: dataOut,
     total,
     total_managed,
     page,

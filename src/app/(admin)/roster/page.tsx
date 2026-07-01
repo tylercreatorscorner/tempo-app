@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { SparklineCell } from '@/components/ui-kit/sparkline-cell';
 import {
   UserPlus, Search, Users, UserCheck, X,
   ChevronLeft, ChevronRight, ExternalLink, Loader2,
@@ -80,6 +81,8 @@ interface Creator {
   health: CreatorHealth;
   // Period-driven: gmv_period ÷ retainer, null when retainer is 0.
   roi_period: number | null;
+  // Per-day GMV series over the selected window (roster sparkline). Page-only.
+  spark?: number[];
   // ── Messaging signals ──
   last_message_at: string | null;
   unread_count: number;
@@ -1394,7 +1397,7 @@ function RosterContent() {
 
   // Total column count for skeleton rows. The select + action columns both
   // appear only in the non-managed views (showAddAction).
-  const cols = 2 + (showBrandColumn ? 1 : 0) + (showManagedTag ? 1 : 0) + 6 + (showAddAction ? 2 : 0);
+  const cols = 2 + (showBrandColumn ? 1 : 0) + (showManagedTag ? 1 : 0) + 7 + (showAddAction ? 2 : 0);
 
   return (
     <div className="space-y-5">
@@ -1593,6 +1596,7 @@ function RosterContent() {
                       GMV ({periodShort}) <SortIcon col="gmv_period" />
                     </button>
                   </th>
+                  <th className="text-left px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">Trend</th>
                   <th className="text-right px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
                     <button onClick={() => toggleSort('roi_period')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors">
                       ROI <SortIcon col="roi_period" />
@@ -1695,6 +1699,7 @@ function RosterContent() {
                           ? <span className="text-[#1A1B3A] font-semibold">{fmt(c.gmv_period)}</span>
                           : <span className="text-gray-300">—</span>}
                       </td>
+                      <td className="px-5 py-3.5"><SparklineCell data={c.spark} /></td>
                       <td className="px-5 py-3.5 text-right"><RoiCell roi={c.roi_period} /></td>
                       {showAddAction && (
                         <td className="px-5 py-3.5 text-right">
