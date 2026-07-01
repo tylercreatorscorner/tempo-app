@@ -83,6 +83,10 @@ interface Creator {
   roi_period: number | null;
   // Per-day GMV series over the selected window (roster sparkline). Page-only.
   spark?: number[];
+  spark_posts?: number[];
+  gmv_delta?: number | null;
+  posts_delta?: number | null;
+  level?: number | null;
   // ── Messaging signals ──
   last_message_at: string | null;
   unread_count: number;
@@ -1199,6 +1203,30 @@ function AddCreatorModal({ prefill, onClose, onSuccess }: AddCreatorModalProps) 
 // via the ?include=all toggle on /api/roster (see get_unmanaged_top_perf RPC).
 // The action cell renders "+ Add to roster" for unmanaged rows.
 
+// Prior-period % change badge (green up / red down). Hidden when unknown.
+function DeltaBadge({ value }: { value?: number | null }) {
+  if (value == null || !Number.isFinite(value)) return null;
+  const up = value >= 0;
+  return (
+    <span className={`text-[10px] font-semibold ${up ? 'text-green-600' : 'text-red-500'}`}>
+      {up ? '▲' : '▼'}{Math.abs(Math.round(value)).toLocaleString()}%
+    </span>
+  );
+}
+
+// Creator level L1–L7 (from trailing-30-day GMV). Managed rows only.
+function LevelBadge({ level }: { level?: number | null }) {
+  if (!level) return null;
+  return (
+    <span
+      className="ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-50 text-purple-600 align-middle"
+      title="Creator level — trailing 30-day GMV (L1 $0–5K · L2 5–25K · L3 25–60K · L4 60–150K · L5 150–400K · L6 400K–1.5M · L7 1.5M+)"
+    >
+      L{level}
+    </span>
+  );
+}
+
 function RosterContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -1397,7 +1425,7 @@ function RosterContent() {
 
   // Total column count for skeleton rows. The select + action columns both
   // appear only in the non-managed views (showAddAction).
-  const cols = 2 + (showBrandColumn ? 1 : 0) + (showManagedTag ? 1 : 0) + 7 + (showAddAction ? 2 : 0);
+  const cols = 2 + (showBrandColumn ? 1 : 0) + (showManagedTag ? 1 : 0) + 6 + (showAddAction ? 2 : 0);
 
   return (
     <div className="space-y-5">
@@ -1596,7 +1624,6 @@ function RosterContent() {
                       GMV ({periodShort}) <SortIcon col="gmv_period" />
                     </button>
                   </th>
-                  <th className="text-left px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">Trend</th>
                   <th className="text-right px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
                     <button onClick={() => toggleSort('roi_period')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors">
                       ROI <SortIcon col="roi_period" />
@@ -1663,6 +1690,7 @@ function RosterContent() {
                               @{primary}
                             </a>
                             <ExtraAccountsBadge creator={c} />
+                            <LevelBadge level={c.level} />
                           </span>
                         ) : <span className="text-gray-400">—</span>}
                       </td>
@@ -1689,17 +1717,28 @@ function RosterContent() {
                       <td className="px-5 py-3.5 text-right font-semibold text-[#1A1B3A]">
                         {(c.retainer || 0) > 0 ? fmt(c.retainer!) : <span className="text-gray-300 font-normal">—</span>}
                       </td>
-                      <td className="px-5 py-3.5 text-center tabular-nums text-gray-700">
-                        {c.posts_period || 0}
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center justify-center gap-2.5">
+                          <SparklineCell data={c.spark_posts} color="#22C55E" />
+                          <div className="text-right min-w-[36px]">
+                            <div className="tabular-nums text-gray-700">{c.posts_period || 0}</div>
+                            <DeltaBadge value={c.posts_delta} />
+                          </div>
+                        </div>
                       </td>
                       <td className="px-5 py-3.5"><LastPostCell date={c.last_post_date} /></td>
                       <td className="px-5 py-3.5"><JoinDateCell date={c.joined} /></td>
-                      <td className="px-5 py-3.5 text-right tabular-nums">
-                        {(c.gmv_period || 0) > 0
-                          ? <span className="text-[#1A1B3A] font-semibold">{fmt(c.gmv_period)}</span>
-                          : <span className="text-gray-300">—</span>}
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center justify-end gap-2.5">
+                          <SparklineCell data={c.spark} color="#22C55E" />
+                          <div className="text-right min-w-[72px]">
+                            <div className="tabular-nums font-semibold text-[#1A1B3A]">
+                              {(c.gmv_period || 0) > 0 ? fmt(c.gmv_period) : <span className="text-gray-300 font-normal">—</span>}
+                            </div>
+                            <DeltaBadge value={c.gmv_delta} />
+                          </div>
+                        </div>
                       </td>
-                      <td className="px-5 py-3.5"><SparklineCell data={c.spark} /></td>
                       <td className="px-5 py-3.5 text-right"><RoiCell roi={c.roi_period} /></td>
                       {showAddAction && (
                         <td className="px-5 py-3.5 text-right">

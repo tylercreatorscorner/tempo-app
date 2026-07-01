@@ -45,6 +45,18 @@ export type CreatorHealth =
 
 const SILENT_DAYS_THRESHOLD = 14;
 
+// Creator level tiers (L1–L7) from trailing-30-day GMV — the Cruva-style
+// "how big is this creator" badge. Thresholds are the shop-GMV bands.
+function levelFromGmv(gmv: number): number {
+  if (gmv >= 1_500_000) return 7;
+  if (gmv >= 400_000) return 6;
+  if (gmv >= 150_000) return 5;
+  if (gmv >= 60_000) return 4;
+  if (gmv >= 25_000) return 3;
+  if (gmv >= 5_000) return 2;
+  return 1;
+}
+
 function daysSince(date: string | null): number | null {
   if (!date) return null;
   const ms = Date.now() - new Date(date + 'T00:00:00Z').getTime();
@@ -175,6 +187,13 @@ interface EnrichedRow extends ManagedRow {
   // Per-day GMV series over the selected window — powers the roster sparkline.
   // Attached only to the visible page (not on CSV/Excel export).
   spark?: number[];
+  // Per-day distinct-posts series over the same window (Posts sparkline).
+  spark_posts?: number[];
+  // Prior-period % change (period-over-period), null when the prior period was 0.
+  gmv_delta?: number | null;
+  posts_delta?: number | null;
+  // Creator level L1–L7 from trailing-30-day GMV (managed rows only).
+  level?: number | null;
 }
 
 interface UnmanagedPerfRow {
@@ -674,50 +693,89 @@ export async function GET(request: NextRequest) {
   const offset = (page - 1) * limit;
   const slice = exportAll ? filtered.slice(0, 5000) : filtered.slice(offset, offset + limit);
 
-  // ── 7b. Attach a per-row GMV sparkline series for the visible page (skipped
-  // for CSV/Excel export). Same window as the perf figures, so the little trend
-  // explains the row's GMV number.
+  // ── 7b. Enrich the visible page (skipped for CSV/Excel export): per-row GMV +
+  // posts sparklines, prior-period deltas, and the creator level (30d GMV tier).
+  // All slice-scoped, so these extra RPCs stay tiny.
   let dataOut: EnrichedRow[] = slice;
   if (!exportAll && slice.length > 0) {
     const sliceHandles = Array.from(new Set(
       slice.flatMap((r) => (r.handles ?? []).map((h) => h.toLowerCase())),
     ));
     if (sliceHandles.length > 0) {
-      const { data: seriesRows, error: seriesErr } = await supabase.rpc('get_creator_handle_gmv_series', {
-        handles: sliceHandles,
-        brand_ids: brandIds,
-        days_back: periodDays,
-        p_start_date: pStartDate,
-        p_end_date: pEndDate,
-      });
-      if (seriesErr) {
-        console.error('[/api/roster] gmv-series RPC failed:', seriesErr.message);
-      } else {
-        const byHandle = new Map<string, Map<string, number>>();
-        for (const s of (seriesRows as { tiktok_username: string; stat_date: string; gmv: string | number }[] | null) ?? []) {
-          const h = s.tiktok_username.toLowerCase();
-          const day = String(s.stat_date).slice(0, 10);
-          const m = byHandle.get(h) ?? new Map<string, number>();
-          m.set(day, (m.get(day) ?? 0) + (Number(s.gmv) || 0));
-          byHandle.set(h, m);
-        }
-        const endStr = pEndDate ?? new Date().toISOString().slice(0, 10);
-        const startStr = pStartDate ?? (() => {
-          const d = new Date(endStr + 'T00:00:00Z');
-          d.setUTCDate(d.getUTCDate() - periodDays);
-          return d.toISOString().slice(0, 10);
-        })();
-        const endD = new Date(endStr + 'T00:00:00Z');
-        let days: string[] = [];
-        for (let d = new Date(startStr + 'T00:00:00Z'); d <= endD; d.setUTCDate(d.getUTCDate() + 1)) {
-          days.push(d.toISOString().slice(0, 10));
-        }
-        if (days.length > 45) days = days.slice(days.length - 45); // keep the sparkline compact
-        dataOut = slice.map((r) => {
-          const hs = (r.handles ?? []).map((h) => h.toLowerCase());
-          return { ...r, spark: days.map((day) => hs.reduce((sum, h) => sum + (byHandle.get(h)?.get(day) ?? 0), 0)) };
-        });
+      // Window day-list (bounded) for the sparklines.
+      const endStr = pEndDate ?? new Date().toISOString().slice(0, 10);
+      const startStr = pStartDate ?? (() => {
+        const d = new Date(endStr + 'T00:00:00Z');
+        d.setUTCDate(d.getUTCDate() - periodDays);
+        return d.toISOString().slice(0, 10);
+      })();
+      const startD = new Date(startStr + 'T00:00:00Z');
+      const endD = new Date(endStr + 'T00:00:00Z');
+      let days: string[] = [];
+      for (let d = new Date(startD); d <= endD; d.setUTCDate(d.getUTCDate() + 1)) {
+        days.push(d.toISOString().slice(0, 10));
       }
+      if (days.length > 45) days = days.slice(days.length - 45);
+
+      // Prior period of equal length, immediately before the current window.
+      const windowDays = Math.round((endD.getTime() - startD.getTime()) / 86400000) + 1;
+      const prevEnd = new Date(startD); prevEnd.setUTCDate(prevEnd.getUTCDate() - 1);
+      const prevStart = new Date(prevEnd); prevStart.setUTCDate(prevStart.getUTCDate() - (windowDays - 1));
+      const prevStartStr = prevStart.toISOString().slice(0, 10);
+      const prevEndStr = prevEnd.toISOString().slice(0, 10);
+
+      const [gmvSeriesRes, postsSeriesRes, priorPerfRes, perf30Res] = await Promise.all([
+        supabase.rpc('get_creator_handle_gmv_series', { handles: sliceHandles, brand_ids: brandIds, days_back: periodDays, p_start_date: pStartDate, p_end_date: pEndDate }),
+        supabase.rpc('get_creator_handle_posts_series', { handles: sliceHandles, brand_ids: brandIds, days_back: periodDays, p_start_date: pStartDate, p_end_date: pEndDate }),
+        supabase.rpc('get_creator_handle_perf', { handles: sliceHandles, brand_ids: brandIds, days_back: periodDays, p_start_date: prevStartStr, p_end_date: prevEndStr }),
+        supabase.rpc('get_creator_handle_perf', { handles: sliceHandles, brand_ids: brandIds, days_back: 30, p_start_date: null, p_end_date: null }),
+      ]);
+      if (gmvSeriesRes.error) console.error('[/api/roster] gmv-series RPC failed:', gmvSeriesRes.error.message);
+      if (postsSeriesRes.error) console.error('[/api/roster] posts-series RPC failed:', postsSeriesRes.error.message);
+      if (priorPerfRes.error) console.error('[/api/roster] prior-perf RPC failed:', priorPerfRes.error.message);
+      if (perf30Res.error) console.error('[/api/roster] 30d-perf RPC failed:', perf30Res.error.message);
+
+      const gmvByDay = new Map<string, Map<string, number>>();
+      for (const s of (gmvSeriesRes.data as { tiktok_username: string; stat_date: string; gmv: string | number }[] | null) ?? []) {
+        const h = s.tiktok_username.toLowerCase();
+        const day = String(s.stat_date).slice(0, 10);
+        const m = gmvByDay.get(h) ?? new Map<string, number>();
+        m.set(day, (m.get(day) ?? 0) + (Number(s.gmv) || 0));
+        gmvByDay.set(h, m);
+      }
+      const postsByDay = new Map<string, Map<string, number>>();
+      for (const s of (postsSeriesRes.data as { tiktok_username: string; stat_date: string; posts: number }[] | null) ?? []) {
+        const h = s.tiktok_username.toLowerCase();
+        const day = String(s.stat_date).slice(0, 10);
+        const m = postsByDay.get(h) ?? new Map<string, number>();
+        m.set(day, (m.get(day) ?? 0) + (Number(s.posts) || 0));
+        postsByDay.set(h, m);
+      }
+      const priorByHandle = new Map<string, { gmv: number; posts: number }>();
+      for (const p of (priorPerfRes.data as PerfRow[] | null) ?? []) {
+        priorByHandle.set(p.tiktok_username.toLowerCase(), { gmv: Number(p.gmv_period) || 0, posts: Number(p.posts_period) || 0 });
+      }
+      const gmv30ByHandle = new Map<string, number>();
+      for (const p of (perf30Res.data as PerfRow[] | null) ?? []) {
+        gmv30ByHandle.set(p.tiktok_username.toLowerCase(), Number(p.gmv_period) || 0);
+      }
+
+      const pct = (cur: number, prev: number): number | null => (prev > 0 ? ((cur - prev) / prev) * 100 : null);
+
+      dataOut = slice.map((r) => {
+        const hs = (r.handles ?? []).map((h) => h.toLowerCase());
+        const priorGmv = hs.reduce((s, h) => s + (priorByHandle.get(h)?.gmv ?? 0), 0);
+        const priorPosts = hs.reduce((s, h) => s + (priorByHandle.get(h)?.posts ?? 0), 0);
+        const gmv30 = hs.reduce((s, h) => s + (gmv30ByHandle.get(h) ?? 0), 0);
+        return {
+          ...r,
+          spark: days.map((day) => hs.reduce((s, h) => s + (gmvByDay.get(h)?.get(day) ?? 0), 0)),
+          spark_posts: days.map((day) => hs.reduce((s, h) => s + (postsByDay.get(h)?.get(day) ?? 0), 0)),
+          gmv_delta: pct(r.gmv_period, priorGmv),
+          posts_delta: pct(r.posts_period, priorPosts),
+          level: r.is_managed ? levelFromGmv(gmv30) : null,
+        };
+      });
     }
   }
 
