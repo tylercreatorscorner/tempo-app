@@ -273,6 +273,17 @@ export async function GET(request: NextRequest) {
   // that store. Applied client-side after enrichment; null = no sub-filter.
   const storeFilter = searchParams.get('store');
 
+  // Numeric threshold post-filters (used by saved Segments). Applied after
+  // enrichment alongside health/store, since GMV/posts are computed per row.
+  const parseNum = (v: string | null): number | null => {
+    if (v === null || v === '') return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  };
+  const minGmv = parseNum(searchParams.get('min_gmv'));
+  const maxGmv = parseNum(searchParams.get('max_gmv'));
+  const minPosts = parseNum(searchParams.get('min_posts'));
+
   const supabase = await createAdminClient();
   const reg = await getBrandRegistry();
 
@@ -623,6 +634,12 @@ export async function GET(request: NextRequest) {
   if (searchParams.get('managed') === 'unmanaged') {
     filtered = filtered.filter((r) => !r.is_managed);
   }
+
+  // ── 5d. Numeric threshold filters (saved Segments). Post-enrichment, on the
+  // computed period GMV / posts. No-ops unless the param is present.
+  if (minGmv !== null) filtered = filtered.filter((r) => (r.gmv_period || 0) >= minGmv);
+  if (maxGmv !== null) filtered = filtered.filter((r) => (r.gmv_period || 0) <= maxGmv);
+  if (minPosts !== null) filtered = filtered.filter((r) => (r.posts_period || 0) >= minPosts);
 
   // ── 6. Sort. DB-column sorts use the original field; computed sorts use
   // the derived field. Nulls go last in both directions for usability.
