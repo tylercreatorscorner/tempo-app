@@ -28,7 +28,9 @@ export async function GET() {
 
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ segments: data ?? [] });
+  // readOnly → a platform admin is "viewing as" a member; mutations are blocked
+  // by the middleware, so the UI hides its create/delete controls to match.
+  return NextResponse.json({ segments: data ?? [], readOnly: !!scope.impersonating });
 }
 
 // POST /api/segments — save the current roster filters as a custom segment.

@@ -30,6 +30,7 @@ export default function SegmentsPage() {
   const [counts, setCounts] = useState<Record<string, number | null>>({});
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
+  const [readOnly, setReadOnly] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [members, setMembers] = useState<Record<string, MemberRow[] | 'loading'>>({});
 
@@ -40,6 +41,7 @@ export default function SegmentsPage() {
       const segJson = await segRes.json();
       const brandJson = await brandRes.json();
       setCustoms((segJson.segments ?? []) as Segment[]);
+      setReadOnly(!!segJson.readOnly);
       const bopts = ((brandJson.brands ?? []) as Array<{
         slug: string; name: string; display_name: string | null; is_archived: boolean; parent_brand_id: string | null;
       }>)
@@ -90,8 +92,18 @@ export default function SegmentsPage() {
 
   async function del(id: string) {
     if (!window.confirm('Delete this segment?')) return;
-    setCustoms((prev) => prev.filter((s) => s.id !== id));
-    await fetch(`/api/segments/${id}`, { method: 'DELETE' });
+    const prev = customs;
+    setCustoms((c) => c.filter((s) => s.id !== id));
+    try {
+      const res = await fetch(`/api/segments/${id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.error || `Delete failed (${res.status})`);
+      }
+    } catch (e) {
+      setCustoms(prev); // revert — the delete didn't stick
+      window.alert(e instanceof Error ? e.message : 'Failed to delete segment');
+    }
   }
 
   function renderRow(opts: {
@@ -155,12 +167,14 @@ export default function SegmentsPage() {
           </h1>
           <p className="text-sm text-gray-500 mt-0.5">Saved audiences you can reuse across the roster, messaging, and contests.</p>
         </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium text-white bg-[#FF4D8D] hover:bg-[#e63e7c] flex-shrink-0"
-        >
-          <Plus className="h-4 w-4" /> New Segment
-        </button>
+        {!readOnly && (
+          <button
+            onClick={() => setShowCreate(true)}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium text-white bg-[#FF4D8D] hover:bg-[#e63e7c] flex-shrink-0"
+          >
+            <Plus className="h-4 w-4" /> New Segment
+          </button>
+        )}
       </div>
 
       <section className="space-y-2">
@@ -179,9 +193,11 @@ export default function SegmentsPage() {
         ) : customs.length === 0 ? (
           <div className="border border-dashed border-gray-200 rounded-xl px-4 py-8 text-center">
             <p className="text-sm text-gray-500">No saved segments yet.</p>
-            <button onClick={() => setShowCreate(true)} className="mt-2 text-sm font-medium text-[#FF4D8D] hover:underline">
-              Create your first segment
-            </button>
+            {!readOnly && (
+              <button onClick={() => setShowCreate(true)} className="mt-2 text-sm font-medium text-[#FF4D8D] hover:underline">
+                Create your first segment
+              </button>
+            )}
           </div>
         ) : (
           <div className="space-y-2">
@@ -191,7 +207,7 @@ export default function SegmentsPage() {
                 name: c.name,
                 description: c.description || undefined,
                 criteria: c.filter_criteria,
-                onDelete: () => del(c.id),
+                onDelete: readOnly ? undefined : () => del(c.id),
               }),
             )}
           </div>
