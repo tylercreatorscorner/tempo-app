@@ -31,6 +31,7 @@ export default function SegmentsPage() {
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [readOnly, setReadOnly] = useState(false);
+  const [confirming, setConfirming] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [members, setMembers] = useState<Record<string, MemberRow[] | 'loading'>>({});
 
@@ -91,7 +92,7 @@ export default function SegmentsPage() {
   }
 
   async function del(id: string) {
-    if (!window.confirm('Delete this segment?')) return;
+    setConfirming(null);
     const prev = customs;
     setCustoms((c) => c.filter((s) => s.id !== id));
     try {
@@ -107,9 +108,9 @@ export default function SegmentsPage() {
   }
 
   function renderRow(opts: {
-    rowKey: string; name: string; description?: string; criteria: SegmentFilterCriteria; onDelete?: () => void;
+    rowKey: string; name: string; description?: string; criteria: SegmentFilterCriteria; deletableId?: string;
   }) {
-    const { rowKey, name, description, criteria, onDelete } = opts;
+    const { rowKey, name, description, criteria, deletableId } = opts;
     const count = counts[rowKey];
     const isOpen = expanded === rowKey;
     const mem = members[rowKey];
@@ -127,10 +128,17 @@ export default function SegmentsPage() {
             <Users className="h-3 w-3" />
             {count === undefined ? '…' : count === null ? '—' : count.toLocaleString()}
           </span>
-          {onDelete && (
-            <button onClick={onDelete} className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 flex-shrink-0" title="Delete segment">
-              <Trash2 className="h-4 w-4" />
-            </button>
+          {deletableId && (
+            confirming === deletableId ? (
+              <span className="flex items-center gap-1 flex-shrink-0">
+                <button onClick={() => del(deletableId)} className="px-2 py-1 rounded-lg text-xs font-medium text-white bg-red-500 hover:bg-red-600">Delete</button>
+                <button onClick={() => setConfirming(null)} className="px-2 py-1 rounded-lg text-xs text-gray-500 hover:bg-gray-100">Cancel</button>
+              </span>
+            ) : (
+              <button onClick={() => setConfirming(deletableId)} className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 flex-shrink-0" title="Delete segment">
+                <Trash2 className="h-4 w-4" />
+              </button>
+            )
           )}
         </div>
         {isOpen && (
@@ -207,7 +215,7 @@ export default function SegmentsPage() {
                 name: c.name,
                 description: c.description || undefined,
                 criteria: c.filter_criteria,
-                onDelete: readOnly ? undefined : () => del(c.id),
+                deletableId: readOnly ? undefined : c.id,
               }),
             )}
           </div>

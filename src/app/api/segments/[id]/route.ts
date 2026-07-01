@@ -82,11 +82,15 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   const authz = await authorizeSegment(scope, admin, id);
   if (authz instanceof NextResponse) return authz;
 
-  const { error } = await admin
+  const { data: deleted, error } = await admin
     .from('segments')
     .delete()
     .eq('id', id)
-    .eq('tenant_id', scope.tenantId);
+    .eq('tenant_id', scope.tenantId)
+    .select('id');
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (!deleted || deleted.length === 0) {
+    return NextResponse.json({ error: 'Segment not found or already deleted' }, { status: 404 });
+  }
   return NextResponse.json({ ok: true });
 }
