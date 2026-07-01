@@ -70,25 +70,36 @@ export async function GET() {
   const activeBrandSlugs = activeBrands.map(b => b.slug);
   const brandLabelBySlug = new Map(activeBrands.map(b => [b.slug, b.name]));
 
-  // ── 4 parallel queries (one per source table) instead of 4×N. Each pulls
-  //    every active brand at once; we partition the rows in JS.
+  // ── 4 parallel queries (one per source table) — window via a DISTINCT-aggregating
+  //    RPC, future rows via the raw SELECT with an explicit LIMIT that's small
+  //    enough to never hit the row cap. The window query used to be a raw SELECT
+  //    too, which returned ~15k rows/day/brand and silently hit PostgREST's
+  //    db-max-rows cap for busy tenants — dropping brands alphabetically past
+  //    the cutoff. get_upload_coverage pre-aggregates in Postgres so we get
+  //    O(brands × days) rows back regardless of tenant size.
+  const nextWeek = new Date(today);
+  nextWeek.setUTCDate(today.getUTCDate() + 7);
+  const nextWeekStr = nextWeek.toISOString().split('T')[0];
   const filePulls = await Promise.all(FILE_TYPES.map(async (ft) => {
     const [windowResult, futureResult] = await Promise.all([
-      admin.from(ft.table)
-        .select(`brand, ${ft.dateField}`)
-        .in('brand', activeBrandSlugs)
-        .gte(ft.dateField, windowStartStr)
-        .lte(ft.dateField, yesterdayStr),
-      admin.from(ft.table)
-        .select(`brand, ${ft.dateField}`)
-        .in('brand', activeBrandSlugs)
-        .gt(ft.dateField, yesterdayStr)
-        .limit(50),
+      admin.rpc('get_upload_coverage', {
+        p_table:  ft.table,
+        p_brands: activeBrandSlugs,
+        p_start:  windowStartStr,
+        p_end:    yesterdayStr,
+      }),
+      // Future rows: capped tightly since anything >0 is already an anomaly.
+      admin.rpc('get_upload_coverage', {
+        p_table:  ft.table,
+        p_brands: activeBrandSlugs,
+        p_start:  today.toISOString().split('T')[0],
+        p_end:    nextWeekStr,
+      }),
     ]);
     return {
       ft,
-      windowRows: (windowResult.data as unknown as Array<Record<string, unknown>> | null) ?? [],
-      futureRows: (futureResult.data as unknown as Array<Record<string, unknown>> | null) ?? [],
+      windowRows: (windowResult.data as unknown as Array<{ brand: string; coverage_date: string }> | null) ?? [],
+      futureRows: (futureResult.data as unknown as Array<{ brand: string; coverage_date: string }> | null) ?? [],
     };
   }));
 
@@ -103,18 +114,14 @@ export async function GET() {
   const futureIssues: { brand: string; fileType: string; dates: string[] }[] = [];
   for (const { ft, windowRows, futureRows } of filePulls) {
     for (const row of windowRows) {
-      const slug = String(row.brand);
-      const dateStr = String(row[ft.dateField]);
-      brandDates.get(slug)?.get(ft.key)?.add(dateStr);
+      brandDates.get(row.brand)?.get(ft.key)?.add(String(row.coverage_date));
     }
     if (futureRows.length > 0) {
       // Group future rows by brand
       const byBrand = new Map<string, Set<string>>();
       for (const row of futureRows) {
-        const slug = String(row.brand);
-        const dateStr = String(row[ft.dateField]);
-        if (!byBrand.has(slug)) byBrand.set(slug, new Set());
-        byBrand.get(slug)!.add(dateStr);
+        if (!byBrand.has(row.brand)) byBrand.set(row.brand, new Set());
+        byBrand.get(row.brand)!.add(String(row.coverage_date));
       }
       for (const [slug, dates] of byBrand) {
         futureIssues.push({

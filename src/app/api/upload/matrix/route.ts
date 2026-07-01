@@ -53,18 +53,23 @@ export async function GET(request: NextRequest) {
     .filter(b => !UMBRELLA_BRAND_SLUGS.has(b.slug));
   const activeBrandSlugs = activeBrands.map(b => b.slug);
 
-  // Single query (instead of N) — pulls every brand's date set in one call
-  const { data: raw } = await admin
-    .from(cfg.table)
-    .select(`brand, ${cfg.dateField}`)
-    .in('brand', activeBrandSlugs)
-    .gte(cfg.dateField, oldestDate)
-    .lte(cfg.dateField, dates[0]);
+  // Pre-aggregate in Postgres via RPC — returns DISTINCT (brand, date) tuples.
+  // The prior implementation ran a raw-row SELECT that returned one row per
+  // creator per day (~15k rows/day/brand), which silently hit PostgREST's
+  // db-max-rows cap for tenants with more than a handful of brands and
+  // silently dropped every brand alphabetically after the cutoff — the exact
+  // "everything after Kitsch shows Missing" symptom that surfaced 2026-07-01.
+  // The RPC constrains the response to O(brands × days) ≈ 200 rows.
+  const { data: raw } = await admin.rpc('get_upload_coverage', {
+    p_table:  cfg.table,
+    p_brands: activeBrandSlugs,
+    p_start:  oldestDate,
+    p_end:    dates[0],
+  });
   const datesByBrand = new Map<string, Set<string>>();
   for (const slug of activeBrandSlugs) datesByBrand.set(slug, new Set());
-  for (const row of (raw as unknown as Array<Record<string, unknown>> | null ?? [])) {
-    const slug = String(row.brand);
-    datesByBrand.get(slug)?.add(String(row[cfg.dateField]));
+  for (const row of (raw as unknown as Array<{ brand: string; coverage_date: string }> | null ?? [])) {
+    datesByBrand.get(row.brand)?.add(String(row.coverage_date));
   }
 
   const rows = activeBrands.map(b => ({
