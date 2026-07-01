@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { SparklineCell } from '@/components/ui-kit/sparkline-cell';
 import {
   UserPlus, Search, Users, UserCheck, X,
   ChevronLeft, ChevronRight, ExternalLink, Loader2,
@@ -80,6 +81,12 @@ interface Creator {
   health: CreatorHealth;
   // Period-driven: gmv_period ÷ retainer, null when retainer is 0.
   roi_period: number | null;
+  // Per-day GMV series over the selected window (roster sparkline). Page-only.
+  spark?: number[];
+  spark_posts?: number[];
+  gmv_delta?: number | null;
+  posts_delta?: number | null;
+  level?: number | null;
   // ── Messaging signals ──
   last_message_at: string | null;
   unread_count: number;
@@ -1196,6 +1203,48 @@ function AddCreatorModal({ prefill, onClose, onSuccess }: AddCreatorModalProps) 
 // via the ?include=all toggle on /api/roster (see get_unmanaged_top_perf RPC).
 // The action cell renders "+ Add to roster" for unmanaged rows.
 
+// Prior-period % change badge (green up / red down). Hidden when unknown.
+function DeltaBadge({ value }: { value?: number | null }) {
+  if (value == null || !Number.isFinite(value)) return null;
+  const up = value >= 0;
+  return (
+    <span className={`text-[10px] font-semibold ${up ? 'text-green-600' : 'text-red-500'}`}>
+      {up ? '▲' : '▼'}{Math.abs(Math.round(value)).toLocaleString()}%
+    </span>
+  );
+}
+
+// Creator level L1–L7 (from trailing-30-day GMV). Managed rows only.
+function LevelBadge({ level }: { level?: number | null }) {
+  if (!level) return null;
+  return (
+    <span
+      className="ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-50 text-purple-600 align-middle"
+      title="Creator level — trailing 30-day GMV (L1 $0–5K · L2 5–25K · L3 25–60K · L4 60–150K · L5 150–400K · L6 400K–1.5M · L7 1.5M+)"
+    >
+      L{level}
+    </span>
+  );
+}
+
+// Discord profile picture next to the name (falls back to a colored initial).
+function CreatorAvatar({ creator }: { creator: Creator }) {
+  const src = creator.discord_avatar;
+  const label = (creator.real_name || creator.handles?.[0] || creator.account_1 || '?').trim();
+  const initial = (label.charAt(0) || '?').toUpperCase();
+  if (src) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={src} alt="" referrerPolicy="no-referrer" className="h-8 w-8 rounded-full object-cover flex-shrink-0 bg-gray-100" />
+    );
+  }
+  return (
+    <span className="h-8 w-8 rounded-full flex-shrink-0 bg-gradient-to-br from-pink-100 to-purple-100 text-[#E91E8C] flex items-center justify-center text-xs font-semibold">
+      {initial}
+    </span>
+  );
+}
+
 function RosterContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -1221,6 +1270,7 @@ function RosterContent() {
   const showAddAction = view !== 'managed';
 
   const [roster, setRoster] = useState<Creator[]>([]);
+  const [sparkDays, setSparkDays] = useState<string[]>([]);
   const [total, setTotal] = useState(0);
   const [totalGmvPeriod, setTotalGmvPeriod] = useState(0);
   const [totalRetainer, setTotalRetainer] = useState(0);
@@ -1297,6 +1347,7 @@ function RosterContent() {
       const res = await fetch(`/api/roster?${params}`);
       const json = await res.json();
       setRoster(json.data || []);
+      setSparkDays(json.spark_days || []);
       setTotal(json.total || 0);
       setTotalGmvPeriod(json.total_gmv_period ?? 0);
       setTotalRetainer(json.total_retainer ?? 0);
@@ -1568,13 +1619,13 @@ function RosterContent() {
                   <th className="text-left px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">Handle</th>
                   {showBrandColumn && <th className="text-left px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">Brand</th>}
                   {showManagedTag && <th className="text-center px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">Managed</th>}
-                  <th className="text-right px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
-                    <button onClick={() => toggleSort('retainer')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors">
-                      Retainer <SortIcon col="retainer" />
+                  <th className="text-left px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
+                    <button onClick={() => toggleSort('gmv_period')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors">
+                      GMV ({periodShort}) <SortIcon col="gmv_period" />
                     </button>
                   </th>
-                  <th className="text-center px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
-                    <button onClick={() => toggleSort('posts_period')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors mx-auto">
+                  <th className="text-left px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
+                    <button onClick={() => toggleSort('posts_period')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors">
                       Posts ({periodShort}) <SortIcon col="posts_period" />
                     </button>
                   </th>
@@ -1583,19 +1634,19 @@ function RosterContent() {
                       Last post <SortIcon col="last_post_date" />
                     </button>
                   </th>
-                  <th className="text-left px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
-                    <button onClick={() => toggleSort('joined')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors">
-                      Joined <SortIcon col="joined" />
-                    </button>
-                  </th>
                   <th className="text-right px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
-                    <button onClick={() => toggleSort('gmv_period')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors">
-                      GMV ({periodShort}) <SortIcon col="gmv_period" />
+                    <button onClick={() => toggleSort('retainer')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors">
+                      Retainer <SortIcon col="retainer" />
                     </button>
                   </th>
                   <th className="text-right px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
                     <button onClick={() => toggleSort('roi_period')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors">
                       ROI <SortIcon col="roi_period" />
+                    </button>
+                  </th>
+                  <th className="text-left px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
+                    <button onClick={() => toggleSort('joined')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors">
+                      Joined <SortIcon col="joined" />
                     </button>
                   </th>
                   {showAddAction && <th className="px-5 py-3.5" />}
@@ -1629,22 +1680,32 @@ function RosterContent() {
                           )}
                         </td>
                       )}
-                      <td className="px-5 py-3.5 font-medium text-[#1A1B3A]">
-                        {c.real_name || (c.is_managed
-                          ? <span className="text-gray-400">—</span>
-                          : <span className="text-gray-500 italic">@{primary}</span>)}
-                        {(c.product_tags ?? []).length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            {(c.product_tags ?? []).slice(0, 3).map((t) => (
-                              <span key={t.key} className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-pink-50 text-[#E91E8C]">
-                                {t.name}
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center gap-2.5 max-w-[220px]">
+                          <CreatorAvatar creator={c} />
+                          <div className="min-w-0">
+                            <div className="flex items-center font-medium text-[#1A1B3A]">
+                              <span className="truncate">
+                                {c.real_name || (c.is_managed
+                                  ? <span className="text-gray-400">—</span>
+                                  : <span className="text-gray-500 italic">@{primary}</span>)}
                               </span>
-                            ))}
-                            {(c.product_tags ?? []).length > 3 && (
-                              <span className="text-[10px] text-gray-400 self-center">+{(c.product_tags ?? []).length - 3}</span>
+                              <LevelBadge level={c.level} />
+                            </div>
+                            {(c.product_tags ?? []).length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {(c.product_tags ?? []).slice(0, 3).map((t) => (
+                                  <span key={t.key} className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-pink-50 text-[#E91E8C]">
+                                    {t.name}
+                                  </span>
+                                ))}
+                                {(c.product_tags ?? []).length > 3 && (
+                                  <span className="text-[10px] text-gray-400 self-center">+{(c.product_tags ?? []).length - 3}</span>
+                                )}
+                              </div>
                             )}
                           </div>
-                        )}
+                        </div>
                       </td>
                       <td className="px-5 py-3.5">
                         {primary ? (
@@ -1664,9 +1725,12 @@ function RosterContent() {
                       </td>
                       {showBrandColumn && (
                         <td className="px-5 py-3.5">
-                          <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-gray-100 text-gray-600">
-                            {brandOptions.find(b => b.slug === c.brand)?.name || brandMeta.label(c.brand) || c.brand?.replace(/_/g, ' ') || '—'}
-                          </span>
+                          {c.brand ? (
+                            <span className="inline-flex items-center gap-1.5 max-w-[160px] text-xs font-medium px-2.5 py-1 rounded-full bg-gray-50 text-gray-700 border border-gray-100">
+                              <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: brandMeta.color(c.brand) }} />
+                              <span className="truncate">{brandOptions.find(b => b.slug === c.brand)?.name || brandMeta.label(c.brand) || c.brand.replace(/_/g, ' ')}</span>
+                            </span>
+                          ) : <span className="text-gray-300">—</span>}
                         </td>
                       )}
                       {showManagedTag && (
@@ -1682,20 +1746,32 @@ function RosterContent() {
                           )}
                         </td>
                       )}
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center justify-start gap-2.5">
+                          <SparklineCell data={c.spark} days={sparkDays} color="#22C55E" format={fmt} />
+                          <div className="text-right min-w-[72px]">
+                            <div className="tabular-nums font-semibold text-[#1A1B3A]">
+                              {(c.gmv_period || 0) > 0 ? fmt(c.gmv_period) : <span className="text-gray-300 font-normal">—</span>}
+                            </div>
+                            <DeltaBadge value={c.gmv_delta} />
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center justify-start gap-2.5">
+                          <SparklineCell data={c.spark_posts} days={sparkDays} color="#22C55E" format={(v) => `${v} post${v === 1 ? '' : 's'}`} />
+                          <div className="text-right min-w-[36px]">
+                            <div className="tabular-nums text-gray-700">{c.posts_period || 0}</div>
+                            <DeltaBadge value={c.posts_delta} />
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-5 py-3.5"><LastPostCell date={c.last_post_date} /></td>
                       <td className="px-5 py-3.5 text-right font-semibold text-[#1A1B3A]">
                         {(c.retainer || 0) > 0 ? fmt(c.retainer!) : <span className="text-gray-300 font-normal">—</span>}
                       </td>
-                      <td className="px-5 py-3.5 text-center tabular-nums text-gray-700">
-                        {c.posts_period || 0}
-                      </td>
-                      <td className="px-5 py-3.5"><LastPostCell date={c.last_post_date} /></td>
-                      <td className="px-5 py-3.5"><JoinDateCell date={c.joined} /></td>
-                      <td className="px-5 py-3.5 text-right tabular-nums">
-                        {(c.gmv_period || 0) > 0
-                          ? <span className="text-[#1A1B3A] font-semibold">{fmt(c.gmv_period)}</span>
-                          : <span className="text-gray-300">—</span>}
-                      </td>
                       <td className="px-5 py-3.5 text-right"><RoiCell roi={c.roi_period} /></td>
+                      <td className="px-5 py-3.5"><JoinDateCell date={c.joined} /></td>
                       {showAddAction && (
                         <td className="px-5 py-3.5 text-right">
                           {!c.is_managed && (
