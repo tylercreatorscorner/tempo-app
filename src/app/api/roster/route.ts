@@ -697,6 +697,7 @@ export async function GET(request: NextRequest) {
   // posts sparklines, prior-period deltas, and the creator level (30d GMV tier).
   // All slice-scoped, so these extra RPCs stay tiny.
   let dataOut: EnrichedRow[] = slice;
+  let sparkDays: string[] = [];
   if (!exportAll && slice.length > 0) {
     const sliceHandles = Array.from(new Set(
       slice.flatMap((r) => (r.handles ?? []).map((h) => h.toLowerCase())),
@@ -760,6 +761,7 @@ export async function GET(request: NextRequest) {
         gmv30ByHandle.set(p.tiktok_username.toLowerCase(), Number(p.gmv_period) || 0);
       }
 
+      sparkDays = days; // shared day labels for the hover tooltip
       const pct = (cur: number, prev: number): number | null => (prev > 0 ? ((cur - prev) / prev) * 100 : null);
 
       // Sparklines run the full selected window (through the period end), trailing
@@ -786,6 +788,7 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({
     data: dataOut,
+    spark_days: sparkDays,
     total,
     total_managed,
     page,

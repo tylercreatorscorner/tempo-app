@@ -1270,6 +1270,7 @@ function RosterContent() {
   const showAddAction = view !== 'managed';
 
   const [roster, setRoster] = useState<Creator[]>([]);
+  const [sparkDays, setSparkDays] = useState<string[]>([]);
   const [total, setTotal] = useState(0);
   const [totalGmvPeriod, setTotalGmvPeriod] = useState(0);
   const [totalRetainer, setTotalRetainer] = useState(0);
@@ -1346,6 +1347,7 @@ function RosterContent() {
       const res = await fetch(`/api/roster?${params}`);
       const json = await res.json();
       setRoster(json.data || []);
+      setSparkDays(json.spark_days || []);
       setTotal(json.total || 0);
       setTotalGmvPeriod(json.total_gmv_period ?? 0);
       setTotalRetainer(json.total_retainer ?? 0);
@@ -1723,9 +1725,12 @@ function RosterContent() {
                       </td>
                       {showBrandColumn && (
                         <td className="px-5 py-3.5">
-                          <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-gray-100 text-gray-600">
-                            {brandOptions.find(b => b.slug === c.brand)?.name || brandMeta.label(c.brand) || c.brand?.replace(/_/g, ' ') || '—'}
-                          </span>
+                          {c.brand ? (
+                            <span className="inline-flex items-center gap-1.5 max-w-[160px] text-xs font-medium px-2.5 py-1 rounded-full bg-gray-50 text-gray-700 border border-gray-100">
+                              <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: brandMeta.color(c.brand) }} />
+                              <span className="truncate">{brandOptions.find(b => b.slug === c.brand)?.name || brandMeta.label(c.brand) || c.brand.replace(/_/g, ' ')}</span>
+                            </span>
+                          ) : <span className="text-gray-300">—</span>}
                         </td>
                       )}
                       {showManagedTag && (
@@ -1743,7 +1748,7 @@ function RosterContent() {
                       )}
                       <td className="px-5 py-3.5">
                         <div className="flex items-center justify-start gap-2.5">
-                          <SparklineCell data={c.spark} color="#22C55E" />
+                          <SparklineCell data={c.spark} days={sparkDays} color="#22C55E" format={fmt} />
                           <div className="text-right min-w-[72px]">
                             <div className="tabular-nums font-semibold text-[#1A1B3A]">
                               {(c.gmv_period || 0) > 0 ? fmt(c.gmv_period) : <span className="text-gray-300 font-normal">—</span>}
@@ -1754,7 +1759,7 @@ function RosterContent() {
                       </td>
                       <td className="px-5 py-3.5">
                         <div className="flex items-center justify-start gap-2.5">
-                          <SparklineCell data={c.spark_posts} color="#22C55E" />
+                          <SparklineCell data={c.spark_posts} days={sparkDays} color="#22C55E" format={(v) => `${v} post${v === 1 ? '' : 's'}`} />
                           <div className="text-right min-w-[36px]">
                             <div className="tabular-nums text-gray-700">{c.posts_period || 0}</div>
                             <DeltaBadge value={c.posts_delta} />
