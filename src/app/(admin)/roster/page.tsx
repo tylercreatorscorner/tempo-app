@@ -1227,6 +1227,24 @@ function LevelBadge({ level }: { level?: number | null }) {
   );
 }
 
+// Discord profile picture next to the name (falls back to a colored initial).
+function CreatorAvatar({ creator }: { creator: Creator }) {
+  const src = creator.discord_avatar;
+  const label = (creator.real_name || creator.handles?.[0] || creator.account_1 || '?').trim();
+  const initial = (label.charAt(0) || '?').toUpperCase();
+  if (src) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={src} alt="" referrerPolicy="no-referrer" className="h-8 w-8 rounded-full object-cover flex-shrink-0 bg-gray-100" />
+    );
+  }
+  return (
+    <span className="h-8 w-8 rounded-full flex-shrink-0 bg-gradient-to-br from-pink-100 to-purple-100 text-[#E91E8C] flex items-center justify-center text-xs font-semibold">
+      {initial}
+    </span>
+  );
+}
+
 function RosterContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -1599,13 +1617,13 @@ function RosterContent() {
                   <th className="text-left px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">Handle</th>
                   {showBrandColumn && <th className="text-left px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">Brand</th>}
                   {showManagedTag && <th className="text-center px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">Managed</th>}
-                  <th className="text-right px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
-                    <button onClick={() => toggleSort('retainer')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors">
-                      Retainer <SortIcon col="retainer" />
+                  <th className="text-left px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
+                    <button onClick={() => toggleSort('gmv_period')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors">
+                      GMV ({periodShort}) <SortIcon col="gmv_period" />
                     </button>
                   </th>
-                  <th className="text-center px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
-                    <button onClick={() => toggleSort('posts_period')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors mx-auto">
+                  <th className="text-left px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
+                    <button onClick={() => toggleSort('posts_period')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors">
                       Posts ({periodShort}) <SortIcon col="posts_period" />
                     </button>
                   </th>
@@ -1614,19 +1632,19 @@ function RosterContent() {
                       Last post <SortIcon col="last_post_date" />
                     </button>
                   </th>
-                  <th className="text-left px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
-                    <button onClick={() => toggleSort('joined')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors">
-                      Joined <SortIcon col="joined" />
-                    </button>
-                  </th>
                   <th className="text-right px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
-                    <button onClick={() => toggleSort('gmv_period')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors">
-                      GMV ({periodShort}) <SortIcon col="gmv_period" />
+                    <button onClick={() => toggleSort('retainer')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors">
+                      Retainer <SortIcon col="retainer" />
                     </button>
                   </th>
                   <th className="text-right px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
                     <button onClick={() => toggleSort('roi_period')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors">
                       ROI <SortIcon col="roi_period" />
+                    </button>
+                  </th>
+                  <th className="text-left px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
+                    <button onClick={() => toggleSort('joined')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors">
+                      Joined <SortIcon col="joined" />
                     </button>
                   </th>
                   {showAddAction && <th className="px-5 py-3.5" />}
@@ -1660,22 +1678,32 @@ function RosterContent() {
                           )}
                         </td>
                       )}
-                      <td className="px-5 py-3.5 font-medium text-[#1A1B3A]">
-                        {c.real_name || (c.is_managed
-                          ? <span className="text-gray-400">—</span>
-                          : <span className="text-gray-500 italic">@{primary}</span>)}
-                        {(c.product_tags ?? []).length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            {(c.product_tags ?? []).slice(0, 3).map((t) => (
-                              <span key={t.key} className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-pink-50 text-[#E91E8C]">
-                                {t.name}
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center gap-3">
+                          <CreatorAvatar creator={c} />
+                          <div className="min-w-0">
+                            <div className="flex items-center font-medium text-[#1A1B3A]">
+                              <span className="truncate">
+                                {c.real_name || (c.is_managed
+                                  ? <span className="text-gray-400">—</span>
+                                  : <span className="text-gray-500 italic">@{primary}</span>)}
                               </span>
-                            ))}
-                            {(c.product_tags ?? []).length > 3 && (
-                              <span className="text-[10px] text-gray-400 self-center">+{(c.product_tags ?? []).length - 3}</span>
+                              <LevelBadge level={c.level} />
+                            </div>
+                            {(c.product_tags ?? []).length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {(c.product_tags ?? []).slice(0, 3).map((t) => (
+                                  <span key={t.key} className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-pink-50 text-[#E91E8C]">
+                                    {t.name}
+                                  </span>
+                                ))}
+                                {(c.product_tags ?? []).length > 3 && (
+                                  <span className="text-[10px] text-gray-400 self-center">+{(c.product_tags ?? []).length - 3}</span>
+                                )}
+                              </div>
                             )}
                           </div>
-                        )}
+                        </div>
                       </td>
                       <td className="px-5 py-3.5">
                         {primary ? (
@@ -1690,7 +1718,6 @@ function RosterContent() {
                               @{primary}
                             </a>
                             <ExtraAccountsBadge creator={c} />
-                            <LevelBadge level={c.level} />
                           </span>
                         ) : <span className="text-gray-400">—</span>}
                       </td>
@@ -1714,22 +1741,8 @@ function RosterContent() {
                           )}
                         </td>
                       )}
-                      <td className="px-5 py-3.5 text-right font-semibold text-[#1A1B3A]">
-                        {(c.retainer || 0) > 0 ? fmt(c.retainer!) : <span className="text-gray-300 font-normal">—</span>}
-                      </td>
                       <td className="px-5 py-3.5">
-                        <div className="flex items-center justify-center gap-2.5">
-                          <SparklineCell data={c.spark_posts} color="#22C55E" />
-                          <div className="text-right min-w-[36px]">
-                            <div className="tabular-nums text-gray-700">{c.posts_period || 0}</div>
-                            <DeltaBadge value={c.posts_delta} />
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-5 py-3.5"><LastPostCell date={c.last_post_date} /></td>
-                      <td className="px-5 py-3.5"><JoinDateCell date={c.joined} /></td>
-                      <td className="px-5 py-3.5">
-                        <div className="flex items-center justify-end gap-2.5">
+                        <div className="flex items-center justify-start gap-2.5">
                           <SparklineCell data={c.spark} color="#22C55E" />
                           <div className="text-right min-w-[72px]">
                             <div className="tabular-nums font-semibold text-[#1A1B3A]">
@@ -1739,7 +1752,21 @@ function RosterContent() {
                           </div>
                         </div>
                       </td>
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center justify-start gap-2.5">
+                          <SparklineCell data={c.spark_posts} color="#22C55E" />
+                          <div className="text-right min-w-[36px]">
+                            <div className="tabular-nums text-gray-700">{c.posts_period || 0}</div>
+                            <DeltaBadge value={c.posts_delta} />
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-5 py-3.5"><LastPostCell date={c.last_post_date} /></td>
+                      <td className="px-5 py-3.5 text-right font-semibold text-[#1A1B3A]">
+                        {(c.retainer || 0) > 0 ? fmt(c.retainer!) : <span className="text-gray-300 font-normal">—</span>}
+                      </td>
                       <td className="px-5 py-3.5 text-right"><RoiCell roi={c.roi_period} /></td>
+                      <td className="px-5 py-3.5"><JoinDateCell date={c.joined} /></td>
                       {showAddAction && (
                         <td className="px-5 py-3.5 text-right">
                           {!c.is_managed && (
