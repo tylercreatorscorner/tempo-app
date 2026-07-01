@@ -1,11 +1,12 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import {
   LayoutDashboard, UserCheck, CreditCard,
   Mail, Compass, FileBarChart, Upload, Calculator, Receipt, PlaySquare, CalendarRange,
-  Plug, Zap, Megaphone, Package, ShoppingBag, Layers,
+  Plug, Zap, Megaphone, Package, ShoppingBag, Layers, ChevronDown,
   Settings as SettingsIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -132,6 +133,27 @@ export function Sidebar({ className, userRole = 'customer' }: SidebarProps) {
   // Filter admin-only sections out for non-admin roles. Server-side gating on
   // the actual pages/APIs is the real security boundary — this is purely UX.
   const isAdmin = effectiveRole === 'owner';
+
+  // Collapsible nav sections (persisted to localStorage). A section auto-expands
+  // when it contains the current route, so you never lose your place.
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('tempo_nav_collapsed');
+      if (raw) setCollapsed(new Set(JSON.parse(raw) as string[]));
+    } catch { /* ignore */ }
+  }, []);
+  const toggleSection = (label: string) => {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(label)) next.delete(label); else next.add(label);
+      try { localStorage.setItem('tempo_nav_collapsed', JSON.stringify([...next])); } catch { /* ignore */ }
+      return next;
+    });
+  };
+  const sectionHasActive = (section: NavSection) =>
+    section.items.some((it) => pathname === it.href || (it.href !== '/' && pathname.startsWith(it.href)));
+
   // Option A entity-based order: Home → Creators → Content → Insights → Finance → Admin.
   // Admin (with Upload + Settings) lives at the bottom because both are
   // maintenance/configuration surfaces, not daily-use destinations.
@@ -168,16 +190,30 @@ export function Sidebar({ className, userRole = 'customer' }: SidebarProps) {
     );
   };
 
-  const renderSection = (section: NavSection, key: string) => (
-    <div key={key} className="space-y-0.5">
-      {section.label && (
-        <p className="px-3 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-widest text-gray-400 select-none">
-          {section.label}
-        </p>
-      )}
-      {section.items.filter(it => !it.adminOnly || isAdmin).map(renderItem)}
-    </div>
-  );
+  const renderSection = (section: NavSection, key: string) => {
+    const items = section.items.filter((it) => !it.adminOnly || isAdmin);
+    if (items.length === 0) return null;
+    // Ungrouped (Home) — no collapsible header.
+    if (!section.label) {
+      return <div key={key} className="space-y-0.5">{items.map(renderItem)}</div>;
+    }
+    const open = sectionHasActive(section) || !collapsed.has(section.label);
+    return (
+      <div key={key} className="space-y-0.5">
+        <button
+          type="button"
+          onClick={() => toggleSection(section.label!)}
+          className="group w-full flex items-center justify-between px-3 pb-1 pt-3"
+        >
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 group-hover:text-gray-500 select-none">
+            {section.label}
+          </span>
+          <ChevronDown className={cn('h-3 w-3 text-gray-300 group-hover:text-gray-400 transition-transform duration-200', open ? '' : '-rotate-90')} />
+        </button>
+        {open && items.map(renderItem)}
+      </div>
+    );
+  };
 
   return (
     <aside className={cn(
