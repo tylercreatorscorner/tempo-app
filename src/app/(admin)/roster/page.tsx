@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { SparklineCell } from '@/components/ui-kit/sparkline-cell';
+import { RosterSegmentControls } from '@/components/segments/roster-segment-controls';
+import type { SegmentFilterCriteria } from '@/lib/data/segments';
 import {
   UserPlus, Search, Users, UserCheck, X,
   ChevronLeft, ChevronRight, ExternalLink, Loader2,
@@ -1271,6 +1273,7 @@ function RosterContent() {
 
   const [roster, setRoster] = useState<Creator[]>([]);
   const [sparkDays, setSparkDays] = useState<string[]>([]);
+  const [segFilters, setSegFilters] = useState<{ name: string; min_gmv: number | null; max_gmv: number | null; min_posts: number | null } | null>(null);
   const [total, setTotal] = useState(0);
   const [totalGmvPeriod, setTotalGmvPeriod] = useState(0);
   const [totalRetainer, setTotalRetainer] = useState(0);
@@ -1343,6 +1346,9 @@ function RosterContent() {
       if (productFilter) params.set('product', productFilter);
       if (view !== 'managed') params.set('include', 'all');
       if (view === 'unmanaged') params.set('managed', 'unmanaged');
+      if (segFilters?.min_gmv != null) params.set('min_gmv', String(segFilters.min_gmv));
+      if (segFilters?.max_gmv != null) params.set('max_gmv', String(segFilters.max_gmv));
+      if (segFilters?.min_posts != null) params.set('min_posts', String(segFilters.min_posts));
 
       const res = await fetch(`/api/roster?${params}`);
       const json = await res.json();
@@ -1356,7 +1362,7 @@ function RosterContent() {
     } finally {
       setLoading(false);
     }
-  }, [brand, view, search, productFilter, page, sortBy, sortDir, preset, customStart, customEnd, isCustomPeriod]);
+  }, [brand, view, search, productFilter, page, sortBy, sortDir, preset, customStart, customEnd, isCustomPeriod, segFilters]);
 
   useEffect(() => { fetchRoster(); }, [fetchRoster]);
 
@@ -1446,6 +1452,31 @@ function RosterContent() {
   // Total column count for skeleton rows. The select + action columns both
   // appear only in the non-managed views (showAddAction).
   const cols = 2 + (showBrandColumn ? 1 : 0) + (showManagedTag ? 1 : 0) + 6 + (showAddAction ? 2 : 0);
+
+  // Segments: apply a picked segment's filters to the roster, and snapshot the
+  // current filters for saving. Threshold filters (min/max GMV, min posts) live
+  // in segFilters (there's no visible control for them) and surface as a chip.
+  const applySegment = (c: SegmentFilterCriteria, name: string) => {
+    setBrand(c.brand && c.brand !== 'all' ? c.brand : 'all');
+    if (c.view) setView(c.view);
+    setProductFilter(c.product ?? '');
+    setSearchInput(c.search ?? '');
+    setSearch(c.search ?? '');
+    if (c.range === 'custom' && c.start && c.end) {
+      setPreset('custom'); setCustomStart(c.start); setCustomEnd(c.end);
+    } else if (c.range) {
+      setPreset(c.range); setCustomStart(null); setCustomEnd(null);
+    }
+    setPage(1);
+    setSegFilters({ name, min_gmv: c.min_gmv ?? null, max_gmv: c.max_gmv ?? null, min_posts: c.min_posts ?? null });
+  };
+  const currentCriteria: SegmentFilterCriteria = {
+    brand, view, product: productFilter || null, search: search || null,
+    range: preset, start: customStart, end: customEnd,
+    min_gmv: segFilters?.min_gmv ?? null,
+    max_gmv: segFilters?.max_gmv ?? null,
+    min_posts: segFilters?.min_posts ?? null,
+  };
 
   return (
     <div className="space-y-5">
@@ -1537,6 +1568,7 @@ function RosterContent() {
           />
         </div>
         <ProductFilterSelect brand={brand} value={productFilter} onChange={setProductFilter} />
+        <RosterSegmentControls currentCriteria={currentCriteria} onApply={applySegment} />
         <div className="flex items-center gap-2 self-start">
           <button
             onClick={() => handleExport('csv')}
@@ -1556,6 +1588,16 @@ function RosterContent() {
           </button>
         </div>
       </div>
+
+      {/* Active segment chip — indicates applied filters (incl. hidden thresholds) */}
+      {segFilters && (
+        <div className="flex items-center gap-2 -mt-1">
+          <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-pink-50 text-[#E91E8C] border border-pink-100">
+            Segment: {segFilters.name}
+            <button onClick={() => setSegFilters(null)} className="ml-0.5 leading-none text-sm hover:text-[#d1177d]" aria-label="Clear segment">×</button>
+          </span>
+        </div>
+      )}
 
       {/* Multi-select action bar — appears once candidates are checked */}
       {selected.size > 0 && (
