@@ -5,7 +5,7 @@ import { usePathname, useSearchParams } from 'next/navigation';
 import {
   LayoutDashboard, UserCheck, CreditCard,
   Mail, Compass, FileBarChart, Upload, Calculator, Receipt, PlaySquare, CalendarRange,
-  Plug, Zap, Megaphone, Package, ShoppingBag,
+  Plug, Zap, Megaphone, Package, ShoppingBag, Layers,
   Settings as SettingsIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -52,6 +52,7 @@ const CREATORS_SECTION: NavSection = {
   label: 'CRM',
   items: [
     { href: '/roster',   label: 'Creators', icon: UserCheck },
+    { href: '/segments', label: 'Segments',  icon: Layers },
     { href: '/messages', label: 'Messages',    icon: Mail },
     { href: '/discover', label: 'Discover',    icon: Compass },
   ],
