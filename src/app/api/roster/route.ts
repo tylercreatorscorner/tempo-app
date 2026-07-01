@@ -762,38 +762,20 @@ export async function GET(request: NextRequest) {
 
       const pct = (cur: number, prev: number): number | null => (prev > 0 ? ((cur - prev) / prev) * 100 : null);
 
-      // Build full-length daily arrays first, then trim trailing days whose data
-      // is still ingesting. TikTok video-post data backfills for ~2 days, so the
-      // newest days read artificially low — without this the posts sparkline
-      // flatlines to a misleading ~0 at the right edge. Trim per-metric (GMV is
-      // fresher than posts) any trailing day whose cross-row total is under 25%
-      // of the window's peak day.
-      const built = slice.map((r) => {
+      // Sparklines run the full selected window (through the period end), trailing
+      // zeros included — so the last ACTIVE point lands on the creator's real last
+      // post, consistent with the "Last post" column. (The freshest ~2 days lag
+      // for posts as TikTok backfills them; the Last Post column reflects the same
+      // lag, so the two stay in agreement.)
+      dataOut = slice.map((r) => {
         const hs = (r.handles ?? []).map((h) => h.toLowerCase());
-        return {
-          r, hs,
-          gmvArr: days.map((day) => hs.reduce((s, h) => s + (gmvByDay.get(h)?.get(day) ?? 0), 0)),
-          postsArr: days.map((day) => hs.reduce((s, h) => s + (postsByDay.get(h)?.get(day) ?? 0), 0)),
-        };
-      });
-      const keepLen = (totals: number[]): number => {
-        const peak = Math.max(0, ...totals);
-        if (peak <= 0) return totals.length;
-        let keep = totals.length;
-        while (keep > 2 && totals[keep - 1] < peak * 0.25) keep--;
-        return keep;
-      };
-      const keepGmv = keepLen(days.map((_, i) => built.reduce((s, b) => s + b.gmvArr[i], 0)));
-      const keepPosts = keepLen(days.map((_, i) => built.reduce((s, b) => s + b.postsArr[i], 0)));
-
-      dataOut = built.map(({ r, hs, gmvArr, postsArr }) => {
         const priorGmv = hs.reduce((s, h) => s + (priorByHandle.get(h)?.gmv ?? 0), 0);
         const priorPosts = hs.reduce((s, h) => s + (priorByHandle.get(h)?.posts ?? 0), 0);
         const gmv30 = hs.reduce((s, h) => s + (gmv30ByHandle.get(h) ?? 0), 0);
         return {
           ...r,
-          spark: gmvArr.slice(0, keepGmv),
-          spark_posts: postsArr.slice(0, keepPosts),
+          spark: days.map((day) => hs.reduce((s, h) => s + (gmvByDay.get(h)?.get(day) ?? 0), 0)),
+          spark_posts: days.map((day) => hs.reduce((s, h) => s + (postsByDay.get(h)?.get(day) ?? 0), 0)),
           gmv_delta: pct(r.gmv_period, priorGmv),
           posts_delta: pct(r.posts_period, priorPosts),
           level: r.is_managed ? levelFromGmv(gmv30) : null,
