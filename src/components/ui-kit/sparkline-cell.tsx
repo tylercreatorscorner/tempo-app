@@ -29,11 +29,32 @@ export function SparklineCell({
   });
   const line = `M ${pts.join(' L ')}`;
   const area = `${line} L ${width.toFixed(1)},${height} L 0,${height} Z`;
+  const lastV = series[series.length - 1];
+  const lastX = (series.length - 1) * stepX;
+  const lastY = height - ((lastV - min) / range) * height;
 
   return (
-    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="block" aria-hidden="true">
-      <path d={area} fill={color} fillOpacity={0.12} />
-      <path d={line} fill="none" stroke={color} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="group block overflow-visible" aria-hidden="true">
+      <path
+        d={area}
+        fill={color}
+        className="[fill-opacity:0.12] transition-[fill-opacity] duration-200 group-hover:[fill-opacity:0.24]"
+      />
+      <path
+        d={line}
+        fill="none"
+        stroke={color}
+        strokeLinejoin="round"
+        strokeLinecap="round"
+        className="[stroke-width:1.5] transition-[stroke-width] duration-200 group-hover:[stroke-width:2.5]"
+      />
+      <circle
+        cx={lastX}
+        cy={lastY}
+        r={2.5}
+        fill={color}
+        className="opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+      />
     </svg>
   );
 }

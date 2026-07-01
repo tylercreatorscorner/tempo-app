@@ -1679,7 +1679,7 @@ function RosterContent() {
                         </td>
                       )}
                       <td className="px-5 py-3.5">
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2.5 max-w-[220px]">
                           <CreatorAvatar creator={c} />
                           <div className="min-w-0">
                             <div className="flex items-center font-medium text-[#1A1B3A]">
