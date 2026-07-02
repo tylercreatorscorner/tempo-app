@@ -175,23 +175,28 @@ export function Sidebar({ className, userRole = 'customer' }: SidebarProps) {
     return `${href}?brand=${brand}`;
   }
 
-  const renderItem = (item: NavItem) => {
+  const renderItem = (item: NavItem, nested = false) => {
     const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
     return (
       <Link
         key={item.href}
         href={withBrand(item.href)}
         className={cn(
-          'group flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-150',
+          'group flex items-center gap-3 py-2 rounded-lg text-sm transition-all duration-150',
+          // Nested (in a section) → no icon; indent the label so it aligns
+          // under the section header's label.
+          nested ? 'pl-10 pr-3' : 'px-3',
           isActive
             ? 'bg-pink-50 text-[#FF4D8D] font-medium'
             : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
         )}
       >
-        <item.icon className={cn(
-          'h-4 w-4 flex-shrink-0 transition-colors',
-          isActive ? 'text-[#FF4D8D]' : 'text-gray-400 group-hover:text-gray-600'
-        )} />
+        {!nested && (
+          <item.icon className={cn(
+            'h-4 w-4 flex-shrink-0 transition-colors',
+            isActive ? 'text-[#FF4D8D]' : 'text-gray-400 group-hover:text-gray-600'
+          )} />
+        )}
         {item.label}
         {isActive && (
           <span className="ml-auto w-1 h-4 rounded-full bg-[#FF4D8D]" />
@@ -205,7 +210,7 @@ export function Sidebar({ className, userRole = 'customer' }: SidebarProps) {
     if (items.length === 0) return null;
     // Ungrouped (Home) — no collapsible header.
     if (!section.label) {
-      return <div key={key} className="space-y-0.5">{items.map(renderItem)}</div>;
+      return <div key={key} className="space-y-0.5">{items.map((it) => renderItem(it))}</div>;
     }
     const open = sectionHasActive(section) || expanded.has(section.label);
     const SectionIcon = section.icon;
@@ -223,8 +228,8 @@ export function Sidebar({ className, userRole = 'customer' }: SidebarProps) {
           <ChevronDown className={cn('ml-auto h-3.5 w-3.5 text-gray-400 transition-transform duration-200', open ? '' : '-rotate-90')} />
         </button>
         {open && (
-          <div className="mt-0.5 space-y-0.5 pl-3">
-            {items.map(renderItem)}
+          <div className="mt-0.5 space-y-0.5">
+            {items.map((it) => renderItem(it, true))}
           </div>
         )}
       </div>
