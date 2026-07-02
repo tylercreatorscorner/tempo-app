@@ -1,11 +1,13 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import {
   LayoutDashboard, UserCheck, CreditCard,
   Mail, Compass, FileBarChart, Upload, Calculator, Receipt, PlaySquare, CalendarRange,
-  Plug, Zap, Megaphone, Package, ShoppingBag, Layers,
+  Plug, Zap, Megaphone, Package, ShoppingBag, Layers, ChevronDown,
+  Users, FileText, Boxes, Workflow, Wallet, Wrench,
   Settings as SettingsIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -23,6 +25,8 @@ interface NavItem {
 
 interface NavSection {
   label?: string;
+  /** Icon shown to the left of the (collapsible) section header. */
+  icon?: React.ComponentType<{ className?: string }>;
   items: NavItem[];
   /** When true, only owner/admin roles see this section. */
   adminOnly?: boolean;
@@ -49,7 +53,8 @@ const HOME_SECTION: NavSection = {
 };
 
 const CREATORS_SECTION: NavSection = {
-  label: 'CRM',
+  label: 'Creators',
+  icon: Users,
   items: [
     { href: '/roster',   label: 'Creators', icon: UserCheck },
     { href: '/segments', label: 'Segments',  icon: Layers },
@@ -60,6 +65,7 @@ const CREATORS_SECTION: NavSection = {
 
 const CONTENT_SECTION: NavSection = {
   label: 'Content',
+  icon: FileText,
   items: [
     { href: '/posts',     label: 'Posts',     icon: PlaySquare },
     { href: '/reporting', label: 'Reporting', icon: FileBarChart },
@@ -70,6 +76,7 @@ const CONTENT_SECTION: NavSection = {
 // per-product GMV) and the Performance view (GMV by product). Owner/admin only.
 const PRODUCTS_SECTION: NavSection = {
   label: 'Products',
+  icon: Boxes,
   adminOnly: true,
   items: [
     { href: '/products/catalog', label: 'Catalog',     icon: Package },
@@ -82,6 +89,7 @@ const PRODUCTS_SECTION: NavSection = {
 // infra: Slack OAuth, API keys) and Outreach (mass-send) stay owner/admin.
 const WORKFLOWS_SECTION: NavSection = {
   label: 'Workflows',
+  icon: Workflow,
   items: [
     { href: '/workflows/integrations', label: 'Integrations', icon: Plug, adminOnly: true },
     { href: '/workflows/automations',  label: 'Automations',  icon: Zap },
@@ -95,6 +103,7 @@ const WORKFLOWS_SECTION: NavSection = {
 // editors (brand-settings, creator-rates) remain owner/admin-gated.
 const FINANCE_SECTION: NavSection = {
   label: 'Finance',
+  icon: Wallet,
   items: [
     { href: '/earnings',  label: 'Earnings',  icon: Calculator },
     { href: '/ytd',       label: 'Year-to-Date', icon: CalendarRange },
@@ -108,6 +117,7 @@ const FINANCE_SECTION: NavSection = {
 // owner/admin-only.
 const ADMIN_SECTION: NavSection = {
   label: 'Admin',
+  icon: Wrench,
   items: [
     { href: '/upload',   label: 'Upload',   icon: Upload, adminOnly: true },
     { href: '/settings', label: 'Settings', icon: SettingsIcon },
@@ -132,10 +142,32 @@ export function Sidebar({ className, userRole = 'customer' }: SidebarProps) {
   // Filter admin-only sections out for non-admin roles. Server-side gating on
   // the actual pages/APIs is the real security boundary — this is purely UX.
   const isAdmin = effectiveRole === 'owner';
+
+  // Collapsible nav sections — collapsed by default (persisted to localStorage).
+  // A section still auto-expands when it contains the current route, so you
+  // never lose your place.
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('tempo_nav_expanded');
+      if (raw) setExpanded(new Set(JSON.parse(raw) as string[]));
+    } catch { /* ignore */ }
+  }, []);
+  const toggleSection = (label: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(label)) next.delete(label); else next.add(label);
+      try { localStorage.setItem('tempo_nav_expanded', JSON.stringify([...next])); } catch { /* ignore */ }
+      return next;
+    });
+  };
+  const sectionHasActive = (section: NavSection) =>
+    section.items.some((it) => pathname === it.href || (it.href !== '/' && pathname.startsWith(it.href)));
+
   // Option A entity-based order: Home → Creators → Content → Insights → Finance → Admin.
   // Admin (with Upload + Settings) lives at the bottom because both are
   // maintenance/configuration surfaces, not daily-use destinations.
-  const sections = [HOME_SECTION, CREATORS_SECTION, CONTENT_SECTION, PRODUCTS_SECTION, WORKFLOWS_SECTION, FINANCE_SECTION, ADMIN_SECTION]
+  const sections = [HOME_SECTION, CREATORS_SECTION, CONTENT_SECTION, FINANCE_SECTION, PRODUCTS_SECTION, WORKFLOWS_SECTION, ADMIN_SECTION]
     .filter(s => !s.adminOnly || isAdmin);
 
   function withBrand(href: string) {
@@ -143,23 +175,28 @@ export function Sidebar({ className, userRole = 'customer' }: SidebarProps) {
     return `${href}?brand=${brand}`;
   }
 
-  const renderItem = (item: NavItem) => {
+  const renderItem = (item: NavItem, nested = false) => {
     const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
     return (
       <Link
         key={item.href}
         href={withBrand(item.href)}
         className={cn(
-          'group flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-150',
+          'group flex items-center gap-3 py-2 rounded-lg text-sm transition-all duration-150',
+          // Nested (in a section) → no icon; indent the label so it aligns
+          // under the section header's label.
+          nested ? 'pl-10 pr-3' : 'px-3',
           isActive
             ? 'bg-pink-50 text-[#FF4D8D] font-medium'
             : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
         )}
       >
-        <item.icon className={cn(
-          'h-4 w-4 flex-shrink-0 transition-colors',
-          isActive ? 'text-[#FF4D8D]' : 'text-gray-400 group-hover:text-gray-600'
-        )} />
+        {!nested && (
+          <item.icon className={cn(
+            'h-4 w-4 flex-shrink-0 transition-colors',
+            isActive ? 'text-[#FF4D8D]' : 'text-gray-400 group-hover:text-gray-600'
+          )} />
+        )}
         {item.label}
         {isActive && (
           <span className="ml-auto w-1 h-4 rounded-full bg-[#FF4D8D]" />
@@ -168,16 +205,36 @@ export function Sidebar({ className, userRole = 'customer' }: SidebarProps) {
     );
   };
 
-  const renderSection = (section: NavSection, key: string) => (
-    <div key={key} className="space-y-0.5">
-      {section.label && (
-        <p className="px-3 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-widest text-gray-400 select-none">
-          {section.label}
-        </p>
-      )}
-      {section.items.filter(it => !it.adminOnly || isAdmin).map(renderItem)}
-    </div>
-  );
+  const renderSection = (section: NavSection, key: string) => {
+    const items = section.items.filter((it) => !it.adminOnly || isAdmin);
+    if (items.length === 0) return null;
+    // Ungrouped (Home) — no collapsible header.
+    if (!section.label) {
+      return <div key={key} className="space-y-0.5">{items.map((it) => renderItem(it))}</div>;
+    }
+    const open = sectionHasActive(section) || expanded.has(section.label);
+    const SectionIcon = section.icon;
+    return (
+      <div key={key} className="space-y-0.5">
+        <button
+          type="button"
+          onClick={() => toggleSection(section.label!)}
+          className="group w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-500 hover:text-gray-900 hover:bg-gray-50 transition-all duration-150"
+        >
+          {SectionIcon && (
+            <SectionIcon className="h-4 w-4 flex-shrink-0 text-gray-400 group-hover:text-gray-600 transition-colors" />
+          )}
+          <span className="font-medium">{section.label}</span>
+          <ChevronDown className={cn('ml-auto h-3.5 w-3.5 text-gray-400 transition-transform duration-200', open ? '' : '-rotate-90')} />
+        </button>
+        {open && (
+          <div className="mt-0.5 space-y-0.5">
+            {items.map((it) => renderItem(it, true))}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <aside className={cn(
