@@ -115,6 +115,7 @@ export async function PATCH(request: NextRequest) {
     const { data } = await admin
       .from('team_members')
       .select('id')
+      .eq('tenant_id', profile.tenant_id)
       .eq('is_archived', false)
       .order('created_at', { ascending: true })
       .limit(1)

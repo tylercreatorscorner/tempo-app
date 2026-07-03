@@ -467,6 +467,7 @@ export function EarningsClient({ initialMonth }: { initialMonth: string }) {
           open
           brand={editingBrand.brand}
           brandLabel={editingBrand.brandLabel}
+          teamMemberId={teamMemberId}
           initialValues={{
             commission_rate: editingBrand.rate,
             retainer: editingBrand.configuredRetainer,
