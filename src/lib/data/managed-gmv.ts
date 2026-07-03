@@ -20,7 +20,7 @@
  * slugs — see `sumManagedGmvForBrands`.
  */
 import { createAdminClient } from '@/lib/supabase/server';
-import { getBrandRegistry, expandSlugs, type BrandRegistry } from '@/lib/data/brand-registry';
+import { expandSlugs, type BrandRegistry } from '@/lib/data/brand-registry';
 
 export interface ManagedCreatorGmv {
   /** Normalized handle (lowercased, @-stripped). */
@@ -38,53 +38,13 @@ export interface ManagedGmvResult {
   byStoreCreator: Map<string, Map<string, ManagedCreatorGmv>>;
   /** store slug → total managed affiliate GMV. */
   byStore: Map<string, number>;
-  /** `${handle}|||${store}` membership set (managed creators only). */
-  managedLookup: Set<string>;
   /** store slug → brand display name (from brands_v2). */
   labelByStore: Map<string, string>;
-}
-
-interface PerfRow {
-  creator_name: string;
-  brand: string;
-  gmv: number | string;
-}
-
-function pNum(v: unknown): number {
-  if (v === null || v === undefined || v === '') return 0;
-  const n = typeof v === 'number' ? v : parseFloat(String(v));
-  return Number.isNaN(n) ? 0 : n;
 }
 
 export function normalizeHandle(h: string | null | undefined): string {
   if (!h) return '';
   return h.replace(/^@/, '').trim().toLowerCase();
-}
-
-/**
- * Fetch EVERY row of a Supabase table query, paging past PostgREST's default
- * 1000-row cap. `makeQuery` must return a FRESH builder each call (builders are
- * single-use) carrying a stable `.order()` so successive range windows line up.
- *
- * This matters here: RPC calls (get_creator_brand_gmv) are NOT subject to the
- * cap, but plain `.select()` table reads ARE. managed_creators (~1.3k rows) and
- * tiktok_accounts (~1.4k rows for managed creators) both exceed 1000, so an
- * un-paged read silently dropped handles → an incomplete managedLookup →
- * under-counted managed GMV (e.g. Lemme read $65,728.62 instead of $66,030.85).
- */
-async function fetchAllRows<T>(
-  makeQuery: () => { range: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }> },
-): Promise<T[]> {
-  const PAGE = 1000;
-  const out: T[] = [];
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await makeQuery().range(from, from + PAGE - 1);
-    if (error) { console.error('[managed-gmv] paged fetch failed:', error.message); break; }
-    if (!data || data.length === 0) break;
-    out.push(...data);
-    if (data.length < PAGE) break;
-  }
-  return out;
 }
 
 /**
@@ -103,7 +63,7 @@ export async function computeManagedGmv(
   regArg?: BrandRegistry,
 ): Promise<ManagedGmvResult> {
   const supabase = await createAdminClient();
-  const reg = regArg ?? (await getBrandRegistry());
+  void regArg; // kept for call-site compatibility; get_managed_gmv resolves brands itself
 
   // Active data stores = brands_v2 rows that are neither archived nor umbrella
   // groupings. Umbrella slugs (e.g. "leefar") carry no data of their own.
@@ -124,98 +84,43 @@ export async function computeManagedGmv(
     storeSlugs,
     byStoreCreator: new Map(),
     byStore: new Map(),
-    managedLookup: new Set(),
     labelByStore,
   };
   if (storeSlugs.length === 0) return empty;
 
-  type ManagedRowLite = {
-    brand: string | null;
-    creator_id: string | null;
-    account_1: string | null; account_2: string | null; account_3: string | null;
-    account_4: string | null; account_5: string | null;
-  };
-  const [perfRes, managedRows] = await Promise.all([
-    supabase.rpc('get_creator_brand_gmv', {
-      p_start_date: startDate,
-      p_end_date: endDate,
-      p_brands: storeSlugs,
-    }),
-    // Paged past the 1000-row cap so no managed creator is silently dropped.
-    fetchAllRows<ManagedRowLite>(() =>
-      supabase
-        .from('managed_creators')
-        .select('brand, creator_id, account_1, account_2, account_3, account_4, account_5')
-        .is('archived_at', null)
-        .order('id', { ascending: true })),
-  ]);
-
-  const perfData = (perfRes.data as PerfRow[] | null) ?? [];
-
-  // Canonical handles per creator_id from tiktok_accounts (one query), with the
-  // legacy account_1..5 columns as a fallback for rows lacking a creator_id.
-  const managedCreatorIds = Array.from(
-    new Set(managedRows.map((m) => m.creator_id).filter((v): v is string => !!v)),
-  );
-  const handlesByCreatorId = new Map<string, string[]>();
-  if (managedCreatorIds.length > 0) {
-    // Paged past the 1000-row cap — a truncated read here was dropping real
-    // handles (e.g. shoppingwithcharlstyn, peshoedite8) from the lookup.
-    const taRows = await fetchAllRows<{ creator_id: string; tiktok_username: string | null }>(() =>
-      supabase
-        .from('tiktok_accounts')
-        .select('creator_id, tiktok_username')
-        .in('creator_id', managedCreatorIds)
-        .order('id', { ascending: true }));
-    for (const r of taRows) {
-      const handle = normalizeHandle(r.tiktok_username);
-      if (!handle) continue;
-      const list = handlesByCreatorId.get(r.creator_id) ?? [];
-      list.push(handle);
-      handlesByCreatorId.set(r.creator_id, list);
-    }
+  // Canonical managed GMV — computed IN the database by get_managed_gmv(), which
+  // does the managed_creators × tiktok_accounts × creator_performance join,
+  // per-(handle, store) dedup, and umbrella→store expansion in Postgres, then
+  // returns only the ~hundreds of GMV-bearing (store, handle) rows. This replaced
+  // dragging managed_creators + tiktok_accounts + up to ~144k creator_performance
+  // rows into Node and joining in JS — which also tripped PostgREST's 1000-row
+  // cap on the two table reads (silently dropping handles → under-count). RPC
+  // results are NOT subject to that cap, so nothing truncates.
+  const { data: rows, error } = await supabase.rpc('get_managed_gmv', {
+    p_start: startDate,
+    p_end: endDate,
+    p_brands: brandFilterSlugs ?? null,
+  });
+  if (error) {
+    console.error('[managed-gmv] get_managed_gmv RPC failed:', error.message);
+    return empty;
   }
 
-  // Build (handle|||store) membership. Umbrella brands expand to their stores
-  // so an umbrella-managed creator counts toward every store it drives GMV on.
-  const managedLookup = new Set<string>();
-  for (const m of managedRows) {
-    if (!m.brand) continue;
-    const dataBrands = expandSlugs(reg, m.brand);
-    const fromAccounts = m.creator_id ? handlesByCreatorId.get(m.creator_id) : undefined;
-    const handles =
-      fromAccounts && fromAccounts.length > 0
-        ? fromAccounts
-        : [m.account_1, m.account_2, m.account_3, m.account_4, m.account_5]
-            .map(normalizeHandle)
-            .filter(Boolean);
-    for (const handle of handles) {
-      for (const dataBrand of dataBrands) managedLookup.add(`${handle}|||${dataBrand}`);
-    }
-  }
-
-  // Aggregate GMV per (store, handle) — managed creators only, deduped by handle.
-  const storeSet = new Set(storeSlugs);
   const byStoreCreator = new Map<string, Map<string, ManagedCreatorGmv>>();
   const byStore = new Map<string, number>();
   for (const slug of storeSlugs) {
     byStoreCreator.set(slug, new Map());
     byStore.set(slug, 0);
   }
-  for (const row of perfData) {
-    const handle = normalizeHandle(row.creator_name);
-    if (!handle) continue;
-    if (!storeSet.has(row.brand)) continue;
-    if (!managedLookup.has(`${handle}|||${row.brand}`)) continue;
-    const gmv = pNum(row.gmv);
-    byStore.set(row.brand, (byStore.get(row.brand) ?? 0) + gmv);
-    const m = byStoreCreator.get(row.brand)!;
-    const agg = m.get(handle);
-    if (agg) agg.gmv += gmv;
-    else m.set(handle, { handleNorm: handle, rawName: row.creator_name, gmv });
+  for (const r of (rows as Array<{ store_slug: string; handle: string; raw_name: string | null; gmv: number | string }> | null) ?? []) {
+    const bucket = byStoreCreator.get(r.store_slug);
+    if (!bucket) continue; // store outside the requested scope (defensive)
+    const gmv = typeof r.gmv === 'number' ? r.gmv : (parseFloat(String(r.gmv)) || 0);
+    byStore.set(r.store_slug, (byStore.get(r.store_slug) ?? 0) + gmv);
+    bucket.set(r.handle, { handleNorm: r.handle, rawName: r.raw_name ?? r.handle, gmv });
   }
 
-  return { storeSlugs, byStoreCreator, byStore, managedLookup, labelByStore };
+  return { storeSlugs, byStoreCreator, byStore, labelByStore };
 }
 
 /**
