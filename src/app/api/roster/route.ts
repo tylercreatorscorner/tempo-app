@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
-import { getBrandRegistry, slugToUuid, uuidToSlug, resolveUuids } from '@/lib/data/brand-registry';
+import { getBrandRegistry, slugToUuid, uuidToSlug, resolveUuids, expandSlugs } from '@/lib/data/brand-registry';
+import { getAnalyticsBrandSummaries } from '@/lib/data/rpc';
 import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 import { resolveDateRange } from '@/lib/data/date-utils';
 
@@ -786,9 +787,63 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // ── 7c. KPI-card summary metrics. Computed once (page 1 only) since they're
+  // period/brand-level, not page-level — keeps pagination fast. affiliate_gmv =
+  // the brand's TOTAL affiliate GMV (all creators); managed_gmv_prev / _30d are
+  // the roster's managed GMV over the prior period + a fixed trailing-30d window
+  // (the latter powers ROI, independent of the selected period).
+  let summary: { affiliate_gmv: number; affiliate_gmv_prev: number; managed_gmv_prev: number; managed_gmv_30d: number } | undefined;
+  if (!exportAll && page === 1) {
+    const sEnd = pEndDate ?? new Date().toISOString().slice(0, 10);
+    const sStart = pStartDate ?? (() => {
+      const d = new Date(sEnd + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() - periodDays);
+      return d.toISOString().slice(0, 10);
+    })();
+    const sStartD = new Date(sStart + 'T00:00:00Z');
+    const sEndD = new Date(sEnd + 'T00:00:00Z');
+    const winLen = Math.round((sEndD.getTime() - sStartD.getTime()) / 86400000) + 1;
+    const pvEndD = new Date(sStartD); pvEndD.setUTCDate(pvEndD.getUTCDate() - 1);
+    const pvStartD = new Date(pvEndD); pvStartD.setUTCDate(pvStartD.getUTCDate() - (winLen - 1));
+    const pvStartStr = pvStartD.toISOString().slice(0, 10);
+    const pvEndStr = pvEndD.toISOString().slice(0, 10);
+    const roiEndStr = new Date().toISOString().slice(0, 10);
+    const roiStartD = new Date(roiEndStr + 'T00:00:00Z'); roiStartD.setUTCDate(roiStartD.getUTCDate() - 29);
+    const roiStartStr = roiStartD.toISOString().slice(0, 10);
+
+    // Affiliate GMV needs data-level brand ids (in scope).
+    let affBrandIds: string[] = [];
+    if (brand && brand !== 'all') {
+      affBrandIds = (brandIds ?? []).filter((id) => id !== NO_MATCH_BRAND_ID);
+    } else {
+      const rosterSlugs = scoped
+        ? allowedSlugs!
+        : reg.rows.filter((r) => r.parent_brand_id == null && !r.is_archived).map((r) => r.slug);
+      affBrandIds = rosterSlugs
+        .flatMap((s) => expandSlugs(reg, s))
+        .map((s) => reg.bySlug.get(s)?.id)
+        .filter((id): id is string => !!id);
+    }
+
+    const [affCur, affPrev, mgPrevRes, mg30Res] = await Promise.all([
+      affBrandIds.length ? getAnalyticsBrandSummaries(affBrandIds, sStart, sEnd).catch(() => []) : Promise.resolve([]),
+      affBrandIds.length ? getAnalyticsBrandSummaries(affBrandIds, pvStartStr, pvEndStr).catch(() => []) : Promise.resolve([]),
+      allHandles.length ? supabase.rpc('get_creator_handle_perf', { handles: allHandles, brand_ids: brandIds, days_back: 30, p_start_date: pvStartStr, p_end_date: pvEndStr }) : Promise.resolve({ data: [] }),
+      allHandles.length ? supabase.rpc('get_creator_handle_perf', { handles: allHandles, brand_ids: brandIds, days_back: 30, p_start_date: roiStartStr, p_end_date: roiEndStr }) : Promise.resolve({ data: [] }),
+    ]);
+    const sumTotalGmv = (rows: unknown) => ((rows as Array<{ total_gmv: number | string }> | null) ?? []).reduce((s, r) => s + (Number(r.total_gmv) || 0), 0);
+    const sumPerfGmv = (res: unknown) => (((res as { data: unknown }).data as PerfRow[] | null) ?? []).reduce((s, r) => s + (Number(r.gmv_period) || 0), 0);
+    summary = {
+      affiliate_gmv: sumTotalGmv(affCur),
+      affiliate_gmv_prev: sumTotalGmv(affPrev),
+      managed_gmv_prev: sumPerfGmv(mgPrevRes),
+      managed_gmv_30d: sumPerfGmv(mg30Res),
+    };
+  }
+
   return NextResponse.json({
     data: dataOut,
     spark_days: sparkDays,
+    summary,
     total,
     total_managed,
     page,
