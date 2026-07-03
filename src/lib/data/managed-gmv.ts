@@ -158,21 +158,29 @@ export async function computeManagedGmv(
     new Set(managedRows.map((m) => m.creator_id).filter((v): v is string => !!v)),
   );
   const handlesByCreatorId = new Map<string, string[]>();
-  if (managedCreatorIds.length > 0) {
-    // Paged past the 1000-row cap — a truncated read here was dropping real
-    // handles (e.g. shoppingwithcharlstyn, peshoedite8) from the lookup.
-    const taRows = await fetchAllRows<{ creator_id: string; tiktok_username: string | null }>(() =>
-      supabase
-        .from('tiktok_accounts')
-        .select('creator_id, tiktok_username')
-        .in('creator_id', managedCreatorIds)
-        .order('id', { ascending: true }));
-    for (const r of taRows) {
-      const handle = normalizeHandle(r.tiktok_username);
-      if (!handle) continue;
-      const list = handlesByCreatorId.get(r.creator_id) ?? [];
-      list.push(handle);
-      handlesByCreatorId.set(r.creator_id, list);
+  {
+    // Fetch tiktok handles for all managed creators. TWO truncation traps here:
+    //  (1) a long `.in()` list overflows the request URL and silently returns a
+    //      PARTIAL set — so CHUNK the ids into small batches; and
+    //  (2) the 1000-row cap — so PAGE each batch.
+    // Both were dropping handles and forcing a wrong per-row fallback to the
+    // legacy account_1..5 columns, which under/over-counted managed GMV by brand.
+    const CHUNK = 200;
+    for (let i = 0; i < managedCreatorIds.length; i += CHUNK) {
+      const batch = managedCreatorIds.slice(i, i + CHUNK);
+      const taRows = await fetchAllRows<{ creator_id: string; tiktok_username: string | null }>(() =>
+        supabase
+          .from('tiktok_accounts')
+          .select('creator_id, tiktok_username')
+          .in('creator_id', batch)
+          .order('id', { ascending: true }));
+      for (const r of taRows) {
+        const handle = normalizeHandle(r.tiktok_username);
+        if (!handle) continue;
+        const list = handlesByCreatorId.get(r.creator_id) ?? [];
+        list.push(handle);
+        handlesByCreatorId.set(r.creator_id, list);
+      }
     }
   }
 
