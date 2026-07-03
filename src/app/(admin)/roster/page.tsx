@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { SparklineCell } from '@/components/ui-kit/sparkline-cell';
 import { RosterSegmentControls } from '@/components/segments/roster-segment-controls';
+import { StatCard } from '@/components/dashboard/stat-card';
 import type { SegmentFilterCriteria } from '@/lib/data/segments';
 import {
   UserPlus, Search, Users, UserCheck, X,
@@ -1277,6 +1278,8 @@ function RosterContent() {
   const [total, setTotal] = useState(0);
   const [totalGmvPeriod, setTotalGmvPeriod] = useState(0);
   const [totalRetainer, setTotalRetainer] = useState(0);
+  const [totalManaged, setTotalManaged] = useState(0);
+  const [summary, setSummary] = useState<{ affiliate_gmv: number; affiliate_gmv_prev: number; managed_gmv_prev: number; managed_gmv_30d: number } | null>(null);
   const [loading, setLoading] = useState(true);
   // Gate the load bar behind a short delay so it doesn't flash on the now-fast
   // (~0.3s) loads — it only appears when a fetch genuinely drags.
@@ -1357,6 +1360,8 @@ function RosterContent() {
       setTotal(json.total || 0);
       setTotalGmvPeriod(json.total_gmv_period ?? 0);
       setTotalRetainer(json.total_retainer ?? 0);
+      setTotalManaged(json.total_managed ?? 0);
+      if (json.summary) setSummary(json.summary);
     } catch (err) {
       console.error('Failed to fetch roster:', err);
     } finally {
@@ -1478,12 +1483,23 @@ function RosterContent() {
     min_posts: segFilters?.min_posts ?? null,
   };
 
+  // Derived KPI-card values (Affiliate/Managed GMV + prior-period deltas + ROI).
+  const pctDelta = (cur: number, prev: number): number | undefined => (prev > 0 ? ((cur - prev) / prev) * 100 : undefined);
+  const affiliateGmv = summary?.affiliate_gmv ?? 0;
+  const managed30 = summary?.managed_gmv_30d ?? 0;
+  const roi = totalRetainer > 0 ? managed30 / totalRetainer : 0;
+
   return (
     <div className="space-y-5">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-[#1A1B3A]">Creators</h1>
+          <h1 className="text-2xl font-bold text-[#1A1B3A] flex items-center gap-2">
+            Creators
+            {totalManaged > 0 && (
+              <span className="text-sm font-semibold text-gray-400">· {totalManaged.toLocaleString()} managed</span>
+            )}
+          </h1>
           <p className="text-sm text-gray-400 mt-0.5">
             A reference for who&apos;s posting and whether they&apos;re worth the cost.
           </p>
@@ -1506,36 +1522,52 @@ function RosterContent() {
         </div>
       </div>
 
-      {/* Summary banner: brand + period selectors, total GMV, total retainers */}
-      <div className="rounded-2xl bg-gradient-to-br from-[#1A1B3A] to-[#2A2D5A] text-white p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <BrandSelect value={brand} options={brandOptions} onChange={setBrand} />
-          <PeriodSelector
-            preset={preset}
-            customStart={customStart}
-            customEnd={customEnd}
-            onPreset={(p) => { setPreset(p); setCustomStart(null); setCustomEnd(null); }}
-            onCustom={(s, e) => { setPreset('custom'); setCustomStart(s); setCustomEnd(e); }}
-          />
-        </div>
-        <div className="flex flex-wrap items-end gap-x-12 gap-y-4 mt-5">
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-white/55">
-              Total GMV · {periodLabel}
-            </p>
-            <p className="text-3xl font-extrabold mt-1 tabular-nums">
-              {loading ? '…' : fmt(totalGmvPeriod)}
-            </p>
-          </div>
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-white/55">
-              Total retainers · this month
-            </p>
-            <p className="text-2xl font-bold mt-1 tabular-nums text-white/90">
-              {loading ? '…' : fmt(totalRetainer)}
-            </p>
-          </div>
-        </div>
+      {/* Brand + period selectors */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <BrandSelect value={brand} options={brandOptions} onChange={setBrand} />
+        <PeriodSelector
+          preset={preset}
+          customStart={customStart}
+          customEnd={customEnd}
+          onPreset={(p) => { setPreset(p); setCustomStart(null); setCustomEnd(null); }}
+          onCustom={(s, e) => { setPreset('custom'); setCustomStart(s); setCustomEnd(e); }}
+        />
+      </div>
+
+      {/* KPI cards — match the Dashboard */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+        <StatCard
+          label="Affiliate GMV"
+          value={loading && !summary ? '…' : fmt(affiliateGmv)}
+          trend={summary ? pctDelta(affiliateGmv, summary.affiliate_gmv_prev) : undefined}
+          trendLabel={periodLabel}
+          accentColor="#7C5CFC"
+        />
+        <StatCard
+          label="Managed GMV"
+          value={loading ? '…' : fmt(totalGmvPeriod)}
+          trend={summary ? pctDelta(totalGmvPeriod, summary.managed_gmv_prev) : undefined}
+          trendLabel={periodLabel}
+          accentColor="#FF4D8D"
+        />
+        <StatCard
+          label="Managed Share"
+          value={affiliateGmv > 0 ? `${((totalGmvPeriod / affiliateGmv) * 100).toFixed(0)}%` : '—'}
+          subValue={affiliateGmv > 0 ? `${fmt(totalGmvPeriod)} of ${fmt(affiliateGmv)}` : undefined}
+          accentColor="#22C55E"
+        />
+        <StatCard
+          label="Total Retainers"
+          value={loading ? '…' : fmt(totalRetainer)}
+          subValue="per month"
+          accentColor="#F59E0B"
+        />
+        <StatCard
+          label="ROI · 30d"
+          value={roi > 0 ? `${roi.toFixed(1)}x` : 'N/A'}
+          subValue={totalRetainer > 0 ? `${fmt(managed30)} ÷ ${fmt(totalRetainer)}/mo` : undefined}
+          accentColor="#0EA5E9"
+        />
       </div>
 
       {/* Filter row: All / Managed / Unmanaged + search */}
