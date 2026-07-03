@@ -250,6 +250,11 @@ export default async function AdminDashboard({ searchParams }: Props) {
   }, { gmv: 0, orders: 0, items: 0, creators: 0, videos: 0 });
   // Unmanaged = brand-wide GMV not attributable to a managed creator. (Was a
   // per-creator isManaged sum over the top-50-per-brand sample.)
+  // NOTE: cross-source subtraction — totals.gmv comes from the analytics
+  // summaries (daily_creator_stats) while managedGmv comes from computeManagedGmv
+  // (creator_performance). The two are kept in sync but can drift slightly, so
+  // treat unmanaged / Managed Share % as approximate (managedGmv itself is exact).
+  // Guarded with max(0, …) so drift can't render a negative.
   const unmanagedGmv = Math.max(0, totals.gmv - managedGmv);
 
   const prevTotals = prevBrandSummaries.reduce((acc, s) => {
