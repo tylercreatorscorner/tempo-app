@@ -29,6 +29,9 @@ interface Props {
   open: boolean;
   brand: string;
   brandLabel: string;
+  /** The payee whose compensation is being edited — must match the one the
+   *  Earnings table is showing, or the save lands on the wrong row. */
+  teamMemberId?: string | null;
   initialValues: BrandSettingsValues;
   /**
    * @deprecated Marketing GMV is now edited inline on the Earnings table, not in
@@ -49,7 +52,7 @@ const MODEL_OPTIONS: { value: CompensationModel; label: string; description: str
   { value: 'retainer_only', label: 'Retainer Only', description: 'Flat retainer, no commission.' },
 ];
 
-export function BrandEditSheet({ open, brand, brandLabel, initialValues, onClose, onSaved }: Props) {
+export function BrandEditSheet({ open, brand, brandLabel, teamMemberId, initialValues, onClose, onSaved }: Props) {
   const [values, setValues] = useState<BrandSettingsValues>(initialValues);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -79,6 +82,9 @@ export function BrandEditSheet({ open, brand, brandLabel, initialValues, onClose
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             brand,
+            // Target the payee currently shown in the table; without this the
+            // API defaults to the first team member and the edit lands there.
+            team_member_id: teamMemberId ?? undefined,
             patch: {
               commission_rate: values.commission_rate,
               retainer: values.retainer,
