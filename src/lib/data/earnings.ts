@@ -32,7 +32,8 @@
  *   controls how the resulting commission combines with the retainer.
  */
 import { createAdminClient } from '@/lib/supabase/server';
-import { getBrandRegistry, expandSlugs } from '@/lib/data/brand-registry';
+import { getBrandRegistry } from '@/lib/data/brand-registry';
+import { computeManagedGmv } from '@/lib/data/managed-gmv';
 
 export interface CreatorContribution {
   /** Creator handle as it appears in creator_performance (with @ stripped). */
@@ -142,11 +143,6 @@ interface BrandSettingsRow {
   payment_instructions: string | null;
 }
 
-interface PerfRow {
-  creator_name: string;
-  brand: string;
-  gmv: number | string;
-}
 
 function pNum(v: unknown): number {
   if (v === null || v === undefined || v === '') return 0;
@@ -225,24 +221,15 @@ export async function getEarnings(
     activeTeamMemberId = tmRow?.id ?? null;
   }
 
-  // ── Resolve the active brand list from brands_v2 (source of truth).
-  // Excludes archived brands and umbrella groupings (e.g. "leefar" which
-  // groups leefar_nutrition + leefar_supplements but has no data of its own).
-  const { data: brandsRaw } = await supabase
-    .from('brands_v2')
-    .select('slug, name')
-    .eq('is_archived', false)
-    .eq('is_umbrella', false)
-    .order('name');
-  let activeBrandRows = (brandsRaw as Array<{ slug: string; name: string }> | null ?? []);
-  // Manager scoping: restrict to the caller's brands. An empty filter array
-  // means "no brands" → empty result (fail-closed), never "all".
-  if (brandFilterSlugs != null) {
-    const allowed = new Set(brandFilterSlugs);
-    activeBrandRows = activeBrandRows.filter(b => allowed.has(b.slug));
-  }
-  const activeBrandSlugs = activeBrandRows.map(b => b.slug);
-  const brandLabelBySlug = new Map(activeBrandRows.map(b => [b.slug, b.name]));
+  // ── Canonical managed GMV — computed by the SAME shared function the
+  // Creators/roster page uses (src/lib/data/managed-gmv.ts) so the two pages
+  // tie out to the penny for the same period. This ALSO resolves the active
+  // data-store list from brands_v2 (non-archived, non-umbrella) and applies the
+  // manager brand scope (fail-closed on an empty filter). The per-(store,
+  // creator) aggregation it returns feeds the commission math below.
+  const mg = await computeManagedGmv(startDate, endDate, brandFilterSlugs ?? null, reg);
+  const activeBrandSlugs = mg.storeSlugs;
+  const brandLabelBySlug = mg.labelByStore;
 
   if (activeBrandSlugs.length === 0) {
     // No active brands — return empty result. Better than throwing on a fresh tenant.
@@ -258,17 +245,15 @@ export async function getEarnings(
     };
   }
 
-  // ── Fan out: per-payee compensation, brand-level info, perf data, custom
-  // rates, marketing GMV, managed creators, current team member (for payment
-  // instructions used by invoice flow).
+  // ── Fan out: per-payee compensation, brand-level info, custom rates,
+  // marketing GMV, current team member (for payment instructions used by the
+  // invoice flow). Managed affiliate GMV already came from computeManagedGmv.
   const [
     compensationRes,
     brandLevelRes,
     teamMemberRes,
-    perfRes,
     customRatesRes,
     marketingRes,
-    managedRes,
   ] = await Promise.all([
     activeTeamMemberId
       ? supabase
@@ -292,16 +277,8 @@ export async function getEarnings(
           .eq('id', activeTeamMemberId)
           .maybeSingle()
       : Promise.resolve({ data: null }),
-    supabase.rpc('get_creator_brand_gmv', {
-      p_start_date: startDate,
-      p_end_date: endDate,
-      p_brands: activeBrandSlugs,
-    }),
     supabase.from('creator_commission_rates').select('creator_name, brand, rate'),
     supabase.from('marketing_gmv').select('brand, amount').eq('month', month),
-    supabase.from('managed_creators')
-      .select('brand, creator_id, account_1, account_2, account_3, account_4, account_5')
-      .is('archived_at', null),
   ]);
 
   // Merge per-payee compensation rows with brand-level info into a single
@@ -341,7 +318,6 @@ export async function getEarnings(
     });
   }
 
-  const perfData = (perfRes.data as PerfRow[] | null ?? []);
   const customRates = (customRatesRes.data as Array<{ creator_name: string; brand: string; rate: number | string }> | null ?? []);
   const customRateLookup = new Map<string, number>(); // "handle|||brand" → percentage
   for (const r of customRates) {
@@ -354,90 +330,14 @@ export async function getEarnings(
     marketingByBrand.set(row.brand, pNum(row.amount));
   }
 
-  // Build "managed creator" lookup keyed by (handle, brand). Only managed
-  // creators count toward affiliate GMV — random affiliates aren't in scope
-  // for the rev share calc.
-  //
-  // Handles come from tiktok_accounts (canonical, unlimited per creator),
-  // matching how the /roster ("My Creators") page resolves them. The legacy
-  // account_1..5 columns are only a fallback for rows lacking a creator_id
-  // link — reading just those five under-counted GMV for creators with more
-  // than five handles (or whose handles live only in tiktok_accounts).
-  //
-  // Umbrella brands (e.g. 'leefar') get expanded to their store slugs
-  // (leefar_nutrition, leefar_supplements) so the lookup matches
-  // creator_performance rows, which are keyed by store. A creator under the
-  // LeeFar umbrella counts toward both stores' rev share — exactly the
-  // intended model: one roster row, two stores' worth of GMV.
-  const managedRows = (managedRes.data as Array<{
-    brand: string | null;
-    creator_id: string | null;
-    account_1: string | null; account_2: string | null; account_3: string | null;
-    account_4: string | null; account_5: string | null;
-  }> | null ?? []);
-
-  // Resolve canonical handles per creator_id from tiktok_accounts (one query).
-  const managedCreatorIds = Array.from(new Set(
-    managedRows.map(m => m.creator_id).filter((v): v is string => !!v),
-  ));
-  const handlesByCreatorId = new Map<string, string[]>();
-  if (managedCreatorIds.length > 0) {
-    const { data: taRows } = await supabase
-      .from('tiktok_accounts')
-      .select('creator_id, tiktok_username')
-      .in('creator_id', managedCreatorIds);
-    for (const r of (taRows as Array<{ creator_id: string; tiktok_username: string | null }> | null ?? [])) {
-      const handle = normalizeHandle(r.tiktok_username);
-      if (!handle) continue;
-      const list = handlesByCreatorId.get(r.creator_id) ?? [];
-      list.push(handle);
-      handlesByCreatorId.set(r.creator_id, list);
-    }
-  }
-
-  const managedLookup = new Set<string>();
-  for (const m of managedRows) {
-    const brand = m.brand;
-    if (!brand) continue;
-    const dataBrands = expandSlugs(reg, brand);
-    // Prefer canonical tiktok_accounts handles; fall back to the legacy
-    // columns only when this row has no creator_id link / no accounts rows.
-    const fromAccounts = m.creator_id ? handlesByCreatorId.get(m.creator_id) : undefined;
-    const handles = (fromAccounts && fromAccounts.length > 0)
-      ? fromAccounts
-      : [m.account_1, m.account_2, m.account_3, m.account_4, m.account_5]
-          .map(normalizeHandle)
-          .filter(Boolean);
-    for (const handle of handles) {
-      for (const dataBrand of dataBrands) {
-        managedLookup.add(`${handle}|||${dataBrand}`);
-      }
-    }
-  }
-
-  // ── Aggregate GMV per (brand, creator) — managed creators only
-  type CreatorAgg = { handleNorm: string; rawName: string; brand: string; gmv: number };
-  const creatorByBrand: Record<string, Map<string, CreatorAgg>> = {};
+  // Managed affiliate GMV per (store, creator) and per store come from the
+  // shared computeManagedGmv() above (src/lib/data/managed-gmv.ts) — the single
+  // definition of "managed" shared with the Creators/roster page. Only managed
+  // creators count toward the rev-share calc; GMV is deduped per (handle, store)
+  // and umbrella brands are already expanded to their data stores.
+  const creatorByBrand = mg.byStoreCreator; // store slug → (handle → {handleNorm, rawName, gmv})
   const brandAffiliateGmv: Record<string, number> = {};
-  const activeBrandSet = new Set(activeBrandSlugs);
-  for (const b of activeBrandSlugs) {
-    creatorByBrand[b] = new Map();
-    brandAffiliateGmv[b] = 0;
-  }
-
-  for (const row of perfData) {
-    const handle = normalizeHandle(row.creator_name);
-    if (!handle) continue;
-    if (!activeBrandSet.has(row.brand)) continue;
-    const k = `${handle}|||${row.brand}`;
-    if (!managedLookup.has(k)) continue;
-    const gmv = pNum(row.gmv);
-    brandAffiliateGmv[row.brand] += gmv;
-    const m = creatorByBrand[row.brand];
-    let agg = m.get(handle);
-    if (!agg) { agg = { handleNorm: handle, rawName: row.creator_name, brand: row.brand, gmv: 0 }; m.set(handle, agg); }
-    agg.gmv += gmv;
-  }
+  for (const slug of activeBrandSlugs) brandAffiliateGmv[slug] = mg.byStore.get(slug) ?? 0;
 
   // ── Build per-brand rows
   const brands: BrandRow[] = [];
@@ -468,7 +368,7 @@ export async function getEarnings(
     // applies regardless of compensation_model.
     let affiliateCommission = 0;
     const creators: CreatorContribution[] = [];
-    for (const c of creatorByBrand[brand].values()) {
+    for (const c of (creatorByBrand.get(brand)?.values() ?? [])) {
       const overrideKey = `${c.handleNorm}|||${brand}`;
       const overridePct = customRateLookup.get(overrideKey);
       const creatorPct = overridePct !== undefined ? overridePct : ratePct;

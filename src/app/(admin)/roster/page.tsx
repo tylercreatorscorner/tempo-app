@@ -1358,7 +1358,9 @@ function RosterContent() {
       setRoster(json.data || []);
       setSparkDays(json.spark_days || []);
       setTotal(json.total || 0);
-      setTotalGmvPeriod(json.total_gmv_period ?? 0);
+      // Managed GMV + summary are computed page-1 only (period/brand-level, not
+      // page-level). Persist them across pagination instead of zeroing the cards.
+      if (json.total_gmv_period != null) setTotalGmvPeriod(json.total_gmv_period);
       setTotalRetainer(json.total_retainer ?? 0);
       setTotalManaged(json.total_managed ?? 0);
       if (json.summary) setSummary(json.summary);
