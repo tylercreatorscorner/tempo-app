@@ -4,6 +4,7 @@ import { getBrandRegistry, slugToUuid, uuidToSlug, resolveUuids, expandSlugs } f
 import { getAnalyticsBrandSummaries } from '@/lib/data/rpc';
 import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 import { resolveDateRange } from '@/lib/data/date-utils';
+import { computeManagedGmv, sumManagedGmvForBrands, type ManagedGmvResult } from '@/lib/data/managed-gmv';
 
 /**
  * Sentinel returned when a real brand is selected but we couldn't resolve any
@@ -619,13 +620,26 @@ export async function GET(request: NextRequest) {
   // Total monthly retainer commitment across the brand-scoped managed roster.
   // NOT period-driven — retainer is a fixed monthly contract figure, so this
   // is the same whether the period selector is on Yesterday or YTD.
-  const total_retainer = managedRows.reduce((s, r) => s + (Number(r.retainer) || 0), 0);
-  // Total GMV in the selected period for the banner. Brand + store-sub-filter
-  // are *scope* changes, so they affect this. The health filter is *triage*
-  // (not scope) so it doesn't.
-  const total_gmv_period = storeFilter
-    ? managedRows.reduce((s, r) => s + (r.gmv_by_store?.[storeFilter] ?? 0), 0)
-    : managedRows.reduce((s, r) => s + (r.gmv_period || 0), 0);
+  // Deduped by (creator, brand) so duplicate roster rows for the same creator
+  // (a re-add / merged identity) don't double-count the monthly retainer.
+  const retainerByCreatorBrand = new Map<string, number>();
+  let retainerUnlinked = 0;
+  for (const r of managedRows) {
+    const ret = Number(r.retainer) || 0;
+    if (r.creator_id) {
+      const k = `${r.creator_id}|${r.brand ?? ''}`;
+      retainerByCreatorBrand.set(k, Math.max(retainerByCreatorBrand.get(k) ?? 0, ret));
+    } else {
+      retainerUnlinked += ret;
+    }
+  }
+  const total_retainer = retainerUnlinked + Array.from(retainerByCreatorBrand.values()).reduce((s, v) => s + v, 0);
+  // Managed GMV for the selected period is computed in the page-1 summary block
+  // below via the canonical computeManagedGmv() — the SAME function the Earnings
+  // page uses — so the "Managed GMV" card ties out to Earnings exactly. Left
+  // undefined on paginated (page > 1) responses; the client persists the page-1
+  // value across pagination.
+  let total_gmv_period: number | undefined;
 
   // ── 5. Apply health filter.
   let filtered = enriched;
@@ -824,19 +838,36 @@ export async function GET(request: NextRequest) {
         .filter((id): id is string => !!id);
     }
 
-    const [affCur, affPrev, mgPrevRes, mg30Res] = await Promise.all([
+    // Canonical managed-GMV scope for this roster view, as DATA STORES. null =
+    // all active stores (owner "all" / unscoped); otherwise the selected brand's
+    // stores (umbrella-expanded), the store sub-filter, or the manager's stores.
+    const kpiStoreSlugs: string[] | null =
+      storeFilter ? [storeFilter]
+      : (brand && brand !== 'all') ? expandSlugs(reg, brand)
+      : scoped ? allowedSlugs!.flatMap((s) => expandSlugs(reg, s))
+      : null;
+    const sumMg = (r: ManagedGmvResult) =>
+      kpiStoreSlugs === null
+        ? Array.from(r.byStore.values()).reduce((s, v) => s + v, 0)
+        : sumManagedGmvForBrands(r, reg, kpiStoreSlugs);
+
+    // Managed GMV (period / prior period / trailing-30d) all come from the SAME
+    // computeManagedGmv() the Earnings page uses, so the cards tie out exactly.
+    // Affiliate GMV (brand-wide, all creators) stays on the analytics summaries.
+    const [affCur, affPrev, mgCur, mgPrev, mg30] = await Promise.all([
       affBrandIds.length ? getAnalyticsBrandSummaries(affBrandIds, sStart, sEnd).catch(() => []) : Promise.resolve([]),
       affBrandIds.length ? getAnalyticsBrandSummaries(affBrandIds, pvStartStr, pvEndStr).catch(() => []) : Promise.resolve([]),
-      allHandles.length ? supabase.rpc('get_creator_handle_perf', { handles: allHandles, brand_ids: brandIds, days_back: 30, p_start_date: pvStartStr, p_end_date: pvEndStr }) : Promise.resolve({ data: [] }),
-      allHandles.length ? supabase.rpc('get_creator_handle_perf', { handles: allHandles, brand_ids: brandIds, days_back: 30, p_start_date: roiStartStr, p_end_date: roiEndStr }) : Promise.resolve({ data: [] }),
+      computeManagedGmv(sStart, sEnd, kpiStoreSlugs, reg),
+      computeManagedGmv(pvStartStr, pvEndStr, kpiStoreSlugs, reg),
+      computeManagedGmv(roiStartStr, roiEndStr, kpiStoreSlugs, reg),
     ]);
     const sumTotalGmv = (rows: unknown) => ((rows as Array<{ total_gmv: number | string }> | null) ?? []).reduce((s, r) => s + (Number(r.total_gmv) || 0), 0);
-    const sumPerfGmv = (res: unknown) => (((res as { data: unknown }).data as PerfRow[] | null) ?? []).reduce((s, r) => s + (Number(r.gmv_period) || 0), 0);
+    total_gmv_period = sumMg(mgCur);
     summary = {
       affiliate_gmv: sumTotalGmv(affCur),
       affiliate_gmv_prev: sumTotalGmv(affPrev),
-      managed_gmv_prev: sumPerfGmv(mgPrevRes),
-      managed_gmv_30d: sumPerfGmv(mg30Res),
+      managed_gmv_prev: sumMg(mgPrev),
+      managed_gmv_30d: sumMg(mg30),
     };
   }
 
