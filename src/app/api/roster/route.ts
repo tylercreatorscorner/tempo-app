@@ -356,27 +356,33 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // ── 1b. Resolve handles per row via tiktok_accounts (one query for the
-  // page). Canonical handle source post-Path-B; account_1..5 are only a
-  // fallback for rows that somehow lack a creator_id link.
-  const creatorIds = allRows.map((r) => r.creator_id).filter((v): v is string => !!v);
+  // ── 1b. Resolve handles per row via tiktok_accounts. Canonical handle source;
+  // account_1..5 are only a fallback for rows that lack a creator_id link.
+  const creatorIds = Array.from(new Set(
+    allRows.map((r) => r.creator_id).filter((v): v is string => !!v),
+  ));
   const handlesByCreatorId = new Map<string, string[]>();
   if (creatorIds.length > 0) {
-    // Paged past the 1000-row cap; the global (is_primary DESC, id ASC) order is
-    // preserved across pages so the dedup below still keeps the primary/oldest.
+    // CHUNK the id list (a long `.in()` overflows the request URL → silent
+    // PARTIAL result) AND PAGE each batch (1000-row cap). Each creator's rows
+    // stay within a single batch, so the primary/oldest-first dedup is intact.
     const taRows: { creator_id: string; tiktok_username: string }[] = [];
-    for (let from = 0; ; from += 1000) {
-      const { data, error: taErr } = await supabase
-        .from('tiktok_accounts')
-        .select('creator_id, tiktok_username, is_primary')
-        .in('creator_id', creatorIds)
-        .order('is_primary', { ascending: false })
-        .order('id', { ascending: true })
-        .range(from, from + 999);
-      if (taErr) { console.error('[/api/roster] tiktok_accounts join failed:', taErr.message); break; }
-      if (!data || data.length === 0) break;
-      taRows.push(...(data as { creator_id: string; tiktok_username: string }[]));
-      if (data.length < 1000) break;
+    const TA_CHUNK = 200;
+    for (let ci = 0; ci < creatorIds.length; ci += TA_CHUNK) {
+      const batch = creatorIds.slice(ci, ci + TA_CHUNK);
+      for (let from = 0; ; from += 1000) {
+        const { data, error: taErr } = await supabase
+          .from('tiktok_accounts')
+          .select('creator_id, tiktok_username, is_primary')
+          .in('creator_id', batch)
+          .order('is_primary', { ascending: false })
+          .order('id', { ascending: true })
+          .range(from, from + 999);
+        if (taErr) { console.error('[/api/roster] tiktok_accounts join failed:', taErr.message); break; }
+        if (!data || data.length === 0) break;
+        taRows.push(...(data as { creator_id: string; tiktok_username: string }[]));
+        if (data.length < 1000) break;
+      }
     }
     // A handle can legitimately own several rows — one per brand the creator
     // sells for (e.g. the same handle registered under catakor + jiyu). For the
