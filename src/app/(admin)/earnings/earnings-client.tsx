@@ -687,11 +687,14 @@ function BrandTable({
                 </div>
               </td>
               <td className="px-4 py-3 text-right tabular-nums">
-                <div className="font-semibold text-[#1A1B3A]">{formatCurrency(row.totalGmv)}</div>
+                {/* Lead with AFFILIATE (managed) GMV — this is the figure that
+                    matches the Creators page "Managed GMV". Marketing GMV is a
+                    separate manual line; the combined total only shows when a
+                    brand actually has marketing GMV. */}
+                <div className="font-semibold text-[#1A1B3A]" title="Affiliate GMV — matches the Creators page Managed GMV">{formatCurrency(row.affiliateGmv)}</div>
                 <div className="mt-0.5 flex items-center justify-end gap-1 text-[10px] text-gray-400">
-                  {row.affiliateGmv > 0 && (
-                    <span className="tabular-nums">{formatCurrency(row.affiliateGmv)} aff ·</span>
-                  )}
+                  <span className="uppercase tracking-wide">affiliate</span>
+                  <span aria-hidden="true">·</span>
                   <MarketingGmvEditor
                     row={row}
                     month={month}
@@ -699,6 +702,11 @@ function BrandTable({
                     onError={onMarketingError}
                   />
                 </div>
+                {row.marketingGmv > 0 && (
+                  <div className="mt-0.5 text-[10px] text-gray-500 tabular-nums" title="Affiliate GMV + marketing GMV">
+                    = {formatCurrency(row.totalGmv)} total
+                  </div>
+                )}
               </td>
               <td className="px-4 py-3 text-right tabular-nums">
                 <span className="font-medium text-gray-700">{row.rate.toFixed(2)}%</span>
@@ -782,7 +790,12 @@ function BrandTable({
           <tfoot>
             <tr className="bg-gray-50/60 border-t-2 border-gray-100 font-bold text-[#1A1B3A]">
               <td className="px-4 py-3">Totals</td>
-              <td className="px-4 py-3 text-right tabular-nums">{formatCurrency(totals.totalGmv)}</td>
+              <td className="px-4 py-3 text-right tabular-nums">
+                <div>{formatCurrency(totals.affiliateGmv)}</div>
+                {totals.marketingGmv > 0 && (
+                  <div className="text-[10px] font-medium text-gray-400 tabular-nums">= {formatCurrency(totals.totalGmv)} total</div>
+                )}
+              </td>
               <td />
               <td className="px-4 py-3 text-right tabular-nums text-emerald-600">{formatCurrency(totals.commission)}</td>
               <td className="px-4 py-3 text-right tabular-nums">{formatCurrency(totals.retainers)}</td>
