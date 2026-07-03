@@ -5,7 +5,8 @@ import { format, subDays, differenceInDays } from 'date-fns';
 
 import { getCreatorRankings, getDailyTrend, getAnalyticsBrandSummaries } from '@/lib/data/rpc';
 import { resolveDateRange } from '@/lib/data/date-utils';
-import { aggregateCreatorsByRealName, computeManagedGmvByBrand } from '@/lib/data/creator-aggregate';
+import { aggregateCreatorsByRealName } from '@/lib/data/creator-aggregate';
+import { computeManagedGmv } from '@/lib/data/managed-gmv';
 import { getCreatorRetainers } from '@/lib/data/retainer';
 import { buildCreatorAlerts } from '@/lib/data/creator-alerts';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
@@ -161,28 +162,32 @@ export default async function AdminDashboard({ searchParams }: Props) {
   //    handle→creator lookup; running them in parallel keeps it to the
   //    same wall-clock time as one query. ─────────────────────────────────
   const allCreators = creatorsNested.flat().sort((a, b) => (b.total_gmv ?? 0) - (a.total_gmv ?? 0));
-  const [managedGmvByBrand, groupedCreators] = await Promise.all([
-    computeManagedGmvByBrand(allCreators),
+  // Managed GMV comes from the canonical computeManagedGmv() (src/lib/data/
+  // managed-gmv.ts) — the SAME definition the Earnings + Creators pages use, so
+  // all three tie out. `groupedCreators` still powers the creator table / alerts
+  // (its own real-name grouping); it no longer drives the managed GMV totals,
+  // which previously used a broader "any creators_v2 handle" definition over a
+  // top-50-per-brand sample.
+  const [mgPeriod, groupedCreators] = await Promise.all([
+    computeManagedGmv(startDate, endDate, activeBrands, reg),
     aggregateCreatorsByRealName(allCreators, brandFilter),
   ]);
+  const managedGmvByBrand = mgPeriod.byStore; // data-store slug → managed GMV
 
   // ── ROI numerator: managed GMV over a FIXED trailing-30-day window,
   //    independent of the page's date range (ROI is always trailing 30d).
   //    Folded-in Analytics (trend chart + movers + pacing) fetches in parallel.
   const roiEnd   = format(new Date(), 'yyyy-MM-dd');
   const roiStart = format(subDays(new Date(), 29), 'yyyy-MM-dd');
-  const [roiCreatorsRaw, foldIn] = await Promise.all([
-    Promise.all(activeBrands.map((b) => getCreatorRankings(b, roiStart, roiEnd, 50)
-      .then((r) => r.map((c) => ({ ...c, brand: b })))
-      .catch(() => []))),
+  const [mgRoi, foldIn] = await Promise.all([
+    computeManagedGmv(roiStart, roiEnd, activeBrands, reg),
     getFoldInAnalytics({
       startDate, endDate, preset, brandFilter, allowedBrands, activeTenantId,
       prefetched: { brandIds: BRAND_IDS, bsCur: brandSummaries, bsPrev: prevBrandSummaries, trendCur: trendCurRows },
     }),
   ]);
-  const roiManagedByBrand = await computeManagedGmvByBrand(roiCreatorsRaw.flat());
   let managedGmv30 = 0;
-  for (const [, g] of roiManagedByBrand) managedGmv30 += g;
+  for (const [, g] of mgRoi.byStore) managedGmv30 += g;
 
   // ── Per-roster-brand stats — drives BrandPerformance card and the
   //    "Top Brand" mini-stat in the Period Brief. Aggregates across
@@ -230,13 +235,9 @@ export default async function AdminDashboard({ searchParams }: Props) {
     ? { name: brandLabel(reg, topBrandStat.slug), gmv: topBrandStat.currentGmv }
     : null;
 
-  // ── Managed/unmanaged GMV split (portfolio-level — feeds the KPI card) ──
-  let managedGmv = 0;
-  let unmanagedGmv = 0;
-  for (const c of groupedCreators) {
-    if (c.isManaged) managedGmv   += c.total_gmv;
-    else             unmanagedGmv += c.total_gmv;
-  }
+  // ── Managed GMV (portfolio-level) from the canonical shared calc. Unmanaged
+  // is derived right after portfolio totals below (brand-wide minus managed).
+  const managedGmv = Array.from(mgPeriod.byStore.values()).reduce((a, b) => a + b, 0);
 
   // ── Portfolio totals ────────────────────────────────────────────────────
   const totals = brandSummaries.reduce((acc, s) => {
@@ -247,6 +248,9 @@ export default async function AdminDashboard({ searchParams }: Props) {
     acc.videos   += s.total_videos;
     return acc;
   }, { gmv: 0, orders: 0, items: 0, creators: 0, videos: 0 });
+  // Unmanaged = brand-wide GMV not attributable to a managed creator. (Was a
+  // per-creator isManaged sum over the top-50-per-brand sample.)
+  const unmanagedGmv = Math.max(0, totals.gmv - managedGmv);
 
   const prevTotals = prevBrandSummaries.reduce((acc, s) => {
     acc.gmv    += s.total_gmv;
