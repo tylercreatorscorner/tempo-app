@@ -114,9 +114,11 @@ export function EarningsClient({ initialMonth }: { initialMonth: string }) {
     setError(null);
     try {
       const tmParam = tmId ? `&team_member_id=${tmId}` : '';
+      // no-store: earnings figures must be recomputed every load, never served
+      // from a stale browser/HTTP cache.
       const [earningsRes, seriesRes] = await Promise.all([
-        fetch(`/api/earnings?month=${m}${tmParam}`),
-        fetch(`/api/earnings/series?endMonth=${m}&months=12`),
+        fetch(`/api/earnings?month=${m}${tmParam}`, { cache: 'no-store' }),
+        fetch(`/api/earnings/series?endMonth=${m}&months=12`, { cache: 'no-store' }),
       ]);
       const earningsJson = await earningsRes.json();
       if (!earningsRes.ok) throw new Error(earningsJson.error || `HTTP ${earningsRes.status}`);
