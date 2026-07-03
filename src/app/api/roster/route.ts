@@ -314,25 +314,34 @@ export async function GET(request: NextRequest) {
   // ── 1. Fetch ALL matching managed creators (no DB pagination yet — we need
   // the full set to compute health-aggregates and to support filtering by
   // health/computed columns).
-  let baseQuery = supabase
-    .from('managed_creators')
-    .select(COLUMNS)
-    .eq('tenant_id', tenantId)
-    .is('archived_at', null);
+  const buildBaseQuery = () => {
+    let q = supabase
+      .from('managed_creators')
+      .select(COLUMNS)
+      .eq('tenant_id', tenantId)
+      .is('archived_at', null)
+      .order('id', { ascending: true }); // stable order so range paging is consistent
+    if (brand && brand !== 'all') q = q.eq('brand', brand);
+    else if (scoped) q = q.in('brand', allowedSlugs!); // [] → no rows (fail-closed)
+    if (product) q = q.contains('product_assignments', [product]);
+    if (status && status !== 'all') q = q.eq('status', status);
+    if (search) {
+      q = q.or(`real_name.ilike.%${search}%,account_1.ilike.%${search}%,discord_name.ilike.%${search}%`);
+    }
+    return q;
+  };
 
-  if (brand && brand !== 'all') baseQuery = baseQuery.eq('brand', brand);
-  else if (scoped) baseQuery = baseQuery.in('brand', allowedSlugs!); // [] → no rows (fail-closed)
-  if (product) baseQuery = baseQuery.contains('product_assignments', [product]);
-  if (status && status !== 'all') baseQuery = baseQuery.eq('status', status);
-  if (search) {
-    baseQuery = baseQuery.or(
-      `real_name.ilike.%${search}%,account_1.ilike.%${search}%,discord_name.ilike.%${search}%`,
-    );
+  // Fetch the FULL matching set, paging past PostgREST's 1000-row cap — the
+  // all-brands roster (~1.3k rows) was otherwise silently truncated, skewing the
+  // health counts, KPI aggregates, and paginated table.
+  const allRows: ManagedRow[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await buildBaseQuery().range(from, from + 999) as { data: ManagedRow[] | null; error: { message: string } | null };
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (!data || data.length === 0) break;
+    allRows.push(...data);
+    if (data.length < 1000) break;
   }
-
-  const { data: rawRows, error } = await baseQuery as { data: ManagedRow[] | null; error: { message: string } | null };
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  const allRows: ManagedRow[] = rawRows ?? [];
 
   // Resolve product tag keys → display names for the row chips. One small query
   // for the whole page (the products catalog is tiny).
@@ -353,32 +362,37 @@ export async function GET(request: NextRequest) {
   const creatorIds = allRows.map((r) => r.creator_id).filter((v): v is string => !!v);
   const handlesByCreatorId = new Map<string, string[]>();
   if (creatorIds.length > 0) {
-    const { data: taRows, error: taErr } = await supabase
-      .from('tiktok_accounts')
-      .select('creator_id, tiktok_username, is_primary')
-      .in('creator_id', creatorIds)
-      .order('is_primary', { ascending: false })
-      .order('id', { ascending: true });
-    if (taErr) {
-      console.error('[/api/roster] tiktok_accounts join failed:', taErr.message);
-    } else {
-      // A handle can legitimately own several rows — one per brand the creator
-      // sells for (e.g. the same handle registered under catakor + jiyu). For
-      // the roster's handle list we want each DISTINCT handle once. taRows is
-      // ordered is_primary DESC, id ASC, so the first occurrence is the
-      // primary/oldest row — the one we keep.
-      const seenByCreator = new Map<string, Set<string>>();
-      for (const row of (taRows as { creator_id: string; tiktok_username: string }[] | null) ?? []) {
-        if (!row.tiktok_username) continue;
-        const key = row.tiktok_username.toLowerCase();
-        const seen = seenByCreator.get(row.creator_id) ?? new Set<string>();
-        if (seen.has(key)) continue;
-        seen.add(key);
-        seenByCreator.set(row.creator_id, seen);
-        const list = handlesByCreatorId.get(row.creator_id) ?? [];
-        list.push(row.tiktok_username);
-        handlesByCreatorId.set(row.creator_id, list);
-      }
+    // Paged past the 1000-row cap; the global (is_primary DESC, id ASC) order is
+    // preserved across pages so the dedup below still keeps the primary/oldest.
+    const taRows: { creator_id: string; tiktok_username: string }[] = [];
+    for (let from = 0; ; from += 1000) {
+      const { data, error: taErr } = await supabase
+        .from('tiktok_accounts')
+        .select('creator_id, tiktok_username, is_primary')
+        .in('creator_id', creatorIds)
+        .order('is_primary', { ascending: false })
+        .order('id', { ascending: true })
+        .range(from, from + 999);
+      if (taErr) { console.error('[/api/roster] tiktok_accounts join failed:', taErr.message); break; }
+      if (!data || data.length === 0) break;
+      taRows.push(...(data as { creator_id: string; tiktok_username: string }[]));
+      if (data.length < 1000) break;
+    }
+    // A handle can legitimately own several rows — one per brand the creator
+    // sells for (e.g. the same handle registered under catakor + jiyu). For the
+    // roster's handle list we want each DISTINCT handle once; the first
+    // occurrence (primary/oldest) is the one we keep.
+    const seenByCreator = new Map<string, Set<string>>();
+    for (const row of taRows) {
+      if (!row.tiktok_username) continue;
+      const key = row.tiktok_username.toLowerCase();
+      const seen = seenByCreator.get(row.creator_id) ?? new Set<string>();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      seenByCreator.set(row.creator_id, seen);
+      const list = handlesByCreatorId.get(row.creator_id) ?? [];
+      list.push(row.tiktok_username);
+      handlesByCreatorId.set(row.creator_id, list);
     }
   }
   const handlesByRow = new Map<string, string[]>();

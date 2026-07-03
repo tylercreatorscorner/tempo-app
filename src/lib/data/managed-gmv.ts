@@ -62,6 +62,32 @@ export function normalizeHandle(h: string | null | undefined): string {
 }
 
 /**
+ * Fetch EVERY row of a Supabase table query, paging past PostgREST's default
+ * 1000-row cap. `makeQuery` must return a FRESH builder each call (builders are
+ * single-use) carrying a stable `.order()` so successive range windows line up.
+ *
+ * This matters here: RPC calls (get_creator_brand_gmv) are NOT subject to the
+ * cap, but plain `.select()` table reads ARE. managed_creators (~1.3k rows) and
+ * tiktok_accounts (~1.4k rows for managed creators) both exceed 1000, so an
+ * un-paged read silently dropped handles → an incomplete managedLookup →
+ * under-counted managed GMV (e.g. Lemme read $65,728.62 instead of $66,030.85).
+ */
+async function fetchAllRows<T>(
+  makeQuery: () => { range: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }> },
+): Promise<T[]> {
+  const PAGE = 1000;
+  const out: T[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await makeQuery().range(from, from + PAGE - 1);
+    if (error) { console.error('[managed-gmv] paged fetch failed:', error.message); break; }
+    if (!data || data.length === 0) break;
+    out.push(...data);
+    if (data.length < PAGE) break;
+  }
+  return out;
+}
+
+/**
  * Compute managed affiliate GMV per data store for an arbitrary date range.
  *
  * @param startDate         inclusive, "YYYY-MM-DD"
@@ -103,26 +129,28 @@ export async function computeManagedGmv(
   };
   if (storeSlugs.length === 0) return empty;
 
-  const [perfRes, managedRes] = await Promise.all([
+  type ManagedRowLite = {
+    brand: string | null;
+    creator_id: string | null;
+    account_1: string | null; account_2: string | null; account_3: string | null;
+    account_4: string | null; account_5: string | null;
+  };
+  const [perfRes, managedRows] = await Promise.all([
     supabase.rpc('get_creator_brand_gmv', {
       p_start_date: startDate,
       p_end_date: endDate,
       p_brands: storeSlugs,
     }),
-    supabase
-      .from('managed_creators')
-      .select('brand, creator_id, account_1, account_2, account_3, account_4, account_5')
-      .is('archived_at', null),
+    // Paged past the 1000-row cap so no managed creator is silently dropped.
+    fetchAllRows<ManagedRowLite>(() =>
+      supabase
+        .from('managed_creators')
+        .select('brand, creator_id, account_1, account_2, account_3, account_4, account_5')
+        .is('archived_at', null)
+        .order('id', { ascending: true })),
   ]);
 
   const perfData = (perfRes.data as PerfRow[] | null) ?? [];
-  const managedRows =
-    (managedRes.data as Array<{
-      brand: string | null;
-      creator_id: string | null;
-      account_1: string | null; account_2: string | null; account_3: string | null;
-      account_4: string | null; account_5: string | null;
-    }> | null) ?? [];
 
   // Canonical handles per creator_id from tiktok_accounts (one query), with the
   // legacy account_1..5 columns as a fallback for rows lacking a creator_id.
@@ -131,11 +159,15 @@ export async function computeManagedGmv(
   );
   const handlesByCreatorId = new Map<string, string[]>();
   if (managedCreatorIds.length > 0) {
-    const { data: taRows } = await supabase
-      .from('tiktok_accounts')
-      .select('creator_id, tiktok_username')
-      .in('creator_id', managedCreatorIds);
-    for (const r of (taRows as Array<{ creator_id: string; tiktok_username: string | null }> | null) ?? []) {
+    // Paged past the 1000-row cap — a truncated read here was dropping real
+    // handles (e.g. shoppingwithcharlstyn, peshoedite8) from the lookup.
+    const taRows = await fetchAllRows<{ creator_id: string; tiktok_username: string | null }>(() =>
+      supabase
+        .from('tiktok_accounts')
+        .select('creator_id, tiktok_username')
+        .in('creator_id', managedCreatorIds)
+        .order('id', { ascending: true }));
+    for (const r of taRows) {
       const handle = normalizeHandle(r.tiktok_username);
       if (!handle) continue;
       const list = handlesByCreatorId.get(r.creator_id) ?? [];
