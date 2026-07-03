@@ -382,7 +382,7 @@ function PeriodSelector({
     : 'Custom';
 
   return (
-    <div className="relative flex flex-wrap gap-1 p-1 bg-white/10 rounded-xl">
+    <div className="relative flex flex-wrap gap-1 p-1 bg-gray-100 border border-gray-200 rounded-xl">
       {DATE_PRESETS.map((p) => {
         const active = !isCustom && preset === p.value;
         return (
@@ -393,7 +393,7 @@ function PeriodSelector({
             className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
               active
                 ? 'bg-white text-[#1A1B3A] shadow'
-                : 'text-white/70 hover:text-white hover:bg-white/10'
+                : 'text-gray-500 hover:text-gray-900 hover:bg-white'
             }`}
           >
             {PERIOD_SHORT[p.value]}
@@ -405,7 +405,7 @@ function PeriodSelector({
         className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors inline-flex items-center gap-1 ${
           isCustom
             ? 'bg-white text-[#1A1B3A] shadow'
-            : 'text-white/70 hover:text-white hover:bg-white/10'
+            : 'text-gray-500 hover:text-gray-900 hover:bg-white'
         }`}
       >
         <Calendar className="h-3 w-3" />
