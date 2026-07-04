@@ -135,12 +135,13 @@ export async function computeManagedGmv(
     account_1: string | null; account_2: string | null; account_3: string | null;
     account_4: string | null; account_5: string | null;
   };
-  const [perfRes, managedRows] = await Promise.all([
-    supabase.rpc('get_creator_brand_gmv', {
-      p_start_date: startDate,
-      p_end_date: endDate,
-      p_brands: storeSlugs,
-    }),
+  // perfData: get_creator_brand_gmv results are capped at 100,000 rows by
+  // PostgREST. The all-brands set (~144k (brand, creator) rows) EXCEEDS that cap,
+  // so a single call silently drops ~44k rows and under-counts managed GMV (this
+  // is why all-brands Earnings/Dashboard were wrong while per-brand Creators was
+  // fine). Fetch ONE store per call — the biggest brand is ~38k rows, well under
+  // the cap — and concat. For a scoped (per-brand) view this is just 1–3 calls.
+  const [managedRows, perfResults] = await Promise.all([
     // Paged past the 1000-row cap so no managed creator is silently dropped.
     fetchAllRows<ManagedRowLite>(() =>
       supabase
@@ -148,9 +149,19 @@ export async function computeManagedGmv(
         .select('brand, creator_id, account_1, account_2, account_3, account_4, account_5')
         .is('archived_at', null)
         .order('id', { ascending: true })),
+    Promise.all(storeSlugs.map((slug) =>
+      supabase.rpc('get_creator_brand_gmv', {
+        p_start_date: startDate,
+        p_end_date: endDate,
+        p_brands: [slug],
+      }))),
   ]);
 
-  const perfData = (perfRes.data as PerfRow[] | null) ?? [];
+  const perfData: PerfRow[] = [];
+  for (const res of perfResults) {
+    if (res.error) { console.error('[managed-gmv] get_creator_brand_gmv failed:', res.error.message); continue; }
+    perfData.push(...((res.data as PerfRow[] | null) ?? []));
+  }
 
   // Canonical handles per creator_id from tiktok_accounts (one query), with the
   // legacy account_1..5 columns as a fallback for rows lacking a creator_id.
