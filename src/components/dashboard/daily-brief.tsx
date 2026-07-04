@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { ShoppingCart, Video, Users, TrendingUp, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { ShoppingCart, Video, Users, TrendingUp, ArrowUpRight, ArrowDownRight, Newspaper, AlertTriangle, Flame, Star, CheckCircle2 } from 'lucide-react';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
 import { DayComparisonChart } from '@/components/charts/day-comparison-chart';
 
@@ -70,17 +70,19 @@ export function DailyBrief({
     prevOrders > 0 ? ((currentOrders - prevOrders) / prevOrders) * 100 : undefined;
 
   return (
-    <div className="rounded-2xl overflow-hidden border border-gray-100 shadow-sm bg-white">
+    <div className="rounded-2xl overflow-hidden border border-gray-200 shadow-sm bg-white">
       {/* Header */}
-      <div className="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-gray-50/80 to-white">
+      <div className="px-5 py-3.5 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-gray-50/80 to-white">
         <div className="flex items-center gap-2">
-          <span className="text-base">📰</span>
-          <h3 className="font-semibold text-[#1A1B3A] text-sm">Period Brief</h3>
+          <span className="h-7 w-7 rounded-lg bg-[#FF4D8D]/10 text-[#FF4D8D] flex items-center justify-center">
+            <Newspaper className="h-4 w-4" />
+          </span>
+          <h3 className="text-sm font-extrabold tracking-tight text-[#1A1B3A]">Period Brief</h3>
         </div>
-        <span className="text-xs text-gray-400 font-medium">{periodLabel}</span>
+        <span className="text-xs text-gray-400 font-medium tabular-nums">{periodLabel}</span>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_260px] divide-y lg:divide-y-0 lg:divide-x divide-gray-100">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_260px] divide-y lg:divide-y-0 lg:divide-x divide-gray-200">
 
         {/* Left: narrative */}
         <div className="p-5 space-y-4">
@@ -88,7 +90,7 @@ export function DailyBrief({
           <p className="text-[15px] font-semibold text-[#1A1B3A] leading-snug">
             {headline}
             {gmvTrend !== undefined && (
-              <span className={`inline-flex items-center gap-0.5 ml-1 text-sm font-bold ${isPositive ? 'text-emerald-500' : 'text-red-400'}`}>
+              <span className={`inline-flex items-center gap-0.5 ml-1 text-sm font-bold ${isPositive ? 'text-emerald-600' : 'text-red-500'}`}>
                 {isPositive ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
               </span>
             )}
@@ -150,7 +152,13 @@ export function DailyBrief({
                 {actionItems.slice(0, 3).map((item, i) => (
                   <div key={i} className="flex items-start gap-2 text-sm">
                     <span className="flex-shrink-0 mt-0.5">
-                      {item.type === 'underperforming' ? '⚠️' : item.type === 'crushing' ? '🔥' : '⭐'}
+                      {item.type === 'underperforming' ? (
+                        <AlertTriangle className="h-4 w-4 text-amber-500" />
+                      ) : item.type === 'crushing' ? (
+                        <Flame className="h-4 w-4 text-[#FF4D8D]" />
+                      ) : (
+                        <Star className="h-4 w-4 text-emerald-500" />
+                      )}
                     </span>
                     <p className="text-gray-500 leading-snug">
                       <span className="font-semibold text-[#1A1B3A]">{item.name}</span>
@@ -161,7 +169,7 @@ export function DailyBrief({
               </div>
             </div>
           ) : currentGmv > 0 ? (
-            <p className="text-sm text-gray-400">✅ No action items — your creators are on track.</p>
+            <p className="flex items-center gap-1.5 text-sm text-gray-400"><CheckCircle2 className="h-4 w-4 text-emerald-500" /> No action items — your creators are on track.</p>
           ) : null}
         </div>
 
@@ -179,19 +187,19 @@ export function DailyBrief({
             height={170}
           />
           {/* Orders row */}
-          <div className="flex items-center justify-between px-2 pt-2 border-t border-gray-100">
+          <div className="flex items-center justify-between px-2 pt-2 border-t border-gray-200">
             <div>
               <p className="text-[10px] text-gray-400">Orders</p>
-              <p className="text-sm font-bold text-[#1A1B3A]">{formatNumber(currentOrders)}</p>
+              <p className="text-sm font-bold text-[#1A1B3A] tabular-nums">{formatNumber(currentOrders)}</p>
             </div>
             {ordersTrend !== undefined && (
-              <span className={`text-xs font-bold ${ordersTrend >= 0 ? 'text-emerald-500' : 'text-red-400'}`}>
+              <span className={`text-xs font-bold tabular-nums ${ordersTrend >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
                 {ordersTrend >= 0 ? '↑' : '↓'} {Math.abs(ordersTrend).toFixed(1)}%
               </span>
             )}
             <div className="text-right">
               <p className="text-[10px] text-gray-400">Prior</p>
-              <p className="text-sm font-bold text-gray-400">{formatNumber(prevOrders)}</p>
+              <p className="text-sm font-bold text-gray-400 tabular-nums">{formatNumber(prevOrders)}</p>
             </div>
           </div>
         </div>
@@ -221,14 +229,14 @@ function MiniStat({
         <span style={{ color: color ?? '#FF4D8D' }}>{icon}</span>
         <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">{label}</span>
       </div>
-      <p className="text-sm font-bold text-[#1A1B3A]">{value}</p>
+      <p className="text-sm font-bold text-[#1A1B3A] tabular-nums">{value}</p>
       {sub && (
         <p
-          className={`text-[10px] font-medium ${
+          className={`text-[11px] font-mono tabular-nums ${
             subPositive === true
-              ? 'text-emerald-500'
+              ? 'text-emerald-600'
               : subPositive === false
-              ? 'text-red-400'
+              ? 'text-red-500'
               : 'text-gray-400'
           }`}
         >

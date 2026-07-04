@@ -77,16 +77,16 @@ function ChangeCard({
         </span>
       </div>
       <p className="text-sm font-semibold text-[#1A1B3A] line-clamp-2 mb-0.5">{title}</p>
-      <p className="text-[11px] text-gray-400 mb-3 line-clamp-1">{subtitle}</p>
+      <p className="text-[11px] font-mono tabular-nums text-gray-400 mb-3 line-clamp-1">{subtitle}</p>
       <div className="flex items-baseline justify-between">
         <div>
-          <p className="text-[10px] uppercase tracking-wider text-gray-400">{valueLabel}</p>
-          <p className="text-base font-bold text-[#1A1B3A] tabular-nums">{value}</p>
+          <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">{valueLabel}</p>
+          <p className="text-base font-bold text-[#1A1B3A] font-mono tabular-nums">{value}</p>
         </div>
         {delta !== undefined && (
           <span
-            className={`text-xs font-bold px-1.5 py-0.5 rounded-md tabular-nums ${
-              delta >= 0 ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-500'
+            className={`text-xs font-bold px-1.5 py-0.5 rounded-md font-mono tabular-nums ${
+              delta >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-500'
             }`}
           >
             {delta >= 0 ? '+' : ''}{delta.toFixed(0)}%
@@ -97,10 +97,13 @@ function ChangeCard({
   );
 
   const className =
-    'block rounded-2xl bg-white border border-gray-100 shadow-sm p-4 hover:shadow-md hover:-translate-y-0.5 transition-all';
+    'block rounded-2xl bg-white border border-gray-200 shadow-sm p-4 transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md motion-reduce:transform-none motion-reduce:transition-none';
 
   return link ? (
-    <Link href={link} className={className}>{inner}</Link>
+    <Link
+      href={link}
+      className={`${className} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF4D8D]/40 focus-visible:ring-offset-1`}
+    >{inner}</Link>
   ) : (
     <div className={className}>{inner}</div>
   );
@@ -114,9 +117,9 @@ export function NotableChanges({ brandRiser, brandFaller, creatorBreakout, hotPo
   return (
     <div>
       <div className="flex items-center gap-2 mb-3">
-        <Sparkles className="h-4 w-4 text-[#E91E8C]" />
-        <h3 className="text-sm font-bold text-[#1A1B3A]">Notable Changes</h3>
-        <span className="text-xs text-gray-400">vs prior period</span>
+        <Sparkles className="h-4 w-4 text-[#FF4D8D]" />
+        <h3 className="text-sm font-extrabold tracking-tight text-[#1A1B3A]">Notable Changes</h3>
+        <span className="text-[11px] font-mono tabular-nums text-gray-400">vs prior period</span>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {brandRiser && (
@@ -167,8 +170,8 @@ export function NotableChanges({ brandRiser, brandFaller, creatorBreakout, hotPo
         {hotPost && (
           <ChangeCard
             icon={<Flame className="h-3.5 w-3.5" />}
-            iconColor="#FF6B35"
-            iconBg="#FF6B3518"
+            iconColor="#FF9800"
+            iconBg="#FF980018"
             eyebrow="Hottest Post"
             title={hotPost.video_title}
             subtitle={`@${hotPost.creator_name} · ${brandMeta.label(hotPost.brand)} · ${hotPost.days_active}d live`}
@@ -180,8 +183,8 @@ export function NotableChanges({ brandRiser, brandFaller, creatorBreakout, hotPo
         {topProduct && (
           <ChangeCard
             icon={<Package className="h-3.5 w-3.5" />}
-            iconColor="#0EA5E9"
-            iconBg="#0EA5E918"
+            iconColor="#2196F3"
+            iconBg="#2196F318"
             eyebrow="Top Product"
             title={topProduct.product_name}
             subtitle={brandMeta.label(topProduct.brand)}

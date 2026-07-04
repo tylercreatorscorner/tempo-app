@@ -58,7 +58,7 @@ export function StatCard({
         className={cn(
           'relative rounded-2xl overflow-hidden bg-gradient-to-br from-[#1A1B3A] via-[#2D1B69] to-[#1A1B3A]',
           'shadow-lg shadow-[#1A1B3A]/30',
-          'hover:-translate-y-0.5 transition-all duration-300',
+          'transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md motion-reduce:transform-none motion-reduce:transition-none',
           className,
         )}
       >
@@ -77,7 +77,7 @@ export function StatCard({
           </div>
 
           {/* Value */}
-          <p className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white mt-1">{value}</p>
+          <p className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white mt-1 font-mono tabular-nums">{value}</p>
 
           {/* Trend */}
           {trend !== undefined && (
@@ -87,7 +87,7 @@ export function StatCard({
                 isPositive ? 'bg-emerald-400/20 text-emerald-300' : 'bg-red-400/20 text-red-300',
               )}>
                 {isPositive ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
-                {trend >= 0 ? '+' : ''}{trend.toFixed(1)}%
+                <span className="tabular-nums">{trend >= 0 ? '+' : ''}{trend.toFixed(1)}%</span>
               </span>
               {trendLabel && <span className="text-white/40 text-xs">{trendLabel}</span>}
             </div>
@@ -108,12 +108,11 @@ export function StatCard({
   return (
     <div
       className={cn(
-        'relative rounded-2xl bg-white shadow-sm p-5 space-y-2',
-        'hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-default',
+        'relative rounded-2xl border border-gray-200 bg-white shadow-sm p-5 space-y-2',
+        'transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md motion-reduce:transform-none motion-reduce:transition-none',
         className,
       )}
       style={{
-        border: accentColor ? `1px solid ${accentColor}20` : '1px solid #F3F4F6',
         borderLeft: accentColor ? `3px solid ${accentColor}` : undefined,
       }}
     >
@@ -129,11 +128,11 @@ export function StatCard({
       </div>
 
       {/* Value */}
-      <p className="text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight text-[#1A1B3A]">{value}</p>
+      <p className="text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight text-[#1A1B3A] font-mono tabular-nums">{value}</p>
 
       {/* Sub-value */}
       {subValue && (
-        <p className="text-xs font-medium" style={{ color: resolvedAccent }}>{subValue}</p>
+        <p className="text-xs font-medium font-mono tabular-nums" style={{ color: resolvedAccent }}>{subValue}</p>
       )}
 
       {/* Trend badge */}
@@ -141,10 +140,10 @@ export function StatCard({
         <div className="flex items-center gap-1.5 text-sm">
           <span className={cn(
             'flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-xs font-semibold',
-            isPositive ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-500',
+            isPositive ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-500',
           )}>
             {isPositive ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
-            {trend >= 0 ? '+' : ''}{trend.toFixed(1)}%
+            <span className="tabular-nums">{trend >= 0 ? '+' : ''}{trend.toFixed(1)}%</span>
           </span>
           {trendLabel && <span className="text-gray-400 text-xs">{trendLabel}</span>}
         </div>

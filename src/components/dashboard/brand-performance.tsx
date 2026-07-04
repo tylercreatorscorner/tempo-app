@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, Building2 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils/format';
 import { getBrandRegistry, brandLabel, brandColor } from '@/lib/data/brand-registry';
 import { SparklineChart } from '@/components/charts/sparkline-chart';
@@ -48,10 +48,12 @@ export async function BrandPerformance({ brands, range }: Props) {
   }
 
   return (
-    <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
-      <div className="px-5 py-3.5 border-b border-gray-100 flex items-center gap-2">
-        <span className="text-base">🏢</span>
-        <h3 className="text-sm font-semibold text-[#1A1B3A]">Brand Performance</h3>
+    <div className="rounded-2xl bg-white border border-gray-200 shadow-sm overflow-hidden">
+      <div className="px-5 py-3.5 border-b border-gray-200 flex items-center gap-2">
+        <span className="h-7 w-7 rounded-lg bg-[#FF4D8D]/10 text-[#FF4D8D] flex items-center justify-center">
+          <Building2 className="h-4 w-4" />
+        </span>
+        <h3 className="text-sm font-extrabold tracking-tight text-[#1A1B3A]">Brand Performance</h3>
         <span className="text-xs text-gray-400 ml-auto">Click a brand to drill in</span>
       </div>
 
@@ -79,7 +81,7 @@ export async function BrandPerformance({ brands, range }: Props) {
             <Link
               key={b.slug}
               href={hrefFor(b.slug)}
-              className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] items-center gap-4 px-5 py-3 hover:bg-gray-50/60 transition-colors group"
+              className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] items-center gap-4 px-5 py-3 hover:bg-gray-50/60 transition-colors group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF4D8D]/40 focus-visible:ring-inset"
             >
               {/* Brand color dot */}
               <span
@@ -92,7 +94,7 @@ export async function BrandPerformance({ brands, range }: Props) {
                 <p className="text-sm font-semibold text-[#1A1B3A] truncate group-hover:text-[#FF4D8D] transition-colors">
                   {name}
                 </p>
-                <p className="text-[11px] text-gray-400">{sharePct.toFixed(1)}% of portfolio</p>
+                <p className="text-[11px] font-mono tabular-nums text-gray-400">{sharePct.toFixed(1)}% of portfolio</p>
               </div>
 
               {/* Sparkline */}
@@ -105,17 +107,17 @@ export async function BrandPerformance({ brands, range }: Props) {
               </div>
 
               {/* Total GMV */}
-              <p className="text-sm font-bold text-[#1A1B3A] tabular-nums text-right min-w-[80px]">
+              <p className="text-sm font-bold font-mono text-[#1A1B3A] tabular-nums text-right min-w-[80px]">
                 {formatCurrency(b.currentGmv)}
               </p>
 
               {/* Managed GMV — what the agency is actually driving for this brand */}
               <div className="text-right min-w-[90px]">
-                <p className="text-sm font-bold text-[#10B981] tabular-nums">
+                <p className="text-sm font-bold font-mono text-emerald-600 tabular-nums">
                   {formatCurrency(b.managedGmv)}
                 </p>
                 {b.currentGmv > 0 && (
-                  <p className="text-[10px] text-gray-400 tabular-nums">
+                  <p className="text-[11px] font-mono text-gray-400 tabular-nums">
                     {managedPctOfBrand.toFixed(0)}% of total
                   </p>
                 )}
@@ -125,8 +127,8 @@ export async function BrandPerformance({ brands, range }: Props) {
               <div className="min-w-[68px] text-right">
                 {b.trend !== undefined ? (
                   <span
-                    className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-xs font-semibold ${
-                      isPositive ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-500'
+                    className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-xs font-semibold tabular-nums ${
+                      isPositive ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-500'
                     }`}
                   >
                     {isPositive ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { formatDistanceToNow, format } from 'date-fns';
+import { BarChart3 } from 'lucide-react';
 
 interface VideoCardProps {
   videoUrl: string | null;
@@ -75,7 +76,7 @@ export function VideoCard({ videoUrl, videoTitle, creatorName, gmv, orders, post
       href={videoUrl ?? '#'}
       target="_blank"
       rel="noopener noreferrer"
-      className="group rounded-xl bg-white border border-gray-100 shadow-sm overflow-hidden hover:shadow-lg hover:-translate-y-1 transition-all duration-300 cursor-pointer block"
+      className="group rounded-2xl bg-white border border-gray-200 shadow-sm overflow-hidden transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md motion-reduce:transform-none motion-reduce:transition-none block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF4D8D]/40 focus-visible:ring-offset-1"
     >
       {/* Thumbnail */}
       <div className="relative aspect-[9/12] bg-gradient-to-br from-pink-50 to-purple-50 overflow-hidden">
@@ -85,18 +86,15 @@ export function VideoCard({ videoUrl, videoTitle, creatorName, gmv, orders, post
           <img
             src={thumbnail}
             alt={videoTitle}
-            className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+            className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 motion-reduce:transform-none motion-reduce:transition-none"
           />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center text-gray-300">
-            <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
+            <BarChart3 className="h-8 w-8" />
           </div>
         )}
         {/* GMV badge */}
-        <div className="absolute top-2 right-2 bg-black/70 backdrop-blur-sm text-white text-xs font-bold px-2 py-1 rounded-lg">
+        <div className="absolute top-2 right-2 bg-black/70 backdrop-blur-sm text-white text-xs font-bold px-2 py-1 rounded-lg tabular-nums font-mono">
           {formatGmv(gmv)}
         </div>
       </div>
@@ -105,8 +103,8 @@ export function VideoCard({ videoUrl, videoTitle, creatorName, gmv, orders, post
       <div className="p-3 space-y-1">
         <p className="text-sm font-semibold text-[#1A1B3A] truncate">{creatorName}</p>
         <p className="text-xs text-gray-500 truncate">{videoTitle || 'Untitled'}</p>
-        <div className="flex items-center justify-between text-xs text-gray-400 pt-1">
-          <span>{orders} order{orders !== 1 ? 's' : ''}</span>
+        <div className="flex items-center justify-between text-[11px] font-mono tabular-nums text-gray-400 pt-1">
+          <span><span className="font-bold">{orders}</span> order{orders !== 1 ? 's' : ''}</span>
           <span>{formatPostDate(postDate)}</span>
         </div>
       </div>

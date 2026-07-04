@@ -20,7 +20,7 @@ export interface DailyMetrics {
 type Metric = 'gmv' | 'orders' | 'items' | 'videos';
 
 const METRICS: Array<{ key: Metric; label: string; icon: typeof DollarSign; color: string; format: (n: number) => string }> = [
-  { key: 'gmv',    label: 'GMV',    icon: DollarSign,   color: '#E91E8C', format: (n) => formatCurrency(n) },
+  { key: 'gmv',    label: 'GMV',    icon: DollarSign,   color: '#1A1B3A', format: (n) => formatCurrency(n) },
   { key: 'orders', label: 'Orders', icon: ShoppingCart, color: '#7C5CFC', format: (n) => formatNumber(n) },
   { key: 'items',  label: 'Items',  icon: Package,      color: '#00C853', format: (n) => formatNumber(n) },
   { key: 'videos', label: 'Posts',  icon: Video,        color: '#FF9800', format: (n) => formatNumber(n) },
@@ -110,13 +110,13 @@ export function PerformanceChart({ data, priorData, yoyData, accentColor }: Prop
       axisBorder: { show: false },
       axisTicks: { show: false },
       labels: {
-        style: { colors: '#9CA3AF', fontSize: '11px' },
+        style: { colors: '#9CA3AF', fontSize: '11px', fontFamily: 'var(--font-geist-mono)' },
         rotate: 0,
       },
     },
     yaxis: {
       labels: {
-        style: { colors: '#9CA3AF', fontSize: '11px' },
+        style: { colors: '#9CA3AF', fontSize: '11px', fontFamily: 'var(--font-geist-mono)' },
         formatter: (val: number) => {
           if (metric === 'gmv') {
             if (val >= 1_000_000) return `$${(val / 1_000_000).toFixed(1)}M`;
@@ -132,6 +132,7 @@ export function PerformanceChart({ data, priorData, yoyData, accentColor }: Prop
       x: { show: true },
       y: { formatter: (val: number) => cfg.format(val) },
       theme: 'light',
+      style: { fontFamily: 'var(--font-geist-mono)' },
     },
   };
 
@@ -147,19 +148,19 @@ export function PerformanceChart({ data, priorData, yoyData, accentColor }: Prop
     compare === 'yoy' ? 'vs last year' : 'vs prior period';
 
   return (
-    <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-5">
+    <div className="rounded-2xl bg-white border border-gray-200 shadow-sm p-5">
       {/* Header with metric toggle */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
         <div>
-          <h3 className="text-sm font-bold text-[#1A1B3A]">Performance Overview</h3>
+          <h3 className="text-sm font-extrabold tracking-tight text-[#1A1B3A]">Performance Overview</h3>
           <p className="text-xs text-gray-400 mt-0.5">
             Total in period:{' '}
-            <span className="font-semibold text-[#1A1B3A] tabular-nums">{cfg.format(total)}</span>
+            <span className="font-semibold text-[#1A1B3A] font-mono tabular-nums">{cfg.format(total)}</span>
             {compareDelta !== null && (
               <span
                 className={cn(
-                  'ml-2 inline-flex items-center px-1.5 py-0.5 rounded-md text-[11px] font-semibold',
-                  compareDelta >= 0 ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-500'
+                  'ml-2 inline-flex items-center px-1.5 py-0.5 rounded-md text-[11px] font-semibold font-mono tabular-nums',
+                  compareDelta >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-500'
                 )}
                 title={compareBadgeLabel}
               >
@@ -182,7 +183,7 @@ export function PerformanceChart({ data, priorData, yoyData, accentColor }: Prop
                   key={key}
                   onClick={() => setCompare(key)}
                   className={cn(
-                    'px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors',
+                    'px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF4D8D]/40 focus-visible:ring-offset-1',
                     compare === key
                       ? 'bg-white text-[#1A1B3A] shadow-sm'
                       : 'text-gray-500 hover:text-gray-700'
@@ -202,11 +203,12 @@ export function PerformanceChart({ data, priorData, yoyData, accentColor }: Prop
                 key={key}
                 onClick={() => setMetric(key)}
                 className={cn(
-                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors',
+                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF4D8D]/40 focus-visible:ring-offset-1',
                   metric === key
                     ? 'bg-white text-[#1A1B3A] shadow-sm'
                     : 'text-gray-500 hover:text-gray-700'
                 )}
+                aria-pressed={metric === key}
               >
                 <Icon className="h-3.5 w-3.5" />
                 {label}
@@ -221,10 +223,10 @@ export function PerformanceChart({ data, priorData, yoyData, accentColor }: Prop
         <ApexChart options={options} series={series} type="area" height={280} />
       ) : data.length === 1 ? (
         <div className="h-[280px] flex flex-col items-center justify-center">
-          <p className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
             {cfg.label} — {new Date(data[0].date).toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}
           </p>
-          <p className="text-5xl font-extrabold mt-2" style={{ color }}>
+          <p className="text-5xl font-extrabold font-mono tabular-nums mt-2" style={{ color }}>
             {cfg.format(values[0])}
           </p>
           <p className="text-xs text-gray-400 mt-2">Switch to a longer range to see a trend chart</p>

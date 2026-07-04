@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { Suspense } from 'react';
+import { BarChart3 } from 'lucide-react';
 import { format, subDays, differenceInDays } from 'date-fns';
 
 import { getCreatorRankings, getDailyTrend, getAnalyticsBrandSummaries } from '@/lib/data/rpc';
@@ -310,8 +311,8 @@ export default async function AdminDashboard({ searchParams }: Props) {
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#1A1B3A]">{headerLabel}</h1>
           <p className="text-sm text-gray-500 mt-1">{headerSub}</p>
           <p className="text-xs text-gray-400 mt-1 inline-flex items-center gap-1">
-            <span className={`h-1.5 w-1.5 rounded-full ${isStale ? 'bg-amber-400' : 'bg-green-400'}`} />
-            {dataThroughLabel}
+            <span className={`h-1.5 w-1.5 rounded-full ${isStale ? 'bg-amber-400' : 'bg-emerald-400'}`} />
+            <span className="tabular-nums">{dataThroughLabel}</span>
           </p>
         </div>
         <div className="flex flex-col items-end gap-1">
@@ -390,16 +391,16 @@ export default async function AdminDashboard({ searchParams }: Props) {
 
       {/* Empty-state for a brand-filtered view with no activity */}
       {isEmptyBrand && (
-        <div className="rounded-2xl border border-gray-200 bg-white overflow-hidden">
+        <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
           <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
-            <div className="text-4xl mb-3">📊</div>
+            <BarChart3 className="h-8 w-8 text-gray-300 mb-3" />
             <h3 className="text-lg font-bold">No data for {activeBrandName} in this period</h3>
             <p className="text-sm text-muted-foreground mt-2 max-w-sm">
               Try a different date range, or check back once creators have activity in this period.
             </p>
             <a
               href="?range=last7"
-              className="mt-5 inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-white border border-gray-200 text-[#1A1B3A] text-sm font-semibold hover:bg-gray-50 transition-colors"
+              className="mt-5 inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-white border border-gray-200 text-[#1A1B3A] text-sm font-semibold hover:bg-gray-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF4D8D]/40 focus-visible:ring-offset-1"
             >
               View Last 7 Days →
             </a>
