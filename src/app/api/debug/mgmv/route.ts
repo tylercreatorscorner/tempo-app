@@ -1,5 +1,5 @@
-// TEMPORARY debug endpoint — instruments computeManagedGmv's fetches to find why
-// all-brands earnings under-counts. Secret-gated; DELETE after diagnosis.
+// TEMPORARY debug endpoint — round 2: instrument perfData + managedLookup.
+// Secret-gated; DELETE after diagnosis.
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import { computeManagedGmv } from '@/lib/data/managed-gmv';
@@ -7,73 +7,47 @@ import { computeManagedGmv } from '@/lib/data/managed-gmv';
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
+const norm = (h: string | null | undefined) => (h || '').replace(/^@/, '').trim().toLowerCase();
+
 export async function GET(req: NextRequest) {
   if (req.nextUrl.searchParams.get('k') !== 'tmp-dbg-7f3a91') {
     return NextResponse.json({ error: 'nope' }, { status: 403 });
   }
   const supabase = await createAdminClient();
 
-  // 1) managed_creators (paged)
-  const managedRows: Array<{ brand: string | null; creator_id: string | null }> = [];
-  for (let from = 0; ; from += 1000) {
-    const { data, error } = await supabase
-      .from('managed_creators')
-      .select('brand, creator_id')
-      .is('archived_at', null)
-      .order('id', { ascending: true })
-      .range(from, from + 999);
-    if (error) return NextResponse.json({ step: 'managed_creators', error: error.message });
-    if (!data || data.length === 0) break;
-    managedRows.push(...(data as Array<{ brand: string | null; creator_id: string | null }>));
-    if (data.length < 1000) break;
-  }
-  const creatorIds = Array.from(new Set(managedRows.map((m) => m.creator_id).filter((v): v is string => !!v)));
+  // active data stores (same as computeManagedGmv)
+  const { data: brandsRaw } = await supabase
+    .from('brands_v2').select('slug').eq('is_archived', false).eq('is_umbrella', false);
+  const storeSlugs = ((brandsRaw as Array<{ slug: string }> | null) ?? []).map((b) => b.slug);
 
-  // 2) tiktok_accounts (chunked + paged) — exactly like the fixed code
-  const handlesByCreatorId = new Map<string, string[]>();
-  let taTotal = 0;
-  let taError: string | null = null;
-  const CHUNK = 200;
-  for (let i = 0; i < creatorIds.length && !taError; i += CHUNK) {
-    const batch = creatorIds.slice(i, i + CHUNK);
-    for (let from = 0; ; from += 1000) {
-      const { data, error } = await supabase
-        .from('tiktok_accounts')
-        .select('creator_id, tiktok_username')
-        .in('creator_id', batch)
-        .order('id', { ascending: true })
-        .range(from, from + 999);
-      if (error) { taError = error.message; break; }
-      if (!data || data.length === 0) break;
-      taTotal += data.length;
-      for (const r of data as Array<{ creator_id: string; tiktok_username: string | null }>) {
-        const h = (r.tiktok_username || '').replace(/^@/, '').trim().toLowerCase();
-        if (!h) continue;
-        const list = handlesByCreatorId.get(r.creator_id) ?? [];
-        list.push(h);
-        handlesByCreatorId.set(r.creator_id, list);
-      }
-      if (data.length < 1000) break;
-    }
-  }
+  // perfData exactly as computeManagedGmv fetches it (all stores)
+  const { data: perf, error: perfErr } = await supabase.rpc('get_creator_brand_gmv', {
+    p_start_date: '2026-06-01', p_end_date: '2026-06-30', p_brands: storeSlugs,
+  });
+  const perfRows = (perf as Array<{ brand: string; creator_name: string; gmv: number | string }> | null) ?? [];
+  const lemmePerf = perfRows.filter((r) => r.brand === 'lemme');
 
-  const charlstynCid = creatorIds.find((c) => c.endsWith('073568df')) ?? null;
+  // per-brand call for comparison (this is what the working Creators page does)
+  const { data: perfLemme } = await supabase.rpc('get_creator_brand_gmv', {
+    p_start_date: '2026-06-01', p_end_date: '2026-06-30', p_brands: ['lemme'],
+  });
+  const perfLemmeRows = (perfLemme as Array<{ brand: string; creator_name: string }> | null) ?? [];
 
-  // 3) what computeManagedGmv actually returns for all-brands
   const mg = await computeManagedGmv('2026-06-01', '2026-06-30', null);
-  const lemme = mg.byStoreCreator.get('lemme');
 
   return NextResponse.json({
-    managedRows: managedRows.length,
-    creatorIds: creatorIds.length,
-    ta_rows_fetched: taTotal,
-    ta_error: taError,
-    handlesByCreatorId_size: handlesByCreatorId.size,
-    charlstyn_cid: charlstynCid,
-    charlstyn_handles: charlstynCid ? handlesByCreatorId.get(charlstynCid) ?? null : null,
+    storeSlugs_count: storeSlugs.length,
+    storeSlugs_has_lemme: storeSlugs.includes('lemme'),
+    perf_total_rows: perfRows.length,
+    perf_lemme_rows: lemmePerf.length,
+    perf_allbrands_has_shopping_lemme: lemmePerf.some((r) => norm(r.creator_name) === 'shoppingwithcharlstyn'),
+    perf_allbrands_has_charley_lemme: lemmePerf.some((r) => norm(r.creator_name) === 'charleytiktokfinds'),
+    perfErr: perfErr?.message ?? null,
+    perf_lemmeonly_rows: perfLemmeRows.length,
+    perf_lemmeonly_has_shopping: perfLemmeRows.some((r) => norm(r.creator_name) === 'shoppingwithcharlstyn'),
+    lookup_size: mg.managedLookup.size,
+    lookup_has_shopping_lemme: mg.managedLookup.has('shoppingwithcharlstyn|||lemme'),
+    lookup_has_charley_lemme: mg.managedLookup.has('charleytiktokfinds|||lemme'),
     mg_lemme_total: mg.byStore.get('lemme') ?? 0,
-    mg_lemme_creator_count: lemme?.size ?? 0,
-    mg_lemme_has_shoppingwithcharlstyn: lemme?.has('shoppingwithcharlstyn') ?? false,
-    mg_lemme_has_peshoedite8: lemme?.has('peshoedite8') ?? false,
   });
 }
