@@ -40,6 +40,34 @@ function chunk<T>(arr: T[], size: number): T[][] {
   return out;
 }
 
+/** Fetch every row of a query, paging past PostgREST's default 1000-row cap.
+ *  `make` must return a FRESH builder each call carrying a stable `.order()`. */
+async function pageAll<T>(
+  make: () => { range: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }> },
+): Promise<T[]> {
+  const out: T[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await make().range(from, from + 999);
+    if (error || !data || data.length === 0) break;
+    out.push(...data);
+    if (data.length < 1000) break;
+  }
+  return out;
+}
+
+/** Fetch every row matching a (possibly long) `.in()` list: chunk the list so a
+ *  long URL can't overflow into a silent PARTIAL result, then page each chunk
+ *  past the 1000-row cap. Both truncations here would leave a real handle looking
+ *  "new" and mint a DUPLICATE creators_v2 identity. */
+async function fetchInAll<T>(
+  make: (batch: string[]) => { range: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }> },
+  values: string[],
+): Promise<T[]> {
+  const out: T[] = [];
+  for (const batch of chunk(values, 200)) out.push(...(await pageAll<T>(() => make(batch))));
+  return out;
+}
+
 const norm = (s: string) => s.toLowerCase().replace(/^@/, '');
 
 export async function POST(request: NextRequest) {
@@ -118,14 +146,16 @@ export async function POST(request: NextRequest) {
   // ── Read this brand's existing managed_creators (active AND archived) so we
   //    can three-way partition. archived rows still carry their handle in
   //    account_1..5, so they must be matched — re-adding one un-archives it.
-  const { data: existingManaged } = await supabase
-    .from('managed_creators')
-    .select('id, creator_id, archived_at, account_1, account_2, account_3, account_4, account_5')
-    .eq('tenant_id', tenantId)
-    .eq('brand', brand);
+  const existingManaged = await pageAll<Record<string, unknown>>(() =>
+    supabase
+      .from('managed_creators')
+      .select('id, creator_id, archived_at, account_1, account_2, account_3, account_4, account_5')
+      .eq('tenant_id', tenantId)
+      .eq('brand', brand)
+      .order('id', { ascending: true }));
   const activeHandles = new Set<string>();
   const archivedByHandle = new Map<string, { rowId: string; creatorId: string | null }>();
-  for (const m of (existingManaged ?? []) as Record<string, unknown>[]) {
+  for (const m of existingManaged) {
     const isArchived = m.archived_at != null;
     for (const col of ACCOUNT_COLS) {
       const v = m[col] as string | null;
@@ -141,13 +171,17 @@ export async function POST(request: NextRequest) {
 
   // ── Resolve existing creators_v2 identities by handle (covers the
   //    all-creators universe rows and anyone already in the system).
-  const { data: existingAccounts } = await supabase
-    .from('tiktok_accounts')
-    .select('tiktok_username, creator_id')
-    .eq('tenant_id', tenantId)
-    .in('tiktok_username', handles);
+  const existingAccounts = await fetchInAll<{ tiktok_username: string | null; creator_id: string | null }>(
+    (batch) => supabase
+      .from('tiktok_accounts')
+      .select('tiktok_username, creator_id')
+      .eq('tenant_id', tenantId)
+      .in('tiktok_username', batch)
+      .order('id', { ascending: true }),
+    handles,
+  );
   const handleToCreator = new Map<string, string>();
-  for (const a of (existingAccounts ?? []) as { tiktok_username: string | null; creator_id: string | null }[]) {
+  for (const a of existingAccounts) {
     const h = norm(a.tiktok_username ?? '');
     if (h && a.creator_id && !handleToCreator.has(h)) handleToCreator.set(h, a.creator_id);
   }
@@ -198,12 +232,16 @@ export async function POST(request: NextRequest) {
   const existingCombos = new Set<string>();
   const readyCreatorIds = [...new Set(ready.map((r) => handleToCreator.get(r.key)!))];
   if (readyCreatorIds.length > 0) {
-    const { data: comboRows } = await supabase
-      .from('tiktok_accounts')
-      .select('tiktok_username, brand_id')
-      .eq('tenant_id', tenantId)
-      .in('creator_id', readyCreatorIds);
-    for (const a of (comboRows ?? []) as { tiktok_username: string | null; brand_id: string | null }[]) {
+    const comboRows = await fetchInAll<{ tiktok_username: string | null; brand_id: string | null }>(
+      (batch) => supabase
+        .from('tiktok_accounts')
+        .select('tiktok_username, brand_id')
+        .eq('tenant_id', tenantId)
+        .in('creator_id', batch)
+        .order('id', { ascending: true }),
+      readyCreatorIds,
+    );
+    for (const a of comboRows) {
       const h = norm(a.tiktok_username ?? '');
       if (h) existingCombos.add(`${h}|${a.brand_id ?? 'null'}`);
     }
