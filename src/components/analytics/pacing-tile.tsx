@@ -31,17 +31,19 @@ export function PacingTile({ daysElapsed, periodLength, gmvToDate, periodLabel }
           <p className="text-[10px] uppercase tracking-wider text-white/60 font-semibold">
             Pacing — {periodLabel}
           </p>
-          <p className="text-2xl font-extrabold tabular-nums mt-0.5">
+          <p className="text-2xl font-extrabold font-mono tabular-nums mt-0.5">
             {formatCurrency(projected)} projected
           </p>
-          <p className="text-xs text-white/70 mt-0.5">
-            {formatCurrency(runRate)}/day average · {daysElapsed} of {periodLength} days elapsed · {daysRemaining} to go
+          <p className="text-[11px] font-mono tabular-nums text-white/70 mt-0.5">
+            {formatCurrency(runRate)}/day average · <span className="font-bold">{daysElapsed}</span> of{' '}
+            <span className="font-bold">{periodLength}</span> {periodLength === 1 ? 'day' : 'days'} elapsed ·{' '}
+            <span className="font-bold">{daysRemaining}</span> to go
           </p>
         </div>
       </div>
       <div className="flex flex-col sm:items-end gap-0.5 flex-shrink-0">
         <p className="text-[10px] uppercase tracking-wider text-white/60 font-semibold">Booked so far</p>
-        <p className="text-lg font-bold tabular-nums">{formatCurrency(gmvToDate)}</p>
+        <p className="text-lg font-bold font-mono tabular-nums">{formatCurrency(gmvToDate)}</p>
       </div>
     </div>
   );

@@ -20,10 +20,10 @@ export function StaleDataBanner({ latestDate, daysStale }: Props) {
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold text-amber-900">
-          Performance data is {daysStale} days old
+          Performance data is <span className="font-bold tabular-nums">{daysStale}</span> {daysStale === 1 ? 'day' : 'days'} old
         </p>
         <p className="text-xs text-amber-700 mt-0.5">
-          Last data point: {new Date(latestDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}.
+          Last data point: <span className="tabular-nums">{new Date(latestDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span>.
           Numbers below may be lower than reality until a fresh upload is processed.
         </p>
       </div>

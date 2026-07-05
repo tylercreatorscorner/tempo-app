@@ -61,7 +61,7 @@ export function GmvTrendChart({ data, brands }: Props) {
       type: 'category',
       categories,
       labels: {
-        style: { colors: '#9CA3AF', fontSize: '11px', fontFamily: 'inherit' },
+        style: { colors: '#9CA3AF', fontSize: '11px', fontFamily: 'var(--font-geist-mono)' },
         rotate: 0,
         hideOverlappingLabels: true,
       },
@@ -72,7 +72,7 @@ export function GmvTrendChart({ data, brands }: Props) {
     },
     yaxis: {
       labels: {
-        style: { colors: '#9CA3AF', fontSize: '11px', fontFamily: 'inherit' },
+        style: { colors: '#9CA3AF', fontSize: '11px', fontFamily: 'var(--font-geist-mono)' },
         formatter: fmtY,
       },
       forceNiceScale: true,
@@ -96,7 +96,7 @@ export function GmvTrendChart({ data, brands }: Props) {
       shared: true,
       intersect: false,
       theme: 'light',
-      style: { fontSize: '12px', fontFamily: 'inherit' },
+      style: { fontSize: '12px', fontFamily: 'var(--font-geist-mono)' },
       y: {
         formatter: val =>
           `$${val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,

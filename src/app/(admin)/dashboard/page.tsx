@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { Suspense } from 'react';
+import { BarChart3 } from 'lucide-react';
 import { format, subDays, differenceInDays } from 'date-fns';
 
 import { getCreatorRankings, getDailyTrend, getAnalyticsBrandSummaries } from '@/lib/data/rpc';
@@ -17,7 +18,6 @@ import { getActiveTenantId } from '@/lib/auth/platform-admin';
 
 import { StatCard } from '@/components/dashboard/stat-card';
 import { DateRangePicker } from '@/components/dashboard/date-range-picker';
-import { DailyBrief, type DailyBriefActionItem } from '@/components/dashboard/daily-brief';
 import { CommunityHighlights } from '@/components/dashboard/community-highlights';
 import { CreatorAlerts } from '@/components/dashboard/creator-alerts';
 import { BrandPerformance, type BrandRowData } from '@/components/dashboard/brand-performance';
@@ -31,28 +31,6 @@ import { getFoldInAnalytics } from '@/lib/data/dashboard-fold-analytics';
 
 interface Props {
   searchParams: Promise<{ range?: string; brand?: string }>;
-}
-
-/** Friendly labels for the date-range presets that drive the Period Brief. */
-const PRESET_LABELS: Record<string, { current: string; prior: string }> = {
-  today:        { current: 'Today',          prior: 'yesterday' },
-  yesterday:    { current: 'Yesterday',      prior: 'the day before' },
-  last7:        { current: 'Last 7 days',    prior: 'prior 7 days' },
-  last14:       { current: 'Last 14 days',   prior: 'prior 14 days' },
-  last30:       { current: 'Last 30 days',   prior: 'prior 30 days' },
-  thisMonth:    { current: 'This month',     prior: 'last month' },
-  lastMonth:    { current: 'Last month',     prior: 'the month before' },
-  thisQuarter:  { current: 'This quarter',   prior: 'last quarter' },
-};
-
-function getPeriodLabels(preset: string | undefined, startDate: string, endDate: string, prevStartDate: string, prevEndDate: string) {
-  const known = preset ? PRESET_LABELS[preset] : undefined;
-  if (known) return known;
-  const fmt = (d: string) => format(new Date(d), 'MMM d');
-  return {
-    current: `${fmt(startDate)} – ${fmt(endDate)}`,
-    prior: `${fmt(prevStartDate)} – ${fmt(prevEndDate)}`,
-  };
 }
 
 export default async function AdminDashboard({ searchParams }: Props) {
@@ -110,7 +88,6 @@ export default async function AdminDashboard({ searchParams }: Props) {
   const prevStart       = subDays(prevEnd, periodLength - 1);
   const prevStartDate   = format(prevStart, 'yyyy-MM-dd');
   const prevEndDate     = format(prevEnd, 'yyyy-MM-dd');
-  const labels          = getPeriodLabels(preset, startDate, endDate, prevStartDate, prevEndDate);
 
   // ── Single parallel fetch ───────────────────────────────────────────────
   // Brand summaries come from the multi-brand analytics_* RPC (one call each for
@@ -227,14 +204,6 @@ export default async function AdminDashboard({ searchParams }: Props) {
   // Notable Changes section so the same period-vs-prior comparison only has
   // one canonical home.
 
-  // Top brand — used by the Period Brief mini-stat on All Brands view.
-  const topBrandStat = !brandFilter
-    ? [...rosterBrandStats].sort((a, b) => b.currentGmv - a.currentGmv)[0]
-    : null;
-  const topBrandForBrief = topBrandStat && topBrandStat.currentGmv > 0
-    ? { name: brandLabel(reg, topBrandStat.slug), gmv: topBrandStat.currentGmv }
-    : null;
-
   // ── Managed GMV (portfolio-level) from the canonical shared calc. Unmanaged
   // is derived right after portfolio totals below (brand-wide minus managed).
   const managedGmv = Array.from(mgPeriod.byStore.values()).reduce((a, b) => a + b, 0);
@@ -273,13 +242,8 @@ export default async function AdminDashboard({ searchParams }: Props) {
   const roi = totalRetainerSpend > 0 ? managedGmv30 / totalRetainerSpend : 0;
   const managedSharePct = totals.gmv > 0 ? (managedGmv / totals.gmv) * 100 : 0;
 
-  // ── Creator alerts (single source of truth for brief + sidecard) ─────
+  // ── Creator alerts (feeds the Creator Alerts card) ─────
   const allAlerts = buildCreatorAlerts(groupedCreators);
-  const briefActionItems: DailyBriefActionItem[] = allAlerts.slice(0, 3).map((a) => ({
-    name: a.name,
-    type: a.type,
-    detail: a.detail,
-  }));
 
   // ── Stale-data check ────────────────────────────────────────────────────
   const latestDate = aggregatedTrend.length > 0 ? aggregatedTrend[aggregatedTrend.length - 1].date : null;
@@ -310,8 +274,8 @@ export default async function AdminDashboard({ searchParams }: Props) {
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#1A1B3A]">{headerLabel}</h1>
           <p className="text-sm text-gray-500 mt-1">{headerSub}</p>
           <p className="text-xs text-gray-400 mt-1 inline-flex items-center gap-1">
-            <span className={`h-1.5 w-1.5 rounded-full ${isStale ? 'bg-amber-400' : 'bg-green-400'}`} />
-            {dataThroughLabel}
+            <span className={`h-1.5 w-1.5 rounded-full ${isStale ? 'bg-amber-400' : 'bg-emerald-400'}`} />
+            <span className="tabular-nums">{dataThroughLabel}</span>
           </p>
         </div>
         <div className="flex flex-col items-end gap-1">
@@ -320,26 +284,6 @@ export default async function AdminDashboard({ searchParams }: Props) {
           </Suspense>
         </div>
       </div>
-
-      {/* Period Brief — narrative-led hero (all date ranges).
-          On All Brands view we surface Top Brand instead of Top Creator —
-          that's the more actionable signal for an agency-style operator. */}
-      <DailyBrief
-        brandName={activeBrandName}
-        periodLabel={labels.current}
-        prevPeriodLabel={labels.prior}
-        currentGmv={totals.gmv}
-        prevGmv={prevTotals.gmv}
-        currentOrders={totals.orders}
-        prevOrders={prevTotals.orders}
-        currentVideos={totals.videos}
-        currentCreators={totals.creators}
-        gmvTrend={gmvTrend}
-        topCreator={groupedCreators[0] ? { name: groupedCreators[0].display_name, gmv: groupedCreators[0].total_gmv } : null}
-        topBrand={topBrandForBrief}
-        actionItems={briefActionItems}
-        color={activeBrandColor ?? '#FF4D8D'}
-      />
 
       {/* KPI strip — 4 focused metrics with sparklines */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 stagger-children">
@@ -390,16 +334,16 @@ export default async function AdminDashboard({ searchParams }: Props) {
 
       {/* Empty-state for a brand-filtered view with no activity */}
       {isEmptyBrand && (
-        <div className="rounded-2xl border border-gray-200 bg-white overflow-hidden">
+        <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
           <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
-            <div className="text-4xl mb-3">📊</div>
+            <BarChart3 className="h-8 w-8 text-gray-300 mb-3" />
             <h3 className="text-lg font-bold">No data for {activeBrandName} in this period</h3>
             <p className="text-sm text-muted-foreground mt-2 max-w-sm">
               Try a different date range, or check back once creators have activity in this period.
             </p>
             <a
               href="?range=last7"
-              className="mt-5 inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-white border border-gray-200 text-[#1A1B3A] text-sm font-semibold hover:bg-gray-50 transition-colors"
+              className="mt-5 inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-white border border-gray-200 text-[#1A1B3A] text-sm font-semibold hover:bg-gray-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF4D8D]/40 focus-visible:ring-offset-1"
             >
               View Last 7 Days →
             </a>
