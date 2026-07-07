@@ -155,14 +155,25 @@ export async function POST(request: NextRequest) {
       .order('id', { ascending: true }));
   const activeHandles = new Set<string>();
   const archivedByHandle = new Map<string, { rowId: string; creatorId: string | null }>();
+  // Also index by creator_id: a person's OTHER handles aren't in this brand's
+  // account_1..5, so handle-only dedup misses them and mints a duplicate for a
+  // creator already managed here. Dedup by the PERSON too.
+  const activeCreatorIds = new Set<string>();
+  const archivedByCreator = new Map<string, { rowId: string }>();
   for (const m of existingManaged) {
     const isArchived = m.archived_at != null;
+    const cid = (m.creator_id as string | null) ?? null;
+    if (isArchived) {
+      if (cid && !archivedByCreator.has(cid)) archivedByCreator.set(cid, { rowId: m.id as string });
+    } else if (cid) {
+      activeCreatorIds.add(cid);
+    }
     for (const col of ACCOUNT_COLS) {
       const v = m[col] as string | null;
       if (!v) continue;
       const h = norm(v);
       if (isArchived) {
-        if (!archivedByHandle.has(h)) archivedByHandle.set(h, { rowId: m.id as string, creatorId: (m.creator_id as string | null) ?? null });
+        if (!archivedByHandle.has(h)) archivedByHandle.set(h, { rowId: m.id as string, creatorId: cid });
       } else {
         activeHandles.add(h);
       }
@@ -190,14 +201,25 @@ export async function POST(request: NextRequest) {
   const skipped: { handle: string; reason: string }[] = [];
   const toRestore: { rowId: string; creatorId: string | null; row: InRow }[] = [];
   const toAdd: InRow[] = [];
+  // Track creator_ids already claimed this batch so two DIFFERENT handles of the
+  // same person (both new to this brand) can't each mint a row.
+  const claimedCreators = new Set<string>();
   for (const r of incoming) {
-    if (activeHandles.has(r.key)) {
+    const cid = handleToCreator.get(r.key) ?? null;
+    if ((cid && activeCreatorIds.has(cid)) || activeHandles.has(r.key)) {
       skipped.push({ handle: r.handle, reason: 'already_on_roster' });
+    } else if (cid && claimedCreators.has(cid)) {
+      skipped.push({ handle: r.handle, reason: 'duplicate_of_same_creator' });
+    } else if (cid && archivedByCreator.has(cid)) {
+      toRestore.push({ rowId: archivedByCreator.get(cid)!.rowId, creatorId: cid, row: r });
+      claimedCreators.add(cid);
     } else if (archivedByHandle.has(r.key)) {
       const a = archivedByHandle.get(r.key)!;
       toRestore.push({ rowId: a.rowId, creatorId: a.creatorId, row: r });
+      if (a.creatorId) claimedCreators.add(a.creatorId);
     } else {
       toAdd.push(r);
+      if (cid) claimedCreators.add(cid);
     }
   }
 

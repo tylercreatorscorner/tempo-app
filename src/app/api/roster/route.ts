@@ -967,27 +967,12 @@ export async function POST(request: NextRequest) {
     ? body.product_assignments.map((k: unknown) => String(k)).filter(Boolean)
     : [];
 
-  const { data, error } = await supabase
-    .from('managed_creators')
-    .insert({
-      brand: brand || null,
-      real_name: real_name || null,
-      retainer: retainer || 0,
-      discord_name: discord_name || null,
-      notes: notes || null,
-      monthly_post_requirement: monthly_post_requirement || 30,
-      status: 'Active',
-      employment_status: 'active',
-      tenant_id: tenantId,
-      product_assignments: productAssignments,
-      ...accountColumns,
-    })
-    .select()
-    .single();
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
-  // Resolve or create the creators_v2 identity, then link + provision.
+  // Resolve the creator identity from the handles BEFORE writing, so we dedup by
+  // the PERSON (creator_id), not just account_1. Re-adding a creator under a
+  // DIFFERENT one of their handles must reuse their existing row for this brand —
+  // never mint a second one. The DB's UNIQUE(brand, lower(account_1)) can't tell
+  // it's the same person when the primary handle differs (this is exactly how a
+  // duplicate LeeFar row for Brittni King slipped in, 2026-07-05).
   let creatorId: string | null = null;
   if (handles.length > 0) {
     const { data: existing } = await supabase
@@ -995,11 +980,77 @@ export async function POST(request: NextRequest) {
       .select('creator_id')
       .in('tiktok_username', handles)
       .eq('tenant_id', tenantId)
+      .not('creator_id', 'is', null)
       .limit(1)
       .maybeSingle();
     creatorId = existing?.creator_id ?? null;
   }
 
+  // If this creator already has a row for this brand, reuse it instead of
+  // inserting a duplicate: an ACTIVE row → leave it as-is (already managed;
+  // change terms via the edit flow, not a re-add); an ARCHIVED row → un-archive
+  // and refresh its terms in place.
+  let data: Record<string, unknown> | null = null;
+  let deduped: 'active' | 'restored' | null = null;
+  if (creatorId && brand) {
+    const { data: dupes } = await supabase
+      .from('managed_creators')
+      .select('*')
+      .eq('creator_id', creatorId)
+      .eq('brand', brand);
+    const rows = (dupes as Record<string, unknown>[] | null) ?? [];
+    const active = rows.find((r) => r.archived_at == null);
+    if (active) {
+      data = active;
+      deduped = 'active';
+    } else if (rows.length > 0) {
+      const { data: restored, error: rErr } = await supabase
+        .from('managed_creators')
+        .update({
+          archived_at: null,
+          status: 'Active',
+          employment_status: 'active',
+          retainer: retainer || 0,
+          monthly_post_requirement: monthly_post_requirement || 30,
+          ...(real_name ? { real_name } : {}),
+          ...(notes != null ? { notes } : {}),
+          ...(productAssignments.length ? { product_assignments: productAssignments } : {}),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', rows[0].id as number)
+        .select()
+        .single();
+      if (rErr) return NextResponse.json({ error: rErr.message }, { status: 500 });
+      data = restored;
+      deduped = 'restored';
+    }
+  }
+
+  // No existing row for this creator+brand → insert a fresh managed_creators row.
+  if (!data) {
+    const { data: inserted, error } = await supabase
+      .from('managed_creators')
+      .insert({
+        brand: brand || null,
+        real_name: real_name || null,
+        retainer: retainer || 0,
+        discord_name: discord_name || null,
+        notes: notes || null,
+        monthly_post_requirement: monthly_post_requirement || 30,
+        status: 'Active',
+        employment_status: 'active',
+        tenant_id: tenantId,
+        product_assignments: productAssignments,
+        ...accountColumns,
+      })
+      .select()
+      .single();
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    data = inserted;
+  }
+  if (!data) return NextResponse.json({ error: 'Failed to create roster row' }, { status: 500 });
+
+  // Create the v2 identity if the handles didn't resolve to one, then link it.
   if (!creatorId) {
     const { data: cv } = await supabase
       .from('creators_v2')
@@ -1015,11 +1066,13 @@ export async function POST(request: NextRequest) {
   }
 
   if (creatorId) {
-    // Link managed_creators → creators_v2.
-    await supabase
-      .from('managed_creators')
-      .update({ creator_id: creatorId })
-      .eq('id', data.id);
+    // Link managed_creators → creators_v2 (only when not already linked).
+    if (data.creator_id !== creatorId) {
+      await supabase
+        .from('managed_creators')
+        .update({ creator_id: creatorId })
+        .eq('id', data.id as number);
+    }
 
     // One tiktok_accounts row per (handle, brand) — but only for combos that
     // don't already exist. The old onConflict target (tenant, username,
@@ -1067,5 +1120,5 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  return NextResponse.json({ data: { ...data, creator_id: creatorId } }, { status: 201 });
+  return NextResponse.json({ data: { ...data, creator_id: creatorId }, deduped }, { status: 201 });
 }
