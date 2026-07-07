@@ -196,6 +196,26 @@ interface EnrichedRow extends ManagedRow {
   posts_delta?: number | null;
   // Creator level L1–L7 from trailing-30-day GMV (managed rows only).
   level?: number | null;
+  // Per-(brand-slug) posts split for the period — parallel to gmv_by_store.
+  // Lets the All-Brands view rescope a row's posts to its own brand.
+  posts_by_store?: Record<string, number>;
+  // All-Brands collapse: when true this row is a per-creator PARENT and `brands`
+  // holds its per-brand children (one managed contract each).
+  grouped?: boolean;
+  brands?: BrandChild[];
+}
+
+// One per-brand child under a collapsed creator parent (All-Brands view).
+interface BrandChild {
+  brand: string | null;
+  /** managed_creators.id for this contract — opens the per-brand detail drawer. */
+  row_id: string;
+  gmv_period: number;
+  posts_period: number;
+  retainer: number;
+  roi_period: number | null;
+  last_post_date: string | null;
+  health: CreatorHealth;
 }
 
 interface UnmanagedPerfRow {
@@ -412,8 +432,8 @@ export async function GET(request: NextRequest) {
     Array.from(handlesByRow.values()).flat().map((h) => h.toLowerCase()),
   ));
   const perfByHandle = new Map<string, { gmv_period: number; posts_period: number; last_post_date: string | null }>();
-  // brand_id (uuid string) → gmv for that handle on that brand, for the period
-  const brandGmvByHandle = new Map<string, Map<string, number>>();
+  // brand_id (uuid string) → { gmv, posts } for that handle on that brand, period.
+  const brandGmvByHandle = new Map<string, Map<string, { gmv: number; posts: number }>>();
   const msgByHandle = new Map<string, { last_message_at: string | null; unread_count: number }>();
 
   // Resolve the brand filter to data-level UUIDs. null = no filter (all);
@@ -458,8 +478,8 @@ export async function GET(request: NextRequest) {
       for (const r of (brandGmvRes.data as BrandGmvRow[] | null) ?? []) {
         if (!r.brand_id) continue;
         const handle = r.tiktok_username.toLowerCase();
-        const slot = brandGmvByHandle.get(handle) ?? new Map<string, number>();
-        slot.set(r.brand_id, Number(r.gmv_period) || 0);
+        const slot = brandGmvByHandle.get(handle) ?? new Map<string, { gmv: number; posts: number }>();
+        slot.set(r.brand_id, { gmv: Number(r.gmv_period) || 0, posts: Number(r.posts_period) || 0 });
         brandGmvByHandle.set(handle, slot);
       }
     }
@@ -490,6 +510,7 @@ export async function GET(request: NextRequest) {
     // all of the row's handles. Renders in the side panel "Revenue by store"
     // section and drives the row's store-mix indicator.
     const gmvByStore: Record<string, number> = {};
+    const postsByStore: Record<string, number> = {};
     for (const h of hs) {
       const p = perfByHandle.get(h);
       if (p) {
@@ -508,9 +529,10 @@ export async function GET(request: NextRequest) {
       }
       const bg = brandGmvByHandle.get(h);
       if (bg) {
-        for (const [brandUuid, brandGmv] of bg) {
+        for (const [brandUuid, bv] of bg) {
           const slug = uuidToSlug(reg, brandUuid) ?? brandUuid;
-          gmvByStore[slug] = (gmvByStore[slug] ?? 0) + brandGmv;
+          gmvByStore[slug] = (gmvByStore[slug] ?? 0) + bv.gmv;
+          postsByStore[slug] = (postsByStore[slug] ?? 0) + bv.posts;
         }
       }
     }
@@ -529,6 +551,7 @@ export async function GET(request: NextRequest) {
       handles,
       gmv_period: gmv,
       gmv_by_store: gmvByStore,
+      posts_by_store: postsByStore,
       posts_period: posts,
       posts_7d: 0,
       last_post_date: lastPost,
@@ -661,8 +684,106 @@ export async function GET(request: NextRequest) {
   // value across pagination.
   let total_gmv_period: number | undefined;
 
+  // ── 4b. All-Brands collapse. On the owner's unscoped, managed, non-export
+  // All-Brands view: (a) rescope each managed row's GMV/posts/ROI to its OWN
+  // brand — enrichment summed a handle across every brand because the perf RPC
+  // was unfiltered here, so a creator's brand rows all showed the same inflated
+  // total; and (b) collapse a creator's brand rows into ONE expandable parent
+  // carrying per-brand children. The count cards above already ran on the
+  // pre-collapse rows, so their semantics are unchanged. Rows with no creator_id
+  // stay as their own rows. Skipped for scoped managers, include=all, CSV export,
+  // and any single-brand view (where per-row GMV is already brand-correct).
+  let working: EnrichedRow[] = enriched;
+  // All-Brands owner/managed view: rescope every row to its own brand (fixes the
+  // cross-brand-total bug for BOTH the table and the CSV export), then — for the
+  // interactive table only — collapse each creator's brands into one parent.
+  const allBrandsView = resolved === null && !scoped && !includeUnmanaged;
+  if (allBrandsView) {
+    // (a) rescope each managed row to its own brand via the per-brand split.
+    for (const r of enriched) {
+      if (!r.is_managed) continue;
+      const stores = r.brand ? expandSlugs(reg, r.brand) : [];
+      let bg = 0;
+      let bp = 0;
+      for (const s of stores) {
+        bg += r.gmv_by_store[s] ?? 0;
+        bp += r.posts_by_store?.[s] ?? 0;
+      }
+      const ret = Number(r.retainer) || 0;
+      r.gmv_period = bg;
+      r.posts_period = bp;
+      r.roi_period = ret > 0 ? bg / ret : null;
+      r.health = deriveHealth({
+        status: r.status,
+        retainer: ret,
+        postsThisMonth: bp,
+        monthlyTarget: Number(r.monthly_post_requirement) || 0,
+        lastPostDate: r.last_post_date,
+      });
+    }
+    // (b) collapse by creator_id — interactive table only (CSV export stays
+    // granular per-brand). null creator_id / unmanaged → own row.
+    if (!exportAll) {
+    const byCreator = new Map<string, EnrichedRow[]>();
+    const out: EnrichedRow[] = [];
+    for (const r of enriched) {
+      if (!r.creator_id || !r.is_managed) { out.push(r); continue; }
+      const arr = byCreator.get(r.creator_id) ?? [];
+      arr.push(r);
+      byCreator.set(r.creator_id, arr);
+    }
+    for (const rows of byCreator.values()) {
+      if (rows.length === 1) { out.push(rows[0]); continue; }
+      const primary = rows[0];
+      const children: BrandChild[] = [];
+      const seen = new Set<string>();
+      for (const r of rows) {
+        const b = r.brand ?? '';
+        if (seen.has(b)) continue;
+        seen.add(b);
+        children.push({
+          brand: r.brand,
+          row_id: String(r.id),
+          gmv_period: r.gmv_period,
+          posts_period: r.posts_period,
+          retainer: Number(r.retainer) || 0,
+          roi_period: r.roi_period,
+          last_post_date: r.last_post_date,
+          health: r.health,
+        });
+      }
+      children.sort((a, b) => b.gmv_period - a.gmv_period);
+      const totGmv = children.reduce((s, c) => s + c.gmv_period, 0);
+      const totPosts = children.reduce((s, c) => s + c.posts_period, 0);
+      const totRet = children.reduce((s, c) => s + c.retainer, 0);
+      let lastPost: string | null = null;
+      for (const c of children) {
+        if (c.last_post_date && (!lastPost || c.last_post_date > lastPost)) lastPost = c.last_post_date;
+      }
+      out.push({
+        ...primary,
+        gmv_period: totGmv,
+        posts_period: totPosts,
+        retainer: totRet,
+        roi_period: totRet > 0 ? totGmv / totRet : null,
+        last_post_date: lastPost,
+        health: deriveHealth({
+          status: primary.status,
+          retainer: totRet,
+          postsThisMonth: totPosts,
+          monthlyTarget: Number(primary.monthly_post_requirement) || 0,
+          lastPostDate: lastPost,
+        }),
+        grouped: true,
+        brands: children,
+      });
+    }
+    working = out;
+    }
+  }
+
   // ── 5. Apply health filter.
-  let filtered = enriched;
+  let filtered = working;
   if (healthFilter !== 'all') {
     if (healthFilter === 'low_roi') {
       filtered = filtered.filter((r) => r.roi_period !== null && r.roi_period < 1 && r.health !== 'churned');

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
+import { useState, useEffect, useCallback, useRef, Suspense, Fragment } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { SparklineCell } from '@/components/ui-kit/sparkline-cell';
@@ -9,7 +9,7 @@ import { StatCard } from '@/components/dashboard/stat-card';
 import type { SegmentFilterCriteria } from '@/lib/data/segments';
 import {
   UserPlus, Search, Users, UserCheck, X,
-  ChevronLeft, ChevronRight, ExternalLink, Loader2,
+  ChevronLeft, ChevronRight, ChevronDown, ExternalLink, Loader2,
   UserX, Globe, Pencil, Check, Plus, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Upload, FileDown, Calendar,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -99,6 +99,22 @@ interface Creator {
   is_managed: boolean;
   // Resolved product tags (key + display name). Empty = no specific product.
   product_tags: { key: string; name: string }[];
+  // All-Brands collapse: parent row spanning multiple brands; `brands` holds the
+  // per-brand children (one managed contract each).
+  grouped?: boolean;
+  brands?: BrandChild[];
+}
+
+// One per-brand child under a collapsed creator parent (All-Brands view).
+interface BrandChild {
+  brand: string | null;
+  row_id: string;
+  gmv_period: number;
+  posts_period: number;
+  retainer: number;
+  roi_period: number | null;
+  last_post_date: string | null;
+  health: CreatorHealth;
 }
 
 /** Primary handle — first in the canonical list, falls back to legacy account_1. */
@@ -1302,6 +1318,27 @@ function RosterContent() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [selectedCreator, setSelectedCreator] = useState<Creator | null>(null);
+  // Expanded creator groups (All-Brands collapse). Keyed by the parent row id.
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const toggleExpand = (id: string) => setExpanded((prev) => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+  // Open the detail drawer for a single brand-child (its own managed contract).
+  const openChild = (parent: Creator, child: BrandChild) => setSelectedCreator({
+    ...parent,
+    id: child.row_id,
+    brand: child.brand,
+    retainer: child.retainer,
+    gmv_period: child.gmv_period,
+    posts_period: child.posts_period,
+    roi_period: child.roi_period,
+    last_post_date: child.last_post_date,
+    health: child.health,
+    grouped: false,
+    brands: undefined,
+  });
   const [addModalPrefill, setAddModalPrefill] = useState<{ account_1?: string; brand?: string } | null>(null);
 
   // Bulk add — the unified modal (paste / CSV / pre-selected) + multi-select.
@@ -1734,11 +1771,14 @@ function RosterContent() {
                 ))}
                 {!loading && roster.map((c) => {
                   const primary = primaryHandle(c);
+                  const isGroup = !!c.grouped;
+                  const isOpen = isGroup && expanded.has(c.id);
                   return (
+                    <Fragment key={c.id}>
                     <tr
-                      key={c.id}
-                      className={`transition-colors cursor-pointer ${c.is_managed ? 'hover:bg-pink-50/20' : 'bg-slate-50/40 hover:bg-slate-100/50'}`}
+                      className={`transition-colors cursor-pointer ${c.is_managed ? 'hover:bg-pink-50/20' : 'bg-slate-50/40 hover:bg-slate-100/50'} ${isOpen ? 'bg-pink-50/30' : ''}`}
                       onClick={() => {
+                        if (isGroup) { toggleExpand(c.id); return; }
                         if (c.is_managed) setSelectedCreator(c);
                         else setAddModalPrefill({ account_1: primary ?? '', brand: c.brand ?? '' });
                       }}
@@ -1757,7 +1797,12 @@ function RosterContent() {
                         </td>
                       )}
                       <td className="px-5 py-3.5">
-                        <div className="flex items-center gap-2.5 max-w-[220px]">
+                        <div className="flex items-center gap-2.5 max-w-[240px]">
+                          {isGroup && (
+                            <span className="text-gray-400 flex-shrink-0" aria-hidden>
+                              {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                            </span>
+                          )}
                           <CreatorAvatar creator={c} />
                           <div className="min-w-0">
                             <div className="flex items-center font-medium text-[#1A1B3A]">
@@ -1801,7 +1846,11 @@ function RosterContent() {
                       </td>
                       {showBrandColumn && (
                         <td className="px-5 py-3.5">
-                          {c.brand ? (
+                          {isGroup ? (
+                            <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-pink-50 text-[#E91E8C] border border-pink-100">
+                              {c.brands?.length ?? 0} brands
+                            </span>
+                          ) : c.brand ? (
                             <span className="inline-flex items-center gap-1.5 max-w-[160px] text-xs font-medium px-2.5 py-1 rounded-full bg-gray-50 text-gray-700 border border-gray-100">
                               <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: brandMeta.color(c.brand) }} />
                               <span className="truncate">{brandOptions.find(b => b.slug === c.brand)?.name || brandMeta.label(c.brand) || c.brand.replace(/_/g, ' ')}</span>
@@ -1861,6 +1910,55 @@ function RosterContent() {
                         </td>
                       )}
                     </tr>
+                    {isOpen && c.brands?.map((child) => {
+                      const childLabel = brandOptions.find((b) => b.slug === child.brand)?.name
+                        || (child.brand ? brandMeta.label(child.brand) : null)
+                        || child.brand?.replace(/_/g, ' ') || '—';
+                      return (
+                        <tr
+                          key={`${c.id}:${child.brand ?? 'none'}`}
+                          className="bg-gray-50/60 hover:bg-gray-100/70 cursor-pointer"
+                          onClick={(e) => { e.stopPropagation(); openChild(c, child); }}
+                        >
+                          {showAddAction && <td />}
+                          <td className="px-5 py-2.5">
+                            <div className="flex items-center gap-2 pl-8">
+                              <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: child.brand ? brandMeta.color(child.brand) : '#D1D5DB' }} />
+                              <span className="truncate text-sm font-medium text-gray-600">{childLabel}</span>
+                            </div>
+                          </td>
+                          <td className="px-5 py-2.5" />
+                          {showBrandColumn && <td className="px-5 py-2.5" />}
+                          {showManagedTag && <td className="px-5 py-2.5" />}
+                          <td className="px-5 py-2.5">
+                            <div className="flex items-center justify-start gap-2.5">
+                              <div className="w-[88px] flex-shrink-0" aria-hidden />
+                              <div className="text-right min-w-[72px]">
+                                <span className="tabular-nums font-semibold text-sm text-[#1A1B3A]">
+                                  {(child.gmv_period || 0) > 0 ? fmt(child.gmv_period) : <span className="text-gray-300 font-normal">—</span>}
+                                </span>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-5 py-2.5">
+                            <div className="flex items-center justify-start gap-2.5">
+                              <div className="w-[88px] flex-shrink-0" aria-hidden />
+                              <div className="text-right min-w-[36px]">
+                                <span className="tabular-nums text-sm text-gray-600">{child.posts_period || 0}</span>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-5 py-2.5"><LastPostCell date={child.last_post_date} /></td>
+                          <td className="px-5 py-2.5 text-right font-semibold text-sm text-[#1A1B3A]">
+                            {(child.retainer || 0) > 0 ? fmt(child.retainer) : <span className="text-gray-300 font-normal">—</span>}
+                          </td>
+                          <td className="px-5 py-2.5 text-right"><RoiCell roi={child.roi_period} /></td>
+                          <td className="px-5 py-2.5" />
+                          {showAddAction && <td className="px-5 py-2.5" />}
+                        </tr>
+                      );
+                    })}
+                    </Fragment>
                   );
                 })}
               </tbody>
