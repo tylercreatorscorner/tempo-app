@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { redirect } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 import { TeamManagement } from '@/components/team/team-management';
 
@@ -19,7 +19,7 @@ export default async function TeamPage() {
 
   const { data: brands } = await supabase
     .from('brands_v2')
-    .select('id, name, slug, display_name')
+    .select('id, name, slug, display_name, color')
     .order('name');
 
   const { data: members } = await supabase
@@ -34,9 +34,18 @@ export default async function TeamPage() {
     .select('user_id, brand_id')
     .eq('tenant_id', scope.tenantId);
 
+  // Real invite status: a member who has never signed in is still "pending".
+  // status on user_profiles is stamped 'active' at invite time, so it can't tell.
+  const admin = await createAdminClient();
+  const { data: authList } = await admin.auth.admin.listUsers({ perPage: 200 });
+  const signedIn = new Set(
+    (authList?.users ?? []).filter((u) => u.last_sign_in_at).map((u) => u.id),
+  );
+
   const users = (members ?? []).map((m) => ({
     ...m,
     brand_access: (accessRows ?? []).filter((a) => a.user_id === m.user_id).map((a) => a.brand_id),
+    pending: !signedIn.has(m.user_id),
   }));
 
   return (

@@ -80,6 +80,7 @@ export async function inviteUser(email: string, role: string, canViewFinance = t
   if (upsertError) throw new Error(`Profile upsert failed: ${upsertError.message}`);
 
   revalidatePath('/settings');
+  revalidatePath('/team');
   return { userId };
 }
 
@@ -87,6 +88,7 @@ export async function updateUserRole(userId: string, role: string) {
   const { admin } = await assertOwnerOrAdmin();
   await admin.from('user_profiles').update({ role }).eq('user_id', userId);
   revalidatePath('/settings');
+  revalidatePath('/team');
 }
 
 /** Toggle a member's Finance access (owner/admin/viewer always see it regardless). */
@@ -94,12 +96,14 @@ export async function updateFinanceAccess(userId: string, canViewFinance: boolea
   const { admin } = await assertOwnerOrAdmin();
   await admin.from('user_profiles').update({ can_view_finance: canViewFinance }).eq('user_id', userId);
   revalidatePath('/settings');
+  revalidatePath('/team');
 }
 
 export async function removeUser(userId: string) {
   const { admin } = await assertOwnerOrAdmin();
   await admin.from('user_profiles').delete().eq('user_id', userId);
   revalidatePath('/settings');
+  revalidatePath('/team');
 }
 
 /**
@@ -131,6 +135,7 @@ export async function resendMagicLink(userId: string) {
   if (error) throw new Error(`Failed to send: ${error.message}`);
 
   revalidatePath('/settings');
+  revalidatePath('/team');
   return { ok: true, email: target.email };
 }
 
@@ -144,4 +149,5 @@ export async function updateBrandAccess(userId: string, brandIds: string[], tena
     );
   }
   revalidatePath('/settings');
+  revalidatePath('/team');
 }
