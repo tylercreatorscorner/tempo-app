@@ -1094,8 +1094,32 @@ export async function POST(request: NextRequest) {
   // never mint a second one. The DB's UNIQUE(brand, lower(account_1)) can't tell
   // it's the same person when the primary handle differs (this is exactly how a
   // duplicate LeeFar row for Brittni King slipped in, 2026-07-05).
+  // Optional strong identifiers, used to resolve a RETURNING creator to their
+  // existing identity before falling back to a handle. All three are UNIQUE on
+  // creators_v2 (migrations 068/069), so matching on them stops a re-add under a
+  // brand-new handle from minting a duplicate person. Priority: discord_id >
+  // email > phone > known handle.
+  const discordId = typeof body.discord_id === 'string' ? body.discord_id.trim() : '';
+  const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
+  const phone = typeof body.phone === 'string' ? body.phone.trim() : '';
+
   let creatorId: string | null = null;
-  if (handles.length > 0) {
+  if (!creatorId && discordId) {
+    const { data } = await supabase.from('creators_v2').select('id')
+      .eq('tenant_id', tenantId).eq('discord_id', discordId).limit(1).maybeSingle();
+    creatorId = data?.id ?? null;
+  }
+  if (!creatorId && email) {
+    const { data } = await supabase.from('creators_v2').select('id')
+      .eq('tenant_id', tenantId).ilike('email', email).limit(1).maybeSingle();
+    creatorId = data?.id ?? null;
+  }
+  if (!creatorId && phone) {
+    const { data } = await supabase.from('creators_v2').select('id')
+      .eq('tenant_id', tenantId).eq('phone', phone).limit(1).maybeSingle();
+    creatorId = data?.id ?? null;
+  }
+  if (!creatorId && handles.length > 0) {
     const { data: existing } = await supabase
       .from('tiktok_accounts')
       .select('creator_id')
@@ -1180,6 +1204,11 @@ export async function POST(request: NextRequest) {
         real_name: real_name || handles[0] || 'Unnamed Creator',
         notes: notes || null,
         discord_username: discord_name || null,
+        // Persist the strong identifiers so a future re-add resolves to this same
+        // person (only set on create — none matched above, so no unique collision).
+        discord_id: discordId || null,
+        email: email || null,
+        phone: phone || null,
       })
       .select('id')
       .single();
