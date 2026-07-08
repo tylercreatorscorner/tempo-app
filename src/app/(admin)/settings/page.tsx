@@ -2,10 +2,9 @@ export const dynamic = 'force-dynamic';
 
 import { Suspense } from 'react';
 import { createClient } from '@/lib/supabase/server';
-import { User, Building2, Database, Bell, Key, Shield } from 'lucide-react';
+import { User, Building2, Database, Bell, Key, Shield, Users } from 'lucide-react';
 import { TikTokConnect } from '@/components/onboarding/tiktok-connect';
 import { PlanSelector } from '@/components/onboarding/plan-selector';
-import { UserManagement } from '@/components/settings/user-management';
 import { CreatorInvitesSection } from '@/components/settings/creator-invites-section';
 import { TeamMembersSection } from '@/components/settings/team-members-section';
 import { CompensationArrangementsSection } from '@/components/settings/compensation-arrangements-section';
@@ -66,7 +65,6 @@ export default async function SettingsPage() {
   let profile: { name: string; email: string; role: string; tenant_id: string } | null = null;
   let tenant: { name: string; tiktok_connected: boolean; discord_connected: boolean; stripe_subscription_id: string | null; plan: string | null } | null = null;
   let brands: { id: string; name: string; slug: string; color: string | null; display_name: string | null }[] = [];
-  let teamMembers: { user_id: string; email: string; name: string | null; role: string; status: string; brand_access: string[] }[] = [];
 
   if (user) {
     const { data: p } = await supabase
@@ -89,23 +87,6 @@ export default async function SettingsPage() {
         .select('id, name, slug, color, display_name')
         .order('name');
       brands = b || [];
-
-      // Load team members (non-creator roles)
-      const { data: members } = await supabase
-        .from('user_profiles')
-        .select('user_id, email, name, role, status, can_view_finance')
-        .neq('role', 'creator')
-        .order('role');
-
-      // Load brand access for scoped roles
-      const { data: accessRows } = await supabase
-        .from('user_brand_access')
-        .select('user_id, brand_id');
-
-      teamMembers = (members || []).map(m => ({
-        ...m,
-        brand_access: (accessRows || []).filter(a => a.user_id === m.user_id).map(a => a.brand_id),
-      }));
     }
   }
 
@@ -263,14 +244,20 @@ export default async function SettingsPage() {
         </div>
       </div>
 
-      {/* Team Members - only show for owner/admin */}
+      {/* Team members now live on their own page (profile menu → User Management) */}
       {(profile?.role === 'owner' || profile?.role === 'admin') && (
-        <UserManagement
-          users={teamMembers}
-          brands={brands}
-          tenantId={profile.tenant_id}
-          currentUserId={user?.id ?? ''}
-        />
+        <a href="/team" className="block rounded-xl border border-border bg-card hover:border-primary/40 transition-colors overflow-hidden">
+          <div className="p-6 flex items-center gap-3">
+            <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+              <Users className="h-5 w-5 text-primary" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h2 className="font-semibold text-lg">Team Members</h2>
+              <p className="text-sm text-muted-foreground">Invite teammates, set roles, brand access &amp; finance visibility</p>
+            </div>
+            <span className="text-sm font-medium text-primary whitespace-nowrap">Manage →</span>
+          </div>
+        </a>
       )}
 
       {/* Creator Invites — admin only. Generates per-brand /join/[code] links. */}

@@ -21,9 +21,11 @@ interface AdminShellProps {
    *  layout. useTenant is client-side + reads the REAL user (not the "view as"
    *  target), so the sidebar's Finance gate must come from here. */
   canViewFinance?: boolean;
+  /** Impersonation-aware owner/admin flag — gates the header's User Management entry. */
+  isAdmin?: boolean;
 }
 
-export function AdminShell({ children, tenantSwitcher, viewAsBanner, canViewFinance = true }: AdminShellProps) {
+export function AdminShell({ children, tenantSwitcher, viewAsBanner, canViewFinance = true, isAdmin = false }: AdminShellProps) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const { tenant, isOwner, userName, userEmail } = useTenant();
 
@@ -47,6 +49,7 @@ export function AdminShell({ children, tenantSwitcher, viewAsBanner, canViewFina
             userName={userName}
             userEmail={userEmail}
             tenantSwitcher={tenantSwitcher}
+            isAdmin={isAdmin}
           />
           <main className="flex-1 animate-fade-in">
             <div className="px-3 sm:px-4 md:px-6 pt-3 sm:pt-4 space-y-3">
