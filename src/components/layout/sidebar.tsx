@@ -130,9 +130,11 @@ const ADMIN_SECTION: NavSection = {
 interface SidebarProps {
   className?: string;
   userRole?: 'owner' | 'customer';
+  /** When false, the Finance section is hidden (a finance-walled member). */
+  canViewFinance?: boolean;
 }
 
-export function Sidebar({ className, userRole = 'customer' }: SidebarProps) {
+export function Sidebar({ className, userRole = 'customer', canViewFinance = true }: SidebarProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const brand = searchParams.get('brand');
@@ -169,7 +171,8 @@ export function Sidebar({ className, userRole = 'customer' }: SidebarProps) {
   // Admin (with Upload + Settings) lives at the bottom because both are
   // maintenance/configuration surfaces, not daily-use destinations.
   const sections = [HOME_SECTION, CREATORS_SECTION, CONTENT_SECTION, FINANCE_SECTION, PRODUCTS_SECTION, WORKFLOWS_SECTION, ADMIN_SECTION]
-    .filter(s => !s.adminOnly || isAdmin);
+    .filter(s => !s.adminOnly || isAdmin)
+    .filter(s => s !== FINANCE_SECTION || canViewFinance);
 
   function withBrand(href: string) {
     if (!brand) return href;

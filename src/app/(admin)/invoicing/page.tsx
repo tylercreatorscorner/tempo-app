@@ -13,6 +13,7 @@ export default async function InvoicingPage({ searchParams }: Props) {
   // Any Workspace user; /api/invoices scopes the list to their brands.
   const scope = await getWorkspaceScope();
   if (!scope) redirect('/dashboard');
+  if (!scope.canViewFinance) redirect('/dashboard');
 
   const params = await searchParams;
 

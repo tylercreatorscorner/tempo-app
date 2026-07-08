@@ -15,6 +15,7 @@ export const maxDuration = 30;
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const scope = await getWorkspaceScope();
   if (!scope) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!scope.canViewFinance) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const { id } = await ctx.params;
   const supabase = await createAdminClient();

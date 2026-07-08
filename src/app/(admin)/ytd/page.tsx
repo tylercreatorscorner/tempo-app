@@ -13,6 +13,7 @@ export default async function YtdPage({ searchParams }: Props) {
   // Any Workspace user; /api/earnings/ytd scopes numbers to their brands.
   const scope = await getWorkspaceScope();
   if (!scope) redirect('/dashboard');
+  if (!scope.canViewFinance) redirect('/dashboard');
 
   const params = await searchParams;
   const yearParam = parseInt(params.year ?? '', 10);

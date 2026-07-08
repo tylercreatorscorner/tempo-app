@@ -32,7 +32,7 @@ async function assertOwnerOrAdmin() {
   return { supabase, admin: await createAdminClient(), tenantId: profile.tenant_id as string };
 }
 
-export async function inviteUser(email: string, role: string) {
+export async function inviteUser(email: string, role: string, canViewFinance = true) {
   const { admin, tenantId } = await assertOwnerOrAdmin();
 
   // Try to invite a brand-new user first
@@ -75,6 +75,7 @@ export async function inviteUser(email: string, role: string) {
     role,
     tenant_id: tenantId,
     status: 'active',
+    can_view_finance: canViewFinance,
   }, { onConflict: 'user_id' });
   if (upsertError) throw new Error(`Profile upsert failed: ${upsertError.message}`);
 
@@ -85,6 +86,13 @@ export async function inviteUser(email: string, role: string) {
 export async function updateUserRole(userId: string, role: string) {
   const { admin } = await assertOwnerOrAdmin();
   await admin.from('user_profiles').update({ role }).eq('user_id', userId);
+  revalidatePath('/settings');
+}
+
+/** Toggle a member's Finance access (owner/admin/viewer always see it regardless). */
+export async function updateFinanceAccess(userId: string, canViewFinance: boolean) {
+  const { admin } = await assertOwnerOrAdmin();
+  await admin.from('user_profiles').update({ can_view_finance: canViewFinance }).eq('user_id', userId);
   revalidatePath('/settings');
 }
 

@@ -11,10 +11,12 @@ interface Props {
 }
 
 export default async function EarningsPage({ searchParams }: Props) {
-  // Any Workspace user may view earnings; the /api/earnings route scopes the
-  // numbers to the caller's brands (managers → their brands only).
+  // Finance-enabled Workspace users only; the /api/earnings route scopes the
+  // numbers to the caller's brands (managers → their brands only). A brand-scoped
+  // member the owner walled off from finance is bounced here + at the API.
   const scope = await getWorkspaceScope();
   if (!scope) redirect('/dashboard');
+  if (!scope.canViewFinance) redirect('/dashboard');
   const scoped = scope.brandScope.kind === 'scoped';
 
   const params = await searchParams;

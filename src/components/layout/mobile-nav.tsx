@@ -7,9 +7,10 @@ interface MobileNavProps {
   open: boolean;
   onClose: () => void;
   userRole?: 'owner' | 'customer';
+  canViewFinance?: boolean;
 }
 
-export function MobileNav({ open, onClose, userRole }: MobileNavProps) {
+export function MobileNav({ open, onClose, userRole, canViewFinance = true }: MobileNavProps) {
   if (!open) return null;
 
   return (
@@ -23,7 +24,7 @@ export function MobileNav({ open, onClose, userRole }: MobileNavProps) {
         >
           <X className="h-4 w-4 text-gray-400" />
         </button>
-        <Sidebar userRole={userRole} />
+        <Sidebar userRole={userRole} canViewFinance={canViewFinance} />
       </div>
     </div>
   );

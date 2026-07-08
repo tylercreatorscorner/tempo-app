@@ -34,6 +34,10 @@ export interface WorkspaceScope {
   name: string | null;
   tenantId: string;
   role: string;
+  /** False for a brand-scoped member the owner has walled off from Finance.
+   *  Owner/admin/viewer are always true. THE finance access gate — checked by the
+   *  finance pages + every /api/earnings|invoices|payments route. */
+  canViewFinance: boolean;
   brandScope: BrandScope;
   /** Set when a platform admin is "viewing as" this member (read-only preview). */
   impersonating?: { userId: string; name: string | null };
@@ -41,7 +45,7 @@ export interface WorkspaceScope {
 
 type ProfileRow = {
   user_id: string; email: string | null; name: string | null;
-  role: string | null; tenant_id: string | null;
+  role: string | null; tenant_id: string | null; can_view_finance: boolean | null;
 };
 
 /** Builds a WorkspaceScope from a user_profiles row (the shared role→scope logic
@@ -56,12 +60,16 @@ async function scopeFromProfile(
   const role = profile.role;
   if (role === 'brand' || role === 'brand_contact' || role === 'creator') return null;
 
+  // Owner/admin/viewer always see finance; a manager sees it only if their flag is
+  // set (column defaults true — new finance-blind members are invited with false).
+  const canViewFinance = FULL_TENANT_ROLES.has(role) ? true : (profile.can_view_finance ?? true);
   const base = {
     userId: profile.user_id,
     email: profile.email ?? emailFallback ?? '',
     name: profile.name ?? null,
     tenantId: profile.tenant_id,
     role,
+    canViewFinance,
   };
 
   if (FULL_TENANT_ROLES.has(role)) {
@@ -108,7 +116,7 @@ export async function getWorkspaceScope(): Promise<WorkspaceScope | null> {
   if (impersonatedId && impersonatedId !== user.id) {
     const { data: target } = await admin
       .from('user_profiles')
-      .select('user_id, email, name, role, tenant_id')
+      .select('user_id, email, name, role, tenant_id, can_view_finance')
       .eq('user_id', impersonatedId)
       .maybeSingle();
     // Only ever impersonate a MANAGER — never resolve a full-tenant role (guards

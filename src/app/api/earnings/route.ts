@@ -15,6 +15,7 @@ export const maxDuration = 30;
 export async function GET(request: NextRequest) {
   const scope = await getWorkspaceScope();
   if (!scope) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!scope.canViewFinance) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const month = request.nextUrl.searchParams.get('month');
   if (!month) return NextResponse.json({ error: 'Missing month' }, { status: 400 });

@@ -9,6 +9,9 @@ export async function GET() {
     if (!scope) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
+    if (!scope.canViewFinance) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
     // Managers: every figure is restricted to their brands. owner/admin: all.
     const scopedSlugs = scope.brandScope.kind === 'scoped'
       ? (scope.brandScope.brandSlugs.length ? scope.brandScope.brandSlugs : ['__none__'])
