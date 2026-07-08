@@ -17,11 +17,15 @@ interface AdminShellProps {
   children: React.ReactNode;
   tenantSwitcher?: React.ReactNode;
   viewAsBanner?: React.ReactNode;
+  /** Impersonation-aware finance visibility, computed server-side in the admin
+   *  layout. useTenant is client-side + reads the REAL user (not the "view as"
+   *  target), so the sidebar's Finance gate must come from here. */
+  canViewFinance?: boolean;
 }
 
-export function AdminShell({ children, tenantSwitcher, viewAsBanner }: AdminShellProps) {
+export function AdminShell({ children, tenantSwitcher, viewAsBanner, canViewFinance = true }: AdminShellProps) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const { tenant, isOwner, userName, userEmail, canViewFinance } = useTenant();
+  const { tenant, isOwner, userName, userEmail } = useTenant();
 
   return (
     <Suspense>
