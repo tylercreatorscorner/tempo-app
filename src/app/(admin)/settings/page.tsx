@@ -93,7 +93,7 @@ export default async function SettingsPage() {
       // Load team members (non-creator roles)
       const { data: members } = await supabase
         .from('user_profiles')
-        .select('user_id, email, name, role, status')
+        .select('user_id, email, name, role, status, can_view_finance')
         .neq('role', 'creator')
         .order('role');
 

@@ -17,6 +17,7 @@ export const maxDuration = 30;
 export async function GET(req: NextRequest) {
   const scope = await getWorkspaceScope();
   if (!scope) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!scope.canViewFinance) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   const brandFilterSlugs = scope.brandScope.kind === 'scoped'
     ? scope.brandScope.brandSlugs
     : null;

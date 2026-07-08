@@ -25,6 +25,7 @@ export function useTenant() {
   const [userEmail, setUserEmail] = useState<string>('');
   const [brandCount, setBrandCount] = useState(0);
   const [allowedBrands, setAllowedBrands] = useState<string[] | null>(null);
+  const [canViewFinance, setCanViewFinance] = useState(true);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -38,7 +39,7 @@ export function useTenant() {
 
       const { data: profile } = await supabase
         .from('user_profiles')
-        .select('tenant_id, role, name, allowed_brands')
+        .select('tenant_id, role, name, allowed_brands, can_view_finance')
         .eq('user_id', user.id)
         .maybeSingle();
 
@@ -49,6 +50,12 @@ export function useTenant() {
           Array.isArray(profile.allowed_brands) && profile.allowed_brands.length > 0
             ? profile.allowed_brands
             : null
+        );
+        // Owner/admin/viewer always see finance; managers only if their flag is set.
+        setCanViewFinance(
+          profile.role === 'owner' || profile.role === 'admin' || profile.role === 'viewer'
+            ? true
+            : ((profile as { can_view_finance?: boolean | null }).can_view_finance ?? true)
         );
       }
 
@@ -74,6 +81,6 @@ export function useTenant() {
 
   return {
     tenant, userRole, userName, userEmail, brandCount,
-    isMultiBrand, isBrandPlan, isOwner, allowedBrands, isBrandRestricted, loading,
+    isMultiBrand, isBrandPlan, isOwner, allowedBrands, isBrandRestricted, canViewFinance, loading,
   };
 }

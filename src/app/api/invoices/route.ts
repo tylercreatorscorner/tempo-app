@@ -16,6 +16,7 @@ export const maxDuration = 30;
 export async function GET(req: NextRequest) {
   const scope = await getWorkspaceScope();
   if (!scope) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!scope.canViewFinance) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   const scopedSlugs = scope.brandScope.kind === 'scoped' ? scope.brandScope.brandSlugs : null;
 
   const supabase = await createAdminClient();
@@ -52,6 +53,7 @@ interface PostBody {
 export async function POST(req: NextRequest) {
   const scope = await getWorkspaceScope();
   if (!scope) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!scope.canViewFinance) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   const scopedSlugs = scope.brandScope.kind === 'scoped' ? scope.brandScope.brandSlugs : null;
 
   let body: PostBody;

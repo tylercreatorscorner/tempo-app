@@ -9,6 +9,7 @@ export default async function PaymentsPage() {
   // Any Workspace user; the /api/payments/* routes scope figures to brands.
   const scope = await getWorkspaceScope();
   if (!scope) redirect('/dashboard');
+  if (!scope.canViewFinance) redirect('/dashboard');
 
   return <PaymentsClient />;
 }

@@ -5,6 +5,7 @@ import { Users, Plus, Trash2, ChevronDown, Shield, Check, Send, Loader2 } from '
 import {
   inviteUser,
   updateUserRole,
+  updateFinanceAccess,
   removeUser,
   updateBrandAccess,
   resendMagicLink,
@@ -38,6 +39,7 @@ interface TeamUser {
   role: string;
   status: string;
   brand_access?: string[];
+  can_view_finance?: boolean;
 }
 
 interface Brand {
@@ -60,6 +62,7 @@ export function UserManagement({ users, brands, tenantId, currentUserId }: Props
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState('manager');
   const [inviteBrandIds, setInviteBrandIds] = useState<string[]>([]);
+  const [inviteFinance, setInviteFinance] = useState(false); // off by default (least privilege)
   const [expandedUser, setExpandedUser] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -79,13 +82,15 @@ export function UserManagement({ users, brands, tenantId, currentUserId }: Props
     }
     startTransition(async () => {
       try {
-        const result = await inviteUser(inviteEmail.trim(), inviteRole);
+        const canFin = (inviteRole === 'manager' || inviteRole === 'analyst') ? inviteFinance : true;
+        const result = await inviteUser(inviteEmail.trim(), inviteRole, canFin);
         // Server action returns the new user's ID — wire up brand access for client invites.
         if (inviteRole === 'brand' && inviteBrandIds.length > 0 && result?.userId) {
           await updateBrandAccess(result.userId, inviteBrandIds, tenantId);
         }
         setInviteEmail('');
         setInviteBrandIds([]);
+        setInviteFinance(false);
         setShowInvite(false);
         flash('Invite sent!', 'success');
       } catch (e) {
@@ -105,6 +110,17 @@ export function UserManagement({ users, brands, tenantId, currentUserId }: Props
       try {
         await updateUserRole(userId, role);
         flash('Role updated', 'success');
+      } catch (e) {
+        flash((e as Error).message, 'error');
+      }
+    });
+  }
+
+  function handleFinanceToggle(userId: string, next: boolean) {
+    startTransition(async () => {
+      try {
+        await updateFinanceAccess(userId, next);
+        flash(next ? 'Finance access granted' : 'Finance access removed', 'success');
       } catch (e) {
         flash((e as Error).message, 'error');
       }
@@ -254,6 +270,19 @@ export function UserManagement({ users, brands, tenantId, currentUserId }: Props
             </div>
           )}
 
+          {/* Finance access — internal scoped members only; off by default */}
+          {(inviteRole === 'manager' || inviteRole === 'analyst') && (
+            <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={inviteFinance}
+                onChange={(e) => setInviteFinance(e.target.checked)}
+                className="h-3.5 w-3.5 rounded border-gray-300 text-primary focus:ring-primary/40"
+              />
+              Can see Finance (Earnings, Invoicing, Payments) — off by default
+            </label>
+          )}
+
           <p className="text-xs text-muted-foreground">
             {isClientRole(inviteRole)
               ? "They'll receive an email magic link to log in to their brand portal."
@@ -311,6 +340,23 @@ export function UserManagement({ users, brands, tenantId, currentUserId }: Props
                     className="text-xs px-2 py-1 rounded-lg border border-border hover:bg-muted/50 transition-colors text-gray-500"
                   >
                     Brands
+                  </button>
+                )}
+
+                {/* Finance access toggle (manager/analyst — owner/admin always see it) */}
+                {(u.role === 'manager' || u.role === 'analyst') && (
+                  <button
+                    onClick={() => handleFinanceToggle(u.user_id, u.can_view_finance === false)}
+                    disabled={isPending}
+                    title={u.can_view_finance === false ? 'Grant Finance access' : 'Remove Finance access'}
+                    className={cn(
+                      'text-xs px-2 py-1 rounded-lg border transition-colors',
+                      u.can_view_finance === false
+                        ? 'border-border text-gray-400 hover:bg-muted/50'
+                        : 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100',
+                    )}
+                  >
+                    {u.can_view_finance === false ? 'No finance' : 'Finance'}
                   </button>
                 )}
 

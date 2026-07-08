@@ -21,7 +21,7 @@ interface AdminShellProps {
 
 export function AdminShell({ children, tenantSwitcher, viewAsBanner }: AdminShellProps) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const { tenant, isOwner, userName, userEmail } = useTenant();
+  const { tenant, isOwner, userName, userEmail, canViewFinance } = useTenant();
 
   return (
     <Suspense>
@@ -33,8 +33,8 @@ export function AdminShell({ children, tenantSwitcher, viewAsBanner }: AdminShel
           while hovering the sidebar). Sidebar is now `sticky top-0 h-screen`
           internally so it stays pinned while the document scrolls. */}
       <div className="flex min-h-screen" style={{ backgroundColor: '#F8F9FC' }}>
-        <Sidebar className="hidden lg:flex" userRole={isOwner ? 'owner' : 'customer'} />
-        <MobileNav open={mobileNavOpen} onClose={() => setMobileNavOpen(false)} userRole={isOwner ? 'owner' : 'customer'} />
+        <Sidebar className="hidden lg:flex" userRole={isOwner ? 'owner' : 'customer'} canViewFinance={canViewFinance} />
+        <MobileNav open={mobileNavOpen} onClose={() => setMobileNavOpen(false)} userRole={isOwner ? 'owner' : 'customer'} canViewFinance={canViewFinance} />
 
         <div className="flex-1 flex flex-col min-w-0">
           <Header

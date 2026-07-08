@@ -48,6 +48,7 @@ const STATUSES = new Set(['pending', 'sent', 'paid', 'void']);
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const scope = await getWorkspaceScope();
   if (!scope) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!scope.canViewFinance) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const { id } = await ctx.params;
   const supabase = await createAdminClient();
@@ -62,6 +63,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const scope = await getWorkspaceScope();
   if (!scope) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!scope.canViewFinance) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const { id } = await ctx.params;
 
@@ -128,6 +130,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const scope = await getWorkspaceScope();
   if (!scope) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!scope.canViewFinance) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const { id } = await ctx.params;
   const supabase = await createAdminClient();
