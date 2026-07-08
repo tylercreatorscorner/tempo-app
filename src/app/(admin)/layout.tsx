@@ -2,12 +2,19 @@ import { Suspense } from 'react';
 import { AdminShell } from '@/components/layout/admin-shell';
 import { TenantSwitcherServer } from '@/components/layout/tenant-switcher-server';
 import { ViewAsBannerServer } from '@/components/layout/view-as-banner-server';
+import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
+export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+  // Impersonation-aware finance visibility for the sidebar: when "viewing as" a
+  // member, getWorkspaceScope resolves AS that member, so a finance-blind target
+  // hides the Finance section. useTenant (client) can't do this — it reads the
+  // real logged-in user, not the "view as" target.
+  const scope = await getWorkspaceScope();
   return (
     <AdminShell
       tenantSwitcher={<Suspense><TenantSwitcherServer /></Suspense>}
       viewAsBanner={<Suspense><ViewAsBannerServer /></Suspense>}
+      canViewFinance={scope?.canViewFinance ?? true}
     >
       {children}
     </AdminShell>
