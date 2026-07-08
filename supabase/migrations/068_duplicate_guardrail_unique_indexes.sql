@@ -31,6 +31,6 @@ create unique index if not exists creators_v2_email_lower_uniq
   on public.creators_v2 (lower(email))
   where email is not null and btrim(email) <> '';
 
--- NOT YET: a UNIQUE(discord_id) on creators_v2. Blocked by 183 discord_ids
--- currently shared across multiple creators_v2 rows (the same-person-many-ids
--- tangle). Those must be merged by discord_id first; add the unique index after.
+-- The UNIQUE(discord_id) on creators_v2 lands in migration 069 — added after the
+-- 183 duplicate-Discord identity groups (378 creators_v2 rows → 183) were merged
+-- by Discord ID (which was blocking it).
