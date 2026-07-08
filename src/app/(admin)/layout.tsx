@@ -10,11 +10,13 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // hides the Finance section. useTenant (client) can't do this — it reads the
   // real logged-in user, not the "view as" target.
   const scope = await getWorkspaceScope();
+  const isAdmin = scope?.role === 'owner' || scope?.role === 'admin';
   return (
     <AdminShell
       tenantSwitcher={<Suspense><TenantSwitcherServer /></Suspense>}
       viewAsBanner={<Suspense><ViewAsBannerServer /></Suspense>}
       canViewFinance={scope?.canViewFinance ?? true}
+      isAdmin={isAdmin}
     >
       {children}
     </AdminShell>

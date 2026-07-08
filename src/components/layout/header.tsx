@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Menu, ChevronRight, LogOut, Settings, Bell, MessageSquare } from 'lucide-react';
+import { Menu, ChevronRight, LogOut, Settings, Bell, MessageSquare, Users } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { TempoLogo } from '@/components/ui/tempo-logo';
 import { createClient } from '@/lib/supabase/client';
@@ -15,6 +15,8 @@ interface HeaderProps {
   userName?: string;
   userEmail?: string;
   tenantSwitcher?: React.ReactNode;
+  /** Owner/admin (impersonation-aware) — gates the User Management menu entry. */
+  isAdmin?: boolean;
 }
 
 const BREADCRUMB_MAP: Record<string, string> = {
@@ -29,7 +31,7 @@ const BREADCRUMB_MAP: Record<string, string> = {
   '/reporting': 'Reporting',
 };
 
-export function Header({ onMenuClick, tenantName, userName, userEmail, tenantSwitcher }: HeaderProps) {
+export function Header({ onMenuClick, tenantName, userName, userEmail, tenantSwitcher, isAdmin }: HeaderProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -155,6 +157,15 @@ export function Header({ onMenuClick, tenantName, userName, userEmail, tenantSwi
                 <p className="text-xs text-gray-400 truncate mt-0.5">{userEmail}</p>
               </div>
               <div className="py-1">
+                {isAdmin && (
+                  <Link
+                    href="/team"
+                    onClick={() => setMenuOpen(false)}
+                    className="flex items-center gap-2.5 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+                  >
+                    <Users className="h-4 w-4" /> User Management
+                  </Link>
+                )}
                 <Link
                   href="/settings"
                   onClick={() => setMenuOpen(false)}
