@@ -6,11 +6,11 @@ import { Sidebar } from './sidebar';
 interface MobileNavProps {
   open: boolean;
   onClose: () => void;
-  userRole?: 'owner' | 'customer';
+  isAdmin?: boolean;
   canViewFinance?: boolean;
 }
 
-export function MobileNav({ open, onClose, userRole, canViewFinance = true }: MobileNavProps) {
+export function MobileNav({ open, onClose, isAdmin = false, canViewFinance = true }: MobileNavProps) {
   if (!open) return null;
 
   return (
@@ -24,7 +24,7 @@ export function MobileNav({ open, onClose, userRole, canViewFinance = true }: Mo
         >
           <X className="h-4 w-4 text-gray-400" />
         </button>
-        <Sidebar userRole={userRole} canViewFinance={canViewFinance} />
+        <Sidebar isAdmin={isAdmin} canViewFinance={canViewFinance} />
       </div>
     </div>
   );
