@@ -161,6 +161,44 @@ function normalizeHandle(h: string | null | undefined): string {
 
 // ── Helpers ────────────────────────────────────────────────────────
 
+function chunk<T>(arr: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
+
+/**
+ * Fetch every row of a query, paging past PostgREST's 1000-row response cap.
+ * `make` must return a FRESH query builder each call, carrying a stable
+ * `.order()` so pages don't overlap or skip rows.
+ */
+async function pageAll<T>(
+  make: () => { range: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }> },
+): Promise<T[]> {
+  const out: T[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await make().range(from, from + 999);
+    if (error || !data || data.length === 0) break;
+    out.push(...data);
+    if (data.length < 1000) break;
+  }
+  return out;
+}
+
+/**
+ * Fetch every row matching a (possibly long) `.in()` list: chunk the list so a
+ * long request URL can't overflow into a silent PARTIAL result, then page each
+ * chunk past the 1000-row cap.
+ */
+async function fetchInAll<T>(
+  make: (batch: string[]) => { range: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }> },
+  values: string[],
+): Promise<T[]> {
+  const out: T[] = [];
+  for (const batch of chunk(values, 200)) out.push(...(await pageAll<T>(() => make(batch))));
+  return out;
+}
+
 /**
  * Resolve the brand's display rate (percentage like 1.5).
  * brand_settings.revenue_share_rate is stored as a decimal (0.02 → 2%)
@@ -265,9 +303,9 @@ export async function getEarnings(
     brandLevelRes,
     teamMemberRes,
     perfRes,
-    customRatesRes,
+    customRatesRows,
     marketingRes,
-    managedRes,
+    managedRowsData,
   ] = await Promise.all([
     activeTeamMemberId
       ? supabase
@@ -296,11 +334,26 @@ export async function getEarnings(
       p_end_date: endDate,
       p_brands: activeBrandSlugs,
     }),
-    supabase.from('creator_commission_rates').select('creator_name, brand, rate'),
+    // Paged past PostgREST's 1000-row cap. creator_commission_rates is a
+    // full-table read and managed_creators exceeds 1000 today (~1.6k rows), so
+    // an unpaged read silently dropped creators from the commission calc and
+    // undercounted earnings/invoices (audit #5).
+    pageAll<{ creator_name: string; brand: string; rate: number | string }>(() =>
+      supabase
+        .from('creator_commission_rates')
+        .select('creator_name, brand, rate')
+        .order('creator_name', { ascending: true })),
     supabase.from('marketing_gmv').select('brand, amount').eq('month', month),
-    supabase.from('managed_creators')
-      .select('brand, creator_id, account_1, account_2, account_3, account_4, account_5')
-      .is('archived_at', null),
+    pageAll<{
+      brand: string | null; creator_id: string | null;
+      account_1: string | null; account_2: string | null; account_3: string | null;
+      account_4: string | null; account_5: string | null;
+    }>(() =>
+      supabase
+        .from('managed_creators')
+        .select('brand, creator_id, account_1, account_2, account_3, account_4, account_5')
+        .is('archived_at', null)
+        .order('id', { ascending: true })),
   ]);
 
   // Merge per-payee compensation rows with brand-level info into a single
@@ -341,7 +394,7 @@ export async function getEarnings(
   }
 
   const perfData = (perfRes.data as PerfRow[] | null ?? []);
-  const customRates = (customRatesRes.data as Array<{ creator_name: string; brand: string; rate: number | string }> | null ?? []);
+  const customRates = customRatesRows;
   const customRateLookup = new Map<string, number>(); // "handle|||brand" → percentage
   for (const r of customRates) {
     const k = `${normalizeHandle(r.creator_name)}|||${r.brand}`;
@@ -368,12 +421,7 @@ export async function getEarnings(
   // creator_performance rows, which are keyed by store. A creator under the
   // LeeFar umbrella counts toward both stores' rev share — exactly the
   // intended model: one roster row, two stores' worth of GMV.
-  const managedRows = (managedRes.data as Array<{
-    brand: string | null;
-    creator_id: string | null;
-    account_1: string | null; account_2: string | null; account_3: string | null;
-    account_4: string | null; account_5: string | null;
-  }> | null ?? []);
+  const managedRows = managedRowsData;
 
   // Resolve canonical handles per creator_id from tiktok_accounts (one query).
   const managedCreatorIds = Array.from(new Set(
@@ -381,11 +429,18 @@ export async function getEarnings(
   ));
   const handlesByCreatorId = new Map<string, string[]>();
   if (managedCreatorIds.length > 0) {
-    const { data: taRows } = await supabase
-      .from('tiktok_accounts')
-      .select('creator_id, tiktok_username')
-      .in('creator_id', managedCreatorIds);
-    for (const r of (taRows as Array<{ creator_id: string; tiktok_username: string | null }> | null ?? [])) {
+    // Chunk the id list (a long .in() overflows the request URL → silent
+    // partial result) AND page each chunk past the 1000-row cap — either would
+    // otherwise drop handles and undercount managed GMV (audit #5).
+    const taRows = await fetchInAll<{ creator_id: string; tiktok_username: string | null }>(
+      (batch) => supabase
+        .from('tiktok_accounts')
+        .select('creator_id, tiktok_username')
+        .in('creator_id', batch)
+        .order('id', { ascending: true }),
+      managedCreatorIds,
+    );
+    for (const r of taRows) {
       const handle = normalizeHandle(r.tiktok_username);
       if (!handle) continue;
       const list = handlesByCreatorId.get(r.creator_id) ?? [];
