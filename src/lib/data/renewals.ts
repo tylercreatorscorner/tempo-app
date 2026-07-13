@@ -25,6 +25,24 @@
  */
 import { createAdminClient } from '@/lib/supabase/server';
 
+/** Fetch every row of a query, paging past PostgREST's 1000-row cap. `makeQuery`
+ *  returns a FRESH builder each call carrying a stable `.order()`. Mirrors the
+ *  helper in managed-gmv.ts. */
+async function fetchAllRows<T>(
+  makeQuery: () => { range: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }> },
+): Promise<T[]> {
+  const PAGE = 1000;
+  const out: T[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await makeQuery().range(from, from + PAGE - 1);
+    if (error) { console.error('[renewals] paged fetch failed:', error.message); break; }
+    if (!data || data.length === 0) break;
+    out.push(...data);
+    if (data.length < PAGE) break;
+  }
+  return out;
+}
+
 export type RenewalCategory = 'cut' | 'watch' | 'keep';
 export type PaceStatus = 'ahead' | 'on-track' | 'slow' | 'behind';
 
@@ -206,16 +224,22 @@ export async function getRenewals(opts: {
   const sixtyAgo = new Date(today);
   sixtyAgo.setUTCDate(today.getUTCDate() - 60);
 
-  let perfQuery = supabase
-    .from('creator_performance')
-    .select('creator_name, brand, gmv, videos, report_date')
-    .eq('period_type', 'daily')
-    .gte('report_date', localDateStr(sixtyAgo))
-    .lte('report_date', localDateStr(today))
-    .limit(50000);
-  if (brandFilter) perfQuery = perfQuery.eq('brand', brandFilter);
-  const { data: perfData, error: pErr } = await perfQuery;
-  if (pErr) throw pErr;
+  // creator_performance for a 60-day all-creator window is tens of thousands of
+  // rows. The old `.limit(50000)` did NOT lift PostgREST's 1000-row response cap
+  // (false fix), so perfIdx saw only ~1000 rows → most creators got gmvPeriod≈0 →
+  // ROI≈0 → wrongly bucketed 'Cut', flagging paying creators for termination
+  // (audit #10). Page through the full window ordered by the unique id.
+  const perfData = await fetchAllRows<PerfRow>(() => {
+    let q = supabase
+      .from('creator_performance')
+      .select('creator_name, brand, gmv, videos, report_date')
+      .eq('period_type', 'daily')
+      .gte('report_date', localDateStr(sixtyAgo))
+      .lte('report_date', localDateStr(today))
+      .order('id', { ascending: true });
+    if (brandFilter) q = q.eq('brand', brandFilter);
+    return q;
+  });
 
   // Index perf by (creator_handle|brand|date)
   const perfIdx = new Map<string, { gmv: number; videos: number }>();

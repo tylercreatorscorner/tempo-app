@@ -133,7 +133,10 @@ export async function getWorkspaceScope(): Promise<WorkspaceScope | null> {
 
   const { data: profile } = await admin
     .from('user_profiles')
-    .select('user_id, email, name, role, tenant_id')
+    // can_view_finance MUST be selected here (as on the impersonation path above),
+    // else scopeFromProfile reads `undefined ?? true` and grants finance to every
+    // finance-blocked manager (audit #5).
+    .select('user_id, email, name, role, tenant_id, can_view_finance')
     .eq('user_id', user.id)
     .maybeSingle();
 

@@ -166,10 +166,14 @@ function normalizeHandle(h: string | null | undefined): string {
  */
 function getBrandRatePct(s: BrandSettingsRow | undefined): number {
   if (!s) return 2; // fallback default 2%
-  const cr = pNum(s.commission_rate);
-  if (cr > 0) return cr;
-  const rsr = pNum(s.revenue_share_rate);
-  if (rsr > 0) return rsr * 100;
+  // A configured 0 is a REAL rate (retainer-only brand), not "unset". Only fall
+  // back to the 2% default when NEITHER field is configured — mirroring the
+  // marketing-rate handling below (audit #23). Previously `cr > 0` treated a
+  // genuine 0% as missing and billed 2% on all managed GMV.
+  const cr = s.commission_rate;
+  if (cr != null && String(cr).trim() !== '') return pNum(cr);
+  const rsr = s.revenue_share_rate;
+  if (rsr != null && String(rsr).trim() !== '') return pNum(rsr) * 100;
   return 2;
 }
 
