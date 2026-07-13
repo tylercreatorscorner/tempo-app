@@ -292,23 +292,47 @@ export async function getBrandPortalDashboard(
   const trailing30StartStr = fmt(trailing30Start);
   const trailing30EndStr = fmt(endDate);
 
+  // Per-handle stats reads are chunked (a long .in() overflows the request URL)
+  // and paged past the 1000-row cap. The old `.range(0,9999)` did NOT lift the
+  // cap, so this CLIENT-FACING dashboard showed ~10% of real GMV for larger
+  // brands (audit #11). Ordered by the unique id so pages don't overlap/skip.
+  const HANDLE_CHUNK = 200;
+  const chunkArr = <T>(a: T[], n: number): T[][] => { const o: T[][] = []; for (let i = 0; i < a.length; i += n) o.push(a.slice(i, i + n)); return o; };
+  const fetchAllByHandles = async <T>(
+    handles: string[],
+    build: (batch: string[]) => { range: (f: number, t: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }> },
+  ): Promise<{ data: T[]; error: null }> => {
+    const PAGE = 1000;
+    const out: T[] = [];
+    for (const batch of chunkArr(handles, HANDLE_CHUNK)) {
+      for (let from = 0; ; from += PAGE) {
+        const { data, error } = await build(batch).range(from, from + PAGE - 1);
+        if (error) { console.error('[brand-portal] paged fetch failed:', error.message); break; }
+        if (!data || data.length === 0) break;
+        out.push(...data);
+        if (data.length < PAGE) break;
+      }
+    }
+    return { data: out, error: null };
+  };
+
   const [statsCur, statsPrev, videoRows, stats30d, brandTotals, settingsRow, mtdRow, engagementRows] = await Promise.all([
-    supabase
+    fetchAllByHandles(allHandles, (batch) => supabase
       .from('daily_creator_stats')
       .select('tiktok_username, gmv, orders, videos, report_date')
       .in('brand_id', brandIds)
       .gte('report_date', startStr)
       .lte('report_date', endStr)
-      .in('tiktok_username', allHandles)
-      .range(0, 9999),
-    supabase
+      .in('tiktok_username', batch)
+      .order('id', { ascending: true })),
+    fetchAllByHandles(allHandles, (batch) => supabase
       .from('daily_creator_stats')
       .select('tiktok_username, gmv, videos, report_date')
       .in('brand_id', brandIds)
       .gte('report_date', priorStartStr)
       .lte('report_date', priorEndStr)
-      .in('tiktok_username', allHandles)
-      .range(0, 9999),
+      .in('tiktok_username', batch)
+      .order('id', { ascending: true })),
     // Per-video aggregates via RPC — returns period_gmv (headline),
     // prior_gmv (for change %), and total_gmv (lifetime).
     supabase.rpc('brand_portal_videos', {
@@ -320,14 +344,14 @@ export async function getBrandPortalDashboard(
       p_prior_end: priorEndStr,
     }),
     // Trailing 30-day GMV per handle (for ROI column on creator roster).
-    supabase
+    fetchAllByHandles(allHandles, (batch) => supabase
       .from('daily_creator_stats')
       .select('tiktok_username, gmv')
       .in('brand_id', brandIds)
       .gte('report_date', trailing30StartStr)
       .lte('report_date', trailing30EndStr)
-      .in('tiktok_username', allHandles)
-      .range(0, 9999),
+      .in('tiktok_username', batch)
+      .order('id', { ascending: true })),
     // Brand-wide totals (managed + organic) for the split panel
     supabase.rpc('brand_total_period_gmv', {
       p_brand_ids: brandIds,
@@ -353,14 +377,14 @@ export async function getBrandPortalDashboard(
     })(),
     // Engagement metrics — videos table by managed creator handles.
     // Pull a wide window so we can compute both current and prior period totals.
-    supabase
+    fetchAllByHandles(allHandles, (batch) => supabase
       .from('videos')
       .select('video_id, post_date, impressions, likes, comments')
       .in('brand', dataSlugs)
       .gte('post_date', priorStartStr)
       .lte('post_date', endStr)
-      .in('creator_name', allHandles)
-      .range(0, 19999),
+      .in('creator_name', batch)
+      .order('id', { ascending: true })),
   ]);
 
   // ── 3. Aggregate per-managed-creator stats
