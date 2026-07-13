@@ -48,7 +48,9 @@ export function validateCreatorRecords(records: CreatorPerformanceRecord[]): Val
     }
   }
 
-  // CRITICAL — zero GMV across all rows means column mapping failed
+  // CRITICAL — $0 GMV across ALL rows means the GMV column wasn't matched
+  // (TikTok renamed it, or the wrong file was uploaded). That is the ONLY
+  // unambiguous mapping-failure signal, so it stays a HARD block.
   if (records.length > 0 && totalGmv === 0) {
     errors.push(
       `🚨 BLOCKED: Total GMV is $0 across all ${records.length} creators. ` +
@@ -56,14 +58,19 @@ export function validateCreatorRecords(records: CreatorPerformanceRecord[]): Val
       `(or legacy "Affiliate-attributed GMV"). Verify your file has the correct columns.`
     );
   } else if (records.length > 50) {
+    // A high share of $0-GMV creators is NORMAL for a full affiliate-directory
+    // export — most registered creators are dormant on any given day. And the
+    // fact that SOME creators DID parse non-zero GMV (we're past the totalGmv===0
+    // block above) proves the column mapped correctly. So this is a heads-up,
+    // NEVER a hard block: the old `zeroPct > 95` block stranded a legitimate
+    // ~40k-creator COSRX directory export where 99% were $0 that day. This mirrors
+    // the video validator, which only hard-blocks on a real contradiction.
     const zeroPct = (zeroGmvCount / records.length) * 100;
-    if (zeroPct > 95) {
-      errors.push(
-        `🚨 BLOCKED: ${zeroPct.toFixed(0)}% of creators (${zeroGmvCount}/${records.length}) have $0 GMV. ` +
-        `This usually indicates a column mapping issue.`
+    if (zeroPct > 80) {
+      warnings.push(
+        `${zeroPct.toFixed(0)}% of creators (${zeroGmvCount}/${records.length}) have $0 GMV — ` +
+        `expected for a full creator-directory export. Verify if you meant to upload only active creators.`
       );
-    } else if (zeroPct > 80) {
-      warnings.push(`${zeroPct.toFixed(0)}% of creators have $0 GMV — verify this is expected.`);
     }
   }
 
