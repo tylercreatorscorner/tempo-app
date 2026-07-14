@@ -45,13 +45,13 @@ export function BrandSpendChart({ data, height = 220 }: Props) {
       categories: entries.map(([brand]) => brandMeta.label(brand)),
       labels: {
         formatter: (v: string) => fmtCompact(Number(v)),
-        style: { colors: Array(entries.length).fill('var(--muted-foreground)'), fontSize: '11px' },
+        style: { colors: Array(entries.length).fill('#8A8FB2'), fontSize: '11px' },
       },
       axisBorder: { show: false },
       axisTicks: { show: false },
     },
     yaxis: {
-      labels: { style: { colors: Array(entries.length).fill('var(--foreground)'), fontSize: '12px', fontWeight: '600' } },
+      labels: { style: { colors: Array(entries.length).fill('#8A8FB2'), fontSize: '12px', fontWeight: '600' } },
     },
     colors: entries.map(([brand]) => brandMeta.color(brand)),
     grid: {

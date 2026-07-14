@@ -38,7 +38,7 @@ export function ManagedSplitDonut({ managedGmv, unmanagedGmv, height = 260 }: Pr
       background: 'transparent',
     },
     labels: ['Managed', 'Unmanaged'],
-    colors: ['var(--pulse-accent-2)', 'var(--border)'],
+    colors: ['#A855F7', '#8A8FB2'],
     plotOptions: {
       pie: {
         donut: {
@@ -48,7 +48,7 @@ export function ManagedSplitDonut({ managedGmv, unmanagedGmv, height = 260 }: Pr
             name: {
               show: true,
               fontSize: '12px',
-              color: 'var(--muted-foreground)',
+              color: '#8A8FB2',
               fontFamily: 'inherit',
               offsetY: -6,
             },
@@ -56,7 +56,7 @@ export function ManagedSplitDonut({ managedGmv, unmanagedGmv, height = 260 }: Pr
               show: true,
               fontSize: '24px',
               fontWeight: '800',
-              color: 'var(--foreground)',
+              color: '#8A8FB2',
               fontFamily: 'inherit',
               formatter: val => fmt(Number(val)),
               offsetY: 6,
@@ -64,7 +64,7 @@ export function ManagedSplitDonut({ managedGmv, unmanagedGmv, height = 260 }: Pr
             total: {
               show: true,
               label: 'Managed',
-              color: 'var(--muted-foreground)',
+              color: '#8A8FB2',
               fontSize: '12px',
               fontFamily: 'inherit',
               formatter: () => `${managedPct}%`,
@@ -82,7 +82,7 @@ export function ManagedSplitDonut({ managedGmv, unmanagedGmv, height = 260 }: Pr
       offsetY: 4,
       markers: { size: 8 },
       itemMargin: { horizontal: 12 },
-      labels: { colors: 'var(--muted-foreground)' },
+      labels: { colors: '#8A8FB2' },
     },
     tooltip: {
       style: { fontSize: '12px', fontFamily: 'inherit' },

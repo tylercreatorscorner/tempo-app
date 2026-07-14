@@ -45,12 +45,12 @@ export function BrandBreakdownDonut({ rows }: Props) {
           size: '72%',
           labels: {
             show: true,
-            name: { show: true, fontSize: '11px', color: 'var(--muted-foreground)', offsetY: -4 },
+            name: { show: true, fontSize: '11px', color: '#8A8FB2', offsetY: -4 },
             value: {
               show: true,
               fontSize: '20px',
               fontWeight: 700,
-              color: 'var(--foreground)',
+              color: '#8A8FB2',
               formatter: (val) => formatCurrency(Number(val)),
             },
             total: {
@@ -58,7 +58,7 @@ export function BrandBreakdownDonut({ rows }: Props) {
               showAlways: true,
               label: 'Total GMV',
               fontSize: '11px',
-              color: 'var(--muted-foreground)',
+              color: '#8A8FB2',
               formatter: () => formatCurrency(totalGmv),
             },
           },
@@ -71,7 +71,7 @@ export function BrandBreakdownDonut({ rows }: Props) {
     <div className="rounded-2xl bg-card border border-border shadow-sm p-5">
       <div className="flex items-center justify-between mb-3">
         <div>
-          <h3 className="text-sm font-bold text-[var(--foreground)]">Brand Breakdown</h3>
+          <h3 className="text-sm font-bold text-[#8A8FB2]">Brand Breakdown</h3>
           <p className="text-xs text-muted-foreground mt-0.5">GMV share across {rows.length} brands</p>
         </div>
       </div>
@@ -90,7 +90,7 @@ export function BrandBreakdownDonut({ rows }: Props) {
                 <div className="flex items-center gap-2.5 min-w-0">
                   <span className="h-2.5 w-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
                   <div className="min-w-0">
-                    <p className="text-xs font-semibold text-[var(--foreground)] truncate">
+                    <p className="text-xs font-semibold text-[#8A8FB2] truncate">
                       {brandMeta.label(r.brand)}
                     </p>
                     <p className="text-[10px] text-muted-foreground">
@@ -99,7 +99,7 @@ export function BrandBreakdownDonut({ rows }: Props) {
                   </div>
                 </div>
                 <div className="text-right flex-shrink-0">
-                  <p className="text-xs font-bold tabular-nums text-[var(--foreground)]">
+                  <p className="text-xs font-bold tabular-nums text-[#8A8FB2]">
                     {formatCurrency(r.gmv)}
                   </p>
                   <p className="text-[10px] text-muted-foreground tabular-nums">{sharePct.toFixed(1)}%</p>

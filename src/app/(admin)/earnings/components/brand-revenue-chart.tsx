@@ -47,7 +47,7 @@ export function BrandRevenueChart({ data, height = 320 }: Props) {
     plotOptions: {
       bar: { horizontal: true, borderRadius: 6, barHeight: '60%', borderRadiusApplication: 'end', borderRadiusWhenStacked: 'last' },
     },
-    colors: ['var(--primary)', 'var(--pulse-accent-2)', '#FF9800'],
+    colors: ['#6D5EFC', '#A855F7', '#FF9800'],
     dataLabels: { enabled: false },
     stroke: { width: 0 },
     legend: {
@@ -55,18 +55,18 @@ export function BrandRevenueChart({ data, height = 320 }: Props) {
       horizontalAlign: 'right',
       fontSize: '12px',
       fontWeight: 500,
-      labels: { colors: 'var(--muted-foreground)' },
+      labels: { colors: '#8A8FB2' },
       markers: { size: 6 },
       itemMargin: { horizontal: 8 },
     },
     xaxis: {
       categories: sorted.map((d) => d.brandLabel),
-      labels: { style: { colors: 'var(--muted-foreground)', fontSize: '11px' }, formatter: (v) => fmtCompact(Number(v)) },
+      labels: { style: { colors: '#8A8FB2', fontSize: '11px' }, formatter: (v) => fmtCompact(Number(v)) },
       axisBorder: { show: false },
       axisTicks: { show: false },
     },
     yaxis: {
-      labels: { style: { colors: 'var(--foreground)', fontSize: '12px', fontWeight: 600 } },
+      labels: { style: { colors: '#8A8FB2', fontSize: '12px', fontWeight: 600 } },
     },
     grid: {
       borderColor: 'var(--muted)',

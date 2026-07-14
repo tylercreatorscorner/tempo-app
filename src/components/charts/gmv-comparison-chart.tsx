@@ -84,7 +84,7 @@ function fmtLongDate(iso: string) {
 export function GmvComparisonChart({
   current,
   prior,
-  color = 'var(--primary)',
+  color = '#6D5EFC',
   height = 320,
 }: Props) {
   if (!current || current.length === 0) return null;
@@ -123,7 +123,7 @@ export function GmvComparisonChart({
       fontFamily: 'inherit',
       background: 'transparent',
     },
-    colors: hasPrior ? ['var(--muted-foreground)', color] : [color],
+    colors: hasPrior ? ['#8A8FB2', color] : [color],
     stroke: {
       curve: 'smooth',
       width: hasPrior ? [2, 3] : 3,
@@ -138,7 +138,7 @@ export function GmvComparisonChart({
           horizontalAlign: 'right',
           fontSize: '11px',
           fontFamily: 'inherit',
-          labels: { colors: 'var(--muted-foreground)' },
+          labels: { colors: '#8A8FB2' },
           markers: { size: 6, strokeWidth: 0 } as any,
           itemMargin: { horizontal: 10 },
         }
@@ -147,18 +147,18 @@ export function GmvComparisonChart({
       type: 'category',
       categories,
       labels: {
-        style: { colors: 'var(--muted-foreground)', fontSize: '11px', fontFamily: 'inherit' },
+        style: { colors: '#8A8FB2', fontSize: '11px', fontFamily: 'inherit' },
         rotate: 0,
         hideOverlappingLabels: true,
       },
       axisBorder: { show: false },
       axisTicks: { show: false },
-      crosshairs: { show: true, stroke: { color: 'var(--border)', width: 1, dashArray: 4 } },
+      crosshairs: { show: true, stroke: { color: '#8A8FB2', width: 1, dashArray: 4 } },
       tooltip: { enabled: false },
     },
     yaxis: {
       labels: {
-        style: { colors: 'var(--muted-foreground)', fontSize: '11px', fontFamily: 'inherit' },
+        style: { colors: '#8A8FB2', fontSize: '11px', fontFamily: 'inherit' },
         formatter: fmtY,
       },
       forceNiceScale: true,
@@ -189,15 +189,15 @@ export function GmvComparisonChart({
         if (priorIso && hasPrior) {
           rows.push(`
             <div style="display:flex;align-items:center;gap:8px;padding:6px 12px">
-              <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--muted-foreground)"></span>
-              <span style="color:var(--muted-foreground);font-size:11px">${fmtLongDate(priorIso)}</span>
-              <span style="margin-left:auto;font-weight:600;color:var(--foreground)">${fmtCell(priorVal)}</span>
+              <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#8A8FB2"></span>
+              <span style="color:#8A8FB2;font-size:11px">${fmtLongDate(priorIso)}</span>
+              <span style="margin-left:auto;font-weight:600;color:#8A8FB2">${fmtCell(priorVal)}</span>
             </div>`);
         }
         rows.push(`
           <div style="display:flex;align-items:center;gap:8px;padding:6px 12px">
             <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${color}"></span>
-            <span style="color:var(--foreground);font-size:11px;font-weight:500">${fmtLongDate(curIso)}</span>
+            <span style="color:#8A8FB2;font-size:11px;font-weight:500">${fmtLongDate(curIso)}</span>
             <span style="margin-left:auto;font-weight:600;color:${color}">${fmtCell(curVal)}</span>
           </div>`);
         return `<div style="background:white;border:1px solid var(--muted);border-radius:10px;box-shadow:0 8px 16px -4px rgba(0,0,0,0.08);min-width:240px;padding:4px 0">${rows.join('')}</div>`;

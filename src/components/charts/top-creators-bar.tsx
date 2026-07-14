@@ -27,7 +27,7 @@ function fmtVal(val: number) {
   return `$${val.toFixed(0)}`;
 }
 
-export function TopCreatorsBar({ creators, color = 'var(--primary)', limit = 10 }: Props) {
+export function TopCreatorsBar({ creators, color = '#6D5EFC', limit = 10 }: Props) {
   const top = creators.slice(0, limit);
 
   if (top.length === 0) {
@@ -68,21 +68,21 @@ export function TopCreatorsBar({ creators, color = 'var(--primary)', limit = 10 
     dataLabels: {
       enabled: true,
       formatter: val => fmtVal(Number(val)),
-      style: { fontSize: '10px', fontFamily: 'inherit', colors: ['var(--muted-foreground)'] },
+      style: { fontSize: '10px', fontFamily: 'inherit', colors: ['#8A8FB2'] },
       offsetX: 6,
     },
     xaxis: {
       categories,
       labels: {
         formatter: val => fmtVal(Number(val)),
-        style: { colors: 'var(--muted-foreground)', fontSize: '11px', fontFamily: 'inherit' },
+        style: { colors: '#8A8FB2', fontSize: '11px', fontFamily: 'inherit' },
       },
       axisBorder: { show: false },
       axisTicks: { show: false },
     },
     yaxis: {
       labels: {
-        style: { colors: 'var(--foreground)', fontSize: '11px', fontFamily: 'inherit' },
+        style: { colors: '#8A8FB2', fontSize: '11px', fontFamily: 'inherit' },
         maxWidth: 140,
       },
     },

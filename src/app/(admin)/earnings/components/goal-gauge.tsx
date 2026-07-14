@@ -23,7 +23,7 @@ function fmtCompact(val: number) {
 export function GoalGauge({ current, goal, height = 280, label = 'Monthly GMV Goal' }: Props) {
   const pct = goal > 0 ? Math.min(100, (current / goal) * 100) : 0;
   const reached = goal > 0 && current >= goal;
-  const trackColor = reached ? '#10B981' : 'var(--primary)';
+  const trackColor = reached ? '#10B981' : '#6D5EFC';
 
   const options: ApexOptions = {
     chart: { type: 'radialBar', toolbar: { show: false }, fontFamily: 'inherit', background: 'transparent', sparkline: { enabled: true } },
@@ -34,9 +34,9 @@ export function GoalGauge({ current, goal, height = 280, label = 'Monthly GMV Go
         hollow: { size: '64%' },
         track: { background: 'var(--muted)', strokeWidth: '100%', margin: 0 },
         dataLabels: {
-          name: { offsetY: -10, color: 'var(--muted-foreground)', fontSize: '12px', fontWeight: 600 },
+          name: { offsetY: -10, color: '#8A8FB2', fontSize: '12px', fontWeight: 600 },
           value: {
-            color: 'var(--foreground)',
+            color: '#8A8FB2',
             fontSize: '28px',
             fontWeight: 800,
             offsetY: 4,
@@ -64,7 +64,7 @@ export function GoalGauge({ current, goal, height = 280, label = 'Monthly GMV Go
     <div className="flex flex-col items-center">
       <ApexChart type="radialBar" series={[pct]} options={options} height={height} width="100%" />
       <div className="text-center -mt-2">
-        <p className="text-sm font-semibold text-[var(--foreground)]">{fmtCompact(current)} <span className="text-muted-foreground font-normal">of {fmtCompact(goal)}</span></p>
+        <p className="text-sm font-semibold text-[#8A8FB2]">{fmtCompact(current)} <span className="text-muted-foreground font-normal">of {fmtCompact(goal)}</span></p>
         {goal > 0 && !reached && (
           <p className="text-xs text-muted-foreground mt-0.5">{fmtCompact(Math.max(0, goal - current))} to go</p>
         )}

@@ -61,18 +61,18 @@ export function GmvTrendChart({ data, brands }: Props) {
       type: 'category',
       categories,
       labels: {
-        style: { colors: 'var(--muted-foreground)', fontSize: '11px', fontFamily: 'var(--font-geist-mono)' },
+        style: { colors: '#8A8FB2', fontSize: '11px', fontFamily: 'var(--font-geist-mono)' },
         rotate: 0,
         hideOverlappingLabels: true,
       },
       axisBorder: { show: false },
       axisTicks: { show: false },
-      crosshairs: { show: true, stroke: { color: 'var(--border)', width: 1, dashArray: 4 } },
+      crosshairs: { show: true, stroke: { color: '#8A8FB2', width: 1, dashArray: 4 } },
       tooltip: { enabled: false },
     },
     yaxis: {
       labels: {
-        style: { colors: 'var(--muted-foreground)', fontSize: '11px', fontFamily: 'var(--font-geist-mono)' },
+        style: { colors: '#8A8FB2', fontSize: '11px', fontFamily: 'var(--font-geist-mono)' },
         formatter: fmtY,
       },
       forceNiceScale: true,
@@ -90,7 +90,7 @@ export function GmvTrendChart({ data, brands }: Props) {
       fontFamily: 'inherit',
       markers: { size: 8 },
       itemMargin: { horizontal: 12 },
-      labels: { colors: 'var(--muted-foreground)' },
+      labels: { colors: '#8A8FB2' },
     },
     tooltip: {
       shared: true,

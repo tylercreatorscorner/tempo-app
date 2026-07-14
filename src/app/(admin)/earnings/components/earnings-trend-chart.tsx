@@ -48,7 +48,7 @@ export function EarningsTrendChart({ data, height = 280, activeMonth }: Props) {
       fontFamily: 'inherit',
       background: 'transparent',
     },
-    colors: ['var(--primary)', 'var(--pulse-accent-2)', '#FF9800'],
+    colors: ['#6D5EFC', '#A855F7', '#FF9800'],
     stroke: { curve: 'smooth', width: 2 },
     fill: {
       type: 'gradient',
@@ -65,20 +65,20 @@ export function EarningsTrendChart({ data, height = 280, activeMonth }: Props) {
       horizontalAlign: 'right',
       fontSize: '12px',
       fontWeight: 500,
-      labels: { colors: 'var(--muted-foreground)' },
+      labels: { colors: '#8A8FB2' },
       markers: { size: 6 },
       itemMargin: { horizontal: 8 },
     },
     xaxis: {
       type: 'category',
       categories,
-      labels: { style: { colors: 'var(--muted-foreground)', fontSize: '11px' } },
+      labels: { style: { colors: '#8A8FB2', fontSize: '11px' } },
       axisBorder: { show: false },
       axisTicks: { show: false },
-      crosshairs: { show: true, stroke: { color: 'var(--border)', width: 1, dashArray: 4 } },
+      crosshairs: { show: true, stroke: { color: '#8A8FB2', width: 1, dashArray: 4 } },
     },
     yaxis: {
-      labels: { style: { colors: 'var(--muted-foreground)', fontSize: '11px' }, formatter: fmtY },
+      labels: { style: { colors: '#8A8FB2', fontSize: '11px' }, formatter: fmtY },
       forceNiceScale: true,
     },
     grid: {
@@ -101,11 +101,11 @@ export function EarningsTrendChart({ data, height = 280, activeMonth }: Props) {
       ? {
           xaxis: [{
             x: categories[activeIdx],
-            borderColor: 'var(--primary)',
+            borderColor: '#6D5EFC',
             strokeDashArray: 4,
             label: {
-              borderColor: 'var(--primary)',
-              style: { color: '#fff', background: 'var(--primary)', fontSize: '10px', fontWeight: 600 },
+              borderColor: '#6D5EFC',
+              style: { color: '#fff', background: '#6D5EFC', fontSize: '10px', fontWeight: 600 },
               text: 'Selected',
               orientation: 'horizontal',
               position: 'top',

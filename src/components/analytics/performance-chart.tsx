@@ -20,8 +20,8 @@ export interface DailyMetrics {
 type Metric = 'gmv' | 'orders' | 'items' | 'videos';
 
 const METRICS: Array<{ key: Metric; label: string; icon: typeof DollarSign; color: string; format: (n: number) => string }> = [
-  { key: 'gmv',    label: 'GMV',    icon: DollarSign,   color: 'var(--foreground)', format: (n) => formatCurrency(n) },
-  { key: 'orders', label: 'Orders', icon: ShoppingCart, color: 'var(--pulse-accent-2)', format: (n) => formatNumber(n) },
+  { key: 'gmv',    label: 'GMV',    icon: DollarSign,   color: '#8A8FB2', format: (n) => formatCurrency(n) },
+  { key: 'orders', label: 'Orders', icon: ShoppingCart, color: '#A855F7', format: (n) => formatNumber(n) },
   { key: 'items',  label: 'Items',  icon: Package,      color: '#00C853', format: (n) => formatNumber(n) },
   { key: 'videos', label: 'Posts',  icon: Video,        color: '#FF9800', format: (n) => formatNumber(n) },
 ];
@@ -97,7 +97,7 @@ export function PerformanceChart({ data, priorData, yoyData, accentColor }: Prop
       },
       opacity: overlay ? [1, 0] : 1,
     },
-    colors: overlay ? [color, 'var(--muted-foreground)'] : [color],
+    colors: overlay ? [color, '#8A8FB2'] : [color],
     legend: overlay ? { show: true, position: 'top', horizontalAlign: 'right' } : { show: false },
     dataLabels: { enabled: false },
     grid: {
@@ -110,13 +110,13 @@ export function PerformanceChart({ data, priorData, yoyData, accentColor }: Prop
       axisBorder: { show: false },
       axisTicks: { show: false },
       labels: {
-        style: { colors: 'var(--muted-foreground)', fontSize: '11px', fontFamily: 'var(--font-geist-mono)' },
+        style: { colors: '#8A8FB2', fontSize: '11px', fontFamily: 'var(--font-geist-mono)' },
         rotate: 0,
       },
     },
     yaxis: {
       labels: {
-        style: { colors: 'var(--muted-foreground)', fontSize: '11px', fontFamily: 'var(--font-geist-mono)' },
+        style: { colors: '#8A8FB2', fontSize: '11px', fontFamily: 'var(--font-geist-mono)' },
         formatter: (val: number) => {
           if (metric === 'gmv') {
             if (val >= 1_000_000) return `$${(val / 1_000_000).toFixed(1)}M`;
@@ -152,10 +152,10 @@ export function PerformanceChart({ data, priorData, yoyData, accentColor }: Prop
       {/* Header with metric toggle */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
         <div>
-          <h3 className="text-sm font-extrabold tracking-tight text-[var(--foreground)]">Performance Overview</h3>
+          <h3 className="text-sm font-extrabold tracking-tight text-[#8A8FB2]">Performance Overview</h3>
           <p className="text-xs text-muted-foreground mt-0.5">
             Total in period:{' '}
-            <span className="font-semibold text-[var(--foreground)] font-mono tabular-nums">{cfg.format(total)}</span>
+            <span className="font-semibold text-[#8A8FB2] font-mono tabular-nums">{cfg.format(total)}</span>
             {compareDelta !== null && (
               <span
                 className={cn(
@@ -183,9 +183,9 @@ export function PerformanceChart({ data, priorData, yoyData, accentColor }: Prop
                   key={key}
                   onClick={() => setCompare(key)}
                   className={cn(
-                    'px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40 focus-visible:ring-offset-1',
+                    'px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6D5EFC]/40 focus-visible:ring-offset-1',
                     compare === key
-                      ? 'bg-card text-[var(--foreground)] shadow-sm'
+                      ? 'bg-card text-[#8A8FB2] shadow-sm'
                       : 'text-muted-foreground hover:text-foreground'
                   )}
                   aria-pressed={compare === key}
@@ -203,9 +203,9 @@ export function PerformanceChart({ data, priorData, yoyData, accentColor }: Prop
                 key={key}
                 onClick={() => setMetric(key)}
                 className={cn(
-                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40 focus-visible:ring-offset-1',
+                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6D5EFC]/40 focus-visible:ring-offset-1',
                   metric === key
-                    ? 'bg-card text-[var(--foreground)] shadow-sm'
+                    ? 'bg-card text-[#8A8FB2] shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
                 )}
                 aria-pressed={metric === key}
