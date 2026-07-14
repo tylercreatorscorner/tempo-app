@@ -174,7 +174,7 @@ export function AutomationsClient() {
         </div>
         <button
           onClick={() => setEditing('new')}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#FF4D8D] text-white text-sm font-semibold hover:bg-[#E91E8C] transition-colors"
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[var(--primary)] text-white text-sm font-semibold hover:bg-[#E91E8C] transition-colors"
         >
           <Plus className="h-4 w-4" />
           New automation
@@ -355,7 +355,7 @@ function EmptyState({ onNew }: { onNew: () => void }) {
       </p>
       <button
         onClick={onNew}
-        className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg bg-[#FF4D8D] text-white hover:bg-[#E91E8C] transition-colors"
+        className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg bg-[var(--primary)] text-white hover:bg-[#E91E8C] transition-colors"
       >
         <Plus className="h-3 w-3" />
         Create your first automation
@@ -544,7 +544,7 @@ function BuilderDrawer({
                   value={state.name}
                   onChange={(e) => set('name', e.target.value)}
                   placeholder="Daily morning ping"
-                  className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D]"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
                 />
               </Field>
               <Field label="Description">
@@ -553,7 +553,7 @@ function BuilderDrawer({
                   value={state.description}
                   onChange={(e) => set('description', e.target.value)}
                   placeholder="Posts a daily good-morning message to the team channel."
-                  className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D] resize-none"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] resize-none"
                 />
               </Field>
             </Section>
@@ -582,7 +582,7 @@ function BuilderDrawer({
                     <select
                       value={state.cronFrequency}
                       onChange={(e) => set('cronFrequency', e.target.value as BuilderState['cronFrequency'])}
-                      className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30"
+                      className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30"
                     >
                       <option value="daily">Daily</option>
                       <option value="weekly">Weekly</option>
@@ -594,7 +594,7 @@ function BuilderDrawer({
                       <select
                         value={state.cronDayOfWeek}
                         onChange={(e) => set('cronDayOfWeek', Number(e.target.value))}
-                        className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30"
+                        className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30"
                       >
                         {['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map((d, i) => (
                           <option key={i} value={i}>{d}</option>
@@ -610,7 +610,7 @@ function BuilderDrawer({
                         max={31}
                         value={state.cronDayOfMonth}
                         onChange={(e) => set('cronDayOfMonth', Math.max(1, Math.min(31, Number(e.target.value))))}
-                        className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30"
+                        className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30"
                       />
                     </Field>
                   )}
@@ -631,7 +631,7 @@ function BuilderDrawer({
                     set('action', ''); // reset action when integration changes
                     set('params', {});
                   }}
-                  className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30"
                 >
                   <option value="">— pick one —</option>
                   {integrations.map(i => (
@@ -649,7 +649,7 @@ function BuilderDrawer({
                       set('action', e.target.value);
                       set('params', {});
                     }}
-                    className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30"
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30"
                   >
                     <option value="">— pick one —</option>
                     {availableActions.map(a => (
@@ -707,7 +707,7 @@ function BuilderDrawer({
           <button
             onClick={save}
             disabled={saving}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#FF4D8D] text-white hover:bg-[#E91E8C] disabled:opacity-50 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[var(--primary)] text-white hover:bg-[#E91E8C] disabled:opacity-50 transition-colors"
           >
             {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Pencil className="h-3.5 w-3.5" />}
             {saving ? 'Saving…' : automation ? 'Save changes' : 'Create automation'}
@@ -739,7 +739,7 @@ function Field({ label, required, children }: { label: string; required?: boolea
   return (
     <div>
       <label className="block text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1">
-        {label} {required && <span className="text-[#FF4D8D]">*</span>}
+        {label} {required && <span className="text-[var(--primary)]">*</span>}
       </label>
       {children}
     </div>
@@ -760,11 +760,11 @@ function TriggerOption({ active, onClick, icon, label, description }: {
       className={cn(
         'flex flex-col items-start gap-1 p-3 rounded-lg border text-left transition-colors',
         active
-          ? 'border-[#FF4D8D] bg-[#FF4D8D]/5'
+          ? 'border-[var(--primary)] bg-[var(--primary)]/5'
           : 'border-gray-200 bg-white hover:border-gray-300',
       )}
     >
-      <div className={cn('flex items-center gap-1.5 text-sm font-semibold', active ? 'text-[#FF4D8D]' : 'text-gray-700')}>
+      <div className={cn('flex items-center gap-1.5 text-sm font-semibold', active ? 'text-[var(--primary)]' : 'text-gray-700')}>
         {icon}
         {label}
       </div>
@@ -803,7 +803,7 @@ function ParamField({
           value={String(value ?? param.defaultValue ?? '')}
           onChange={(e) => onChange(e.target.value)}
           placeholder={param.placeholder}
-          className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D] resize-none"
+          className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] resize-none"
         />
         {param.helpText && <p className="text-[11px] text-gray-500 mt-1">{param.helpText}</p>}
       </Field>
@@ -817,7 +817,7 @@ function ParamField({
           value={String(value ?? param.defaultValue ?? '')}
           onChange={(e) => onChange(Number(e.target.value))}
           placeholder={param.placeholder}
-          className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30"
+          className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30"
         />
         {param.helpText && <p className="text-[11px] text-gray-500 mt-1">{param.helpText}</p>}
       </Field>
@@ -830,7 +830,7 @@ function ParamField({
         value={String(value ?? param.defaultValue ?? '')}
         onChange={(e) => onChange(e.target.value)}
         placeholder={param.placeholder}
-        className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30"
+        className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30"
       />
       {param.helpText && <p className="text-[11px] text-gray-500 mt-1">{param.helpText}</p>}
     </Field>
@@ -897,7 +897,7 @@ function ChannelPicker({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder="1465474331365736552"
-          className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30"
+          className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30"
         />
         {loadErr && <p className="text-[11px] text-amber-600 mt-1">Couldn&apos;t list channels: {loadErr}. Paste an ID manually.</p>}
       </div>
@@ -907,7 +907,7 @@ function ChannelPicker({
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30"
+      className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30"
     >
       <option value="">— pick a channel —</option>
       {grouped.map(([category, items]) => (

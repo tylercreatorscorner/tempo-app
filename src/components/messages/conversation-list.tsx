@@ -238,7 +238,7 @@ export function ConversationList({ conversations, activeKey, onSelect }: Props) 
               placeholder="Search creators..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all"
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-transparent transition-all"
             />
           </div>
           {/* Filter toggle */}
@@ -247,13 +247,13 @@ export function ConversationList({ conversations, activeKey, onSelect }: Props) 
             className={cn(
               'relative p-2.5 rounded-xl border transition-all',
               filtersOpen
-                ? 'border-pink-300 bg-pink-50 text-pink-600'
+                ? 'border-primary/20 bg-primary/10 text-primary'
                 : 'border-gray-200 bg-gray-50 text-gray-500 hover:bg-gray-100'
             )}
           >
             <SlidersHorizontal className="h-4 w-4" />
             {activeFiltersCount > 0 && (
-              <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-pink-500 text-white text-[10px] flex items-center justify-center font-medium">
+              <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-primary text-white text-[10px] flex items-center justify-center font-medium">
                 {activeFiltersCount}
               </span>
             )}
@@ -280,7 +280,7 @@ export function ConversationList({ conversations, activeKey, onSelect }: Props) 
                       className={cn(
                         'w-full text-left px-3 py-2 text-sm transition-colors',
                         sortBy === opt.value
-                          ? 'bg-pink-50 text-pink-600 font-medium'
+                          ? 'bg-primary/10 text-primary font-medium'
                           : 'text-gray-700 hover:bg-gray-50'
                       )}
                     >
@@ -400,7 +400,7 @@ export function ConversationList({ conversations, activeKey, onSelect }: Props) 
                     key: 'unread' as QuickFilter,
                     label: 'Unread',
                     icon: Mail,
-                    color: '#FF4D8D',
+                    color: 'var(--primary)',
                   },
                   {
                     key: 'no_discord' as QuickFilter,
@@ -443,7 +443,7 @@ export function ConversationList({ conversations, activeKey, onSelect }: Props) 
                 setStatusFilter(null);
                 setQuickFilter(null);
               }}
-              className="ml-2 text-pink-500 hover:text-pink-600 underline"
+              className="ml-2 text-primary hover:text-primary underline"
             >
               Clear filters
             </button>
@@ -510,7 +510,7 @@ export function ConversationList({ conversations, activeKey, onSelect }: Props) 
                 onClick={() => onSelect(conv)}
                 className={cn(
                   'w-full text-left px-4 py-3.5 border-b border-gray-50 transition-all hover:bg-gray-50/80',
-                  isActive && 'bg-pink-50/80 border-l-2 border-l-pink-400 hover:bg-pink-50'
+                  isActive && 'bg-primary/10/80 border-l-2 border-l-primary hover:bg-primary/10'
                 )}
               >
                 <div className="flex items-center justify-between mb-1">
@@ -529,7 +529,7 @@ export function ConversationList({ conversations, activeKey, onSelect }: Props) 
                           style={{
                             backgroundColor: conv.brand
                               ? brandColorOf(conv.brand)
-                              : '#7C5CFC',
+                              : 'var(--pulse-accent-2)',
                           }}
                         >
                           {conv.creator_name.charAt(0).toUpperCase()}
@@ -599,7 +599,7 @@ export function ConversationList({ conversations, activeKey, onSelect }: Props) 
                       <span className="text-[10px] text-gray-300">--</span>
                     )}
                     {conv.unread_count > 0 && (
-                      <span className="bg-pink-500 text-white text-[10px] rounded-full h-4 min-w-[16px] px-1 flex items-center justify-center font-medium">
+                      <span className="bg-primary text-white text-[10px] rounded-full h-4 min-w-[16px] px-1 flex items-center justify-center font-medium">
                         {conv.unread_count > 9 ? '9+' : conv.unread_count}
                       </span>
                     )}

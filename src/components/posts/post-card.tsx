@@ -112,7 +112,7 @@ export function PostCard({ post: p, onClick }: Props) {
           )}
           {p.has_my_review && (
             <span
-              className="inline-flex items-center text-[10px] font-bold text-[#E91E8C] bg-pink-50/95 backdrop-blur-sm ring-1 ring-pink-200 rounded-full px-2 py-0.5"
+              className="inline-flex items-center text-[10px] font-bold text-[#E91E8C] bg-primary/10/95 backdrop-blur-sm ring-1 ring-primary/15 rounded-full px-2 py-0.5"
               title="You reviewed this"
             >
               YOU
@@ -196,7 +196,7 @@ export function PostCard({ post: p, onClick }: Props) {
             <span className="tabular-nums">{formatNumber(p.views)}</span>
           </div>
           <div className="inline-flex items-center gap-1" title={`${p.likes.toLocaleString()} likes`}>
-            <Heart className="h-3 w-3 text-pink-400" />
+            <Heart className="h-3 w-3 text-primary" />
             <span className="tabular-nums">{formatNumber(p.likes)}</span>
           </div>
           <div className="inline-flex items-center gap-1" title={`${p.comments.toLocaleString()} comments`}>

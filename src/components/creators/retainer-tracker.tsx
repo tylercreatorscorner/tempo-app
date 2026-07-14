@@ -222,7 +222,7 @@ function RetainerEditForm({
             type="number"
             value={form.retainer}
             onChange={(e) => setForm({ ...form, retainer: Number(e.target.value) })}
-            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-200"
+            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/15"
           />
         </div>
         <div>
@@ -231,7 +231,7 @@ function RetainerEditForm({
             type="number"
             value={form.monthly_post_requirement}
             onChange={(e) => setForm({ ...form, monthly_post_requirement: Number(e.target.value) })}
-            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-200"
+            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/15"
           />
         </div>
       </div>
@@ -241,13 +241,13 @@ function RetainerEditForm({
           type="date"
           value={form.retainer_start_date}
           onChange={(e) => setForm({ ...form, retainer_start_date: e.target.value })}
-          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-200"
+          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/15"
         />
       </div>
       <button
         onClick={handleSave}
         disabled={saving}
-        className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#FF4D8D] rounded-xl hover:bg-[#E91E8C] transition-colors disabled:opacity-50"
+        className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[var(--primary)] rounded-xl hover:bg-[#E91E8C] transition-colors disabled:opacity-50"
       >
         {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
         Save

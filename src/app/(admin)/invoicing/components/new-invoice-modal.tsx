@@ -127,7 +127,7 @@ export function NewInvoiceModal({ open, defaultMonth, onClose, onCreated, onView
         {/* Header */}
         <div className="px-6 py-5 border-b border-gray-100 flex items-start justify-between gap-3">
           <div className="flex items-start gap-3 min-w-0">
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-[#FF4D8D] to-[#E91E8C] flex items-center justify-center flex-shrink-0 shadow-sm">
+            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-[var(--primary)] to-[#E91E8C] flex items-center justify-center flex-shrink-0 shadow-sm">
               <Receipt className="h-5 w-5 text-white" />
             </div>
             <div className="min-w-0">
@@ -155,7 +155,7 @@ export function NewInvoiceModal({ open, defaultMonth, onClose, onCreated, onView
                 value={month}
                 onChange={(e) => setMonth(e.target.value)}
                 disabled={creating}
-                className="w-full appearance-none bg-white border border-gray-200 rounded-xl pl-4 pr-10 py-2.5 text-sm font-semibold text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D] cursor-pointer disabled:opacity-50"
+                className="w-full appearance-none bg-white border border-gray-200 rounded-xl pl-4 pr-10 py-2.5 text-sm font-semibold text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] cursor-pointer disabled:opacity-50"
               >
                 {monthOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
@@ -194,7 +194,7 @@ export function NewInvoiceModal({ open, defaultMonth, onClose, onCreated, onView
                       className={cn(
                         'w-full text-left rounded-xl border-2 px-4 py-3 transition-all',
                         active
-                          ? 'border-[#FF4D8D] bg-[#FFF0F5] shadow-sm'
+                          ? 'border-[var(--primary)] bg-[#FFF0F5] shadow-sm'
                           : 'border-gray-200 bg-white hover:border-gray-300',
                       )}
                     >
@@ -209,7 +209,7 @@ export function NewInvoiceModal({ open, defaultMonth, onClose, onCreated, onView
                         </div>
                         <div className="text-right flex-shrink-0">
                           <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Total</p>
-                          <p className={cn('text-base font-extrabold tabular-nums', active ? 'text-[#FF4D8D]' : 'text-[#1A1B3A]')}>
+                          <p className={cn('text-base font-extrabold tabular-nums', active ? 'text-[var(--primary)]' : 'text-[#1A1B3A]')}>
                             {formatCurrency(b.total)}
                           </p>
                         </div>
@@ -225,8 +225,8 @@ export function NewInvoiceModal({ open, defaultMonth, onClose, onCreated, onView
           {selectedBrandData && (
             <div className="rounded-xl bg-gradient-to-br from-[#1A1B3A] to-[#2D2E5C] p-4 text-white">
               <div className="flex items-baseline justify-between mb-2">
-                <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-pink-200">Preview</p>
-                <p className="text-[11px] text-pink-200/80">{selectedBrandData.brandLabel} · {month}</p>
+                <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-primary/15">Preview</p>
+                <p className="text-[11px] text-primary/15/80">{selectedBrandData.brandLabel} · {month}</p>
               </div>
               <div className="grid grid-cols-2 gap-2 text-xs">
                 {selectedBrandData.commission > 0 && <PreviewLine label="Commission" value={formatCurrency(selectedBrandData.commission)} />}
@@ -235,7 +235,7 @@ export function NewInvoiceModal({ open, defaultMonth, onClose, onCreated, onView
                 {selectedBrandData.launchFee > 0 && <PreviewLine label="Launch Fee" value={formatCurrency(selectedBrandData.launchFee)} />}
               </div>
               <div className="border-t border-white/10 mt-3 pt-3 flex items-baseline justify-between">
-                <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-pink-200">Invoice Total</span>
+                <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-primary/15">Invoice Total</span>
                 <span className="text-2xl font-extrabold text-white tabular-nums">{formatCurrency(selectedBrandData.total)}</span>
               </div>
             </div>
@@ -274,7 +274,7 @@ export function NewInvoiceModal({ open, defaultMonth, onClose, onCreated, onView
           <button
             onClick={handleCreate}
             disabled={creating || !selectedBrand || !!conflict}
-            className="inline-flex items-center gap-2 px-5 py-2 text-sm font-bold text-white bg-[#FF4D8D] rounded-xl hover:bg-[#E91E8C] disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+            className="inline-flex items-center gap-2 px-5 py-2 text-sm font-bold text-white bg-[var(--primary)] rounded-xl hover:bg-[#E91E8C] disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
           >
             {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Receipt className="h-4 w-4" />}
             {creating ? 'Generating…' : 'Generate Invoice'}
@@ -289,7 +289,7 @@ export function NewInvoiceModal({ open, defaultMonth, onClose, onCreated, onView
 function PreviewLine({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-baseline justify-between">
-      <span className="text-pink-200/80 text-[11px]">{label}</span>
+      <span className="text-primary/15/80 text-[11px]">{label}</span>
       <span className="text-white font-semibold tabular-nums">{value}</span>
     </div>
   );

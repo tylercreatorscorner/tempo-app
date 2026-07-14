@@ -245,7 +245,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                     </span>
                   )}
                   {managedInfo && (
-                    <span className="inline-flex items-center gap-1 text-xs px-2.5 py-0.5 rounded-full font-semibold border bg-pink-50 text-[#E91E8C] border-pink-200">
+                    <span className="inline-flex items-center gap-1 text-xs px-2.5 py-0.5 rounded-full font-semibold border bg-primary/10 text-[#E91E8C] border-primary/15">
                       <Shield className="h-3 w-3" /> Managed
                     </span>
                   )}
@@ -405,7 +405,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
           {managedInfo.notes && (
             <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-5">
               <div className="flex items-center gap-2 mb-3">
-                <div className="h-7 w-7 rounded-lg bg-pink-50 flex items-center justify-center">
+                <div className="h-7 w-7 rounded-lg bg-primary/10 flex items-center justify-center">
                   <Shield className="h-3.5 w-3.5 text-[#E91E8C]" />
                 </div>
                 <h3 className="text-sm font-bold text-[#1A1B3A]">Notes</h3>

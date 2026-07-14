@@ -25,8 +25,8 @@ export function LifetimeStats({ stats }: { stats: CreatorLifetimeStats }) {
   });
 
   const items = [
-    { label: 'Lifetime GMV', value: formatCurrency(stats.total_gmv), icon: TrendingUp, color: '#FF4D8D' },
-    { label: 'Total Videos', value: formatNumber(stats.total_videos), icon: Video, color: '#7C5CFC' },
+    { label: 'Lifetime GMV', value: formatCurrency(stats.total_gmv), icon: TrendingUp, color: 'var(--primary)' },
+    { label: 'Total Videos', value: formatNumber(stats.total_videos), icon: Video, color: 'var(--pulse-accent-2)' },
     { label: 'Total Orders', value: formatNumber(stats.total_orders), icon: ShoppingCart, color: '#00C853' },
     { label: 'Commission Earned', value: formatCurrency(stats.total_commission), icon: DollarSign, color: '#FF9800' },
     { label: 'First Active', value: firstDate, icon: Calendar, color: '#2196F3' },

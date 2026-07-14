@@ -13,7 +13,7 @@ const TYPE_LABEL: Record<CreatorAlert['type'], string> = {
 
 const TYPE_ICON: Record<CreatorAlert['type'], React.ReactNode> = {
   underperforming: <AlertTriangle className="h-4 w-4 text-amber-500" />,
-  crushing: <Flame className="h-4 w-4 text-[#FF4D8D]" />,
+  crushing: <Flame className="h-4 w-4 text-[var(--primary)]" />,
   breakout: <Star className="h-4 w-4 text-emerald-500" />,
 };
 
@@ -35,7 +35,7 @@ export function CreatorAlerts({ alerts }: Props) {
   return (
     <div className="rounded-2xl bg-white border border-gray-200 shadow-sm overflow-hidden">
       <div className="p-4 border-b border-gray-200 flex items-center gap-2">
-        <span className="h-7 w-7 rounded-lg bg-[#FF4D8D]/10 text-[#FF4D8D] flex items-center justify-center">
+        <span className="h-7 w-7 rounded-lg bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center">
           <Siren className="h-4 w-4" />
         </span>
         <h3 className="text-sm font-extrabold tracking-tight text-[#1A1B3A]">Alerts</h3>
@@ -52,7 +52,7 @@ export function CreatorAlerts({ alerts }: Props) {
           ranked.map((alert, i) => (
             <div
               key={`${alert.name}-${alert.type}-${i}`}
-              className="flex items-center justify-between px-4 py-3 hover:bg-pink-50/20 transition-colors"
+              className="flex items-center justify-between px-4 py-3 hover:bg-primary/10/20 transition-colors"
             >
               <div className="flex items-center gap-3">
                 <span className="flex items-center justify-center">{TYPE_ICON[alert.type]}</span>

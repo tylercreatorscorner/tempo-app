@@ -132,7 +132,7 @@ export function BrandsSettingsClient() {
           </button>
           <button
             onClick={() => setAdding(true)}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#FF4D8D] text-white text-sm font-bold hover:bg-[#E91E8C] transition-colors shadow-sm"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[var(--primary)] text-white text-sm font-bold hover:bg-[#E91E8C] transition-colors shadow-sm"
           >
             <Plus className="h-4 w-4" />
             New Client
@@ -157,7 +157,7 @@ export function BrandsSettingsClient() {
       {/* Brand list */}
       {loading && brands.length === 0 ? (
         <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-12 text-center">
-          <div className="inline-block h-8 w-8 rounded-full border-2 border-gray-200 border-t-[#FF4D8D] animate-spin" />
+          <div className="inline-block h-8 w-8 rounded-full border-2 border-gray-200 border-t-[var(--primary)] animate-spin" />
         </div>
       ) : brands.length === 0 ? (
         <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-12 text-center">
@@ -168,7 +168,7 @@ export function BrandsSettingsClient() {
           <p className="text-xs text-gray-400 mt-1 mb-4">Onboard your first client to get started.</p>
           <button
             onClick={() => setAdding(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-[#FF4D8D] text-white rounded-xl text-sm font-bold hover:bg-[#E91E8C] transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-xl text-sm font-bold hover:bg-[#E91E8C] transition-colors"
           >
             <Plus className="h-4 w-4" />
             New Client

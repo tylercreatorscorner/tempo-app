@@ -23,7 +23,7 @@ function fmtCompact(val: number) {
 export function GoalGauge({ current, goal, height = 280, label = 'Monthly GMV Goal' }: Props) {
   const pct = goal > 0 ? Math.min(100, (current / goal) * 100) : 0;
   const reached = goal > 0 && current >= goal;
-  const trackColor = reached ? '#10B981' : '#FF4D8D';
+  const trackColor = reached ? '#10B981' : 'var(--primary)';
 
   const options: ApexOptions = {
     chart: { type: 'radialBar', toolbar: { show: false }, fontFamily: 'inherit', background: 'transparent', sparkline: { enabled: true } },

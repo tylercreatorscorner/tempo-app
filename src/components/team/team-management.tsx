@@ -33,8 +33,8 @@ const ROLE_STYLE: Record<string, string> = {
   manager:       'bg-emerald-50 text-emerald-700 border-emerald-200',
   viewer:        'bg-slate-50 text-slate-600 border-slate-200',
   analyst:       'bg-amber-50 text-amber-700 border-amber-200',
-  brand:         'bg-pink-50 text-[#E91E8C] border-pink-200',
-  brand_contact: 'bg-pink-50 text-[#E91E8C] border-pink-200',
+  brand:         'bg-primary/10 text-[#E91E8C] border-primary/15',
+  brand_contact: 'bg-primary/10 text-[#E91E8C] border-primary/15',
 };
 // Higher = more access. A change to a lower rank asks for confirmation.
 const RANK: Record<string, number> = {
@@ -196,7 +196,7 @@ export function TeamManagement({ users, brands, tenantId, currentUserId }: Props
       <div key={u.user_id} className="px-5 py-3.5 hover:bg-gray-50/50 transition-colors">
         {/* Top line: identity · role · actions */}
         <div className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-full bg-gradient-to-br from-[#FF4D8D] to-[#7C5CFC] flex items-center justify-center text-white text-xs font-bold shrink-0">
+          <div className="h-9 w-9 rounded-full bg-gradient-to-br from-[var(--primary)] to-[var(--pulse-accent-2)] flex items-center justify-center text-white text-xs font-bold shrink-0">
             {(u.name || u.email)[0]?.toUpperCase()}
           </div>
           <div className="min-w-0 flex-1">
@@ -224,7 +224,7 @@ export function TeamManagement({ users, brands, tenantId, currentUserId }: Props
                 disabled={isPending || isSelf}
                 onChange={(e) => onRoleSelect(u, e.target.value)}
                 className={cn(
-                  'appearance-none text-xs font-semibold pl-2.5 pr-6 py-1 rounded-full border cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 disabled:opacity-60 disabled:cursor-default',
+                  'appearance-none text-xs font-semibold pl-2.5 pr-6 py-1 rounded-full border cursor-pointer focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 disabled:opacity-60 disabled:cursor-default',
                   ROLE_STYLE[u.role] ?? 'bg-gray-50 text-gray-600 border-gray-200',
                 )}
               >
@@ -276,7 +276,7 @@ export function TeamManagement({ users, brands, tenantId, currentUserId }: Props
               className={cn(
                 'inline-flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-lg border transition-colors',
                 noAccess ? 'border-amber-200 bg-amber-50 text-amber-700'
-                  : expanded ? 'border-[#FF4D8D]/40 bg-[#FF4D8D]/5 text-[#E91E8C]'
+                  : expanded ? 'border-[var(--primary)]/40 bg-[var(--primary)]/5 text-[#E91E8C]'
                   : 'border-gray-200 text-gray-600 hover:bg-gray-50',
               )}
             >
@@ -346,7 +346,7 @@ export function TeamManagement({ users, brands, tenantId, currentUserId }: Props
                     disabled={isPending}
                     className={cn(
                       'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors',
-                      on ? 'bg-[#FF4D8D]/10 border-[#FF4D8D]/30 text-[#E91E8C]' : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300',
+                      on ? 'bg-[var(--primary)]/10 border-[var(--primary)]/30 text-[#E91E8C]' : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300',
                     )}
                   >
                     <span className="h-2 w-2 rounded-full" style={{ backgroundColor: b.color || '#9CA3AF' }} />
@@ -389,7 +389,7 @@ export function TeamManagement({ users, brands, tenantId, currentUserId }: Props
         {/* Card header */}
         <div className="px-5 py-4 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
-            <span className="h-8 w-8 rounded-lg bg-[#FF4D8D]/10 text-[#FF4D8D] flex items-center justify-center">
+            <span className="h-8 w-8 rounded-lg bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center">
               <Users className="h-4 w-4" />
             </span>
             <div>
@@ -404,12 +404,12 @@ export function TeamManagement({ users, brands, tenantId, currentUserId }: Props
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search members…"
-                className="w-full sm:w-48 pl-8 pr-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D]"
+                className="w-full sm:w-48 pl-8 pr-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
               />
             </div>
             <button
               onClick={() => setShowInvite(true)}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#FF4D8D] text-white text-sm font-semibold hover:bg-[#e63d7d] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF4D8D]/40 focus-visible:ring-offset-1 shrink-0"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[var(--primary)] text-white text-sm font-semibold hover:bg-[#e63d7d] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40 focus-visible:ring-offset-1 shrink-0"
             >
               <UserPlus className="h-4 w-4" /> Invite
             </button>
@@ -460,7 +460,7 @@ function InviteModal(props: {
       <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="h-7 w-7 rounded-lg bg-[#FF4D8D]/10 text-[#FF4D8D] flex items-center justify-center"><UserPlus className="h-4 w-4" /></span>
+            <span className="h-7 w-7 rounded-lg bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center"><UserPlus className="h-4 w-4" /></span>
             <h2 id="invite-title" className="text-sm font-extrabold tracking-tight text-[#1A1B3A]">
               {client ? 'Invite a client' : 'Invite a team member'}
             </h2>
@@ -476,7 +476,7 @@ function InviteModal(props: {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && !disabled && onSend()}
-              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D]"
+              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
             />
           </div>
 
@@ -488,10 +488,10 @@ function InviteModal(props: {
                   key={r.value} type="button" onClick={() => setRole(r.value)}
                   className={cn(
                     'flex items-center gap-3 text-left px-3 py-2 rounded-xl border transition-colors',
-                    role === r.value ? 'border-[#FF4D8D] bg-[#FF4D8D]/5' : 'border-gray-200 hover:border-gray-300',
+                    role === r.value ? 'border-[var(--primary)] bg-[var(--primary)]/5' : 'border-gray-200 hover:border-gray-300',
                   )}
                 >
-                  <span className={cn('h-4 w-4 rounded-full border-2 shrink-0', role === r.value ? 'border-[#FF4D8D] bg-[#FF4D8D]' : 'border-gray-300')} />
+                  <span className={cn('h-4 w-4 rounded-full border-2 shrink-0', role === r.value ? 'border-[var(--primary)] bg-[var(--primary)]' : 'border-gray-300')} />
                   <span className="min-w-0">
                     <span className="block text-xs font-semibold text-[#1A1B3A]">{r.label}</span>
                     <span className="block text-[10px] text-gray-400 leading-tight">{r.desc}</span>
@@ -517,7 +517,7 @@ function InviteModal(props: {
                         key={b.id} type="button" onClick={() => toggleBrand(b.id)}
                         className={cn(
                           'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors',
-                          on ? 'bg-[#FF4D8D]/10 border-[#FF4D8D]/30 text-[#E91E8C]' : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300',
+                          on ? 'bg-[var(--primary)]/10 border-[var(--primary)]/30 text-[#E91E8C]' : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300',
                         )}
                       >
                         <span className="h-2 w-2 rounded-full" style={{ backgroundColor: b.color || '#9CA3AF' }} />
@@ -535,7 +535,7 @@ function InviteModal(props: {
             <label className="flex items-start gap-2.5 p-3 rounded-xl border border-gray-200 cursor-pointer select-none hover:border-gray-300 transition-colors">
               <input
                 type="checkbox" checked={finance} onChange={(e) => setFinance(e.target.checked)}
-                className="mt-0.5 h-4 w-4 rounded border-gray-300 text-[#FF4D8D] focus:ring-[#FF4D8D]/40"
+                className="mt-0.5 h-4 w-4 rounded border-gray-300 text-[var(--primary)] focus:ring-[var(--primary)]/40"
               />
               <span>
                 <span className="block text-xs font-semibold text-[#1A1B3A]">Can see Finance</span>
@@ -553,7 +553,7 @@ function InviteModal(props: {
           <button onClick={onClose} className="px-4 py-2 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">Cancel</button>
           <button
             onClick={onSend} disabled={disabled}
-            className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-[#FF4D8D] text-white text-sm font-semibold hover:bg-[#e63d7d] disabled:opacity-50 transition-colors"
+            className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-[var(--primary)] text-white text-sm font-semibold hover:bg-[#e63d7d] disabled:opacity-50 transition-colors"
           >
             {pending && <Loader2 className="h-4 w-4 animate-spin" />}
             Send invite

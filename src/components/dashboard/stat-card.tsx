@@ -49,7 +49,7 @@ export function StatCard({
 }: StatCardProps) {
   const Icon = getIcon(label);
   const isPositive = trend !== undefined && trend >= 0;
-  const resolvedAccent = accentColor ?? brandColor ?? '#FF4D8D';
+  const resolvedAccent = accentColor ?? brandColor ?? 'var(--primary)';
 
   // ── Hero variant ─────────────────────────────────────────────────────────
   if (hero) {
@@ -65,7 +65,7 @@ export function StatCard({
         {/* Decorative orbs */}
         <div className="absolute top-0 right-0 w-28 h-28 rounded-full blur-2xl -translate-y-1/2 translate-x-1/4"
           style={{ backgroundColor: `${resolvedAccent}30` }} />
-        <div className="absolute bottom-0 left-0 w-20 h-20 bg-[#7C5CFC]/20 rounded-full blur-2xl translate-y-1/2 -translate-x-1/4" />
+        <div className="absolute bottom-0 left-0 w-20 h-20 bg-[var(--pulse-accent-2)]/20 rounded-full blur-2xl translate-y-1/2 -translate-x-1/4" />
 
         <div className="relative p-5 pb-3">
           {/* Label + icon row */}

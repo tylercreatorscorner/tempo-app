@@ -36,7 +36,7 @@ function BrandAvatar({ color, label, size = 'md' }: { color: string | null; labe
   const dim = size === 'sm' ? 'h-6 w-6 text-[9px] rounded-md' : 'h-7 w-7 text-[10px] rounded-lg';
   if (!color) {
     return (
-      <span className={cn(dim, 'flex items-center justify-center bg-gradient-to-br from-[#FF4D8D] via-[#A855F7] to-[#3B82F6] text-white shadow-sm flex-shrink-0')}>
+      <span className={cn(dim, 'flex items-center justify-center bg-gradient-to-br from-[var(--primary)] via-[#A855F7] to-[#3B82F6] text-white shadow-sm flex-shrink-0')}>
         <LayoutGrid className={size === 'sm' ? 'h-3 w-3' : 'h-3.5 w-3.5'} />
       </span>
     );
@@ -250,7 +250,7 @@ export function BrandSwitcher() {
                       <p className="text-sm text-gray-400">Couldn&rsquo;t load brands</p>
                       <button
                         onClick={() => loadBrands()}
-                        className="mt-2 text-xs font-medium text-[#FF4D8D] hover:underline"
+                        className="mt-2 text-xs font-medium text-[var(--primary)] hover:underline"
                       >
                         Retry
                       </button>
@@ -283,7 +283,7 @@ export function BrandSwitcher() {
                       <span className={cn('flex-1 text-left truncate', isActive ? 'font-semibold text-gray-900' : 'text-gray-700')}>
                         {opt.label}
                       </span>
-                      {isActive && <Check className="h-4 w-4 text-[#FF4D8D] flex-shrink-0" />}
+                      {isActive && <Check className="h-4 w-4 text-[var(--primary)] flex-shrink-0" />}
                     </button>
                   );
                 })

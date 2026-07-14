@@ -63,7 +63,7 @@ export function ParamField({
           value={String(value ?? param.defaultValue ?? '')}
           onChange={(e) => onChange(e.target.value)}
           placeholder={param.placeholder}
-          className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D] resize-none"
+          className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] resize-none"
         />
         {param.helpText && <p className="text-[11px] text-gray-500 mt-1">{param.helpText}</p>}
       </Field>
@@ -77,7 +77,7 @@ export function ParamField({
           value={String(value ?? param.defaultValue ?? '')}
           onChange={(e) => onChange(Number(e.target.value))}
           placeholder={param.placeholder}
-          className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30"
+          className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30"
         />
         {param.helpText && <p className="text-[11px] text-gray-500 mt-1">{param.helpText}</p>}
       </Field>
@@ -90,7 +90,7 @@ export function ParamField({
         value={String(value ?? param.defaultValue ?? '')}
         onChange={(e) => onChange(e.target.value)}
         placeholder={param.placeholder}
-        className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30"
+        className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30"
       />
       {param.helpText && <p className="text-[11px] text-gray-500 mt-1">{param.helpText}</p>}
     </Field>
@@ -101,7 +101,7 @@ export function Field({ label, required, children }: { label: string; required?:
   return (
     <div>
       <label className="block text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1">
-        {label} {required && <span className="text-[#FF4D8D]">*</span>}
+        {label} {required && <span className="text-[var(--primary)]">*</span>}
       </label>
       {children}
     </div>
@@ -168,7 +168,7 @@ export function ChannelPicker({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder="channel id"
-          className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30"
+          className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30"
         />
         {loadErr && <p className="text-[11px] text-amber-600 mt-1">Couldn&apos;t list channels: {loadErr}. Paste an ID manually.</p>}
       </div>
@@ -178,7 +178,7 @@ export function ChannelPicker({
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30"
+      className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30"
     >
       <option value="">— pick a channel —</option>
       {grouped.map(([category, items]) => (

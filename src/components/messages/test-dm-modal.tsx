@@ -62,7 +62,7 @@ export function TestDmModal({ open, onClose }: Props) {
               value={discordId}
               onChange={(e) => setDiscordId(e.target.value)}
               placeholder="e.g. 131571520597262336"
-              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-pink-300 focus:border-pink-300 transition-all"
+              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/20 transition-all"
             />
             <p className="text-xs text-gray-400 mt-1">Right-click a user in Discord → Copy User ID</p>
           </div>
@@ -74,7 +74,7 @@ export function TestDmModal({ open, onClose }: Props) {
               onChange={(e) => setMessage(e.target.value)}
               placeholder="Type your test message..."
               rows={3}
-              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-pink-300 focus:border-pink-300 transition-all resize-none"
+              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/20 transition-all resize-none"
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) handleSend();
               }}
@@ -103,7 +103,7 @@ export function TestDmModal({ open, onClose }: Props) {
           <button
             onClick={handleSend}
             disabled={sending || !discordId.trim() || !message.trim()}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-br from-pink-500 to-purple-500 text-white text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-br from-primary to-purple-500 text-white text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {sending ? (
               <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />

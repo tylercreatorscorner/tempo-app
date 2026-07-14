@@ -84,7 +84,7 @@ function fmtLongDate(iso: string) {
 export function GmvComparisonChart({
   current,
   prior,
-  color = '#FF4D8D',
+  color = 'var(--primary)',
   height = 320,
 }: Props) {
   if (!current || current.length === 0) return null;

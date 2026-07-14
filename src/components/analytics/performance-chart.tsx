@@ -21,7 +21,7 @@ type Metric = 'gmv' | 'orders' | 'items' | 'videos';
 
 const METRICS: Array<{ key: Metric; label: string; icon: typeof DollarSign; color: string; format: (n: number) => string }> = [
   { key: 'gmv',    label: 'GMV',    icon: DollarSign,   color: '#1A1B3A', format: (n) => formatCurrency(n) },
-  { key: 'orders', label: 'Orders', icon: ShoppingCart, color: '#7C5CFC', format: (n) => formatNumber(n) },
+  { key: 'orders', label: 'Orders', icon: ShoppingCart, color: 'var(--pulse-accent-2)', format: (n) => formatNumber(n) },
   { key: 'items',  label: 'Items',  icon: Package,      color: '#00C853', format: (n) => formatNumber(n) },
   { key: 'videos', label: 'Posts',  icon: Video,        color: '#FF9800', format: (n) => formatNumber(n) },
 ];
@@ -183,7 +183,7 @@ export function PerformanceChart({ data, priorData, yoyData, accentColor }: Prop
                   key={key}
                   onClick={() => setCompare(key)}
                   className={cn(
-                    'px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF4D8D]/40 focus-visible:ring-offset-1',
+                    'px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40 focus-visible:ring-offset-1',
                     compare === key
                       ? 'bg-white text-[#1A1B3A] shadow-sm'
                       : 'text-gray-500 hover:text-gray-700'
@@ -203,7 +203,7 @@ export function PerformanceChart({ data, priorData, yoyData, accentColor }: Prop
                 key={key}
                 onClick={() => setMetric(key)}
                 className={cn(
-                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF4D8D]/40 focus-visible:ring-offset-1',
+                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40 focus-visible:ring-offset-1',
                   metric === key
                     ? 'bg-white text-[#1A1B3A] shadow-sm'
                     : 'text-gray-500 hover:text-gray-700'

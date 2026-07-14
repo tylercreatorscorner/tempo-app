@@ -32,14 +32,14 @@ export function VideoSection({ title, emoji, description, videos, defaultExpande
       <button
         onClick={() => setExpanded(!expanded)}
         aria-expanded={expanded}
-        className="w-full flex items-center justify-between px-6 py-4 hover:bg-gray-50/50 transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF4D8D]/40 focus-visible:ring-inset"
+        className="w-full flex items-center justify-between px-6 py-4 hover:bg-gray-50/50 transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40 focus-visible:ring-inset"
       >
         <div className="flex items-center gap-3">
-          <span className="h-7 w-7 rounded-lg bg-[#FF4D8D]/10 text-[#FF4D8D] flex items-center justify-center">
+          <span className="h-7 w-7 rounded-lg bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center">
             <Sparkles className="h-4 w-4" />
           </span>
           <h3 className="text-lg font-bold tracking-tight text-[#1A1B3A]">{title}</h3>
-          <span className="bg-[#FF4D8D]/10 text-[#FF4D8D] text-xs font-bold px-2.5 py-1 rounded-full tabular-nums">
+          <span className="bg-[var(--primary)]/10 text-[var(--primary)] text-xs font-bold px-2.5 py-1 rounded-full tabular-nums">
             {videos.length}
           </span>
           <span className="text-sm text-gray-400 font-normal hidden sm:inline">{description}</span>

@@ -80,7 +80,7 @@ export function SectionTabs({ isAdmin = false }: { isAdmin?: boolean }) {
               className={cn(
                 'px-3 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 -mb-px transition-colors',
                 active
-                  ? 'border-[#FF4D8D] text-[#1A1B3A]'
+                  ? 'border-[var(--primary)] text-[#1A1B3A]'
                   : 'border-transparent text-gray-500 hover:text-gray-800',
               )}
             >

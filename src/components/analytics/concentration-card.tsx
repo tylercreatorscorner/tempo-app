@@ -53,7 +53,7 @@ export function ConcentrationCard({ stats }: Props) {
       {/* Stacked bar — 5 segments, darkest first */}
       <div className="flex h-3 rounded-full overflow-hidden bg-gray-100 mb-3" role="img" aria-label="GMV concentration by creator rank">
         {seg1     > 0 && <div style={{ width: `${pct(seg1)}%`,     backgroundColor: '#1A1B3A' }} />}
-        {seg2to5  > 0 && <div style={{ width: `${pct(seg2to5)}%`,  backgroundColor: '#7C5CFC' }} />}
+        {seg2to5  > 0 && <div style={{ width: `${pct(seg2to5)}%`,  backgroundColor: 'var(--pulse-accent-2)' }} />}
         {seg6to10 > 0 && <div style={{ width: `${pct(seg6to10)}%`, backgroundColor: '#A78BFA' }} />}
         {seg11to25 > 0 && <div style={{ width: `${pct(seg11to25)}%`, backgroundColor: '#C4B5FD' }} />}
         {segRest  > 0 && <div style={{ width: `${pct(segRest)}%`,  backgroundColor: '#E5E7EB' }} />}
@@ -62,7 +62,7 @@ export function ConcentrationCard({ stats }: Props) {
       {/* Three pill stats */}
       <div className="grid grid-cols-3 gap-2 sm:gap-3">
         <Pill rank="Top 1" pct={top1Pct} gmv={top1Gmv} color="#1A1B3A" />
-        <Pill rank="Top 5" pct={top5Pct} gmv={top5Gmv} color="#7C5CFC" />
+        <Pill rank="Top 5" pct={top5Pct} gmv={top5Gmv} color="var(--pulse-accent-2)" />
         <Pill rank="Top 10" pct={top10Pct} gmv={top10Gmv} color="#A78BFA" />
       </div>
     </div>

@@ -48,7 +48,7 @@ const MATCH_BADGES: Record<string, { label: string; className: string }> = {
 };
 
 const BRAND_COLORS: Record<string, string> = {
-  jiyu: 'bg-pink-100 text-pink-700',
+  jiyu: 'bg-primary/10 text-primary',
   physicians_choice: 'bg-blue-100 text-blue-700',
   catakor: 'bg-purple-100 text-purple-700',
 };
@@ -149,7 +149,7 @@ export default function DiscordScanPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-              <Search className="h-6 w-6 text-pink-500" />
+              <Search className="h-6 w-6 text-primary" />
               Discord Scanner
             </h1>
             <p className="text-gray-500 mt-1">Match Discord server members to managed creators</p>
@@ -191,7 +191,7 @@ export default function DiscordScanPage() {
               onClick={() => setTab(t.key)}
               className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
                 tab === t.key
-                  ? 'bg-pink-50 text-pink-600'
+                  ? 'bg-primary/10 text-primary'
                   : 'text-gray-500 hover:text-gray-700'
               }`}
             >

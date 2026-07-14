@@ -107,7 +107,7 @@ export function CreatorTable({ creators, csvButton }: Props) {
                     'px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 border',
                     active
                       ? isAll
-                        ? 'border-[#FF4D8D] bg-pink-50 text-[#FF4D8D]'
+                        ? 'border-[var(--primary)] bg-primary/10 text-[var(--primary)]'
                         : ''
                       : 'border-gray-200 bg-white text-gray-500 hover:bg-gray-50'
                   )}
@@ -151,7 +151,7 @@ export function CreatorTable({ creators, csvButton }: Props) {
                   <div className="flex items-center gap-2">
                     <StatusDot status={c.status} />
                     <div>
-                      <Link href={`/creators/${c.managed_creator_id ?? encodeURIComponent(c.handles[0])}`} className="hover:text-[#FF4D8D] hover:underline transition-colors">
+                      <Link href={`/creators/${c.managed_creator_id ?? encodeURIComponent(c.handles[0])}`} className="hover:text-[var(--primary)] hover:underline transition-colors">
                         {c.display_name}
                       </Link>
                       {c.handles.length > 0 && c.display_name !== c.handles[0] && (

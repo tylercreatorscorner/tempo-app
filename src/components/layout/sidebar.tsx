@@ -57,12 +57,12 @@ export function Sidebar({ className, isAdmin = false, canViewFinance = true }: S
         href={withBrand(d.href)}
         className={cn(
           'group flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-150',
-          active ? 'bg-pink-50 text-[#FF4D8D] font-medium' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50',
+          active ? 'bg-primary/10 text-[var(--primary)] font-medium' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50',
         )}
       >
-        <d.icon className={cn('h-4 w-4 flex-shrink-0 transition-colors', active ? 'text-[#FF4D8D]' : 'text-gray-400 group-hover:text-gray-600')} />
+        <d.icon className={cn('h-4 w-4 flex-shrink-0 transition-colors', active ? 'text-[var(--primary)]' : 'text-gray-400 group-hover:text-gray-600')} />
         {d.label}
-        {active && <span className="ml-auto w-1 h-4 rounded-full bg-[#FF4D8D]" />}
+        {active && <span className="ml-auto w-1 h-4 rounded-full bg-[var(--primary)]" />}
       </Link>
     );
   };

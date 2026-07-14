@@ -166,7 +166,7 @@ export default function DiscordLinksPage() {
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-              <Search className="h-6 w-6 text-pink-500" />
+              <Search className="h-6 w-6 text-primary" />
               Discord Link Review
             </h1>
             <p className="text-gray-500 mt-1">
@@ -224,7 +224,7 @@ export default function DiscordLinksPage() {
               key={t.key}
               onClick={() => setTab(t.key)}
               className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                tab === t.key ? 'bg-pink-50 text-pink-600' : 'text-gray-500 hover:text-gray-700'
+                tab === t.key ? 'bg-primary/10 text-primary' : 'text-gray-500 hover:text-gray-700'
               }`}
             >
               {t.label}

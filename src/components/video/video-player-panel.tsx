@@ -133,7 +133,7 @@ export function VideoPlayerPanel() {
                 href={tiktokUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-[#FF4D8D] transition-colors pt-2"
+                className="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-[var(--primary)] transition-colors pt-2"
               >
                 <ExternalLink className="h-3 w-3" />
                 Open in TikTok

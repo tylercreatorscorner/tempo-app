@@ -120,7 +120,7 @@ export function Header({ onMenuClick, tenantName, userName, userEmail, tenantSwi
         {/* Notifications */}
         <button className="relative p-2 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors">
           <Bell className="h-[18px] w-[18px]" />
-          <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-[#FF4D8D] ring-2 ring-white" />
+          <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-[var(--primary)] ring-2 ring-white" />
         </button>
 
         {/* Messages shortcut */}
@@ -140,7 +140,7 @@ export function Header({ onMenuClick, tenantName, userName, userEmail, tenantSwi
             onClick={() => setMenuOpen(!menuOpen)}
             className="flex items-center gap-2 px-1.5 py-1.5 rounded-lg hover:bg-gray-50 transition-colors"
           >
-            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-[#FF4D8D] to-[#7C5CFC] flex items-center justify-center text-white text-xs font-bold shadow-sm">
+            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-[var(--primary)] to-[var(--pulse-accent-2)] flex items-center justify-center text-white text-xs font-bold shadow-sm">
               {initials}
             </div>
             {userName && (

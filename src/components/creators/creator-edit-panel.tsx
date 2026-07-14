@@ -132,7 +132,7 @@ function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => 
                   if (e.target.value === '__custom') setForm({ ...form, role: '' });
                   else setForm({ ...form, role: e.target.value });
                 }}
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-200 focus:border-pink-300"
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/15 focus:border-primary/20"
               >
                 <option value="">None</option>
                 {ROLES.map((r) => (
@@ -145,7 +145,7 @@ function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => 
                   value={form.role}
                   onChange={(e) => setForm({ ...form, role: e.target.value })}
                   placeholder="Custom role"
-                  className="w-full mt-2 px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-200 focus:border-pink-300"
+                  className="w-full mt-2 px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/15 focus:border-primary/20"
                 />
               )}
             </div>
@@ -155,7 +155,7 @@ function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => 
               <select
                 value={form.status}
                 onChange={(e) => setForm({ ...form, status: e.target.value })}
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-200 focus:border-pink-300"
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/15 focus:border-primary/20"
               >
                 <option value="">None</option>
                 {STATUSES.map((s) => (
@@ -170,7 +170,7 @@ function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => 
                 value={form.notes}
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
                 rows={3}
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-200 focus:border-pink-300 resize-none"
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/15 focus:border-primary/20 resize-none"
               />
             </div>
           </div>
@@ -178,7 +178,7 @@ function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => 
           <button
             onClick={handleSave}
             disabled={saving}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-[#FF4D8D] rounded-xl hover:bg-[#E91E8C] transition-colors disabled:opacity-50"
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-[var(--primary)] rounded-xl hover:bg-[#E91E8C] transition-colors disabled:opacity-50"
           >
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             Save Profile
@@ -207,12 +207,12 @@ function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => 
                 onChange={(e) => setNewHandle(e.target.value)}
                 placeholder="@username"
                 onKeyDown={(e) => e.key === 'Enter' && addAccount()}
-                className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-200 focus:border-pink-300"
+                className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/15 focus:border-primary/20"
               />
               <button
                 onClick={addAccount}
                 disabled={accountSaving || !newHandle.trim()}
-                className="px-3 py-2 text-sm font-medium text-[#FF4D8D] border border-pink-200 rounded-xl hover:bg-pink-50 transition-colors disabled:opacity-50"
+                className="px-3 py-2 text-sm font-medium text-[var(--primary)] border border-primary/15 rounded-xl hover:bg-primary/10 transition-colors disabled:opacity-50"
               >
                 <Plus className="h-4 w-4" />
               </button>
@@ -242,7 +242,7 @@ function Field({
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-200 focus:border-pink-300"
+        className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/15 focus:border-primary/20"
       />
     </div>
   );

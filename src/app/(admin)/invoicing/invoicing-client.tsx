@@ -270,7 +270,7 @@ export function InvoicingClient({ initialOpenId }: Props) {
         </div>
         <button
           onClick={() => setCreating(true)}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#FF4D8D] text-white text-sm font-bold hover:bg-[#E91E8C] transition-colors shadow-sm flex-shrink-0"
+          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[var(--primary)] text-white text-sm font-bold hover:bg-[#E91E8C] transition-colors shadow-sm flex-shrink-0"
         >
           <Plus className="h-4 w-4" />
           Create Invoice
@@ -283,7 +283,7 @@ export function InvoicingClient({ initialOpenId }: Props) {
           label="Outstanding"
           value={formatCurrency(stats.outstandingAmount)}
           subValue={`${stats.pendingCount + stats.sentCount} unpaid`}
-          accentColor="#FF4D8D"
+          accentColor="var(--primary)"
         />
         <StatCard
           label="Pending"
@@ -322,7 +322,7 @@ export function InvoicingClient({ initialOpenId }: Props) {
                   onClick={() => setStatus(tab.value)}
                   className={cn(
                     'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all',
-                    active ? 'bg-white text-[#FF4D8D] shadow-sm' : 'text-gray-500 hover:text-gray-700',
+                    active ? 'bg-white text-[var(--primary)] shadow-sm' : 'text-gray-500 hover:text-gray-700',
                   )}
                 >
                   <Icon className="h-3.5 w-3.5" />
@@ -396,7 +396,7 @@ export function InvoicingClient({ initialOpenId }: Props) {
         {/* Invoice list */}
         {loading && invoices.length === 0 ? (
           <div className="p-12 text-center">
-            <div className="inline-block h-8 w-8 rounded-full border-2 border-gray-200 border-t-[#FF4D8D] animate-spin" />
+            <div className="inline-block h-8 w-8 rounded-full border-2 border-gray-200 border-t-[var(--primary)] animate-spin" />
           </div>
         ) : invoices.length === 0 ? (
           <EmptyState onCreate={() => setCreating(true)} />
@@ -418,7 +418,7 @@ export function InvoicingClient({ initialOpenId }: Props) {
                       type="checkbox"
                       checked={allVisibleSelected}
                       onChange={toggleAllVisible}
-                      className="h-3.5 w-3.5 rounded border-gray-300 text-[#FF4D8D] focus:ring-[#FF4D8D]/30 cursor-pointer"
+                      className="h-3.5 w-3.5 rounded border-gray-300 text-[var(--primary)] focus:ring-[var(--primary)]/30 cursor-pointer"
                       aria-label="Select all visible"
                     />
                   </th>
@@ -449,7 +449,7 @@ export function InvoicingClient({ initialOpenId }: Props) {
                           type="checkbox"
                           checked={isSelected}
                           onChange={() => toggleOne(inv.id)}
-                          className="h-3.5 w-3.5 rounded border-gray-300 text-[#FF4D8D] focus:ring-[#FF4D8D]/30 cursor-pointer"
+                          className="h-3.5 w-3.5 rounded border-gray-300 text-[var(--primary)] focus:ring-[var(--primary)]/30 cursor-pointer"
                           aria-label={`Select ${inv.invoice_number}`}
                         />
                       </td>
@@ -486,7 +486,7 @@ export function InvoicingClient({ initialOpenId }: Props) {
                         <a
                           href={`/api/invoices/${inv.id}/pdf`}
                           onClick={(e) => e.stopPropagation()}
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-gray-600 hover:text-[#FF4D8D] hover:bg-white rounded-lg transition-colors"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-gray-600 hover:text-[var(--primary)] hover:bg-white rounded-lg transition-colors"
                           title="Download PDF"
                         >
                           <Download className="h-3.5 w-3.5" />
@@ -586,7 +586,7 @@ function SearchInput({ value, onChange }: { value: string; onChange: (v: string)
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder="Search invoice #, brand, period…"
-        className="bg-white border border-gray-200 rounded-xl pl-9 pr-8 py-2 text-xs text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D] w-56 transition-colors"
+        className="bg-white border border-gray-200 rounded-xl pl-9 pr-8 py-2 text-xs text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] w-56 transition-colors"
       />
       {value && (
         <button
@@ -663,7 +663,7 @@ function BrandFilter({ value, onChange, options }: {
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="appearance-none bg-white border border-gray-200 rounded-xl pl-9 pr-8 py-2 text-xs font-semibold text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D] cursor-pointer"
+        className="appearance-none bg-white border border-gray-200 rounded-xl pl-9 pr-8 py-2 text-xs font-semibold text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] cursor-pointer"
       >
         <option value="all">All brands</option>
         {options.map((b) => <option key={b} value={b}>{b}</option>)}
@@ -683,7 +683,7 @@ function TeamMemberFilter({ value, onChange, members }: {
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="appearance-none bg-white border border-gray-200 rounded-xl pl-9 pr-8 py-2 text-xs font-semibold text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D] cursor-pointer"
+        className="appearance-none bg-white border border-gray-200 rounded-xl pl-9 pr-8 py-2 text-xs font-semibold text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] cursor-pointer"
         title="Filter invoices by who issued them"
       >
         <option value="all">All payees</option>
@@ -706,7 +706,7 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
       </p>
       <button
         onClick={onCreate}
-        className="inline-flex items-center gap-2 px-4 py-2 bg-[#FF4D8D] text-white rounded-xl text-sm font-bold hover:bg-[#E91E8C] transition-colors shadow-sm"
+        className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-xl text-sm font-bold hover:bg-[#E91E8C] transition-colors shadow-sm"
       >
         <Plus className="h-4 w-4" />
         Create Invoice

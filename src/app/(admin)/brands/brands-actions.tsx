@@ -11,7 +11,7 @@ export function BrandsActions() {
     <>
       <button
         onClick={() => setShowAdd(true)}
-        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] text-white text-sm font-semibold hover:opacity-90 transition-opacity shadow-lg shadow-[#FF4D8D]/20"
+        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-[var(--primary)] to-[var(--pulse-accent-2)] text-white text-sm font-semibold hover:opacity-90 transition-opacity shadow-lg shadow-[var(--primary)]/20"
       >
         <Plus className="h-4 w-4" /> Add Brand
       </button>

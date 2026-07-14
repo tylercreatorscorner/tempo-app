@@ -51,7 +51,7 @@ export function TikTokConnect({ companyName, connected }: TikTokConnectProps) {
       {/* Data email */}
       <div className="space-y-3">
         <div className="flex items-start gap-2">
-          <Info className="h-4 w-4 text-[#7C5CFC] mt-0.5 shrink-0" />
+          <Info className="h-4 w-4 text-[var(--pulse-accent-2)] mt-0.5 shrink-0" />
           <p className="text-xs text-muted-foreground">Your data collection email:</p>
         </div>
         <div className="flex items-center gap-2 bg-gray-50 rounded-xl px-4 py-3">
@@ -91,11 +91,11 @@ export function TikTokConnect({ companyName, connected }: TikTokConnectProps) {
 
       <div className="flex items-center gap-4 text-xs text-muted-foreground pt-2">
         <div className="flex items-center gap-1.5">
-          <Shield className="h-3.5 w-3.5 text-[#FF4D8D]" />
+          <Shield className="h-3.5 w-3.5 text-[var(--primary)]" />
           <span>Read-only access</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <Shield className="h-3.5 w-3.5 text-[#7C5CFC]" />
+          <Shield className="h-3.5 w-3.5 text-[var(--pulse-accent-2)]" />
           <span>Encrypted & isolated</span>
         </div>
       </div>

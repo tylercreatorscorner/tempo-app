@@ -35,7 +35,7 @@ interface Props {
 function StatusIcon({ status }: { status: string }) {
   switch (status) {
     case 'sent': return <Check className="h-3 w-3 text-gray-400" />;
-    case 'delivered': return <CheckCheck className="h-3 w-3 text-pink-400" />;
+    case 'delivered': return <CheckCheck className="h-3 w-3 text-primary" />;
     case 'failed': return <X className="h-3 w-3 text-red-400" />;
     case 'blocked': return <X className="h-3 w-3 text-orange-400" />;
     default: return <Loader2 className="h-3 w-3 text-gray-300 animate-spin" />;
@@ -221,7 +221,7 @@ export function ChatThread({
 
         {loading ? (
           <div className="flex items-center justify-center h-full">
-            <Loader2 className="h-6 w-6 text-pink-400 animate-spin" />
+            <Loader2 className="h-6 w-6 text-primary animate-spin" />
           </div>
         ) : messages.length === 0 ? (
           <div className="flex items-center justify-center h-full text-gray-400 text-sm">
@@ -250,7 +250,7 @@ export function ChatThread({
                 className={cn(
                   'max-w-[70%] rounded-2xl px-4 py-2.5 text-sm shadow-sm',
                   msg.direction === 'outbound'
-                    ? 'bg-gradient-to-br from-pink-500 to-purple-500 text-white rounded-br-md'
+                    ? 'bg-gradient-to-br from-primary to-purple-500 text-white rounded-br-md'
                     : 'bg-white text-[#1A1B3A] border border-gray-100 rounded-bl-md'
                 )}
               >
@@ -295,7 +295,7 @@ export function ChatThread({
             onKeyDown={handleKeyDown}
             placeholder="Type a message... (Ctrl+Enter to send)"
             rows={1}
-            className="flex-1 resize-none rounded-xl border border-gray-200 px-4 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all"
+            className="flex-1 resize-none rounded-xl border border-gray-200 px-4 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-transparent transition-all"
             style={{ minHeight: '40px', maxHeight: '120px' }}
             onInput={e => {
               const t = e.target as HTMLTextAreaElement;
@@ -306,7 +306,7 @@ export function ChatThread({
           <button
             onClick={handleSend}
             disabled={!input.trim() || sending}
-            className="flex items-center justify-center h-10 w-10 rounded-xl bg-gradient-to-br from-pink-500 to-purple-500 text-white hover:opacity-90 disabled:opacity-40 transition-opacity"
+            className="flex items-center justify-center h-10 w-10 rounded-xl bg-gradient-to-br from-primary to-purple-500 text-white hover:opacity-90 disabled:opacity-40 transition-opacity"
           >
             {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
           </button>

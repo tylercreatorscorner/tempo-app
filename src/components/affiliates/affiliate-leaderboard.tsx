@@ -62,7 +62,7 @@ export function AffiliateLeaderboard({
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={r.avatar} alt="" referrerPolicy="no-referrer" className="h-9 w-9 rounded-full object-cover bg-gray-100 shrink-0" />
                   ) : (
-                    <div className="h-9 w-9 rounded-full bg-gradient-to-br from-[#FF4D8D] to-[#7C5CFC] flex items-center justify-center text-white text-xs font-bold shrink-0">
+                    <div className="h-9 w-9 rounded-full bg-gradient-to-br from-[var(--primary)] to-[var(--pulse-accent-2)] flex items-center justify-center text-white text-xs font-bold shrink-0">
                       {label[0]?.toUpperCase()}
                     </div>
                   )}

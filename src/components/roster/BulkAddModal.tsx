@@ -317,7 +317,7 @@ export function BulkAddModal({ defaultBrand, initialRows, onClose, onSuccess }: 
 
               {/* Pre-selected creators (multi-select entry point) */}
               {hasInitial && (
-                <div className="flex items-center gap-2 text-sm text-gray-600 bg-pink-50/60 border border-pink-100 rounded-xl px-4 py-2.5">
+                <div className="flex items-center gap-2 text-sm text-gray-600 bg-primary/10/60 border border-primary/10 rounded-xl px-4 py-2.5">
                   <Users className="h-4 w-4 text-[#E91E8C] shrink-0" />
                   {initialRows!.length} creator{initialRows!.length === 1 ? '' : 's'} selected from All Creators
                 </div>
@@ -374,7 +374,7 @@ export function BulkAddModal({ defaultBrand, initialRows, onClose, onSuccess }: 
                       onDrop={onDrop}
                       onClick={() => inputRef.current?.click()}
                       className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-colors ${
-                        dragOver ? 'border-[#E91E8C] bg-pink-50' : 'border-gray-200 hover:border-gray-300'
+                        dragOver ? 'border-[#E91E8C] bg-primary/10' : 'border-gray-200 hover:border-gray-300'
                       }`}
                     >
                       <Upload className="h-7 w-7 text-gray-300 mx-auto mb-2" />

@@ -22,8 +22,8 @@ const ICONS: Record<ActivityType, typeof MessageSquare> = {
 const ICON_COLORS: Record<string, string> = {
   note: 'bg-blue-50 text-blue-500',
   status_change: 'bg-orange-50 text-orange-500',
-  outreach: 'bg-pink-50 text-[#FF4D8D]',
-  message: 'bg-pink-50 text-[#FF4D8D]',
+  outreach: 'bg-primary/10 text-[var(--primary)]',
+  message: 'bg-primary/10 text-[var(--primary)]',
   payment: 'bg-green-50 text-green-500',
   milestone: 'bg-yellow-50 text-yellow-500',
   tag_change: 'bg-purple-50 text-purple-500',
@@ -94,14 +94,14 @@ export function CreatorTimeline({ creatorId }: { creatorId: string }) {
           value={note}
           onChange={e => setNote(e.target.value)}
           placeholder="Add a note..."
-          className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-pink-200 focus:border-[#FF4D8D] transition"
+          className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/15 focus:border-[var(--primary)] transition"
           rows={2}
         />
         <div className="flex justify-end mt-2">
           <button
             onClick={addNote}
             disabled={submitting || !note.trim()}
-            className="px-4 py-2 rounded-lg bg-[#FF4D8D] text-white text-sm font-medium hover:bg-pink-600 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-2"
+            className="px-4 py-2 rounded-lg bg-[var(--primary)] text-white text-sm font-medium hover:bg-primary disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-2"
           >
             {submitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             Add Note
@@ -144,7 +144,7 @@ export function CreatorTimeline({ creatorId }: { creatorId: string }) {
           <button
             onClick={() => { const next = page + 1; setPage(next); fetchEntries(next, true); }}
             disabled={loading}
-            className="text-sm text-gray-500 hover:text-[#FF4D8D] flex items-center gap-1 transition"
+            className="text-sm text-gray-500 hover:text-[var(--primary)] flex items-center gap-1 transition"
           >
             {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ChevronDown className="h-3.5 w-3.5" />}
             Load more

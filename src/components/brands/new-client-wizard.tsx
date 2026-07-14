@@ -24,7 +24,7 @@ import { invalidateBrandList } from '@/hooks/use-brand-list';
 type CompensationModel = 'standard' | 'revshare_max' | 'commission_only' | 'retainer_only';
 
 const COLOR_PRESETS = [
-  '#FF4D8D', '#7C5CFC', '#3B82F6', '#10B981', '#F59E0B',
+  'var(--primary)', 'var(--pulse-accent-2)', '#3B82F6', '#10B981', '#F59E0B',
   '#EF4444', '#8B5CF6', '#06B6D4', '#EC4899', '#14B8A6',
 ];
 
@@ -282,7 +282,7 @@ export function NewClientWizard({ open, onClose, onCreated }: Props) {
 
           <button
             onClick={finish}
-            className="w-full mt-6 px-4 py-3 rounded-xl bg-[#FF4D8D] text-white text-sm font-bold hover:bg-[#E91E8C] transition-colors shadow-sm"
+            className="w-full mt-6 px-4 py-3 rounded-xl bg-[var(--primary)] text-white text-sm font-bold hover:bg-[#E91E8C] transition-colors shadow-sm"
           >
             {hadContactErrors ? 'Close — review contacts in Settings' : 'Done'}
           </button>
@@ -358,7 +358,7 @@ export function NewClientWizard({ open, onClose, onCreated }: Props) {
           <button
             onClick={() => setStep((s) => (s + 1) as 2 | 3)}
             disabled={step === 1 && !canAdvanceStep1}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-[#FF4D8D] rounded-xl hover:bg-[#E91E8C] disabled:opacity-50 transition-colors shadow-sm"
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-[var(--primary)] rounded-xl hover:bg-[#E91E8C] disabled:opacity-50 transition-colors shadow-sm"
           >
             Continue
             <ArrowRight className="h-4 w-4" />
@@ -367,7 +367,7 @@ export function NewClientWizard({ open, onClose, onCreated }: Props) {
           <button
             onClick={handleSubmit}
             disabled={submitting || !canAdvanceStep1}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-[#FF4D8D] rounded-xl hover:bg-[#E91E8C] disabled:opacity-50 transition-colors shadow-sm"
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-[var(--primary)] rounded-xl hover:bg-[#E91E8C] disabled:opacity-50 transition-colors shadow-sm"
           >
             {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
             {submitting ? 'Creating…' : 'Create Client'}
@@ -407,7 +407,7 @@ function Stepper({ step }: { step: 1 | 2 | 3 }) {
             <div
               className={cn(
                 'h-7 w-7 rounded-full flex items-center justify-center text-[11px] font-bold flex-shrink-0',
-                active && 'bg-[#FF4D8D] text-white',
+                active && 'bg-[var(--primary)] text-white',
                 done && 'bg-emerald-500 text-white',
                 !active && !done && 'bg-gray-100 text-gray-400',
               )}
@@ -454,7 +454,7 @@ function Step1Identity({
           onChange={(e) => onNameChange(e.target.value)}
           placeholder="e.g. COSRX"
           autoFocus
-          className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D]"
+          className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
         />
       </Field>
 
@@ -468,7 +468,7 @@ function Step1Identity({
           value={identity.slug}
           onChange={(e) => onSlugChange(e.target.value)}
           placeholder="cosrx"
-          className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm font-mono text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D]"
+          className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm font-mono text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
         />
       </Field>
 
@@ -497,7 +497,7 @@ function Step1Identity({
             type="text"
             value={identity.color}
             onChange={(e) => onColorChange(e.target.value)}
-            className="flex-1 min-w-[120px] px-3 py-2 rounded-xl border border-gray-200 text-sm font-mono text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D]"
+            className="flex-1 min-w-[120px] px-3 py-2 rounded-xl border border-gray-200 text-sm font-mono text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
           />
         </div>
       </Field>
@@ -544,7 +544,7 @@ function Step2Financial({
               className={cn(
                 'block rounded-xl border-2 p-3 cursor-pointer transition-colors',
                 financial.compensation_model === opt.value
-                  ? 'border-[#FF4D8D] bg-[#FFF0F5]'
+                  ? 'border-[var(--primary)] bg-[#FFF0F5]'
                   : 'border-gray-200 hover:border-gray-300 bg-white',
               )}
             >
@@ -559,7 +559,7 @@ function Step2Financial({
               <div className="flex items-baseline justify-between">
                 <span className="text-sm font-bold text-[#1A1B3A]">{opt.label}</span>
                 {financial.compensation_model === opt.value && (
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#FF4D8D]">Active</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--primary)]">Active</span>
                 )}
               </div>
               <p className="text-xs text-gray-500 mt-0.5">{opt.description}</p>
@@ -668,7 +668,7 @@ function Step3Contacts({
                 if (e.key === 'Enter') { e.preventDefault(); onAdd(); }
               }}
               placeholder="contact@brand.com"
-              className="w-full pl-9 pr-3 py-2 rounded-xl border border-gray-200 text-sm text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D]"
+              className="w-full pl-9 pr-3 py-2 rounded-xl border border-gray-200 text-sm text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
             />
           </div>
           <button
@@ -757,7 +757,7 @@ function NumberInput({ value, step, onChange }: { value: string; step: number; o
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder="0"
-      className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm text-[#1A1B3A] bg-white tabular-nums focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D] transition-colors"
+      className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm text-[#1A1B3A] bg-white tabular-nums focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] transition-colors"
     />
   );
 }
@@ -774,7 +774,7 @@ function TextInput({ value, placeholder, type = 'text', onChange }: {
       value={value}
       placeholder={placeholder}
       onChange={(e) => onChange(e.target.value)}
-      className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm text-[#1A1B3A] bg-white focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D] transition-colors"
+      className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm text-[#1A1B3A] bg-white focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] transition-colors"
     />
   );
 }
@@ -786,7 +786,7 @@ function TextArea({ value, placeholder, onChange }: { value: string; placeholder
       placeholder={placeholder}
       onChange={(e) => onChange(e.target.value)}
       rows={3}
-      className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm text-[#1A1B3A] bg-white focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D] transition-colors resize-y"
+      className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm text-[#1A1B3A] bg-white focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] transition-colors resize-y"
     />
   );
 }

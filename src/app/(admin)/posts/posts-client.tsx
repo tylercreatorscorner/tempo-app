@@ -629,7 +629,7 @@ function PostRowView({ post: p, onClick }: { post: PostRow; onClick: (p: PostRow
       </td>
       <td className="px-4 py-3 align-top text-right tabular-nums text-gray-700">{formatNumber(p.views)}</td>
       <td className="px-4 py-3 align-top text-right tabular-nums text-gray-700">
-        <span className="inline-flex items-center gap-1 text-pink-700">
+        <span className="inline-flex items-center gap-1 text-primary">
           <Heart className="h-3 w-3" />{formatNumber(p.likes)}
         </span>
       </td>
@@ -682,7 +682,7 @@ function ReviewCell({ post: p }: { post: PostRow }) {
         </span>
       )}
       {p.has_my_review && (
-        <span title="You reviewed this" className="text-[9px] font-bold uppercase tracking-wider text-[#E91E8C] bg-pink-50 ring-1 ring-pink-200 rounded px-1 py-0.5">
+        <span title="You reviewed this" className="text-[9px] font-bold uppercase tracking-wider text-[#E91E8C] bg-primary/10 ring-1 ring-primary/15 rounded px-1 py-0.5">
           you
         </span>
       )}

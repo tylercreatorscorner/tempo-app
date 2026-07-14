@@ -271,7 +271,7 @@ export function EarningsClient({ initialMonth }: { initialMonth: string }) {
           <select
             value={month}
             onChange={(e) => setMonth(e.target.value)}
-            className="appearance-none bg-white border border-gray-200 rounded-xl pl-4 pr-10 py-2 text-sm font-semibold text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D] cursor-pointer"
+            className="appearance-none bg-white border border-gray-200 rounded-xl pl-4 pr-10 py-2 text-sm font-semibold text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] cursor-pointer"
           >
             {monthOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
@@ -282,7 +282,7 @@ export function EarningsClient({ initialMonth }: { initialMonth: string }) {
             <select
               value={teamMemberId ?? ''}
               onChange={(e) => setTeamMemberId(e.target.value || null)}
-              className="appearance-none bg-white border border-gray-200 rounded-xl pl-9 pr-10 py-2 text-sm font-semibold text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D] cursor-pointer"
+              className="appearance-none bg-white border border-gray-200 rounded-xl pl-9 pr-10 py-2 text-sm font-semibold text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] cursor-pointer"
               title="View earnings for this team member's compensation arrangements"
             >
               {teamMembers.map(tm => <option key={tm.id} value={tm.id}>{tm.name}</option>)}
@@ -344,14 +344,14 @@ export function EarningsClient({ initialMonth }: { initialMonth: string }) {
             trend={earningsTrend}
             trendLabel="vs last month"
             sparklineData={series?.map((s) => s.earnings) ?? undefined}
-            accentColor="#FF4D8D"
+            accentColor="var(--primary)"
           />
         </div>
         <div className="lg:col-span-7 grid grid-cols-2 lg:grid-cols-4 gap-3">
           <StatCard
             label="Commission"
             value={data ? formatCurrency(data.totals.commission) : '—'}
-            accentColor="#7C5CFC"
+            accentColor="var(--pulse-accent-2)"
           />
           <StatCard
             label="Retainers"
@@ -600,9 +600,9 @@ function MarketingGmvEditor({ row, month, onSaved, onError }: {
             if (cancelledRef.current) { cancelledRef.current = false; cancel(); return; }
             commit();
           }}
-          className="w-24 px-1.5 py-0.5 text-[11px] tabular-nums rounded-md border border-[#FF4D8D]/50 bg-white focus:outline-none focus:ring-1 focus:ring-[#FF4D8D]/40"
+          className="w-24 px-1.5 py-0.5 text-[11px] tabular-nums rounded-md border border-[var(--primary)]/50 bg-white focus:outline-none focus:ring-1 focus:ring-[var(--primary)]/40"
         />
-        {saving && <Loader2 className="h-3 w-3 animate-spin text-[#FF4D8D]" />}
+        {saving && <Loader2 className="h-3 w-3 animate-spin text-[var(--primary)]" />}
       </span>
     );
   }
@@ -611,13 +611,13 @@ function MarketingGmvEditor({ row, month, onSaved, onError }: {
     <button
       type="button"
       onClick={(e) => { e.stopPropagation(); setEditing(true); }}
-      className="group/mkt inline-flex items-center gap-1 hover:text-[#FF4D8D] transition-colors"
+      className="group/mkt inline-flex items-center gap-1 hover:text-[var(--primary)] transition-colors"
       title="Edit marketing GMV for this month"
     >
       {row.marketingGmv > 0 ? (
         <span className="tabular-nums">{formatCurrency(row.marketingGmv)} mkt</span>
       ) : (
-        <span className="inline-flex items-center gap-0.5 text-gray-300 group-hover/mkt:text-[#FF4D8D]">
+        <span className="inline-flex items-center gap-0.5 text-gray-300 group-hover/mkt:text-[var(--primary)]">
           <Plus className="h-2.5 w-2.5" /> marketing
         </span>
       )}
@@ -677,7 +677,7 @@ function BrandTable({
             >
               <td className="px-4 py-3">
                 <div className="flex items-center gap-2">
-                  <ChevronRight className={cn('h-3.5 w-3.5 text-gray-300 transition-transform', isExpanded && 'rotate-90 text-[#FF4D8D]')} />
+                  <ChevronRight className={cn('h-3.5 w-3.5 text-gray-300 transition-transform', isExpanded && 'rotate-90 text-[var(--primary)]')} />
                   <span className="font-semibold text-[#1A1B3A]">{row.brandLabel}</span>
                   <ModelBadge model={row.compensationModel} outcome={row.revshareMaxOutcome} />
                   {row.creators.length > 0 && (
@@ -713,7 +713,7 @@ function BrandTable({
               <td className="px-4 py-3 text-right tabular-nums">
                 <span className="font-medium text-gray-700">{row.rate.toFixed(2)}%</span>
                 {Math.abs(row.effectiveRate - row.rate) > 0.01 && (
-                  <div className="text-[10px] text-[#FF4D8D] mt-0.5" title="Effective rate after per-creator overrides">
+                  <div className="text-[10px] text-[var(--primary)] mt-0.5" title="Effective rate after per-creator overrides">
                     eff: {row.effectiveRate.toFixed(2)}%
                   </div>
                 )}
@@ -758,7 +758,7 @@ function BrandTable({
                 <div className="inline-flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                   <button
                     onClick={() => onEdit(row)}
-                    className="inline-flex items-center justify-center h-7 w-7 rounded-lg text-gray-400 hover:text-[#FF4D8D] hover:bg-white transition-colors"
+                    className="inline-flex items-center justify-center h-7 w-7 rounded-lg text-gray-400 hover:text-[var(--primary)] hover:bg-white transition-colors"
                     title="Edit brand settings"
                   >
                     <Pencil className="h-3.5 w-3.5" />
@@ -766,7 +766,7 @@ function BrandTable({
                   <button
                     onClick={() => onGenerateInvoice(row.brand)}
                     disabled={generatingBrand === row.brand || row.total <= 0}
-                    className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-[#FFF0F5] border border-pink-100 text-[#FF4D8D] text-[11px] font-bold hover:bg-[#FF4D8D] hover:text-white hover:border-[#FF4D8D] disabled:opacity-40 disabled:hover:bg-[#FFF0F5] disabled:hover:text-[#FF4D8D] transition-colors"
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-[#FFF0F5] border border-primary/10 text-[var(--primary)] text-[11px] font-bold hover:bg-[var(--primary)] hover:text-white hover:border-[var(--primary)] disabled:opacity-40 disabled:hover:bg-[#FFF0F5] disabled:hover:text-[var(--primary)] transition-colors"
                     title={row.total > 0 ? 'Generate invoice for this brand & month' : 'Nothing to invoice'}
                   >
                     {generatingBrand === row.brand
@@ -802,7 +802,7 @@ function BrandTable({
               <td className="px-4 py-3 text-right tabular-nums text-emerald-600">{formatCurrency(totals.commission)}</td>
               <td className="px-4 py-3 text-right tabular-nums">{formatCurrency(totals.retainers)}</td>
               <td className="px-4 py-3 text-right tabular-nums">{formatCurrency(totals.launchFees)}</td>
-              <td className="px-4 py-3 text-right tabular-nums text-[#FF4D8D]">{formatCurrency(totals.earnings)}</td>
+              <td className="px-4 py-3 text-right tabular-nums text-[var(--primary)]">{formatCurrency(totals.earnings)}</td>
               <td />
             </tr>
           </tfoot>
@@ -827,7 +827,7 @@ function SortHeader({ k, label, align, sortKey, sortDir, onSort }: {
       className={cn(
         'px-4 py-3 text-[10px] font-bold uppercase tracking-wider cursor-pointer select-none transition-colors',
         align === 'right' ? 'text-right' : 'text-left',
-        active ? 'text-[#FF4D8D]' : 'text-gray-500 hover:text-gray-700',
+        active ? 'text-[var(--primary)]' : 'text-gray-500 hover:text-gray-700',
       )}
     >
       <span className="inline-flex items-center gap-1">
@@ -880,10 +880,10 @@ function CreatorBreakdownPanel({ row }: { row: BrandRow }) {
                 </td>
                 <td className="px-4 py-1.5 text-right tabular-nums text-gray-600">{formatCurrency(c.gmv)}</td>
                 <td className="px-4 py-1.5 text-right tabular-nums">
-                  <span className={cn(isOverride ? 'text-[#FF4D8D] font-semibold' : 'text-gray-500')}>
+                  <span className={cn(isOverride ? 'text-[var(--primary)] font-semibold' : 'text-gray-500')}>
                     {c.rate.toFixed(2)}%
                   </span>
-                  {isOverride && <span className="ml-1 text-[9px] text-[#FF4D8D]" title="Per-creator rate override">*</span>}
+                  {isOverride && <span className="ml-1 text-[9px] text-[var(--primary)]" title="Per-creator rate override">*</span>}
                 </td>
                 <td className="px-4 py-1.5 text-right tabular-nums text-emerald-600 font-semibold">{formatCurrency(c.commission)}</td>
               </tr>

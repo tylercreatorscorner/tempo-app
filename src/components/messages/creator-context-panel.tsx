@@ -143,7 +143,7 @@ export function CreatorContextPanel({ creatorId, topic, onDraftReply }: Props) {
 
       {loading ? (
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-5 w-5 text-pink-400 animate-spin" />
+          <Loader2 className="h-5 w-5 text-primary animate-spin" />
         </div>
       ) : !context ? (
         <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
@@ -191,7 +191,7 @@ export function CreatorContextPanel({ creatorId, topic, onDraftReply }: Props) {
 
           {/* Name + avatar placeholder */}
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-full bg-gradient-to-br from-pink-400 to-purple-400 flex items-center justify-center text-white font-semibold text-sm">
+            <div className="h-10 w-10 rounded-full bg-gradient-to-br from-primary to-purple-400 flex items-center justify-center text-white font-semibold text-sm">
               {context.real_name.charAt(0).toUpperCase()}
             </div>
             <div className="min-w-0">
@@ -201,7 +201,7 @@ export function CreatorContextPanel({ creatorId, topic, onDraftReply }: Props) {
                   href={`https://tiktok.com/@${context.tiktok_handle}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-xs text-gray-400 hover:text-pink-500 flex items-center gap-1 transition-colors"
+                  className="text-xs text-gray-400 hover:text-primary flex items-center gap-1 transition-colors"
                 >
                   @{context.tiktok_handle}
                   <ExternalLink className="h-3 w-3" />

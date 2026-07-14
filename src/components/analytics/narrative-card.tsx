@@ -36,7 +36,7 @@ export function NarrativeCard({ input }: Props) {
     <div className="rounded-2xl bg-gradient-to-br from-[#FAF7FF] to-[#FFF5FB] border border-[#E91E8C]/15 p-5">
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="flex items-center gap-2">
-          <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-[#E91E8C] to-[#7C5CFC] flex items-center justify-center flex-shrink-0">
+          <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-[#E91E8C] to-[var(--pulse-accent-2)] flex items-center justify-center flex-shrink-0">
             <Sparkles className="h-4 w-4 text-white" />
           </div>
           <div>

@@ -38,7 +38,7 @@ function entityIconAndBg(type: string): { icon: React.ComponentType<{ className?
     case 'retainer':         return { icon: Users,      tint: 'bg-purple-50',   iconColor: 'text-purple-500' };
     case 'commission_rate':  return { icon: Percent,    tint: 'bg-emerald-50',  iconColor: 'text-emerald-500' };
     case 'payment_status':   return { icon: CreditCard, tint: 'bg-blue-50',     iconColor: 'text-blue-500' };
-    case 'invoice_status':   return { icon: FileText,   tint: 'bg-pink-50',     iconColor: 'text-[#FF4D8D]' };
+    case 'invoice_status':   return { icon: FileText,   tint: 'bg-primary/10',     iconColor: 'text-[var(--primary)]' };
     default:                 return { icon: History,    tint: 'bg-gray-50',     iconColor: 'text-gray-400' };
   }
 }
@@ -48,7 +48,7 @@ export function AuditFeed({ logs, loading }: Props) {
   if (loading && logs.length === 0) {
     return (
       <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-12 text-center">
-        <div className="inline-block h-6 w-6 rounded-full border-2 border-gray-200 border-t-[#FF4D8D] animate-spin" />
+        <div className="inline-block h-6 w-6 rounded-full border-2 border-gray-200 border-t-[var(--primary)] animate-spin" />
       </div>
     );
   }

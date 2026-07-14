@@ -180,13 +180,13 @@ export function PaymentsClient() {
           label="Retainer Spend"
           value={overview ? formatCurrency(overview.totalRetainerSpend) : '—'}
           subValue="This month"
-          accentColor="#FF4D8D"
+          accentColor="var(--primary)"
         />
         <StatCard
           label="On Retainer"
           value={String(creators.length)}
           subValue={`${stats.onTrack} on track${stats.behind > 0 || stats.atRisk > 0 ? `, ${stats.behind + stats.atRisk} need attention` : ''}`}
-          accentColor="#7C5CFC"
+          accentColor="var(--pulse-accent-2)"
         />
         <StatCard
           label="At Risk"

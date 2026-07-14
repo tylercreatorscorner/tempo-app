@@ -62,14 +62,14 @@ export function CreatorSidebar({ className, profile }: { className?: string; pro
               className={cn(
                 'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-200',
                 isActive
-                  ? 'bg-pink-50 text-[#FF4D8D] font-medium shadow-sm'
+                  ? 'bg-primary/10 text-[var(--primary)] font-medium shadow-sm'
                   : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
               )}
             >
               <item.icon className="h-4 w-4" />
               <span className="flex-1">{item.label}</span>
               {item.badge && (
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[#7C5CFC] text-white">
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[var(--pulse-accent-2)] text-white">
                   {item.badge}
                 </span>
               )}
@@ -81,7 +81,7 @@ export function CreatorSidebar({ className, profile }: { className?: string; pro
       {/* User card */}
       <div className="px-4 py-4 border-t border-gray-200">
         <div className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-full bg-gradient-to-br from-[#FF4D8D] to-[#7C5CFC] flex items-center justify-center text-white text-xs font-bold">
+          <div className="h-9 w-9 rounded-full bg-gradient-to-br from-[var(--primary)] to-[var(--pulse-accent-2)] flex items-center justify-center text-white text-xs font-bold">
             {getInitials(profile.real_name)}
           </div>
           <div className="flex-1 min-w-0">
@@ -146,14 +146,14 @@ export function CreatorMobileNav({ profile }: { profile: CreatorProfile }) {
                     className={cn(
                       'flex items-center gap-3 px-3 py-3 rounded-lg text-sm transition-all',
                       isActive
-                        ? 'bg-pink-50 text-[#FF4D8D] font-medium'
+                        ? 'bg-primary/10 text-[var(--primary)] font-medium'
                         : 'text-gray-600 hover:bg-gray-50'
                     )}
                   >
                     <item.icon className="h-4 w-4" />
                     <span className="flex-1">{item.label}</span>
                     {item.badge && (
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[#7C5CFC] text-white">
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[var(--pulse-accent-2)] text-white">
                         {item.badge}
                       </span>
                     )}
@@ -163,7 +163,7 @@ export function CreatorMobileNav({ profile }: { profile: CreatorProfile }) {
             </nav>
             <div className="absolute bottom-0 left-0 right-0 px-4 py-4 border-t border-gray-200">
               <div className="flex items-center gap-3">
-                <div className="h-9 w-9 rounded-full bg-gradient-to-br from-[#FF4D8D] to-[#7C5CFC] flex items-center justify-center text-white text-xs font-bold">
+                <div className="h-9 w-9 rounded-full bg-gradient-to-br from-[var(--primary)] to-[var(--pulse-accent-2)] flex items-center justify-center text-white text-xs font-bold">
                   {getInitials(profile.real_name)}
                 </div>
                 <div className="flex-1 min-w-0">

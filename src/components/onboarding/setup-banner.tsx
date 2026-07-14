@@ -37,7 +37,7 @@ export function SetupBanner() {
             <div className="flex-1 max-w-xs hidden sm:block">
               <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
                 <div
-                  className="h-full rounded-full bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] transition-all duration-700 ease-out"
+                  className="h-full rounded-full bg-gradient-to-r from-[var(--primary)] to-[var(--pulse-accent-2)] transition-all duration-700 ease-out"
                   style={{ width: `${progress}%` }}
                 />
               </div>
@@ -70,7 +70,7 @@ export function SetupBanner() {
         <div className="px-5 pb-3 sm:hidden">
           <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
             <div
-              className="h-full rounded-full bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] transition-all duration-700 ease-out"
+              className="h-full rounded-full bg-gradient-to-r from-[var(--primary)] to-[var(--pulse-accent-2)] transition-all duration-700 ease-out"
               style={{ width: `${progress}%` }}
             />
           </div>
@@ -97,16 +97,16 @@ function StepRow({ step, isNext }: { step: OnboardingStep; isNext: boolean }) {
         step.complete
           ? 'opacity-60'
           : isNext
-          ? 'bg-gradient-to-r from-[#FF4D8D]/5 to-[#7C5CFC]/5 hover:from-[#FF4D8D]/10 hover:to-[#7C5CFC]/10'
+          ? 'bg-gradient-to-r from-[var(--primary)]/5 to-[var(--pulse-accent-2)]/5 hover:from-[var(--primary)]/10 hover:to-[var(--pulse-accent-2)]/10'
           : 'hover:bg-gray-50'
       }`}
     >
       {/* Status indicator */}
       <div className={`h-7 w-7 rounded-full flex items-center justify-center shrink-0 text-sm ${
         step.complete
-          ? 'bg-gradient-to-br from-[#FF4D8D] to-[#7C5CFC]'
+          ? 'bg-gradient-to-br from-[var(--primary)] to-[var(--pulse-accent-2)]'
           : isNext
-          ? 'border-2 border-[#FF4D8D] bg-[#FF4D8D]/5'
+          ? 'border-2 border-[var(--primary)] bg-[var(--primary)]/5'
           : 'border-2 border-gray-200'
       }`}>
         {step.complete ? (
@@ -120,7 +120,7 @@ function StepRow({ step, isNext }: { step: OnboardingStep; isNext: boolean }) {
         <p className={`text-sm font-medium ${step.complete ? 'line-through text-muted-foreground' : ''}`}>
           {step.label}
           {step.required && !step.complete && (
-            <span className="ml-1.5 text-[10px] font-semibold text-[#FF4D8D] uppercase">Required</span>
+            <span className="ml-1.5 text-[10px] font-semibold text-[var(--primary)] uppercase">Required</span>
           )}
         </p>
         {!step.complete && (
@@ -129,7 +129,7 @@ function StepRow({ step, isNext }: { step: OnboardingStep; isNext: boolean }) {
       </div>
 
       {!step.complete && isNext && (
-        <ArrowRight className="h-4 w-4 text-[#FF4D8D] shrink-0" />
+        <ArrowRight className="h-4 w-4 text-[var(--primary)] shrink-0" />
       )}
     </Link>
   );

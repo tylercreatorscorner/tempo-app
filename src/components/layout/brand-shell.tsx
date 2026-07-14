@@ -47,7 +47,7 @@ interface BrandShellProps {
 export function BrandShell({ context, children }: BrandShellProps) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const { activeBrand, user } = context;
-  const accentColor = activeBrand.color || '#FF4D8D';
+  const accentColor = activeBrand.color || 'var(--primary)';
 
   // Body-scroll layout (matches admin shell): outer is min-h-screen so the
   // page scrolls naturally; sidebar/header are sticky-pinned. Without this,
@@ -393,7 +393,7 @@ function BrandHeader({
             onClick={() => setMenuOpen(!menuOpen)}
             className="flex items-center gap-2 px-1.5 py-1.5 rounded-lg hover:bg-gray-50 transition-colors"
           >
-            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-[#FF4D8D] to-[#7C5CFC] flex items-center justify-center text-white text-xs font-bold shadow-sm">
+            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-[var(--primary)] to-[var(--pulse-accent-2)] flex items-center justify-center text-white text-xs font-bold shadow-sm">
               {initials}
             </div>
             {userName && (

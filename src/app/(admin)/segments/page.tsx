@@ -124,7 +124,7 @@ export default function SegmentsPage() {
               <p className="text-xs text-gray-400 truncate">{description || describeCriteria(criteria)}</p>
             </div>
           </button>
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-pink-50 text-[#FF4D8D] flex-shrink-0">
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-primary/10 text-[var(--primary)] flex-shrink-0">
             <Users className="h-3 w-3" />
             {count === undefined ? '…' : count === null ? '—' : count.toLocaleString()}
           </span>
@@ -171,14 +171,14 @@ export default function SegmentsPage() {
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
-            <Layers className="h-5 w-5 text-[#FF4D8D]" /> Segments
+            <Layers className="h-5 w-5 text-[var(--primary)]" /> Segments
           </h1>
           <p className="text-sm text-gray-500 mt-0.5">Saved audiences you can reuse across the roster, messaging, and contests.</p>
         </div>
         {!readOnly && (
           <button
             onClick={() => setShowCreate(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium text-white bg-[#FF4D8D] hover:bg-[#e63e7c] flex-shrink-0"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium text-white bg-[var(--primary)] hover:bg-[#e63e7c] flex-shrink-0"
           >
             <Plus className="h-4 w-4" /> New Segment
           </button>
@@ -202,7 +202,7 @@ export default function SegmentsPage() {
           <div className="border border-dashed border-gray-200 rounded-xl px-4 py-8 text-center">
             <p className="text-sm text-gray-500">No saved segments yet.</p>
             {!readOnly && (
-              <button onClick={() => setShowCreate(true)} className="mt-2 text-sm font-medium text-[#FF4D8D] hover:underline">
+              <button onClick={() => setShowCreate(true)} className="mt-2 text-sm font-medium text-[var(--primary)] hover:underline">
                 Create your first segment
               </button>
             )}

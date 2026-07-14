@@ -27,7 +27,7 @@ export function RosterStats({ roster }: { roster: RosterEntry[] }) {
       label: 'Total Managed',
       value: total.toString(),
       icon: Users,
-      iconBg: 'bg-pink-50',
+      iconBg: 'bg-primary/10',
       iconColor: 'text-[#E91E8C]',
     },
     {

@@ -50,7 +50,7 @@ export async function BrandPerformance({ brands, range }: Props) {
   return (
     <div className="rounded-2xl bg-white border border-gray-200 shadow-sm overflow-hidden">
       <div className="px-5 py-3.5 border-b border-gray-200 flex items-center gap-2">
-        <span className="h-7 w-7 rounded-lg bg-[#FF4D8D]/10 text-[#FF4D8D] flex items-center justify-center">
+        <span className="h-7 w-7 rounded-lg bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center">
           <Building2 className="h-4 w-4" />
         </span>
         <h3 className="text-sm font-extrabold tracking-tight text-[#1A1B3A]">Brand Performance</h3>
@@ -81,7 +81,7 @@ export async function BrandPerformance({ brands, range }: Props) {
             <Link
               key={b.slug}
               href={hrefFor(b.slug)}
-              className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] items-center gap-4 px-5 py-3 hover:bg-gray-50/60 transition-colors group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF4D8D]/40 focus-visible:ring-inset"
+              className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] items-center gap-4 px-5 py-3 hover:bg-gray-50/60 transition-colors group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40 focus-visible:ring-inset"
             >
               {/* Brand color dot */}
               <span
@@ -91,7 +91,7 @@ export async function BrandPerformance({ brands, range }: Props) {
 
               {/* Brand name + share of portfolio */}
               <div className="min-w-0">
-                <p className="text-sm font-semibold text-[#1A1B3A] truncate group-hover:text-[#FF4D8D] transition-colors">
+                <p className="text-sm font-semibold text-[#1A1B3A] truncate group-hover:text-[var(--primary)] transition-colors">
                   {name}
                 </p>
                 <p className="text-[11px] font-mono tabular-nums text-gray-400">{sharePct.toFixed(1)}% of portfolio</p>

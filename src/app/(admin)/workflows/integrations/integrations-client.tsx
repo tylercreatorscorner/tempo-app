@@ -352,7 +352,7 @@ function ConnectModal({
                 <select
                   value={brandId}
                   onChange={(e) => setBrandId(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30"
                 >
                   <option value="workspace">Workspace-wide (no brand)</option>
                   {brands.map(b => (
@@ -383,7 +383,7 @@ function ConnectModal({
           {oauthSupported && (
             <button
               onClick={go}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#FF4D8D] text-white hover:bg-[#E91E8C] transition-colors"
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[var(--primary)] text-white hover:bg-[#E91E8C] transition-colors"
             >
               Continue to {label}
             </button>
@@ -630,7 +630,7 @@ function TestSendSection({
       <button
         onClick={send}
         disabled={sending}
-        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#FF4D8D] text-white hover:bg-[#E91E8C] disabled:opacity-50 transition-colors"
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[var(--primary)] text-white hover:bg-[#E91E8C] disabled:opacity-50 transition-colors"
       >
         {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
         {sending ? 'Sending…' : `Send test ${action.action.replace(/_/g, ' ').replace(/^send /, '')}`}
@@ -683,7 +683,7 @@ function CatalogCard({
       {!item.comingSoon && (
         <button
           onClick={onConnect}
-          className="absolute top-3 right-3 inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-lg bg-[#FF4D8D]/10 text-[#FF4D8D] hover:bg-[#FF4D8D]/15 transition-colors"
+          className="absolute top-3 right-3 inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-lg bg-[var(--primary)]/10 text-[var(--primary)] hover:bg-[var(--primary)]/15 transition-colors"
         >
           <Plus className="h-3 w-3" />
           Connect

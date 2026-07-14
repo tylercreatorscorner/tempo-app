@@ -455,7 +455,7 @@ function BrandClientReportCard() {
         </div>
 
         {/* Right: Sections preview */}
-        <div className="lg:col-span-2 bg-gradient-to-br from-purple-50 via-pink-50/40 to-white border-l border-gray-100 p-6">
+        <div className="lg:col-span-2 bg-gradient-to-br from-purple-50 via-primary/10/40 to-white border-l border-gray-100 p-6">
           <div className="text-[10px] font-bold uppercase tracking-[0.15em] text-purple-700 mb-3">What's inside</div>
           <ul className="space-y-2 text-xs text-gray-700">
             {[
@@ -1104,7 +1104,7 @@ function PostCard({
       {/* Header */}
       <div className="px-5 py-4 border-b border-gray-100">
         <div className="flex items-center gap-3 mb-1">
-          <div className="h-9 w-9 rounded-lg bg-pink-50 flex items-center justify-center">
+          <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center">
             <Icon className="h-5 w-5 text-[#E91E8C]" />
           </div>
           <h2 className="text-lg font-bold text-[#1A1B3A]">{title}</h2>
@@ -1216,7 +1216,7 @@ function PostCard({
                 <span className="text-xs font-semibold text-gray-500">Slack Preview</span>
                 <CopyBtn copied={copied} onClick={handleCopy} variant="slack" />
               </div>
-              <div className="bg-white p-4 flex-1 overflow-auto max-h-[500px] border-l-4 border-[#FF4D8D]">
+              <div className="bg-white p-4 flex-1 overflow-auto max-h-[500px] border-l-4 border-[var(--primary)]">
                 <div className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">
                   {text}
                 </div>

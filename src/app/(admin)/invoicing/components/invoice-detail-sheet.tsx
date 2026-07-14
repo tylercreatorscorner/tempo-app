@@ -396,7 +396,7 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
           <button
             onClick={handleEmail}
             disabled={emailing || invoice.status === 'void'}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#FF4D8D] text-white text-xs font-bold hover:bg-[#E91E8C] disabled:opacity-50 transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--primary)] text-white text-xs font-bold hover:bg-[#E91E8C] disabled:opacity-50 transition-colors"
             title={invoice.bill_to_email ? `Email this invoice to ${invoice.bill_to_email}` : 'Set Bill-To Email to enable'}
           >
             {emailing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
@@ -534,9 +534,9 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
             <Field label="Launch Fee" prefix="$">
               <NumberInput value={draft.launch_fee} step={100} onChange={(v) => setDraft({ ...draft, launch_fee: v })} />
             </Field>
-            <div className="rounded-xl bg-gradient-to-br from-[#FFF0F5] to-white border border-pink-100 px-4 py-3 flex items-center justify-between mt-2">
+            <div className="rounded-xl bg-gradient-to-br from-[#FFF0F5] to-white border border-primary/10 px-4 py-3 flex items-center justify-between mt-2">
               <span className="text-xs font-bold uppercase tracking-wider text-gray-500">Total</span>
-              <span className="text-xl font-extrabold text-[#FF4D8D] tabular-nums">{formatCurrency(computedTotal)}</span>
+              <span className="text-xl font-extrabold text-[var(--primary)] tabular-nums">{formatCurrency(computedTotal)}</span>
             </div>
           </Section>
 
@@ -640,7 +640,7 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
             <button
               onClick={handleSave}
               disabled={saving}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-[#FF4D8D] rounded-xl hover:bg-[#E91E8C] disabled:opacity-50 transition-colors shadow-sm"
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-[var(--primary)] rounded-xl hover:bg-[#E91E8C] disabled:opacity-50 transition-colors shadow-sm"
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               {saving ? 'Saving…' : 'Save changes'}
@@ -783,7 +783,7 @@ function NumberInput({ value, step, onChange }: { value: number; step: number; o
         const n = parseFloat(e.target.value);
         if (Number.isFinite(n) && n >= 0) onChange(n);
       }}
-      className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm text-[#1A1B3A] tabular-nums focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D] transition-colors"
+      className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm text-[#1A1B3A] tabular-nums focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] transition-colors"
     />
   );
 }
@@ -797,7 +797,7 @@ function TextInput({ value, placeholder, type = 'text', onChange }: {
       value={value}
       placeholder={placeholder}
       onChange={(e) => onChange(e.target.value)}
-      className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D] transition-colors"
+      className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] transition-colors"
     />
   );
 }
@@ -809,7 +809,7 @@ function TextArea({ value, placeholder, onChange }: { value: string; placeholder
       placeholder={placeholder}
       onChange={(e) => onChange(e.target.value)}
       rows={3}
-      className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D] transition-colors resize-y"
+      className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] transition-colors resize-y"
     />
   );
 }
@@ -818,10 +818,10 @@ function ReadOnlyStat({ label, value, highlight }: { label: string; value: strin
   return (
     <div className={cn(
       'rounded-xl border p-3',
-      highlight ? 'border-[#FF4D8D]/20 bg-[#FFF0F5]/40' : 'border-gray-100 bg-gray-50/40',
+      highlight ? 'border-[var(--primary)]/20 bg-[#FFF0F5]/40' : 'border-gray-100 bg-gray-50/40',
     )}>
       <p className="text-[9px] font-bold uppercase tracking-wider text-gray-400">{label}</p>
-      <p className={cn('text-sm font-bold tabular-nums mt-0.5', highlight ? 'text-[#FF4D8D]' : 'text-[#1A1B3A]')}>{value}</p>
+      <p className={cn('text-sm font-bold tabular-nums mt-0.5', highlight ? 'text-[var(--primary)]' : 'text-[#1A1B3A]')}>{value}</p>
     </div>
   );
 }

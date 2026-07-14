@@ -22,7 +22,7 @@ function fmtLabel(dateStr: string) {
   return `${parseInt(m)}/${parseInt(d)}`;
 }
 
-export function GmvAreaChart({ data, color = '#FF4D8D', height = 260 }: Props) {
+export function GmvAreaChart({ data, color = 'var(--primary)', height = 260 }: Props) {
   if (!data || data.length <= 1) return null;
 
   const categories = data.map(d => fmtLabel(d.date));

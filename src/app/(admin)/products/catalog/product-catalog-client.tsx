@@ -131,7 +131,7 @@ export function ProductCatalogClient() {
                   const skuCount = (p.product_ids ?? []).length;
                   return (
                     <div key={p.id} className="flex items-center gap-4 px-5 py-4 hover:bg-gray-50/50 transition-colors">
-                      <div className="h-9 w-9 rounded-xl bg-pink-50 flex items-center justify-center shrink-0">
+                      <div className="h-9 w-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
                         <Package className="h-4 w-4 text-[#E91E8C]" />
                       </div>
                       <div className="min-w-0 flex-1">

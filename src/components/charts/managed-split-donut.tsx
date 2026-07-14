@@ -38,7 +38,7 @@ export function ManagedSplitDonut({ managedGmv, unmanagedGmv, height = 260 }: Pr
       background: 'transparent',
     },
     labels: ['Managed', 'Unmanaged'],
-    colors: ['#7C5CFC', '#E5E7EB'],
+    colors: ['var(--pulse-accent-2)', '#E5E7EB'],
     plotOptions: {
       pie: {
         donut: {

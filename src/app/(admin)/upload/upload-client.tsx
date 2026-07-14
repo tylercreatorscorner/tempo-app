@@ -550,7 +550,7 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
         className={cn(
           'rounded-2xl border-2 border-dashed p-10 text-center transition-colors',
           dragActive
-            ? 'border-[#E91E8C] bg-pink-50'
+            ? 'border-[#E91E8C] bg-primary/10'
             : 'border-gray-200 bg-gray-50/40 hover:border-gray-300'
         )}
       >
@@ -628,7 +628,7 @@ function QueueRow({
 
   const statusConfig = {
     queued:     { Icon: FileSpreadsheet, color: 'text-gray-400',    bg: 'bg-gray-50',    label: 'Queued' },
-    processing: { Icon: Loader2,         color: 'text-[#E91E8C]',   bg: 'bg-pink-50',    label: 'Processing' },
+    processing: { Icon: Loader2,         color: 'text-[#E91E8C]',   bg: 'bg-primary/10',    label: 'Processing' },
     success:    { Icon: CheckCircle2,    color: 'text-emerald-600', bg: 'bg-emerald-50', label: 'Done' },
     error:      { Icon: AlertCircle,     color: 'text-red-500',     bg: 'bg-red-50',     label: 'Error' },
     cancelled:  { Icon: AlertTriangle,   color: 'text-gray-400',    bg: 'bg-gray-50',    label: 'Cancelled' },

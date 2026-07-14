@@ -72,8 +72,8 @@ function PostCard({
     <div className="rounded-2xl bg-white border border-gray-200 shadow-sm flex flex-col">
       {/* Header */}
       <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-3">
-        <div className="h-9 w-9 rounded-lg bg-pink-50 flex items-center justify-center">
-          <Icon className="h-5 w-5 text-[#FF4D8D]" />
+        <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center">
+          <Icon className="h-5 w-5 text-[var(--primary)]" />
         </div>
         <h2 className="text-lg font-bold text-[#1A1B3A]">{title}</h2>
       </div>
@@ -84,7 +84,7 @@ function PostCard({
         <select
           value={brand}
           onChange={(e) => setBrand(e.target.value)}
-          className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-[#FF4D8D]/50"
+          className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-[var(--primary)]/50"
         >
           {BRANDS.map((b) => (
             <option key={b.value} value={b.value}>{b.label}</option>
@@ -100,7 +100,7 @@ function PostCard({
                 onClick={() => setPeriod(p.value as '7d' | '30d')}
                 className={`flex-1 text-sm font-medium py-1.5 rounded-md transition-all ${
                   period === p.value
-                    ? 'bg-white text-[#FF4D8D] shadow-sm'
+                    ? 'bg-white text-[var(--primary)] shadow-sm'
                     : 'text-gray-500 hover:text-gray-700'
                 }`}
               >
@@ -114,7 +114,7 @@ function PostCard({
         <button
           onClick={generate}
           disabled={loading}
-          className="w-full py-2.5 rounded-lg bg-[#FF4D8D] hover:bg-[#e8437e] text-white font-medium text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+          className="w-full py-2.5 rounded-lg bg-[var(--primary)] hover:bg-[#e8437e] text-white font-medium text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
         >
           {loading ? (
             <>

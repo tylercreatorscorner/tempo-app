@@ -62,9 +62,9 @@ export function DateRangePicker() {
               disabled={isPending}
               aria-pressed={isActive}
               className={cn(
-                'relative px-3.5 py-1.5 text-sm rounded-full transition-all duration-200 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF4D8D]/40 focus-visible:ring-offset-1',
+                'relative px-3.5 py-1.5 text-sm rounded-full transition-all duration-200 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40 focus-visible:ring-offset-1',
                 isActive
-                  ? 'bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] text-white shadow-md'
+                  ? 'bg-gradient-to-r from-[var(--primary)] to-[var(--pulse-accent-2)] text-white shadow-md'
                   : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
               )}
             >
@@ -85,9 +85,9 @@ export function DateRangePicker() {
           aria-pressed={isCustom}
           aria-expanded={pickerOpen}
           className={cn(
-            'flex items-center gap-1.5 px-3.5 py-1.5 text-sm rounded-full transition-all duration-200 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF4D8D]/40 focus-visible:ring-offset-1',
+            'flex items-center gap-1.5 px-3.5 py-1.5 text-sm rounded-full transition-all duration-200 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40 focus-visible:ring-offset-1',
             isCustom
-              ? 'bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] text-white shadow-md'
+              ? 'bg-gradient-to-r from-[var(--primary)] to-[var(--pulse-accent-2)] text-white shadow-md'
               : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
           )}
         >

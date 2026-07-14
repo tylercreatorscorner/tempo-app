@@ -15,7 +15,7 @@ function MessagesSetup() {
   return (
     <div className="flex flex-col items-center justify-center min-h-[70vh] px-4">
       <div className="max-w-lg w-full text-center space-y-8">
-        <div className="inline-flex h-20 w-20 rounded-3xl bg-gradient-to-br from-[#5865F2] to-[#7C5CFC] items-center justify-center mx-auto shadow-xl shadow-[#5865F2]/20">
+        <div className="inline-flex h-20 w-20 rounded-3xl bg-gradient-to-br from-[#5865F2] to-[var(--pulse-accent-2)] items-center justify-center mx-auto shadow-xl shadow-[#5865F2]/20">
           <Bot className="h-10 w-10 text-white" />
         </div>
         <div>
@@ -31,7 +31,7 @@ function MessagesSetup() {
             { step: '3', label: 'Start messaging creators', desc: 'Send DMs and bulk messages from Tempo' },
           ].map(s => (
             <div key={s.step} className="flex items-center gap-3 px-4 py-3 rounded-xl border border-gray-100 bg-gray-50/50 text-left">
-              <span className="h-8 w-8 rounded-full bg-gradient-to-br from-[#FF4D8D] to-[#7C5CFC] flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+              <span className="h-8 w-8 rounded-full bg-gradient-to-br from-[var(--primary)] to-[var(--pulse-accent-2)] flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
                 {s.step}
               </span>
               <div className="flex-1">
@@ -43,7 +43,7 @@ function MessagesSetup() {
         </div>
         <Link
           href="/settings"
-          className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] text-white font-medium text-sm hover:opacity-90 transition-opacity"
+          className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-[var(--primary)] to-[var(--pulse-accent-2)] text-white font-medium text-sm hover:opacity-90 transition-opacity"
         >
           Go to Settings
           <ArrowRight className="h-4 w-4" />

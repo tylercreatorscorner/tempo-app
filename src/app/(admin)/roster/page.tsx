@@ -343,7 +343,7 @@ function BrandSelect({
               type="button"
               onClick={() => { onChange('all'); setOpen(false); setQuery(''); }}
               className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 transition-colors text-left ${
-                value === 'all' ? 'bg-pink-50/40 text-[#E91E8C] font-semibold' : 'text-gray-700'
+                value === 'all' ? 'bg-primary/10/40 text-[#E91E8C] font-semibold' : 'text-gray-700'
               }`}
             >
               <Globe className="h-3.5 w-3.5 text-gray-400" />
@@ -359,7 +359,7 @@ function BrandSelect({
                 key={b.slug}
                 onClick={() => { onChange(b.slug); setOpen(false); setQuery(''); }}
                 className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 transition-colors text-left ${
-                  value === b.slug ? 'bg-pink-50/40 text-[#E91E8C] font-semibold' : 'text-gray-700'
+                  value === b.slug ? 'bg-primary/10/40 text-[#E91E8C] font-semibold' : 'text-gray-700'
                 }`}
               >
                 <span
@@ -469,7 +469,7 @@ function ExtraAccountsBadge({ creator }: { creator: Creator }) {
     <div className="relative inline-block ml-1.5" ref={ref}>
       <button
         onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
-        className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-pink-50 text-[#E91E8C] hover:bg-pink-100 transition-colors"
+        className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-primary/10 text-[#E91E8C] hover:bg-primary/10 transition-colors"
       >
         +{extras.length}
       </button>
@@ -481,7 +481,7 @@ function ExtraAccountsBadge({ creator }: { creator: Creator }) {
               href={`https://tiktok.com/@${h}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="block px-2 py-1.5 text-xs text-[#E91E8C] hover:bg-pink-50 rounded-lg transition-colors"
+              className="block px-2 py-1.5 text-xs text-[#E91E8C] hover:bg-primary/10 rounded-lg transition-colors"
               onClick={(e) => e.stopPropagation()}
             >
               @{h}
@@ -1300,7 +1300,7 @@ function CreatorAvatar({ creator }: { creator: Creator }) {
     );
   }
   return (
-    <span className="h-8 w-8 rounded-full flex-shrink-0 bg-gradient-to-br from-pink-100 to-purple-100 text-[#E91E8C] flex items-center justify-center text-xs font-semibold">
+    <span className="h-8 w-8 rounded-full flex-shrink-0 bg-gradient-to-br from-primary/10 to-purple-100 text-[#E91E8C] flex items-center justify-center text-xs font-semibold">
       {initial}
     </span>
   );
@@ -1622,14 +1622,14 @@ function RosterContent() {
           value={loading && !summary ? '…' : fmt(affiliateGmv)}
           trend={summary ? pctDelta(affiliateGmv, summary.affiliate_gmv_prev) : undefined}
           trendLabel={periodLabel}
-          accentColor="#7C5CFC"
+          accentColor="var(--pulse-accent-2)"
         />
         <StatCard
           label="Managed GMV"
           value={loading ? '…' : fmt(totalGmvPeriod)}
           trend={summary ? pctDelta(totalGmvPeriod, summary.managed_gmv_prev) : undefined}
           trendLabel={periodLabel}
-          accentColor="#FF4D8D"
+          accentColor="var(--primary)"
         />
         <StatCard
           label="Managed Share"
@@ -1705,7 +1705,7 @@ function RosterContent() {
       {/* Active segment chip — indicates applied filters (incl. hidden thresholds) */}
       {segFilters && (
         <div className="flex items-center gap-2 -mt-1">
-          <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-pink-50 text-[#E91E8C] border border-pink-100">
+          <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-primary/10 text-[#E91E8C] border border-primary/10">
             Segment: {segFilters.name}
             <button onClick={() => setSegFilters(null)} className="ml-0.5 leading-none text-sm hover:text-[#d1177d]" aria-label="Clear segment">×</button>
           </span>
@@ -1714,7 +1714,7 @@ function RosterContent() {
 
       {/* Multi-select action bar — appears once candidates are checked */}
       {selected.size > 0 && (
-        <div className="flex items-center justify-between gap-3 rounded-xl border border-pink-200 bg-pink-50 px-4 py-2.5">
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-primary/15 bg-primary/10 px-4 py-2.5">
           <span className="text-sm font-semibold text-[#1A1B3A]">
             {selected.size} selected
           </span>
@@ -1818,7 +1818,7 @@ function RosterContent() {
                   return (
                     <Fragment key={c.id}>
                     <tr
-                      className={`transition-colors cursor-pointer ${c.is_managed ? 'hover:bg-pink-50/20' : 'bg-slate-50/40 hover:bg-slate-100/50'} ${isOpen ? 'bg-pink-50/30' : ''}`}
+                      className={`transition-colors cursor-pointer ${c.is_managed ? 'hover:bg-primary/10/20' : 'bg-slate-50/40 hover:bg-slate-100/50'} ${isOpen ? 'bg-primary/10/30' : ''}`}
                       onClick={() => {
                         if (isGroup) { toggleExpand(c.id); return; }
                         if (c.is_managed) setSelectedCreator(c);
@@ -1858,7 +1858,7 @@ function RosterContent() {
                             {(c.product_tags ?? []).length > 0 && (
                               <div className="flex flex-wrap gap-1 mt-1">
                                 {(c.product_tags ?? []).slice(0, 3).map((t) => (
-                                  <span key={t.key} className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-pink-50 text-[#E91E8C]">
+                                  <span key={t.key} className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-primary/10 text-[#E91E8C]">
                                     {t.name}
                                   </span>
                                 ))}
@@ -1889,7 +1889,7 @@ function RosterContent() {
                       {showBrandColumn && (
                         <td className="px-5 py-3.5">
                           {isGroup ? (
-                            <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-pink-50 text-[#E91E8C] border border-pink-100">
+                            <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-primary/10 text-[#E91E8C] border border-primary/10">
                               {c.brands?.length ?? 0} brands
                             </span>
                           ) : c.brand ? (
@@ -1944,7 +1944,7 @@ function RosterContent() {
                           {!c.is_managed && (
                             <button
                               onClick={(e) => { e.stopPropagation(); setAddModalPrefill({ account_1: primary ?? '', brand: c.brand ?? '' }); }}
-                              className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border border-pink-200 bg-pink-50 text-[#E91E8C] hover:bg-pink-100 transition-colors whitespace-nowrap"
+                              className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border border-primary/15 bg-primary/10 text-[#E91E8C] hover:bg-primary/10 transition-colors whitespace-nowrap"
                             >
                               <Plus className="h-3 w-3" /> Add to roster
                             </button>

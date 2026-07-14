@@ -185,14 +185,14 @@ export function CreatorOverridesSection({ brand, brandRate }: Props) {
                     value={dirtyVal ?? String(o.rate)}
                     onChange={(e) => setDrafts((d) => ({ ...d, [o.creator_name]: e.target.value }))}
                     disabled={isSaving}
-                    className="w-20 px-2 py-1 pr-6 rounded-lg border border-gray-200 text-xs text-right tabular-nums text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D] disabled:opacity-50"
+                    className="w-20 px-2 py-1 pr-6 rounded-lg border border-gray-200 text-xs text-right tabular-nums text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] disabled:opacity-50"
                   />
                   <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 pointer-events-none">%</span>
                 </div>
                 {isDirty && !isSaving && (
                   <button
                     onClick={() => handleUpdate(o.creator_name)}
-                    className="inline-flex items-center justify-center h-7 w-7 rounded-lg bg-[#FF4D8D] text-white hover:bg-[#E91E8C] transition-colors"
+                    className="inline-flex items-center justify-center h-7 w-7 rounded-lg bg-[var(--primary)] text-white hover:bg-[#E91E8C] transition-colors"
                     title="Save"
                   >
                     <Save className="h-3.5 w-3.5" />
@@ -214,13 +214,13 @@ export function CreatorOverridesSection({ brand, brandRate }: Props) {
       )}
 
       {/* Add new */}
-      <div className="rounded-xl bg-[#FFF0F5]/40 border border-pink-100 p-3 space-y-2">
+      <div className="rounded-xl bg-[#FFF0F5]/40 border border-primary/10 p-3 space-y-2">
         <div className="flex items-center gap-2">
           <select
             value={draftCreator}
             onChange={(e) => setDraftCreator(e.target.value)}
             disabled={adding || available.length === 0}
-            className="flex-1 min-w-0 px-2 py-1.5 rounded-lg border border-gray-200 text-xs bg-white text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D] disabled:opacity-50"
+            className="flex-1 min-w-0 px-2 py-1.5 rounded-lg border border-gray-200 text-xs bg-white text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] disabled:opacity-50"
           >
             <option value="">{available.length === 0 ? 'No creators left to override' : 'Pick a creator…'}</option>
             {available.map((m) => (
@@ -239,14 +239,14 @@ export function CreatorOverridesSection({ brand, brandRate }: Props) {
               onChange={(e) => setDraftRate(e.target.value)}
               placeholder="Rate"
               disabled={adding}
-              className="w-20 px-2 py-1.5 pr-6 rounded-lg border border-gray-200 text-xs text-right tabular-nums text-[#1A1B3A] bg-white focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D] disabled:opacity-50"
+              className="w-20 px-2 py-1.5 pr-6 rounded-lg border border-gray-200 text-xs text-right tabular-nums text-[#1A1B3A] bg-white focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] disabled:opacity-50"
             />
             <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 pointer-events-none">%</span>
           </div>
           <button
             onClick={handleAdd}
             disabled={adding || !draftCreator || !draftRate}
-            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#FF4D8D] text-white text-xs font-bold hover:bg-[#E91E8C] disabled:opacity-50 transition-colors"
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[var(--primary)] text-white text-xs font-bold hover:bg-[#E91E8C] disabled:opacity-50 transition-colors"
           >
             {adding ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
             Add

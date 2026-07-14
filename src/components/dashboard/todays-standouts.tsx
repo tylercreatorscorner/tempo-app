@@ -46,7 +46,7 @@ export function TodaysStandoutsSkeleton() {
   return (
     <div className="rounded-2xl bg-white border border-gray-200 shadow-sm overflow-hidden">
       <div className="px-6 py-4 flex items-center gap-3">
-        <span className="h-7 w-7 rounded-lg bg-[#FF4D8D]/10 text-[#FF4D8D] flex items-center justify-center">
+        <span className="h-7 w-7 rounded-lg bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center">
           <Sparkles className="h-4 w-4" />
         </span>
         <h3 className="text-lg font-bold tracking-tight text-[#1A1B3A]">Today&apos;s Standouts</h3>

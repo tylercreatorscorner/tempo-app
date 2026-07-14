@@ -39,7 +39,7 @@ export default function DiscoverPage() {
             key={tab.label}
             className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
               tab.active
-                ? 'border-[#FF4D8D] text-[#FF4D8D]'
+                ? 'border-[var(--primary)] text-[var(--primary)]'
                 : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}
           >
@@ -50,7 +50,7 @@ export default function DiscoverPage() {
 
       {/* Coming soon state */}
       <div className="flex flex-col items-center justify-center py-20 text-center">
-        <div className="h-20 w-20 rounded-3xl bg-gradient-to-br from-[#FF4D8D] to-[#7C5CFC] flex items-center justify-center mb-6 shadow-xl shadow-[#FF4D8D]/20">
+        <div className="h-20 w-20 rounded-3xl bg-gradient-to-br from-[var(--primary)] to-[var(--pulse-accent-2)] flex items-center justify-center mb-6 shadow-xl shadow-[var(--primary)]/20">
           <Compass className="h-10 w-10 text-white" />
         </div>
         <h2 className="text-xl font-bold text-gray-900 mb-2">Discover is Coming Soon</h2>

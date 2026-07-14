@@ -97,7 +97,7 @@ export default async function RetentionPage({ searchParams }: Props) {
               value={ins.recentM1Pct != null ? `${ins.recentM1Pct.toFixed(0)}%` : '—'}
               trend={ins.trendPp ?? undefined}
               trendLabel="recent vs older cohorts"
-              accentColor="#7C5CFC"
+              accentColor="var(--pulse-accent-2)"
             />
           </div>
 
@@ -110,7 +110,7 @@ export default async function RetentionPage({ searchParams }: Props) {
                   Share of each cohort still posting, by months since their first managed post
                 </p>
               </div>
-              <span className="h-8 w-8 rounded-lg bg-[#FF4D8D]/10 text-[#FF4D8D] flex items-center justify-center shrink-0">
+              <span className="h-8 w-8 rounded-lg bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center shrink-0">
                 <Activity className="h-4 w-4" />
               </span>
             </div>
@@ -127,7 +127,7 @@ export default async function RetentionPage({ searchParams }: Props) {
           {/* Re-engage hook → the "Going silent" segment */}
           <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="flex items-start gap-3">
-              <span className="h-9 w-9 rounded-lg bg-[#FF4D8D]/10 text-[#FF4D8D] flex items-center justify-center shrink-0">
+              <span className="h-9 w-9 rounded-lg bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center shrink-0">
                 <TrendingDown className="h-5 w-5" />
               </span>
               <div>
@@ -140,7 +140,7 @@ export default async function RetentionPage({ searchParams }: Props) {
             </div>
             <Link
               href={reengageHref}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#FF4D8D] text-white text-sm font-semibold hover:bg-[#e63d7d] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF4D8D]/40 focus-visible:ring-offset-1 shrink-0"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[var(--primary)] text-white text-sm font-semibold hover:bg-[#e63d7d] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40 focus-visible:ring-offset-1 shrink-0"
             >
               Re-engage silent creators <ArrowRight className="h-4 w-4" />
             </Link>

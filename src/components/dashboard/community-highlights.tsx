@@ -29,7 +29,7 @@ export function CommunityHighlights({ creators }: Props) {
   return (
     <div className="rounded-2xl bg-white border border-gray-200 shadow-sm overflow-hidden">
       <div className="p-4 border-b border-gray-200 flex items-center gap-2">
-        <span className="h-7 w-7 rounded-lg bg-[#FF4D8D]/10 text-[#FF4D8D] flex items-center justify-center">
+        <span className="h-7 w-7 rounded-lg bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center">
           <Trophy className="h-4 w-4" />
         </span>
         <h3 className="text-sm font-extrabold tracking-tight text-[#1A1B3A]">Community Highlights</h3>
@@ -66,7 +66,7 @@ export function CommunityHighlights({ creators }: Props) {
                   className="h-8 w-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
                   style={{
                     background: c.isManaged
-                      ? 'linear-gradient(135deg, #FF4D8D, #7C5CFC)'
+                      ? 'linear-gradient(135deg, var(--primary), var(--pulse-accent-2))'
                       : 'linear-gradient(135deg, #CBD5E1, #94A3B8)',
                   }}
                 >
@@ -77,7 +77,7 @@ export function CommunityHighlights({ creators }: Props) {
                   <div className="flex items-center gap-1.5">
                     <p className="text-sm font-semibold text-[#1A1B3A] truncate">{c.display_name}</p>
                     {c.isManaged && (
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[#7C5CFC]/10 text-[#7C5CFC] flex-shrink-0">
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[var(--pulse-accent-2)]/10 text-[var(--pulse-accent-2)] flex-shrink-0">
                         M
                       </span>
                     )}

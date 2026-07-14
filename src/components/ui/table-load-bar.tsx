@@ -23,7 +23,7 @@ interface TableLoadBarProps {
 export function TableLoadBar({ active }: TableLoadBarProps) {
   if (!active) return null;
   return (
-    <div className="absolute inset-x-0 top-0 z-10 h-[3px] overflow-hidden bg-pink-100/50">
+    <div className="absolute inset-x-0 top-0 z-10 h-[3px] overflow-hidden bg-primary/10/50">
       <div className="tlb-seg absolute inset-y-0 w-1/3 rounded-full bg-[#E91E8C]" />
       <style jsx global>{`
         @keyframes tlbSlide { 0% { left: -35%; } 100% { left: 100%; } }

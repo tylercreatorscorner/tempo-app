@@ -112,7 +112,7 @@ export function LoginForm() {
             <TempoLogo size="lg" animated />
           </div>
 
-          <div className="inline-flex h-16 w-16 rounded-full bg-gradient-to-br from-[#FF4D8D] to-[#7C5CFC] items-center justify-center mx-auto">
+          <div className="inline-flex h-16 w-16 rounded-full bg-gradient-to-br from-[var(--primary)] to-[var(--pulse-accent-2)] items-center justify-center mx-auto">
             <Mail className="h-8 w-8 text-white" />
           </div>
 
@@ -150,7 +150,7 @@ export function LoginForm() {
               ) : (
                 <button
                   onClick={handleResendCode}
-                  className="text-[#FF4D8D] hover:underline font-medium"
+                  className="text-[var(--primary)] hover:underline font-medium"
                 >
                   Resend code
                 </button>
@@ -198,7 +198,7 @@ export function LoginForm() {
             type="email"
             value={email}
             onChange={(e) => { setEmail(e.target.value); setError(''); }}
-            className="w-full px-4 py-2.5 rounded-xl border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/50"
+            className="w-full px-4 py-2.5 rounded-xl border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
             placeholder="you@company.com"
             required
             autoFocus
@@ -208,7 +208,7 @@ export function LoginForm() {
         <button
           type="submit"
           disabled={loading || !email.trim()}
-          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] text-white font-medium text-sm hover:opacity-90 disabled:opacity-50 transition-opacity shadow-lg shadow-[#FF4D8D]/20"
+          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-gradient-to-r from-[var(--primary)] to-[var(--pulse-accent-2)] text-white font-medium text-sm hover:opacity-90 disabled:opacity-50 transition-opacity shadow-lg shadow-[var(--primary)]/20"
         >
           {loading ? (
             <>
@@ -242,7 +242,7 @@ export function LoginForm() {
 
       <p className="text-center text-sm text-muted-foreground">
         Don&apos;t have an account?{' '}
-        <Link href="/onboarding" className="text-[#FF4D8D] hover:underline font-medium">Sign up</Link>
+        <Link href="/onboarding" className="text-[var(--primary)] hover:underline font-medium">Sign up</Link>
       </p>
     </div>
   );

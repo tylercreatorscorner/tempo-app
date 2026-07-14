@@ -102,7 +102,7 @@ function ChangeCard({
   return link ? (
     <Link
       href={link}
-      className={`${className} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF4D8D]/40 focus-visible:ring-offset-1`}
+      className={`${className} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40 focus-visible:ring-offset-1`}
     >{inner}</Link>
   ) : (
     <div className={className}>{inner}</div>
@@ -117,7 +117,7 @@ export function NotableChanges({ brandRiser, brandFaller, creatorBreakout, hotPo
   return (
     <div>
       <div className="flex items-center gap-2 mb-3">
-        <Sparkles className="h-4 w-4 text-[#FF4D8D]" />
+        <Sparkles className="h-4 w-4 text-[var(--primary)]" />
         <h3 className="text-sm font-extrabold tracking-tight text-[#1A1B3A]">Notable Changes</h3>
         <span className="text-[11px] font-mono tabular-nums text-gray-400">vs prior period</span>
       </div>
@@ -153,8 +153,8 @@ export function NotableChanges({ brandRiser, brandFaller, creatorBreakout, hotPo
         {creatorBreakout && (
           <ChangeCard
             icon={<Sparkles className="h-3.5 w-3.5" />}
-            iconColor="#7C5CFC"
-            iconBg="#7C5CFC18"
+            iconColor="var(--pulse-accent-2)"
+            iconBg="var(--pulse-accent-2)18"
             eyebrow="Breakout Creator"
             title={`@${creatorBreakout.creator_name}`}
             subtitle={`${brandMeta.label(creatorBreakout.brand)} · ${

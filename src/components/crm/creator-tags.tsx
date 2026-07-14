@@ -102,7 +102,7 @@ export function CreatorTags({ creatorId }: { creatorId: string }) {
                   </button>
                 ))}
                 {query.trim() && !allTags.includes(query.trim().toLowerCase()) && (
-                  <button onClick={() => addTag(query)} className="w-full text-left px-3 py-1.5 text-sm text-[#FF4D8D] hover:bg-pink-50 transition">
+                  <button onClick={() => addTag(query)} className="w-full text-left px-3 py-1.5 text-sm text-[var(--primary)] hover:bg-primary/10 transition">
                     Create &quot;{query.trim()}&quot;
                   </button>
                 )}

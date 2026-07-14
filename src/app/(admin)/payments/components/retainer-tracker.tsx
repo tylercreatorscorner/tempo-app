@@ -102,7 +102,7 @@ export function RetainerTracker({
                 onClick={() => onStatusFilterChange(tab.value)}
                 className={cn(
                   'inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all',
-                  active ? 'bg-[#FFF0F5] text-[#FF4D8D]' : 'text-gray-500 hover:text-gray-700',
+                  active ? 'bg-[#FFF0F5] text-[var(--primary)]' : 'text-gray-500 hover:text-gray-700',
                 )}
               >
                 <Icon className="h-3.5 w-3.5" />
@@ -115,7 +115,7 @@ export function RetainerTracker({
           <select
             value={brandFilter}
             onChange={(e) => onBrandFilterChange(e.target.value)}
-            className="appearance-none bg-white border border-gray-200 rounded-xl pl-9 pr-8 py-2 text-xs font-semibold text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D] cursor-pointer"
+            className="appearance-none bg-white border border-gray-200 rounded-xl pl-9 pr-8 py-2 text-xs font-semibold text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] cursor-pointer"
           >
             <option value="all">All brands</option>
             {availableBrands.map((b) => (
@@ -130,7 +130,7 @@ export function RetainerTracker({
       <div className={cn('transition-opacity duration-200', refetching && 'opacity-60')}>
       {loading && creators.length === 0 ? (
         <div className="p-12 text-center">
-          <div className="inline-block h-8 w-8 rounded-full border-2 border-gray-200 border-t-[#FF4D8D] animate-spin" />
+          <div className="inline-block h-8 w-8 rounded-full border-2 border-gray-200 border-t-[var(--primary)] animate-spin" />
         </div>
       ) : creators.length === 0 ? (
         <div className="px-6 py-16 text-center">
@@ -168,7 +168,7 @@ export function RetainerTracker({
                     >
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
-                          <ChevronRight className={cn('h-3.5 w-3.5 text-gray-300 transition-transform', isExpanded && 'rotate-90 text-[#FF4D8D]')} />
+                          <ChevronRight className={cn('h-3.5 w-3.5 text-gray-300 transition-transform', isExpanded && 'rotate-90 text-[var(--primary)]')} />
                           <span className="text-sm font-semibold text-[#1A1B3A]">{c.creator_name}</span>
                         </div>
                       </td>
@@ -246,7 +246,7 @@ export function RetainerTracker({
             <select
               value={pageSize}
               onChange={(e) => setPageSize(Number(e.target.value))}
-              className="appearance-none bg-white border border-gray-200 rounded-lg pl-2 pr-6 py-1 text-xs font-semibold text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D] cursor-pointer"
+              className="appearance-none bg-white border border-gray-200 rounded-lg pl-2 pr-6 py-1 text-xs font-semibold text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] cursor-pointer"
             >
               {PAGE_SIZE_OPTIONS.map((n) => (
                 <option key={n} value={n}>{n === 0 ? 'All' : n}</option>
@@ -280,7 +280,7 @@ export function RetainerTracker({
           <span>Showing all {total} rows</span>
           <button
             onClick={() => setPageSize(25)}
-            className="font-semibold text-[#FF4D8D] hover:text-[#E91E8C] transition-colors"
+            className="font-semibold text-[var(--primary)] hover:text-[#E91E8C] transition-colors"
           >
             Paginate
           </button>
@@ -305,7 +305,7 @@ function PageButton({
       disabled={disabled}
       title={title}
       aria-label={title}
-      className="inline-flex items-center justify-center h-7 w-7 rounded-lg border border-gray-200 bg-white text-gray-500 hover:text-[#FF4D8D] hover:border-[#FF4D8D]/30 disabled:opacity-30 disabled:hover:text-gray-500 disabled:hover:border-gray-200 transition-colors"
+      className="inline-flex items-center justify-center h-7 w-7 rounded-lg border border-gray-200 bg-white text-gray-500 hover:text-[var(--primary)] hover:border-[var(--primary)]/30 disabled:opacity-30 disabled:hover:text-gray-500 disabled:hover:border-gray-200 transition-colors"
     >
       {children}
     </button>

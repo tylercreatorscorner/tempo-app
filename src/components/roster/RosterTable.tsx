@@ -102,7 +102,7 @@ export function RosterTable({ roster, onRefresh }: RosterTableProps) {
             placeholder="Search creators..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-200 focus:border-[#E91E8C]"
+            className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/15 focus:border-[#E91E8C]"
           />
         </div>
         <div className="flex items-center gap-2">
@@ -211,7 +211,7 @@ export function RosterTable({ roster, onRefresh }: RosterTableProps) {
                 type="text"
                 value={editForm.creator_name || ''}
                 onChange={(e) => setEditForm({ ...editForm, creator_name: e.target.value })}
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-200"
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/15"
               />
             </div>
             <div>
@@ -220,7 +220,7 @@ export function RosterTable({ roster, onRefresh }: RosterTableProps) {
                 type="number"
                 value={editForm.retainer_amount ?? ''}
                 onChange={(e) => setEditForm({ ...editForm, retainer_amount: e.target.value ? Number(e.target.value) : null })}
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-200"
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/15"
               />
             </div>
             <div>
@@ -228,7 +228,7 @@ export function RosterTable({ roster, onRefresh }: RosterTableProps) {
               <select
                 value={editForm.status || 'active'}
                 onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-200"
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/15"
               >
                 <option value="active">Active</option>
                 <option value="paused">Paused</option>
@@ -241,7 +241,7 @@ export function RosterTable({ roster, onRefresh }: RosterTableProps) {
                 type="text"
                 value={editForm.notes || ''}
                 onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-200"
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/15"
               />
             </div>
           </div>

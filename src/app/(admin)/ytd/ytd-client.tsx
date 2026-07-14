@@ -147,7 +147,7 @@ export function YtdClient({ initialYear }: { initialYear: number }) {
               value={year}
               onChange={(e) => setYear(Number(e.target.value))}
               disabled={loading}
-              className="appearance-none bg-white border border-gray-200 rounded-xl pl-4 pr-10 py-2 text-sm font-semibold text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D] cursor-pointer disabled:opacity-50"
+              className="appearance-none bg-white border border-gray-200 rounded-xl pl-4 pr-10 py-2 text-sm font-semibold text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] cursor-pointer disabled:opacity-50"
             >
               {yearOptions.map((y) => <option key={y} value={y}>{y}</option>)}
             </select>
@@ -187,12 +187,12 @@ export function YtdClient({ initialYear }: { initialYear: number }) {
             value={data ? formatCurrency(data.totals.earnings) : '—'}
             hero
             sparklineData={data?.months.map((m) => m.earnings)}
-            accentColor="#FF4D8D"
+            accentColor="var(--primary)"
           />
         </div>
         <div className="lg:col-span-7 grid grid-cols-2 lg:grid-cols-4 gap-3">
           <StatCard label="Total GMV"   value={data ? formatCurrency(data.totals.totalGmv)   : '—'} accentColor="#2196F3" />
-          <StatCard label="Commission"  value={data ? formatCurrency(data.totals.commission) : '—'} accentColor="#7C5CFC" />
+          <StatCard label="Commission"  value={data ? formatCurrency(data.totals.commission) : '—'} accentColor="var(--pulse-accent-2)" />
           <StatCard label="Retainers"   value={data ? formatCurrency(data.totals.retainers)  : '—'} accentColor="#10B981" />
           <StatCard label="Launch Fees" value={data ? formatCurrency(data.totals.launchFees) : '—'} accentColor="#FF9800" />
         </div>
@@ -239,7 +239,7 @@ function MonthlyTrendChart({ data }: { data: MonthPoint[] }) {
   const categories = data.map((p) => monthLabel(p.month));
   const options: ApexOptions = {
     chart: { type: 'area', stacked: true, toolbar: { show: false }, zoom: { enabled: false }, fontFamily: 'inherit', background: 'transparent', animations: { enabled: true, speed: 600 } },
-    colors: ['#FF4D8D', '#7C5CFC', '#FF9800'],
+    colors: ['var(--primary)', 'var(--pulse-accent-2)', '#FF9800'],
     stroke: { curve: 'smooth', width: 2 },
     fill: {
       type: 'gradient',
@@ -277,7 +277,7 @@ function BrandContributionChart({ data }: { data: BrandRow[] }) {
   const options: ApexOptions = {
     chart: { type: 'bar', stacked: true, toolbar: { show: false }, fontFamily: 'inherit', background: 'transparent', animations: { enabled: true, speed: 500 } },
     plotOptions: { bar: { horizontal: true, borderRadius: 6, barHeight: '60%', borderRadiusApplication: 'end', borderRadiusWhenStacked: 'last' } },
-    colors: ['#FF4D8D', '#7C5CFC', '#FF9800'],
+    colors: ['var(--primary)', 'var(--pulse-accent-2)', '#FF9800'],
     dataLabels: { enabled: false },
     legend: { position: 'top', horizontalAlign: 'right', fontSize: '12px', labels: { colors: '#6B7280' }, markers: { size: 6 }, itemMargin: { horizontal: 8 } },
     xaxis: {
@@ -333,7 +333,7 @@ function MonthlyTable({ months, totals, year }: { months: MonthPoint[]; totals: 
             <td className="px-4 py-3 text-right tabular-nums text-emerald-600">{formatCurrency(totals.commission)}</td>
             <td className="px-4 py-3 text-right tabular-nums">{formatCurrency(totals.retainers)}</td>
             <td className="px-4 py-3 text-right tabular-nums">{formatCurrency(totals.launchFees)}</td>
-            <td className="px-4 py-3 text-right tabular-nums text-[#FF4D8D]">{formatCurrency(totals.earnings)}</td>
+            <td className="px-4 py-3 text-right tabular-nums text-[var(--primary)]">{formatCurrency(totals.earnings)}</td>
           </tr>
         </tfoot>
       </table>

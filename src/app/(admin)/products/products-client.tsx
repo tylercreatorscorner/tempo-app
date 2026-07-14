@@ -425,7 +425,7 @@ function ProductRowGroup({
         onClick={onToggle}
         className={cn(
           'border-t border-gray-50 hover:bg-gray-50/50 cursor-pointer transition-colors',
-          isExpanded && 'bg-pink-50/40'
+          isExpanded && 'bg-primary/10/40'
         )}
       >
         <td className="px-4 py-3 align-top">

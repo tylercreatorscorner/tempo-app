@@ -111,7 +111,7 @@ export function BulkMessageModal({ open, onClose }: Props) {
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
           <div className="flex items-center gap-3">
-            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-pink-500 to-purple-500 flex items-center justify-center">
+            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary to-purple-500 flex items-center justify-center">
               <Users className="h-4 w-4 text-white" />
             </div>
             <div>
@@ -141,7 +141,7 @@ export function BulkMessageModal({ open, onClose }: Props) {
                   className={cn(
                     'px-3 py-1.5 rounded-lg text-xs font-medium border transition-all',
                     brandFilter === 'all'
-                      ? 'border-pink-300 bg-pink-50 text-pink-600'
+                      ? 'border-primary/20 bg-primary/10 text-primary'
                       : 'border-gray-200 text-gray-500 hover:border-gray-300'
                   )}
                 >
@@ -235,7 +235,7 @@ export function BulkMessageModal({ open, onClose }: Props) {
               <button
                 onClick={() => setStep('preview')}
                 disabled={filtered.length === 0 || loading}
-                className="flex items-center gap-1 px-4 py-2 rounded-xl bg-gradient-to-br from-pink-500 to-purple-500 text-white text-sm font-medium hover:opacity-90 disabled:opacity-40 transition-opacity"
+                className="flex items-center gap-1 px-4 py-2 rounded-xl bg-gradient-to-br from-primary to-purple-500 text-white text-sm font-medium hover:opacity-90 disabled:opacity-40 transition-opacity"
               >
                 Preview
                 <ChevronRight className="h-4 w-4" />
@@ -249,7 +249,7 @@ export function BulkMessageModal({ open, onClose }: Props) {
           <div className="flex-1 overflow-y-auto">
             <div className="px-6 py-3 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
               <span className="text-xs text-gray-500">{filtered.length} creators will receive this message</span>
-              <button onClick={() => setStep('filters')} className="text-xs text-pink-500 hover:text-pink-700">
+              <button onClick={() => setStep('filters')} className="text-xs text-primary hover:text-primary">
                 Edit filters
               </button>
             </div>
@@ -285,7 +285,7 @@ export function BulkMessageModal({ open, onClose }: Props) {
               </button>
               <button
                 onClick={() => setStep('compose')}
-                className="flex items-center gap-1 px-4 py-2 rounded-xl bg-gradient-to-br from-pink-500 to-purple-500 text-white text-sm font-medium hover:opacity-90 transition-opacity"
+                className="flex items-center gap-1 px-4 py-2 rounded-xl bg-gradient-to-br from-primary to-purple-500 text-white text-sm font-medium hover:opacity-90 transition-opacity"
               >
                 Write Message
                 <ChevronRight className="h-4 w-4" />
@@ -306,7 +306,7 @@ export function BulkMessageModal({ open, onClose }: Props) {
               onChange={e => setContent(e.target.value)}
               placeholder="Type your message..."
               rows={6}
-              className="flex-1 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-300 resize-none"
+              className="flex-1 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none"
               autoFocus
             />
             <div className="flex justify-between mt-4">
@@ -319,7 +319,7 @@ export function BulkMessageModal({ open, onClose }: Props) {
               <button
                 onClick={() => setStep('confirm')}
                 disabled={!content.trim()}
-                className="flex items-center gap-1 px-4 py-2 rounded-xl bg-gradient-to-br from-pink-500 to-purple-500 text-white text-sm font-medium hover:opacity-90 disabled:opacity-40 transition-opacity"
+                className="flex items-center gap-1 px-4 py-2 rounded-xl bg-gradient-to-br from-primary to-purple-500 text-white text-sm font-medium hover:opacity-90 disabled:opacity-40 transition-opacity"
               >
                 Review
                 <ChevronRight className="h-4 w-4" />
@@ -367,7 +367,7 @@ export function BulkMessageModal({ open, onClose }: Props) {
               <button
                 onClick={handleSend}
                 disabled={sending}
-                className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-br from-pink-500 to-purple-500 text-white text-sm font-medium hover:opacity-90 disabled:opacity-40 transition-opacity"
+                className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-br from-primary to-purple-500 text-white text-sm font-medium hover:opacity-90 disabled:opacity-40 transition-opacity"
               >
                 {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                 Send to {filtered.length} creators

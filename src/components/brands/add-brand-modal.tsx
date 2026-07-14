@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { X, Plus, Loader2 } from 'lucide-react';
 
 const BRAND_COLORS = [
-  '#FF4D8D', '#7C5CFC', '#3B82F6', '#10B981', '#F59E0B',
+  'var(--primary)', 'var(--pulse-accent-2)', '#3B82F6', '#10B981', '#F59E0B',
   '#EF4444', '#8B5CF6', '#06B6D4', '#EC4899', '#14B8A6',
 ];
 
@@ -91,7 +91,7 @@ export function AddBrandModal({ open, onClose, onCreated }: AddBrandModalProps) 
               value={name}
               onChange={(e) => handleNameChange(e.target.value)}
               placeholder="e.g., Glow Beauty"
-              className="w-full px-4 py-2.5 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/50"
+              className="w-full px-4 py-2.5 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
               required
             />
           </div>
@@ -102,7 +102,7 @@ export function AddBrandModal({ open, onClose, onCreated }: AddBrandModalProps) 
               value={slug}
               onChange={(e) => { setSlug(e.target.value); setSlugManual(true); }}
               placeholder="e.g., glow_beauty"
-              className="w-full px-4 py-2.5 rounded-xl border border-input bg-background text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/50"
+              className="w-full px-4 py-2.5 rounded-xl border border-input bg-background text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
               required
             />
             <p className="text-xs text-muted-foreground">Used in URLs and data references</p>
@@ -150,7 +150,7 @@ export function AddBrandModal({ open, onClose, onCreated }: AddBrandModalProps) 
             <button
               type="submit"
               disabled={!name.trim() || !slug.trim() || loading}
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] text-white text-sm font-semibold hover:opacity-90 disabled:opacity-50 transition-opacity"
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-gradient-to-r from-[var(--primary)] to-[var(--pulse-accent-2)] text-white text-sm font-semibold hover:opacity-90 disabled:opacity-50 transition-opacity"
             >
               {loading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />

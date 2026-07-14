@@ -48,7 +48,7 @@ export function EarningsTrendChart({ data, height = 280, activeMonth }: Props) {
       fontFamily: 'inherit',
       background: 'transparent',
     },
-    colors: ['#FF4D8D', '#7C5CFC', '#FF9800'],
+    colors: ['var(--primary)', 'var(--pulse-accent-2)', '#FF9800'],
     stroke: { curve: 'smooth', width: 2 },
     fill: {
       type: 'gradient',
@@ -101,11 +101,11 @@ export function EarningsTrendChart({ data, height = 280, activeMonth }: Props) {
       ? {
           xaxis: [{
             x: categories[activeIdx],
-            borderColor: '#FF4D8D',
+            borderColor: 'var(--primary)',
             strokeDashArray: 4,
             label: {
-              borderColor: '#FF4D8D',
-              style: { color: '#fff', background: '#FF4D8D', fontSize: '10px', fontWeight: 600 },
+              borderColor: 'var(--primary)',
+              style: { color: '#fff', background: 'var(--primary)', fontSize: '10px', fontWeight: 600 },
               text: 'Selected',
               orientation: 'horizontal',
               position: 'top',

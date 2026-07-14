@@ -116,7 +116,7 @@ export function MarkPaidModal({
               value={method}
               onChange={(e) => setMethod(e.target.value)}
               disabled={saving}
-              className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm bg-white text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D] disabled:opacity-50"
+              className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm bg-white text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] disabled:opacity-50"
             >
               {METHODS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
             </select>
@@ -130,7 +130,7 @@ export function MarkPaidModal({
               onChange={(e) => setReference(e.target.value)}
               placeholder="e.g. WIRE-20260503-ABC, check #1042"
               disabled={saving}
-              className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D] disabled:opacity-50"
+              className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] disabled:opacity-50"
             />
           </Field>
 
@@ -154,7 +154,7 @@ export function MarkPaidModal({
                 value={amount}
                 onChange={(e) => { setAmount(e.target.value); setError(null); }}
                 disabled={saving}
-                className="w-full pl-7 pr-3 py-2 rounded-xl border border-gray-200 text-sm tabular-nums text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D] disabled:opacity-50"
+                className="w-full pl-7 pr-3 py-2 rounded-xl border border-gray-200 text-sm tabular-nums text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] disabled:opacity-50"
               />
             </div>
           </Field>
@@ -167,7 +167,7 @@ export function MarkPaidModal({
               placeholder="e.g. wire fee $25 deducted, partial — remainder due 5/15"
               rows={2}
               disabled={saving}
-              className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D] resize-y disabled:opacity-50"
+              className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] resize-y disabled:opacity-50"
             />
           </Field>
 

@@ -108,9 +108,9 @@ export function OtpInput({ length = 6, onComplete, disabled = false, error = fal
             error
               ? 'border-red-400 text-red-600 animate-shake'
               : value
-                ? 'border-[#FF4D8D] text-[#1A1B3A]'
+                ? 'border-[var(--primary)] text-[#1A1B3A]'
                 : 'border-gray-200 text-[#1A1B3A]',
-            !error && !disabled && 'focus:border-[#FF4D8D] focus:ring-2 focus:ring-[#FF4D8D]/30'
+            !error && !disabled && 'focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/30'
           )}
         />
       ))}

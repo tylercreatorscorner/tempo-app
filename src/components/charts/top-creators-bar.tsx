@@ -27,7 +27,7 @@ function fmtVal(val: number) {
   return `$${val.toFixed(0)}`;
 }
 
-export function TopCreatorsBar({ creators, color = '#FF4D8D', limit = 10 }: Props) {
+export function TopCreatorsBar({ creators, color = 'var(--primary)', limit = 10 }: Props) {
   const top = creators.slice(0, limit);
 
   if (top.length === 0) {

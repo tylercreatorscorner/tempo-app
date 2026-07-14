@@ -62,7 +62,7 @@ export function PlanSelector({ currentPlan, onSelect }: PlanSelectorProps) {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl border-2 border-[#FF4D8D]/30 bg-gradient-to-br from-white to-[#FF4D8D]/5 p-6">
+      <div className="rounded-2xl border-2 border-[var(--primary)]/30 bg-gradient-to-br from-white to-[var(--primary)]/5 p-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h3 className="text-lg font-bold text-[#1A1B3A]">Brand Plan</h3>
@@ -86,7 +86,7 @@ export function PlanSelector({ currentPlan, onSelect }: PlanSelectorProps) {
             'Priority support',
           ].map((f) => (
             <div key={f} className="flex items-center gap-2 text-sm text-[#4B5563]">
-              <Check className="w-3.5 h-3.5 text-[#FF4D8D] flex-shrink-0" />
+              <Check className="w-3.5 h-3.5 text-[var(--primary)] flex-shrink-0" />
               {f}
             </div>
           ))}
@@ -95,7 +95,7 @@ export function PlanSelector({ currentPlan, onSelect }: PlanSelectorProps) {
         <button
           onClick={handleSelect}
           disabled={loading}
-          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] text-white font-semibold text-sm hover:opacity-90 disabled:opacity-50 transition-opacity shadow-lg shadow-[#FF4D8D]/20"
+          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-gradient-to-r from-[var(--primary)] to-[var(--pulse-accent-2)] text-white font-semibold text-sm hover:opacity-90 disabled:opacity-50 transition-opacity shadow-lg shadow-[var(--primary)]/20"
         >
           {loading ? (
             <>
@@ -111,7 +111,7 @@ export function PlanSelector({ currentPlan, onSelect }: PlanSelectorProps) {
       </div>
 
       <p className="text-xs text-center text-[#9CA3AF]">
-        Managing multiple brands? <a href="mailto:tyler@tempoapp.ai" className="text-[#FF4D8D] hover:underline">Contact us about agency pricing</a>
+        Managing multiple brands? <a href="mailto:tyler@tempoapp.ai" className="text-[var(--primary)] hover:underline">Contact us about agency pricing</a>
       </p>
     </div>
   );

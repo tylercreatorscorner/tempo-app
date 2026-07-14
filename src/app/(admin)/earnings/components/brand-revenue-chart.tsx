@@ -47,7 +47,7 @@ export function BrandRevenueChart({ data, height = 320 }: Props) {
     plotOptions: {
       bar: { horizontal: true, borderRadius: 6, barHeight: '60%', borderRadiusApplication: 'end', borderRadiusWhenStacked: 'last' },
     },
-    colors: ['#FF4D8D', '#7C5CFC', '#FF9800'],
+    colors: ['var(--primary)', 'var(--pulse-accent-2)', '#FF9800'],
     dataLabels: { enabled: false },
     stroke: { width: 0 },
     legend: {

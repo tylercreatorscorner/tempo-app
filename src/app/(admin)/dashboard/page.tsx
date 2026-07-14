@@ -301,7 +301,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
           value={formatNumber(totals.orders)}
           trend={ordersTrend}
           trendLabel="vs prior period"
-          accentColor="#7C5CFC"
+          accentColor="var(--pulse-accent-2)"
         />
         <StatCard
           label="Managed Share"
@@ -316,7 +316,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
         <StatCard
           label="ROI · 30d"
           value={roi > 0 ? `${roi.toFixed(1)}x` : 'N/A'}
-          accentColor={activeBrandColor ?? '#FF4D8D'}
+          accentColor={activeBrandColor ?? 'var(--primary)'}
           subValue={totalRetainerSpend > 0 ? `${formatCurrency(managedGmv30)} managed ÷ ${formatCurrency(totalRetainerSpend)}/mo` : undefined}
         />
       </div>
@@ -343,7 +343,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
             </p>
             <a
               href="?range=last7"
-              className="mt-5 inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-white border border-gray-200 text-[#1A1B3A] text-sm font-semibold hover:bg-gray-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF4D8D]/40 focus-visible:ring-offset-1"
+              className="mt-5 inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-white border border-gray-200 text-[#1A1B3A] text-sm font-semibold hover:bg-gray-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40 focus-visible:ring-offset-1"
             >
               View Last 7 Days →
             </a>

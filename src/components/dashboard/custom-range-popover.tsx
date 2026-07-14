@@ -124,7 +124,7 @@ export function CustomRangePopover({ initialStart, initialEnd, onApply, onClose,
                   'h-7 w-full rounded-md text-xs font-medium transition-colors',
                   disabled && 'text-gray-300 cursor-not-allowed',
                   !disabled && !inSel && !isStart && !isEnd && 'text-gray-700 hover:bg-gray-100',
-                  inSel && !isStart && !isEnd && 'bg-pink-50 text-[#E91E8C]',
+                  inSel && !isStart && !isEnd && 'bg-primary/10 text-[#E91E8C]',
                   (isStart || isEnd) && 'bg-[#E91E8C] text-white',
                 )}
               >

@@ -159,7 +159,7 @@ export function BrandEditSheet({ open, brand, brandLabel, teamMemberId, initialV
                   className={cn(
                     'block rounded-xl border-2 p-3 cursor-pointer transition-colors',
                     values.compensation_model === opt.value
-                      ? 'border-[#FF4D8D] bg-[#FFF0F5]'
+                      ? 'border-[var(--primary)] bg-[#FFF0F5]'
                       : 'border-gray-200 hover:border-gray-300 bg-white',
                   )}
                 >
@@ -174,7 +174,7 @@ export function BrandEditSheet({ open, brand, brandLabel, teamMemberId, initialV
                   <div className="flex items-baseline justify-between">
                     <span className="text-sm font-bold text-[#1A1B3A]">{opt.label}</span>
                     {values.compensation_model === opt.value && (
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#FF4D8D]">Active</span>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--primary)]">Active</span>
                     )}
                   </div>
                   <p className="text-xs text-gray-500 mt-0.5">{opt.description}</p>
@@ -296,7 +296,7 @@ export function BrandEditSheet({ open, brand, brandLabel, teamMemberId, initialV
           <button
             onClick={handleSave}
             disabled={saving}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-[#FF4D8D] rounded-xl hover:bg-[#E91E8C] disabled:opacity-50 transition-colors shadow-sm"
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-[var(--primary)] rounded-xl hover:bg-[#E91E8C] disabled:opacity-50 transition-colors shadow-sm"
           >
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             {saving ? 'Saving…' : 'Save changes'}
@@ -357,7 +357,7 @@ function NumberInput({ value, step, onChange }: { value: number; step: number; o
         const n = parseFloat(e.target.value);
         if (Number.isFinite(n) && n >= 0) onChange(n);
       }}
-      className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm text-[#1A1B3A] bg-white tabular-nums focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D] transition-colors"
+      className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm text-[#1A1B3A] bg-white tabular-nums focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] transition-colors"
     />
   );
 }
@@ -374,7 +374,7 @@ function TextInput({ value, placeholder, type = 'text', onChange }: {
       value={value}
       placeholder={placeholder}
       onChange={(e) => onChange(e.target.value)}
-      className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm text-[#1A1B3A] bg-white focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D] transition-colors"
+      className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm text-[#1A1B3A] bg-white focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] transition-colors"
     />
   );
 }
@@ -386,7 +386,7 @@ function TextArea({ value, placeholder, onChange }: { value: string; placeholder
       placeholder={placeholder}
       onChange={(e) => onChange(e.target.value)}
       rows={3}
-      className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm text-[#1A1B3A] bg-white focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D] transition-colors resize-y"
+      className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm text-[#1A1B3A] bg-white focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] transition-colors resize-y"
     />
   );
 }
