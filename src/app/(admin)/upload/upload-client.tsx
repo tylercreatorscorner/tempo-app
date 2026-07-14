@@ -399,25 +399,32 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
 
     // 7. Upsert via server route
     //
-    // Vercel caps request bodies at ~4.5 MB. Video List is the only table
-    // that's cumulative-all-time (rather than a daily snapshot), so for a
-    // big brand it can easily exceed that limit and the platform returns
-    // a plain-text "Request Entity Too Large" the client can't parse as
-    // JSON. The `videos` RPC is keyed by (video_id, brand) and is pure
-    // upsert (no destructive delete), so chunking is safe — each chunk is
-    // an independent idempotent upsert. Daily-snapshot tables stay as a
-    // single atomic call to preserve their delete-then-insert transaction.
-    const VIDEOS_CHUNK_SIZE = 5000;
-    const chunks: unknown[][] =
-      table === 'videos' && parsed.records.length > VIDEOS_CHUNK_SIZE
-        ? Array.from(
-            { length: Math.ceil(parsed.records.length / VIDEOS_CHUNK_SIZE) },
-            (_, i) => parsed.records.slice(i * VIDEOS_CHUNK_SIZE, (i + 1) * VIDEOS_CHUNK_SIZE),
-          )
-        : [parsed.records];
+    // Vercel caps request bodies at ~4.5 MB. Any table can exceed that on a
+    // busy brand-day — COSRX Creator Data at 42k rows was hitting it. All
+    // four upload types get chunked at CHUNK_SIZE rows.
+    //
+    // Chunking is safe across all tables:
+    //   - videos (video-list): the RPC is pure upsert on (video_id, brand),
+    //     each chunk is an independent idempotent write.
+    //   - creator/video/product performance: the RPCs are delete-then-insert
+    //     when p_overwrite=true. To preserve that semantic across chunks we
+    //     send p_overwrite=<user_choice> on the FIRST chunk (which does the
+    //     DELETE), and p_overwrite=false on every subsequent chunk (pure
+    //     INSERT ... ON CONFLICT DO UPDATE, no re-delete). The final DB
+    //     state is: all rows from all chunks, previous data cleared exactly
+    //     once. Trade-off: if the run fails mid-chunks, the state is partial
+    //     until the user retries — a fresh retry with overwrite=true fully
+    //     heals it because the first chunk deletes the partial rows.
+    const CHUNK_SIZE = 5000;
+    const chunks: unknown[][] = parsed.records.length > CHUNK_SIZE
+      ? Array.from(
+          { length: Math.ceil(parsed.records.length / CHUNK_SIZE) },
+          (_, i) => parsed.records.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE),
+        )
+      : [parsed.records];
 
     if (chunks.length > 1) {
-      appendLog(item.id, 'info', `Uploading ${parsed.records.length.toLocaleString()} rows to ${table} in ${chunks.length} chunks of up to ${VIDEOS_CHUNK_SIZE.toLocaleString()}...`);
+      appendLog(item.id, 'info', `Uploading ${parsed.records.length.toLocaleString()} rows to ${table} in ${chunks.length} chunks of up to ${CHUNK_SIZE.toLocaleString()}...`);
     } else {
       appendLog(item.id, 'info', `Uploading ${parsed.records.length.toLocaleString()} rows to ${table}...`);
     }
@@ -426,6 +433,10 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
       let totalUpserted = 0;
       for (let i = 0; i < chunks.length; i++) {
         const chunk = chunks[i];
+        // Only the first chunk carries the user's overwrite decision. If
+        // subsequent chunks re-sent overwrite=true, each would re-DELETE
+        // everything the earlier chunks just inserted.
+        const chunkOverwrite = i === 0 ? overwrite : false;
         const res = await fetch('/api/upload/run', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -434,7 +445,7 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
             brand: item.brand,
             reportDate: item.reportDate,
             records: chunk,
-            overwrite,
+            overwrite: chunkOverwrite,
           }),
         });
         // Body-too-large surfaces as a non-JSON plain-text response from the
@@ -447,7 +458,7 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
         } catch {
           throw new Error(
             res.status === 413
-              ? `Chunk ${i + 1}/${chunks.length} rejected as too large (${chunk.length.toLocaleString()} rows). Lower VIDEOS_CHUNK_SIZE.`
+              ? `Chunk ${i + 1}/${chunks.length} rejected as too large (${chunk.length.toLocaleString()} rows) despite CHUNK_SIZE=${CHUNK_SIZE}. An individual row is unusually large — file a bug.`
               : `HTTP ${res.status}: ${text.slice(0, 200)}`
           );
         }
