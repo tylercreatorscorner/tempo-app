@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
-import { requireAdmin } from '@/lib/auth/require-admin';
+import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 import { getBrandRegistry, slugToUuid } from '@/lib/data/brand-registry';
 
 /**
  * POST /api/roster/bulk — add many creators to the managed roster in one shot,
- * all under ONE brand. Owner/admin only (managers add single creators via the
- * brand-scoped /api/roster). tenant_id comes from the authenticated profile,
- * NEVER from the request body.
+ * all under ONE brand. Brand-scoped just like the single-add (POST /api/roster):
+ * owner/admin (full tenant) can target any brand; a manager can bulk-add only to
+ * brands in their access. tenant_id comes from the authenticated SESSION, never
+ * the request body.
  *
  * This MIRRORS the 4-table write of the single-add (POST /api/roster) so a
  * bulk-added creator is indistinguishable from a hand-added one. Keep the two
@@ -71,10 +72,9 @@ async function fetchInAll<T>(
 const norm = (s: string) => s.toLowerCase().replace(/^@/, '');
 
 export async function POST(request: NextRequest) {
-  const profile = await requireAdmin();
-  if (!profile) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  const tenantId = profile.tenant_id;
-  if (!tenantId) return NextResponse.json({ error: 'No tenant' }, { status: 400 });
+  const scope = await getWorkspaceScope();
+  if (!scope) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const tenantId = scope.tenantId;
 
   const body = await request.json().catch(() => null);
   if (!body || typeof body !== 'object') {
@@ -88,6 +88,13 @@ export async function POST(request: NextRequest) {
 
   if (!brand || typeof brand !== 'string') {
     return NextResponse.json({ error: 'A brand is required for bulk add' }, { status: 400 });
+  }
+  // A scoped manager may only bulk-add to brands in their access — mirrors the
+  // single-add. Owner/admin (brandScope 'all') can target any brand. (Previously
+  // this route was owner/admin-only, so managers got a bare 403 even for their
+  // own brands.)
+  if (scope.brandScope.kind === 'scoped' && !scope.brandScope.brandSlugs.includes(brand)) {
+    return NextResponse.json({ error: 'Forbidden: brand not in your access' }, { status: 403 });
   }
   if (!Array.isArray(creators) || creators.length === 0) {
     return NextResponse.json({ error: 'creators array is required' }, { status: 400 });
