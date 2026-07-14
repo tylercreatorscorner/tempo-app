@@ -11,7 +11,7 @@ interface Props {
   height?: number;
 }
 
-export function SparklineChart({ data, color = '#FF4D8D', height = 48 }: Props) {
+export function SparklineChart({ data, color = '#6D5EFC', height = 48 }: Props) {
   if (!data || data.length <= 1) return null;
 
   const options: ApexOptions = {

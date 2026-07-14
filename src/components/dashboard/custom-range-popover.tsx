@@ -98,10 +98,10 @@ export function CustomRangePopover({ initialStart, initialEnd, onApply, onClose,
 
     return (
       <div key={month.toISOString()} className="flex-1 min-w-[220px]">
-        <div className="text-center text-xs font-bold text-[#1A1B3A] mb-2">
+        <div className="text-center text-xs font-bold text-[var(--foreground)] mb-2">
           {format(month, 'MMMM yyyy')}
         </div>
-        <div className="grid grid-cols-7 gap-0.5 text-[10px] text-gray-400 font-medium mb-1">
+        <div className="grid grid-cols-7 gap-0.5 text-[10px] text-muted-foreground font-medium mb-1">
           {WEEKDAYS.map((w) => (
             <div key={w} className="h-6 flex items-center justify-center">{w}</div>
           ))}
@@ -122,10 +122,10 @@ export function CustomRangePopover({ initialStart, initialEnd, onApply, onClose,
                 onMouseEnter={() => setHover(day)}
                 className={cn(
                   'h-7 w-full rounded-md text-xs font-medium transition-colors',
-                  disabled && 'text-gray-300 cursor-not-allowed',
-                  !disabled && !inSel && !isStart && !isEnd && 'text-gray-700 hover:bg-gray-100',
-                  inSel && !isStart && !isEnd && 'bg-pink-50 text-[#E91E8C]',
-                  (isStart || isEnd) && 'bg-[#E91E8C] text-white',
+                  disabled && 'text-muted-foreground cursor-not-allowed',
+                  !disabled && !inSel && !isStart && !isEnd && 'text-foreground hover:bg-muted',
+                  inSel && !isStart && !isEnd && 'bg-primary/10 text-[var(--primary)]',
+                  (isStart || isEnd) && 'bg-[var(--primary)] text-white',
                 )}
               >
                 {day.getDate()}
@@ -140,23 +140,23 @@ export function CustomRangePopover({ initialStart, initialEnd, onApply, onClose,
   return (
     <div
       ref={ref}
-      className="absolute right-0 top-full mt-2 z-50 w-[480px] max-w-[calc(100vw-32px)] bg-white rounded-2xl border border-gray-200 shadow-xl p-4"
+      className="absolute right-0 top-full mt-2 z-50 w-[480px] max-w-[calc(100vw-32px)] bg-card rounded-2xl border border-border shadow-xl p-4"
     >
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <button
           onClick={() => setAnchor(subMonths(anchor, 1))}
-          className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors"
+          className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground transition-colors"
         >
           <ChevronLeft className="h-4 w-4" />
         </button>
-        <div className="text-xs text-gray-500">
+        <div className="text-xs text-muted-foreground">
           {start && !end && <>Pick an end date</>}
           {start && end && (
             <>
-              <span className="font-semibold text-[#1A1B3A]">{format(start, 'MMM d, yyyy')}</span>
-              <span className="mx-1.5 text-gray-300">→</span>
-              <span className="font-semibold text-[#1A1B3A]">{format(end, 'MMM d, yyyy')}</span>
+              <span className="font-semibold text-[var(--foreground)]">{format(start, 'MMM d, yyyy')}</span>
+              <span className="mx-1.5 text-muted-foreground">→</span>
+              <span className="font-semibold text-[var(--foreground)]">{format(end, 'MMM d, yyyy')}</span>
             </>
           )}
           {!start && <>Pick a start date</>}
@@ -164,13 +164,13 @@ export function CustomRangePopover({ initialStart, initialEnd, onApply, onClose,
         <div className="flex items-center gap-1">
           <button
             onClick={() => setAnchor(addMonths(anchor, 1))}
-            className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors"
+            className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground transition-colors"
           >
             <ChevronRight className="h-4 w-4" />
           </button>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors"
+            className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground transition-colors"
             title="Close"
           >
             <X className="h-4 w-4" />
@@ -184,10 +184,10 @@ export function CustomRangePopover({ initialStart, initialEnd, onApply, onClose,
       </div>
 
       {/* Footer */}
-      <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-100">
+      <div className="flex items-center justify-between mt-4 pt-3 border-t border-border">
         <button
           onClick={() => { setStart(null); setEnd(null); setHover(null); }}
-          className="text-xs text-gray-400 hover:text-gray-700 transition-colors"
+          className="text-xs text-muted-foreground hover:text-foreground transition-colors"
         >
           Clear
         </button>
@@ -198,7 +198,7 @@ export function CustomRangePopover({ initialStart, initialEnd, onApply, onClose,
             }
           }}
           disabled={!canApply}
-          className="px-4 py-2 rounded-xl bg-[#E91E8C] text-white text-xs font-semibold hover:bg-[#d1177d] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="px-4 py-2 rounded-xl bg-[var(--primary)] text-white text-xs font-semibold hover:bg-[#d1177d] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           Apply
         </button>

@@ -32,7 +32,7 @@ export function DiscordSetup({ onComplete, onSkip }: DiscordSetupProps) {
   if (status === 'connected') {
     return (
       <div className="text-center space-y-4 py-4">
-        <div className="inline-flex h-16 w-16 rounded-full bg-green-100 items-center justify-center">
+        <div className="inline-flex h-16 w-16 rounded-full bg-green-500/15 items-center justify-center">
           <CheckCircle2 className="h-8 w-8 text-green-600" />
         </div>
         <div>
@@ -43,7 +43,7 @@ export function DiscordSetup({ onComplete, onSkip }: DiscordSetupProps) {
         </div>
         <button
           onClick={onComplete}
-          className="inline-flex items-center gap-2 px-8 py-3 rounded-xl bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] text-white font-semibold hover:opacity-90 transition-opacity"
+          className="inline-flex items-center gap-2 px-8 py-3 rounded-xl bg-gradient-to-r from-[var(--primary)] to-[var(--pulse-accent-2)] text-white font-semibold hover:opacity-90 transition-opacity"
         >
           Continue
         </button>
@@ -65,18 +65,18 @@ export function DiscordSetup({ onComplete, onSkip }: DiscordSetupProps) {
       </div>
 
       {/* What the bot does */}
-      <div className="rounded-2xl border border-gray-200 bg-white p-5 space-y-3 max-w-md mx-auto">
+      <div className="rounded-2xl border border-border bg-card p-5 space-y-3 max-w-md mx-auto">
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">What Tempo Bot does</p>
         <div className="space-y-3">
           <div className="flex items-start gap-3">
-            <MessageSquare className="h-5 w-5 text-[#FF4D8D] mt-0.5 shrink-0" />
+            <MessageSquare className="h-5 w-5 text-[var(--primary)] mt-0.5 shrink-0" />
             <div>
               <p className="text-sm font-medium">Messaging Relay</p>
               <p className="text-xs text-muted-foreground">Send and receive creator messages from Discord</p>
             </div>
           </div>
           <div className="flex items-start gap-3">
-            <Bell className="h-5 w-5 text-[#7C5CFC] mt-0.5 shrink-0" />
+            <Bell className="h-5 w-5 text-[var(--pulse-accent-2)] mt-0.5 shrink-0" />
             <div>
               <p className="text-sm font-medium">Creator Notifications</p>
               <p className="text-xs text-muted-foreground">Get alerts when creators post, hit milestones, or need attention</p>

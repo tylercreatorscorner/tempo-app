@@ -42,15 +42,15 @@ const GUILD_NAMES: Record<string, string> = {
 };
 
 const MATCH_BADGES: Record<string, { label: string; className: string }> = {
-  exact: { label: 'Exact', className: 'bg-emerald-100 text-emerald-700' },
-  fuzzy: { label: 'Fuzzy', className: 'bg-amber-100 text-amber-700' },
-  none: { label: 'No Match', className: 'bg-gray-100 text-gray-500' },
+  exact: { label: 'Exact', className: 'bg-emerald-500/15 text-emerald-500' },
+  fuzzy: { label: 'Fuzzy', className: 'bg-amber-500/15 text-amber-500' },
+  none: { label: 'No Match', className: 'bg-muted text-muted-foreground' },
 };
 
 const BRAND_COLORS: Record<string, string> = {
-  jiyu: 'bg-pink-100 text-pink-700',
-  physicians_choice: 'bg-blue-100 text-blue-700',
-  catakor: 'bg-purple-100 text-purple-700',
+  jiyu: 'bg-primary/10 text-primary',
+  physicians_choice: 'bg-blue-500/15 text-blue-500',
+  catakor: 'bg-purple-500/15 text-purple-500',
 };
 
 type TabStatus = 'pending' | 'approved' | 'rejected' | 'all';
@@ -143,20 +143,20 @@ export default function DiscordScanPage() {
     .filter((c, i, arr) => arr.findIndex(x => x.id === c.id) === i);
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6 lg:p-8">
+    <div className="min-h-screen bg-muted p-6 lg:p-8">
       {/* Header */}
       <div className="mb-8">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-              <Search className="h-6 w-6 text-pink-500" />
+            <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+              <Search className="h-6 w-6 text-primary" />
               Discord Scanner
             </h1>
-            <p className="text-gray-500 mt-1">Match Discord server members to managed creators</p>
+            <p className="text-muted-foreground mt-1">Match Discord server members to managed creators</p>
           </div>
           <button
             onClick={fetchQueue}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-muted transition-colors"
           >
             <RefreshCw className="h-4 w-4" />
             Refresh
@@ -166,17 +166,17 @@ export default function DiscordScanPage() {
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
           {[
-            { label: 'Total Scanned', value: stats.total, icon: Users, color: 'text-gray-600' },
+            { label: 'Total Scanned', value: stats.total, icon: Users, color: 'text-muted-foreground' },
             { label: 'Pending Review', value: stats.pending, icon: HelpCircle, color: 'text-amber-600' },
             { label: 'Exact Matches', value: stats.exact, icon: Check, color: 'text-emerald-600' },
             { label: 'Fuzzy Matches', value: stats.fuzzy, icon: Zap, color: 'text-amber-600' },
           ].map(s => (
-            <div key={s.label} className="bg-white rounded-xl border border-gray-200 p-4">
+            <div key={s.label} className="bg-card rounded-xl border border-border p-4">
               <div className="flex items-center gap-2 mb-1">
                 <s.icon className={`h-4 w-4 ${s.color}`} />
-                <span className="text-xs text-gray-500 font-medium">{s.label}</span>
+                <span className="text-xs text-muted-foreground font-medium">{s.label}</span>
               </div>
-              <p className="text-2xl font-bold text-gray-900">{s.value}</p>
+              <p className="text-2xl font-bold text-foreground">{s.value}</p>
             </div>
           ))}
         </div>
@@ -184,15 +184,15 @@ export default function DiscordScanPage() {
 
       {/* Tabs + Bulk Actions */}
       <div className="flex items-center justify-between mb-4">
-        <div className="flex gap-1 bg-white border border-gray-200 rounded-lg p-1">
+        <div className="flex gap-1 bg-card border border-border rounded-lg p-1">
           {tabs.map(t => (
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
               className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
                 tab === t.key
-                  ? 'bg-pink-50 text-pink-600'
-                  : 'text-gray-500 hover:text-gray-700'
+                  ? 'bg-primary/10 text-primary'
+                  : 'text-muted-foreground hover:text-foreground'
               }`}
             >
               {t.label}
@@ -213,19 +213,19 @@ export default function DiscordScanPage() {
       {/* Entries */}
       {loading ? (
         <div className="flex items-center justify-center py-20">
-          <RefreshCw className="h-6 w-6 text-gray-400 animate-spin" />
+          <RefreshCw className="h-6 w-6 text-muted-foreground animate-spin" />
         </div>
       ) : entries.length === 0 ? (
-        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
-          <Search className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-          <p className="text-gray-500">No entries found. Run <code className="bg-gray-100 px-2 py-0.5 rounded text-sm">/scan</code> in Discord to get started.</p>
+        <div className="bg-card rounded-xl border border-border p-12 text-center">
+          <Search className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+          <p className="text-muted-foreground">No entries found. Run <code className="bg-muted px-2 py-0.5 rounded text-sm">/scan</code> in Discord to get started.</p>
         </div>
       ) : (
         <div className="space-y-3">
           {entries.map(entry => (
             <div
               key={entry.id}
-              className={`bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-4 transition-all ${
+              className={`bg-card rounded-xl border border-border p-4 flex items-center gap-4 transition-all ${
                 actionLoading === entry.id ? 'opacity-50' : ''
               }`}
             >
@@ -238,16 +238,16 @@ export default function DiscordScanPage() {
                     className="h-10 w-10 rounded-full flex-shrink-0"
                   />
                 ) : (
-                  <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
-                    <Users className="h-5 w-5 text-gray-400" />
+                  <div className="h-10 w-10 rounded-full bg-secondary flex items-center justify-center flex-shrink-0">
+                    <Users className="h-5 w-5 text-muted-foreground" />
                   </div>
                 )}
                 <div className="min-w-0">
-                  <p className="font-medium text-gray-900 truncate">{entry.discord_username}</p>
+                  <p className="font-medium text-foreground truncate">{entry.discord_username}</p>
                   {entry.discord_display_name && (
-                    <p className="text-xs text-gray-500 truncate">{entry.discord_display_name}</p>
+                    <p className="text-xs text-muted-foreground truncate">{entry.discord_display_name}</p>
                   )}
-                  <p className="text-xs text-gray-400">{GUILD_NAMES[entry.guild_id] ?? entry.guild_id}</p>
+                  <p className="text-xs text-muted-foreground">{GUILD_NAMES[entry.guild_id] ?? entry.guild_id}</p>
                 </div>
               </div>
 
@@ -255,15 +255,15 @@ export default function DiscordScanPage() {
               <div className="flex items-center gap-3 flex-shrink-0">
                 {entry.creator ? (
                   <div className="text-right">
-                    <p className="text-sm font-medium text-gray-900">{entry.creator.real_name}</p>
+                    <p className="text-sm font-medium text-foreground">{entry.creator.real_name}</p>
                     {entry.creator.brand && (
-                      <span className={`inline-block text-xs px-2 py-0.5 rounded-full font-medium ${BRAND_COLORS[entry.creator.brand] ?? 'bg-gray-100 text-gray-600'}`}>
+                      <span className={`inline-block text-xs px-2 py-0.5 rounded-full font-medium ${BRAND_COLORS[entry.creator.brand] ?? 'bg-muted text-muted-foreground'}`}>
                         {entry.creator.brand}
                       </span>
                     )}
                   </div>
                 ) : (
-                  <span className="text-sm text-gray-400 italic">No match</span>
+                  <span className="text-sm text-muted-foreground italic">No match</span>
                 )}
 
                 <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${MATCH_BADGES[entry.match_type]?.className}`}>
@@ -271,7 +271,7 @@ export default function DiscordScanPage() {
                 </span>
 
                 {entry.match_confidence > 0 && (
-                  <span className="text-xs text-gray-500 font-mono w-10 text-right">
+                  <span className="text-xs text-muted-foreground font-mono w-10 text-right">
                     {Math.round(entry.match_confidence * 100)}%
                   </span>
                 )}
@@ -293,7 +293,7 @@ export default function DiscordScanPage() {
                   <button
                     onClick={() => handleAction(entry.id, 'reject')}
                     disabled={actionLoading === entry.id}
-                    className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
+                    className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-muted-foreground bg-muted rounded-lg hover:bg-secondary transition-colors disabled:opacity-50"
                   >
                     <X className="h-3.5 w-3.5" />
                     Reject
@@ -301,25 +301,25 @@ export default function DiscordScanPage() {
                   <div className="relative">
                     <button
                       onClick={() => setReassignOpen(reassignOpen === entry.id ? null : entry.id)}
-                      className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                      className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-muted-foreground bg-muted rounded-lg hover:bg-secondary transition-colors"
                     >
                       Reassign
                       <ChevronDown className="h-3.5 w-3.5" />
                     </button>
                     {reassignOpen === entry.id && (
-                      <div className="absolute right-0 top-full mt-1 w-64 bg-white rounded-lg shadow-lg border border-gray-200 z-10 max-h-60 overflow-y-auto">
+                      <div className="absolute right-0 top-full mt-1 w-64 bg-card rounded-lg shadow-lg border border-border z-10 max-h-60 overflow-y-auto">
                         {creatorsFromEntries.length === 0 ? (
-                          <p className="p-3 text-sm text-gray-400">No creators available</p>
+                          <p className="p-3 text-sm text-muted-foreground">No creators available</p>
                         ) : (
                           creatorsFromEntries.map(c => (
                             <button
                               key={c.id}
                               onClick={() => handleReassign(entry.id, c.id)}
-                              className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center justify-between"
+                              className="w-full text-left px-3 py-2 text-sm hover:bg-muted flex items-center justify-between"
                             >
                               <span>{c.real_name ?? `Creator #${c.id}`}</span>
                               {c.brand && (
-                                <span className={`text-xs px-2 py-0.5 rounded-full ${BRAND_COLORS[c.brand] ?? 'bg-gray-100'}`}>
+                                <span className={`text-xs px-2 py-0.5 rounded-full ${BRAND_COLORS[c.brand] ?? 'bg-muted'}`}>
                                   {c.brand}
                                 </span>
                               )}
@@ -333,7 +333,7 @@ export default function DiscordScanPage() {
               )}
               {entry.status !== 'pending' && (
                 <span className={`text-xs px-2.5 py-1 rounded-full font-medium flex-shrink-0 ${
-                  entry.status === 'approved' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
+                  entry.status === 'approved' ? 'bg-emerald-500/15 text-emerald-500' : 'bg-red-500/15 text-red-500'
                 }`}>
                   {entry.status}
                 </span>

@@ -32,8 +32,8 @@ export function BrandFilter({ brands, brandsWithData, selectedBrand }: BrandFilt
         className={cn(
           'px-3 py-1.5 rounded-full text-xs font-medium transition-colors border',
           !selectedBrand
-            ? 'bg-[#1A1B3A] text-white border-[#1A1B3A]'
-            : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+            ? 'bg-[var(--foreground)] text-white border-[var(--foreground)]'
+            : 'bg-card text-muted-foreground border-border hover:border-border'
         )}
       >
         All Brands
@@ -51,8 +51,8 @@ export function BrandFilter({ brands, brandsWithData, selectedBrand }: BrandFilt
               isActive
                 ? 'text-white'
                 : hasData
-                  ? 'bg-white hover:border-gray-300'
-                  : 'bg-white hover:border-gray-300 opacity-50'
+                  ? 'bg-card hover:border-border'
+                  : 'bg-card hover:border-border opacity-50'
             )}
             style={
               isActive

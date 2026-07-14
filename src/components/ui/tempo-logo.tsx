@@ -43,7 +43,7 @@ export function TempoLogo({
             fontWeight: 800,
             letterSpacing: '-0.04em',
             lineHeight: 1,
-            color: '#1A1B3A',
+            color: 'var(--foreground)',
           }}
         >
           Temp
@@ -79,12 +79,12 @@ export function TempoLogo({
           />
           <defs>
             <linearGradient id={gradId} x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
-              <stop stopColor="#FF4D8D" />
-              <stop offset="1" stopColor="#7C5CFC" />
+              <stop stopColor="var(--primary)" />
+              <stop offset="1" stopColor="var(--pulse-accent-2)" />
             </linearGradient>
             <linearGradient id={glowId} x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
-              <stop stopColor="#FF4D8D" />
-              <stop offset="1" stopColor="#7C5CFC" />
+              <stop stopColor="var(--primary)" />
+              <stop offset="1" stopColor="var(--pulse-accent-2)" />
             </linearGradient>
           </defs>
         </svg>
@@ -98,7 +98,7 @@ export function TempoLogo({
             fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
             fontWeight: 500,
             letterSpacing: '0.14em',
-            color: '#9CA3AF',
+            color: 'var(--muted-foreground)',
             textTransform: 'uppercase' as const,
             marginTop: `${config.fontSize * 0.15}px`,
           }}

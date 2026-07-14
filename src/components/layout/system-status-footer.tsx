@@ -57,14 +57,14 @@ const DOT_COLORS: Record<Status, string> = {
   green: 'bg-emerald-500',
   amber: 'bg-amber-500',
   red: 'bg-red-500',
-  gray: 'bg-gray-300',
+  gray: 'bg-secondary',
 };
 
 const TEXT_COLORS: Record<Status, string> = {
-  green: 'text-gray-600',
-  amber: 'text-amber-700',
-  red: 'text-red-700',
-  gray: 'text-gray-400',
+  green: 'text-muted-foreground',
+  amber: 'text-amber-500',
+  red: 'text-red-500',
+  gray: 'text-muted-foreground',
 };
 
 export function SystemStatusFooter() {
@@ -96,7 +96,7 @@ export function SystemStatusFooter() {
   return (
     <Link
       href="/system"
-      className="group flex items-center gap-2 px-3 py-2 rounded-lg text-xs hover:bg-gray-50 transition-colors"
+      className="group flex items-center gap-2 px-3 py-2 rounded-lg text-xs hover:bg-muted transition-colors"
       title="View system health"
     >
       <span className="relative flex h-2 w-2 flex-shrink-0">
@@ -106,7 +106,7 @@ export function SystemStatusFooter() {
         <span className={cn('relative inline-flex rounded-full h-2 w-2', DOT_COLORS[status])} />
       </span>
       <span className={cn('font-medium', TEXT_COLORS[status])}>{label}</span>
-      <span className="ml-auto text-[10px] text-gray-300 group-hover:text-gray-500 transition-colors">
+      <span className="ml-auto text-[10px] text-muted-foreground group-hover:text-muted-foreground transition-colors">
         System
       </span>
     </Link>

@@ -77,27 +77,27 @@ function daysLeft(date: string | null) {
 }
 
 const statusColors: Record<string, string> = {
-  active: 'bg-emerald-100 text-emerald-700',
-  expiring: 'bg-amber-100 text-amber-700',
-  expired: 'bg-red-100 text-red-700',
-  error: 'bg-red-100 text-red-700',
-  healthy: 'bg-emerald-100 text-emerald-700',
-  degraded: 'bg-amber-100 text-amber-700',
-  success: 'bg-emerald-100 text-emerald-700',
-  failed: 'bg-red-100 text-red-700',
-  running: 'bg-blue-100 text-blue-700',
-  partial: 'bg-amber-100 text-amber-700',
+  active: 'bg-emerald-500/15 text-emerald-500',
+  expiring: 'bg-amber-500/15 text-amber-500',
+  expired: 'bg-red-500/15 text-red-500',
+  error: 'bg-red-500/15 text-red-500',
+  healthy: 'bg-emerald-500/15 text-emerald-500',
+  degraded: 'bg-amber-500/15 text-amber-500',
+  success: 'bg-emerald-500/15 text-emerald-500',
+  failed: 'bg-red-500/15 text-red-500',
+  running: 'bg-blue-500/15 text-blue-500',
+  partial: 'bg-amber-500/15 text-amber-500',
   fresh: 'text-emerald-600',
   recent: 'text-blue-600',
   stale: 'text-amber-600',
   critical: 'text-red-600',
-  no_data: 'text-gray-400',
+  no_data: 'text-muted-foreground',
 }
 
 const severityColors: Record<string, string> = {
-  info: 'border-l-blue-400 bg-blue-50',
-  warning: 'border-l-amber-400 bg-amber-50',
-  critical: 'border-l-red-400 bg-red-50',
+  info: 'border-l-blue-400 bg-blue-500/10',
+  warning: 'border-l-amber-400 bg-amber-500/10',
+  critical: 'border-l-red-400 bg-red-500/10',
 }
 
 export default function SystemHealthPage() {
@@ -144,34 +144,34 @@ export default function SystemHealthPage() {
   }, [])
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-muted p-6">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
               <Shield className="w-6 h-6 text-indigo-600" />
               System Health
             </h1>
-            <p className="text-sm text-gray-500 mt-1">
+            <p className="text-sm text-muted-foreground mt-1">
               Pipeline monitoring, session health, and alerts
             </p>
           </div>
           <div className="flex items-center gap-3">
             <Link
               href="/system/pipeline"
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 border border-indigo-200 rounded-lg text-sm text-indigo-700 hover:bg-indigo-100 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-500/10 border border-indigo-500/25 rounded-lg text-sm text-indigo-500 hover:bg-indigo-500/15 transition-colors"
             >
               <BarChart3 className="w-3.5 h-3.5" />
               Pipeline Monitor
             </Link>
-            <span className="text-xs text-gray-400">
+            <span className="text-xs text-muted-foreground">
               Updated {lastRefresh.toLocaleTimeString()}
             </span>
             <button
               onClick={fetchData}
               disabled={loading}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-card border border-border rounded-lg text-sm text-foreground hover:bg-muted transition-colors"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
               Refresh
@@ -183,16 +183,16 @@ export default function SystemHealthPage() {
         {alerts.length > 0 && (
           <div className="space-y-2">
             {alerts.map(alert => (
-              <div key={alert.id} className={`border-l-4 p-4 rounded-r-lg ${severityColors[alert.severity] || 'bg-gray-50'}`}>
+              <div key={alert.id} className={`border-l-4 p-4 rounded-r-lg ${severityColors[alert.severity] || 'bg-muted'}`}>
                 <div className="flex items-start justify-between">
                   <div>
-                    <p className="font-medium text-gray-900">{alert.title}</p>
-                    <p className="text-sm text-gray-600 mt-1">{alert.message}</p>
-                    <p className="text-xs text-gray-400 mt-1">{new Date(alert.created_at).toLocaleString()}</p>
+                    <p className="font-medium text-foreground">{alert.title}</p>
+                    <p className="text-sm text-muted-foreground mt-1">{alert.message}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{new Date(alert.created_at).toLocaleString()}</p>
                   </div>
                   <button
                     onClick={() => acknowledgeAlert(alert.id)}
-                    className="text-xs px-2 py-1 bg-white border rounded hover:bg-gray-50"
+                    className="text-xs px-2 py-1 bg-card border rounded hover:bg-muted"
                   >
                     Dismiss
                   </button>
@@ -204,35 +204,35 @@ export default function SystemHealthPage() {
 
         {/* Stats Cards */}
         <div className="grid grid-cols-4 gap-4">
-          <div className="bg-white rounded-xl border border-gray-200 p-4">
-            <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
+          <div className="bg-card rounded-xl border border-border p-4">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
               <Activity className="w-4 h-4" />
               Runs (7d)
             </div>
-            <p className="text-2xl font-bold text-gray-900">{stats.totalRuns}</p>
+            <p className="text-2xl font-bold text-foreground">{stats.totalRuns}</p>
           </div>
-          <div className="bg-white rounded-xl border border-gray-200 p-4">
-            <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
+          <div className="bg-card rounded-xl border border-border p-4">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
               <CheckCircle className="w-4 h-4 text-emerald-500" />
               Success Rate
             </div>
-            <p className="text-2xl font-bold text-gray-900">
+            <p className="text-2xl font-bold text-foreground">
               {stats.totalRuns > 0 ? Math.round((stats.successful / stats.totalRuns) * 100) : 0}%
             </p>
           </div>
-          <div className="bg-white rounded-xl border border-gray-200 p-4">
-            <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
+          <div className="bg-card rounded-xl border border-border p-4">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
               <XCircle className="w-4 h-4 text-red-500" />
               Failures (7d)
             </div>
-            <p className="text-2xl font-bold text-gray-900">{stats.failed}</p>
+            <p className="text-2xl font-bold text-foreground">{stats.failed}</p>
           </div>
-          <div className="bg-white rounded-xl border border-gray-200 p-4">
-            <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
+          <div className="bg-card rounded-xl border border-border p-4">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
               <Clock className="w-4 h-4" />
               Avg Duration
             </div>
-            <p className="text-2xl font-bold text-gray-900">
+            <p className="text-2xl font-bold text-foreground">
               {stats.avgDuration > 0 ? `${Math.round(stats.avgDuration)}s` : '--'}
             </p>
           </div>
@@ -240,50 +240,50 @@ export default function SystemHealthPage() {
 
         {/* Brand Session Cards */}
         <div>
-          <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+          <h2 className="text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
             <Database className="w-5 h-5 text-indigo-600" />
             Brand Sessions
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {sessions.length === 0 && !loading && (
-              <p className="text-gray-400 text-sm col-span-4">No brand sessions configured yet. Run the health check to populate.</p>
+              <p className="text-muted-foreground text-sm col-span-4">No brand sessions configured yet. Run the health check to populate.</p>
             )}
             {sessions.map(session => {
               const days = daysLeft(session.cookie_expires_at)
               const fresh = freshness.find(f => f.brand_slug === session.brand_slug)
               return (
-                <div key={session.id} className="bg-white rounded-xl border border-gray-200 p-4 hover:shadow-md transition-shadow">
+                <div key={session.id} className="bg-card rounded-xl border border-border p-4 hover:shadow-md transition-shadow">
                   <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-semibold text-gray-900 capitalize">{session.brand_slug.replace('_', ' ')}</h3>
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColors[session.status] || 'bg-gray-100 text-gray-600'}`}>
+                    <h3 className="font-semibold text-foreground capitalize">{session.brand_slug.replace('_', ' ')}</h3>
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColors[session.status] || 'bg-muted text-muted-foreground'}`}>
                       {session.status}
                     </span>
                   </div>
                   
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
-                      <span className="text-gray-500">Session Expiry</span>
-                      <span className={`font-medium ${days !== null && days < 14 ? 'text-amber-600' : days !== null && days < 3 ? 'text-red-600' : 'text-gray-700'}`}>
+                      <span className="text-muted-foreground">Session Expiry</span>
+                      <span className={`font-medium ${days !== null && days < 14 ? 'text-amber-600' : days !== null && days < 3 ? 'text-red-600' : 'text-foreground'}`}>
                         {days !== null ? `${days}d left` : 'Unknown'}
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-500">Last Scrape</span>
-                      <span className="text-gray-700">{timeAgo(session.last_successful_scrape)}</span>
+                      <span className="text-muted-foreground">Last Scrape</span>
+                      <span className="text-foreground">{timeAgo(session.last_successful_scrape)}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-500">Health Check</span>
-                      <span className="text-gray-700">{timeAgo(session.last_health_check)}</span>
+                      <span className="text-muted-foreground">Health Check</span>
+                      <span className="text-foreground">{timeAgo(session.last_health_check)}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-500">Data Freshness</span>
-                      <span className={`font-medium ${statusColors[fresh?.freshness || 'no_data'] || 'text-gray-400'}`}>
+                      <span className="text-muted-foreground">Data Freshness</span>
+                      <span className={`font-medium ${statusColors[fresh?.freshness || 'no_data'] || 'text-muted-foreground'}`}>
                         {fresh?.freshness || 'No data'}
                       </span>
                     </div>
                     {session.consecutive_failures > 0 && (
                       <div className="flex justify-between">
-                        <span className="text-gray-500">Failures</span>
+                        <span className="text-muted-foreground">Failures</span>
                         <span className="text-red-600 font-medium">{session.consecutive_failures} consecutive</span>
                       </div>
                     )}
@@ -292,7 +292,7 @@ export default function SystemHealthPage() {
                   {/* Expiry progress bar */}
                   {days !== null && (
                     <div className="mt-3">
-                      <div className="w-full bg-gray-100 rounded-full h-1.5">
+                      <div className="w-full bg-muted rounded-full h-1.5">
                         <div
                           className={`h-1.5 rounded-full transition-all ${
                             days > 30 ? 'bg-emerald-500' : days > 14 ? 'bg-blue-500' : days > 7 ? 'bg-amber-500' : 'bg-red-500'
@@ -310,43 +310,43 @@ export default function SystemHealthPage() {
 
         {/* Recent Pipeline Runs */}
         <div>
-          <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+          <h2 className="text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
             <Activity className="w-5 h-5 text-indigo-600" />
             Recent Pipeline Runs
           </h2>
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="bg-card rounded-xl border border-border overflow-hidden">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
+              <thead className="bg-muted border-b border-border">
                 <tr>
-                  <th className="text-left py-2.5 px-4 font-medium text-gray-500">Brand</th>
-                  <th className="text-left py-2.5 px-4 font-medium text-gray-500">Data Date</th>
-                  <th className="text-left py-2.5 px-4 font-medium text-gray-500">Status</th>
-                  <th className="text-right py-2.5 px-4 font-medium text-gray-500">Creators</th>
-                  <th className="text-right py-2.5 px-4 font-medium text-gray-500">Videos</th>
-                  <th className="text-right py-2.5 px-4 font-medium text-gray-500">Duration</th>
-                  <th className="text-left py-2.5 px-4 font-medium text-gray-500">Time</th>
-                  <th className="text-left py-2.5 px-4 font-medium text-gray-500">Error</th>
+                  <th className="text-left py-2.5 px-4 font-medium text-muted-foreground">Brand</th>
+                  <th className="text-left py-2.5 px-4 font-medium text-muted-foreground">Data Date</th>
+                  <th className="text-left py-2.5 px-4 font-medium text-muted-foreground">Status</th>
+                  <th className="text-right py-2.5 px-4 font-medium text-muted-foreground">Creators</th>
+                  <th className="text-right py-2.5 px-4 font-medium text-muted-foreground">Videos</th>
+                  <th className="text-right py-2.5 px-4 font-medium text-muted-foreground">Duration</th>
+                  <th className="text-left py-2.5 px-4 font-medium text-muted-foreground">Time</th>
+                  <th className="text-left py-2.5 px-4 font-medium text-muted-foreground">Error</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-border">
                 {runs.length === 0 && (
-                  <tr><td colSpan={8} className="text-center py-8 text-gray-400">No pipeline runs yet</td></tr>
+                  <tr><td colSpan={8} className="text-center py-8 text-muted-foreground">No pipeline runs yet</td></tr>
                 )}
                 {runs.map(run => (
-                  <tr key={run.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="py-2.5 px-4 font-medium text-gray-900 capitalize">{run.brand_slug}</td>
-                    <td className="py-2.5 px-4 text-gray-600">{run.run_date}</td>
+                  <tr key={run.id} className="hover:bg-muted transition-colors">
+                    <td className="py-2.5 px-4 font-medium text-foreground capitalize">{run.brand_slug}</td>
+                    <td className="py-2.5 px-4 text-muted-foreground">{run.run_date}</td>
                     <td className="py-2.5 px-4">
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColors[run.status] || 'bg-gray-100'}`}>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColors[run.status] || 'bg-muted'}`}>
                         {run.status}
                       </span>
                     </td>
-                    <td className="py-2.5 px-4 text-right text-gray-700">{run.creators_scraped || '--'}</td>
-                    <td className="py-2.5 px-4 text-right text-gray-700">{run.videos_scraped || '--'}</td>
-                    <td className="py-2.5 px-4 text-right text-gray-600">
+                    <td className="py-2.5 px-4 text-right text-foreground">{run.creators_scraped || '--'}</td>
+                    <td className="py-2.5 px-4 text-right text-foreground">{run.videos_scraped || '--'}</td>
+                    <td className="py-2.5 px-4 text-right text-muted-foreground">
                       {run.duration_seconds ? `${run.duration_seconds}s` : '--'}
                     </td>
-                    <td className="py-2.5 px-4 text-gray-500 text-xs">{timeAgo(run.started_at)}</td>
+                    <td className="py-2.5 px-4 text-muted-foreground text-xs">{timeAgo(run.started_at)}</td>
                     <td className="py-2.5 px-4 text-red-500 text-xs truncate max-w-[200px]">
                       {run.error_message || ''}
                     </td>

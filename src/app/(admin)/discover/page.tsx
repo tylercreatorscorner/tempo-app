@@ -13,23 +13,23 @@ export default function DiscoverPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button className="px-4 py-2 rounded-lg border border-gray-200 text-sm text-gray-500 flex items-center gap-2 cursor-not-allowed opacity-50">
+          <button className="px-4 py-2 rounded-lg border border-border text-sm text-muted-foreground flex items-center gap-2 cursor-not-allowed opacity-50">
             <Filter className="h-4 w-4" /> Filters
           </button>
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <input
               type="text"
               placeholder="Search videos, creators, products..."
               disabled
-              className="pl-9 pr-4 py-2 rounded-lg border border-gray-200 text-sm w-64 bg-gray-50 cursor-not-allowed"
+              className="pl-9 pr-4 py-2 rounded-lg border border-border text-sm w-64 bg-muted cursor-not-allowed"
             />
           </div>
         </div>
       </div>
 
       {/* Category tabs */}
-      <div className="flex gap-1 border-b border-gray-200">
+      <div className="flex gap-1 border-b border-border">
         {[
           { label: 'Trending Videos', icon: Flame, active: true },
           { label: 'Rising Creators', icon: TrendingUp, active: false },
@@ -39,8 +39,8 @@ export default function DiscoverPage() {
             key={tab.label}
             className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
               tab.active
-                ? 'border-[#FF4D8D] text-[#FF4D8D]'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
+                ? 'border-[var(--primary)] text-[var(--primary)]'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
             }`}
           >
             <tab.icon className="h-4 w-4" /> {tab.label}
@@ -50,11 +50,11 @@ export default function DiscoverPage() {
 
       {/* Coming soon state */}
       <div className="flex flex-col items-center justify-center py-20 text-center">
-        <div className="h-20 w-20 rounded-3xl bg-gradient-to-br from-[#FF4D8D] to-[#7C5CFC] flex items-center justify-center mb-6 shadow-xl shadow-[#FF4D8D]/20">
+        <div className="h-20 w-20 rounded-3xl bg-gradient-to-br from-[var(--primary)] to-[var(--pulse-accent-2)] flex items-center justify-center mb-6 shadow-xl shadow-[var(--primary)]/20">
           <Compass className="h-10 w-10 text-white" />
         </div>
-        <h2 className="text-xl font-bold text-gray-900 mb-2">Discover is Coming Soon</h2>
-        <p className="text-gray-500 max-w-md mb-6">
+        <h2 className="text-xl font-bold text-foreground mb-2">Discover is Coming Soon</h2>
+        <p className="text-muted-foreground max-w-md mb-6">
           Browse what&apos;s going viral across all of TikTok Shop. Find winning videos, rising creators, and trending products to inspire your strategy.
         </p>
         <div className="flex flex-wrap gap-2 justify-center max-w-lg">
@@ -68,7 +68,7 @@ export default function DiscoverPage() {
             'Competitor tracking',
             'Content inspiration',
           ].map((feature) => (
-            <span key={feature} className="px-3 py-1.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+            <span key={feature} className="px-3 py-1.5 rounded-full text-xs font-medium bg-muted text-muted-foreground">
               {feature}
             </span>
           ))}

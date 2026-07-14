@@ -14,56 +14,56 @@ export default async function OutreachPage() {
   return (
     <div className="space-y-6 max-w-3xl">
       <div>
-        <h1 className="text-2xl font-bold text-[#1A1B3A]">Outreach</h1>
-        <p className="text-sm text-gray-500 mt-1">
+        <h1 className="text-2xl font-bold text-[var(--foreground)]">Outreach</h1>
+        <p className="text-sm text-muted-foreground mt-1">
           User-initiated campaigns — mass email or SMS to a creator segment, brand-client recap blasts,
           renewal reminders. Each campaign uses one or more Integrations.
         </p>
       </div>
 
-      <div className="rounded-2xl border border-dashed border-gray-200 bg-white px-6 py-12 text-center">
-        <div className="h-14 w-14 mx-auto rounded-2xl bg-purple-50 flex items-center justify-center mb-4">
+      <div className="rounded-2xl border border-dashed border-border bg-card px-6 py-12 text-center">
+        <div className="h-14 w-14 mx-auto rounded-2xl bg-purple-500/10 flex items-center justify-center mb-4">
           <Megaphone className="h-7 w-7 text-purple-500" />
         </div>
-        <h2 className="text-base font-bold text-[#1A1B3A] mb-1">Outreach Campaigns — coming soon</h2>
-        <p className="text-sm text-gray-500 max-w-md mx-auto mb-5">
+        <h2 className="text-base font-bold text-[var(--foreground)] mb-1">Outreach Campaigns — coming soon</h2>
+        <p className="text-sm text-muted-foreground max-w-md mx-auto mb-5">
           Today, outreach happens through ad-hoc Discord DMs, the bulk-message modal on Roster, and
           one-off emails. Here you&apos;ll be able to compose a campaign, pick a segment, schedule it,
           and see open / reply / opt-out stats.
         </p>
         <Link
           href="/messages"
-          className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+          className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg border border-border hover:bg-muted transition-colors"
         >
           Use Messages for now
           <ArrowRight className="h-3 w-3" />
         </Link>
       </div>
 
-      <div className="rounded-2xl border border-gray-100 bg-white p-5">
-        <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">
+      <div className="rounded-2xl border border-border bg-card p-5">
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
           Available today (ad-hoc)
         </p>
-        <ul className="space-y-2 text-sm text-gray-600">
+        <ul className="space-y-2 text-sm text-muted-foreground">
           <li className="flex items-start gap-2">
             <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-emerald-500 flex-shrink-0" />
             <div>
               <span className="font-medium">Discord bulk message modal</span>
-              <span className="text-gray-400"> — Roster → multi-select → message</span>
+              <span className="text-muted-foreground"> — Roster → multi-select → message</span>
             </div>
           </li>
           <li className="flex items-start gap-2">
             <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-emerald-500 flex-shrink-0" />
             <div>
               <span className="font-medium">Email an invoice</span>
-              <span className="text-gray-400"> — Invoicing → invoice detail → Email button</span>
+              <span className="text-muted-foreground"> — Invoicing → invoice detail → Email button</span>
             </div>
           </li>
           <li className="flex items-start gap-2">
             <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-emerald-500 flex-shrink-0" />
             <div>
               <span className="font-medium">Renewal Discord blasts</span>
-              <span className="text-gray-400"> — Roster → Renewals tab → Cut/Watch/Keep copy buttons</span>
+              <span className="text-muted-foreground"> — Roster → Renewals tab → Cut/Watch/Keep copy buttons</span>
             </div>
           </li>
         </ul>

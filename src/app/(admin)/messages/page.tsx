@@ -15,35 +15,35 @@ function MessagesSetup() {
   return (
     <div className="flex flex-col items-center justify-center min-h-[70vh] px-4">
       <div className="max-w-lg w-full text-center space-y-8">
-        <div className="inline-flex h-20 w-20 rounded-3xl bg-gradient-to-br from-[#5865F2] to-[#7C5CFC] items-center justify-center mx-auto shadow-xl shadow-[#5865F2]/20">
+        <div className="inline-flex h-20 w-20 rounded-3xl bg-gradient-to-br from-[#5865F2] to-[var(--pulse-accent-2)] items-center justify-center mx-auto shadow-xl shadow-[#5865F2]/20">
           <Bot className="h-10 w-10 text-white" />
         </div>
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Connect Discord to Message Creators</h2>
-          <p className="text-gray-500 mt-2 max-w-md mx-auto">
+          <h2 className="text-2xl font-bold text-foreground">Connect Discord to Message Creators</h2>
+          <p className="text-muted-foreground mt-2 max-w-md mx-auto">
             Tempo's messaging relay lets you DM creators directly from your dashboard through the Tempo Discord bot.
           </p>
         </div>
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-3">
+        <div className="bg-card rounded-2xl border border-border shadow-sm p-6 space-y-3">
           {[
             { step: '1', label: 'Connect Discord in Settings', desc: 'Add your Discord server details' },
             { step: '2', label: 'Add Tempo Bot to your server', desc: 'Invite the bot so it can relay messages' },
             { step: '3', label: 'Start messaging creators', desc: 'Send DMs and bulk messages from Tempo' },
           ].map(s => (
-            <div key={s.step} className="flex items-center gap-3 px-4 py-3 rounded-xl border border-gray-100 bg-gray-50/50 text-left">
-              <span className="h-8 w-8 rounded-full bg-gradient-to-br from-[#FF4D8D] to-[#7C5CFC] flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+            <div key={s.step} className="flex items-center gap-3 px-4 py-3 rounded-xl border border-border bg-muted/50 text-left">
+              <span className="h-8 w-8 rounded-full bg-gradient-to-br from-[var(--primary)] to-[var(--pulse-accent-2)] flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
                 {s.step}
               </span>
               <div className="flex-1">
-                <p className="text-sm font-medium text-gray-900">{s.label}</p>
-                <p className="text-xs text-gray-500">{s.desc}</p>
+                <p className="text-sm font-medium text-foreground">{s.label}</p>
+                <p className="text-xs text-muted-foreground">{s.desc}</p>
               </div>
             </div>
           ))}
         </div>
         <Link
           href="/settings"
-          className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] text-white font-medium text-sm hover:opacity-90 transition-opacity"
+          className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-[var(--primary)] to-[var(--pulse-accent-2)] text-white font-medium text-sm hover:opacity-90 transition-opacity"
         >
           Go to Settings
           <ArrowRight className="h-4 w-4" />
@@ -56,9 +56,9 @@ function MessagesSetup() {
 function MessagesEmpty() {
   return (
     <div className="flex flex-col items-center justify-center min-h-[70vh] px-4 text-center">
-      <MessageSquare className="h-16 w-16 text-gray-200 mb-4" />
-      <h2 className="text-lg font-semibold text-gray-700 mb-2">No conversations yet</h2>
-      <p className="text-gray-400 text-sm max-w-sm">
+      <MessageSquare className="h-16 w-16 text-muted-foreground mb-4" />
+      <h2 className="text-lg font-semibold text-foreground mb-2">No conversations yet</h2>
+      <p className="text-muted-foreground text-sm max-w-sm">
         Send a message to a creator from their profile, or use the Bulk Message button above to reach multiple creators at once.
       </p>
     </div>
@@ -109,21 +109,21 @@ export default function MessagesPage() {
   return (
     <div className="flex flex-col -m-3 sm:-m-4 md:-m-6" style={{ height: 'calc(100vh - 57px)' }}>
       {/* Top bar */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-white">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-card">
         <div className="flex items-center gap-3">
           {mobileShowThread && (
             <button
               onClick={() => setMobileShowThread(false)}
-              className="md:hidden text-gray-500 hover:text-gray-700 mr-2"
+              className="md:hidden text-muted-foreground hover:text-foreground mr-2"
             >
               ← Back
             </button>
           )}
-          <MessageSquare className="h-5 w-5 text-[#E91E8C]" />
+          <MessageSquare className="h-5 w-5 text-[var(--primary)]" />
           <div className="flex items-center gap-2">
-            <h1 className="text-lg font-bold text-[#1A1B3A]">Messages</h1>
+            <h1 className="text-lg font-bold text-[var(--foreground)]">Messages</h1>
             {totalUnread > 0 && (
-              <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-[#E91E8C] text-white text-[10px] font-bold">
+              <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-[var(--primary)] text-white text-[10px] font-bold">
                 {totalUnread > 99 ? '99+' : totalUnread}
               </span>
             )}
@@ -132,14 +132,14 @@ export default function MessagesPage() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setTestDmOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-200 bg-white text-gray-600 text-sm font-medium hover:bg-gray-50 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl border border-border bg-card text-muted-foreground text-sm font-medium hover:bg-muted transition-colors"
           >
             <Send className="h-4 w-4" />
             Test DM
           </button>
           <button
             onClick={() => setBulkOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#E91E8C] text-white text-sm font-semibold hover:bg-[#d1177d] transition-colors shadow-sm"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[var(--primary)] text-white text-sm font-semibold hover:bg-[#d1177d] transition-colors shadow-sm"
           >
             <Users className="h-4 w-4" />
             Bulk Message
@@ -160,10 +160,10 @@ export default function MessagesPage() {
               <div className="p-4 space-y-2">
                 {Array.from({ length: 8 }).map((_, i) => (
                   <div key={i} className="flex items-center gap-3 p-3 rounded-xl">
-                    <div className="h-10 w-10 rounded-full bg-gray-100 animate-pulse" />
+                    <div className="h-10 w-10 rounded-full bg-muted animate-pulse" />
                     <div className="flex-1 space-y-1.5">
-                      <div className="h-3 w-3/5 rounded bg-gray-100 animate-pulse" />
-                      <div className="h-2.5 w-4/5 rounded bg-gray-100 animate-pulse" />
+                      <div className="h-3 w-3/5 rounded bg-muted animate-pulse" />
+                      <div className="h-2.5 w-4/5 rounded bg-muted animate-pulse" />
                     </div>
                   </div>
                 ))}
@@ -192,10 +192,10 @@ export default function MessagesPage() {
                 onDraftConsumed={() => setDraftToInject(null)}
               />
             ) : (
-              <div className="flex flex-col items-center justify-center h-full text-gray-400 bg-[#F8F9FC] px-4 text-center">
+              <div className="flex flex-col items-center justify-center h-full text-muted-foreground bg-[var(--background)] px-4 text-center">
                 <MessageSquare className="h-12 w-12 mb-4 opacity-30" />
-                <p className="text-sm font-medium text-gray-500">Select a conversation</p>
-                <p className="text-xs text-gray-400 mt-1">Or start a new one with the Bulk Message button above</p>
+                <p className="text-sm font-medium text-muted-foreground">Select a conversation</p>
+                <p className="text-xs text-muted-foreground mt-1">Or start a new one with the Bulk Message button above</p>
               </div>
             )}
           </div>

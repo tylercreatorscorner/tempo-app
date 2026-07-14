@@ -31,7 +31,7 @@ function RankBadge({ rank }: { rank: number }) {
   if (rank === 1) return <span className="inline-flex items-center justify-center h-7 w-7 rounded-full bg-gradient-to-br from-yellow-300 to-yellow-500 text-white text-xs font-bold shadow-sm">1</span>;
   if (rank === 2) return <span className="inline-flex items-center justify-center h-7 w-7 rounded-full bg-gradient-to-br from-gray-300 to-gray-400 text-white text-xs font-bold">2</span>;
   if (rank === 3) return <span className="inline-flex items-center justify-center h-7 w-7 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 text-white text-xs font-bold">3</span>;
-  return <span className="text-gray-400 text-sm tabular-nums">{rank}</span>;
+  return <span className="text-muted-foreground text-sm tabular-nums">{rank}</span>;
 }
 
 function StatusDot({ status }: { status?: CreatorStatus }) {
@@ -83,12 +83,12 @@ export function CreatorTable({ creators, csvButton }: Props) {
   const hasStatuses = creators.some((c) => c.status);
 
   return (
-    <div className="rounded-2xl overflow-hidden bg-white border border-gray-100 shadow-sm">
-      <div className="px-6 py-4 border-b border-gray-100 flex flex-col gap-3">
+    <div className="rounded-2xl overflow-hidden bg-card border border-border shadow-sm">
+      <div className="px-6 py-4 border-b border-border flex flex-col gap-3">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-lg font-bold tracking-tight text-[#1A1B3A]">Top Creators</h3>
-            <p className="text-xs text-gray-400 mt-0.5">Ranked by GMV</p>
+            <h3 className="text-lg font-bold tracking-tight text-[var(--foreground)]">Top Creators</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">Ranked by GMV</p>
           </div>
           {csvButton}
         </div>
@@ -107,9 +107,9 @@ export function CreatorTable({ creators, csvButton }: Props) {
                     'px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 border',
                     active
                       ? isAll
-                        ? 'border-[#FF4D8D] bg-pink-50 text-[#FF4D8D]'
+                        ? 'border-[var(--primary)] bg-primary/10 text-[var(--primary)]'
                         : ''
-                      : 'border-gray-200 bg-white text-gray-500 hover:bg-gray-50'
+                      : 'border-border bg-card text-muted-foreground hover:bg-muted'
                   )}
                   style={
                     active && !isAll && config
@@ -127,8 +127,8 @@ export function CreatorTable({ creators, csvButton }: Props) {
       </div>
       <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
         <table className="w-full text-sm">
-          <thead className="sticky top-0 z-10 bg-gray-50">
-            <tr className="border-b border-gray-100 text-gray-500">
+          <thead className="sticky top-0 z-10 bg-muted">
+            <tr className="border-b border-border text-muted-foreground">
               <th className="px-6 py-3 text-left font-medium text-xs uppercase tracking-wider w-12">#</th>
               <th className="px-4 py-3 text-left font-medium text-xs uppercase tracking-wider">Creator</th>
               <th className="px-4 py-3 text-left font-medium text-xs uppercase tracking-wider">Brand</th>
@@ -143,19 +143,19 @@ export function CreatorTable({ creators, csvButton }: Props) {
           <tbody>
             {filtered.map((c, i) => (
               <tr key={c.display_name + i} className={cn(
-                'border-b border-gray-50 transition-all duration-200',
-                'hover:bg-gray-50',
+                'border-b border-border transition-all duration-200',
+                'hover:bg-muted',
               )}>
                 <td className="px-6 py-3.5"><RankBadge rank={i + 1} /></td>
-                <td className="px-4 py-3.5 font-medium text-[#1A1B3A]">
+                <td className="px-4 py-3.5 font-medium text-[var(--foreground)]">
                   <div className="flex items-center gap-2">
                     <StatusDot status={c.status} />
                     <div>
-                      <Link href={`/creators/${c.managed_creator_id ?? encodeURIComponent(c.handles[0])}`} className="hover:text-[#FF4D8D] hover:underline transition-colors">
+                      <Link href={`/creators/${c.managed_creator_id ?? encodeURIComponent(c.handles[0])}`} className="hover:text-[var(--primary)] hover:underline transition-colors">
                         {c.display_name}
                       </Link>
                       {c.handles.length > 0 && c.display_name !== c.handles[0] && (
-                        <p className="text-xs text-gray-400 mt-0.5">
+                        <p className="text-xs text-muted-foreground mt-0.5">
                           {c.handles.map((h) => `@${h}`).join(', ')}
                         </p>
                       )}
@@ -163,13 +163,13 @@ export function CreatorTable({ creators, csvButton }: Props) {
                   </div>
                 </td>
                 <td className="px-4 py-3.5">
-                  {c.brand ? <BrandPill brand={c.brand} /> : <span className="text-gray-300">-</span>}
+                  {c.brand ? <BrandPill brand={c.brand} /> : <span className="text-muted-foreground">-</span>}
                 </td>
-                <td className="px-4 py-3.5 text-right font-semibold tabular-nums text-[#1A1B3A]">{formatCurrency(c.total_gmv)}</td>
-                <td className="px-4 py-3.5 text-right text-gray-500 tabular-nums">{formatNumber(c.total_orders)}</td>
-                <td className="px-4 py-3.5 text-right text-gray-500 tabular-nums">{formatNumber(c.total_items_sold)}</td>
-                <td className="px-4 py-3.5 text-right text-gray-500 tabular-nums">{formatNumber(c.total_videos)}</td>
-                <td className="px-4 py-3.5 text-right text-gray-500 tabular-nums">
+                <td className="px-4 py-3.5 text-right font-semibold tabular-nums text-[var(--foreground)]">{formatCurrency(c.total_gmv)}</td>
+                <td className="px-4 py-3.5 text-right text-muted-foreground tabular-nums">{formatNumber(c.total_orders)}</td>
+                <td className="px-4 py-3.5 text-right text-muted-foreground tabular-nums">{formatNumber(c.total_items_sold)}</td>
+                <td className="px-4 py-3.5 text-right text-muted-foreground tabular-nums">{formatNumber(c.total_videos)}</td>
+                <td className="px-4 py-3.5 text-right text-muted-foreground tabular-nums">
                   {c.retainer && c.retainer > 0 ? `$${c.retainer.toLocaleString()}` : ''}
                 </td>
                 <td className="px-4 py-3.5 text-right tabular-nums pr-6">
@@ -182,7 +182,7 @@ export function CreatorTable({ creators, csvButton }: Props) {
               </tr>
             ))}
             {filtered.length === 0 && (
-              <tr><td colSpan={9} className="px-4 py-12 text-center text-gray-400">No creator data</td></tr>
+              <tr><td colSpan={9} className="px-4 py-12 text-center text-muted-foreground">No creator data</td></tr>
             )}
           </tbody>
         </table>

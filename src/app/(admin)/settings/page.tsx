@@ -167,7 +167,7 @@ export default async function SettingsPage() {
             <p className="text-sm text-muted-foreground py-4 text-center">No brands connected yet. Connect TikTok Shop to get started.</p>
           ) : (
             brands.map((brand) => {
-              const color = brand.color || '#6B7280';
+              const color = brand.color || 'var(--muted-foreground)';
               return (
                 <div key={brand.slug} className="flex items-center justify-between p-3 rounded-lg border border-border/50 hover:border-border transition-colors">
                   <div className="flex items-center gap-3">
@@ -176,7 +176,7 @@ export default async function SettingsPage() {
                     </div>
                     <span className="font-medium text-sm">{brand.display_name || brand.name}</span>
                   </div>
-                  <span className="text-xs px-2 py-1 rounded-full font-medium bg-green-50 text-green-600">active</span>
+                  <span className="text-xs px-2 py-1 rounded-full font-medium bg-green-500/10 text-green-600">active</span>
                 </div>
               );
             })
@@ -204,7 +204,7 @@ export default async function SettingsPage() {
               <p className="font-medium text-sm">TikTok Shop</p>
               <p className="text-xs text-muted-foreground">{tiktokConnected ? 'Syncing daily' : 'Not connected'}</p>
             </div>
-            <span className={`text-xs px-2 py-1 rounded-full font-medium ${tiktokConnected ? 'bg-green-50 text-green-600' : 'bg-gray-100 text-gray-500'}`}>
+            <span className={`text-xs px-2 py-1 rounded-full font-medium ${tiktokConnected ? 'bg-green-500/10 text-green-600' : 'bg-muted text-muted-foreground'}`}>
               {tiktokConnected ? 'connected' : 'pending'}
             </span>
           </div>
@@ -213,7 +213,7 @@ export default async function SettingsPage() {
               <p className="font-medium text-sm">Discord</p>
               <p className="text-xs text-muted-foreground">{tenant?.discord_connected ? 'Bot active' : 'Not connected'}</p>
             </div>
-            <span className={`text-xs px-2 py-1 rounded-full font-medium ${tenant?.discord_connected ? 'bg-green-50 text-green-600' : 'bg-gray-100 text-gray-500'}`}>
+            <span className={`text-xs px-2 py-1 rounded-full font-medium ${tenant?.discord_connected ? 'bg-green-500/10 text-green-600' : 'bg-muted text-muted-foreground'}`}>
               {tenant?.discord_connected ? 'connected' : 'pending'}
             </span>
           </div>
@@ -236,7 +236,7 @@ export default async function SettingsPage() {
             <div key={label} className="flex items-center justify-between p-3 rounded-lg border border-border/50">
               <span className="text-sm">{label}</span>
               <div className="relative w-11 h-6 rounded-full bg-muted transition-colors cursor-not-allowed">
-                <div className="absolute top-1 left-1 h-4 w-4 rounded-full bg-white" />
+                <div className="absolute top-1 left-1 h-4 w-4 rounded-full bg-card" />
               </div>
             </div>
           ))}

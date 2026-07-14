@@ -100,14 +100,14 @@ export default function ReportingPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-extrabold text-[#1A1B3A]">Reporting</h1>
-        <p className="text-sm text-gray-400 mt-0.5">
+        <h1 className="text-2xl font-extrabold text-[var(--foreground)]">Reporting</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">
           Generate reports for your creators, brand clients, and internal team — or schedule them to run automatically.
         </p>
       </div>
 
       {/* Tab Bar — pill style matching My Creators / Analytics */}
-      <div className="flex gap-1 p-1 bg-gray-100 rounded-xl w-fit">
+      <div className="flex gap-1 p-1 bg-muted rounded-xl w-fit">
         {TABS.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
@@ -115,8 +115,8 @@ export default function ReportingPage() {
             className={cn(
               'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors',
               activeTab === id
-                ? 'bg-white text-[#1A1B3A] shadow-sm'
-                : 'text-gray-500 hover:text-gray-700'
+                ? 'bg-card text-[var(--foreground)] shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
             )}
           >
             <Icon className="h-4 w-4" />
@@ -174,7 +174,7 @@ function GenerateTab() {
           title="Performance Summary"
           description="Weekly or monthly overview of GMV, top creators, top videos, and trends."
           icon={BarChart3}
-          iconBg="bg-blue-50"
+          iconBg="bg-blue-500/10"
           iconColor="text-blue-600"
           type="performance-summary"
           showPeriod
@@ -184,7 +184,7 @@ function GenerateTab() {
           title="Creator Activity"
           description="Creator status breakdown — who's crushing it, who's on track, who needs a nudge."
           icon={Users}
-          iconBg="bg-purple-50"
+          iconBg="bg-purple-500/10"
           iconColor="text-purple-600"
           type="creator-activity"
           showPeriod
@@ -194,7 +194,7 @@ function GenerateTab() {
           title="Brand Report"
           description="Internal narrative report on a single brand. (For client-facing, use the Brand reports section.)"
           icon={Send}
-          iconBg="bg-green-50"
+          iconBg="bg-green-500/10"
           iconColor="text-green-600"
           type="brand-report"
           showPeriod
@@ -207,7 +207,7 @@ function GenerateTab() {
 
 // ── Audience Section wrapper ────────────────────────────────────────
 const ACCENT_STYLES = {
-  pink:   { dot: 'bg-[#E91E8C]',  eyebrow: 'text-[#E91E8C]' },
+  pink:   { dot: 'bg-[var(--primary)]',  eyebrow: 'text-[var(--primary)]' },
   purple: { dot: 'bg-purple-600', eyebrow: 'text-purple-600' },
   blue:   { dot: 'bg-blue-600',   eyebrow: 'text-blue-600' },
 } as const;
@@ -225,8 +225,8 @@ function AudienceSection({
         <div aria-hidden="true" className={cn('h-2 w-2 rounded-full mt-2.5', styles.dot)} />
         <div>
           <div className={cn('text-[10px] font-bold uppercase tracking-[0.15em]', styles.eyebrow)}>{eyebrow}</div>
-          <h2 className="text-xl font-bold text-[#1A1B3A] mt-0.5">{title}</h2>
-          <p className="text-sm text-gray-500 mt-0.5">{subtitle}</p>
+          <h2 className="text-xl font-bold text-[var(--foreground)] mt-0.5">{title}</h2>
+          <p className="text-sm text-muted-foreground mt-0.5">{subtitle}</p>
         </div>
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-5">
@@ -256,7 +256,7 @@ function FreshnessBanner() {
     : 'unknown';
 
   return (
-    <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 flex items-start gap-3">
+    <div className="rounded-xl bg-amber-500/10 border border-amber-500/25 px-4 py-3 flex items-start gap-3">
       <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
       <div className="text-xs text-amber-900">
         <strong>Data is {state.daysOld} days old.</strong> Last upload processed: {dateLabel} (UTC).
@@ -350,39 +350,39 @@ function BrandClientReportCard() {
   };
 
   return (
-    <div className="col-span-full rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+    <div className="col-span-full rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
       <div className="grid grid-cols-1 lg:grid-cols-5">
         {/* Left: Configuration */}
         <div className="lg:col-span-3 p-6 space-y-5">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-purple-50 flex items-center justify-center">
+            <div className="h-10 w-10 rounded-xl bg-purple-500/10 flex items-center justify-center">
               <Briefcase className="h-5 w-5 text-purple-600" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-[#1A1B3A]">Brand Client Report</h3>
-              <p className="text-xs text-gray-500 mt-0.5">Polished PDF + a ready-to-paste Slack message. Send both to your brand contacts.</p>
+              <h3 className="text-base font-bold text-[var(--foreground)]">Brand Client Report</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">Polished PDF + a ready-to-paste Slack message. Send both to your brand contacts.</p>
             </div>
           </div>
 
           <div>
-            <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Brand</label>
+            <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Brand</label>
             <select
               value={brand}
               onChange={e => setBrand(e.target.value)}
-              className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+              className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
             >
               {brandOptions.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}
             </select>
           </div>
 
           <div>
-            <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Reporting period</label>
-            <div className="flex gap-1 p-1 bg-gray-100 rounded-xl mb-2">
+            <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Reporting period</label>
+            <div className="flex gap-1 p-1 bg-muted rounded-xl mb-2">
               {[{ k: '7d', l: 'Last 7d' }, { k: '30d', l: 'Last 30d' }, { k: 'mtd', l: 'This month' }].map(p => (
                 <button
                   key={p.k}
                   onClick={() => applyPreset(p.k as '7d' | '30d' | 'mtd')}
-                  className="flex-1 text-xs font-semibold py-1.5 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-white/70 transition-colors"
+                  className="flex-1 text-xs font-semibold py-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-card/70 transition-colors"
                 >
                   {p.l}
                 </button>
@@ -393,14 +393,14 @@ function BrandClientReportCard() {
                 <input
                   type="date" value={startDate} max={endDate}
                   onChange={e => setStartDate(e.target.value)}
-                  className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+                  className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
                 />
               </div>
               <div className="relative">
                 <input
                   type="date" value={endDate} min={startDate} max={today}
                   onChange={e => setEndDate(e.target.value)}
-                  className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+                  className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
                 />
               </div>
             </div>
@@ -408,7 +408,7 @@ function BrandClientReportCard() {
           </div>
 
           {error && (
-            <div className="px-3 py-2 rounded-lg bg-red-50 text-red-600 text-xs">{error}</div>
+            <div className="px-3 py-2 rounded-lg bg-red-500/10 text-red-600 text-xs">{error}</div>
           )}
 
           <div className="flex flex-col sm:flex-row gap-2">
@@ -422,7 +422,7 @@ function BrandClientReportCard() {
             <button
               onClick={generateSlack}
               disabled={slackLoading || !rangeValid}
-              className="flex-1 py-3 rounded-xl border border-gray-200 hover:bg-gray-50 text-[#1A1B3A] font-semibold text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              className="flex-1 py-3 rounded-xl border border-border hover:bg-muted text-[var(--foreground)] font-semibold text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {slackLoading ? <><Loader2 className="h-4 w-4 animate-spin" />Building…</> : <><Send className="h-4 w-4" />Slack message</>}
             </button>
@@ -430,34 +430,34 @@ function BrandClientReportCard() {
 
           {/* Slack message — copy/paste alongside the PDF */}
           {slackText && (
-            <div className="rounded-xl border border-gray-200 overflow-hidden">
+            <div className="rounded-xl border border-border overflow-hidden">
               <div className="px-4 py-2 bg-[#4A154B] flex items-center justify-between">
                 <span className="text-xs font-semibold text-white flex items-center gap-1.5">📨 Slack message</span>
                 <button
                   onClick={copySlack}
                   className={cn(
                     'flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold transition-colors',
-                    copied ? 'bg-green-500 text-white' : 'bg-white/15 hover:bg-white/25 text-white'
+                    copied ? 'bg-green-500 text-white' : 'bg-card/15 hover:bg-card/25 text-white'
                   )}
                 >
                   {copied ? <><Check className="h-3.5 w-3.5" />Copied</> : <><Clipboard className="h-3.5 w-3.5" />Copy</>}
                 </button>
               </div>
-              <div className="p-4 bg-white border-l-4 border-[#4A154B] max-h-[320px] overflow-auto">
-                <pre className="text-sm text-gray-800 whitespace-pre-wrap font-sans leading-relaxed">{slackText}</pre>
+              <div className="p-4 bg-card border-l-4 border-[#4A154B] max-h-[320px] overflow-auto">
+                <pre className="text-sm text-foreground whitespace-pre-wrap font-sans leading-relaxed">{slackText}</pre>
               </div>
             </div>
           )}
 
-          <p className="text-[11px] text-gray-400 leading-relaxed">
-            Filename: <code className="text-gray-500">{brandLabel.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-custom-report-{endDate}.pdf</code>
+          <p className="text-[11px] text-muted-foreground leading-relaxed">
+            Filename: <code className="text-muted-foreground">{brandLabel.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-custom-report-{endDate}.pdf</code>
           </p>
         </div>
 
         {/* Right: Sections preview */}
-        <div className="lg:col-span-2 bg-gradient-to-br from-purple-50 via-pink-50/40 to-white border-l border-gray-100 p-6">
-          <div className="text-[10px] font-bold uppercase tracking-[0.15em] text-purple-700 mb-3">What's inside</div>
-          <ul className="space-y-2 text-xs text-gray-700">
+        <div className="lg:col-span-2 bg-gradient-to-br from-purple-50 via-primary/10 to-white border-l border-border p-6">
+          <div className="text-[10px] font-bold uppercase tracking-[0.15em] text-purple-500 mb-3">What's inside</div>
+          <ul className="space-y-2 text-xs text-foreground">
             {[
               'Branded cover page with reporting period',
               'Executive summary (narrative paragraph)',
@@ -578,10 +578,10 @@ function SchedulesTab() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-gray-400">Automated report delivery to Discord and Slack channels.</p>
+        <p className="text-sm text-muted-foreground">Automated report delivery to Discord and Slack channels.</p>
         <button
           onClick={() => { setEditing(null); setShowModal(true); }}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#E91E8C] text-white text-sm font-semibold hover:bg-[#d1177d] transition-colors"
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[var(--primary)] text-white text-sm font-semibold hover:bg-[#d1177d] transition-colors"
         >
           <Calendar className="h-4 w-4" />
           New Schedule
@@ -589,54 +589,54 @@ function SchedulesTab() {
       </div>
 
       {loading ? (
-        <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-12 text-center">
-          <Loader2 className="h-5 w-5 mx-auto animate-spin text-gray-300" />
+        <div className="rounded-2xl bg-card border border-border shadow-sm p-12 text-center">
+          <Loader2 className="h-5 w-5 mx-auto animate-spin text-muted-foreground" />
         </div>
       ) : schedules.length === 0 ? (
-        <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-16 text-center">
-          <Clock className="h-8 w-8 mx-auto text-gray-200 mb-3" />
-          <p className="text-sm font-medium text-gray-500">No schedules yet</p>
-          <p className="text-xs text-gray-400 mt-1 max-w-sm mx-auto">
+        <div className="rounded-2xl bg-card border border-border shadow-sm p-16 text-center">
+          <Clock className="h-8 w-8 mx-auto text-muted-foreground mb-3" />
+          <p className="text-sm font-medium text-muted-foreground">No schedules yet</p>
+          <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
             Set up an automated schedule to deliver any report or post on a recurring basis to a Discord or Slack channel.
           </p>
         </div>
       ) : (
-        <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+        <div className="rounded-2xl bg-card border border-border shadow-sm overflow-hidden">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50/60 border-b border-gray-100">
+            <thead className="bg-muted/60 border-b border-border">
               <tr>
                 {['Report', 'Brand', 'Frequency', 'Destination', 'Last Sent', 'Next Run', 'Status', ''].map(h => (
-                  <th key={h} className="text-left py-3 px-4 font-semibold text-gray-500 text-xs uppercase tracking-wider">{h}</th>
+                  <th key={h} className="text-left py-3 px-4 font-semibold text-muted-foreground text-xs uppercase tracking-wider">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {schedules.map(s => (
-                <tr key={s.id} className="hover:bg-gray-50/60 transition-colors">
-                  <td className="py-3 px-4 font-medium text-[#1A1B3A]">{REPORT_TYPE_LABELS[s.report_type] ?? s.report_type}</td>
-                  <td className="py-3 px-4 text-gray-500">{brandMeta.label(s.brand)}</td>
-                  <td className="py-3 px-4 text-gray-500 text-xs">{s.cron_label}</td>
+                <tr key={s.id} className="hover:bg-muted/60 transition-colors">
+                  <td className="py-3 px-4 font-medium text-[var(--foreground)]">{REPORT_TYPE_LABELS[s.report_type] ?? s.report_type}</td>
+                  <td className="py-3 px-4 text-muted-foreground">{brandMeta.label(s.brand)}</td>
+                  <td className="py-3 px-4 text-muted-foreground text-xs">{s.cron_label}</td>
                   <td className="py-3 px-4">
                     <span className={cn(
                       'inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full font-medium',
-                      s.destination_kind === 'discord' ? 'bg-[#5865F2]/10 text-[#5865F2]' : 'bg-green-50 text-green-700'
+                      s.destination_kind === 'discord' ? 'bg-[#5865F2]/10 text-[#5865F2]' : 'bg-green-500/10 text-green-500'
                     )}>
                       {s.destination_kind === 'discord' ? '💬' : '📨'} {s.channel_label || s.destination_kind}
                     </span>
                   </td>
                   <td className="py-3 px-4 text-xs">
-                    <div className="text-gray-500">{relativeTimeAgo(s.last_run_at)}</div>
+                    <div className="text-muted-foreground">{relativeTimeAgo(s.last_run_at)}</div>
                     {s.last_run_status === 'failed' && (
                       <div className="text-[10px] text-red-500" title={s.last_run_error ?? ''}>last run failed</div>
                     )}
                   </td>
-                  <td className="py-3 px-4 text-xs text-gray-500">{s.active ? relativeTimeUntil(s.next_run_at) : 'Paused'}</td>
+                  <td className="py-3 px-4 text-xs text-muted-foreground">{s.active ? relativeTimeUntil(s.next_run_at) : 'Paused'}</td>
                   <td className="py-3 px-4">
                     <button
                       onClick={() => toggleActive(s)}
                       className={cn(
                         'text-xs px-2 py-0.5 rounded-full font-semibold transition-colors',
-                        s.active ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                        s.active ? 'bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/15' : 'bg-muted text-muted-foreground hover:bg-secondary'
                       )}
                     >
                       {s.active ? 'Active' : 'Paused'}
@@ -646,14 +646,14 @@ function SchedulesTab() {
                     <div className="flex items-center gap-1">
                       <button
                         onClick={() => { setEditing(s); setShowModal(true); }}
-                        className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors"
+                        className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
                         title="Edit"
                       >
                         <Pencil className="h-3.5 w-3.5" />
                       </button>
                       <button
                         onClick={() => deleteSchedule(s)}
-                        className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-600 transition-colors"
+                        className="p-1.5 rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-600 transition-colors"
                         title="Delete"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
@@ -743,16 +743,16 @@ function ScheduleModal({
     <div className="absolute inset-0 flex items-center justify-center p-4" onClick={onClose}>
       <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" />
       <div
-        className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4"
+        className="relative bg-card rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="text-base font-bold text-[#1A1B3A]">{editing ? 'Edit Schedule' : 'New Schedule'}</h3>
+        <h3 className="text-base font-bold text-[var(--foreground)]">{editing ? 'Edit Schedule' : 'New Schedule'}</h3>
 
         <div className="space-y-3">
           {/* Source */}
           <div>
-            <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Type</label>
-            <div className="flex gap-1 p-1 bg-gray-100 rounded-xl">
+            <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Type</label>
+            <div className="flex gap-1 p-1 bg-muted rounded-xl">
               {[
                 { v: 'discord-posts', l: 'Quick Post' },
                 { v: 'reporting',     l: 'Long Report' },
@@ -765,7 +765,7 @@ function ScheduleModal({
                   }}
                   className={cn(
                     'flex-1 text-sm font-semibold py-1.5 rounded-lg transition-colors',
-                    source === o.v ? 'bg-white text-[#1A1B3A] shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                    source === o.v ? 'bg-card text-[var(--foreground)] shadow-sm' : 'text-muted-foreground hover:text-foreground'
                   )}
                 >
                   {o.l}
@@ -776,11 +776,11 @@ function ScheduleModal({
 
           {/* Report */}
           <div>
-            <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Report</label>
+            <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Report</label>
             <select
               value={reportType}
               onChange={e => setReportType(e.target.value)}
-              className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+              className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
             >
               {reportOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
@@ -788,11 +788,11 @@ function ScheduleModal({
 
           {/* Brand */}
           <div>
-            <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Brand</label>
+            <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Brand</label>
             <select
               value={brand}
               onChange={e => setBrand(e.target.value)}
-              className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+              className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
             >
               {brandOptions.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}
             </select>
@@ -801,15 +801,15 @@ function ScheduleModal({
           {/* Period (only for periodic reports) */}
           {(source === 'reporting' || ['whats-cooking', 'whos-cooking'].includes(reportType)) && (
             <div>
-              <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Lookback Period</label>
-              <div className="flex gap-1 p-1 bg-gray-100 rounded-xl">
+              <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Lookback Period</label>
+              <div className="flex gap-1 p-1 bg-muted rounded-xl">
                 {[{ v: '7d', l: '7 Days' }, { v: '30d', l: '30 Days' }].map(p => (
                   <button
                     key={p.v}
                     onClick={() => setPeriod(p.v)}
                     className={cn(
                       'flex-1 text-sm font-semibold py-1.5 rounded-lg transition-colors',
-                      period === p.v ? 'bg-white text-[#1A1B3A] shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                      period === p.v ? 'bg-card text-[var(--foreground)] shadow-sm' : 'text-muted-foreground hover:text-foreground'
                     )}
                   >
                     {p.l}
@@ -821,11 +821,11 @@ function ScheduleModal({
 
           {/* Frequency */}
           <div>
-            <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Send</label>
+            <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Send</label>
             <select
               value={cronLabel}
               onChange={e => setCronLabel(e.target.value)}
-              className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+              className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
             >
               {FREQUENCIES.map(f => <option key={f.label} value={f.label}>{f.label}</option>)}
             </select>
@@ -833,49 +833,49 @@ function ScheduleModal({
 
           {/* Webhook URL */}
           <div>
-            <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
-              Webhook URL <span className="text-gray-400 font-normal normal-case ml-1">(Discord or Slack incoming webhook)</span>
+            <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+              Webhook URL <span className="text-muted-foreground font-normal normal-case ml-1">(Discord or Slack incoming webhook)</span>
             </label>
             <input
               type="url"
               value={webhookUrl}
               onChange={e => setWebhookUrl(e.target.value)}
               placeholder="https://discord.com/api/webhooks/…  or  https://hooks.slack.com/services/…"
-              className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C] font-mono"
+              className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] font-mono"
             />
           </div>
 
           {/* Channel label (display) */}
           <div>
-            <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
-              Label <span className="text-gray-400 font-normal normal-case ml-1">(display only — e.g. #daily-updates)</span>
+            <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+              Label <span className="text-muted-foreground font-normal normal-case ml-1">(display only — e.g. #daily-updates)</span>
             </label>
             <input
               type="text"
               value={channelLabel}
               onChange={e => setChannelLabel(e.target.value)}
               placeholder="#channel-name"
-              className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+              className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
             />
           </div>
         </div>
 
         {error && (
-          <div className="px-3 py-2 rounded-lg bg-red-50 text-red-600 text-xs">{error}</div>
+          <div className="px-3 py-2 rounded-lg bg-red-500/10 text-red-600 text-xs">{error}</div>
         )}
 
         <div className="flex gap-3 pt-1">
           <button
             onClick={onClose}
             disabled={saving}
-            className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+            className="flex-1 py-2.5 rounded-xl border border-border text-sm font-medium text-muted-foreground hover:bg-muted transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
             disabled={saving || !webhookUrl}
-            className="flex-1 py-2.5 rounded-xl bg-[#E91E8C] hover:bg-[#d1177d] text-white text-sm font-semibold disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+            className="flex-1 py-2.5 rounded-xl bg-[var(--primary)] hover:bg-[#d1177d] text-white text-sm font-semibold disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
           >
             {saving && <Loader2 className="h-4 w-4 animate-spin" />}
             {editing ? 'Save Changes' : 'Create Schedule'}
@@ -934,35 +934,35 @@ function ReportCard({
   };
 
   return (
-    <div className="rounded-2xl bg-white border border-gray-100 shadow-sm flex flex-col">
-      <div className="px-5 py-4 border-b border-gray-100">
+    <div className="rounded-2xl bg-card border border-border shadow-sm flex flex-col">
+      <div className="px-5 py-4 border-b border-border">
         <div className="flex items-center gap-3 mb-2">
           <div className={`h-10 w-10 rounded-lg ${iconBg} flex items-center justify-center`}>
             <Icon className={`h-5 w-5 ${iconColor}`} />
           </div>
-          <h3 className="font-bold text-[#1A1B3A]">{title}</h3>
+          <h3 className="font-bold text-[var(--foreground)]">{title}</h3>
         </div>
-        <p className="text-sm text-gray-400">{description}</p>
+        <p className="text-sm text-muted-foreground">{description}</p>
       </div>
 
       <div className="px-5 py-4 space-y-3">
         <select
           value={brand}
           onChange={e => setBrand(e.target.value)}
-          className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+          className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
         >
           {brandOptions.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}
         </select>
 
         {showPeriod && (
-          <div className="flex gap-1 p-1 bg-gray-100 rounded-xl">
+          <div className="flex gap-1 p-1 bg-muted rounded-xl">
             {[{ v: '7d', l: 'Weekly' }, { v: '30d', l: 'Monthly' }].map(p => (
               <button
                 key={p.v}
                 onClick={() => setPeriod(p.v as '7d' | '30d')}
                 className={cn(
                   'flex-1 text-sm font-semibold py-1.5 rounded-lg transition-colors',
-                  period === p.v ? 'bg-white text-[#1A1B3A] shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                  period === p.v ? 'bg-card text-[var(--foreground)] shadow-sm' : 'text-muted-foreground hover:text-foreground'
                 )}
               >
                 {p.l}
@@ -974,8 +974,8 @@ function ReportCard({
         {/* Features list */}
         <div className="space-y-1">
           {features.map(f => (
-            <div key={f} className="flex items-center gap-2 text-xs text-gray-500">
-              <div className="w-1 h-1 rounded-full bg-[#E91E8C]" />
+            <div key={f} className="flex items-center gap-2 text-xs text-muted-foreground">
+              <div className="w-1 h-1 rounded-full bg-[var(--primary)]" />
               {f}
             </div>
           ))}
@@ -984,33 +984,33 @@ function ReportCard({
         <button
           onClick={generate}
           disabled={loading}
-          className="w-full py-2.5 rounded-xl bg-[#E91E8C] hover:bg-[#d1177d] text-white font-semibold text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+          className="w-full py-2.5 rounded-xl bg-[var(--primary)] hover:bg-[#d1177d] text-white font-semibold text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
         >
           {loading ? <><Loader2 className="h-4 w-4 animate-spin" />Generating…</> : 'Generate Report'}
         </button>
       </div>
 
       {error && (
-        <div className="mx-5 mb-4 px-3 py-2 rounded-lg bg-red-50 text-red-600 text-xs">{error}</div>
+        <div className="mx-5 mb-4 px-3 py-2 rounded-lg bg-red-500/10 text-red-600 text-xs">{error}</div>
       )}
 
       {text && (
         <div className="px-5 pb-5 space-y-3">
-          <div className="rounded-xl border border-gray-200 overflow-hidden">
-            <div className="px-4 py-2 bg-gray-50/80 border-b border-gray-200 flex items-center justify-between">
-              <span className="text-xs font-semibold text-gray-500">Preview</span>
+          <div className="rounded-xl border border-border overflow-hidden">
+            <div className="px-4 py-2 bg-muted/80 border-b border-border flex items-center justify-between">
+              <span className="text-xs font-semibold text-muted-foreground">Preview</span>
               <button
                 onClick={handleCopy}
                 className={cn(
                   'flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold transition-colors',
-                  copied ? 'bg-green-500 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                  copied ? 'bg-green-500 text-white' : 'bg-secondary hover:bg-secondary text-foreground'
                 )}
               >
                 {copied ? <><Check className="h-3.5 w-3.5" />Copied</> : <><Clipboard className="h-3.5 w-3.5" />Copy</>}
               </button>
             </div>
-            <div className="p-4 bg-white max-h-[400px] overflow-auto">
-              <pre className="text-sm text-gray-700 whitespace-pre-wrap font-sans leading-relaxed">{text}</pre>
+            <div className="p-4 bg-card max-h-[400px] overflow-auto">
+              <pre className="text-sm text-foreground whitespace-pre-wrap font-sans leading-relaxed">{text}</pre>
             </div>
           </div>
         </div>
@@ -1100,16 +1100,16 @@ function PostCard({
   };
 
   return (
-    <div className="rounded-2xl bg-white border border-gray-100 shadow-sm flex flex-col">
+    <div className="rounded-2xl bg-card border border-border shadow-sm flex flex-col">
       {/* Header */}
-      <div className="px-5 py-4 border-b border-gray-100">
+      <div className="px-5 py-4 border-b border-border">
         <div className="flex items-center gap-3 mb-1">
-          <div className="h-9 w-9 rounded-lg bg-pink-50 flex items-center justify-center">
-            <Icon className="h-5 w-5 text-[#E91E8C]" />
+          <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center">
+            <Icon className="h-5 w-5 text-[var(--primary)]" />
           </div>
-          <h2 className="text-lg font-bold text-[#1A1B3A]">{title}</h2>
+          <h2 className="text-lg font-bold text-[var(--foreground)]">{title}</h2>
         </div>
-        <p className="text-xs text-gray-400">{description}</p>
+        <p className="text-xs text-muted-foreground">{description}</p>
       </div>
 
       {/* Controls */}
@@ -1117,20 +1117,20 @@ function PostCard({
         <select
           value={brand}
           onChange={e => setBrand(e.target.value)}
-          className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+          className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
         >
           {brandOptions.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}
         </select>
 
         {showPeriod && (
-          <div className="flex gap-1 p-1 bg-gray-100 rounded-xl">
+          <div className="flex gap-1 p-1 bg-muted rounded-xl">
             {[{ v: '7d', l: '7 Day' }, { v: '30d', l: 'Monthly' }].map(p => (
               <button
                 key={p.v}
                 onClick={() => setPeriod(p.v as '7d' | '30d')}
                 className={cn(
                   'flex-1 text-sm font-semibold py-1.5 rounded-lg transition-colors',
-                  period === p.v ? 'bg-white text-[#1A1B3A] shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                  period === p.v ? 'bg-card text-[var(--foreground)] shadow-sm' : 'text-muted-foreground hover:text-foreground'
                 )}
               >
                 {p.l}
@@ -1145,12 +1145,12 @@ function PostCard({
             📨 Slack format (client-facing)
           </div>
         ) : (
-          <div className="flex gap-1 p-1 bg-gray-100 rounded-xl">
+          <div className="flex gap-1 p-1 bg-muted rounded-xl">
             <button
               onClick={() => setFormat('discord')}
               className={cn(
                 'flex-1 text-sm font-semibold py-1.5 rounded-lg transition-colors flex items-center justify-center gap-1.5',
-                format === 'discord' ? 'bg-[#5865F2] text-white shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                format === 'discord' ? 'bg-[#5865F2] text-white shadow-sm' : 'text-muted-foreground hover:text-foreground'
               )}
             >
               💬 Discord
@@ -1159,7 +1159,7 @@ function PostCard({
               onClick={() => setFormat('slack')}
               className={cn(
                 'flex-1 text-sm font-semibold py-1.5 rounded-lg transition-colors flex items-center justify-center gap-1.5',
-                format === 'slack' ? 'bg-[#4A154B] text-white shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                format === 'slack' ? 'bg-[#4A154B] text-white shadow-sm' : 'text-muted-foreground hover:text-foreground'
               )}
             >
               📨 Slack
@@ -1170,7 +1170,7 @@ function PostCard({
         <button
           onClick={generate}
           disabled={loading}
-          className="w-full py-2.5 rounded-xl bg-[#E91E8C] hover:bg-[#d1177d] text-white font-semibold text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+          className="w-full py-2.5 rounded-xl bg-[var(--primary)] hover:bg-[#d1177d] text-white font-semibold text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
         >
           {loading ? <><Loader2 className="h-4 w-4 animate-spin" />Generating…</> : 'Generate'}
         </button>
@@ -1179,7 +1179,7 @@ function PostCard({
           <button
             onClick={downloadPdf}
             disabled={pdfLoading}
-            className="w-full py-2.5 rounded-xl border border-gray-200 hover:bg-gray-50 text-[#1A1B3A] font-semibold text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+            className="w-full py-2.5 rounded-xl border border-border hover:bg-muted text-[var(--foreground)] font-semibold text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {pdfLoading ? <><Loader2 className="h-4 w-4 animate-spin" />Building PDF…</> : <><Download className="h-4 w-4" />Download PDF</>}
           </button>
@@ -1188,16 +1188,16 @@ function PostCard({
 
       {/* Stats */}
       {stats && (
-        <div className="px-5 pb-3 flex gap-4 text-xs text-gray-500">
-          <span><strong className="text-gray-700">${stats.totalGmv.toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong> GMV</span>
-          <span><strong className="text-gray-700">{stats.videoCount}</strong> videos</span>
-          <span><strong className="text-gray-700">{stats.creatorCount}</strong> creators</span>
+        <div className="px-5 pb-3 flex gap-4 text-xs text-muted-foreground">
+          <span><strong className="text-foreground">${stats.totalGmv.toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong> GMV</span>
+          <span><strong className="text-foreground">{stats.videoCount}</strong> videos</span>
+          <span><strong className="text-foreground">{stats.creatorCount}</strong> creators</span>
         </div>
       )}
 
       {/* Preview */}
       {text && (
-        <div className="mx-5 mb-4 rounded-xl overflow-hidden border border-gray-200 flex-1 flex flex-col">
+        <div className="mx-5 mb-4 rounded-xl overflow-hidden border border-border flex-1 flex flex-col">
           {format === 'discord' ? (
             <>
               <div className="px-4 py-2 bg-[#36393f] flex items-center justify-between">
@@ -1212,12 +1212,12 @@ function PostCard({
             </>
           ) : (
             <>
-              <div className="px-4 py-2 bg-white border-b border-gray-200 flex items-center justify-between">
-                <span className="text-xs font-semibold text-gray-500">Slack Preview</span>
+              <div className="px-4 py-2 bg-card border-b border-border flex items-center justify-between">
+                <span className="text-xs font-semibold text-muted-foreground">Slack Preview</span>
                 <CopyBtn copied={copied} onClick={handleCopy} variant="slack" />
               </div>
-              <div className="bg-white p-4 flex-1 overflow-auto max-h-[500px] border-l-4 border-[#FF4D8D]">
-                <div className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">
+              <div className="bg-card p-4 flex-1 overflow-auto max-h-[500px] border-l-4 border-[var(--primary)]">
+                <div className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">
                   {text}
                 </div>
               </div>
@@ -1227,7 +1227,7 @@ function PostCard({
       )}
 
       {error && (
-        <div className="mx-5 mb-4 px-3 py-2 rounded-lg bg-red-50 text-red-600 text-xs">{error}</div>
+        <div className="mx-5 mb-4 px-3 py-2 rounded-lg bg-red-500/10 text-red-600 text-xs">{error}</div>
       )}
 
       {text && (
@@ -1236,7 +1236,7 @@ function PostCard({
             onClick={handleCopy}
             className={cn(
               'w-full py-3 rounded-xl font-semibold text-sm transition-colors flex items-center justify-center gap-2',
-              copied ? 'bg-green-500 text-white' : 'bg-[#1A1B3A] hover:bg-[#2a2b4a] text-white'
+              copied ? 'bg-green-500 text-white' : 'bg-[var(--foreground)] hover:bg-[#2a2b4a] text-white'
             )}
           >
             {copied ? <><Check className="h-4 w-4" />Copied</> : <><Clipboard className="h-4 w-4" />Copy to Clipboard</>}
@@ -1256,7 +1256,7 @@ function CopyBtn({ copied, onClick, variant }: { copied: boolean; onClick: () =>
           ? 'bg-green-600 text-white'
           : variant === 'discord'
             ? 'bg-[#5865F2] hover:bg-[#4752c4] text-white'
-            : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+            : 'bg-secondary hover:bg-secondary text-foreground'
       }`}>
       {copied ? <><Check className="h-3.5 w-3.5" />Copied!</> : <><Clipboard className="h-3.5 w-3.5" />Copy</>}
     </button>

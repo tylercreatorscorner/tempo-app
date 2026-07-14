@@ -107,16 +107,16 @@ export function BulkMessageModal({ open, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 max-h-[85vh] flex flex-col overflow-hidden">
+      <div className="bg-card rounded-2xl shadow-2xl w-full max-w-2xl mx-4 max-h-[85vh] flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <div className="flex items-center gap-3">
-            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-pink-500 to-purple-500 flex items-center justify-center">
+            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary to-purple-500 flex items-center justify-center">
               <Users className="h-4 w-4 text-white" />
             </div>
             <div>
-              <h3 className="font-semibold text-[#1A1B3A]">Bulk Message</h3>
-              <p className="text-xs text-gray-400">
+              <h3 className="font-semibold text-[var(--foreground)]">Bulk Message</h3>
+              <p className="text-xs text-muted-foreground">
                 {step === 'filters' && 'Select your audience'}
                 {step === 'preview' && `${filtered.length} creators matched`}
                 {step === 'compose' && 'Write your message'}
@@ -124,7 +124,7 @@ export function BulkMessageModal({ open, onClose }: Props) {
               </p>
             </div>
           </div>
-          <button onClick={handleClose} className="text-gray-400 hover:text-gray-600 transition-colors">
+          <button onClick={handleClose} className="text-muted-foreground hover:text-muted-foreground transition-colors">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -134,15 +134,15 @@ export function BulkMessageModal({ open, onClose }: Props) {
           <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
             {/* Brand filter */}
             <div>
-              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Brand</label>
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Brand</label>
               <div className="flex flex-wrap gap-2 mt-2">
                 <button
                   onClick={() => setBrandFilter('all')}
                   className={cn(
                     'px-3 py-1.5 rounded-lg text-xs font-medium border transition-all',
                     brandFilter === 'all'
-                      ? 'border-pink-300 bg-pink-50 text-pink-600'
-                      : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                      ? 'border-primary/20 bg-primary/10 text-primary'
+                      : 'border-border text-muted-foreground hover:border-border'
                   )}
                 >
                   All Brands
@@ -155,7 +155,7 @@ export function BulkMessageModal({ open, onClose }: Props) {
                       'px-3 py-1.5 rounded-lg text-xs font-medium border transition-all',
                       brandFilter === b.slug
                         ? 'text-white'
-                        : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                        : 'border-border text-muted-foreground hover:border-border'
                     )}
                     style={brandFilter === b.slug ? {
                       backgroundColor: b.color,
@@ -170,7 +170,7 @@ export function BulkMessageModal({ open, onClose }: Props) {
 
             {/* Status filter */}
             <div>
-              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Creator Status</label>
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Creator Status</label>
               <div className="flex flex-wrap gap-2 mt-2">
                 {ALL_STATUSES.map(s => {
                   const cfg = STATUS_CONFIG[s];
@@ -183,7 +183,7 @@ export function BulkMessageModal({ open, onClose }: Props) {
                         'px-3 py-1.5 rounded-lg text-xs font-medium border transition-all flex items-center gap-1.5',
                         active
                           ? 'border-transparent'
-                          : 'border-gray-200 text-gray-400 opacity-50'
+                          : 'border-border text-muted-foreground opacity-50'
                       )}
                       style={active ? {
                         backgroundColor: cfg.bgColor,
@@ -201,7 +201,7 @@ export function BulkMessageModal({ open, onClose }: Props) {
 
             {/* Discord filter */}
             <div>
-              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Discord Connected</label>
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Discord Connected</label>
               <div className="flex gap-2 mt-2">
                 {[
                   { value: 'all' as const, label: 'All' },
@@ -215,7 +215,7 @@ export function BulkMessageModal({ open, onClose }: Props) {
                       'px-3 py-1.5 rounded-lg text-xs font-medium border transition-all',
                       hasDiscord === opt.value
                         ? 'border-[#5865F2] bg-[#EEF0FE] text-[#5865F2]'
-                        : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                        : 'border-border text-muted-foreground hover:border-border'
                     )}
                   >
                     {opt.label}
@@ -227,15 +227,15 @@ export function BulkMessageModal({ open, onClose }: Props) {
             {/* Count */}
             <div className="flex items-center justify-between pt-2">
               <div className="flex items-center gap-2">
-                <Filter className="h-4 w-4 text-gray-400" />
-                <span className="text-sm font-medium text-[#1A1B3A]">
+                <Filter className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium text-[var(--foreground)]">
                   {loading ? '...' : `${filtered.length} creators`} match your filters
                 </span>
               </div>
               <button
                 onClick={() => setStep('preview')}
                 disabled={filtered.length === 0 || loading}
-                className="flex items-center gap-1 px-4 py-2 rounded-xl bg-gradient-to-br from-pink-500 to-purple-500 text-white text-sm font-medium hover:opacity-90 disabled:opacity-40 transition-opacity"
+                className="flex items-center gap-1 px-4 py-2 rounded-xl bg-gradient-to-br from-primary to-purple-500 text-white text-sm font-medium hover:opacity-90 disabled:opacity-40 transition-opacity"
               >
                 Preview
                 <ChevronRight className="h-4 w-4" />
@@ -247,45 +247,45 @@ export function BulkMessageModal({ open, onClose }: Props) {
         {/* Step: Preview */}
         {step === 'preview' && (
           <div className="flex-1 overflow-y-auto">
-            <div className="px-6 py-3 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
-              <span className="text-xs text-gray-500">{filtered.length} creators will receive this message</span>
-              <button onClick={() => setStep('filters')} className="text-xs text-pink-500 hover:text-pink-700">
+            <div className="px-6 py-3 bg-muted border-b border-border flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">{filtered.length} creators will receive this message</span>
+              <button onClick={() => setStep('filters')} className="text-xs text-primary hover:text-primary">
                 Edit filters
               </button>
             </div>
             <div className="max-h-72 overflow-y-auto">
               {filtered.map(c => (
-                <div key={c.id} className="flex items-center gap-3 px-6 py-2.5 border-b border-gray-50 hover:bg-gray-50/50">
+                <div key={c.id} className="flex items-center gap-3 px-6 py-2.5 border-b border-border hover:bg-muted/50">
                   <div
                     className="h-7 w-7 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0"
-                    style={{ backgroundColor: brandOptions.find(b => b.slug === c.brand)?.color || '#6B7280' }}
+                    style={{ backgroundColor: brandOptions.find(b => b.slug === c.brand)?.color || 'var(--muted-foreground)' }}
                   >
                     {c.real_name.charAt(0).toUpperCase()}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <span className="text-sm font-medium text-[#1A1B3A]">{c.real_name}</span>
-                    <span className="text-xs text-gray-400 ml-2">
+                    <span className="text-sm font-medium text-[var(--foreground)]">{c.real_name}</span>
+                    <span className="text-xs text-muted-foreground ml-2">
                       {brandOptions.find(b => b.slug === c.brand)?.name || c.brand}
                     </span>
                   </div>
                   {c.discord_id ? (
                     <ChannelIcon channel="dm" size="sm" showLabel />
                   ) : (
-                    <span className="text-[10px] text-gray-400">No Discord</span>
+                    <span className="text-[10px] text-muted-foreground">No Discord</span>
                   )}
                 </div>
               ))}
             </div>
-            <div className="px-6 py-4 border-t border-gray-200 flex justify-between">
+            <div className="px-6 py-4 border-t border-border flex justify-between">
               <button
                 onClick={() => setStep('filters')}
-                className="px-4 py-2 rounded-xl text-sm text-gray-600 hover:bg-gray-100 transition-colors"
+                className="px-4 py-2 rounded-xl text-sm text-muted-foreground hover:bg-muted transition-colors"
               >
                 Back
               </button>
               <button
                 onClick={() => setStep('compose')}
-                className="flex items-center gap-1 px-4 py-2 rounded-xl bg-gradient-to-br from-pink-500 to-purple-500 text-white text-sm font-medium hover:opacity-90 transition-opacity"
+                className="flex items-center gap-1 px-4 py-2 rounded-xl bg-gradient-to-br from-primary to-purple-500 text-white text-sm font-medium hover:opacity-90 transition-opacity"
               >
                 Write Message
                 <ChevronRight className="h-4 w-4" />
@@ -299,27 +299,27 @@ export function BulkMessageModal({ open, onClose }: Props) {
           <div className="flex-1 px-6 py-5 flex flex-col">
             <div className="flex items-center gap-2 mb-3">
               <ChannelIcon channel="bulk" size="sm" showLabel />
-              <span className="text-xs text-gray-400">Sending to {filtered.length} creators</span>
+              <span className="text-xs text-muted-foreground">Sending to {filtered.length} creators</span>
             </div>
             <textarea
               value={content}
               onChange={e => setContent(e.target.value)}
               placeholder="Type your message..."
               rows={6}
-              className="flex-1 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-300 resize-none"
+              className="flex-1 w-full rounded-xl border border-border px-4 py-3 text-sm bg-muted focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none"
               autoFocus
             />
             <div className="flex justify-between mt-4">
               <button
                 onClick={() => setStep('preview')}
-                className="px-4 py-2 rounded-xl text-sm text-gray-600 hover:bg-gray-100 transition-colors"
+                className="px-4 py-2 rounded-xl text-sm text-muted-foreground hover:bg-muted transition-colors"
               >
                 Back
               </button>
               <button
                 onClick={() => setStep('confirm')}
                 disabled={!content.trim()}
-                className="flex items-center gap-1 px-4 py-2 rounded-xl bg-gradient-to-br from-pink-500 to-purple-500 text-white text-sm font-medium hover:opacity-90 disabled:opacity-40 transition-opacity"
+                className="flex items-center gap-1 px-4 py-2 rounded-xl bg-gradient-to-br from-primary to-purple-500 text-white text-sm font-medium hover:opacity-90 disabled:opacity-40 transition-opacity"
               >
                 Review
                 <ChevronRight className="h-4 w-4" />
@@ -331,10 +331,10 @@ export function BulkMessageModal({ open, onClose }: Props) {
         {/* Step: Confirm */}
         {step === 'confirm' && (
           <div className="flex-1 px-6 py-5 space-y-4">
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
+            <div className="bg-amber-500/10 border border-amber-500/25 rounded-xl p-4 flex items-start gap-3">
               <AlertCircle className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
               <div>
-                <p className="text-sm font-medium text-amber-800">
+                <p className="text-sm font-medium text-amber-500">
                   Send to {filtered.length} creators?
                 </p>
                 <p className="text-xs text-amber-600 mt-1">
@@ -343,15 +343,15 @@ export function BulkMessageModal({ open, onClose }: Props) {
               </div>
             </div>
 
-            <div className="bg-gray-50 rounded-xl p-4">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Message Preview</p>
-              <p className="text-sm text-[#1A1B3A] whitespace-pre-wrap">{content}</p>
+            <div className="bg-muted rounded-xl p-4">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Message Preview</p>
+              <p className="text-sm text-[var(--foreground)] whitespace-pre-wrap">{content}</p>
             </div>
 
             {result && (
               <div className={cn(
                 'rounded-xl p-3 text-sm',
-                result.startsWith('Failed') ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'
+                result.startsWith('Failed') ? 'bg-red-500/10 text-red-500' : 'bg-green-500/10 text-green-500'
               )}>
                 {result}
               </div>
@@ -360,14 +360,14 @@ export function BulkMessageModal({ open, onClose }: Props) {
             <div className="flex justify-between pt-2">
               <button
                 onClick={() => setStep('compose')}
-                className="px-4 py-2 rounded-xl text-sm text-gray-600 hover:bg-gray-100 transition-colors"
+                className="px-4 py-2 rounded-xl text-sm text-muted-foreground hover:bg-muted transition-colors"
               >
                 Back
               </button>
               <button
                 onClick={handleSend}
                 disabled={sending}
-                className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-br from-pink-500 to-purple-500 text-white text-sm font-medium hover:opacity-90 disabled:opacity-40 transition-opacity"
+                className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-br from-primary to-purple-500 text-white text-sm font-medium hover:opacity-90 disabled:opacity-40 transition-opacity"
               >
                 {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                 Send to {filtered.length} creators

@@ -46,14 +46,14 @@ export function PlanSelector({ currentPlan, onSelect }: PlanSelectorProps) {
 
   if (isActive) {
     return (
-      <div className="rounded-2xl border border-green-200 bg-green-50 p-6">
+      <div className="rounded-2xl border border-green-500/25 bg-green-500/10 p-6">
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl bg-green-100 flex items-center justify-center">
+          <div className="h-10 w-10 rounded-xl bg-green-500/15 flex items-center justify-center">
             <Check className="h-5 w-5 text-green-600" />
           </div>
           <div>
             <h3 className="font-semibold text-green-900">Plan Active</h3>
-            <p className="text-sm text-green-700">Your Brand plan is active. You have full access to all features.</p>
+            <p className="text-sm text-green-500">Your Brand plan is active. You have full access to all features.</p>
           </div>
         </div>
       </div>
@@ -62,15 +62,15 @@ export function PlanSelector({ currentPlan, onSelect }: PlanSelectorProps) {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl border-2 border-[#FF4D8D]/30 bg-gradient-to-br from-white to-[#FF4D8D]/5 p-6">
+      <div className="rounded-2xl border-2 border-[var(--primary)]/30 bg-gradient-to-br from-white to-[var(--primary)]/5 p-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h3 className="text-lg font-bold text-[#1A1B3A]">Brand Plan</h3>
-            <p className="text-sm text-[#6B7280] mt-1">Everything you need to manage creators and grow GMV</p>
+            <h3 className="text-lg font-bold text-[var(--foreground)]">Brand Plan</h3>
+            <p className="text-sm text-[var(--muted-foreground)] mt-1">Everything you need to manage creators and grow GMV</p>
           </div>
           <div className="text-right">
-            <div className="text-3xl font-extrabold text-[#1A1B3A]">$1,999</div>
-            <div className="text-sm text-[#6B7280]">per month</div>
+            <div className="text-3xl font-extrabold text-[var(--foreground)]">$1,999</div>
+            <div className="text-sm text-[var(--muted-foreground)]">per month</div>
           </div>
         </div>
 
@@ -86,7 +86,7 @@ export function PlanSelector({ currentPlan, onSelect }: PlanSelectorProps) {
             'Priority support',
           ].map((f) => (
             <div key={f} className="flex items-center gap-2 text-sm text-[#4B5563]">
-              <Check className="w-3.5 h-3.5 text-[#FF4D8D] flex-shrink-0" />
+              <Check className="w-3.5 h-3.5 text-[var(--primary)] flex-shrink-0" />
               {f}
             </div>
           ))}
@@ -95,7 +95,7 @@ export function PlanSelector({ currentPlan, onSelect }: PlanSelectorProps) {
         <button
           onClick={handleSelect}
           disabled={loading}
-          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] text-white font-semibold text-sm hover:opacity-90 disabled:opacity-50 transition-opacity shadow-lg shadow-[#FF4D8D]/20"
+          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-gradient-to-r from-[var(--primary)] to-[var(--pulse-accent-2)] text-white font-semibold text-sm hover:opacity-90 disabled:opacity-50 transition-opacity shadow-lg shadow-[var(--primary)]/20"
         >
           {loading ? (
             <>
@@ -110,8 +110,8 @@ export function PlanSelector({ currentPlan, onSelect }: PlanSelectorProps) {
         </button>
       </div>
 
-      <p className="text-xs text-center text-[#9CA3AF]">
-        Managing multiple brands? <a href="mailto:tyler@tempoapp.ai" className="text-[#FF4D8D] hover:underline">Contact us about agency pricing</a>
+      <p className="text-xs text-center text-[var(--muted-foreground)]">
+        Managing multiple brands? <a href="mailto:tyler@tempoapp.ai" className="text-[var(--primary)] hover:underline">Contact us about agency pricing</a>
       </p>
     </div>
   );

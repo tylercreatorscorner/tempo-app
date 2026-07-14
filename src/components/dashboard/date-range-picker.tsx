@@ -49,7 +49,7 @@ export function DateRangePicker() {
     <div className="relative">
       <div
         className={cn(
-          'flex flex-wrap gap-1 bg-white p-1 rounded-full border border-gray-200 shadow-sm transition-opacity',
+          'flex flex-wrap gap-1 bg-card p-1 rounded-full border border-border shadow-sm transition-opacity',
           isPending && 'opacity-70 pointer-events-none'
         )}
       >
@@ -62,15 +62,15 @@ export function DateRangePicker() {
               disabled={isPending}
               aria-pressed={isActive}
               className={cn(
-                'relative px-3.5 py-1.5 text-sm rounded-full transition-all duration-200 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF4D8D]/40 focus-visible:ring-offset-1',
+                'relative px-3.5 py-1.5 text-sm rounded-full transition-all duration-200 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40 focus-visible:ring-offset-1',
                 isActive
-                  ? 'bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] text-white shadow-md'
-                  : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
+                  ? 'bg-gradient-to-r from-[var(--primary)] to-[var(--pulse-accent-2)] text-white shadow-md'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
               )}
             >
               {p.label}
               {isActive && isPending && (
-                <span className="absolute inset-0 flex items-center justify-center rounded-full bg-white/20">
+                <span className="absolute inset-0 flex items-center justify-center rounded-full bg-card/20">
                   <span className="h-3 w-3 rounded-full border-2 border-white border-t-transparent animate-spin" />
                 </span>
               )}
@@ -85,10 +85,10 @@ export function DateRangePicker() {
           aria-pressed={isCustom}
           aria-expanded={pickerOpen}
           className={cn(
-            'flex items-center gap-1.5 px-3.5 py-1.5 text-sm rounded-full transition-all duration-200 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF4D8D]/40 focus-visible:ring-offset-1',
+            'flex items-center gap-1.5 px-3.5 py-1.5 text-sm rounded-full transition-all duration-200 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40 focus-visible:ring-offset-1',
             isCustom
-              ? 'bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] text-white shadow-md'
-              : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
+              ? 'bg-gradient-to-r from-[var(--primary)] to-[var(--pulse-accent-2)] text-white shadow-md'
+              : 'text-muted-foreground hover:text-foreground hover:bg-muted'
           )}
         >
           <Calendar className="h-3.5 w-3.5" />

@@ -41,17 +41,17 @@ interface FreshnessResponse {
 }
 
 const DOT_STYLES = {
-  ok:      'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200',
-  stale:   'bg-amber-100 text-amber-700 ring-1 ring-amber-200',
-  missing: 'bg-red-100 text-red-700 ring-1 ring-red-200',
-  never:   'bg-gray-100 text-gray-400 ring-1 ring-gray-200',
+  ok:      'bg-emerald-500/15 text-emerald-500 ring-1 ring-emerald-200',
+  stale:   'bg-amber-500/15 text-amber-500 ring-1 ring-amber-200',
+  missing: 'bg-red-500/15 text-red-500 ring-1 ring-red-200',
+  never:   'bg-muted text-muted-foreground ring-1 ring-border',
 } as const;
 
 const STATUS_BADGE = {
-  current: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
-  behind:  'bg-amber-50 text-amber-700 ring-1 ring-amber-200',
-  stale:   'bg-red-50 text-red-600 ring-1 ring-red-200',
-  never:   'bg-gray-100 text-gray-500 ring-1 ring-gray-200',
+  current: 'bg-emerald-500/10 text-emerald-500 ring-1 ring-emerald-200',
+  behind:  'bg-amber-500/10 text-amber-500 ring-1 ring-amber-200',
+  stale:   'bg-red-500/10 text-red-600 ring-1 ring-red-200',
+  never:   'bg-muted text-muted-foreground ring-1 ring-border',
 } as const;
 
 export function FreshnessPanel({ refreshKey = 0 }: { refreshKey?: number }) {
@@ -77,7 +77,7 @@ export function FreshnessPanel({ refreshKey = 0 }: { refreshKey?: number }) {
 
   if (loading && !data) {
     return (
-      <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-6 flex items-center gap-3 text-sm text-gray-500">
+      <div className="rounded-2xl bg-card border border-border shadow-sm p-6 flex items-center gap-3 text-sm text-muted-foreground">
         <RefreshCw className="h-4 w-4 animate-spin" /> Loading data freshness...
       </div>
     );
@@ -85,7 +85,7 @@ export function FreshnessPanel({ refreshKey = 0 }: { refreshKey?: number }) {
 
   if (error) {
     return (
-      <div className="rounded-2xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-700">
+      <div className="rounded-2xl bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-500">
         Couldn't load freshness: {error}
       </div>
     );
@@ -97,7 +97,7 @@ export function FreshnessPanel({ refreshKey = 0 }: { refreshKey?: number }) {
     <div className="space-y-3">
       {/* Future-dated data warning */}
       {data.futureIssues.length > 0 && (
-        <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 flex items-start gap-3">
+        <div className="rounded-xl bg-amber-500/10 border border-amber-500/25 px-4 py-3 flex items-start gap-3">
           <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
           <div className="text-xs text-amber-900 leading-relaxed">
             <strong>Future-dated data detected:</strong>{' '}
@@ -115,14 +115,14 @@ export function FreshnessPanel({ refreshKey = 0 }: { refreshKey?: number }) {
       {/* Header */}
       <div className="flex items-end justify-between">
         <div>
-          <div className="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-500">Data freshness</div>
-          <h2 className="text-base font-bold text-[#1A1B3A] mt-0.5">Latest uploads by brand</h2>
+          <div className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">Data freshness</div>
+          <h2 className="text-base font-bold text-[var(--foreground)] mt-0.5">Latest uploads by brand</h2>
         </div>
-        <div className="flex items-center gap-3 text-[11px] text-gray-500">
+        <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
           <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-emerald-400" />Current</span>
           <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-amber-400" />Behind</span>
           <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-red-400" />Stale</span>
-          <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-gray-300" />No data</span>
+          <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-secondary" />No data</span>
         </div>
       </div>
 
@@ -136,17 +136,17 @@ export function FreshnessPanel({ refreshKey = 0 }: { refreshKey?: number }) {
             <div
               key={b.brand}
               className={cn(
-                'rounded-xl bg-white border shadow-sm p-3.5 flex flex-col gap-2.5',
-                b.status === 'current' && 'border-emerald-100',
-                b.status === 'behind'  && 'border-amber-100',
-                b.status === 'stale'   && 'border-red-100',
-                b.status === 'never'   && 'border-gray-100',
+                'rounded-xl bg-card border shadow-sm p-3.5 flex flex-col gap-2.5',
+                b.status === 'current' && 'border-emerald-500/20',
+                b.status === 'behind'  && 'border-amber-500/20',
+                b.status === 'stale'   && 'border-red-500/20',
+                b.status === 'never'   && 'border-border',
               )}
             >
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <div className="text-sm font-bold text-[#1A1B3A] truncate">{b.displayName}</div>
-                  <div className="text-[10px] uppercase tracking-wider text-gray-400 mt-0.5">latest: {dateLabel}</div>
+                  <div className="text-sm font-bold text-[var(--foreground)] truncate">{b.displayName}</div>
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground mt-0.5">latest: {dateLabel}</div>
                 </div>
                 <span className={cn('text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full whitespace-nowrap', STATUS_BADGE[b.status])}>
                   {b.statusLabel}
@@ -175,7 +175,7 @@ export function FreshnessPanel({ refreshKey = 0 }: { refreshKey?: number }) {
 
               {/* Gaps */}
               {b.gaps.length > 0 && (
-                <div className="text-[11px] text-amber-700 bg-amber-50 border border-amber-100 rounded-md px-2 py-1.5">
+                <div className="text-[11px] text-amber-500 bg-amber-500/10 border border-amber-500/20 rounded-md px-2 py-1.5">
                   ⚠ Gaps: {b.gaps.slice(0, 4).join(', ')}{b.gaps.length > 4 && ` +${b.gaps.length - 4}`}
                 </div>
               )}

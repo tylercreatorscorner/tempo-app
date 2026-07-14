@@ -49,15 +49,15 @@ export function StatCard({
 }: StatCardProps) {
   const Icon = getIcon(label);
   const isPositive = trend !== undefined && trend >= 0;
-  const resolvedAccent = accentColor ?? brandColor ?? '#FF4D8D';
+  const resolvedAccent = accentColor ?? brandColor ?? 'var(--primary)';
 
   // ── Hero variant ─────────────────────────────────────────────────────────
   if (hero) {
     return (
       <div
         className={cn(
-          'relative rounded-2xl overflow-hidden bg-gradient-to-br from-[#1A1B3A] via-[#2D1B69] to-[#1A1B3A]',
-          'shadow-lg shadow-[#1A1B3A]/30',
+          'relative rounded-2xl overflow-hidden bg-gradient-to-br from-[var(--foreground)] via-[#2D1B69] to-[var(--foreground)]',
+          'shadow-lg shadow-[var(--foreground)]/30',
           'transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md motion-reduce:transform-none motion-reduce:transition-none',
           className,
         )}
@@ -65,13 +65,13 @@ export function StatCard({
         {/* Decorative orbs */}
         <div className="absolute top-0 right-0 w-28 h-28 rounded-full blur-2xl -translate-y-1/2 translate-x-1/4"
           style={{ backgroundColor: `${resolvedAccent}30` }} />
-        <div className="absolute bottom-0 left-0 w-20 h-20 bg-[#7C5CFC]/20 rounded-full blur-2xl translate-y-1/2 -translate-x-1/4" />
+        <div className="absolute bottom-0 left-0 w-20 h-20 bg-[var(--pulse-accent-2)]/20 rounded-full blur-2xl translate-y-1/2 -translate-x-1/4" />
 
         <div className="relative p-5 pb-3">
           {/* Label + icon row */}
           <div className="flex items-center justify-between mb-1">
             <p className="text-xs font-medium uppercase tracking-wider text-white/50">{label}</p>
-            <div className="h-8 w-8 rounded-lg bg-white/10 flex items-center justify-center">
+            <div className="h-8 w-8 rounded-lg bg-card/10 flex items-center justify-center">
               <Icon className="h-4 w-4 text-white/70" />
             </div>
           </div>
@@ -108,7 +108,7 @@ export function StatCard({
   return (
     <div
       className={cn(
-        'relative rounded-2xl border border-gray-200 bg-white shadow-sm p-5 space-y-2',
+        'relative rounded-2xl border border-border bg-card shadow-sm p-5 space-y-2',
         'transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md motion-reduce:transform-none motion-reduce:transition-none',
         className,
       )}
@@ -118,7 +118,7 @@ export function StatCard({
     >
       {/* Label + icon */}
       <div className="flex items-center justify-between">
-        <p className="text-xs font-medium uppercase tracking-wider text-gray-500">{label}</p>
+        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{label}</p>
         <div
           className="h-8 w-8 rounded-lg flex items-center justify-center"
           style={{ backgroundColor: `${resolvedAccent}12` }}
@@ -128,7 +128,7 @@ export function StatCard({
       </div>
 
       {/* Value */}
-      <p className="text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight text-[#1A1B3A] font-mono tabular-nums">{value}</p>
+      <p className="text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight text-[var(--foreground)] font-mono tabular-nums">{value}</p>
 
       {/* Sub-value */}
       {subValue && (
@@ -140,12 +140,12 @@ export function StatCard({
         <div className="flex items-center gap-1.5 text-sm">
           <span className={cn(
             'flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-xs font-semibold',
-            isPositive ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-500',
+            isPositive ? 'bg-emerald-500/10 text-emerald-600' : 'bg-red-500/10 text-red-500',
           )}>
             {isPositive ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
             <span className="tabular-nums">{trend >= 0 ? '+' : ''}{trend.toFixed(1)}%</span>
           </span>
-          {trendLabel && <span className="text-gray-400 text-xs">{trendLabel}</span>}
+          {trendLabel && <span className="text-muted-foreground text-xs">{trendLabel}</span>}
         </div>
       )}
 

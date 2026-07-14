@@ -26,7 +26,7 @@ export function EmptyState({
   mockContent,
 }: EmptyStateProps) {
   return (
-    <div className="relative rounded-2xl border border-gray-200 bg-white overflow-hidden">
+    <div className="relative rounded-2xl border border-border bg-card overflow-hidden">
       {/* Mock content (blurred background) */}
       {mockContent && (
         <div className="absolute inset-0 blur-[4px] opacity-30 pointer-events-none select-none p-6">
@@ -43,7 +43,7 @@ export function EmptyState({
         {actionLabel && actionHref && (
           <Link
             href={actionHref}
-            className="mt-6 inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] text-white text-sm font-semibold hover:opacity-90 transition-opacity shadow-lg shadow-[#FF4D8D]/20"
+            className="mt-6 inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-[var(--primary)] to-[var(--pulse-accent-2)] text-white text-sm font-semibold hover:opacity-90 transition-opacity shadow-lg shadow-[var(--primary)]/20"
           >
             {actionLabel} <ArrowRight className="h-4 w-4" />
           </Link>

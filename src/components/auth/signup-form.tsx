@@ -49,7 +49,7 @@ export function SignupForm() {
   if (success) {
     return (
       <div className="w-full max-w-sm text-center space-y-4">
-        <div className="mx-auto h-12 w-12 rounded-xl bg-tempo-pink flex items-center justify-center">
+        <div className="mx-auto h-12 w-12 rounded-xl bg-primary flex items-center justify-center">
           <span className="text-white font-bold text-xl">T</span>
         </div>
         <h1 className="text-2xl font-bold">Check your email</h1>
@@ -65,7 +65,7 @@ export function SignupForm() {
     return (
       <div className="w-full max-w-md space-y-6">
         <div className="text-center space-y-2">
-          <div className="mx-auto h-12 w-12 rounded-xl bg-tempo-pink flex items-center justify-center">
+          <div className="mx-auto h-12 w-12 rounded-xl bg-primary flex items-center justify-center">
             <span className="text-white font-bold text-xl">T</span>
           </div>
           <h1 className="text-2xl font-bold">Get started with Tempo</h1>
@@ -129,7 +129,7 @@ export function SignupForm() {
   return (
     <div className="w-full max-w-sm space-y-6">
       <div className="text-center space-y-2">
-        <div className="mx-auto h-12 w-12 rounded-xl bg-tempo-pink flex items-center justify-center">
+        <div className="mx-auto h-12 w-12 rounded-xl bg-primary flex items-center justify-center">
           <span className="text-white font-bold text-xl">T</span>
         </div>
         <h1 className="text-2xl font-bold">

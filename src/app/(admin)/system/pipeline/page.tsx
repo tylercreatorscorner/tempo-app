@@ -50,7 +50,7 @@ const BRAND_LABELS: Record<string, string> = {
   physicians_choice: 'Physicians Choice',
 }
 const BRAND_COLORS: Record<string, string> = {
-  jiyu: '#FF4D8D',
+  jiyu: 'var(--primary)',
   catakor: '#7B2FBE',
   physicians_choice: '#3B82F6',
 }
@@ -118,13 +118,13 @@ export default function PipelineMonitorPage() {
       <header className="px-6 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid #262636' }}>
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg flex items-center justify-center"
-            style={{ background: 'linear-gradient(135deg, #FF4D8D, #7B2FBE)' }}>
+            style={{ background: 'linear-gradient(135deg, var(--primary), #7B2FBE)' }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
               <polygon points="5 3 19 12 5 21 5 3" />
             </svg>
           </div>
           <h1 className="text-xl font-bold"
-            style={{ background: 'linear-gradient(135deg, #FF4D8D, #7B2FBE)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+            style={{ background: 'linear-gradient(135deg, var(--primary), #7B2FBE)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
             Pipeline Monitor
           </h1>
         </div>
@@ -228,7 +228,7 @@ export default function PipelineMonitorPage() {
                       GMV Comparison
                     </div>
                     <GmvBar label="Creator" value={run.creator_gmv || 0} max={maxGmv} color="#6ee7b7" />
-                    <GmvBar label="Product" value={run.product_gmv || 0} max={maxGmv} color="#FF4D8D" />
+                    <GmvBar label="Product" value={run.product_gmv || 0} max={maxGmv} color="var(--primary)" />
                     <GmvBar label="Video" value={run.video_gmv || 0} max={maxGmv} color="#818cf8" />
                   </div>
                 </div>

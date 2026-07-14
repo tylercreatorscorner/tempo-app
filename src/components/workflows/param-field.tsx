@@ -51,7 +51,7 @@ export function ParamField({
           value={String(value ?? '')}
           onChange={onChange}
         />
-        {param.helpText && <p className="text-[11px] text-gray-500 mt-1">{param.helpText}</p>}
+        {param.helpText && <p className="text-[11px] text-muted-foreground mt-1">{param.helpText}</p>}
       </Field>
     );
   }
@@ -63,9 +63,9 @@ export function ParamField({
           value={String(value ?? param.defaultValue ?? '')}
           onChange={(e) => onChange(e.target.value)}
           placeholder={param.placeholder}
-          className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D] resize-none"
+          className="w-full px-3 py-2 rounded-lg border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] resize-none"
         />
-        {param.helpText && <p className="text-[11px] text-gray-500 mt-1">{param.helpText}</p>}
+        {param.helpText && <p className="text-[11px] text-muted-foreground mt-1">{param.helpText}</p>}
       </Field>
     );
   }
@@ -77,9 +77,9 @@ export function ParamField({
           value={String(value ?? param.defaultValue ?? '')}
           onChange={(e) => onChange(Number(e.target.value))}
           placeholder={param.placeholder}
-          className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30"
+          className="w-full px-3 py-2 rounded-lg border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30"
         />
-        {param.helpText && <p className="text-[11px] text-gray-500 mt-1">{param.helpText}</p>}
+        {param.helpText && <p className="text-[11px] text-muted-foreground mt-1">{param.helpText}</p>}
       </Field>
     );
   }
@@ -90,9 +90,9 @@ export function ParamField({
         value={String(value ?? param.defaultValue ?? '')}
         onChange={(e) => onChange(e.target.value)}
         placeholder={param.placeholder}
-        className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30"
+        className="w-full px-3 py-2 rounded-lg border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30"
       />
-      {param.helpText && <p className="text-[11px] text-gray-500 mt-1">{param.helpText}</p>}
+      {param.helpText && <p className="text-[11px] text-muted-foreground mt-1">{param.helpText}</p>}
     </Field>
   );
 }
@@ -100,8 +100,8 @@ export function ParamField({
 export function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1">
-        {label} {required && <span className="text-[#FF4D8D]">*</span>}
+      <label className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+        {label} {required && <span className="text-[var(--primary)]">*</span>}
       </label>
       {children}
     </div>
@@ -154,9 +154,9 @@ export function ChannelPicker({
 
   if (loading) {
     return (
-      <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 bg-white">
-        <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-400" />
-        <span className="text-xs text-gray-500">Loading channels…</span>
+      <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-card">
+        <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+        <span className="text-xs text-muted-foreground">Loading channels…</span>
       </div>
     );
   }
@@ -168,7 +168,7 @@ export function ChannelPicker({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder="channel id"
-          className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30"
+          className="w-full px-3 py-2 rounded-lg border border-border text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30"
         />
         {loadErr && <p className="text-[11px] text-amber-600 mt-1">Couldn&apos;t list channels: {loadErr}. Paste an ID manually.</p>}
       </div>
@@ -178,7 +178,7 @@ export function ChannelPicker({
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30"
+      className="w-full px-3 py-2 rounded-lg border border-border text-sm bg-card focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30"
     >
       <option value="">— pick a channel —</option>
       {grouped.map(([category, items]) => (

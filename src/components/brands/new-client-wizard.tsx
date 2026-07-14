@@ -24,7 +24,7 @@ import { invalidateBrandList } from '@/hooks/use-brand-list';
 type CompensationModel = 'standard' | 'revshare_max' | 'commission_only' | 'retainer_only';
 
 const COLOR_PRESETS = [
-  '#FF4D8D', '#7C5CFC', '#3B82F6', '#10B981', '#F59E0B',
+  'var(--primary)', 'var(--pulse-accent-2)', '#3B82F6', '#10B981', '#F59E0B',
   '#EF4444', '#8B5CF6', '#06B6D4', '#EC4899', '#14B8A6',
 ];
 
@@ -234,18 +234,18 @@ export function NewClientWizard({ open, onClose, onCreated }: Props) {
     return (
       <ModalShell onClose={finish}>
         <div className="px-8 py-8">
-          <div className="mx-auto h-14 w-14 rounded-2xl bg-emerald-50 flex items-center justify-center mb-4">
+          <div className="mx-auto h-14 w-14 rounded-2xl bg-emerald-500/10 flex items-center justify-center mb-4">
             <Check className="h-7 w-7 text-emerald-600" />
           </div>
-          <h2 className="text-xl font-extrabold text-[#1A1B3A] text-center">
+          <h2 className="text-xl font-extrabold text-[var(--foreground)] text-center">
             {successBrand.name} is set up
           </h2>
-          <p className="text-sm text-gray-500 text-center mt-1">
+          <p className="text-sm text-muted-foreground text-center mt-1">
             The brand was created and your inputs were saved.
           </p>
 
           {warnings.length > 0 && (
-            <div className="mt-5 rounded-xl bg-amber-50 border border-amber-100 px-4 py-3 text-xs text-amber-800">
+            <div className="mt-5 rounded-xl bg-amber-500/10 border border-amber-500/20 px-4 py-3 text-xs text-amber-500">
               <div className="font-bold mb-1 flex items-center gap-1.5">
                 <AlertCircle className="h-3.5 w-3.5" />
                 Some fields needed attention
@@ -258,15 +258,15 @@ export function NewClientWizard({ open, onClose, onCreated }: Props) {
 
           {contactResults.length > 0 && (
             <div className="mt-5 space-y-1.5">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Contacts</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-2">Contacts</p>
               {contactResults.map((c) => (
                 <div
                   key={c.email}
                   className={cn(
                     'flex items-center justify-between gap-3 rounded-xl border px-3 py-2 text-xs',
                     c.status === 'error'
-                      ? 'bg-red-50 border-red-100 text-red-700'
-                      : 'bg-emerald-50/70 border-emerald-100 text-emerald-700',
+                      ? 'bg-red-500/10 border-red-500/20 text-red-500'
+                      : 'bg-emerald-500/10/70 border-emerald-500/20 text-emerald-500',
                   )}
                 >
                   <span className="font-medium truncate">{c.email}</span>
@@ -282,7 +282,7 @@ export function NewClientWizard({ open, onClose, onCreated }: Props) {
 
           <button
             onClick={finish}
-            className="w-full mt-6 px-4 py-3 rounded-xl bg-[#FF4D8D] text-white text-sm font-bold hover:bg-[#E91E8C] transition-colors shadow-sm"
+            className="w-full mt-6 px-4 py-3 rounded-xl bg-[var(--primary)] text-white text-sm font-bold hover:bg-[var(--primary)] transition-colors shadow-sm"
           >
             {hadContactErrors ? 'Close — review contacts in Settings' : 'Done'}
           </button>
@@ -295,16 +295,16 @@ export function NewClientWizard({ open, onClose, onCreated }: Props) {
   return (
     <ModalShell onClose={onClose}>
       {/* Header with stepper */}
-      <div className="px-6 py-5 border-b border-gray-100">
+      <div className="px-6 py-5 border-b border-border">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-400">New Client</p>
-            <h2 className="text-lg font-extrabold text-[#1A1B3A]">Onboard a brand</h2>
+            <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">New Client</p>
+            <h2 className="text-lg font-extrabold text-[var(--foreground)]">Onboard a brand</h2>
           </div>
           <button
             onClick={onClose}
             disabled={submitting}
-            className="h-8 w-8 rounded-lg hover:bg-gray-50 flex items-center justify-center text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-40"
+            className="h-8 w-8 rounded-lg hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-muted-foreground transition-colors disabled:opacity-40"
           >
             <X className="h-4 w-4" />
           </button>
@@ -337,7 +337,7 @@ export function NewClientWizard({ open, onClose, onCreated }: Props) {
         )}
 
         {error && (
-          <div className="mt-5 rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-700 flex items-start gap-2">
+          <div className="mt-5 rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-500 flex items-start gap-2">
             <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
             <span>{error}</span>
           </div>
@@ -345,11 +345,11 @@ export function NewClientWizard({ open, onClose, onCreated }: Props) {
       </div>
 
       {/* Footer */}
-      <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between gap-3 bg-gray-50/40">
+      <div className="px-6 py-4 border-t border-border flex items-center justify-between gap-3 bg-muted/40">
         <button
           onClick={() => (step === 1 ? onClose() : setStep((s) => (s - 1) as 1 | 2))}
           disabled={submitting}
-          className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 disabled:opacity-40"
+          className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground disabled:opacity-40"
         >
           {step === 1 ? 'Cancel' : (<><ArrowLeft className="h-4 w-4" />Back</>)}
         </button>
@@ -358,7 +358,7 @@ export function NewClientWizard({ open, onClose, onCreated }: Props) {
           <button
             onClick={() => setStep((s) => (s + 1) as 2 | 3)}
             disabled={step === 1 && !canAdvanceStep1}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-[#FF4D8D] rounded-xl hover:bg-[#E91E8C] disabled:opacity-50 transition-colors shadow-sm"
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-[var(--primary)] rounded-xl hover:bg-[var(--primary)] disabled:opacity-50 transition-colors shadow-sm"
           >
             Continue
             <ArrowRight className="h-4 w-4" />
@@ -367,7 +367,7 @@ export function NewClientWizard({ open, onClose, onCreated }: Props) {
           <button
             onClick={handleSubmit}
             disabled={submitting || !canAdvanceStep1}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-[#FF4D8D] rounded-xl hover:bg-[#E91E8C] disabled:opacity-50 transition-colors shadow-sm"
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-[var(--primary)] rounded-xl hover:bg-[var(--primary)] disabled:opacity-50 transition-colors shadow-sm"
           >
             {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
             {submitting ? 'Creating…' : 'Create Client'}
@@ -384,7 +384,7 @@ function ModalShell({ children, onClose }: { children: React.ReactNode; onClose:
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       <button aria-label="Close" className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-xl bg-white rounded-2xl shadow-2xl flex flex-col animate-in fade-in zoom-in-95 duration-200 max-h-[90vh]">
+      <div className="relative w-full max-w-xl bg-card rounded-2xl shadow-2xl flex flex-col animate-in fade-in zoom-in-95 duration-200 max-h-[90vh]">
         {children}
       </div>
     </div>
@@ -407,9 +407,9 @@ function Stepper({ step }: { step: 1 | 2 | 3 }) {
             <div
               className={cn(
                 'h-7 w-7 rounded-full flex items-center justify-center text-[11px] font-bold flex-shrink-0',
-                active && 'bg-[#FF4D8D] text-white',
+                active && 'bg-[var(--primary)] text-white',
                 done && 'bg-emerald-500 text-white',
-                !active && !done && 'bg-gray-100 text-gray-400',
+                !active && !done && 'bg-muted text-muted-foreground',
               )}
             >
               {done ? <Check className="h-3.5 w-3.5" /> : <Icon className="h-3.5 w-3.5" />}
@@ -417,13 +417,13 @@ function Stepper({ step }: { step: 1 | 2 | 3 }) {
             <span
               className={cn(
                 'text-[11px] font-bold uppercase tracking-wider',
-                active ? 'text-[#1A1B3A]' : done ? 'text-emerald-700' : 'text-gray-400',
+                active ? 'text-[var(--foreground)]' : done ? 'text-emerald-500' : 'text-muted-foreground',
               )}
             >
               {label}
             </span>
             {idx < steps.length - 1 && (
-              <div className={cn('flex-1 h-px', done ? 'bg-emerald-200' : 'bg-gray-100')} />
+              <div className={cn('flex-1 h-px', done ? 'bg-emerald-200' : 'bg-muted')} />
             )}
           </div>
         );
@@ -445,7 +445,7 @@ function Step1Identity({
 }) {
   return (
     <div className="space-y-5">
-      <p className="text-sm text-gray-500">Start with the basics. You can edit everything later.</p>
+      <p className="text-sm text-muted-foreground">Start with the basics. You can edit everything later.</p>
 
       <Field label="Display Name" hint="Shown across the app">
         <input
@@ -454,7 +454,7 @@ function Step1Identity({
           onChange={(e) => onNameChange(e.target.value)}
           placeholder="e.g. COSRX"
           autoFocus
-          className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D]"
+          className="w-full px-3 py-2 rounded-xl border border-border text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
         />
       </Field>
 
@@ -468,7 +468,7 @@ function Step1Identity({
           value={identity.slug}
           onChange={(e) => onSlugChange(e.target.value)}
           placeholder="cosrx"
-          className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm font-mono text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D]"
+          className="w-full px-3 py-2 rounded-xl border border-border text-sm font-mono text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
         />
       </Field>
 
@@ -491,19 +491,19 @@ function Step1Identity({
             type="color"
             value={identity.color}
             onChange={(e) => onColorChange(e.target.value)}
-            className="h-8 w-8 rounded-full cursor-pointer border border-gray-200 ml-1"
+            className="h-8 w-8 rounded-full cursor-pointer border border-border ml-1"
           />
           <input
             type="text"
             value={identity.color}
             onChange={(e) => onColorChange(e.target.value)}
-            className="flex-1 min-w-[120px] px-3 py-2 rounded-xl border border-gray-200 text-sm font-mono text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D]"
+            className="flex-1 min-w-[120px] px-3 py-2 rounded-xl border border-border text-sm font-mono text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
           />
         </div>
       </Field>
 
       {/* Live preview */}
-      <div className="rounded-xl border border-gray-100 bg-gray-50/60 p-4 flex items-center gap-3">
+      <div className="rounded-xl border border-border bg-muted/60 p-4 flex items-center gap-3">
         <div
           className="h-10 w-10 rounded-lg flex items-center justify-center text-white font-extrabold text-sm"
           style={{ backgroundColor: identity.color }}
@@ -511,8 +511,8 @@ function Step1Identity({
           {identity.name ? identity.name.charAt(0).toUpperCase() : '?'}
         </div>
         <div>
-          <p className="font-bold text-sm text-[#1A1B3A]">{identity.name || 'Brand name'}</p>
-          <p className="text-xs text-gray-400 font-mono">{identity.slug || 'brand_slug'}</p>
+          <p className="font-bold text-sm text-[var(--foreground)]">{identity.name || 'Brand name'}</p>
+          <p className="text-xs text-muted-foreground font-mono">{identity.slug || 'brand_slug'}</p>
         </div>
       </div>
     </div>
@@ -532,7 +532,7 @@ function Step2Financial({
 
   return (
     <div className="space-y-6">
-      <p className="text-sm text-gray-500">
+      <p className="text-sm text-muted-foreground">
         All financial fields are optional — you can fill them in now or after creating the brand.
       </p>
 
@@ -544,8 +544,8 @@ function Step2Financial({
               className={cn(
                 'block rounded-xl border-2 p-3 cursor-pointer transition-colors',
                 financial.compensation_model === opt.value
-                  ? 'border-[#FF4D8D] bg-[#FFF0F5]'
-                  : 'border-gray-200 hover:border-gray-300 bg-white',
+                  ? 'border-[var(--primary)] bg-[#FFF0F5]'
+                  : 'border-border hover:border-border bg-card',
               )}
             >
               <input
@@ -557,12 +557,12 @@ function Step2Financial({
                 onChange={() => set('compensation_model', opt.value)}
               />
               <div className="flex items-baseline justify-between">
-                <span className="text-sm font-bold text-[#1A1B3A]">{opt.label}</span>
+                <span className="text-sm font-bold text-[var(--foreground)]">{opt.label}</span>
                 {financial.compensation_model === opt.value && (
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#FF4D8D]">Active</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--primary)]">Active</span>
                 )}
               </div>
-              <p className="text-xs text-gray-500 mt-0.5">{opt.description}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{opt.description}</p>
             </label>
           ))}
         </div>
@@ -651,7 +651,7 @@ function Step3Contacts({
 }) {
   return (
     <div className="space-y-5">
-      <p className="text-sm text-gray-500">
+      <p className="text-sm text-muted-foreground">
         Invite anyone on the client&apos;s side who needs to see their brand portal. They&apos;ll receive a
         magic-link email and be scoped to this brand only.
       </p>
@@ -659,7 +659,7 @@ function Step3Contacts({
       <Field label="Email" hint="Press Enter or click Add to add another">
         <div className="flex gap-2">
           <div className="flex-1 relative">
-            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-300 pointer-events-none" />
+            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
             <input
               type="email"
               value={pending}
@@ -668,14 +668,14 @@ function Step3Contacts({
                 if (e.key === 'Enter') { e.preventDefault(); onAdd(); }
               }}
               placeholder="contact@brand.com"
-              className="w-full pl-9 pr-3 py-2 rounded-xl border border-gray-200 text-sm text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D]"
+              className="w-full pl-9 pr-3 py-2 rounded-xl border border-border text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
             />
           </div>
           <button
             type="button"
             onClick={onAdd}
             disabled={!pendingValid}
-            className="px-4 py-2 rounded-xl border border-gray-200 text-sm font-bold text-[#1A1B3A] hover:bg-gray-50 disabled:opacity-40 transition-colors"
+            className="px-4 py-2 rounded-xl border border-border text-sm font-bold text-[var(--foreground)] hover:bg-muted disabled:opacity-40 transition-colors"
           >
             Add
           </button>
@@ -683,23 +683,23 @@ function Step3Contacts({
       </Field>
 
       {emails.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-gray-200 px-4 py-6 text-center">
-          <p className="text-xs text-gray-400">No contacts yet — you can also add them later from Settings.</p>
+        <div className="rounded-xl border border-dashed border-border px-4 py-6 text-center">
+          <p className="text-xs text-muted-foreground">No contacts yet — you can also add them later from Settings.</p>
         </div>
       ) : (
         <div className="space-y-1.5">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
             Will receive invite ({emails.length})
           </p>
           {emails.map((e) => (
-            <div key={e} className="flex items-center justify-between gap-3 rounded-xl border border-gray-100 bg-white px-3 py-2">
+            <div key={e} className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-3 py-2">
               <div className="flex items-center gap-2 min-w-0">
-                <Mail className="h-3.5 w-3.5 text-gray-300 flex-shrink-0" />
-                <span className="text-sm text-[#1A1B3A] truncate">{e}</span>
+                <Mail className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                <span className="text-sm text-[var(--foreground)] truncate">{e}</span>
               </div>
               <button
                 onClick={() => onRemove(e)}
-                className="p-1 rounded-md text-gray-300 hover:text-red-600 hover:bg-red-50 transition-colors"
+                className="p-1 rounded-md text-muted-foreground hover:text-red-600 hover:bg-red-500/10 transition-colors"
                 aria-label={`Remove ${e}`}
               >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -717,7 +717,7 @@ function Step3Contacts({
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <h3 className="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-500 mb-3">{title}</h3>
+      <h3 className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground mb-3">{title}</h3>
       <div className="space-y-3">{children}</div>
     </div>
   );
@@ -734,15 +734,15 @@ function Field({ label, hint, tone = 'default', prefix, suffix, children }: {
   return (
     <label className="block">
       <div className="flex items-baseline justify-between mb-1">
-        <span className="text-xs font-semibold text-gray-700">{label}</span>
-        {hint && <span className={cn('text-[11px]', tone === 'error' ? 'text-red-600 font-medium' : 'text-gray-400')}>{hint}</span>}
+        <span className="text-xs font-semibold text-foreground">{label}</span>
+        {hint && <span className={cn('text-[11px]', tone === 'error' ? 'text-red-600 font-medium' : 'text-muted-foreground')}>{hint}</span>}
       </div>
       <div className="relative flex items-center">
-        {prefix && <span className="absolute left-3 text-sm text-gray-400 pointer-events-none z-10">{prefix}</span>}
+        {prefix && <span className="absolute left-3 text-sm text-muted-foreground pointer-events-none z-10">{prefix}</span>}
         <div className={cn('w-full', prefix && '[&_input]:pl-7', suffix && '[&_input]:pr-8')}>
           {children}
         </div>
-        {suffix && <span className="absolute right-3 text-sm text-gray-400 pointer-events-none z-10">{suffix}</span>}
+        {suffix && <span className="absolute right-3 text-sm text-muted-foreground pointer-events-none z-10">{suffix}</span>}
       </div>
     </label>
   );
@@ -757,7 +757,7 @@ function NumberInput({ value, step, onChange }: { value: string; step: number; o
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder="0"
-      className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm text-[#1A1B3A] bg-white tabular-nums focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D] transition-colors"
+      className="w-full px-3 py-2 rounded-xl border border-border text-sm text-[var(--foreground)] bg-card tabular-nums focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] transition-colors"
     />
   );
 }
@@ -774,7 +774,7 @@ function TextInput({ value, placeholder, type = 'text', onChange }: {
       value={value}
       placeholder={placeholder}
       onChange={(e) => onChange(e.target.value)}
-      className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm text-[#1A1B3A] bg-white focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D] transition-colors"
+      className="w-full px-3 py-2 rounded-xl border border-border text-sm text-[var(--foreground)] bg-card focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] transition-colors"
     />
   );
 }
@@ -786,7 +786,7 @@ function TextArea({ value, placeholder, onChange }: { value: string; placeholder
       placeholder={placeholder}
       onChange={(e) => onChange(e.target.value)}
       rows={3}
-      className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm text-[#1A1B3A] bg-white focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D] transition-colors resize-y"
+      className="w-full px-3 py-2 rounded-xl border border-border text-sm text-[var(--foreground)] bg-card focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] transition-colors resize-y"
     />
   );
 }

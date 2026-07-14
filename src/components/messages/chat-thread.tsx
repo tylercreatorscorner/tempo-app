@@ -34,11 +34,11 @@ interface Props {
 
 function StatusIcon({ status }: { status: string }) {
   switch (status) {
-    case 'sent': return <Check className="h-3 w-3 text-gray-400" />;
-    case 'delivered': return <CheckCheck className="h-3 w-3 text-pink-400" />;
+    case 'sent': return <Check className="h-3 w-3 text-muted-foreground" />;
+    case 'delivered': return <CheckCheck className="h-3 w-3 text-primary" />;
     case 'failed': return <X className="h-3 w-3 text-red-400" />;
     case 'blocked': return <X className="h-3 w-3 text-orange-400" />;
-    default: return <Loader2 className="h-3 w-3 text-gray-300 animate-spin" />;
+    default: return <Loader2 className="h-3 w-3 text-muted-foreground animate-spin" />;
   }
 }
 
@@ -184,13 +184,13 @@ export function ChatThread({
   const channelConfig = getChannelConfig(sendChannel);
 
   return (
-    <div className="flex flex-col h-full bg-[#F8F9FC]">
+    <div className="flex flex-col h-full bg-[var(--background)]">
       {/* Header */}
-      <div className="px-6 py-4 border-b border-gray-200 bg-white flex items-center justify-between">
+      <div className="px-6 py-4 border-b border-border bg-card flex items-center justify-between">
         <div>
-          <h2 className="font-semibold text-[#1A1B3A]">{creatorName}</h2>
+          <h2 className="font-semibold text-[var(--foreground)]">{creatorName}</h2>
           <div className="flex items-center gap-2 mt-0.5">
-            <span className="text-xs text-gray-400">Creator #{creatorId}</span>
+            <span className="text-xs text-muted-foreground">Creator #{creatorId}</span>
             {discordUserId && (
               <span className="inline-flex items-center gap-1 text-[10px] text-[#5865F2] font-medium">
                 <ChannelIcon channel="dm" size="sm" />
@@ -213,7 +213,7 @@ export function ChatThread({
         {hasMore && (
           <button
             onClick={() => fetchMessages(page + 1, true)}
-            className="mx-auto flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 py-2"
+            className="mx-auto flex items-center gap-1 text-xs text-muted-foreground hover:text-muted-foreground py-2"
           >
             <ChevronUp className="h-3 w-3" /> Load more
           </button>
@@ -221,10 +221,10 @@ export function ChatThread({
 
         {loading ? (
           <div className="flex items-center justify-center h-full">
-            <Loader2 className="h-6 w-6 text-pink-400 animate-spin" />
+            <Loader2 className="h-6 w-6 text-primary animate-spin" />
           </div>
         ) : messages.length === 0 ? (
-          <div className="flex items-center justify-center h-full text-gray-400 text-sm">
+          <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
             No messages yet. Send a message to start the conversation.
           </div>
         ) : (
@@ -250,8 +250,8 @@ export function ChatThread({
                 className={cn(
                   'max-w-[70%] rounded-2xl px-4 py-2.5 text-sm shadow-sm',
                   msg.direction === 'outbound'
-                    ? 'bg-gradient-to-br from-pink-500 to-purple-500 text-white rounded-br-md'
-                    : 'bg-white text-[#1A1B3A] border border-gray-100 rounded-bl-md'
+                    ? 'bg-gradient-to-br from-primary to-purple-500 text-white rounded-br-md'
+                    : 'bg-card text-[var(--foreground)] border border-border rounded-bl-md'
                 )}
               >
                 <p className="whitespace-pre-wrap break-words">{msg.content}</p>
@@ -267,7 +267,7 @@ export function ChatThread({
                       className={msg.direction === 'outbound' ? 'opacity-70' : 'opacity-50'}
                     />
                   )}
-                  <span className={cn('text-[10px]', msg.direction === 'outbound' ? 'text-white/70' : 'text-gray-400')}>
+                  <span className={cn('text-[10px]', msg.direction === 'outbound' ? 'text-white/70' : 'text-muted-foreground')}>
                     {formatTime(msg.sent_at)}
                   </span>
                   {msg.direction === 'outbound' && <StatusIcon status={msg.status} />}
@@ -280,11 +280,11 @@ export function ChatThread({
       </div>
 
       {/* Compose */}
-      <div className="px-6 py-4 border-t border-gray-200 bg-white">
+      <div className="px-6 py-4 border-t border-border bg-card">
         {/* Channel indicator */}
         <div className="flex items-center gap-1.5 mb-2">
           <ChannelIcon channel={sendChannel} size="sm" showLabel />
-          <span className="text-[10px] text-gray-400">
+          <span className="text-[10px] text-muted-foreground">
             Sending via {channelConfig.label}
           </span>
         </div>
@@ -295,7 +295,7 @@ export function ChatThread({
             onKeyDown={handleKeyDown}
             placeholder="Type a message... (Ctrl+Enter to send)"
             rows={1}
-            className="flex-1 resize-none rounded-xl border border-gray-200 px-4 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all"
+            className="flex-1 resize-none rounded-xl border border-border px-4 py-2.5 text-sm bg-muted focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-transparent transition-all"
             style={{ minHeight: '40px', maxHeight: '120px' }}
             onInput={e => {
               const t = e.target as HTMLTextAreaElement;
@@ -306,7 +306,7 @@ export function ChatThread({
           <button
             onClick={handleSend}
             disabled={!input.trim() || sending}
-            className="flex items-center justify-center h-10 w-10 rounded-xl bg-gradient-to-br from-pink-500 to-purple-500 text-white hover:opacity-90 disabled:opacity-40 transition-opacity"
+            className="flex items-center justify-center h-10 w-10 rounded-xl bg-gradient-to-br from-primary to-purple-500 text-white hover:opacity-90 disabled:opacity-40 transition-opacity"
           >
             {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
           </button>

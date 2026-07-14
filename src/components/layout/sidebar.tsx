@@ -57,12 +57,12 @@ export function Sidebar({ className, isAdmin = false, canViewFinance = true }: S
         href={withBrand(d.href)}
         className={cn(
           'group flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-150',
-          active ? 'bg-pink-50 text-[#FF4D8D] font-medium' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50',
+          active ? 'bg-primary/10 text-[var(--primary)] font-medium' : 'text-muted-foreground hover:text-foreground hover:bg-muted',
         )}
       >
-        <d.icon className={cn('h-4 w-4 flex-shrink-0 transition-colors', active ? 'text-[#FF4D8D]' : 'text-gray-400 group-hover:text-gray-600')} />
+        <d.icon className={cn('h-4 w-4 flex-shrink-0 transition-colors', active ? 'text-[var(--primary)]' : 'text-muted-foreground group-hover:text-muted-foreground')} />
         {d.label}
-        {active && <span className="ml-auto w-1 h-4 rounded-full bg-[#FF4D8D]" />}
+        {active && <span className="ml-auto w-1 h-4 rounded-full bg-[var(--primary)]" />}
       </Link>
     );
   };
@@ -72,7 +72,7 @@ export function Sidebar({ className, isAdmin = false, canViewFinance = true }: S
   return (
     <aside
       className={cn(
-        'sticky top-0 flex flex-col w-64 h-screen bg-white border-r border-gray-100 shrink-0',
+        'sticky top-0 flex flex-col w-64 h-screen bg-card border-r border-border shrink-0',
         className,
       )}
     >
@@ -87,7 +87,7 @@ export function Sidebar({ className, isAdmin = false, canViewFinance = true }: S
 
         {setup.length > 0 && (
           <>
-            <div className="pt-4 pb-1 px-3 text-[10px] font-semibold uppercase tracking-wider text-gray-300">Setup</div>
+            <div className="pt-4 pb-1 px-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Setup</div>
             {setup.map(renderItem)}
           </>
         )}
@@ -95,13 +95,13 @@ export function Sidebar({ className, isAdmin = false, canViewFinance = true }: S
 
       {/* System health — admin-only footer indicator. */}
       {isAdmin && (
-        <div className="px-2 pt-2 border-t border-gray-100">
+        <div className="px-2 pt-2 border-t border-border">
           <SystemStatusFooter />
         </div>
       )}
 
       {/* Brand selector pinned to bottom */}
-      <div className="px-2 pb-4 pt-2 border-t border-gray-100">
+      <div className="px-2 pb-4 pt-2 border-t border-border">
         <BrandSwitcher />
       </div>
     </aside>

@@ -112,19 +112,19 @@ export function LoginForm() {
             <TempoLogo size="lg" animated />
           </div>
 
-          <div className="inline-flex h-16 w-16 rounded-full bg-gradient-to-br from-[#FF4D8D] to-[#7C5CFC] items-center justify-center mx-auto">
+          <div className="inline-flex h-16 w-16 rounded-full bg-gradient-to-br from-[var(--primary)] to-[var(--pulse-accent-2)] items-center justify-center mx-auto">
             <Mail className="h-8 w-8 text-white" />
           </div>
 
-          <h1 className="text-2xl font-bold text-[#1A1B3A]">Check your email</h1>
-          <p className="text-sm text-gray-500">
+          <h1 className="text-2xl font-bold text-[var(--foreground)]">Check your email</h1>
+          <p className="text-sm text-muted-foreground">
             We sent a 6-digit code to <strong>{email}</strong>
           </p>
         </div>
 
         <div className="space-y-4">
           {error && (
-            <div className="p-3 rounded-xl bg-red-50 text-red-600 text-sm text-center">
+            <div className="p-3 rounded-xl bg-red-500/10 text-red-600 text-sm text-center">
               {error}
             </div>
           )}
@@ -136,21 +136,21 @@ export function LoginForm() {
           />
 
           {verifying && (
-            <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
+            <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
               Verifying...
             </div>
           )}
 
           <div className="text-center space-y-2">
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-muted-foreground">
               Didn&apos;t get the code?{' '}
               {cooldown > 0 ? (
-                <span className="text-gray-400">Resend in {cooldown}s</span>
+                <span className="text-muted-foreground">Resend in {cooldown}s</span>
               ) : (
                 <button
                   onClick={handleResendCode}
-                  className="text-[#FF4D8D] hover:underline font-medium"
+                  className="text-[var(--primary)] hover:underline font-medium"
                 >
                   Resend code
                 </button>
@@ -160,7 +160,7 @@ export function LoginForm() {
 
           <button
             onClick={() => { setStep('email'); setError(''); setOtpError(false); }}
-            className="flex items-center justify-center gap-1 w-full py-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+            className="flex items-center justify-center gap-1 w-full py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
             Use a different email
@@ -177,13 +177,13 @@ export function LoginForm() {
         <div className="flex justify-center">
           <TempoLogo size="lg" animated />
         </div>
-        <h1 className="text-2xl font-bold text-[#1A1B3A]">Welcome back</h1>
-        <p className="text-sm text-gray-500">Sign in to your Tempo account</p>
+        <h1 className="text-2xl font-bold text-[var(--foreground)]">Welcome back</h1>
+        <p className="text-sm text-muted-foreground">Sign in to your Tempo account</p>
       </div>
 
       <form onSubmit={handleSendCode} className="space-y-4">
         {error && (
-          <div className="p-3 rounded-xl bg-red-50 text-red-600 text-sm">
+          <div className="p-3 rounded-xl bg-red-500/10 text-red-600 text-sm">
             {error}{' '}
             {error.includes('sign up') && (
               <Link href="/onboarding" className="underline font-medium">Sign up here</Link>
@@ -198,7 +198,7 @@ export function LoginForm() {
             type="email"
             value={email}
             onChange={(e) => { setEmail(e.target.value); setError(''); }}
-            className="w-full px-4 py-2.5 rounded-xl border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/50"
+            className="w-full px-4 py-2.5 rounded-xl border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
             placeholder="you@company.com"
             required
             autoFocus
@@ -208,7 +208,7 @@ export function LoginForm() {
         <button
           type="submit"
           disabled={loading || !email.trim()}
-          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] text-white font-medium text-sm hover:opacity-90 disabled:opacity-50 transition-opacity shadow-lg shadow-[#FF4D8D]/20"
+          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-gradient-to-r from-[var(--primary)] to-[var(--pulse-accent-2)] text-white font-medium text-sm hover:opacity-90 disabled:opacity-50 transition-opacity shadow-lg shadow-[var(--primary)]/20"
         >
           {loading ? (
             <>
@@ -242,7 +242,7 @@ export function LoginForm() {
 
       <p className="text-center text-sm text-muted-foreground">
         Don&apos;t have an account?{' '}
-        <Link href="/onboarding" className="text-[#FF4D8D] hover:underline font-medium">Sign up</Link>
+        <Link href="/onboarding" className="text-[var(--primary)] hover:underline font-medium">Sign up</Link>
       </p>
     </div>
   );

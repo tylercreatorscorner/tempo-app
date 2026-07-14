@@ -166,15 +166,15 @@ export function AutomationsClient() {
     <div className="space-y-6 max-w-4xl">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-[#1A1B3A]">Automations</h1>
-          <p className="text-sm text-gray-500 mt-1 max-w-2xl">
+          <h1 className="text-2xl font-bold text-[var(--foreground)]">Automations</h1>
+          <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
             Scheduled or manual workflows that use your Integrations to do work.
             Each automation has a trigger (when to fire) and one or more action steps (what to do).
           </p>
         </div>
         <button
           onClick={() => setEditing('new')}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#FF4D8D] text-white text-sm font-semibold hover:bg-[#E91E8C] transition-colors"
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[var(--primary)] text-white text-sm font-semibold hover:bg-[var(--primary)] transition-colors"
         >
           <Plus className="h-4 w-4" />
           New automation
@@ -182,20 +182,20 @@ export function AutomationsClient() {
       </div>
 
       {error && (
-        <div className="rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-700">
+        <div className="rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-500">
           {error}
         </div>
       )}
 
       {loading ? (
-        <div className="rounded-2xl border border-gray-100 bg-white px-6 py-10 text-center">
-          <Loader2 className="h-6 w-6 text-gray-300 mx-auto mb-2 animate-spin" />
-          <p className="text-sm text-gray-500">Loading…</p>
+        <div className="rounded-2xl border border-border bg-card px-6 py-10 text-center">
+          <Loader2 className="h-6 w-6 text-muted-foreground mx-auto mb-2 animate-spin" />
+          <p className="text-sm text-muted-foreground">Loading…</p>
         </div>
       ) : automations.length === 0 ? (
         <EmptyState onNew={() => setEditing('new')} />
       ) : (
-        <div className="rounded-2xl border border-gray-100 bg-white overflow-hidden divide-y divide-gray-50">
+        <div className="rounded-2xl border border-border bg-card overflow-hidden divide-y divide-gray-50">
           {automations.map(a => (
             <AutomationRow
               key={a.id}
@@ -225,7 +225,7 @@ export function AutomationsClient() {
       {toast && (
         <div className={cn(
           'fixed bottom-6 right-6 z-50 rounded-xl px-4 py-3 shadow-xl border text-sm font-medium',
-          toast.kind === 'success' ? 'bg-emerald-50 border-emerald-100 text-emerald-800' : 'bg-red-50 border-red-100 text-red-800',
+          toast.kind === 'success' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500' : 'bg-red-500/10 border-red-500/20 text-red-500',
         )}>
           {toast.message}
         </div>
@@ -254,7 +254,7 @@ function AutomationRow({
   const statusColor =
     lastStatus === 'success' ? 'text-emerald-600' :
     lastStatus === 'failed' || lastStatus === 'partial' ? 'text-red-600' :
-    'text-gray-400';
+    'text-muted-foreground';
 
   const TriggerIcon = automation.trigger_type === 'manual' ? Hand : Calendar;
   const triggerLabel =
@@ -263,24 +263,24 @@ function AutomationRow({
     'Event';
 
   return (
-    <div className="flex items-center gap-4 p-4 hover:bg-gray-50/40 transition-colors">
+    <div className="flex items-center gap-4 p-4 hover:bg-muted/40 transition-colors">
       <button onClick={onClick} className="flex-1 min-w-0 text-left">
         <div className="flex items-center gap-2 flex-wrap">
-          <p className="text-sm font-semibold text-[#1A1B3A]">{automation.name}</p>
-          <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
+          <p className="text-sm font-semibold text-[var(--foreground)]">{automation.name}</p>
+          <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
             <TriggerIcon className="h-2.5 w-2.5" />
             {triggerLabel}
           </span>
           {!automation.enabled && (
-            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">
+            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
               Paused
             </span>
           )}
         </div>
         {automation.description && (
-          <p className="text-xs text-gray-500 mt-0.5 truncate">{automation.description}</p>
+          <p className="text-xs text-muted-foreground mt-0.5 truncate">{automation.description}</p>
         )}
-        <p className="text-[11px] text-gray-400 mt-1 flex items-center gap-1.5">
+        <p className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1.5">
           <StatusIcon className={cn('h-3 w-3', statusColor)} />
           {automation.last_run_at
             ? `Last ran ${new Date(automation.last_run_at).toLocaleString()} · ${automation.run_count} run${automation.run_count === 1 ? '' : 's'}`
@@ -295,7 +295,7 @@ function AutomationRow({
         <button
           onClick={onRunNow}
           disabled={running}
-          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold border border-gray-200 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold border border-border hover:bg-muted disabled:opacity-50 transition-colors"
           title="Run now"
         >
           {running ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
@@ -306,8 +306,8 @@ function AutomationRow({
           className={cn(
             'px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors',
             automation.enabled
-              ? 'border border-emerald-100 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-              : 'border border-gray-200 bg-gray-50 text-gray-500 hover:bg-gray-100',
+              ? 'border border-emerald-500/20 bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/15'
+              : 'border border-border bg-muted text-muted-foreground hover:bg-muted',
           )}
           title={automation.enabled ? 'Pause this automation' : 'Enable this automation'}
         >
@@ -315,7 +315,7 @@ function AutomationRow({
         </button>
         <button
           onClick={onDelete}
-          className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-600 transition-colors"
+          className="p-1.5 rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-600 transition-colors"
           title="Delete"
         >
           <Trash2 className="h-3.5 w-3.5" />
@@ -345,17 +345,17 @@ function cronLabel(config: Record<string, unknown> | null): string {
 
 function EmptyState({ onNew }: { onNew: () => void }) {
   return (
-    <div className="rounded-2xl border border-dashed border-gray-200 bg-white px-6 py-12 text-center">
-      <div className="h-14 w-14 mx-auto rounded-2xl bg-amber-50 flex items-center justify-center mb-4">
+    <div className="rounded-2xl border border-dashed border-border bg-card px-6 py-12 text-center">
+      <div className="h-14 w-14 mx-auto rounded-2xl bg-amber-500/10 flex items-center justify-center mb-4">
         <Zap className="h-7 w-7 text-amber-500" />
       </div>
-      <h2 className="text-base font-bold text-[#1A1B3A] mb-1">No automations yet</h2>
-      <p className="text-sm text-gray-500 max-w-md mx-auto mb-5">
+      <h2 className="text-base font-bold text-[var(--foreground)] mb-1">No automations yet</h2>
+      <p className="text-sm text-muted-foreground max-w-md mx-auto mb-5">
         Pick a trigger (daily, weekly, or manual), choose an integration, configure the action, and Tempo will run it for you.
       </p>
       <button
         onClick={onNew}
-        className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg bg-[#FF4D8D] text-white hover:bg-[#E91E8C] transition-colors"
+        className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg bg-[var(--primary)] text-white hover:bg-[var(--primary)] transition-colors"
       >
         <Plus className="h-3 w-3" />
         Create your first automation
@@ -515,23 +515,23 @@ function BuilderDrawer({
     <div className="absolute inset-0 flex justify-end" onClick={onClose}>
       <div className="absolute inset-0 bg-black/20 backdrop-blur-[2px]" />
       <div
-        className="relative w-full max-w-lg bg-white shadow-2xl h-full overflow-y-auto flex flex-col"
+        className="relative w-full max-w-lg bg-card shadow-2xl h-full overflow-y-auto flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between z-10">
+        <div className="sticky top-0 bg-card border-b border-border px-6 py-4 flex items-center justify-between z-10">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-400">
+            <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">
               {automation ? 'Edit automation' : 'New automation'}
             </p>
-            <h2 className="text-base font-bold text-[#1A1B3A]">{state.name || 'Untitled'}</h2>
+            <h2 className="text-base font-bold text-[var(--foreground)]">{state.name || 'Untitled'}</h2>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
-            <X className="h-5 w-5 text-gray-400" />
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted transition-colors">
+            <X className="h-5 w-5 text-muted-foreground" />
           </button>
         </div>
 
         {catalogsLoading ? (
-          <div className="p-6 flex items-center gap-2 text-sm text-gray-500">
+          <div className="p-6 flex items-center gap-2 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" /> Loading…
           </div>
         ) : (
@@ -544,7 +544,7 @@ function BuilderDrawer({
                   value={state.name}
                   onChange={(e) => set('name', e.target.value)}
                   placeholder="Daily morning ping"
-                  className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D]"
+                  className="w-full px-3 py-2 rounded-lg border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
                 />
               </Field>
               <Field label="Description">
@@ -553,7 +553,7 @@ function BuilderDrawer({
                   value={state.description}
                   onChange={(e) => set('description', e.target.value)}
                   placeholder="Posts a daily good-morning message to the team channel."
-                  className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D] resize-none"
+                  className="w-full px-3 py-2 rounded-lg border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] resize-none"
                 />
               </Field>
             </Section>
@@ -582,7 +582,7 @@ function BuilderDrawer({
                     <select
                       value={state.cronFrequency}
                       onChange={(e) => set('cronFrequency', e.target.value as BuilderState['cronFrequency'])}
-                      className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30"
+                      className="w-full px-3 py-2 rounded-lg border border-border text-sm bg-card focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30"
                     >
                       <option value="daily">Daily</option>
                       <option value="weekly">Weekly</option>
@@ -594,7 +594,7 @@ function BuilderDrawer({
                       <select
                         value={state.cronDayOfWeek}
                         onChange={(e) => set('cronDayOfWeek', Number(e.target.value))}
-                        className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30"
+                        className="w-full px-3 py-2 rounded-lg border border-border text-sm bg-card focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30"
                       >
                         {['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map((d, i) => (
                           <option key={i} value={i}>{d}</option>
@@ -610,11 +610,11 @@ function BuilderDrawer({
                         max={31}
                         value={state.cronDayOfMonth}
                         onChange={(e) => set('cronDayOfMonth', Math.max(1, Math.min(31, Number(e.target.value))))}
-                        className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30"
+                        className="w-full px-3 py-2 rounded-lg border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30"
                       />
                     </Field>
                   )}
-                  <p className="text-[11px] text-gray-500 leading-relaxed">
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
                     Cron fires once a day around 14:00 UTC (server time). For dates not matching the schedule, the automation is skipped.
                   </p>
                 </div>
@@ -631,7 +631,7 @@ function BuilderDrawer({
                     set('action', ''); // reset action when integration changes
                     set('params', {});
                   }}
-                  className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30"
+                  className="w-full px-3 py-2 rounded-lg border border-border text-sm bg-card focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30"
                 >
                   <option value="">— pick one —</option>
                   {integrations.map(i => (
@@ -649,7 +649,7 @@ function BuilderDrawer({
                       set('action', e.target.value);
                       set('params', {});
                     }}
-                    className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30"
+                    className="w-full px-3 py-2 rounded-lg border border-border text-sm bg-card focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30"
                   >
                     <option value="">— pick one —</option>
                     {availableActions.map(a => (
@@ -657,7 +657,7 @@ function BuilderDrawer({
                     ))}
                   </select>
                   {selectedAction && (
-                    <p className="text-[11px] text-gray-500 mt-1">{selectedAction.description}</p>
+                    <p className="text-[11px] text-muted-foreground mt-1">{selectedAction.description}</p>
                   )}
                 </Field>
               )}
@@ -682,7 +682,7 @@ function BuilderDrawer({
                     type="checkbox"
                     checked={state.enabled}
                     onChange={(e) => set('enabled', e.target.checked)}
-                    className="h-4 w-4 rounded border-gray-300"
+                    className="h-4 w-4 rounded border-border"
                   />
                   Enabled — uncheck to pause without deleting
                 </label>
@@ -695,19 +695,19 @@ function BuilderDrawer({
         )}
 
         {/* Sticky footer */}
-        <div className="sticky bottom-0 bg-white border-t border-gray-100 px-6 py-3 flex items-center gap-2 justify-end">
+        <div className="sticky bottom-0 bg-card border-t border-border px-6 py-3 flex items-center gap-2 justify-end">
           {error && <p className="text-xs text-red-600 mr-auto">{error}</p>}
           <button
             onClick={onClose}
             disabled={saving}
-            className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-border text-muted-foreground hover:bg-muted disabled:opacity-50 transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={save}
             disabled={saving}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#FF4D8D] text-white hover:bg-[#E91E8C] disabled:opacity-50 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[var(--primary)] text-white hover:bg-[var(--primary)] disabled:opacity-50 transition-colors"
           >
             {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Pencil className="h-3.5 w-3.5" />}
             {saving ? 'Saving…' : automation ? 'Save changes' : 'Create automation'}
@@ -729,7 +729,7 @@ function buildCronConfig(s: BuilderState): Record<string, unknown> {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-400 mb-2">{title}</p>
+      <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground mb-2">{title}</p>
       <div className="space-y-3">{children}</div>
     </div>
   );
@@ -738,8 +738,8 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1">
-        {label} {required && <span className="text-[#FF4D8D]">*</span>}
+      <label className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+        {label} {required && <span className="text-[var(--primary)]">*</span>}
       </label>
       {children}
     </div>
@@ -760,15 +760,15 @@ function TriggerOption({ active, onClick, icon, label, description }: {
       className={cn(
         'flex flex-col items-start gap-1 p-3 rounded-lg border text-left transition-colors',
         active
-          ? 'border-[#FF4D8D] bg-[#FF4D8D]/5'
-          : 'border-gray-200 bg-white hover:border-gray-300',
+          ? 'border-[var(--primary)] bg-[var(--primary)]/5'
+          : 'border-border bg-card hover:border-border',
       )}
     >
-      <div className={cn('flex items-center gap-1.5 text-sm font-semibold', active ? 'text-[#FF4D8D]' : 'text-gray-700')}>
+      <div className={cn('flex items-center gap-1.5 text-sm font-semibold', active ? 'text-[var(--primary)]' : 'text-foreground')}>
         {icon}
         {label}
       </div>
-      <p className="text-[11px] text-gray-500 leading-snug">{description}</p>
+      <p className="text-[11px] text-muted-foreground leading-snug">{description}</p>
     </button>
   );
 }
@@ -791,7 +791,7 @@ function ParamField({
           value={String(value ?? '')}
           onChange={onChange}
         />
-        {param.helpText && <p className="text-[11px] text-gray-500 mt-1">{param.helpText}</p>}
+        {param.helpText && <p className="text-[11px] text-muted-foreground mt-1">{param.helpText}</p>}
       </Field>
     );
   }
@@ -803,9 +803,9 @@ function ParamField({
           value={String(value ?? param.defaultValue ?? '')}
           onChange={(e) => onChange(e.target.value)}
           placeholder={param.placeholder}
-          className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D] resize-none"
+          className="w-full px-3 py-2 rounded-lg border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] resize-none"
         />
-        {param.helpText && <p className="text-[11px] text-gray-500 mt-1">{param.helpText}</p>}
+        {param.helpText && <p className="text-[11px] text-muted-foreground mt-1">{param.helpText}</p>}
       </Field>
     );
   }
@@ -817,9 +817,9 @@ function ParamField({
           value={String(value ?? param.defaultValue ?? '')}
           onChange={(e) => onChange(Number(e.target.value))}
           placeholder={param.placeholder}
-          className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30"
+          className="w-full px-3 py-2 rounded-lg border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30"
         />
-        {param.helpText && <p className="text-[11px] text-gray-500 mt-1">{param.helpText}</p>}
+        {param.helpText && <p className="text-[11px] text-muted-foreground mt-1">{param.helpText}</p>}
       </Field>
     );
   }
@@ -830,9 +830,9 @@ function ParamField({
         value={String(value ?? param.defaultValue ?? '')}
         onChange={(e) => onChange(e.target.value)}
         placeholder={param.placeholder}
-        className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30"
+        className="w-full px-3 py-2 rounded-lg border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30"
       />
-      {param.helpText && <p className="text-[11px] text-gray-500 mt-1">{param.helpText}</p>}
+      {param.helpText && <p className="text-[11px] text-muted-foreground mt-1">{param.helpText}</p>}
     </Field>
   );
 }
@@ -883,9 +883,9 @@ function ChannelPicker({
 
   if (loading) {
     return (
-      <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 bg-white">
-        <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-400" />
-        <span className="text-xs text-gray-500">Loading channels…</span>
+      <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-card">
+        <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+        <span className="text-xs text-muted-foreground">Loading channels…</span>
       </div>
     );
   }
@@ -897,7 +897,7 @@ function ChannelPicker({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder="1465474331365736552"
-          className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30"
+          className="w-full px-3 py-2 rounded-lg border border-border text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30"
         />
         {loadErr && <p className="text-[11px] text-amber-600 mt-1">Couldn&apos;t list channels: {loadErr}. Paste an ID manually.</p>}
       </div>
@@ -907,7 +907,7 @@ function ChannelPicker({
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30"
+      className="w-full px-3 py-2 rounded-lg border border-border text-sm bg-card focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30"
     >
       <option value="">— pick a channel —</option>
       {grouped.map(([category, items]) => (
@@ -956,13 +956,13 @@ function HistorySection({ automationId }: { automationId: string }) {
 
   return (
     <div>
-      <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-400 mb-2">Recent runs</p>
+      <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground mb-2">Recent runs</p>
       {loading ? (
-        <p className="text-xs text-gray-500">Loading…</p>
+        <p className="text-xs text-muted-foreground">Loading…</p>
       ) : runs.length === 0 ? (
-        <p className="text-xs text-gray-500">No runs yet. Click Run to fire it manually.</p>
+        <p className="text-xs text-muted-foreground">No runs yet. Click Run to fire it manually.</p>
       ) : (
-        <div className="rounded-lg border border-gray-100 divide-y divide-gray-50 max-h-72 overflow-y-auto">
+        <div className="rounded-lg border border-border divide-y divide-gray-50 max-h-72 overflow-y-auto">
           {runs.slice(0, 20).map(r => {
             const isOpen = expanded.has(r.id);
             const StatusIcon =
@@ -971,7 +971,7 @@ function HistorySection({ automationId }: { automationId: string }) {
             const color =
               r.status === 'success' ? 'text-emerald-600' :
               r.status === 'failed' ? 'text-red-600' :
-              r.status === 'partial' ? 'text-amber-600' : 'text-gray-400';
+              r.status === 'partial' ? 'text-amber-600' : 'text-muted-foreground';
             return (
               <div key={r.id}>
                 <button
@@ -983,20 +983,20 @@ function HistorySection({ automationId }: { automationId: string }) {
                       return next;
                     });
                   }}
-                  className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-50/50 transition-colors text-left"
+                  className="w-full flex items-center gap-2 px-3 py-2 hover:bg-muted/50 transition-colors text-left"
                 >
                   <StatusIcon className={cn('h-3.5 w-3.5 flex-shrink-0', color)} />
-                  <span className="text-xs text-gray-700 flex-1 min-w-0">
+                  <span className="text-xs text-foreground flex-1 min-w-0">
                     {new Date(r.started_at).toLocaleString()}
-                    <span className="text-gray-400"> · {r.triggered_by}</span>
+                    <span className="text-muted-foreground"> · {r.triggered_by}</span>
                   </span>
-                  <ChevronDown className={cn('h-3 w-3 text-gray-400 transition-transform', isOpen && 'rotate-180')} />
+                  <ChevronDown className={cn('h-3 w-3 text-muted-foreground transition-transform', isOpen && 'rotate-180')} />
                 </button>
                 {isOpen && (
-                  <div className="px-3 pb-2 text-[11px] text-gray-600 space-y-1 bg-gray-50/40">
+                  <div className="px-3 pb-2 text-[11px] text-muted-foreground space-y-1 bg-muted/40">
                     {r.error_message && <p className="text-red-600">{r.error_message}</p>}
                     {r.step_results?.map((sr, i) => (
-                      <p key={i} className={sr.ok ? 'text-emerald-700' : 'text-red-700'}>
+                      <p key={i} className={sr.ok ? 'text-emerald-500' : 'text-red-500'}>
                         {sr.ok ? '✓' : '✗'} {sr.action}{sr.summary ? ` — ${sr.summary}` : ''}{sr.error ? ` — ${sr.error}` : ''}
                       </p>
                     ))}

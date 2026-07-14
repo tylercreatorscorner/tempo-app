@@ -76,12 +76,12 @@ export function VideoCard({ videoUrl, videoTitle, creatorName, gmv, orders, post
       href={videoUrl ?? '#'}
       target="_blank"
       rel="noopener noreferrer"
-      className="group rounded-2xl bg-white border border-gray-200 shadow-sm overflow-hidden transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md motion-reduce:transform-none motion-reduce:transition-none block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF4D8D]/40 focus-visible:ring-offset-1"
+      className="group rounded-2xl bg-card border border-border shadow-sm overflow-hidden transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md motion-reduce:transform-none motion-reduce:transition-none block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40 focus-visible:ring-offset-1"
     >
       {/* Thumbnail */}
-      <div className="relative aspect-[9/12] bg-gradient-to-br from-pink-50 to-purple-50 overflow-hidden">
+      <div className="relative aspect-[9/12] bg-gradient-to-br from-primary/10 to-purple-50 overflow-hidden">
         {loading ? (
-          <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-pink-100/50 to-purple-100/50" />
+          <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-primary/10 to-purple-100/50" />
         ) : thumbnail ? (
           <img
             src={thumbnail}
@@ -89,7 +89,7 @@ export function VideoCard({ videoUrl, videoTitle, creatorName, gmv, orders, post
             className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 motion-reduce:transform-none motion-reduce:transition-none"
           />
         ) : (
-          <div className="absolute inset-0 flex items-center justify-center text-gray-300">
+          <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
             <BarChart3 className="h-8 w-8" />
           </div>
         )}
@@ -101,9 +101,9 @@ export function VideoCard({ videoUrl, videoTitle, creatorName, gmv, orders, post
 
       {/* Info */}
       <div className="p-3 space-y-1">
-        <p className="text-sm font-semibold text-[#1A1B3A] truncate">{creatorName}</p>
-        <p className="text-xs text-gray-500 truncate">{videoTitle || 'Untitled'}</p>
-        <div className="flex items-center justify-between text-[11px] font-mono tabular-nums text-gray-400 pt-1">
+        <p className="text-sm font-semibold text-[var(--foreground)] truncate">{creatorName}</p>
+        <p className="text-xs text-muted-foreground truncate">{videoTitle || 'Untitled'}</p>
+        <div className="flex items-center justify-between text-[11px] font-mono tabular-nums text-muted-foreground pt-1">
           <span><span className="font-bold">{orders}</span> order{orders !== 1 ? 's' : ''}</span>
           <span>{formatPostDate(postDate)}</span>
         </div>

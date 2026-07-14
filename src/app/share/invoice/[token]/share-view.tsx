@@ -195,7 +195,7 @@ export function ShareView({ token, invoice }: Props) {
         {/* Notes */}
         {invoice.notes && (
           <div className="rounded-2xl bg-pink-50 border border-pink-100 border-l-4 border-l-[#FF4D8D] p-5">
-            <p className="text-[10px] tracking-[0.15em] uppercase font-bold text-[#E91E8C] mb-2">Notes</p>
+            <p className="text-[10px] tracking-[0.15em] uppercase font-bold text-[var(--primary)] mb-2">Notes</p>
             <p className="text-sm text-gray-800 whitespace-pre-line leading-relaxed">{invoice.notes}</p>
           </div>
         )}

@@ -4,14 +4,16 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Lock to light mode — full dark mode rebuild needed */
+/* Pulse defines both themes; the dark toggle lights up per-surface as the
+   revamp rolls out. Default stays light until a surface is migrated. */
 html { color-scheme: light; }
+html.dark { color-scheme: dark; }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-inter);
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -95,72 +97,91 @@ html { color-scheme: light; }
     transform: rotate(-5deg) scale(0.9); } }}
 
 :root {
-  --radius: 0.625rem;
-  --background: #F8F9FC;
-  --foreground: #1A1B3A;
+  --radius: 0.75rem;
+  /* ── Pulse · light ── */
+  --background: #F5F4FC;
+  --foreground: #191533;
   --card: #FFFFFF;
-  --card-foreground: #1A1B3A;
+  --card-foreground: #191533;
   --popover: #FFFFFF;
-  --popover-foreground: #1A1B3A;
-  --primary: #FF4D8D;
+  --popover-foreground: #191533;
+  --primary: #4B45FF;
   --primary-foreground: #FFFFFF;
-  --secondary: #F3F4F6;
-  --secondary-foreground: #374151;
-  --muted: #F3F4F6;
-  --muted-foreground: #6B7280;
-  --accent: #FF4D8D;
+  --secondary: #F2F1FB;
+  --secondary-foreground: #464264;
+  --muted: #F2F1FB;
+  --muted-foreground: #6D6A8B;
+  --accent: #4B45FF;
   --accent-foreground: #FFFFFF;
-  --destructive: #EF4444;
-  --border: #E5E7EB;
-  --input: #E5E7EB;
-  --ring: #FF4D8D;
-  --chart-1: #E91E8C;
-  --chart-2: #00C853;
-  --chart-3: #2196F3;
-  --chart-4: #FF9800;
-  --chart-5: #7C5CFC;
-  --sidebar: #F8F9FC;
-  --sidebar-foreground: #1A1B3A;
-  --sidebar-primary: #FF4D8D;
+  --destructive: #E0356B;
+  --border: #E8E5F3;
+  --input: #E4E1F1;
+  --ring: #4B45FF;
+  --chart-1: #4B45FF;
+  --chart-2: #9A37EF;
+  --chart-3: #3D7BFF;
+  --chart-4: #12A150;
+  --chart-5: #E0356B;
+  --sidebar: #FFFFFF;
+  --sidebar-foreground: #191533;
+  --sidebar-primary: #4B45FF;
   --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #FFF0F5;
-  --sidebar-accent-foreground: #FF4D8D;
-  --sidebar-border: #E5E7EB;
-  --sidebar-ring: #FF4D8D;
+  --sidebar-accent: #ECEBFB;
+  --sidebar-accent-foreground: #4B45FF;
+  --sidebar-border: #E8E5F3;
+  --sidebar-ring: #4B45FF;
+  /* Pulse semantic + signature gradients (consumed by the components/ui kit) */
+  --pulse-accent-2: #9A37EF;
+  --pulse-pos: #12A150; --pulse-pos-bg: #E6F6EC;
+  --pulse-neg: #E0356B; --pulse-neg-bg: #FCE9F0;
+  --pulse-warn: #B9770A; --pulse-warn-bg: #F8EFDB;
+  --pulse-grad: linear-gradient(92deg, var(--primary), var(--pulse-accent-2));
+  --pulse-hero: linear-gradient(135deg, #5B4BFF, #9A3FD4 52%, #FF5C9A);
+  --pulse-elev-1: 0 1px 2px rgba(30,20,70,.05);
+  --pulse-elev-2: 0 2px 8px rgba(30,20,70,.05), 0 14px 34px rgba(40,25,90,.07);
 }
 
 .dark {
-  --background: oklch(0.07 0.015 260);
-  --foreground: oklch(0.95 0 0);
-  --card: oklch(0.13 0.015 260);
-  --card-foreground: oklch(0.95 0 0);
-  --popover: oklch(0.13 0.015 260);
-  --popover-foreground: oklch(0.95 0 0);
-  --primary: #FF4D8D;
-  --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.18 0.015 260);
-  --secondary-foreground: oklch(0.9 0 0);
-  --muted: oklch(0.18 0.015 260);
-  --muted-foreground: oklch(0.6 0 0);
-  --accent: #FF4D8D;
-  --accent-foreground: oklch(1 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 12%);
-  --ring: #FF4D8D;
-  --chart-1: #E91E8C;
-  --chart-2: #00C853;
-  --chart-3: #2196F3;
-  --chart-4: #FF9800;
-  --chart-5: #7C5CFC;
-  --sidebar: oklch(0.1 0.015 260);
-  --sidebar-foreground: oklch(0.9 0 0);
-  --sidebar-primary: #FF4D8D;
-  --sidebar-primary-foreground: oklch(1 0 0);
-  --sidebar-accent: oklch(0.18 0.02 260);
-  --sidebar-accent-foreground: oklch(0.95 0 0);
-  --sidebar-border: oklch(1 0 0 / 8%);
-  --sidebar-ring: #FF4D8D;
+  /* ── Pulse · dark ── */
+  --background: #0D0E20;
+  --foreground: #EEF0FF;
+  --card: #17182F;
+  --card-foreground: #EEF0FF;
+  --popover: #17182F;
+  --popover-foreground: #EEF0FF;
+  --primary: #5AA6FF;
+  --primary-foreground: #0D0E20;
+  --secondary: #1E2043;
+  --secondary-foreground: #C9CCF0;
+  --muted: #1E2043;
+  --muted-foreground: #A0A4CC;
+  --accent: #5AA6FF;
+  --accent-foreground: #0D0E20;
+  --destructive: #FF6A98;
+  --border: #292B54;
+  --input: #313463;
+  --ring: #5AA6FF;
+  --chart-1: #6FA8FF;
+  --chart-2: #B06BFF;
+  --chart-3: #4DA6FF;
+  --chart-4: #3FEBA9;
+  --chart-5: #FF6A98;
+  --sidebar: #131427;
+  --sidebar-foreground: #EEF0FF;
+  --sidebar-primary: #5AA6FF;
+  --sidebar-primary-foreground: #0D0E20;
+  --sidebar-accent: #232655;
+  --sidebar-accent-foreground: #EEF0FF;
+  --sidebar-border: #292B54;
+  --sidebar-ring: #5AA6FF;
+  --pulse-accent-2: #B06BFF;
+  --pulse-pos: #3FEBA9; --pulse-pos-bg: #0F3320;
+  --pulse-neg: #FF6A98; --pulse-neg-bg: #3A1424;
+  --pulse-warn: #F5B62E; --pulse-warn-bg: #33260F;
+  --pulse-grad: linear-gradient(92deg, var(--primary), var(--pulse-accent-2));
+  --pulse-hero: linear-gradient(135deg, #3F2B8F, #7A2FB0 52%, #C23A86);
+  --pulse-elev-1: 0 1px 2px rgba(0,0,0,.3);
+  --pulse-elev-2: 0 2px 10px rgba(0,0,0,.34), 0 16px 36px rgba(0,0,0,.42);
 }
 
 @layer base {
@@ -354,4 +375,26 @@ html { color-scheme: light; }
   height: 6px;
   border-radius: 3px;
   background: linear-gradient(to right, #FF4D8D, #7C5CFC);
+}
+
+/* ── Theme-switch circular reveal (View Transitions API) ──────────────
+   The incoming theme wipes in as a circle growing from the toggle button.
+   Falls back to an instant swap where startViewTransition is unsupported. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-old(root) { z-index: 1; }
+::view-transition-new(root) { z-index: 2; }
+@keyframes tempo-theme-reveal {
+  from { clip-path: circle(0 at var(--vt-x, 50%) var(--vt-y, 50%)); }
+  to   { clip-path: circle(170% at var(--vt-x, 50%) var(--vt-y, 50%)); }
+}
+::view-transition-new(root) {
+  animation: tempo-theme-reveal 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) { animation: none; }
 }

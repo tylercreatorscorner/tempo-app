@@ -87,22 +87,22 @@ export function MarkPaidModal({
     <div className="absolute inset-0 flex items-center justify-center p-4">
       <button aria-label="Close" className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
 
-      <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200">
-        <div className="px-6 py-5 border-b border-gray-100 flex items-start justify-between gap-3">
+      <div className="relative w-full max-w-md bg-card rounded-2xl shadow-2xl flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200">
+        <div className="px-6 py-5 border-b border-border flex items-start justify-between gap-3">
           <div className="flex items-start gap-3 min-w-0">
             <div className="h-10 w-10 rounded-xl bg-emerald-500 flex items-center justify-center flex-shrink-0 shadow-sm">
               <CheckCircle2 className="h-5 w-5 text-white" />
             </div>
             <div className="min-w-0">
-              <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-400">Mark as Paid</p>
-              <h2 className="text-lg font-extrabold text-[#1A1B3A] font-mono truncate">{invoiceNumber}</h2>
-              <p className="text-xs text-gray-500 mt-0.5">Capture payment detail for reconciliation.</p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">Mark as Paid</p>
+              <h2 className="text-lg font-extrabold text-[var(--foreground)] font-mono truncate">{invoiceNumber}</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">Capture payment detail for reconciliation.</p>
             </div>
           </div>
           <button
             onClick={onClose}
             disabled={saving}
-            className="h-8 w-8 rounded-lg hover:bg-gray-50 flex items-center justify-center text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0 disabled:opacity-40"
+            className="h-8 w-8 rounded-lg hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-muted-foreground transition-colors flex-shrink-0 disabled:opacity-40"
             aria-label="Close"
           >
             <X className="h-4 w-4" />
@@ -116,7 +116,7 @@ export function MarkPaidModal({
               value={method}
               onChange={(e) => setMethod(e.target.value)}
               disabled={saving}
-              className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm bg-white text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D] disabled:opacity-50"
+              className="w-full px-3 py-2 rounded-xl border border-border text-sm bg-card text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] disabled:opacity-50"
             >
               {METHODS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
             </select>
@@ -130,7 +130,7 @@ export function MarkPaidModal({
               onChange={(e) => setReference(e.target.value)}
               placeholder="e.g. WIRE-20260503-ABC, check #1042"
               disabled={saving}
-              className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D] disabled:opacity-50"
+              className="w-full px-3 py-2 rounded-xl border border-border text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] disabled:opacity-50"
             />
           </Field>
 
@@ -146,7 +146,7 @@ export function MarkPaidModal({
             tone={!amountValid ? 'error' : diff < 0 ? 'warn' : 'default'}
           >
             <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400 pointer-events-none">$</span>
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground pointer-events-none">$</span>
               <input
                 type="number"
                 step={0.01}
@@ -154,7 +154,7 @@ export function MarkPaidModal({
                 value={amount}
                 onChange={(e) => { setAmount(e.target.value); setError(null); }}
                 disabled={saving}
-                className="w-full pl-7 pr-3 py-2 rounded-xl border border-gray-200 text-sm tabular-nums text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D] disabled:opacity-50"
+                className="w-full pl-7 pr-3 py-2 rounded-xl border border-border text-sm tabular-nums text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] disabled:opacity-50"
               />
             </div>
           </Field>
@@ -167,17 +167,17 @@ export function MarkPaidModal({
               placeholder="e.g. wire fee $25 deducted, partial — remainder due 5/15"
               rows={2}
               disabled={saving}
-              className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D] resize-y disabled:opacity-50"
+              className="w-full px-3 py-2 rounded-xl border border-border text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] resize-y disabled:opacity-50"
             />
           </Field>
 
           {error && (
-            <div className="rounded-xl bg-red-50 border border-red-100 px-3 py-2 text-xs text-red-700">{error}</div>
+            <div className="rounded-xl bg-red-500/10 border border-red-500/20 px-3 py-2 text-xs text-red-500">{error}</div>
           )}
         </div>
 
-        <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-end gap-2 bg-gray-50/40">
-          <button onClick={onClose} disabled={saving} className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 disabled:opacity-40">
+        <div className="px-6 py-4 border-t border-border flex items-center justify-end gap-2 bg-muted/40">
+          <button onClick={onClose} disabled={saving} className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground disabled:opacity-40">
             Cancel
           </button>
           <button
@@ -204,11 +204,11 @@ function Field({ label, hint, tone = 'default', children }: {
   return (
     <label className="block">
       <div className="flex items-baseline justify-between mb-1">
-        <span className="text-xs font-semibold text-gray-700">{label}</span>
+        <span className="text-xs font-semibold text-foreground">{label}</span>
         {hint && (
           <span className={cn(
             'text-[11px]',
-            tone === 'error' ? 'text-red-600 font-medium' : tone === 'warn' ? 'text-amber-600 font-medium' : 'text-gray-400',
+            tone === 'error' ? 'text-red-600 font-medium' : tone === 'warn' ? 'text-amber-600 font-medium' : 'text-muted-foreground',
           )}>{hint}</span>
         )}
       </div>

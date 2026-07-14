@@ -69,7 +69,7 @@ export function SectionTabs({ isAdmin = false }: { isAdmin?: boolean }) {
   const withBrand = (href: string) => (brand ? `${href}?brand=${brand}` : href);
 
   return (
-    <div className="sticky top-14 z-20 bg-white border-b border-gray-100">
+    <div className="sticky top-14 z-20 bg-card border-b border-border">
       <nav className="flex items-center gap-1 px-3 sm:px-4 md:px-6 overflow-x-auto" aria-label="Section">
         {tabs.map((t) => {
           const active = t.href === current!.activeHref;
@@ -80,8 +80,8 @@ export function SectionTabs({ isAdmin = false }: { isAdmin?: boolean }) {
               className={cn(
                 'px-3 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 -mb-px transition-colors',
                 active
-                  ? 'border-[#FF4D8D] text-[#1A1B3A]'
-                  : 'border-transparent text-gray-500 hover:text-gray-800',
+                  ? 'border-[var(--primary)] text-[var(--foreground)]'
+                  : 'border-transparent text-muted-foreground hover:text-foreground',
               )}
             >
               {t.label}

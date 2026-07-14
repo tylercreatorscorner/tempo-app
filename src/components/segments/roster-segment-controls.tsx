@@ -52,27 +52,27 @@ export function RosterSegmentControls({
       <div className="relative">
         <button
           onClick={() => setOpen((o) => !o)}
-          className="flex items-center gap-1.5 text-sm font-medium px-3 py-2.5 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-600 transition-colors"
+          className="flex items-center gap-1.5 text-sm font-medium px-3 py-2.5 rounded-xl border border-border hover:bg-muted text-muted-foreground transition-colors"
         >
           <Layers className="h-4 w-4" /> Segments <ChevronDown className="h-3.5 w-3.5 opacity-60" />
         </button>
         {open && (
-          <div className="absolute right-0 top-full mt-1 w-72 bg-white border border-gray-200 rounded-xl shadow-lg z-50">
+          <div className="absolute right-0 top-full mt-1 w-72 bg-card border border-border rounded-xl shadow-lg z-50">
             <div data-lenis-prevent className="max-h-[60vh] overflow-y-auto overscroll-contain py-1">
-              <p className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400">Lifecycle</p>
+              <p className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Lifecycle</p>
               {PREBUILT_SEGMENTS.map((p) => (
-                <button key={p.key} onClick={() => pick(p.criteria, p.name)} className="w-full text-left px-3 py-2 hover:bg-gray-50">
-                  <p className="text-sm font-medium text-gray-800">{p.name}</p>
-                  <p className="text-xs text-gray-400 truncate">{p.description}</p>
+                <button key={p.key} onClick={() => pick(p.criteria, p.name)} className="w-full text-left px-3 py-2 hover:bg-muted">
+                  <p className="text-sm font-medium text-foreground">{p.name}</p>
+                  <p className="text-xs text-muted-foreground truncate">{p.description}</p>
                 </button>
               ))}
               {customs.length > 0 && (
                 <>
-                  <p className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400 border-t border-gray-100 mt-1">Your segments</p>
+                  <p className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-t border-border mt-1">Your segments</p>
                   {customs.map((c) => (
-                    <button key={c.id} onClick={() => pick(c.filter_criteria, c.name)} className="w-full text-left px-3 py-2 hover:bg-gray-50">
-                      <p className="text-sm font-medium text-gray-800 truncate">{c.name}</p>
-                      <p className="text-xs text-gray-400 truncate">{c.description || describeCriteria(c.filter_criteria)}</p>
+                    <button key={c.id} onClick={() => pick(c.filter_criteria, c.name)} className="w-full text-left px-3 py-2 hover:bg-muted">
+                      <p className="text-sm font-medium text-foreground truncate">{c.name}</p>
+                      <p className="text-xs text-muted-foreground truncate">{c.description || describeCriteria(c.filter_criteria)}</p>
                     </button>
                   ))}
                 </>
@@ -84,7 +84,7 @@ export function RosterSegmentControls({
 
       <button
         onClick={() => setShowSave(true)}
-        className="flex items-center gap-1.5 text-sm font-medium px-3 py-2.5 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-600 transition-colors"
+        className="flex items-center gap-1.5 text-sm font-medium px-3 py-2.5 rounded-xl border border-border hover:bg-muted text-muted-foreground transition-colors"
         title="Save the current filters as a segment"
       >
         <BookmarkPlus className="h-4 w-4" /> Save
@@ -131,31 +131,31 @@ function SaveModal({
     }
   }
 
-  const field = 'w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-pink-200 focus:border-pink-300';
+  const field = 'w-full px-3 py-2 rounded-lg border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary/15 focus:border-primary/20';
 
   return (
     <ModalOverlay onClose={onClose}>
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-        <div onClick={(e) => e.stopPropagation()} data-lenis-prevent className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-gray-200">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-            <h2 className="text-base font-semibold text-gray-900">Save current filters as a segment</h2>
-            <button onClick={onClose} className="p-1 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-50"><X className="h-4 w-4" /></button>
+        <div onClick={(e) => e.stopPropagation()} data-lenis-prevent className="w-full max-w-md bg-card rounded-2xl shadow-xl border border-border">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+            <h2 className="text-base font-semibold text-foreground">Save current filters as a segment</h2>
+            <button onClick={onClose} className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted"><X className="h-4 w-4" /></button>
           </div>
           <div className="px-5 py-4 space-y-3">
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Name</label>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">Name</label>
               <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. CC June cohort" className={field} autoFocus />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Description <span className="text-gray-300">(optional)</span></label>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">Description <span className="text-muted-foreground">(optional)</span></label>
               <input value={description} onChange={(e) => setDescription(e.target.value)} className={field} />
             </div>
-            <p className="text-xs text-gray-400">{describeCriteria(criteria)}</p>
+            <p className="text-xs text-muted-foreground">{describeCriteria(criteria)}</p>
             {error && <p className="text-sm text-red-600">{error}</p>}
           </div>
-          <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-gray-100">
-            <button onClick={onClose} className="px-3 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
-            <button onClick={save} disabled={saving} className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-[#E91E8C] hover:bg-[#d1177d] disabled:opacity-50">
+          <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-border">
+            <button onClick={onClose} className="px-3 py-2 rounded-lg text-sm text-muted-foreground hover:bg-muted">Cancel</button>
+            <button onClick={save} disabled={saving} className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-[var(--primary)] hover:bg-[#d1177d] disabled:opacity-50">
               {saving ? 'Saving…' : 'Save segment'}
             </button>
           </div>

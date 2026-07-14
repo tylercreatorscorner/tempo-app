@@ -23,7 +23,7 @@ export function BrandTabs({
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-1 p-1 bg-gray-100 rounded-xl w-fit">
+      <div className="flex gap-1 p-1 bg-muted rounded-xl w-fit">
         {TABS.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
@@ -31,8 +31,8 @@ export function BrandTabs({
             className={cn(
               'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors',
               active === id
-                ? 'bg-white text-[#1A1B3A] shadow-sm'
-                : 'text-gray-500 hover:text-gray-700',
+                ? 'bg-card text-[var(--foreground)] shadow-sm'
+                : 'text-muted-foreground hover:text-foreground',
             )}
           >
             <Icon className="h-4 w-4" />

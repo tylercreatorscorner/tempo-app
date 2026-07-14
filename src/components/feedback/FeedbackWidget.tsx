@@ -43,7 +43,7 @@ export function FeedbackWidget() {
       {/* Floating button */}
       <button
         onClick={() => setOpen(!open)}
-        className="fixed bottom-6 right-6 z-50 h-12 w-12 rounded-full bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] text-white shadow-lg shadow-[#FF4D8D]/20 hover:opacity-90 transition-all flex items-center justify-center"
+        className="fixed bottom-6 right-6 z-50 h-12 w-12 rounded-full bg-gradient-to-r from-[var(--primary)] to-[var(--pulse-accent-2)] text-white shadow-lg shadow-[var(--primary)]/20 hover:opacity-90 transition-all flex items-center justify-center"
         aria-label="Send feedback"
       >
         {open ? <X className="h-5 w-5" /> : <MessageCircle className="h-5 w-5" />}
@@ -51,10 +51,10 @@ export function FeedbackWidget() {
 
       {/* Modal */}
       {open && (
-        <div className="fixed bottom-20 right-6 z-50 w-80 rounded-2xl border border-gray-200 bg-white shadow-2xl p-5 space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-200">
+        <div className="fixed bottom-20 right-6 z-50 w-80 rounded-2xl border border-border bg-card shadow-2xl p-5 space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-200">
           {submitted ? (
             <div className="text-center py-6 space-y-2">
-              <div className="inline-flex h-12 w-12 rounded-full bg-green-100 items-center justify-center">
+              <div className="inline-flex h-12 w-12 rounded-full bg-green-500/15 items-center justify-center">
                 <Check className="h-6 w-6 text-green-600" />
               </div>
               <p className="font-semibold">Thanks for your feedback!</p>
@@ -79,8 +79,8 @@ export function FeedbackWidget() {
                     <Star
                       className={`h-7 w-7 transition-colors ${
                         n <= (hoverRating || rating)
-                          ? 'fill-[#FF4D8D] text-[#FF4D8D]'
-                          : 'text-gray-300'
+                          ? 'fill-[var(--primary)] text-[var(--primary)]'
+                          : 'text-muted-foreground'
                       }`}
                     />
                   </button>
@@ -93,14 +93,14 @@ export function FeedbackWidget() {
                 onChange={(e) => setMessage(e.target.value)}
                 placeholder="Tell us more (optional)..."
                 rows={3}
-                className="w-full px-3 py-2 rounded-xl border border-input bg-background text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/50"
+                className="w-full px-3 py-2 rounded-xl border border-input bg-background text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
               />
 
               {/* Submit */}
               <button
                 onClick={handleSubmit}
                 disabled={!rating || submitting}
-                className="w-full inline-flex items-center justify-center gap-2 py-2.5 rounded-xl bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] text-white text-sm font-semibold disabled:opacity-40 hover:opacity-90 transition-opacity"
+                className="w-full inline-flex items-center justify-center gap-2 py-2.5 rounded-xl bg-gradient-to-r from-[var(--primary)] to-[var(--pulse-accent-2)] text-white text-sm font-semibold disabled:opacity-40 hover:opacity-90 transition-opacity"
               >
                 {submitting ? 'Sending...' : 'Send Feedback'} <Send className="h-3.5 w-3.5" />
               </button>

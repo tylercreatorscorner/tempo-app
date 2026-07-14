@@ -51,8 +51,8 @@ export default async function TeamPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#1A1B3A]">Team</h1>
-        <p className="text-sm text-gray-500 mt-1">
+        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[var(--foreground)]">Team</h1>
+        <p className="text-sm text-muted-foreground mt-1">
           Invite teammates and manage their roles, brand access, and finance visibility.
         </p>
       </div>

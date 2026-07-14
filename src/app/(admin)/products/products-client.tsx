@@ -202,10 +202,10 @@ export function ProductsClient({ brands, selectedBrand, startDate, endDate }: Pr
       {/* Header row: title + date picker */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-extrabold text-[#1A1B3A]">Products</h1>
-          <p className="text-sm text-gray-400 mt-0.5">
+          <h1 className="text-2xl font-extrabold text-[var(--foreground)]">Products</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
             Per-product performance for{' '}
-            <span className="font-medium text-gray-600">
+            <span className="font-medium text-muted-foreground">
               {selectedBrand ? brandMeta.label(selectedBrand) : 'all brands'}
             </span>
             . Click any row to see the creators driving it.
@@ -218,7 +218,7 @@ export function ProductsClient({ brands, selectedBrand, startDate, endDate }: Pr
       <BrandFilter brands={brands} brandsWithData={brandsWithData} selectedBrand={selectedBrand} />
 
       {error && (
-        <div className="rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-700">
+        <div className="rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-500">
           {error}
         </div>
       )}
@@ -251,34 +251,34 @@ export function ProductsClient({ brands, selectedBrand, startDate, endDate }: Pr
       <TopProductsCard products={data?.products ?? []} totalGmv={data?.kpis.totalGmv ?? 0} loading={isInitial} />
 
       {/* Table */}
-      <div className="relative rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+      <div className="relative rounded-2xl bg-card border border-border shadow-sm overflow-hidden">
         {/* Indeterminate load bar — shows on first load AND every refetch
             (brand / date-range change). Gated by showBar (150ms delay) so
             fast loads don't flash it. */}
         <TableLoadBar active={showBar} />
         {/* Table toolbar */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-5 py-3 border-b border-gray-100">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-5 py-3 border-b border-border">
           <div className="flex items-center gap-3">
-            <h2 className="text-sm font-bold text-[#1A1B3A]">All Products</h2>
-            <span className="text-xs text-gray-400">
+            <h2 className="text-sm font-bold text-[var(--foreground)]">All Products</h2>
+            <span className="text-xs text-muted-foreground">
               {visibleProducts.length} of {data?.products.length ?? 0}
             </span>
           </div>
           <div className="flex items-center gap-2">
             <div className="relative">
-              <Search className="h-3.5 w-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <Search className="h-3.5 w-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <input
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search products..."
-                className="text-sm bg-white border border-gray-200 rounded-xl pl-8 pr-3 py-1.5 w-56 focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/20 focus:border-[#E91E8C]"
+                className="text-sm bg-card border border-border rounded-xl pl-8 pr-3 py-1.5 w-56 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)]"
               />
             </div>
             <button
               onClick={downloadCsv}
               disabled={!visibleProducts.length}
-              className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-600 disabled:opacity-40 transition-colors"
+              className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border border-border hover:bg-muted text-muted-foreground disabled:opacity-40 transition-colors"
             >
               <Download className="h-3.5 w-3.5" /> CSV
             </button>
@@ -301,12 +301,12 @@ export function ProductsClient({ brands, selectedBrand, startDate, endDate }: Pr
             </thead>
             <tbody>
               {isInitial ? (
-                <tr><td colSpan={7} className="text-center text-gray-400 py-12 text-sm">
+                <tr><td colSpan={7} className="text-center text-muted-foreground py-12 text-sm">
                   <Loader2 className="h-4 w-4 animate-spin inline mr-2" />Loading products...
                 </td></tr>
               ) : visibleProducts.length === 0 ? (
-                <tr><td colSpan={7} className="text-center text-gray-400 py-12">
-                  <Package className="h-8 w-8 mx-auto mb-2 text-gray-300" />
+                <tr><td colSpan={7} className="text-center text-muted-foreground py-12">
+                  <Package className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
                   <div className="text-sm font-medium">No products in this window</div>
                   <div className="text-xs mt-1">Try a wider date range or different brand.</div>
                 </td></tr>
@@ -357,7 +357,7 @@ function SortableTh({
       className={cn(
         'px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider cursor-pointer select-none transition-colors',
         align === 'right' ? 'text-right' : 'text-left',
-        active ? 'text-[#E91E8C]' : 'text-gray-500 hover:text-gray-700'
+        active ? 'text-[var(--primary)]' : 'text-muted-foreground hover:text-foreground'
       )}
     >
       {label}{arrow && <span className="ml-1">{arrow}</span>}
@@ -367,7 +367,7 @@ function SortableTh({
 
 function Th({ children }: { children: React.ReactNode }) {
   return (
-    <th className="px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider text-gray-500">{children}</th>
+    <th className="px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{children}</th>
   );
 }
 
@@ -424,35 +424,35 @@ function ProductRowGroup({
       <tr
         onClick={onToggle}
         className={cn(
-          'border-t border-gray-50 hover:bg-gray-50/50 cursor-pointer transition-colors',
-          isExpanded && 'bg-pink-50/40'
+          'border-t border-border hover:bg-muted/50 cursor-pointer transition-colors',
+          isExpanded && 'bg-primary/10'
         )}
       >
         <td className="px-4 py-3 align-top">
           <div className="flex items-start gap-2">
-            {isExpanded ? <ChevronDown className="h-3.5 w-3.5 text-gray-400 mt-0.5 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 text-gray-400 mt-0.5 shrink-0" />}
+            {isExpanded ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />}
             <div className="min-w-0">
-              <div className="font-medium text-[#1A1B3A] truncate" title={product.product_name}>{titleClipped}</div>
+              <div className="font-medium text-[var(--foreground)] truncate" title={product.product_name}>{titleClipped}</div>
               {product.product_category && (
-                <div className="text-[11px] text-gray-400 mt-0.5">{product.product_category}</div>
+                <div className="text-[11px] text-muted-foreground mt-0.5">{product.product_category}</div>
               )}
             </div>
           </div>
         </td>
         <td className="px-4 py-3 align-top">
-          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-600">
+          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
             <span className="h-2 w-2 rounded-full" style={{ backgroundColor: brandColor }} />
             {brandMeta.label(product.brand)}
           </span>
         </td>
-        <td className="px-4 py-3 text-right font-bold text-[#E91E8C] tabular-nums">{formatCurrency(product.gmv)}</td>
-        <td className="px-4 py-3 text-right text-gray-700 tabular-nums">{formatNumber(product.orders)}</td>
-        <td className="px-4 py-3 text-right text-gray-700 tabular-nums">{formatNumber(product.items_sold)}</td>
-        <td className="px-4 py-3 text-right text-gray-700 tabular-nums">{formatNumber(product.videos)}</td>
-        <td className="px-4 py-3 text-right text-gray-700 tabular-nums">{formatNumber(product.avg_creators_with_sales)}</td>
+        <td className="px-4 py-3 text-right font-bold text-[var(--primary)] tabular-nums">{formatCurrency(product.gmv)}</td>
+        <td className="px-4 py-3 text-right text-foreground tabular-nums">{formatNumber(product.orders)}</td>
+        <td className="px-4 py-3 text-right text-foreground tabular-nums">{formatNumber(product.items_sold)}</td>
+        <td className="px-4 py-3 text-right text-foreground tabular-nums">{formatNumber(product.videos)}</td>
+        <td className="px-4 py-3 text-right text-foreground tabular-nums">{formatNumber(product.avg_creators_with_sales)}</td>
       </tr>
       {isExpanded && (
-        <tr className="bg-gray-50/30 border-t border-gray-50">
+        <tr className="bg-muted/30 border-t border-border">
           <td colSpan={7} className="px-4 pt-1 pb-4">
             <CreatorBreakdown loading={loading} err={err} creators={creators} productGmv={product.gmv} />
           </td>
@@ -472,7 +472,7 @@ function CreatorBreakdown({
 }) {
   if (loading && creators === null) {
     return (
-      <div className="text-xs text-gray-500 flex items-center gap-2 px-2 py-3">
+      <div className="text-xs text-muted-foreground flex items-center gap-2 px-2 py-3">
         <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading creators...
       </div>
     );
@@ -482,7 +482,7 @@ function CreatorBreakdown({
   }
   if (!creators || creators.length === 0) {
     return (
-      <div className="text-xs text-gray-400 italic px-2 py-3">
+      <div className="text-xs text-muted-foreground italic px-2 py-3">
         No creator-attributed sales for this product in the selected period.
       </div>
     );
@@ -490,27 +490,27 @@ function CreatorBreakdown({
 
   const top = creators.slice(0, 10);
   return (
-    <div className="rounded-xl bg-white border border-gray-100 p-3 space-y-1">
-      <div className="text-[10px] font-bold uppercase tracking-wider text-gray-500 px-2 pb-2">
+    <div className="rounded-xl bg-card border border-border p-3 space-y-1">
+      <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground px-2 pb-2">
         Top Creators · {creators.length} total · {formatCurrency(productGmv)} product GMV
       </div>
       <div className="space-y-0.5">
         {top.map((c, i) => {
           const share = productGmv > 0 ? (c.gmv / productGmv) * 100 : 0;
           return (
-            <div key={c.tiktok_username} className="flex items-center gap-3 text-xs px-2 py-1.5 hover:bg-gray-50 rounded-lg transition-colors">
-              <span className="w-6 text-gray-400 font-medium tabular-nums">{i + 1}.</span>
-              <span className="font-medium text-[#1A1B3A] flex-1 truncate">@{c.tiktok_username}</span>
-              <span className="text-gray-500 w-24 text-right tabular-nums">{formatNumber(c.videos)} {c.videos === 1 ? 'vid' : 'vids'}</span>
-              <span className="text-gray-500 w-24 text-right tabular-nums">{formatNumber(c.orders)} orders</span>
-              <span className="font-bold text-[#E91E8C] w-24 text-right tabular-nums">{formatCurrency(c.gmv)}</span>
-              <span className="text-[10px] text-gray-400 w-12 text-right tabular-nums">{share.toFixed(1)}%</span>
+            <div key={c.tiktok_username} className="flex items-center gap-3 text-xs px-2 py-1.5 hover:bg-muted rounded-lg transition-colors">
+              <span className="w-6 text-muted-foreground font-medium tabular-nums">{i + 1}.</span>
+              <span className="font-medium text-[var(--foreground)] flex-1 truncate">@{c.tiktok_username}</span>
+              <span className="text-muted-foreground w-24 text-right tabular-nums">{formatNumber(c.videos)} {c.videos === 1 ? 'vid' : 'vids'}</span>
+              <span className="text-muted-foreground w-24 text-right tabular-nums">{formatNumber(c.orders)} orders</span>
+              <span className="font-bold text-[var(--primary)] w-24 text-right tabular-nums">{formatCurrency(c.gmv)}</span>
+              <span className="text-[10px] text-muted-foreground w-12 text-right tabular-nums">{share.toFixed(1)}%</span>
             </div>
           );
         })}
       </div>
       {creators.length > 10 && (
-        <div className="text-[11px] text-gray-400 px-2 pt-1">
+        <div className="text-[11px] text-muted-foreground px-2 pt-1">
           Showing top 10 of {creators.length} creators
         </div>
       )}
@@ -530,17 +530,17 @@ function TopProductsCard({
   const brandMeta = useBrandMeta();
   const top = products.slice(0, 5);
   return (
-    <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-5">
+    <div className="rounded-2xl bg-card border border-border shadow-sm p-5">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <div className="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-500">Headliners</div>
-          <h2 className="text-base font-bold text-[#1A1B3A] mt-0.5">Top 5 products</h2>
+          <div className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">Headliners</div>
+          <h2 className="text-base font-bold text-[var(--foreground)] mt-0.5">Top 5 products</h2>
         </div>
       </div>
       {loading ? (
-        <div className="text-xs text-gray-400 flex items-center gap-2"><Loader2 className="h-3.5 w-3.5 animate-spin" />Loading...</div>
+        <div className="text-xs text-muted-foreground flex items-center gap-2"><Loader2 className="h-3.5 w-3.5 animate-spin" />Loading...</div>
       ) : top.length === 0 ? (
-        <div className="text-xs text-gray-400 italic py-3">No products in this window.</div>
+        <div className="text-xs text-muted-foreground italic py-3">No products in this window.</div>
       ) : (
         <div className="space-y-2">
           {top.map((p, i) => {
@@ -551,20 +551,20 @@ function TopProductsCard({
             const brandColor = brandMeta.color(p.brand);
             return (
               <div key={`${p.product_id}|||${p.brand}`} className="flex items-center gap-3">
-                <span className="w-6 text-xs text-gray-400 font-bold tabular-nums">{i + 1}</span>
+                <span className="w-6 text-xs text-muted-foreground font-bold tabular-nums">{i + 1}</span>
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-[#1A1B3A] truncate" title={p.product_name}>{titleClipped}</div>
-                  <div className="flex items-center gap-1.5 text-[11px] text-gray-500 mt-0.5">
+                  <div className="text-sm font-medium text-[var(--foreground)] truncate" title={p.product_name}>{titleClipped}</div>
+                  <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mt-0.5">
                     <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: brandColor }} />
                     {brandMeta.label(p.brand)}
                   </div>
-                  <div className="mt-1.5 h-1 bg-gray-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-[#E91E8C]" style={{ width: `${Math.min(100, share)}%` }} />
+                  <div className="mt-1.5 h-1 bg-muted rounded-full overflow-hidden">
+                    <div className="h-full bg-[var(--primary)]" style={{ width: `${Math.min(100, share)}%` }} />
                   </div>
                 </div>
                 <div className="text-right shrink-0">
-                  <div className="font-bold text-[#1A1B3A] tabular-nums">{formatCurrency(p.gmv)}</div>
-                  <div className="text-[11px] text-gray-400 tabular-nums">{share.toFixed(1)}% of total</div>
+                  <div className="font-bold text-[var(--foreground)] tabular-nums">{formatCurrency(p.gmv)}</div>
+                  <div className="text-[11px] text-muted-foreground tabular-nums">{share.toFixed(1)}% of total</div>
                 </div>
               </div>
             );

@@ -34,7 +34,7 @@ export default async function BrandsPage({ searchParams }: Props) {
   const brands = (dbBrands ?? []).map(b => ({
     slug: b.slug,
     name: b.display_name || b.name,
-    color: b.color || '#6B7280',
+    color: b.color || 'var(--muted-foreground)',
   }));
 
   // Fetch summaries for each brand
@@ -100,7 +100,7 @@ export default async function BrandsPage({ searchParams }: Props) {
 
       {/* Empty state */}
       {brands.length === 0 && (
-        <div className="rounded-2xl border border-gray-200 bg-white overflow-hidden">
+        <div className="rounded-2xl border border-border bg-card overflow-hidden">
           <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
             <div className="text-5xl mb-4">🏢</div>
             <h3 className="text-lg font-bold">No brands yet</h3>
@@ -115,7 +115,7 @@ export default async function BrandsPage({ searchParams }: Props) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {summaries.map(({ brand: slug, data }) => {
           const brandInfo = brands.find(b => b.slug === slug);
-          const color = brandInfo?.color ?? '#6B7280';
+          const color = brandInfo?.color ?? 'var(--muted-foreground)';
           const displayName = brandInfo?.name ?? slug;
           const gmv = data?.total_gmv ?? 0;
           const gmvShare = portfolioTotals.gmv > 0 ? (gmv / portfolioTotals.gmv) * 100 : 0;

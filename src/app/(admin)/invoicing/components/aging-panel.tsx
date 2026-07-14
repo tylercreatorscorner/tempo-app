@@ -48,11 +48,11 @@ interface BucketDef {
 }
 
 const BUCKETS: BucketDef[] = [
-  { value: 'current', label: 'Current',  description: 'Not yet due', icon: Clock,           bg: 'bg-white border-gray-200',         bgActive: 'bg-gray-50 border-gray-400 ring-2 ring-gray-300',           text: 'text-gray-700',    iconBg: 'bg-gray-100' },
-  { value: '1-30',    label: '1-30',     description: 'Days overdue', icon: Clock,          bg: 'bg-white border-amber-200',        bgActive: 'bg-amber-50 border-amber-400 ring-2 ring-amber-200',         text: 'text-amber-700',   iconBg: 'bg-amber-100' },
-  { value: '31-60',   label: '31-60',    description: 'Days overdue', icon: AlertTriangle,  bg: 'bg-white border-orange-200',       bgActive: 'bg-orange-50 border-orange-400 ring-2 ring-orange-200',     text: 'text-orange-700',  iconBg: 'bg-orange-100' },
-  { value: '61-90',   label: '61-90',    description: 'Days overdue', icon: AlertTriangle,  bg: 'bg-white border-red-200',          bgActive: 'bg-red-50 border-red-400 ring-2 ring-red-200',               text: 'text-red-700',     iconBg: 'bg-red-100' },
-  { value: '90+',     label: '90+',      description: 'Days overdue', icon: Flame,          bg: 'bg-white border-red-300',          bgActive: 'bg-red-100 border-red-500 ring-2 ring-red-300',              text: 'text-red-800',     iconBg: 'bg-red-200' },
+  { value: 'current', label: 'Current',  description: 'Not yet due', icon: Clock,           bg: 'bg-card border-border',         bgActive: 'bg-muted border-gray-400 ring-2 ring-border',           text: 'text-foreground',    iconBg: 'bg-muted' },
+  { value: '1-30',    label: '1-30',     description: 'Days overdue', icon: Clock,          bg: 'bg-card border-amber-500/25',        bgActive: 'bg-amber-500/10 border-amber-400 ring-2 ring-amber-200',         text: 'text-amber-500',   iconBg: 'bg-amber-500/15' },
+  { value: '31-60',   label: '31-60',    description: 'Days overdue', icon: AlertTriangle,  bg: 'bg-card border-orange-500/25',       bgActive: 'bg-orange-500/10 border-orange-400 ring-2 ring-orange-200',     text: 'text-orange-500',  iconBg: 'bg-orange-500/15' },
+  { value: '61-90',   label: '61-90',    description: 'Days overdue', icon: AlertTriangle,  bg: 'bg-card border-red-500/25',          bgActive: 'bg-red-500/10 border-red-400 ring-2 ring-red-200',               text: 'text-red-500',     iconBg: 'bg-red-500/15' },
+  { value: '90+',     label: '90+',      description: 'Days overdue', icon: Flame,          bg: 'bg-card border-red-300',          bgActive: 'bg-red-500/15 border-red-500 ring-2 ring-red-300',              text: 'text-red-500',     iconBg: 'bg-red-200' },
 ];
 
 interface Props {
@@ -86,16 +86,16 @@ export function AgingPanel({ invoices, active, onPick }: Props) {
   if (totalUnpaid === 0) return null; // Don't show empty aging panel
 
   return (
-    <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+    <div className="rounded-2xl bg-card border border-border shadow-sm overflow-hidden">
       <div className="px-5 pt-4 pb-3 flex items-baseline justify-between">
         <div>
-          <h3 className="text-sm font-bold text-[#1A1B3A]">Aging</h3>
-          <p className="text-xs text-gray-400 mt-0.5">
+          <h3 className="text-sm font-bold text-[var(--foreground)]">Aging</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
             Unpaid invoices by overdue age · click a bucket to filter
           </p>
         </div>
-        <p className="text-xs text-gray-500">
-          <span className="font-bold text-[#1A1B3A]">{formatCurrency(totalUnpaid)}</span> unpaid
+        <p className="text-xs text-muted-foreground">
+          <span className="font-bold text-[var(--foreground)]">{formatCurrency(totalUnpaid)}</span> unpaid
         </p>
       </div>
       <div className="px-5 pb-5">
@@ -110,7 +110,7 @@ export function AgingPanel({ invoices, active, onPick }: Props) {
                 onClick={() => onPick(isActive ? 'all' : b.value)}
                 className={cn(
                   'rounded-xl border p-3 text-left transition-all',
-                  isActive ? b.bgActive : `${b.bg} hover:border-gray-300`,
+                  isActive ? b.bgActive : `${b.bg} hover:border-border`,
                 )}
               >
                 <div className="flex items-center justify-between mb-2">
@@ -121,10 +121,10 @@ export function AgingPanel({ invoices, active, onPick }: Props) {
                     {b.label}
                   </span>
                 </div>
-                <p className={cn('text-base font-extrabold tabular-nums', isActive ? b.text : 'text-[#1A1B3A]')}>
+                <p className={cn('text-base font-extrabold tabular-nums', isActive ? b.text : 'text-[var(--foreground)]')}>
                   {data.amount > 0 ? formatCurrency(data.amount) : '—'}
                 </p>
-                <p className="text-[10px] text-gray-400 mt-0.5">
+                <p className="text-[10px] text-muted-foreground mt-0.5">
                   {data.count} {data.count === 1 ? 'invoice' : 'invoices'}{b.value !== 'current' && data.count > 0 ? ` · ${b.description.toLowerCase()}` : ''}
                 </p>
               </button>

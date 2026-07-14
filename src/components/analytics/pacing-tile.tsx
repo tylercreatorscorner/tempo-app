@@ -22,9 +22,9 @@ export function PacingTile({ daysElapsed, periodLength, gmvToDate, periodLabel }
   const daysRemaining = Math.max(0, periodLength - daysElapsed);
 
   return (
-    <div className="rounded-2xl bg-gradient-to-br from-[#1A1B3A] via-[#2D1B69] to-[#1A1B3A] p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-white">
+    <div className="rounded-2xl bg-gradient-to-br from-[var(--foreground)] via-[#2D1B69] to-[var(--foreground)] p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-white">
       <div className="flex items-start gap-3 min-w-0">
-        <div className="h-9 w-9 rounded-xl bg-white/10 flex items-center justify-center flex-shrink-0">
+        <div className="h-9 w-9 rounded-xl bg-card/10 flex items-center justify-center flex-shrink-0">
           <TrendingUp className="h-4 w-4" />
         </div>
         <div className="min-w-0">

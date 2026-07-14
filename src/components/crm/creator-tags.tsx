@@ -78,36 +78,36 @@ export function CreatorTags({ creatorId }: { creatorId: string }) {
       <div className="relative">
         <button
           onClick={openDropdown}
-          className="h-6 w-6 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition"
+          className="h-6 w-6 rounded-full bg-muted hover:bg-secondary flex items-center justify-center transition"
         >
-          {loading ? <Loader2 className="h-3 w-3 animate-spin text-gray-400" /> : <Plus className="h-3 w-3 text-gray-500" />}
+          {loading ? <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" /> : <Plus className="h-3 w-3 text-muted-foreground" />}
         </button>
 
         {open && (
           <>
             <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-            <div className="absolute top-8 left-0 z-50 w-48 bg-white rounded-xl border border-gray-200 shadow-lg overflow-hidden">
+            <div className="absolute top-8 left-0 z-50 w-48 bg-card rounded-xl border border-border shadow-lg overflow-hidden">
               <input
                 ref={inputRef}
                 value={query}
                 onChange={e => setQuery(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter' && query.trim()) addTag(query); }}
                 placeholder="Search or create..."
-                className="w-full px-3 py-2 text-sm border-b border-gray-100 focus:outline-none"
+                className="w-full px-3 py-2 text-sm border-b border-border focus:outline-none"
               />
               <div className="max-h-32 overflow-y-auto">
                 {filtered.map(t => (
-                  <button key={t} onClick={() => addTag(t)} className="w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 transition">
+                  <button key={t} onClick={() => addTag(t)} className="w-full text-left px-3 py-1.5 text-sm hover:bg-muted transition">
                     {t}
                   </button>
                 ))}
                 {query.trim() && !allTags.includes(query.trim().toLowerCase()) && (
-                  <button onClick={() => addTag(query)} className="w-full text-left px-3 py-1.5 text-sm text-[#FF4D8D] hover:bg-pink-50 transition">
+                  <button onClick={() => addTag(query)} className="w-full text-left px-3 py-1.5 text-sm text-[var(--primary)] hover:bg-primary/10 transition">
                     Create &quot;{query.trim()}&quot;
                   </button>
                 )}
                 {filtered.length === 0 && !query.trim() && (
-                  <p className="px-3 py-2 text-xs text-gray-400">No tags yet</p>
+                  <p className="px-3 py-2 text-xs text-muted-foreground">No tags yet</p>
                 )}
               </div>
             </div>

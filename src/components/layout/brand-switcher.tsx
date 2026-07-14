@@ -28,7 +28,7 @@ function readableText(hex: string): string {
   const n = parseInt(m[1], 16);
   const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
   const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return luminance > 0.62 ? '#1A1B3A' : '#ffffff';
+  return luminance > 0.62 ? 'var(--foreground)' : '#ffffff';
 }
 
 /** Brand avatar — colored rounded square with initials, or a grid tile for "All Brands". */
@@ -36,7 +36,7 @@ function BrandAvatar({ color, label, size = 'md' }: { color: string | null; labe
   const dim = size === 'sm' ? 'h-6 w-6 text-[9px] rounded-md' : 'h-7 w-7 text-[10px] rounded-lg';
   if (!color) {
     return (
-      <span className={cn(dim, 'flex items-center justify-center bg-gradient-to-br from-[#FF4D8D] via-[#A855F7] to-[#3B82F6] text-white shadow-sm flex-shrink-0')}>
+      <span className={cn(dim, 'flex items-center justify-center bg-gradient-to-br from-[var(--primary)] via-[#A855F7] to-[#3B82F6] text-white shadow-sm flex-shrink-0')}>
         <LayoutGrid className={size === 'sm' ? 'h-3 w-3' : 'h-3.5 w-3.5'} />
       </span>
     );
@@ -86,7 +86,7 @@ export function BrandSwitcher() {
         color: string | null; is_archived: boolean; parent_brand_id: string | null;
       }>)
         .filter(b => !b.is_archived && !b.parent_brand_id)
-        .map(b => ({ key: b.slug, label: b.display_name || b.name, color: b.color || '#6B7280' }));
+        .map(b => ({ key: b.slug, label: b.display_name || b.name, color: b.color || 'var(--muted-foreground)' }));
 
       setOptions([
         // "All Brands" = the portfolio view; offered whenever there's more than one
@@ -212,11 +212,11 @@ export function BrandSwitcher() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 8, scale: 0.97 }}
             transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
-            className="absolute bottom-full left-0 right-0 mb-2 bg-white border border-gray-200/80 rounded-2xl shadow-2xl shadow-black/10 overflow-hidden z-50"
+            className="absolute bottom-full left-0 right-0 mb-2 bg-card border border-border/80 rounded-2xl shadow-2xl shadow-black/10 overflow-hidden z-50"
           >
             {/* Search */}
-            <div className="flex items-center gap-2 px-3 py-2.5 border-b border-gray-100">
-              <Search className="h-4 w-4 text-gray-400 flex-shrink-0" />
+            <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border">
+              <Search className="h-4 w-4 text-muted-foreground flex-shrink-0" />
               <input
                 ref={inputRef}
                 value={query}
@@ -226,12 +226,12 @@ export function BrandSwitcher() {
                 role="combobox"
                 aria-expanded
                 aria-controls="brand-switcher-list"
-                className="flex-1 bg-transparent text-sm text-gray-900 outline-none placeholder:text-gray-400 min-w-0"
+                className="flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground min-w-0"
               />
               {query && (
                 <button
                   onClick={() => { setQuery(''); inputRef.current?.focus(); }}
-                  className="text-gray-300 hover:text-gray-500 transition-colors flex-shrink-0"
+                  className="text-muted-foreground hover:text-muted-foreground transition-colors flex-shrink-0"
                   aria-label="Clear search"
                 >
                   <X className="h-3.5 w-3.5" />
@@ -244,13 +244,13 @@ export function BrandSwitcher() {
               {options.length === 0 ? (
                 <div className="px-3 py-8 text-center">
                   {status === 'loading' ? (
-                    <p className="text-sm text-gray-400">Loading brands…</p>
+                    <p className="text-sm text-muted-foreground">Loading brands…</p>
                   ) : (
                     <>
-                      <p className="text-sm text-gray-400">Couldn&rsquo;t load brands</p>
+                      <p className="text-sm text-muted-foreground">Couldn&rsquo;t load brands</p>
                       <button
                         onClick={() => loadBrands()}
-                        className="mt-2 text-xs font-medium text-[#FF4D8D] hover:underline"
+                        className="mt-2 text-xs font-medium text-[var(--primary)] hover:underline"
                       >
                         Retry
                       </button>
@@ -259,8 +259,8 @@ export function BrandSwitcher() {
                 </div>
               ) : filtered.length === 0 ? (
                 <div className="px-3 py-8 text-center">
-                  <p className="text-sm text-gray-400">No brands match</p>
-                  <p className="text-xs text-gray-300 mt-0.5 truncate">&ldquo;{query}&rdquo;</p>
+                  <p className="text-sm text-muted-foreground">No brands match</p>
+                  <p className="text-xs text-muted-foreground mt-0.5 truncate">&ldquo;{query}&rdquo;</p>
                 </div>
               ) : (
                 filtered.map((opt, i) => {
@@ -276,14 +276,14 @@ export function BrandSwitcher() {
                       onClick={() => choose(opt)}
                       className={cn(
                         'w-full flex items-center gap-3 px-2.5 py-2 rounded-lg text-sm transition-colors',
-                        isHighlighted ? 'bg-gray-100/80' : 'bg-transparent',
+                        isHighlighted ? 'bg-muted/80' : 'bg-transparent',
                       )}
                     >
                       <BrandAvatar color={opt.color} label={opt.label} />
-                      <span className={cn('flex-1 text-left truncate', isActive ? 'font-semibold text-gray-900' : 'text-gray-700')}>
+                      <span className={cn('flex-1 text-left truncate', isActive ? 'font-semibold text-foreground' : 'text-foreground')}>
                         {opt.label}
                       </span>
-                      {isActive && <Check className="h-4 w-4 text-[#FF4D8D] flex-shrink-0" />}
+                      {isActive && <Check className="h-4 w-4 text-[var(--primary)] flex-shrink-0" />}
                     </button>
                   );
                 })
@@ -291,13 +291,13 @@ export function BrandSwitcher() {
             </div>
 
             {/* Footer hint */}
-            <div className="flex items-center justify-between px-3 py-2 border-t border-gray-100 bg-gray-50/50">
-              <span className="text-[10px] text-gray-400">
+            <div className="flex items-center justify-between px-3 py-2 border-t border-border bg-muted/50">
+              <span className="text-[10px] text-muted-foreground">
                 {filtered.length} brand{filtered.length === 1 ? '' : 's'}
               </span>
-              <span className="text-[10px] text-gray-300 hidden sm:flex items-center gap-1">
-                <kbd className="px-1 py-0.5 rounded bg-white border border-gray-200 text-gray-400 font-sans text-[9px]">↑↓</kbd>
-                <kbd className="px-1 py-0.5 rounded bg-white border border-gray-200 text-gray-400 font-sans text-[9px]">↵</kbd>
+              <span className="text-[10px] text-muted-foreground hidden sm:flex items-center gap-1">
+                <kbd className="px-1 py-0.5 rounded bg-card border border-border text-muted-foreground font-sans text-[9px]">↑↓</kbd>
+                <kbd className="px-1 py-0.5 rounded bg-card border border-border text-muted-foreground font-sans text-[9px]">↵</kbd>
               </span>
             </div>
           </motion.div>
@@ -312,16 +312,16 @@ export function BrandSwitcher() {
         className={cn(
           'w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-sm font-medium transition-all duration-200 border',
           open
-            ? 'bg-gray-50 border-gray-300 shadow-sm'
-            : 'bg-white border-gray-200 hover:bg-gray-50 hover:border-gray-300',
+            ? 'bg-muted border-border shadow-sm'
+            : 'bg-card border-border hover:bg-muted hover:border-border',
         )}
       >
         <BrandAvatar color={brand === 'all' ? null : brandColor} label={brandLabel} size="sm" />
         <div className="flex-1 min-w-0 text-left">
-          <p className="text-[9px] uppercase tracking-wider text-gray-400 leading-none mb-0.5">Brand</p>
-          <p className="text-sm text-gray-900 truncate leading-none font-semibold">{brandLabel}</p>
+          <p className="text-[9px] uppercase tracking-wider text-muted-foreground leading-none mb-0.5">Brand</p>
+          <p className="text-sm text-foreground truncate leading-none font-semibold">{brandLabel}</p>
         </div>
-        <ChevronsUpDown className="h-4 w-4 text-gray-400 flex-shrink-0" />
+        <ChevronsUpDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
       </button>
     </div>
   );

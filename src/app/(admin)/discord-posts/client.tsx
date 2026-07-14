@@ -69,13 +69,13 @@ function PostCard({
   };
 
   return (
-    <div className="rounded-2xl bg-white border border-gray-200 shadow-sm flex flex-col">
+    <div className="rounded-2xl bg-card border border-border shadow-sm flex flex-col">
       {/* Header */}
-      <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-3">
-        <div className="h-9 w-9 rounded-lg bg-pink-50 flex items-center justify-center">
-          <Icon className="h-5 w-5 text-[#FF4D8D]" />
+      <div className="px-5 py-4 border-b border-border flex items-center gap-3">
+        <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center">
+          <Icon className="h-5 w-5 text-[var(--primary)]" />
         </div>
-        <h2 className="text-lg font-bold text-[#1A1B3A]">{title}</h2>
+        <h2 className="text-lg font-bold text-[var(--foreground)]">{title}</h2>
       </div>
 
       {/* Controls */}
@@ -84,7 +84,7 @@ function PostCard({
         <select
           value={brand}
           onChange={(e) => setBrand(e.target.value)}
-          className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-[#FF4D8D]/50"
+          className="w-full bg-muted border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[var(--primary)]/50"
         >
           {BRANDS.map((b) => (
             <option key={b.value} value={b.value}>{b.label}</option>
@@ -93,15 +93,15 @@ function PostCard({
 
         {/* Period Toggle */}
         {showPeriod && (
-          <div className="flex bg-gray-100 rounded-lg p-1">
+          <div className="flex bg-muted rounded-lg p-1">
             {PERIODS.map((p) => (
               <button
                 key={p.value}
                 onClick={() => setPeriod(p.value as '7d' | '30d')}
                 className={`flex-1 text-sm font-medium py-1.5 rounded-md transition-all ${
                   period === p.value
-                    ? 'bg-white text-[#FF4D8D] shadow-sm'
-                    : 'text-gray-500 hover:text-gray-700'
+                    ? 'bg-card text-[var(--primary)] shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
                 {p.label}
@@ -114,7 +114,7 @@ function PostCard({
         <button
           onClick={generate}
           disabled={loading}
-          className="w-full py-2.5 rounded-lg bg-[#FF4D8D] hover:bg-[#e8437e] text-white font-medium text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+          className="w-full py-2.5 rounded-lg bg-[var(--primary)] hover:bg-[#e8437e] text-white font-medium text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
         >
           {loading ? (
             <>
@@ -129,22 +129,22 @@ function PostCard({
 
       {/* Stats */}
       {stats && (
-        <div className="px-5 pb-3 flex gap-4 text-xs text-gray-500">
+        <div className="px-5 pb-3 flex gap-4 text-xs text-muted-foreground">
           <span>
-            <strong className="text-gray-700">${stats.totalGmv.toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong> GMV
+            <strong className="text-foreground">${stats.totalGmv.toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong> GMV
           </span>
           <span>
-            <strong className="text-gray-700">{stats.videoCount}</strong> videos
+            <strong className="text-foreground">{stats.videoCount}</strong> videos
           </span>
           <span>
-            <strong className="text-gray-700">{stats.creatorCount}</strong> creators
+            <strong className="text-foreground">{stats.creatorCount}</strong> creators
           </span>
         </div>
       )}
 
       {/* Preview Area */}
       {text && (
-        <div className="mx-5 mb-4 rounded-xl overflow-hidden border border-gray-200 flex-1 flex flex-col">
+        <div className="mx-5 mb-4 rounded-xl overflow-hidden border border-border flex-1 flex flex-col">
           {/* Discord-style header */}
           <div className="px-4 py-2 bg-[#36393f] flex items-center justify-between">
             <span className="text-xs font-semibold text-[#dcddde]">Preview</span>
@@ -181,7 +181,7 @@ function PostCard({
 
       {/* Error */}
       {error && (
-        <div className="mx-5 mb-4 px-3 py-2 rounded-lg bg-red-50 text-red-600 text-xs">
+        <div className="mx-5 mb-4 px-3 py-2 rounded-lg bg-red-500/10 text-red-600 text-xs">
           {error}
         </div>
       )}
@@ -194,7 +194,7 @@ function PostCard({
             className={`w-full py-3 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 ${
               copied
                 ? 'bg-green-500 text-white'
-                : 'bg-[#1A1B3A] hover:bg-[#2a2b4a] text-white'
+                : 'bg-[var(--foreground)] hover:bg-[#2a2b4a] text-white'
             }`}
           >
             {copied ? (

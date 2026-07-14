@@ -151,11 +151,11 @@ export function PostReviewClient({ meta }: { meta: VideoMeta }) {
     <div className="space-y-5">
       {/* Header */}
       <div className="flex items-start gap-3">
-        <Link href="/posts" className="p-2 rounded-lg hover:bg-gray-100 transition-colors text-gray-500 mt-1">
+        <Link href="/posts" className="p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground mt-1">
           <ArrowLeft className="h-4 w-4" />
         </Link>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
             <span className="inline-flex items-center gap-1.5">
               <span aria-hidden="true" className="h-2 w-2 rounded-full" style={{ backgroundColor: brandColor }} />
               {meta.brand_name}
@@ -169,14 +169,14 @@ export function PostReviewClient({ meta }: { meta: VideoMeta }) {
               </>
             )}
           </div>
-          <h1 className="text-xl font-bold text-[#1A1B3A] leading-snug">{meta.title}</h1>
+          <h1 className="text-xl font-bold text-[var(--foreground)] leading-snug">{meta.title}</h1>
         </div>
         {meta.video_url && (
           <a
             href={meta.video_url}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#1A1B3A] hover:bg-[#2a2b4a] text-white text-xs font-semibold transition-colors shrink-0"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[var(--foreground)] hover:bg-[#2a2b4a] text-white text-xs font-semibold transition-colors shrink-0"
           >
             <ExternalLink className="h-3.5 w-3.5" />
             Watch on TikTok
@@ -185,7 +185,7 @@ export function PostReviewClient({ meta }: { meta: VideoMeta }) {
       </div>
 
       {/* KPI strip */}
-      <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-5">
+      <div className="rounded-2xl bg-card border border-border shadow-sm p-5">
         <div className="grid grid-cols-2 sm:grid-cols-6 gap-4">
           <Kpi icon={<Eye className="h-3.5 w-3.5" />}            label="Views"      value={formatNumber(meta.views)} />
           <Kpi icon={<Heart className="h-3.5 w-3.5" />}          label="Likes"      value={formatNumber(meta.likes)}     accent="pink" />
@@ -197,15 +197,15 @@ export function PostReviewClient({ meta }: { meta: VideoMeta }) {
       </div>
 
       {error && (
-        <div className="rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-700">{error}</div>
+        <div className="rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-500">{error}</div>
       )}
 
       {/* YOUR review (form) */}
-      <div className="rounded-2xl bg-white border border-gray-100 shadow-sm">
-        <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+      <div className="rounded-2xl bg-card border border-border shadow-sm">
+        <div className="px-5 py-3 border-b border-border flex items-center justify-between">
           <div>
-            <div className="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-500">Your review</div>
-            <div className="text-sm text-gray-600 mt-0.5">
+            <div className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">Your review</div>
+            <div className="text-sm text-muted-foreground mt-0.5">
               {myReview
                 ? `Last edited ${new Date(myReview.updated_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}`
                 : 'You haven\'t reviewed this yet'}
@@ -215,7 +215,7 @@ export function PostReviewClient({ meta }: { meta: VideoMeta }) {
             <button
               onClick={deleteReview}
               disabled={deleting}
-              className="text-xs text-gray-400 hover:text-red-600 transition-colors flex items-center gap-1 disabled:opacity-40"
+              className="text-xs text-muted-foreground hover:text-red-600 transition-colors flex items-center gap-1 disabled:opacity-40"
             >
               {deleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
               Delete
@@ -226,7 +226,7 @@ export function PostReviewClient({ meta }: { meta: VideoMeta }) {
         <div className="p-5 space-y-4">
           {/* Rating */}
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Rating</label>
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-2">Rating</label>
             <div className="flex items-center gap-1">
               {[1, 2, 3, 4, 5].map(n => (
                 <button
@@ -234,7 +234,7 @@ export function PostReviewClient({ meta }: { meta: VideoMeta }) {
                   onClick={() => setDraftRating(n === draftRating ? null : n)}
                   className={cn(
                     'p-1 transition-transform hover:scale-110',
-                    draftRating !== null && n <= draftRating ? 'text-amber-400' : 'text-gray-300',
+                    draftRating !== null && n <= draftRating ? 'text-amber-400' : 'text-muted-foreground',
                   )}
                   title={`${n} star${n > 1 ? 's' : ''}`}
                 >
@@ -244,7 +244,7 @@ export function PostReviewClient({ meta }: { meta: VideoMeta }) {
               {draftRating !== null && (
                 <button
                   onClick={() => setDraftRating(null)}
-                  className="ml-2 text-xs text-gray-400 hover:text-gray-600"
+                  className="ml-2 text-xs text-muted-foreground hover:text-muted-foreground"
                 >
                   clear
                 </button>
@@ -254,7 +254,7 @@ export function PostReviewClient({ meta }: { meta: VideoMeta }) {
 
           {/* Tags */}
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Tags</label>
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-2">Tags</label>
             <div className="flex flex-wrap gap-2">
               {TAG_PRESETS.map(tag => {
                 const active = draftTags.includes(tag);
@@ -265,8 +265,8 @@ export function PostReviewClient({ meta }: { meta: VideoMeta }) {
                     className={cn(
                       'px-3 py-1 rounded-full text-xs font-medium transition-colors',
                       active
-                        ? 'bg-[#E91E8C] text-white'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
+                        ? 'bg-[var(--primary)] text-white'
+                        : 'bg-muted text-muted-foreground hover:bg-secondary',
                     )}
                   >
                     {tag}
@@ -278,23 +278,23 @@ export function PostReviewClient({ meta }: { meta: VideoMeta }) {
 
           {/* Notes */}
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Notes</label>
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-2">Notes</label>
             <textarea
               value={draftNotes}
               onChange={(e) => setDraftNotes(e.target.value)}
               rows={4}
               maxLength={4000}
               placeholder="What worked, what didn't, what would you tell the creator about their next post..."
-              className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/20 focus:border-[#E91E8C] resize-y min-h-[100px]"
+              className="w-full bg-card border border-border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] resize-y min-h-[100px]"
             />
-            <div className="text-[11px] text-gray-400 mt-1 text-right">{draftNotes.length} / 4000</div>
+            <div className="text-[11px] text-muted-foreground mt-1 text-right">{draftNotes.length} / 4000</div>
           </div>
 
           <div className="flex items-center justify-end pt-1">
             <button
               onClick={saveReview}
               disabled={saving || (draftRating === null && !draftNotes.trim() && draftTags.length === 0)}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#E91E8C] hover:bg-[#d1177d] text-white text-sm font-semibold disabled:opacity-50 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[var(--primary)] hover:bg-[#d1177d] text-white text-sm font-semibold disabled:opacity-50 transition-colors"
             >
               {saving ? <><Loader2 className="h-4 w-4 animate-spin" />Saving…</> : <><Save className="h-4 w-4" />{myReview ? 'Update review' : 'Save review'}</>}
             </button>
@@ -303,18 +303,18 @@ export function PostReviewClient({ meta }: { meta: VideoMeta }) {
       </div>
 
       {/* OTHER reviews */}
-      <div className="rounded-2xl bg-white border border-gray-100 shadow-sm">
-        <div className="px-5 py-3 border-b border-gray-100">
-          <div className="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-500">
+      <div className="rounded-2xl bg-card border border-border shadow-sm">
+        <div className="px-5 py-3 border-b border-border">
+          <div className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">
             Team reviews · {otherReviews.length}
           </div>
         </div>
         {loading && reviews.length === 0 ? (
-          <div className="px-5 py-8 text-center text-sm text-gray-400">
+          <div className="px-5 py-8 text-center text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin inline mr-2" />Loading…
           </div>
         ) : otherReviews.length === 0 ? (
-          <div className="px-5 py-8 text-center text-sm text-gray-400">No reviews from other team members yet.</div>
+          <div className="px-5 py-8 text-center text-sm text-muted-foreground">No reviews from other team members yet.</div>
         ) : (
           <ul className="divide-y divide-gray-50">
             {otherReviews.map(r => <OtherReviewRow key={r.id} review={r} />)}
@@ -336,15 +336,15 @@ function Kpi({
   accent?: 'pink' | 'blue' | 'green' | 'amber' | 'gray';
 }) {
   const colorMap = {
-    pink:  'text-[#E91E8C]',
+    pink:  'text-[var(--primary)]',
     blue:  'text-blue-600',
     green: 'text-emerald-600',
     amber: 'text-amber-600',
-    gray:  'text-[#1A1B3A]',
+    gray:  'text-[var(--foreground)]',
   } as const;
   return (
     <div>
-      <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-gray-500">
+      <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
         {icon}
         {label}
       </div>
@@ -357,32 +357,32 @@ function OtherReviewRow({ review }: { review: ReviewRow }) {
   return (
     <li className="px-5 py-4">
       <div className="flex items-start gap-3">
-        <div className="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-500 shrink-0">
+        <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center text-xs font-bold text-muted-foreground shrink-0">
           {(review.reviewer_name ?? '?').slice(0, 2).toUpperCase()}
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-2 flex-wrap">
-            <div className="text-sm font-semibold text-[#1A1B3A]">{review.reviewer_name ?? 'Unknown'}</div>
-            <div className="text-[11px] text-gray-400">
+            <div className="text-sm font-semibold text-[var(--foreground)]">{review.reviewer_name ?? 'Unknown'}</div>
+            <div className="text-[11px] text-muted-foreground">
               {new Date(review.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
             </div>
           </div>
           {review.rating !== null && (
             <div className="flex items-center gap-0.5 mt-1">
               {[1, 2, 3, 4, 5].map(n => (
-                <Star key={n} className={cn('h-3 w-3', n <= (review.rating ?? 0) ? 'text-amber-400 fill-amber-400' : 'text-gray-200')} />
+                <Star key={n} className={cn('h-3 w-3', n <= (review.rating ?? 0) ? 'text-amber-400 fill-amber-400' : 'text-muted-foreground')} />
               ))}
             </div>
           )}
           {review.tags && review.tags.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mt-2">
               {review.tags.map(t => (
-                <span key={t} className="px-2 py-0.5 rounded-full bg-gray-100 text-[11px] text-gray-600">{t}</span>
+                <span key={t} className="px-2 py-0.5 rounded-full bg-muted text-[11px] text-muted-foreground">{t}</span>
               ))}
             </div>
           )}
           {review.notes && (
-            <p className="text-sm text-gray-700 mt-2 whitespace-pre-wrap leading-relaxed">{review.notes}</p>
+            <p className="text-sm text-foreground mt-2 whitespace-pre-wrap leading-relaxed">{review.notes}</p>
           )}
         </div>
       </div>

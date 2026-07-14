@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { X, Plus, Loader2 } from 'lucide-react';
 
 const BRAND_COLORS = [
-  '#FF4D8D', '#7C5CFC', '#3B82F6', '#10B981', '#F59E0B',
+  'var(--primary)', 'var(--pulse-accent-2)', '#3B82F6', '#10B981', '#F59E0B',
   '#EF4444', '#8B5CF6', '#06B6D4', '#EC4899', '#14B8A6',
 ];
 
@@ -68,11 +68,11 @@ export function AddBrandModal({ open, onClose, onCreated }: AddBrandModalProps) 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+      <div className="bg-card rounded-2xl border border-border shadow-2xl w-full max-w-md mx-4 overflow-hidden">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+        <div className="px-6 py-4 border-b border-border flex items-center justify-between">
           <h2 className="text-lg font-bold">Add Brand</h2>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted transition-colors">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -80,7 +80,7 @@ export function AddBrandModal({ open, onClose, onCreated }: AddBrandModalProps) 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
           {error && (
-            <div className="p-3 rounded-xl bg-red-50 text-red-600 text-sm">
+            <div className="p-3 rounded-xl bg-red-500/10 text-red-600 text-sm">
               {error}
             </div>
           )}
@@ -91,7 +91,7 @@ export function AddBrandModal({ open, onClose, onCreated }: AddBrandModalProps) 
               value={name}
               onChange={(e) => handleNameChange(e.target.value)}
               placeholder="e.g., Glow Beauty"
-              className="w-full px-4 py-2.5 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/50"
+              className="w-full px-4 py-2.5 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
               required
             />
           </div>
@@ -102,7 +102,7 @@ export function AddBrandModal({ open, onClose, onCreated }: AddBrandModalProps) 
               value={slug}
               onChange={(e) => { setSlug(e.target.value); setSlugManual(true); }}
               placeholder="e.g., glow_beauty"
-              className="w-full px-4 py-2.5 rounded-xl border border-input bg-background text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/50"
+              className="w-full px-4 py-2.5 rounded-xl border border-input bg-background text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
               required
             />
             <p className="text-xs text-muted-foreground">Used in URLs and data references</p>
@@ -126,7 +126,7 @@ export function AddBrandModal({ open, onClose, onCreated }: AddBrandModalProps) 
           </div>
 
           {/* Preview */}
-          <div className="rounded-xl border border-gray-100 bg-gray-50 p-4 flex items-center gap-3">
+          <div className="rounded-xl border border-border bg-muted p-4 flex items-center gap-3">
             <div
               className="h-10 w-10 rounded-lg flex items-center justify-center text-white font-bold text-sm"
               style={{ backgroundColor: color }}
@@ -143,14 +143,14 @@ export function AddBrandModal({ open, onClose, onCreated }: AddBrandModalProps) 
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 py-2.5 rounded-xl border border-border text-sm font-medium hover:bg-gray-50 transition-colors"
+              className="flex-1 py-2.5 rounded-xl border border-border text-sm font-medium hover:bg-muted transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={!name.trim() || !slug.trim() || loading}
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-gradient-to-r from-[#FF4D8D] to-[#7C5CFC] text-white text-sm font-semibold hover:opacity-90 disabled:opacity-50 transition-opacity"
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-gradient-to-r from-[var(--primary)] to-[var(--pulse-accent-2)] text-white text-sm font-semibold hover:opacity-90 disabled:opacity-50 transition-opacity"
             >
               {loading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />

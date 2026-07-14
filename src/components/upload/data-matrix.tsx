@@ -67,20 +67,20 @@ export function DataMatrix({ refreshKey = 0 }: { refreshKey?: number }) {
   }, [data]);
 
   return (
-    <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-4">
+    <div className="rounded-2xl bg-card border border-border shadow-sm p-4">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <div className="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-500">Coverage</div>
-          <h2 className="text-base font-bold text-[#1A1B3A] mt-0.5">Last 14 days</h2>
+          <div className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">Coverage</div>
+          <h2 className="text-base font-bold text-[var(--foreground)] mt-0.5">Last 14 days</h2>
         </div>
-        <div className="flex gap-1 p-1 bg-gray-100 rounded-xl">
+        <div className="flex gap-1 p-1 bg-muted rounded-xl">
           {TABS.map(t => (
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
               className={cn(
                 'text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors',
-                tab === t.key ? 'bg-white text-[#1A1B3A] shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                tab === t.key ? 'bg-card text-[var(--foreground)] shadow-sm' : 'text-muted-foreground hover:text-foreground'
               )}
             >
               {t.label}
@@ -90,7 +90,7 @@ export function DataMatrix({ refreshKey = 0 }: { refreshKey?: number }) {
       </div>
 
       {loading && !data ? (
-        <div className="flex items-center gap-2 text-sm text-gray-500 py-6 justify-center">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground py-6 justify-center">
           <RefreshCw className="h-4 w-4 animate-spin" /> Loading...
         </div>
       ) : data ? (
@@ -98,10 +98,10 @@ export function DataMatrix({ refreshKey = 0 }: { refreshKey?: number }) {
           <table className="w-full text-xs">
             <thead>
               <tr>
-                <th className="text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider pb-2 pr-3 sticky left-0 bg-white">Brand</th>
+                <th className="text-left text-[10px] font-bold text-muted-foreground uppercase tracking-wider pb-2 pr-3 sticky left-0 bg-card">Brand</th>
                 {headers.map(h => (
-                  <th key={h.date} className="px-1 pb-2 text-center text-[9px] font-semibold text-gray-400 uppercase tracking-wider">
-                    <div className="text-[11px] text-gray-700">{h.day}</div>
+                  <th key={h.date} className="px-1 pb-2 text-center text-[9px] font-semibold text-muted-foreground uppercase tracking-wider">
+                    <div className="text-[11px] text-foreground">{h.day}</div>
                     <div>{h.weekday}</div>
                   </th>
                 ))}
@@ -109,8 +109,8 @@ export function DataMatrix({ refreshKey = 0 }: { refreshKey?: number }) {
             </thead>
             <tbody>
               {data.rows.map(r => (
-                <tr key={r.brand} className="border-t border-gray-50">
-                  <td className="text-left text-xs font-medium text-[#1A1B3A] py-1.5 pr-3 sticky left-0 bg-white whitespace-nowrap">
+                <tr key={r.brand} className="border-t border-border">
+                  <td className="text-left text-xs font-medium text-[var(--foreground)] py-1.5 pr-3 sticky left-0 bg-card whitespace-nowrap">
                     {r.displayName}
                   </td>
                   {r.cells.map(c => (
@@ -118,7 +118,7 @@ export function DataMatrix({ refreshKey = 0 }: { refreshKey?: number }) {
                       <div
                         className={cn(
                           'h-5 w-5 rounded-md mx-auto',
-                          c.present ? 'bg-emerald-100 ring-1 ring-emerald-200' : 'bg-red-50 ring-1 ring-red-100'
+                          c.present ? 'bg-emerald-500/15 ring-1 ring-emerald-200' : 'bg-red-500/10 ring-1 ring-red-100'
                         )}
                       />
                     </td>
@@ -127,9 +127,9 @@ export function DataMatrix({ refreshKey = 0 }: { refreshKey?: number }) {
               ))}
             </tbody>
           </table>
-          <div className="flex items-center gap-3 text-[11px] text-gray-500 mt-3 pt-3 border-t border-gray-100">
-            <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-md bg-emerald-100 ring-1 ring-emerald-200" />Has data</span>
-            <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-md bg-red-50 ring-1 ring-red-100" />Missing</span>
+          <div className="flex items-center gap-3 text-[11px] text-muted-foreground mt-3 pt-3 border-t border-border">
+            <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-md bg-emerald-500/15 ring-1 ring-emerald-200" />Has data</span>
+            <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-md bg-red-500/10 ring-1 ring-red-100" />Missing</span>
           </div>
         </div>
       ) : null}

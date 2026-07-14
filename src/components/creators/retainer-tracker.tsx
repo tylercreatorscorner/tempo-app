@@ -19,12 +19,12 @@ export function RetainerTracker({ data }: { data: RetainerData }) {
   // If no retainer info at all, show a minimal card
   if (!retainer && !monthlyPostRequirement) {
     return (
-      <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
+      <div className="rounded-2xl bg-card border border-border shadow-sm p-6">
         <div className="flex items-center justify-between mb-2">
-          <h3 className="text-lg font-bold text-[#1A1B3A]">Retainer & Post Tracking</h3>
+          <h3 className="text-lg font-bold text-[var(--foreground)]">Retainer & Post Tracking</h3>
           <EditButton creatorId={data.creatorId} retainer={retainer} requirement={monthlyPostRequirement} startDate={retainerStartDate} />
         </div>
-        <p className="text-sm text-gray-400">No retainer configured for this creator.</p>
+        <p className="text-sm text-muted-foreground">No retainer configured for this creator.</p>
       </div>
     );
   }
@@ -60,40 +60,40 @@ export function RetainerTracker({ data }: { data: RetainerData }) {
   }
 
   return (
-    <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
+    <div className="rounded-2xl bg-card border border-border shadow-sm p-6">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-bold text-[#1A1B3A]">Retainer & Post Tracking</h3>
+        <h3 className="text-lg font-bold text-[var(--foreground)]">Retainer & Post Tracking</h3>
         <EditButton creatorId={data.creatorId} retainer={retainer} requirement={monthlyPostRequirement} startDate={retainerStartDate} />
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-5">
         {retainer != null && retainer > 0 && (
           <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-xl bg-green-50 flex items-center justify-center">
+            <div className="h-9 w-9 rounded-xl bg-green-500/10 flex items-center justify-center">
               <DollarSign className="h-4 w-4 text-green-600" />
             </div>
             <div>
-              <p className="text-xs text-gray-400">Monthly Retainer</p>
-              <p className="text-sm font-bold text-[#1A1B3A]">${retainer.toLocaleString()}</p>
+              <p className="text-xs text-muted-foreground">Monthly Retainer</p>
+              <p className="text-sm font-bold text-[var(--foreground)]">${retainer.toLocaleString()}</p>
             </div>
           </div>
         )}
         {requirement > 0 && (
           <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-xl bg-blue-50 flex items-center justify-center">
+            <div className="h-9 w-9 rounded-xl bg-blue-500/10 flex items-center justify-center">
               <Target className="h-4 w-4 text-blue-600" />
             </div>
             <div>
-              <p className="text-xs text-gray-400">Monthly Requirement</p>
-              <p className="text-sm font-bold text-[#1A1B3A]">{requirement} posts</p>
+              <p className="text-xs text-muted-foreground">Monthly Requirement</p>
+              <p className="text-sm font-bold text-[var(--foreground)]">{requirement} posts</p>
             </div>
           </div>
         )}
         {retainerStartDate && (
           <div className="flex items-center gap-3">
             <div>
-              <p className="text-xs text-gray-400">Retainer Since</p>
-              <p className="text-sm font-bold text-[#1A1B3A]">
+              <p className="text-xs text-muted-foreground">Retainer Since</p>
+              <p className="text-sm font-bold text-[var(--foreground)]">
                 {new Date(retainerStartDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
               </p>
             </div>
@@ -104,18 +104,18 @@ export function RetainerTracker({ data }: { data: RetainerData }) {
       {requirement > 0 && (
         <div>
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-[#1A1B3A]">
+            <span className="text-sm font-medium text-[var(--foreground)]">
               {postsThisMonth} / {requirement} posts this month
             </span>
             <span className={`text-xs font-medium ${statusColor}`}>{statusText}</span>
           </div>
-          <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
+          <div className="h-3 bg-muted rounded-full overflow-hidden">
             <div
               className={`h-full rounded-full transition-all duration-500 ${barColor}`}
               style={{ width: `${progress * 100}%` }}
             />
           </div>
-          <p className="text-xs text-gray-400 mt-1.5">
+          <p className="text-xs text-muted-foreground mt-1.5">
             Day {dayOfMonth} of {daysInMonth} - Expected: {Math.round(expectedProgress * requirement)} posts by now
           </p>
         </div>
@@ -151,10 +151,10 @@ function EditButton({
     <>
       <button
         onClick={() => setEditing(true)}
-        className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+        className="p-1.5 rounded-lg hover:bg-muted transition-colors"
         title="Edit Retainer"
       >
-        <Pencil className="h-4 w-4 text-gray-400" />
+        <Pencil className="h-4 w-4 text-muted-foreground" />
       </button>
       {editing && (
         <RetainerEditForm
@@ -208,46 +208,46 @@ function RetainerEditForm({
   };
 
   return (
-    <div className="mt-4 p-4 bg-gray-50 rounded-xl border border-gray-200 space-y-3">
+    <div className="mt-4 p-4 bg-muted rounded-xl border border-border space-y-3">
       <div className="flex items-center justify-between">
-        <h4 className="text-sm font-bold text-[#1A1B3A]">Edit Retainer</h4>
-        <button onClick={onClose} className="p-1 rounded hover:bg-gray-200">
-          <X className="h-3.5 w-3.5 text-gray-400" />
+        <h4 className="text-sm font-bold text-[var(--foreground)]">Edit Retainer</h4>
+        <button onClick={onClose} className="p-1 rounded hover:bg-secondary">
+          <X className="h-3.5 w-3.5 text-muted-foreground" />
         </button>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs text-gray-500 mb-1">Monthly Retainer ($)</label>
+          <label className="block text-xs text-muted-foreground mb-1">Monthly Retainer ($)</label>
           <input
             type="number"
             value={form.retainer}
             onChange={(e) => setForm({ ...form, retainer: Number(e.target.value) })}
-            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-200"
+            className="w-full px-3 py-2 text-sm border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/15"
           />
         </div>
         <div>
-          <label className="block text-xs text-gray-500 mb-1">Posts Required</label>
+          <label className="block text-xs text-muted-foreground mb-1">Posts Required</label>
           <input
             type="number"
             value={form.monthly_post_requirement}
             onChange={(e) => setForm({ ...form, monthly_post_requirement: Number(e.target.value) })}
-            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-200"
+            className="w-full px-3 py-2 text-sm border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/15"
           />
         </div>
       </div>
       <div>
-        <label className="block text-xs text-gray-500 mb-1">Start Date</label>
+        <label className="block text-xs text-muted-foreground mb-1">Start Date</label>
         <input
           type="date"
           value={form.retainer_start_date}
           onChange={(e) => setForm({ ...form, retainer_start_date: e.target.value })}
-          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-200"
+          className="w-full px-3 py-2 text-sm border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/15"
         />
       </div>
       <button
         onClick={handleSave}
         disabled={saving}
-        className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#FF4D8D] rounded-xl hover:bg-[#E91E8C] transition-colors disabled:opacity-50"
+        className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[var(--primary)] rounded-xl hover:bg-[var(--primary)] transition-colors disabled:opacity-50"
       >
         {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
         Save

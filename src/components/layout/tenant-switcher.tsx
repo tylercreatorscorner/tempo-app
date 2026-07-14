@@ -68,8 +68,8 @@ export function TenantSwitcher({ tenants, activeTenantId, managers, activeManage
         disabled={pending}
         className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-colors text-xs font-medium disabled:opacity-50 ${
           activeManager
-            ? 'border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-800'
-            : 'border-purple-200 bg-purple-50 hover:bg-purple-100 text-purple-700'
+            ? 'border-amber-300 bg-amber-500/10 hover:bg-amber-500/15 text-amber-500'
+            : 'border-purple-500/25 bg-purple-500/10 hover:bg-purple-500/15 text-purple-500'
         }`}
       >
         {activeManager ? <Eye className="h-3.5 w-3.5 flex-shrink-0" /> : <Building2 className="h-3.5 w-3.5 flex-shrink-0" />}
@@ -78,21 +78,21 @@ export function TenantSwitcher({ tenants, activeTenantId, managers, activeManage
       </button>
 
       {open && (
-        <div className="absolute left-0 top-full mt-1 w-64 bg-white border border-gray-200 rounded-xl shadow-lg z-50">
+        <div className="absolute left-0 top-full mt-1 w-64 bg-card border border-border rounded-xl shadow-lg z-50">
           <div data-lenis-prevent className="max-h-[70vh] overflow-y-auto overscroll-contain py-1">
             {/* Tenant section */}
-            <div className="px-3 py-2 border-b border-gray-100">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Super Admin — Switch Tenant</p>
+            <div className="px-3 py-2 border-b border-border">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Super Admin — Switch Tenant</p>
             </div>
-            <button onClick={() => pickTenant(null)} className="w-full flex items-center justify-between px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+            <button onClick={() => pickTenant(null)} className="w-full flex items-center justify-between px-3 py-2 text-sm text-foreground hover:bg-muted transition-colors">
               <span className="font-medium">All Tenants</span>
               {!activeTenantId && <Check className="h-3.5 w-3.5 text-purple-600" />}
             </button>
             {tenants.map((t) => (
-              <button key={t.id} onClick={() => pickTenant(t.id)} className="w-full flex items-center justify-between px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+              <button key={t.id} onClick={() => pickTenant(t.id)} className="w-full flex items-center justify-between px-3 py-2 text-sm text-foreground hover:bg-muted transition-colors">
                 <div className="text-left min-w-0">
                   <p className="font-medium truncate">{t.name}</p>
-                  <p className="text-xs text-gray-400 capitalize">{t.plan}</p>
+                  <p className="text-xs text-muted-foreground capitalize">{t.plan}</p>
                 </div>
                 {activeTenantId === t.id && <Check className="h-3.5 w-3.5 text-purple-600 flex-shrink-0" />}
               </button>
@@ -101,20 +101,20 @@ export function TenantSwitcher({ tenants, activeTenantId, managers, activeManage
             {/* View-as section — only within a specific tenant */}
             {activeTenantId && (
               <>
-                <div className="px-3 py-2 border-y border-gray-100 mt-1">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">View As (read-only)</p>
+                <div className="px-3 py-2 border-y border-border mt-1">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">View As (read-only)</p>
                 </div>
-                <button onClick={() => pickManager(null)} className="w-full flex items-center justify-between px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                <button onClick={() => pickManager(null)} className="w-full flex items-center justify-between px-3 py-2 text-sm text-foreground hover:bg-muted transition-colors">
                   <span className="font-medium">Yourself (full access)</span>
                   {!activeManagerId && <Check className="h-3.5 w-3.5 text-purple-600" />}
                 </button>
                 {managers.map((m) => (
-                  <button key={m.id} onClick={() => pickManager(m.id)} className="w-full flex items-center justify-between px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                  <button key={m.id} onClick={() => pickManager(m.id)} className="w-full flex items-center justify-between px-3 py-2 text-sm text-foreground hover:bg-muted transition-colors">
                     <span className="font-medium truncate text-left min-w-0">{m.name}</span>
                     {activeManagerId === m.id && <Check className="h-3.5 w-3.5 text-amber-600 flex-shrink-0" />}
                   </button>
                 ))}
-                {managers.length === 0 && <p className="px-3 py-2 text-xs text-gray-400">No managers in this tenant.</p>}
+                {managers.length === 0 && <p className="px-3 py-2 text-xs text-muted-foreground">No managers in this tenant.</p>}
               </>
             )}
           </div>

@@ -145,22 +145,22 @@ export function CreatorOverridesSection({ brand, brandRate }: Props) {
 
   return (
     <div>
-      <h3 className="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-500 mb-1.5">
+      <h3 className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground mb-1.5">
         Per-Creator Rate Overrides
       </h3>
-      <p className="text-[11px] text-gray-400 mb-3">
+      <p className="text-[11px] text-muted-foreground mb-3">
         Override the brand default of {brandRate.toFixed(2)}% for specific creators. Saves immediately.
       </p>
 
       {/* Existing overrides */}
       {loading ? (
-        <div className="rounded-xl border border-gray-100 px-3 py-4 text-center text-xs text-gray-400">
+        <div className="rounded-xl border border-border px-3 py-4 text-center text-xs text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin mx-auto" />
         </div>
       ) : overrides.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-gray-200 px-3 py-4 text-center">
-          <Users className="h-4 w-4 text-gray-300 mx-auto mb-1.5" />
-          <p className="text-xs text-gray-400">No overrides yet · add one below</p>
+        <div className="rounded-xl border border-dashed border-border px-3 py-4 text-center">
+          <Users className="h-4 w-4 text-muted-foreground mx-auto mb-1.5" />
+          <p className="text-xs text-muted-foreground">No overrides yet · add one below</p>
         </div>
       ) : (
         <div className="space-y-1.5 mb-3">
@@ -171,9 +171,9 @@ export function CreatorOverridesSection({ brand, brandRate }: Props) {
             return (
               <div
                 key={o.id}
-                className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2"
+                className="flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2"
               >
-                <span className="flex-1 min-w-0 text-sm font-semibold text-[#1A1B3A] truncate">
+                <span className="flex-1 min-w-0 text-sm font-semibold text-[var(--foreground)] truncate">
                   @{o.creator_name}
                 </span>
                 <div className="relative">
@@ -185,24 +185,24 @@ export function CreatorOverridesSection({ brand, brandRate }: Props) {
                     value={dirtyVal ?? String(o.rate)}
                     onChange={(e) => setDrafts((d) => ({ ...d, [o.creator_name]: e.target.value }))}
                     disabled={isSaving}
-                    className="w-20 px-2 py-1 pr-6 rounded-lg border border-gray-200 text-xs text-right tabular-nums text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D] disabled:opacity-50"
+                    className="w-20 px-2 py-1 pr-6 rounded-lg border border-border text-xs text-right tabular-nums text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] disabled:opacity-50"
                   />
-                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 pointer-events-none">%</span>
+                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground pointer-events-none">%</span>
                 </div>
                 {isDirty && !isSaving && (
                   <button
                     onClick={() => handleUpdate(o.creator_name)}
-                    className="inline-flex items-center justify-center h-7 w-7 rounded-lg bg-[#FF4D8D] text-white hover:bg-[#E91E8C] transition-colors"
+                    className="inline-flex items-center justify-center h-7 w-7 rounded-lg bg-[var(--primary)] text-white hover:bg-[var(--primary)] transition-colors"
                     title="Save"
                   >
                     <Save className="h-3.5 w-3.5" />
                   </button>
                 )}
-                {isSaving && <Loader2 className="h-4 w-4 animate-spin text-gray-400" />}
+                {isSaving && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
                 <button
                   onClick={() => handleDelete(o.creator_name)}
                   disabled={isSaving}
-                  className="inline-flex items-center justify-center h-7 w-7 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors"
+                  className="inline-flex items-center justify-center h-7 w-7 rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-500/10 disabled:opacity-50 transition-colors"
                   title="Remove override"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
@@ -214,13 +214,13 @@ export function CreatorOverridesSection({ brand, brandRate }: Props) {
       )}
 
       {/* Add new */}
-      <div className="rounded-xl bg-[#FFF0F5]/40 border border-pink-100 p-3 space-y-2">
+      <div className="rounded-xl bg-[#FFF0F5]/40 border border-primary/10 p-3 space-y-2">
         <div className="flex items-center gap-2">
           <select
             value={draftCreator}
             onChange={(e) => setDraftCreator(e.target.value)}
             disabled={adding || available.length === 0}
-            className="flex-1 min-w-0 px-2 py-1.5 rounded-lg border border-gray-200 text-xs bg-white text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D] disabled:opacity-50"
+            className="flex-1 min-w-0 px-2 py-1.5 rounded-lg border border-border text-xs bg-card text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] disabled:opacity-50"
           >
             <option value="">{available.length === 0 ? 'No creators left to override' : 'Pick a creator…'}</option>
             {available.map((m) => (
@@ -239,14 +239,14 @@ export function CreatorOverridesSection({ brand, brandRate }: Props) {
               onChange={(e) => setDraftRate(e.target.value)}
               placeholder="Rate"
               disabled={adding}
-              className="w-20 px-2 py-1.5 pr-6 rounded-lg border border-gray-200 text-xs text-right tabular-nums text-[#1A1B3A] bg-white focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D] disabled:opacity-50"
+              className="w-20 px-2 py-1.5 pr-6 rounded-lg border border-border text-xs text-right tabular-nums text-[var(--foreground)] bg-card focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] disabled:opacity-50"
             />
-            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 pointer-events-none">%</span>
+            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground pointer-events-none">%</span>
           </div>
           <button
             onClick={handleAdd}
             disabled={adding || !draftCreator || !draftRate}
-            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#FF4D8D] text-white text-xs font-bold hover:bg-[#E91E8C] disabled:opacity-50 transition-colors"
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[var(--primary)] text-white text-xs font-bold hover:bg-[var(--primary)] disabled:opacity-50 transition-colors"
           >
             {adding ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
             Add
@@ -255,7 +255,7 @@ export function CreatorOverridesSection({ brand, brandRate }: Props) {
       </div>
 
       {error && (
-        <div className={cn('mt-2 rounded-lg bg-red-50 border border-red-100 px-3 py-2 text-xs text-red-700 flex items-center gap-1.5')}>
+        <div className={cn('mt-2 rounded-lg bg-red-500/10 border border-red-500/20 px-3 py-2 text-xs text-red-500 flex items-center gap-1.5')}>
           <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" />
           {error}
         </div>

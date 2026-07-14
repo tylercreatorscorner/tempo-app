@@ -159,7 +159,7 @@ export function CompensationArrangementsSection({ brands }: { brands: Brand[] })
         </div>
       </div>
 
-      {error && <p className="mx-6 mt-4 text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+      {error && <p className="mx-6 mt-4 text-xs text-red-600 bg-red-500/10 rounded-lg px-3 py-2">{error}</p>}
 
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -250,7 +250,7 @@ function EditModal({
       <div className="absolute inset-0 bg-black/30" />
       <div
         onClick={e => e.stopPropagation()}
-        className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl"
+        className="relative w-full max-w-md bg-card rounded-2xl shadow-2xl"
       >
         <div className="px-5 py-4 border-b border-border flex items-center justify-between">
           <div>

@@ -22,7 +22,7 @@ function fmtLabel(dateStr: string) {
   return `${parseInt(m)}/${parseInt(d)}`;
 }
 
-export function GmvAreaChart({ data, color = '#FF4D8D', height = 260 }: Props) {
+export function GmvAreaChart({ data, color = '#6D5EFC', height = 260 }: Props) {
   if (!data || data.length <= 1) return null;
 
   const categories = data.map(d => fmtLabel(d.date));
@@ -67,24 +67,24 @@ export function GmvAreaChart({ data, color = '#FF4D8D', height = 260 }: Props) {
       type: 'category',
       categories,
       labels: {
-        style: { colors: '#9CA3AF', fontSize: '11px', fontFamily: 'inherit' },
+        style: { colors: '#8A8FB2', fontSize: '11px', fontFamily: 'inherit' },
         rotate: 0,
         hideOverlappingLabels: true,
       },
       axisBorder: { show: false },
       axisTicks: { show: false },
-      crosshairs: { show: true, stroke: { color: '#E5E7EB', width: 1, dashArray: 4 } },
+      crosshairs: { show: true, stroke: { color: '#8A8FB2', width: 1, dashArray: 4 } },
       tooltip: { enabled: false },
     },
     yaxis: {
       labels: {
-        style: { colors: '#9CA3AF', fontSize: '11px', fontFamily: 'inherit' },
+        style: { colors: '#8A8FB2', fontSize: '11px', fontFamily: 'inherit' },
         formatter: fmtY,
       },
       forceNiceScale: true,
     },
     grid: {
-      borderColor: '#F3F4F6',
+      borderColor: 'var(--muted)',
       strokeDashArray: 4,
       xaxis: { lines: { show: false } },
       yaxis: { lines: { show: true } },

@@ -145,7 +145,7 @@ export function TeamMembersSection() {
       <div className="p-6 space-y-3">
         {loading && <p className="text-sm text-muted-foreground">Loading…</p>}
 
-        {error && <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+        {error && <p className="text-xs text-red-600 bg-red-500/10 rounded-lg px-3 py-2">{error}</p>}
 
         {!loading && members.length === 0 && editingId !== 'new' && (
           <p className="text-sm text-muted-foreground text-center py-4">No team members yet. Add yourself or a collaborator to start invoicing.</p>
@@ -166,7 +166,7 @@ export function TeamMembersSection() {
                   <button onClick={() => startEdit(m)} className="p-1.5 rounded-lg hover:bg-muted/40 text-muted-foreground hover:text-foreground transition-colors" title="Edit">
                     <Pencil className="h-3.5 w-3.5" />
                   </button>
-                  <button onClick={() => remove(m.id, m.name)} className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-600 transition-colors" title="Archive">
+                  <button onClick={() => remove(m.id, m.name)} className="p-1.5 rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-600 transition-colors" title="Archive">
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
                 </div>

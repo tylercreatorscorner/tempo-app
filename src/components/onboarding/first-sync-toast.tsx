@@ -32,7 +32,7 @@ export function FirstSyncToast() {
             style={{
               left: `${Math.random() * 100}%`,
               top: '-8px',
-              backgroundColor: ['#FF4D8D', '#7C5CFC', '#00F2EA', '#FFD700', '#00FF88', '#FF6B35'][i % 6],
+              backgroundColor: ['var(--primary)', 'var(--pulse-accent-2)', '#00F2EA', '#FFD700', '#00FF88', '#FF6B35'][i % 6],
               animation: `confetti-fall ${2 + Math.random() * 2}s ease-in forwards`,
               animationDelay: `${Math.random() * 1.5}s`,
             }}
@@ -42,8 +42,8 @@ export function FirstSyncToast() {
 
       {/* Toast */}
       <div className="fixed bottom-6 right-6 z-50 animate-in slide-in-from-bottom-4 fade-in duration-500">
-        <div className="flex items-center gap-3 px-5 py-4 rounded-2xl bg-white border border-gray-200 shadow-xl max-w-sm">
-          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-[#FF4D8D] to-[#7C5CFC] flex items-center justify-center shrink-0">
+        <div className="flex items-center gap-3 px-5 py-4 rounded-2xl bg-card border border-border shadow-xl max-w-sm">
+          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-[var(--primary)] to-[var(--pulse-accent-2)] flex items-center justify-center shrink-0">
             <PartyPopper className="h-5 w-5 text-white" />
           </div>
           <div className="flex-1">
@@ -52,7 +52,7 @@ export function FirstSyncToast() {
           </div>
           <button
             onClick={() => setShow(false)}
-            className="p-1 rounded-lg hover:bg-gray-100 transition-colors text-muted-foreground"
+            className="p-1 rounded-lg hover:bg-muted transition-colors text-muted-foreground"
           >
             <X className="h-4 w-4" />
           </button>
