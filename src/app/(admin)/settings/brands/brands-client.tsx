@@ -49,9 +49,9 @@ interface BrandRow {
 }
 
 const MODEL_BADGE: Record<Exclude<CompensationModel, 'standard'>, { label: string; bg: string; text: string }> = {
-  revshare_max:    { label: 'MAX',           bg: 'bg-purple-50 border-purple-200',   text: 'text-purple-700' },
-  commission_only: { label: 'Comm only',     bg: 'bg-blue-50 border-blue-200',       text: 'text-blue-700' },
-  retainer_only:  { label: 'Retainer only', bg: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700' },
+  revshare_max:    { label: 'MAX',           bg: 'bg-purple-500/10 border-purple-500/25',   text: 'text-purple-500' },
+  commission_only: { label: 'Comm only',     bg: 'bg-blue-500/10 border-blue-500/25',       text: 'text-blue-500' },
+  retainer_only:  { label: 'Retainer only', bg: 'bg-emerald-500/10 border-emerald-500/25', text: 'text-emerald-500' },
 };
 
 export function BrandsSettingsClient() {
@@ -141,7 +141,7 @@ export function BrandsSettingsClient() {
       </div>
 
       {error && (
-        <div className="rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-700 flex items-center gap-2">
+        <div className="rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-500 flex items-center gap-2">
           <AlertCircle className="h-4 w-4" />
           {error}
         </div>
@@ -416,7 +416,7 @@ function RowMenu({
       {archived ? (
         <button
           onClick={onUnarchive}
-          className="w-full px-3 py-2 text-left text-xs font-medium text-emerald-700 hover:bg-emerald-50 flex items-center gap-2 border-t border-border"
+          className="w-full px-3 py-2 text-left text-xs font-medium text-emerald-500 hover:bg-emerald-500/10 flex items-center gap-2 border-t border-border"
         >
           <ArchiveRestore className="h-3.5 w-3.5" />
           Restore client
@@ -424,7 +424,7 @@ function RowMenu({
       ) : (
         <button
           onClick={onArchive}
-          className="w-full px-3 py-2 text-left text-xs font-medium text-red-600 hover:bg-red-50 flex items-center gap-2 border-t border-border"
+          className="w-full px-3 py-2 text-left text-xs font-medium text-red-600 hover:bg-red-500/10 flex items-center gap-2 border-t border-border"
         >
           <Archive className="h-3.5 w-3.5" />
           Archive client

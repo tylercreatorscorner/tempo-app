@@ -32,7 +32,7 @@ export function DiscordSetup({ onComplete, onSkip }: DiscordSetupProps) {
   if (status === 'connected') {
     return (
       <div className="text-center space-y-4 py-4">
-        <div className="inline-flex h-16 w-16 rounded-full bg-green-100 items-center justify-center">
+        <div className="inline-flex h-16 w-16 rounded-full bg-green-500/15 items-center justify-center">
           <CheckCircle2 className="h-8 w-8 text-green-600" />
         </div>
         <div>

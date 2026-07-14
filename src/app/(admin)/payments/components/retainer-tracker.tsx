@@ -329,9 +329,9 @@ function BrandPill({ brand }: { brand: string }) {
 
 function StatusBadge({ status }: { status: string }) {
   const config: Record<string, { bg: string; text: string; icon: React.ComponentType<{ className?: string }> }> = {
-    'On Track': { bg: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700', icon: CheckCircle2 },
-    'Behind':   { bg: 'bg-amber-50 border-amber-200',     text: 'text-amber-700',   icon: AlertTriangle },
-    'At Risk':  { bg: 'bg-red-50 border-red-200',         text: 'text-red-700',     icon: AlertCircle },
+    'On Track': { bg: 'bg-emerald-500/10 border-emerald-500/25', text: 'text-emerald-500', icon: CheckCircle2 },
+    'Behind':   { bg: 'bg-amber-500/10 border-amber-500/25',     text: 'text-amber-500',   icon: AlertTriangle },
+    'At Risk':  { bg: 'bg-red-500/10 border-red-500/25',         text: 'text-red-500',     icon: AlertCircle },
   };
   const c = config[status] ?? config['On Track'];
   const Icon = c.icon;
@@ -345,10 +345,10 @@ function StatusBadge({ status }: { status: string }) {
 
 function PaymentBadge({ status }: { status: string }) {
   const config: Record<string, { bg: string; text: string; label: string }> = {
-    pending:  { bg: 'bg-amber-50 border-amber-200',     text: 'text-amber-700',   label: 'Pending' },
-    approved: { bg: 'bg-blue-50 border-blue-200',       text: 'text-blue-700',    label: 'Approved' },
-    sent:     { bg: 'bg-blue-50 border-blue-200',       text: 'text-blue-700',    label: 'Sent' },
-    paid:     { bg: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700', label: 'Paid' },
+    pending:  { bg: 'bg-amber-500/10 border-amber-500/25',     text: 'text-amber-500',   label: 'Pending' },
+    approved: { bg: 'bg-blue-500/10 border-blue-500/25',       text: 'text-blue-500',    label: 'Approved' },
+    sent:     { bg: 'bg-blue-500/10 border-blue-500/25',       text: 'text-blue-500',    label: 'Sent' },
+    paid:     { bg: 'bg-emerald-500/10 border-emerald-500/25', text: 'text-emerald-500', label: 'Paid' },
   };
   const c = config[status] ?? { bg: 'bg-muted border-border', text: 'text-foreground', label: status };
   return (
@@ -374,7 +374,7 @@ function PaceLabel({ postsFound, required }: { postsFound: number; required: num
   const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
   const expected = Math.round((required / daysInMonth) * dayOfMonth);
   const diff = postsFound - expected;
-  const tone = diff < 0 ? 'text-amber-700' : diff > 0 ? 'text-emerald-700' : 'text-foreground';
+  const tone = diff < 0 ? 'text-amber-500' : diff > 0 ? 'text-emerald-500' : 'text-foreground';
   return (
     <span className={cn('text-xs font-medium', tone)}>
       {postsFound} of {expected} expected by today

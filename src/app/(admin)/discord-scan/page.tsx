@@ -42,15 +42,15 @@ const GUILD_NAMES: Record<string, string> = {
 };
 
 const MATCH_BADGES: Record<string, { label: string; className: string }> = {
-  exact: { label: 'Exact', className: 'bg-emerald-100 text-emerald-700' },
-  fuzzy: { label: 'Fuzzy', className: 'bg-amber-100 text-amber-700' },
+  exact: { label: 'Exact', className: 'bg-emerald-500/15 text-emerald-500' },
+  fuzzy: { label: 'Fuzzy', className: 'bg-amber-500/15 text-amber-500' },
   none: { label: 'No Match', className: 'bg-muted text-muted-foreground' },
 };
 
 const BRAND_COLORS: Record<string, string> = {
   jiyu: 'bg-primary/10 text-primary',
-  physicians_choice: 'bg-blue-100 text-blue-700',
-  catakor: 'bg-purple-100 text-purple-700',
+  physicians_choice: 'bg-blue-500/15 text-blue-500',
+  catakor: 'bg-purple-500/15 text-purple-500',
 };
 
 type TabStatus = 'pending' | 'approved' | 'rejected' | 'all';
@@ -333,7 +333,7 @@ export default function DiscordScanPage() {
               )}
               {entry.status !== 'pending' && (
                 <span className={`text-xs px-2.5 py-1 rounded-full font-medium flex-shrink-0 ${
-                  entry.status === 'approved' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
+                  entry.status === 'approved' ? 'bg-emerald-500/15 text-emerald-500' : 'bg-red-500/15 text-red-500'
                 }`}>
                   {entry.status}
                 </span>

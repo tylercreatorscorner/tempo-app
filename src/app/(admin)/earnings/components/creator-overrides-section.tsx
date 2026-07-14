@@ -202,7 +202,7 @@ export function CreatorOverridesSection({ brand, brandRate }: Props) {
                 <button
                   onClick={() => handleDelete(o.creator_name)}
                   disabled={isSaving}
-                  className="inline-flex items-center justify-center h-7 w-7 rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors"
+                  className="inline-flex items-center justify-center h-7 w-7 rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-500/10 disabled:opacity-50 transition-colors"
                   title="Remove override"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
@@ -255,7 +255,7 @@ export function CreatorOverridesSection({ brand, brandRate }: Props) {
       </div>
 
       {error && (
-        <div className={cn('mt-2 rounded-lg bg-red-50 border border-red-100 px-3 py-2 text-xs text-red-700 flex items-center gap-1.5')}>
+        <div className={cn('mt-2 rounded-lg bg-red-500/10 border border-red-500/20 px-3 py-2 text-xs text-red-500 flex items-center gap-1.5')}>
           <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" />
           {error}
         </div>

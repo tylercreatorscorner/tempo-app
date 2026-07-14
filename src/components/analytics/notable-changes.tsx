@@ -86,7 +86,7 @@ function ChangeCard({
         {delta !== undefined && (
           <span
             className={`text-xs font-bold px-1.5 py-0.5 rounded-md font-mono tabular-nums ${
-              delta >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-500'
+              delta >= 0 ? 'bg-emerald-500/10 text-emerald-600' : 'bg-red-500/10 text-red-500'
             }`}
           >
             {delta >= 0 ? '+' : ''}{delta.toFixed(0)}%

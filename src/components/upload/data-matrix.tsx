@@ -118,7 +118,7 @@ export function DataMatrix({ refreshKey = 0 }: { refreshKey?: number }) {
                       <div
                         className={cn(
                           'h-5 w-5 rounded-md mx-auto',
-                          c.present ? 'bg-emerald-100 ring-1 ring-emerald-200' : 'bg-red-50 ring-1 ring-red-100'
+                          c.present ? 'bg-emerald-500/15 ring-1 ring-emerald-200' : 'bg-red-500/10 ring-1 ring-red-100'
                         )}
                       />
                     </td>
@@ -128,8 +128,8 @@ export function DataMatrix({ refreshKey = 0 }: { refreshKey?: number }) {
             </tbody>
           </table>
           <div className="flex items-center gap-3 text-[11px] text-muted-foreground mt-3 pt-3 border-t border-border">
-            <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-md bg-emerald-100 ring-1 ring-emerald-200" />Has data</span>
-            <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-md bg-red-50 ring-1 ring-red-100" />Missing</span>
+            <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-md bg-emerald-500/15 ring-1 ring-emerald-200" />Has data</span>
+            <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-md bg-red-500/10 ring-1 ring-red-100" />Missing</span>
           </div>
         </div>
       ) : null}

@@ -69,7 +69,7 @@ export function RetainerTracker({ data }: { data: RetainerData }) {
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-5">
         {retainer != null && retainer > 0 && (
           <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-xl bg-green-50 flex items-center justify-center">
+            <div className="h-9 w-9 rounded-xl bg-green-500/10 flex items-center justify-center">
               <DollarSign className="h-4 w-4 text-green-600" />
             </div>
             <div>
@@ -80,7 +80,7 @@ export function RetainerTracker({ data }: { data: RetainerData }) {
         )}
         {requirement > 0 && (
           <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-xl bg-blue-50 flex items-center justify-center">
+            <div className="h-9 w-9 rounded-xl bg-blue-500/10 flex items-center justify-center">
               <Target className="h-4 w-4 text-blue-600" />
             </div>
             <div>

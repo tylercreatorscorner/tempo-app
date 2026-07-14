@@ -331,10 +331,10 @@ export function BulkMessageModal({ open, onClose }: Props) {
         {/* Step: Confirm */}
         {step === 'confirm' && (
           <div className="flex-1 px-6 py-5 space-y-4">
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
+            <div className="bg-amber-500/10 border border-amber-500/25 rounded-xl p-4 flex items-start gap-3">
               <AlertCircle className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
               <div>
-                <p className="text-sm font-medium text-amber-800">
+                <p className="text-sm font-medium text-amber-500">
                   Send to {filtered.length} creators?
                 </p>
                 <p className="text-xs text-amber-600 mt-1">
@@ -351,7 +351,7 @@ export function BulkMessageModal({ open, onClose }: Props) {
             {result && (
               <div className={cn(
                 'rounded-xl p-3 text-sm',
-                result.startsWith('Failed') ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'
+                result.startsWith('Failed') ? 'bg-red-500/10 text-red-500' : 'bg-green-500/10 text-green-500'
               )}>
                 {result}
               </div>

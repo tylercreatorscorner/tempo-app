@@ -505,14 +505,14 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
           for security reasons), but we surface the metadata so the user
           knows what they were in the middle of. */}
       {unrecoveredItems.length > 0 && (
-        <div className="rounded-2xl bg-amber-50 border border-amber-200 px-5 py-4">
+        <div className="rounded-2xl bg-amber-500/10 border border-amber-500/25 px-5 py-4">
           <div className="flex items-start gap-3">
             <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
             <div className="flex-1">
               <div className="text-sm font-bold text-amber-900">
                 {unrecoveredItems.length} unfinished upload{unrecoveredItems.length === 1 ? '' : 's'} from your last session
               </div>
-              <div className="text-xs text-amber-800 mt-1">
+              <div className="text-xs text-amber-500 mt-1">
                 Browser refreshed mid-upload. Re-drop these files (we can't auto-recover
                 the file content, only the metadata):
               </div>
@@ -520,16 +520,16 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
                 {unrecoveredItems.map(it => (
                   <li key={it.id} className="flex items-center gap-2">
                     <span className="font-medium">{it.filename}</span>
-                    <span className="text-amber-700">·</span>
+                    <span className="text-amber-500">·</span>
                     <span>{brandLabelBySlug.get(it.brand) ?? it.brand} · {it.reportDate}</span>
-                    <span className="text-amber-700">·</span>
+                    <span className="text-amber-500">·</span>
                     <span className="capitalize">{it.status}</span>
                   </li>
                 ))}
               </ul>
               <button
                 onClick={() => setUnrecoveredItems([])}
-                className="mt-3 text-xs font-semibold text-amber-700 hover:text-amber-900"
+                className="mt-3 text-xs font-semibold text-amber-500 hover:text-amber-900"
               >
                 Dismiss
               </button>
@@ -629,8 +629,8 @@ function QueueRow({
   const statusConfig = {
     queued:     { Icon: FileSpreadsheet, color: 'text-muted-foreground',    bg: 'bg-muted',    label: 'Queued' },
     processing: { Icon: Loader2,         color: 'text-[#E91E8C]',   bg: 'bg-primary/10',    label: 'Processing' },
-    success:    { Icon: CheckCircle2,    color: 'text-emerald-600', bg: 'bg-emerald-50', label: 'Done' },
-    error:      { Icon: AlertCircle,     color: 'text-red-500',     bg: 'bg-red-50',     label: 'Error' },
+    success:    { Icon: CheckCircle2,    color: 'text-emerald-600', bg: 'bg-emerald-500/10', label: 'Done' },
+    error:      { Icon: AlertCircle,     color: 'text-red-500',     bg: 'bg-red-500/10',     label: 'Error' },
     cancelled:  { Icon: AlertTriangle,   color: 'text-muted-foreground',    bg: 'bg-muted',    label: 'Cancelled' },
   }[item.status];
 
@@ -662,7 +662,7 @@ function QueueRow({
               disabled={!editable}
               className={cn(
                 'text-xs bg-card border rounded-lg px-2 py-1.5 disabled:bg-muted disabled:text-muted-foreground',
-                item.brand === 'unknown' ? 'border-amber-300 text-amber-700' : 'border-border'
+                item.brand === 'unknown' ? 'border-amber-300 text-amber-500' : 'border-border'
               )}
             >
               {item.brand === 'unknown' && <option value="unknown">Pick a brand…</option>}
@@ -697,8 +697,8 @@ function QueueRow({
               {item.log.map((l, i) => (
                 <div key={i} className={cn(
                   l.level === 'error'   ? 'text-red-600 font-semibold' :
-                  l.level === 'warning' ? 'text-amber-700' :
-                  l.level === 'success' ? 'text-emerald-700 font-semibold' :
+                  l.level === 'warning' ? 'text-amber-500' :
+                  l.level === 'success' ? 'text-emerald-500 font-semibold' :
                                           'text-foreground'
                 )}>
                   {l.level === 'error' ? '✗ ' : l.level === 'warning' ? '⚠ ' : l.level === 'success' ? '✓ ' : '· '}{l.message}
@@ -710,7 +710,7 @@ function QueueRow({
         <button
           onClick={onRemove}
           disabled={item.status === 'processing'}
-          className="p-1.5 rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-50 disabled:opacity-40 transition-colors"
+          className="p-1.5 rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-500/10 disabled:opacity-40 transition-colors"
           aria-label="Remove from queue"
         >
           <Trash2 className="h-3.5 w-3.5" />

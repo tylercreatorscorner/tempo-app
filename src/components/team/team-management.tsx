@@ -28,11 +28,11 @@ const ROLE_LABEL: Record<string, string> = {
   analyst: 'Analyst', brand: 'Brand Contact', brand_contact: 'Brand Contact',
 };
 const ROLE_STYLE: Record<string, string> = {
-  owner:         'bg-purple-50 text-purple-700 border-purple-200',
-  admin:         'bg-blue-50 text-blue-700 border-blue-200',
-  manager:       'bg-emerald-50 text-emerald-700 border-emerald-200',
+  owner:         'bg-purple-500/10 text-purple-500 border-purple-500/25',
+  admin:         'bg-blue-500/10 text-blue-500 border-blue-500/25',
+  manager:       'bg-emerald-500/10 text-emerald-500 border-emerald-500/25',
   viewer:        'bg-slate-50 text-slate-600 border-slate-200',
-  analyst:       'bg-amber-50 text-amber-700 border-amber-200',
+  analyst:       'bg-amber-500/10 text-amber-500 border-amber-500/25',
   brand:         'bg-primary/10 text-[#E91E8C] border-primary/15',
   brand_contact: 'bg-primary/10 text-[#E91E8C] border-primary/15',
 };
@@ -204,7 +204,7 @@ export function TeamManagement({ users, brands, tenantId, currentUserId }: Props
               <p className="text-sm font-semibold text-[var(--foreground)] truncate">{u.name || u.email.split('@')[0]}</p>
               {isSelf && <span className="text-[10px] font-medium text-muted-foreground">(you)</span>}
               {u.pending && (
-                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200">
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-600 border border-amber-500/25">
                   Pending
                 </span>
               )}
@@ -238,7 +238,7 @@ export function TeamManagement({ users, brands, tenantId, currentUserId }: Props
           <div className="flex items-center gap-1 shrink-0 min-w-[52px] justify-end">
             {!isOwner && !isSelf && confirmRemove === u.user_id ? (
               <span className="flex items-center gap-1 text-xs">
-                <button onClick={() => { doRemove(u); setConfirmRemove(null); }} className="font-semibold text-red-600 px-1.5 py-0.5 rounded hover:bg-red-50">Remove</button>
+                <button onClick={() => { doRemove(u); setConfirmRemove(null); }} className="font-semibold text-red-600 px-1.5 py-0.5 rounded hover:bg-red-500/10">Remove</button>
                 <button onClick={() => setConfirmRemove(null)} className="text-muted-foreground px-1.5 py-0.5 rounded hover:bg-muted">Cancel</button>
               </span>
             ) : !isOwner && !isSelf ? (
@@ -255,7 +255,7 @@ export function TeamManagement({ users, brands, tenantId, currentUserId }: Props
                   onClick={() => setConfirmRemove(u.user_id)}
                   disabled={isPending}
                   title="Remove member"
-                  className="p-1.5 rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
+                  className="p-1.5 rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-500/10 transition-colors disabled:opacity-50"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
@@ -275,7 +275,7 @@ export function TeamManagement({ users, brands, tenantId, currentUserId }: Props
               onClick={() => setExpandedUser(expanded ? null : u.user_id)}
               className={cn(
                 'inline-flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-lg border transition-colors',
-                noAccess ? 'border-amber-200 bg-amber-50 text-amber-700'
+                noAccess ? 'border-amber-500/25 bg-amber-500/10 text-amber-500'
                   : expanded ? 'border-[var(--primary)]/40 bg-[var(--primary)]/5 text-[#E91E8C]'
                   : 'border-border text-muted-foreground hover:bg-muted',
               )}
@@ -286,7 +286,7 @@ export function TeamManagement({ users, brands, tenantId, currentUserId }: Props
                 <>
                   <span className="flex items-center -space-x-1">
                     {accessBrands.slice(0, 4).map((b) => (
-                      <span key={b.id} className="h-2.5 w-2.5 rounded-full ring-1 ring-white" style={{ backgroundColor: b.color || 'var(--muted-foreground)' }} />
+                      <span key={b.id} className="h-2.5 w-2.5 rounded-full ring-1 ring-card" style={{ backgroundColor: b.color || 'var(--muted-foreground)' }} />
                     ))}
                   </span>
                   {access.length} brand{access.length === 1 ? '' : 's'}
@@ -304,7 +304,7 @@ export function TeamManagement({ users, brands, tenantId, currentUserId }: Props
               title={financeOn ? 'Remove Finance access' : 'Grant Finance access'}
               className={cn(
                 'inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-lg border transition-colors',
-                financeOn ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                financeOn ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/15'
                           : 'border-border text-muted-foreground hover:bg-muted',
               )}
             >
@@ -315,14 +315,14 @@ export function TeamManagement({ users, brands, tenantId, currentUserId }: Props
 
         {/* Role-change confirmation (access-reducing) */}
         {confirmRole?.userId === u.user_id && (
-          <div className="flex items-center gap-2 mt-2 ml-12 text-xs bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+          <div className="flex items-center gap-2 mt-2 ml-12 text-xs bg-amber-500/10 border border-amber-500/25 rounded-lg px-3 py-2">
             <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-            <span className="text-amber-800 flex-1">
+            <span className="text-amber-500 flex-1">
               Change to <b>{ROLE_LABEL[confirmRole.role]}</b>? This reduces their access.
             </span>
             <button
               onClick={() => { applyRole(u, confirmRole.role); setConfirmRole(null); }}
-              className="font-semibold text-amber-800 px-2 py-0.5 rounded hover:bg-amber-100"
+              className="font-semibold text-amber-500 px-2 py-0.5 rounded hover:bg-amber-500/15"
             >
               Confirm
             </button>

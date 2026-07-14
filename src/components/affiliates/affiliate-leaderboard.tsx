@@ -70,7 +70,7 @@ export function AffiliateLeaderboard({
                     <div className="flex items-center gap-1.5">
                       <p className="text-sm font-semibold text-[var(--foreground)] truncate">{label}</p>
                       {r.isManaged && (
-                        <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0">
+                        <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 border border-emerald-500/25 shrink-0">
                           <UserCheck className="h-2.5 w-2.5" /> Managed
                         </span>
                       )}
@@ -96,7 +96,7 @@ export function AffiliateLeaderboard({
                 <div className="w-24 flex items-center justify-end gap-1.5 shrink-0">
                   <span className="flex items-center -space-x-1">
                     {r.breakdown.slice(0, 4).map((b, j) => (
-                      <span key={j} className="h-2.5 w-2.5 rounded-full ring-1 ring-white" style={{ backgroundColor: color(b.brand) }} />
+                      <span key={j} className="h-2.5 w-2.5 rounded-full ring-1 ring-card" style={{ backgroundColor: color(b.brand) }} />
                     ))}
                   </span>
                   <span className="text-xs font-semibold text-muted-foreground tabular-nums w-4 text-right">{r.brandOverlap}</span>

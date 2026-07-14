@@ -387,7 +387,7 @@ export function InvoicingClient({ initialOpenId }: Props) {
         </div>
 
         {error && (
-          <div className="px-5 py-3 bg-red-50 border-b border-red-100 text-sm text-red-700 flex items-center gap-2">
+          <div className="px-5 py-3 bg-red-500/10 border-b border-red-500/20 text-sm text-red-500 flex items-center gap-2">
             <AlertCircle className="h-4 w-4" />
             {error}
           </div>
@@ -640,9 +640,9 @@ function Th({ children, align = 'left' }: { children: React.ReactNode; align?: '
 
 function StatusBadge({ status }: { status: string }) {
   const config: Record<string, { bg: string; text: string; label: string }> = {
-    pending: { bg: 'bg-amber-50 border-amber-200',   text: 'text-amber-700',  label: 'Pending' },
-    sent:    { bg: 'bg-blue-50 border-blue-200',     text: 'text-blue-700',   label: 'Sent' },
-    paid:    { bg: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700', label: 'Paid' },
+    pending: { bg: 'bg-amber-500/10 border-amber-500/25',   text: 'text-amber-500',  label: 'Pending' },
+    sent:    { bg: 'bg-blue-500/10 border-blue-500/25',     text: 'text-blue-500',   label: 'Sent' },
+    paid:    { bg: 'bg-emerald-500/10 border-emerald-500/25', text: 'text-emerald-500', label: 'Paid' },
     void:    { bg: 'bg-muted border-border',    text: 'text-muted-foreground',   label: 'Void' },
   };
   const c = config[status] ?? { bg: 'bg-muted border-border', text: 'text-foreground', label: status };

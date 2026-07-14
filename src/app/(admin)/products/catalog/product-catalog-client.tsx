@@ -264,7 +264,7 @@ function ProductEditor({
 
           <div className="p-6 space-y-4">
             {error && (
-              <div className="text-sm text-red-600 bg-red-50 rounded-xl px-4 py-2">{error}</div>
+              <div className="text-sm text-red-600 bg-red-500/10 rounded-xl px-4 py-2">{error}</div>
             )}
 
             <div>

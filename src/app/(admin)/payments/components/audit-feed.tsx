@@ -35,9 +35,9 @@ interface Props {
 
 function entityIconAndBg(type: string): { icon: React.ComponentType<{ className?: string }>; tint: string; iconColor: string } {
   switch (type) {
-    case 'retainer':         return { icon: Users,      tint: 'bg-purple-50',   iconColor: 'text-purple-500' };
-    case 'commission_rate':  return { icon: Percent,    tint: 'bg-emerald-50',  iconColor: 'text-emerald-500' };
-    case 'payment_status':   return { icon: CreditCard, tint: 'bg-blue-50',     iconColor: 'text-blue-500' };
+    case 'retainer':         return { icon: Users,      tint: 'bg-purple-500/10',   iconColor: 'text-purple-500' };
+    case 'commission_rate':  return { icon: Percent,    tint: 'bg-emerald-500/10',  iconColor: 'text-emerald-500' };
+    case 'payment_status':   return { icon: CreditCard, tint: 'bg-blue-500/10',     iconColor: 'text-blue-500' };
     case 'invoice_status':   return { icon: FileText,   tint: 'bg-primary/10',     iconColor: 'text-[var(--primary)]' };
     default:                 return { icon: History,    tint: 'bg-muted',     iconColor: 'text-muted-foreground' };
   }
@@ -90,10 +90,10 @@ export function AuditFeed({ logs, loading }: Props) {
                   {log.brand && <span className="text-muted-foreground"> · {brandMeta.label(log.brand)}</span>}
                   {' '}changed
                   {log.old_value !== null && log.old_value !== '' && (
-                    <> from <code className="font-mono text-[11px] bg-red-50 text-red-700 px-1.5 py-0.5 rounded">{log.old_value}</code></>
+                    <> from <code className="font-mono text-[11px] bg-red-500/10 text-red-500 px-1.5 py-0.5 rounded">{log.old_value}</code></>
                   )}
                   {log.new_value !== null && log.new_value !== '' && (
-                    <> to <code className="font-mono text-[11px] bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded">{log.new_value}</code></>
+                    <> to <code className="font-mono text-[11px] bg-emerald-500/10 text-emerald-500 px-1.5 py-0.5 rounded">{log.new_value}</code></>
                   )}
                 </p>
                 <div className="flex items-center gap-2 mt-1">

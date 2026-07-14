@@ -77,16 +77,16 @@ function daysLeft(date: string | null) {
 }
 
 const statusColors: Record<string, string> = {
-  active: 'bg-emerald-100 text-emerald-700',
-  expiring: 'bg-amber-100 text-amber-700',
-  expired: 'bg-red-100 text-red-700',
-  error: 'bg-red-100 text-red-700',
-  healthy: 'bg-emerald-100 text-emerald-700',
-  degraded: 'bg-amber-100 text-amber-700',
-  success: 'bg-emerald-100 text-emerald-700',
-  failed: 'bg-red-100 text-red-700',
-  running: 'bg-blue-100 text-blue-700',
-  partial: 'bg-amber-100 text-amber-700',
+  active: 'bg-emerald-500/15 text-emerald-500',
+  expiring: 'bg-amber-500/15 text-amber-500',
+  expired: 'bg-red-500/15 text-red-500',
+  error: 'bg-red-500/15 text-red-500',
+  healthy: 'bg-emerald-500/15 text-emerald-500',
+  degraded: 'bg-amber-500/15 text-amber-500',
+  success: 'bg-emerald-500/15 text-emerald-500',
+  failed: 'bg-red-500/15 text-red-500',
+  running: 'bg-blue-500/15 text-blue-500',
+  partial: 'bg-amber-500/15 text-amber-500',
   fresh: 'text-emerald-600',
   recent: 'text-blue-600',
   stale: 'text-amber-600',
@@ -95,9 +95,9 @@ const statusColors: Record<string, string> = {
 }
 
 const severityColors: Record<string, string> = {
-  info: 'border-l-blue-400 bg-blue-50',
-  warning: 'border-l-amber-400 bg-amber-50',
-  critical: 'border-l-red-400 bg-red-50',
+  info: 'border-l-blue-400 bg-blue-500/10',
+  warning: 'border-l-amber-400 bg-amber-500/10',
+  critical: 'border-l-red-400 bg-red-500/10',
 }
 
 export default function SystemHealthPage() {
@@ -160,7 +160,7 @@ export default function SystemHealthPage() {
           <div className="flex items-center gap-3">
             <Link
               href="/system/pipeline"
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 border border-indigo-200 rounded-lg text-sm text-indigo-700 hover:bg-indigo-100 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-500/10 border border-indigo-500/25 rounded-lg text-sm text-indigo-500 hover:bg-indigo-500/15 transition-colors"
             >
               <BarChart3 className="w-3.5 h-3.5" />
               Pipeline Monitor

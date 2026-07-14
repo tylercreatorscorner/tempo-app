@@ -80,8 +80,8 @@ export function RosterTable({ roster, onRefresh }: RosterTableProps) {
 
   const statusBadge = (status: string) => {
     const styles: Record<string, string> = {
-      active: 'bg-green-50 text-green-700',
-      paused: 'bg-yellow-50 text-yellow-700',
+      active: 'bg-green-500/10 text-green-500',
+      paused: 'bg-yellow-500/10 text-yellow-500',
       ended: 'bg-muted text-muted-foreground',
     };
     return (
@@ -177,7 +177,7 @@ export function RosterTable({ roster, onRefresh }: RosterTableProps) {
                       <button
                         onClick={() => handleDelete(entry.id)}
                         disabled={deletingId === entry.id}
-                        className="p-1.5 rounded-lg hover:bg-red-50 transition-colors"
+                        className="p-1.5 rounded-lg hover:bg-red-500/10 transition-colors"
                         title="Remove"
                       >
                         {deletingId === entry.id ? (

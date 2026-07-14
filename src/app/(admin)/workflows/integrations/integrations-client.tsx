@@ -34,9 +34,9 @@ const ICON_FOR_TYPE: Record<string, LucideIcon> = {
 };
 
 const STATUS_STYLE: Record<IntegrationView['status'], string> = {
-  connected: 'bg-emerald-50 text-emerald-700',
-  pending:   'bg-amber-50 text-amber-700',
-  error:     'bg-red-50 text-red-700',
+  connected: 'bg-emerald-500/10 text-emerald-500',
+  pending:   'bg-amber-500/10 text-amber-500',
+  error:     'bg-red-500/10 text-red-500',
   revoked:   'bg-muted text-muted-foreground',
 };
 
@@ -197,8 +197,8 @@ export function IntegrationsClient({
         <div className={cn(
           'fixed top-6 right-6 z-50 rounded-xl px-4 py-3 shadow-xl border text-sm font-medium max-w-md',
           flash.kind === 'success'
-            ? 'bg-emerald-50 border-emerald-100 text-emerald-800'
-            : 'bg-red-50 border-red-100 text-red-800',
+            ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500'
+            : 'bg-red-500/10 border-red-500/20 text-red-500',
         )}>
           {flash.message}
         </div>
@@ -464,14 +464,14 @@ function IntegrationDetailDrawer({
             </DetailRow>
           )}
           {integration.lastErrorMessage && (
-            <div className="rounded-xl border border-red-100 bg-red-50 p-3">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-red-700 mb-1">Last error</p>
-              <p className="text-xs text-red-700 leading-relaxed">{integration.lastErrorMessage}</p>
+            <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-3">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-red-500 mb-1">Last error</p>
+              <p className="text-xs text-red-500 leading-relaxed">{integration.lastErrorMessage}</p>
             </div>
           )}
           {!integration.managed && (
-            <div className="rounded-xl border border-amber-100 bg-amber-50 p-3">
-              <p className="text-xs text-amber-800 leading-relaxed">
+            <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-3">
+              <p className="text-xs text-amber-500 leading-relaxed">
                 This connection was auto-detected from existing data. The first time you fire a test send,
                 it will be promoted into the managed integrations table — meaning it becomes editable and
                 appears in automation history.
@@ -637,15 +637,15 @@ function TestSendSection({
       </button>
 
       {result?.kind === 'success' && (
-        <div className="rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2">
-          <p className="text-xs text-emerald-700 font-medium">
+        <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2">
+          <p className="text-xs text-emerald-500 font-medium">
             Sent successfully{result.externalId ? ` (id ${result.externalId})` : ''}.
           </p>
         </div>
       )}
       {result?.kind === 'error' && (
-        <div className="rounded-lg border border-red-100 bg-red-50 px-3 py-2">
-          <p className="text-xs text-red-700">{result.message}</p>
+        <div className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2">
+          <p className="text-xs text-red-500">{result.message}</p>
         </div>
       )}
     </div>

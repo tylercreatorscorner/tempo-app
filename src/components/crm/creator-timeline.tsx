@@ -20,15 +20,15 @@ const ICONS: Record<ActivityType, typeof MessageSquare> = {
 };
 
 const ICON_COLORS: Record<string, string> = {
-  note: 'bg-blue-50 text-blue-500',
-  status_change: 'bg-orange-50 text-orange-500',
+  note: 'bg-blue-500/10 text-blue-500',
+  status_change: 'bg-orange-500/10 text-orange-500',
   outreach: 'bg-primary/10 text-[var(--primary)]',
   message: 'bg-primary/10 text-[var(--primary)]',
-  payment: 'bg-green-50 text-green-500',
-  milestone: 'bg-yellow-50 text-yellow-500',
-  tag_change: 'bg-purple-50 text-purple-500',
-  retainer_change: 'bg-green-50 text-green-500',
-  brand_change: 'bg-orange-50 text-orange-500',
+  payment: 'bg-green-500/10 text-green-500',
+  milestone: 'bg-yellow-500/10 text-yellow-500',
+  tag_change: 'bg-purple-500/10 text-purple-500',
+  retainer_change: 'bg-green-500/10 text-green-500',
+  brand_change: 'bg-orange-500/10 text-orange-500',
 };
 
 function relativeTime(dateStr: string) {

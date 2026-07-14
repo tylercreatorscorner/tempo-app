@@ -160,7 +160,7 @@ export function PerformanceChart({ data, priorData, yoyData, accentColor }: Prop
               <span
                 className={cn(
                   'ml-2 inline-flex items-center px-1.5 py-0.5 rounded-md text-[11px] font-semibold font-mono tabular-nums',
-                  compareDelta >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-500'
+                  compareDelta >= 0 ? 'bg-emerald-500/10 text-emerald-600' : 'bg-red-500/10 text-red-500'
                 )}
                 title={compareBadgeLabel}
               >

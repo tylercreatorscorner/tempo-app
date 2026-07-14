@@ -46,14 +46,14 @@ export function PlanSelector({ currentPlan, onSelect }: PlanSelectorProps) {
 
   if (isActive) {
     return (
-      <div className="rounded-2xl border border-green-200 bg-green-50 p-6">
+      <div className="rounded-2xl border border-green-500/25 bg-green-500/10 p-6">
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl bg-green-100 flex items-center justify-center">
+          <div className="h-10 w-10 rounded-xl bg-green-500/15 flex items-center justify-center">
             <Check className="h-5 w-5 text-green-600" />
           </div>
           <div>
             <h3 className="font-semibold text-green-900">Plan Active</h3>
-            <p className="text-sm text-green-700">Your Brand plan is active. You have full access to all features.</p>
+            <p className="text-sm text-green-500">Your Brand plan is active. You have full access to all features.</p>
           </div>
         </div>
       </div>

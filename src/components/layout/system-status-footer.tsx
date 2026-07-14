@@ -62,8 +62,8 @@ const DOT_COLORS: Record<Status, string> = {
 
 const TEXT_COLORS: Record<Status, string> = {
   green: 'text-muted-foreground',
-  amber: 'text-amber-700',
-  red: 'text-red-700',
+  amber: 'text-amber-500',
+  red: 'text-red-500',
   gray: 'text-muted-foreground',
 };
 

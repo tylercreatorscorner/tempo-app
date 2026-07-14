@@ -140,7 +140,7 @@ export function StatCard({
         <div className="flex items-center gap-1.5 text-sm">
           <span className={cn(
             'flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-xs font-semibold',
-            isPositive ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-500',
+            isPositive ? 'bg-emerald-500/10 text-emerald-600' : 'bg-red-500/10 text-red-500',
           )}>
             {isPositive ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
             <span className="tabular-nums">{trend >= 0 ? '+' : ''}{trend.toFixed(1)}%</span>

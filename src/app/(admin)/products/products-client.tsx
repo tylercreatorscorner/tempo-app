@@ -218,7 +218,7 @@ export function ProductsClient({ brands, selectedBrand, startDate, endDate }: Pr
       <BrandFilter brands={brands} brandsWithData={brandsWithData} selectedBrand={selectedBrand} />
 
       {error && (
-        <div className="rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-700">
+        <div className="rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-500">
           {error}
         </div>
       )}

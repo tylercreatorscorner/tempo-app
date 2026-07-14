@@ -181,7 +181,7 @@ function PostCard({
 
       {/* Error */}
       {error && (
-        <div className="mx-5 mb-4 px-3 py-2 rounded-lg bg-red-50 text-red-600 text-xs">
+        <div className="mx-5 mb-4 px-3 py-2 rounded-lg bg-red-500/10 text-red-600 text-xs">
           {error}
         </div>
       )}

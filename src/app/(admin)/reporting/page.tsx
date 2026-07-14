@@ -174,7 +174,7 @@ function GenerateTab() {
           title="Performance Summary"
           description="Weekly or monthly overview of GMV, top creators, top videos, and trends."
           icon={BarChart3}
-          iconBg="bg-blue-50"
+          iconBg="bg-blue-500/10"
           iconColor="text-blue-600"
           type="performance-summary"
           showPeriod
@@ -184,7 +184,7 @@ function GenerateTab() {
           title="Creator Activity"
           description="Creator status breakdown — who's crushing it, who's on track, who needs a nudge."
           icon={Users}
-          iconBg="bg-purple-50"
+          iconBg="bg-purple-500/10"
           iconColor="text-purple-600"
           type="creator-activity"
           showPeriod
@@ -194,7 +194,7 @@ function GenerateTab() {
           title="Brand Report"
           description="Internal narrative report on a single brand. (For client-facing, use the Brand reports section.)"
           icon={Send}
-          iconBg="bg-green-50"
+          iconBg="bg-green-500/10"
           iconColor="text-green-600"
           type="brand-report"
           showPeriod
@@ -256,7 +256,7 @@ function FreshnessBanner() {
     : 'unknown';
 
   return (
-    <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 flex items-start gap-3">
+    <div className="rounded-xl bg-amber-500/10 border border-amber-500/25 px-4 py-3 flex items-start gap-3">
       <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
       <div className="text-xs text-amber-900">
         <strong>Data is {state.daysOld} days old.</strong> Last upload processed: {dateLabel} (UTC).
@@ -355,7 +355,7 @@ function BrandClientReportCard() {
         {/* Left: Configuration */}
         <div className="lg:col-span-3 p-6 space-y-5">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-purple-50 flex items-center justify-center">
+            <div className="h-10 w-10 rounded-xl bg-purple-500/10 flex items-center justify-center">
               <Briefcase className="h-5 w-5 text-purple-600" />
             </div>
             <div>
@@ -408,7 +408,7 @@ function BrandClientReportCard() {
           </div>
 
           {error && (
-            <div className="px-3 py-2 rounded-lg bg-red-50 text-red-600 text-xs">{error}</div>
+            <div className="px-3 py-2 rounded-lg bg-red-500/10 text-red-600 text-xs">{error}</div>
           )}
 
           <div className="flex flex-col sm:flex-row gap-2">
@@ -456,7 +456,7 @@ function BrandClientReportCard() {
 
         {/* Right: Sections preview */}
         <div className="lg:col-span-2 bg-gradient-to-br from-purple-50 via-primary/10/40 to-white border-l border-border p-6">
-          <div className="text-[10px] font-bold uppercase tracking-[0.15em] text-purple-700 mb-3">What's inside</div>
+          <div className="text-[10px] font-bold uppercase tracking-[0.15em] text-purple-500 mb-3">What's inside</div>
           <ul className="space-y-2 text-xs text-foreground">
             {[
               'Branded cover page with reporting period',
@@ -619,7 +619,7 @@ function SchedulesTab() {
                   <td className="py-3 px-4">
                     <span className={cn(
                       'inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full font-medium',
-                      s.destination_kind === 'discord' ? 'bg-[#5865F2]/10 text-[#5865F2]' : 'bg-green-50 text-green-700'
+                      s.destination_kind === 'discord' ? 'bg-[#5865F2]/10 text-[#5865F2]' : 'bg-green-500/10 text-green-500'
                     )}>
                       {s.destination_kind === 'discord' ? '💬' : '📨'} {s.channel_label || s.destination_kind}
                     </span>
@@ -636,7 +636,7 @@ function SchedulesTab() {
                       onClick={() => toggleActive(s)}
                       className={cn(
                         'text-xs px-2 py-0.5 rounded-full font-semibold transition-colors',
-                        s.active ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100' : 'bg-muted text-muted-foreground hover:bg-secondary'
+                        s.active ? 'bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/15' : 'bg-muted text-muted-foreground hover:bg-secondary'
                       )}
                     >
                       {s.active ? 'Active' : 'Paused'}
@@ -653,7 +653,7 @@ function SchedulesTab() {
                       </button>
                       <button
                         onClick={() => deleteSchedule(s)}
-                        className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-600 transition-colors"
+                        className="p-1.5 rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-600 transition-colors"
                         title="Delete"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
@@ -861,7 +861,7 @@ function ScheduleModal({
         </div>
 
         {error && (
-          <div className="px-3 py-2 rounded-lg bg-red-50 text-red-600 text-xs">{error}</div>
+          <div className="px-3 py-2 rounded-lg bg-red-500/10 text-red-600 text-xs">{error}</div>
         )}
 
         <div className="flex gap-3 pt-1">
@@ -991,7 +991,7 @@ function ReportCard({
       </div>
 
       {error && (
-        <div className="mx-5 mb-4 px-3 py-2 rounded-lg bg-red-50 text-red-600 text-xs">{error}</div>
+        <div className="mx-5 mb-4 px-3 py-2 rounded-lg bg-red-500/10 text-red-600 text-xs">{error}</div>
       )}
 
       {text && (
@@ -1227,7 +1227,7 @@ function PostCard({
       )}
 
       {error && (
-        <div className="mx-5 mb-4 px-3 py-2 rounded-lg bg-red-50 text-red-600 text-xs">{error}</div>
+        <div className="mx-5 mb-4 px-3 py-2 rounded-lg bg-red-500/10 text-red-600 text-xs">{error}</div>
       )}
 
       {text && (

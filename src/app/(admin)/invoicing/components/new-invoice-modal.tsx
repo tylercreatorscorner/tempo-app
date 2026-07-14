@@ -243,11 +243,11 @@ export function NewInvoiceModal({ open, defaultMonth, onClose, onCreated, onView
 
           {/* Conflict notice */}
           {conflict && (
-            <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 flex items-start gap-3">
+            <div className="rounded-xl bg-amber-500/10 border border-amber-500/25 px-4 py-3 flex items-start gap-3">
               <AlertTriangle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-bold text-amber-900">Invoice already exists</p>
-                <p className="text-xs text-amber-700 mt-0.5">
+                <p className="text-xs text-amber-500 mt-0.5">
                   {conflict.invoice_number} ({conflict.status}) is already on file for this brand and month.
                 </p>
               </div>
@@ -262,7 +262,7 @@ export function NewInvoiceModal({ open, defaultMonth, onClose, onCreated, onView
           )}
 
           {error && (
-            <div className="rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-700">{error}</div>
+            <div className="rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-500">{error}</div>
           )}
         </div>
 

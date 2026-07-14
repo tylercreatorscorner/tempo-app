@@ -145,13 +145,13 @@ export function DashboardOnboarding({
 
 function DoneCard({ title, subtitle }: { title: string; subtitle: string }) {
   return (
-    <div className="rounded-2xl border-2 border-green-200 bg-gradient-to-br from-green-50 to-white p-6 flex items-center gap-4">
+    <div className="rounded-2xl border-2 border-green-500/25 bg-gradient-to-br from-green-50 to-white p-6 flex items-center gap-4">
       <div className="h-12 w-12 rounded-xl bg-green-500 flex items-center justify-center flex-shrink-0">
         <Checkmark className="h-6 w-6" />
       </div>
       <div>
         <h3 className="font-semibold text-green-900">{title}</h3>
-        <p className="text-sm text-green-700/70 mt-0.5">{subtitle}</p>
+        <p className="text-sm text-green-500/70 mt-0.5">{subtitle}</p>
       </div>
     </div>
   );
@@ -159,13 +159,13 @@ function DoneCard({ title, subtitle }: { title: string; subtitle: string }) {
 
 function DoneCardCompact({ title, subtitle }: { title: string; subtitle: string }) {
   return (
-    <div className="rounded-2xl border border-green-200 bg-green-50/50 p-5 flex items-center gap-4">
+    <div className="rounded-2xl border border-green-500/25 bg-green-500/10/50 p-5 flex items-center gap-4">
       <div className="h-10 w-10 rounded-xl bg-green-500 flex items-center justify-center flex-shrink-0">
         <Checkmark className="h-5 w-5" />
       </div>
       <div>
         <h3 className="font-semibold text-green-900 text-sm">{title}</h3>
-        <p className="text-xs text-green-700/70">{subtitle}</p>
+        <p className="text-xs text-green-500/70">{subtitle}</p>
       </div>
     </div>
   );

@@ -176,7 +176,7 @@ export default async function SettingsPage() {
                     </div>
                     <span className="font-medium text-sm">{brand.display_name || brand.name}</span>
                   </div>
-                  <span className="text-xs px-2 py-1 rounded-full font-medium bg-green-50 text-green-600">active</span>
+                  <span className="text-xs px-2 py-1 rounded-full font-medium bg-green-500/10 text-green-600">active</span>
                 </div>
               );
             })
@@ -204,7 +204,7 @@ export default async function SettingsPage() {
               <p className="font-medium text-sm">TikTok Shop</p>
               <p className="text-xs text-muted-foreground">{tiktokConnected ? 'Syncing daily' : 'Not connected'}</p>
             </div>
-            <span className={`text-xs px-2 py-1 rounded-full font-medium ${tiktokConnected ? 'bg-green-50 text-green-600' : 'bg-muted text-muted-foreground'}`}>
+            <span className={`text-xs px-2 py-1 rounded-full font-medium ${tiktokConnected ? 'bg-green-500/10 text-green-600' : 'bg-muted text-muted-foreground'}`}>
               {tiktokConnected ? 'connected' : 'pending'}
             </span>
           </div>
@@ -213,7 +213,7 @@ export default async function SettingsPage() {
               <p className="font-medium text-sm">Discord</p>
               <p className="text-xs text-muted-foreground">{tenant?.discord_connected ? 'Bot active' : 'Not connected'}</p>
             </div>
-            <span className={`text-xs px-2 py-1 rounded-full font-medium ${tenant?.discord_connected ? 'bg-green-50 text-green-600' : 'bg-muted text-muted-foreground'}`}>
+            <span className={`text-xs px-2 py-1 rounded-full font-medium ${tenant?.discord_connected ? 'bg-green-500/10 text-green-600' : 'bg-muted text-muted-foreground'}`}>
               {tenant?.discord_connected ? 'connected' : 'pending'}
             </span>
           </div>

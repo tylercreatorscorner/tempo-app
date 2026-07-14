@@ -84,7 +84,7 @@ export function TestDmModal({ open, onClose }: Props) {
           {result && (
             <div className={cn(
               'flex items-center gap-2 px-4 py-3 rounded-xl text-sm',
-              result.success ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
+              result.success ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'
             )}>
               {result.success ? <CheckCircle className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
               {result.text}

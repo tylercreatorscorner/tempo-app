@@ -182,7 +182,7 @@ export function AutomationsClient() {
       </div>
 
       {error && (
-        <div className="rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-700">
+        <div className="rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-500">
           {error}
         </div>
       )}
@@ -225,7 +225,7 @@ export function AutomationsClient() {
       {toast && (
         <div className={cn(
           'fixed bottom-6 right-6 z-50 rounded-xl px-4 py-3 shadow-xl border text-sm font-medium',
-          toast.kind === 'success' ? 'bg-emerald-50 border-emerald-100 text-emerald-800' : 'bg-red-50 border-red-100 text-red-800',
+          toast.kind === 'success' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500' : 'bg-red-500/10 border-red-500/20 text-red-500',
         )}>
           {toast.message}
         </div>
@@ -306,7 +306,7 @@ function AutomationRow({
           className={cn(
             'px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors',
             automation.enabled
-              ? 'border border-emerald-100 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+              ? 'border border-emerald-500/20 bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/15'
               : 'border border-border bg-muted text-muted-foreground hover:bg-muted',
           )}
           title={automation.enabled ? 'Pause this automation' : 'Enable this automation'}
@@ -315,7 +315,7 @@ function AutomationRow({
         </button>
         <button
           onClick={onDelete}
-          className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-600 transition-colors"
+          className="p-1.5 rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-600 transition-colors"
           title="Delete"
         >
           <Trash2 className="h-3.5 w-3.5" />
@@ -346,7 +346,7 @@ function cronLabel(config: Record<string, unknown> | null): string {
 function EmptyState({ onNew }: { onNew: () => void }) {
   return (
     <div className="rounded-2xl border border-dashed border-border bg-card px-6 py-12 text-center">
-      <div className="h-14 w-14 mx-auto rounded-2xl bg-amber-50 flex items-center justify-center mb-4">
+      <div className="h-14 w-14 mx-auto rounded-2xl bg-amber-500/10 flex items-center justify-center mb-4">
         <Zap className="h-7 w-7 text-amber-500" />
       </div>
       <h2 className="text-base font-bold text-[var(--foreground)] mb-1">No automations yet</h2>
@@ -996,7 +996,7 @@ function HistorySection({ automationId }: { automationId: string }) {
                   <div className="px-3 pb-2 text-[11px] text-muted-foreground space-y-1 bg-muted/40">
                     {r.error_message && <p className="text-red-600">{r.error_message}</p>}
                     {r.step_results?.map((sr, i) => (
-                      <p key={i} className={sr.ok ? 'text-emerald-700' : 'text-red-700'}>
+                      <p key={i} className={sr.ok ? 'text-emerald-500' : 'text-red-500'}>
                         {sr.ok ? '✓' : '✗'} {sr.action}{sr.summary ? ` — ${sr.summary}` : ''}{sr.error ? ` — ${sr.error}` : ''}
                       </p>
                     ))}

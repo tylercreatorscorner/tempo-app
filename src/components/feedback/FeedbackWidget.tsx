@@ -54,7 +54,7 @@ export function FeedbackWidget() {
         <div className="fixed bottom-20 right-6 z-50 w-80 rounded-2xl border border-border bg-card shadow-2xl p-5 space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-200">
           {submitted ? (
             <div className="text-center py-6 space-y-2">
-              <div className="inline-flex h-12 w-12 rounded-full bg-green-100 items-center justify-center">
+              <div className="inline-flex h-12 w-12 rounded-full bg-green-500/15 items-center justify-center">
                 <Check className="h-6 w-6 text-green-600" />
               </div>
               <p className="font-semibold">Thanks for your feedback!</p>

@@ -173,7 +173,7 @@ export function YtdClient({ initialYear }: { initialYear: number }) {
       </div>
 
       {error && (
-        <div className="rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-700 flex items-center gap-2">
+        <div className="rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-500 flex items-center gap-2">
           <AlertCircle className="h-4 w-4" />
           {error}
         </div>

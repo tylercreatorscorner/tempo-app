@@ -80,7 +80,7 @@ export function AddBrandModal({ open, onClose, onCreated }: AddBrandModalProps) 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
           {error && (
-            <div className="p-3 rounded-xl bg-red-50 text-red-600 text-sm">
+            <div className="p-3 rounded-xl bg-red-500/10 text-red-600 text-sm">
               {error}
             </div>
           )}

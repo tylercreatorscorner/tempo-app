@@ -22,7 +22,7 @@ export default async function OutreachPage() {
       </div>
 
       <div className="rounded-2xl border border-dashed border-border bg-card px-6 py-12 text-center">
-        <div className="h-14 w-14 mx-auto rounded-2xl bg-purple-50 flex items-center justify-center mb-4">
+        <div className="h-14 w-14 mx-auto rounded-2xl bg-purple-500/10 flex items-center justify-center mb-4">
           <Megaphone className="h-7 w-7 text-purple-500" />
         </div>
         <h2 className="text-base font-bold text-[var(--foreground)] mb-1">Outreach Campaigns — coming soon</h2>

@@ -18,9 +18,9 @@ const TYPE_ICON: Record<CreatorAlert['type'], React.ReactNode> = {
 };
 
 const TYPE_BADGE: Record<CreatorAlert['type'], string> = {
-  underperforming: 'bg-amber-50 text-amber-600',
-  crushing: 'bg-emerald-50 text-emerald-600',
-  breakout: 'bg-blue-50 text-blue-600',
+  underperforming: 'bg-amber-500/10 text-amber-600',
+  crushing: 'bg-emerald-500/10 text-emerald-600',
+  breakout: 'bg-blue-500/10 text-blue-600',
 };
 
 /**

@@ -324,7 +324,7 @@ export function EarningsClient({ initialMonth }: { initialMonth: string }) {
       </div>
 
       {error && (
-        <div className="rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-700">
+        <div className="rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-500">
           {error}
         </div>
       )}
@@ -451,8 +451,8 @@ export function EarningsClient({ initialMonth }: { initialMonth: string }) {
             className={cn(
               'flex items-start gap-3 px-4 py-3 rounded-xl shadow-2xl border max-w-sm',
               toast.kind === 'success'
-                ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
-                : 'bg-red-50 border-red-200 text-red-900',
+                ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-900'
+                : 'bg-red-500/10 border-red-500/25 text-red-900',
             )}
           >
             {toast.kind === 'success'
@@ -913,22 +913,22 @@ function ModelBadge({ model, outcome }: {
   const config: Record<Exclude<CompensationModel, 'standard'>, { label: string; bg: string; text: string; tip: string }> = {
     revshare_max: {
       label: 'MAX',
-      bg: 'bg-purple-50 border-purple-200',
-      text: 'text-purple-700',
+      bg: 'bg-purple-500/10 border-purple-500/25',
+      text: 'text-purple-500',
       tip: outcome
         ? `MAX(retainer, commission). ${outcome.winner === 'commission' ? 'Rev share' : 'Retainer'} won.`
         : 'MAX(retainer, commission)',
     },
     commission_only: {
       label: 'Comm only',
-      bg: 'bg-blue-50 border-blue-200',
-      text: 'text-blue-700',
+      bg: 'bg-blue-500/10 border-blue-500/25',
+      text: 'text-blue-500',
       tip: 'No retainer, commission only',
     },
     retainer_only: {
       label: 'Retainer only',
-      bg: 'bg-emerald-50 border-emerald-200',
-      text: 'text-emerald-700',
+      bg: 'bg-emerald-500/10 border-emerald-500/25',
+      text: 'text-emerald-500',
       tip: 'Flat retainer, no commission',
     },
   };

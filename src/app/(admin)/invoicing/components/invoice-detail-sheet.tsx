@@ -376,7 +376,7 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
                 }
               }}
               disabled={statusUpdating}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-200 text-red-600 text-xs font-semibold hover:bg-red-50 disabled:opacity-50 transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-500/25 text-red-600 text-xs font-semibold hover:bg-red-500/10 disabled:opacity-50 transition-colors"
             >
               <Ban className="h-3.5 w-3.5" />
               Void
@@ -440,8 +440,8 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
               <div className={cn(
                 'mt-2 rounded-xl px-3 py-2 flex items-center gap-2 text-xs',
                 invoice.creator_breakdown.length > 0
-                  ? 'bg-emerald-50 border border-emerald-200 text-emerald-700'
-                  : 'bg-amber-50 border border-amber-200 text-amber-700',
+                  ? 'bg-emerald-500/10 border border-emerald-500/25 text-emerald-500'
+                  : 'bg-amber-500/10 border border-amber-500/25 text-amber-500',
               )}>
                 <Users className="h-3.5 w-3.5 flex-shrink-0" />
                 {invoice.creator_breakdown.length > 0 ? (
@@ -458,8 +458,8 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
             <div className={cn(
               'rounded-xl px-3 py-2.5 text-xs flex items-start gap-2',
               emailNotice.kind === 'success'
-                ? 'bg-emerald-50 border border-emerald-100 text-emerald-800'
-                : 'bg-amber-50 border border-amber-100 text-amber-900',
+                ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-500'
+                : 'bg-amber-500/10 border border-amber-500/20 text-amber-900',
             )}>
               {emailNotice.kind === 'success'
                 ? <CheckCircle2 className="h-4 w-4 text-emerald-600 flex-shrink-0 mt-0.5" />
@@ -543,26 +543,26 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
           {/* Payment received detail (only after paid) */}
           {invoice.status === 'paid' && (
             <Section title="Payment Received">
-              <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-4 space-y-2.5">
+              <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-4 space-y-2.5">
                 <div className="flex items-baseline justify-between">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">Method</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-500">Method</span>
                   <span className="text-sm font-semibold text-[var(--foreground)]">{labelMethod(invoice.payment_method)}</span>
                 </div>
                 {invoice.payment_reference && (
                   <div className="flex items-baseline justify-between gap-3">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">Reference</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-500">Reference</span>
                     <span className="text-xs font-mono text-[var(--foreground)] truncate">{invoice.payment_reference}</span>
                   </div>
                 )}
                 <div className="flex items-baseline justify-between">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">Amount Received</span>
-                  <span className="text-base font-extrabold tabular-nums text-emerald-700">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-500">Amount Received</span>
+                  <span className="text-base font-extrabold tabular-nums text-emerald-500">
                     {formatCurrency(Number(invoice.amount_received ?? invoice.total_amount))}
                   </span>
                 </div>
                 {invoice.amount_received !== undefined && invoice.amount_received !== null &&
                   Math.abs(Number(invoice.amount_received) - Number(invoice.total_amount)) > 0.01 && (
-                    <div className="flex items-baseline justify-between text-[11px] text-amber-700 border-t border-emerald-200/60 pt-2">
+                    <div className="flex items-baseline justify-between text-[11px] text-amber-500 border-t border-emerald-500/25/60 pt-2">
                       <span>{Number(invoice.amount_received) < Number(invoice.total_amount) ? 'Short' : 'Over'}</span>
                       <span className="tabular-nums">
                         {formatCurrency(Math.abs(Number(invoice.amount_received) - Number(invoice.total_amount)))}
@@ -571,14 +571,14 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
                     </div>
                   )}
                 {invoice.paid_at && (
-                  <div className="flex items-baseline justify-between text-[11px] text-emerald-700/80">
+                  <div className="flex items-baseline justify-between text-[11px] text-emerald-500/80">
                     <span>Recorded</span>
                     <span>{formatDate(invoice.paid_at)}</span>
                   </div>
                 )}
                 {invoice.payment_received_notes && (
-                  <div className="border-t border-emerald-200/60 pt-2">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 mb-1">Notes</p>
+                  <div className="border-t border-emerald-500/25/60 pt-2">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-500 mb-1">Notes</p>
                     <p className="text-xs text-foreground whitespace-pre-line leading-relaxed">{invoice.payment_received_notes}</p>
                   </div>
                 )}
@@ -617,7 +617,7 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
           </Section>
 
           {error && (
-            <div className="rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-700">{error}</div>
+            <div className="rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-500">{error}</div>
           )}
         </div>
 
@@ -627,7 +627,7 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
             <button
               onClick={handleDelete}
               disabled={saving}
-              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 rounded-lg disabled:opacity-40 transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-500/10 rounded-lg disabled:opacity-40 transition-colors"
             >
               <Trash2 className="h-3.5 w-3.5" />
               Delete
@@ -727,9 +727,9 @@ function fmtPeriod(ym: string) {
 
 function StatusPill({ status }: { status: string }) {
   const config: Record<string, { bg: string; text: string; label: string }> = {
-    pending: { bg: 'bg-amber-100',   text: 'text-amber-800',   label: 'Pending' },
-    sent:    { bg: 'bg-blue-100',    text: 'text-blue-800',    label: 'Sent' },
-    paid:    { bg: 'bg-emerald-100', text: 'text-emerald-800', label: 'Paid' },
+    pending: { bg: 'bg-amber-500/15',   text: 'text-amber-500',   label: 'Pending' },
+    sent:    { bg: 'bg-blue-500/15',    text: 'text-blue-500',    label: 'Sent' },
+    paid:    { bg: 'bg-emerald-500/15', text: 'text-emerald-500', label: 'Paid' },
     void:    { bg: 'bg-secondary',    text: 'text-muted-foreground',    label: 'Void' },
   };
   const c = config[status] ?? { bg: 'bg-muted', text: 'text-foreground', label: status };

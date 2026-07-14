@@ -124,7 +124,7 @@ export function LoginForm() {
 
         <div className="space-y-4">
           {error && (
-            <div className="p-3 rounded-xl bg-red-50 text-red-600 text-sm text-center">
+            <div className="p-3 rounded-xl bg-red-500/10 text-red-600 text-sm text-center">
               {error}
             </div>
           )}
@@ -183,7 +183,7 @@ export function LoginForm() {
 
       <form onSubmit={handleSendCode} className="space-y-4">
         {error && (
-          <div className="p-3 rounded-xl bg-red-50 text-red-600 text-sm">
+          <div className="p-3 rounded-xl bg-red-500/10 text-red-600 text-sm">
             {error}{' '}
             {error.includes('sign up') && (
               <Link href="/onboarding" className="underline font-medium">Sign up here</Link>

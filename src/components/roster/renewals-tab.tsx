@@ -88,9 +88,9 @@ const SECTIONS = [
 ] as const;
 
 const ACCENT_BG = {
-  red:   'bg-red-50 text-red-700 ring-1 ring-red-200',
-  amber: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200',
-  green: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
+  red:   'bg-red-500/10 text-red-500 ring-1 ring-red-200',
+  amber: 'bg-amber-500/10 text-amber-500 ring-1 ring-amber-200',
+  green: 'bg-emerald-500/10 text-emerald-500 ring-1 ring-emerald-200',
 } as const;
 
 const ACCENT_DOT = {
@@ -101,7 +101,7 @@ const ACCENT_DOT = {
 
 const ACCENT_TEXT = {
   red:   'text-red-600',
-  amber: 'text-amber-700',
+  amber: 'text-amber-500',
   green: 'text-emerald-600',
 } as const;
 
@@ -174,7 +174,7 @@ export function RenewalsTab({ brand }: RenewalsTabProps) {
 
   if (error) {
     return (
-      <div className="rounded-2xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-700">
+      <div className="rounded-2xl bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-500">
         {error}
       </div>
     );
@@ -268,9 +268,9 @@ function RenewalSection({
       {/* Section header */}
       <div className={cn(
         'flex items-center justify-between px-5 py-3 border-b border-border',
-        section.accent === 'red'   && 'bg-red-50/40',
-        section.accent === 'amber' && 'bg-amber-50/40',
-        section.accent === 'green' && 'bg-emerald-50/40',
+        section.accent === 'red'   && 'bg-red-500/10/40',
+        section.accent === 'amber' && 'bg-amber-500/10/40',
+        section.accent === 'green' && 'bg-emerald-500/10/40',
       )}>
         <button
           onClick={onToggleCollapse}
@@ -318,10 +318,10 @@ function RenewalSection({
 // ── Row ────────────────────────────────────────────────────────────
 
 const PACE_STYLES = {
-  ahead:    'bg-emerald-50 text-emerald-700',
-  'on-track': 'bg-blue-50 text-blue-700',
-  slow:     'bg-amber-50 text-amber-700',
-  behind:   'bg-red-50 text-red-700',
+  ahead:    'bg-emerald-500/10 text-emerald-500',
+  'on-track': 'bg-blue-500/10 text-blue-500',
+  slow:     'bg-amber-500/10 text-amber-500',
+  behind:   'bg-red-500/10 text-red-500',
 } as const;
 
 const PACE_LABEL = {
@@ -372,7 +372,7 @@ function RenewalRow({ creator: c }: { creator: RenewalCreator }) {
       <div className="col-span-3 sm:col-span-2 text-right sm:text-left">
         <div className="flex items-center sm:justify-start justify-end gap-1">
           <span className={cn('text-sm font-extrabold tabular-nums',
-            c.roi < 1 ? 'text-red-600' : c.roi < 3 ? 'text-amber-700' : 'text-emerald-600')}>
+            c.roi < 1 ? 'text-red-600' : c.roi < 3 ? 'text-amber-500' : 'text-emerald-600')}>
             {c.roi.toFixed(1)}x
           </span>
           {trendIcon}

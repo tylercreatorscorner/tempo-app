@@ -100,7 +100,7 @@ export function NarrativeCard({ input }: Props) {
       )}
 
       {error && (
-        <div className="flex items-start gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-xl p-3">
+        <div className="flex items-start gap-2 text-sm text-amber-500 bg-amber-500/10 border border-amber-500/25 rounded-xl p-3">
           <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
           <div>
             <p className="font-semibold">Couldn&apos;t generate narrative</p>

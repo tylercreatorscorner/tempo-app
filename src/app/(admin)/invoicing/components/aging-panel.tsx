@@ -49,10 +49,10 @@ interface BucketDef {
 
 const BUCKETS: BucketDef[] = [
   { value: 'current', label: 'Current',  description: 'Not yet due', icon: Clock,           bg: 'bg-card border-border',         bgActive: 'bg-muted border-gray-400 ring-2 ring-border',           text: 'text-foreground',    iconBg: 'bg-muted' },
-  { value: '1-30',    label: '1-30',     description: 'Days overdue', icon: Clock,          bg: 'bg-card border-amber-200',        bgActive: 'bg-amber-50 border-amber-400 ring-2 ring-amber-200',         text: 'text-amber-700',   iconBg: 'bg-amber-100' },
-  { value: '31-60',   label: '31-60',    description: 'Days overdue', icon: AlertTriangle,  bg: 'bg-card border-orange-200',       bgActive: 'bg-orange-50 border-orange-400 ring-2 ring-orange-200',     text: 'text-orange-700',  iconBg: 'bg-orange-100' },
-  { value: '61-90',   label: '61-90',    description: 'Days overdue', icon: AlertTriangle,  bg: 'bg-card border-red-200',          bgActive: 'bg-red-50 border-red-400 ring-2 ring-red-200',               text: 'text-red-700',     iconBg: 'bg-red-100' },
-  { value: '90+',     label: '90+',      description: 'Days overdue', icon: Flame,          bg: 'bg-card border-red-300',          bgActive: 'bg-red-100 border-red-500 ring-2 ring-red-300',              text: 'text-red-800',     iconBg: 'bg-red-200' },
+  { value: '1-30',    label: '1-30',     description: 'Days overdue', icon: Clock,          bg: 'bg-card border-amber-500/25',        bgActive: 'bg-amber-500/10 border-amber-400 ring-2 ring-amber-200',         text: 'text-amber-500',   iconBg: 'bg-amber-500/15' },
+  { value: '31-60',   label: '31-60',    description: 'Days overdue', icon: AlertTriangle,  bg: 'bg-card border-orange-500/25',       bgActive: 'bg-orange-500/10 border-orange-400 ring-2 ring-orange-200',     text: 'text-orange-500',  iconBg: 'bg-orange-500/15' },
+  { value: '61-90',   label: '61-90',    description: 'Days overdue', icon: AlertTriangle,  bg: 'bg-card border-red-500/25',          bgActive: 'bg-red-500/10 border-red-400 ring-2 ring-red-200',               text: 'text-red-500',     iconBg: 'bg-red-500/15' },
+  { value: '90+',     label: '90+',      description: 'Days overdue', icon: Flame,          bg: 'bg-card border-red-300',          bgActive: 'bg-red-500/15 border-red-500 ring-2 ring-red-300',              text: 'text-red-500',     iconBg: 'bg-red-200' },
 ];
 
 interface Props {

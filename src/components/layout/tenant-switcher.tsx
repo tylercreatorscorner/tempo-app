@@ -68,8 +68,8 @@ export function TenantSwitcher({ tenants, activeTenantId, managers, activeManage
         disabled={pending}
         className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-colors text-xs font-medium disabled:opacity-50 ${
           activeManager
-            ? 'border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-800'
-            : 'border-purple-200 bg-purple-50 hover:bg-purple-100 text-purple-700'
+            ? 'border-amber-300 bg-amber-500/10 hover:bg-amber-500/15 text-amber-500'
+            : 'border-purple-500/25 bg-purple-500/10 hover:bg-purple-500/15 text-purple-500'
         }`}
       >
         {activeManager ? <Eye className="h-3.5 w-3.5 flex-shrink-0" /> : <Building2 className="h-3.5 w-3.5 flex-shrink-0" />}

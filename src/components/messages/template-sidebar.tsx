@@ -39,7 +39,7 @@ export function TemplateSidebar({ creatorName, brandName, postCount, gmv, onSele
     return (
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-purple-600 hover:bg-purple-50 transition-all"
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-purple-600 hover:bg-purple-500/10 transition-all"
         title="Message templates"
       >
         <FileText className="h-3.5 w-3.5" />
@@ -88,7 +88,7 @@ export function TemplateSidebar({ creatorName, brandName, postCount, gmv, onSele
               <button
                 key={template.id}
                 onClick={() => handleSelect(template)}
-                className="w-full text-left p-3 rounded-xl border border-border hover:border-purple-200 hover:bg-purple-50/50 transition-all group"
+                className="w-full text-left p-3 rounded-xl border border-border hover:border-purple-500/25 hover:bg-purple-500/10/50 transition-all group"
               >
                 <div className="flex items-center gap-2 mb-1">
                   <span className="text-base">{template.icon}</span>
@@ -107,7 +107,7 @@ export function TemplateSidebar({ creatorName, brandName, postCount, gmv, onSele
                     {template.variables.map(v => (
                       <span
                         key={v}
-                        className="text-[9px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-600 font-mono"
+                        className="text-[9px] px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-600 font-mono"
                       >
                         {`{${v}}`}
                       </span>

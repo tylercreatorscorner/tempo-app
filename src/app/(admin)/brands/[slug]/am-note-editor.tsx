@@ -123,7 +123,7 @@ export function AmNoteEditor({ brandSlug, initialNote, initialUpdatedAt, initial
             </div>
           </div>
           {err && (
-            <p className="text-xs text-rose-600 bg-rose-50 px-3 py-2 rounded-md">{err}</p>
+            <p className="text-xs text-rose-600 bg-rose-500/10 px-3 py-2 rounded-md">{err}</p>
           )}
         </>
       ) : (

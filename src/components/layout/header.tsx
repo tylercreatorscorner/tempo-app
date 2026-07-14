@@ -207,7 +207,7 @@ export function Header({ onMenuClick, tenantName, userName, userEmail, tenantSwi
                 </Link>
                 <button
                   onClick={handleLogout}
-                  className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-red-500 hover:bg-red-50 transition-colors"
+                  className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-red-500 hover:bg-red-500/10 transition-colors"
                 >
                   <LogOut className="h-4 w-4" /> Sign out
                 </button>

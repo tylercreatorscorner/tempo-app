@@ -128,7 +128,7 @@ export async function BrandPerformance({ brands, range }: Props) {
                 {b.trend !== undefined ? (
                   <span
                     className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-xs font-semibold tabular-nums ${
-                      isPositive ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-500'
+                      isPositive ? 'bg-emerald-500/10 text-emerald-600' : 'bg-red-500/10 text-red-500'
                     }`}
                   >
                     {isPositive ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}

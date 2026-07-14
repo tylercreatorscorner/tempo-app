@@ -134,11 +134,11 @@ function StatusBadge({ status }: { status: string | null }) {
     return <span className="text-xs text-muted-foreground">—</span>;
   }
   const STYLE: Record<string, string> = {
-    Active:   'bg-green-50 text-green-600',
+    Active:   'bg-green-500/10 text-green-600',
     Inactive: 'bg-muted text-muted-foreground',
-    Churned:  'bg-red-50 text-red-600',
-    'On Hold': 'bg-yellow-50 text-yellow-700',
-    Paused:   'bg-yellow-50 text-yellow-700',
+    Churned:  'bg-red-500/10 text-red-600',
+    'On Hold': 'bg-yellow-500/10 text-yellow-500',
+    Paused:   'bg-yellow-500/10 text-yellow-500',
   };
   const cls = STYLE[status] ?? 'bg-muted text-muted-foreground';
   return (
@@ -443,7 +443,7 @@ function PeriodSelector({
 function RoiCell({ roi }: { roi: number | null }) {
   if (roi === null) return <span className="text-xs text-muted-foreground">—</span>;
   const cls =
-    roi >= 2 ? 'text-green-700 font-semibold'
+    roi >= 2 ? 'text-green-500 font-semibold'
     : roi >= 1 ? 'text-green-600'
     : roi >= 0.5 ? 'text-orange-600'
     : 'text-red-600 font-semibold';
@@ -665,7 +665,7 @@ function CreatorPanel({
                 <button
                   onClick={() => { setSaveError(''); setConfirmRemove(true); }}
                   disabled={removing}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-red-100 text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-red-500/20 text-red-600 hover:bg-red-500/10 disabled:opacity-50 transition-colors"
                   title="Remove from managed roster (reversible)"
                 >
                   {removing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
@@ -706,16 +706,16 @@ function CreatorPanel({
         {/* Body */}
         <div className="p-6 space-y-5 flex-1">
           {saveError && (
-            <p className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2">{saveError}</p>
+            <p className="text-xs text-red-500 bg-red-500/10 rounded-lg px-3 py-2">{saveError}</p>
           )}
 
           {confirmRemove && (
-            <div className="rounded-xl border border-red-200 bg-red-50 p-4 space-y-3">
+            <div className="rounded-xl border border-red-500/25 bg-red-500/10 p-4 space-y-3">
               <div>
                 <p className="text-sm font-semibold text-red-900">
                   Remove {creator.real_name || primaryHandle(creator) || 'this creator'}?
                 </p>
-                <p className="text-xs text-red-700 mt-1 leading-relaxed">
+                <p className="text-xs text-red-500 mt-1 leading-relaxed">
                   They&apos;ll stop appearing in the roster, rev share, and renewals.
                   Their GMV history and audit trail stay intact — this is reversible.
                 </p>
@@ -1237,7 +1237,7 @@ function AddCreatorModal({ prefill, onClose, onSuccess }: AddCreatorModalProps) 
             />
           </div>
 
-          {error && <p className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+          {error && <p className="text-xs text-red-500 bg-red-500/10 rounded-lg px-3 py-2">{error}</p>}
 
           <div className="flex items-center justify-end gap-3 pt-1">
             <button type="button" onClick={onClose} className="px-4 py-2.5 rounded-xl border border-border text-sm font-medium text-muted-foreground hover:bg-muted transition-colors">
@@ -1280,7 +1280,7 @@ function LevelBadge({ level }: { level?: number | null }) {
   if (!level) return null;
   return (
     <span
-      className="ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-50 text-purple-600 align-middle"
+      className="ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-600 align-middle"
       title="Creator level — trailing 30-day GMV (L1 $0–5K · L2 5–25K · L3 25–60K · L4 60–150K · L5 150–400K · L6 400K–1.5M · L7 1.5M+)"
     >
       L{level}
@@ -1903,7 +1903,7 @@ function RosterContent() {
                       {showManagedTag && (
                         <td className="px-5 py-3.5 text-center">
                           {c.is_managed ? (
-                            <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full bg-green-50 text-green-600">
+                            <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full bg-green-500/10 text-green-600">
                               <UserCheck className="h-3 w-3" /> Managed
                             </span>
                           ) : (

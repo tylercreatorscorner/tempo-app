@@ -194,7 +194,7 @@ function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => 
                   <button
                     onClick={() => removeAccount(handle)}
                     disabled={accountSaving}
-                    className="p-1 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-500 transition-colors"
+                    className="p-1 rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-500 transition-colors"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>

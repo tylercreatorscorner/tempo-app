@@ -233,7 +233,7 @@ function BrandSwitcher({
       <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl border border-border bg-card text-sm font-medium text-foreground">
         {activeColor ? (
           <span
-            className="w-3 h-3 rounded-full flex-shrink-0 ring-2 ring-white shadow-sm"
+            className="w-3 h-3 rounded-full flex-shrink-0 ring-2 ring-card shadow-sm"
             style={{ backgroundColor: activeColor }}
           />
         ) : (
@@ -303,7 +303,7 @@ function BrandSwitcher({
         )}
       >
         <span
-          className="w-3 h-3 rounded-full flex-shrink-0 ring-2 ring-white shadow-sm"
+          className="w-3 h-3 rounded-full flex-shrink-0 ring-2 ring-card shadow-sm"
           style={{ backgroundColor: activeColor }}
         />
         <span className="flex-1 text-left truncate">{activeLabel}</span>
@@ -414,7 +414,7 @@ function BrandHeader({
               <div className="py-1">
                 <button
                   onClick={handleLogout}
-                  className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-red-500 hover:bg-red-50 transition-colors"
+                  className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-red-500 hover:bg-red-500/10 transition-colors"
                 >
                   <LogOut className="h-4 w-4" /> Sign out
                 </button>

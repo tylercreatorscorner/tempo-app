@@ -51,10 +51,10 @@ interface Counts {
 }
 
 const MATCH_BADGES: Record<string, { label: string; className: string }> = {
-  exact: { label: 'Exact', className: 'bg-emerald-100 text-emerald-700' },
-  fuzzy: { label: 'Fuzzy', className: 'bg-amber-100 text-amber-700' },
+  exact: { label: 'Exact', className: 'bg-emerald-500/15 text-emerald-500' },
+  fuzzy: { label: 'Fuzzy', className: 'bg-amber-500/15 text-amber-500' },
   none: { label: 'No Match', className: 'bg-muted text-muted-foreground' },
-  manual: { label: 'Manual', className: 'bg-violet-100 text-violet-700' },
+  manual: { label: 'Manual', className: 'bg-violet-500/15 text-violet-500' },
 };
 
 const SOURCE_BADGES: Record<string, { label: string; icon: typeof MessageSquare }> = {
@@ -396,8 +396,8 @@ export default function DiscordLinksPage() {
                     <span
                       className={`text-xs px-2.5 py-1 rounded-full font-medium ${
                         entry.status === 'approved'
-                          ? 'bg-emerald-100 text-emerald-700'
-                          : 'bg-red-100 text-red-700'
+                          ? 'bg-emerald-500/15 text-emerald-500'
+                          : 'bg-red-500/15 text-red-500'
                       }`}
                     >
                       {entry.status}

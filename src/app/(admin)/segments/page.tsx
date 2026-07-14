@@ -135,7 +135,7 @@ export default function SegmentsPage() {
                 <button onClick={() => setConfirming(null)} className="px-2 py-1 rounded-lg text-xs text-muted-foreground hover:bg-muted">Cancel</button>
               </span>
             ) : (
-              <button onClick={() => setConfirming(deletableId)} className="p-1.5 rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-50 flex-shrink-0" title="Delete segment">
+              <button onClick={() => setConfirming(deletableId)} className="p-1.5 rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-500/10 flex-shrink-0" title="Delete segment">
                 <Trash2 className="h-4 w-4" />
               </button>
             )

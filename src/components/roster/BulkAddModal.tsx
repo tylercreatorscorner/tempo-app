@@ -228,7 +228,7 @@ export function BulkAddModal({ defaultBrand, initialRows, onClose, onSuccess }: 
           {result ? (
             <div className="p-6 space-y-4">
               {result.added > 0 && (
-                <div className="flex items-center gap-2 text-sm font-semibold text-green-700 bg-green-50 rounded-xl px-4 py-3">
+                <div className="flex items-center gap-2 text-sm font-semibold text-green-500 bg-green-500/10 rounded-xl px-4 py-3">
                   <CheckCircle2 className="h-5 w-5 shrink-0" />
                   Added {result.added} creator{result.added === 1 ? '' : 's'}
                   {brandName ? <span className="font-normal text-green-600">to {brandName}</span> : null}
@@ -236,7 +236,7 @@ export function BulkAddModal({ defaultBrand, initialRows, onClose, onSuccess }: 
               )}
 
               {(result.restored ?? 0) > 0 && (
-                <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700 bg-emerald-50 rounded-xl px-4 py-3">
+                <div className="flex items-center gap-2 text-sm font-semibold text-emerald-500 bg-emerald-500/10 rounded-xl px-4 py-3">
                   <CheckCircle2 className="h-5 w-5 shrink-0" />
                   Restored {result.restored} previously-removed creator{result.restored === 1 ? '' : 's'}
                 </div>
@@ -250,8 +250,8 @@ export function BulkAddModal({ defaultBrand, initialRows, onClose, onSuccess }: 
               )}
 
               {result.skipped.length > 0 && (
-                <div className="text-sm bg-amber-50 rounded-xl px-4 py-3">
-                  <div className="flex items-center gap-2 font-semibold text-amber-700">
+                <div className="text-sm bg-amber-500/10 rounded-xl px-4 py-3">
+                  <div className="flex items-center gap-2 font-semibold text-amber-500">
                     <MinusCircle className="h-4 w-4 shrink-0" />
                     Skipped {result.skipped.length} already on this roster
                   </div>
@@ -263,8 +263,8 @@ export function BulkAddModal({ defaultBrand, initialRows, onClose, onSuccess }: 
               )}
 
               {result.failed.length > 0 && (
-                <div className="text-sm bg-red-50 rounded-xl px-4 py-3">
-                  <div className="flex items-center gap-2 font-semibold text-red-700">
+                <div className="text-sm bg-red-500/10 rounded-xl px-4 py-3">
+                  <div className="flex items-center gap-2 font-semibold text-red-500">
                     <AlertCircle className="h-4 w-4 shrink-0" />
                     {result.failed.length} couldn’t be added
                   </div>
@@ -291,7 +291,7 @@ export function BulkAddModal({ defaultBrand, initialRows, onClose, onSuccess }: 
             /* ── Input screen ── */
             <div className="p-6 space-y-4">
               {error && (
-                <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 rounded-xl px-4 py-2">
+                <div className="flex items-center gap-2 text-sm text-red-600 bg-red-500/10 rounded-xl px-4 py-2">
                   <AlertCircle className="h-4 w-4 shrink-0" />
                   {error}
                 </div>
@@ -363,7 +363,7 @@ export function BulkAddModal({ defaultBrand, initialRows, onClose, onSuccess }: 
               {mode === 'csv' && (
                 <div>
                   {csvError && (
-                    <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 rounded-xl px-4 py-2 mb-2">
+                    <div className="flex items-center gap-2 text-sm text-red-600 bg-red-500/10 rounded-xl px-4 py-2 mb-2">
                       <AlertCircle className="h-4 w-4 shrink-0" /> {csvError}
                     </div>
                   )}

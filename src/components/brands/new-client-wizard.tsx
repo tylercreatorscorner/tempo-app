@@ -234,7 +234,7 @@ export function NewClientWizard({ open, onClose, onCreated }: Props) {
     return (
       <ModalShell onClose={finish}>
         <div className="px-8 py-8">
-          <div className="mx-auto h-14 w-14 rounded-2xl bg-emerald-50 flex items-center justify-center mb-4">
+          <div className="mx-auto h-14 w-14 rounded-2xl bg-emerald-500/10 flex items-center justify-center mb-4">
             <Check className="h-7 w-7 text-emerald-600" />
           </div>
           <h2 className="text-xl font-extrabold text-[var(--foreground)] text-center">
@@ -245,7 +245,7 @@ export function NewClientWizard({ open, onClose, onCreated }: Props) {
           </p>
 
           {warnings.length > 0 && (
-            <div className="mt-5 rounded-xl bg-amber-50 border border-amber-100 px-4 py-3 text-xs text-amber-800">
+            <div className="mt-5 rounded-xl bg-amber-500/10 border border-amber-500/20 px-4 py-3 text-xs text-amber-500">
               <div className="font-bold mb-1 flex items-center gap-1.5">
                 <AlertCircle className="h-3.5 w-3.5" />
                 Some fields needed attention
@@ -265,8 +265,8 @@ export function NewClientWizard({ open, onClose, onCreated }: Props) {
                   className={cn(
                     'flex items-center justify-between gap-3 rounded-xl border px-3 py-2 text-xs',
                     c.status === 'error'
-                      ? 'bg-red-50 border-red-100 text-red-700'
-                      : 'bg-emerald-50/70 border-emerald-100 text-emerald-700',
+                      ? 'bg-red-500/10 border-red-500/20 text-red-500'
+                      : 'bg-emerald-500/10/70 border-emerald-500/20 text-emerald-500',
                   )}
                 >
                   <span className="font-medium truncate">{c.email}</span>
@@ -337,7 +337,7 @@ export function NewClientWizard({ open, onClose, onCreated }: Props) {
         )}
 
         {error && (
-          <div className="mt-5 rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-700 flex items-start gap-2">
+          <div className="mt-5 rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-500 flex items-start gap-2">
             <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
             <span>{error}</span>
           </div>
@@ -417,7 +417,7 @@ function Stepper({ step }: { step: 1 | 2 | 3 }) {
             <span
               className={cn(
                 'text-[11px] font-bold uppercase tracking-wider',
-                active ? 'text-[var(--foreground)]' : done ? 'text-emerald-700' : 'text-muted-foreground',
+                active ? 'text-[var(--foreground)]' : done ? 'text-emerald-500' : 'text-muted-foreground',
               )}
             >
               {label}
@@ -699,7 +699,7 @@ function Step3Contacts({
               </div>
               <button
                 onClick={() => onRemove(e)}
-                className="p-1 rounded-md text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-colors"
+                className="p-1 rounded-md text-muted-foreground hover:text-red-600 hover:bg-red-500/10 transition-colors"
                 aria-label={`Remove ${e}`}
               >
                 <Trash2 className="h-3.5 w-3.5" />

@@ -103,7 +103,7 @@ export function PostCard({ post: p, onClick }: Props) {
         <div className="absolute top-2 right-2 flex flex-col items-end gap-1">
           {p.flagged && (
             <span
-              className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50/95 backdrop-blur-sm ring-1 ring-amber-200 rounded-full px-2 py-0.5"
+              className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-500 bg-amber-500/10/95 backdrop-blur-sm ring-1 ring-amber-200 rounded-full px-2 py-0.5"
               title="Flagged: off-brand or needs rework"
             >
               <AlertTriangle className="h-3 w-3" />
@@ -142,7 +142,7 @@ export function PostCard({ post: p, onClick }: Props) {
         <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground flex-wrap">
           <span className="font-semibold text-[var(--foreground)]">@{p.creator_handle}</span>
           {p.is_managed && (
-            <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 ring-1 ring-emerald-200 rounded px-1 py-0.5">
+            <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-500 bg-emerald-500/10 ring-1 ring-emerald-200 rounded px-1 py-0.5">
               Managed
             </span>
           )}

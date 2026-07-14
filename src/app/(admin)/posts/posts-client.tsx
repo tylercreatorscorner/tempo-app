@@ -333,7 +333,7 @@ export function PostsClient({
       />
 
       {error && (
-        <div className="rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-700">{error}</div>
+        <div className="rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-500">{error}</div>
       )}
 
       {/* KPI strip */}
@@ -349,7 +349,7 @@ export function PostsClient({
           the full window server-side; this only fires when the row payload
           itself was bounded (very large all-creators ranges). */}
       {data?.capped && (
-        <div className="rounded-xl bg-amber-50 border border-amber-100 px-4 py-2.5 text-xs text-amber-800">
+        <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 px-4 py-2.5 text-xs text-amber-500">
           Showing the top {data.deliveredCount.toLocaleString()} posts by GMV of{' '}
           {data.totals.postCount.toLocaleString()} in this range. The totals above
           still reflect all {data.totals.postCount.toLocaleString()} — narrow the
@@ -596,7 +596,7 @@ function PostRowView({ post: p, onClick }: { post: PostRow; onClick: (p: PostRow
       <td className="px-4 py-3 align-top">
         <div className="flex items-center gap-2">
           <span className="text-sm font-semibold text-[var(--foreground)]">@{p.creator_handle}</span>
-          {p.is_managed && <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 ring-1 ring-emerald-200 rounded px-1 py-0.5">Managed</span>}
+          {p.is_managed && <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-500 bg-emerald-500/10 ring-1 ring-emerald-200 rounded px-1 py-0.5">Managed</span>}
         </div>
       </td>
       <td className="px-4 py-3 align-top">
@@ -634,7 +634,7 @@ function PostRowView({ post: p, onClick }: { post: PostRow; onClick: (p: PostRow
         </span>
       </td>
       <td className="px-4 py-3 align-top text-right tabular-nums text-foreground">
-        <span className="inline-flex items-center gap-1 text-blue-700">
+        <span className="inline-flex items-center gap-1 text-blue-500">
           <MessageCircle className="h-3 w-3" />{formatNumber(p.comments)}
         </span>
       </td>

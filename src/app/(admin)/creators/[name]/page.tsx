@@ -165,15 +165,15 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
 
       {/* ── Stale data banner (top priority) ─────────────────────────────── */}
       {isStale && latestReportDate && (
-        <div className="rounded-2xl bg-amber-50 border border-amber-200 p-4 flex items-start gap-3">
-          <div className="h-9 w-9 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0">
+        <div className="rounded-2xl bg-amber-500/10 border border-amber-500/25 p-4 flex items-start gap-3">
+          <div className="h-9 w-9 rounded-xl bg-amber-500/15 flex items-center justify-center flex-shrink-0">
             <AlertTriangle className="h-4 w-4 text-amber-600" />
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-amber-900">
               Performance data is {daysStale} days old
             </p>
-            <p className="text-xs text-amber-700 mt-0.5">
+            <p className="text-xs text-amber-500 mt-0.5">
               Last data point: {new Date(latestReportDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}.
               Period-based stats below may show zero until a fresh TikTok Shop upload is processed.
               Lifetime stats are still accurate.
@@ -229,18 +229,18 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                     <span className={cn(
                       'text-xs px-2.5 py-0.5 rounded-full font-semibold border capitalize',
                       {
-                        active:   'bg-green-50 text-green-700 border-green-200',
-                        churned:  'bg-red-50 text-red-600 border-red-200',
-                        paused:   'bg-yellow-50 text-yellow-700 border-yellow-200',
-                        applied:  'bg-blue-50 text-blue-600 border-blue-200',
-                        pending:  'bg-orange-50 text-orange-600 border-orange-200',
+                        active:   'bg-green-500/10 text-green-500 border-green-500/25',
+                        churned:  'bg-red-500/10 text-red-600 border-red-500/25',
+                        paused:   'bg-yellow-500/10 text-yellow-500 border-yellow-500/25',
+                        applied:  'bg-blue-500/10 text-blue-600 border-blue-500/25',
+                        pending:  'bg-orange-500/10 text-orange-600 border-orange-500/25',
                       }[profile.status.toLowerCase()] ?? 'bg-muted text-muted-foreground border-border'
                     )}>
                       {profile.status}
                     </span>
                   )}
                   {profile.role && (
-                    <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold border bg-purple-50 text-purple-700 border-purple-200 capitalize">
+                    <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold border bg-purple-500/10 text-purple-500 border-purple-500/25 capitalize">
                       {profile.role}
                     </span>
                   )}
