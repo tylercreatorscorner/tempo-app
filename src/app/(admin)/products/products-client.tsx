@@ -272,7 +272,7 @@ export function ProductsClient({ brands, selectedBrand, startDate, endDate }: Pr
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search products..."
-                className="text-sm bg-card border border-border rounded-xl pl-8 pr-3 py-1.5 w-56 focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/20 focus:border-[#E91E8C]"
+                className="text-sm bg-card border border-border rounded-xl pl-8 pr-3 py-1.5 w-56 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)]"
               />
             </div>
             <button
@@ -357,7 +357,7 @@ function SortableTh({
       className={cn(
         'px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider cursor-pointer select-none transition-colors',
         align === 'right' ? 'text-right' : 'text-left',
-        active ? 'text-[#E91E8C]' : 'text-muted-foreground hover:text-foreground'
+        active ? 'text-[var(--primary)]' : 'text-muted-foreground hover:text-foreground'
       )}
     >
       {label}{arrow && <span className="ml-1">{arrow}</span>}
@@ -425,7 +425,7 @@ function ProductRowGroup({
         onClick={onToggle}
         className={cn(
           'border-t border-border hover:bg-muted/50 cursor-pointer transition-colors',
-          isExpanded && 'bg-primary/10/40'
+          isExpanded && 'bg-primary/10'
         )}
       >
         <td className="px-4 py-3 align-top">
@@ -445,7 +445,7 @@ function ProductRowGroup({
             {brandMeta.label(product.brand)}
           </span>
         </td>
-        <td className="px-4 py-3 text-right font-bold text-[#E91E8C] tabular-nums">{formatCurrency(product.gmv)}</td>
+        <td className="px-4 py-3 text-right font-bold text-[var(--primary)] tabular-nums">{formatCurrency(product.gmv)}</td>
         <td className="px-4 py-3 text-right text-foreground tabular-nums">{formatNumber(product.orders)}</td>
         <td className="px-4 py-3 text-right text-foreground tabular-nums">{formatNumber(product.items_sold)}</td>
         <td className="px-4 py-3 text-right text-foreground tabular-nums">{formatNumber(product.videos)}</td>
@@ -503,7 +503,7 @@ function CreatorBreakdown({
               <span className="font-medium text-[var(--foreground)] flex-1 truncate">@{c.tiktok_username}</span>
               <span className="text-muted-foreground w-24 text-right tabular-nums">{formatNumber(c.videos)} {c.videos === 1 ? 'vid' : 'vids'}</span>
               <span className="text-muted-foreground w-24 text-right tabular-nums">{formatNumber(c.orders)} orders</span>
-              <span className="font-bold text-[#E91E8C] w-24 text-right tabular-nums">{formatCurrency(c.gmv)}</span>
+              <span className="font-bold text-[var(--primary)] w-24 text-right tabular-nums">{formatCurrency(c.gmv)}</span>
               <span className="text-[10px] text-muted-foreground w-12 text-right tabular-nums">{share.toFixed(1)}%</span>
             </div>
           );
@@ -559,7 +559,7 @@ function TopProductsCard({
                     {brandMeta.label(p.brand)}
                   </div>
                   <div className="mt-1.5 h-1 bg-muted rounded-full overflow-hidden">
-                    <div className="h-full bg-[#E91E8C]" style={{ width: `${Math.min(100, share)}%` }} />
+                    <div className="h-full bg-[var(--primary)]" style={{ width: `${Math.min(100, share)}%` }} />
                   </div>
                 </div>
                 <div className="text-right shrink-0">

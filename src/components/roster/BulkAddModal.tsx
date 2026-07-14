@@ -216,7 +216,7 @@ export function BulkAddModal({ defaultBrand, initialRows, onClose, onSuccess }: 
           {/* Header */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-border sticky top-0 bg-card z-10">
             <div className="flex items-center gap-2">
-              <Users className="h-5 w-5 text-[#E91E8C]" />
+              <Users className="h-5 w-5 text-[var(--primary)]" />
               <h2 className="text-base font-bold text-[var(--foreground)]">Bulk add creators</h2>
             </div>
             <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted transition-colors">
@@ -282,7 +282,7 @@ export function BulkAddModal({ defaultBrand, initialRows, onClose, onSuccess }: 
 
               <button
                 onClick={onClose}
-                className="w-full px-4 py-2.5 text-sm font-semibold text-white bg-[#E91E8C] rounded-xl hover:bg-[#d4177d] transition-colors"
+                className="w-full px-4 py-2.5 text-sm font-semibold text-white bg-[var(--primary)] rounded-xl hover:bg-[#d4177d] transition-colors"
               >
                 Done
               </button>
@@ -300,12 +300,12 @@ export function BulkAddModal({ defaultBrand, initialRows, onClose, onSuccess }: 
               {/* Brand picker — required, one per batch */}
               <div>
                 <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-                  Brand <span className="text-[#E91E8C]">*</span>
+                  Brand <span className="text-[var(--primary)]">*</span>
                 </label>
                 <select
                   value={brand}
                   onChange={(e) => setBrand(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C] bg-card"
+                  className="w-full px-3 py-2 text-sm border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] bg-card"
                 >
                   <option value="">Select brand…</option>
                   {brands.map((b) => (
@@ -317,8 +317,8 @@ export function BulkAddModal({ defaultBrand, initialRows, onClose, onSuccess }: 
 
               {/* Pre-selected creators (multi-select entry point) */}
               {hasInitial && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground bg-primary/10/60 border border-primary/10 rounded-xl px-4 py-2.5">
-                  <Users className="h-4 w-4 text-[#E91E8C] shrink-0" />
+                <div className="flex items-center gap-2 text-sm text-muted-foreground bg-primary/10 border border-primary/10 rounded-xl px-4 py-2.5">
+                  <Users className="h-4 w-4 text-[var(--primary)] shrink-0" />
                   {initialRows!.length} creator{initialRows!.length === 1 ? '' : 's'} selected from All Creators
                 </div>
               )}
@@ -353,7 +353,7 @@ export function BulkAddModal({ defaultBrand, initialRows, onClose, onSuccess }: 
                     onChange={(e) => setPasteText(e.target.value)}
                     rows={7}
                     placeholder={'@creator_one\n@creator_two, Jane Smith\n@creator_three'}
-                    className="w-full px-3 py-2 text-sm font-mono border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C] resize-y"
+                    className="w-full px-3 py-2 text-sm font-mono border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] resize-y"
                   />
                   <p className="text-xs text-muted-foreground mt-1">One handle per line. Add a name after a comma: <code>@handle, Real Name</code>.</p>
                 </div>
@@ -374,7 +374,7 @@ export function BulkAddModal({ defaultBrand, initialRows, onClose, onSuccess }: 
                       onDrop={onDrop}
                       onClick={() => inputRef.current?.click()}
                       className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-colors ${
-                        dragOver ? 'border-[#E91E8C] bg-primary/10' : 'border-border hover:border-border'
+                        dragOver ? 'border-[var(--primary)] bg-primary/10' : 'border-border hover:border-border'
                       }`}
                     >
                       <Upload className="h-7 w-7 text-muted-foreground mx-auto mb-2" />
@@ -418,7 +418,7 @@ export function BulkAddModal({ defaultBrand, initialRows, onClose, onSuccess }: 
                     type="number" min="0" inputMode="decimal" placeholder="optional"
                     value={defRetainer}
                     onChange={(e) => setDefRetainer(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+                    className="w-full px-3 py-2 text-sm border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
                   />
                 </div>
                 <div>
@@ -429,7 +429,7 @@ export function BulkAddModal({ defaultBrand, initialRows, onClose, onSuccess }: 
                     type="number" min="0" inputMode="numeric" placeholder="30"
                     value={defPosts}
                     onChange={(e) => setDefPosts(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+                    className="w-full px-3 py-2 text-sm border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
                   />
                 </div>
               </div>
@@ -472,7 +472,7 @@ export function BulkAddModal({ defaultBrand, initialRows, onClose, onSuccess }: 
               <button
                 onClick={submit}
                 disabled={submitting || rows.length === 0 || !brand}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-[#E91E8C] rounded-xl hover:bg-[#d4177d] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-[var(--primary)] rounded-xl hover:bg-[#d4177d] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Users className="h-4 w-4" />}
                 {rows.length > 0 ? `Add ${rows.length} creator${rows.length === 1 ? '' : 's'}` : 'Add creators'}

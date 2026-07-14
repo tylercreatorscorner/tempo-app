@@ -307,7 +307,7 @@ export function PostsClient({
               onClick={toggleManaged}
               className={cn(
                 'underline-offset-2 hover:underline transition-colors',
-                managedOnly ? 'text-[#E91E8C] font-semibold' : 'text-muted-foreground',
+                managedOnly ? 'text-[var(--primary)] font-semibold' : 'text-muted-foreground',
               )}
               title="Toggle: managed creators only / all creators"
             >
@@ -387,7 +387,7 @@ export function PostsClient({
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search title or creator..."
               aria-label="Search posts"
-              className="text-sm bg-card border border-border rounded-xl pl-8 pr-3 py-1.5 w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/20 focus:border-[#E91E8C]"
+              className="text-sm bg-card border border-border rounded-xl pl-8 pr-3 py-1.5 w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)]"
             />
           </div>
           <button
@@ -482,7 +482,7 @@ function ViewToggle({ value, onChange }: { value: ViewMode; onChange: (v: ViewMo
         title="Card view"
         className={cn(
           'px-2.5 py-1.5 text-xs font-semibold transition-colors',
-          value === 'cards' ? 'bg-[#E91E8C] text-white' : 'text-muted-foreground hover:bg-muted',
+          value === 'cards' ? 'bg-[var(--primary)] text-white' : 'text-muted-foreground hover:bg-muted',
         )}
       >
         <LayoutGrid className="h-3.5 w-3.5" />
@@ -494,7 +494,7 @@ function ViewToggle({ value, onChange }: { value: ViewMode; onChange: (v: ViewMo
         title="Table view"
         className={cn(
           'px-2.5 py-1.5 text-xs font-semibold transition-colors border-l border-border',
-          value === 'table' ? 'bg-[#E91E8C] text-white' : 'text-muted-foreground hover:bg-muted',
+          value === 'table' ? 'bg-[var(--primary)] text-white' : 'text-muted-foreground hover:bg-muted',
         )}
       >
         <List className="h-3.5 w-3.5" />
@@ -614,7 +614,7 @@ function PostRowView({ post: p, onClick }: { post: PostRow; onClick: (p: PostRow
               target="_blank"
               rel="noopener noreferrer"
               onClick={e => e.stopPropagation()}
-              className="text-muted-foreground hover:text-[#E91E8C] mt-0.5 shrink-0"
+              className="text-muted-foreground hover:text-[var(--primary)] mt-0.5 shrink-0"
               title="Open on TikTok"
             >
               <ExternalLink className="h-3 w-3" />
@@ -646,7 +646,7 @@ function PostRowView({ post: p, onClick }: { post: PostRow; onClick: (p: PostRow
           {p.engagement_rate.toFixed(2)}%
         </span>
       </td>
-      <td className="px-4 py-3 align-top text-right tabular-nums font-bold text-[#E91E8C]">{formatCurrency(p.gmv)}</td>
+      <td className="px-4 py-3 align-top text-right tabular-nums font-bold text-[var(--primary)]">{formatCurrency(p.gmv)}</td>
       <td className="px-4 py-3 align-top">
         <ReviewCell post={p} />
       </td>
@@ -682,7 +682,7 @@ function ReviewCell({ post: p }: { post: PostRow }) {
         </span>
       )}
       {p.has_my_review && (
-        <span title="You reviewed this" className="text-[9px] font-bold uppercase tracking-wider text-[#E91E8C] bg-primary/10 ring-1 ring-primary/15 rounded px-1 py-0.5">
+        <span title="You reviewed this" className="text-[9px] font-bold uppercase tracking-wider text-[var(--primary)] bg-primary/10 ring-1 ring-primary/15 rounded px-1 py-0.5">
           you
         </span>
       )}
@@ -718,7 +718,7 @@ function ReviewFilterPills({
             className={cn(
               'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors',
               isActive
-                ? 'bg-[#E91E8C] text-white'
+                ? 'bg-[var(--primary)] text-white'
                 : 'bg-card border border-border text-muted-foreground hover:bg-muted',
             )}
           >
@@ -755,7 +755,7 @@ function SortableTh({
       className={cn(
         'px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider cursor-pointer select-none transition-colors',
         align === 'right' ? 'text-right' : 'text-left',
-        active ? 'text-[#E91E8C]' : 'text-muted-foreground hover:text-foreground',
+        active ? 'text-[var(--primary)]' : 'text-muted-foreground hover:text-foreground',
       )}
     >
       {label}{arrow && <span className="ml-1">{arrow}</span>}

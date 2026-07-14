@@ -45,7 +45,7 @@ export const TOPIC_COLORS: Record<MessageTopic, { bg: string; fg: string }> = {
   payment:  { bg: 'bg-green-50',  fg: 'text-green-600' },
   sample:   { bg: 'bg-amber-50',  fg: 'text-amber-700' },
   review:   { bg: 'bg-purple-50', fg: 'text-purple-600' },
-  checkin:  { bg: 'bg-pink-50',   fg: 'text-[#E91E8C]' },
+  checkin:  { bg: 'bg-pink-50',   fg: 'text-[var(--primary)]' },
   other:    { bg: 'bg-gray-100',  fg: 'text-gray-500' },
 };
 

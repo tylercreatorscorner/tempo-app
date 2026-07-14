@@ -81,7 +81,7 @@ export function VideoCard({ videoUrl, videoTitle, creatorName, gmv, orders, post
       {/* Thumbnail */}
       <div className="relative aspect-[9/12] bg-gradient-to-br from-primary/10 to-purple-50 overflow-hidden">
         {loading ? (
-          <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-primary/10/50 to-purple-100/50" />
+          <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-primary/10 to-purple-100/50" />
         ) : thumbnail ? (
           <img
             src={thumbnail}

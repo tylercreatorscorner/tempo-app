@@ -124,8 +124,8 @@ export function CustomRangePopover({ initialStart, initialEnd, onApply, onClose,
                   'h-7 w-full rounded-md text-xs font-medium transition-colors',
                   disabled && 'text-muted-foreground cursor-not-allowed',
                   !disabled && !inSel && !isStart && !isEnd && 'text-foreground hover:bg-muted',
-                  inSel && !isStart && !isEnd && 'bg-primary/10 text-[#E91E8C]',
-                  (isStart || isEnd) && 'bg-[#E91E8C] text-white',
+                  inSel && !isStart && !isEnd && 'bg-primary/10 text-[var(--primary)]',
+                  (isStart || isEnd) && 'bg-[var(--primary)] text-white',
                 )}
               >
                 {day.getDate()}
@@ -198,7 +198,7 @@ export function CustomRangePopover({ initialStart, initialEnd, onApply, onClose,
             }
           }}
           disabled={!canApply}
-          className="px-4 py-2 rounded-xl bg-[#E91E8C] text-white text-xs font-semibold hover:bg-[#d1177d] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="px-4 py-2 rounded-xl bg-[var(--primary)] text-white text-xs font-semibold hover:bg-[#d1177d] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           Apply
         </button>

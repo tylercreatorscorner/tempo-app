@@ -52,7 +52,7 @@ export function CreatorAlerts({ alerts }: Props) {
           ranked.map((alert, i) => (
             <div
               key={`${alert.name}-${alert.type}-${i}`}
-              className="flex items-center justify-between px-4 py-3 hover:bg-primary/10/20 transition-colors"
+              className="flex items-center justify-between px-4 py-3 hover:bg-primary/10 transition-colors"
             >
               <div className="flex items-center gap-3">
                 <span className="flex items-center justify-center">{TYPE_ICON[alert.type]}</span>

@@ -296,7 +296,7 @@ export function BrandEditSheet({ open, brand, brandLabel, teamMemberId, initialV
           <button
             onClick={handleSave}
             disabled={saving}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-[var(--primary)] rounded-xl hover:bg-[#E91E8C] disabled:opacity-50 transition-colors shadow-sm"
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-[var(--primary)] rounded-xl hover:bg-[var(--primary)] disabled:opacity-50 transition-colors shadow-sm"
           >
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             {saving ? 'Saving…' : 'Save changes'}

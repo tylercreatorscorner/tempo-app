@@ -119,11 +119,11 @@ export default function MessagesPage() {
               ← Back
             </button>
           )}
-          <MessageSquare className="h-5 w-5 text-[#E91E8C]" />
+          <MessageSquare className="h-5 w-5 text-[var(--primary)]" />
           <div className="flex items-center gap-2">
             <h1 className="text-lg font-bold text-[var(--foreground)]">Messages</h1>
             {totalUnread > 0 && (
-              <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-[#E91E8C] text-white text-[10px] font-bold">
+              <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-[var(--primary)] text-white text-[10px] font-bold">
                 {totalUnread > 99 ? '99+' : totalUnread}
               </span>
             )}
@@ -139,7 +139,7 @@ export default function MessagesPage() {
           </button>
           <button
             onClick={() => setBulkOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#E91E8C] text-white text-sm font-semibold hover:bg-[#d1177d] transition-colors shadow-sm"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[var(--primary)] text-white text-sm font-semibold hover:bg-[#d1177d] transition-colors shadow-sm"
           >
             <Users className="h-4 w-4" />
             Bulk Message

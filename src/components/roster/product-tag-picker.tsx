@@ -31,7 +31,7 @@ export function ProductFilterSelect({
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="px-4 py-2.5 rounded-xl border border-border text-sm bg-card focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C] self-start"
+      className="px-4 py-2.5 rounded-xl border border-border text-sm bg-card focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] self-start"
     >
       <option value="">All products</option>
       {products.map((p) => (
@@ -89,7 +89,7 @@ export function ProductTagPicker({
             key={p.product_key}
             onClick={() => toggle(p.product_key)}
             className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full border transition-colors ${
-              on ? 'bg-[#E91E8C] border-[#E91E8C] text-white' : 'bg-card border-border text-muted-foreground hover:border-border'
+              on ? 'bg-[var(--primary)] border-[var(--primary)] text-white' : 'bg-card border-border text-muted-foreground hover:border-border'
             }`}
           >
             {on && <Check className="h-3 w-3" />}

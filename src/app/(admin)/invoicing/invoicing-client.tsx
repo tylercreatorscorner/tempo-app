@@ -270,7 +270,7 @@ export function InvoicingClient({ initialOpenId }: Props) {
         </div>
         <button
           onClick={() => setCreating(true)}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[var(--primary)] text-white text-sm font-bold hover:bg-[#E91E8C] transition-colors shadow-sm flex-shrink-0"
+          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[var(--primary)] text-white text-sm font-bold hover:bg-[var(--primary)] transition-colors shadow-sm flex-shrink-0"
         >
           <Plus className="h-4 w-4" />
           Create Invoice
@@ -706,7 +706,7 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
       </p>
       <button
         onClick={onCreate}
-        className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-xl text-sm font-bold hover:bg-[#E91E8C] transition-colors shadow-sm"
+        className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-xl text-sm font-bold hover:bg-[var(--primary)] transition-colors shadow-sm"
       >
         <Plus className="h-4 w-4" />
         Create Invoice

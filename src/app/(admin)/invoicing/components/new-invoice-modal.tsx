@@ -127,7 +127,7 @@ export function NewInvoiceModal({ open, defaultMonth, onClose, onCreated, onView
         {/* Header */}
         <div className="px-6 py-5 border-b border-border flex items-start justify-between gap-3">
           <div className="flex items-start gap-3 min-w-0">
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-[var(--primary)] to-[#E91E8C] flex items-center justify-center flex-shrink-0 shadow-sm">
+            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-[var(--primary)] to-[var(--primary)] flex items-center justify-center flex-shrink-0 shadow-sm">
               <Receipt className="h-5 w-5 text-white" />
             </div>
             <div className="min-w-0">
@@ -225,8 +225,8 @@ export function NewInvoiceModal({ open, defaultMonth, onClose, onCreated, onView
           {selectedBrandData && (
             <div className="rounded-xl bg-gradient-to-br from-[var(--foreground)] to-[#2D2E5C] p-4 text-white">
               <div className="flex items-baseline justify-between mb-2">
-                <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-primary/15">Preview</p>
-                <p className="text-[11px] text-primary/15/80">{selectedBrandData.brandLabel} · {month}</p>
+                <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">Preview</p>
+                <p className="text-[11px] text-muted-foreground">{selectedBrandData.brandLabel} · {month}</p>
               </div>
               <div className="grid grid-cols-2 gap-2 text-xs">
                 {selectedBrandData.commission > 0 && <PreviewLine label="Commission" value={formatCurrency(selectedBrandData.commission)} />}
@@ -235,7 +235,7 @@ export function NewInvoiceModal({ open, defaultMonth, onClose, onCreated, onView
                 {selectedBrandData.launchFee > 0 && <PreviewLine label="Launch Fee" value={formatCurrency(selectedBrandData.launchFee)} />}
               </div>
               <div className="border-t border-white/10 mt-3 pt-3 flex items-baseline justify-between">
-                <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-primary/15">Invoice Total</span>
+                <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">Invoice Total</span>
                 <span className="text-2xl font-extrabold text-white tabular-nums">{formatCurrency(selectedBrandData.total)}</span>
               </div>
             </div>
@@ -274,7 +274,7 @@ export function NewInvoiceModal({ open, defaultMonth, onClose, onCreated, onView
           <button
             onClick={handleCreate}
             disabled={creating || !selectedBrand || !!conflict}
-            className="inline-flex items-center gap-2 px-5 py-2 text-sm font-bold text-white bg-[var(--primary)] rounded-xl hover:bg-[#E91E8C] disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+            className="inline-flex items-center gap-2 px-5 py-2 text-sm font-bold text-white bg-[var(--primary)] rounded-xl hover:bg-[var(--primary)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
           >
             {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Receipt className="h-4 w-4" />}
             {creating ? 'Generating…' : 'Generate Invoice'}
@@ -289,7 +289,7 @@ export function NewInvoiceModal({ open, defaultMonth, onClose, onCreated, onView
 function PreviewLine({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-baseline justify-between">
-      <span className="text-primary/15/80 text-[11px]">{label}</span>
+      <span className="text-muted-foreground text-[11px]">{label}</span>
       <span className="text-white font-semibold tabular-nums">{value}</span>
     </div>
   );

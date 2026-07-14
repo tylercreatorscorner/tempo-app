@@ -282,7 +282,7 @@ export function NewClientWizard({ open, onClose, onCreated }: Props) {
 
           <button
             onClick={finish}
-            className="w-full mt-6 px-4 py-3 rounded-xl bg-[var(--primary)] text-white text-sm font-bold hover:bg-[#E91E8C] transition-colors shadow-sm"
+            className="w-full mt-6 px-4 py-3 rounded-xl bg-[var(--primary)] text-white text-sm font-bold hover:bg-[var(--primary)] transition-colors shadow-sm"
           >
             {hadContactErrors ? 'Close — review contacts in Settings' : 'Done'}
           </button>
@@ -358,7 +358,7 @@ export function NewClientWizard({ open, onClose, onCreated }: Props) {
           <button
             onClick={() => setStep((s) => (s + 1) as 2 | 3)}
             disabled={step === 1 && !canAdvanceStep1}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-[var(--primary)] rounded-xl hover:bg-[#E91E8C] disabled:opacity-50 transition-colors shadow-sm"
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-[var(--primary)] rounded-xl hover:bg-[var(--primary)] disabled:opacity-50 transition-colors shadow-sm"
           >
             Continue
             <ArrowRight className="h-4 w-4" />
@@ -367,7 +367,7 @@ export function NewClientWizard({ open, onClose, onCreated }: Props) {
           <button
             onClick={handleSubmit}
             disabled={submitting || !canAdvanceStep1}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-[var(--primary)] rounded-xl hover:bg-[#E91E8C] disabled:opacity-50 transition-colors shadow-sm"
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-[var(--primary)] rounded-xl hover:bg-[var(--primary)] disabled:opacity-50 transition-colors shadow-sm"
           >
             {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
             {submitting ? 'Creating…' : 'Create Client'}

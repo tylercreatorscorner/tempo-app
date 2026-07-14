@@ -52,7 +52,7 @@ export function AffiliateLeaderboard({
                 onClick={() => toggle(r.identity)}
               >
                 {/* Rank */}
-                <span className={cn('w-5 text-center text-sm font-bold tabular-nums shrink-0', i < 3 ? 'text-[#E91E8C]' : 'text-muted-foreground')}>
+                <span className={cn('w-5 text-center text-sm font-bold tabular-nums shrink-0', i < 3 ? 'text-[var(--primary)]' : 'text-muted-foreground')}>
                   {i + 1}
                 </span>
 
@@ -80,7 +80,7 @@ export function AffiliateLeaderboard({
                       target="_blank"
                       rel="noopener noreferrer"
                       onClick={(e) => e.stopPropagation()}
-                      className="text-xs text-muted-foreground hover:text-[#E91E8C] transition-colors"
+                      className="text-xs text-muted-foreground hover:text-[var(--primary)] transition-colors"
                     >
                       @{r.handle}
                     </a>

@@ -102,7 +102,7 @@ export function RosterTable({ roster, onRefresh }: RosterTableProps) {
             placeholder="Search creators..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 text-sm border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/15 focus:border-[#E91E8C]"
+            className="w-full pl-9 pr-3 py-2 text-sm border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/15 focus:border-[var(--primary)]"
           />
         </div>
         <div className="flex items-center gap-2">
@@ -112,7 +112,7 @@ export function RosterTable({ roster, onRefresh }: RosterTableProps) {
               onClick={() => setStatusFilter(s)}
               className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
                 statusFilter === s
-                  ? 'bg-[#E91E8C] text-white'
+                  ? 'bg-[var(--primary)] text-white'
                   : 'bg-muted text-muted-foreground hover:bg-muted'
               }`}
             >
@@ -248,7 +248,7 @@ export function RosterTable({ roster, onRefresh }: RosterTableProps) {
           <button
             onClick={handleSave}
             disabled={saving}
-            className="mt-3 flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#E91E8C] rounded-xl hover:bg-[#d4177d] transition-colors disabled:opacity-50"
+            className="mt-3 flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[var(--primary)] rounded-xl hover:bg-[#d4177d] transition-colors disabled:opacity-50"
           >
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             Save Changes

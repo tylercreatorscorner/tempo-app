@@ -29,7 +29,7 @@ function fmtDay(iso?: string): string | null {
   return `${MONTHS[m - 1]} ${d}`;
 }
 
-export function SparklineCell({ data, days, color = '#E91E8C', width = 88, height = 26, format }: Props) {
+export function SparklineCell({ data, days, color = 'var(--primary)', width = 88, height = 26, format }: Props) {
   const series = (data ?? []).filter((v) => Number.isFinite(v));
   const [hover, setHover] = useState<{ i: number; x: number; y: number } | null>(null);
 

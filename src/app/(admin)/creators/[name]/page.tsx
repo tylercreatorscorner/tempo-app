@@ -98,7 +98,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
         </div>
         <Link
           href="/roster"
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#E91E8C] text-white text-sm font-semibold hover:bg-[#d1177d] transition-colors"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[var(--primary)] text-white text-sm font-semibold hover:bg-[#d1177d] transition-colors"
         >
           <ArrowLeft className="h-4 w-4" /> Back to Creators
         </Link>
@@ -189,8 +189,8 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
           className="h-1.5 w-full"
           style={{
             background: primaryBrand
-              ? `linear-gradient(90deg, ${brandColor(reg, primaryBrand, '#E91E8C')}, ${brandColor(reg, primaryBrand, '#E91E8C')}66)`
-              : 'linear-gradient(90deg, #E91E8C, #E91E8C66)',
+              ? `linear-gradient(90deg, ${brandColor(reg, primaryBrand, '#4B45FF')}, ${brandColor(reg, primaryBrand, '#4B45FF')}66)`
+              : 'linear-gradient(90deg, #4B45FF, #4B45FF66)',
           }}
         />
 
@@ -198,7 +198,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
           <div className="flex flex-col sm:flex-row sm:items-start gap-4">
             {/* Left: avatar + info (breadcrumb handles back navigation) */}
             <div className="flex items-start gap-4 flex-1 min-w-0">
-              <CreatorAvatar name={profile.real_name} color={brandColor(reg, primaryBrand, '#E91E8C')} />
+              <CreatorAvatar name={profile.real_name} color={brandColor(reg, primaryBrand, '#4B45FF')} />
 
               <div className="min-w-0 flex-1">
                 {/* Name row */}
@@ -245,7 +245,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                     </span>
                   )}
                   {managedInfo && (
-                    <span className="inline-flex items-center gap-1 text-xs px-2.5 py-0.5 rounded-full font-semibold border bg-primary/10 text-[#E91E8C] border-primary/15">
+                    <span className="inline-flex items-center gap-1 text-xs px-2.5 py-0.5 rounded-full font-semibold border bg-primary/10 text-[var(--primary)] border-primary/15">
                       <Shield className="h-3 w-3" /> Managed
                     </span>
                   )}
@@ -269,7 +269,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                       href={`https://tiktok.com/@${a.tiktok_username}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-1 text-xs text-[#E91E8C] hover:underline font-medium"
+                      className="flex items-center gap-1 text-xs text-[var(--primary)] hover:underline font-medium"
                     >
                       @{a.tiktok_username}
                       <ExternalLink className="h-2.5 w-2.5 opacity-60" />
@@ -406,7 +406,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
             <div className="rounded-2xl bg-card border border-border shadow-sm p-5">
               <div className="flex items-center gap-2 mb-3">
                 <div className="h-7 w-7 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <Shield className="h-3.5 w-3.5 text-[#E91E8C]" />
+                  <Shield className="h-3.5 w-3.5 text-[var(--primary)]" />
                 </div>
                 <h3 className="text-sm font-bold text-[var(--foreground)]">Notes</h3>
               </div>
@@ -453,7 +453,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                                 href={`https://tiktok.com/@${a.tiktok_username}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-[#E91E8C] hover:underline"
+                                className="text-[var(--primary)] hover:underline"
                               >
                                 @{a.tiktok_username}
                               </a>
@@ -575,7 +575,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                               items_sold: v.items_sold,
                               days_selling: v.days_selling,
                             }}
-                            className="text-left font-medium text-[var(--foreground)] hover:text-[#E91E8C] hover:underline transition-colors truncate block w-full"
+                            className="text-left font-medium text-[var(--foreground)] hover:text-[var(--primary)] hover:underline transition-colors truncate block w-full"
                           >
                             {v.video_title}
                           </VideoTitleButton>

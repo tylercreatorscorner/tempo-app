@@ -33,8 +33,8 @@ const ROLE_STYLE: Record<string, string> = {
   manager:       'bg-emerald-500/10 text-emerald-500 border-emerald-500/25',
   viewer:        'bg-slate-50 text-slate-600 border-slate-200',
   analyst:       'bg-amber-500/10 text-amber-500 border-amber-500/25',
-  brand:         'bg-primary/10 text-[#E91E8C] border-primary/15',
-  brand_contact: 'bg-primary/10 text-[#E91E8C] border-primary/15',
+  brand:         'bg-primary/10 text-[var(--primary)] border-primary/15',
+  brand_contact: 'bg-primary/10 text-[var(--primary)] border-primary/15',
 };
 // Higher = more access. A change to a lower rank asks for confirmation.
 const RANK: Record<string, number> = {
@@ -276,7 +276,7 @@ export function TeamManagement({ users, brands, tenantId, currentUserId }: Props
               className={cn(
                 'inline-flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-lg border transition-colors',
                 noAccess ? 'border-amber-500/25 bg-amber-500/10 text-amber-500'
-                  : expanded ? 'border-[var(--primary)]/40 bg-[var(--primary)]/5 text-[#E91E8C]'
+                  : expanded ? 'border-[var(--primary)]/40 bg-[var(--primary)]/5 text-[var(--primary)]'
                   : 'border-border text-muted-foreground hover:bg-muted',
               )}
             >
@@ -346,7 +346,7 @@ export function TeamManagement({ users, brands, tenantId, currentUserId }: Props
                     disabled={isPending}
                     className={cn(
                       'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors',
-                      on ? 'bg-[var(--primary)]/10 border-[var(--primary)]/30 text-[#E91E8C]' : 'bg-card border-border text-muted-foreground hover:border-border',
+                      on ? 'bg-[var(--primary)]/10 border-[var(--primary)]/30 text-[var(--primary)]' : 'bg-card border-border text-muted-foreground hover:border-border',
                     )}
                   >
                     <span className="h-2 w-2 rounded-full" style={{ backgroundColor: b.color || 'var(--muted-foreground)' }} />
@@ -517,7 +517,7 @@ function InviteModal(props: {
                         key={b.id} type="button" onClick={() => toggleBrand(b.id)}
                         className={cn(
                           'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors',
-                          on ? 'bg-[var(--primary)]/10 border-[var(--primary)]/30 text-[#E91E8C]' : 'bg-card border-border text-muted-foreground hover:border-border',
+                          on ? 'bg-[var(--primary)]/10 border-[var(--primary)]/30 text-[var(--primary)]' : 'bg-card border-border text-muted-foreground hover:border-border',
                         )}
                       >
                         <span className="h-2 w-2 rounded-full" style={{ backgroundColor: b.color || 'var(--muted-foreground)' }} />

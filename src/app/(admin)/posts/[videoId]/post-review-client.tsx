@@ -265,7 +265,7 @@ export function PostReviewClient({ meta }: { meta: VideoMeta }) {
                     className={cn(
                       'px-3 py-1 rounded-full text-xs font-medium transition-colors',
                       active
-                        ? 'bg-[#E91E8C] text-white'
+                        ? 'bg-[var(--primary)] text-white'
                         : 'bg-muted text-muted-foreground hover:bg-secondary',
                     )}
                   >
@@ -285,7 +285,7 @@ export function PostReviewClient({ meta }: { meta: VideoMeta }) {
               rows={4}
               maxLength={4000}
               placeholder="What worked, what didn't, what would you tell the creator about their next post..."
-              className="w-full bg-card border border-border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/20 focus:border-[#E91E8C] resize-y min-h-[100px]"
+              className="w-full bg-card border border-border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] resize-y min-h-[100px]"
             />
             <div className="text-[11px] text-muted-foreground mt-1 text-right">{draftNotes.length} / 4000</div>
           </div>
@@ -294,7 +294,7 @@ export function PostReviewClient({ meta }: { meta: VideoMeta }) {
             <button
               onClick={saveReview}
               disabled={saving || (draftRating === null && !draftNotes.trim() && draftTags.length === 0)}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#E91E8C] hover:bg-[#d1177d] text-white text-sm font-semibold disabled:opacity-50 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[var(--primary)] hover:bg-[#d1177d] text-white text-sm font-semibold disabled:opacity-50 transition-colors"
             >
               {saving ? <><Loader2 className="h-4 w-4 animate-spin" />Saving…</> : <><Save className="h-4 w-4" />{myReview ? 'Update review' : 'Save review'}</>}
             </button>
@@ -336,7 +336,7 @@ function Kpi({
   accent?: 'pink' | 'blue' | 'green' | 'amber' | 'gray';
 }) {
   const colorMap = {
-    pink:  'text-[#E91E8C]',
+    pink:  'text-[var(--primary)]',
     blue:  'text-blue-600',
     green: 'text-emerald-600',
     amber: 'text-amber-600',

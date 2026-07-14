@@ -396,7 +396,7 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
           <button
             onClick={handleEmail}
             disabled={emailing || invoice.status === 'void'}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--primary)] text-white text-xs font-bold hover:bg-[#E91E8C] disabled:opacity-50 transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--primary)] text-white text-xs font-bold hover:bg-[var(--primary)] disabled:opacity-50 transition-colors"
             title={invoice.bill_to_email ? `Email this invoice to ${invoice.bill_to_email}` : 'Set Bill-To Email to enable'}
           >
             {emailing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
@@ -640,7 +640,7 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
             <button
               onClick={handleSave}
               disabled={saving}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-[var(--primary)] rounded-xl hover:bg-[#E91E8C] disabled:opacity-50 transition-colors shadow-sm"
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-[var(--primary)] rounded-xl hover:bg-[var(--primary)] disabled:opacity-50 transition-colors shadow-sm"
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               {saving ? 'Saving…' : 'Save changes'}

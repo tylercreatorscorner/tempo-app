@@ -112,7 +112,7 @@ export function PostCard({ post: p, onClick }: Props) {
           )}
           {p.has_my_review && (
             <span
-              className="inline-flex items-center text-[10px] font-bold text-[#E91E8C] bg-primary/10/95 backdrop-blur-sm ring-1 ring-primary/15 rounded-full px-2 py-0.5"
+              className="inline-flex items-center text-[10px] font-bold text-[var(--primary)] bg-primary/10 backdrop-blur-sm ring-1 ring-primary/15 rounded-full px-2 py-0.5"
               title="You reviewed this"
             >
               YOU
@@ -216,7 +216,7 @@ export function PostCard({ post: p, onClick }: Props) {
           >
             {p.engagement_rate.toFixed(2)}% eng
           </span>
-          <span className="font-bold tabular-nums text-[#E91E8C]" title={`$${p.gmv.toLocaleString()} GMV`}>
+          <span className="font-bold tabular-nums text-[var(--primary)]" title={`$${p.gmv.toLocaleString()} GMV`}>
             {formatCurrency(p.gmv)}
           </span>
         </div>

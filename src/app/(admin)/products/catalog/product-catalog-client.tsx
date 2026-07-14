@@ -72,7 +72,7 @@ export function ProductCatalogClient() {
         {brand && (
           <button
             onClick={() => setEditing('new')}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#E91E8C] text-sm font-semibold text-white hover:bg-[#d1177d] transition-colors shadow-sm self-start sm:self-auto"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[var(--primary)] text-sm font-semibold text-white hover:bg-[#d1177d] transition-colors shadow-sm self-start sm:self-auto"
           >
             <Plus className="h-4 w-4" /> Add product
           </button>
@@ -85,7 +85,7 @@ export function ProductCatalogClient() {
         <select
           value={brand}
           onChange={(e) => setBrand(e.target.value)}
-          className="px-3 py-2 text-sm border border-border rounded-xl bg-card focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C] min-w-[220px]"
+          className="px-3 py-2 text-sm border border-border rounded-xl bg-card focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] min-w-[220px]"
         >
           <option value="">Select a brand…</option>
           {brands.map((b) => (
@@ -121,7 +121,7 @@ export function ProductCatalogClient() {
               <div className="p-16 text-center">
                 <Package className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
                 <p className="text-muted-foreground text-sm font-medium">No products defined for {brandName} yet</p>
-                <button onClick={() => setEditing('new')} className="text-[#E91E8C] text-sm font-semibold mt-2 hover:underline">
+                <button onClick={() => setEditing('new')} className="text-[var(--primary)] text-sm font-semibold mt-2 hover:underline">
                   Add the first one
                 </button>
               </div>
@@ -132,7 +132,7 @@ export function ProductCatalogClient() {
                   return (
                     <div key={p.id} className="flex items-center gap-4 px-5 py-4 hover:bg-muted/50 transition-colors">
                       <div className="h-9 w-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                        <Package className="h-4 w-4 text-[#E91E8C]" />
+                        <Package className="h-4 w-4 text-[var(--primary)]" />
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
@@ -252,7 +252,7 @@ function ProductEditor({
         >
           <div className="flex items-center justify-between px-6 py-4 border-b border-border sticky top-0 bg-card z-10">
             <div className="flex items-center gap-2">
-              <Package className="h-5 w-5 text-[#E91E8C]" />
+              <Package className="h-5 w-5 text-[var(--primary)]" />
               <h2 className="text-base font-bold text-[var(--foreground)]">
                 {product ? 'Edit product' : 'New product'}{brandName ? ` · ${brandName}` : ''}
               </h2>
@@ -269,13 +269,13 @@ function ProductEditor({
 
             <div>
               <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-                Product name <span className="text-[#E91E8C]">*</span>
+                Product name <span className="text-[var(--primary)]">*</span>
               </label>
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. Whitening Strips"
-                className="w-full px-3 py-2 text-sm border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+                className="w-full px-3 py-2 text-sm border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
               />
             </div>
 
@@ -291,7 +291,7 @@ function ProductEditor({
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     placeholder="Filter SKUs…"
-                    className="pl-7 pr-2 py-1 text-xs border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-[#E91E8C]/30 w-40"
+                    className="pl-7 pr-2 py-1 text-xs border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-[var(--primary)]/30 w-40"
                   />
                 </div>
               </div>
@@ -310,7 +310,7 @@ function ProductEditor({
                       onClick={() => toggle(s.product_id)}
                       className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-muted transition-colors"
                     >
-                      <span className={`h-4 w-4 rounded border flex items-center justify-center shrink-0 ${on ? 'bg-[#E91E8C] border-[#E91E8C]' : 'border-border'}`}>
+                      <span className={`h-4 w-4 rounded border flex items-center justify-center shrink-0 ${on ? 'bg-[var(--primary)] border-[var(--primary)]' : 'border-border'}`}>
                         {on && <Check className="h-3 w-3 text-white" />}
                       </span>
                       <span className="min-w-0 flex-1 text-xs text-[var(--foreground)] truncate">{s.product_name || s.product_id}</span>
@@ -329,7 +329,7 @@ function ProductEditor({
                 value={keywords}
                 onChange={(e) => setKeywords(e.target.value)}
                 placeholder="e.g. whitening strips, purple strips"
-                className="w-full px-3 py-2 text-sm border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+                className="w-full px-3 py-2 text-sm border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
               />
               <p className="text-xs text-muted-foreground mt-1">Comma-separated. A fallback for matching products by name.</p>
             </div>
@@ -338,7 +338,7 @@ function ProductEditor({
               <button
                 onClick={save}
                 disabled={saving}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-[#E91E8C] rounded-xl hover:bg-[#d4177d] transition-colors disabled:opacity-50"
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-[var(--primary)] rounded-xl hover:bg-[#d4177d] transition-colors disabled:opacity-50"
               >
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
                 {product ? 'Save changes' : 'Create product'}

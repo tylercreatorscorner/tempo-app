@@ -174,7 +174,7 @@ export function AutomationsClient() {
         </div>
         <button
           onClick={() => setEditing('new')}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[var(--primary)] text-white text-sm font-semibold hover:bg-[#E91E8C] transition-colors"
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[var(--primary)] text-white text-sm font-semibold hover:bg-[var(--primary)] transition-colors"
         >
           <Plus className="h-4 w-4" />
           New automation
@@ -355,7 +355,7 @@ function EmptyState({ onNew }: { onNew: () => void }) {
       </p>
       <button
         onClick={onNew}
-        className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg bg-[var(--primary)] text-white hover:bg-[#E91E8C] transition-colors"
+        className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg bg-[var(--primary)] text-white hover:bg-[var(--primary)] transition-colors"
       >
         <Plus className="h-3 w-3" />
         Create your first automation
@@ -707,7 +707,7 @@ function BuilderDrawer({
           <button
             onClick={save}
             disabled={saving}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[var(--primary)] text-white hover:bg-[#E91E8C] disabled:opacity-50 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[var(--primary)] text-white hover:bg-[var(--primary)] disabled:opacity-50 transition-colors"
           >
             {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Pencil className="h-3.5 w-3.5" />}
             {saving ? 'Saving…' : automation ? 'Save changes' : 'Create automation'}

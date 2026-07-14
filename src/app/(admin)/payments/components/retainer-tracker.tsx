@@ -280,7 +280,7 @@ export function RetainerTracker({
           <span>Showing all {total} rows</span>
           <button
             onClick={() => setPageSize(25)}
-            className="font-semibold text-[var(--primary)] hover:text-[#E91E8C] transition-colors"
+            className="font-semibold text-[var(--primary)] hover:text-[var(--primary)] transition-colors"
           >
             Paginate
           </button>

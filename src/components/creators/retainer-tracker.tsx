@@ -247,7 +247,7 @@ function RetainerEditForm({
       <button
         onClick={handleSave}
         disabled={saving}
-        className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[var(--primary)] rounded-xl hover:bg-[#E91E8C] transition-colors disabled:opacity-50"
+        className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[var(--primary)] rounded-xl hover:bg-[var(--primary)] transition-colors disabled:opacity-50"
       >
         {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
         Save

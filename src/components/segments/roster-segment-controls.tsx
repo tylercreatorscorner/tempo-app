@@ -155,7 +155,7 @@ function SaveModal({
           </div>
           <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-border">
             <button onClick={onClose} className="px-3 py-2 rounded-lg text-sm text-muted-foreground hover:bg-muted">Cancel</button>
-            <button onClick={save} disabled={saving} className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-[#E91E8C] hover:bg-[#d1177d] disabled:opacity-50">
+            <button onClick={save} disabled={saving} className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-[var(--primary)] hover:bg-[#d1177d] disabled:opacity-50">
               {saving ? 'Saving…' : 'Save segment'}
             </button>
           </div>

@@ -192,7 +192,7 @@ export function CreatorOverridesSection({ brand, brandRate }: Props) {
                 {isDirty && !isSaving && (
                   <button
                     onClick={() => handleUpdate(o.creator_name)}
-                    className="inline-flex items-center justify-center h-7 w-7 rounded-lg bg-[var(--primary)] text-white hover:bg-[#E91E8C] transition-colors"
+                    className="inline-flex items-center justify-center h-7 w-7 rounded-lg bg-[var(--primary)] text-white hover:bg-[var(--primary)] transition-colors"
                     title="Save"
                   >
                     <Save className="h-3.5 w-3.5" />
@@ -246,7 +246,7 @@ export function CreatorOverridesSection({ brand, brandRate }: Props) {
           <button
             onClick={handleAdd}
             disabled={adding || !draftCreator || !draftRate}
-            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[var(--primary)] text-white text-xs font-bold hover:bg-[#E91E8C] disabled:opacity-50 transition-colors"
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[var(--primary)] text-white text-xs font-bold hover:bg-[var(--primary)] disabled:opacity-50 transition-colors"
           >
             {adding ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
             Add

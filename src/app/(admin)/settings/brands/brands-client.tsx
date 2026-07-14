@@ -132,7 +132,7 @@ export function BrandsSettingsClient() {
           </button>
           <button
             onClick={() => setAdding(true)}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[var(--primary)] text-white text-sm font-bold hover:bg-[#E91E8C] transition-colors shadow-sm"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[var(--primary)] text-white text-sm font-bold hover:bg-[var(--primary)] transition-colors shadow-sm"
           >
             <Plus className="h-4 w-4" />
             New Client
@@ -168,7 +168,7 @@ export function BrandsSettingsClient() {
           <p className="text-xs text-muted-foreground mt-1 mb-4">Onboard your first client to get started.</p>
           <button
             onClick={() => setAdding(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-xl text-sm font-bold hover:bg-[#E91E8C] transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-xl text-sm font-bold hover:bg-[var(--primary)] transition-colors"
           >
             <Plus className="h-4 w-4" />
             New Client

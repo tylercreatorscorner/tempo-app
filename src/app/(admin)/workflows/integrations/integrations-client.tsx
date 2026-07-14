@@ -383,7 +383,7 @@ function ConnectModal({
           {oauthSupported && (
             <button
               onClick={go}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[var(--primary)] text-white hover:bg-[#E91E8C] transition-colors"
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[var(--primary)] text-white hover:bg-[var(--primary)] transition-colors"
             >
               Continue to {label}
             </button>
@@ -630,7 +630,7 @@ function TestSendSection({
       <button
         onClick={send}
         disabled={sending}
-        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[var(--primary)] text-white hover:bg-[#E91E8C] disabled:opacity-50 transition-colors"
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[var(--primary)] text-white hover:bg-[var(--primary)] disabled:opacity-50 transition-colors"
       >
         {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
         {sending ? 'Sending…' : `Send test ${action.action.replace(/_/g, ' ').replace(/^send /, '')}`}

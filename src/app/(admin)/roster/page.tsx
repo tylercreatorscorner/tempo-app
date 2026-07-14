@@ -334,7 +334,7 @@ function BrandSelect({
                 placeholder="Search brands…"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/20 focus:border-[#E91E8C]"
+                className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)]"
               />
             </div>
           </div>
@@ -343,7 +343,7 @@ function BrandSelect({
               type="button"
               onClick={() => { onChange('all'); setOpen(false); setQuery(''); }}
               className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors text-left ${
-                value === 'all' ? 'bg-primary/10/40 text-[#E91E8C] font-semibold' : 'text-foreground'
+                value === 'all' ? 'bg-primary/10 text-[var(--primary)] font-semibold' : 'text-foreground'
               }`}
             >
               <Globe className="h-3.5 w-3.5 text-muted-foreground" />
@@ -359,7 +359,7 @@ function BrandSelect({
                 key={b.slug}
                 onClick={() => { onChange(b.slug); setOpen(false); setQuery(''); }}
                 className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors text-left ${
-                  value === b.slug ? 'bg-primary/10/40 text-[#E91E8C] font-semibold' : 'text-foreground'
+                  value === b.slug ? 'bg-primary/10 text-[var(--primary)] font-semibold' : 'text-foreground'
                 }`}
               >
                 <span
@@ -469,7 +469,7 @@ function ExtraAccountsBadge({ creator }: { creator: Creator }) {
     <div className="relative inline-block ml-1.5" ref={ref}>
       <button
         onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
-        className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-primary/10 text-[#E91E8C] hover:bg-primary/10 transition-colors"
+        className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-primary/10 text-[var(--primary)] hover:bg-primary/10 transition-colors"
       >
         +{extras.length}
       </button>
@@ -481,7 +481,7 @@ function ExtraAccountsBadge({ creator }: { creator: Creator }) {
               href={`https://tiktok.com/@${h}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="block px-2 py-1.5 text-xs text-[#E91E8C] hover:bg-primary/10 rounded-lg transition-colors"
+              className="block px-2 py-1.5 text-xs text-[var(--primary)] hover:bg-primary/10 rounded-lg transition-colors"
               onClick={(e) => e.stopPropagation()}
             >
               @{h}
@@ -693,7 +693,7 @@ function CreatorPanel({
                 <button
                   onClick={handleSave}
                   disabled={saving}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#E91E8C] text-white hover:bg-[#d1177d] disabled:opacity-60 transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[var(--primary)] text-white hover:bg-[#d1177d] disabled:opacity-60 transition-colors"
                 >
                   {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
                   {saving ? 'Saving…' : 'Save'}
@@ -751,7 +751,7 @@ function CreatorPanel({
                     value={form.real_name}
                     onChange={e => set('real_name', e.target.value)}
                     placeholder="Jane Smith"
-                    className="w-full px-3 py-2 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+                    className="w-full px-3 py-2 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
                   />
                 </div>
                 <div>
@@ -759,7 +759,7 @@ function CreatorPanel({
                   <select
                     value={form.brand}
                     onChange={e => set('brand', e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-border text-sm bg-card focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+                    className="w-full px-3 py-2 rounded-xl border border-border text-sm bg-card focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
                   >
                     <option value="">— none —</option>
                     {brandOptions.map(b => (
@@ -787,7 +787,7 @@ function CreatorPanel({
                         value={h}
                         onChange={(e) => setHandleAt(idx, e.target.value)}
                         placeholder={idx === 0 ? 'primary handle' : 'additional handle'}
-                        className="flex-1 px-3 py-2 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+                        className="flex-1 px-3 py-2 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
                       />
                       {(handles.length > 1 || h !== '') && (
                         <button
@@ -805,7 +805,7 @@ function CreatorPanel({
                   <button
                     type="button"
                     onClick={addHandle}
-                    className="inline-flex items-center gap-1 text-xs font-medium text-[#E91E8C] hover:underline mt-1"
+                    className="inline-flex items-center gap-1 text-xs font-medium text-[var(--primary)] hover:underline mt-1"
                   >
                     <Plus className="h-3.5 w-3.5" /> Add another handle
                   </button>
@@ -822,7 +822,7 @@ function CreatorPanel({
                     value={form.retainer}
                     onChange={e => set('retainer', e.target.value)}
                     placeholder="0"
-                    className="w-full px-3 py-2 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+                    className="w-full px-3 py-2 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
                   />
                 </div>
                 <div>
@@ -834,7 +834,7 @@ function CreatorPanel({
                     value={form.monthly_post_requirement}
                     onChange={e => set('monthly_post_requirement', e.target.value)}
                     placeholder="30"
-                    className="w-full px-3 py-2 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+                    className="w-full px-3 py-2 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
                   />
                 </div>
               </div>
@@ -845,7 +845,7 @@ function CreatorPanel({
                   <select
                     value={form.status}
                     onChange={e => set('status', e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-border text-sm bg-card focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+                    className="w-full px-3 py-2 rounded-xl border border-border text-sm bg-card focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
                   >
                     <option value="Active">Active</option>
                     <option value="On Hold">On Hold</option>
@@ -860,7 +860,7 @@ function CreatorPanel({
                     value={form.discord_name}
                     onChange={e => set('discord_name', e.target.value)}
                     placeholder="username"
-                    className="w-full px-3 py-2 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+                    className="w-full px-3 py-2 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
                   />
                 </div>
               </div>
@@ -872,7 +872,7 @@ function CreatorPanel({
                   value={form.notes}
                   onChange={e => set('notes', e.target.value)}
                   placeholder="Any notes about this creator…"
-                  className="w-full px-3 py-2 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C] resize-none"
+                  className="w-full px-3 py-2 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] resize-none"
                 />
               </div>
             </div>
@@ -944,7 +944,7 @@ function CreatorPanel({
                         href={`https://tiktok.com/@${h}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center gap-1.5 text-sm text-[#E91E8C] hover:underline"
+                        className="flex items-center gap-1.5 text-sm text-[var(--primary)] hover:underline"
                       >
                         @{h}
                         <ExternalLink className="h-3 w-3 opacity-60" />
@@ -988,7 +988,7 @@ function CreatorPanel({
               {primaryHandle(creator) && (
                 <Link
                   href={`/creators/${encodeURIComponent(primaryHandle(creator)!)}`}
-                  className="flex items-center justify-center gap-2 w-full mt-2 px-4 py-3 rounded-xl bg-[#E91E8C] text-white text-sm font-semibold hover:bg-[#d1177d] transition-colors"
+                  className="flex items-center justify-center gap-2 w-full mt-2 px-4 py-3 rounded-xl bg-[var(--primary)] text-white text-sm font-semibold hover:bg-[#d1177d] transition-colors"
                 >
                   <ExternalLink className="h-4 w-4" />
                   View Full Profile
@@ -1084,7 +1084,7 @@ function AddCreatorModal({ prefill, onClose, onSuccess }: AddCreatorModalProps) 
               placeholder="e.g. Jane Smith"
               value={form.real_name}
               onChange={(e) => set('real_name', e.target.value)}
-              className="w-full px-3 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+              className="w-full px-3 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
             />
           </div>
 
@@ -1100,7 +1100,7 @@ function AddCreatorModal({ prefill, onClose, onSuccess }: AddCreatorModalProps) 
                     placeholder={idx === 0 ? '@primary_handle' : '@additional_handle'}
                     value={h}
                     onChange={(e) => setHandleAt(idx, e.target.value)}
-                    className="flex-1 px-3 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+                    className="flex-1 px-3 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
                   />
                   {(handles.length > 1 || h !== '') && (
                     <button
@@ -1117,7 +1117,7 @@ function AddCreatorModal({ prefill, onClose, onSuccess }: AddCreatorModalProps) 
               <button
                 type="button"
                 onClick={addHandle}
-                className="inline-flex items-center gap-1 text-xs font-medium text-[#E91E8C] hover:underline mt-1"
+                className="inline-flex items-center gap-1 text-xs font-medium text-[var(--primary)] hover:underline mt-1"
               >
                 <Plus className="h-3.5 w-3.5" /> Add another handle
               </button>
@@ -1129,7 +1129,7 @@ function AddCreatorModal({ prefill, onClose, onSuccess }: AddCreatorModalProps) 
             <select
               value={form.brand}
               onChange={(e) => set('brand', e.target.value)}
-              className="w-full px-3 py-2.5 rounded-xl border border-border text-sm bg-card focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+              className="w-full px-3 py-2.5 rounded-xl border border-border text-sm bg-card focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
             >
               <option value="">Select brand...</option>
               {brandOptions.map(b => (
@@ -1157,7 +1157,7 @@ function AddCreatorModal({ prefill, onClose, onSuccess }: AddCreatorModalProps) 
                 placeholder="0"
                 value={form.retainer}
                 onChange={(e) => set('retainer', e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+                className="w-full px-3 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
               />
             </div>
             <div>
@@ -1169,7 +1169,7 @@ function AddCreatorModal({ prefill, onClose, onSuccess }: AddCreatorModalProps) 
                 placeholder="30"
                 value={form.monthly_post_requirement}
                 onChange={(e) => set('monthly_post_requirement', e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+                className="w-full px-3 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
               />
             </div>
           </div>
@@ -1181,7 +1181,7 @@ function AddCreatorModal({ prefill, onClose, onSuccess }: AddCreatorModalProps) 
               placeholder="e.g. janedoe#1234"
               value={form.discord_name}
               onChange={(e) => set('discord_name', e.target.value)}
-              className="w-full px-3 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+              className="w-full px-3 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
             />
           </div>
 
@@ -1193,7 +1193,7 @@ function AddCreatorModal({ prefill, onClose, onSuccess }: AddCreatorModalProps) 
                 placeholder="creator@email.com"
                 value={form.email}
                 onChange={(e) => set('email', e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+                className="w-full px-3 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
               />
             </div>
             <div>
@@ -1203,7 +1203,7 @@ function AddCreatorModal({ prefill, onClose, onSuccess }: AddCreatorModalProps) 
                 placeholder="+1 555 123 4567"
                 value={form.phone}
                 onChange={(e) => set('phone', e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+                className="w-full px-3 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
               />
             </div>
           </div>
@@ -1218,7 +1218,7 @@ function AddCreatorModal({ prefill, onClose, onSuccess }: AddCreatorModalProps) 
               placeholder="e.g. 1275246569070792704"
               value={form.discord_id}
               onChange={(e) => set('discord_id', e.target.value)}
-              className="w-full px-3 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+              className="w-full px-3 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
             />
           </div>
 
@@ -1233,7 +1233,7 @@ function AddCreatorModal({ prefill, onClose, onSuccess }: AddCreatorModalProps) 
               placeholder="Any notes about this creator..."
               value={form.notes}
               onChange={(e) => set('notes', e.target.value)}
-              className="w-full px-3 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C] resize-none"
+              className="w-full px-3 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] resize-none"
             />
           </div>
 
@@ -1246,7 +1246,7 @@ function AddCreatorModal({ prefill, onClose, onSuccess }: AddCreatorModalProps) 
             <button
               type="submit"
               disabled={saving}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#E91E8C] text-white text-sm font-semibold hover:bg-[#d1177d] disabled:opacity-60 transition-colors"
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[var(--primary)] text-white text-sm font-semibold hover:bg-[#d1177d] disabled:opacity-60 transition-colors"
             >
               {saving && <Loader2 className="h-4 w-4 animate-spin" />}
               {saving ? 'Adding...' : 'Add Creator'}
@@ -1300,7 +1300,7 @@ function CreatorAvatar({ creator }: { creator: Creator }) {
     );
   }
   return (
-    <span className="h-8 w-8 rounded-full flex-shrink-0 bg-gradient-to-br from-primary/10 to-purple-100 text-[#E91E8C] flex items-center justify-center text-xs font-semibold">
+    <span className="h-8 w-8 rounded-full flex-shrink-0 bg-gradient-to-br from-primary/10 to-purple-100 text-[var(--primary)] flex items-center justify-center text-xs font-semibold">
       {initial}
     </span>
   );
@@ -1595,7 +1595,7 @@ function RosterContent() {
           </button>
           <button
             onClick={() => setAddModalPrefill({})}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#E91E8C] text-sm font-semibold text-white hover:bg-[#d1177d] transition-colors shadow-sm"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[var(--primary)] text-sm font-semibold text-white hover:bg-[#d1177d] transition-colors shadow-sm"
           >
             <UserPlus className="h-4 w-4" />
             Add Creator
@@ -1663,7 +1663,7 @@ function RosterContent() {
               key={v.key}
               onClick={() => setView(v.key)}
               className={`px-4 py-2 transition-colors ${
-                view === v.key ? 'bg-[#E91E8C] text-white' : 'bg-card text-muted-foreground hover:bg-muted'
+                view === v.key ? 'bg-[var(--primary)] text-white' : 'bg-card text-muted-foreground hover:bg-muted'
               }`}
             >
               {v.label}
@@ -1677,7 +1677,7 @@ function RosterContent() {
             placeholder="Search by name or handle…"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
           />
         </div>
         <ProductFilterSelect brand={brand} value={productFilter} onChange={setProductFilter} />
@@ -1705,7 +1705,7 @@ function RosterContent() {
       {/* Active segment chip — indicates applied filters (incl. hidden thresholds) */}
       {segFilters && (
         <div className="flex items-center gap-2 -mt-1">
-          <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-primary/10 text-[#E91E8C] border border-primary/10">
+          <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-primary/10 text-[var(--primary)] border border-primary/10">
             Segment: {segFilters.name}
             <button onClick={() => setSegFilters(null)} className="ml-0.5 leading-none text-sm hover:text-[#d1177d]" aria-label="Clear segment">×</button>
           </span>
@@ -1727,7 +1727,7 @@ function RosterContent() {
             </button>
             <button
               onClick={openBulkFromSelection}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[#E91E8C] text-sm font-semibold text-white hover:bg-[#d1177d] transition-colors"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[var(--primary)] text-sm font-semibold text-white hover:bg-[#d1177d] transition-colors"
             >
               <Plus className="h-4 w-4" />
               Add {selected.size} to roster
@@ -1758,7 +1758,7 @@ function RosterContent() {
                       <input
                         type="checkbox"
                         aria-label="Select all unmanaged on this page"
-                        className="h-4 w-4 rounded border-border text-[#E91E8C] focus:ring-[#E91E8C]/40 cursor-pointer accent-[#E91E8C]"
+                        className="h-4 w-4 rounded border-border text-[var(--primary)] focus:ring-[var(--primary)]/40 cursor-pointer accent-[var(--primary)]"
                         checked={allOnPageSelected}
                         ref={(el) => { if (el) el.indeterminate = someOnPageSelected && !allOnPageSelected; }}
                         disabled={selectableOnPage.length === 0}
@@ -1818,7 +1818,7 @@ function RosterContent() {
                   return (
                     <Fragment key={c.id}>
                     <tr
-                      className={`transition-colors cursor-pointer ${c.is_managed ? 'hover:bg-primary/10/20' : 'bg-slate-50/40 hover:bg-slate-100/50'} ${isOpen ? 'bg-primary/10/30' : ''}`}
+                      className={`transition-colors cursor-pointer ${c.is_managed ? 'hover:bg-primary/10' : 'bg-slate-50/40 hover:bg-slate-100/50'} ${isOpen ? 'bg-primary/10' : ''}`}
                       onClick={() => {
                         if (isGroup) { toggleExpand(c.id); return; }
                         if (c.is_managed) setSelectedCreator(c);
@@ -1831,7 +1831,7 @@ function RosterContent() {
                             <input
                               type="checkbox"
                               aria-label={`Select @${primary}`}
-                              className="h-4 w-4 rounded border-border text-[#E91E8C] focus:ring-[#E91E8C]/40 cursor-pointer accent-[#E91E8C]"
+                              className="h-4 w-4 rounded border-border text-[var(--primary)] focus:ring-[var(--primary)]/40 cursor-pointer accent-[var(--primary)]"
                               checked={selected.has(c.id)}
                               onChange={() => toggleSelect(c)}
                             />
@@ -1858,7 +1858,7 @@ function RosterContent() {
                             {(c.product_tags ?? []).length > 0 && (
                               <div className="flex flex-wrap gap-1 mt-1">
                                 {(c.product_tags ?? []).slice(0, 3).map((t) => (
-                                  <span key={t.key} className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-primary/10 text-[#E91E8C]">
+                                  <span key={t.key} className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-primary/10 text-[var(--primary)]">
                                     {t.name}
                                   </span>
                                 ))}
@@ -1877,7 +1877,7 @@ function RosterContent() {
                               href={`https://tiktok.com/@${primary}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-[#E91E8C] hover:underline font-medium"
+                              className="text-[var(--primary)] hover:underline font-medium"
                               onClick={(e) => e.stopPropagation()}
                             >
                               @{primary}
@@ -1889,7 +1889,7 @@ function RosterContent() {
                       {showBrandColumn && (
                         <td className="px-5 py-3.5">
                           {isGroup ? (
-                            <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-primary/10 text-[#E91E8C] border border-primary/10">
+                            <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-primary/10 text-[var(--primary)] border border-primary/10">
                               {c.brands?.length ?? 0} brands
                             </span>
                           ) : c.brand ? (
@@ -1944,7 +1944,7 @@ function RosterContent() {
                           {!c.is_managed && (
                             <button
                               onClick={(e) => { e.stopPropagation(); setAddModalPrefill({ account_1: primary ?? '', brand: c.brand ?? '' }); }}
-                              className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border border-primary/15 bg-primary/10 text-[#E91E8C] hover:bg-primary/10 transition-colors whitespace-nowrap"
+                              className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border border-primary/15 bg-primary/10 text-[var(--primary)] hover:bg-primary/10 transition-colors whitespace-nowrap"
                             >
                               <Plus className="h-3 w-3" /> Add to roster
                             </button>

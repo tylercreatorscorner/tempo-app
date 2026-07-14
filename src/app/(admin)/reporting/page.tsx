@@ -207,7 +207,7 @@ function GenerateTab() {
 
 // ── Audience Section wrapper ────────────────────────────────────────
 const ACCENT_STYLES = {
-  pink:   { dot: 'bg-[#E91E8C]',  eyebrow: 'text-[#E91E8C]' },
+  pink:   { dot: 'bg-[var(--primary)]',  eyebrow: 'text-[var(--primary)]' },
   purple: { dot: 'bg-purple-600', eyebrow: 'text-purple-600' },
   blue:   { dot: 'bg-blue-600',   eyebrow: 'text-blue-600' },
 } as const;
@@ -455,7 +455,7 @@ function BrandClientReportCard() {
         </div>
 
         {/* Right: Sections preview */}
-        <div className="lg:col-span-2 bg-gradient-to-br from-purple-50 via-primary/10/40 to-white border-l border-border p-6">
+        <div className="lg:col-span-2 bg-gradient-to-br from-purple-50 via-primary/10 to-white border-l border-border p-6">
           <div className="text-[10px] font-bold uppercase tracking-[0.15em] text-purple-500 mb-3">What's inside</div>
           <ul className="space-y-2 text-xs text-foreground">
             {[
@@ -581,7 +581,7 @@ function SchedulesTab() {
         <p className="text-sm text-muted-foreground">Automated report delivery to Discord and Slack channels.</p>
         <button
           onClick={() => { setEditing(null); setShowModal(true); }}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#E91E8C] text-white text-sm font-semibold hover:bg-[#d1177d] transition-colors"
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[var(--primary)] text-white text-sm font-semibold hover:bg-[#d1177d] transition-colors"
         >
           <Calendar className="h-4 w-4" />
           New Schedule
@@ -780,7 +780,7 @@ function ScheduleModal({
             <select
               value={reportType}
               onChange={e => setReportType(e.target.value)}
-              className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+              className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
             >
               {reportOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
@@ -792,7 +792,7 @@ function ScheduleModal({
             <select
               value={brand}
               onChange={e => setBrand(e.target.value)}
-              className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+              className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
             >
               {brandOptions.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}
             </select>
@@ -825,7 +825,7 @@ function ScheduleModal({
             <select
               value={cronLabel}
               onChange={e => setCronLabel(e.target.value)}
-              className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+              className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
             >
               {FREQUENCIES.map(f => <option key={f.label} value={f.label}>{f.label}</option>)}
             </select>
@@ -841,7 +841,7 @@ function ScheduleModal({
               value={webhookUrl}
               onChange={e => setWebhookUrl(e.target.value)}
               placeholder="https://discord.com/api/webhooks/…  or  https://hooks.slack.com/services/…"
-              className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C] font-mono"
+              className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] font-mono"
             />
           </div>
 
@@ -855,7 +855,7 @@ function ScheduleModal({
               value={channelLabel}
               onChange={e => setChannelLabel(e.target.value)}
               placeholder="#channel-name"
-              className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+              className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
             />
           </div>
         </div>
@@ -875,7 +875,7 @@ function ScheduleModal({
           <button
             onClick={handleSave}
             disabled={saving || !webhookUrl}
-            className="flex-1 py-2.5 rounded-xl bg-[#E91E8C] hover:bg-[#d1177d] text-white text-sm font-semibold disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+            className="flex-1 py-2.5 rounded-xl bg-[var(--primary)] hover:bg-[#d1177d] text-white text-sm font-semibold disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
           >
             {saving && <Loader2 className="h-4 w-4 animate-spin" />}
             {editing ? 'Save Changes' : 'Create Schedule'}
@@ -949,7 +949,7 @@ function ReportCard({
         <select
           value={brand}
           onChange={e => setBrand(e.target.value)}
-          className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+          className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
         >
           {brandOptions.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}
         </select>
@@ -975,7 +975,7 @@ function ReportCard({
         <div className="space-y-1">
           {features.map(f => (
             <div key={f} className="flex items-center gap-2 text-xs text-muted-foreground">
-              <div className="w-1 h-1 rounded-full bg-[#E91E8C]" />
+              <div className="w-1 h-1 rounded-full bg-[var(--primary)]" />
               {f}
             </div>
           ))}
@@ -984,7 +984,7 @@ function ReportCard({
         <button
           onClick={generate}
           disabled={loading}
-          className="w-full py-2.5 rounded-xl bg-[#E91E8C] hover:bg-[#d1177d] text-white font-semibold text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+          className="w-full py-2.5 rounded-xl bg-[var(--primary)] hover:bg-[#d1177d] text-white font-semibold text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
         >
           {loading ? <><Loader2 className="h-4 w-4 animate-spin" />Generating…</> : 'Generate Report'}
         </button>
@@ -1105,7 +1105,7 @@ function PostCard({
       <div className="px-5 py-4 border-b border-border">
         <div className="flex items-center gap-3 mb-1">
           <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center">
-            <Icon className="h-5 w-5 text-[#E91E8C]" />
+            <Icon className="h-5 w-5 text-[var(--primary)]" />
           </div>
           <h2 className="text-lg font-bold text-[var(--foreground)]">{title}</h2>
         </div>
@@ -1117,7 +1117,7 @@ function PostCard({
         <select
           value={brand}
           onChange={e => setBrand(e.target.value)}
-          className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+          className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
         >
           {brandOptions.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}
         </select>
@@ -1170,7 +1170,7 @@ function PostCard({
         <button
           onClick={generate}
           disabled={loading}
-          className="w-full py-2.5 rounded-xl bg-[#E91E8C] hover:bg-[#d1177d] text-white font-semibold text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+          className="w-full py-2.5 rounded-xl bg-[var(--primary)] hover:bg-[#d1177d] text-white font-semibold text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
         >
           {loading ? <><Loader2 className="h-4 w-4 animate-spin" />Generating…</> : 'Generate'}
         </button>

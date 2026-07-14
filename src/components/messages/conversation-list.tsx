@@ -510,7 +510,7 @@ export function ConversationList({ conversations, activeKey, onSelect }: Props) 
                 onClick={() => onSelect(conv)}
                 className={cn(
                   'w-full text-left px-4 py-3.5 border-b border-border transition-all hover:bg-muted/80',
-                  isActive && 'bg-primary/10/80 border-l-2 border-l-primary hover:bg-primary/10'
+                  isActive && 'bg-primary/10 border-l-2 border-l-primary hover:bg-primary/10'
                 )}
               >
                 <div className="flex items-center justify-between mb-1">

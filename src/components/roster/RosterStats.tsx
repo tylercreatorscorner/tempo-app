@@ -28,7 +28,7 @@ export function RosterStats({ roster }: { roster: RosterEntry[] }) {
       value: total.toString(),
       icon: Users,
       iconBg: 'bg-primary/10',
-      iconColor: 'text-[#E91E8C]',
+      iconColor: 'text-[var(--primary)]',
     },
     {
       label: 'Monthly Retainer Spend',
