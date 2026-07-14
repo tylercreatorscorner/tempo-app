@@ -28,24 +28,24 @@ export function VideoSection({ title, emoji, description, videos, defaultExpande
   if (!videos || videos.length === 0) return null;
 
   return (
-    <div className="rounded-2xl bg-white border border-gray-200 shadow-sm overflow-hidden">
+    <div className="rounded-2xl bg-card border border-border shadow-sm overflow-hidden">
       <button
         onClick={() => setExpanded(!expanded)}
         aria-expanded={expanded}
-        className="w-full flex items-center justify-between px-6 py-4 hover:bg-gray-50/50 transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40 focus-visible:ring-inset"
+        className="w-full flex items-center justify-between px-6 py-4 hover:bg-muted/50 transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40 focus-visible:ring-inset"
       >
         <div className="flex items-center gap-3">
           <span className="h-7 w-7 rounded-lg bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center">
             <Sparkles className="h-4 w-4" />
           </span>
-          <h3 className="text-lg font-bold tracking-tight text-[#1A1B3A]">{title}</h3>
+          <h3 className="text-lg font-bold tracking-tight text-[var(--foreground)]">{title}</h3>
           <span className="bg-[var(--primary)]/10 text-[var(--primary)] text-xs font-bold px-2.5 py-1 rounded-full tabular-nums">
             {videos.length}
           </span>
-          <span className="text-sm text-gray-400 font-normal hidden sm:inline">{description}</span>
+          <span className="text-sm text-muted-foreground font-normal hidden sm:inline">{description}</span>
         </div>
         <ChevronDown
-          className={`h-5 w-5 text-gray-400 transition-transform duration-300 ${expanded ? 'rotate-180' : ''}`}
+          className={`h-5 w-5 text-muted-foreground transition-transform duration-300 ${expanded ? 'rotate-180' : ''}`}
         />
       </button>
 

@@ -40,15 +40,15 @@ export function NarrativeCard({ input }: Props) {
             <Sparkles className="h-4 w-4 text-white" />
           </div>
           <div>
-            <h3 className="text-sm font-bold text-[#1A1B3A]">Narrative</h3>
-            <p className="text-[11px] text-gray-400">AI summary of what moved this period</p>
+            <h3 className="text-sm font-bold text-[var(--foreground)]">Narrative</h3>
+            <p className="text-[11px] text-muted-foreground">AI summary of what moved this period</p>
           </div>
         </div>
         {(text || error) && (
           <button
             onClick={generate}
             disabled={pending}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold text-gray-500 hover:text-[#1A1B3A] hover:bg-white transition-colors disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold text-muted-foreground hover:text-[var(--foreground)] hover:bg-card transition-colors disabled:opacity-50"
             aria-label="Regenerate narrative"
           >
             <RefreshCw className={`h-3 w-3 ${pending ? 'animate-spin' : ''}`} />
@@ -59,13 +59,13 @@ export function NarrativeCard({ input }: Props) {
 
       {!text && !error && (
         <div>
-          <p className="text-sm text-gray-500 mb-3">
+          <p className="text-sm text-muted-foreground mb-3">
             Generate a 2-4 paragraph summary of what changed this period and what to do about it.
           </p>
           <button
             onClick={generate}
             disabled={pending}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#1A1B3A] text-white text-sm font-semibold hover:bg-[#2D1B69] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[var(--foreground)] text-white text-sm font-semibold hover:bg-[#2D1B69] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {pending ? (
               <>
@@ -83,7 +83,7 @@ export function NarrativeCard({ input }: Props) {
       )}
 
       {text && (
-        <div className="prose prose-sm max-w-none text-sm text-[#1A1B3A] leading-relaxed">
+        <div className="prose prose-sm max-w-none text-sm text-[var(--foreground)] leading-relaxed">
           {text.split('\n\n').map((para, i) => (
             <p key={i} className="mb-2 last:mb-0">
               {/* Render **bold** inline */}

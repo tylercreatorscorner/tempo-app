@@ -40,17 +40,17 @@ export function BrandSwitcher({ brands, currentBrand }: BrandSwitcherProps) {
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+        className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border text-sm text-foreground hover:bg-muted transition-colors"
       >
         <span className="font-medium">{displayLabel}</span>
-        <ChevronDown className="h-3.5 w-3.5 text-gray-400" />
+        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
       </button>
 
       {open && (
-        <div className="absolute top-full mt-1 left-0 w-48 bg-white border border-gray-200 rounded-xl shadow-lg z-50 py-1">
+        <div className="absolute top-full mt-1 left-0 w-48 bg-card border border-border rounded-xl shadow-lg z-50 py-1">
           <button
             onClick={() => switchBrand(null)}
-            className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 ${!currentBrand ? 'text-[var(--primary)] font-medium' : 'text-gray-700'}`}
+            className={`w-full text-left px-4 py-2 text-sm hover:bg-muted ${!currentBrand ? 'text-[var(--primary)] font-medium' : 'text-foreground'}`}
           >
             All Brands
           </button>
@@ -58,7 +58,7 @@ export function BrandSwitcher({ brands, currentBrand }: BrandSwitcherProps) {
             <button
               key={b}
               onClick={() => switchBrand(b)}
-              className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 ${currentBrand === b ? 'text-[var(--primary)] font-medium' : 'text-gray-700'}`}
+              className={`w-full text-left px-4 py-2 text-sm hover:bg-muted ${currentBrand === b ? 'text-[var(--primary)] font-medium' : 'text-foreground'}`}
             >
               {b}
             </button>

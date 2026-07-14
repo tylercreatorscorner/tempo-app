@@ -32,7 +32,7 @@ export function TopCreatorsBar({ creators, color = 'var(--primary)', limit = 10 
 
   if (top.length === 0) {
     return (
-      <div className="flex items-center justify-center h-40 text-gray-400 text-sm">
+      <div className="flex items-center justify-center h-40 text-muted-foreground text-sm">
         No creator data available
       </div>
     );
@@ -68,26 +68,26 @@ export function TopCreatorsBar({ creators, color = 'var(--primary)', limit = 10 
     dataLabels: {
       enabled: true,
       formatter: val => fmtVal(Number(val)),
-      style: { fontSize: '10px', fontFamily: 'inherit', colors: ['#6B7280'] },
+      style: { fontSize: '10px', fontFamily: 'inherit', colors: ['var(--muted-foreground)'] },
       offsetX: 6,
     },
     xaxis: {
       categories,
       labels: {
         formatter: val => fmtVal(Number(val)),
-        style: { colors: '#9CA3AF', fontSize: '11px', fontFamily: 'inherit' },
+        style: { colors: 'var(--muted-foreground)', fontSize: '11px', fontFamily: 'inherit' },
       },
       axisBorder: { show: false },
       axisTicks: { show: false },
     },
     yaxis: {
       labels: {
-        style: { colors: '#374151', fontSize: '11px', fontFamily: 'inherit' },
+        style: { colors: 'var(--foreground)', fontSize: '11px', fontFamily: 'inherit' },
         maxWidth: 140,
       },
     },
     grid: {
-      borderColor: '#F3F4F6',
+      borderColor: 'var(--muted)',
       strokeDashArray: 4,
       xaxis: { lines: { show: true } },
       yaxis: { lines: { show: false } },

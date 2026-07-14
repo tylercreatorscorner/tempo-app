@@ -48,23 +48,23 @@ export async function BrandPerformance({ brands, range }: Props) {
   }
 
   return (
-    <div className="rounded-2xl bg-white border border-gray-200 shadow-sm overflow-hidden">
-      <div className="px-5 py-3.5 border-b border-gray-200 flex items-center gap-2">
+    <div className="rounded-2xl bg-card border border-border shadow-sm overflow-hidden">
+      <div className="px-5 py-3.5 border-b border-border flex items-center gap-2">
         <span className="h-7 w-7 rounded-lg bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center">
           <Building2 className="h-4 w-4" />
         </span>
-        <h3 className="text-sm font-extrabold tracking-tight text-[#1A1B3A]">Brand Performance</h3>
-        <span className="text-xs text-gray-400 ml-auto">Click a brand to drill in</span>
+        <h3 className="text-sm font-extrabold tracking-tight text-[var(--foreground)]">Brand Performance</h3>
+        <span className="text-xs text-muted-foreground ml-auto">Click a brand to drill in</span>
       </div>
 
       {/* Column header row — anchors the two-GMV-column layout */}
-      <div className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] items-center gap-4 px-5 py-2 border-b border-gray-50 bg-gray-50/40">
+      <div className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] items-center gap-4 px-5 py-2 border-b border-border bg-muted/40">
         <span className="w-2.5" />
         <span />
         <span className="hidden sm:block w-24" />
-        <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 text-right min-w-[80px]">Total</span>
-        <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 text-right min-w-[90px]">Managed</span>
-        <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 text-right min-w-[68px]">Trend</span>
+        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground text-right min-w-[80px]">Total</span>
+        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground text-right min-w-[90px]">Managed</span>
+        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground text-right min-w-[68px]">Trend</span>
       </div>
 
       <div className="divide-y divide-gray-50">
@@ -81,7 +81,7 @@ export async function BrandPerformance({ brands, range }: Props) {
             <Link
               key={b.slug}
               href={hrefFor(b.slug)}
-              className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] items-center gap-4 px-5 py-3 hover:bg-gray-50/60 transition-colors group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40 focus-visible:ring-inset"
+              className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] items-center gap-4 px-5 py-3 hover:bg-muted/60 transition-colors group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40 focus-visible:ring-inset"
             >
               {/* Brand color dot */}
               <span
@@ -91,10 +91,10 @@ export async function BrandPerformance({ brands, range }: Props) {
 
               {/* Brand name + share of portfolio */}
               <div className="min-w-0">
-                <p className="text-sm font-semibold text-[#1A1B3A] truncate group-hover:text-[var(--primary)] transition-colors">
+                <p className="text-sm font-semibold text-[var(--foreground)] truncate group-hover:text-[var(--primary)] transition-colors">
                   {name}
                 </p>
-                <p className="text-[11px] font-mono tabular-nums text-gray-400">{sharePct.toFixed(1)}% of portfolio</p>
+                <p className="text-[11px] font-mono tabular-nums text-muted-foreground">{sharePct.toFixed(1)}% of portfolio</p>
               </div>
 
               {/* Sparkline */}
@@ -107,7 +107,7 @@ export async function BrandPerformance({ brands, range }: Props) {
               </div>
 
               {/* Total GMV */}
-              <p className="text-sm font-bold font-mono text-[#1A1B3A] tabular-nums text-right min-w-[80px]">
+              <p className="text-sm font-bold font-mono text-[var(--foreground)] tabular-nums text-right min-w-[80px]">
                 {formatCurrency(b.currentGmv)}
               </p>
 
@@ -117,7 +117,7 @@ export async function BrandPerformance({ brands, range }: Props) {
                   {formatCurrency(b.managedGmv)}
                 </p>
                 {b.currentGmv > 0 && (
-                  <p className="text-[11px] font-mono text-gray-400 tabular-nums">
+                  <p className="text-[11px] font-mono text-muted-foreground tabular-nums">
                     {managedPctOfBrand.toFixed(0)}% of total
                   </p>
                 )}
@@ -135,7 +135,7 @@ export async function BrandPerformance({ brands, range }: Props) {
                     {Math.abs(b.trend).toFixed(1)}%
                   </span>
                 ) : (
-                  <span className="text-xs text-gray-300">—</span>
+                  <span className="text-xs text-muted-foreground">—</span>
                 )}
               </div>
             </Link>

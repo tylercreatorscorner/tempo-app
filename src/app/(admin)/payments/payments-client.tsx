@@ -152,15 +152,15 @@ export function PaymentsClient() {
       {/* Page header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-extrabold text-[#1A1B3A]">Payments</h1>
-          <p className="text-sm text-gray-400 mt-0.5">
+          <h1 className="text-2xl font-extrabold text-[var(--foreground)]">Payments</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
             Track creator retainers and audit trail of financial changes.
           </p>
         </div>
         <button
           onClick={handleRefresh}
           disabled={loading}
-          className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-600 disabled:opacity-40 transition-colors"
+          className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl border border-border hover:bg-muted text-muted-foreground disabled:opacity-40 transition-colors"
         >
           <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
           Refresh
@@ -204,10 +204,10 @@ export function PaymentsClient() {
 
       {/* Brand spend chart */}
       {overview && Object.values(overview.brandSpend).some((v) => v > 0) && (
-        <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+        <div className="rounded-2xl bg-card border border-border shadow-sm overflow-hidden">
           <div className="px-5 pt-4 pb-3">
-            <h3 className="text-sm font-bold text-[#1A1B3A]">Retainer Spend by Brand</h3>
-            <p className="text-xs text-gray-400 mt-0.5">Monthly retainer commitments allocated across brands</p>
+            <h3 className="text-sm font-bold text-[var(--foreground)]">Retainer Spend by Brand</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">Monthly retainer commitments allocated across brands</p>
           </div>
           <div className="px-5 pb-5">
             <BrandSpendChart data={overview.brandSpend} height={Math.max(180, Object.values(overview.brandSpend).filter((v) => v > 0).length * 48)} />

@@ -37,7 +37,7 @@ const STATUS_STYLE: Record<IntegrationView['status'], string> = {
   connected: 'bg-emerald-50 text-emerald-700',
   pending:   'bg-amber-50 text-amber-700',
   error:     'bg-red-50 text-red-700',
-  revoked:   'bg-gray-100 text-gray-500',
+  revoked:   'bg-muted text-muted-foreground',
 };
 
 const STATUS_ICON: Record<IntegrationView['status'], LucideIcon> = {
@@ -147,8 +147,8 @@ export function IntegrationsClient({
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-[#1A1B3A]">Integrations</h1>
-          <p className="text-sm text-gray-500 mt-1 max-w-2xl">
+          <h1 className="text-2xl font-bold text-[var(--foreground)]">Integrations</h1>
+          <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
             External systems Tempo connects to. Each integration powers Automations and Outreach campaigns.
             Most connections are scoped to a single brand — Workspace-wide ones (Resend, AI providers) are shared across all brands.
           </p>
@@ -158,26 +158,26 @@ export function IntegrationsClient({
       {/* Connected section */}
       <section className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-500">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
             Connected
           </h2>
-          <span className="text-xs text-gray-400">{integrations.length} total</span>
+          <span className="text-xs text-muted-foreground">{integrations.length} total</span>
         </div>
 
         {integrations.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-gray-200 bg-white px-6 py-10 text-center">
-            <Plug className="h-8 w-8 text-gray-300 mx-auto mb-3" />
-            <p className="text-sm font-medium text-gray-700">No integrations yet</p>
-            <p className="text-xs text-gray-400 mt-1">Connect Discord, Slack, or another system below to power your first automation.</p>
+          <div className="rounded-2xl border border-dashed border-border bg-card px-6 py-10 text-center">
+            <Plug className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
+            <p className="text-sm font-medium text-foreground">No integrations yet</p>
+            <p className="text-xs text-muted-foreground mt-1">Connect Discord, Slack, or another system below to power your first automation.</p>
           </div>
         ) : (
           <div className="space-y-6">
             {byBrand.map(group => (
               <div key={group.brandName}>
-                <p className="text-xs font-semibold text-gray-500 mb-2">
+                <p className="text-xs font-semibold text-muted-foreground mb-2">
                   {group.brandName}
                 </p>
-                <div className="rounded-2xl border border-gray-100 bg-white overflow-hidden divide-y divide-gray-50">
+                <div className="rounded-2xl border border-border bg-card overflow-hidden divide-y divide-gray-50">
                   {group.rows.map(row => (
                     <IntegrationRow
                       key={row.id}
@@ -225,12 +225,12 @@ export function IntegrationsClient({
 
       {/* Available section */}
       <section className="space-y-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-500">
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
           Available to add
         </h2>
         {Object.entries(catalogByCategory).map(([cat, items]) => (
           <div key={cat}>
-            <p className="text-xs font-semibold text-gray-500 mb-2">{CATEGORY_LABELS[cat] ?? cat}</p>
+            <p className="text-xs font-semibold text-muted-foreground mb-2">{CATEGORY_LABELS[cat] ?? cat}</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {items.map(item => (
                 <CatalogCard
@@ -253,17 +253,17 @@ function IntegrationRow({ integration, onClick }: { integration: IntegrationView
   return (
     <button
       onClick={onClick}
-      className="w-full text-left flex items-start gap-4 p-4 hover:bg-gray-50/40 transition-colors"
+      className="w-full text-left flex items-start gap-4 p-4 hover:bg-muted/40 transition-colors"
     >
-      <div className="h-10 w-10 rounded-xl bg-gray-50 flex items-center justify-center flex-shrink-0">
-        <Icon className="h-5 w-5 text-gray-500" />
+      <div className="h-10 w-10 rounded-xl bg-muted flex items-center justify-center flex-shrink-0">
+        <Icon className="h-5 w-5 text-muted-foreground" />
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 flex-wrap">
-          <p className="text-sm font-semibold text-[#1A1B3A]">
+          <p className="text-sm font-semibold text-[var(--foreground)]">
             {integration.displayName}
           </p>
-          <span className="text-xs text-gray-400">
+          <span className="text-xs text-muted-foreground">
             {TYPE_LABELS[integration.type] ?? integration.type}
           </span>
           <span className={cn('inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full', STATUS_STYLE[integration.status])}>
@@ -271,19 +271,19 @@ function IntegrationRow({ integration, onClick }: { integration: IntegrationView
             {integration.status}
           </span>
           {!integration.managed && (
-            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-500" title="Detected from existing data — not yet migrated to the integrations table">
+            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-muted text-muted-foreground" title="Detected from existing data — not yet migrated to the integrations table">
               auto
             </span>
           )}
         </div>
         {integration.summary && (
-          <p className="text-xs text-gray-500 mt-0.5">{integration.summary}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">{integration.summary}</p>
         )}
         {integration.lastErrorMessage && (
           <p className="text-xs text-red-600 mt-0.5">{integration.lastErrorMessage}</p>
         )}
         {integration.lastUsedAt && (
-          <p className="text-[11px] text-gray-400 mt-0.5">
+          <p className="text-[11px] text-muted-foreground mt-0.5">
             Last used {new Date(integration.lastUsedAt).toLocaleDateString()}
           </p>
         )}
@@ -326,46 +326,46 @@ function ConnectModal({
       <div className="absolute inset-0 bg-black/30" />
       <div
         onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl"
+        className="relative w-full max-w-md bg-card rounded-2xl shadow-2xl"
       >
-        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+        <div className="px-5 py-4 border-b border-border flex items-center justify-between">
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Connect</p>
-            <h3 className="text-base font-bold text-[#1A1B3A]">{label}</h3>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Connect</p>
+            <h3 className="text-base font-bold text-[var(--foreground)]">{label}</h3>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
-            <X className="h-4 w-4 text-gray-400" />
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted transition-colors">
+            <X className="h-4 w-4 text-muted-foreground" />
           </button>
         </div>
 
         <div className="p-5 space-y-4">
           {!oauthSupported ? (
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-muted-foreground">
               {label} doesn&apos;t support a self-serve install yet. We&apos;ll add it next.
             </p>
           ) : (
             <>
               <div>
-                <label className="block text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1">
+                <label className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
                   Associate with
                 </label>
                 <select
                   value={brandId}
                   onChange={(e) => setBrandId(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30"
+                  className="w-full px-3 py-2 rounded-lg border border-border text-sm bg-card focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30"
                 >
                   <option value="workspace">Workspace-wide (no brand)</option>
                   {brands.map(b => (
                     <option key={b.id} value={b.id}>{b.displayName}</option>
                   ))}
                 </select>
-                <p className="text-[11px] text-gray-500 mt-1 leading-relaxed">
+                <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
                   Pick the brand whose Slack workspace you&apos;re about to connect, or
                   &quot;Workspace-wide&quot; if it&apos;s shared across all brands.
                 </p>
               </div>
 
-              <p className="text-[11px] text-gray-500 leading-relaxed">
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
                 You&apos;ll be redirected to {label} to authorize Tempo. After approving,
                 we&apos;ll come back here and the connection will appear under the chosen brand.
               </p>
@@ -373,10 +373,10 @@ function ConnectModal({
           )}
         </div>
 
-        <div className="px-5 py-3 border-t border-gray-100 flex items-center gap-2 justify-end">
+        <div className="px-5 py-3 border-t border-border flex items-center gap-2 justify-end">
           <button
             onClick={onClose}
-            className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-border text-muted-foreground hover:bg-muted transition-colors"
           >
             Cancel
           </button>
@@ -416,26 +416,26 @@ function IntegrationDetailDrawer({
     <div className="absolute inset-0 flex justify-end">
       <div className="absolute inset-0 bg-black/20 backdrop-blur-[2px]" />
       <div
-        className="relative w-full max-w-md bg-white shadow-2xl h-full overflow-y-auto flex flex-col"
+        className="relative w-full max-w-md bg-card shadow-2xl h-full overflow-y-auto flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between z-10">
+        <div className="sticky top-0 bg-card border-b border-border px-6 py-4 flex items-center justify-between z-10">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="h-10 w-10 rounded-xl bg-gray-50 flex items-center justify-center flex-shrink-0">
-              <Icon className="h-5 w-5 text-gray-500" />
+            <div className="h-10 w-10 rounded-xl bg-muted flex items-center justify-center flex-shrink-0">
+              <Icon className="h-5 w-5 text-muted-foreground" />
             </div>
             <div className="min-w-0">
-              <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-400">
+              <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">
                 {TYPE_LABELS[integration.type] ?? integration.type}
               </p>
-              <h2 className="text-base font-bold text-[#1A1B3A] truncate">
+              <h2 className="text-base font-bold text-[var(--foreground)] truncate">
                 {integration.displayName}
               </h2>
             </div>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors flex-shrink-0">
-            <X className="h-5 w-5 text-gray-400" />
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted transition-colors flex-shrink-0">
+            <X className="h-5 w-5 text-muted-foreground" />
           </button>
         </div>
 
@@ -453,12 +453,12 @@ function IntegrationDetailDrawer({
           )}
           {integration.summary && (
             <DetailRow label="Details">
-              <span className="text-sm text-gray-700 break-all">{integration.summary}</span>
+              <span className="text-sm text-foreground break-all">{integration.summary}</span>
             </DetailRow>
           )}
           {integration.lastUsedAt && (
             <DetailRow label="Last used">
-              <span className="text-sm text-gray-700">
+              <span className="text-sm text-foreground">
                 {new Date(integration.lastUsedAt).toLocaleString()}
               </span>
             </DetailRow>
@@ -493,7 +493,7 @@ function IntegrationDetailDrawer({
 function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1">{label}</p>
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">{label}</p>
       <div>{children}</div>
     </div>
   );
@@ -592,8 +592,8 @@ function TestSendSection({
 
   if (actions === null) {
     return (
-      <div className="rounded-xl border border-gray-100 bg-gray-50/60 p-4">
-        <p className="text-sm text-gray-500 flex items-center gap-2">
+      <div className="rounded-xl border border-border bg-muted/60 p-4">
+        <p className="text-sm text-muted-foreground flex items-center gap-2">
           <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading test form…
         </p>
       </div>
@@ -602,8 +602,8 @@ function TestSendSection({
 
   if (!action) {
     return (
-      <div className="rounded-xl border border-gray-100 bg-gray-50/60 p-4">
-        <p className="text-sm text-gray-500">
+      <div className="rounded-xl border border-border bg-muted/60 p-4">
+        <p className="text-sm text-muted-foreground">
           No test action available for {TYPE_LABELS[integration.type] ?? integration.type} yet.
         </p>
       </div>
@@ -611,10 +611,10 @@ function TestSendSection({
   }
 
   return (
-    <div className="rounded-xl border border-gray-100 bg-gray-50/60 p-4 space-y-3">
+    <div className="rounded-xl border border-border bg-muted/60 p-4 space-y-3">
       <div>
-        <p className="text-sm font-semibold text-[#1A1B3A]">{action.label}</p>
-        <p className="text-xs text-gray-500 mt-0.5">{action.description} Logs an automation run regardless of outcome.</p>
+        <p className="text-sm font-semibold text-[var(--foreground)]">{action.label}</p>
+        <p className="text-xs text-muted-foreground mt-0.5">{action.description} Logs an automation run regardless of outcome.</p>
       </div>
 
       {action.params.map(p => (
@@ -661,23 +661,23 @@ function CatalogCard({
   const Icon = ICON_FOR_TYPE[item.type] ?? Plug;
   return (
     <div className={cn(
-      'relative rounded-2xl border bg-white p-4 transition-shadow',
-      item.comingSoon ? 'border-gray-100' : 'border-gray-100 hover:shadow-md',
+      'relative rounded-2xl border bg-card p-4 transition-shadow',
+      item.comingSoon ? 'border-border' : 'border-border hover:shadow-md',
     )}>
       <div className="flex items-start gap-3">
-        <div className="h-9 w-9 rounded-xl bg-gray-50 flex items-center justify-center flex-shrink-0">
-          <Icon className="h-4 w-4 text-gray-500" />
+        <div className="h-9 w-9 rounded-xl bg-muted flex items-center justify-center flex-shrink-0">
+          <Icon className="h-4 w-4 text-muted-foreground" />
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <p className="text-sm font-semibold text-[#1A1B3A]">{item.label}</p>
+            <p className="text-sm font-semibold text-[var(--foreground)]">{item.label}</p>
             {item.comingSoon && (
-              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500">
+              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">
                 Coming soon
               </span>
             )}
           </div>
-          <p className="text-xs text-gray-500 mt-1 leading-relaxed">{item.description}</p>
+          <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{item.description}</p>
         </div>
       </div>
       {!item.comingSoon && (

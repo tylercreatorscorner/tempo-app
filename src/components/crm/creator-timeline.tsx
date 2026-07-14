@@ -82,19 +82,19 @@ export function CreatorTimeline({ creatorId }: { creatorId: string }) {
   };
 
   return (
-    <div className="rounded-2xl bg-white border border-gray-100 shadow-sm">
-      <div className="px-6 py-4 border-b border-gray-100">
-        <h3 className="text-lg font-bold text-[#1A1B3A]">Activity Timeline</h3>
-        <p className="text-xs text-gray-400 mt-0.5">Notes, status changes, and activity history</p>
+    <div className="rounded-2xl bg-card border border-border shadow-sm">
+      <div className="px-6 py-4 border-b border-border">
+        <h3 className="text-lg font-bold text-[var(--foreground)]">Activity Timeline</h3>
+        <p className="text-xs text-muted-foreground mt-0.5">Notes, status changes, and activity history</p>
       </div>
 
       {/* Add Note */}
-      <div className="px-6 py-4 border-b border-gray-50">
+      <div className="px-6 py-4 border-b border-border">
         <textarea
           value={note}
           onChange={e => setNote(e.target.value)}
           placeholder="Add a note..."
-          className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/15 focus:border-[var(--primary)] transition"
+          className="w-full rounded-xl border border-border px-4 py-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/15 focus:border-[var(--primary)] transition"
           rows={2}
         />
         <div className="flex justify-end mt-2">
@@ -113,7 +113,7 @@ export function CreatorTimeline({ creatorId }: { creatorId: string }) {
       <div className="divide-y divide-gray-50">
         {entries.map(entry => {
           const Icon = ICONS[entry.activity_type] || MessageSquare;
-          const colorClass = ICON_COLORS[entry.activity_type] || 'bg-gray-50 text-gray-500';
+          const colorClass = ICON_COLORS[entry.activity_type] || 'bg-muted text-muted-foreground';
           return (
             <div key={entry.id} className="px-6 py-4 flex gap-3">
               <div className={`h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0 ${colorClass}`}>
@@ -121,30 +121,30 @@ export function CreatorTimeline({ creatorId }: { creatorId: string }) {
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-sm font-medium text-[#1A1B3A]">{entry.title || entry.activity_type}</span>
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">{entry.created_by}</span>
-                  <span className="text-xs text-gray-400 flex items-center gap-1">
+                  <span className="text-sm font-medium text-[var(--foreground)]">{entry.title || entry.activity_type}</span>
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{entry.created_by}</span>
+                  <span className="text-xs text-muted-foreground flex items-center gap-1">
                     <Clock className="h-3 w-3" />
                     {relativeTime(entry.created_at)}
                   </span>
                 </div>
-                {entry.body && <p className="text-sm text-gray-600 mt-1 whitespace-pre-wrap">{entry.body}</p>}
+                {entry.body && <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap">{entry.body}</p>}
               </div>
             </div>
           );
         })}
         {entries.length === 0 && !loading && (
-          <div className="px-6 py-12 text-center text-gray-400 text-sm">No activity yet</div>
+          <div className="px-6 py-12 text-center text-muted-foreground text-sm">No activity yet</div>
         )}
       </div>
 
       {/* Load More */}
       {hasMore && entries.length > 0 && (
-        <div className="px-6 py-3 border-t border-gray-50 flex justify-center">
+        <div className="px-6 py-3 border-t border-border flex justify-center">
           <button
             onClick={() => { const next = page + 1; setPage(next); fetchEntries(next, true); }}
             disabled={loading}
-            className="text-sm text-gray-500 hover:text-[var(--primary)] flex items-center gap-1 transition"
+            className="text-sm text-muted-foreground hover:text-[var(--primary)] flex items-center gap-1 transition"
           >
             {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ChevronDown className="h-3.5 w-3.5" />}
             Load more
@@ -152,7 +152,7 @@ export function CreatorTimeline({ creatorId }: { creatorId: string }) {
         </div>
       )}
       {loading && entries.length === 0 && (
-        <div className="px-6 py-8 flex justify-center"><Loader2 className="h-5 w-5 animate-spin text-gray-300" /></div>
+        <div className="px-6 py-8 flex justify-center"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
       )}
     </div>
   );

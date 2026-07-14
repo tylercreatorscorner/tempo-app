@@ -67,24 +67,24 @@ export function GmvAreaChart({ data, color = 'var(--primary)', height = 260 }: P
       type: 'category',
       categories,
       labels: {
-        style: { colors: '#9CA3AF', fontSize: '11px', fontFamily: 'inherit' },
+        style: { colors: 'var(--muted-foreground)', fontSize: '11px', fontFamily: 'inherit' },
         rotate: 0,
         hideOverlappingLabels: true,
       },
       axisBorder: { show: false },
       axisTicks: { show: false },
-      crosshairs: { show: true, stroke: { color: '#E5E7EB', width: 1, dashArray: 4 } },
+      crosshairs: { show: true, stroke: { color: 'var(--border)', width: 1, dashArray: 4 } },
       tooltip: { enabled: false },
     },
     yaxis: {
       labels: {
-        style: { colors: '#9CA3AF', fontSize: '11px', fontFamily: 'inherit' },
+        style: { colors: 'var(--muted-foreground)', fontSize: '11px', fontFamily: 'inherit' },
         formatter: fmtY,
       },
       forceNiceScale: true,
     },
     grid: {
-      borderColor: '#F3F4F6',
+      borderColor: 'var(--muted)',
       strokeDashArray: 4,
       xaxis: { lines: { show: false } },
       yaxis: { lines: { show: true } },

@@ -56,7 +56,7 @@ export function PostCard({ post: p, onClick }: Props) {
   return (
     <button
       onClick={() => onClick(p)}
-      className="group text-left flex flex-col rounded-2xl bg-white border border-gray-100 shadow-sm hover:shadow-md hover:border-gray-200 transition-all overflow-hidden"
+      className="group text-left flex flex-col rounded-2xl bg-card border border-border shadow-sm hover:shadow-md hover:border-border transition-all overflow-hidden"
     >
       {/* Thumbnail slot — 16:9 to match TikTok's portrait-cover ratio.
           When thumbnail_url is empty, we paint a brand-tinted gradient
@@ -120,7 +120,7 @@ export function PostCard({ post: p, onClick }: Props) {
           )}
           {p.review_count > 0 && !p.has_my_review && !p.flagged && (
             <span
-              className="inline-flex items-center gap-1 text-[10px] font-semibold text-gray-700 bg-white/95 backdrop-blur-sm ring-1 ring-gray-200 rounded-full px-2 py-0.5"
+              className="inline-flex items-center gap-1 text-[10px] font-semibold text-foreground bg-card/95 backdrop-blur-sm ring-1 ring-border rounded-full px-2 py-0.5"
               title={`${p.review_count} review${p.review_count > 1 ? 's' : ''}`}
             >
               <MessageSquare className="h-3 w-3" />
@@ -139,8 +139,8 @@ export function PostCard({ post: p, onClick }: Props) {
       {/* Body */}
       <div className="p-4 flex flex-col gap-2 flex-1">
         {/* Meta row: creator · brand · date */}
-        <div className="flex items-center gap-1.5 text-[11px] text-gray-500 flex-wrap">
-          <span className="font-semibold text-[#1A1B3A]">@{p.creator_handle}</span>
+        <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground flex-wrap">
+          <span className="font-semibold text-[var(--foreground)]">@{p.creator_handle}</span>
           {p.is_managed && (
             <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 ring-1 ring-emerald-200 rounded px-1 py-0.5">
               Managed
@@ -165,7 +165,7 @@ export function PostCard({ post: p, onClick }: Props) {
             we're using the gradient placeholder, the title is already
             overlaid so we don't need to repeat it. */}
         {hasThumb && (
-          <h3 className="text-sm font-semibold text-[#1A1B3A] leading-snug line-clamp-2" title={p.video_title}>
+          <h3 className="text-sm font-semibold text-[var(--foreground)] leading-snug line-clamp-2" title={p.video_title}>
             {p.video_title}
           </h3>
         )}
@@ -181,18 +181,18 @@ export function PostCard({ post: p, onClick }: Props) {
                   'h-3 w-3',
                   n <= Math.round(p.avg_rating!)
                     ? 'text-amber-400 fill-amber-400'
-                    : 'text-gray-200',
+                    : 'text-muted-foreground',
                 )}
               />
             ))}
-            <span className="text-[10px] text-gray-500 ml-1 tabular-nums">{p.avg_rating.toFixed(1)}</span>
+            <span className="text-[10px] text-muted-foreground ml-1 tabular-nums">{p.avg_rating.toFixed(1)}</span>
           </div>
         )}
 
         {/* KPI strip */}
-        <div className="mt-auto pt-2 border-t border-gray-100 grid grid-cols-3 gap-2 text-[11px] text-gray-600">
+        <div className="mt-auto pt-2 border-t border-border grid grid-cols-3 gap-2 text-[11px] text-muted-foreground">
           <div className="inline-flex items-center gap-1" title={`${p.views.toLocaleString()} views`}>
-            <Eye className="h-3 w-3 text-gray-400" />
+            <Eye className="h-3 w-3 text-muted-foreground" />
             <span className="tabular-nums">{formatNumber(p.views)}</span>
           </div>
           <div className="inline-flex items-center gap-1" title={`${p.likes.toLocaleString()} likes`}>
@@ -210,7 +210,7 @@ export function PostCard({ post: p, onClick }: Props) {
           <span
             className={cn(
               'font-semibold tabular-nums',
-              p.engagement_rate >= 5 ? 'text-emerald-600' : p.engagement_rate >= 2 ? 'text-amber-600' : 'text-gray-500',
+              p.engagement_rate >= 5 ? 'text-emerald-600' : p.engagement_rate >= 2 ? 'text-amber-600' : 'text-muted-foreground',
             )}
             title="Engagement rate"
           >

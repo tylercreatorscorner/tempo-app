@@ -227,18 +227,18 @@ export function ConversationList({ conversations, activeKey, onSelect }: Props) 
   const topicsWithCounts = MESSAGE_TOPICS.filter((t) => (topicCounts[t] ?? 0) > 0);
 
   return (
-    <div className="flex flex-col h-full bg-white/80 backdrop-blur-sm border-r border-gray-200">
+    <div className="flex flex-col h-full bg-card/80 backdrop-blur-sm border-r border-border">
       {/* Search + controls */}
-      <div className="p-4 border-b border-gray-200 space-y-3">
+      <div className="p-4 border-b border-border space-y-3">
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <input
               type="text"
               placeholder="Search creators..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-transparent transition-all"
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-border bg-muted text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-transparent transition-all"
             />
           </div>
           {/* Filter toggle */}
@@ -248,7 +248,7 @@ export function ConversationList({ conversations, activeKey, onSelect }: Props) 
               'relative p-2.5 rounded-xl border transition-all',
               filtersOpen
                 ? 'border-primary/20 bg-primary/10 text-primary'
-                : 'border-gray-200 bg-gray-50 text-gray-500 hover:bg-gray-100'
+                : 'border-border bg-muted text-muted-foreground hover:bg-muted'
             )}
           >
             <SlidersHorizontal className="h-4 w-4" />
@@ -262,14 +262,14 @@ export function ConversationList({ conversations, activeKey, onSelect }: Props) 
           <div className="relative">
             <button
               onClick={() => setSortOpen(!sortOpen)}
-              className="p-2.5 rounded-xl border border-gray-200 bg-gray-50 text-gray-500 hover:bg-gray-100 transition-all"
+              className="p-2.5 rounded-xl border border-border bg-muted text-muted-foreground hover:bg-muted transition-all"
             >
               <ArrowUpDown className="h-4 w-4" />
             </button>
             {sortOpen && (
               <>
                 <div className="fixed inset-0 z-10" onClick={() => setSortOpen(false)} />
-                <div className="absolute right-0 top-full mt-1 z-20 w-48 bg-white rounded-xl border border-gray-200 shadow-lg py-1 overflow-hidden">
+                <div className="absolute right-0 top-full mt-1 z-20 w-48 bg-card rounded-xl border border-border shadow-lg py-1 overflow-hidden">
                   {SORT_OPTIONS.map((opt) => (
                     <button
                       key={opt.value}
@@ -281,7 +281,7 @@ export function ConversationList({ conversations, activeKey, onSelect }: Props) 
                         'w-full text-left px-3 py-2 text-sm transition-colors',
                         sortBy === opt.value
                           ? 'bg-primary/10 text-primary font-medium'
-                          : 'text-gray-700 hover:bg-gray-50'
+                          : 'text-foreground hover:bg-muted'
                       )}
                     >
                       {opt.label}
@@ -298,7 +298,7 @@ export function ConversationList({ conversations, activeKey, onSelect }: Props) 
           <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
             {/* Brand pills */}
             <div>
-              <p className="text-[10px] uppercase tracking-wider text-gray-400 font-medium mb-1.5">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium mb-1.5">
                 Brand
               </p>
               <div className="flex flex-wrap gap-1.5">
@@ -308,7 +308,7 @@ export function ConversationList({ conversations, activeKey, onSelect }: Props) 
                     'px-2.5 py-1 rounded-lg text-xs font-medium transition-all',
                     !brandFilter
                       ? 'bg-gray-800 text-white'
-                      : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                      : 'bg-muted text-muted-foreground hover:bg-secondary'
                   )}
                 >
                   All
@@ -339,7 +339,7 @@ export function ConversationList({ conversations, activeKey, onSelect }: Props) 
 
             {/* Status pills */}
             <div>
-              <p className="text-[10px] uppercase tracking-wider text-gray-400 font-medium mb-1.5">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium mb-1.5">
                 Status
               </p>
               <div className="flex flex-wrap gap-1.5">
@@ -349,7 +349,7 @@ export function ConversationList({ conversations, activeKey, onSelect }: Props) 
                     'px-2.5 py-1 rounded-lg text-xs font-medium transition-all',
                     !statusFilter
                       ? 'bg-gray-800 text-white'
-                      : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                      : 'bg-muted text-muted-foreground hover:bg-secondary'
                   )}
                 >
                   All
@@ -379,7 +379,7 @@ export function ConversationList({ conversations, activeKey, onSelect }: Props) 
 
             {/* Quick filters */}
             <div>
-              <p className="text-[10px] uppercase tracking-wider text-gray-400 font-medium mb-1.5">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium mb-1.5">
                 Quick Filters
               </p>
               <div className="flex flex-wrap gap-1.5">
@@ -406,7 +406,7 @@ export function ConversationList({ conversations, activeKey, onSelect }: Props) 
                     key: 'no_discord' as QuickFilter,
                     label: 'No Discord',
                     icon: WifiOff,
-                    color: '#6B7280',
+                    color: 'var(--muted-foreground)',
                   },
                 ].map(({ key, label, icon: Icon, color }) => {
                   const isActive = quickFilter === key;
@@ -434,7 +434,7 @@ export function ConversationList({ conversations, activeKey, onSelect }: Props) 
         )}
 
         {/* Results count */}
-        <p className="text-[11px] text-gray-400">
+        <p className="text-[11px] text-muted-foreground">
           {filtered.length} creator{filtered.length !== 1 ? 's' : ''}
           {activeFiltersCount > 0 && (
             <button
@@ -453,12 +453,12 @@ export function ConversationList({ conversations, activeKey, onSelect }: Props) 
 
       {/* Topic triage strip — only shows when there are unread messages with classified topics */}
       {topicsWithCounts.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 px-4 py-2.5 border-b border-gray-100 bg-white">
+        <div className="flex flex-wrap gap-1.5 px-4 py-2.5 border-b border-border bg-card">
           <button
             onClick={() => setTopicFilter(null)}
             className={cn(
               'text-[11px] font-semibold px-2.5 py-1 rounded-full transition-colors',
-              topicFilter === null ? 'bg-[#1A1B3A] text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+              topicFilter === null ? 'bg-[var(--foreground)] text-white' : 'bg-muted text-muted-foreground hover:bg-secondary'
             )}
           >
             All
@@ -472,13 +472,13 @@ export function ConversationList({ conversations, activeKey, onSelect }: Props) 
                 onClick={() => setTopicFilter(active ? null : t)}
                 className={cn(
                   'inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full transition-colors',
-                  active ? 'bg-[#1A1B3A] text-white' : `${colors.bg} ${colors.fg} hover:ring-1 hover:ring-gray-200`
+                  active ? 'bg-[var(--foreground)] text-white' : `${colors.bg} ${colors.fg} hover:ring-1 hover:ring-border`
                 )}
               >
                 {TOPIC_LABELS[t]}
                 <span className={cn(
                   'text-[10px] font-bold px-1.5 rounded-full',
-                  active ? 'bg-white/20 text-white' : 'bg-white/70 text-gray-700'
+                  active ? 'bg-card/20 text-white' : 'bg-card/70 text-foreground'
                 )}>{topicCounts[t]}</span>
               </button>
             );
@@ -489,7 +489,7 @@ export function ConversationList({ conversations, activeKey, onSelect }: Props) 
       {/* Conversation list */}
       <div className="flex-1 overflow-y-auto">
         {filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-gray-400 px-6">
+          <div className="flex flex-col items-center justify-center h-full text-muted-foreground px-6">
             <MessageSquare className="h-10 w-10 mb-3 opacity-50" />
             <p className="text-sm text-center">
               {activeFiltersCount > 0
@@ -509,7 +509,7 @@ export function ConversationList({ conversations, activeKey, onSelect }: Props) 
                 key={convKey(conv)}
                 onClick={() => onSelect(conv)}
                 className={cn(
-                  'w-full text-left px-4 py-3.5 border-b border-gray-50 transition-all hover:bg-gray-50/80',
+                  'w-full text-left px-4 py-3.5 border-b border-border transition-all hover:bg-muted/80',
                   isActive && 'bg-primary/10/80 border-l-2 border-l-primary hover:bg-primary/10'
                 )}
               >
@@ -521,7 +521,7 @@ export function ConversationList({ conversations, activeKey, onSelect }: Props) 
                         <img
                           src={conv.discord_avatar}
                           alt=""
-                          className="h-10 w-10 rounded-full border-2 border-gray-100 object-cover"
+                          className="h-10 w-10 rounded-full border-2 border-border object-cover"
                         />
                       ) : (
                         <div
@@ -545,7 +545,7 @@ export function ConversationList({ conversations, activeKey, onSelect }: Props) 
                       )}
                     </div>
                     <div className="min-w-0">
-                      <span className="font-medium text-sm text-[#1A1B3A] truncate block">
+                      <span className="font-medium text-sm text-[var(--foreground)] truncate block">
                         {conv.creator_name}
                       </span>
                       <div className="flex items-center gap-1.5">
@@ -568,22 +568,22 @@ export function ConversationList({ conversations, activeKey, onSelect }: Props) 
                           </span>
                         ) : null}
                         {sortBy === 'gmv_desc' && conv.total_gmv_7d > 0 && (
-                          <span className="text-[10px] text-gray-400">
+                          <span className="text-[10px] text-muted-foreground">
                             ${Math.round(conv.total_gmv_7d).toLocaleString()} GMV
                           </span>
                         )}
                         {sortBy === 'retainer_desc' && conv.retainer_amount != null && conv.retainer_amount > 0 && (
-                          <span className="text-[10px] text-gray-400">
+                          <span className="text-[10px] text-muted-foreground">
                             ${conv.retainer_amount.toLocaleString()} retainer
                           </span>
                         )}
                         {sortBy === 'posts_desc' && conv.total_videos_7d > 0 && (
-                          <span className="text-[10px] text-gray-400">
+                          <span className="text-[10px] text-muted-foreground">
                             {conv.total_videos_7d} posts
                           </span>
                         )}
                         {sortBy !== 'gmv_desc' && sortBy !== 'retainer_desc' && sortBy !== 'posts_desc' && conv.total_videos_7d > 0 && (
-                          <span className="text-[10px] text-gray-400">
+                          <span className="text-[10px] text-muted-foreground">
                             {conv.total_videos_7d} posts
                           </span>
                         )}
@@ -592,11 +592,11 @@ export function ConversationList({ conversations, activeKey, onSelect }: Props) 
                   </div>
                   <div className="flex flex-col items-end gap-1 flex-shrink-0 ml-2">
                     {conv.last_message_at ? (
-                      <span className="text-[10px] text-gray-400 whitespace-nowrap">
+                      <span className="text-[10px] text-muted-foreground whitespace-nowrap">
                         {relativeTime(conv.last_message_at)}
                       </span>
                     ) : (
-                      <span className="text-[10px] text-gray-300">--</span>
+                      <span className="text-[10px] text-muted-foreground">--</span>
                     )}
                     {conv.unread_count > 0 && (
                       <span className="bg-primary text-white text-[10px] rounded-full h-4 min-w-[16px] px-1 flex items-center justify-center font-medium">
@@ -618,13 +618,13 @@ export function ConversationList({ conversations, activeKey, onSelect }: Props) 
                   {conv.last_message ? (
                     <>
                       {conv.channel && <ChannelBadge channel={conv.channel} />}
-                      <p className="text-xs text-gray-500 truncate">
+                      <p className="text-xs text-muted-foreground truncate">
                         {conv.direction === 'outbound' ? 'You: ' : ''}
                         {conv.last_message.slice(0, 40)}
                       </p>
                     </>
                   ) : (
-                    <p className="text-xs text-gray-300 italic">No messages yet</p>
+                    <p className="text-xs text-muted-foreground italic">No messages yet</p>
                   )}
                 </div>
               </button>

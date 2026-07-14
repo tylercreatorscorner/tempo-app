@@ -25,8 +25,8 @@ export default async function EarningsPage({ searchParams }: Props) {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-extrabold text-[#1A1B3A]">Earnings</h1>
-        <p className="text-sm text-gray-400 mt-0.5">
+        <h1 className="text-2xl font-extrabold text-[var(--foreground)]">Earnings</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">
           {scoped
             ? 'Monthly earnings for your brands — commission + retainers + launch fees.'
             : 'Your monthly take across all brands — commission + retainers + launch fees.'}

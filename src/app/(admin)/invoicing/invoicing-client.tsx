@@ -263,8 +263,8 @@ export function InvoicingClient({ initialOpenId }: Props) {
       {/* Page header with title + Create Invoice CTA */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-extrabold text-[#1A1B3A]">Invoicing</h1>
-          <p className="text-sm text-gray-400 mt-0.5">
+          <h1 className="text-2xl font-extrabold text-[var(--foreground)]">Invoicing</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
             Generate, track, and download monthly invoices for each brand.
           </p>
         </div>
@@ -309,10 +309,10 @@ export function InvoicingClient({ initialOpenId }: Props) {
       <AgingPanel invoices={invoices} active={agingBucket} onPick={setAgingBucket} />
 
       {/* Filter bar */}
-      <div className="relative rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+      <div className="relative rounded-2xl bg-card border border-border shadow-sm overflow-hidden">
         <TableLoadBar active={showBar} />
-        <div className="px-5 py-3 flex items-center gap-3 flex-wrap border-b border-gray-100">
-          <div className="flex items-center gap-1 bg-gray-50 rounded-xl p-1">
+        <div className="px-5 py-3 flex items-center gap-3 flex-wrap border-b border-border">
+          <div className="flex items-center gap-1 bg-muted rounded-xl p-1">
             {STATUS_TABS.map((tab) => {
               const Icon = tab.icon;
               const active = status === tab.value;
@@ -322,7 +322,7 @@ export function InvoicingClient({ initialOpenId }: Props) {
                   onClick={() => setStatus(tab.value)}
                   className={cn(
                     'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all',
-                    active ? 'bg-white text-[var(--primary)] shadow-sm' : 'text-gray-500 hover:text-gray-700',
+                    active ? 'bg-card text-[var(--primary)] shadow-sm' : 'text-muted-foreground hover:text-foreground',
                   )}
                 >
                   <Icon className="h-3.5 w-3.5" />
@@ -347,7 +347,7 @@ export function InvoicingClient({ initialOpenId }: Props) {
           {agingBucket !== 'all' && (
             <button
               onClick={() => setAgingBucket('all')}
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-gray-100 text-xs font-semibold text-gray-600 hover:bg-gray-200 transition-colors"
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-muted text-xs font-semibold text-muted-foreground hover:bg-secondary transition-colors"
               title="Clear aging filter"
             >
               Aging: {agingBucket === 'current' ? 'Current' : `${agingBucket} days`}
@@ -358,7 +358,7 @@ export function InvoicingClient({ initialOpenId }: Props) {
           <button
             onClick={fetchInvoices}
             disabled={loading}
-            className="ml-auto flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-600 disabled:opacity-40 transition-colors"
+            className="ml-auto flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl border border-border hover:bg-muted text-muted-foreground disabled:opacity-40 transition-colors"
             title="Refresh"
           >
             <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
@@ -368,7 +368,7 @@ export function InvoicingClient({ initialOpenId }: Props) {
           <button
             onClick={handleExportCsv}
             disabled={loading || invoices.length === 0}
-            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-600 disabled:opacity-40 transition-colors"
+            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl border border-border hover:bg-muted text-muted-foreground disabled:opacity-40 transition-colors"
             title={filteredInvoices.length < invoices.length ? `Export ${filteredInvoices.length} filtered invoices to CSV` : `Export all ${invoices.length} invoices to CSV`}
           >
             <FileDown className="h-3.5 w-3.5" />
@@ -378,7 +378,7 @@ export function InvoicingClient({ initialOpenId }: Props) {
           <button
             onClick={handleExportXlsx}
             disabled={loading || invoices.length === 0}
-            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-600 disabled:opacity-40 transition-colors"
+            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl border border-border hover:bg-muted text-muted-foreground disabled:opacity-40 transition-colors"
             title={filteredInvoices.length < invoices.length ? `Export ${filteredInvoices.length} filtered invoices to Excel` : `Export all ${invoices.length} invoices to Excel`}
           >
             <FileSpreadsheet className="h-3.5 w-3.5" />
@@ -396,29 +396,29 @@ export function InvoicingClient({ initialOpenId }: Props) {
         {/* Invoice list */}
         {loading && invoices.length === 0 ? (
           <div className="p-12 text-center">
-            <div className="inline-block h-8 w-8 rounded-full border-2 border-gray-200 border-t-[var(--primary)] animate-spin" />
+            <div className="inline-block h-8 w-8 rounded-full border-2 border-border border-t-[var(--primary)] animate-spin" />
           </div>
         ) : invoices.length === 0 ? (
           <EmptyState onCreate={() => setCreating(true)} />
         ) : filteredInvoices.length === 0 ? (
           <div className="px-6 py-16 text-center">
-            <div className="mx-auto h-12 w-12 rounded-2xl bg-gray-50 flex items-center justify-center mb-3">
-              <Search className="h-5 w-5 text-gray-300" />
+            <div className="mx-auto h-12 w-12 rounded-2xl bg-muted flex items-center justify-center mb-3">
+              <Search className="h-5 w-5 text-muted-foreground" />
             </div>
-            <p className="text-sm font-bold text-[#1A1B3A]">No invoices match your filters</p>
-            <p className="text-xs text-gray-400 mt-1">Try clearing search, status, or aging filters.</p>
+            <p className="text-sm font-bold text-[var(--foreground)]">No invoices match your filters</p>
+            <p className="text-xs text-muted-foreground mt-1">Try clearing search, status, or aging filters.</p>
           </div>
         ) : (
           <div className={cn('overflow-x-auto', showBar && invoices.length > 0 && 'opacity-60 transition-opacity duration-200')}>
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-gray-50/60 border-b border-gray-100">
+                <tr className="bg-muted/60 border-b border-border">
                   <th className="px-4 py-3 w-10">
                     <input
                       type="checkbox"
                       checked={allVisibleSelected}
                       onChange={toggleAllVisible}
-                      className="h-3.5 w-3.5 rounded border-gray-300 text-[var(--primary)] focus:ring-[var(--primary)]/30 cursor-pointer"
+                      className="h-3.5 w-3.5 rounded border-border text-[var(--primary)] focus:ring-[var(--primary)]/30 cursor-pointer"
                       aria-label="Select all visible"
                     />
                   </th>
@@ -440,7 +440,7 @@ export function InvoicingClient({ initialOpenId }: Props) {
                       key={inv.id}
                       onClick={() => setActiveInvoice(inv)}
                       className={cn(
-                        'border-b border-gray-50 cursor-pointer transition-colors',
+                        'border-b border-border cursor-pointer transition-colors',
                         isSelected ? 'bg-[#FFF0F5]/60 hover:bg-[#FFF0F5]/80' : 'hover:bg-[#FFF0F5]/40',
                       )}
                     >
@@ -449,44 +449,44 @@ export function InvoicingClient({ initialOpenId }: Props) {
                           type="checkbox"
                           checked={isSelected}
                           onChange={() => toggleOne(inv.id)}
-                          className="h-3.5 w-3.5 rounded border-gray-300 text-[var(--primary)] focus:ring-[var(--primary)]/30 cursor-pointer"
+                          className="h-3.5 w-3.5 rounded border-border text-[var(--primary)] focus:ring-[var(--primary)]/30 cursor-pointer"
                           aria-label={`Select ${inv.invoice_number}`}
                         />
                       </td>
-                      <td className="px-4 py-3 font-mono text-xs font-semibold text-[#1A1B3A]">
+                      <td className="px-4 py-3 font-mono text-xs font-semibold text-[var(--foreground)]">
                         <div>{inv.invoice_number}</div>
                         {/* Show issuer name when there's > 1 team member, so Tyler's
                             and Vic's invoices are distinguishable in the unfiltered view. */}
                         {teamMembers.length > 1 && inv.team_member_id && (
-                          <div className="text-[10px] font-normal text-gray-400 mt-0.5 normal-case">
+                          <div className="text-[10px] font-normal text-muted-foreground mt-0.5 normal-case">
                             {memberNameById.get(inv.team_member_id) ?? '—'}
                           </div>
                         )}
                       </td>
-                      <td className="px-4 py-3 font-semibold text-[#1A1B3A]">{inv.brand}</td>
-                      <td className="px-4 py-3 text-gray-600">{fmtPeriod(inv.period_month)}</td>
-                      <td className="px-4 py-3 text-right tabular-nums font-bold text-[#1A1B3A]">
+                      <td className="px-4 py-3 font-semibold text-[var(--foreground)]">{inv.brand}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{fmtPeriod(inv.period_month)}</td>
+                      <td className="px-4 py-3 text-right tabular-nums font-bold text-[var(--foreground)]">
                         {formatCurrency(Number(inv.total_amount))}
                       </td>
                       <td className="px-4 py-3 text-center">
                         <StatusBadge status={inv.status} />
                       </td>
-                      <td className="px-4 py-3 text-xs text-gray-500">{formatDate(inv.generated_at)}</td>
+                      <td className="px-4 py-3 text-xs text-muted-foreground">{formatDate(inv.generated_at)}</td>
                       <td className="px-4 py-3 text-xs">
                         {inv.due_date ? (
                           <div>
-                            <div className="text-gray-500">{formatDate(inv.due_date)}</div>
+                            <div className="text-muted-foreground">{formatDate(inv.due_date)}</div>
                             <DueIndicator invoice={inv} />
                           </div>
                         ) : (
-                          <span className="text-gray-300">—</span>
+                          <span className="text-muted-foreground">—</span>
                         )}
                       </td>
                       <td className="px-4 py-3 text-right">
                         <a
                           href={`/api/invoices/${inv.id}/pdf`}
                           onClick={(e) => e.stopPropagation()}
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-gray-600 hover:text-[var(--primary)] hover:bg-white rounded-lg transition-colors"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-muted-foreground hover:text-[var(--primary)] hover:bg-card rounded-lg transition-colors"
                           title="Download PDF"
                         >
                           <Download className="h-3.5 w-3.5" />
@@ -505,11 +505,11 @@ export function InvoicingClient({ initialOpenId }: Props) {
       {/* Bulk action bar (sticky bottom) */}
       {selectedIds.size > 0 && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 animate-in slide-in-from-bottom-4">
-          <div className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-[#1A1B3A] text-white shadow-2xl border border-[#2D2E5C]">
+          <div className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-[var(--foreground)] text-white shadow-2xl border border-[#2D2E5C]">
             <span className="text-sm">
               <span className="font-bold">{selectedIds.size}</span> selected
             </span>
-            <span className="h-5 w-px bg-white/20" />
+            <span className="h-5 w-px bg-card/20" />
             <button
               onClick={() => handleBulk('sent')}
               disabled={bulkAction !== null}
@@ -534,10 +534,10 @@ export function InvoicingClient({ initialOpenId }: Props) {
               {bulkAction === 'void' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Ban className="h-3.5 w-3.5" />}
               Void
             </button>
-            <span className="h-5 w-px bg-white/20" />
+            <span className="h-5 w-px bg-card/20" />
             <button
               onClick={() => setSelectedIds(new Set())}
-              className="inline-flex items-center justify-center h-7 w-7 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-colors"
+              className="inline-flex items-center justify-center h-7 w-7 rounded-lg text-white/60 hover:text-white hover:bg-card/10 transition-colors"
               title="Clear selection"
               aria-label="Clear selection"
             >
@@ -580,18 +580,18 @@ export function InvoicingClient({ initialOpenId }: Props) {
 function SearchInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
     <div className="relative">
-      <Search className="h-3.5 w-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+      <Search className="h-3.5 w-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
       <input
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder="Search invoice #, brand, period…"
-        className="bg-white border border-gray-200 rounded-xl pl-9 pr-8 py-2 text-xs text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] w-56 transition-colors"
+        className="bg-card border border-border rounded-xl pl-9 pr-8 py-2 text-xs text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] w-56 transition-colors"
       />
       {value && (
         <button
           onClick={() => onChange('')}
-          className="absolute right-2 top-1/2 -translate-y-1/2 h-5 w-5 rounded-md flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+          className="absolute right-2 top-1/2 -translate-y-1/2 h-5 w-5 rounded-md flex items-center justify-center text-muted-foreground hover:text-muted-foreground hover:bg-muted transition-colors"
           aria-label="Clear search"
         >
           <X className="h-3 w-3" />
@@ -609,7 +609,7 @@ function DueIndicator({ invoice }: { invoice: Invoice }) {
   if (days <= 0) {
     const inDays = Math.abs(days);
     return (
-      <div className="text-[10px] text-gray-400 mt-0.5">
+      <div className="text-[10px] text-muted-foreground mt-0.5">
         {inDays === 0 ? 'Due today' : `Due in ${inDays} day${inDays === 1 ? '' : 's'}`}
       </div>
     );
@@ -629,7 +629,7 @@ function Th({ children, align = 'left' }: { children: React.ReactNode; align?: '
   return (
     <th
       className={cn(
-        'px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-gray-500',
+        'px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-muted-foreground',
         align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left',
       )}
     >
@@ -643,9 +643,9 @@ function StatusBadge({ status }: { status: string }) {
     pending: { bg: 'bg-amber-50 border-amber-200',   text: 'text-amber-700',  label: 'Pending' },
     sent:    { bg: 'bg-blue-50 border-blue-200',     text: 'text-blue-700',   label: 'Sent' },
     paid:    { bg: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700', label: 'Paid' },
-    void:    { bg: 'bg-gray-100 border-gray-300',    text: 'text-gray-500',   label: 'Void' },
+    void:    { bg: 'bg-muted border-border',    text: 'text-muted-foreground',   label: 'Void' },
   };
-  const c = config[status] ?? { bg: 'bg-gray-50 border-gray-200', text: 'text-gray-700', label: status };
+  const c = config[status] ?? { bg: 'bg-muted border-border', text: 'text-foreground', label: status };
   return (
     <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border', c.bg, c.text)}>
       {c.label}
@@ -663,12 +663,12 @@ function BrandFilter({ value, onChange, options }: {
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="appearance-none bg-white border border-gray-200 rounded-xl pl-9 pr-8 py-2 text-xs font-semibold text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] cursor-pointer"
+        className="appearance-none bg-card border border-border rounded-xl pl-9 pr-8 py-2 text-xs font-semibold text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] cursor-pointer"
       >
         <option value="all">All brands</option>
         {options.map((b) => <option key={b} value={b}>{b}</option>)}
       </select>
-      <Filter className="h-3.5 w-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+      <Filter className="h-3.5 w-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
     </div>
   );
 }
@@ -683,13 +683,13 @@ function TeamMemberFilter({ value, onChange, members }: {
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="appearance-none bg-white border border-gray-200 rounded-xl pl-9 pr-8 py-2 text-xs font-semibold text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] cursor-pointer"
+        className="appearance-none bg-card border border-border rounded-xl pl-9 pr-8 py-2 text-xs font-semibold text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] cursor-pointer"
         title="Filter invoices by who issued them"
       >
         <option value="all">All payees</option>
         {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
       </select>
-      <Users className="h-3.5 w-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+      <Users className="h-3.5 w-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
     </div>
   );
 }
@@ -697,11 +697,11 @@ function TeamMemberFilter({ value, onChange, members }: {
 function EmptyState({ onCreate }: { onCreate: () => void }) {
   return (
     <div className="px-6 py-16 text-center">
-      <div className="mx-auto h-14 w-14 rounded-2xl bg-gray-50 flex items-center justify-center mb-4">
-        <Receipt className="h-7 w-7 text-gray-300" />
+      <div className="mx-auto h-14 w-14 rounded-2xl bg-muted flex items-center justify-center mb-4">
+        <Receipt className="h-7 w-7 text-muted-foreground" />
       </div>
-      <h3 className="text-base font-bold text-[#1A1B3A] mb-1">No invoices yet</h3>
-      <p className="text-sm text-gray-400 mb-6 max-w-sm mx-auto">
+      <h3 className="text-base font-bold text-[var(--foreground)] mb-1">No invoices yet</h3>
+      <p className="text-sm text-muted-foreground mb-6 max-w-sm mx-auto">
         Generate your first invoice — pick a brand and a month, we&apos;ll pull the line items from your earnings.
       </p>
       <button

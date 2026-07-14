@@ -86,12 +86,12 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
     }
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6 text-center px-4">
-        <div className="h-16 w-16 rounded-full bg-gray-100 flex items-center justify-center">
-          <UserX className="h-8 w-8 text-gray-300" />
+        <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center">
+          <UserX className="h-8 w-8 text-muted-foreground" />
         </div>
         <div>
-          <h1 className="text-xl font-bold text-[#1A1B3A] mb-1">No full profile for @{slug}</h1>
-          <p className="text-sm text-gray-400 max-w-sm">
+          <h1 className="text-xl font-bold text-[var(--foreground)] mb-1">No full profile for @{slug}</h1>
+          <p className="text-sm text-muted-foreground max-w-sm">
             This creator is on your managed roster but hasn&apos;t been linked to a full performance profile yet.
             They&apos;ll appear here automatically once their TikTok data starts syncing.
           </p>
@@ -183,7 +183,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
       )}
 
       {/* ── Header card ─────────────────────────────────────────────────── */}
-      <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+      <div className="rounded-2xl bg-card border border-border shadow-sm overflow-hidden">
         {/* Thin brand-color top bar */}
         <div
           className="h-1.5 w-full"
@@ -203,7 +203,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
               <div className="min-w-0 flex-1">
                 {/* Name row */}
                 <div className="flex flex-wrap items-center gap-2">
-                  <h1 className="text-2xl font-extrabold text-[#1A1B3A] leading-tight">
+                  <h1 className="text-2xl font-extrabold text-[var(--foreground)] leading-tight">
                     {profile.real_name}
                   </h1>
                   <CreatorEditButton
@@ -234,7 +234,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                         paused:   'bg-yellow-50 text-yellow-700 border-yellow-200',
                         applied:  'bg-blue-50 text-blue-600 border-blue-200',
                         pending:  'bg-orange-50 text-orange-600 border-orange-200',
-                      }[profile.status.toLowerCase()] ?? 'bg-gray-50 text-gray-600 border-gray-200'
+                      }[profile.status.toLowerCase()] ?? 'bg-muted text-muted-foreground border-border'
                     )}>
                       {profile.status}
                     </span>
@@ -276,15 +276,15 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                     </a>
                   ))}
                   {profile.accounts.length > 3 && (
-                    <span className="text-xs text-gray-400">+{profile.accounts.length - 3} more</span>
+                    <span className="text-xs text-muted-foreground">+{profile.accounts.length - 3} more</span>
                   )}
                   {profile.email && (
-                    <span className="flex items-center gap-1 text-xs text-gray-400">
+                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
                       <Mail className="h-3 w-3" /> {profile.email}
                     </span>
                   )}
                   {profile.phone && (
-                    <span className="flex items-center gap-1 text-xs text-gray-400">
+                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
                       <Phone className="h-3 w-3" /> {profile.phone}
                     </span>
                   )}
@@ -403,14 +403,14 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
             }} />
           </div>
           {managedInfo.notes && (
-            <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-5">
+            <div className="rounded-2xl bg-card border border-border shadow-sm p-5">
               <div className="flex items-center gap-2 mb-3">
                 <div className="h-7 w-7 rounded-lg bg-primary/10 flex items-center justify-center">
                   <Shield className="h-3.5 w-3.5 text-[#E91E8C]" />
                 </div>
-                <h3 className="text-sm font-bold text-[#1A1B3A]">Notes</h3>
+                <h3 className="text-sm font-bold text-[var(--foreground)]">Notes</h3>
               </div>
-              <p className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">
+              <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">
                 {managedInfo.notes}
               </p>
             </div>
@@ -428,27 +428,27 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
 
               {/* Account breakdown */}
               {accountBreakdown.length > 0 && (
-                <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
-                  <div className="px-6 py-4 border-b border-gray-100">
-                    <h3 className="text-sm font-bold text-[#1A1B3A]">Account Breakdown</h3>
-                    <p className="text-xs text-gray-400 mt-0.5">Performance by TikTok account</p>
+                <div className="rounded-2xl bg-card border border-border shadow-sm overflow-hidden">
+                  <div className="px-6 py-4 border-b border-border">
+                    <h3 className="text-sm font-bold text-[var(--foreground)]">Account Breakdown</h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">Performance by TikTok account</p>
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="border-b border-gray-100 bg-gray-50/60">
-                          <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Account</th>
-                          <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Brands</th>
-                          <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">GMV</th>
-                          <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Orders</th>
-                          <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Items</th>
-                          <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Videos</th>
+                        <tr className="border-b border-border bg-muted/60">
+                          <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Account</th>
+                          <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Brands</th>
+                          <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">GMV</th>
+                          <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Orders</th>
+                          <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Items</th>
+                          <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Videos</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-50">
                         {accountBreakdown.map((a) => (
-                          <tr key={a.tiktok_username} className="hover:bg-gray-50/60 transition-colors">
-                            <td className="px-5 py-3.5 font-medium text-[#1A1B3A]">
+                          <tr key={a.tiktok_username} className="hover:bg-muted/60 transition-colors">
+                            <td className="px-5 py-3.5 font-medium text-[var(--foreground)]">
                               <a
                                 href={`https://tiktok.com/@${a.tiktok_username}`}
                                 target="_blank"
@@ -473,10 +473,10 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                                   ))}
                               </div>
                             </td>
-                            <td className="px-5 py-3.5 text-right font-semibold text-[#1A1B3A]">{formatCurrency(a.gmv)}</td>
-                            <td className="px-5 py-3.5 text-right text-gray-500">{formatNumber(a.orders)}</td>
-                            <td className="px-5 py-3.5 text-right text-gray-500">{formatNumber(a.items_sold)}</td>
-                            <td className="px-5 py-3.5 text-right text-gray-500">{formatNumber(a.videos)}</td>
+                            <td className="px-5 py-3.5 text-right font-semibold text-[var(--foreground)]">{formatCurrency(a.gmv)}</td>
+                            <td className="px-5 py-3.5 text-right text-muted-foreground">{formatNumber(a.orders)}</td>
+                            <td className="px-5 py-3.5 text-right text-muted-foreground">{formatNumber(a.items_sold)}</td>
+                            <td className="px-5 py-3.5 text-right text-muted-foreground">{formatNumber(a.videos)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -487,37 +487,37 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
 
               {/* Brand breakdown */}
               {!selectedBrand && filteredBrandBreakdown.length > 1 && (
-                <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
-                  <div className="px-6 py-4 border-b border-gray-100">
-                    <h3 className="text-sm font-bold text-[#1A1B3A]">Brand Breakdown</h3>
-                    <p className="text-xs text-gray-400 mt-0.5">Performance split across brands</p>
+                <div className="rounded-2xl bg-card border border-border shadow-sm overflow-hidden">
+                  <div className="px-6 py-4 border-b border-border">
+                    <h3 className="text-sm font-bold text-[var(--foreground)]">Brand Breakdown</h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">Performance split across brands</p>
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="border-b border-gray-100 bg-gray-50/60">
-                          <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Brand</th>
-                          <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">GMV</th>
-                          <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Orders</th>
-                          <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Items</th>
-                          <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Videos</th>
-                          <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Commission</th>
+                        <tr className="border-b border-border bg-muted/60">
+                          <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Brand</th>
+                          <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">GMV</th>
+                          <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Orders</th>
+                          <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Items</th>
+                          <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Videos</th>
+                          <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Commission</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-50">
                         {filteredBrandBreakdown.map((b) => (
-                          <tr key={b.brand} className="hover:bg-gray-50/60 transition-colors">
+                          <tr key={b.brand} className="hover:bg-muted/60 transition-colors">
                             <td className="px-5 py-3.5">
                               <div className="flex items-center gap-2">
                                 <div className="h-2.5 w-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: brandColor(reg, b.brand) }} />
-                                <span className="font-medium text-[#1A1B3A]">{brandLabel(reg, b.brand)}</span>
+                                <span className="font-medium text-[var(--foreground)]">{brandLabel(reg, b.brand)}</span>
                               </div>
                             </td>
-                            <td className="px-5 py-3.5 text-right font-semibold text-[#1A1B3A]">{formatCurrency(b.gmv)}</td>
-                            <td className="px-5 py-3.5 text-right text-gray-500">{formatNumber(b.orders)}</td>
-                            <td className="px-5 py-3.5 text-right text-gray-500">{formatNumber(b.items_sold)}</td>
-                            <td className="px-5 py-3.5 text-right text-gray-500">{formatNumber(b.videos)}</td>
-                            <td className="px-5 py-3.5 text-right text-gray-500">{formatCurrency(b.commission)}</td>
+                            <td className="px-5 py-3.5 text-right font-semibold text-[var(--foreground)]">{formatCurrency(b.gmv)}</td>
+                            <td className="px-5 py-3.5 text-right text-muted-foreground">{formatNumber(b.orders)}</td>
+                            <td className="px-5 py-3.5 text-right text-muted-foreground">{formatNumber(b.items_sold)}</td>
+                            <td className="px-5 py-3.5 text-right text-muted-foreground">{formatNumber(b.videos)}</td>
+                            <td className="px-5 py-3.5 text-right text-muted-foreground">{formatCurrency(b.commission)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -529,39 +529,39 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
           ),
 
           videos: (
-            <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+            <div className="rounded-2xl bg-card border border-border shadow-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-border flex items-center justify-between">
                 <div>
-                  <h3 className="text-sm font-bold text-[#1A1B3A]">Top Videos by GMV</h3>
-                  <p className="text-xs text-gray-400 mt-0.5">
+                  <h3 className="text-sm font-bold text-[var(--foreground)]">Top Videos by GMV</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
                     {selectedBrand
                       ? `Filtered to ${brandLabel(reg, selectedBrand)}`
                       : 'Across all accounts'}
                     {summary.total_videos > 20 ? ` · showing top 20 of ${formatNumber(summary.total_videos)}` : ''}
                   </p>
                 </div>
-                <span className="text-xs font-semibold text-gray-400 bg-gray-100 px-2.5 py-1 rounded-full">
+                <span className="text-xs font-semibold text-muted-foreground bg-muted px-2.5 py-1 rounded-full">
                   {videos.length} shown
                 </span>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-gray-100 bg-gray-50/60">
-                      <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 w-8">#</th>
-                      <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Video</th>
-                      <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Account</th>
-                      <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Brand</th>
-                      <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Product</th>
-                      <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">GMV</th>
-                      <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Orders</th>
-                      <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Days</th>
+                    <tr className="border-b border-border bg-muted/60">
+                      <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground w-8">#</th>
+                      <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Video</th>
+                      <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Account</th>
+                      <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Brand</th>
+                      <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Product</th>
+                      <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">GMV</th>
+                      <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Orders</th>
+                      <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Days</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
                     {videos.map((v, i) => (
-                      <tr key={v.video_id} className="hover:bg-gray-50/60 transition-colors">
-                        <td className="px-5 py-3.5 text-gray-300 font-medium tabular-nums">{i + 1}</td>
+                      <tr key={v.video_id} className="hover:bg-muted/60 transition-colors">
+                        <td className="px-5 py-3.5 text-muted-foreground font-medium tabular-nums">{i + 1}</td>
                         <td className="px-5 py-3.5 min-w-[200px] max-w-[360px]">
                           <VideoTitleButton
                             videoData={{
@@ -575,12 +575,12 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                               items_sold: v.items_sold,
                               days_selling: v.days_selling,
                             }}
-                            className="text-left font-medium text-[#1A1B3A] hover:text-[#E91E8C] hover:underline transition-colors truncate block w-full"
+                            className="text-left font-medium text-[var(--foreground)] hover:text-[#E91E8C] hover:underline transition-colors truncate block w-full"
                           >
                             {v.video_title}
                           </VideoTitleButton>
                         </td>
-                        <td className="px-5 py-3.5 text-gray-500 text-xs">@{v.creator_name}</td>
+                        <td className="px-5 py-3.5 text-muted-foreground text-xs">@{v.creator_name}</td>
                         <td className="px-5 py-3.5">
                           <span
                             className="text-xs px-2 py-0.5 rounded-full font-medium"
@@ -589,15 +589,15 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                             {brandLabel(reg, v.brand)}
                           </span>
                         </td>
-                        <td className="px-5 py-3.5 text-gray-500 text-xs max-w-[160px] truncate">{v.product_name || '—'}</td>
-                        <td className="px-5 py-3.5 text-right font-semibold text-[#1A1B3A] tabular-nums">{formatCurrency(v.gmv)}</td>
-                        <td className="px-5 py-3.5 text-right text-gray-500 tabular-nums">{formatNumber(v.orders)}</td>
-                        <td className="px-5 py-3.5 text-right text-gray-500 tabular-nums">{v.days_selling}</td>
+                        <td className="px-5 py-3.5 text-muted-foreground text-xs max-w-[160px] truncate">{v.product_name || '—'}</td>
+                        <td className="px-5 py-3.5 text-right font-semibold text-[var(--foreground)] tabular-nums">{formatCurrency(v.gmv)}</td>
+                        <td className="px-5 py-3.5 text-right text-muted-foreground tabular-nums">{formatNumber(v.orders)}</td>
+                        <td className="px-5 py-3.5 text-right text-muted-foreground tabular-nums">{v.days_selling}</td>
                       </tr>
                     ))}
                     {videos.length === 0 && (
                       <tr>
-                        <td colSpan={8} className="px-5 py-12 text-center text-gray-400 text-sm">
+                        <td colSpan={8} className="px-5 py-12 text-center text-muted-foreground text-sm">
                           No video data for this period
                         </td>
                       </tr>

@@ -42,7 +42,7 @@ export function VideoPlayerPanel() {
       {/* Panel */}
       <div
         ref={panelRef}
-        className={`fixed top-0 right-0 z-50 h-full w-full sm:w-[430px] bg-white shadow-2xl sm:rounded-l-2xl transition-transform duration-300 ease-out flex flex-col ${
+        className={`fixed top-0 right-0 z-50 h-full w-full sm:w-[430px] bg-card shadow-2xl sm:rounded-l-2xl transition-transform duration-300 ease-out flex flex-col ${
           isOpen ? 'translate-x-0' : 'translate-x-full'
         }`}
       >
@@ -70,12 +70,12 @@ export function VideoPlayerPanel() {
             {/* Video info */}
             <div className="flex-1 p-5 space-y-4">
               {/* Title */}
-              <h3 className="text-sm font-semibold text-[#1A1B3A] leading-snug">
+              <h3 className="text-sm font-semibold text-[var(--foreground)] leading-snug">
                 {video.video_title || 'Untitled video'}
               </h3>
 
               {/* Creator */}
-              <p className="text-xs text-gray-500">@{video.creator_name}</p>
+              <p className="text-xs text-muted-foreground">@{video.creator_name}</p>
 
               {/* Brand pill */}
               {video.brand && (
@@ -92,40 +92,40 @@ export function VideoPlayerPanel() {
 
               {/* Product */}
               {video.product_name && (
-                <p className="text-xs text-gray-500">Product: {video.product_name}</p>
+                <p className="text-xs text-muted-foreground">Product: {video.product_name}</p>
               )}
 
               {/* Stats grid */}
               <div className="grid grid-cols-2 gap-3 pt-2">
                 {video.gmv != null && (
-                  <div className="rounded-xl bg-gray-50 px-3 py-2.5">
-                    <p className="text-[10px] uppercase tracking-wider text-gray-400 font-medium">GMV</p>
-                    <p className="text-sm font-bold text-[#1A1B3A] tabular-nums mt-0.5">{formatCurrency(video.gmv)}</p>
+                  <div className="rounded-xl bg-muted px-3 py-2.5">
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">GMV</p>
+                    <p className="text-sm font-bold text-[var(--foreground)] tabular-nums mt-0.5">{formatCurrency(video.gmv)}</p>
                   </div>
                 )}
                 {video.orders != null && (
-                  <div className="rounded-xl bg-gray-50 px-3 py-2.5">
-                    <p className="text-[10px] uppercase tracking-wider text-gray-400 font-medium">Orders</p>
-                    <p className="text-sm font-bold text-[#1A1B3A] tabular-nums mt-0.5">{formatNumber(video.orders)}</p>
+                  <div className="rounded-xl bg-muted px-3 py-2.5">
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Orders</p>
+                    <p className="text-sm font-bold text-[var(--foreground)] tabular-nums mt-0.5">{formatNumber(video.orders)}</p>
                   </div>
                 )}
                 {video.items_sold != null && (
-                  <div className="rounded-xl bg-gray-50 px-3 py-2.5">
-                    <p className="text-[10px] uppercase tracking-wider text-gray-400 font-medium">Items Sold</p>
-                    <p className="text-sm font-bold text-[#1A1B3A] tabular-nums mt-0.5">{formatNumber(video.items_sold)}</p>
+                  <div className="rounded-xl bg-muted px-3 py-2.5">
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Items Sold</p>
+                    <p className="text-sm font-bold text-[var(--foreground)] tabular-nums mt-0.5">{formatNumber(video.items_sold)}</p>
                   </div>
                 )}
                 {video.days_selling != null && (
-                  <div className="rounded-xl bg-gray-50 px-3 py-2.5">
-                    <p className="text-[10px] uppercase tracking-wider text-gray-400 font-medium">Days Selling</p>
-                    <p className="text-sm font-bold text-[#1A1B3A] tabular-nums mt-0.5">{video.days_selling}</p>
+                  <div className="rounded-xl bg-muted px-3 py-2.5">
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Days Selling</p>
+                    <p className="text-sm font-bold text-[var(--foreground)] tabular-nums mt-0.5">{video.days_selling}</p>
                   </div>
                 )}
               </div>
 
               {/* Date range */}
               {video.date_range && (
-                <p className="text-[10px] text-gray-400 pt-1">{video.date_range}</p>
+                <p className="text-[10px] text-muted-foreground pt-1">{video.date_range}</p>
               )}
 
               {/* Open in TikTok link */}
@@ -133,7 +133,7 @@ export function VideoPlayerPanel() {
                 href={tiktokUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-[var(--primary)] transition-colors pt-2"
+                className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-[var(--primary)] transition-colors pt-2"
               >
                 <ExternalLink className="h-3 w-3" />
                 Open in TikTok

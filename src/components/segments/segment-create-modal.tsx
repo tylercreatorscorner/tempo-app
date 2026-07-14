@@ -73,8 +73,8 @@ export function SegmentCreateModal({
     }
   }
 
-  const field = 'w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-primary/15 focus:border-primary/20';
-  const labelCls = 'block text-xs font-medium text-gray-500 mb-1';
+  const field = 'w-full px-3 py-2 rounded-lg border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary/15 focus:border-primary/20';
+  const labelCls = 'block text-xs font-medium text-muted-foreground mb-1';
 
   return (
     <ModalOverlay onClose={onClose}>
@@ -82,11 +82,11 @@ export function SegmentCreateModal({
         <div
           onClick={(e) => e.stopPropagation()}
           data-lenis-prevent
-          className="w-full max-w-lg bg-white rounded-2xl shadow-xl border border-gray-200 max-h-[85vh] overflow-y-auto"
+          className="w-full max-w-lg bg-card rounded-2xl shadow-xl border border-border max-h-[85vh] overflow-y-auto"
         >
-          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 sticky top-0 bg-white rounded-t-2xl">
-            <h2 className="text-base font-semibold text-gray-900">New Segment</h2>
-            <button onClick={onClose} className="p-1 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-50">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-border sticky top-0 bg-card rounded-t-2xl">
+            <h2 className="text-base font-semibold text-foreground">New Segment</h2>
+            <button onClick={onClose} className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted">
               <X className="h-4 w-4" />
             </button>
           </div>
@@ -97,7 +97,7 @@ export function SegmentCreateModal({
               <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. CC June cohort" className={field} autoFocus />
             </div>
             <div>
-              <label className={labelCls}>Description <span className="text-gray-300">(optional)</span></label>
+              <label className={labelCls}>Description <span className="text-muted-foreground">(optional)</span></label>
               <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What is this segment for?" className={field} />
             </div>
 
@@ -134,7 +134,7 @@ export function SegmentCreateModal({
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className={labelCls}>Min GMV <span className="text-gray-300">($)</span></label>
+                <label className={labelCls}>Min GMV <span className="text-muted-foreground">($)</span></label>
                 <input value={minGmv} onChange={(e) => setMinGmv(e.target.value)} inputMode="numeric" placeholder="e.g. 10000" className={field} />
               </div>
               <div>
@@ -146,8 +146,8 @@ export function SegmentCreateModal({
             {error && <p className="text-sm text-red-600">{error}</p>}
           </div>
 
-          <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-gray-100 sticky bottom-0 bg-white rounded-b-2xl">
-            <button onClick={onClose} className="px-3 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
+          <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-border sticky bottom-0 bg-card rounded-b-2xl">
+            <button onClick={onClose} className="px-3 py-2 rounded-lg text-sm text-muted-foreground hover:bg-muted">Cancel</button>
             <button
               onClick={save}
               disabled={saving}

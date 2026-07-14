@@ -19,10 +19,10 @@ export function MobileNav({ open, onClose, isAdmin = false, canViewFinance = tru
       <div className="fixed inset-y-0 left-0 w-64 z-50 animate-slide-in-right">
         <button
           onClick={onClose}
-          className="absolute top-4 right-3 p-1.5 rounded-lg hover:bg-white/10 transition-colors z-10"
+          className="absolute top-4 right-3 p-1.5 rounded-lg hover:bg-card/10 transition-colors z-10"
           aria-label="Close menu"
         >
-          <X className="h-4 w-4 text-gray-400" />
+          <X className="h-4 w-4 text-muted-foreground" />
         </button>
         <Sidebar isAdmin={isAdmin} canViewFinance={canViewFinance} />
       </div>

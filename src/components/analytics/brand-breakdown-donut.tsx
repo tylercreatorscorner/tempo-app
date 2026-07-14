@@ -45,12 +45,12 @@ export function BrandBreakdownDonut({ rows }: Props) {
           size: '72%',
           labels: {
             show: true,
-            name: { show: true, fontSize: '11px', color: '#9CA3AF', offsetY: -4 },
+            name: { show: true, fontSize: '11px', color: 'var(--muted-foreground)', offsetY: -4 },
             value: {
               show: true,
               fontSize: '20px',
               fontWeight: 700,
-              color: '#1A1B3A',
+              color: 'var(--foreground)',
               formatter: (val) => formatCurrency(Number(val)),
             },
             total: {
@@ -58,7 +58,7 @@ export function BrandBreakdownDonut({ rows }: Props) {
               showAlways: true,
               label: 'Total GMV',
               fontSize: '11px',
-              color: '#9CA3AF',
+              color: 'var(--muted-foreground)',
               formatter: () => formatCurrency(totalGmv),
             },
           },
@@ -68,11 +68,11 @@ export function BrandBreakdownDonut({ rows }: Props) {
   };
 
   return (
-    <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-5">
+    <div className="rounded-2xl bg-card border border-border shadow-sm p-5">
       <div className="flex items-center justify-between mb-3">
         <div>
-          <h3 className="text-sm font-bold text-[#1A1B3A]">Brand Breakdown</h3>
-          <p className="text-xs text-gray-400 mt-0.5">GMV share across {rows.length} brands</p>
+          <h3 className="text-sm font-bold text-[var(--foreground)]">Brand Breakdown</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">GMV share across {rows.length} brands</p>
         </div>
       </div>
 
@@ -90,19 +90,19 @@ export function BrandBreakdownDonut({ rows }: Props) {
                 <div className="flex items-center gap-2.5 min-w-0">
                   <span className="h-2.5 w-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
                   <div className="min-w-0">
-                    <p className="text-xs font-semibold text-[#1A1B3A] truncate">
+                    <p className="text-xs font-semibold text-[var(--foreground)] truncate">
                       {brandMeta.label(r.brand)}
                     </p>
-                    <p className="text-[10px] text-gray-400">
+                    <p className="text-[10px] text-muted-foreground">
                       {formatNumber(r.videos)} videos · {formatNumber(r.orders)} orders
                     </p>
                   </div>
                 </div>
                 <div className="text-right flex-shrink-0">
-                  <p className="text-xs font-bold tabular-nums text-[#1A1B3A]">
+                  <p className="text-xs font-bold tabular-nums text-[var(--foreground)]">
                     {formatCurrency(r.gmv)}
                   </p>
-                  <p className="text-[10px] text-gray-400 tabular-nums">{sharePct.toFixed(1)}%</p>
+                  <p className="text-[10px] text-muted-foreground tabular-nums">{sharePct.toFixed(1)}%</p>
                 </div>
               </li>
             );

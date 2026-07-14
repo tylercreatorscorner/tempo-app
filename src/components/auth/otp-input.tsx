@@ -102,14 +102,14 @@ export function OtpInput({ length = 6, onComplete, disabled = false, error = fal
           onPaste={handlePaste}
           onFocus={(e) => e.target.select()}
           className={cn(
-            'w-11 h-14 sm:w-13 sm:h-16 text-center text-2xl font-bold rounded-xl border-2 bg-white',
+            'w-11 h-14 sm:w-13 sm:h-16 text-center text-2xl font-bold rounded-xl border-2 bg-card',
             'transition-all duration-200 outline-none',
             'disabled:opacity-50 disabled:cursor-not-allowed',
             error
               ? 'border-red-400 text-red-600 animate-shake'
               : value
-                ? 'border-[var(--primary)] text-[#1A1B3A]'
-                : 'border-gray-200 text-[#1A1B3A]',
+                ? 'border-[var(--primary)] text-[var(--foreground)]'
+                : 'border-border text-[var(--foreground)]',
             !error && !disabled && 'focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/30'
           )}
         />

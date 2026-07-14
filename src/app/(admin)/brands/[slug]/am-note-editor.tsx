@@ -63,7 +63,7 @@ export function AmNoteEditor({ brandSlug, initialNote, initialUpdatedAt, initial
             <MessageCircle className="h-4 w-4 text-primary" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-[#1A1B3A]">Client portal note</h3>
+            <h3 className="text-sm font-semibold text-[var(--foreground)]">Client portal note</h3>
             <p className="text-xs text-muted-foreground">
               Surfaces on the brand&apos;s /brand-dashboard. Plain text — no markdown.
             </p>
@@ -73,7 +73,7 @@ export function AmNoteEditor({ brandSlug, initialNote, initialUpdatedAt, initial
           <button
             type="button"
             onClick={() => setEditing(true)}
-            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium text-muted-foreground hover:text-[#1A1B3A] hover:bg-muted/50 transition-colors"
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium text-muted-foreground hover:text-[var(--foreground)] hover:bg-muted/50 transition-colors"
           >
             <Pencil className="h-3 w-3" />
             Edit
@@ -93,7 +93,7 @@ export function AmNoteEditor({ brandSlug, initialNote, initialUpdatedAt, initial
             maxLength={MAX_LEN}
             disabled={pending}
             placeholder="e.g. This week we onboarded 3 new creators — expect lift starting May 8. Top performer @vanessafoundit hit 12× ROI."
-            className="w-full px-3 py-2 rounded-lg border border-border bg-white text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-60 resize-none"
+            className="w-full px-3 py-2 rounded-lg border border-border bg-card text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-60 resize-none"
           />
           <div className="flex items-center justify-between gap-2">
             <p className="text-[11px] text-muted-foreground tabular-nums">
@@ -128,7 +128,7 @@ export function AmNoteEditor({ brandSlug, initialNote, initialUpdatedAt, initial
         </>
       ) : (
         <>
-          <p className="text-sm leading-relaxed text-[#1A1B3A] whitespace-pre-wrap">
+          <p className="text-sm leading-relaxed text-[var(--foreground)] whitespace-pre-wrap">
             {saved}
           </p>
           {(authorName || updatedLabel) && (

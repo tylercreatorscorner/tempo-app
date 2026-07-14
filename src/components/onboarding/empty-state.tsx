@@ -26,7 +26,7 @@ export function EmptyState({
   mockContent,
 }: EmptyStateProps) {
   return (
-    <div className="relative rounded-2xl border border-gray-200 bg-white overflow-hidden">
+    <div className="relative rounded-2xl border border-border bg-card overflow-hidden">
       {/* Mock content (blurred background) */}
       {mockContent && (
         <div className="absolute inset-0 blur-[4px] opacity-30 pointer-events-none select-none p-6">

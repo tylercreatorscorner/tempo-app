@@ -34,7 +34,7 @@ export function SparklineCell({ data, days, color = '#E91E8C', width = 88, heigh
   const [hover, setHover] = useState<{ i: number; x: number; y: number } | null>(null);
 
   const hasData = series.length > 1 && series.some((v) => v > 0);
-  if (!hasData) return <span className="text-gray-300 text-xs">—</span>;
+  if (!hasData) return <span className="text-muted-foreground text-xs">—</span>;
 
   const max = Math.max(...series);
   const min = Math.min(...series, 0);
@@ -83,7 +83,7 @@ export function SparklineCell({ data, days, color = '#E91E8C', width = 88, heigh
           className="pointer-events-none fixed z-[100] -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-md bg-gray-900 px-2 py-1 text-[11px] font-medium text-white shadow-lg"
           style={{ left: hover.x, top: hover.y - 8 }}
         >
-          {dayLabel && <span className="text-gray-400">{dayLabel} · </span>}
+          {dayLabel && <span className="text-muted-foreground">{dayLabel} · </span>}
           {fmt(series[hover.i])}
         </div>,
         document.body,

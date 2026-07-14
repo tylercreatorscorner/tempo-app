@@ -51,7 +51,7 @@ export function FeedbackWidget() {
 
       {/* Modal */}
       {open && (
-        <div className="fixed bottom-20 right-6 z-50 w-80 rounded-2xl border border-gray-200 bg-white shadow-2xl p-5 space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-200">
+        <div className="fixed bottom-20 right-6 z-50 w-80 rounded-2xl border border-border bg-card shadow-2xl p-5 space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-200">
           {submitted ? (
             <div className="text-center py-6 space-y-2">
               <div className="inline-flex h-12 w-12 rounded-full bg-green-100 items-center justify-center">
@@ -80,7 +80,7 @@ export function FeedbackWidget() {
                       className={`h-7 w-7 transition-colors ${
                         n <= (hoverRating || rating)
                           ? 'fill-[var(--primary)] text-[var(--primary)]'
-                          : 'text-gray-300'
+                          : 'text-muted-foreground'
                       }`}
                     />
                   </button>

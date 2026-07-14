@@ -132,16 +132,16 @@ export function BrandEditSheet({ open, brand, brandLabel, teamMemberId, initialV
       />
 
       {/* Drawer */}
-      <div className="w-full max-w-md bg-white shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
+      <div className="w-full max-w-md bg-card shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
         {/* Header */}
-        <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
+        <div className="px-6 py-5 border-b border-border flex items-center justify-between">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-400">Edit Brand</p>
-            <h2 className="text-lg font-extrabold text-[#1A1B3A]">{brandLabel}</h2>
+            <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">Edit Brand</p>
+            <h2 className="text-lg font-extrabold text-[var(--foreground)]">{brandLabel}</h2>
           </div>
           <button
             onClick={onClose}
-            className="h-8 w-8 rounded-lg hover:bg-gray-50 flex items-center justify-center text-gray-400 hover:text-gray-600 transition-colors"
+            className="h-8 w-8 rounded-lg hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-muted-foreground transition-colors"
             aria-label="Close"
           >
             <X className="h-4 w-4" />
@@ -160,7 +160,7 @@ export function BrandEditSheet({ open, brand, brandLabel, teamMemberId, initialV
                     'block rounded-xl border-2 p-3 cursor-pointer transition-colors',
                     values.compensation_model === opt.value
                       ? 'border-[var(--primary)] bg-[#FFF0F5]'
-                      : 'border-gray-200 hover:border-gray-300 bg-white',
+                      : 'border-border hover:border-border bg-card',
                   )}
                 >
                   <input
@@ -172,12 +172,12 @@ export function BrandEditSheet({ open, brand, brandLabel, teamMemberId, initialV
                     onChange={() => set('compensation_model', opt.value)}
                   />
                   <div className="flex items-baseline justify-between">
-                    <span className="text-sm font-bold text-[#1A1B3A]">{opt.label}</span>
+                    <span className="text-sm font-bold text-[var(--foreground)]">{opt.label}</span>
                     {values.compensation_model === opt.value && (
                       <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--primary)]">Active</span>
                     )}
                   </div>
-                  <p className="text-xs text-gray-500 mt-0.5">{opt.description}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{opt.description}</p>
                 </label>
               ))}
             </div>
@@ -285,11 +285,11 @@ export function BrandEditSheet({ open, brand, brandLabel, teamMemberId, initialV
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between gap-3 bg-gray-50/40">
+        <div className="px-6 py-4 border-t border-border flex items-center justify-between gap-3 bg-muted/40">
           <button
             onClick={onClose}
             disabled={saving}
-            className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 disabled:opacity-40"
+            className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground disabled:opacity-40"
           >
             Cancel
           </button>
@@ -313,7 +313,7 @@ export function BrandEditSheet({ open, brand, brandLabel, teamMemberId, initialV
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <h3 className="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-500 mb-3">{title}</h3>
+      <h3 className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground mb-3">{title}</h3>
       <div className="space-y-3">{children}</div>
     </div>
   );
@@ -329,15 +329,15 @@ function Field({ label, hint, prefix, suffix, children }: {
   return (
     <label className="block">
       <div className="flex items-baseline justify-between mb-1">
-        <span className="text-xs font-semibold text-gray-700">{label}</span>
-        {hint && <span className="text-[11px] text-gray-400 font-normal">{hint}</span>}
+        <span className="text-xs font-semibold text-foreground">{label}</span>
+        {hint && <span className="text-[11px] text-muted-foreground font-normal">{hint}</span>}
       </div>
       <div className="relative flex items-center">
-        {prefix && <span className="absolute left-3 text-sm text-gray-400 pointer-events-none">{prefix}</span>}
+        {prefix && <span className="absolute left-3 text-sm text-muted-foreground pointer-events-none">{prefix}</span>}
         <div className={cn('w-full', prefix && '[&_input]:pl-7', suffix && '[&_input]:pr-8')}>
           {children}
         </div>
-        {suffix && <span className="absolute right-3 text-sm text-gray-400 pointer-events-none">{suffix}</span>}
+        {suffix && <span className="absolute right-3 text-sm text-muted-foreground pointer-events-none">{suffix}</span>}
       </div>
     </label>
   );
@@ -357,7 +357,7 @@ function NumberInput({ value, step, onChange }: { value: number; step: number; o
         const n = parseFloat(e.target.value);
         if (Number.isFinite(n) && n >= 0) onChange(n);
       }}
-      className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm text-[#1A1B3A] bg-white tabular-nums focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] transition-colors"
+      className="w-full px-3 py-2 rounded-xl border border-border text-sm text-[var(--foreground)] bg-card tabular-nums focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] transition-colors"
     />
   );
 }
@@ -374,7 +374,7 @@ function TextInput({ value, placeholder, type = 'text', onChange }: {
       value={value}
       placeholder={placeholder}
       onChange={(e) => onChange(e.target.value)}
-      className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm text-[#1A1B3A] bg-white focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] transition-colors"
+      className="w-full px-3 py-2 rounded-xl border border-border text-sm text-[var(--foreground)] bg-card focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] transition-colors"
     />
   );
 }
@@ -386,7 +386,7 @@ function TextArea({ value, placeholder, onChange }: { value: string; placeholder
       placeholder={placeholder}
       onChange={(e) => onChange(e.target.value)}
       rows={3}
-      className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm text-[#1A1B3A] bg-white focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] transition-colors resize-y"
+      className="w-full px-3 py-2 rounded-xl border border-border text-sm text-[var(--foreground)] bg-card focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] transition-colors resize-y"
     />
   );
 }

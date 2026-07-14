@@ -136,8 +136,8 @@ export function YtdClient({ initialYear }: { initialYear: number }) {
       {/* Page header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-extrabold text-[#1A1B3A]">Year-to-Date</h1>
-          <p className="text-sm text-gray-400 mt-0.5">
+          <h1 className="text-2xl font-extrabold text-[var(--foreground)]">Year-to-Date</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
             Annual lens on commission, retainers, and launch fees. {data && data.year === currentYear ? `Through ${monthLabel(data.months[data.months.length - 1]?.month ?? '')}.` : 'Full year.'}
           </p>
         </div>
@@ -147,16 +147,16 @@ export function YtdClient({ initialYear }: { initialYear: number }) {
               value={year}
               onChange={(e) => setYear(Number(e.target.value))}
               disabled={loading}
-              className="appearance-none bg-white border border-gray-200 rounded-xl pl-4 pr-10 py-2 text-sm font-semibold text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] cursor-pointer disabled:opacity-50"
+              className="appearance-none bg-card border border-border rounded-xl pl-4 pr-10 py-2 text-sm font-semibold text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] cursor-pointer disabled:opacity-50"
             >
               {yearOptions.map((y) => <option key={y} value={y}>{y}</option>)}
             </select>
-            <ChevronDown className="h-4 w-4 absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            <ChevronDown className="h-4 w-4 absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
           </div>
           <button
             onClick={() => fetchData(year)}
             disabled={loading}
-            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-600 disabled:opacity-40 transition-colors"
+            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl border border-border hover:bg-muted text-muted-foreground disabled:opacity-40 transition-colors"
           >
             <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
             Refresh
@@ -164,7 +164,7 @@ export function YtdClient({ initialYear }: { initialYear: number }) {
           <button
             onClick={handleExport}
             disabled={!data || loading}
-            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-600 disabled:opacity-40 transition-colors"
+            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl border border-border hover:bg-muted text-muted-foreground disabled:opacity-40 transition-colors"
           >
             <Download className="h-3.5 w-3.5" />
             Export
@@ -248,20 +248,20 @@ function MonthlyTrendChart({ data }: { data: MonthPoint[] }) {
     dataLabels: { enabled: false },
     legend: {
       position: 'top', horizontalAlign: 'right', fontSize: '12px', fontWeight: 500,
-      labels: { colors: '#6B7280' }, markers: { size: 6 }, itemMargin: { horizontal: 8 },
+      labels: { colors: 'var(--muted-foreground)' }, markers: { size: 6 }, itemMargin: { horizontal: 8 },
     },
     xaxis: {
       type: 'category',
       categories,
-      labels: { style: { colors: '#9CA3AF', fontSize: '11px' } },
+      labels: { style: { colors: 'var(--muted-foreground)', fontSize: '11px' } },
       axisBorder: { show: false }, axisTicks: { show: false },
-      crosshairs: { show: true, stroke: { color: '#E5E7EB', width: 1, dashArray: 4 } },
+      crosshairs: { show: true, stroke: { color: 'var(--border)', width: 1, dashArray: 4 } },
     },
     yaxis: {
-      labels: { style: { colors: '#9CA3AF', fontSize: '11px' }, formatter: fmtCompact },
+      labels: { style: { colors: 'var(--muted-foreground)', fontSize: '11px' }, formatter: fmtCompact },
       forceNiceScale: true,
     },
-    grid: { borderColor: '#F3F4F6', strokeDashArray: 4, xaxis: { lines: { show: false } }, yaxis: { lines: { show: true } }, padding: { top: 0, right: 12, bottom: 0, left: 0 } },
+    grid: { borderColor: 'var(--muted)', strokeDashArray: 4, xaxis: { lines: { show: false } }, yaxis: { lines: { show: true } }, padding: { top: 0, right: 12, bottom: 0, left: 0 } },
     tooltip: { theme: 'light', shared: true, intersect: false, y: { formatter: (v: number) => `$${v.toLocaleString('en-US', { maximumFractionDigits: 0 })}` } },
   };
   const series = [
@@ -279,14 +279,14 @@ function BrandContributionChart({ data }: { data: BrandRow[] }) {
     plotOptions: { bar: { horizontal: true, borderRadius: 6, barHeight: '60%', borderRadiusApplication: 'end', borderRadiusWhenStacked: 'last' } },
     colors: ['var(--primary)', 'var(--pulse-accent-2)', '#FF9800'],
     dataLabels: { enabled: false },
-    legend: { position: 'top', horizontalAlign: 'right', fontSize: '12px', labels: { colors: '#6B7280' }, markers: { size: 6 }, itemMargin: { horizontal: 8 } },
+    legend: { position: 'top', horizontalAlign: 'right', fontSize: '12px', labels: { colors: 'var(--muted-foreground)' }, markers: { size: 6 }, itemMargin: { horizontal: 8 } },
     xaxis: {
       categories: sorted.map((d) => d.brandLabel),
-      labels: { style: { colors: '#9CA3AF', fontSize: '11px' }, formatter: (v) => fmtCompact(Number(v)) },
+      labels: { style: { colors: 'var(--muted-foreground)', fontSize: '11px' }, formatter: (v) => fmtCompact(Number(v)) },
       axisBorder: { show: false }, axisTicks: { show: false },
     },
-    yaxis: { labels: { style: { colors: '#1A1B3A', fontSize: '12px', fontWeight: '600' } } },
-    grid: { borderColor: '#F3F4F6', strokeDashArray: 4, xaxis: { lines: { show: true } }, yaxis: { lines: { show: false } } },
+    yaxis: { labels: { style: { colors: 'var(--foreground)', fontSize: '12px', fontWeight: '600' } } },
+    grid: { borderColor: 'var(--muted)', strokeDashArray: 4, xaxis: { lines: { show: true } }, yaxis: { lines: { show: false } } },
     tooltip: { theme: 'light', shared: true, intersect: false, y: { formatter: (v: number) => `$${v.toLocaleString('en-US', { maximumFractionDigits: 0 })}` } },
   };
   const series = [
@@ -305,29 +305,29 @@ function MonthlyTable({ months, totals, year }: { months: MonthPoint[]; totals: 
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="bg-gray-50/60 border-y border-gray-100">
-            <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-gray-500">Month</th>
-            <th className="px-4 py-3 text-right text-[10px] font-bold uppercase tracking-wider text-gray-500">GMV</th>
-            <th className="px-4 py-3 text-right text-[10px] font-bold uppercase tracking-wider text-gray-500">Commission</th>
-            <th className="px-4 py-3 text-right text-[10px] font-bold uppercase tracking-wider text-gray-500">Retainers</th>
-            <th className="px-4 py-3 text-right text-[10px] font-bold uppercase tracking-wider text-gray-500">Fees</th>
-            <th className="px-4 py-3 text-right text-[10px] font-bold uppercase tracking-wider text-gray-500">Earnings</th>
+          <tr className="bg-muted/60 border-y border-border">
+            <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Month</th>
+            <th className="px-4 py-3 text-right text-[10px] font-bold uppercase tracking-wider text-muted-foreground">GMV</th>
+            <th className="px-4 py-3 text-right text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Commission</th>
+            <th className="px-4 py-3 text-right text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Retainers</th>
+            <th className="px-4 py-3 text-right text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Fees</th>
+            <th className="px-4 py-3 text-right text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Earnings</th>
           </tr>
         </thead>
         <tbody>
           {months.map((m) => (
-            <tr key={m.month} className="border-b border-gray-50 hover:bg-[#FFF0F5]/30 transition-colors">
-              <td className="px-4 py-2.5 font-semibold text-[#1A1B3A]">{monthLabel(m.month)}</td>
-              <td className="px-4 py-2.5 text-right tabular-nums text-gray-600">{formatCurrency(m.totalGmv)}</td>
+            <tr key={m.month} className="border-b border-border hover:bg-[#FFF0F5]/30 transition-colors">
+              <td className="px-4 py-2.5 font-semibold text-[var(--foreground)]">{monthLabel(m.month)}</td>
+              <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground">{formatCurrency(m.totalGmv)}</td>
               <td className="px-4 py-2.5 text-right tabular-nums text-emerald-600 font-semibold">{formatCurrency(m.commission)}</td>
               <td className="px-4 py-2.5 text-right tabular-nums">{formatCurrency(m.retainers)}</td>
-              <td className="px-4 py-2.5 text-right tabular-nums">{m.launchFees > 0 ? formatCurrency(m.launchFees) : <span className="text-gray-300">—</span>}</td>
-              <td className="px-4 py-2.5 text-right tabular-nums font-bold text-[#1A1B3A]">{formatCurrency(m.earnings)}</td>
+              <td className="px-4 py-2.5 text-right tabular-nums">{m.launchFees > 0 ? formatCurrency(m.launchFees) : <span className="text-muted-foreground">—</span>}</td>
+              <td className="px-4 py-2.5 text-right tabular-nums font-bold text-[var(--foreground)]">{formatCurrency(m.earnings)}</td>
             </tr>
           ))}
         </tbody>
         <tfoot>
-          <tr className="bg-gray-50/60 border-t-2 border-gray-100 font-bold text-[#1A1B3A]">
+          <tr className="bg-muted/60 border-t-2 border-border font-bold text-[var(--foreground)]">
             <td className="px-4 py-3">{year} Total</td>
             <td className="px-4 py-3 text-right tabular-nums">{formatCurrency(totals.totalGmv)}</td>
             <td className="px-4 py-3 text-right tabular-nums text-emerald-600">{formatCurrency(totals.commission)}</td>
@@ -351,10 +351,10 @@ function Panel({ title, subtitle, children, className, bodyPadding = true }: {
   bodyPadding?: boolean;
 }) {
   return (
-    <div className={cn('rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden', className)}>
+    <div className={cn('rounded-2xl bg-card border border-border shadow-sm overflow-hidden', className)}>
       <div className="px-5 pt-4 pb-3">
-        <h3 className="text-sm font-bold text-[#1A1B3A]">{title}</h3>
-        {subtitle && <p className="text-xs text-gray-400 mt-0.5">{subtitle}</p>}
+        <h3 className="text-sm font-bold text-[var(--foreground)]">{title}</h3>
+        {subtitle && <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>}
       </div>
       <div className={cn(bodyPadding && 'px-5 pb-5')}>{children}</div>
     </div>
@@ -362,13 +362,13 @@ function Panel({ title, subtitle, children, className, bodyPadding = true }: {
 }
 
 function ChartSkeleton({ height }: { height: number }) {
-  return <div className="w-full animate-pulse rounded-xl bg-gray-50" style={{ height }} />;
+  return <div className="w-full animate-pulse rounded-xl bg-muted" style={{ height }} />;
 }
 
 function EmptyState({ message }: { message: string }) {
   return (
-    <div className="text-sm text-gray-400 text-center py-12 flex items-center justify-center gap-2">
-      <Loader2 className="h-4 w-4 text-gray-300" /> {message}
+    <div className="text-sm text-muted-foreground text-center py-12 flex items-center justify-center gap-2">
+      <Loader2 className="h-4 w-4 text-muted-foreground" /> {message}
     </div>
   );
 }

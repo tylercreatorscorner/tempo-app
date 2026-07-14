@@ -19,7 +19,7 @@ export function SetupBanner() {
 
   return (
     <div className="mx-3 sm:mx-4 md:mx-6 mb-4">
-      <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+      <div className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
         {/* Header */}
         <div className="px-5 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4 flex-1">
@@ -35,7 +35,7 @@ export function SetupBanner() {
 
             {/* Progress bar */}
             <div className="flex-1 max-w-xs hidden sm:block">
-              <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
+              <div className="h-2 rounded-full bg-muted overflow-hidden">
                 <div
                   className="h-full rounded-full bg-gradient-to-r from-[var(--primary)] to-[var(--pulse-accent-2)] transition-all duration-700 ease-out"
                   style={{ width: `${progress}%` }}
@@ -51,14 +51,14 @@ export function SetupBanner() {
           <div className="flex items-center gap-1">
             <button
               onClick={() => setExpanded(!expanded)}
-              className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors text-muted-foreground"
+              className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground"
             >
               {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             </button>
             {progress >= 50 && (
               <button
                 onClick={() => setDismissed(true)}
-                className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors text-muted-foreground"
+                className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -68,7 +68,7 @@ export function SetupBanner() {
 
         {/* Mobile progress bar */}
         <div className="px-5 pb-3 sm:hidden">
-          <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
+          <div className="h-2 rounded-full bg-muted overflow-hidden">
             <div
               className="h-full rounded-full bg-gradient-to-r from-[var(--primary)] to-[var(--pulse-accent-2)] transition-all duration-700 ease-out"
               style={{ width: `${progress}%` }}
@@ -98,7 +98,7 @@ function StepRow({ step, isNext }: { step: OnboardingStep; isNext: boolean }) {
           ? 'opacity-60'
           : isNext
           ? 'bg-gradient-to-r from-[var(--primary)]/5 to-[var(--pulse-accent-2)]/5 hover:from-[var(--primary)]/10 hover:to-[var(--pulse-accent-2)]/10'
-          : 'hover:bg-gray-50'
+          : 'hover:bg-muted'
       }`}
     >
       {/* Status indicator */}
@@ -107,7 +107,7 @@ function StepRow({ step, isNext }: { step: OnboardingStep; isNext: boolean }) {
           ? 'bg-gradient-to-br from-[var(--primary)] to-[var(--pulse-accent-2)]'
           : isNext
           ? 'border-2 border-[var(--primary)] bg-[var(--primary)]/5'
-          : 'border-2 border-gray-200'
+          : 'border-2 border-border'
       }`}>
         {step.complete ? (
           <Check className="h-3.5 w-3.5 text-white" />

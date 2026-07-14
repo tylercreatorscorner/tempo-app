@@ -25,10 +25,10 @@ export function CreatorEditButton({ creator }: { creator: CreatorData }) {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+        className="p-1.5 rounded-lg hover:bg-muted transition-colors"
         title="Edit Profile"
       >
-        <Pencil className="h-4 w-4 text-gray-400" />
+        <Pencil className="h-4 w-4 text-muted-foreground" />
       </button>
       {open && <EditPanel creator={creator} onClose={() => setOpen(false)} />}
     </>
@@ -109,11 +109,11 @@ function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
       <div className="absolute inset-0 bg-black/20" onClick={onClose} />
-      <div className="relative w-full max-w-md bg-white shadow-xl overflow-y-auto animate-in slide-in-from-right">
-        <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-[#1A1B3A]">Edit Profile</h2>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100">
-            <X className="h-4 w-4 text-gray-400" />
+      <div className="relative w-full max-w-md bg-card shadow-xl overflow-y-auto animate-in slide-in-from-right">
+        <div className="sticky top-0 bg-card border-b border-border px-6 py-4 flex items-center justify-between">
+          <h2 className="text-lg font-bold text-[var(--foreground)]">Edit Profile</h2>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted">
+            <X className="h-4 w-4 text-muted-foreground" />
           </button>
         </div>
 
@@ -125,14 +125,14 @@ function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => 
             <Field label="Phone" value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} type="tel" />
 
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1.5">Role</label>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Role</label>
               <select
                 value={ROLES.includes(form.role) ? form.role : '__custom'}
                 onChange={(e) => {
                   if (e.target.value === '__custom') setForm({ ...form, role: '' });
                   else setForm({ ...form, role: e.target.value });
                 }}
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/15 focus:border-primary/20"
+                className="w-full px-3 py-2 text-sm border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/15 focus:border-primary/20"
               >
                 <option value="">None</option>
                 {ROLES.map((r) => (
@@ -145,17 +145,17 @@ function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => 
                   value={form.role}
                   onChange={(e) => setForm({ ...form, role: e.target.value })}
                   placeholder="Custom role"
-                  className="w-full mt-2 px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/15 focus:border-primary/20"
+                  className="w-full mt-2 px-3 py-2 text-sm border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/15 focus:border-primary/20"
                 />
               )}
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1.5">Status</label>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Status</label>
               <select
                 value={form.status}
                 onChange={(e) => setForm({ ...form, status: e.target.value })}
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/15 focus:border-primary/20"
+                className="w-full px-3 py-2 text-sm border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/15 focus:border-primary/20"
               >
                 <option value="">None</option>
                 {STATUSES.map((s) => (
@@ -165,12 +165,12 @@ function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => 
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1.5">Notes</label>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Notes</label>
               <textarea
                 value={form.notes}
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
                 rows={3}
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/15 focus:border-primary/20 resize-none"
+                className="w-full px-3 py-2 text-sm border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/15 focus:border-primary/20 resize-none"
               />
             </div>
           </div>
@@ -185,16 +185,16 @@ function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => 
           </button>
 
           {/* TikTok Accounts */}
-          <div className="pt-4 border-t border-gray-100">
-            <h3 className="text-sm font-bold text-[#1A1B3A] mb-3">TikTok Accounts</h3>
+          <div className="pt-4 border-t border-border">
+            <h3 className="text-sm font-bold text-[var(--foreground)] mb-3">TikTok Accounts</h3>
             <div className="space-y-2">
               {accounts.map((handle) => (
-                <div key={handle} className="flex items-center justify-between px-3 py-2 bg-gray-50 rounded-xl">
-                  <span className="text-sm text-gray-700">@{handle}</span>
+                <div key={handle} className="flex items-center justify-between px-3 py-2 bg-muted rounded-xl">
+                  <span className="text-sm text-foreground">@{handle}</span>
                   <button
                     onClick={() => removeAccount(handle)}
                     disabled={accountSaving}
-                    className="p-1 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors"
+                    className="p-1 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-500 transition-colors"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
@@ -207,7 +207,7 @@ function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => 
                 onChange={(e) => setNewHandle(e.target.value)}
                 placeholder="@username"
                 onKeyDown={(e) => e.key === 'Enter' && addAccount()}
-                className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/15 focus:border-primary/20"
+                className="flex-1 px-3 py-2 text-sm border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/15 focus:border-primary/20"
               />
               <button
                 onClick={addAccount}
@@ -237,12 +237,12 @@ function Field({
 }) {
   return (
     <div>
-      <label className="block text-xs font-medium text-gray-500 mb-1.5">{label}</label>
+      <label className="block text-xs font-medium text-muted-foreground mb-1.5">{label}</label>
       <input
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/15 focus:border-primary/20"
+        className="w-full px-3 py-2 text-sm border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/15 focus:border-primary/20"
       />
     </div>
   );

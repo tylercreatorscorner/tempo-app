@@ -44,7 +44,7 @@ export default async function BrandDetailPage({ params, searchParams }: Props) {
 
   const sp = await searchParams;
   const { startDate, endDate } = resolveDateRange(sp.range);
-  const color = brand.color ?? '#6B7280';
+  const color = brand.color ?? 'var(--muted-foreground)';
   const displayName = brand.display_name || brand.name || slug;
 
   // Previous period

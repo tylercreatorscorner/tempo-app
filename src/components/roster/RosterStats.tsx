@@ -56,14 +56,14 @@ export function RosterStats({ roster }: { roster: RosterEntry[] }) {
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
       {stats.map((s) => (
-        <div key={s.label} className="rounded-2xl bg-white border border-gray-100 shadow-sm p-5">
+        <div key={s.label} className="rounded-2xl bg-card border border-border shadow-sm p-5">
           <div className="flex items-center gap-3 mb-2">
             <div className={`h-9 w-9 rounded-xl ${s.iconBg} flex items-center justify-center`}>
               <s.icon className={`h-4 w-4 ${s.iconColor}`} />
             </div>
-            <span className="text-xs text-gray-400 font-medium">{s.label}</span>
+            <span className="text-xs text-muted-foreground font-medium">{s.label}</span>
           </div>
-          <p className="text-2xl font-bold text-[#1A1B3A]">{s.value}</p>
+          <p className="text-2xl font-bold text-[var(--foreground)]">{s.value}</p>
         </div>
       ))}
     </div>

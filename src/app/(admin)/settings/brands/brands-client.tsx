@@ -116,8 +116,8 @@ export function BrandsSettingsClient() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-extrabold text-[#1A1B3A]">Brand Settings</h1>
-          <p className="text-sm text-gray-400 mt-0.5">
+          <h1 className="text-2xl font-extrabold text-[var(--foreground)]">Brand Settings</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
             Manage compensation models, rates, retainers, fees, and invoice defaults across all brands.
           </p>
         </div>
@@ -125,7 +125,7 @@ export function BrandsSettingsClient() {
           <button
             onClick={fetchBrands}
             disabled={loading}
-            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-600 disabled:opacity-40 transition-colors"
+            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl border border-border hover:bg-muted text-muted-foreground disabled:opacity-40 transition-colors"
           >
             <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
             Refresh
@@ -156,16 +156,16 @@ export function BrandsSettingsClient() {
 
       {/* Brand list */}
       {loading && brands.length === 0 ? (
-        <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-12 text-center">
-          <div className="inline-block h-8 w-8 rounded-full border-2 border-gray-200 border-t-[var(--primary)] animate-spin" />
+        <div className="rounded-2xl bg-card border border-border shadow-sm p-12 text-center">
+          <div className="inline-block h-8 w-8 rounded-full border-2 border-border border-t-[var(--primary)] animate-spin" />
         </div>
       ) : brands.length === 0 ? (
-        <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-12 text-center">
-          <div className="mx-auto h-12 w-12 rounded-2xl bg-gray-50 flex items-center justify-center mb-3">
-            <Settings2 className="h-5 w-5 text-gray-300" />
+        <div className="rounded-2xl bg-card border border-border shadow-sm p-12 text-center">
+          <div className="mx-auto h-12 w-12 rounded-2xl bg-muted flex items-center justify-center mb-3">
+            <Settings2 className="h-5 w-5 text-muted-foreground" />
           </div>
-          <p className="text-sm font-bold text-[#1A1B3A]">No clients yet</p>
-          <p className="text-xs text-gray-400 mt-1 mb-4">Onboard your first client to get started.</p>
+          <p className="text-sm font-bold text-[var(--foreground)]">No clients yet</p>
+          <p className="text-xs text-muted-foreground mt-1 mb-4">Onboard your first client to get started.</p>
           <button
             onClick={() => setAdding(true)}
             className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-xl text-sm font-bold hover:bg-[#E91E8C] transition-colors"
@@ -191,7 +191,7 @@ export function BrandsSettingsClient() {
             <div className="mt-2">
               <button
                 onClick={() => setShowArchived((v) => !v)}
-                className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-gray-500 hover:text-gray-700 transition-colors px-2 py-1"
+                className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors px-2 py-1"
               >
                 <Archive className="h-3 w-3" />
                 {showArchived ? 'Hide' : 'Show'} archived ({archived.length})
@@ -257,9 +257,9 @@ export function BrandsSettingsClient() {
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-gray-100 bg-white p-3">
-      <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">{label}</p>
-      <p className="text-lg font-extrabold text-[#1A1B3A] mt-0.5 tabular-nums">{value}</p>
+    <div className="rounded-xl border border-border bg-card p-3">
+      <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{label}</p>
+      <p className="text-lg font-extrabold text-[var(--foreground)] mt-0.5 tabular-nums">{value}</p>
     </div>
   );
 }
@@ -282,21 +282,21 @@ function BrandTable({
 }) {
   if (brands.length === 0) return null;
   return (
-    <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
-      <div className="px-4 py-2.5 bg-gray-50/60 border-b border-gray-100 flex items-center justify-between">
-        <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-500">{heading}</p>
-        <p className="text-[10px] font-bold text-gray-400 tabular-nums">{brands.length}</p>
+    <div className="rounded-2xl bg-card border border-border shadow-sm overflow-hidden">
+      <div className="px-4 py-2.5 bg-muted/60 border-b border-border flex items-center justify-between">
+        <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">{heading}</p>
+        <p className="text-[10px] font-bold text-muted-foreground tabular-nums">{brands.length}</p>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="bg-white border-b border-gray-100">
-              <th className="px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-gray-400">Brand</th>
-              <th className="px-4 py-2.5 text-right text-[10px] font-bold uppercase tracking-wider text-gray-400">Rate</th>
-              <th className="px-4 py-2.5 text-right text-[10px] font-bold uppercase tracking-wider text-gray-400">Retainer</th>
-              <th className="px-4 py-2.5 text-right text-[10px] font-bold uppercase tracking-wider text-gray-400">Launch Fee</th>
-              <th className="px-4 py-2.5 text-right text-[10px] font-bold uppercase tracking-wider text-gray-400">Goal</th>
-              <th className="px-4 py-2.5 text-right text-[10px] font-bold uppercase tracking-wider text-gray-400 w-10"></th>
+            <tr className="bg-card border-b border-border">
+              <th className="px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Brand</th>
+              <th className="px-4 py-2.5 text-right text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Rate</th>
+              <th className="px-4 py-2.5 text-right text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Retainer</th>
+              <th className="px-4 py-2.5 text-right text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Launch Fee</th>
+              <th className="px-4 py-2.5 text-right text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Goal</th>
+              <th className="px-4 py-2.5 text-right text-[10px] font-bold uppercase tracking-wider text-muted-foreground w-10"></th>
             </tr>
           </thead>
           <tbody>
@@ -311,7 +311,7 @@ function BrandTable({
                   key={b.id}
                   onClick={() => !isBusy && onRowClick(b)}
                   className={cn(
-                    'border-b border-gray-50 hover:bg-[#FFF0F5]/40 cursor-pointer transition-colors',
+                    'border-b border-border hover:bg-[#FFF0F5]/40 cursor-pointer transition-colors',
                     archived && 'opacity-60',
                     isBusy && 'opacity-40 pointer-events-none',
                   )}
@@ -320,11 +320,11 @@ function BrandTable({
                     <div className="flex items-center gap-2.5">
                       <span
                         className="h-3 w-3 rounded-full flex-shrink-0"
-                        style={{ backgroundColor: b.color || '#E5E7EB' }}
+                        style={{ backgroundColor: b.color || 'var(--border)' }}
                       />
                       <div className="min-w-0">
-                        <p className="font-bold text-[#1A1B3A]">{b.name}</p>
-                        <p className="text-[10px] font-mono text-gray-400">{b.slug}</p>
+                        <p className="font-bold text-[var(--foreground)]">{b.name}</p>
+                        <p className="text-[10px] font-mono text-muted-foreground">{b.slug}</p>
                       </div>
                       {modelBadge && (
                         <span className={cn('inline-flex items-center px-1.5 py-0.5 rounded-md border text-[10px] font-bold uppercase tracking-wider', modelBadge.bg, modelBadge.text)}>
@@ -332,36 +332,36 @@ function BrandTable({
                         </span>
                       )}
                       {b.is_umbrella && (
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-md border border-gray-200 bg-gray-50 text-gray-500 text-[10px] font-bold uppercase tracking-wider">
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-md border border-border bg-muted text-muted-foreground text-[10px] font-bold uppercase tracking-wider">
                           Umbrella
                         </span>
                       )}
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-right tabular-nums text-gray-700">
-                    {s?.commission_rate ? `${Number(s.commission_rate).toFixed(2)}%` : <span className="text-gray-300">—</span>}
+                  <td className="px-4 py-3 text-right tabular-nums text-foreground">
+                    {s?.commission_rate ? `${Number(s.commission_rate).toFixed(2)}%` : <span className="text-muted-foreground">—</span>}
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums">
-                    {Number(s?.retainer ?? 0) > 0 ? formatCurrency(Number(s?.retainer)) : <span className="text-gray-300">—</span>}
+                    {Number(s?.retainer ?? 0) > 0 ? formatCurrency(Number(s?.retainer)) : <span className="text-muted-foreground">—</span>}
                     {Number(s?.product_retainer_amount ?? 0) > 0 && (
-                      <div className="text-[10px] text-gray-400 mt-0.5">+{formatCurrency(Number(s?.product_retainer_amount))} {s?.product_retainer_name ?? 'product'}</div>
+                      <div className="text-[10px] text-muted-foreground mt-0.5">+{formatCurrency(Number(s?.product_retainer_amount))} {s?.product_retainer_name ?? 'product'}</div>
                     )}
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums">
                     {Number(s?.launch_fee ?? 0) > 0 ? (
                       <>
                         <div className="text-amber-600 font-medium">{formatCurrency(Number(s?.launch_fee))}</div>
-                        {s?.launch_fee_name && <div className="text-[10px] text-gray-400 mt-0.5">{s.launch_fee_name}</div>}
+                        {s?.launch_fee_name && <div className="text-[10px] text-muted-foreground mt-0.5">{s.launch_fee_name}</div>}
                       </>
-                    ) : <span className="text-gray-300">—</span>}
+                    ) : <span className="text-muted-foreground">—</span>}
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums">
-                    {Number(s?.monthly_gmv_goal ?? 0) > 0 ? formatCurrency(Number(s?.monthly_gmv_goal)) : <span className="text-gray-300">—</span>}
+                    {Number(s?.monthly_gmv_goal ?? 0) > 0 ? formatCurrency(Number(s?.monthly_gmv_goal)) : <span className="text-muted-foreground">—</span>}
                   </td>
                   <td className="px-2 py-3 text-right relative">
                     <button
                       onClick={(e) => { e.stopPropagation(); onMenuToggle(b.id); }}
-                      className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors"
+                      className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
                       aria-label="Actions"
                     >
                       <MoreHorizontal className="h-4 w-4" />
@@ -404,19 +404,19 @@ function RowMenu({
   return (
     <div
       onClick={(e) => e.stopPropagation()}
-      className="absolute right-2 top-9 z-20 w-48 rounded-xl border border-gray-100 bg-white shadow-lg overflow-hidden"
+      className="absolute right-2 top-9 z-20 w-48 rounded-xl border border-border bg-card shadow-lg overflow-hidden"
     >
       <button
         onClick={onEdit}
-        className="w-full px-3 py-2 text-left text-xs font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+        className="w-full px-3 py-2 text-left text-xs font-medium text-foreground hover:bg-muted flex items-center gap-2"
       >
-        <Settings2 className="h-3.5 w-3.5 text-gray-400" />
+        <Settings2 className="h-3.5 w-3.5 text-muted-foreground" />
         Edit settings
       </button>
       {archived ? (
         <button
           onClick={onUnarchive}
-          className="w-full px-3 py-2 text-left text-xs font-medium text-emerald-700 hover:bg-emerald-50 flex items-center gap-2 border-t border-gray-50"
+          className="w-full px-3 py-2 text-left text-xs font-medium text-emerald-700 hover:bg-emerald-50 flex items-center gap-2 border-t border-border"
         >
           <ArchiveRestore className="h-3.5 w-3.5" />
           Restore client
@@ -424,7 +424,7 @@ function RowMenu({
       ) : (
         <button
           onClick={onArchive}
-          className="w-full px-3 py-2 text-left text-xs font-medium text-red-600 hover:bg-red-50 flex items-center gap-2 border-t border-gray-50"
+          className="w-full px-3 py-2 text-left text-xs font-medium text-red-600 hover:bg-red-50 flex items-center gap-2 border-t border-border"
         >
           <Archive className="h-3.5 w-3.5" />
           Archive client

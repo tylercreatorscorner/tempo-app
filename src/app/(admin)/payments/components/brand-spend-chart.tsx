@@ -24,7 +24,7 @@ export function BrandSpendChart({ data, height = 220 }: Props) {
   const entries = Object.entries(data).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
   if (entries.length === 0) {
     return (
-      <p className="text-sm text-gray-400 text-center py-8">No retainer spend recorded</p>
+      <p className="text-sm text-muted-foreground text-center py-8">No retainer spend recorded</p>
     );
   }
 
@@ -45,17 +45,17 @@ export function BrandSpendChart({ data, height = 220 }: Props) {
       categories: entries.map(([brand]) => brandMeta.label(brand)),
       labels: {
         formatter: (v: string) => fmtCompact(Number(v)),
-        style: { colors: Array(entries.length).fill('#9CA3AF'), fontSize: '11px' },
+        style: { colors: Array(entries.length).fill('var(--muted-foreground)'), fontSize: '11px' },
       },
       axisBorder: { show: false },
       axisTicks: { show: false },
     },
     yaxis: {
-      labels: { style: { colors: Array(entries.length).fill('#1A1B3A'), fontSize: '12px', fontWeight: '600' } },
+      labels: { style: { colors: Array(entries.length).fill('var(--foreground)'), fontSize: '12px', fontWeight: '600' } },
     },
     colors: entries.map(([brand]) => brandMeta.color(brand)),
     grid: {
-      borderColor: '#F3F4F6',
+      borderColor: 'var(--muted)',
       strokeDashArray: 4,
       xaxis: { lines: { show: true } },
       yaxis: { lines: { show: false } },

@@ -19,8 +19,8 @@ export function CohortHeatmap({ rows, maxMonthIndex }: { rows: CohortRow[]; maxM
     <div className="overflow-x-auto">
       <table className="w-full border-collapse text-xs">
         <thead>
-          <tr className="text-gray-400">
-            <th className="sticky left-0 z-10 bg-white text-left font-semibold uppercase tracking-wider px-4 py-2 whitespace-nowrap">
+          <tr className="text-muted-foreground">
+            <th className="sticky left-0 z-10 bg-card text-left font-semibold uppercase tracking-wider px-4 py-2 whitespace-nowrap">
               Cohort
             </th>
             <th className="text-right font-semibold uppercase tracking-wider px-2 py-2 whitespace-nowrap">Size</th>
@@ -33,11 +33,11 @@ export function CohortHeatmap({ rows, maxMonthIndex }: { rows: CohortRow[]; maxM
         </thead>
         <tbody>
           {rows.map((row) => (
-            <tr key={row.cohortMonth} className="border-t border-gray-100">
-              <td className="sticky left-0 z-10 bg-white px-4 py-1.5 font-semibold text-[#1A1B3A] whitespace-nowrap">
+            <tr key={row.cohortMonth} className="border-t border-border">
+              <td className="sticky left-0 z-10 bg-card px-4 py-1.5 font-semibold text-[var(--foreground)] whitespace-nowrap">
                 {row.label}
               </td>
-              <td className="text-right px-2 py-1.5 font-mono tabular-nums text-gray-500">{row.size}</td>
+              <td className="text-right px-2 py-1.5 font-mono tabular-nums text-muted-foreground">{row.size}</td>
               {cols.map((i) => {
                 const cell = row.cells[i];
                 if (!cell) return <td key={i} className="px-2 py-1.5" aria-hidden="true" />;
@@ -46,7 +46,7 @@ export function CohortHeatmap({ rows, maxMonthIndex }: { rows: CohortRow[]; maxM
                   <td key={i} className="px-1 py-1">
                     <div
                       className="rounded-md text-center py-1.5 font-mono tabular-nums font-semibold"
-                      style={{ ...cellStyle(cell.pct), color: light ? '#ffffff' : '#1A1B3A' }}
+                      style={{ ...cellStyle(cell.pct), color: light ? '#ffffff' : 'var(--foreground)' }}
                       title={`${row.label} · M${i}: ${cell.active} of ${row.size} still active (${Math.round(cell.pct)}%)`}
                     >
                       {Math.round(cell.pct)}%

@@ -51,12 +51,12 @@ export default async function AffiliatesPage({ searchParams }: Props) {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#1A1B3A]">Top Affiliates</h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[var(--foreground)]">Top Affiliates</h1>
+          <p className="text-sm text-muted-foreground mt-1">
             Highest-grossing creators across {scopeLabel} — and how many of your brands each one spans.
           </p>
           {result.hasData && (
-            <p className="text-xs text-gray-400 mt-1 tabular-nums">
+            <p className="text-xs text-muted-foreground mt-1 tabular-nums">
               Top {result.rows.length} · {formatCurrency(result.totalGmv)} agency GMV shown
             </p>
           )}

@@ -68,11 +68,11 @@ export function AddBrandModal({ open, onClose, onCreated }: AddBrandModalProps) 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+      <div className="bg-card rounded-2xl border border-border shadow-2xl w-full max-w-md mx-4 overflow-hidden">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+        <div className="px-6 py-4 border-b border-border flex items-center justify-between">
           <h2 className="text-lg font-bold">Add Brand</h2>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted transition-colors">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -126,7 +126,7 @@ export function AddBrandModal({ open, onClose, onCreated }: AddBrandModalProps) 
           </div>
 
           {/* Preview */}
-          <div className="rounded-xl border border-gray-100 bg-gray-50 p-4 flex items-center gap-3">
+          <div className="rounded-xl border border-border bg-muted p-4 flex items-center gap-3">
             <div
               className="h-10 w-10 rounded-lg flex items-center justify-center text-white font-bold text-sm"
               style={{ backgroundColor: color }}
@@ -143,7 +143,7 @@ export function AddBrandModal({ open, onClose, onCreated }: AddBrandModalProps) 
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 py-2.5 rounded-xl border border-border text-sm font-medium hover:bg-gray-50 transition-colors"
+              className="flex-1 py-2.5 rounded-xl border border-border text-sm font-medium hover:bg-muted transition-colors"
             >
               Cancel
             </button>

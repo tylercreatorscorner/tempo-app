@@ -131,16 +131,16 @@ function extraHandles(c: Creator): string[] {
 function StatusBadge({ status }: { status: string | null }) {
   // Null/empty status → neutral dash (not green "Active")
   if (!status) {
-    return <span className="text-xs text-gray-300">—</span>;
+    return <span className="text-xs text-muted-foreground">—</span>;
   }
   const STYLE: Record<string, string> = {
     Active:   'bg-green-50 text-green-600',
-    Inactive: 'bg-gray-100 text-gray-500',
+    Inactive: 'bg-muted text-muted-foreground',
     Churned:  'bg-red-50 text-red-600',
     'On Hold': 'bg-yellow-50 text-yellow-700',
     Paused:   'bg-yellow-50 text-yellow-700',
   };
-  const cls = STYLE[status] ?? 'bg-gray-100 text-gray-500';
+  const cls = STYLE[status] ?? 'bg-muted text-muted-foreground';
   return (
     <span className={`inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-full ${cls}`}>
       {status}
@@ -156,14 +156,14 @@ function StatusBadge({ status }: { status: string | null }) {
 
 
 function LastPostCell({ date }: { date: string | null }) {
-  if (!date) return <span className="text-gray-300">—</span>;
+  if (!date) return <span className="text-muted-foreground">—</span>;
   const ms = Date.now() - new Date(date + 'T00:00:00Z').getTime();
   const days = Math.max(0, Math.floor(ms / (1000 * 60 * 60 * 24)));
   const cls =
     days >= 30 ? 'text-red-600 font-semibold'
     : days >= 14 ? 'text-orange-600 font-semibold'
-    : days >= 7 ? 'text-gray-600'
-    : 'text-gray-400';
+    : days >= 7 ? 'text-muted-foreground'
+    : 'text-muted-foreground';
   const label = days === 0 ? 'today' : days === 1 ? '1d ago' : `${days}d ago`;
   return <span className={`text-xs ${cls}`}>{label}</span>;
 }
@@ -178,11 +178,11 @@ function LastPostCell({ date }: { date: string | null }) {
  * Returns em-dash for unmanaged or missing values.
  */
 function JoinDateCell({ date }: { date: string | null }) {
-  if (!date) return <span className="text-gray-300">—</span>;
+  if (!date) return <span className="text-muted-foreground">—</span>;
   const d = new Date(date);
-  if (isNaN(d.getTime())) return <span className="text-gray-300">—</span>;
+  if (isNaN(d.getTime())) return <span className="text-muted-foreground">—</span>;
   const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' });
-  return <span className="text-xs text-gray-600 tabular-nums">{label}</span>;
+  return <span className="text-xs text-muted-foreground tabular-nums">{label}</span>;
 }
 
 /**
@@ -291,19 +291,19 @@ function BrandSelect({
         ref={buttonRef}
         type="button"
         onClick={() => setOpen(o => !o)}
-        className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-[#1A1B3A] hover:bg-gray-50 hover:border-gray-300 transition-colors min-w-[180px]"
+        className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-border bg-card text-sm font-semibold text-[var(--foreground)] hover:bg-muted hover:border-border transition-colors min-w-[180px]"
       >
         {current.slug !== 'all' && (
           <span
             className="h-2.5 w-2.5 rounded-full inline-block flex-shrink-0"
-            style={{ backgroundColor: current.color ?? '#6B7280' }}
+            style={{ backgroundColor: current.color ?? 'var(--muted-foreground)' }}
           />
         )}
         <span className="flex-1 text-left truncate">{current.name}</span>
-        <span className="text-[10px] font-normal text-gray-400">
+        <span className="text-[10px] font-normal text-muted-foreground">
           {value === 'all' ? `${options.length}` : ''}
         </span>
-        <svg className={`h-4 w-4 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="currentColor">
+        <svg className={`h-4 w-4 text-muted-foreground transition-transform ${open ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="currentColor">
           <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.06l3.71-3.83a.75.75 0 111.08 1.04l-4.25 4.39a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z" clipRule="evenodd" />
         </svg>
       </button>
@@ -323,18 +323,18 @@ function BrandSelect({
             top: anchorRect.top,
             minWidth: Math.max(288, anchorRect.width),
           }}
-          className="z-[60] rounded-xl border border-gray-200 bg-white shadow-lg flex flex-col max-h-96"
+          className="z-[60] rounded-xl border border-border bg-card shadow-lg flex flex-col max-h-96"
         >
-          <div className="p-2 border-b border-gray-100 bg-white">
+          <div className="p-2 border-b border-border bg-card">
             <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               <input
                 ref={inputRef}
                 type="text"
                 placeholder="Search brands…"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/20 focus:border-[#E91E8C]"
+                className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/20 focus:border-[#E91E8C]"
               />
             </div>
           </div>
@@ -342,29 +342,29 @@ function BrandSelect({
             <button
               type="button"
               onClick={() => { onChange('all'); setOpen(false); setQuery(''); }}
-              className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 transition-colors text-left ${
-                value === 'all' ? 'bg-primary/10/40 text-[#E91E8C] font-semibold' : 'text-gray-700'
+              className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors text-left ${
+                value === 'all' ? 'bg-primary/10/40 text-[#E91E8C] font-semibold' : 'text-foreground'
               }`}
             >
-              <Globe className="h-3.5 w-3.5 text-gray-400" />
+              <Globe className="h-3.5 w-3.5 text-muted-foreground" />
               <span className="flex-1">All brands</span>
-              <span className="text-[10px] text-gray-400">{options.length}</span>
+              <span className="text-[10px] text-muted-foreground">{options.length}</span>
               {value === 'all' && <Check className="h-3.5 w-3.5" />}
             </button>
             {filtered.length === 0 ? (
-              <p className="px-3 py-4 text-xs text-gray-400 text-center">No brands match &quot;{query}&quot;</p>
+              <p className="px-3 py-4 text-xs text-muted-foreground text-center">No brands match &quot;{query}&quot;</p>
             ) : filtered.map((b) => (
               <button
                 type="button"
                 key={b.slug}
                 onClick={() => { onChange(b.slug); setOpen(false); setQuery(''); }}
-                className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 transition-colors text-left ${
-                  value === b.slug ? 'bg-primary/10/40 text-[#E91E8C] font-semibold' : 'text-gray-700'
+                className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors text-left ${
+                  value === b.slug ? 'bg-primary/10/40 text-[#E91E8C] font-semibold' : 'text-foreground'
                 }`}
               >
                 <span
                   className="h-2.5 w-2.5 rounded-full inline-block flex-shrink-0"
-                  style={{ backgroundColor: b.color ?? '#6B7280' }}
+                  style={{ backgroundColor: b.color ?? 'var(--muted-foreground)' }}
                 />
                 <span className="flex-1 truncate">{b.name}</span>
                 {value === b.slug && <Check className="h-3.5 w-3.5" />}
@@ -398,7 +398,7 @@ function PeriodSelector({
     : 'Custom';
 
   return (
-    <div className="relative flex flex-wrap gap-1 p-1 bg-gray-100 border border-gray-200 rounded-xl">
+    <div className="relative flex flex-wrap gap-1 p-1 bg-muted border border-border rounded-xl">
       {DATE_PRESETS.map((p) => {
         const active = !isCustom && preset === p.value;
         return (
@@ -408,8 +408,8 @@ function PeriodSelector({
             title={p.label}
             className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
               active
-                ? 'bg-white text-[#1A1B3A] shadow'
-                : 'text-gray-500 hover:text-gray-900 hover:bg-white'
+                ? 'bg-card text-[var(--foreground)] shadow'
+                : 'text-muted-foreground hover:text-foreground hover:bg-card'
             }`}
           >
             {PERIOD_SHORT[p.value]}
@@ -420,8 +420,8 @@ function PeriodSelector({
         onClick={() => setOpen(o => !o)}
         className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors inline-flex items-center gap-1 ${
           isCustom
-            ? 'bg-white text-[#1A1B3A] shadow'
-            : 'text-gray-500 hover:text-gray-900 hover:bg-white'
+            ? 'bg-card text-[var(--foreground)] shadow'
+            : 'text-muted-foreground hover:text-foreground hover:bg-card'
         }`}
       >
         <Calendar className="h-3 w-3" />
@@ -441,7 +441,7 @@ function PeriodSelector({
 
 
 function RoiCell({ roi }: { roi: number | null }) {
-  if (roi === null) return <span className="text-xs text-gray-300">—</span>;
+  if (roi === null) return <span className="text-xs text-muted-foreground">—</span>;
   const cls =
     roi >= 2 ? 'text-green-700 font-semibold'
     : roi >= 1 ? 'text-green-600'
@@ -474,7 +474,7 @@ function ExtraAccountsBadge({ creator }: { creator: Creator }) {
         +{extras.length}
       </button>
       {open && (
-        <div className="absolute z-50 top-full left-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg p-2 min-w-[160px]">
+        <div className="absolute z-50 top-full left-0 mt-1 bg-card border border-border rounded-xl shadow-lg p-2 min-w-[160px]">
           {extras.map((h) => (
             <a
               key={h}
@@ -502,7 +502,7 @@ function SkeletonRow({ cols }: { cols: number }) {
     <tr>
       {Array.from({ length: cols }).map((_, i) => (
         <td key={i} className="px-5 py-3.5">
-          <div className="h-3.5 rounded bg-gray-100 animate-pulse" style={{ width: `${40 + ((i * 13) % 40)}%` }} />
+          <div className="h-3.5 rounded bg-muted animate-pulse" style={{ width: `${40 + ((i * 13) % 40)}%` }} />
         </td>
       ))}
     </tr>
@@ -645,16 +645,16 @@ function CreatorPanel({
     <div className="fixed inset-0 z-50 flex justify-end" onClick={editing ? undefined : onClose}>
       <div className="absolute inset-0 bg-black/20 backdrop-blur-[2px]" onClick={editing ? undefined : onClose} />
       <div
-        className="relative w-full max-w-md bg-white shadow-2xl h-full overflow-y-auto flex flex-col"
+        className="relative w-full max-w-md bg-card shadow-2xl h-full overflow-y-auto flex flex-col"
         style={{ animation: 'slideInRight 0.22s ease-out' }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between z-10">
+        <div className="sticky top-0 bg-card border-b border-border px-6 py-4 flex items-center justify-between z-10">
           <div>
-            <h2 className="text-base font-bold text-[#1A1B3A]">{displayName}</h2>
+            <h2 className="text-base font-bold text-[var(--foreground)]">{displayName}</h2>
             {creator.brand && !editing && (
-              <p className="text-xs text-gray-400 mt-0.5">
+              <p className="text-xs text-muted-foreground mt-0.5">
                 {brandOptions.find(b => b.slug === creator.brand)?.name || brandMeta.label(creator.brand)}
               </p>
             )}
@@ -673,12 +673,12 @@ function CreatorPanel({
                 </button>
                 <button
                   onClick={() => setEditing(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-border text-muted-foreground hover:bg-muted transition-colors"
                 >
                   <Pencil className="h-3.5 w-3.5" /> Edit
                 </button>
-                <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
-                  <X className="h-5 w-5 text-gray-400" />
+                <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted transition-colors">
+                  <X className="h-5 w-5 text-muted-foreground" />
                 </button>
               </>
             ) : (
@@ -686,7 +686,7 @@ function CreatorPanel({
                 <button
                   onClick={handleCancel}
                   disabled={saving}
-                  className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-border text-muted-foreground hover:bg-muted disabled:opacity-50 transition-colors"
                 >
                   Cancel
                 </button>
@@ -732,7 +732,7 @@ function CreatorPanel({
                 <button
                   onClick={() => setConfirmRemove(false)}
                   disabled={removing}
-                  className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-60 transition-colors"
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-border bg-card text-muted-foreground hover:bg-muted disabled:opacity-60 transition-colors"
                 >
                   Cancel
                 </button>
@@ -745,21 +745,21 @@ function CreatorPanel({
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1">Real Name</label>
+                  <label className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Real Name</label>
                   <input
                     type="text"
                     value={form.real_name}
                     onChange={e => set('real_name', e.target.value)}
                     placeholder="Jane Smith"
-                    className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+                    className="w-full px-3 py-2 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1">Brand</label>
+                  <label className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Brand</label>
                   <select
                     value={form.brand}
                     onChange={e => set('brand', e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+                    className="w-full px-3 py-2 rounded-xl border border-border text-sm bg-card focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
                   >
                     <option value="">— none —</option>
                     {brandOptions.map(b => (
@@ -771,29 +771,29 @@ function CreatorPanel({
 
               {form.brand && (
                 <div>
-                  <label className="block text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1.5">Products</label>
+                  <label className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Products</label>
                   <ProductTagPicker brand={form.brand} value={productTags} onChange={setProductTags} />
                 </div>
               )}
 
               <div>
-                <label className="block text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1.5">TikTok Accounts</label>
+                <label className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">TikTok Accounts</label>
                 <div className="space-y-2">
                   {handles.map((h, idx) => (
                     <div key={idx} className="flex items-center gap-2">
-                      <span className="text-xs text-gray-400 w-4 shrink-0">{idx + 1}</span>
+                      <span className="text-xs text-muted-foreground w-4 shrink-0">{idx + 1}</span>
                       <input
                         type="text"
                         value={h}
                         onChange={(e) => setHandleAt(idx, e.target.value)}
                         placeholder={idx === 0 ? 'primary handle' : 'additional handle'}
-                        className="flex-1 px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+                        className="flex-1 px-3 py-2 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
                       />
                       {(handles.length > 1 || h !== '') && (
                         <button
                           type="button"
                           onClick={() => removeHandle(idx)}
-                          className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 transition-colors"
+                          className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground transition-colors"
                           title="Remove handle"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -814,7 +814,7 @@ function CreatorPanel({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1">Monthly Retainer ($)</label>
+                  <label className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Monthly Retainer ($)</label>
                   <input
                     type="number"
                     min="0"
@@ -822,11 +822,11 @@ function CreatorPanel({
                     value={form.retainer}
                     onChange={e => set('retainer', e.target.value)}
                     placeholder="0"
-                    className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+                    className="w-full px-3 py-2 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1">Posts / Month</label>
+                  <label className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Posts / Month</label>
                   <input
                     type="number"
                     min="1"
@@ -834,18 +834,18 @@ function CreatorPanel({
                     value={form.monthly_post_requirement}
                     onChange={e => set('monthly_post_requirement', e.target.value)}
                     placeholder="30"
-                    className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+                    className="w-full px-3 py-2 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1">Status</label>
+                  <label className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Status</label>
                   <select
                     value={form.status}
                     onChange={e => set('status', e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+                    className="w-full px-3 py-2 rounded-xl border border-border text-sm bg-card focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
                   >
                     <option value="Active">Active</option>
                     <option value="On Hold">On Hold</option>
@@ -854,25 +854,25 @@ function CreatorPanel({
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1">Discord</label>
+                  <label className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Discord</label>
                   <input
                     type="text"
                     value={form.discord_name}
                     onChange={e => set('discord_name', e.target.value)}
                     placeholder="username"
-                    className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+                    className="w-full px-3 py-2 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1">Notes</label>
+                <label className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Notes</label>
                 <textarea
                   rows={3}
                   value={form.notes}
                   onChange={e => set('notes', e.target.value)}
                   placeholder="Any notes about this creator…"
-                  className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C] resize-none"
+                  className="w-full px-3 py-2 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C] resize-none"
                 />
               </div>
             </div>
@@ -880,15 +880,15 @@ function CreatorPanel({
             /* ── VIEW MODE ── */
             <>
               <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-xl bg-gray-50 p-3">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1">Retainer</p>
-                  <p className="text-base font-bold text-[#1A1B3A]">
+                <div className="rounded-xl bg-muted p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Retainer</p>
+                  <p className="text-base font-bold text-[var(--foreground)]">
                     {creator.retainer && creator.retainer > 0 ? fmt(creator.retainer) : '—'}
                   </p>
                 </div>
-                <div className="rounded-xl bg-gray-50 p-3">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1">Posts/Mo</p>
-                  <p className="text-base font-bold text-[#1A1B3A]">{creator.monthly_post_requirement || 30}</p>
+                <div className="rounded-xl bg-muted p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Posts/Mo</p>
+                  <p className="text-base font-bold text-[var(--foreground)]">{creator.monthly_post_requirement || 30}</p>
                 </div>
               </div>
 
@@ -905,7 +905,7 @@ function CreatorPanel({
                 const total = entries.reduce((s, [, g]) => s + g, 0);
                 return (
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">Revenue by store</p>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Revenue by store</p>
                     <div className="space-y-1.5">
                       {entries.map(([slug, gmv]) => {
                         const pct = total > 0 ? Math.round((gmv / total) * 100) : 0;
@@ -916,11 +916,11 @@ function CreatorPanel({
                               className="h-2.5 w-2.5 rounded-full flex-shrink-0"
                               style={{ backgroundColor: color }}
                             />
-                            <span className="text-gray-700 flex-1 truncate">
+                            <span className="text-foreground flex-1 truncate">
                               {brandMeta.label(slug)}
                             </span>
-                            <span className="text-[#1A1B3A] font-semibold tabular-nums">{fmt(gmv)}</span>
-                            <span className="text-xs text-gray-400 w-9 text-right tabular-nums">{pct}%</span>
+                            <span className="text-[var(--foreground)] font-semibold tabular-nums">{fmt(gmv)}</span>
+                            <span className="text-xs text-muted-foreground w-9 text-right tabular-nums">{pct}%</span>
                           </div>
                         );
                       })}
@@ -930,12 +930,12 @@ function CreatorPanel({
               })()}
 
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">Status</p>
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Status</p>
                 <StatusBadge status={creator.status} />
               </div>
 
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">TikTok Accounts</p>
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">TikTok Accounts</p>
                 <div className="space-y-1">
                   {creator.handles && creator.handles.length > 0
                     ? creator.handles.map((h) => (
@@ -950,12 +950,12 @@ function CreatorPanel({
                         <ExternalLink className="h-3 w-3 opacity-60" />
                       </a>
                     ))
-                    : <span className="text-sm text-gray-400">—</span>}
+                    : <span className="text-sm text-muted-foreground">—</span>}
                 </div>
               </div>
 
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">Discord</p>
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Discord</p>
                 <div className="flex items-center gap-2">
                   {creator.discord_avatar && (
                     <img
@@ -965,21 +965,21 @@ function CreatorPanel({
                       onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                     />
                   )}
-                  <span className="text-sm text-gray-700">{creator.discord_name || '—'}</span>
+                  <span className="text-sm text-foreground">{creator.discord_name || '—'}</span>
                 </div>
               </div>
 
               {creator.notes && (
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">Notes</p>
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{creator.notes}</p>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Notes</p>
+                  <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{creator.notes}</p>
                 </div>
               )}
 
               {creator.created_at && (
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Joined</p>
-                  <span className="text-sm text-gray-500">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">Joined</p>
+                  <span className="text-sm text-muted-foreground">
                     {new Date(creator.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
                   </span>
                 </div>
@@ -1066,47 +1066,47 @@ function AddCreatorModal({ prefill, onClose, onSuccess }: AddCreatorModalProps) 
       <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" />
       <div className="fixed inset-0 flex items-center justify-center pointer-events-none">
       <div
-        className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl mx-4 max-h-[90vh] overflow-y-auto pointer-events-auto"
+        className="relative w-full max-w-lg bg-card rounded-2xl shadow-2xl mx-4 max-h-[90vh] overflow-y-auto pointer-events-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 sticky top-0 bg-white z-10">
-          <h2 className="text-base font-bold text-[#1A1B3A]">Add Creator</h2>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
-            <X className="h-5 w-5 text-gray-400" />
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border sticky top-0 bg-card z-10">
+          <h2 className="text-base font-bold text-[var(--foreground)]">Add Creator</h2>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted transition-colors">
+            <X className="h-5 w-5 text-muted-foreground" />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Real Name</label>
+            <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Real Name</label>
             <input
               type="text"
               placeholder="e.g. Jane Smith"
               value={form.real_name}
               onChange={(e) => set('real_name', e.target.value)}
-              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+              className="w-full px-3 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
             />
           </div>
 
           {/* Unlimited TikTok handles — persists to tiktok_accounts on save. */}
           <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">TikTok Handles</label>
+            <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">TikTok Handles</label>
             <div className="space-y-2">
               {handles.map((h, idx) => (
                 <div key={idx} className="flex items-center gap-2">
-                  <span className="text-xs text-gray-400 w-4 shrink-0">{idx + 1}</span>
+                  <span className="text-xs text-muted-foreground w-4 shrink-0">{idx + 1}</span>
                   <input
                     type="text"
                     placeholder={idx === 0 ? '@primary_handle' : '@additional_handle'}
                     value={h}
                     onChange={(e) => setHandleAt(idx, e.target.value)}
-                    className="flex-1 px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+                    className="flex-1 px-3 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
                   />
                   {(handles.length > 1 || h !== '') && (
                     <button
                       type="button"
                       onClick={() => removeHandle(idx)}
-                      className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 transition-colors"
+                      className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground transition-colors"
                       title="Remove handle"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -1125,11 +1125,11 @@ function AddCreatorModal({ prefill, onClose, onSuccess }: AddCreatorModalProps) 
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Brand</label>
+            <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Brand</label>
             <select
               value={form.brand}
               onChange={(e) => set('brand', e.target.value)}
-              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+              className="w-full px-3 py-2.5 rounded-xl border border-border text-sm bg-card focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
             >
               <option value="">Select brand...</option>
               {brandOptions.map(b => (
@@ -1140,8 +1140,8 @@ function AddCreatorModal({ prefill, onClose, onSuccess }: AddCreatorModalProps) 
 
           {form.brand && (
             <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
-                Products <span className="font-normal text-gray-400 normal-case">(optional)</span>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                Products <span className="font-normal text-muted-foreground normal-case">(optional)</span>
               </label>
               <ProductTagPicker brand={form.brand} value={productTags} onChange={setProductTags} />
             </div>
@@ -1149,7 +1149,7 @@ function AddCreatorModal({ prefill, onClose, onSuccess }: AddCreatorModalProps) 
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Monthly Retainer ($)</label>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Monthly Retainer ($)</label>
               <input
                 type="number"
                 min="0"
@@ -1157,11 +1157,11 @@ function AddCreatorModal({ prefill, onClose, onSuccess }: AddCreatorModalProps) 
                 placeholder="0"
                 value={form.retainer}
                 onChange={(e) => set('retainer', e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+                className="w-full px-3 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Posts / Month</label>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Posts / Month</label>
               <input
                 type="number"
                 min="1"
@@ -1169,48 +1169,48 @@ function AddCreatorModal({ prefill, onClose, onSuccess }: AddCreatorModalProps) 
                 placeholder="30"
                 value={form.monthly_post_requirement}
                 onChange={(e) => set('monthly_post_requirement', e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+                className="w-full px-3 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Discord Username</label>
+            <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Discord Username</label>
             <input
               type="text"
               placeholder="e.g. janedoe#1234"
               value={form.discord_name}
               onChange={(e) => set('discord_name', e.target.value)}
-              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+              className="w-full px-3 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Email</label>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Email</label>
               <input
                 type="email"
                 placeholder="creator@email.com"
                 value={form.email}
                 onChange={(e) => set('email', e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+                className="w-full px-3 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Phone</label>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Phone</label>
               <input
                 type="tel"
                 placeholder="+1 555 123 4567"
                 value={form.phone}
                 onChange={(e) => set('phone', e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+                className="w-full px-3 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
-              Discord ID <span className="font-normal text-gray-400 normal-case">(optional)</span>
+            <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+              Discord ID <span className="font-normal text-muted-foreground normal-case">(optional)</span>
             </label>
             <input
               type="text"
@@ -1218,29 +1218,29 @@ function AddCreatorModal({ prefill, onClose, onSuccess }: AddCreatorModalProps) 
               placeholder="e.g. 1275246569070792704"
               value={form.discord_id}
               onChange={(e) => set('discord_id', e.target.value)}
-              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+              className="w-full px-3 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
             />
           </div>
 
-          <p className="text-[11px] text-gray-400 -mt-1">
+          <p className="text-[11px] text-muted-foreground -mt-1">
             Email, phone, and Discord ID help recognize a returning creator and prevent duplicate entries.
           </p>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Notes</label>
+            <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Notes</label>
             <textarea
               rows={2}
               placeholder="Any notes about this creator..."
               value={form.notes}
               onChange={(e) => set('notes', e.target.value)}
-              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C] resize-none"
+              className="w-full px-3 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C] resize-none"
             />
           </div>
 
           {error && <p className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
 
           <div className="flex items-center justify-end gap-3 pt-1">
-            <button type="button" onClick={onClose} className="px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+            <button type="button" onClick={onClose} className="px-4 py-2.5 rounded-xl border border-border text-sm font-medium text-muted-foreground hover:bg-muted transition-colors">
               Cancel
             </button>
             <button
@@ -1296,7 +1296,7 @@ function CreatorAvatar({ creator }: { creator: Creator }) {
   if (src) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
-      <img src={src} alt="" referrerPolicy="no-referrer" className="h-8 w-8 rounded-full object-cover flex-shrink-0 bg-gray-100" />
+      <img src={src} alt="" referrerPolicy="no-referrer" className="h-8 w-8 rounded-full object-cover flex-shrink-0 bg-muted" />
     );
   }
   return (
@@ -1575,20 +1575,20 @@ function RosterContent() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-[#1A1B3A] flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-[var(--foreground)] flex items-center gap-2">
             Creators
             {totalManaged > 0 && (
-              <span className="text-sm font-semibold text-gray-400">· {totalManaged.toLocaleString()} managed</span>
+              <span className="text-sm font-semibold text-muted-foreground">· {totalManaged.toLocaleString()} managed</span>
             )}
           </h1>
-          <p className="text-sm text-gray-400 mt-0.5">
+          <p className="text-sm text-muted-foreground mt-0.5">
             A reference for who&apos;s posting and whether they&apos;re worth the cost.
           </p>
         </div>
         <div className="flex items-center gap-2 self-start sm:self-auto">
           <button
             onClick={() => { setBulkInitialRows(null); setBulkOpen(true); }}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 hover:text-[#1A1B3A] transition-colors shadow-sm"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-card border border-border text-sm font-semibold text-muted-foreground hover:bg-muted hover:text-[var(--foreground)] transition-colors shadow-sm"
           >
             <Upload className="h-4 w-4" />
             Bulk add
@@ -1653,7 +1653,7 @@ function RosterContent() {
 
       {/* Filter row: All / Managed / Unmanaged + search */}
       <div className="flex flex-col sm:flex-row gap-3">
-        <div className="flex rounded-xl border border-gray-200 overflow-hidden text-sm font-semibold self-start">
+        <div className="flex rounded-xl border border-border overflow-hidden text-sm font-semibold self-start">
           {([
             { key: 'all' as const,       label: 'All Creators' },
             { key: 'managed' as const,   label: 'Managed' },
@@ -1663,7 +1663,7 @@ function RosterContent() {
               key={v.key}
               onClick={() => setView(v.key)}
               className={`px-4 py-2 transition-colors ${
-                view === v.key ? 'bg-[#E91E8C] text-white' : 'bg-white text-gray-500 hover:bg-gray-50'
+                view === v.key ? 'bg-[#E91E8C] text-white' : 'bg-card text-muted-foreground hover:bg-muted'
               }`}
             >
               {v.label}
@@ -1671,13 +1671,13 @@ function RosterContent() {
           ))}
         </div>
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <input
             type="text"
             placeholder="Search by name or handle…"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
           />
         </div>
         <ProductFilterSelect brand={brand} value={productFilter} onChange={setProductFilter} />
@@ -1686,7 +1686,7 @@ function RosterContent() {
           <button
             onClick={() => handleExport('csv')}
             disabled={exporting || roster.length === 0}
-            className="flex items-center gap-1.5 text-sm font-medium px-3 py-2.5 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-600 disabled:opacity-40 transition-colors"
+            className="flex items-center gap-1.5 text-sm font-medium px-3 py-2.5 rounded-xl border border-border hover:bg-muted text-muted-foreground disabled:opacity-40 transition-colors"
             title="Export the current view to CSV"
           >
             {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />} CSV
@@ -1694,7 +1694,7 @@ function RosterContent() {
           <button
             onClick={() => handleExport('xlsx')}
             disabled={exporting || roster.length === 0}
-            className="flex items-center gap-1.5 text-sm font-medium px-3 py-2.5 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-600 disabled:opacity-40 transition-colors"
+            className="flex items-center gap-1.5 text-sm font-medium px-3 py-2.5 rounded-xl border border-border hover:bg-muted text-muted-foreground disabled:opacity-40 transition-colors"
             title="Export the current view to Excel"
           >
             <FileDown className="h-4 w-4" /> Excel
@@ -1715,13 +1715,13 @@ function RosterContent() {
       {/* Multi-select action bar — appears once candidates are checked */}
       {selected.size > 0 && (
         <div className="flex items-center justify-between gap-3 rounded-xl border border-primary/15 bg-primary/10 px-4 py-2.5">
-          <span className="text-sm font-semibold text-[#1A1B3A]">
+          <span className="text-sm font-semibold text-[var(--foreground)]">
             {selected.size} selected
           </span>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setSelected(new Map())}
-              className="text-xs font-semibold text-gray-500 hover:text-gray-700 px-2.5 py-1.5"
+              className="text-xs font-semibold text-muted-foreground hover:text-foreground px-2.5 py-1.5"
             >
               Clear
             </button>
@@ -1738,13 +1738,13 @@ function RosterContent() {
 
       {/* Table */}
       {!loading && roster.length === 0 ? (
-        <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-16 text-center">
-          <Users className="h-8 w-8 text-gray-200 mx-auto mb-3" />
-          <p className="text-gray-500 text-sm font-medium">No creators found</p>
-          {search && <p className="text-gray-400 text-xs mt-1">Try a different search.</p>}
+        <div className="rounded-2xl bg-card border border-border shadow-sm p-16 text-center">
+          <Users className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
+          <p className="text-muted-foreground text-sm font-medium">No creators found</p>
+          {search && <p className="text-muted-foreground text-xs mt-1">Try a different search.</p>}
         </div>
       ) : (
-        <div className="relative rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+        <div className="relative rounded-2xl bg-card border border-border shadow-sm overflow-hidden">
           {/* Indeterminate load bar — shows on first load AND every refetch
               (brand / period / sort / page change), even with rows on screen.
               Gated by showLoadBar (150ms delay) so fast loads don't flash it. */}
@@ -1752,13 +1752,13 @@ function RosterContent() {
           <div className={`overflow-x-auto transition-opacity duration-200 ${showLoadBar && roster.length > 0 ? 'opacity-60' : 'opacity-100'}`}>
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-gray-100 bg-gray-50/60">
+                <tr className="border-b border-border bg-muted/60">
                   {showAddAction && (
                     <th className="w-10 px-5 py-3.5">
                       <input
                         type="checkbox"
                         aria-label="Select all unmanaged on this page"
-                        className="h-4 w-4 rounded border-gray-300 text-[#E91E8C] focus:ring-[#E91E8C]/40 cursor-pointer accent-[#E91E8C]"
+                        className="h-4 w-4 rounded border-border text-[#E91E8C] focus:ring-[#E91E8C]/40 cursor-pointer accent-[#E91E8C]"
                         checked={allOnPageSelected}
                         ref={(el) => { if (el) el.indeterminate = someOnPageSelected && !allOnPageSelected; }}
                         disabled={selectableOnPage.length === 0}
@@ -1766,41 +1766,41 @@ function RosterContent() {
                       />
                     </th>
                   )}
-                  <th className="text-left px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
-                    <button onClick={() => toggleSort('real_name')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors">
+                  <th className="text-left px-5 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">
+                    <button onClick={() => toggleSort('real_name')} className="inline-flex items-center gap-1.5 hover:text-foreground transition-colors">
                       Name <SortIcon col="real_name" />
                     </button>
                   </th>
-                  <th className="text-left px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">Handle</th>
-                  {showBrandColumn && <th className="text-left px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">Brand</th>}
-                  {showManagedTag && <th className="text-center px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">Managed</th>}
-                  <th className="text-left px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
-                    <button onClick={() => toggleSort('gmv_period')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors">
+                  <th className="text-left px-5 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Handle</th>
+                  {showBrandColumn && <th className="text-left px-5 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Brand</th>}
+                  {showManagedTag && <th className="text-center px-5 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Managed</th>}
+                  <th className="text-left px-5 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">
+                    <button onClick={() => toggleSort('gmv_period')} className="inline-flex items-center gap-1.5 hover:text-foreground transition-colors">
                       GMV ({periodShort}) <SortIcon col="gmv_period" />
                     </button>
                   </th>
-                  <th className="text-left px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
-                    <button onClick={() => toggleSort('posts_period')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors">
+                  <th className="text-left px-5 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">
+                    <button onClick={() => toggleSort('posts_period')} className="inline-flex items-center gap-1.5 hover:text-foreground transition-colors">
                       Posts ({periodShort}) <SortIcon col="posts_period" />
                     </button>
                   </th>
-                  <th className="text-left px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
-                    <button onClick={() => toggleSort('last_post_date')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors">
+                  <th className="text-left px-5 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">
+                    <button onClick={() => toggleSort('last_post_date')} className="inline-flex items-center gap-1.5 hover:text-foreground transition-colors">
                       Last post <SortIcon col="last_post_date" />
                     </button>
                   </th>
-                  <th className="text-right px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
-                    <button onClick={() => toggleSort('retainer')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors">
+                  <th className="text-right px-5 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">
+                    <button onClick={() => toggleSort('retainer')} className="inline-flex items-center gap-1.5 hover:text-foreground transition-colors">
                       Retainer <SortIcon col="retainer" />
                     </button>
                   </th>
-                  <th className="text-right px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
-                    <button onClick={() => toggleSort('roi_period')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors">
+                  <th className="text-right px-5 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">
+                    <button onClick={() => toggleSort('roi_period')} className="inline-flex items-center gap-1.5 hover:text-foreground transition-colors">
                       ROI <SortIcon col="roi_period" />
                     </button>
                   </th>
-                  <th className="text-left px-5 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">
-                    <button onClick={() => toggleSort('joined')} className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors">
+                  <th className="text-left px-5 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">
+                    <button onClick={() => toggleSort('joined')} className="inline-flex items-center gap-1.5 hover:text-foreground transition-colors">
                       Joined <SortIcon col="joined" />
                     </button>
                   </th>
@@ -1831,7 +1831,7 @@ function RosterContent() {
                             <input
                               type="checkbox"
                               aria-label={`Select @${primary}`}
-                              className="h-4 w-4 rounded border-gray-300 text-[#E91E8C] focus:ring-[#E91E8C]/40 cursor-pointer accent-[#E91E8C]"
+                              className="h-4 w-4 rounded border-border text-[#E91E8C] focus:ring-[#E91E8C]/40 cursor-pointer accent-[#E91E8C]"
                               checked={selected.has(c.id)}
                               onChange={() => toggleSelect(c)}
                             />
@@ -1841,17 +1841,17 @@ function RosterContent() {
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-2.5 max-w-[240px]">
                           {isGroup && (
-                            <span className="text-gray-400 flex-shrink-0" aria-hidden>
+                            <span className="text-muted-foreground flex-shrink-0" aria-hidden>
                               {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                             </span>
                           )}
                           <CreatorAvatar creator={c} />
                           <div className="min-w-0">
-                            <div className="flex items-center font-medium text-[#1A1B3A]">
+                            <div className="flex items-center font-medium text-[var(--foreground)]">
                               <span className="truncate">
                                 {c.real_name || (c.is_managed
-                                  ? <span className="text-gray-400">—</span>
-                                  : <span className="text-gray-500 italic">@{primary}</span>)}
+                                  ? <span className="text-muted-foreground">—</span>
+                                  : <span className="text-muted-foreground italic">@{primary}</span>)}
                               </span>
                               <LevelBadge level={c.level} />
                             </div>
@@ -1863,7 +1863,7 @@ function RosterContent() {
                                   </span>
                                 ))}
                                 {(c.product_tags ?? []).length > 3 && (
-                                  <span className="text-[10px] text-gray-400 self-center">+{(c.product_tags ?? []).length - 3}</span>
+                                  <span className="text-[10px] text-muted-foreground self-center">+{(c.product_tags ?? []).length - 3}</span>
                                 )}
                               </div>
                             )}
@@ -1884,7 +1884,7 @@ function RosterContent() {
                             </a>
                             <ExtraAccountsBadge creator={c} />
                           </span>
-                        ) : <span className="text-gray-400">—</span>}
+                        ) : <span className="text-muted-foreground">—</span>}
                       </td>
                       {showBrandColumn && (
                         <td className="px-5 py-3.5">
@@ -1893,11 +1893,11 @@ function RosterContent() {
                               {c.brands?.length ?? 0} brands
                             </span>
                           ) : c.brand ? (
-                            <span className="inline-flex items-center gap-1.5 max-w-[160px] text-xs font-medium px-2.5 py-1 rounded-full bg-gray-50 text-gray-700 border border-gray-100">
+                            <span className="inline-flex items-center gap-1.5 max-w-[160px] text-xs font-medium px-2.5 py-1 rounded-full bg-muted text-foreground border border-border">
                               <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: brandMeta.color(c.brand) }} />
                               <span className="truncate">{brandOptions.find(b => b.slug === c.brand)?.name || brandMeta.label(c.brand) || c.brand.replace(/_/g, ' ')}</span>
                             </span>
-                          ) : <span className="text-gray-300">—</span>}
+                          ) : <span className="text-muted-foreground">—</span>}
                         </td>
                       )}
                       {showManagedTag && (
@@ -1907,7 +1907,7 @@ function RosterContent() {
                               <UserCheck className="h-3 w-3" /> Managed
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full bg-gray-100 text-gray-500">
+                            <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full bg-muted text-muted-foreground">
                               <UserX className="h-3 w-3" /> Unmanaged
                             </span>
                           )}
@@ -1917,8 +1917,8 @@ function RosterContent() {
                         <div className="flex items-center justify-start gap-2.5">
                           <SparklineCell data={c.spark} days={sparkDays} color="#22C55E" format={fmt} />
                           <div className="text-right min-w-[72px]">
-                            <div className="tabular-nums font-semibold text-[#1A1B3A]">
-                              {(c.gmv_period || 0) > 0 ? fmt(c.gmv_period) : <span className="text-gray-300 font-normal">—</span>}
+                            <div className="tabular-nums font-semibold text-[var(--foreground)]">
+                              {(c.gmv_period || 0) > 0 ? fmt(c.gmv_period) : <span className="text-muted-foreground font-normal">—</span>}
                             </div>
                             <DeltaBadge value={c.gmv_delta} />
                           </div>
@@ -1928,14 +1928,14 @@ function RosterContent() {
                         <div className="flex items-center justify-start gap-2.5">
                           <SparklineCell data={c.spark_posts} days={sparkDays} color="#22C55E" format={(v) => `${v} post${v === 1 ? '' : 's'}`} />
                           <div className="text-right min-w-[36px]">
-                            <div className="tabular-nums text-gray-700">{c.posts_period || 0}</div>
+                            <div className="tabular-nums text-foreground">{c.posts_period || 0}</div>
                             <DeltaBadge value={c.posts_delta} />
                           </div>
                         </div>
                       </td>
                       <td className="px-5 py-3.5"><LastPostCell date={c.last_post_date} /></td>
-                      <td className="px-5 py-3.5 text-right font-semibold text-[#1A1B3A]">
-                        {(c.retainer || 0) > 0 ? fmt(c.retainer!) : <span className="text-gray-300 font-normal">—</span>}
+                      <td className="px-5 py-3.5 text-right font-semibold text-[var(--foreground)]">
+                        {(c.retainer || 0) > 0 ? fmt(c.retainer!) : <span className="text-muted-foreground font-normal">—</span>}
                       </td>
                       <td className="px-5 py-3.5 text-right"><RoiCell roi={c.roi_period} /></td>
                       <td className="px-5 py-3.5"><JoinDateCell date={c.joined} /></td>
@@ -1959,14 +1959,14 @@ function RosterContent() {
                       return (
                         <tr
                           key={`${c.id}:${child.brand ?? 'none'}`}
-                          className="bg-gray-50/60 hover:bg-gray-100/70 cursor-pointer"
+                          className="bg-muted/60 hover:bg-muted/70 cursor-pointer"
                           onClick={(e) => { e.stopPropagation(); openChild(c, child); }}
                         >
                           {showAddAction && <td />}
                           <td className="px-5 py-2.5">
                             <div className="flex items-center gap-2 pl-8">
                               <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: child.brand ? brandMeta.color(child.brand) : '#D1D5DB' }} />
-                              <span className="truncate text-sm font-medium text-gray-600">{childLabel}</span>
+                              <span className="truncate text-sm font-medium text-muted-foreground">{childLabel}</span>
                             </div>
                           </td>
                           <td className="px-5 py-2.5" />
@@ -1976,8 +1976,8 @@ function RosterContent() {
                             <div className="flex items-center justify-start gap-2.5">
                               <div className="w-[88px] flex-shrink-0" aria-hidden />
                               <div className="text-right min-w-[72px]">
-                                <span className="tabular-nums font-semibold text-sm text-[#1A1B3A]">
-                                  {(child.gmv_period || 0) > 0 ? fmt(child.gmv_period) : <span className="text-gray-300 font-normal">—</span>}
+                                <span className="tabular-nums font-semibold text-sm text-[var(--foreground)]">
+                                  {(child.gmv_period || 0) > 0 ? fmt(child.gmv_period) : <span className="text-muted-foreground font-normal">—</span>}
                                 </span>
                               </div>
                             </div>
@@ -1986,13 +1986,13 @@ function RosterContent() {
                             <div className="flex items-center justify-start gap-2.5">
                               <div className="w-[88px] flex-shrink-0" aria-hidden />
                               <div className="text-right min-w-[36px]">
-                                <span className="tabular-nums text-sm text-gray-600">{child.posts_period || 0}</span>
+                                <span className="tabular-nums text-sm text-muted-foreground">{child.posts_period || 0}</span>
                               </div>
                             </div>
                           </td>
                           <td className="px-5 py-2.5"><LastPostCell date={child.last_post_date} /></td>
-                          <td className="px-5 py-2.5 text-right font-semibold text-sm text-[#1A1B3A]">
-                            {(child.retainer || 0) > 0 ? fmt(child.retainer) : <span className="text-gray-300 font-normal">—</span>}
+                          <td className="px-5 py-2.5 text-right font-semibold text-sm text-[var(--foreground)]">
+                            {(child.retainer || 0) > 0 ? fmt(child.retainer) : <span className="text-muted-foreground font-normal">—</span>}
                           </td>
                           <td className="px-5 py-2.5 text-right"><RoiCell roi={child.roi_period} /></td>
                           <td className="px-5 py-2.5" />
@@ -2008,20 +2008,20 @@ function RosterContent() {
           </div>
 
           {/* Pagination */}
-          <div className="flex items-center justify-between px-5 py-3.5 border-t border-gray-100 bg-gray-50/40">
-            <p className="text-xs text-gray-400">{total.toLocaleString()} total · page {page} of {totalPages}</p>
+          <div className="flex items-center justify-between px-5 py-3.5 border-t border-border bg-muted/40">
+            <p className="text-xs text-muted-foreground">{total.toLocaleString()} total · page {page} of {totalPages}</p>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setPage(p => Math.max(1, p - 1))}
                 disabled={page === 1}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-200 bg-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium border border-border bg-card disabled:opacity-40 disabled:cursor-not-allowed hover:bg-muted transition-colors"
               >
                 <ChevronLeft className="h-3.5 w-3.5" /> Previous
               </button>
               <button
                 onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                 disabled={page === totalPages}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-200 bg-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium border border-border bg-card disabled:opacity-40 disabled:cursor-not-allowed hover:bg-muted transition-colors"
               >
                 Next <ChevronRight className="h-3.5 w-3.5" />
               </button>
@@ -2083,7 +2083,7 @@ export default function RosterPage() {
   return (
     <Suspense fallback={
       <div className="p-16 flex items-center justify-center">
-        <Loader2 className="h-6 w-6 text-gray-300 animate-spin" />
+        <Loader2 className="h-6 w-6 text-muted-foreground animate-spin" />
       </div>
     }>
       <RosterContent />

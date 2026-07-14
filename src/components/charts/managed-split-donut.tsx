@@ -23,7 +23,7 @@ export function ManagedSplitDonut({ managedGmv, unmanagedGmv, height = 260 }: Pr
 
   if (total === 0) {
     return (
-      <div className="flex items-center justify-center h-40 text-gray-400 text-sm">
+      <div className="flex items-center justify-center h-40 text-muted-foreground text-sm">
         No GMV data for this period
       </div>
     );
@@ -38,7 +38,7 @@ export function ManagedSplitDonut({ managedGmv, unmanagedGmv, height = 260 }: Pr
       background: 'transparent',
     },
     labels: ['Managed', 'Unmanaged'],
-    colors: ['var(--pulse-accent-2)', '#E5E7EB'],
+    colors: ['var(--pulse-accent-2)', 'var(--border)'],
     plotOptions: {
       pie: {
         donut: {
@@ -48,7 +48,7 @@ export function ManagedSplitDonut({ managedGmv, unmanagedGmv, height = 260 }: Pr
             name: {
               show: true,
               fontSize: '12px',
-              color: '#9CA3AF',
+              color: 'var(--muted-foreground)',
               fontFamily: 'inherit',
               offsetY: -6,
             },
@@ -56,7 +56,7 @@ export function ManagedSplitDonut({ managedGmv, unmanagedGmv, height = 260 }: Pr
               show: true,
               fontSize: '24px',
               fontWeight: '800',
-              color: '#1A1B3A',
+              color: 'var(--foreground)',
               fontFamily: 'inherit',
               formatter: val => fmt(Number(val)),
               offsetY: 6,
@@ -64,7 +64,7 @@ export function ManagedSplitDonut({ managedGmv, unmanagedGmv, height = 260 }: Pr
             total: {
               show: true,
               label: 'Managed',
-              color: '#9CA3AF',
+              color: 'var(--muted-foreground)',
               fontSize: '12px',
               fontFamily: 'inherit',
               formatter: () => `${managedPct}%`,
@@ -82,7 +82,7 @@ export function ManagedSplitDonut({ managedGmv, unmanagedGmv, height = 260 }: Pr
       offsetY: 4,
       markers: { size: 8 },
       itemMargin: { horizontal: 12 },
-      labels: { colors: '#6B7280' },
+      labels: { colors: 'var(--muted-foreground)' },
     },
     tooltip: {
       style: { fontSize: '12px', fontFamily: 'inherit' },

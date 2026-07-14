@@ -311,17 +311,17 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
     <div className="absolute inset-0 flex">
       <button aria-label="Close" className="flex-1 bg-black/30 backdrop-blur-sm" onClick={onClose} />
 
-      <div className="w-full max-w-lg bg-white shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
+      <div className="w-full max-w-lg bg-card shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
         {/* Header */}
-        <div className="px-6 py-5 border-b border-gray-100 flex items-start justify-between gap-3">
+        <div className="px-6 py-5 border-b border-border flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-400">Invoice</p>
-            <h2 className="text-lg font-extrabold text-[#1A1B3A] font-mono truncate">{invoice.invoice_number}</h2>
-            <p className="text-xs text-gray-500 mt-0.5">{invoice.brand} · {fmtPeriod(invoice.period_month)}</p>
+            <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">Invoice</p>
+            <h2 className="text-lg font-extrabold text-[var(--foreground)] font-mono truncate">{invoice.invoice_number}</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">{invoice.brand} · {fmtPeriod(invoice.period_month)}</p>
           </div>
           <button
             onClick={onClose}
-            className="h-8 w-8 rounded-lg hover:bg-gray-50 flex items-center justify-center text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"
+            className="h-8 w-8 rounded-lg hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-muted-foreground transition-colors flex-shrink-0"
             aria-label="Close"
           >
             <X className="h-4 w-4" />
@@ -329,9 +329,9 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
         </div>
 
         {/* Status bar with actions */}
-        <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/40 flex items-center gap-2 flex-wrap">
+        <div className="px-6 py-4 border-b border-border bg-muted/40 flex items-center gap-2 flex-wrap">
           <StatusPill status={invoice.status} />
-          <div className="text-[11px] text-gray-500 ml-auto">
+          <div className="text-[11px] text-muted-foreground ml-auto">
             {invoice.status === 'pending' && <>Generated {formatDate(invoice.generated_at)}</>}
             {invoice.status === 'sent' && invoice.sent_at && <>Sent {formatDate(invoice.sent_at)}</>}
             {invoice.status === 'paid' && invoice.paid_at && <>Paid {formatDate(invoice.paid_at)}</>}
@@ -362,7 +362,7 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
             <button
               onClick={() => handleStatus('pending')}
               disabled={statusUpdating}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 text-xs font-semibold hover:bg-white disabled:opacity-50 transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-muted-foreground text-xs font-semibold hover:bg-card disabled:opacity-50 transition-colors"
             >
               <RotateCcw className="h-3.5 w-3.5" />
               {invoice.status === 'void' ? 'Reopen' : 'Revert'}
@@ -386,7 +386,7 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
             <button
               onClick={handleRefresh}
               disabled={refreshing}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-gray-700 text-xs font-semibold hover:bg-white disabled:opacity-50 transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-foreground text-xs font-semibold hover:bg-card disabled:opacity-50 transition-colors"
               title="Re-pull line items and creator breakdown from current earnings"
             >
               <RefreshCw className={cn('h-3.5 w-3.5', refreshing && 'animate-spin')} />
@@ -404,14 +404,14 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
           </button>
           <a
             href={`/api/invoices/${invoice.id}/pdf`}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-gray-700 text-xs font-semibold hover:bg-white transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-foreground text-xs font-semibold hover:bg-card transition-colors"
           >
             <Download className="h-3.5 w-3.5" />
             Download PDF
           </a>
           <button
             onClick={handleExportCsv}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-gray-700 text-xs font-semibold hover:bg-white transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-foreground text-xs font-semibold hover:bg-card transition-colors"
             title="Export this invoice (creator breakdown) as CSV"
           >
             <Download className="h-3.5 w-3.5" />
@@ -419,7 +419,7 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
           </button>
           <button
             onClick={handleExportXlsx}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-gray-700 text-xs font-semibold hover:bg-white transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-foreground text-xs font-semibold hover:bg-card transition-colors"
             title="Export this invoice (summary + creator breakdown) as Excel"
           >
             <FileSpreadsheet className="h-3.5 w-3.5" />
@@ -475,20 +475,20 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
           <Section title="Share Link">
             {shareUrl ? (
               <div className="space-y-2">
-                <div className="flex items-stretch gap-2 rounded-xl border border-gray-200 bg-gray-50/50 overflow-hidden">
-                  <Link2 className="h-4 w-4 text-gray-400 flex-shrink-0 ml-3 self-center" />
+                <div className="flex items-stretch gap-2 rounded-xl border border-border bg-muted/50 overflow-hidden">
+                  <Link2 className="h-4 w-4 text-muted-foreground flex-shrink-0 ml-3 self-center" />
                   <input
                     type="text"
                     readOnly
                     value={shareUrl}
                     onClick={(e) => (e.target as HTMLInputElement).select()}
-                    className="flex-1 min-w-0 bg-transparent text-xs text-[#1A1B3A] font-mono py-2 px-1 focus:outline-none"
+                    className="flex-1 min-w-0 bg-transparent text-xs text-[var(--foreground)] font-mono py-2 px-1 focus:outline-none"
                   />
                   <button
                     onClick={handleCopy}
                     className={cn(
                       'inline-flex items-center gap-1 px-3 text-xs font-semibold transition-colors flex-shrink-0',
-                      copied ? 'bg-emerald-500 text-white' : 'bg-white text-gray-700 hover:bg-gray-100 border-l border-gray-200',
+                      copied ? 'bg-emerald-500 text-white' : 'bg-card text-foreground hover:bg-muted border-l border-border',
                     )}
                   >
                     {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
@@ -498,13 +498,13 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
                     href={shareUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center justify-center px-3 bg-white hover:bg-gray-100 border-l border-gray-200 text-gray-600 transition-colors flex-shrink-0"
+                    className="inline-flex items-center justify-center px-3 bg-card hover:bg-muted border-l border-border text-muted-foreground transition-colors flex-shrink-0"
                     title="Open share view"
                   >
                     <ExternalLink className="h-3.5 w-3.5" />
                   </a>
                 </div>
-                <p className="text-[11px] text-gray-400">
+                <p className="text-[11px] text-muted-foreground">
                   Anyone with this link can view (read-only) and download the PDF without logging in.
                 </p>
               </div>
@@ -512,7 +512,7 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
               <button
                 onClick={handleShare}
                 disabled={sharing}
-                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-xs font-semibold text-gray-700 disabled:opacity-50 transition-colors w-full justify-center"
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-border bg-card hover:bg-muted text-xs font-semibold text-foreground disabled:opacity-50 transition-colors w-full justify-center"
               >
                 {sharing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Link2 className="h-3.5 w-3.5" />}
                 {sharing ? 'Generating link…' : 'Generate share link'}
@@ -535,7 +535,7 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
               <NumberInput value={draft.launch_fee} step={100} onChange={(v) => setDraft({ ...draft, launch_fee: v })} />
             </Field>
             <div className="rounded-xl bg-gradient-to-br from-[#FFF0F5] to-white border border-primary/10 px-4 py-3 flex items-center justify-between mt-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-gray-500">Total</span>
+              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Total</span>
               <span className="text-xl font-extrabold text-[var(--primary)] tabular-nums">{formatCurrency(computedTotal)}</span>
             </div>
           </Section>
@@ -546,12 +546,12 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
               <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-4 space-y-2.5">
                 <div className="flex items-baseline justify-between">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">Method</span>
-                  <span className="text-sm font-semibold text-[#1A1B3A]">{labelMethod(invoice.payment_method)}</span>
+                  <span className="text-sm font-semibold text-[var(--foreground)]">{labelMethod(invoice.payment_method)}</span>
                 </div>
                 {invoice.payment_reference && (
                   <div className="flex items-baseline justify-between gap-3">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">Reference</span>
-                    <span className="text-xs font-mono text-[#1A1B3A] truncate">{invoice.payment_reference}</span>
+                    <span className="text-xs font-mono text-[var(--foreground)] truncate">{invoice.payment_reference}</span>
                   </div>
                 )}
                 <div className="flex items-baseline justify-between">
@@ -579,7 +579,7 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
                 {invoice.payment_received_notes && (
                   <div className="border-t border-emerald-200/60 pt-2">
                     <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 mb-1">Notes</p>
-                    <p className="text-xs text-gray-700 whitespace-pre-line leading-relaxed">{invoice.payment_received_notes}</p>
+                    <p className="text-xs text-foreground whitespace-pre-line leading-relaxed">{invoice.payment_received_notes}</p>
                   </div>
                 )}
               </div>
@@ -622,7 +622,7 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between gap-3 bg-gray-50/40">
+        <div className="px-6 py-4 border-t border-border flex items-center justify-between gap-3 bg-muted/40">
           {invoice.status === 'pending' ? (
             <button
               onClick={handleDelete}
@@ -634,7 +634,7 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
             </button>
           ) : <div />}
           <div className="flex items-center gap-2">
-            <button onClick={onClose} disabled={saving} className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 disabled:opacity-40">
+            <button onClick={onClose} disabled={saving} className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground disabled:opacity-40">
               Cancel
             </button>
             <button
@@ -730,9 +730,9 @@ function StatusPill({ status }: { status: string }) {
     pending: { bg: 'bg-amber-100',   text: 'text-amber-800',   label: 'Pending' },
     sent:    { bg: 'bg-blue-100',    text: 'text-blue-800',    label: 'Sent' },
     paid:    { bg: 'bg-emerald-100', text: 'text-emerald-800', label: 'Paid' },
-    void:    { bg: 'bg-gray-200',    text: 'text-gray-600',    label: 'Void' },
+    void:    { bg: 'bg-secondary',    text: 'text-muted-foreground',    label: 'Void' },
   };
-  const c = config[status] ?? { bg: 'bg-gray-100', text: 'text-gray-700', label: status };
+  const c = config[status] ?? { bg: 'bg-muted', text: 'text-foreground', label: status };
   return (
     <span className={cn('inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider', c.bg, c.text)}>
       {c.label}
@@ -743,7 +743,7 @@ function StatusPill({ status }: { status: string }) {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <h3 className="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-500 mb-3">{title}</h3>
+      <h3 className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground mb-3">{title}</h3>
       <div className="space-y-3">{children}</div>
     </div>
   );
@@ -758,11 +758,11 @@ function Field({ label, hint, prefix, children }: {
   return (
     <label className="block">
       <div className="flex items-baseline justify-between mb-1">
-        <span className="text-xs font-semibold text-gray-700">{label}</span>
-        {hint && <span className="text-[11px] text-gray-400">{hint}</span>}
+        <span className="text-xs font-semibold text-foreground">{label}</span>
+        {hint && <span className="text-[11px] text-muted-foreground">{hint}</span>}
       </div>
       <div className="relative">
-        {prefix && <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400 pointer-events-none">{prefix}</span>}
+        {prefix && <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground pointer-events-none">{prefix}</span>}
         <div className={cn(prefix && '[&_input]:pl-7')}>{children}</div>
       </div>
     </label>
@@ -783,7 +783,7 @@ function NumberInput({ value, step, onChange }: { value: number; step: number; o
         const n = parseFloat(e.target.value);
         if (Number.isFinite(n) && n >= 0) onChange(n);
       }}
-      className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm text-[#1A1B3A] tabular-nums focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] transition-colors"
+      className="w-full px-3 py-2 rounded-xl border border-border text-sm text-[var(--foreground)] tabular-nums focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] transition-colors"
     />
   );
 }
@@ -797,7 +797,7 @@ function TextInput({ value, placeholder, type = 'text', onChange }: {
       value={value}
       placeholder={placeholder}
       onChange={(e) => onChange(e.target.value)}
-      className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] transition-colors"
+      className="w-full px-3 py-2 rounded-xl border border-border text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] transition-colors"
     />
   );
 }
@@ -809,7 +809,7 @@ function TextArea({ value, placeholder, onChange }: { value: string; placeholder
       placeholder={placeholder}
       onChange={(e) => onChange(e.target.value)}
       rows={3}
-      className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] transition-colors resize-y"
+      className="w-full px-3 py-2 rounded-xl border border-border text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] transition-colors resize-y"
     />
   );
 }
@@ -818,10 +818,10 @@ function ReadOnlyStat({ label, value, highlight }: { label: string; value: strin
   return (
     <div className={cn(
       'rounded-xl border p-3',
-      highlight ? 'border-[var(--primary)]/20 bg-[#FFF0F5]/40' : 'border-gray-100 bg-gray-50/40',
+      highlight ? 'border-[var(--primary)]/20 bg-[#FFF0F5]/40' : 'border-border bg-muted/40',
     )}>
-      <p className="text-[9px] font-bold uppercase tracking-wider text-gray-400">{label}</p>
-      <p className={cn('text-sm font-bold tabular-nums mt-0.5', highlight ? 'text-[var(--primary)]' : 'text-[#1A1B3A]')}>{value}</p>
+      <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">{label}</p>
+      <p className={cn('text-sm font-bold tabular-nums mt-0.5', highlight ? 'text-[var(--primary)]' : 'text-[var(--foreground)]')}>{value}</p>
     </div>
   );
 }

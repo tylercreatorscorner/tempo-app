@@ -31,7 +31,7 @@ export function GmvTrendChart({ data, brands }: Props) {
   const brandMeta = useBrandMeta();
   if (!data || data.length === 0) {
     return (
-      <div className="h-72 flex items-center justify-center text-gray-400 text-sm">
+      <div className="h-72 flex items-center justify-center text-muted-foreground text-sm">
         No trend data available for selected period
       </div>
     );
@@ -61,24 +61,24 @@ export function GmvTrendChart({ data, brands }: Props) {
       type: 'category',
       categories,
       labels: {
-        style: { colors: '#9CA3AF', fontSize: '11px', fontFamily: 'var(--font-geist-mono)' },
+        style: { colors: 'var(--muted-foreground)', fontSize: '11px', fontFamily: 'var(--font-geist-mono)' },
         rotate: 0,
         hideOverlappingLabels: true,
       },
       axisBorder: { show: false },
       axisTicks: { show: false },
-      crosshairs: { show: true, stroke: { color: '#E5E7EB', width: 1, dashArray: 4 } },
+      crosshairs: { show: true, stroke: { color: 'var(--border)', width: 1, dashArray: 4 } },
       tooltip: { enabled: false },
     },
     yaxis: {
       labels: {
-        style: { colors: '#9CA3AF', fontSize: '11px', fontFamily: 'var(--font-geist-mono)' },
+        style: { colors: 'var(--muted-foreground)', fontSize: '11px', fontFamily: 'var(--font-geist-mono)' },
         formatter: fmtY,
       },
       forceNiceScale: true,
     },
     grid: {
-      borderColor: '#F3F4F6',
+      borderColor: 'var(--muted)',
       strokeDashArray: 4,
       xaxis: { lines: { show: false } },
       yaxis: { lines: { show: true } },
@@ -90,7 +90,7 @@ export function GmvTrendChart({ data, brands }: Props) {
       fontFamily: 'inherit',
       markers: { size: 8 },
       itemMargin: { horizontal: 12 },
-      labels: { colors: '#6B7280' },
+      labels: { colors: 'var(--muted-foreground)' },
     },
     tooltip: {
       shared: true,

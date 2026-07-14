@@ -39,7 +39,7 @@ export function AdminShell({ children, tenantSwitcher, viewAsBanner, canViewFina
           so the scroll wheel works from anywhere on the page (including
           while hovering the sidebar). Sidebar is now `sticky top-0 h-screen`
           internally so it stays pinned while the document scrolls. */}
-      <div className="flex min-h-screen" style={{ backgroundColor: '#F8F9FC' }}>
+      <div className="flex min-h-screen" style={{ backgroundColor: 'var(--background)' }}>
         <Sidebar className="hidden lg:flex" isAdmin={isAdmin} canViewFinance={canViewFinance} />
         <MobileNav open={mobileNavOpen} onClose={() => setMobileNavOpen(false)} isAdmin={isAdmin} canViewFinance={canViewFinance} />
 

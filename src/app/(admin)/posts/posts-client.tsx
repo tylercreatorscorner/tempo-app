@@ -300,14 +300,14 @@ export function PostsClient({
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-extrabold text-[#1A1B3A]">Posts</h1>
-          <p className="text-sm text-gray-400 mt-0.5">
+          <h1 className="text-2xl font-extrabold text-[var(--foreground)]">Posts</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
             Every video posted by{' '}
             <button
               onClick={toggleManaged}
               className={cn(
                 'underline-offset-2 hover:underline transition-colors',
-                managedOnly ? 'text-[#E91E8C] font-semibold' : 'text-gray-500',
+                managedOnly ? 'text-[#E91E8C] font-semibold' : 'text-muted-foreground',
               )}
               title="Toggle: managed creators only / all creators"
             >
@@ -361,8 +361,8 @@ export function PostsClient({
           the left, view toggle / sort dropdown / search / CSV on the right. */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-1">
         <div className="flex items-center gap-3">
-          <h2 className="text-sm font-bold text-[#1A1B3A]">All posts</h2>
-          <span className="text-xs text-gray-400">
+          <h2 className="text-sm font-bold text-[var(--foreground)]">All posts</h2>
+          <span className="text-xs text-muted-foreground">
             {hasMore
               ? `Showing ${renderedPosts.length.toLocaleString()} of ${visiblePosts.length.toLocaleString()}`
               : `${visiblePosts.length.toLocaleString()} ${visiblePosts.length === 1 ? 'post' : 'posts'}`}
@@ -380,20 +380,20 @@ export function PostsClient({
             <SortDropdown sortKey={sortKey} sortDir={sortDir} onChange={(k, d) => { setSortKey(k); setSortDir(d); }} />
           )}
           <div className="relative flex-1 sm:flex-initial">
-            <Search className="h-3.5 w-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <Search className="h-3.5 w-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search title or creator..."
               aria-label="Search posts"
-              className="text-sm bg-white border border-gray-200 rounded-xl pl-8 pr-3 py-1.5 w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/20 focus:border-[#E91E8C]"
+              className="text-sm bg-card border border-border rounded-xl pl-8 pr-3 py-1.5 w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/20 focus:border-[#E91E8C]"
             />
           </div>
           <button
             onClick={downloadCsv}
             disabled={!visiblePosts.length}
-            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-600 disabled:opacity-40 transition-colors"
+            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border border-border hover:bg-muted text-muted-foreground disabled:opacity-40 transition-colors"
           >
             <Download className="h-3.5 w-3.5" /> CSV
           </button>
@@ -418,7 +418,7 @@ export function PostsClient({
           </div>
         )
       ) : (
-        <div className="relative rounded-2xl bg-white border border-gray-100 shadow-sm">
+        <div className="relative rounded-2xl bg-card border border-border shadow-sm">
           <TableLoadBar active={showBar} />
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -440,7 +440,7 @@ export function PostsClient({
                 showBar && visiblePosts.length > 0 ? 'opacity-60 transition-opacity duration-200' : 'opacity-100',
               )}>
                 {loading && !data ? (
-                  <tr><td colSpan={10} className="text-center text-gray-400 py-12 text-sm">
+                  <tr><td colSpan={10} className="text-center text-muted-foreground py-12 text-sm">
                     <Loader2 className="h-4 w-4 animate-spin inline mr-2" />Loading posts...
                   </td></tr>
                 ) : visiblePosts.length === 0 ? (
@@ -461,7 +461,7 @@ export function PostsClient({
         <div ref={sentinelRef} className="flex justify-center pt-2">
           <button
             onClick={() => setRenderLimit(n => n + RENDER_CHUNK)}
-            className="text-xs font-semibold px-4 py-2 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-600 transition-colors"
+            className="text-xs font-semibold px-4 py-2 rounded-xl border border-border hover:bg-muted text-muted-foreground transition-colors"
           >
             Show more ({(visiblePosts.length - renderedPosts.length).toLocaleString()} more)
           </button>
@@ -474,7 +474,7 @@ export function PostsClient({
 // ── View toggle (segmented control) ────────────────────────────────
 function ViewToggle({ value, onChange }: { value: ViewMode; onChange: (v: ViewMode) => void }) {
   return (
-    <div className="inline-flex rounded-xl border border-gray-200 bg-white overflow-hidden" role="group" aria-label="View mode">
+    <div className="inline-flex rounded-xl border border-border bg-card overflow-hidden" role="group" aria-label="View mode">
       <button
         type="button"
         onClick={() => onChange('cards')}
@@ -482,7 +482,7 @@ function ViewToggle({ value, onChange }: { value: ViewMode; onChange: (v: ViewMo
         title="Card view"
         className={cn(
           'px-2.5 py-1.5 text-xs font-semibold transition-colors',
-          value === 'cards' ? 'bg-[#E91E8C] text-white' : 'text-gray-500 hover:bg-gray-50',
+          value === 'cards' ? 'bg-[#E91E8C] text-white' : 'text-muted-foreground hover:bg-muted',
         )}
       >
         <LayoutGrid className="h-3.5 w-3.5" />
@@ -493,8 +493,8 @@ function ViewToggle({ value, onChange }: { value: ViewMode; onChange: (v: ViewMo
         aria-pressed={value === 'table'}
         title="Table view"
         className={cn(
-          'px-2.5 py-1.5 text-xs font-semibold transition-colors border-l border-gray-200',
-          value === 'table' ? 'bg-[#E91E8C] text-white' : 'text-gray-500 hover:bg-gray-50',
+          'px-2.5 py-1.5 text-xs font-semibold transition-colors border-l border-border',
+          value === 'table' ? 'bg-[#E91E8C] text-white' : 'text-muted-foreground hover:bg-muted',
         )}
       >
         <List className="h-3.5 w-3.5" />
@@ -521,12 +521,12 @@ function SortDropdown({
     creator_handle: 'Creator',
   };
   return (
-    <div className="inline-flex rounded-xl border border-gray-200 bg-white overflow-hidden">
+    <div className="inline-flex rounded-xl border border-border bg-card overflow-hidden">
       <select
         value={sortKey}
         onChange={(e) => onChange(e.target.value as SortKey, sortDir)}
         aria-label="Sort by"
-        className="text-xs font-semibold pl-2.5 pr-1 py-1.5 bg-transparent focus:outline-none cursor-pointer text-gray-700"
+        className="text-xs font-semibold pl-2.5 pr-1 py-1.5 bg-transparent focus:outline-none cursor-pointer text-foreground"
       >
         {SORT_KEYS.map(k => <option key={k} value={k}>{SORT_LABELS[k]}</option>)}
       </select>
@@ -535,7 +535,7 @@ function SortDropdown({
         onClick={() => onChange(sortKey, sortDir === 'asc' ? 'desc' : 'asc')}
         title={sortDir === 'asc' ? 'Ascending — click for descending' : 'Descending — click for ascending'}
         aria-label="Toggle sort direction"
-        className="px-2 py-1.5 text-xs font-semibold text-gray-500 hover:bg-gray-50 border-l border-gray-200"
+        className="px-2 py-1.5 text-xs font-semibold text-muted-foreground hover:bg-muted border-l border-border"
       >
         {sortDir === 'asc' ? '↑' : '↓'}
       </button>
@@ -548,12 +548,12 @@ function CardLoadingGrid() {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
       {Array.from({ length: 8 }).map((_, i) => (
-        <div key={i} className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden animate-pulse">
-          <div className="aspect-video bg-gray-100" />
+        <div key={i} className="rounded-2xl bg-card border border-border shadow-sm overflow-hidden animate-pulse">
+          <div className="aspect-video bg-muted" />
           <div className="p-4 space-y-3">
-            <div className="h-3 w-2/3 bg-gray-100 rounded" />
-            <div className="h-3 w-full bg-gray-100 rounded" />
-            <div className="h-3 w-1/2 bg-gray-100 rounded" />
+            <div className="h-3 w-2/3 bg-muted rounded" />
+            <div className="h-3 w-full bg-muted rounded" />
+            <div className="h-3 w-1/2 bg-muted rounded" />
           </div>
         </div>
       ))}
@@ -571,8 +571,8 @@ function EmptyState({ reviewFilter }: { reviewFilter: ReviewFilter }) {
         ? 'You haven\'t reviewed anything in this window yet.'
         : 'Nothing flagged. Nice.';
   return (
-    <div className="rounded-2xl bg-white border border-gray-100 shadow-sm text-center text-gray-400 py-12 px-6">
-      <Eye className="h-8 w-8 mx-auto mb-2 text-gray-300" />
+    <div className="rounded-2xl bg-card border border-border shadow-sm text-center text-muted-foreground py-12 px-6">
+      <Eye className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
       <div className="text-sm font-medium">{copy}</div>
       {reviewFilter === 'all' && (
         <div className="text-xs mt-1">Try a wider date range, different brand, or include unmanaged creators.</div>
@@ -591,30 +591,30 @@ function PostRowView({ post: p, onClick }: { post: PostRow; onClick: (p: PostRow
   return (
     <tr
       onClick={() => onClick(p)}
-      className="border-t border-gray-50 hover:bg-gray-50/50 cursor-pointer transition-colors"
+      className="border-t border-border hover:bg-muted/50 cursor-pointer transition-colors"
     >
       <td className="px-4 py-3 align-top">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-[#1A1B3A]">@{p.creator_handle}</span>
+          <span className="text-sm font-semibold text-[var(--foreground)]">@{p.creator_handle}</span>
           {p.is_managed && <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 ring-1 ring-emerald-200 rounded px-1 py-0.5">Managed</span>}
         </div>
       </td>
       <td className="px-4 py-3 align-top">
-        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-600">
+        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
           <span aria-hidden="true" className="h-2 w-2 rounded-full" style={{ backgroundColor: brandColor }} />
           {p.brand_name}
         </span>
       </td>
       <td className="px-4 py-3 align-top max-w-md">
         <div className="flex items-start gap-2">
-          <span className="text-sm text-[#1A1B3A] line-clamp-2" title={p.video_title}>{titleClipped}</span>
+          <span className="text-sm text-[var(--foreground)] line-clamp-2" title={p.video_title}>{titleClipped}</span>
           {p.video_url && (
             <a
               href={p.video_url}
               target="_blank"
               rel="noopener noreferrer"
               onClick={e => e.stopPropagation()}
-              className="text-gray-400 hover:text-[#E91E8C] mt-0.5 shrink-0"
+              className="text-muted-foreground hover:text-[#E91E8C] mt-0.5 shrink-0"
               title="Open on TikTok"
             >
               <ExternalLink className="h-3 w-3" />
@@ -622,26 +622,26 @@ function PostRowView({ post: p, onClick }: { post: PostRow; onClick: (p: PostRow
           )}
         </div>
       </td>
-      <td className="px-4 py-3 align-top text-xs text-gray-500 whitespace-nowrap">
+      <td className="px-4 py-3 align-top text-xs text-muted-foreground whitespace-nowrap">
         {p.post_date
           ? new Date(p.post_date + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit', timeZone: 'America/Chicago' })
           : '—'}
       </td>
-      <td className="px-4 py-3 align-top text-right tabular-nums text-gray-700">{formatNumber(p.views)}</td>
-      <td className="px-4 py-3 align-top text-right tabular-nums text-gray-700">
+      <td className="px-4 py-3 align-top text-right tabular-nums text-foreground">{formatNumber(p.views)}</td>
+      <td className="px-4 py-3 align-top text-right tabular-nums text-foreground">
         <span className="inline-flex items-center gap-1 text-primary">
           <Heart className="h-3 w-3" />{formatNumber(p.likes)}
         </span>
       </td>
-      <td className="px-4 py-3 align-top text-right tabular-nums text-gray-700">
+      <td className="px-4 py-3 align-top text-right tabular-nums text-foreground">
         <span className="inline-flex items-center gap-1 text-blue-700">
           <MessageCircle className="h-3 w-3" />{formatNumber(p.comments)}
         </span>
       </td>
-      <td className="px-4 py-3 align-top text-right tabular-nums text-gray-700">
+      <td className="px-4 py-3 align-top text-right tabular-nums text-foreground">
         <span className={cn(
           'font-medium',
-          p.engagement_rate >= 5 ? 'text-emerald-600' : p.engagement_rate >= 2 ? 'text-amber-600' : 'text-gray-500',
+          p.engagement_rate >= 5 ? 'text-emerald-600' : p.engagement_rate >= 2 ? 'text-amber-600' : 'text-muted-foreground',
         )}>
           {p.engagement_rate.toFixed(2)}%
         </span>
@@ -658,7 +658,7 @@ function PostRowView({ post: p, onClick }: { post: PostRow; onClick: (p: PostRow
 function ReviewCell({ post: p }: { post: PostRow }) {
   if (p.review_count === 0) {
     return (
-      <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-gray-300">
+      <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
         <MessageSquare className="h-3 w-3" />
         none
       </span>
@@ -666,14 +666,14 @@ function ReviewCell({ post: p }: { post: PostRow }) {
   }
   return (
     <div className="flex items-center gap-2 text-xs">
-      <span className="inline-flex items-center gap-1 text-gray-700 font-semibold tabular-nums">
-        <MessageSquare className="h-3 w-3 text-gray-400" />
+      <span className="inline-flex items-center gap-1 text-foreground font-semibold tabular-nums">
+        <MessageSquare className="h-3 w-3 text-muted-foreground" />
         {p.review_count}
       </span>
       {p.avg_rating !== null && (
         <span className="inline-flex items-center gap-0.5 text-amber-500 tabular-nums">
           <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
-          <span className="text-gray-700 font-medium">{p.avg_rating.toFixed(1)}</span>
+          <span className="text-foreground font-medium">{p.avg_rating.toFixed(1)}</span>
         </span>
       )}
       {p.flagged && (
@@ -719,14 +719,14 @@ function ReviewFilterPills({
               'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors',
               isActive
                 ? 'bg-[#E91E8C] text-white'
-                : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50',
+                : 'bg-card border border-border text-muted-foreground hover:bg-muted',
             )}
           >
             {it.icon}
             {it.label}
             <span className={cn(
               'text-[10px] tabular-nums px-1.5 py-0.5 rounded-full',
-              isActive ? 'bg-white/20' : 'bg-gray-100 text-gray-500',
+              isActive ? 'bg-card/20' : 'bg-muted text-muted-foreground',
             )}>
               {fmt(it.count)}
             </span>
@@ -755,7 +755,7 @@ function SortableTh({
       className={cn(
         'px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider cursor-pointer select-none transition-colors',
         align === 'right' ? 'text-right' : 'text-left',
-        active ? 'text-[#E91E8C]' : 'text-gray-500 hover:text-gray-700',
+        active ? 'text-[#E91E8C]' : 'text-muted-foreground hover:text-foreground',
       )}
     >
       {label}{arrow && <span className="ml-1">{arrow}</span>}
@@ -764,5 +764,5 @@ function SortableTh({
 }
 
 function Th({ children }: { children: React.ReactNode }) {
-  return <th className="px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider text-gray-500">{children}</th>;
+  return <th className="px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{children}</th>;
 }

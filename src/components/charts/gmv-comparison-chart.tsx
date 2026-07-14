@@ -123,7 +123,7 @@ export function GmvComparisonChart({
       fontFamily: 'inherit',
       background: 'transparent',
     },
-    colors: hasPrior ? ['#9CA3AF', color] : [color],
+    colors: hasPrior ? ['var(--muted-foreground)', color] : [color],
     stroke: {
       curve: 'smooth',
       width: hasPrior ? [2, 3] : 3,
@@ -138,7 +138,7 @@ export function GmvComparisonChart({
           horizontalAlign: 'right',
           fontSize: '11px',
           fontFamily: 'inherit',
-          labels: { colors: '#6B7280' },
+          labels: { colors: 'var(--muted-foreground)' },
           markers: { size: 6, strokeWidth: 0 } as any,
           itemMargin: { horizontal: 10 },
         }
@@ -147,24 +147,24 @@ export function GmvComparisonChart({
       type: 'category',
       categories,
       labels: {
-        style: { colors: '#9CA3AF', fontSize: '11px', fontFamily: 'inherit' },
+        style: { colors: 'var(--muted-foreground)', fontSize: '11px', fontFamily: 'inherit' },
         rotate: 0,
         hideOverlappingLabels: true,
       },
       axisBorder: { show: false },
       axisTicks: { show: false },
-      crosshairs: { show: true, stroke: { color: '#E5E7EB', width: 1, dashArray: 4 } },
+      crosshairs: { show: true, stroke: { color: 'var(--border)', width: 1, dashArray: 4 } },
       tooltip: { enabled: false },
     },
     yaxis: {
       labels: {
-        style: { colors: '#9CA3AF', fontSize: '11px', fontFamily: 'inherit' },
+        style: { colors: 'var(--muted-foreground)', fontSize: '11px', fontFamily: 'inherit' },
         formatter: fmtY,
       },
       forceNiceScale: true,
     },
     grid: {
-      borderColor: '#F3F4F6',
+      borderColor: 'var(--muted)',
       strokeDashArray: 4,
       xaxis: { lines: { show: false } },
       yaxis: { lines: { show: true } },
@@ -189,18 +189,18 @@ export function GmvComparisonChart({
         if (priorIso && hasPrior) {
           rows.push(`
             <div style="display:flex;align-items:center;gap:8px;padding:6px 12px">
-              <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#9CA3AF"></span>
-              <span style="color:#6B7280;font-size:11px">${fmtLongDate(priorIso)}</span>
-              <span style="margin-left:auto;font-weight:600;color:#1A1B3A">${fmtCell(priorVal)}</span>
+              <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--muted-foreground)"></span>
+              <span style="color:var(--muted-foreground);font-size:11px">${fmtLongDate(priorIso)}</span>
+              <span style="margin-left:auto;font-weight:600;color:var(--foreground)">${fmtCell(priorVal)}</span>
             </div>`);
         }
         rows.push(`
           <div style="display:flex;align-items:center;gap:8px;padding:6px 12px">
             <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${color}"></span>
-            <span style="color:#1A1B3A;font-size:11px;font-weight:500">${fmtLongDate(curIso)}</span>
+            <span style="color:var(--foreground);font-size:11px;font-weight:500">${fmtLongDate(curIso)}</span>
             <span style="margin-left:auto;font-weight:600;color:${color}">${fmtCell(curVal)}</span>
           </div>`);
-        return `<div style="background:white;border:1px solid #F3F4F6;border-radius:10px;box-shadow:0 8px 16px -4px rgba(0,0,0,0.08);min-width:240px;padding:4px 0">${rows.join('')}</div>`;
+        return `<div style="background:white;border:1px solid var(--muted);border-radius:10px;box-shadow:0 8px 16px -4px rgba(0,0,0,0.08);min-width:240px;padding:4px 0">${rows.join('')}</div>`;
       },
     },
   };
@@ -209,7 +209,7 @@ export function GmvComparisonChart({
     <>
       <ApexChart series={series as any} options={options} height={height} width="100%" />
       {capped && (
-        <p className="text-[11px] text-gray-400 px-3 pt-1 pb-2">
+        <p className="text-[11px] text-muted-foreground px-3 pt-1 pb-2">
           One or more days were excluded from the chart as data anomalies
           (likely backfill spikes). Raw numbers are unchanged in the totals
           and CSV exports.

@@ -72,16 +72,16 @@ function ChangeCard({
         >
           {icon}
         </div>
-        <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
           {eyebrow}
         </span>
       </div>
-      <p className="text-sm font-semibold text-[#1A1B3A] line-clamp-2 mb-0.5">{title}</p>
-      <p className="text-[11px] font-mono tabular-nums text-gray-400 mb-3 line-clamp-1">{subtitle}</p>
+      <p className="text-sm font-semibold text-[var(--foreground)] line-clamp-2 mb-0.5">{title}</p>
+      <p className="text-[11px] font-mono tabular-nums text-muted-foreground mb-3 line-clamp-1">{subtitle}</p>
       <div className="flex items-baseline justify-between">
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">{valueLabel}</p>
-          <p className="text-base font-bold text-[#1A1B3A] font-mono tabular-nums">{value}</p>
+          <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{valueLabel}</p>
+          <p className="text-base font-bold text-[var(--foreground)] font-mono tabular-nums">{value}</p>
         </div>
         {delta !== undefined && (
           <span
@@ -97,7 +97,7 @@ function ChangeCard({
   );
 
   const className =
-    'block rounded-2xl bg-white border border-gray-200 shadow-sm p-4 transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md motion-reduce:transform-none motion-reduce:transition-none';
+    'block rounded-2xl bg-card border border-border shadow-sm p-4 transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md motion-reduce:transform-none motion-reduce:transition-none';
 
   return link ? (
     <Link
@@ -118,8 +118,8 @@ export function NotableChanges({ brandRiser, brandFaller, creatorBreakout, hotPo
     <div>
       <div className="flex items-center gap-2 mb-3">
         <Sparkles className="h-4 w-4 text-[var(--primary)]" />
-        <h3 className="text-sm font-extrabold tracking-tight text-[#1A1B3A]">Notable Changes</h3>
-        <span className="text-[11px] font-mono tabular-nums text-gray-400">vs prior period</span>
+        <h3 className="text-sm font-extrabold tracking-tight text-[var(--foreground)]">Notable Changes</h3>
+        <span className="text-[11px] font-mono tabular-nums text-muted-foreground">vs prior period</span>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {brandRiser && (

@@ -65,12 +65,12 @@ export function PlanSelector({ currentPlan, onSelect }: PlanSelectorProps) {
       <div className="rounded-2xl border-2 border-[var(--primary)]/30 bg-gradient-to-br from-white to-[var(--primary)]/5 p-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h3 className="text-lg font-bold text-[#1A1B3A]">Brand Plan</h3>
-            <p className="text-sm text-[#6B7280] mt-1">Everything you need to manage creators and grow GMV</p>
+            <h3 className="text-lg font-bold text-[var(--foreground)]">Brand Plan</h3>
+            <p className="text-sm text-[var(--muted-foreground)] mt-1">Everything you need to manage creators and grow GMV</p>
           </div>
           <div className="text-right">
-            <div className="text-3xl font-extrabold text-[#1A1B3A]">$1,999</div>
-            <div className="text-sm text-[#6B7280]">per month</div>
+            <div className="text-3xl font-extrabold text-[var(--foreground)]">$1,999</div>
+            <div className="text-sm text-[var(--muted-foreground)]">per month</div>
           </div>
         </div>
 
@@ -110,7 +110,7 @@ export function PlanSelector({ currentPlan, onSelect }: PlanSelectorProps) {
         </button>
       </div>
 
-      <p className="text-xs text-center text-[#9CA3AF]">
+      <p className="text-xs text-center text-[var(--muted-foreground)]">
         Managing multiple brands? <a href="mailto:tyler@tempoapp.ai" className="text-[var(--primary)] hover:underline">Contact us about agency pricing</a>
       </p>
     </div>

@@ -20,7 +20,7 @@ export interface DailyMetrics {
 type Metric = 'gmv' | 'orders' | 'items' | 'videos';
 
 const METRICS: Array<{ key: Metric; label: string; icon: typeof DollarSign; color: string; format: (n: number) => string }> = [
-  { key: 'gmv',    label: 'GMV',    icon: DollarSign,   color: '#1A1B3A', format: (n) => formatCurrency(n) },
+  { key: 'gmv',    label: 'GMV',    icon: DollarSign,   color: 'var(--foreground)', format: (n) => formatCurrency(n) },
   { key: 'orders', label: 'Orders', icon: ShoppingCart, color: 'var(--pulse-accent-2)', format: (n) => formatNumber(n) },
   { key: 'items',  label: 'Items',  icon: Package,      color: '#00C853', format: (n) => formatNumber(n) },
   { key: 'videos', label: 'Posts',  icon: Video,        color: '#FF9800', format: (n) => formatNumber(n) },
@@ -97,11 +97,11 @@ export function PerformanceChart({ data, priorData, yoyData, accentColor }: Prop
       },
       opacity: overlay ? [1, 0] : 1,
     },
-    colors: overlay ? [color, '#9CA3AF'] : [color],
+    colors: overlay ? [color, 'var(--muted-foreground)'] : [color],
     legend: overlay ? { show: true, position: 'top', horizontalAlign: 'right' } : { show: false },
     dataLabels: { enabled: false },
     grid: {
-      borderColor: '#F3F4F6',
+      borderColor: 'var(--muted)',
       strokeDashArray: 4,
       padding: { left: 10, right: 10, top: 0, bottom: 0 },
     },
@@ -110,13 +110,13 @@ export function PerformanceChart({ data, priorData, yoyData, accentColor }: Prop
       axisBorder: { show: false },
       axisTicks: { show: false },
       labels: {
-        style: { colors: '#9CA3AF', fontSize: '11px', fontFamily: 'var(--font-geist-mono)' },
+        style: { colors: 'var(--muted-foreground)', fontSize: '11px', fontFamily: 'var(--font-geist-mono)' },
         rotate: 0,
       },
     },
     yaxis: {
       labels: {
-        style: { colors: '#9CA3AF', fontSize: '11px', fontFamily: 'var(--font-geist-mono)' },
+        style: { colors: 'var(--muted-foreground)', fontSize: '11px', fontFamily: 'var(--font-geist-mono)' },
         formatter: (val: number) => {
           if (metric === 'gmv') {
             if (val >= 1_000_000) return `$${(val / 1_000_000).toFixed(1)}M`;
@@ -148,14 +148,14 @@ export function PerformanceChart({ data, priorData, yoyData, accentColor }: Prop
     compare === 'yoy' ? 'vs last year' : 'vs prior period';
 
   return (
-    <div className="rounded-2xl bg-white border border-gray-200 shadow-sm p-5">
+    <div className="rounded-2xl bg-card border border-border shadow-sm p-5">
       {/* Header with metric toggle */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
         <div>
-          <h3 className="text-sm font-extrabold tracking-tight text-[#1A1B3A]">Performance Overview</h3>
-          <p className="text-xs text-gray-400 mt-0.5">
+          <h3 className="text-sm font-extrabold tracking-tight text-[var(--foreground)]">Performance Overview</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
             Total in period:{' '}
-            <span className="font-semibold text-[#1A1B3A] font-mono tabular-nums">{cfg.format(total)}</span>
+            <span className="font-semibold text-[var(--foreground)] font-mono tabular-nums">{cfg.format(total)}</span>
             {compareDelta !== null && (
               <span
                 className={cn(
@@ -173,7 +173,7 @@ export function PerformanceChart({ data, priorData, yoyData, accentColor }: Prop
         <div className="flex flex-wrap items-center gap-2">
           {/* Compare toggle — segmented "off / prior / YoY" pill (YoY hidden when no data) */}
           {(priorData?.length ?? 0) > 1 && (
-            <div className="flex gap-0.5 p-0.5 bg-gray-100 rounded-lg" role="group" aria-label="Compare overlay">
+            <div className="flex gap-0.5 p-0.5 bg-muted rounded-lg" role="group" aria-label="Compare overlay">
               {([
                 { key: 'off',   label: 'No compare' },
                 { key: 'prior', label: 'Prior' },
@@ -185,8 +185,8 @@ export function PerformanceChart({ data, priorData, yoyData, accentColor }: Prop
                   className={cn(
                     'px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40 focus-visible:ring-offset-1',
                     compare === key
-                      ? 'bg-white text-[#1A1B3A] shadow-sm'
-                      : 'text-gray-500 hover:text-gray-700'
+                      ? 'bg-card text-[var(--foreground)] shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
                   )}
                   aria-pressed={compare === key}
                 >
@@ -197,7 +197,7 @@ export function PerformanceChart({ data, priorData, yoyData, accentColor }: Prop
           )}
 
           {/* Metric toggle */}
-          <div className="flex gap-1 p-1 bg-gray-100 rounded-xl w-fit">
+          <div className="flex gap-1 p-1 bg-muted rounded-xl w-fit">
             {METRICS.map(({ key, label, icon: Icon }) => (
               <button
                 key={key}
@@ -205,8 +205,8 @@ export function PerformanceChart({ data, priorData, yoyData, accentColor }: Prop
                 className={cn(
                   'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40 focus-visible:ring-offset-1',
                   metric === key
-                    ? 'bg-white text-[#1A1B3A] shadow-sm'
-                    : 'text-gray-500 hover:text-gray-700'
+                    ? 'bg-card text-[var(--foreground)] shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
                 )}
                 aria-pressed={metric === key}
               >
@@ -223,16 +223,16 @@ export function PerformanceChart({ data, priorData, yoyData, accentColor }: Prop
         <ApexChart options={options} series={series} type="area" height={280} />
       ) : data.length === 1 ? (
         <div className="h-[280px] flex flex-col items-center justify-center">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
             {cfg.label} — {new Date(data[0].date).toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}
           </p>
           <p className="text-5xl font-extrabold font-mono tabular-nums mt-2" style={{ color }}>
             {cfg.format(values[0])}
           </p>
-          <p className="text-xs text-gray-400 mt-2">Switch to a longer range to see a trend chart</p>
+          <p className="text-xs text-muted-foreground mt-2">Switch to a longer range to see a trend chart</p>
         </div>
       ) : (
-        <div className="h-[280px] flex items-center justify-center text-sm text-gray-400">
+        <div className="h-[280px] flex items-center justify-center text-sm text-muted-foreground">
           No data in this period
         </div>
       )}

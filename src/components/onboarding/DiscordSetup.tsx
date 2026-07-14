@@ -65,7 +65,7 @@ export function DiscordSetup({ onComplete, onSkip }: DiscordSetupProps) {
       </div>
 
       {/* What the bot does */}
-      <div className="rounded-2xl border border-gray-200 bg-white p-5 space-y-3 max-w-md mx-auto">
+      <div className="rounded-2xl border border-border bg-card p-5 space-y-3 max-w-md mx-auto">
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">What Tempo Bot does</p>
         <div className="space-y-3">
           <div className="flex items-start gap-3">

@@ -40,28 +40,28 @@ export function ConcentrationCard({ stats }: Props) {
   const top10Pct = pct(top10Gmv);
 
   return (
-    <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-5">
+    <div className="rounded-2xl bg-card border border-border shadow-sm p-5">
       <div className="flex items-center justify-between mb-3">
         <div>
-          <h3 className="text-sm font-bold text-[#1A1B3A]">Creator Concentration</h3>
-          <p className="text-xs text-gray-400 mt-0.5">
+          <h3 className="text-sm font-bold text-[var(--foreground)]">Creator Concentration</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
             {formatNumber(totalCreators)} creators contributed · {formatCurrency(totalGmv)} total
           </p>
         </div>
       </div>
 
       {/* Stacked bar — 5 segments, darkest first */}
-      <div className="flex h-3 rounded-full overflow-hidden bg-gray-100 mb-3" role="img" aria-label="GMV concentration by creator rank">
-        {seg1     > 0 && <div style={{ width: `${pct(seg1)}%`,     backgroundColor: '#1A1B3A' }} />}
+      <div className="flex h-3 rounded-full overflow-hidden bg-muted mb-3" role="img" aria-label="GMV concentration by creator rank">
+        {seg1     > 0 && <div style={{ width: `${pct(seg1)}%`,     backgroundColor: 'var(--foreground)' }} />}
         {seg2to5  > 0 && <div style={{ width: `${pct(seg2to5)}%`,  backgroundColor: 'var(--pulse-accent-2)' }} />}
         {seg6to10 > 0 && <div style={{ width: `${pct(seg6to10)}%`, backgroundColor: '#A78BFA' }} />}
         {seg11to25 > 0 && <div style={{ width: `${pct(seg11to25)}%`, backgroundColor: '#C4B5FD' }} />}
-        {segRest  > 0 && <div style={{ width: `${pct(segRest)}%`,  backgroundColor: '#E5E7EB' }} />}
+        {segRest  > 0 && <div style={{ width: `${pct(segRest)}%`,  backgroundColor: 'var(--border)' }} />}
       </div>
 
       {/* Three pill stats */}
       <div className="grid grid-cols-3 gap-2 sm:gap-3">
-        <Pill rank="Top 1" pct={top1Pct} gmv={top1Gmv} color="#1A1B3A" />
+        <Pill rank="Top 1" pct={top1Pct} gmv={top1Gmv} color="var(--foreground)" />
         <Pill rank="Top 5" pct={top5Pct} gmv={top5Gmv} color="var(--pulse-accent-2)" />
         <Pill rank="Top 10" pct={top10Pct} gmv={top10Gmv} color="#A78BFA" />
       </div>
@@ -71,15 +71,15 @@ export function ConcentrationCard({ stats }: Props) {
 
 function Pill({ rank, pct, gmv, color }: { rank: string; pct: number; gmv: number; color: string }) {
   return (
-    <div className="rounded-xl bg-gray-50 px-3 py-2.5">
+    <div className="rounded-xl bg-muted px-3 py-2.5">
       <div className="flex items-center gap-1.5 mb-0.5">
         <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
-        <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">{rank}</span>
+        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{rank}</span>
       </div>
-      <p className="text-base font-bold text-[#1A1B3A] tabular-nums leading-tight">
+      <p className="text-base font-bold text-[var(--foreground)] tabular-nums leading-tight">
         {pct.toFixed(0)}%
       </p>
-      <p className="text-[10px] text-gray-400 tabular-nums">{formatCurrency(gmv)}</p>
+      <p className="text-[10px] text-muted-foreground tabular-nums">{formatCurrency(gmv)}</p>
     </div>
   );
 }

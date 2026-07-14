@@ -551,13 +551,13 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
           'rounded-2xl border-2 border-dashed p-10 text-center transition-colors',
           dragActive
             ? 'border-[#E91E8C] bg-primary/10'
-            : 'border-gray-200 bg-gray-50/40 hover:border-gray-300'
+            : 'border-border bg-muted/40 hover:border-border'
         )}
       >
-        <Upload className="h-7 w-7 text-gray-400 mx-auto mb-3" />
-        <p className="text-sm font-semibold text-[#1A1B3A]">Drop TikTok Shop XLSX exports here</p>
-        <p className="text-xs text-gray-500 mt-1">
-          Filename auto-detection: <code className="text-gray-600">Brand_FileType_YYYYMMDD.xlsx</code>
+        <Upload className="h-7 w-7 text-muted-foreground mx-auto mb-3" />
+        <p className="text-sm font-semibold text-[var(--foreground)]">Drop TikTok Shop XLSX exports here</p>
+        <p className="text-xs text-muted-foreground mt-1">
+          Filename auto-detection: <code className="text-muted-foreground">Brand_FileType_YYYYMMDD.xlsx</code>
         </p>
         <label className="inline-block mt-4 px-4 py-2 rounded-xl bg-[#E91E8C] hover:bg-[#d1177d] text-white text-sm font-semibold cursor-pointer transition-colors">
           Choose files
@@ -567,22 +567,22 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
 
       {/* Queue */}
       {queue.length > 0 && (
-        <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
-            <div className="text-sm font-semibold text-[#1A1B3A]">
-              Queue · <span className="text-gray-500 font-normal">{queue.length} file{queue.length === 1 ? '' : 's'}</span>
+        <div className="rounded-2xl bg-card border border-border shadow-sm overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-3 border-b border-border">
+            <div className="text-sm font-semibold text-[var(--foreground)]">
+              Queue · <span className="text-muted-foreground font-normal">{queue.length} file{queue.length === 1 ? '' : 's'}</span>
             </div>
             <div className="flex items-center gap-3">
-              <div className="flex gap-3 text-xs text-gray-500">
+              <div className="flex gap-3 text-xs text-muted-foreground">
                 {counts.queued > 0    && <span>{counts.queued} queued</span>}
                 {counts.success > 0   && <span className="text-emerald-600">{counts.success} done</span>}
                 {counts.error > 0     && <span className="text-red-500">{counts.error} failed</span>}
-                {counts.cancelled > 0 && <span className="text-gray-500">{counts.cancelled} cancelled</span>}
+                {counts.cancelled > 0 && <span className="text-muted-foreground">{counts.cancelled} cancelled</span>}
               </div>
               <button
                 onClick={clearQueue}
                 disabled={running || counts.processing > 0}
-                className="text-xs text-gray-500 hover:text-gray-700 disabled:opacity-40"
+                className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-40"
               >
                 Clear finished
               </button>
@@ -596,7 +596,7 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
               </button>
             </div>
           </div>
-          <ul className="divide-y divide-gray-100">
+          <ul className="divide-y divide-border">
             {queue.map(item => (
               <QueueRow key={item.id} item={item} brands={activeBrands} onChange={p => updateItem(item.id, p)} onRemove={() => removeItem(item.id)} />
             ))}
@@ -627,11 +627,11 @@ function QueueRow({
   const editable = item.status === 'queued' || item.status === 'error';
 
   const statusConfig = {
-    queued:     { Icon: FileSpreadsheet, color: 'text-gray-400',    bg: 'bg-gray-50',    label: 'Queued' },
+    queued:     { Icon: FileSpreadsheet, color: 'text-muted-foreground',    bg: 'bg-muted',    label: 'Queued' },
     processing: { Icon: Loader2,         color: 'text-[#E91E8C]',   bg: 'bg-primary/10',    label: 'Processing' },
     success:    { Icon: CheckCircle2,    color: 'text-emerald-600', bg: 'bg-emerald-50', label: 'Done' },
     error:      { Icon: AlertCircle,     color: 'text-red-500',     bg: 'bg-red-50',     label: 'Error' },
-    cancelled:  { Icon: AlertTriangle,   color: 'text-gray-400',    bg: 'bg-gray-50',    label: 'Cancelled' },
+    cancelled:  { Icon: AlertTriangle,   color: 'text-muted-foreground',    bg: 'bg-muted',    label: 'Cancelled' },
   }[item.status];
 
   return (
@@ -642,15 +642,15 @@ function QueueRow({
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1.5">
-            <span className="text-sm font-medium text-[#1A1B3A] truncate">{item.filename}</span>
-            <span className="text-[10px] uppercase tracking-wider font-semibold text-gray-400">{statusConfig.label}</span>
+            <span className="text-sm font-medium text-[var(--foreground)] truncate">{item.filename}</span>
+            <span className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">{statusConfig.label}</span>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <select
               value={item.type}
               onChange={e => onChange({ type: e.target.value as FileType })}
               disabled={!editable}
-              className="text-xs bg-white border border-gray-200 rounded-lg px-2 py-1.5 disabled:bg-gray-50 disabled:text-gray-400"
+              className="text-xs bg-card border border-border rounded-lg px-2 py-1.5 disabled:bg-muted disabled:text-muted-foreground"
             >
               {FILE_TYPE_OPTIONS.map(o => (
                 <option key={o.value} value={o.value}>{o.label}</option>
@@ -661,8 +661,8 @@ function QueueRow({
               onChange={e => onChange({ brand: e.target.value })}
               disabled={!editable}
               className={cn(
-                'text-xs bg-white border rounded-lg px-2 py-1.5 disabled:bg-gray-50 disabled:text-gray-400',
-                item.brand === 'unknown' ? 'border-amber-300 text-amber-700' : 'border-gray-200'
+                'text-xs bg-card border rounded-lg px-2 py-1.5 disabled:bg-muted disabled:text-muted-foreground',
+                item.brand === 'unknown' ? 'border-amber-300 text-amber-700' : 'border-border'
               )}
             >
               {item.brand === 'unknown' && <option value="unknown">Pick a brand…</option>}
@@ -675,7 +675,7 @@ function QueueRow({
               value={item.reportDate}
               onChange={e => onChange({ reportDate: e.target.value })}
               disabled={!editable}
-              className="text-xs bg-white border border-gray-200 rounded-lg px-2 py-1.5 disabled:bg-gray-50 disabled:text-gray-400"
+              className="text-xs bg-card border border-border rounded-lg px-2 py-1.5 disabled:bg-muted disabled:text-muted-foreground"
             />
             {item.result && (
               <span className="text-xs text-emerald-600 font-medium ml-2">
@@ -686,20 +686,20 @@ function QueueRow({
           {item.log.length > 0 && (
             <button
               onClick={() => onChange({ expanded: !item.expanded })}
-              className="mt-2 flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700"
+              className="mt-2 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
             >
               {item.expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
               {item.log.length} log line{item.log.length === 1 ? '' : 's'}
             </button>
           )}
           {item.expanded && item.log.length > 0 && (
-            <pre className="mt-2 text-[11px] text-gray-700 bg-gray-50 border border-gray-100 rounded-lg p-3 max-h-60 overflow-auto whitespace-pre-wrap leading-relaxed">
+            <pre className="mt-2 text-[11px] text-foreground bg-muted border border-border rounded-lg p-3 max-h-60 overflow-auto whitespace-pre-wrap leading-relaxed">
               {item.log.map((l, i) => (
                 <div key={i} className={cn(
                   l.level === 'error'   ? 'text-red-600 font-semibold' :
                   l.level === 'warning' ? 'text-amber-700' :
                   l.level === 'success' ? 'text-emerald-700 font-semibold' :
-                                          'text-gray-700'
+                                          'text-foreground'
                 )}>
                   {l.level === 'error' ? '✗ ' : l.level === 'warning' ? '⚠ ' : l.level === 'success' ? '✓ ' : '· '}{l.message}
                 </div>
@@ -710,7 +710,7 @@ function QueueRow({
         <button
           onClick={onRemove}
           disabled={item.status === 'processing'}
-          className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 disabled:opacity-40 transition-colors"
+          className="p-1.5 rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-50 disabled:opacity-40 transition-colors"
           aria-label="Remove from queue"
         >
           <Trash2 className="h-3.5 w-3.5" />

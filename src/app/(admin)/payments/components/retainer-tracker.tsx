@@ -79,10 +79,10 @@ export function RetainerTracker({
   );
 
   return (
-    <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+    <div className="rounded-2xl bg-card border border-border shadow-sm overflow-hidden">
       <div className="px-5 pt-4 pb-3">
-        <h3 className="text-sm font-bold text-[#1A1B3A]">Retainer Tracker</h3>
-        <p className="text-xs text-gray-400 mt-0.5">
+        <h3 className="text-sm font-bold text-[var(--foreground)]">Retainer Tracker</h3>
+        <p className="text-xs text-muted-foreground mt-0.5">
           {total === 0 ? 'No creators on retainer' :
             pageSize === 0
               ? `${total} creator${total === 1 ? '' : 's'} on retainer · click a row for details`
@@ -91,8 +91,8 @@ export function RetainerTracker({
       </div>
 
       {/* Filter bar */}
-      <div className="px-5 py-3 flex items-center gap-3 flex-wrap border-y border-gray-100 bg-gray-50/40">
-        <div className="flex items-center gap-1 bg-white rounded-xl p-1 border border-gray-200">
+      <div className="px-5 py-3 flex items-center gap-3 flex-wrap border-y border-border bg-muted/40">
+        <div className="flex items-center gap-1 bg-card rounded-xl p-1 border border-border">
           {STATUS_TABS.map((tab) => {
             const Icon = tab.icon;
             const active = statusFilter === tab.value;
@@ -102,7 +102,7 @@ export function RetainerTracker({
                 onClick={() => onStatusFilterChange(tab.value)}
                 className={cn(
                   'inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all',
-                  active ? 'bg-[#FFF0F5] text-[var(--primary)]' : 'text-gray-500 hover:text-gray-700',
+                  active ? 'bg-[#FFF0F5] text-[var(--primary)]' : 'text-muted-foreground hover:text-foreground',
                 )}
               >
                 <Icon className="h-3.5 w-3.5" />
@@ -115,14 +115,14 @@ export function RetainerTracker({
           <select
             value={brandFilter}
             onChange={(e) => onBrandFilterChange(e.target.value)}
-            className="appearance-none bg-white border border-gray-200 rounded-xl pl-9 pr-8 py-2 text-xs font-semibold text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] cursor-pointer"
+            className="appearance-none bg-card border border-border rounded-xl pl-9 pr-8 py-2 text-xs font-semibold text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] cursor-pointer"
           >
             <option value="all">All brands</option>
             {availableBrands.map((b) => (
               <option key={b} value={b}>{brandMeta.label(b)}</option>
             ))}
           </select>
-          <Filter className="h-3.5 w-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          <Filter className="h-3.5 w-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
         </div>
       </div>
 
@@ -130,27 +130,27 @@ export function RetainerTracker({
       <div className={cn('transition-opacity duration-200', refetching && 'opacity-60')}>
       {loading && creators.length === 0 ? (
         <div className="p-12 text-center">
-          <div className="inline-block h-8 w-8 rounded-full border-2 border-gray-200 border-t-[var(--primary)] animate-spin" />
+          <div className="inline-block h-8 w-8 rounded-full border-2 border-border border-t-[var(--primary)] animate-spin" />
         </div>
       ) : creators.length === 0 ? (
         <div className="px-6 py-16 text-center">
-          <div className="mx-auto h-12 w-12 rounded-2xl bg-gray-50 flex items-center justify-center mb-3">
-            <Users className="h-5 w-5 text-gray-300" />
+          <div className="mx-auto h-12 w-12 rounded-2xl bg-muted flex items-center justify-center mb-3">
+            <Users className="h-5 w-5 text-muted-foreground" />
           </div>
-          <p className="text-sm font-bold text-[#1A1B3A]">No creators on retainer</p>
-          <p className="text-xs text-gray-400 mt-1">Try changing the brand or status filter.</p>
+          <p className="text-sm font-bold text-[var(--foreground)]">No creators on retainer</p>
+          <p className="text-xs text-muted-foreground mt-1">Try changing the brand or status filter.</p>
         </div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-gray-100">
-                <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-gray-500">Creator</th>
-                <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-gray-500">Brand</th>
-                <th className="px-4 py-3 text-right text-[10px] font-bold uppercase tracking-wider text-gray-500">Retainer</th>
-                <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-gray-500 w-[200px]">Post Progress</th>
-                <th className="px-4 py-3 text-center text-[10px] font-bold uppercase tracking-wider text-gray-500">Status</th>
-                <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-gray-500">Started</th>
+              <tr className="border-b border-border">
+                <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Creator</th>
+                <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Brand</th>
+                <th className="px-4 py-3 text-right text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Retainer</th>
+                <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-muted-foreground w-[200px]">Post Progress</th>
+                <th className="px-4 py-3 text-center text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Status</th>
+                <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Started</th>
               </tr>
             </thead>
             <tbody>
@@ -164,23 +164,23 @@ export function RetainerTracker({
                   <Fragment key={key}>
                     <tr
                       onClick={() => setExpanded(isExpanded ? null : key)}
-                      className="border-b border-gray-50 hover:bg-[#FFF0F5]/30 cursor-pointer transition-colors"
+                      className="border-b border-border hover:bg-[#FFF0F5]/30 cursor-pointer transition-colors"
                     >
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
-                          <ChevronRight className={cn('h-3.5 w-3.5 text-gray-300 transition-transform', isExpanded && 'rotate-90 text-[var(--primary)]')} />
-                          <span className="text-sm font-semibold text-[#1A1B3A]">{c.creator_name}</span>
+                          <ChevronRight className={cn('h-3.5 w-3.5 text-muted-foreground transition-transform', isExpanded && 'rotate-90 text-[var(--primary)]')} />
+                          <span className="text-sm font-semibold text-[var(--foreground)]">{c.creator_name}</span>
                         </div>
                       </td>
                       <td className="px-4 py-3">
                         <BrandPill brand={c.brand} />
                       </td>
-                      <td className="px-4 py-3 text-right tabular-nums font-bold text-[#1A1B3A]">
+                      <td className="px-4 py-3 text-right tabular-nums font-bold text-[var(--foreground)]">
                         {formatCurrency(c.retainer)}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
-                          <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                          <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
                             <div
                               className={cn(
                                 'h-full rounded-full transition-all',
@@ -190,7 +190,7 @@ export function RetainerTracker({
                               style={{ width: `${pct}%` }}
                             />
                           </div>
-                          <span className="text-[11px] font-semibold text-gray-600 tabular-nums w-12 text-right">
+                          <span className="text-[11px] font-semibold text-muted-foreground tabular-nums w-12 text-right">
                             {c.posts_found}/{required}
                           </span>
                         </div>
@@ -198,19 +198,19 @@ export function RetainerTracker({
                       <td className="px-4 py-3 text-center">
                         <StatusBadge status={c.status} />
                       </td>
-                      <td className="px-4 py-3 text-xs text-gray-500">
-                        {c.retainer_start_date ? formatDate(c.retainer_start_date) : <span className="text-gray-300">—</span>}
+                      <td className="px-4 py-3 text-xs text-muted-foreground">
+                        {c.retainer_start_date ? formatDate(c.retainer_start_date) : <span className="text-muted-foreground">—</span>}
                       </td>
                     </tr>
                     {isExpanded && (
-                      <tr className="bg-gray-50/50 border-b border-gray-100">
+                      <tr className="bg-muted/50 border-b border-border">
                         <td colSpan={6} className="px-6 py-4">
                           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                             <DetailBlock label="Payment Status">
                               <PaymentBadge status={c.payment_status} />
                             </DetailBlock>
                             <DetailBlock label="Real Name">
-                              <span className="text-xs text-[#1A1B3A]">{c.real_name || '—'}</span>
+                              <span className="text-xs text-[var(--foreground)]">{c.real_name || '—'}</span>
                             </DetailBlock>
                             <DetailBlock label="Pace">
                               <PaceLabel postsFound={c.posts_found} required={required} />
@@ -219,7 +219,7 @@ export function RetainerTracker({
                               <DetailBlock label="TikTok Accounts" className="sm:col-span-3">
                                 <div className="flex flex-wrap gap-1.5">
                                   {accounts.map((a) => (
-                                    <span key={a} className="inline-flex items-center px-2 py-0.5 rounded-md bg-white border border-gray-200 text-xs font-medium text-[#1A1B3A]">
+                                    <span key={a} className="inline-flex items-center px-2 py-0.5 rounded-md bg-card border border-border text-xs font-medium text-[var(--foreground)]">
                                       @{a.replace(/^@/, '')}
                                     </span>
                                   ))}
@@ -240,13 +240,13 @@ export function RetainerTracker({
 
       {/* Pagination footer — only shows when there's more than one page worth */}
       {total > 0 && (pageSize === 0 ? false : total > pageSize) && (
-        <div className="px-5 py-3 border-t border-gray-100 bg-gray-50/40 flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-2 text-xs text-gray-500">
+        <div className="px-5 py-3 border-t border-border bg-muted/40 flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <span>Rows per page</span>
             <select
               value={pageSize}
               onChange={(e) => setPageSize(Number(e.target.value))}
-              className="appearance-none bg-white border border-gray-200 rounded-lg pl-2 pr-6 py-1 text-xs font-semibold text-[#1A1B3A] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] cursor-pointer"
+              className="appearance-none bg-card border border-border rounded-lg pl-2 pr-6 py-1 text-xs font-semibold text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] cursor-pointer"
             >
               {PAGE_SIZE_OPTIONS.map((n) => (
                 <option key={n} value={n}>{n === 0 ? 'All' : n}</option>
@@ -261,7 +261,7 @@ export function RetainerTracker({
             <PageButton onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={safePage === 0} title="Previous">
               <ChevronLeft className="h-3.5 w-3.5" />
             </PageButton>
-            <span className="text-xs font-semibold text-[#1A1B3A] tabular-nums px-3">
+            <span className="text-xs font-semibold text-[var(--foreground)] tabular-nums px-3">
               Page {safePage + 1} of {totalPages}
             </span>
             <PageButton onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))} disabled={safePage >= totalPages - 1} title="Next">
@@ -276,7 +276,7 @@ export function RetainerTracker({
 
       {/* When pageSize === 0 (All) and total exceeds default, show a slim row-count footer with a way to switch back */}
       {pageSize === 0 && total > 25 && (
-        <div className="px-5 py-2 border-t border-gray-100 bg-gray-50/40 flex items-center justify-between gap-3 text-xs text-gray-500">
+        <div className="px-5 py-2 border-t border-border bg-muted/40 flex items-center justify-between gap-3 text-xs text-muted-foreground">
           <span>Showing all {total} rows</span>
           <button
             onClick={() => setPageSize(25)}
@@ -305,7 +305,7 @@ function PageButton({
       disabled={disabled}
       title={title}
       aria-label={title}
-      className="inline-flex items-center justify-center h-7 w-7 rounded-lg border border-gray-200 bg-white text-gray-500 hover:text-[var(--primary)] hover:border-[var(--primary)]/30 disabled:opacity-30 disabled:hover:text-gray-500 disabled:hover:border-gray-200 transition-colors"
+      className="inline-flex items-center justify-center h-7 w-7 rounded-lg border border-border bg-card text-muted-foreground hover:text-[var(--primary)] hover:border-[var(--primary)]/30 disabled:opacity-30 disabled:hover:text-muted-foreground disabled:hover:border-border transition-colors"
     >
       {children}
     </button>
@@ -350,7 +350,7 @@ function PaymentBadge({ status }: { status: string }) {
     sent:     { bg: 'bg-blue-50 border-blue-200',       text: 'text-blue-700',    label: 'Sent' },
     paid:     { bg: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700', label: 'Paid' },
   };
-  const c = config[status] ?? { bg: 'bg-gray-50 border-gray-200', text: 'text-gray-700', label: status };
+  const c = config[status] ?? { bg: 'bg-muted border-border', text: 'text-foreground', label: status };
   return (
     <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border', c.bg, c.text)}>
       {c.label}
@@ -361,25 +361,25 @@ function PaymentBadge({ status }: { status: string }) {
 function DetailBlock({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
   return (
     <div className={className}>
-      <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">{label}</p>
+      <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5">{label}</p>
       {children}
     </div>
   );
 }
 
 function PaceLabel({ postsFound, required }: { postsFound: number; required: number }) {
-  if (required === 0) return <span className="text-xs text-gray-400">No requirement</span>;
+  if (required === 0) return <span className="text-xs text-muted-foreground">No requirement</span>;
   const now = new Date();
   const dayOfMonth = now.getDate();
   const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
   const expected = Math.round((required / daysInMonth) * dayOfMonth);
   const diff = postsFound - expected;
-  const tone = diff < 0 ? 'text-amber-700' : diff > 0 ? 'text-emerald-700' : 'text-gray-700';
+  const tone = diff < 0 ? 'text-amber-700' : diff > 0 ? 'text-emerald-700' : 'text-foreground';
   return (
     <span className={cn('text-xs font-medium', tone)}>
       {postsFound} of {expected} expected by today
       {diff !== 0 && (
-        <span className="text-[10px] text-gray-400 ml-1">({diff > 0 ? '+' : ''}{diff})</span>
+        <span className="text-[10px] text-muted-foreground ml-1">({diff > 0 ? '+' : ''}{diff})</span>
       )}
     </span>
   );

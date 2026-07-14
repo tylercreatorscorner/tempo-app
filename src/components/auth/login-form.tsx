@@ -116,8 +116,8 @@ export function LoginForm() {
             <Mail className="h-8 w-8 text-white" />
           </div>
 
-          <h1 className="text-2xl font-bold text-[#1A1B3A]">Check your email</h1>
-          <p className="text-sm text-gray-500">
+          <h1 className="text-2xl font-bold text-[var(--foreground)]">Check your email</h1>
+          <p className="text-sm text-muted-foreground">
             We sent a 6-digit code to <strong>{email}</strong>
           </p>
         </div>
@@ -136,17 +136,17 @@ export function LoginForm() {
           />
 
           {verifying && (
-            <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
+            <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
               Verifying...
             </div>
           )}
 
           <div className="text-center space-y-2">
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-muted-foreground">
               Didn&apos;t get the code?{' '}
               {cooldown > 0 ? (
-                <span className="text-gray-400">Resend in {cooldown}s</span>
+                <span className="text-muted-foreground">Resend in {cooldown}s</span>
               ) : (
                 <button
                   onClick={handleResendCode}
@@ -160,7 +160,7 @@ export function LoginForm() {
 
           <button
             onClick={() => { setStep('email'); setError(''); setOtpError(false); }}
-            className="flex items-center justify-center gap-1 w-full py-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+            className="flex items-center justify-center gap-1 w-full py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
             Use a different email
@@ -177,8 +177,8 @@ export function LoginForm() {
         <div className="flex justify-center">
           <TempoLogo size="lg" animated />
         </div>
-        <h1 className="text-2xl font-bold text-[#1A1B3A]">Welcome back</h1>
-        <p className="text-sm text-gray-500">Sign in to your Tempo account</p>
+        <h1 className="text-2xl font-bold text-[var(--foreground)]">Welcome back</h1>
+        <p className="text-sm text-muted-foreground">Sign in to your Tempo account</p>
       </div>
 
       <form onSubmit={handleSendCode} className="space-y-4">

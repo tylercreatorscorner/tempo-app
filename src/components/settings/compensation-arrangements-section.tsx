@@ -250,7 +250,7 @@ function EditModal({
       <div className="absolute inset-0 bg-black/30" />
       <div
         onClick={e => e.stopPropagation()}
-        className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl"
+        className="relative w-full max-w-md bg-card rounded-2xl shadow-2xl"
       >
         <div className="px-5 py-4 border-b border-border flex items-center justify-between">
           <div>

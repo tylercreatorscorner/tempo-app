@@ -23,12 +23,12 @@ export function DashboardOnboarding({
   return (
     <div className="max-w-4xl mx-auto py-8 px-4 space-y-8">
       {/* Hero welcome */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#1A1B3A] via-[#2D1B69] to-[#1A1B3A] p-8 md:p-12 text-white">
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[var(--foreground)] via-[#2D1B69] to-[var(--foreground)] p-8 md:p-12 text-white">
         <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-bl from-[var(--primary)]/20 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/3" />
         <div className="absolute bottom-0 left-0 w-64 h-64 bg-gradient-to-tr from-[var(--pulse-accent-2)]/20 to-transparent rounded-full blur-3xl translate-y-1/2 -translate-x-1/4" />
         <div className="relative z-10">
           <div className="flex items-center gap-3 mb-4">
-            <div className="h-10 w-10 rounded-xl bg-white/10 backdrop-blur flex items-center justify-center">
+            <div className="h-10 w-10 rounded-xl bg-card/10 backdrop-blur flex items-center justify-center">
               <span className="text-xl">{requiredDone ? '🎉' : '🚀'}</span>
             </div>
             <span className="text-sm font-medium text-white/60 uppercase tracking-wider">
@@ -48,7 +48,7 @@ export function DashboardOnboarding({
               <span className="text-sm font-medium text-white/80">{requiredCompleted} of 2 required steps complete</span>
               <span className="text-sm font-bold text-white">{progressPct}%</span>
             </div>
-            <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+            <div className="h-2 rounded-full bg-card/10 overflow-hidden">
               <div className="h-full rounded-full bg-gradient-to-r from-[var(--primary)] to-[var(--pulse-accent-2)] transition-all duration-700" style={{ width: `${progressPct}%` }} />
             </div>
           </div>
@@ -68,10 +68,10 @@ export function DashboardOnboarding({
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
-                  <h3 className="font-semibold text-gray-900">Connect TikTok Shop</h3>
+                  <h3 className="font-semibold text-foreground">Connect TikTok Shop</h3>
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-[var(--primary)]/10 text-[var(--primary)]">Required</span>
                 </div>
-                <p className="text-sm text-gray-500">Add Tempo as a sub-account to start syncing your creator and sales data automatically.</p>
+                <p className="text-sm text-muted-foreground">Add Tempo as a sub-account to start syncing your creator and sales data automatically.</p>
               </div>
             </div>
             <div className="mt-5 w-full py-2.5 rounded-xl bg-gradient-to-r from-[var(--primary)] to-[var(--primary)]/90 text-white text-sm font-semibold text-center hover:opacity-90 transition-opacity shadow-md shadow-[var(--primary)]/20">
@@ -91,10 +91,10 @@ export function DashboardOnboarding({
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
-                  <h3 className="font-semibold text-gray-900">Choose Your Plan</h3>
+                  <h3 className="font-semibold text-foreground">Choose Your Plan</h3>
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-[var(--pulse-accent-2)]/10 text-[var(--pulse-accent-2)]">Required</span>
                 </div>
-                <p className="text-sm text-gray-500">Subscribe to unlock your full analytics dashboard, creator rankings, and daily performance briefs.</p>
+                <p className="text-sm text-muted-foreground">Subscribe to unlock your full analytics dashboard, creator rankings, and daily performance briefs.</p>
               </div>
             </div>
             <div className="mt-5 w-full py-2.5 rounded-xl bg-gradient-to-r from-[var(--pulse-accent-2)] to-[var(--pulse-accent-2)]/90 text-white text-sm font-semibold text-center hover:opacity-90 transition-opacity shadow-md shadow-[var(--pulse-accent-2)]/20">
@@ -106,18 +106,18 @@ export function DashboardOnboarding({
 
       {/* Optional steps */}
       <div>
-        <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Optional</h2>
+        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Optional</h2>
         <div className="grid gap-4 md:grid-cols-2">
           {creatorsAdded ? (
             <DoneCardCompact title="Creators Added" subtitle="Your managed roster is being tracked." />
           ) : (
-            <a href="/roster" className="group rounded-2xl border border-gray-200 bg-white p-5 hover:border-gray-300 hover:shadow-md transition-all duration-300 flex items-center gap-4">
+            <a href="/roster" className="group rounded-2xl border border-border bg-card p-5 hover:border-border hover:shadow-md transition-all duration-300 flex items-center gap-4">
               <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-[var(--pulse-accent-2)] to-[var(--pulse-accent-2)]/80 flex items-center justify-center flex-shrink-0">
                 <span className="text-lg">👥</span>
               </div>
               <div className="flex-1 min-w-0">
-                <h3 className="font-semibold text-gray-900 text-sm">Add Your Creators</h3>
-                <p className="text-xs text-gray-500">Upload your managed roster for performance and ROI tracking.</p>
+                <h3 className="font-semibold text-foreground text-sm">Add Your Creators</h3>
+                <p className="text-xs text-muted-foreground">Upload your managed roster for performance and ROI tracking.</p>
               </div>
               <span className="px-3 py-1.5 rounded-lg border border-[var(--pulse-accent-2)]/30 text-xs font-semibold text-[var(--pulse-accent-2)] group-hover:bg-[var(--pulse-accent-2)]/5 transition-colors flex-shrink-0">Set up</span>
             </a>
@@ -126,13 +126,13 @@ export function DashboardOnboarding({
           {discordConnected ? (
             <DoneCardCompact title="Discord Connected" subtitle="Tempo Bot is active in your server." />
           ) : (
-            <a href="/settings" className="group rounded-2xl border border-gray-200 bg-white p-5 hover:border-gray-300 hover:shadow-md transition-all duration-300 flex items-center gap-4">
+            <a href="/settings" className="group rounded-2xl border border-border bg-card p-5 hover:border-border hover:shadow-md transition-all duration-300 flex items-center gap-4">
               <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-[#5865F2] to-[#5865F2]/80 flex items-center justify-center flex-shrink-0">
                 <span className="text-lg">💬</span>
               </div>
               <div className="flex-1 min-w-0">
-                <h3 className="font-semibold text-gray-900 text-sm">Connect Discord</h3>
-                <p className="text-xs text-gray-500">Enable Tempo Bot for messaging, alerts, and creator communication.</p>
+                <h3 className="font-semibold text-foreground text-sm">Connect Discord</h3>
+                <p className="text-xs text-muted-foreground">Enable Tempo Bot for messaging, alerts, and creator communication.</p>
               </div>
               <span className="px-3 py-1.5 rounded-lg border border-[#5865F2]/30 text-xs font-semibold text-[#5865F2] group-hover:bg-[#5865F2]/5 transition-colors flex-shrink-0">Set up</span>
             </a>

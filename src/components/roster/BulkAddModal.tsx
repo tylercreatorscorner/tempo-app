@@ -210,17 +210,17 @@ export function BulkAddModal({ defaultBrand, initialRows, onClose, onSuccess }: 
       <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" />
       <div className="fixed inset-0 flex items-center justify-center pointer-events-none">
         <div
-          className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl mx-4 max-h-[90vh] overflow-y-auto pointer-events-auto"
+          className="relative w-full max-w-2xl bg-card rounded-2xl shadow-2xl mx-4 max-h-[90vh] overflow-y-auto pointer-events-auto"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 sticky top-0 bg-white z-10">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-border sticky top-0 bg-card z-10">
             <div className="flex items-center gap-2">
               <Users className="h-5 w-5 text-[#E91E8C]" />
-              <h2 className="text-base font-bold text-[#1A1B3A]">Bulk add creators</h2>
+              <h2 className="text-base font-bold text-[var(--foreground)]">Bulk add creators</h2>
             </div>
-            <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
-              <X className="h-5 w-5 text-gray-400" />
+            <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted transition-colors">
+              <X className="h-5 w-5 text-muted-foreground" />
             </button>
           </div>
 
@@ -243,7 +243,7 @@ export function BulkAddModal({ defaultBrand, initialRows, onClose, onSuccess }: 
               )}
 
               {result.added === 0 && (result.restored ?? 0) === 0 && result.failed.length === 0 && (
-                <div className="flex items-center gap-2 text-sm font-semibold text-gray-600 bg-gray-50 rounded-xl px-4 py-3">
+                <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground bg-muted rounded-xl px-4 py-3">
                   <MinusCircle className="h-5 w-5 shrink-0" />
                   No new creators added — all {result.total} were already on this roster
                 </div>
@@ -299,25 +299,25 @@ export function BulkAddModal({ defaultBrand, initialRows, onClose, onSuccess }: 
 
               {/* Brand picker — required, one per batch */}
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
                   Brand <span className="text-[#E91E8C]">*</span>
                 </label>
                 <select
                   value={brand}
                   onChange={(e) => setBrand(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C] bg-white"
+                  className="w-full px-3 py-2 text-sm border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C] bg-card"
                 >
                   <option value="">Select brand…</option>
                   {brands.map((b) => (
                     <option key={b.slug} value={b.slug}>{b.name}</option>
                   ))}
                 </select>
-                <p className="text-xs text-gray-400 mt-1">Every creator in this batch is added under this brand.</p>
+                <p className="text-xs text-muted-foreground mt-1">Every creator in this batch is added under this brand.</p>
               </div>
 
               {/* Pre-selected creators (multi-select entry point) */}
               {hasInitial && (
-                <div className="flex items-center gap-2 text-sm text-gray-600 bg-primary/10/60 border border-primary/10 rounded-xl px-4 py-2.5">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground bg-primary/10/60 border border-primary/10 rounded-xl px-4 py-2.5">
                   <Users className="h-4 w-4 text-[#E91E8C] shrink-0" />
                   {initialRows!.length} creator{initialRows!.length === 1 ? '' : 's'} selected from All Creators
                 </div>
@@ -326,11 +326,11 @@ export function BulkAddModal({ defaultBrand, initialRows, onClose, onSuccess }: 
               {/* Mode tabs (paste / CSV) — hidden when creators were pre-selected */}
               {!hasInitial && (
               <>
-              <div className="inline-flex rounded-xl bg-gray-100 p-0.5">
+              <div className="inline-flex rounded-xl bg-muted p-0.5">
                 <button
                   onClick={() => setMode('paste')}
                   className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                    mode === 'paste' ? 'bg-white text-[#1A1B3A] shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                    mode === 'paste' ? 'bg-card text-[var(--foreground)] shadow-sm' : 'text-muted-foreground hover:text-foreground'
                   }`}
                 >
                   <ClipboardList className="h-4 w-4" /> Paste handles
@@ -338,7 +338,7 @@ export function BulkAddModal({ defaultBrand, initialRows, onClose, onSuccess }: 
                 <button
                   onClick={() => setMode('csv')}
                   className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                    mode === 'csv' ? 'bg-white text-[#1A1B3A] shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                    mode === 'csv' ? 'bg-card text-[var(--foreground)] shadow-sm' : 'text-muted-foreground hover:text-foreground'
                   }`}
                 >
                   <FileSpreadsheet className="h-4 w-4" /> Upload CSV
@@ -353,9 +353,9 @@ export function BulkAddModal({ defaultBrand, initialRows, onClose, onSuccess }: 
                     onChange={(e) => setPasteText(e.target.value)}
                     rows={7}
                     placeholder={'@creator_one\n@creator_two, Jane Smith\n@creator_three'}
-                    className="w-full px-3 py-2 text-sm font-mono border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C] resize-y"
+                    className="w-full px-3 py-2 text-sm font-mono border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C] resize-y"
                   />
-                  <p className="text-xs text-gray-400 mt-1">One handle per line. Add a name after a comma: <code>@handle, Real Name</code>.</p>
+                  <p className="text-xs text-muted-foreground mt-1">One handle per line. Add a name after a comma: <code>@handle, Real Name</code>.</p>
                 </div>
               )}
 
@@ -374,12 +374,12 @@ export function BulkAddModal({ defaultBrand, initialRows, onClose, onSuccess }: 
                       onDrop={onDrop}
                       onClick={() => inputRef.current?.click()}
                       className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-colors ${
-                        dragOver ? 'border-[#E91E8C] bg-primary/10' : 'border-gray-200 hover:border-gray-300'
+                        dragOver ? 'border-[#E91E8C] bg-primary/10' : 'border-border hover:border-border'
                       }`}
                     >
-                      <Upload className="h-7 w-7 text-gray-300 mx-auto mb-2" />
-                      <p className="text-sm font-medium text-[#1A1B3A]">Drop a CSV here or click to browse</p>
-                      <p className="text-xs text-gray-400 mt-1">
+                      <Upload className="h-7 w-7 text-muted-foreground mx-auto mb-2" />
+                      <p className="text-sm font-medium text-[var(--foreground)]">Drop a CSV here or click to browse</p>
+                      <p className="text-xs text-muted-foreground mt-1">
                         Required: <code>handle</code>. Optional: <code>name</code>, <code>retainer</code>, <code>posts_per_month</code>.
                       </p>
                       <input
@@ -391,13 +391,13 @@ export function BulkAddModal({ defaultBrand, initialRows, onClose, onSuccess }: 
                       />
                     </div>
                   ) : (
-                    <div className="flex items-center justify-between text-sm bg-gray-50 rounded-xl px-4 py-2.5">
-                      <span className="text-gray-600">
-                        <span className="font-medium text-[#1A1B3A]">{fileName}</span> — {csvRows.length} rows
+                    <div className="flex items-center justify-between text-sm bg-muted rounded-xl px-4 py-2.5">
+                      <span className="text-muted-foreground">
+                        <span className="font-medium text-[var(--foreground)]">{fileName}</span> — {csvRows.length} rows
                       </span>
                       <button
                         onClick={() => { setCsvRows([]); setFileName(''); setCsvError(''); }}
-                        className="text-xs text-gray-400 hover:text-gray-600"
+                        className="text-xs text-muted-foreground hover:text-muted-foreground"
                       >
                         Clear
                       </button>
@@ -411,59 +411,59 @@ export function BulkAddModal({ defaultBrand, initialRows, onClose, onSuccess }: 
               {/* Optional batch defaults */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
                     Default retainer ($)
                   </label>
                   <input
                     type="number" min="0" inputMode="decimal" placeholder="optional"
                     value={defRetainer}
                     onChange={(e) => setDefRetainer(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+                    className="w-full px-3 py-2 text-sm border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
                     Default posts / month
                   </label>
                   <input
                     type="number" min="0" inputMode="numeric" placeholder="30"
                     value={defPosts}
                     onChange={(e) => setDefPosts(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
+                    className="w-full px-3 py-2 text-sm border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#E91E8C]/30 focus:border-[#E91E8C]"
                   />
                 </div>
               </div>
-              <p className="-mt-2 text-xs text-gray-400">
+              <p className="-mt-2 text-xs text-muted-foreground">
                 Applied to every creator that doesn’t set its own. Leave blank to set retainer / posts later.
               </p>
 
               {/* Preview */}
               {rows.length > 0 && (
-                <div className="border border-gray-100 rounded-xl overflow-hidden">
+                <div className="border border-border rounded-xl overflow-hidden">
                   <div className="overflow-x-auto max-h-44">
                     <table className="w-full text-sm">
-                      <thead className="bg-gray-50 sticky top-0">
+                      <thead className="bg-muted sticky top-0">
                         <tr>
-                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Handle</th>
-                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Name</th>
-                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Retainer</th>
-                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Posts</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Handle</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Name</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Retainer</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Posts</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-50">
                         {rows.slice(0, 50).map((r, i) => (
-                          <tr key={i} className="hover:bg-gray-50">
-                            <td className="px-4 py-1.5 font-medium text-[#1A1B3A]">@{r.handle}</td>
-                            <td className="px-4 py-1.5 text-gray-500">{r.name || '—'}</td>
-                            <td className="px-4 py-1.5 text-gray-500">{r.retainer ? `$${r.retainer}` : '—'}</td>
-                            <td className="px-4 py-1.5 text-gray-500">{r.monthly_post_requirement ?? '—'}</td>
+                          <tr key={i} className="hover:bg-muted">
+                            <td className="px-4 py-1.5 font-medium text-[var(--foreground)]">@{r.handle}</td>
+                            <td className="px-4 py-1.5 text-muted-foreground">{r.name || '—'}</td>
+                            <td className="px-4 py-1.5 text-muted-foreground">{r.retainer ? `$${r.retainer}` : '—'}</td>
+                            <td className="px-4 py-1.5 text-muted-foreground">{r.monthly_post_requirement ?? '—'}</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
                   {rows.length > 50 && (
-                    <p className="text-xs text-gray-400 px-4 py-2 bg-gray-50">Showing first 50 of {rows.length}</p>
+                    <p className="text-xs text-muted-foreground px-4 py-2 bg-muted">Showing first 50 of {rows.length}</p>
                   )}
                 </div>
               )}
