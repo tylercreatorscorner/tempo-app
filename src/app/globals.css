@@ -376,3 +376,25 @@ html.dark { color-scheme: dark; }
   border-radius: 3px;
   background: linear-gradient(to right, #FF4D8D, #7C5CFC);
 }
+
+/* ── Theme-switch circular reveal (View Transitions API) ──────────────
+   The incoming theme wipes in as a circle growing from the toggle button.
+   Falls back to an instant swap where startViewTransition is unsupported. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-old(root) { z-index: 1; }
+::view-transition-new(root) { z-index: 2; }
+@keyframes tempo-theme-reveal {
+  from { clip-path: circle(0 at var(--vt-x, 50%) var(--vt-y, 50%)); }
+  to   { clip-path: circle(170% at var(--vt-x, 50%) var(--vt-y, 50%)); }
+}
+::view-transition-new(root) {
+  animation: tempo-theme-reveal 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) { animation: none; }
+}
