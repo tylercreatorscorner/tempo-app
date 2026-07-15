@@ -64,12 +64,12 @@ export function GoalGauge({ current, goal, height = 280, label = 'Monthly GMV Go
     <div className="flex flex-col items-center">
       <ApexChart type="radialBar" series={[pct]} options={options} height={height} width="100%" />
       <div className="text-center -mt-2">
-        <p className="text-sm font-semibold text-[#8A8FB2]">{fmtCompact(current)} <span className="text-muted-foreground font-normal">of {fmtCompact(goal)}</span></p>
+        <p className="text-sm font-semibold text-muted-foreground">{fmtCompact(current)} <span className="text-muted-foreground font-normal">of {fmtCompact(goal)}</span></p>
         {goal > 0 && !reached && (
           <p className="text-xs text-muted-foreground mt-0.5">{fmtCompact(Math.max(0, goal - current))} to go</p>
         )}
         {reached && (
-          <p className="text-xs font-semibold text-emerald-600 mt-0.5">🎯 Goal reached!</p>
+          <p className="text-xs font-semibold text-[var(--pulse-pos)] mt-0.5">🎯 Goal reached!</p>
         )}
       </div>
     </div>

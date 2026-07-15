@@ -32,6 +32,13 @@ import { PostCard } from '@/components/posts/post-card';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
 import { useDelayedFlag } from '@/hooks/use-delayed-flag';
 import { TableLoadBar } from '@/components/ui/table-load-bar';
+import { PageHeader } from '@/components/ui/page-header';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
+import { SegmentedControl } from '@/components/ui/segmented';
+import { EmptyState } from '@/components/ui/empty-state';
+import { TableCard } from '@/components/ui/table';
 
 interface PostRow {
   video_id: string;
@@ -298,10 +305,11 @@ export function PostsClient({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-extrabold text-[var(--foreground)]">Posts</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
+      <PageHeader
+        eyebrow="Content"
+        title="Posts"
+        subtitle={
+          <>
             Every video posted by{' '}
             <button
               onClick={toggleManaged}
@@ -314,10 +322,10 @@ export function PostsClient({
               {managedOnly ? 'managed creators' : 'all creators (managed + organic)'}
             </button>
             {' '}— click any row to open the review page (rate + leave notes).
-          </p>
-        </div>
-        <DateRangePicker />
-      </div>
+          </>
+        }
+        actions={<DateRangePicker />}
+      />
 
       {/* Brand pills */}
       <BrandFilter brands={brands} brandsWithData={brandsWithData} selectedBrand={selectedBrand} />
@@ -342,7 +350,7 @@ export function PostsClient({
         <StatCard label="Total Views"  value={data ? formatNumber(data.totals.totalViews)   : '—'} />
         <StatCard label="Total Likes"  value={data ? formatNumber(data.totals.totalLikes)   : '—'} />
         <StatCard label="Avg Engagement" value={data ? `${data.totals.avgEngagement.toFixed(2)}%` : '—'} />
-        <StatCard label="Total GMV"    value={data ? formatCurrency(data.totals.totalGmv)   : '—'} />
+        <StatCard label="Total GMV"    value={data ? formatCurrency(data.totals.totalGmv)   : '—'} accentColor="var(--primary)" />
       </div>
 
       {/* Capped-window notice. The KPI totals above are always computed over
@@ -380,23 +388,24 @@ export function PostsClient({
             <SortDropdown sortKey={sortKey} sortDir={sortDir} onChange={(k, d) => { setSortKey(k); setSortDir(d); }} />
           )}
           <div className="relative flex-1 sm:flex-initial">
-            <Search className="h-3.5 w-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <input
+            <Search className="h-3.5 w-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground z-10" />
+            <Input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search title or creator..."
               aria-label="Search posts"
-              className="text-sm bg-card border border-border rounded-xl pl-8 pr-3 py-1.5 w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)]"
+              className="pl-8 py-1.5 text-sm w-full sm:w-64"
             />
           </div>
-          <button
+          <Button
+            variant="outline"
+            size="sm"
             onClick={downloadCsv}
             disabled={!visiblePosts.length}
-            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border border-border hover:bg-muted text-muted-foreground disabled:opacity-40 transition-colors"
           >
             <Download className="h-3.5 w-3.5" /> CSV
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -405,7 +414,7 @@ export function PostsClient({
         loading && !data ? (
           <CardLoadingGrid />
         ) : visiblePosts.length === 0 ? (
-          <EmptyState reviewFilter={reviewFilter} />
+          <PostsEmptyState reviewFilter={reviewFilter} />
         ) : (
           <div className="relative">
             <TableLoadBar active={showBar} />
@@ -418,7 +427,7 @@ export function PostsClient({
           </div>
         )
       ) : (
-        <div className="relative rounded-2xl bg-card border border-border shadow-sm">
+        <TableCard className="relative">
           <TableLoadBar active={showBar} />
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -444,14 +453,14 @@ export function PostsClient({
                     <Loader2 className="h-4 w-4 animate-spin inline mr-2" />Loading posts...
                   </td></tr>
                 ) : visiblePosts.length === 0 ? (
-                  <tr><td colSpan={10} className="py-0"><EmptyState reviewFilter={reviewFilter} /></td></tr>
+                  <tr><td colSpan={10} className="py-0"><PostsEmptyState reviewFilter={reviewFilter} /></td></tr>
                 ) : (
                   renderedPosts.map(p => <PostRowView key={`${p.video_id}|${p.brand_slug}`} post={p} onClick={handleRowClick} />)
                 )}
               </tbody>
             </table>
           </div>
-        </div>
+        </TableCard>
       )}
 
       {/* Infinite-scroll sentinel + explicit fallback. The sentinel grows the
@@ -459,12 +468,13 @@ export function PostsClient({
           keyboard users and when the observer doesn't fire. */}
       {hasMore && (
         <div ref={sentinelRef} className="flex justify-center pt-2">
-          <button
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => setRenderLimit(n => n + RENDER_CHUNK)}
-            className="text-xs font-semibold px-4 py-2 rounded-xl border border-border hover:bg-muted text-muted-foreground transition-colors"
           >
             Show more ({(visiblePosts.length - renderedPosts.length).toLocaleString()} more)
-          </button>
+          </Button>
         </div>
       )}
     </div>
@@ -474,32 +484,16 @@ export function PostsClient({
 // ── View toggle (segmented control) ────────────────────────────────
 function ViewToggle({ value, onChange }: { value: ViewMode; onChange: (v: ViewMode) => void }) {
   return (
-    <div className="inline-flex rounded-xl border border-border bg-card overflow-hidden" role="group" aria-label="View mode">
-      <button
-        type="button"
-        onClick={() => onChange('cards')}
-        aria-pressed={value === 'cards'}
-        title="Card view"
-        className={cn(
-          'px-2.5 py-1.5 text-xs font-semibold transition-colors',
-          value === 'cards' ? 'bg-[var(--primary)] text-white' : 'text-muted-foreground hover:bg-muted',
-        )}
-      >
-        <LayoutGrid className="h-3.5 w-3.5" />
-      </button>
-      <button
-        type="button"
-        onClick={() => onChange('table')}
-        aria-pressed={value === 'table'}
-        title="Table view"
-        className={cn(
-          'px-2.5 py-1.5 text-xs font-semibold transition-colors border-l border-border',
-          value === 'table' ? 'bg-[var(--primary)] text-white' : 'text-muted-foreground hover:bg-muted',
-        )}
-      >
-        <List className="h-3.5 w-3.5" />
-      </button>
-    </div>
+    <SegmentedControl
+      ariaLabel="View mode"
+      size="sm"
+      value={value}
+      onValueChange={onChange}
+      options={[
+        { value: 'cards', label: <LayoutGrid className="h-3.5 w-3.5" /> },
+        { value: 'table', label: <List className="h-3.5 w-3.5" /> },
+      ]}
+    />
   );
 }
 
@@ -521,24 +515,26 @@ function SortDropdown({
     creator_handle: 'Creator',
   };
   return (
-    <div className="inline-flex rounded-xl border border-border bg-card overflow-hidden">
-      <select
-        value={sortKey}
-        onChange={(e) => onChange(e.target.value as SortKey, sortDir)}
-        aria-label="Sort by"
-        className="text-xs font-semibold pl-2.5 pr-1 py-1.5 bg-transparent focus:outline-none cursor-pointer text-foreground"
-      >
-        {SORT_KEYS.map(k => <option key={k} value={k}>{SORT_LABELS[k]}</option>)}
-      </select>
-      <button
-        type="button"
+    <div className="flex items-center gap-2">
+      <div className="w-36">
+        <Select
+          value={sortKey}
+          onChange={(e) => onChange(e.target.value as SortKey, sortDir)}
+          aria-label="Sort by"
+          className="py-1.5 text-xs"
+        >
+          {SORT_KEYS.map(k => <option key={k} value={k}>{SORT_LABELS[k]}</option>)}
+        </Select>
+      </div>
+      <Button
+        variant="outline"
+        size="sm"
         onClick={() => onChange(sortKey, sortDir === 'asc' ? 'desc' : 'asc')}
         title={sortDir === 'asc' ? 'Ascending — click for descending' : 'Descending — click for ascending'}
         aria-label="Toggle sort direction"
-        className="px-2 py-1.5 text-xs font-semibold text-muted-foreground hover:bg-muted border-l border-border"
       >
         {sortDir === 'asc' ? '↑' : '↓'}
-      </button>
+      </Button>
     </div>
   );
 }
@@ -548,7 +544,7 @@ function CardLoadingGrid() {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
       {Array.from({ length: 8 }).map((_, i) => (
-        <div key={i} className="rounded-2xl bg-card border border-border shadow-sm overflow-hidden animate-pulse">
+        <div key={i} className="rounded-xl bg-card border border-border shadow-[var(--pulse-elev-1)] overflow-hidden animate-pulse">
           <div className="aspect-video bg-muted" />
           <div className="p-4 space-y-3">
             <div className="h-3 w-2/3 bg-muted rounded" />
@@ -562,7 +558,7 @@ function CardLoadingGrid() {
 }
 
 // ── Empty state ────────────────────────────────────────────────────
-function EmptyState({ reviewFilter }: { reviewFilter: ReviewFilter }) {
+function PostsEmptyState({ reviewFilter }: { reviewFilter: ReviewFilter }) {
   const copy = reviewFilter === 'all'
     ? 'No posts in this window'
     : reviewFilter === 'unreviewed'
@@ -571,13 +567,13 @@ function EmptyState({ reviewFilter }: { reviewFilter: ReviewFilter }) {
         ? 'You haven\'t reviewed anything in this window yet.'
         : 'Nothing flagged. Nice.';
   return (
-    <div className="rounded-2xl bg-card border border-border shadow-sm text-center text-muted-foreground py-12 px-6">
-      <Eye className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-      <div className="text-sm font-medium">{copy}</div>
-      {reviewFilter === 'all' && (
-        <div className="text-xs mt-1">Try a wider date range, different brand, or include unmanaged creators.</div>
-      )}
-    </div>
+    <EmptyState
+      icon={<Eye className="h-8 w-8" />}
+      title={copy}
+      description={reviewFilter === 'all'
+        ? 'Try a wider date range, different brand, or include unmanaged creators.'
+        : undefined}
+    />
   );
 }
 
@@ -708,31 +704,22 @@ function ReviewFilterPills({
     { key: 'flagged',         label: 'Flagged',       count: totals?.flaggedCount, icon: <AlertTriangle className="h-3 w-3" /> },
   ];
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      {items.map(it => {
-        const isActive = active === it.key;
-        return (
-          <button
-            key={it.key}
-            onClick={() => onChange(it.key)}
-            className={cn(
-              'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors',
-              isActive
-                ? 'bg-[var(--primary)] text-white'
-                : 'bg-card border border-border text-muted-foreground hover:bg-muted',
-            )}
-          >
-            {it.icon}
-            {it.label}
-            <span className={cn(
-              'text-[10px] tabular-nums px-1.5 py-0.5 rounded-full',
-              isActive ? 'bg-card/20' : 'bg-muted text-muted-foreground',
-            )}>
-              {fmt(it.count)}
+    <div className="overflow-x-auto">
+      <SegmentedControl
+        ariaLabel="Review queue filter"
+        value={active}
+        onValueChange={onChange}
+        options={items.map(it => ({
+          value: it.key,
+          label: (
+            <span className="inline-flex items-center gap-1.5">
+              {it.icon}
+              {it.label}
+              <span className="text-[10px] tabular-nums text-muted-foreground">{fmt(it.count)}</span>
             </span>
-          </button>
-        );
-      })}
+          ),
+        }))}
+      />
     </div>
   );
 }

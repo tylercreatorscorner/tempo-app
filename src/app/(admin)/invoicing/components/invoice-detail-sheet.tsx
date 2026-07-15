@@ -8,6 +8,8 @@ import { downloadCsv } from '@/lib/utils/csv';
 import { downloadXlsx } from '@/lib/utils/xlsx';
 import { MarkPaidModal } from './mark-paid-modal';
 import { ModalOverlay } from '@/components/ui/modal-overlay';
+import { Badge, type BadgeProps } from '@/components/ui/badge';
+import { Button, buttonVariants } from '@/components/ui/button';
 
 export interface InvoiceCreator {
   name: string;
@@ -319,13 +321,15 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
             <h2 className="text-lg font-extrabold text-[var(--foreground)] font-mono truncate">{invoice.invoice_number}</h2>
             <p className="text-xs text-muted-foreground mt-0.5">{invoice.brand} · {fmtPeriod(invoice.period_month)}</p>
           </div>
-          <button
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={onClose}
-            className="h-8 w-8 rounded-lg hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-muted-foreground transition-colors flex-shrink-0"
             aria-label="Close"
+            className="flex-shrink-0"
           >
             <X className="h-4 w-4" />
-          </button>
+          </Button>
         </div>
 
         {/* Status bar with actions */}
@@ -339,92 +343,101 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
           </div>
           <div className="basis-full" />
           {invoice.status === 'pending' && (
-            <button
+            <Button
+              variant="primary"
+              size="sm"
               onClick={() => handleStatus('sent')}
               disabled={statusUpdating}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500 text-white text-xs font-bold hover:bg-blue-600 disabled:opacity-50 transition-colors"
             >
               <Send className="h-3.5 w-3.5" />
               Mark as Sent
-            </button>
+            </Button>
           )}
           {invoice.status === 'sent' && (
-            <button
+            <Button
+              variant="primary"
+              size="sm"
               onClick={() => setMarkPaidOpen(true)}
               disabled={statusUpdating}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500 text-white text-xs font-bold hover:bg-emerald-600 disabled:opacity-50 transition-colors"
             >
               <CheckCircle2 className="h-3.5 w-3.5" />
               Mark as Paid
-            </button>
+            </Button>
           )}
           {(invoice.status === 'sent' || invoice.status === 'paid' || invoice.status === 'void') && (
-            <button
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => handleStatus('pending')}
               disabled={statusUpdating}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-muted-foreground text-xs font-semibold hover:bg-card disabled:opacity-50 transition-colors"
             >
               <RotateCcw className="h-3.5 w-3.5" />
               {invoice.status === 'void' ? 'Reopen' : 'Revert'}
-            </button>
+            </Button>
           )}
           {(invoice.status === 'pending' || invoice.status === 'sent') && (
-            <button
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => {
                 if (confirm(`Void invoice ${invoice.invoice_number}? It stays on file but won't count toward outstanding.`)) {
                   handleStatus('void');
                 }
               }}
               disabled={statusUpdating}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-500/25 text-red-600 text-xs font-semibold hover:bg-red-500/10 disabled:opacity-50 transition-colors"
+              className="text-[var(--pulse-neg)] border-[var(--pulse-neg)]/25 hover:bg-[var(--pulse-neg-bg)]"
             >
               <Ban className="h-3.5 w-3.5" />
               Void
-            </button>
+            </Button>
           )}
           {invoice.status === 'pending' && (
-            <button
+            <Button
+              variant="outline"
+              size="sm"
               onClick={handleRefresh}
               disabled={refreshing}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-foreground text-xs font-semibold hover:bg-card disabled:opacity-50 transition-colors"
               title="Re-pull line items and creator breakdown from current earnings"
             >
               <RefreshCw className={cn('h-3.5 w-3.5', refreshing && 'animate-spin')} />
               {refreshing ? 'Refreshing…' : 'Refresh from Earnings'}
-            </button>
+            </Button>
           )}
-          <button
+          <Button
+            variant="primary"
+            size="sm"
             onClick={handleEmail}
             disabled={emailing || invoice.status === 'void'}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--primary)] text-white text-xs font-bold hover:bg-[var(--primary)] disabled:opacity-50 transition-colors"
             title={invoice.bill_to_email ? `Email this invoice to ${invoice.bill_to_email}` : 'Set Bill-To Email to enable'}
           >
             {emailing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
             {emailing ? 'Sending…' : 'Email Invoice'}
-          </button>
+          </Button>
           <a
             href={`/api/invoices/${invoice.id}/pdf`}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-foreground text-xs font-semibold hover:bg-card transition-colors"
+            className={buttonVariants({ variant: 'outline', size: 'sm' })}
           >
             <Download className="h-3.5 w-3.5" />
             Download PDF
           </a>
-          <button
+          <Button
+            variant="outline"
+            size="sm"
             onClick={handleExportCsv}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-foreground text-xs font-semibold hover:bg-card transition-colors"
             title="Export this invoice (creator breakdown) as CSV"
           >
             <Download className="h-3.5 w-3.5" />
             CSV
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             onClick={handleExportXlsx}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-foreground text-xs font-semibold hover:bg-card transition-colors"
             title="Export this invoice (summary + creator breakdown) as Excel"
           >
             <FileSpreadsheet className="h-3.5 w-3.5" />
             Excel
-          </button>
+          </Button>
         </div>
 
         {/* Form body */}
@@ -509,14 +522,16 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
                 </p>
               </div>
             ) : (
-              <button
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={handleShare}
                 disabled={sharing}
-                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-border bg-card hover:bg-muted text-xs font-semibold text-foreground disabled:opacity-50 transition-colors w-full justify-center"
+                className="w-full"
               >
                 {sharing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Link2 className="h-3.5 w-3.5" />}
                 {sharing ? 'Generating link…' : 'Generate share link'}
-              </button>
+              </Button>
             )}
           </Section>
 
@@ -534,7 +549,7 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
             <Field label="Launch Fee" prefix="$">
               <NumberInput value={draft.launch_fee} step={100} onChange={(v) => setDraft({ ...draft, launch_fee: v })} />
             </Field>
-            <div className="rounded-xl bg-gradient-to-br from-[#FFF0F5] to-white border border-primary/10 px-4 py-3 flex items-center justify-between mt-2">
+            <div className="rounded-xl bg-primary/5 border border-primary/15 px-4 py-3 flex items-center justify-between mt-2">
               <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Total</span>
               <span className="text-xl font-extrabold text-[var(--primary)] tabular-nums">{formatCurrency(computedTotal)}</span>
             </div>
@@ -624,27 +639,30 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
         {/* Footer */}
         <div className="px-6 py-4 border-t border-border flex items-center justify-between gap-3 bg-muted/40">
           {invoice.status === 'pending' ? (
-            <button
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={handleDelete}
               disabled={saving}
-              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-500/10 rounded-lg disabled:opacity-40 transition-colors"
+              className="text-[var(--pulse-neg)] hover:bg-[var(--pulse-neg-bg)] hover:text-[var(--pulse-neg)]"
             >
               <Trash2 className="h-3.5 w-3.5" />
               Delete
-            </button>
+            </Button>
           ) : <div />}
           <div className="flex items-center gap-2">
-            <button onClick={onClose} disabled={saving} className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground disabled:opacity-40">
+            <Button variant="ghost" size="md" onClick={onClose} disabled={saving}>
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="primary"
+              size="md"
               onClick={handleSave}
               disabled={saving}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-[var(--primary)] rounded-xl hover:bg-[var(--primary)] disabled:opacity-50 transition-colors shadow-sm"
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               {saving ? 'Saving…' : 'Save changes'}
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -726,17 +744,17 @@ function fmtPeriod(ym: string) {
 }
 
 function StatusPill({ status }: { status: string }) {
-  const config: Record<string, { bg: string; text: string; label: string }> = {
-    pending: { bg: 'bg-amber-500/15',   text: 'text-amber-500',   label: 'Pending' },
-    sent:    { bg: 'bg-blue-500/15',    text: 'text-blue-500',    label: 'Sent' },
-    paid:    { bg: 'bg-emerald-500/15', text: 'text-emerald-500', label: 'Paid' },
-    void:    { bg: 'bg-secondary',    text: 'text-muted-foreground',    label: 'Void' },
+  const config: Record<string, { variant: BadgeProps['variant']; label: string }> = {
+    pending: { variant: 'warning',  label: 'Pending' },
+    sent:    { variant: 'accent',   label: 'Sent' },
+    paid:    { variant: 'positive', label: 'Paid' },
+    void:    { variant: 'neutral',  label: 'Void' },
   };
-  const c = config[status] ?? { bg: 'bg-muted', text: 'text-foreground', label: status };
+  const c = config[status] ?? { variant: 'neutral' as const, label: status };
   return (
-    <span className={cn('inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider', c.bg, c.text)}>
+    <Badge variant={c.variant} className="uppercase tracking-wider">
       {c.label}
-    </span>
+    </Badge>
   );
 }
 
@@ -818,7 +836,7 @@ function ReadOnlyStat({ label, value, highlight }: { label: string; value: strin
   return (
     <div className={cn(
       'rounded-xl border p-3',
-      highlight ? 'border-[var(--primary)]/20 bg-[#FFF0F5]/40' : 'border-border bg-muted/40',
+      highlight ? 'border-[var(--primary)]/20 bg-primary/5' : 'border-border bg-muted/40',
     )}>
       <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">{label}</p>
       <p className={cn('text-sm font-bold tabular-nums mt-0.5', highlight ? 'text-[var(--primary)]' : 'text-[var(--foreground)]')}>{value}</p>

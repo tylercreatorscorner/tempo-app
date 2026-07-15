@@ -3,6 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Layers, ChevronDown, BookmarkPlus, X } from 'lucide-react';
 import { ModalOverlay } from '@/components/ui/modal-overlay';
+import { Button } from '@/components/ui/button';
+import { Card, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { PREBUILT_SEGMENTS } from '@/lib/data/prebuilt-segments';
 import { describeCriteria, type Segment, type SegmentFilterCriteria } from '@/lib/data/segments';
 
@@ -50,14 +54,11 @@ export function RosterSegmentControls({
   return (
     <div className="flex items-center gap-2 self-start" ref={ref}>
       <div className="relative">
-        <button
-          onClick={() => setOpen((o) => !o)}
-          className="flex items-center gap-1.5 text-sm font-medium px-3 py-2.5 rounded-xl border border-border hover:bg-muted text-muted-foreground transition-colors"
-        >
-          <Layers className="h-4 w-4" /> Segments <ChevronDown className="h-3.5 w-3.5 opacity-60" />
-        </button>
+        <Button variant="outline" size="md" onClick={() => setOpen((o) => !o)}>
+          <Layers /> Segments <ChevronDown className="opacity-60" />
+        </Button>
         {open && (
-          <div className="absolute right-0 top-full mt-1 w-72 bg-card border border-border rounded-xl shadow-lg z-50">
+          <Card className="absolute right-0 top-full mt-1 w-72 z-50">
             <div data-lenis-prevent className="max-h-[60vh] overflow-y-auto overscroll-contain py-1">
               <p className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Lifecycle</p>
               {PREBUILT_SEGMENTS.map((p) => (
@@ -78,17 +79,18 @@ export function RosterSegmentControls({
                 </>
               )}
             </div>
-          </div>
+          </Card>
         )}
       </div>
 
-      <button
+      <Button
+        variant="outline"
+        size="md"
         onClick={() => setShowSave(true)}
-        className="flex items-center gap-1.5 text-sm font-medium px-3 py-2.5 rounded-xl border border-border hover:bg-muted text-muted-foreground transition-colors"
         title="Save the current filters as a segment"
       >
-        <BookmarkPlus className="h-4 w-4" /> Save
-      </button>
+        <BookmarkPlus /> Save
+      </Button>
 
       {showSave && (
         <SaveModal
@@ -131,35 +133,33 @@ function SaveModal({
     }
   }
 
-  const field = 'w-full px-3 py-2 rounded-lg border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary/15 focus:border-primary/20';
-
   return (
     <ModalOverlay onClose={onClose}>
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-        <div onClick={(e) => e.stopPropagation()} data-lenis-prevent className="w-full max-w-md bg-card rounded-2xl shadow-xl border border-border">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-            <h2 className="text-base font-semibold text-foreground">Save current filters as a segment</h2>
-            <button onClick={onClose} className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted"><X className="h-4 w-4" /></button>
-          </div>
+        <Card onClick={(e) => e.stopPropagation()} data-lenis-prevent className="w-full max-w-md">
+          <CardHeader className="border-b border-border">
+            <CardTitle>Save current filters as a segment</CardTitle>
+            <Button variant="ghost" size="icon" onClick={onClose}><X className="h-4 w-4" /></Button>
+          </CardHeader>
           <div className="px-5 py-4 space-y-3">
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1">Name</label>
-              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. CC June cohort" className={field} autoFocus />
+              <Label>Name</Label>
+              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. CC June cohort" autoFocus />
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1">Description <span className="text-muted-foreground">(optional)</span></label>
-              <input value={description} onChange={(e) => setDescription(e.target.value)} className={field} />
+              <Label>Description <span className="text-muted-foreground/70">(optional)</span></Label>
+              <Input value={description} onChange={(e) => setDescription(e.target.value)} />
             </div>
             <p className="text-xs text-muted-foreground">{describeCriteria(criteria)}</p>
-            {error && <p className="text-sm text-red-600">{error}</p>}
+            {error && <p className="text-sm text-[var(--pulse-neg)]">{error}</p>}
           </div>
           <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-border">
-            <button onClick={onClose} className="px-3 py-2 rounded-lg text-sm text-muted-foreground hover:bg-muted">Cancel</button>
-            <button onClick={save} disabled={saving} className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-[var(--primary)] hover:bg-[#d1177d] disabled:opacity-50">
+            <Button variant="ghost" size="md" onClick={onClose}>Cancel</Button>
+            <Button variant="primary" size="md" onClick={save} disabled={saving}>
               {saving ? 'Saving…' : 'Save segment'}
-            </button>
+            </Button>
           </div>
-        </div>
+        </Card>
       </div>
     </ModalOverlay>
   );

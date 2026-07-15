@@ -8,6 +8,14 @@ import { useBrandList } from '@/hooks/use-brand-list';
 import { ModalOverlay } from '@/components/ui/modal-overlay';
 import { useDelayedFlag } from '@/hooks/use-delayed-flag';
 import { TableLoadBar } from '@/components/ui/table-load-bar';
+import { PageHeader } from '@/components/ui/page-header';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { EmptyState } from '@/components/ui/empty-state';
+import { Select } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 
 interface CatalogProduct {
   id: string;
@@ -62,59 +70,53 @@ export function ProductCatalogClient() {
   return (
     <div className="space-y-5">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-[var(--foreground)]">Product Catalog</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Define each brand&apos;s products so creators can be tagged by what they push.
-          </p>
-        </div>
-        {brand && (
-          <button
-            onClick={() => setEditing('new')}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[var(--primary)] text-sm font-semibold text-white hover:bg-[#d1177d] transition-colors shadow-sm self-start sm:self-auto"
-          >
+      <PageHeader
+        eyebrow="Products"
+        title="Product Catalog"
+        subtitle="Define each brand's products so creators can be tagged by what they push."
+        actions={brand && (
+          <Button onClick={() => setEditing('new')}>
             <Plus className="h-4 w-4" /> Add product
-          </button>
+          </Button>
         )}
-      </div>
+      />
 
       {/* Brand picker */}
-      <div className="rounded-2xl bg-card border border-border shadow-sm p-4 flex flex-wrap items-center gap-3">
-        <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Brand</label>
-        <select
-          value={brand}
-          onChange={(e) => setBrand(e.target.value)}
-          className="px-3 py-2 text-sm border border-border rounded-xl bg-card focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] min-w-[220px]"
-        >
-          <option value="">Select a brand…</option>
-          {brands.map((b) => (
-            <option key={b.slug} value={b.slug}>{b.name}</option>
-          ))}
-        </select>
+      <Card className="p-4 flex flex-wrap items-center gap-3">
+        <Label className="mb-0">Brand</Label>
+        <div className="min-w-[220px]">
+          <Select value={brand} onChange={(e) => setBrand(e.target.value)}>
+            <option value="">Select a brand…</option>
+            {brands.map((b) => (
+              <option key={b.slug} value={b.slug}>{b.name}</option>
+            ))}
+          </Select>
+        </div>
         {brand && (
           <span className="text-xs text-muted-foreground">
             {skus.length} TikTok SKU{skus.length === 1 ? '' : 's'} in this brand&apos;s data
           </span>
         )}
         {products.some((p) => p.status === 'archived') && (
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => setShowArchived((v) => !v)}
-            className="ml-auto text-xs font-medium text-muted-foreground hover:text-muted-foreground"
+            className="ml-auto"
           >
             {showArchived ? 'Hide archived' : 'Show archived'}
-          </button>
+          </Button>
         )}
-      </div>
+      </Card>
 
       {/* Product list */}
       {!brand ? (
-        <div className="rounded-2xl bg-card border border-border shadow-sm p-16 text-center">
-          <Package className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
-          <p className="text-muted-foreground text-sm font-medium">Pick a brand to manage its products</p>
-        </div>
+        <EmptyState
+          icon={<Package className="h-8 w-8" />}
+          title="Pick a brand to manage its products"
+        />
       ) : (
-        <div className="relative rounded-2xl bg-card border border-border shadow-sm overflow-hidden">
+        <Card className="relative overflow-hidden">
           <TableLoadBar active={showBar} />
           <div className={showBar && visible.length > 0 ? 'opacity-60 transition-opacity duration-200' : ''}>
             {visible.length === 0 && !loading ? (
@@ -126,7 +128,7 @@ export function ProductCatalogClient() {
                 </button>
               </div>
             ) : (
-              <div className="divide-y divide-gray-50">
+              <div className="divide-y divide-border">
                 {visible.map((p) => {
                   const skuCount = (p.product_ids ?? []).length;
                   return (
@@ -138,7 +140,7 @@ export function ProductCatalogClient() {
                         <div className="flex items-center gap-2">
                           <span className="font-semibold text-[var(--foreground)] truncate">{p.display_name}</span>
                           {p.status === 'archived' && (
-                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-muted text-muted-foreground">Archived</span>
+                            <Badge variant="neutral" size="sm">Archived</Badge>
                           )}
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5">
@@ -150,20 +152,21 @@ export function ProductCatalogClient() {
                         <p className="text-sm font-semibold text-[var(--foreground)] tabular-nums">{fmt(productGmv(p))}</p>
                         <p className="text-[10px] text-muted-foreground uppercase tracking-wider">all-time GMV</p>
                       </div>
-                      <button
+                      <Button
+                        variant="ghost"
+                        size="icon"
                         onClick={() => setEditing(p)}
-                        className="p-2 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
                         title="Edit"
                       >
                         <Pencil className="h-4 w-4" />
-                      </button>
+                      </Button>
                     </div>
                   );
                 })}
               </div>
             )}
           </div>
-        </div>
+        </Card>
       )}
 
       {editing && (
@@ -257,34 +260,33 @@ function ProductEditor({
                 {product ? 'Edit product' : 'New product'}{brandName ? ` · ${brandName}` : ''}
               </h2>
             </div>
-            <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted transition-colors">
-              <X className="h-5 w-5 text-muted-foreground" />
-            </button>
+            <Button variant="ghost" size="icon" onClick={onClose}>
+              <X className="h-5 w-5" />
+            </Button>
           </div>
 
           <div className="p-6 space-y-4">
             {error && (
-              <div className="text-sm text-red-600 bg-red-500/10 rounded-xl px-4 py-2">{error}</div>
+              <div className="text-sm text-[var(--pulse-neg)] bg-[var(--pulse-neg-bg)] rounded-lg px-4 py-2">{error}</div>
             )}
 
             <div>
-              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-                Product name <span className="text-[var(--primary)]">*</span>
-              </label>
-              <input
+              <Label>
+                Product name <span className="text-primary">*</span>
+              </Label>
+              <Input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. Whitening Strips"
-                className="w-full px-3 py-2 text-sm border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
               />
             </div>
 
             {/* SKU picker */}
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                <Label className="mb-0">
                   TikTok SKUs ({selected.size} selected)
-                </label>
+                </Label>
                 <div className="relative">
                   <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                   <input
@@ -298,7 +300,7 @@ function ProductEditor({
               <p className="text-xs text-muted-foreground mb-2">
                 Which of this brand&apos;s products this represents. Links the tag to real per-product GMV.
               </p>
-              <div className="border border-border rounded-xl divide-y divide-gray-50 max-h-60 overflow-y-auto">
+              <div className="border border-border rounded-xl divide-y divide-border max-h-60 overflow-y-auto">
                 {filteredSkus.length === 0 && (
                   <p className="text-xs text-muted-foreground px-4 py-3">No SKUs in this brand&apos;s data.</p>
                 )}
@@ -322,46 +324,46 @@ function ProductEditor({
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+              <Label>
                 Name keywords <span className="font-normal text-muted-foreground normal-case">(optional)</span>
-              </label>
-              <input
+              </Label>
+              <Input
                 value={keywords}
                 onChange={(e) => setKeywords(e.target.value)}
                 placeholder="e.g. whitening strips, purple strips"
-                className="w-full px-3 py-2 text-sm border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
               />
               <p className="text-xs text-muted-foreground mt-1">Comma-separated. A fallback for matching products by name.</p>
             </div>
 
             <div className="flex items-center gap-2 pt-1">
-              <button
+              <Button
+                variant="primary"
                 onClick={save}
                 disabled={saving}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-[var(--primary)] rounded-xl hover:bg-[#d4177d] transition-colors disabled:opacity-50"
+                className="flex-1"
               >
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
                 {product ? 'Save changes' : 'Create product'}
-              </button>
+              </Button>
               {product && product.status !== 'archived' && (
-                <button
+                <Button
+                  variant="outline"
                   onClick={archive}
                   disabled={saving}
-                  className="flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium text-muted-foreground border border-border rounded-xl hover:bg-muted transition-colors disabled:opacity-50"
                   title="Archive"
                 >
                   <Archive className="h-4 w-4" /> Archive
-                </button>
+                </Button>
               )}
               {product && product.status === 'archived' && (
-                <button
+                <Button
+                  variant="outline"
                   onClick={async () => { setSaving(true); await fetch('/api/products/catalog', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: product.id, status: 'active' }) }); onSaved(); }}
                   disabled={saving}
-                  className="flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium text-muted-foreground border border-border rounded-xl hover:bg-muted transition-colors disabled:opacity-50"
                   title="Restore"
                 >
                   <ArchiveRestore className="h-4 w-4" /> Restore
-                </button>
+                </Button>
               )}
             </div>
           </div>

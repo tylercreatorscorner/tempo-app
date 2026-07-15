@@ -25,6 +25,11 @@ import { downloadXlsx } from '@/lib/utils/xlsx';
 import { useBrandList } from '@/hooks/use-brand-list';
 import { useBodyScrollLock } from '@/hooks/use-body-scroll-lock';
 import { ModalOverlay } from '@/components/ui/modal-overlay';
+import { PageHeader } from '@/components/ui/page-header';
+import { Button } from '@/components/ui/button';
+import { SegmentedControl } from '@/components/ui/segmented';
+import { Input } from '@/components/ui/input';
+import { EmptyState } from '@/components/ui/empty-state';
 
 const PAGE_SIZE = 50;
 
@@ -693,7 +698,7 @@ function CreatorPanel({
                 <button
                   onClick={handleSave}
                   disabled={saving}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[var(--primary)] text-white hover:bg-[#d1177d] disabled:opacity-60 transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[var(--primary)] text-white hover:brightness-[1.07] disabled:opacity-60 transition-colors"
                 >
                   {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
                   {saving ? 'Saving…' : 'Save'}
@@ -988,7 +993,7 @@ function CreatorPanel({
               {primaryHandle(creator) && (
                 <Link
                   href={`/creators/${encodeURIComponent(primaryHandle(creator)!)}`}
-                  className="flex items-center justify-center gap-2 w-full mt-2 px-4 py-3 rounded-xl bg-[var(--primary)] text-white text-sm font-semibold hover:bg-[#d1177d] transition-colors"
+                  className="flex items-center justify-center gap-2 w-full mt-2 px-4 py-3 rounded-xl bg-[var(--primary)] text-white text-sm font-semibold hover:brightness-[1.07] transition-colors"
                 >
                   <ExternalLink className="h-4 w-4" />
                   View Full Profile
@@ -1066,7 +1071,7 @@ function AddCreatorModal({ prefill, onClose, onSuccess }: AddCreatorModalProps) 
       <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" />
       <div className="fixed inset-0 flex items-center justify-center pointer-events-none">
       <div
-        className="relative w-full max-w-lg bg-card rounded-2xl shadow-2xl mx-4 max-h-[90vh] overflow-y-auto pointer-events-auto"
+        className="relative w-full max-w-lg bg-card rounded-xl shadow-2xl mx-4 max-h-[90vh] overflow-y-auto pointer-events-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-6 py-4 border-b border-border sticky top-0 bg-card z-10">
@@ -1246,7 +1251,7 @@ function AddCreatorModal({ prefill, onClose, onSuccess }: AddCreatorModalProps) 
             <button
               type="submit"
               disabled={saving}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[var(--primary)] text-white text-sm font-semibold hover:bg-[#d1177d] disabled:opacity-60 transition-colors"
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[var(--primary)] text-white text-sm font-semibold hover:brightness-[1.07] disabled:opacity-60 transition-colors"
             >
               {saving && <Loader2 className="h-4 w-4 animate-spin" />}
               {saving ? 'Adding...' : 'Add Creator'}
@@ -1573,35 +1578,30 @@ function RosterContent() {
   return (
     <div className="space-y-5">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-[var(--foreground)] flex items-center gap-2">
-            Creators
+      <PageHeader
+        eyebrow="Creators"
+        title={
+          <span className="flex items-center gap-2">
+            Roster
             {totalManaged > 0 && (
               <span className="text-sm font-semibold text-muted-foreground">· {totalManaged.toLocaleString()} managed</span>
             )}
-          </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            A reference for who&apos;s posting and whether they&apos;re worth the cost.
-          </p>
-        </div>
-        <div className="flex items-center gap-2 self-start sm:self-auto">
-          <button
-            onClick={() => { setBulkInitialRows(null); setBulkOpen(true); }}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-card border border-border text-sm font-semibold text-muted-foreground hover:bg-muted hover:text-[var(--foreground)] transition-colors shadow-sm"
-          >
-            <Upload className="h-4 w-4" />
-            Bulk add
-          </button>
-          <button
-            onClick={() => setAddModalPrefill({})}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[var(--primary)] text-sm font-semibold text-white hover:bg-[#d1177d] transition-colors shadow-sm"
-          >
-            <UserPlus className="h-4 w-4" />
-            Add Creator
-          </button>
-        </div>
-      </div>
+          </span>
+        }
+        subtitle="A reference for who's posting and whether they're worth the cost."
+        actions={
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => { setBulkInitialRows(null); setBulkOpen(true); }}>
+              <Upload className="h-4 w-4" />
+              Bulk add
+            </Button>
+            <Button variant="primary" onClick={() => setAddModalPrefill({})}>
+              <UserPlus className="h-4 w-4" />
+              Add Creator
+            </Button>
+          </div>
+        }
+      />
 
       {/* Brand + period selectors */}
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1653,52 +1653,48 @@ function RosterContent() {
 
       {/* Filter row: All / Managed / Unmanaged + search */}
       <div className="flex flex-col sm:flex-row gap-3">
-        <div className="flex rounded-xl border border-border overflow-hidden text-sm font-semibold self-start">
-          {([
-            { key: 'all' as const,       label: 'All Creators' },
-            { key: 'managed' as const,   label: 'Managed' },
-            { key: 'unmanaged' as const, label: 'Unmanaged' },
-          ]).map((v) => (
-            <button
-              key={v.key}
-              onClick={() => setView(v.key)}
-              className={`px-4 py-2 transition-colors ${
-                view === v.key ? 'bg-[var(--primary)] text-white' : 'bg-card text-muted-foreground hover:bg-muted'
-              }`}
-            >
-              {v.label}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl<View>
+          className="self-start"
+          value={view}
+          onValueChange={setView}
+          ariaLabel="Creator view"
+          options={[
+            { value: 'all', label: 'All Creators' },
+            { value: 'managed', label: 'Managed' },
+            { value: 'unmanaged', label: 'Unmanaged' },
+          ]}
+        />
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <input
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none z-10" />
+          <Input
             type="text"
             placeholder="Search by name or handle…"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
+            className="pl-10"
           />
         </div>
         <ProductFilterSelect brand={brand} value={productFilter} onChange={setProductFilter} />
         <RosterSegmentControls currentCriteria={currentCriteria} onApply={applySegment} />
         <div className="flex items-center gap-2 self-start">
-          <button
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => handleExport('csv')}
             disabled={exporting || roster.length === 0}
-            className="flex items-center gap-1.5 text-sm font-medium px-3 py-2.5 rounded-xl border border-border hover:bg-muted text-muted-foreground disabled:opacity-40 transition-colors"
             title="Export the current view to CSV"
           >
             {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />} CSV
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => handleExport('xlsx')}
             disabled={exporting || roster.length === 0}
-            className="flex items-center gap-1.5 text-sm font-medium px-3 py-2.5 rounded-xl border border-border hover:bg-muted text-muted-foreground disabled:opacity-40 transition-colors"
             title="Export the current view to Excel"
           >
             <FileDown className="h-4 w-4" /> Excel
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -1707,7 +1703,7 @@ function RosterContent() {
         <div className="flex items-center gap-2 -mt-1">
           <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-primary/10 text-[var(--primary)] border border-primary/10">
             Segment: {segFilters.name}
-            <button onClick={() => setSegFilters(null)} className="ml-0.5 leading-none text-sm hover:text-[#d1177d]" aria-label="Clear segment">×</button>
+            <button onClick={() => setSegFilters(null)} className="ml-0.5 leading-none text-sm hover:text-foreground" aria-label="Clear segment">×</button>
           </span>
         </div>
       )}
@@ -1719,32 +1715,26 @@ function RosterContent() {
             {selected.size} selected
           </span>
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => setSelected(new Map())}
-              className="text-xs font-semibold text-muted-foreground hover:text-foreground px-2.5 py-1.5"
-            >
+            <Button variant="ghost" size="sm" onClick={() => setSelected(new Map())}>
               Clear
-            </button>
-            <button
-              onClick={openBulkFromSelection}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[var(--primary)] text-sm font-semibold text-white hover:bg-[#d1177d] transition-colors"
-            >
+            </Button>
+            <Button variant="primary" size="sm" onClick={openBulkFromSelection}>
               <Plus className="h-4 w-4" />
               Add {selected.size} to roster
-            </button>
+            </Button>
           </div>
         </div>
       )}
 
       {/* Table */}
       {!loading && roster.length === 0 ? (
-        <div className="rounded-2xl bg-card border border-border shadow-sm p-16 text-center">
-          <Users className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
-          <p className="text-muted-foreground text-sm font-medium">No creators found</p>
-          {search && <p className="text-muted-foreground text-xs mt-1">Try a different search.</p>}
-        </div>
+        <EmptyState
+          icon={<Users className="h-8 w-8" />}
+          title="No creators found"
+          description={search ? 'Try a different search.' : undefined}
+        />
       ) : (
-        <div className="relative rounded-2xl bg-card border border-border shadow-sm overflow-hidden">
+        <div className="relative rounded-xl bg-card border border-border shadow-[var(--pulse-elev-2)] overflow-hidden">
           {/* Indeterminate load bar — shows on first load AND every refetch
               (brand / period / sort / page change), even with rows on screen.
               Gated by showLoadBar (150ms delay) so fast loads don't flash it. */}

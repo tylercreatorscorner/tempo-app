@@ -16,12 +16,15 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, Fragment } from 'react';
 import { useRouter } from 'next/navigation';
-import { ChevronDown, ChevronRight, RefreshCw, Pencil, ArrowUp, ArrowDown, Receipt, Loader2, AlertCircle, CheckCircle2, Users, Download, FileSpreadsheet, Plus } from 'lucide-react';
+import { ChevronRight, RefreshCw, Pencil, ArrowUp, ArrowDown, Receipt, Loader2, AlertCircle, CheckCircle2, Users, Download, FileSpreadsheet, Plus } from 'lucide-react';
 import { downloadCsv } from '@/lib/utils/csv';
 import { downloadXlsx } from '@/lib/utils/xlsx';
 import { cn } from '@/lib/utils';
 import { formatCurrency, buildMonthOptions } from '@/lib/utils/format';
 import { StatCard } from '@/components/dashboard/stat-card';
+import { Card, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Select } from '@/components/ui/select';
 import { EarningsTrendChart, type SeriesPoint } from './components/earnings-trend-chart';
 import { BrandRevenueChart } from './components/brand-revenue-chart';
 import { GoalGauge } from './components/goal-gauge';
@@ -265,66 +268,66 @@ export function EarningsClient({ initialMonth }: { initialMonth: string }) {
 
   return (
     <div className="space-y-6">
-      {/* Header bar */}
+      {/* Controls toolbar (page title lives in the server page wrapper) */}
       <div className="flex items-center gap-3 flex-wrap">
-        <div className="relative">
-          <select
+        <div className="w-44">
+          <Select
             value={month}
             onChange={(e) => setMonth(e.target.value)}
-            className="appearance-none bg-card border border-border rounded-xl pl-4 pr-10 py-2 text-sm font-semibold text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] cursor-pointer"
+            className="font-semibold"
           >
             {monthOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
-          <ChevronDown className="h-4 w-4 absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+          </Select>
         </div>
         {teamMembers.length > 1 && (
-          <div className="relative">
-            <select
+          <div className="w-52">
+            <Select
               value={teamMemberId ?? ''}
               onChange={(e) => setTeamMemberId(e.target.value || null)}
-              className="appearance-none bg-card border border-border rounded-xl pl-9 pr-10 py-2 text-sm font-semibold text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] cursor-pointer"
+              className="font-semibold"
               title="View earnings for this team member's compensation arrangements"
             >
               {teamMembers.map(tm => <option key={tm.id} value={tm.id}>{tm.name}</option>)}
-            </select>
-            <Users className="h-3.5 w-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-            <ChevronDown className="h-4 w-4 absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+            </Select>
           </div>
         )}
-        <button
+        <Button
+          variant="outline"
+          size="sm"
           onClick={() => fetchAll(month, teamMemberId)}
           disabled={loading}
-          className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl border border-border hover:bg-muted text-muted-foreground disabled:opacity-40 transition-colors"
           title="Refresh"
         >
-          <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
+          <RefreshCw className={cn(loading && 'animate-spin')} />
           Refresh
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
           onClick={handleExportCsv}
           disabled={!data || loading}
-          className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl border border-border hover:bg-muted text-muted-foreground disabled:opacity-40 transition-colors"
           title="Export brand breakdown to CSV"
         >
-          <Download className="h-3.5 w-3.5" />
+          <Download />
           CSV
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
           onClick={handleExportXlsx}
           disabled={!data || loading}
-          className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl border border-border hover:bg-muted text-muted-foreground disabled:opacity-40 transition-colors"
           title="Export brand breakdown + per-creator detail to Excel"
         >
-          <FileSpreadsheet className="h-3.5 w-3.5" />
+          <FileSpreadsheet />
           Excel
-        </button>
+        </Button>
         <div className="text-xs text-muted-foreground ml-auto">
           {data ? `${data.startDate} → ${data.endDate}` : ''}
         </div>
       </div>
 
       {error && (
-        <div className="rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-500">
+        <div className="rounded-xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           {error}
         </div>
       )}
@@ -504,13 +507,13 @@ function Panel({ title, subtitle, children, className, bodyPadding = true }: {
   bodyPadding?: boolean;
 }) {
   return (
-    <div className={cn('rounded-2xl bg-card border border-border shadow-sm overflow-hidden', className)}>
+    <Card className={cn('overflow-hidden', className)}>
       <div className="px-5 pt-4 pb-3">
-        <h3 className="text-sm font-bold text-[var(--foreground)]">{title}</h3>
-        {subtitle && <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>}
+        <CardTitle>{title}</CardTitle>
+        {subtitle && <CardDescription className="mt-0.5 text-xs">{subtitle}</CardDescription>}
       </div>
-      <div className={cn(bodyPadding && 'px-5 pb-5')}>{children}</div>
-    </div>
+      {bodyPadding ? <CardContent>{children}</CardContent> : children}
+    </Card>
   );
 }
 

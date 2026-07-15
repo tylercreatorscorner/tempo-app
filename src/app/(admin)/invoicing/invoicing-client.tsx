@@ -8,6 +8,11 @@ import { downloadXlsx } from '@/lib/utils/xlsx';
 import { cn } from '@/lib/utils';
 import { formatCurrency, formatDate, formatPeriod, currentMonth } from '@/lib/utils/format';
 import { StatCard } from '@/components/dashboard/stat-card';
+import { PageHeader } from '@/components/ui/page-header';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { SegmentedControl } from '@/components/ui/segmented';
 import { useDelayedFlag } from '@/hooks/use-delayed-flag';
 import { TableLoadBar } from '@/components/ui/table-load-bar';
 import { InvoiceDetailSheet, type Invoice } from './components/invoice-detail-sheet';
@@ -261,21 +266,17 @@ export function InvoicingClient({ initialOpenId }: Props) {
   return (
     <div className="space-y-6">
       {/* Page header with title + Create Invoice CTA */}
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-extrabold text-[var(--foreground)]">Invoicing</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Generate, track, and download monthly invoices for each brand.
-          </p>
-        </div>
-        <button
-          onClick={() => setCreating(true)}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[var(--primary)] text-white text-sm font-bold hover:bg-[var(--primary)] transition-colors shadow-sm flex-shrink-0"
-        >
-          <Plus className="h-4 w-4" />
-          Create Invoice
-        </button>
-      </div>
+      <PageHeader
+        eyebrow="Finance"
+        title="Invoicing"
+        subtitle="Generate, track, and download monthly invoices for each brand."
+        actions={
+          <Button variant="primary" onClick={() => setCreating(true)}>
+            <Plus className="h-4 w-4" />
+            Create Invoice
+          </Button>
+        }
+      />
 
       {/* Stats row — all $ amounts with counts as context */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -309,28 +310,27 @@ export function InvoicingClient({ initialOpenId }: Props) {
       <AgingPanel invoices={invoices} active={agingBucket} onPick={setAgingBucket} />
 
       {/* Filter bar */}
-      <div className="relative rounded-2xl bg-card border border-border shadow-sm overflow-hidden">
+      <Card className="relative overflow-hidden">
         <TableLoadBar active={showBar} />
         <div className="px-5 py-3 flex items-center gap-3 flex-wrap border-b border-border">
-          <div className="flex items-center gap-1 bg-muted rounded-xl p-1">
-            {STATUS_TABS.map((tab) => {
+          <SegmentedControl<Status>
+            ariaLabel="Filter by status"
+            size="sm"
+            value={status}
+            onValueChange={setStatus}
+            options={STATUS_TABS.map((tab) => {
               const Icon = tab.icon;
-              const active = status === tab.value;
-              return (
-                <button
-                  key={tab.value}
-                  onClick={() => setStatus(tab.value)}
-                  className={cn(
-                    'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all',
-                    active ? 'bg-card text-[var(--primary)] shadow-sm' : 'text-muted-foreground hover:text-foreground',
-                  )}
-                >
-                  <Icon className="h-3.5 w-3.5" />
-                  {tab.label}
-                </button>
-              );
+              return {
+                value: tab.value,
+                label: (
+                  <span className="inline-flex items-center gap-1.5">
+                    <Icon className="h-3.5 w-3.5" />
+                    {tab.label}
+                  </span>
+                ),
+              };
             })}
-          </div>
+          />
 
           <BrandFilter value={brand} onChange={setBrand} options={brandOptions} />
 
@@ -355,35 +355,39 @@ export function InvoicingClient({ initialOpenId }: Props) {
             </button>
           )}
 
-          <button
+          <Button
+            variant="outline"
+            size="sm"
             onClick={fetchInvoices}
             disabled={loading}
-            className="ml-auto flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl border border-border hover:bg-muted text-muted-foreground disabled:opacity-40 transition-colors"
+            className="ml-auto"
             title="Refresh"
           >
             <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
             Refresh
-          </button>
+          </Button>
 
-          <button
+          <Button
+            variant="outline"
+            size="sm"
             onClick={handleExportCsv}
             disabled={loading || invoices.length === 0}
-            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl border border-border hover:bg-muted text-muted-foreground disabled:opacity-40 transition-colors"
             title={filteredInvoices.length < invoices.length ? `Export ${filteredInvoices.length} filtered invoices to CSV` : `Export all ${invoices.length} invoices to CSV`}
           >
             <FileDown className="h-3.5 w-3.5" />
             CSV
-          </button>
+          </Button>
 
-          <button
+          <Button
+            variant="outline"
+            size="sm"
             onClick={handleExportXlsx}
             disabled={loading || invoices.length === 0}
-            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl border border-border hover:bg-muted text-muted-foreground disabled:opacity-40 transition-colors"
             title={filteredInvoices.length < invoices.length ? `Export ${filteredInvoices.length} filtered invoices to Excel` : `Export all ${invoices.length} invoices to Excel`}
           >
             <FileSpreadsheet className="h-3.5 w-3.5" />
             Excel
-          </button>
+          </Button>
         </div>
 
         {error && (
@@ -441,7 +445,7 @@ export function InvoicingClient({ initialOpenId }: Props) {
                       onClick={() => setActiveInvoice(inv)}
                       className={cn(
                         'border-b border-border cursor-pointer transition-colors',
-                        isSelected ? 'bg-[#FFF0F5]/60 hover:bg-[#FFF0F5]/80' : 'hover:bg-[#FFF0F5]/40',
+                        isSelected ? 'bg-primary/10 hover:bg-primary/[0.14]' : 'hover:bg-muted/50',
                       )}
                     >
                       <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
@@ -500,7 +504,7 @@ export function InvoicingClient({ initialOpenId }: Props) {
             </table>
           </div>
         )}
-      </div>
+      </Card>
 
       {/* Bulk action bar (sticky bottom) */}
       {selectedIds.size > 0 && (
@@ -639,17 +643,17 @@ function Th({ children, align = 'left' }: { children: React.ReactNode; align?: '
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const config: Record<string, { bg: string; text: string; label: string }> = {
-    pending: { bg: 'bg-amber-500/10 border-amber-500/25',   text: 'text-amber-500',  label: 'Pending' },
-    sent:    { bg: 'bg-blue-500/10 border-blue-500/25',     text: 'text-blue-500',   label: 'Sent' },
-    paid:    { bg: 'bg-emerald-500/10 border-emerald-500/25', text: 'text-emerald-500', label: 'Paid' },
-    void:    { bg: 'bg-muted border-border',    text: 'text-muted-foreground',   label: 'Void' },
+  const config: Record<string, { variant: 'positive' | 'warning' | 'negative' | 'neutral' | 'accent'; label: string }> = {
+    pending: { variant: 'warning',  label: 'Pending' },
+    sent:    { variant: 'accent',   label: 'Sent' },
+    paid:    { variant: 'positive', label: 'Paid' },
+    void:    { variant: 'neutral',  label: 'Void' },
   };
-  const c = config[status] ?? { bg: 'bg-muted border-border', text: 'text-foreground', label: status };
+  const c = config[status] ?? { variant: 'neutral' as const, label: status };
   return (
-    <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border', c.bg, c.text)}>
+    <Badge variant={c.variant} size="sm" className="uppercase tracking-wider">
       {c.label}
-    </span>
+    </Badge>
   );
 }
 
@@ -704,13 +708,10 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
       <p className="text-sm text-muted-foreground mb-6 max-w-sm mx-auto">
         Generate your first invoice — pick a brand and a month, we&apos;ll pull the line items from your earnings.
       </p>
-      <button
-        onClick={onCreate}
-        className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-xl text-sm font-bold hover:bg-[var(--primary)] transition-colors shadow-sm"
-      >
+      <Button variant="primary" onClick={onCreate} className="mx-auto">
         <Plus className="h-4 w-4" />
         Create Invoice
-      </button>
+      </Button>
     </div>
   );
 }
