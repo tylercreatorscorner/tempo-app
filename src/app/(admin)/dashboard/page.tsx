@@ -13,31 +13,69 @@ import { buildCreatorAlerts } from '@/lib/data/creator-alerts';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
 import { pctChange } from '@/lib/utils/trend';
 import { getBrandRegistry, brandLabel, expandSlugs } from '@/lib/data/brand-registry';
+import { headers } from 'next/headers';
 import { createClient } from '@/lib/supabase/server';
 import { getActiveTenantId } from '@/lib/auth/platform-admin';
 
 import { StatCard } from '@/components/dashboard/stat-card';
 import { Greeting } from '@/components/dashboard/greeting';
 import { ManagedOrganicDonut } from '@/components/dashboard/managed-organic-donut';
+import { ManagedGmvChart } from '@/components/dashboard/managed-gmv-chart';
+import { RosterHealthPanel } from '@/components/dashboard/roster-health-panel';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState } from '@/components/ui/empty-state';
 import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { DateRangePicker } from '@/components/dashboard/date-range-picker';
-import { CommunityHighlights } from '@/components/dashboard/community-highlights';
-import { CreatorAlerts } from '@/components/dashboard/creator-alerts';
 import { BrandPerformance, type BrandRowData } from '@/components/dashboard/brand-performance';
 import { StaleDataBanner } from '@/components/dashboard/stale-data-banner';
 import { DashboardOnboarding } from '@/components/dashboard/dashboard-onboarding';
-import { TodaysStandouts, TodaysStandoutsSkeleton } from '@/components/dashboard/todays-standouts';
-import { PerformanceChart } from '@/components/analytics/performance-chart';
-import { NotableChanges } from '@/components/analytics/notable-changes';
-import { PacingTile } from '@/components/analytics/pacing-tile';
 import { getFoldInAnalytics } from '@/lib/data/dashboard-fold-analytics';
 
 interface Props {
   searchParams: Promise<{ range?: string; brand?: string }>;
+}
+
+interface RosterSignals {
+  total: number;
+  healthy: number;
+  behind: number;
+  silent: number;
+  unreadDms: number;
+}
+
+/**
+ * Roster Health / unread-DMs counts, reused from /api/roster so they tie out to
+ * the /roster page exactly (deriveHealth is the single source). Internal
+ * same-deployment fetch forwarding the caller's cookies (auth + impersonation).
+ * Returns null on any failure so the panel degrades gracefully.
+ */
+async function getRosterSignals(brand: string | null, range?: string): Promise<RosterSignals | null> {
+  try {
+    const h = await headers();
+    const host = h.get('host');
+    if (!host) return null;
+    const proto = h.get('x-forwarded-proto') ?? (host.startsWith('localhost') ? 'http' : 'https');
+    const qs = new URLSearchParams({ view: 'managed', page: '1' });
+    if (brand) qs.set('brand', brand);
+    if (range) qs.set('range', range);
+    const res = await fetch(`${proto}://${host}/api/roster?${qs.toString()}`, {
+      headers: { cookie: h.get('cookie') ?? '' },
+      cache: 'no-store',
+    });
+    if (!res.ok) return null;
+    const d = await res.json();
+    return {
+      total: Number(d.total_managed) || 0,
+      healthy: Number(d.healthy_count) || 0,
+      behind: Number(d.behind_count) || 0,
+      silent: Number(d.silent_count) || 0,
+      unreadDms: Number(d.unread_dms_total) || 0,
+    };
+  } catch {
+    return null;
+  }
 }
 
 export default async function AdminDashboard({ searchParams }: Props) {
@@ -177,6 +215,46 @@ export default async function AdminDashboard({ searchParams }: Props) {
   let prevManagedGmv = 0;
   for (const [, g] of mgPrev.byStore) prevManagedGmv += g;
 
+  // ── Per-brand monthly retainer (active creator_brands rows) → per-brand ROI
+  //    in Brand Performance. Same source as the portfolio total.
+  const { data: cbRetainerRows } = await supabase
+    .from('creator_brands').select('brand_id, retainer').eq('status', 'Active');
+  const idToSlug = new Map(reg.rows.map((r) => [r.id, r.slug] as const));
+  const retainerBySlug = new Map<string, number>();
+  for (const r of (cbRetainerRows as { brand_id: string | null; retainer: number | null }[] | null) ?? []) {
+    const slug = r.brand_id ? idToSlug.get(r.brand_id) : undefined;
+    if (!slug) continue;
+    retainerBySlug.set(slug, (retainerBySlug.get(slug) ?? 0) + (Number(r.retainer) || 0));
+  }
+
+  // ── Managed-GMV daily series (chart) + Roster Health signals, in parallel.
+  //    Series: get_creator_handle_gmv_series over the exact managed handle set
+  //    (chunked to stay under the RPC row cap). Signals: reuse /api/roster's
+  //    already-computed health/unread counts (no drift vs the roster page).
+  const managedHandles = Array.from(
+    new Set(Array.from(mgPeriod.byStoreCreator.values()).flatMap((m) => Array.from(m.keys()))),
+  );
+  const HCHUNK = 400;
+  const handleChunks: string[][] = [];
+  for (let i = 0; i < managedHandles.length; i += HCHUNK) handleChunks.push(managedHandles.slice(i, i + HCHUNK));
+  const [seriesChunks, rosterSignals] = await Promise.all([
+    BRAND_IDS.length === 0 ? Promise.resolve([]) : Promise.all(handleChunks.map((slice) =>
+      supabase.rpc('get_creator_handle_gmv_series', {
+        handles: slice, brand_ids: BRAND_IDS, days_back: periodLength, p_start_date: startDate, p_end_date: endDate,
+      }))),
+    getRosterSignals(brandFilter, params.range),
+  ]);
+  const managedByDay = new Map<string, number>();
+  for (const res of seriesChunks) {
+    for (const s of ((res as { data: { stat_date: string; gmv: string | number }[] | null }).data) ?? []) {
+      const day = String(s.stat_date).slice(0, 10);
+      managedByDay.set(day, (managedByDay.get(day) ?? 0) + (Number(s.gmv) || 0));
+    }
+  }
+  const managedDaily = Array.from(managedByDay.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, gmv]) => ({ date, gmv }));
+
   // ── Per-roster-brand stats — drives BrandPerformance card and the
   //    "Top Brand" mini-stat in the Period Brief. Aggregates across
   //    data slugs (e.g. leefar_nutrition + leefar_supplements → leefar). ──
@@ -188,6 +266,14 @@ export default async function AdminDashboard({ searchParams }: Props) {
     for (const s of brandSummaries)     if (dataSlugSet.has(s.brand_slug)) currentGmv += s.total_gmv;
     for (const s of prevBrandSummaries) if (dataSlugSet.has(s.brand_slug)) prevGmv    += s.total_gmv;
     for (const ds of dataSlugSet)  managedGmvForBrand += managedGmvByBrand.get(ds) ?? 0;
+
+    // Per-brand ROI: trailing-30d managed GMV ÷ this brand's monthly retainer
+    // (same basis as the portfolio ROI card).
+    let managed30ForBrand = 0;
+    for (const ds of dataSlugSet) managed30ForBrand += mgRoi.byStore.get(ds) ?? 0;
+    let brandRetainer = 0;
+    for (const s of new Set<string>([rosterSlug, ...dataSlugSet])) brandRetainer += retainerBySlug.get(s) ?? 0;
+    const brandRoi = brandRetainer > 0 ? managed30ForBrand / brandRetainer : undefined;
 
     // Sparkline = daily GMV across this brand's data slugs
     const sparkByDate = new Map<string, number>();
@@ -208,6 +294,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
       prevGmv,
       trend: pctChange(currentGmv, prevGmv),
       sparkline,
+      roi: brandRoi,
     };
   });
 
@@ -283,6 +370,9 @@ export default async function AdminDashboard({ searchParams }: Props) {
     : 'Awaiting first data sync';
 
   const isEmptyBrand = brandFilter && totals.gmv === 0 && totals.orders === 0;
+  // Brand Performance shows only brands with activity this period.
+  const activeBrandRows = rosterBrandStats.filter((b) => b.currentGmv > 0);
+  const showBrandPerf = !brandFilter && activeBrandRows.length > 1;
 
   return (
     <div className="space-y-6">
@@ -344,17 +434,6 @@ export default async function AdminDashboard({ searchParams }: Props) {
         />
       </div>
 
-      {/* Month-to-date pacing — projects where GMV lands (in-progress periods
-          only). Folded in from the retired Analytics page. */}
-      {foldIn.pacing && (
-        <PacingTile
-          daysElapsed={foldIn.pacing.daysElapsed}
-          periodLength={foldIn.pacing.periodLength}
-          gmvToDate={foldIn.pacing.gmvToDate}
-          periodLabel={foldIn.pacing.periodLabel}
-        />
-      )}
-
       {/* Empty-state for a brand-filtered view with no activity */}
       {isEmptyBrand && (
         <EmptyState
@@ -369,23 +448,15 @@ export default async function AdminDashboard({ searchParams }: Props) {
         />
       )}
 
-      {/* Brand Performance — multi-brand-only. The agency operator's most
-          important section: brand-by-brand GMV / trend / sparkline, with
-          click-to-filter. Only renders for tenants with >1 brand on the
-          unfiltered All Brands view. */}
-      {!brandFilter && rosterBrandStats.length > 1 && (
-        <BrandPerformance brands={rosterBrandStats} range={params.range} />
-      )}
-
-      {/* Performance over time + Managed-vs-Organic split (mockup row 2) */}
+      {/* Row 2 — Managed GMV trend + Managed-vs-Organic split (mockup) */}
       {!isEmptyBrand && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <div className="lg:col-span-2">
-            <PerformanceChart
-              data={foldIn.trend.data}
-              priorData={foldIn.trend.priorData}
-              yoyData={foldIn.trend.yoyData}
-              accentColor={foldIn.trend.accentColor}
+            <ManagedGmvChart
+              data={managedDaily}
+              total={managedGmv}
+              trend={managedTrend}
+              label={brandFilter ? `${activeBrandName} · Managed GMV` : 'Managed GMV'}
             />
           </div>
           <Card className="lg:col-span-1">
@@ -397,29 +468,27 @@ export default async function AdminDashboard({ searchParams }: Props) {
         </div>
       )}
 
-      {/* What's moving — auto-surfaced brand risers/fallers, breakout creator,
-          hot post, top product (folded in from Analytics). */}
-      {foldIn.notable.hasAny && (
-        <NotableChanges
-          brandRiser={foldIn.notable.brandRiser}
-          brandFaller={foldIn.notable.brandFaller}
-          creatorBreakout={foldIn.notable.creatorBreakout}
-          hotPost={foldIn.notable.hotPost}
-          topProduct={foldIn.notable.topProduct}
-        />
+      {/* Row 3 — Brand Performance + Roster Health (mockup) */}
+      {!isEmptyBrand && (showBrandPerf || rosterSignals) && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {showBrandPerf && (
+            <div className="lg:col-span-2">
+              <BrandPerformance brands={activeBrandRows} range={params.range} />
+            </div>
+          )}
+          {rosterSignals && (
+            <div className={showBrandPerf ? 'lg:col-span-1' : 'lg:col-span-3'}>
+              <RosterHealthPanel
+                total={rosterSignals.total}
+                healthy={rosterSignals.healthy}
+                behind={rosterSignals.behind}
+                silent={rosterSignals.silent}
+                unreadDms={rosterSignals.unreadDms}
+              />
+            </div>
+          )}
+        </div>
       )}
-
-      {/* Highlights + Alerts — paired, complementary creator views.
-          Alerts also surfaces brand riser/faller when on All Brands view. */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <CommunityHighlights creators={groupedCreators} />
-        <CreatorAlerts alerts={allAlerts} />
-      </div>
-
-      {/* Today's Standouts — single curated video section, streams in via Suspense */}
-      <Suspense fallback={<TodaysStandoutsSkeleton />}>
-        <TodaysStandouts brandFilter={brandFilter} startDate={startDate} endDate={endDate} />
-      </Suspense>
     </div>
   );
 }

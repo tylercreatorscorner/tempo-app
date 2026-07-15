@@ -14,6 +14,8 @@ export interface BrandRowData {
   prevGmv: number;
   trend: number | undefined;
   sparkline: number[];
+  /** Trailing-30d managed GMV ÷ this brand's monthly retainer. */
+  roi?: number;
 }
 
 interface Props {
@@ -62,12 +64,13 @@ export async function BrandPerformance({ brands, range }: Props) {
       </CardHeader>
 
       {/* Column header row — anchors the two-GMV-column layout */}
-      <div className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] items-center gap-4 px-5 py-2 border-b border-border bg-muted/40">
+      <div className="grid grid-cols-[auto_1fr_auto_auto_auto_auto_auto] items-center gap-4 px-5 py-2 border-b border-border bg-muted/40">
         <span className="w-2.5" />
         <span />
         <span className="hidden sm:block w-24" />
         <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground text-right min-w-[80px]">Total</span>
         <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground text-right min-w-[90px]">Managed</span>
+        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground text-right min-w-[52px]">ROI</span>
         <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground text-right min-w-[68px]">Trend</span>
       </div>
 
@@ -85,7 +88,7 @@ export async function BrandPerformance({ brands, range }: Props) {
             <Link
               key={b.slug}
               href={hrefFor(b.slug)}
-              className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] items-center gap-4 px-5 py-3 hover:bg-muted/60 transition-colors group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40 focus-visible:ring-inset"
+              className="grid grid-cols-[auto_1fr_auto_auto_auto_auto_auto] items-center gap-4 px-5 py-3 hover:bg-muted/60 transition-colors group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40 focus-visible:ring-inset"
             >
               {/* Brand color dot */}
               <span
@@ -126,6 +129,11 @@ export async function BrandPerformance({ brands, range }: Props) {
                   </p>
                 )}
               </div>
+
+              {/* ROI — trailing-30d managed GMV ÷ monthly retainer */}
+              <p className="text-sm font-bold font-mono text-[var(--foreground)] tabular-nums text-right min-w-[52px]">
+                {b.roi != null && b.roi > 0 ? `${b.roi.toFixed(1)}x` : '—'}
+              </p>
 
               {/* Trend */}
               <div className="min-w-[68px] text-right">
