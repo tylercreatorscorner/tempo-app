@@ -1,20 +1,17 @@
 'use client';
 
-import dynamic from 'next/dynamic';
-import type { ApexOptions } from 'apexcharts';
+import { useState, type MouseEvent } from 'react';
 import { formatCurrency } from '@/lib/utils/format';
 import { Card, CardHeader, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 
-const ApexChart = dynamic(() => import('react-apexcharts'), { ssr: false });
+// Bespoke SVG area chart matching the Pulse mockup: accent gradient fill + a
+// clean 2.5px line, no axes/gridlines. SVG resolves CSS vars, so it's fully
+// theme-aware. Dots/guide/tooltip are HTML overlays (positioned by %) so the
+// preserveAspectRatio="none" stretch never distorts them.
+const W = 620;
+const H = 150;
 
-function compact(v: number): string {
-  if (Math.abs(v) >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`;
-  if (Math.abs(v) >= 1_000) return `$${Math.round(v / 1_000)}K`;
-  return `$${Math.round(v)}`;
-}
-
-/** Managed-GMV daily trend — the agency's headline line chart (mockup row 2). */
 export function ManagedGmvChart({
   data,
   total,
@@ -26,26 +23,29 @@ export function ManagedGmvChart({
   trend?: number;
   label: string;
 }) {
+  const [hi, setHi] = useState<number | null>(null);
   const isPos = trend !== undefined && trend >= 0;
-  const series = [{ name: 'Managed GMV', data: data.map((d) => ({ x: d.date, y: Math.round(d.gmv) })) }];
+  const pts = data.filter((d) => Number.isFinite(d.gmv));
+  const n = pts.length;
+  const hasChart = n > 1;
 
-  const options: ApexOptions = {
-    chart: { type: 'area', toolbar: { show: false }, zoom: { enabled: false }, fontFamily: 'inherit', animations: { enabled: false } },
-    colors: ['#5AA6FF'],
-    dataLabels: { enabled: false },
-    stroke: { curve: 'smooth', width: 2 },
-    fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.32, opacityTo: 0, stops: [0, 100] } },
-    grid: { borderColor: 'var(--border)', strokeDashArray: 4, xaxis: { lines: { show: false } }, padding: { left: 8, right: 8 } },
-    xaxis: {
-      type: 'datetime',
-      labels: { style: { colors: '#8A8FB2', fontSize: '11px' } },
-      axisBorder: { show: false },
-      axisTicks: { show: false },
-      tooltip: { enabled: false },
-    },
-    yaxis: { labels: { formatter: (v: number) => compact(v), style: { colors: '#8A8FB2', fontSize: '11px' } } },
-    tooltip: { y: { formatter: (v: number) => formatCurrency(v) }, x: { format: 'MMM d' } },
-  };
+  const max = Math.max(...pts.map((d) => d.gmv), 1);
+  const min = Math.min(...pts.map((d) => d.gmv), 0);
+  const range = max - min || 1;
+  const xPct = (i: number) => (i / (n - 1)) * 100;
+  const yOf = (v: number) => H - 6 - ((v - min) / range) * (H - 12);
+  const yPct = (v: number) => (yOf(v) / H) * 100;
+  const line = pts.map((d, i) => `${i === 0 ? 'M' : 'L'}${((i / (n - 1)) * W).toFixed(1)},${yOf(d.gmv).toFixed(1)}`).join(' ');
+  const area = hasChart ? `${line} L${W},${H} L0,${H} Z` : '';
+
+  function onMove(e: MouseEvent<HTMLDivElement>) {
+    const rect = e.currentTarget.getBoundingClientRect();
+    if (rect.width === 0) return;
+    const rel = (e.clientX - rect.left) / rect.width;
+    setHi(Math.max(0, Math.min(n - 1, Math.round(rel * (n - 1)))));
+  }
+
+  const hd = hi != null ? pts[hi] : null;
 
   return (
     <Card>
@@ -61,10 +61,53 @@ export function ManagedGmvChart({
         )}
       </CardHeader>
       <CardContent>
-        {data.length > 1 ? (
-          <ApexChart options={options} series={series} type="area" height={260} />
+        {hasChart ? (
+          <div className="relative h-[200px]" onMouseMove={onMove} onMouseLeave={() => setHi(null)}>
+            <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="absolute inset-0 h-full w-full">
+              <defs>
+                <linearGradient id="mgv-fill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" stopColor="var(--primary)" stopOpacity="0.24" />
+                  <stop offset="1" stopColor="var(--primary)" stopOpacity="0" />
+                </linearGradient>
+              </defs>
+              <path d={area} fill="url(#mgv-fill)" />
+              <path
+                d={line}
+                fill="none"
+                stroke="var(--primary)"
+                strokeWidth="2.5"
+                strokeLinejoin="round"
+                strokeLinecap="round"
+                vectorEffect="non-scaling-stroke"
+              />
+            </svg>
+            {/* HTML overlays — no aspect-ratio distortion */}
+            {hd ? (
+              <>
+                <div className="pointer-events-none absolute top-0 bottom-0 w-px bg-primary/30" style={{ left: `${xPct(hi!)}%` }} />
+                <div
+                  className="pointer-events-none absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary ring-2 ring-card"
+                  style={{ left: `${xPct(hi!)}%`, top: `${yPct(hd.gmv)}%` }}
+                />
+                <div
+                  className="pointer-events-none absolute top-1 -translate-x-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-[11px] font-medium text-background shadow-lg"
+                  style={{ left: `${Math.min(92, Math.max(8, xPct(hi!)))}%` }}
+                >
+                  <span className="text-background/60">
+                    {new Date(hd.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} ·{' '}
+                  </span>
+                  <span className="tabular-nums">{formatCurrency(hd.gmv)}</span>
+                </div>
+              </>
+            ) : (
+              <div
+                className="pointer-events-none absolute h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary"
+                style={{ left: '100%', top: `${yPct(pts[n - 1].gmv)}%` }}
+              />
+            )}
+          </div>
         ) : (
-          <div className="grid h-[260px] place-items-center text-sm text-muted-foreground">Not enough data for a trend</div>
+          <div className="grid h-[200px] place-items-center text-sm text-muted-foreground">Not enough data for a trend</div>
         )}
       </CardContent>
     </Card>
