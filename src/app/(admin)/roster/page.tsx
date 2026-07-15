@@ -30,6 +30,8 @@ import { Button } from '@/components/ui/button';
 import { SegmentedControl } from '@/components/ui/segmented';
 import { Input } from '@/components/ui/input';
 import { EmptyState } from '@/components/ui/empty-state';
+import { Chip } from '@/components/ui/chip';
+import { Badge } from '@/components/ui/badge';
 
 const PAGE_SIZE = 50;
 
@@ -1301,11 +1303,11 @@ function CreatorAvatar({ creator }: { creator: Creator }) {
   if (src) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
-      <img src={src} alt="" referrerPolicy="no-referrer" className="h-8 w-8 rounded-full object-cover flex-shrink-0 bg-muted" />
+      <img src={src} alt="" referrerPolicy="no-referrer" className="h-8 w-8 rounded-[9px] object-cover flex-shrink-0 bg-muted" />
     );
   }
   return (
-    <span className="h-8 w-8 rounded-full flex-shrink-0 bg-gradient-to-br from-primary/10 to-purple-100 text-[var(--primary)] flex items-center justify-center text-xs font-semibold">
+    <span className="h-8 w-8 rounded-[9px] flex-shrink-0 bg-pulse-grad text-white flex items-center justify-center text-xs font-bold">
       {initial}
     </span>
   );
@@ -1542,7 +1544,9 @@ function RosterContent() {
 
   // Total column count for skeleton rows. The select + action columns both
   // appear only in the non-managed views (showAddAction).
-  const cols = 2 + (showBrandColumn ? 1 : 0) + (showManagedTag ? 1 : 0) + 6 + (showAddAction ? 2 : 0);
+  // Column count for skeleton/empty spans. Creator (name+handle merged) = 1,
+  // then optional brand/managed, 6 metric cols, and (checkbox + action) when adding.
+  const cols = 1 + (showBrandColumn ? 1 : 0) + (showManagedTag ? 1 : 0) + 6 + (showAddAction ? 2 : 0);
 
   // Segments: apply a picked segment's filters to the roster, and snapshot the
   // current filters for saving. Threshold filters (min/max GMV, min posts) live
@@ -1615,14 +1619,15 @@ function RosterContent() {
         />
       </div>
 
-      {/* KPI cards — match the Dashboard */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+      {/* KPI strip — hero-led (Affiliate GMV), matching the Pulse mockup */}
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
         <StatCard
+          className="col-span-2"
+          hero
           label="Affiliate GMV"
           value={loading && !summary ? '…' : fmt(affiliateGmv)}
           trend={summary ? pctDelta(affiliateGmv, summary.affiliate_gmv_prev) : undefined}
           trendLabel={periodLabel}
-          accentColor="var(--pulse-accent-2)"
         />
         <StatCard
           label="Managed GMV"
@@ -1742,7 +1747,7 @@ function RosterContent() {
           <div className={`overflow-x-auto transition-opacity duration-200 ${showLoadBar && roster.length > 0 ? 'opacity-60' : 'opacity-100'}`}>
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-border bg-muted/60">
+                <tr className="border-b border-border bg-secondary">
                   {showAddAction && (
                     <th className="w-10 px-5 py-3.5">
                       <input
@@ -1756,40 +1761,39 @@ function RosterContent() {
                       />
                     </th>
                   )}
-                  <th className="text-left px-5 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">
+                  <th className="text-left px-5 py-3.5 font-bold text-muted-foreground text-[10.5px] uppercase tracking-[0.07em]">
                     <button onClick={() => toggleSort('real_name')} className="inline-flex items-center gap-1.5 hover:text-foreground transition-colors">
-                      Name <SortIcon col="real_name" />
+                      Creator <SortIcon col="real_name" />
                     </button>
                   </th>
-                  <th className="text-left px-5 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Handle</th>
-                  {showBrandColumn && <th className="text-left px-5 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Brand</th>}
-                  {showManagedTag && <th className="text-center px-5 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Managed</th>}
-                  <th className="text-left px-5 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">
+                  {showBrandColumn && <th className="text-left px-5 py-3.5 font-bold text-muted-foreground text-[10.5px] uppercase tracking-[0.07em]">Brand</th>}
+                  {showManagedTag && <th className="text-center px-5 py-3.5 font-bold text-muted-foreground text-[10.5px] uppercase tracking-[0.07em]">Managed</th>}
+                  <th className="text-left px-5 py-3.5 font-bold text-muted-foreground text-[10.5px] uppercase tracking-[0.07em]">
                     <button onClick={() => toggleSort('gmv_period')} className="inline-flex items-center gap-1.5 hover:text-foreground transition-colors">
                       GMV ({periodShort}) <SortIcon col="gmv_period" />
                     </button>
                   </th>
-                  <th className="text-left px-5 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">
+                  <th className="text-left px-5 py-3.5 font-bold text-muted-foreground text-[10.5px] uppercase tracking-[0.07em]">
                     <button onClick={() => toggleSort('posts_period')} className="inline-flex items-center gap-1.5 hover:text-foreground transition-colors">
                       Posts ({periodShort}) <SortIcon col="posts_period" />
                     </button>
                   </th>
-                  <th className="text-left px-5 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">
+                  <th className="text-left px-5 py-3.5 font-bold text-muted-foreground text-[10.5px] uppercase tracking-[0.07em]">
                     <button onClick={() => toggleSort('last_post_date')} className="inline-flex items-center gap-1.5 hover:text-foreground transition-colors">
                       Last post <SortIcon col="last_post_date" />
                     </button>
                   </th>
-                  <th className="text-right px-5 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">
+                  <th className="text-right px-5 py-3.5 font-bold text-muted-foreground text-[10.5px] uppercase tracking-[0.07em]">
                     <button onClick={() => toggleSort('retainer')} className="inline-flex items-center gap-1.5 hover:text-foreground transition-colors">
                       Retainer <SortIcon col="retainer" />
                     </button>
                   </th>
-                  <th className="text-right px-5 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">
+                  <th className="text-right px-5 py-3.5 font-bold text-muted-foreground text-[10.5px] uppercase tracking-[0.07em]">
                     <button onClick={() => toggleSort('roi_period')} className="inline-flex items-center gap-1.5 hover:text-foreground transition-colors">
                       ROI <SortIcon col="roi_period" />
                     </button>
                   </th>
-                  <th className="text-left px-5 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">
+                  <th className="text-left px-5 py-3.5 font-bold text-muted-foreground text-[10.5px] uppercase tracking-[0.07em]">
                     <button onClick={() => toggleSort('joined')} className="inline-flex items-center gap-1.5 hover:text-foreground transition-colors">
                       Joined <SortIcon col="joined" />
                     </button>
@@ -1797,7 +1801,7 @@ function RosterContent() {
                   {showAddAction && <th className="px-5 py-3.5" />}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50">
+              <tbody className="divide-y divide-border">
                 {loading && roster.length === 0 && Array.from({ length: 8 }).map((_, i) => (
                   <SkeletonRow key={i} cols={cols} />
                 ))}
@@ -1808,7 +1812,7 @@ function RosterContent() {
                   return (
                     <Fragment key={c.id}>
                     <tr
-                      className={`transition-colors cursor-pointer ${c.is_managed ? 'hover:bg-primary/10' : 'bg-slate-50/40 hover:bg-slate-100/50'} ${isOpen ? 'bg-primary/10' : ''}`}
+                      className={`transition-colors cursor-pointer ${c.is_managed ? 'hover:bg-secondary' : 'bg-muted/30 hover:bg-muted/50'} ${isOpen ? 'bg-secondary' : ''}`}
                       onClick={() => {
                         if (isGroup) { toggleExpand(c.id); return; }
                         if (c.is_managed) setSelectedCreator(c);
@@ -1829,7 +1833,7 @@ function RosterContent() {
                         </td>
                       )}
                       <td className="px-5 py-3.5">
-                        <div className="flex items-center gap-2.5 max-w-[240px]">
+                        <div className="flex items-center gap-2.5 max-w-[280px]">
                           {isGroup && (
                             <span className="text-muted-foreground flex-shrink-0" aria-hidden>
                               {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
@@ -1837,20 +1841,46 @@ function RosterContent() {
                           )}
                           <CreatorAvatar creator={c} />
                           <div className="min-w-0">
-                            <div className="flex items-center font-medium text-[var(--foreground)]">
+                            <div className="flex items-center gap-1 font-semibold text-[13.5px] text-[var(--foreground)]">
                               <span className="truncate">
-                                {c.real_name || (c.is_managed
-                                  ? <span className="text-muted-foreground">—</span>
-                                  : <span className="text-muted-foreground italic">@{primary}</span>)}
+                                {c.real_name
+                                  ? c.real_name
+                                  : primary
+                                    ? (
+                                      <a
+                                        href={`https://tiktok.com/@${primary}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="hover:text-primary hover:underline"
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        @{primary}
+                                      </a>
+                                    )
+                                    : <span className="text-muted-foreground font-normal">—</span>}
                               </span>
                               <LevelBadge level={c.level} />
                             </div>
+                            {c.real_name && primary ? (
+                              <span className="flex items-center gap-1">
+                                <a
+                                  href={`https://tiktok.com/@${primary}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-[11.5px] text-muted-foreground hover:text-primary hover:underline truncate"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  @{primary}
+                                </a>
+                                <ExtraAccountsBadge creator={c} />
+                              </span>
+                            ) : !c.real_name && primary ? (
+                              <ExtraAccountsBadge creator={c} />
+                            ) : null}
                             {(c.product_tags ?? []).length > 0 && (
-                              <div className="flex flex-wrap gap-1 mt-1">
+                              <div className="flex flex-wrap items-center gap-1 mt-1">
                                 {(c.product_tags ?? []).slice(0, 3).map((t) => (
-                                  <span key={t.key} className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-primary/10 text-[var(--primary)]">
-                                    {t.name}
-                                  </span>
+                                  <Badge key={t.key} variant="accent" size="sm">{t.name}</Badge>
                                 ))}
                                 {(c.product_tags ?? []).length > 3 && (
                                   <span className="text-[10px] text-muted-foreground self-center">+{(c.product_tags ?? []).length - 3}</span>
@@ -1860,46 +1890,23 @@ function RosterContent() {
                           </div>
                         </div>
                       </td>
-                      <td className="px-5 py-3.5">
-                        {primary ? (
-                          <span className="flex items-center">
-                            <a
-                              href={`https://tiktok.com/@${primary}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-[var(--primary)] hover:underline font-medium"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              @{primary}
-                            </a>
-                            <ExtraAccountsBadge creator={c} />
-                          </span>
-                        ) : <span className="text-muted-foreground">—</span>}
-                      </td>
                       {showBrandColumn && (
                         <td className="px-5 py-3.5">
                           {isGroup ? (
-                            <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-primary/10 text-[var(--primary)] border border-primary/10">
-                              {c.brands?.length ?? 0} brands
-                            </span>
+                            <Badge variant="accent">{c.brands?.length ?? 0} brands</Badge>
                           ) : c.brand ? (
-                            <span className="inline-flex items-center gap-1.5 max-w-[160px] text-xs font-medium px-2.5 py-1 rounded-full bg-muted text-foreground border border-border">
-                              <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: brandMeta.color(c.brand) }} />
+                            <Chip dotColor={brandMeta.color(c.brand)} className="max-w-[160px]">
                               <span className="truncate">{brandOptions.find(b => b.slug === c.brand)?.name || brandMeta.label(c.brand) || c.brand.replace(/_/g, ' ')}</span>
-                            </span>
+                            </Chip>
                           ) : <span className="text-muted-foreground">—</span>}
                         </td>
                       )}
                       {showManagedTag && (
                         <td className="px-5 py-3.5 text-center">
                           {c.is_managed ? (
-                            <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full bg-green-500/10 text-green-600">
-                              <UserCheck className="h-3 w-3" /> Managed
-                            </span>
+                            <Badge variant="positive"><UserCheck className="h-3 w-3" /> Managed</Badge>
                           ) : (
-                            <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full bg-muted text-muted-foreground">
-                              <UserX className="h-3 w-3" /> Unmanaged
-                            </span>
+                            <Badge variant="neutral"><UserX className="h-3 w-3" /> Unmanaged</Badge>
                           )}
                         </td>
                       )}
@@ -1959,7 +1966,6 @@ function RosterContent() {
                               <span className="truncate text-sm font-medium text-muted-foreground">{childLabel}</span>
                             </div>
                           </td>
-                          <td className="px-5 py-2.5" />
                           {showBrandColumn && <td className="px-5 py-2.5" />}
                           {showManagedTag && <td className="px-5 py-2.5" />}
                           <td className="px-5 py-2.5">
@@ -1998,22 +2004,25 @@ function RosterContent() {
           </div>
 
           {/* Pagination */}
-          <div className="flex items-center justify-between px-5 py-3.5 border-t border-border bg-muted/40">
-            <p className="text-xs text-muted-foreground">{total.toLocaleString()} total · page {page} of {totalPages}</p>
-            <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between px-5 py-3.5 border-t border-border bg-secondary">
+            <p className="text-xs text-muted-foreground tabular-nums">{total.toLocaleString()} total · page {page} of {totalPages}</p>
+            <div className="flex items-center gap-1.5">
               <button
                 onClick={() => setPage(p => Math.max(1, p - 1))}
                 disabled={page === 1}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium border border-border bg-card disabled:opacity-40 disabled:cursor-not-allowed hover:bg-muted transition-colors"
+                aria-label="Previous page"
+                className="grid h-8 w-8 place-items-center rounded-lg border border-border bg-card text-muted-foreground disabled:opacity-40 disabled:cursor-not-allowed hover:bg-muted hover:text-foreground transition-colors"
               >
-                <ChevronLeft className="h-3.5 w-3.5" /> Previous
+                <ChevronLeft className="h-4 w-4" />
               </button>
+              <span className="grid h-8 min-w-8 place-items-center rounded-lg bg-primary px-2 text-xs font-semibold tabular-nums text-white">{page}</span>
               <button
                 onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                 disabled={page === totalPages}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium border border-border bg-card disabled:opacity-40 disabled:cursor-not-allowed hover:bg-muted transition-colors"
+                aria-label="Next page"
+                className="grid h-8 w-8 place-items-center rounded-lg border border-border bg-card text-muted-foreground disabled:opacity-40 disabled:cursor-not-allowed hover:bg-muted hover:text-foreground transition-colors"
               >
-                Next <ChevronRight className="h-3.5 w-3.5" />
+                <ChevronRight className="h-4 w-4" />
               </button>
             </div>
           </div>
