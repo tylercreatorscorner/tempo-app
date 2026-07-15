@@ -71,7 +71,7 @@ export async function BrandPerformance({ brands, range }: Props) {
         <HeadCell label="GMV" width="min-w-[76px]" tip="Total affiliate GMV for this brand in the selected period." />
         <HeadCell label="Managed" width="min-w-[76px]" tip="GMV from your managed creators for this brand, in the selected period." />
         <HeadCell label="Mgd %" width="min-w-[44px]" tip="Managed GMV as a share of this brand's total GMV." />
-        <HeadCell label="ROI" width="min-w-[44px]" tip="Trailing-30-day managed GMV ÷ this brand's monthly retainer (a fixed 30-day window)." />
+        <HeadCell label="ROI" width="min-w-[44px]" tip="Trailing-30-day managed GMV divided by this brand's monthly retainer (a fixed 30-day window)." />
         <HeadCell label="Trend" width="min-w-[54px]" tip="This brand's total GMV vs the previous period of equal length." />
       </div>
 

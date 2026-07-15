@@ -378,7 +378,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
             <StatCard
               label="Period ROI"
               value={`${roi.toFixed(1)}x`}
-              subValue={`GMV ÷ ${fmt(managedInfo.retainer)} retainer`}
+              subValue={`GMV / ${fmt(managedInfo.retainer)} retainer`}
               accentColor={roiColor}
             />
           );

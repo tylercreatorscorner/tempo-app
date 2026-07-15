@@ -1651,7 +1651,7 @@ function RosterContent() {
         <StatCard
           label="ROI · 30d"
           value={roi > 0 ? `${roi.toFixed(1)}x` : 'N/A'}
-          subValue={totalRetainer > 0 ? `${fmt(managed30)} ÷ ${fmt(totalRetainer)}/mo` : undefined}
+          subValue={totalRetainer > 0 ? `${fmt(managed30)} / ${fmt(totalRetainer)}/mo` : undefined}
           accentColor="#0EA5E9"
         />
       </div>

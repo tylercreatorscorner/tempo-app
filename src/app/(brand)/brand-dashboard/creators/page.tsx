@@ -329,7 +329,7 @@ function RoiCell({ gmv30d, retainer }: { gmv30d: number; retainer: number }) {
   return (
     <span
       className={`inline-block px-2 py-0.5 text-[11px] rounded-full font-semibold tabular-nums ${cls}`}
-      title={`${fmtCurrency(gmv30d)} GMV ÷ ${fmtCurrency(retainer)} retainer`}
+      title={`${fmtCurrency(gmv30d)} GMV / ${fmtCurrency(retainer)} retainer`}
     >
       {roi.toFixed(1)}×
     </span>

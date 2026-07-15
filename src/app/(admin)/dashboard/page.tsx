@@ -447,8 +447,8 @@ export default async function AdminDashboard({ searchParams }: Props) {
         <StatCard
           label="ROI · 30d"
           value={roi > 0 ? `${roi.toFixed(1)}×` : 'N/A'}
-          subValue="GMV ÷ retainer"
-          info="Trailing-30-day managed GMV ÷ total monthly retainer. Always a fixed 30-day window, regardless of the selected range."
+          subValue="GMV / retainer"
+          info="Trailing-30-day managed GMV divided by total monthly retainer. Always a fixed 30-day window, regardless of the selected range."
         />
         <StatCard
           label="Retainers /mo"
