@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { ArrowUpRight, ArrowDownRight, Building2 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils/format';
 import { getBrandRegistry, brandLabel, brandColor } from '@/lib/data/brand-registry';
-import { SparklineChart } from '@/components/charts/sparkline-chart';
+import { SparklineStrip } from '@/components/charts/sparkline-strip';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 
@@ -107,7 +107,7 @@ export async function BrandPerformance({ brands, range }: Props) {
               {/* Sparkline */}
               <div className="hidden sm:block w-24">
                 {b.sparkline.length > 1 ? (
-                  <SparklineChart data={b.sparkline} color={color} height={28} />
+                  <SparklineStrip data={b.sparkline} color={color} height={28} />
                 ) : (
                   <div className="h-[28px]" />
                 )}

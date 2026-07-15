@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils';
-import { SparklineChart } from '@/components/charts/sparkline-chart';
+import { SparklineStrip } from '@/components/charts/sparkline-strip';
 
 /**
  * Pulse KPI card (`.kt`). Clean label / big tabular value / detail line — no
@@ -53,7 +53,7 @@ export function StatCard({
         )}
         {hasSpark && (
           <div className="-mx-4 mt-3">
-            <SparklineChart data={sparklineData!} color="rgba(255,255,255,0.9)" height={44} />
+            <SparklineStrip data={sparklineData!} color="rgba(255,255,255,0.9)" height={44} />
           </div>
         )}
       </div>
@@ -80,7 +80,7 @@ export function StatCard({
       )}
       {hasSpark && (
         <div className="-mx-4 mt-3">
-          <SparklineChart data={sparklineData!} color={resolvedAccent} height={40} />
+          <SparklineStrip data={sparklineData!} color={resolvedAccent} height={40} />
         </div>
       )}
     </div>

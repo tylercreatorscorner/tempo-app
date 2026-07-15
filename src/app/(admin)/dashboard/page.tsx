@@ -30,7 +30,6 @@ import { DateRangePicker } from '@/components/dashboard/date-range-picker';
 import { BrandPerformance, type BrandRowData } from '@/components/dashboard/brand-performance';
 import { StaleDataBanner } from '@/components/dashboard/stale-data-banner';
 import { DashboardOnboarding } from '@/components/dashboard/dashboard-onboarding';
-import { getFoldInAnalytics } from '@/lib/data/dashboard-fold-analytics';
 
 interface Props {
   searchParams: Promise<{ range?: string; brand?: string }>;
@@ -198,12 +197,8 @@ export default async function AdminDashboard({ searchParams }: Props) {
   //    Folded-in Analytics (trend chart + movers + pacing) fetches in parallel.
   const roiEnd   = format(new Date(), 'yyyy-MM-dd');
   const roiStart = format(subDays(new Date(), 29), 'yyyy-MM-dd');
-  const [mgRoi, foldIn, mgPrev] = await Promise.all([
+  const [mgRoi, mgPrev] = await Promise.all([
     computeManagedGmv(roiStart, roiEnd, activeBrands, reg),
-    getFoldInAnalytics({
-      startDate, endDate, preset, brandFilter, allowedBrands, activeTenantId,
-      prefetched: { brandIds: BRAND_IDS, bsCur: brandSummaries, bsPrev: prevBrandSummaries, trendCur: trendCurRows },
-    }),
     // Prior-period managed GMV → the Managed GMV hero card's trend.
     computeManagedGmv(prevStartDate, prevEndDate, activeBrands, reg),
   ]);

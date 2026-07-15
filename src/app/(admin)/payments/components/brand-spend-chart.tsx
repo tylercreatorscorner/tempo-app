@@ -1,25 +1,15 @@
 'use client';
 
-import dynamic from 'next/dynamic';
-import type { ApexOptions } from 'apexcharts';
+import { HorizontalBars } from '@/components/charts/bar-chart';
+import { fmtCompactCurrency } from '@/components/charts/format';
 import { useBrandMeta } from '@/hooks/use-brand-meta';
-
-const ApexChart = dynamic(() => import('react-apexcharts'), { ssr: false });
 
 interface Props {
   data: Record<string, number>;
   height?: number;
 }
 
-function fmtCurrency(v: number) {
-  return `$${v.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
-}
-function fmtCompact(val: number) {
-  if (val >= 1_000_000) return `$${(val / 1_000_000).toFixed(1)}M`;
-  if (val >= 1000) return `$${(val / 1000).toFixed(0)}k`;
-  return `$${val.toFixed(0)}`;
-}
-export function BrandSpendChart({ data, height = 220 }: Props) {
+export function BrandSpendChart({ data }: Props) {
   const brandMeta = useBrandMeta();
   const entries = Object.entries(data).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
   if (entries.length === 0) {
@@ -28,42 +18,14 @@ export function BrandSpendChart({ data, height = 220 }: Props) {
     );
   }
 
-  const options: ApexOptions = {
-    chart: {
-      type: 'bar',
-      toolbar: { show: false },
-      background: 'transparent',
-      fontFamily: 'inherit',
-      animations: { enabled: true, speed: 500 },
-    },
-    plotOptions: {
-      bar: { horizontal: true, borderRadius: 5, barHeight: '60%', distributed: true, borderRadiusApplication: 'end' },
-    },
-    dataLabels: { enabled: false },
-    legend: { show: false },
-    xaxis: {
-      categories: entries.map(([brand]) => brandMeta.label(brand)),
-      labels: {
-        formatter: (v: string) => fmtCompact(Number(v)),
-        style: { colors: Array(entries.length).fill('#8A8FB2'), fontSize: '11px' },
-      },
-      axisBorder: { show: false },
-      axisTicks: { show: false },
-    },
-    yaxis: {
-      labels: { style: { colors: Array(entries.length).fill('#8A8FB2'), fontSize: '12px', fontWeight: '600' } },
-    },
-    colors: entries.map(([brand]) => brandMeta.color(brand)),
-    grid: {
-      borderColor: 'var(--muted)',
-      strokeDashArray: 4,
-      xaxis: { lines: { show: true } },
-      yaxis: { lines: { show: false } },
-    },
-    tooltip: { theme: 'light', y: { formatter: fmtCurrency } },
-  };
-
-  const series = [{ name: 'Retainer', data: entries.map(([, v]) => v) }];
-
-  return <ApexChart type="bar" series={series} options={options} height={height} width="100%" />;
+  return (
+    <HorizontalBars
+      rows={entries.map(([brand, v]) => ({
+        label: brandMeta.label(brand),
+        value: v,
+        color: brandMeta.color(brand),
+      }))}
+      format={fmtCompactCurrency}
+    />
+  );
 }

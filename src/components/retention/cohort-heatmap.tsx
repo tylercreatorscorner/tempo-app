@@ -1,11 +1,11 @@
 import type { CSSProperties } from 'react';
 import type { CohortRow } from '@/lib/data/cohort-retention';
 
-/** Retention % → pink fill. Higher retention = more saturated (Tempo chart pink). */
+/** Retention % → sequential primary-hue ramp (one hue, light→dark, theme-aware). */
 function cellStyle(pct: number): CSSProperties {
   const t = Math.min(1, Math.max(0, pct / 100));
-  const alpha = 0.10 + 0.9 * t;
-  return { backgroundColor: `rgba(233, 30, 140, ${alpha.toFixed(3)})` };
+  const mix = (10 + 80 * t).toFixed(1); // 10% → 90% of --primary, over transparent
+  return { backgroundColor: `color-mix(in srgb, var(--primary) ${mix}%, transparent)` };
 }
 
 /**

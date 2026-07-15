@@ -13,15 +13,13 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import dynamic from 'next/dynamic';
-import type { ApexOptions } from 'apexcharts';
 import { ChevronDown, RefreshCw, Download, AlertCircle, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/utils/format';
 import { downloadCsv } from '@/lib/utils/csv';
 import { StatCard } from '@/components/dashboard/stat-card';
-
-const ApexChart = dynamic(() => import('react-apexcharts'), { ssr: false });
+import { AreaLineChart } from '@/components/charts/area-line-chart';
+import { HorizontalBars } from '@/components/charts/bar-chart';
 
 interface MonthPoint {
   month: string;
@@ -64,11 +62,6 @@ interface YtdResponse {
   };
 }
 
-function fmtCompact(val: number) {
-  if (val >= 1_000_000) return `$${(val / 1_000_000).toFixed(1)}M`;
-  if (val >= 1000) return `$${(val / 1000).toFixed(0)}k`;
-  return `$${val.toFixed(0)}`;
-}
 function monthLabel(ym: string) {
   const [, m] = ym.split('-').map(Number);
   return new Date(Date.UTC(2000, (m ?? 1) - 1, 1)).toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' });
@@ -236,66 +229,26 @@ export function YtdClient({ initialYear }: { initialYear: number }) {
 // ── Charts ──────────────────────────────────────────────────────────
 
 function MonthlyTrendChart({ data }: { data: MonthPoint[] }) {
-  const categories = data.map((p) => monthLabel(p.month));
-  const options: ApexOptions = {
-    chart: { type: 'area', stacked: true, toolbar: { show: false }, zoom: { enabled: false }, fontFamily: 'inherit', background: 'transparent', animations: { enabled: true, speed: 600 } },
-    colors: ['#6D5EFC', '#A855F7', '#FF9800'],
-    stroke: { curve: 'smooth', width: 2 },
-    fill: {
-      type: 'gradient',
-      gradient: { shadeIntensity: 1, type: 'vertical', opacityFrom: 0.55, opacityTo: 0.05 },
-    },
-    dataLabels: { enabled: false },
-    legend: {
-      position: 'top', horizontalAlign: 'right', fontSize: '12px', fontWeight: 500,
-      labels: { colors: '#8A8FB2' }, markers: { size: 6 }, itemMargin: { horizontal: 8 },
-    },
-    xaxis: {
-      type: 'category',
-      categories,
-      labels: { style: { colors: '#8A8FB2', fontSize: '11px' } },
-      axisBorder: { show: false }, axisTicks: { show: false },
-      crosshairs: { show: true, stroke: { color: '#8A8FB2', width: 1, dashArray: 4 } },
-    },
-    yaxis: {
-      labels: { style: { colors: '#8A8FB2', fontSize: '11px' }, formatter: fmtCompact },
-      forceNiceScale: true,
-    },
-    grid: { borderColor: 'var(--muted)', strokeDashArray: 4, xaxis: { lines: { show: false } }, yaxis: { lines: { show: true } }, padding: { top: 0, right: 12, bottom: 0, left: 0 } },
-    tooltip: { theme: 'light', shared: true, intersect: false, y: { formatter: (v: number) => `$${v.toLocaleString('en-US', { maximumFractionDigits: 0 })}` } },
-  };
+  const labels = data.map((p) => monthLabel(p.month));
   const series = [
     { name: 'Commission', data: data.map((p) => Math.round(p.commission)) },
     { name: 'Retainers',  data: data.map((p) => Math.round(p.retainers)) },
     { name: 'Launch Fees', data: data.map((p) => Math.round(p.launchFees)) },
   ];
-  return <ApexChart type="area" series={series} options={options} height={300} width="100%" />;
+  return <AreaLineChart labels={labels} series={series} stacked height={300} showAxis />;
 }
 
 function BrandContributionChart({ data }: { data: BrandRow[] }) {
   const sorted = [...data].sort((a, b) => b.total - a.total);
-  const options: ApexOptions = {
-    chart: { type: 'bar', stacked: true, toolbar: { show: false }, fontFamily: 'inherit', background: 'transparent', animations: { enabled: true, speed: 500 } },
-    plotOptions: { bar: { horizontal: true, borderRadius: 6, barHeight: '60%', borderRadiusApplication: 'end', borderRadiusWhenStacked: 'last' } },
-    colors: ['#6D5EFC', '#A855F7', '#FF9800'],
-    dataLabels: { enabled: false },
-    legend: { position: 'top', horizontalAlign: 'right', fontSize: '12px', labels: { colors: '#8A8FB2' }, markers: { size: 6 }, itemMargin: { horizontal: 8 } },
-    xaxis: {
-      categories: sorted.map((d) => d.brandLabel),
-      labels: { style: { colors: '#8A8FB2', fontSize: '11px' }, formatter: (v) => fmtCompact(Number(v)) },
-      axisBorder: { show: false }, axisTicks: { show: false },
-    },
-    yaxis: { labels: { style: { colors: '#8A8FB2', fontSize: '12px', fontWeight: '600' } } },
-    grid: { borderColor: 'var(--muted)', strokeDashArray: 4, xaxis: { lines: { show: true } }, yaxis: { lines: { show: false } } },
-    tooltip: { theme: 'light', shared: true, intersect: false, y: { formatter: (v: number) => `$${v.toLocaleString('en-US', { maximumFractionDigits: 0 })}` } },
-  };
-  const series = [
-    { name: 'Commission', data: sorted.map((d) => Math.round(d.commission)) },
-    { name: 'Retainer',   data: sorted.map((d) => Math.round(d.retainer + d.productRetainer)) },
-    { name: 'Launch Fees', data: sorted.map((d) => Math.round(d.launchFee)) },
-  ];
-  const height = Math.max(200, Math.min(500, 64 + sorted.length * 38));
-  return <ApexChart type="bar" series={series} options={options} height={height} width="100%" />;
+  const rows = sorted.map((d) => ({
+    label: d.brandLabel,
+    segments: [
+      { name: 'Commission', value: Math.round(d.commission) },
+      { name: 'Retainer',   value: Math.round(d.retainer + d.productRetainer) },
+      { name: 'Launch Fees', value: Math.round(d.launchFee) },
+    ],
+  }));
+  return <HorizontalBars rows={rows} />;
 }
 
 // ── Table ──────────────────────────────────────────────────────────
