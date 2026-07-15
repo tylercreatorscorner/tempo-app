@@ -218,13 +218,18 @@ export default async function AdminDashboard({ searchParams }: Props) {
   // ── Per-brand monthly retainer (active creator_brands rows) → per-brand ROI
   //    in Brand Performance. Same source as the portfolio total.
   const { data: cbRetainerRows } = await supabase
-    .from('creator_brands').select('brand_id, retainer').eq('status', 'Active');
+    .from('creator_brands').select('brand_id, retainer, product_retainers').eq('status', 'Active');
   const idToSlug = new Map(reg.rows.map((r) => [r.id, r.slug] as const));
   const retainerBySlug = new Map<string, number>();
-  for (const r of (cbRetainerRows as { brand_id: string | null; retainer: number | null }[] | null) ?? []) {
-    const slug = r.brand_id ? idToSlug.get(r.brand_id) : undefined;
-    if (!slug) continue;
-    retainerBySlug.set(slug, (retainerBySlug.get(slug) ?? 0) + (Number(r.retainer) || 0));
+  const addRetainer = (slug: string | undefined, amt: number) => {
+    if (!slug || !amt) return;
+    retainerBySlug.set(slug, (retainerBySlug.get(slug) ?? 0) + amt);
+  };
+  for (const r of (cbRetainerRows as { brand_id: string | null; retainer: number | null; product_retainers: Record<string, number> | null }[] | null) ?? []) {
+    addRetainer(r.brand_id ? idToSlug.get(r.brand_id) : undefined, Number(r.retainer) || 0);
+    // Per-product retainers are keyed by brand slug (e.g. Dr Dent stores its
+    // retainer here rather than the base column).
+    for (const [slug, amt] of Object.entries(r.product_retainers ?? {})) addRetainer(slug, Number(amt) || 0);
   }
 
   // ── Managed-GMV daily series (chart) + Roster Health signals, in parallel.
