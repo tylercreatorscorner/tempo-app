@@ -17,6 +17,9 @@ import { createClient } from '@/lib/supabase/server';
 import { getActiveTenantId } from '@/lib/auth/platform-admin';
 
 import { StatCard } from '@/components/dashboard/stat-card';
+import { Greeting } from '@/components/dashboard/greeting';
+import { ManagedOrganicDonut } from '@/components/dashboard/managed-organic-donut';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState } from '@/components/ui/empty-state';
 import { buttonVariants } from '@/components/ui/button';
@@ -160,15 +163,19 @@ export default async function AdminDashboard({ searchParams }: Props) {
   //    Folded-in Analytics (trend chart + movers + pacing) fetches in parallel.
   const roiEnd   = format(new Date(), 'yyyy-MM-dd');
   const roiStart = format(subDays(new Date(), 29), 'yyyy-MM-dd');
-  const [mgRoi, foldIn] = await Promise.all([
+  const [mgRoi, foldIn, mgPrev] = await Promise.all([
     computeManagedGmv(roiStart, roiEnd, activeBrands, reg),
     getFoldInAnalytics({
       startDate, endDate, preset, brandFilter, allowedBrands, activeTenantId,
       prefetched: { brandIds: BRAND_IDS, bsCur: brandSummaries, bsPrev: prevBrandSummaries, trendCur: trendCurRows },
     }),
+    // Prior-period managed GMV → the Managed GMV hero card's trend.
+    computeManagedGmv(prevStartDate, prevEndDate, activeBrands, reg),
   ]);
   let managedGmv30 = 0;
   for (const [, g] of mgRoi.byStore) managedGmv30 += g;
+  let prevManagedGmv = 0;
+  for (const [, g] of mgPrev.byStore) prevManagedGmv += g;
 
   // ── Per-roster-brand stats — drives BrandPerformance card and the
   //    "Top Brand" mini-stat in the Period Brief. Aggregates across
@@ -236,8 +243,20 @@ export default async function AdminDashboard({ searchParams }: Props) {
     return acc;
   }, { gmv: 0, orders: 0 });
 
-  const gmvTrend    = pctChange(totals.gmv,    prevTotals.gmv);
-  const ordersTrend = pctChange(totals.orders, prevTotals.orders);
+  const gmvTrend     = pctChange(totals.gmv,    prevTotals.gmv);
+  const ordersTrend  = pctChange(totals.orders, prevTotals.orders);
+  const managedTrend = pctChange(managedGmv,    prevManagedGmv);
+
+  // Viewer's name for the greeting (user_profiles.name, then auth metadata).
+  const { data: { user: greetUser } } = await supabase.auth.getUser();
+  let userName: string | null = null;
+  if (greetUser) {
+    const { data: profRaw } = await supabase
+      .from('user_profiles').select('name').eq('user_id', greetUser.id).maybeSingle();
+    userName = (profRaw as { name?: string | null } | null)?.name
+      ?? (greetUser.user_metadata?.full_name as string | undefined)
+      ?? null;
+  }
 
   // ROI = managed GMV (trailing 30d) ÷ total monthly retainer — the agency's
   // return on what it pays its creators, always over a 30-day window.
@@ -274,16 +293,13 @@ export default async function AdminDashboard({ searchParams }: Props) {
 
       {/* Header */}
       <PageHeader
-        eyebrow="Overview"
-        title={headerLabel}
+        eyebrow={brandFilter ? `${activeBrandName} · Today` : 'Portfolio · Today'}
+        title={<Greeting name={userName} />}
         subtitle={
-          <div className="flex flex-col gap-1">
-            <span>{headerSub}</span>
-            <span className="inline-flex items-center gap-1 text-xs">
-              <span className={cn('h-1.5 w-1.5 rounded-full', isStale ? 'bg-[var(--pulse-warn)]' : 'bg-[var(--pulse-pos)]')} />
-              <span className="tabular-nums">{dataThroughLabel}</span>
-            </span>
-          </div>
+          <span className="inline-flex items-center gap-1 text-xs">
+            <span className={cn('h-1.5 w-1.5 rounded-full', isStale ? 'bg-[var(--pulse-warn)]' : 'bg-[var(--pulse-pos)]')} />
+            <span className="tabular-nums">{dataThroughLabel}</span>
+          </span>
         }
         actions={
           <Suspense fallback={null}>
@@ -292,39 +308,39 @@ export default async function AdminDashboard({ searchParams }: Props) {
         }
       />
 
-      {/* KPI strip — 4 focused metrics with sparklines */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 stagger-children">
+      {/* KPI strip — 5 metrics, Managed GMV as the gradient hero (mockup) */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 stagger-children">
         <StatCard
           label="Total GMV"
           value={formatCurrency(totals.gmv)}
           trend={gmvTrend}
-          trendLabel="vs prior period"
-          brandColor={activeBrandColor}
-          hero
-          sparklineData={aggregatedTrend.length > 1 ? aggregatedTrend.map(d => d.gmv) : undefined}
+          trendLabel="vs prev"
+          accentColor={activeBrandColor ?? undefined}
         />
         <StatCard
-          label="Orders"
-          value={formatNumber(totals.orders)}
-          trend={ordersTrend}
-          trendLabel="vs prior period"
-          accentColor="var(--pulse-accent-2)"
+          hero
+          label="Managed GMV"
+          value={formatCurrency(managedGmv)}
+          trend={managedTrend}
+          trendLabel="vs prev"
         />
         <StatCard
           label="Managed Share"
           value={totals.gmv > 0 ? `${managedSharePct.toFixed(0)}%` : '—'}
           accentColor="#10B981"
-          subValue={
-            totals.gmv > 0
-              ? `${formatCurrency(managedGmv)} managed · ${formatCurrency(unmanagedGmv)} unmanaged`
-              : undefined
-          }
+          subValue="of portfolio"
         />
         <StatCard
           label="ROI · 30d"
           value={roi > 0 ? `${roi.toFixed(1)}x` : 'N/A'}
-          accentColor={activeBrandColor ?? 'var(--primary)'}
-          subValue={totalRetainerSpend > 0 ? `${formatCurrency(managedGmv30)} managed ÷ ${formatCurrency(totalRetainerSpend)}/mo` : undefined}
+          accentColor="#0EA5E9"
+          subValue="GMV ÷ retainer"
+        />
+        <StatCard
+          label="Retainers /mo"
+          value={formatCurrency(totalRetainerSpend)}
+          accentColor="#F59E0B"
+          subValue={`across ${ALL_BRANDS.length} brand${ALL_BRANDS.length === 1 ? '' : 's'}`}
         />
       </div>
 
@@ -361,15 +377,24 @@ export default async function AdminDashboard({ searchParams }: Props) {
         <BrandPerformance brands={rosterBrandStats} range={params.range} />
       )}
 
-      {/* Performance over time — portfolio GMV/orders/videos with prior-period
-          and year-over-year overlays. Folded in from the retired Analytics page. */}
+      {/* Performance over time + Managed-vs-Organic split (mockup row 2) */}
       {!isEmptyBrand && (
-        <PerformanceChart
-          data={foldIn.trend.data}
-          priorData={foldIn.trend.priorData}
-          yoyData={foldIn.trend.yoyData}
-          accentColor={foldIn.trend.accentColor}
-        />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="lg:col-span-2">
+            <PerformanceChart
+              data={foldIn.trend.data}
+              priorData={foldIn.trend.priorData}
+              yoyData={foldIn.trend.yoyData}
+              accentColor={foldIn.trend.accentColor}
+            />
+          </div>
+          <Card className="lg:col-span-1">
+            <CardHeader><CardTitle>Managed vs Organic</CardTitle></CardHeader>
+            <CardContent>
+              <ManagedOrganicDonut managed={managedGmv} organic={unmanagedGmv} />
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {/* What's moving — auto-surfaced brand risers/fallers, breakout creator,
