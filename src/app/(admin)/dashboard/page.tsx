@@ -27,6 +27,8 @@ import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { DateRangePicker } from '@/components/dashboard/date-range-picker';
 import { BrandPerformance, type BrandRowData } from '@/components/dashboard/brand-performance';
+import { TopCreators } from '@/components/dashboard/top-creators';
+import { TopVideos } from '@/components/dashboard/top-videos';
 import { StaleDataBanner } from '@/components/dashboard/stale-data-banner';
 import { DashboardOnboarding } from '@/components/dashboard/dashboard-onboarding';
 
@@ -195,10 +197,19 @@ export default async function AdminDashboard({ searchParams }: Props) {
   for (let i = 0; i < managedHandles.length; i += HCHUNK) handleChunks.push(managedHandles.slice(i, i + HCHUNK));
   // Roster Health is Suspense-streamed (its own async section) so the heavy
   // internal /api/roster call never blocks this render — see Row 3 below.
-  const seriesChunks = BRAND_IDS.length === 0 ? [] : await Promise.all(handleChunks.map((slice) =>
-    supabase.rpc('get_creator_handle_gmv_series', {
-      handles: slice, brand_ids: BRAND_IDS, days_back: periodLength, p_start_date: startDate, p_end_date: endDate,
-    })));
+  // Top Videos (get_managed_posts, top-10 by GMV) runs in parallel with the
+  // daily-series chunks — one fast indexed RPC.
+  const [seriesChunks, topPostsRes] = await Promise.all([
+    BRAND_IDS.length === 0 ? Promise.resolve([]) : Promise.all(handleChunks.map((slice) =>
+      supabase.rpc('get_creator_handle_gmv_series', {
+        handles: slice, brand_ids: BRAND_IDS, days_back: periodLength, p_start_date: startDate, p_end_date: endDate,
+      }))),
+    activeBrands.length === 0
+      ? Promise.resolve({ data: [] as Record<string, unknown>[] })
+      : supabase.rpc('get_managed_posts', {
+          p_brand_slugs: activeBrands, p_start_date: startDate, p_end_date: endDate, p_managed_only: true, p_limit: 10,
+        }),
+  ]);
   const managedByDay = new Map<string, number>();
   for (const res of seriesChunks) {
     for (const s of ((res as { data: { stat_date: string; gmv: string | number }[] | null }).data) ?? []) {
@@ -209,6 +220,49 @@ export default async function AdminDashboard({ searchParams }: Props) {
   const managedDaily = Array.from(managedByDay.entries())
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([date, gmv]) => ({ date, gmv }));
+
+  // ── Top Videos — top-10 managed posts by GMV (real videos.video_id, dedup'd
+  //    + correctly attributed by get_managed_posts). No thumbnail field exists,
+  //    so the card renders a play tile + links the TikTok URL. ───────────────
+  const topVideos = (((topPostsRes as { data: Record<string, unknown>[] | null }).data) ?? [])
+    .map((p) => ({
+      title: String(p.video_title ?? ''),
+      url: String(p.video_url ?? ''),
+      handle: String(p.creator_handle ?? ''),
+      brand: String(p.brand_name ?? ''),
+      gmv: Number(p.gmv) || 0,
+      views: Number(p.views) || 0,
+    }))
+    .filter((v) => v.gmv > 0)
+    .slice(0, 10);
+
+  // ── Top Creators — top-10 managed creators by MANAGED GMV this period. Ranked
+  //    from the canonical computeManagedGmv (strict-managed, ties to the Managed
+  //    GMV hero), aggregated per-person; real names + detail-page ids resolved
+  //    from groupedCreators, falling back to the handle. Zero new queries. ────
+  const normH = (h: string) => h.replace(/^@/, '').trim().toLowerCase();
+  const handleMeta = new Map<string, { name: string; id?: string }>();
+  for (const g of groupedCreators) {
+    for (const h of g.handles) {
+      const k = normH(h);
+      if (k && !handleMeta.has(k)) handleMeta.set(k, { name: g.display_name, id: g.managed_creator_id ?? undefined });
+    }
+  }
+  const creatorAgg = new Map<string, { name: string | null; id?: string; handle: string; gmv: number }>();
+  for (const perStore of mgPeriod.byStoreCreator.values()) {
+    for (const cg of perStore.values()) {
+      const meta = handleMeta.get(cg.handleNorm);
+      const name = meta?.name ?? null;
+      const key = meta?.id ?? name ?? cg.handleNorm;
+      const e = creatorAgg.get(key) ?? { name, id: meta?.id, handle: cg.rawName || cg.handleNorm, gmv: 0 };
+      e.gmv += cg.gmv;
+      creatorAgg.set(key, e);
+    }
+  }
+  const topCreators = Array.from(creatorAgg.values())
+    .filter((c) => c.gmv > 0)
+    .sort((a, b) => b.gmv - a.gmv)
+    .slice(0, 10);
 
   // ── Per-roster-brand stats — drives BrandPerformance card and the
   //    "Top Brand" mini-stat in the Period Brief. Aggregates across
@@ -374,6 +428,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
           value={formatCurrency(totals.gmv)}
           trend={gmvTrend}
           trendLabel="vs prev"
+          info="Total affiliate GMV across all brands in the selected period. The trend compares it to the previous period of equal length."
         />
         <StatCard
           hero
@@ -381,21 +436,25 @@ export default async function AdminDashboard({ searchParams }: Props) {
           value={formatCurrency(managedGmv)}
           trend={managedTrend}
           trendLabel="vs prev"
+          info="GMV driven by your managed creators in the selected period. The trend compares it to the previous period of equal length."
         />
         <StatCard
           label="Managed Share"
           value={totals.gmv > 0 ? `${managedSharePct.toFixed(0)}%` : '—'}
           subValue="of portfolio"
+          info="Managed GMV as a share of total GMV — how much of all affiliate GMV your managed creators drove."
         />
         <StatCard
           label="ROI · 30d"
           value={roi > 0 ? `${roi.toFixed(1)}×` : 'N/A'}
           subValue="GMV ÷ retainer"
+          info="Trailing-30-day managed GMV ÷ total monthly retainer. Always a fixed 30-day window, regardless of the selected range."
         />
         <StatCard
           label="Retainers /mo"
           value={formatCurrency(totalRetainerSpend)}
           subValue={`across ${retainerBrandCount} brand${retainerBrandCount === 1 ? '' : 's'}`}
+          info="Total monthly retainer you pay, summed across brands that carry one."
         />
       </div>
 
@@ -448,6 +507,14 @@ export default async function AdminDashboard({ searchParams }: Props) {
               <RosterHealthSection brand={brandFilter} range={params.range} />
             </Suspense>
           </div>
+        </div>
+      )}
+
+      {/* Row 4 — Top Creators + Top Videos leaderboards (managed, by GMV) */}
+      {!isEmptyBrand && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <TopCreators creators={topCreators} label={`${periodLength}d`} />
+          <TopVideos videos={topVideos} label={`${periodLength}d`} />
         </div>
       )}
     </div>

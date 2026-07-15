@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { formatCurrency } from '@/lib/utils/format';
 import { getBrandRegistry, brandLabel, brandColor } from '@/lib/data/brand-registry';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
+import { InfoTooltip } from '@/components/ui/info-tooltip';
 
 export interface BrandRowData {
   slug: string;
@@ -22,12 +23,24 @@ interface Props {
 }
 
 const TH = 'text-[10px] font-bold uppercase tracking-[0.1em] text-muted-foreground';
-const COLS = 'grid grid-cols-[1fr_auto_auto_auto_auto] items-center gap-4';
+const COLS = 'grid grid-cols-[1fr_auto_auto_auto_auto_auto] items-center gap-3';
+
+/** Right-aligned column header with a hover tooltip explaining the metric. */
+function HeadCell({ label, tip, width }: { label: string; tip: string; width: string }) {
+  return (
+    <InfoTooltip label={tip}>
+      <span className={`${TH} ${width} cursor-help text-right underline decoration-muted-foreground/30 decoration-dotted underline-offset-2`}>
+        {label}
+      </span>
+    </InfoTooltip>
+  );
+}
 
 /**
  * Per-brand performance table (Pulse mockup) — the agency-client view's key
- * section. Columns: Brand · GMV · Managed · ROI · Trend. Click any row to filter
- * the dashboard to that brand. Only renders with >1 brand and no brand filter.
+ * section. Columns: Brand · GMV · Managed · Mgd% · ROI · Trend. Click any row to
+ * filter the dashboard to that brand. Only renders with >1 brand and no filter.
+ * Column headers carry tooltips defining each metric.
  */
 export async function BrandPerformance({ brands, range }: Props) {
   if (brands.length === 0) return null;
@@ -52,19 +65,21 @@ export async function BrandPerformance({ brands, range }: Props) {
         </span>
       </CardHeader>
 
-      {/* Column headers */}
+      {/* Column headers — each metric header hover-explains itself */}
       <div className={`${COLS} border-b border-border px-5 py-2`}>
         <span className={TH}>Brand</span>
-        <span className={`${TH} min-w-[84px] text-right`}>GMV</span>
-        <span className={`${TH} min-w-[84px] text-right`}>Managed</span>
-        <span className={`${TH} min-w-[52px] text-right`}>ROI</span>
-        <span className={`${TH} min-w-[60px] text-right`}>Trend</span>
+        <HeadCell label="GMV" width="min-w-[76px]" tip="Total affiliate GMV for this brand in the selected period." />
+        <HeadCell label="Managed" width="min-w-[76px]" tip="GMV from your managed creators for this brand, in the selected period." />
+        <HeadCell label="Mgd %" width="min-w-[44px]" tip="Managed GMV as a share of this brand's total GMV." />
+        <HeadCell label="ROI" width="min-w-[44px]" tip="Trailing-30-day managed GMV ÷ this brand's monthly retainer (a fixed 30-day window)." />
+        <HeadCell label="Trend" width="min-w-[54px]" tip="This brand's total GMV vs the previous period of equal length." />
       </div>
 
       <div className="divide-y divide-border">
         {rows.map((b) => {
           const color = brandColor(reg, b.slug);
           const name = brandLabel(reg, b.slug);
+          const managedPct = b.currentGmv > 0 ? (b.managedGmv / b.currentGmv) * 100 : 0;
           const isPositive = b.trend !== undefined && b.trend >= 0;
 
           return (
@@ -82,22 +97,27 @@ export async function BrandPerformance({ brands, range }: Props) {
               </span>
 
               {/* Total GMV */}
-              <span className="min-w-[84px] text-right text-[13.5px] font-semibold tabular-nums text-foreground">
+              <span className="min-w-[76px] text-right text-[13.5px] font-semibold tabular-nums text-foreground">
                 {formatCurrency(b.currentGmv)}
               </span>
 
               {/* Managed GMV — the agency's contribution for this brand */}
-              <span className="min-w-[84px] text-right text-[13.5px] font-semibold tabular-nums text-foreground">
+              <span className="min-w-[76px] text-right text-[13.5px] font-semibold tabular-nums text-foreground">
                 {formatCurrency(b.managedGmv)}
               </span>
 
+              {/* Managed share of the brand's total GMV */}
+              <span className="min-w-[44px] text-right text-[13px] font-semibold tabular-nums text-muted-foreground">
+                {b.currentGmv > 0 ? `${managedPct.toFixed(0)}%` : '—'}
+              </span>
+
               {/* ROI — trailing-30d managed GMV ÷ monthly retainer */}
-              <span className="min-w-[52px] text-right text-[13.5px] font-semibold tabular-nums text-foreground">
+              <span className="min-w-[44px] text-right text-[13.5px] font-semibold tabular-nums text-foreground">
                 {b.roi != null && b.roi > 0 ? `${b.roi.toFixed(1)}×` : '—'}
               </span>
 
               {/* Trend — inline colored delta with a filled triangle */}
-              <span className="min-w-[60px] text-right text-[13px] font-bold tabular-nums">
+              <span className="min-w-[54px] text-right text-[13px] font-bold tabular-nums">
                 {b.trend !== undefined ? (
                   <span style={{ color: isPositive ? 'var(--pulse-pos)' : 'var(--pulse-neg)' }}>
                     {isPositive ? '▲' : '▼'}{Math.round(Math.abs(b.trend))}%
