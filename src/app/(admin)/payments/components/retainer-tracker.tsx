@@ -102,7 +102,7 @@ export function RetainerTracker({
                 onClick={() => onStatusFilterChange(tab.value)}
                 className={cn(
                   'inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all',
-                  active ? 'bg-[#FFF0F5] text-[var(--primary)]' : 'text-muted-foreground hover:text-foreground',
+                  active ? 'bg-primary/10 text-[var(--primary)]' : 'text-muted-foreground hover:text-foreground',
                 )}
               >
                 <Icon className="h-3.5 w-3.5" />
@@ -164,7 +164,7 @@ export function RetainerTracker({
                   <Fragment key={key}>
                     <tr
                       onClick={() => setExpanded(isExpanded ? null : key)}
-                      className="border-b border-border hover:bg-[#FFF0F5]/30 cursor-pointer transition-colors"
+                      className="border-b border-border hover:bg-primary/5 cursor-pointer transition-colors"
                     >
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">

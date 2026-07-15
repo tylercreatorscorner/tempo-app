@@ -581,7 +581,7 @@ function SchedulesTab() {
         <p className="text-sm text-muted-foreground">Automated report delivery to Discord and Slack channels.</p>
         <button
           onClick={() => { setEditing(null); setShowModal(true); }}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[var(--primary)] text-white text-sm font-semibold hover:bg-[#d1177d] transition-colors"
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[var(--primary)] text-white text-sm font-semibold hover:brightness-[1.07] transition-colors"
         >
           <Calendar className="h-4 w-4" />
           New Schedule
@@ -875,7 +875,7 @@ function ScheduleModal({
           <button
             onClick={handleSave}
             disabled={saving || !webhookUrl}
-            className="flex-1 py-2.5 rounded-xl bg-[var(--primary)] hover:bg-[#d1177d] text-white text-sm font-semibold disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+            className="flex-1 py-2.5 rounded-xl bg-[var(--primary)] hover:brightness-[1.07] text-white text-sm font-semibold disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
           >
             {saving && <Loader2 className="h-4 w-4 animate-spin" />}
             {editing ? 'Save Changes' : 'Create Schedule'}
@@ -984,7 +984,7 @@ function ReportCard({
         <button
           onClick={generate}
           disabled={loading}
-          className="w-full py-2.5 rounded-xl bg-[var(--primary)] hover:bg-[#d1177d] text-white font-semibold text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+          className="w-full py-2.5 rounded-xl bg-[var(--primary)] hover:brightness-[1.07] text-white font-semibold text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
         >
           {loading ? <><Loader2 className="h-4 w-4 animate-spin" />Generating…</> : 'Generate Report'}
         </button>
@@ -1170,7 +1170,7 @@ function PostCard({
         <button
           onClick={generate}
           disabled={loading}
-          className="w-full py-2.5 rounded-xl bg-[var(--primary)] hover:bg-[#d1177d] text-white font-semibold text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+          className="w-full py-2.5 rounded-xl bg-[var(--primary)] hover:brightness-[1.07] text-white font-semibold text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
         >
           {loading ? <><Loader2 className="h-4 w-4 animate-spin" />Generating…</> : 'Generate'}
         </button>

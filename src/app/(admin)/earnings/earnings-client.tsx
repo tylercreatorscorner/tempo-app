@@ -675,7 +675,7 @@ function BrandTable({
             return (
             <Fragment key={row.brand}>
             <tr
-              className="border-b border-border hover:bg-[#FFF0F5]/40 cursor-pointer transition-colors group"
+              className="border-b border-border hover:bg-primary/10/40 cursor-pointer transition-colors group"
               onClick={() => toggle(row.brand)}
             >
               <td className="px-4 py-3">
@@ -769,7 +769,7 @@ function BrandTable({
                   <button
                     onClick={() => onGenerateInvoice(row.brand)}
                     disabled={generatingBrand === row.brand || row.total <= 0}
-                    className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-[#FFF0F5] border border-primary/10 text-[var(--primary)] text-[11px] font-bold hover:bg-[var(--primary)] hover:text-white hover:border-[var(--primary)] disabled:opacity-40 disabled:hover:bg-[#FFF0F5] disabled:hover:text-[var(--primary)] transition-colors"
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-primary/10 border border-primary/10 text-[var(--primary)] text-[11px] font-bold hover:bg-[var(--primary)] hover:text-white hover:border-[var(--primary)] disabled:opacity-40 disabled:hover:bg-primary/10 disabled:hover:text-[var(--primary)] transition-colors"
                     title={row.total > 0 ? 'Generate invoice for this brand & month' : 'Nothing to invoice'}
                   >
                     {generatingBrand === row.brand

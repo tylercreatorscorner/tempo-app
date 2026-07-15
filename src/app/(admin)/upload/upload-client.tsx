@@ -570,7 +570,7 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
         <p className="text-xs text-muted-foreground mt-1">
           Filename auto-detection: <code className="text-muted-foreground">Brand_FileType_YYYYMMDD.xlsx</code>
         </p>
-        <label className="inline-block mt-4 px-4 py-2 rounded-xl bg-[var(--primary)] hover:bg-[#d1177d] text-white text-sm font-semibold cursor-pointer transition-colors">
+        <label className="inline-block mt-4 px-4 py-2 rounded-xl bg-[var(--primary)] hover:brightness-[1.07] text-white text-sm font-semibold cursor-pointer transition-colors">
           Choose files
           <input type="file" multiple accept=".xlsx,.xls" className="hidden" onChange={onFileInput} />
         </label>
@@ -600,7 +600,7 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
               <button
                 onClick={processAll}
                 disabled={running || counts.queued === 0}
-                className="px-4 py-1.5 rounded-xl bg-[var(--primary)] hover:bg-[#d1177d] text-white text-sm font-semibold disabled:opacity-50 transition-colors flex items-center gap-2"
+                className="px-4 py-1.5 rounded-xl bg-[var(--primary)] hover:brightness-[1.07] text-white text-sm font-semibold disabled:opacity-50 transition-colors flex items-center gap-2"
               >
                 {running && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                 {running ? 'Processing...' : `Upload ${counts.queued} file${counts.queued === 1 ? '' : 's'}`}

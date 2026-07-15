@@ -198,7 +198,7 @@ export function CustomRangePopover({ initialStart, initialEnd, onApply, onClose,
             }
           }}
           disabled={!canApply}
-          className="px-4 py-2 rounded-xl bg-[var(--primary)] text-white text-xs font-semibold hover:bg-[#d1177d] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="px-4 py-2 rounded-xl bg-[var(--primary)] text-white text-xs font-semibold hover:brightness-[1.07] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           Apply
         </button>

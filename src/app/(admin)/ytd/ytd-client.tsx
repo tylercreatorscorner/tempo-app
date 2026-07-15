@@ -316,7 +316,7 @@ function MonthlyTable({ months, totals, year }: { months: MonthPoint[]; totals: 
         </thead>
         <tbody>
           {months.map((m) => (
-            <tr key={m.month} className="border-b border-border hover:bg-[#FFF0F5]/30 transition-colors">
+            <tr key={m.month} className="border-b border-border hover:bg-primary/5 transition-colors">
               <td className="px-4 py-2.5 font-semibold text-[#8A8FB2]">{monthLabel(m.month)}</td>
               <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground">{formatCurrency(m.totalGmv)}</td>
               <td className="px-4 py-2.5 text-right tabular-nums text-emerald-600 font-semibold">{formatCurrency(m.commission)}</td>
