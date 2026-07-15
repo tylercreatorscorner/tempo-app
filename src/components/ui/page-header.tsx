@@ -31,13 +31,15 @@ export interface PageHeaderProps {
  *  and right-aligned actions. */
 export function PageHeader({ eyebrow, title, subtitle, actions, className }: PageHeaderProps) {
   return (
-    <div className={cn('flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between', className)}>
+    // Stacks until lg — a wide actions cluster (e.g. a date-range pill bar)
+    // must not compete with the title for width and clip it on mid widths.
+    <div className={cn('flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between', className)}>
       <div className="min-w-0">
         {eyebrow && <Eyebrow gradient className="mb-1.5">{eyebrow}</Eyebrow>}
         <h1 className="text-2xl font-extrabold tracking-tight text-foreground sm:text-[25px]">{title}</h1>
         {subtitle && <div className="mt-1 text-sm text-muted-foreground">{subtitle}</div>}
       </div>
-      {actions && <div className="flex flex-col items-end gap-1 sm:shrink-0">{actions}</div>}
+      {actions && <div className="flex flex-col items-start gap-1 lg:items-end lg:shrink-0">{actions}</div>}
     </div>
   );
 }
