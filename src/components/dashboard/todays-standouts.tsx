@@ -1,6 +1,8 @@
 import { Sparkles } from 'lucide-react';
 import { getDashboardVideos } from '@/lib/data/video-sections';
 import { VideoSection } from './video-section';
+import { Card, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 
 interface Props {
   brandFilter: string | null;
@@ -44,16 +46,16 @@ export async function TodaysStandouts({ brandFilter, startDate, endDate }: Props
 
 export function TodaysStandoutsSkeleton() {
   return (
-    <div className="rounded-2xl bg-card border border-border shadow-sm overflow-hidden">
-      <div className="px-6 py-4 flex items-center gap-3">
-        <span className="h-7 w-7 rounded-lg bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center">
-          <Sparkles className="h-4 w-4" />
-        </span>
-        <h3 className="text-lg font-bold tracking-tight text-[var(--foreground)]">Today&apos;s Standouts</h3>
-        <span className="bg-muted text-muted-foreground text-xs font-bold px-2.5 py-1 rounded-full animate-pulse">
-          loading
-        </span>
-      </div>
-    </div>
+    <Card className="overflow-hidden">
+      <CardHeader>
+        <div className="flex items-center gap-3">
+          <span className="h-7 w-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+            <Sparkles className="h-4 w-4" />
+          </span>
+          <CardTitle>Today&apos;s Standouts</CardTitle>
+          <Badge variant="neutral" className="animate-pulse">loading</Badge>
+        </div>
+      </CardHeader>
+    </Card>
   );
 }
