@@ -193,6 +193,22 @@ html.dark { color-scheme: dark; }
   }
 }
 
+/* ── Pulse signature utilities — consumed by the components/ui kit ────────
+   Gradients are background-IMAGES (not colors), so they can't ride a Tailwind
+   bg-[var(--…)] utility; expose them as plain classes instead. */
+.bg-pulse-grad { background-image: var(--pulse-grad); }
+.bg-pulse-hero { background-image: var(--pulse-hero); }
+.text-pulse-grad {
+  background-image: var(--pulse-grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+.shadow-pulse-primary {
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--primary) 35%, transparent);
+}
+
 /* Animations */
 @keyframes fadeInUp {
   from { opacity: 0; transform: translateY(16px); }

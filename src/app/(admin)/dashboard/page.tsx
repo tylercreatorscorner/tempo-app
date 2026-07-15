@@ -17,6 +17,10 @@ import { createClient } from '@/lib/supabase/server';
 import { getActiveTenantId } from '@/lib/auth/platform-admin';
 
 import { StatCard } from '@/components/dashboard/stat-card';
+import { PageHeader } from '@/components/ui/page-header';
+import { EmptyState } from '@/components/ui/empty-state';
+import { buttonVariants } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import { DateRangePicker } from '@/components/dashboard/date-range-picker';
 import { CommunityHighlights } from '@/components/dashboard/community-highlights';
 import { CreatorAlerts } from '@/components/dashboard/creator-alerts';
@@ -269,21 +273,24 @@ export default async function AdminDashboard({ searchParams }: Props) {
       )}
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[var(--foreground)]">{headerLabel}</h1>
-          <p className="text-sm text-muted-foreground mt-1">{headerSub}</p>
-          <p className="text-xs text-muted-foreground mt-1 inline-flex items-center gap-1">
-            <span className={`h-1.5 w-1.5 rounded-full ${isStale ? 'bg-amber-400' : 'bg-emerald-400'}`} />
-            <span className="tabular-nums">{dataThroughLabel}</span>
-          </p>
-        </div>
-        <div className="flex flex-col items-end gap-1">
+      <PageHeader
+        eyebrow={brandFilter ? activeBrandName : 'Portfolio'}
+        title={headerLabel}
+        subtitle={
+          <div className="flex flex-col gap-1">
+            <span>{headerSub}</span>
+            <span className="inline-flex items-center gap-1 text-xs">
+              <span className={cn('h-1.5 w-1.5 rounded-full', isStale ? 'bg-[var(--pulse-warn)]' : 'bg-[var(--pulse-pos)]')} />
+              <span className="tabular-nums">{dataThroughLabel}</span>
+            </span>
+          </div>
+        }
+        actions={
           <Suspense fallback={null}>
             <DateRangePicker />
           </Suspense>
-        </div>
-      </div>
+        }
+      />
 
       {/* KPI strip — 4 focused metrics with sparklines */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 stagger-children">
@@ -334,21 +341,16 @@ export default async function AdminDashboard({ searchParams }: Props) {
 
       {/* Empty-state for a brand-filtered view with no activity */}
       {isEmptyBrand && (
-        <div className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
-          <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
-            <BarChart3 className="h-8 w-8 text-muted-foreground mb-3" />
-            <h3 className="text-lg font-bold">No data for {activeBrandName} in this period</h3>
-            <p className="text-sm text-muted-foreground mt-2 max-w-sm">
-              Try a different date range, or check back once creators have activity in this period.
-            </p>
-            <a
-              href="?range=last7"
-              className="mt-5 inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-card border border-border text-[var(--foreground)] text-sm font-semibold hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40 focus-visible:ring-offset-1"
-            >
+        <EmptyState
+          icon={<BarChart3 className="h-8 w-8" />}
+          title={`No data for ${activeBrandName} in this period`}
+          description="Try a different date range, or check back once creators have activity in this period."
+          action={
+            <a href="?range=last7" className={buttonVariants({ variant: 'outline' })}>
               View Last 7 Days →
             </a>
-          </div>
-        </div>
+          }
+        />
       )}
 
       {/* Brand Performance — multi-brand-only. The agency operator's most
