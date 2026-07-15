@@ -8,7 +8,6 @@ import { getCreatorRankings, getDailyTrend, getAnalyticsBrandSummaries } from '@
 import { resolveDateRange } from '@/lib/data/date-utils';
 import { aggregateCreatorsByRealName } from '@/lib/data/creator-aggregate';
 import { computeManagedGmv } from '@/lib/data/managed-gmv';
-import { getCreatorRetainers } from '@/lib/data/retainer';
 import { buildCreatorAlerts } from '@/lib/data/creator-alerts';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
 import { pctChange } from '@/lib/utils/trend';
@@ -143,7 +142,6 @@ export default async function AdminDashboard({ searchParams }: Props) {
     brandSummaries,
     prevBrandSummaries,
     creatorsNested,
-    retainerMap,
     trendsByBrandRaw,
   ] = await Promise.all([
     getAnalyticsBrandSummaries(BRAND_IDS, startDate,     endDate).catch(() => []),
@@ -152,7 +150,6 @@ export default async function AdminDashboard({ searchParams }: Props) {
       try { return (await getCreatorRankings(brand, startDate, endDate, 50)).map((c) => ({ ...c, brand })); }
       catch { return []; }
     })),
-    getCreatorRetainers(),
     Promise.all(activeBrands.map(b => getDailyTrend(b, startDate, endDate).catch(() => []))),
   ]);
 
@@ -215,21 +212,22 @@ export default async function AdminDashboard({ searchParams }: Props) {
   let prevManagedGmv = 0;
   for (const [, g] of mgPrev.byStore) prevManagedGmv += g;
 
-  // ── Per-brand monthly retainer (active creator_brands rows) → per-brand ROI
-  //    in Brand Performance. Same source as the portfolio total.
-  const { data: cbRetainerRows } = await supabase
-    .from('creator_brands').select('brand_id, retainer, product_retainers').eq('status', 'Active');
-  const idToSlug = new Map(reg.rows.map((r) => [r.id, r.slug] as const));
+  // ── Per-brand monthly retainer from managed_creators.retainer — the SAME
+  //    source /api/roster uses for Total Retainers, so the dashboard's ROI +
+  //    Retainers tie out to the /roster page (creator_brands.retainer is a
+  //    different, incomplete field). managed_creators.brand is the roster slug.
+  //    Paged past PostgREST's 1000-row cap.
   const retainerBySlug = new Map<string, number>();
-  const addRetainer = (slug: string | undefined, amt: number) => {
-    if (!slug || !amt) return;
-    retainerBySlug.set(slug, (retainerBySlug.get(slug) ?? 0) + amt);
-  };
-  for (const r of (cbRetainerRows as { brand_id: string | null; retainer: number | null; product_retainers: Record<string, number> | null }[] | null) ?? []) {
-    addRetainer(r.brand_id ? idToSlug.get(r.brand_id) : undefined, Number(r.retainer) || 0);
-    // Per-product retainers are keyed by brand slug (e.g. Dr Dent stores its
-    // retainer here rather than the base column).
-    for (const [slug, amt] of Object.entries(r.product_retainers ?? {})) addRetainer(slug, Number(amt) || 0);
+  for (let from = 0; ; from += 1000) {
+    const { data: mcPage } = await supabase
+      .from('managed_creators').select('brand, retainer').is('archived_at', null)
+      .order('id', { ascending: true }).range(from, from + 999);
+    const rows = (mcPage as { brand: string | null; retainer: number | null }[] | null) ?? [];
+    for (const r of rows) {
+      if (!r.brand) continue;
+      retainerBySlug.set(r.brand, (retainerBySlug.get(r.brand) ?? 0) + (Number(r.retainer) || 0));
+    }
+    if (rows.length < 1000) break;
   }
 
   // ── Managed-GMV daily series (chart) + Roster Health signals, in parallel.
@@ -353,8 +351,15 @@ export default async function AdminDashboard({ searchParams }: Props) {
   // ROI = managed GMV (trailing 30d) ÷ total monthly retainer — the agency's
   // return on what it pays its creators, always over a 30-day window.
   let totalRetainerSpend = 0;
-  for (const [, info] of retainerMap) totalRetainerSpend += info.retainer ?? 0;
+  for (const rosterSlug of activeRosterBrands) {
+    for (const s of new Set<string>([rosterSlug, ...expandSlugs(reg, rosterSlug)])) {
+      totalRetainerSpend += retainerBySlug.get(s) ?? 0;
+    }
+  }
   const roi = totalRetainerSpend > 0 ? managedGmv30 / totalRetainerSpend : 0;
+  const retainerBrandCount = activeRosterBrands.filter((rs) =>
+    [rs, ...expandSlugs(reg, rs)].some((s) => (retainerBySlug.get(s) ?? 0) > 0),
+  ).length;
   const managedSharePct = totals.gmv > 0 ? (managedGmv / totals.gmv) * 100 : 0;
 
   // ── Creator alerts (feeds the Creator Alerts card) ─────
@@ -435,7 +440,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
           label="Retainers /mo"
           value={formatCurrency(totalRetainerSpend)}
           accentColor="#F59E0B"
-          subValue={`across ${ALL_BRANDS.length} brand${ALL_BRANDS.length === 1 ? '' : 's'}`}
+          subValue={`across ${retainerBrandCount} brand${retainerBrandCount === 1 ? '' : 's'}`}
         />
       </div>
 
