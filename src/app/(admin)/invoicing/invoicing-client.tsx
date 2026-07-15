@@ -279,12 +279,13 @@ export function InvoicingClient({ initialOpenId }: Props) {
       />
 
       {/* Stats row — all $ amounts with counts as context */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         <StatCard
+          className="col-span-2"
+          hero
           label="Outstanding"
           value={formatCurrency(stats.outstandingAmount)}
           subValue={`${stats.pendingCount + stats.sentCount} unpaid`}
-          accentColor="var(--primary)"
         />
         <StatCard
           label="Pending"

@@ -345,12 +345,12 @@ export function PostsClient({
       )}
 
       {/* KPI strip */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
+        <StatCard className="col-span-2" hero label="Total GMV" value={data ? formatCurrency(data.totals.totalGmv) : '—'} />
         <StatCard label="Posts"        value={data ? formatNumber(data.totals.postCount)    : '—'} />
         <StatCard label="Total Views"  value={data ? formatNumber(data.totals.totalViews)   : '—'} />
         <StatCard label="Total Likes"  value={data ? formatNumber(data.totals.totalLikes)   : '—'} />
         <StatCard label="Avg Engagement" value={data ? `${data.totals.avgEngagement.toFixed(2)}%` : '—'} />
-        <StatCard label="Total GMV"    value={data ? formatCurrency(data.totals.totalGmv)   : '—'} accentColor="var(--primary)" />
       </div>
 
       {/* Capped-window notice. The KPI totals above are always computed over
