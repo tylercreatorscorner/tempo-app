@@ -3,7 +3,7 @@
 import { useState, type MouseEvent } from 'react';
 import { formatCurrency } from '@/lib/utils/format';
 import { Card, CardHeader, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 // Bespoke SVG area chart matching the Pulse mockup: accent gradient fill + a
 // clean 2.5px line, no axes/gridlines. SVG resolves CSS vars, so it's fully
@@ -51,22 +51,22 @@ export function ManagedGmvChart({
     <Card>
       <CardHeader>
         <div className="min-w-0">
-          <p className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-muted-foreground">{label}</p>
+          <p className="text-[10.5px] font-bold uppercase tracking-[0.12em] text-muted-foreground">{label}</p>
           <p className="mt-1 text-2xl font-extrabold tracking-tight tabular-nums text-foreground">{formatCurrency(total)}</p>
         </div>
         {trend !== undefined && (
-          <Badge variant={isPos ? 'positive' : 'negative'} size="sm" className="tabular-nums">
-            {isPos ? '↑' : '↓'} {Math.abs(trend).toFixed(1)}%
-          </Badge>
+          <span className={cn('shrink-0 text-[13px] font-bold tabular-nums', isPos ? 'text-[var(--pulse-pos)]' : 'text-[var(--pulse-neg)]')}>
+            {isPos ? '▲' : '▼'}{Math.round(Math.abs(trend))}%
+          </span>
         )}
       </CardHeader>
       <CardContent>
         {hasChart ? (
-          <div className="relative h-[200px]" onMouseMove={onMove} onMouseLeave={() => setHi(null)}>
+          <div className="relative h-[150px]" onMouseMove={onMove} onMouseLeave={() => setHi(null)}>
             <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="absolute inset-0 h-full w-full">
               <defs>
                 <linearGradient id="mgv-fill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0" stopColor="var(--primary)" stopOpacity="0.24" />
+                  <stop offset="0" stopColor="var(--primary)" stopOpacity="0.28" />
                   <stop offset="1" stopColor="var(--primary)" stopOpacity="0" />
                 </linearGradient>
               </defs>
@@ -107,7 +107,7 @@ export function ManagedGmvChart({
             )}
           </div>
         ) : (
-          <div className="grid h-[200px] place-items-center text-sm text-muted-foreground">Not enough data for a trend</div>
+          <div className="grid h-[150px] place-items-center text-sm text-muted-foreground">Not enough data for a trend</div>
         )}
       </CardContent>
     </Card>

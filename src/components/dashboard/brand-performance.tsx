@@ -1,10 +1,7 @@
 import Link from 'next/link';
-import { ArrowUpRight, ArrowDownRight, Building2 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils/format';
 import { getBrandRegistry, brandLabel, brandColor } from '@/lib/data/brand-registry';
-import { SparklineStrip } from '@/components/charts/sparkline-strip';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 
 export interface BrandRowData {
   slug: string;
@@ -24,25 +21,20 @@ interface Props {
   range?: string;
 }
 
+const TH = 'text-[10px] font-bold uppercase tracking-[0.1em] text-muted-foreground';
+const COLS = 'grid grid-cols-[1fr_auto_auto_auto_auto] items-center gap-4';
+
 /**
- * Per-brand performance table — the agency-client view's most important section.
- * Lets a multi-brand operator see "which brand is up, which is down" at a glance,
- * and click any row to filter the dashboard to that brand. Only renders when the
- * tenant has >1 brand and no brand filter is currently applied.
- *
- * Two GMV columns: Total GMV (everything) and Managed GMV (just creators on
- * the agency's roster). The Managed column shows the % of total managed below
- * the dollar amount so the agency operator can see their contribution share
- * brand-by-brand.
+ * Per-brand performance table (Pulse mockup) — the agency-client view's key
+ * section. Columns: Brand · GMV · Managed · ROI · Trend. Click any row to filter
+ * the dashboard to that brand. Only renders with >1 brand and no brand filter.
  */
 export async function BrandPerformance({ brands, range }: Props) {
   if (brands.length === 0) return null;
 
   const reg = await getBrandRegistry();
-
   // Sort by current GMV desc — most-impactful brands at the top.
   const rows = [...brands].sort((a, b) => b.currentGmv - a.currentGmv);
-  const totalGmv = rows.reduce((s, b) => s + b.currentGmv, 0);
 
   function hrefFor(slug: string) {
     const params = new URLSearchParams();
@@ -53,99 +45,67 @@ export async function BrandPerformance({ brands, range }: Props) {
 
   return (
     <Card className="overflow-hidden">
-      <CardHeader className="border-b border-border">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="h-7 w-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
-            <Building2 className="h-4 w-4" />
-          </span>
-          <CardTitle>Brand Performance</CardTitle>
-        </div>
-        <span className="text-xs text-muted-foreground">Click a brand to drill in</span>
+      <CardHeader>
+        <CardTitle eyebrow>Brand Performance · 30d</CardTitle>
+        <span className="rounded-full border border-border bg-secondary px-2.5 py-0.5 text-xs font-semibold text-muted-foreground">
+          {rows.length} {rows.length === 1 ? 'brand' : 'brands'}
+        </span>
       </CardHeader>
 
-      {/* Column header row — anchors the two-GMV-column layout */}
-      <div className="grid grid-cols-[auto_1fr_auto_auto_auto_auto_auto] items-center gap-4 px-5 py-2 border-b border-border bg-muted/40">
-        <span className="w-2.5" />
-        <span />
-        <span className="hidden sm:block w-24" />
-        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground text-right min-w-[80px]">Total</span>
-        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground text-right min-w-[90px]">Managed</span>
-        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground text-right min-w-[52px]">ROI</span>
-        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground text-right min-w-[68px]">Trend</span>
+      {/* Column headers */}
+      <div className={`${COLS} border-b border-border px-5 py-2`}>
+        <span className={TH}>Brand</span>
+        <span className={`${TH} min-w-[84px] text-right`}>GMV</span>
+        <span className={`${TH} min-w-[84px] text-right`}>Managed</span>
+        <span className={`${TH} min-w-[52px] text-right`}>ROI</span>
+        <span className={`${TH} min-w-[60px] text-right`}>Trend</span>
       </div>
 
       <div className="divide-y divide-border">
         {rows.map((b) => {
           const color = brandColor(reg, b.slug);
-          const name  = brandLabel(reg, b.slug);
-          const sharePct = totalGmv > 0 ? (b.currentGmv / totalGmv) * 100 : 0;
-          const managedPctOfBrand = b.currentGmv > 0
-            ? (b.managedGmv / b.currentGmv) * 100
-            : 0;
+          const name = brandLabel(reg, b.slug);
           const isPositive = b.trend !== undefined && b.trend >= 0;
 
           return (
             <Link
               key={b.slug}
               href={hrefFor(b.slug)}
-              className="grid grid-cols-[auto_1fr_auto_auto_auto_auto_auto] items-center gap-4 px-5 py-3 hover:bg-muted/60 transition-colors group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40 focus-visible:ring-inset"
+              className={`${COLS} group px-5 py-3 transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40 focus-visible:ring-inset`}
             >
-              {/* Brand color dot */}
-              <span
-                className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                style={{ backgroundColor: color }}
-              />
-
-              {/* Brand name + share of portfolio */}
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-[var(--foreground)] truncate group-hover:text-[var(--primary)] transition-colors">
+              {/* Brand — square color dot + name */}
+              <span className="flex min-w-0 items-center gap-2.5">
+                <span className="h-2.5 w-2.5 flex-shrink-0 rounded-[3px]" style={{ backgroundColor: color }} />
+                <span className="truncate text-[13.5px] font-bold text-foreground transition-colors group-hover:text-[var(--primary)]">
                   {name}
-                </p>
-                <p className="text-[11px] font-mono tabular-nums text-muted-foreground">{sharePct.toFixed(1)}% of portfolio</p>
-              </div>
-
-              {/* Sparkline */}
-              <div className="hidden sm:block w-24">
-                {b.sparkline.length > 1 ? (
-                  <SparklineStrip data={b.sparkline} color={color} height={28} />
-                ) : (
-                  <div className="h-[28px]" />
-                )}
-              </div>
+                </span>
+              </span>
 
               {/* Total GMV */}
-              <p className="text-sm font-bold font-mono text-[var(--foreground)] tabular-nums text-right min-w-[80px]">
+              <span className="min-w-[84px] text-right text-[13.5px] font-semibold tabular-nums text-foreground">
                 {formatCurrency(b.currentGmv)}
-              </p>
+              </span>
 
-              {/* Managed GMV — what the agency is actually driving for this brand */}
-              <div className="text-right min-w-[90px]">
-                <p className="text-sm font-bold font-mono text-emerald-600 tabular-nums">
-                  {formatCurrency(b.managedGmv)}
-                </p>
-                {b.currentGmv > 0 && (
-                  <p className="text-[11px] font-mono text-muted-foreground tabular-nums">
-                    {managedPctOfBrand.toFixed(0)}% of total
-                  </p>
-                )}
-              </div>
+              {/* Managed GMV — the agency's contribution for this brand */}
+              <span className="min-w-[84px] text-right text-[13.5px] font-semibold tabular-nums text-foreground">
+                {formatCurrency(b.managedGmv)}
+              </span>
 
               {/* ROI — trailing-30d managed GMV ÷ monthly retainer */}
-              <p className="text-sm font-bold font-mono text-[var(--foreground)] tabular-nums text-right min-w-[52px]">
-                {b.roi != null && b.roi > 0 ? `${b.roi.toFixed(1)}x` : '—'}
-              </p>
+              <span className="min-w-[52px] text-right text-[13.5px] font-semibold tabular-nums text-foreground">
+                {b.roi != null && b.roi > 0 ? `${b.roi.toFixed(1)}×` : '—'}
+              </span>
 
-              {/* Trend */}
-              <div className="min-w-[68px] text-right">
+              {/* Trend — inline colored delta with a filled triangle */}
+              <span className="min-w-[60px] text-right text-[13px] font-bold tabular-nums">
                 {b.trend !== undefined ? (
-                  <Badge variant={isPositive ? 'positive' : 'negative'} size="sm" className="gap-0.5 tabular-nums">
-                    {isPositive ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
-                    {Math.abs(b.trend).toFixed(1)}%
-                  </Badge>
+                  <span style={{ color: isPositive ? 'var(--pulse-pos)' : 'var(--pulse-neg)' }}>
+                    {isPositive ? '▲' : '▼'}{Math.round(Math.abs(b.trend))}%
+                  </span>
                 ) : (
-                  <span className="text-xs text-muted-foreground">—</span>
+                  <span className="text-muted-foreground">—</span>
                 )}
-              </div>
+              </span>
             </Link>
           );
         })}

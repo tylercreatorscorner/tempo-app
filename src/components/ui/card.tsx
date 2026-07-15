@@ -24,11 +24,22 @@ export const CardHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<
 );
 CardHeader.displayName = 'CardHeader';
 
-export const CardTitle = React.forwardRef<HTMLHeadingElement, React.HTMLAttributes<HTMLHeadingElement>>(
-  ({ className, ...props }, ref) => (
-    <h3 ref={ref} className={cn('text-base font-bold tracking-tight text-foreground', className)} {...props} />
-  ),
-);
+export const CardTitle = React.forwardRef<
+  HTMLHeadingElement,
+  React.HTMLAttributes<HTMLHeadingElement> & { eyebrow?: boolean }
+>(({ className, eyebrow, ...props }, ref) => (
+  <h3
+    ref={ref}
+    className={cn(
+      eyebrow
+        // Small uppercase section label (the Pulse `.ct` header style).
+        ? 'text-[10.5px] font-bold uppercase tracking-[0.12em] text-muted-foreground'
+        : 'text-base font-bold tracking-tight text-foreground',
+      className,
+    )}
+    {...props}
+  />
+));
 CardTitle.displayName = 'CardTitle';
 
 export const CardDescription = React.forwardRef<HTMLParagraphElement, React.HTMLAttributes<HTMLParagraphElement>>(

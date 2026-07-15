@@ -39,16 +39,16 @@ export function StatCard({
 
   if (hero) {
     return (
-      <div className={cn('bg-pulse-hero relative overflow-hidden rounded-xl p-4 text-white', hasSpark && 'pb-0', className)}>
-        <p className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-white/70">{label}</p>
-        <p className="mt-2 text-2xl font-extrabold tracking-tight tabular-nums">{value}</p>
+      <div className={cn('bg-pulse-hero relative overflow-hidden rounded-[20px] p-4 text-white', hasSpark && 'pb-0', className)}>
+        <p className="text-[10.5px] font-bold uppercase tracking-[0.12em] text-white/70">{label}</p>
+        <p className="mt-2 text-[28px] leading-none font-extrabold tracking-tight tabular-nums">{value}</p>
         {(trend !== undefined || subValue || trendLabel) && (
           <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs font-semibold text-white/80">
             {trend !== undefined && (
-              <span className="tabular-nums">{isPositive ? '↑' : '↓'} {Math.abs(trend).toFixed(1)}%</span>
+              <span className="tabular-nums">{isPositive ? '▲' : '▼'}{Math.round(Math.abs(trend))}%</span>
             )}
             {trendLabel && <span className="text-white/60">{trendLabel}</span>}
-            {subValue && <span className="font-mono tabular-nums text-[11px] text-white/70">{subValue}</span>}
+            {subValue && <span className="tabular-nums text-xs text-white/70">{subValue}</span>}
           </div>
         )}
         {hasSpark && (
@@ -62,20 +62,20 @@ export function StatCard({
 
   return (
     <div
-      className={cn('rounded-xl border border-border bg-card shadow-[var(--pulse-elev-1)] p-4', hasSpark && 'pb-0', className)}
+      className={cn('rounded-[20px] border border-border bg-card shadow-[var(--pulse-elev-1)] p-4', hasSpark && 'pb-0', className)}
       style={accentColor ? { borderLeft: `3px solid ${accentColor}` } : undefined}
     >
-      <p className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-muted-foreground">{label}</p>
-      <p className="mt-2 text-2xl font-extrabold tracking-tight tabular-nums text-foreground">{value}</p>
+      <p className="text-[10.5px] font-bold uppercase tracking-[0.12em] text-muted-foreground">{label}</p>
+      <p className="mt-2 text-[28px] leading-none font-extrabold tracking-tight tabular-nums text-foreground">{value}</p>
       {(trend !== undefined || subValue || trendLabel) && (
         <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs font-semibold">
           {trend !== undefined && (
             <span className="tabular-nums" style={{ color: isPositive ? 'var(--pulse-pos)' : 'var(--pulse-neg)' }}>
-              {isPositive ? '↑' : '↓'} {Math.abs(trend).toFixed(1)}%
+              {isPositive ? '▲' : '▼'}{Math.round(Math.abs(trend))}%
             </span>
           )}
           {trendLabel && <span className="text-muted-foreground">{trendLabel}</span>}
-          {subValue && <span className="font-mono tabular-nums text-[11px] text-muted-foreground">{subValue}</span>}
+          {subValue && <span className="tabular-nums text-xs text-muted-foreground">{subValue}</span>}
         </div>
       )}
       {hasSpark && (

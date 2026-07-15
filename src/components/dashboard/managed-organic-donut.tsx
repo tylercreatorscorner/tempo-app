@@ -17,9 +17,9 @@ export function ManagedOrganicDonut({ managed, organic }: { managed: number; org
   const managedLen = total > 0 ? (managed / total) * CIRC : 0;
 
   return (
-    <div className="flex items-center gap-6">
-      <svg viewBox="0 0 100 100" className="h-[112px] w-[112px] shrink-0 -rotate-90" aria-hidden="true">
-        <circle cx="50" cy="50" r={R} fill="none" stroke="var(--muted-foreground)" strokeOpacity="0.2" strokeWidth="13" />
+    <div className="flex items-center gap-[18px]">
+      <svg viewBox="0 0 100 100" className="h-[104px] w-[104px] shrink-0 -rotate-90" aria-hidden="true">
+        <circle cx="50" cy="50" r={R} fill="none" stroke="var(--border)" strokeWidth="14" />
         {total > 0 && (
           <circle
             cx="50"
@@ -27,7 +27,7 @@ export function ManagedOrganicDonut({ managed, organic }: { managed: number; org
             r={R}
             fill="none"
             stroke="var(--primary)"
-            strokeWidth="13"
+            strokeWidth="14"
             strokeLinecap="round"
             strokeDasharray={`${managedLen.toFixed(2)} ${CIRC.toFixed(2)}`}
           />
@@ -36,19 +36,19 @@ export function ManagedOrganicDonut({ managed, organic }: { managed: number; org
       <div className="min-w-0 space-y-4">
         <div>
           <div className="flex items-center gap-2">
-            <span className="h-2.5 w-2.5 rounded-full bg-primary" />
-            <span className="text-2xl font-extrabold tracking-tight tabular-nums text-foreground">{managedPct}%</span>
+            <span className="h-2.5 w-2.5 rounded-[3px] bg-primary" />
+            <span className="text-[19px] font-extrabold tracking-tight tabular-nums text-foreground">{managedPct}%</span>
           </div>
-          <p className="mt-0.5 text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">
+          <p className="mt-0.5 text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
             Managed · <span className="font-mono tabular-nums normal-case">{formatCurrency(managed)}</span>
           </p>
         </div>
         <div>
           <div className="flex items-center gap-2">
-            <span className="h-2.5 w-2.5 rounded-full bg-muted-foreground/40" />
-            <span className="text-2xl font-extrabold tracking-tight tabular-nums text-foreground">{organicPct}%</span>
+            <span className="h-2.5 w-2.5 rounded-[3px] bg-border" />
+            <span className="text-base font-extrabold tracking-tight tabular-nums text-foreground">{organicPct}%</span>
           </div>
-          <p className="mt-0.5 text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">
+          <p className="mt-0.5 text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
             Organic · <span className="font-mono tabular-nums normal-case">{formatCurrency(organic)}</span>
           </p>
         </div>

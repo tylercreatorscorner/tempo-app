@@ -323,10 +323,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
   const isStale    = daysStale != null && daysStale > 3;
 
   // ── Header copy ─────────────────────────────────────────────────────────
-  const activeBrandColor = brandFilter ? (reg.bySlug.get(brandFilter)?.color ?? null) : null;
   const activeBrandName  = brandFilter ? brandLabel(reg, brandFilter) : null;
-  const headerLabel      = brandFilter ? `${activeBrandName} Today` : 'Today';
-  const headerSub        = brandFilter ? 'Brand performance brief' : 'Portfolio brief';
   const dataThroughLabel = latestDate
     ? `Data through ${format(new Date(latestDate), 'MMM d, yyyy')}`
     : 'Awaiting first data sync';
@@ -347,27 +344,36 @@ export default async function AdminDashboard({ searchParams }: Props) {
       <PageHeader
         eyebrow={brandFilter ? `${activeBrandName} · Today` : 'Portfolio · Today'}
         title={<Greeting name={userName} />}
-        subtitle={
-          <span className="inline-flex items-center gap-1 text-xs">
-            <span className={cn('h-1.5 w-1.5 rounded-full', isStale ? 'bg-[var(--pulse-warn)]' : 'bg-[var(--pulse-pos)]')} />
-            <span className="tabular-nums">{dataThroughLabel}</span>
-          </span>
-        }
         actions={
-          <Suspense fallback={null}>
-            <DateRangePicker />
-          </Suspense>
+          <div className="flex flex-wrap items-center gap-2">
+            <Suspense fallback={null}>
+              <DateRangePicker />
+            </Suspense>
+            {/* "Data through" live status chip — mirrors the mockup's tinted
+                `.chip.live`; green when fresh, amber when the data is stale. */}
+            <span
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold text-muted-foreground shadow-sm',
+                isStale
+                  ? 'border-[var(--pulse-warn)]/30 bg-[var(--pulse-warn)]/10'
+                  : 'border-[var(--pulse-pos)]/25 bg-[var(--pulse-pos)]/10',
+              )}
+            >
+              <span className={cn('h-1.5 w-1.5 rounded-full', isStale ? 'bg-[var(--pulse-warn)]' : 'bg-[var(--pulse-pos)]')} />
+              <span className="tabular-nums">{dataThroughLabel}</span>
+            </span>
+          </div>
         }
       />
 
-      {/* KPI strip — 5 metrics, Managed GMV as the gradient hero (mockup) */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 stagger-children">
+      {/* KPI strip — 5 metrics, Managed GMV as the gradient hero (mockup).
+          Flat cards (no accent left-border) to match the mockup KPIs. */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-[14px] stagger-children">
         <StatCard
           label="Total GMV"
           value={formatCurrency(totals.gmv)}
           trend={gmvTrend}
           trendLabel="vs prev"
-          accentColor={activeBrandColor ?? undefined}
         />
         <StatCard
           hero
@@ -379,19 +385,16 @@ export default async function AdminDashboard({ searchParams }: Props) {
         <StatCard
           label="Managed Share"
           value={totals.gmv > 0 ? `${managedSharePct.toFixed(0)}%` : '—'}
-          accentColor="#10B981"
           subValue="of portfolio"
         />
         <StatCard
           label="ROI · 30d"
-          value={roi > 0 ? `${roi.toFixed(1)}x` : 'N/A'}
-          accentColor="#0EA5E9"
+          value={roi > 0 ? `${roi.toFixed(1)}×` : 'N/A'}
           subValue="GMV ÷ retainer"
         />
         <StatCard
           label="Retainers /mo"
           value={formatCurrency(totalRetainerSpend)}
-          accentColor="#F59E0B"
           subValue={`across ${retainerBrandCount} brand${retainerBrandCount === 1 ? '' : 's'}`}
         />
       </div>
@@ -418,11 +421,11 @@ export default async function AdminDashboard({ searchParams }: Props) {
               data={managedDaily}
               total={managedGmv}
               trend={managedTrend}
-              label={brandFilter ? `${activeBrandName} · Managed GMV` : 'Managed GMV'}
+              label={`${brandFilter ? `${activeBrandName} · ` : ''}Managed GMV · ${periodLength}d`}
             />
           </div>
           <Card className="lg:col-span-1">
-            <CardHeader><CardTitle>Managed vs Organic</CardTitle></CardHeader>
+            <CardHeader><CardTitle eyebrow>Managed vs Organic</CardTitle></CardHeader>
             <CardContent>
               <ManagedOrganicDonut managed={managedGmv} organic={unmanagedGmv} />
             </CardContent>
