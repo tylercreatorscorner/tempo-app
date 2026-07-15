@@ -230,12 +230,13 @@ export function ProductsClient({ brands, selectedBrand, startDate, endDate }: Pr
       )}
 
       {/* KPI strip */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         <StatCard
+          className="col-span-2"
+          hero
           label="Total GMV"
           value={data ? formatCurrency(data.kpis.totalGmv) : '—'}
           trend={data?.kpis.gmvChangePct ?? undefined}
-          accentColor="var(--primary)"
         />
         <StatCard
           label="Active Products"
