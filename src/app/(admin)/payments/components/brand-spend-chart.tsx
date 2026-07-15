@@ -2,6 +2,7 @@
 
 import { HorizontalBars } from '@/components/charts/bar-chart';
 import { fmtCompactCurrency } from '@/components/charts/format';
+import { formatCurrency } from '@/lib/utils/format';
 import { useBrandMeta } from '@/hooks/use-brand-meta';
 
 interface Props {
@@ -26,6 +27,7 @@ export function BrandSpendChart({ data }: Props) {
         color: brandMeta.color(brand),
       }))}
       format={fmtCompactCurrency}
+      formatFull={formatCurrency}
     />
   );
 }

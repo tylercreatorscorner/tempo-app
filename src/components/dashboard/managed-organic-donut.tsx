@@ -28,7 +28,6 @@ export function ManagedOrganicDonut({ managed, organic }: { managed: number; org
             fill="none"
             stroke="var(--primary)"
             strokeWidth="14"
-            strokeLinecap="round"
             strokeDasharray={`${managedLen.toFixed(2)} ${CIRC.toFixed(2)}`}
           />
         )}

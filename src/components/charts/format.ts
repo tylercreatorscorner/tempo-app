@@ -5,7 +5,8 @@ import { formatCurrency, formatNumber } from '@/lib/utils/format';
 /** Compact currency for axis ticks / dense labels: $1.2M, $48K, $920. */
 export function fmtCompactCurrency(v: number): string {
   const a = Math.abs(v);
-  if (a >= 1_000_000) return `$${(v / 1_000_000).toFixed(a >= 10_000_000 ? 0 : 1)}M`;
+  // 999_500 (not 1_000_000) so values that round to 1000K roll over to $1.0M.
+  if (a >= 999_500) return `$${(v / 1_000_000).toFixed(a >= 10_000_000 ? 0 : 1)}M`;
   if (a >= 1_000) return `$${Math.round(v / 1_000)}K`;
   return `$${Math.round(v)}`;
 }
@@ -13,7 +14,7 @@ export function fmtCompactCurrency(v: number): string {
 /** Compact plain number: 1.2M, 48K, 920. */
 export function fmtCompact(v: number): string {
   const a = Math.abs(v);
-  if (a >= 1_000_000) return `${(v / 1_000_000).toFixed(a >= 10_000_000 ? 0 : 1)}M`;
+  if (a >= 999_500) return `${(v / 1_000_000).toFixed(a >= 10_000_000 ? 0 : 1)}M`;
   if (a >= 1_000) return `${Math.round(v / 1_000)}K`;
   return `${Math.round(v)}`;
 }

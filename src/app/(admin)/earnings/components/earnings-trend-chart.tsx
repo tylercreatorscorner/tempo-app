@@ -14,8 +14,6 @@ export interface SeriesPoint {
 interface Props {
   data: SeriesPoint[];
   height?: number;
-  /** Highlight a specific month (vertical line + tooltip default). */
-  activeMonth?: string;
 }
 
 function fmtMonth(ym: string) {

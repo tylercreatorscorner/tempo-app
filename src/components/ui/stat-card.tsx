@@ -53,7 +53,7 @@ export function StatCard({
         {(trend !== undefined || subValue || trendLabel) && (
           <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs font-semibold text-white/80">
             {trend !== undefined && (
-              <span className="tabular-nums">{isPositive ? '▲' : '▼'}{Math.round(Math.abs(trend))}%</span>
+              <span className="tabular-nums">{isPositive ? '▲' : '▼'}{Math.abs(trend) < 1 ? Math.abs(trend).toFixed(1) : Math.round(Math.abs(trend))}%</span>
             )}
             {trendLabel && <span className="text-white/60">{trendLabel}</span>}
             {subValue && <span className="tabular-nums text-xs text-white/70">{subValue}</span>}
@@ -82,7 +82,7 @@ export function StatCard({
         <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs font-semibold">
           {trend !== undefined && (
             <span className="tabular-nums" style={{ color: isPositive ? 'var(--pulse-pos)' : 'var(--pulse-neg)' }}>
-              {isPositive ? '▲' : '▼'}{Math.round(Math.abs(trend))}%
+              {isPositive ? '▲' : '▼'}{Math.abs(trend) < 1 ? Math.abs(trend).toFixed(1) : Math.round(Math.abs(trend))}%
             </span>
           )}
           {trendLabel && <span className="text-muted-foreground">{trendLabel}</span>}

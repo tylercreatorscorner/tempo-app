@@ -8,7 +8,6 @@ import { getCreatorRankings, getDailyTrend, getAnalyticsBrandSummaries } from '@
 import { resolveDateRange } from '@/lib/data/date-utils';
 import { aggregateCreatorsByRealName } from '@/lib/data/creator-aggregate';
 import { computeManagedGmv } from '@/lib/data/managed-gmv';
-import { buildCreatorAlerts } from '@/lib/data/creator-alerts';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
 import { pctChange } from '@/lib/utils/trend';
 import { getBrandRegistry, brandLabel, expandSlugs } from '@/lib/data/brand-registry';
@@ -112,27 +111,17 @@ export default async function AdminDashboard({ searchParams }: Props) {
     Promise.all(activeBrands.map(b => getDailyTrend(b, startDate, endDate).catch(() => []))),
   ]);
 
-  // ── Aggregate trend across active brands ────────────────────────────────
-  // gmv-only series for the KPI sparkline, plus a full 4-metric series (summed
-  // across brands) handed to the fold-in chart so the helper skips its own trend
-  // fetch — the per-brand sum is verified identical to the aggregate RPC.
+  // ── Aggregate trend across active brands (gmv-only) — feeds the stale-data
+  //    freshness check (latest data date).
   const trendByDate = new Map<string, number>();
-  const trendFullByDate = new Map<string, { report_date: string; daily_gmv: number; daily_orders: number; daily_items_sold: number; daily_videos: number }>();
   for (const brandTrend of trendsByBrandRaw) {
     for (const day of brandTrend) {
       trendByDate.set(day.report_date, (trendByDate.get(day.report_date) ?? 0) + day.daily_gmv);
-      const e = trendFullByDate.get(day.report_date) ?? { report_date: day.report_date, daily_gmv: 0, daily_orders: 0, daily_items_sold: 0, daily_videos: 0 };
-      e.daily_gmv += day.daily_gmv;
-      e.daily_orders += day.daily_orders;
-      e.daily_items_sold += day.daily_items_sold;
-      e.daily_videos += day.daily_videos;
-      trendFullByDate.set(day.report_date, e);
     }
   }
   const aggregatedTrend = Array.from(trendByDate.entries())
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([date, gmv]) => ({ date, gmv }));
-  const trendCurRows = Array.from(trendFullByDate.values());
 
   // ── Creator-side parallel fetch: managed-GMV-by-brand (for the
   //    BrandPerformance "Managed" column) and the grouped creator list
@@ -172,17 +161,32 @@ export default async function AdminDashboard({ searchParams }: Props) {
   //    Retainers tie out to the /roster page (creator_brands.retainer is a
   //    different, incomplete field). managed_creators.brand is the roster slug.
   //    Paged past PostgREST's 1000-row cap.
+  //    Deduped by (creator_id, brand) taking MAX — matches /api/roster exactly,
+  //    so re-add / merged-identity duplicate rows don't double-count the retainer
+  //    (which would inflate Retainers/mo and deflate ROI vs the /roster page).
   const retainerBySlug = new Map<string, number>();
+  const maxByCreatorBrand = new Map<string, { brand: string; retainer: number }>();
   for (let from = 0; ; from += 1000) {
     const { data: mcPage } = await supabase
-      .from('managed_creators').select('brand, retainer').is('archived_at', null)
+      .from('managed_creators').select('creator_id, brand, retainer').is('archived_at', null)
       .order('id', { ascending: true }).range(from, from + 999);
-    const rows = (mcPage as { brand: string | null; retainer: number | null }[] | null) ?? [];
+    const rows = (mcPage as { creator_id: string | null; brand: string | null; retainer: number | null }[] | null) ?? [];
     for (const r of rows) {
       if (!r.brand) continue;
-      retainerBySlug.set(r.brand, (retainerBySlug.get(r.brand) ?? 0) + (Number(r.retainer) || 0));
+      const ret = Number(r.retainer) || 0;
+      if (r.creator_id) {
+        const k = `${r.creator_id}|${r.brand}`;
+        const prev = maxByCreatorBrand.get(k);
+        if (!prev || ret > prev.retainer) maxByCreatorBrand.set(k, { brand: r.brand, retainer: ret });
+      } else {
+        // Unlinked rows can't be deduped by creator — count each once.
+        retainerBySlug.set(r.brand, (retainerBySlug.get(r.brand) ?? 0) + ret);
+      }
     }
     if (rows.length < 1000) break;
+  }
+  for (const { brand, retainer } of maxByCreatorBrand.values()) {
+    retainerBySlug.set(brand, (retainerBySlug.get(brand) ?? 0) + retainer);
   }
 
   // ── Managed-GMV daily series (chart) + Roster Health signals, in parallel.
@@ -217,9 +221,20 @@ export default async function AdminDashboard({ searchParams }: Props) {
       managedByDay.set(day, (managedByDay.get(day) ?? 0) + (Number(s.gmv) || 0));
     }
   }
-  const managedDaily = Array.from(managedByDay.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, gmv]) => ({ date, gmv }));
+  // Zero-fill every day in the range: the chart positions points by index, so
+  // dropping zero-GMV days would collapse multi-day gaps and distort the timeline.
+  const managedDaily: { date: string; gmv: number }[] = [];
+  const seriesEnd = new Date(`${endDate}T00:00:00Z`);
+  for (let d = new Date(`${startDate}T00:00:00Z`); d <= seriesEnd; d.setUTCDate(d.getUTCDate() + 1)) {
+    const day = d.toISOString().slice(0, 10);
+    managedDaily.push({ date: day, gmv: managedByDay.get(day) ?? 0 });
+  }
+  // The chart's headline ties to the plotted series' own total so the card is
+  // internally consistent (area == number above it). This roster_creator_daily
+  // sum can differ slightly from the canonical computeManagedGmv hero KPI — the
+  // known managed-GMV multi-source gap (same as the profile/affiliates figures),
+  // pending source unification.
+  const managedDailyTotal = managedDaily.reduce((s, p) => s + p.gmv, 0);
 
   // ── Top Videos — top-10 managed posts by GMV (real videos.video_id, dedup'd
   //    + correctly attributed by get_managed_posts). No thumbnail field exists,
@@ -284,25 +299,12 @@ export default async function AdminDashboard({ searchParams }: Props) {
     for (const s of new Set<string>([rosterSlug, ...dataSlugSet])) brandRetainer += retainerBySlug.get(s) ?? 0;
     const brandRoi = brandRetainer > 0 ? managed30ForBrand / brandRetainer : undefined;
 
-    // Sparkline = daily GMV across this brand's data slugs
-    const sparkByDate = new Map<string, number>();
-    for (let i = 0; i < activeBrands.length; i++) {
-      if (!dataSlugSet.has(activeBrands[i])) continue;
-      for (const day of trendsByBrandRaw[i]) {
-        sparkByDate.set(day.report_date, (sparkByDate.get(day.report_date) ?? 0) + day.daily_gmv);
-      }
-    }
-    const sparkline = Array.from(sparkByDate.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([, gmv]) => gmv);
-
     return {
       slug: rosterSlug,
       currentGmv,
       managedGmv: managedGmvForBrand,
       prevGmv,
       trend: pctChange(currentGmv, prevGmv),
-      sparkline,
       roi: brandRoi,
     };
   });
@@ -340,7 +342,6 @@ export default async function AdminDashboard({ searchParams }: Props) {
   }, { gmv: 0, orders: 0 });
 
   const gmvTrend     = pctChange(totals.gmv,    prevTotals.gmv);
-  const ordersTrend  = pctChange(totals.orders, prevTotals.orders);
   const managedTrend = pctChange(managedGmv,    prevManagedGmv);
 
   // Viewer's name for the greeting (user_profiles.name, then auth metadata).
@@ -368,8 +369,6 @@ export default async function AdminDashboard({ searchParams }: Props) {
   ).length;
   const managedSharePct = totals.gmv > 0 ? (managedGmv / totals.gmv) * 100 : 0;
 
-  // ── Creator alerts (feeds the Creator Alerts card) ─────
-  const allAlerts = buildCreatorAlerts(groupedCreators);
 
   // ── Stale-data check ────────────────────────────────────────────────────
   const latestDate = aggregatedTrend.length > 0 ? aggregatedTrend[aggregatedTrend.length - 1].date : null;
@@ -478,7 +477,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
           <div className="lg:col-span-2">
             <ManagedGmvChart
               data={managedDaily}
-              total={managedGmv}
+              total={managedDailyTotal}
               trend={managedTrend}
               label={`${brandFilter ? `${activeBrandName} · ` : ''}Managed GMV · ${periodLength}d`}
             />

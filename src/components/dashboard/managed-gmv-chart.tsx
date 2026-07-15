@@ -56,7 +56,7 @@ export function ManagedGmvChart({
         </div>
         {trend !== undefined && (
           <span className={cn('shrink-0 text-[13px] font-bold tabular-nums', isPos ? 'text-[var(--pulse-pos)]' : 'text-[var(--pulse-neg)]')}>
-            {isPos ? '▲' : '▼'}{Math.round(Math.abs(trend))}%
+            {isPos ? '▲' : '▼'}{Math.abs(trend) < 1 ? Math.abs(trend).toFixed(1) : Math.round(Math.abs(trend))}%
           </span>
         )}
       </CardHeader>
@@ -94,7 +94,7 @@ export function ManagedGmvChart({
                   style={{ left: `${Math.min(92, Math.max(8, xPct(hi!)))}%` }}
                 >
                   <span className="text-background/60">
-                    {new Date(hd.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} ·{' '}
+                    {new Date(hd.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })} ·{' '}
                   </span>
                   <span className="tabular-nums">{formatCurrency(hd.gmv)}</span>
                 </div>

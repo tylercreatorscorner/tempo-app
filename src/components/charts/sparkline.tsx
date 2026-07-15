@@ -30,7 +30,10 @@ function fmtDay(iso?: string): string | null {
 }
 
 export function Sparkline({ data, days, color = 'var(--primary)', width = 88, height = 28, format, area = true }: Props) {
-  const series = (data ?? []).filter((v) => Number.isFinite(v));
+  // Keep each day aligned with its value while dropping non-finite points, so a
+  // hover label can't slide out of sync with the value it describes.
+  const kept = (data ?? []).map((v, i) => ({ v, day: days?.[i] })).filter((p) => Number.isFinite(p.v));
+  const series = kept.map((p) => p.v);
   const [hover, setHover] = useState<{ i: number; x: number; y: number } | null>(null);
 
   const hasData = series.length > 1 && series.some((v) => v > 0);
@@ -55,7 +58,7 @@ export function Sparkline({ data, days, color = 'var(--primary)', width = 88, he
   }
 
   const hi = hover?.i ?? null;
-  const dayLabel = hi != null ? fmtDay(days?.[hi]) : null;
+  const dayLabel = hi != null ? fmtDay(kept[hi]?.day) : null;
 
   return (
     <div className="relative" style={{ width, height }} onMouseMove={onMove} onMouseLeave={() => setHover(null)}>

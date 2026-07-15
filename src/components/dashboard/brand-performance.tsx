@@ -11,8 +11,7 @@ export interface BrandRowData {
   managedGmv: number;
   prevGmv: number;
   trend: number | undefined;
-  sparkline: number[];
-  /** Trailing-30d managed GMV ÷ this brand's monthly retainer. */
+  /** Trailing-30d managed GMV / this brand's monthly retainer. */
   roi?: number;
 }
 
@@ -59,7 +58,7 @@ export async function BrandPerformance({ brands, range }: Props) {
   return (
     <Card className="overflow-hidden">
       <CardHeader>
-        <CardTitle eyebrow>Brand Performance · 30d</CardTitle>
+        <CardTitle eyebrow>Brand Performance</CardTitle>
         <span className="rounded-full border border-border bg-secondary px-2.5 py-0.5 text-xs font-semibold text-muted-foreground">
           {rows.length} {rows.length === 1 ? 'brand' : 'brands'}
         </span>
@@ -120,7 +119,7 @@ export async function BrandPerformance({ brands, range }: Props) {
               <span className="min-w-[54px] text-right text-[13px] font-bold tabular-nums">
                 {b.trend !== undefined ? (
                   <span style={{ color: isPositive ? 'var(--pulse-pos)' : 'var(--pulse-neg)' }}>
-                    {isPositive ? '▲' : '▼'}{Math.round(Math.abs(b.trend))}%
+                    {isPositive ? '▲' : '▼'}{Math.abs(b.trend) < 1 ? Math.abs(b.trend).toFixed(1) : Math.round(Math.abs(b.trend))}%
                   </span>
                 ) : (
                   <span className="text-muted-foreground">—</span>
