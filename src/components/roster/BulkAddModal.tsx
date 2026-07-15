@@ -6,6 +6,13 @@ import {
   CheckCircle2, MinusCircle, Users,
 } from 'lucide-react';
 import { ModalOverlay } from '@/components/ui/modal-overlay';
+import { Card, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input, Textarea } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
+import { SegmentedControl } from '@/components/ui/segmented';
+import { TableCard, Table, THead, TBody, TR, TH, TD } from '@/components/ui/table';
 import { useBrandList } from '@/hooks/use-brand-list';
 
 // One creator headed for the roster. Only `handle` is required; the rest are
@@ -209,34 +216,34 @@ export function BulkAddModal({ defaultBrand, initialRows, onClose, onSuccess }: 
     <ModalOverlay onClose={onClose}>
       <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" />
       <div className="fixed inset-0 flex items-center justify-center pointer-events-none">
-        <div
-          className="relative w-full max-w-2xl bg-card rounded-2xl shadow-2xl mx-4 max-h-[90vh] overflow-y-auto pointer-events-auto"
+        <Card
+          className="relative w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto pointer-events-auto"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-border sticky top-0 bg-card z-10">
+          <div className="flex items-center justify-between gap-3 px-6 py-4 border-b border-border sticky top-0 bg-card z-10">
             <div className="flex items-center gap-2">
-              <Users className="h-5 w-5 text-[var(--primary)]" />
-              <h2 className="text-base font-bold text-[var(--foreground)]">Bulk add creators</h2>
+              <Users className="h-5 w-5 text-primary" />
+              <CardTitle>Bulk add creators</CardTitle>
             </div>
-            <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted transition-colors">
-              <X className="h-5 w-5 text-muted-foreground" />
-            </button>
+            <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close">
+              <X className="text-muted-foreground" />
+            </Button>
           </div>
 
           {/* ── Result screen ── */}
           {result ? (
             <div className="p-6 space-y-4">
               {result.added > 0 && (
-                <div className="flex items-center gap-2 text-sm font-semibold text-green-500 bg-green-500/10 rounded-xl px-4 py-3">
+                <div className="flex items-center gap-2 text-sm font-semibold text-[var(--pulse-pos)] bg-[var(--pulse-pos-bg)] rounded-xl px-4 py-3">
                   <CheckCircle2 className="h-5 w-5 shrink-0" />
                   Added {result.added} creator{result.added === 1 ? '' : 's'}
-                  {brandName ? <span className="font-normal text-green-600">to {brandName}</span> : null}
+                  {brandName ? <span className="font-normal text-[var(--pulse-pos)]">to {brandName}</span> : null}
                 </div>
               )}
 
               {(result.restored ?? 0) > 0 && (
-                <div className="flex items-center gap-2 text-sm font-semibold text-emerald-500 bg-emerald-500/10 rounded-xl px-4 py-3">
+                <div className="flex items-center gap-2 text-sm font-semibold text-[var(--pulse-pos)] bg-[var(--pulse-pos-bg)] rounded-xl px-4 py-3">
                   <CheckCircle2 className="h-5 w-5 shrink-0" />
                   Restored {result.restored} previously-removed creator{result.restored === 1 ? '' : 's'}
                 </div>
@@ -250,12 +257,12 @@ export function BulkAddModal({ defaultBrand, initialRows, onClose, onSuccess }: 
               )}
 
               {result.skipped.length > 0 && (
-                <div className="text-sm bg-amber-500/10 rounded-xl px-4 py-3">
-                  <div className="flex items-center gap-2 font-semibold text-amber-500">
+                <div className="text-sm bg-[var(--pulse-warn-bg)] rounded-xl px-4 py-3">
+                  <div className="flex items-center gap-2 font-semibold text-[var(--pulse-warn)]">
                     <MinusCircle className="h-4 w-4 shrink-0" />
                     Skipped {result.skipped.length} already on this roster
                   </div>
-                  <p className="text-xs text-amber-600 mt-1 break-words">
+                  <p className="text-xs text-[var(--pulse-warn)] mt-1 break-words">
                     {result.skipped.slice(0, 12).map((s) => `@${s.handle}`).join(', ')}
                     {result.skipped.length > 12 ? ` +${result.skipped.length - 12} more` : ''}
                   </p>
@@ -263,35 +270,32 @@ export function BulkAddModal({ defaultBrand, initialRows, onClose, onSuccess }: 
               )}
 
               {result.failed.length > 0 && (
-                <div className="text-sm bg-red-500/10 rounded-xl px-4 py-3">
-                  <div className="flex items-center gap-2 font-semibold text-red-500">
+                <div className="text-sm bg-[var(--pulse-neg-bg)] rounded-xl px-4 py-3">
+                  <div className="flex items-center gap-2 font-semibold text-[var(--pulse-neg)]">
                     <AlertCircle className="h-4 w-4 shrink-0" />
                     {result.failed.length} couldn’t be added
                   </div>
-                  <p className="text-xs text-red-600 mt-1 break-words">
+                  <p className="text-xs text-[var(--pulse-neg)] mt-1 break-words">
                     {result.failed.slice(0, 8).map((f) => `@${f.handle}`).join(', ')}
                   </p>
                 </div>
               )}
 
               {result.warnings.length > 0 && (
-                <div className="text-xs text-amber-600">
+                <div className="text-xs text-[var(--pulse-warn)]">
                   {result.warnings.map((w, i) => <p key={i}>{w}</p>)}
                 </div>
               )}
 
-              <button
-                onClick={onClose}
-                className="w-full px-4 py-2.5 text-sm font-semibold text-white bg-[var(--primary)] rounded-xl hover:bg-[#d4177d] transition-colors"
-              >
+              <Button variant="primary" size="lg" onClick={onClose} className="w-full">
                 Done
-              </button>
+              </Button>
             </div>
           ) : (
             /* ── Input screen ── */
             <div className="p-6 space-y-4">
               {error && (
-                <div className="flex items-center gap-2 text-sm text-red-600 bg-red-500/10 rounded-xl px-4 py-2">
+                <div className="flex items-center gap-2 text-sm text-[var(--pulse-neg)] bg-[var(--pulse-neg-bg)] rounded-xl px-4 py-2">
                   <AlertCircle className="h-4 w-4 shrink-0" />
                   {error}
                 </div>
@@ -299,26 +303,20 @@ export function BulkAddModal({ defaultBrand, initialRows, onClose, onSuccess }: 
 
               {/* Brand picker — required, one per batch */}
               <div>
-                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-                  Brand <span className="text-[var(--primary)]">*</span>
-                </label>
-                <select
-                  value={brand}
-                  onChange={(e) => setBrand(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] bg-card"
-                >
+                <Label>Brand <span className="text-primary">*</span></Label>
+                <Select value={brand} onChange={(e) => setBrand(e.target.value)}>
                   <option value="">Select brand…</option>
                   {brands.map((b) => (
                     <option key={b.slug} value={b.slug}>{b.name}</option>
                   ))}
-                </select>
+                </Select>
                 <p className="text-xs text-muted-foreground mt-1">Every creator in this batch is added under this brand.</p>
               </div>
 
               {/* Pre-selected creators (multi-select entry point) */}
               {hasInitial && (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground bg-primary/10 border border-primary/10 rounded-xl px-4 py-2.5">
-                  <Users className="h-4 w-4 text-[var(--primary)] shrink-0" />
+                  <Users className="h-4 w-4 text-primary shrink-0" />
                   {initialRows!.length} creator{initialRows!.length === 1 ? '' : 's'} selected from All Creators
                 </div>
               )}
@@ -326,34 +324,25 @@ export function BulkAddModal({ defaultBrand, initialRows, onClose, onSuccess }: 
               {/* Mode tabs (paste / CSV) — hidden when creators were pre-selected */}
               {!hasInitial && (
               <>
-              <div className="inline-flex rounded-xl bg-muted p-0.5">
-                <button
-                  onClick={() => setMode('paste')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                    mode === 'paste' ? 'bg-card text-[var(--foreground)] shadow-sm' : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  <ClipboardList className="h-4 w-4" /> Paste handles
-                </button>
-                <button
-                  onClick={() => setMode('csv')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                    mode === 'csv' ? 'bg-card text-[var(--foreground)] shadow-sm' : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  <FileSpreadsheet className="h-4 w-4" /> Upload CSV
-                </button>
-              </div>
+              <SegmentedControl<Mode>
+                ariaLabel="Input mode"
+                value={mode}
+                onValueChange={setMode}
+                options={[
+                  { value: 'paste', label: <span className="inline-flex items-center gap-1.5"><ClipboardList className="h-4 w-4" /> Paste handles</span> },
+                  { value: 'csv', label: <span className="inline-flex items-center gap-1.5"><FileSpreadsheet className="h-4 w-4" /> Upload CSV</span> },
+                ]}
+              />
 
               {/* Paste input */}
               {mode === 'paste' && (
                 <div>
-                  <textarea
+                  <Textarea
                     value={pasteText}
                     onChange={(e) => setPasteText(e.target.value)}
                     rows={7}
                     placeholder={'@creator_one\n@creator_two, Jane Smith\n@creator_three'}
-                    className="w-full px-3 py-2 text-sm font-mono border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] resize-y"
+                    className="font-mono"
                   />
                   <p className="text-xs text-muted-foreground mt-1">One handle per line. Add a name after a comma: <code>@handle, Real Name</code>.</p>
                 </div>
@@ -363,7 +352,7 @@ export function BulkAddModal({ defaultBrand, initialRows, onClose, onSuccess }: 
               {mode === 'csv' && (
                 <div>
                   {csvError && (
-                    <div className="flex items-center gap-2 text-sm text-red-600 bg-red-500/10 rounded-xl px-4 py-2 mb-2">
+                    <div className="flex items-center gap-2 text-sm text-[var(--pulse-neg)] bg-[var(--pulse-neg-bg)] rounded-xl px-4 py-2 mb-2">
                       <AlertCircle className="h-4 w-4 shrink-0" /> {csvError}
                     </div>
                   )}
@@ -373,12 +362,12 @@ export function BulkAddModal({ defaultBrand, initialRows, onClose, onSuccess }: 
                       onDragLeave={() => setDragOver(false)}
                       onDrop={onDrop}
                       onClick={() => inputRef.current?.click()}
-                      className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-colors ${
-                        dragOver ? 'border-[var(--primary)] bg-primary/10' : 'border-border hover:border-border'
+                      className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${
+                        dragOver ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/60'
                       }`}
                     >
                       <Upload className="h-7 w-7 text-muted-foreground mx-auto mb-2" />
-                      <p className="text-sm font-medium text-[var(--foreground)]">Drop a CSV here or click to browse</p>
+                      <p className="text-sm font-medium text-foreground">Drop a CSV here or click to browse</p>
                       <p className="text-xs text-muted-foreground mt-1">
                         Required: <code>handle</code>. Optional: <code>name</code>, <code>retainer</code>, <code>posts_per_month</code>.
                       </p>
@@ -393,14 +382,15 @@ export function BulkAddModal({ defaultBrand, initialRows, onClose, onSuccess }: 
                   ) : (
                     <div className="flex items-center justify-between text-sm bg-muted rounded-xl px-4 py-2.5">
                       <span className="text-muted-foreground">
-                        <span className="font-medium text-[var(--foreground)]">{fileName}</span> — {csvRows.length} rows
+                        <span className="font-medium text-foreground">{fileName}</span> — {csvRows.length} rows
                       </span>
-                      <button
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         onClick={() => { setCsvRows([]); setFileName(''); setCsvError(''); }}
-                        className="text-xs text-muted-foreground hover:text-muted-foreground"
                       >
                         Clear
-                      </button>
+                      </Button>
                     </div>
                   )}
                 </div>
@@ -411,25 +401,19 @@ export function BulkAddModal({ defaultBrand, initialRows, onClose, onSuccess }: 
               {/* Optional batch defaults */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-                    Default retainer ($)
-                  </label>
-                  <input
+                  <Label>Default retainer ($)</Label>
+                  <Input
                     type="number" min="0" inputMode="decimal" placeholder="optional"
                     value={defRetainer}
                     onChange={(e) => setDefRetainer(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-                    Default posts / month
-                  </label>
-                  <input
+                  <Label>Default posts / month</Label>
+                  <Input
                     type="number" min="0" inputMode="numeric" placeholder="30"
                     value={defPosts}
                     onChange={(e) => setDefPosts(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
                   />
                 </div>
               </div>
@@ -439,47 +423,49 @@ export function BulkAddModal({ defaultBrand, initialRows, onClose, onSuccess }: 
 
               {/* Preview */}
               {rows.length > 0 && (
-                <div className="border border-border rounded-xl overflow-hidden">
+                <TableCard>
                   <div className="overflow-x-auto max-h-44">
-                    <table className="w-full text-sm">
-                      <thead className="bg-muted sticky top-0">
-                        <tr>
-                          <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Handle</th>
-                          <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Name</th>
-                          <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Retainer</th>
-                          <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Posts</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-50">
+                    <Table className="text-sm">
+                      <THead className="sticky top-0">
+                        <TR>
+                          <TH>Handle</TH>
+                          <TH className="text-left">Name</TH>
+                          <TH className="text-left">Retainer</TH>
+                          <TH className="text-left">Posts</TH>
+                        </TR>
+                      </THead>
+                      <TBody>
                         {rows.slice(0, 50).map((r, i) => (
-                          <tr key={i} className="hover:bg-muted">
-                            <td className="px-4 py-1.5 font-medium text-[var(--foreground)]">@{r.handle}</td>
-                            <td className="px-4 py-1.5 text-muted-foreground">{r.name || '—'}</td>
-                            <td className="px-4 py-1.5 text-muted-foreground">{r.retainer ? `$${r.retainer}` : '—'}</td>
-                            <td className="px-4 py-1.5 text-muted-foreground">{r.monthly_post_requirement ?? '—'}</td>
-                          </tr>
+                          <TR key={i} className="hover:bg-muted">
+                            <TD className="font-medium text-foreground">@{r.handle}</TD>
+                            <TD className="text-left">{r.name || '—'}</TD>
+                            <TD className="text-left">{r.retainer ? `$${r.retainer}` : '—'}</TD>
+                            <TD className="text-left">{r.monthly_post_requirement ?? '—'}</TD>
+                          </TR>
                         ))}
-                      </tbody>
-                    </table>
+                      </TBody>
+                    </Table>
                   </div>
                   {rows.length > 50 && (
-                    <p className="text-xs text-muted-foreground px-4 py-2 bg-muted">Showing first 50 of {rows.length}</p>
+                    <p className="text-xs text-muted-foreground px-4 py-2 bg-secondary border-t border-border">Showing first 50 of {rows.length}</p>
                   )}
-                </div>
+                </TableCard>
               )}
 
               {/* Submit */}
-              <button
+              <Button
+                variant="primary"
+                size="lg"
                 onClick={submit}
                 disabled={submitting || rows.length === 0 || !brand}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-[var(--primary)] rounded-xl hover:bg-[#d4177d] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full"
               >
-                {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Users className="h-4 w-4" />}
+                {submitting ? <Loader2 className="animate-spin" /> : <Users />}
                 {rows.length > 0 ? `Add ${rows.length} creator${rows.length === 1 ? '' : 's'}` : 'Add creators'}
-              </button>
+              </Button>
             </div>
           )}
-        </div>
+        </Card>
       </div>
     </ModalOverlay>
   );

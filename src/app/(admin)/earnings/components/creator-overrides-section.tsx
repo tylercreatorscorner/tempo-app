@@ -14,7 +14,10 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Plus, Trash2, Save, Loader2, AlertCircle, Users } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
+import { EmptyState } from '@/components/ui/empty-state';
 
 interface Override {
   id: number;
@@ -158,10 +161,12 @@ export function CreatorOverridesSection({ brand, brandRate }: Props) {
           <Loader2 className="h-4 w-4 animate-spin mx-auto" />
         </div>
       ) : overrides.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-border px-3 py-4 text-center">
-          <Users className="h-4 w-4 text-muted-foreground mx-auto mb-1.5" />
-          <p className="text-xs text-muted-foreground">No overrides yet · add one below</p>
-        </div>
+        <EmptyState
+          className="mb-3"
+          icon={<Users className="h-5 w-5" />}
+          title="No overrides yet"
+          description="Add one below to give a creator a custom rate."
+        />
       ) : (
         <div className="space-y-1.5 mb-3">
           {overrides.map((o) => {
@@ -173,11 +178,11 @@ export function CreatorOverridesSection({ brand, brandRate }: Props) {
                 key={o.id}
                 className="flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2"
               >
-                <span className="flex-1 min-w-0 text-sm font-semibold text-[var(--foreground)] truncate">
+                <span className="flex-1 min-w-0 text-sm font-semibold text-foreground truncate">
                   @{o.creator_name}
                 </span>
                 <div className="relative">
-                  <input
+                  <Input
                     type="number"
                     step={0.25}
                     min={0}
@@ -185,28 +190,32 @@ export function CreatorOverridesSection({ brand, brandRate }: Props) {
                     value={dirtyVal ?? String(o.rate)}
                     onChange={(e) => setDrafts((d) => ({ ...d, [o.creator_name]: e.target.value }))}
                     disabled={isSaving}
-                    className="w-20 px-2 py-1 pr-6 rounded-lg border border-border text-xs text-right tabular-nums text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] disabled:opacity-50"
+                    className="w-20 px-2 py-1 pr-6 text-xs text-right tabular-nums"
                   />
                   <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground pointer-events-none">%</span>
                 </div>
                 {isDirty && !isSaving && (
-                  <button
+                  <Button
+                    variant="primary"
+                    size="icon"
                     onClick={() => handleUpdate(o.creator_name)}
-                    className="inline-flex items-center justify-center h-7 w-7 rounded-lg bg-[var(--primary)] text-white hover:bg-[var(--primary)] transition-colors"
+                    className="h-7 w-7"
                     title="Save"
                   >
                     <Save className="h-3.5 w-3.5" />
-                  </button>
+                  </Button>
                 )}
                 {isSaving && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
-                <button
+                <Button
+                  variant="ghost"
+                  size="icon"
                   onClick={() => handleDelete(o.creator_name)}
                   disabled={isSaving}
-                  className="inline-flex items-center justify-center h-7 w-7 rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-500/10 disabled:opacity-50 transition-colors"
+                  className="h-7 w-7 hover:text-[var(--pulse-neg)] hover:bg-[var(--pulse-neg-bg)]"
                   title="Remove override"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
-                </button>
+                </Button>
               </div>
             );
           })}
@@ -214,23 +223,25 @@ export function CreatorOverridesSection({ brand, brandRate }: Props) {
       )}
 
       {/* Add new */}
-      <div className="rounded-xl bg-[#FFF0F5]/40 border border-primary/10 p-3 space-y-2">
+      <div className="rounded-xl bg-secondary/50 border border-border p-3 space-y-2">
         <div className="flex items-center gap-2">
-          <select
-            value={draftCreator}
-            onChange={(e) => setDraftCreator(e.target.value)}
-            disabled={adding || available.length === 0}
-            className="flex-1 min-w-0 px-2 py-1.5 rounded-lg border border-border text-xs bg-card text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] disabled:opacity-50"
-          >
-            <option value="">{available.length === 0 ? 'No creators left to override' : 'Pick a creator…'}</option>
-            {available.map((m) => (
-              <option key={m.handle} value={m.handle}>
-                @{m.handle}{m.real_name ? ` (${m.real_name})` : ''}
-              </option>
-            ))}
-          </select>
+          <div className="flex-1 min-w-0">
+            <Select
+              value={draftCreator}
+              onChange={(e) => setDraftCreator(e.target.value)}
+              disabled={adding || available.length === 0}
+              className="py-1.5 text-xs"
+            >
+              <option value="">{available.length === 0 ? 'No creators left to override' : 'Pick a creator…'}</option>
+              {available.map((m) => (
+                <option key={m.handle} value={m.handle}>
+                  @{m.handle}{m.real_name ? ` (${m.real_name})` : ''}
+                </option>
+              ))}
+            </Select>
+          </div>
           <div className="relative">
-            <input
+            <Input
               type="number"
               step={0.25}
               min={0}
@@ -239,23 +250,24 @@ export function CreatorOverridesSection({ brand, brandRate }: Props) {
               onChange={(e) => setDraftRate(e.target.value)}
               placeholder="Rate"
               disabled={adding}
-              className="w-20 px-2 py-1.5 pr-6 rounded-lg border border-border text-xs text-right tabular-nums text-[var(--foreground)] bg-card focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] disabled:opacity-50"
+              className="w-20 px-2 py-1.5 pr-6 text-xs text-right tabular-nums"
             />
             <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground pointer-events-none">%</span>
           </div>
-          <button
+          <Button
+            variant="primary"
+            size="sm"
             onClick={handleAdd}
             disabled={adding || !draftCreator || !draftRate}
-            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[var(--primary)] text-white text-xs font-bold hover:bg-[var(--primary)] disabled:opacity-50 transition-colors"
           >
             {adding ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
             Add
-          </button>
+          </Button>
         </div>
       </div>
 
       {error && (
-        <div className={cn('mt-2 rounded-lg bg-red-500/10 border border-red-500/20 px-3 py-2 text-xs text-red-500 flex items-center gap-1.5')}>
+        <div className="mt-2 rounded-md bg-[var(--pulse-neg-bg)] border border-[var(--pulse-neg)]/20 px-3 py-2 text-xs text-[var(--pulse-neg)] flex items-center gap-1.5">
           <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" />
           {error}
         </div>

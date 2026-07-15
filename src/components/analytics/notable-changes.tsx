@@ -4,6 +4,8 @@ import { TrendingUp, TrendingDown, Sparkles, Flame, Package } from 'lucide-react
 import Link from 'next/link';
 import { formatCurrency } from '@/lib/utils/format';
 import { useBrandMeta } from '@/hooks/use-brand-meta';
+import { Badge } from '@/components/ui/badge';
+import { Eyebrow } from '@/components/ui/page-header';
 
 export interface BrandChange {
   brand: string;
@@ -72,9 +74,7 @@ function ChangeCard({
         >
           {icon}
         </div>
-        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-          {eyebrow}
-        </span>
+        <Eyebrow>{eyebrow}</Eyebrow>
       </div>
       <p className="text-sm font-semibold text-[var(--foreground)] line-clamp-2 mb-0.5">{title}</p>
       <p className="text-[11px] font-mono tabular-nums text-muted-foreground mb-3 line-clamp-1">{subtitle}</p>
@@ -84,20 +84,20 @@ function ChangeCard({
           <p className="text-base font-bold text-[var(--foreground)] font-mono tabular-nums">{value}</p>
         </div>
         {delta !== undefined && (
-          <span
-            className={`text-xs font-bold px-1.5 py-0.5 rounded-md font-mono tabular-nums ${
-              delta >= 0 ? 'bg-emerald-500/10 text-emerald-600' : 'bg-red-500/10 text-red-500'
-            }`}
+          <Badge
+            variant={delta >= 0 ? 'positive' : 'negative'}
+            size="sm"
+            className="font-mono tabular-nums"
           >
             {delta >= 0 ? '+' : ''}{delta.toFixed(0)}%
-          </span>
+          </Badge>
         )}
       </div>
     </>
   );
 
   const className =
-    'block rounded-2xl bg-card border border-border shadow-sm p-4 transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md motion-reduce:transform-none motion-reduce:transition-none';
+    'block rounded-xl bg-card border border-border shadow-[var(--pulse-elev-1)] p-4 transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-[var(--pulse-elev-2)] motion-reduce:transform-none motion-reduce:transition-none';
 
   return link ? (
     <Link
@@ -154,7 +154,7 @@ export function NotableChanges({ brandRiser, brandFaller, creatorBreakout, hotPo
           <ChangeCard
             icon={<Sparkles className="h-3.5 w-3.5" />}
             iconColor="var(--pulse-accent-2)"
-            iconBg="var(--pulse-accent-2)18"
+            iconBg="color-mix(in srgb, var(--pulse-accent-2) 18%, transparent)"
             eyebrow="Breakout Creator"
             title={`@${creatorBreakout.creator_name}`}
             subtitle={`${brandMeta.label(creatorBreakout.brand)} · ${

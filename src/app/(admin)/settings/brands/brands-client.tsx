@@ -311,7 +311,7 @@ function BrandTable({
                   key={b.id}
                   onClick={() => !isBusy && onRowClick(b)}
                   className={cn(
-                    'border-b border-border hover:bg-[#FFF0F5]/40 cursor-pointer transition-colors',
+                    'border-b border-border hover:bg-primary/5 cursor-pointer transition-colors',
                     archived && 'opacity-60',
                     isBusy && 'opacity-40 pointer-events-none',
                   )}

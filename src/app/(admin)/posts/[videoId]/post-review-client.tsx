@@ -18,11 +18,16 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeft, ExternalLink, Eye, Heart, Loader2, MessageCircle,
-  Save, Star, Trash2, X,
+  Save, Star, Trash2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useBrandMeta } from '@/hooks/use-brand-meta';
 import { engagementRate, formatCurrency, formatNumber } from '@/lib/utils/format';
+import { Badge } from '@/components/ui/badge';
+import { Button, buttonVariants } from '@/components/ui/button';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Textarea } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 export interface VideoMeta {
   video_id: string;
@@ -176,7 +181,7 @@ export function PostReviewClient({ meta }: { meta: VideoMeta }) {
             href={meta.video_url}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[var(--foreground)] hover:bg-[#2a2b4a] text-white text-xs font-semibold transition-colors shrink-0"
+            className={cn(buttonVariants({ variant: 'secondary', size: 'sm' }), 'shrink-0')}
           >
             <ExternalLink className="h-3.5 w-3.5" />
             Watch on TikTok
@@ -185,7 +190,7 @@ export function PostReviewClient({ meta }: { meta: VideoMeta }) {
       </div>
 
       {/* KPI strip */}
-      <div className="rounded-2xl bg-card border border-border shadow-sm p-5">
+      <Card className="p-5">
         <div className="grid grid-cols-2 sm:grid-cols-6 gap-4">
           <Kpi icon={<Eye className="h-3.5 w-3.5" />}            label="Views"      value={formatNumber(meta.views)} />
           <Kpi icon={<Heart className="h-3.5 w-3.5" />}          label="Likes"      value={formatNumber(meta.likes)}     accent="pink" />
@@ -194,15 +199,15 @@ export function PostReviewClient({ meta }: { meta: VideoMeta }) {
           <Kpi label="GMV"        value={formatCurrency(meta.gmv)} accent="pink" />
           <Kpi label="Orders"     value={formatNumber(meta.orders)} />
         </div>
-      </div>
+      </Card>
 
       {error && (
-        <div className="rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-500">{error}</div>
+        <div className="rounded-xl bg-[var(--pulse-neg-bg)] border border-[var(--pulse-neg)]/25 px-4 py-3 text-sm text-[var(--pulse-neg)]">{error}</div>
       )}
 
       {/* YOUR review (form) */}
-      <div className="rounded-2xl bg-card border border-border shadow-sm">
-        <div className="px-5 py-3 border-b border-border flex items-center justify-between">
+      <Card>
+        <CardHeader className="border-b border-border">
           <div>
             <div className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">Your review</div>
             <div className="text-sm text-muted-foreground mt-0.5">
@@ -212,21 +217,23 @@ export function PostReviewClient({ meta }: { meta: VideoMeta }) {
             </div>
           </div>
           {myReview && (
-            <button
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={deleteReview}
               disabled={deleting}
-              className="text-xs text-muted-foreground hover:text-red-600 transition-colors flex items-center gap-1 disabled:opacity-40"
+              className="text-muted-foreground hover:text-[var(--pulse-neg)]"
             >
               {deleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
               Delete
-            </button>
+            </Button>
           )}
-        </div>
+        </CardHeader>
 
-        <div className="p-5 space-y-4">
+        <CardContent className="space-y-4 pt-5">
           {/* Rating */}
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-2">Rating</label>
+            <Label>Rating</Label>
             <div className="flex items-center gap-1">
               {[1, 2, 3, 4, 5].map(n => (
                 <button
@@ -244,7 +251,7 @@ export function PostReviewClient({ meta }: { meta: VideoMeta }) {
               {draftRating !== null && (
                 <button
                   onClick={() => setDraftRating(null)}
-                  className="ml-2 text-xs text-muted-foreground hover:text-muted-foreground"
+                  className="ml-2 text-xs text-muted-foreground hover:text-foreground"
                 >
                   clear
                 </button>
@@ -254,7 +261,7 @@ export function PostReviewClient({ meta }: { meta: VideoMeta }) {
 
           {/* Tags */}
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-2">Tags</label>
+            <Label>Tags</Label>
             <div className="flex flex-wrap gap-2">
               {TAG_PRESETS.map(tag => {
                 const active = draftTags.includes(tag);
@@ -278,37 +285,36 @@ export function PostReviewClient({ meta }: { meta: VideoMeta }) {
 
           {/* Notes */}
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-2">Notes</label>
-            <textarea
+            <Label>Notes</Label>
+            <Textarea
               value={draftNotes}
               onChange={(e) => setDraftNotes(e.target.value)}
               rows={4}
               maxLength={4000}
               placeholder="What worked, what didn't, what would you tell the creator about their next post..."
-              className="w-full bg-card border border-border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] resize-y min-h-[100px]"
+              className="min-h-[100px]"
             />
             <div className="text-[11px] text-muted-foreground mt-1 text-right">{draftNotes.length} / 4000</div>
           </div>
 
           <div className="flex items-center justify-end pt-1">
-            <button
+            <Button
               onClick={saveReview}
               disabled={saving || (draftRating === null && !draftNotes.trim() && draftTags.length === 0)}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[var(--primary)] hover:bg-[#d1177d] text-white text-sm font-semibold disabled:opacity-50 transition-colors"
             >
               {saving ? <><Loader2 className="h-4 w-4 animate-spin" />Saving…</> : <><Save className="h-4 w-4" />{myReview ? 'Update review' : 'Save review'}</>}
-            </button>
+            </Button>
           </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {/* OTHER reviews */}
-      <div className="rounded-2xl bg-card border border-border shadow-sm">
-        <div className="px-5 py-3 border-b border-border">
+      <Card>
+        <CardHeader className="border-b border-border">
           <div className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">
             Team reviews · {otherReviews.length}
           </div>
-        </div>
+        </CardHeader>
         {loading && reviews.length === 0 ? (
           <div className="px-5 py-8 text-center text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin inline mr-2" />Loading…
@@ -316,11 +322,11 @@ export function PostReviewClient({ meta }: { meta: VideoMeta }) {
         ) : otherReviews.length === 0 ? (
           <div className="px-5 py-8 text-center text-sm text-muted-foreground">No reviews from other team members yet.</div>
         ) : (
-          <ul className="divide-y divide-gray-50">
+          <ul className="divide-y divide-border">
             {otherReviews.map(r => <OtherReviewRow key={r.id} review={r} />)}
           </ul>
         )}
-      </div>
+      </Card>
     </div>
   );
 }
@@ -377,7 +383,7 @@ function OtherReviewRow({ review }: { review: ReviewRow }) {
           {review.tags && review.tags.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mt-2">
               {review.tags.map(t => (
-                <span key={t} className="px-2 py-0.5 rounded-full bg-muted text-[11px] text-muted-foreground">{t}</span>
+                <Badge key={t} variant="neutral" size="sm">{t}</Badge>
               ))}
             </div>
           )}

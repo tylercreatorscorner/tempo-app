@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 import { currentMonth } from '@/lib/utils/format';
+import { PageHeader } from '@/components/ui/page-header';
 import { EarningsClient } from './earnings-client';
 
 export const dynamic = 'force-dynamic';
@@ -24,14 +25,15 @@ export default async function EarningsPage({ searchParams }: Props) {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-extrabold text-[var(--foreground)]">Earnings</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          {scoped
+      <PageHeader
+        eyebrow="Finance"
+        title="Earnings"
+        subtitle={
+          scoped
             ? 'Monthly earnings for your brands — commission + retainers + launch fees.'
-            : 'Your monthly take across all brands — commission + retainers + launch fees.'}
-        </p>
-      </div>
+            : 'Your monthly take across all brands — commission + retainers + launch fees.'
+        }
+      />
       <EarningsClient initialMonth={month} />
     </div>
   );

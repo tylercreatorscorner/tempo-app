@@ -5,6 +5,9 @@ import { X, Loader2, Save } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CreatorOverridesSection } from './creator-overrides-section';
 import { ModalOverlay } from '@/components/ui/modal-overlay';
+import { Button } from '@/components/ui/button';
+import { Input, Textarea } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 
 export type CompensationModel = 'standard' | 'revshare_max' | 'commission_only' | 'retainer_only';
 
@@ -139,13 +142,9 @@ export function BrandEditSheet({ open, brand, brandLabel, teamMemberId, initialV
             <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">Edit Brand</p>
             <h2 className="text-lg font-extrabold text-[var(--foreground)]">{brandLabel}</h2>
           </div>
-          <button
-            onClick={onClose}
-            className="h-8 w-8 rounded-lg hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-muted-foreground transition-colors"
-            aria-label="Close"
-          >
+          <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close">
             <X className="h-4 w-4" />
-          </button>
+          </Button>
         </div>
 
         {/* Form */}
@@ -159,7 +158,7 @@ export function BrandEditSheet({ open, brand, brandLabel, teamMemberId, initialV
                   className={cn(
                     'block rounded-xl border-2 p-3 cursor-pointer transition-colors',
                     values.compensation_model === opt.value
-                      ? 'border-[var(--primary)] bg-[#FFF0F5]'
+                      ? 'border-primary bg-primary/5'
                       : 'border-border hover:border-border bg-card',
                   )}
                 >
@@ -174,7 +173,7 @@ export function BrandEditSheet({ open, brand, brandLabel, teamMemberId, initialV
                   <div className="flex items-baseline justify-between">
                     <span className="text-sm font-bold text-[var(--foreground)]">{opt.label}</span>
                     {values.compensation_model === opt.value && (
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--primary)]">Active</span>
+                      <Badge variant="accent" size="sm">Active</Badge>
                     )}
                   </div>
                   <p className="text-xs text-muted-foreground mt-0.5">{opt.description}</p>
@@ -278,7 +277,7 @@ export function BrandEditSheet({ open, brand, brandLabel, teamMemberId, initialV
           </Section>
 
           {error && (
-            <div className="rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-500">
+            <div className="rounded-xl bg-[var(--pulse-neg-bg)] border border-[var(--pulse-neg)]/20 px-4 py-3 text-sm text-[var(--pulse-neg)]">
               {error}
             </div>
           )}
@@ -286,21 +285,13 @@ export function BrandEditSheet({ open, brand, brandLabel, teamMemberId, initialV
 
         {/* Footer */}
         <div className="px-6 py-4 border-t border-border flex items-center justify-between gap-3 bg-muted/40">
-          <button
-            onClick={onClose}
-            disabled={saving}
-            className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground disabled:opacity-40"
-          >
+          <Button variant="ghost" onClick={onClose} disabled={saving}>
             Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-[var(--primary)] rounded-xl hover:bg-[var(--primary)] disabled:opacity-50 transition-colors shadow-sm"
-          >
+          </Button>
+          <Button variant="primary" onClick={handleSave} disabled={saving}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             {saving ? 'Saving…' : 'Save changes'}
-          </button>
+          </Button>
         </div>
       </div>
     </div>
@@ -347,7 +338,7 @@ function NumberInput({ value, step, onChange }: { value: number; step: number; o
   const [draft, setDraft] = useState(String(value));
   useEffect(() => { setDraft(String(value)); }, [value]);
   return (
-    <input
+    <Input
       type="number"
       step={step}
       min={0}
@@ -357,7 +348,7 @@ function NumberInput({ value, step, onChange }: { value: number; step: number; o
         const n = parseFloat(e.target.value);
         if (Number.isFinite(n) && n >= 0) onChange(n);
       }}
-      className="w-full px-3 py-2 rounded-xl border border-border text-sm text-[var(--foreground)] bg-card tabular-nums focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] transition-colors"
+      className="tabular-nums"
     />
   );
 }
@@ -369,24 +360,22 @@ function TextInput({ value, placeholder, type = 'text', onChange }: {
   onChange: (v: string) => void;
 }) {
   return (
-    <input
+    <Input
       type={type}
       value={value}
       placeholder={placeholder}
       onChange={(e) => onChange(e.target.value)}
-      className="w-full px-3 py-2 rounded-xl border border-border text-sm text-[var(--foreground)] bg-card focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] transition-colors"
     />
   );
 }
 
 function TextArea({ value, placeholder, onChange }: { value: string; placeholder?: string; onChange: (v: string) => void }) {
   return (
-    <textarea
+    <Textarea
       value={value}
       placeholder={placeholder}
       onChange={(e) => onChange(e.target.value)}
       rows={3}
-      className="w-full px-3 py-2 rounded-xl border border-border text-sm text-[var(--foreground)] bg-card focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] transition-colors resize-y"
     />
   );
 }

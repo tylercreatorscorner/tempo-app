@@ -4,8 +4,10 @@ import { useState } from 'react';
 import dynamic from 'next/dynamic';
 import type { ApexOptions } from 'apexcharts';
 import { DollarSign, ShoppingCart, Package, Video } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { SegmentedControl } from '@/components/ui/segmented';
 
 const ApexChart = dynamic(() => import('react-apexcharts'), { ssr: false });
 
@@ -148,24 +150,23 @@ export function PerformanceChart({ data, priorData, yoyData, accentColor }: Prop
     compare === 'yoy' ? 'vs last year' : 'vs prior period';
 
   return (
-    <div className="rounded-2xl bg-card border border-border shadow-sm p-5">
+    <Card>
       {/* Header with metric toggle */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+      <CardHeader className="flex-col items-stretch sm:flex-row sm:items-center">
         <div>
-          <h3 className="text-sm font-extrabold tracking-tight text-[#8A8FB2]">Performance Overview</h3>
+          <CardTitle className="text-sm font-extrabold">Performance Overview</CardTitle>
           <p className="text-xs text-muted-foreground mt-0.5">
             Total in period:{' '}
-            <span className="font-semibold text-[#8A8FB2] font-mono tabular-nums">{cfg.format(total)}</span>
+            <span className="font-semibold text-foreground font-mono tabular-nums">{cfg.format(total)}</span>
             {compareDelta !== null && (
-              <span
-                className={cn(
-                  'ml-2 inline-flex items-center px-1.5 py-0.5 rounded-md text-[11px] font-semibold font-mono tabular-nums',
-                  compareDelta >= 0 ? 'bg-emerald-500/10 text-emerald-600' : 'bg-red-500/10 text-red-500'
-                )}
+              <Badge
+                variant={compareDelta >= 0 ? 'positive' : 'negative'}
+                size="sm"
+                className="ml-2 font-mono tabular-nums"
                 title={compareBadgeLabel}
               >
                 {compareDelta >= 0 ? '+' : ''}{compareDelta.toFixed(1)}%
-              </span>
+              </Badge>
             )}
           </p>
         </div>
@@ -173,69 +174,57 @@ export function PerformanceChart({ data, priorData, yoyData, accentColor }: Prop
         <div className="flex flex-wrap items-center gap-2">
           {/* Compare toggle — segmented "off / prior / YoY" pill (YoY hidden when no data) */}
           {(priorData?.length ?? 0) > 1 && (
-            <div className="flex gap-0.5 p-0.5 bg-muted rounded-lg" role="group" aria-label="Compare overlay">
-              {([
-                { key: 'off',   label: 'No compare' },
-                { key: 'prior', label: 'Prior' },
-                ...(yoyData?.length ? [{ key: 'yoy' as const, label: 'YoY' }] : []),
-              ] as Array<{ key: CompareMode; label: string }>).map(({ key, label }) => (
-                <button
-                  key={key}
-                  onClick={() => setCompare(key)}
-                  className={cn(
-                    'px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6D5EFC]/40 focus-visible:ring-offset-1',
-                    compare === key
-                      ? 'bg-card text-[#8A8FB2] shadow-sm'
-                      : 'text-muted-foreground hover:text-foreground'
-                  )}
-                  aria-pressed={compare === key}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
+            <SegmentedControl<CompareMode>
+              value={compare}
+              onValueChange={setCompare}
+              size="sm"
+              ariaLabel="Comparison overlay"
+              options={[
+                { value: 'off', label: 'No compare' },
+                { value: 'prior', label: 'Prior' },
+                ...(yoyData?.length ? [{ value: 'yoy' as const, label: 'YoY' }] : []),
+              ]}
+            />
           )}
 
           {/* Metric toggle */}
-          <div className="flex gap-1 p-1 bg-muted rounded-xl w-fit">
-            {METRICS.map(({ key, label, icon: Icon }) => (
-              <button
-                key={key}
-                onClick={() => setMetric(key)}
-                className={cn(
-                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6D5EFC]/40 focus-visible:ring-offset-1',
-                  metric === key
-                    ? 'bg-card text-[#8A8FB2] shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                )}
-                aria-pressed={metric === key}
-              >
-                <Icon className="h-3.5 w-3.5" />
-                {label}
-              </button>
-            ))}
-          </div>
+          <SegmentedControl<Metric>
+            value={metric}
+            onValueChange={setMetric}
+            ariaLabel="Chart metric"
+            options={METRICS.map(({ key, label, icon: Icon }) => ({
+              value: key,
+              label: (
+                <span className="flex items-center gap-1.5">
+                  <Icon className="h-3.5 w-3.5" />
+                  {label}
+                </span>
+              ),
+            }))}
+          />
         </div>
-      </div>
+      </CardHeader>
 
       {/* Chart */}
-      {data.length > 1 ? (
-        <ApexChart options={options} series={series} type="area" height={280} />
-      ) : data.length === 1 ? (
-        <div className="h-[280px] flex flex-col items-center justify-center">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-            {cfg.label} — {new Date(data[0].date).toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}
-          </p>
-          <p className="text-5xl font-extrabold font-mono tabular-nums mt-2" style={{ color }}>
-            {cfg.format(values[0])}
-          </p>
-          <p className="text-xs text-muted-foreground mt-2">Switch to a longer range to see a trend chart</p>
-        </div>
-      ) : (
-        <div className="h-[280px] flex items-center justify-center text-sm text-muted-foreground">
-          No data in this period
-        </div>
-      )}
-    </div>
+      <CardContent>
+        {data.length > 1 ? (
+          <ApexChart options={options} series={series} type="area" height={280} />
+        ) : data.length === 1 ? (
+          <div className="h-[280px] flex flex-col items-center justify-center">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+              {cfg.label} — {new Date(data[0].date).toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}
+            </p>
+            <p className="text-5xl font-extrabold font-mono tabular-nums mt-2" style={{ color }}>
+              {cfg.format(values[0])}
+            </p>
+            <p className="text-xs text-muted-foreground mt-2">Switch to a longer range to see a trend chart</p>
+          </div>
+        ) : (
+          <div className="h-[280px] flex items-center justify-center text-sm text-muted-foreground">
+            No data in this period
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

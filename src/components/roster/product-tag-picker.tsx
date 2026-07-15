@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { Check } from 'lucide-react';
+import { Select } from '@/components/ui/select';
+import { Button } from '@/components/ui/button';
 
 interface CatalogProduct { product_key: string; display_name: string; status: string }
 
@@ -28,16 +30,14 @@ export function ProductFilterSelect({
   }, [brand]);
   if (!brand || brand === 'all' || products.length === 0) return null;
   return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="px-4 py-2.5 rounded-xl border border-border text-sm bg-card focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] self-start"
-    >
-      <option value="">All products</option>
-      {products.map((p) => (
-        <option key={p.product_key} value={p.product_key}>{p.display_name}</option>
-      ))}
-    </select>
+    <div className="self-start">
+      <Select value={value} onChange={(e) => onChange(e.target.value)}>
+        <option value="">All products</option>
+        {products.map((p) => (
+          <option key={p.product_key} value={p.product_key}>{p.display_name}</option>
+        ))}
+      </Select>
+    </div>
   );
 }
 
@@ -84,17 +84,16 @@ export function ProductTagPicker({
       {products.map((p) => {
         const on = value.includes(p.product_key);
         return (
-          <button
-            type="button"
+          <Button
             key={p.product_key}
+            variant={on ? 'primary' : 'outline'}
+            size="sm"
             onClick={() => toggle(p.product_key)}
-            className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full border transition-colors ${
-              on ? 'bg-[var(--primary)] border-[var(--primary)] text-white' : 'bg-card border-border text-muted-foreground hover:border-border'
-            }`}
+            className="rounded-full font-medium gap-1"
           >
-            {on && <Check className="h-3 w-3" />}
+            {on && <Check />}
             {p.display_name}
-          </button>
+          </Button>
         );
       })}
     </div>

@@ -544,7 +544,7 @@ function Step2Financial({
               className={cn(
                 'block rounded-xl border-2 p-3 cursor-pointer transition-colors',
                 financial.compensation_model === opt.value
-                  ? 'border-[var(--primary)] bg-[#FFF0F5]'
+                  ? 'border-[var(--primary)] bg-primary/10'
                   : 'border-border hover:border-border bg-card',
               )}
             >

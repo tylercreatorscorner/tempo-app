@@ -139,7 +139,7 @@ export default function MessagesPage() {
           </button>
           <button
             onClick={() => setBulkOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[var(--primary)] text-white text-sm font-semibold hover:bg-[#d1177d] transition-colors shadow-sm"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[var(--primary)] text-white text-sm font-semibold hover:brightness-[1.07] transition-colors shadow-sm"
           >
             <Users className="h-4 w-4" />
             Bulk Message

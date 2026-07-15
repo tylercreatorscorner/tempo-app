@@ -14,15 +14,19 @@ interface Props {
  */
 export function StaleDataBanner({ latestDate, daysStale }: Props) {
   return (
-    <div className="rounded-2xl bg-amber-500/10 border border-amber-500/25 p-4 flex items-start gap-3">
-      <div className="h-9 w-9 rounded-xl bg-amber-500/15 flex items-center justify-center flex-shrink-0">
-        <AlertTriangle className="h-4 w-4 text-amber-600" />
+    <div className="rounded-xl bg-[var(--pulse-warn-bg)] border border-[var(--pulse-warn)]/25 p-4 flex items-start gap-3">
+      <div className="h-9 w-9 rounded-xl bg-[var(--pulse-warn)]/15 flex items-center justify-center flex-shrink-0">
+        <AlertTriangle className="h-4 w-4 text-[var(--pulse-warn)]" />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-amber-900">
-          Performance data is <span className="font-bold tabular-nums">{daysStale}</span> {daysStale === 1 ? 'day' : 'days'} old
+        <p className="text-sm font-semibold text-foreground">
+          Performance data is{' '}
+          <span className="font-bold tabular-nums">
+            {daysStale} {daysStale === 1 ? 'day' : 'days'}
+          </span>{' '}
+          old
         </p>
-        <p className="text-xs text-amber-500 mt-0.5">
+        <p className="text-xs text-muted-foreground mt-0.5">
           Last data point: <span className="tabular-nums">{new Date(latestDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span>.
           Numbers below may be lower than reality until a fresh upload is processed.
         </p>

@@ -11,6 +11,9 @@ import { X, CheckCircle2, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/utils/format';
 import { ModalOverlay } from '@/components/ui/modal-overlay';
+import { Button } from '@/components/ui/button';
+import { Input, Textarea } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
 
 const METHODS = [
   { value: 'wire',   label: 'Wire Transfer' },
@@ -87,10 +90,10 @@ export function MarkPaidModal({
     <div className="absolute inset-0 flex items-center justify-center p-4">
       <button aria-label="Close" className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
 
-      <div className="relative w-full max-w-md bg-card rounded-2xl shadow-2xl flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200">
+      <div className="relative w-full max-w-md bg-card rounded-xl border border-border shadow-2xl flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200">
         <div className="px-6 py-5 border-b border-border flex items-start justify-between gap-3">
           <div className="flex items-start gap-3 min-w-0">
-            <div className="h-10 w-10 rounded-xl bg-emerald-500 flex items-center justify-center flex-shrink-0 shadow-sm">
+            <div className="h-10 w-10 rounded-xl bg-pulse-grad flex items-center justify-center flex-shrink-0 shadow-pulse-primary">
               <CheckCircle2 className="h-5 w-5 text-white" />
             </div>
             <div className="min-w-0">
@@ -99,38 +102,38 @@ export function MarkPaidModal({
               <p className="text-xs text-muted-foreground mt-0.5">Capture payment detail for reconciliation.</p>
             </div>
           </div>
-          <button
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={onClose}
             disabled={saving}
-            className="h-8 w-8 rounded-lg hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-muted-foreground transition-colors flex-shrink-0 disabled:opacity-40"
+            className="flex-shrink-0"
             aria-label="Close"
           >
             <X className="h-4 w-4" />
-          </button>
+          </Button>
         </div>
 
         <div className="px-6 py-5 space-y-4">
           {/* Method */}
           <Field label="Payment Method">
-            <select
+            <Select
               value={method}
               onChange={(e) => setMethod(e.target.value)}
               disabled={saving}
-              className="w-full px-3 py-2 rounded-xl border border-border text-sm bg-card text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] disabled:opacity-50"
             >
               {METHODS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
-            </select>
+            </Select>
           </Field>
 
           {/* Reference */}
           <Field label="Reference / Transaction #" hint="Optional">
-            <input
+            <Input
               type="text"
               value={reference}
               onChange={(e) => setReference(e.target.value)}
               placeholder="e.g. WIRE-20260503-ABC, check #1042"
               disabled={saving}
-              className="w-full px-3 py-2 rounded-xl border border-border text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] disabled:opacity-50"
             />
           </Field>
 
@@ -146,48 +149,47 @@ export function MarkPaidModal({
             tone={!amountValid ? 'error' : diff < 0 ? 'warn' : 'default'}
           >
             <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground pointer-events-none">$</span>
-              <input
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground pointer-events-none z-10">$</span>
+              <Input
                 type="number"
                 step={0.01}
                 min={0}
                 value={amount}
                 onChange={(e) => { setAmount(e.target.value); setError(null); }}
                 disabled={saving}
-                className="w-full pl-7 pr-3 py-2 rounded-xl border border-border text-sm tabular-nums text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] disabled:opacity-50"
+                className="pl-7 tabular-nums"
               />
             </div>
           </Field>
 
           {/* Notes */}
           <Field label="Notes" hint="Optional · for your records">
-            <textarea
+            <Textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="e.g. wire fee $25 deducted, partial — remainder due 5/15"
               rows={2}
               disabled={saving}
-              className="w-full px-3 py-2 rounded-xl border border-border text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] resize-y disabled:opacity-50"
             />
           </Field>
 
           {error && (
-            <div className="rounded-xl bg-red-500/10 border border-red-500/20 px-3 py-2 text-xs text-red-500">{error}</div>
+            <div className="rounded-md bg-destructive/10 border border-destructive/20 px-3 py-2 text-xs text-destructive">{error}</div>
           )}
         </div>
 
         <div className="px-6 py-4 border-t border-border flex items-center justify-end gap-2 bg-muted/40">
-          <button onClick={onClose} disabled={saving} className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground disabled:opacity-40">
+          <Button variant="ghost" onClick={onClose} disabled={saving}>
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="primary"
             onClick={handleSubmit}
             disabled={saving || !amountValid}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-emerald-500 rounded-xl hover:bg-emerald-600 disabled:opacity-50 transition-colors shadow-sm"
           >
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
             {saving ? 'Saving…' : 'Mark as Paid'}
-          </button>
+          </Button>
         </div>
       </div>
     </div>
@@ -203,12 +205,12 @@ function Field({ label, hint, tone = 'default', children }: {
 }) {
   return (
     <label className="block">
-      <div className="flex items-baseline justify-between mb-1">
-        <span className="text-xs font-semibold text-foreground">{label}</span>
+      <div className="flex items-baseline justify-between mb-1.5">
+        <span className="text-[11.5px] font-semibold tracking-[0.02em] uppercase text-muted-foreground">{label}</span>
         {hint && (
           <span className={cn(
             'text-[11px]',
-            tone === 'error' ? 'text-red-600 font-medium' : tone === 'warn' ? 'text-amber-600 font-medium' : 'text-muted-foreground',
+            tone === 'error' ? 'text-destructive font-medium' : tone === 'warn' ? 'text-[var(--pulse-warn)] font-medium' : 'text-muted-foreground',
           )}>{hint}</span>
         )}
       </div>

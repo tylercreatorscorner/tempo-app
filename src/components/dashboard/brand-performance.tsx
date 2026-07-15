@@ -3,6 +3,8 @@ import { ArrowUpRight, ArrowDownRight, Building2 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils/format';
 import { getBrandRegistry, brandLabel, brandColor } from '@/lib/data/brand-registry';
 import { SparklineChart } from '@/components/charts/sparkline-chart';
+import { Card, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 
 export interface BrandRowData {
   slug: string;
@@ -48,14 +50,16 @@ export async function BrandPerformance({ brands, range }: Props) {
   }
 
   return (
-    <div className="rounded-2xl bg-card border border-border shadow-sm overflow-hidden">
-      <div className="px-5 py-3.5 border-b border-border flex items-center gap-2">
-        <span className="h-7 w-7 rounded-lg bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center">
-          <Building2 className="h-4 w-4" />
-        </span>
-        <h3 className="text-sm font-extrabold tracking-tight text-[var(--foreground)]">Brand Performance</h3>
-        <span className="text-xs text-muted-foreground ml-auto">Click a brand to drill in</span>
-      </div>
+    <Card className="overflow-hidden">
+      <CardHeader className="border-b border-border">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="h-7 w-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
+            <Building2 className="h-4 w-4" />
+          </span>
+          <CardTitle>Brand Performance</CardTitle>
+        </div>
+        <span className="text-xs text-muted-foreground">Click a brand to drill in</span>
+      </CardHeader>
 
       {/* Column header row — anchors the two-GMV-column layout */}
       <div className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] items-center gap-4 px-5 py-2 border-b border-border bg-muted/40">
@@ -67,7 +71,7 @@ export async function BrandPerformance({ brands, range }: Props) {
         <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground text-right min-w-[68px]">Trend</span>
       </div>
 
-      <div className="divide-y divide-gray-50">
+      <div className="divide-y divide-border">
         {rows.map((b) => {
           const color = brandColor(reg, b.slug);
           const name  = brandLabel(reg, b.slug);
@@ -126,14 +130,10 @@ export async function BrandPerformance({ brands, range }: Props) {
               {/* Trend */}
               <div className="min-w-[68px] text-right">
                 {b.trend !== undefined ? (
-                  <span
-                    className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-xs font-semibold tabular-nums ${
-                      isPositive ? 'bg-emerald-500/10 text-emerald-600' : 'bg-red-500/10 text-red-500'
-                    }`}
-                  >
+                  <Badge variant={isPositive ? 'positive' : 'negative'} size="sm" className="gap-0.5 tabular-nums">
                     {isPositive ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
                     {Math.abs(b.trend).toFixed(1)}%
-                  </span>
+                  </Badge>
                 ) : (
                   <span className="text-xs text-muted-foreground">—</span>
                 )}
@@ -142,6 +142,6 @@ export async function BrandPerformance({ brands, range }: Props) {
           );
         })}
       </div>
-    </div>
+    </Card>
   );
 }

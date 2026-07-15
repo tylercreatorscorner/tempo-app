@@ -18,6 +18,7 @@ import { useMemo } from 'react';
 import { Clock, AlertTriangle, Flame } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/utils/format';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { Invoice } from './invoice-detail-sheet';
 
 export type AgingBucket = 'all' | 'current' | '1-30' | '31-60' | '61-90' | '90+';
@@ -47,12 +48,14 @@ interface BucketDef {
   iconBg: string;
 }
 
+// Escalating severity, low → high: neutral → amber → orange → red → deep rose.
+// Tints use color-with-opacity so they read on the card surface in both themes.
 const BUCKETS: BucketDef[] = [
-  { value: 'current', label: 'Current',  description: 'Not yet due', icon: Clock,           bg: 'bg-card border-border',         bgActive: 'bg-muted border-gray-400 ring-2 ring-border',           text: 'text-foreground',    iconBg: 'bg-muted' },
-  { value: '1-30',    label: '1-30',     description: 'Days overdue', icon: Clock,          bg: 'bg-card border-amber-500/25',        bgActive: 'bg-amber-500/10 border-amber-400 ring-2 ring-amber-200',         text: 'text-amber-500',   iconBg: 'bg-amber-500/15' },
-  { value: '31-60',   label: '31-60',    description: 'Days overdue', icon: AlertTriangle,  bg: 'bg-card border-orange-500/25',       bgActive: 'bg-orange-500/10 border-orange-400 ring-2 ring-orange-200',     text: 'text-orange-500',  iconBg: 'bg-orange-500/15' },
-  { value: '61-90',   label: '61-90',    description: 'Days overdue', icon: AlertTriangle,  bg: 'bg-card border-red-500/25',          bgActive: 'bg-red-500/10 border-red-400 ring-2 ring-red-200',               text: 'text-red-500',     iconBg: 'bg-red-500/15' },
-  { value: '90+',     label: '90+',      description: 'Days overdue', icon: Flame,          bg: 'bg-card border-red-300',          bgActive: 'bg-red-500/15 border-red-500 ring-2 ring-red-300',              text: 'text-red-500',     iconBg: 'bg-red-200' },
+  { value: 'current', label: 'Current',  description: 'Not yet due', icon: Clock,           bg: 'bg-card border-border',              bgActive: 'bg-muted border-muted-foreground/40 ring-2 ring-muted-foreground/20',  text: 'text-foreground',                      iconBg: 'bg-muted' },
+  { value: '1-30',    label: '1-30',     description: 'Days overdue', icon: Clock,          bg: 'bg-card border-amber-500/30',        bgActive: 'bg-amber-500/10 border-amber-500/60 ring-2 ring-amber-500/25',          text: 'text-amber-600 dark:text-amber-400',   iconBg: 'bg-amber-500/15' },
+  { value: '31-60',   label: '31-60',    description: 'Days overdue', icon: AlertTriangle,  bg: 'bg-card border-orange-500/30',       bgActive: 'bg-orange-500/10 border-orange-500/60 ring-2 ring-orange-500/25',       text: 'text-orange-600 dark:text-orange-400', iconBg: 'bg-orange-500/15' },
+  { value: '61-90',   label: '61-90',    description: 'Days overdue', icon: AlertTriangle,  bg: 'bg-card border-red-500/30',          bgActive: 'bg-red-500/10 border-red-500/60 ring-2 ring-red-500/25',                text: 'text-red-600 dark:text-red-400',       iconBg: 'bg-red-500/15' },
+  { value: '90+',     label: '90+',      description: 'Days overdue', icon: Flame,          bg: 'bg-card border-rose-500/40',         bgActive: 'bg-rose-500/15 border-rose-600 ring-2 ring-rose-500/30',                text: 'text-rose-600 dark:text-rose-400',     iconBg: 'bg-rose-500/20' },
 ];
 
 interface Props {
@@ -86,19 +89,19 @@ export function AgingPanel({ invoices, active, onPick }: Props) {
   if (totalUnpaid === 0) return null; // Don't show empty aging panel
 
   return (
-    <div className="rounded-2xl bg-card border border-border shadow-sm overflow-hidden">
-      <div className="px-5 pt-4 pb-3 flex items-baseline justify-between">
+    <Card className="overflow-hidden">
+      <CardHeader className="items-baseline">
         <div>
-          <h3 className="text-sm font-bold text-[var(--foreground)]">Aging</h3>
-          <p className="text-xs text-muted-foreground mt-0.5">
+          <CardTitle className="text-sm">Aging</CardTitle>
+          <CardDescription className="text-xs mt-0.5">
             Unpaid invoices by overdue age · click a bucket to filter
-          </p>
+          </CardDescription>
         </div>
         <p className="text-xs text-muted-foreground">
-          <span className="font-bold text-[var(--foreground)]">{formatCurrency(totalUnpaid)}</span> unpaid
+          <span className="font-bold text-foreground">{formatCurrency(totalUnpaid)}</span> unpaid
         </p>
-      </div>
-      <div className="px-5 pb-5">
+      </CardHeader>
+      <CardContent>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           {BUCKETS.map((b) => {
             const data = buckets[b.value];
@@ -121,7 +124,7 @@ export function AgingPanel({ invoices, active, onPick }: Props) {
                     {b.label}
                   </span>
                 </div>
-                <p className={cn('text-base font-extrabold tabular-nums', isActive ? b.text : 'text-[var(--foreground)]')}>
+                <p className={cn('text-base font-extrabold tabular-nums', isActive ? b.text : 'text-foreground')}>
                   {data.amount > 0 ? formatCurrency(data.amount) : '—'}
                 </p>
                 <p className="text-[10px] text-muted-foreground mt-0.5">
@@ -131,7 +134,7 @@ export function AgingPanel({ invoices, active, onPick }: Props) {
             );
           })}
         </div>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }

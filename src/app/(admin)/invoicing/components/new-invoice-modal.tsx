@@ -13,11 +13,16 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { X, Loader2, Receipt, ChevronDown, Sparkles, ExternalLink, AlertTriangle } from 'lucide-react';
+import { X, Loader2, Receipt, Sparkles, ExternalLink, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatCurrency, buildMonthOptions } from '@/lib/utils/format';
 import type { Invoice } from './invoice-detail-sheet';
 import { ModalOverlay } from '@/components/ui/modal-overlay';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Select } from '@/components/ui/select';
+import { EmptyState } from '@/components/ui/empty-state';
 
 interface BrandOption {
   brand: string;
@@ -123,50 +128,42 @@ export function NewInvoiceModal({ open, defaultMonth, onClose, onCreated, onView
     <div className="absolute inset-0 flex items-center justify-center p-4">
       <button aria-label="Close" className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
 
-      <div className="relative w-full max-w-2xl bg-card rounded-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+      <Card className="relative w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
         <div className="px-6 py-5 border-b border-border flex items-start justify-between gap-3">
           <div className="flex items-start gap-3 min-w-0">
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-[var(--primary)] to-[var(--primary)] flex items-center justify-center flex-shrink-0 shadow-sm">
+            <div className="h-10 w-10 rounded-xl bg-pulse-grad flex items-center justify-center flex-shrink-0 shadow-pulse-primary">
               <Receipt className="h-5 w-5 text-white" />
             </div>
             <div className="min-w-0">
               <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">New</p>
-              <h2 className="text-lg font-extrabold text-[var(--foreground)]">Create Invoice</h2>
+              <h2 className="text-lg font-extrabold text-foreground">Create Invoice</h2>
               <p className="text-xs text-muted-foreground mt-0.5">Pulls live earnings data and creates an invoice for one brand &amp; month.</p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="h-8 w-8 rounded-lg hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-muted-foreground transition-colors flex-shrink-0"
-            aria-label="Close"
-          >
+          <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close" className="flex-shrink-0">
             <X className="h-4 w-4" />
-          </button>
+          </Button>
         </div>
 
         {/* Body */}
         <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5 space-y-5">
           {/* Month picker */}
           <div>
-            <label className="block text-xs font-semibold text-foreground mb-1.5">Period</label>
-            <div className="relative">
-              <select
-                value={month}
-                onChange={(e) => setMonth(e.target.value)}
-                disabled={creating}
-                className="w-full appearance-none bg-card border border-border rounded-xl pl-4 pr-10 py-2.5 text-sm font-semibold text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] cursor-pointer disabled:opacity-50"
-              >
-                {monthOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
-              <ChevronDown className="h-4 w-4 absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-            </div>
+            <Label>Period</Label>
+            <Select
+              value={month}
+              onChange={(e) => setMonth(e.target.value)}
+              disabled={creating}
+            >
+              {monthOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </Select>
           </div>
 
           {/* Brand picker */}
           <div>
             <div className="flex items-baseline justify-between mb-1.5">
-              <label className="block text-xs font-semibold text-foreground">Brand</label>
+              <Label className="mb-0">Brand</Label>
               <span className="text-[11px] text-muted-foreground">
                 {loadingPreview ? 'Loading…' : `${brands.length} brand${brands.length === 1 ? '' : 's'} with earnings`}
               </span>
@@ -177,11 +174,11 @@ export function NewInvoiceModal({ open, defaultMonth, onClose, onCreated, onView
                 {[0, 1, 2].map((i) => <div key={i} className="h-16 rounded-xl bg-muted animate-pulse" />)}
               </div>
             ) : brands.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center">
-                <Sparkles className="h-5 w-5 text-muted-foreground mx-auto mb-2" />
-                <p className="text-sm text-muted-foreground">No brands have earnings for this month.</p>
-                <p className="text-xs text-muted-foreground mt-1">Pick a different period.</p>
-              </div>
+              <EmptyState
+                icon={<Sparkles className="h-5 w-5" />}
+                title="No brands have earnings for this month."
+                description="Pick a different period."
+              />
             ) : (
               <div className="space-y-2 max-h-72 overflow-y-auto pr-1 -mr-1">
                 {brands.map((b) => {
@@ -194,8 +191,8 @@ export function NewInvoiceModal({ open, defaultMonth, onClose, onCreated, onView
                       className={cn(
                         'w-full text-left rounded-xl border-2 px-4 py-3 transition-all',
                         active
-                          ? 'border-[var(--primary)] bg-[#FFF0F5] shadow-sm'
-                          : 'border-border bg-card hover:border-border',
+                          ? 'border-primary bg-primary/5 shadow-sm'
+                          : 'border-border bg-card hover:border-primary/40',
                       )}
                     >
                       <div className="flex items-center justify-between gap-3">
@@ -223,10 +220,10 @@ export function NewInvoiceModal({ open, defaultMonth, onClose, onCreated, onView
 
           {/* Selected preview */}
           {selectedBrandData && (
-            <div className="rounded-xl bg-gradient-to-br from-[var(--foreground)] to-[#2D2E5C] p-4 text-white">
+            <div className="rounded-xl bg-pulse-grad p-4 text-white">
               <div className="flex items-baseline justify-between mb-2">
-                <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">Preview</p>
-                <p className="text-[11px] text-muted-foreground">{selectedBrandData.brandLabel} · {month}</p>
+                <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-white/70">Preview</p>
+                <p className="text-[11px] text-white/70">{selectedBrandData.brandLabel} · {month}</p>
               </div>
               <div className="grid grid-cols-2 gap-2 text-xs">
                 {selectedBrandData.commission > 0 && <PreviewLine label="Commission" value={formatCurrency(selectedBrandData.commission)} />}
@@ -235,7 +232,7 @@ export function NewInvoiceModal({ open, defaultMonth, onClose, onCreated, onView
                 {selectedBrandData.launchFee > 0 && <PreviewLine label="Launch Fee" value={formatCurrency(selectedBrandData.launchFee)} />}
               </div>
               <div className="border-t border-white/10 mt-3 pt-3 flex items-baseline justify-between">
-                <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">Invoice Total</span>
+                <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-white/70">Invoice Total</span>
                 <span className="text-2xl font-extrabold text-white tabular-nums">{formatCurrency(selectedBrandData.total)}</span>
               </div>
             </div>
@@ -243,44 +240,41 @@ export function NewInvoiceModal({ open, defaultMonth, onClose, onCreated, onView
 
           {/* Conflict notice */}
           {conflict && (
-            <div className="rounded-xl bg-amber-500/10 border border-amber-500/25 px-4 py-3 flex items-start gap-3">
-              <AlertTriangle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+            <div className="rounded-xl bg-[var(--pulse-warn-bg)] border border-[var(--pulse-warn)]/25 px-4 py-3 flex items-start gap-3">
+              <AlertTriangle className="h-5 w-5 text-[var(--pulse-warn)] flex-shrink-0 mt-0.5" />
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-amber-900">Invoice already exists</p>
-                <p className="text-xs text-amber-500 mt-0.5">
+                <p className="text-sm font-bold text-foreground">Invoice already exists</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
                   {conflict.invoice_number} ({conflict.status}) is already on file for this brand and month.
                 </p>
               </div>
-              <button
-                onClick={() => onViewExisting(conflict.id)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-bold hover:bg-amber-700 transition-colors flex-shrink-0"
-              >
+              <Button variant="outline" size="sm" onClick={() => onViewExisting(conflict.id)} className="flex-shrink-0">
                 <ExternalLink className="h-3.5 w-3.5" />
                 Open
-              </button>
+              </Button>
             </div>
           )}
 
           {error && (
-            <div className="rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-500">{error}</div>
+            <div className="rounded-xl bg-[var(--pulse-neg-bg)] border border-[var(--pulse-neg)]/20 px-4 py-3 text-sm text-[var(--pulse-neg)]">{error}</div>
           )}
         </div>
 
         {/* Footer */}
         <div className="px-6 py-4 border-t border-border flex items-center justify-end gap-2 bg-muted/40">
-          <button onClick={onClose} disabled={creating} className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground disabled:opacity-40">
+          <Button variant="ghost" onClick={onClose} disabled={creating}>
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="primary"
             onClick={handleCreate}
             disabled={creating || !selectedBrand || !!conflict}
-            className="inline-flex items-center gap-2 px-5 py-2 text-sm font-bold text-white bg-[var(--primary)] rounded-xl hover:bg-[var(--primary)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
           >
             {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Receipt className="h-4 w-4" />}
             {creating ? 'Generating…' : 'Generate Invoice'}
-          </button>
+          </Button>
         </div>
-      </div>
+      </Card>
     </div>
     </ModalOverlay>
   );
@@ -289,7 +283,7 @@ export function NewInvoiceModal({ open, defaultMonth, onClose, onCreated, onView
 function PreviewLine({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-baseline justify-between">
-      <span className="text-muted-foreground text-[11px]">{label}</span>
+      <span className="text-white/70 text-[11px]">{label}</span>
       <span className="text-white font-semibold tabular-nums">{value}</span>
     </div>
   );

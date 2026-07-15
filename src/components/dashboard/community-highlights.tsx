@@ -1,5 +1,7 @@
 import { Trophy, BarChart3 } from 'lucide-react';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
+import { Card, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 
 interface HighlightCreator {
   display_name: string;
@@ -27,15 +29,17 @@ export function CommunityHighlights({ creators }: Props) {
   const top = creators.slice(0, 5);
 
   return (
-    <div className="rounded-2xl bg-card border border-border shadow-sm overflow-hidden">
-      <div className="p-4 border-b border-border flex items-center gap-2">
-        <span className="h-7 w-7 rounded-lg bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center">
-          <Trophy className="h-4 w-4" />
-        </span>
-        <h3 className="text-sm font-extrabold tracking-tight text-[var(--foreground)]">Community Highlights</h3>
-        <span className="text-xs text-muted-foreground ml-auto">Top creators this period</span>
-      </div>
-      <div className="divide-y divide-gray-50/80">
+    <Card className="overflow-hidden">
+      <CardHeader className="border-b border-border">
+        <div className="flex items-center gap-2">
+          <span className="h-7 w-7 rounded-lg bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center">
+            <Trophy className="h-4 w-4" />
+          </span>
+          <CardTitle>Community Highlights</CardTitle>
+        </div>
+        <span className="text-xs text-muted-foreground">Top creators this period</span>
+      </CardHeader>
+      <div className="divide-y divide-border">
         {top.length === 0 ? (
           <div className="px-4 py-8 flex flex-col items-center gap-2 text-center text-muted-foreground text-sm">
             <BarChart3 className="h-8 w-8 text-muted-foreground" />
@@ -77,9 +81,13 @@ export function CommunityHighlights({ creators }: Props) {
                   <div className="flex items-center gap-1.5">
                     <p className="text-sm font-semibold text-[var(--foreground)] truncate">{c.display_name}</p>
                     {c.isManaged && (
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[var(--pulse-accent-2)]/10 text-[var(--pulse-accent-2)] flex-shrink-0">
+                      <Badge
+                        variant="accent"
+                        size="sm"
+                        className="bg-[var(--pulse-accent-2)]/10 text-[var(--pulse-accent-2)] px-1.5 flex-shrink-0"
+                      >
                         M
-                      </span>
+                      </Badge>
                     )}
                   </div>
                   <p className="text-[11px] font-mono tabular-nums text-muted-foreground">
@@ -95,6 +103,6 @@ export function CommunityHighlights({ creators }: Props) {
           })
         )}
       </div>
-    </div>
+    </Card>
   );
 }

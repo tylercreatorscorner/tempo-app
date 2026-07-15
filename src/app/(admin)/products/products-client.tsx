@@ -32,7 +32,12 @@ import { TableLoadBar } from '@/components/ui/table-load-bar';
 import { useBrandMeta } from '@/hooks/use-brand-meta';
 import { DateRangePicker } from '@/components/dashboard/date-range-picker';
 import { BrandFilter } from '@/components/creators/brand-filter';
-import { StatCard } from '@/components/dashboard/stat-card';
+import { StatCard } from '@/components/ui/stat-card';
+import { PageHeader, Eyebrow } from '@/components/ui/page-header';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Chip } from '@/components/ui/chip';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
 
 interface ProductRow {
@@ -200,19 +205,20 @@ export function ProductsClient({ brands, selectedBrand, startDate, endDate }: Pr
   return (
     <div className="space-y-6">
       {/* Header row: title + date picker */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-extrabold text-[var(--foreground)]">Products</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
+      <PageHeader
+        eyebrow="Performance"
+        title="Products"
+        subtitle={
+          <>
             Per-product performance for{' '}
-            <span className="font-medium text-muted-foreground">
+            <span className="font-medium text-foreground">
               {selectedBrand ? brandMeta.label(selectedBrand) : 'all brands'}
             </span>
             . Click any row to see the creators driving it.
-          </p>
-        </div>
-        <DateRangePicker />
-      </div>
+          </>
+        }
+        actions={<DateRangePicker />}
+      />
 
       {/* Brand pills */}
       <BrandFilter brands={brands} brandsWithData={brandsWithData} selectedBrand={selectedBrand} />
@@ -229,6 +235,7 @@ export function ProductsClient({ brands, selectedBrand, startDate, endDate }: Pr
           label="Total GMV"
           value={data ? formatCurrency(data.kpis.totalGmv) : '—'}
           trend={data?.kpis.gmvChangePct ?? undefined}
+          accentColor="var(--primary)"
         />
         <StatCard
           label="Active Products"
@@ -251,7 +258,7 @@ export function ProductsClient({ brands, selectedBrand, startDate, endDate }: Pr
       <TopProductsCard products={data?.products ?? []} totalGmv={data?.kpis.totalGmv ?? 0} loading={isInitial} />
 
       {/* Table */}
-      <div className="relative rounded-2xl bg-card border border-border shadow-sm overflow-hidden">
+      <Card className="relative overflow-hidden">
         {/* Indeterminate load bar — shows on first load AND every refetch
             (brand / date-range change). Gated by showBar (150ms delay) so
             fast loads don't flash it. */}
@@ -267,21 +274,22 @@ export function ProductsClient({ brands, selectedBrand, startDate, endDate }: Pr
           <div className="flex items-center gap-2">
             <div className="relative">
               <Search className="h-3.5 w-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <input
+              <Input
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search products..."
-                className="text-sm bg-card border border-border rounded-xl pl-8 pr-3 py-1.5 w-56 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)]"
+                className="w-56 pl-8 py-1.5 text-sm"
               />
             </div>
-            <button
+            <Button
+              variant="outline"
+              size="sm"
               onClick={downloadCsv}
               disabled={!visibleProducts.length}
-              className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border border-border hover:bg-muted text-muted-foreground disabled:opacity-40 transition-colors"
             >
               <Download className="h-3.5 w-3.5" /> CSV
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -332,7 +340,7 @@ export function ProductsClient({ brands, selectedBrand, startDate, endDate }: Pr
             </tbody>
           </table>
         </div>
-      </div>
+      </Card>
     </div>
   );
 }
@@ -440,10 +448,7 @@ function ProductRowGroup({
           </div>
         </td>
         <td className="px-4 py-3 align-top">
-          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: brandColor }} />
-            {brandMeta.label(product.brand)}
-          </span>
+          <Chip dotColor={brandColor}>{brandMeta.label(product.brand)}</Chip>
         </td>
         <td className="px-4 py-3 text-right font-bold text-[var(--primary)] tabular-nums">{formatCurrency(product.gmv)}</td>
         <td className="px-4 py-3 text-right text-foreground tabular-nums">{formatNumber(product.orders)}</td>
@@ -530,13 +535,14 @@ function TopProductsCard({
   const brandMeta = useBrandMeta();
   const top = products.slice(0, 5);
   return (
-    <div className="rounded-2xl bg-card border border-border shadow-sm p-5">
-      <div className="flex items-center justify-between mb-4">
+    <Card>
+      <CardHeader>
         <div>
-          <div className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">Headliners</div>
-          <h2 className="text-base font-bold text-[var(--foreground)] mt-0.5">Top 5 products</h2>
+          <Eyebrow gradient>Headliners</Eyebrow>
+          <CardTitle className="mt-0.5">Top 5 products</CardTitle>
         </div>
-      </div>
+      </CardHeader>
+      <CardContent>
       {loading ? (
         <div className="text-xs text-muted-foreground flex items-center gap-2"><Loader2 className="h-3.5 w-3.5 animate-spin" />Loading...</div>
       ) : top.length === 0 ? (
@@ -571,6 +577,7 @@ function TopProductsCard({
           })}
         </div>
       )}
-    </div>
+      </CardContent>
+    </Card>
   );
 }
