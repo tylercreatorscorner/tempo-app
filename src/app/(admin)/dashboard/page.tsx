@@ -12,7 +12,6 @@ import { buildCreatorAlerts } from '@/lib/data/creator-alerts';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
 import { pctChange } from '@/lib/utils/trend';
 import { getBrandRegistry, brandLabel, expandSlugs } from '@/lib/data/brand-registry';
-import { headers } from 'next/headers';
 import { createClient } from '@/lib/supabase/server';
 import { getActiveTenantId } from '@/lib/auth/platform-admin';
 
@@ -20,7 +19,7 @@ import { StatCard } from '@/components/dashboard/stat-card';
 import { Greeting } from '@/components/dashboard/greeting';
 import { ManagedOrganicDonut } from '@/components/dashboard/managed-organic-donut';
 import { ManagedGmvChart } from '@/components/dashboard/managed-gmv-chart';
-import { RosterHealthPanel } from '@/components/dashboard/roster-health-panel';
+import { RosterHealthSection, RosterHealthSkeleton } from '@/components/dashboard/roster-health-section';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -33,47 +32,6 @@ import { DashboardOnboarding } from '@/components/dashboard/dashboard-onboarding
 
 interface Props {
   searchParams: Promise<{ range?: string; brand?: string }>;
-}
-
-interface RosterSignals {
-  total: number;
-  healthy: number;
-  behind: number;
-  silent: number;
-  unreadDms: number;
-}
-
-/**
- * Roster Health / unread-DMs counts, reused from /api/roster so they tie out to
- * the /roster page exactly (deriveHealth is the single source). Internal
- * same-deployment fetch forwarding the caller's cookies (auth + impersonation).
- * Returns null on any failure so the panel degrades gracefully.
- */
-async function getRosterSignals(brand: string | null, range?: string): Promise<RosterSignals | null> {
-  try {
-    const h = await headers();
-    const host = h.get('host');
-    if (!host) return null;
-    const proto = h.get('x-forwarded-proto') ?? (host.startsWith('localhost') ? 'http' : 'https');
-    const qs = new URLSearchParams({ view: 'managed', page: '1' });
-    if (brand) qs.set('brand', brand);
-    if (range) qs.set('range', range);
-    const res = await fetch(`${proto}://${host}/api/roster?${qs.toString()}`, {
-      headers: { cookie: h.get('cookie') ?? '' },
-      cache: 'no-store',
-    });
-    if (!res.ok) return null;
-    const d = await res.json();
-    return {
-      total: Number(d.total_managed) || 0,
-      healthy: Number(d.healthy_count) || 0,
-      behind: Number(d.behind_count) || 0,
-      silent: Number(d.silent_count) || 0,
-      unreadDms: Number(d.unread_dms_total) || 0,
-    };
-  } catch {
-    return null;
-  }
 }
 
 export default async function AdminDashboard({ searchParams }: Props) {
@@ -235,13 +193,12 @@ export default async function AdminDashboard({ searchParams }: Props) {
   const HCHUNK = 400;
   const handleChunks: string[][] = [];
   for (let i = 0; i < managedHandles.length; i += HCHUNK) handleChunks.push(managedHandles.slice(i, i + HCHUNK));
-  const [seriesChunks, rosterSignals] = await Promise.all([
-    BRAND_IDS.length === 0 ? Promise.resolve([]) : Promise.all(handleChunks.map((slice) =>
-      supabase.rpc('get_creator_handle_gmv_series', {
-        handles: slice, brand_ids: BRAND_IDS, days_back: periodLength, p_start_date: startDate, p_end_date: endDate,
-      }))),
-    getRosterSignals(brandFilter, params.range),
-  ]);
+  // Roster Health is Suspense-streamed (its own async section) so the heavy
+  // internal /api/roster call never blocks this render — see Row 3 below.
+  const seriesChunks = BRAND_IDS.length === 0 ? [] : await Promise.all(handleChunks.map((slice) =>
+    supabase.rpc('get_creator_handle_gmv_series', {
+      handles: slice, brand_ids: BRAND_IDS, days_back: periodLength, p_start_date: startDate, p_end_date: endDate,
+    })));
   const managedByDay = new Map<string, number>();
   for (const res of seriesChunks) {
     for (const s of ((res as { data: { stat_date: string; gmv: string | number }[] | null }).data) ?? []) {
@@ -473,25 +430,21 @@ export default async function AdminDashboard({ searchParams }: Props) {
         </div>
       )}
 
-      {/* Row 3 — Brand Performance + Roster Health (mockup) */}
-      {!isEmptyBrand && (showBrandPerf || rosterSignals) && (
+      {/* Row 3 — Brand Performance + Roster Health (mockup). Roster Health is
+          Suspense-streamed: it runs a heavy internal /api/roster call, so it
+          fills in after the rest of the page rather than blocking navigation. */}
+      {!isEmptyBrand && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {showBrandPerf && (
             <div className="lg:col-span-2">
               <BrandPerformance brands={activeBrandRows} range={params.range} />
             </div>
           )}
-          {rosterSignals && (
-            <div className={showBrandPerf ? 'lg:col-span-1' : 'lg:col-span-3'}>
-              <RosterHealthPanel
-                total={rosterSignals.total}
-                healthy={rosterSignals.healthy}
-                behind={rosterSignals.behind}
-                silent={rosterSignals.silent}
-                unreadDms={rosterSignals.unreadDms}
-              />
-            </div>
-          )}
+          <div className={showBrandPerf ? 'lg:col-span-1' : 'lg:col-span-3'}>
+            <Suspense fallback={<RosterHealthSkeleton />}>
+              <RosterHealthSection brand={brandFilter} range={params.range} />
+            </Suspense>
+          </div>
         </div>
       )}
     </div>
