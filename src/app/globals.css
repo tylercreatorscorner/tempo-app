@@ -6,7 +6,10 @@
 
 /* Pulse defines both themes; the dark toggle lights up per-surface as the
    revamp rolls out. Default stays light until a surface is migrated. */
-html { color-scheme: light; }
+/* scrollbar-gutter: stable reserves the scrollbar's space always, so navigating
+   between a tall (scrollbar) and short (no scrollbar) page no longer shifts the
+   whole layout sideways — the classic "jumps when navigating". */
+html { color-scheme: light; scrollbar-gutter: stable; }
 html.dark { color-scheme: dark; }
 
 @theme inline {

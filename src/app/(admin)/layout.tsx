@@ -1,4 +1,5 @@
 import { Suspense } from 'react';
+import { cookies } from 'next/headers';
 import { AdminShell } from '@/components/layout/admin-shell';
 import { TenantSwitcherServer } from '@/components/layout/tenant-switcher-server';
 import { ViewAsBannerServer } from '@/components/layout/view-as-banner-server';
@@ -11,12 +12,16 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // real logged-in user, not the "view as" target.
   const scope = await getWorkspaceScope();
   const isAdmin = scope?.role === 'owner' || scope?.role === 'admin';
+  // Sidebar collapsed state persists in a cookie so the first paint matches the
+  // user's last choice (no expand→collapse flash on load).
+  const collapsed = (await cookies()).get('sidebar_collapsed')?.value === '1';
   return (
     <AdminShell
       tenantSwitcher={<Suspense><TenantSwitcherServer /></Suspense>}
       viewAsBanner={<Suspense><ViewAsBannerServer /></Suspense>}
       canViewFinance={scope?.canViewFinance ?? true}
       isAdmin={isAdmin}
+      defaultCollapsed={collapsed}
     >
       {children}
     </AdminShell>
