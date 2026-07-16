@@ -4,7 +4,7 @@ import { Suspense } from 'react';
 import { BarChart3 } from 'lucide-react';
 import { format, subDays, differenceInDays } from 'date-fns';
 
-import { getCreatorRankings, getDailyTrend, getAnalyticsBrandSummaries } from '@/lib/data/rpc';
+import { getCreatorRankings, getDailyTrend, getAnalyticsBrandTotals } from '@/lib/data/rpc';
 import { resolveDateRange } from '@/lib/data/date-utils';
 import { aggregateCreatorsByRealName } from '@/lib/data/creator-aggregate';
 import { computeManagedGmv } from '@/lib/data/managed-gmv';
@@ -171,19 +171,16 @@ export default async function AdminDashboard({ searchParams }: Props) {
     topPostsRes,
     userName,
   ] = await Promise.all([
-    getAnalyticsBrandSummaries(BRAND_IDS, startDate, endDate).catch((e) => {
-      console.error('[dash-diag] analytics_brand_summaries CURRENT threw', {
-        startDate, endDate, brandIdCount: BRAND_IDS.length,
-        err: e instanceof Error ? `${e.name}: ${e.message}` : String(e),
-      });
-      return [];
+    // `null` (not []) on failure so the KPIs can render "—" instead of a
+    // confident $0 — a swallowed statement_timeout here is exactly what made
+    // Total GMV read $0 for every user.
+    getAnalyticsBrandTotals(BRAND_IDS, startDate, endDate).catch((e) => {
+      console.error('[dashboard] analytics_brand_totals (current period) failed:', e);
+      return null;
     }),
-    getAnalyticsBrandSummaries(BRAND_IDS, prevStartDate, prevEndDate).catch((e) => {
-      console.error('[dash-diag] analytics_brand_summaries PREV threw', {
-        prevStartDate, prevEndDate, brandIdCount: BRAND_IDS.length,
-        err: e instanceof Error ? `${e.name}: ${e.message}` : String(e),
-      });
-      return [];
+    getAnalyticsBrandTotals(BRAND_IDS, prevStartDate, prevEndDate).catch((e) => {
+      console.error('[dashboard] analytics_brand_totals (previous period) failed:', e);
+      return null;
     }),
     Promise.all(activeBrands.map(async (brand) => {
       try { return (await getCreatorRankings(brand, startDate, endDate, 50)).map((c) => ({ ...c, brand })); }
@@ -202,21 +199,10 @@ export default async function AdminDashboard({ searchParams }: Props) {
     fetchViewerName(supabase),
   ]);
 
-  // TEMP DIAGNOSTIC (remove): Total GMV renders $0 while the same RPC returns
-  // ~$1.95M for the same ids/dates in SQL. Log what the app actually got.
-  console.error('[dash-diag] result', JSON.stringify({
-    startDate, endDate, prevStartDate, prevEndDate,
-    activeTenantId: activeTenantId ?? null,
-    allowedBrands: allowedBrands ? allowedBrands.length : 'null(all)',
-    allBrandsCount: ALL_BRANDS.length,
-    activeBrandsCount: activeBrands.length,
-    brandIdCount: BRAND_IDS.length,
-    brandIdSample: BRAND_IDS.slice(0, 2),
-    summariesRows: brandSummaries.length,
-    summariesGmv: brandSummaries.reduce((s, b) => s + (b.total_gmv || 0), 0),
-    prevRows: prevBrandSummaries.length,
-    prevGmv: prevBrandSummaries.reduce((s, b) => s + (b.total_gmv || 0), 0),
-  }));
+  // A failed totals fetch must not read as "$0 of GMV" — track it and render "—".
+  const totalsFailed = brandSummaries === null;
+  const summaryRows = brandSummaries ?? [];
+  const prevSummaryRows = prevBrandSummaries ?? [];
 
   // ── Aggregate trend across active brands (gmv-only) — feeds the stale-data
   //    freshness check (latest data date).
@@ -337,8 +323,8 @@ export default async function AdminDashboard({ searchParams }: Props) {
     let currentGmv = 0;
     let prevGmv    = 0;
     let managedGmvForBrand = 0;
-    for (const s of brandSummaries)     if (dataSlugSet.has(s.brand_slug)) currentGmv += s.total_gmv;
-    for (const s of prevBrandSummaries) if (dataSlugSet.has(s.brand_slug)) prevGmv    += s.total_gmv;
+    for (const s of summaryRows)     if (dataSlugSet.has(s.brand_slug)) currentGmv += s.total_gmv;
+    for (const s of prevSummaryRows) if (dataSlugSet.has(s.brand_slug)) prevGmv    += s.total_gmv;
     for (const ds of dataSlugSet)  managedGmvForBrand += managedGmvByBrand.get(ds) ?? 0;
 
     // Per-brand ROI: trailing-30d managed GMV ÷ this brand's monthly retainer
@@ -368,14 +354,11 @@ export default async function AdminDashboard({ searchParams }: Props) {
   const managedGmv = Array.from(mgPeriod.byStore.values()).reduce((a, b) => a + b, 0);
 
   // ── Portfolio totals ────────────────────────────────────────────────────
-  const totals = brandSummaries.reduce((acc, s) => {
-    acc.gmv      += s.total_gmv;
-    acc.orders   += s.total_orders;
-    acc.items    += s.total_items_sold;
-    acc.creators += s.unique_creators;
-    acc.videos   += s.total_videos;
+  const totals = summaryRows.reduce((acc, s) => {
+    acc.gmv    += s.total_gmv;
+    acc.orders += s.total_orders;
     return acc;
-  }, { gmv: 0, orders: 0, items: 0, creators: 0, videos: 0 });
+  }, { gmv: 0, orders: 0 });
   // Unmanaged = brand-wide GMV not attributable to a managed creator. (Was a
   // per-creator isManaged sum over the top-50-per-brand sample.)
   // NOTE: cross-source subtraction — totals.gmv comes from the analytics
@@ -385,7 +368,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
   // Guarded with max(0, …) so drift can't render a negative.
   const unmanagedGmv = Math.max(0, totals.gmv - managedGmv);
 
-  const prevTotals = prevBrandSummaries.reduce((acc, s) => {
+  const prevTotals = prevSummaryRows.reduce((acc, s) => {
     acc.gmv    += s.total_gmv;
     acc.orders += s.total_orders;
     return acc;
@@ -428,7 +411,9 @@ export default async function AdminDashboard({ searchParams }: Props) {
     ? `Data through ${format(new Date(latestDate), 'MMM d, yyyy')}`
     : 'Awaiting first data sync';
 
-  const isEmptyBrand = brandFilter && totals.gmv === 0 && totals.orders === 0;
+  // "No data for this brand" is only true if the fetch actually SUCCEEDED and
+  // came back empty — otherwise it's a fetch failure wearing an empty state.
+  const isEmptyBrand = !totalsFailed && brandFilter && totals.gmv === 0 && totals.orders === 0;
   // Brand Performance shows only brands with activity this period.
   const activeBrandRows = rosterBrandStats.filter((b) => b.currentGmv > 0);
   const showBrandPerf = !brandFilter && activeBrandRows.length > 1;
@@ -471,9 +456,9 @@ export default async function AdminDashboard({ searchParams }: Props) {
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-[14px] stagger-children">
         <StatCard
           label="Total GMV"
-          value={formatCurrency(totals.gmv)}
-          trend={gmvTrend}
-          trendLabel="vs prev"
+          value={totalsFailed ? '—' : formatCurrency(totals.gmv)}
+          trend={totalsFailed ? undefined : gmvTrend}
+          trendLabel={totalsFailed ? 'temporarily unavailable' : 'vs prev'}
           info="Total affiliate GMV across all brands in the selected period. The trend compares it to the previous period of equal length."
         />
         <StatCard
@@ -531,7 +516,15 @@ export default async function AdminDashboard({ searchParams }: Props) {
           <Card className="lg:col-span-1">
             <CardHeader><CardTitle eyebrow>Managed vs Organic</CardTitle></CardHeader>
             <CardContent>
-              <ManagedOrganicDonut managed={managedGmv} organic={unmanagedGmv} />
+              {/* Organic is derived from total GMV — without it the donut would
+                  read a flat "100% managed", so say nothing rather than lie. */}
+              {totalsFailed ? (
+                <p className="py-10 text-center text-sm text-muted-foreground">
+                  Split unavailable — total GMV couldn&apos;t be loaded.
+                </p>
+              ) : (
+                <ManagedOrganicDonut managed={managedGmv} organic={unmanagedGmv} />
+              )}
             </CardContent>
           </Card>
         </div>

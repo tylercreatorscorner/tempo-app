@@ -158,29 +158,42 @@ export async function getVideoSummary(
 /*  calls that return rows tagged with brand slug.                     */
 /* ------------------------------------------------------------------ */
 
-export interface AnalyticsBrandSummary {
+export interface AnalyticsBrandTotals {
   brand_id: string;
   brand_slug: string;
   total_gmv: number;
   total_orders: number;
   total_items_sold: number;
   total_videos: number;
-  unique_creators: number;
 }
 
-export async function getAnalyticsBrandSummaries(
+/**
+ * Per-brand sums (GMV / orders / items / videos) for a date range.
+ *
+ * Replaces the older `analytics_brand_summaries` RPC, which returned the same
+ * rows plus a `unique_creators` count that no caller ever displayed. That count
+ * forced a GroupAggregate over the whole window (366k rows for 7 days) and
+ * spilled ~19MB to disk — ~1.55s vs ~210ms here — which under concurrent load
+ * exceeded the authenticated role's statement_timeout. Callers caught the error
+ * and rendered $0, so the dashboard and the roster both silently reported no GMV.
+ *
+ * The DB function `analytics_brand_summaries` still exists for the legacy
+ * dashboard; nothing in this app should use it. If you need unique_creators,
+ * write a narrower query rather than reviving it.
+ */
+export async function getAnalyticsBrandTotals(
   brandIds: string[],
   startDate: string,
   endDate: string,
-): Promise<AnalyticsBrandSummary[]> {
+): Promise<AnalyticsBrandTotals[]> {
   if (brandIds.length === 0) return [];
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc('analytics_brand_summaries', {
+  const { data, error } = await supabase.rpc('analytics_brand_totals', {
     p_brand_ids: brandIds,
     p_start_date: startDate,
     p_end_date: endDate,
   });
-  if (error) throw new RPCError('analytics_brand_summaries', error.message);
+  if (error) throw new RPCError('analytics_brand_totals', error.message);
   if (!data) return [];
   return data.map((r: Record<string, unknown>) => ({
     brand_id: String(r.brand_id),
@@ -189,7 +202,6 @@ export async function getAnalyticsBrandSummaries(
     total_orders: Number(r.total_orders) || 0,
     total_items_sold: Number(r.total_items_sold) || 0,
     total_videos: Number(r.total_videos) || 0,
-    unique_creators: Number(r.unique_creators) || 0,
   }));
 }
 

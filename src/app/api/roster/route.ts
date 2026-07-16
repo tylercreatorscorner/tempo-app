@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import { getBrandRegistry, slugToUuid, uuidToSlug, resolveUuids, expandSlugs } from '@/lib/data/brand-registry';
-import { getAnalyticsBrandSummaries } from '@/lib/data/rpc';
+import { getAnalyticsBrandTotals } from '@/lib/data/rpc';
 import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 import { resolveDateRange } from '@/lib/data/date-utils';
 import { computeManagedGmv, sumManagedGmvForBrands, type ManagedGmvResult } from '@/lib/data/managed-gmv';
@@ -996,8 +996,21 @@ export async function GET(request: NextRequest) {
     // computeManagedGmv() the Earnings page uses, so the cards tie out exactly.
     // Affiliate GMV (brand-wide, all creators) stays on the analytics summaries.
     const [affCur, affPrev, mgCur, mgPrev, mg30] = await Promise.all([
-      affBrandIds.length ? getAnalyticsBrandSummaries(affBrandIds, sStart, sEnd).catch(() => []) : Promise.resolve([]),
-      affBrandIds.length ? getAnalyticsBrandSummaries(affBrandIds, pvStartStr, pvEndStr).catch(() => []) : Promise.resolve([]),
+      // getAnalyticsBrandTotals, not ...Summaries: this only needs total_gmv, and
+      // the summaries RPC's unique_creators count made it slow enough to hit the
+      // statement_timeout — which this .catch() then reported as $0 of GMV.
+      affBrandIds.length
+        ? getAnalyticsBrandTotals(affBrandIds, sStart, sEnd).catch((e) => {
+            console.error('[roster] analytics_brand_totals (current period) failed:', e);
+            return [];
+          })
+        : Promise.resolve([]),
+      affBrandIds.length
+        ? getAnalyticsBrandTotals(affBrandIds, pvStartStr, pvEndStr).catch((e) => {
+            console.error('[roster] analytics_brand_totals (previous period) failed:', e);
+            return [];
+          })
+        : Promise.resolve([]),
       computeManagedGmv(sStart, sEnd, kpiStoreSlugs, reg),
       computeManagedGmv(pvStartStr, pvEndStr, kpiStoreSlugs, reg),
       computeManagedGmv(roiStartStr, roiEndStr, kpiStoreSlugs, reg),
