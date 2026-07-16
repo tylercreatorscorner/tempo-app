@@ -171,8 +171,20 @@ export default async function AdminDashboard({ searchParams }: Props) {
     topPostsRes,
     userName,
   ] = await Promise.all([
-    getAnalyticsBrandSummaries(BRAND_IDS, startDate,     endDate).catch(() => []),
-    getAnalyticsBrandSummaries(BRAND_IDS, prevStartDate, prevEndDate).catch(() => []),
+    getAnalyticsBrandSummaries(BRAND_IDS, startDate, endDate).catch((e) => {
+      console.error('[dash-diag] analytics_brand_summaries CURRENT threw', {
+        startDate, endDate, brandIdCount: BRAND_IDS.length,
+        err: e instanceof Error ? `${e.name}: ${e.message}` : String(e),
+      });
+      return [];
+    }),
+    getAnalyticsBrandSummaries(BRAND_IDS, prevStartDate, prevEndDate).catch((e) => {
+      console.error('[dash-diag] analytics_brand_summaries PREV threw', {
+        prevStartDate, prevEndDate, brandIdCount: BRAND_IDS.length,
+        err: e instanceof Error ? `${e.name}: ${e.message}` : String(e),
+      });
+      return [];
+    }),
     Promise.all(activeBrands.map(async (brand) => {
       try { return (await getCreatorRankings(brand, startDate, endDate, 50)).map((c) => ({ ...c, brand })); }
       catch { return []; }
@@ -189,6 +201,22 @@ export default async function AdminDashboard({ searchParams }: Props) {
         }),
     fetchViewerName(supabase),
   ]);
+
+  // TEMP DIAGNOSTIC (remove): Total GMV renders $0 while the same RPC returns
+  // ~$1.95M for the same ids/dates in SQL. Log what the app actually got.
+  console.error('[dash-diag] result', JSON.stringify({
+    startDate, endDate, prevStartDate, prevEndDate,
+    activeTenantId: activeTenantId ?? null,
+    allowedBrands: allowedBrands ? allowedBrands.length : 'null(all)',
+    allBrandsCount: ALL_BRANDS.length,
+    activeBrandsCount: activeBrands.length,
+    brandIdCount: BRAND_IDS.length,
+    brandIdSample: BRAND_IDS.slice(0, 2),
+    summariesRows: brandSummaries.length,
+    summariesGmv: brandSummaries.reduce((s, b) => s + (b.total_gmv || 0), 0),
+    prevRows: prevBrandSummaries.length,
+    prevGmv: prevBrandSummaries.reduce((s, b) => s + (b.total_gmv || 0), 0),
+  }));
 
   // ── Aggregate trend across active brands (gmv-only) — feeds the stale-data
   //    freshness check (latest data date).
