@@ -49,7 +49,7 @@ export function StatCard({
           <p className="text-[10.5px] font-bold uppercase tracking-[0.12em] text-white/70">{label}</p>
           {info && <InfoTooltip label={info} className="text-white/50 hover:text-white" />}
         </div>
-        <p className="mt-2 text-[28px] leading-none font-extrabold tracking-tight tabular-nums">{value}</p>
+        <p className="mt-2 text-2xl leading-none font-extrabold tracking-tight tabular-nums">{value}</p>
         {(trend !== undefined || subValue || trendLabel) && (
           <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs font-semibold text-white/80">
             {trend !== undefined && (
@@ -77,7 +77,7 @@ export function StatCard({
         <p className="text-[10.5px] font-bold uppercase tracking-[0.12em] text-muted-foreground">{label}</p>
         {info && <InfoTooltip label={info} />}
       </div>
-      <p className="mt-2 text-[28px] leading-none font-extrabold tracking-tight tabular-nums text-foreground">{value}</p>
+      <p className="mt-2 text-2xl leading-none font-extrabold tracking-tight tabular-nums text-foreground">{value}</p>
       {(trend !== undefined || subValue || trendLabel) && (
         <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs font-semibold">
           {trend !== undefined && (
