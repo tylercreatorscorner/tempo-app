@@ -4,10 +4,10 @@ import { Suspense } from 'react';
 import { BarChart3 } from 'lucide-react';
 import { format, subDays, differenceInDays } from 'date-fns';
 
-import { getCreatorRankings, getDailyTrend, getAnalyticsBrandTotals } from '@/lib/data/rpc';
+import { getAnalyticsBrandTotals, getAnalyticsLatestDataDate } from '@/lib/data/rpc';
 import { resolveDateRange } from '@/lib/data/date-utils';
-import { aggregateCreatorsByRealName } from '@/lib/data/creator-aggregate';
-import { computeManagedGmv } from '@/lib/data/managed-gmv';
+import { fetchHandleDisplayMeta } from '@/lib/data/creator-aggregate';
+import { computeManagedGmv, buildManagedLookup } from '@/lib/data/managed-gmv';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
 import { pctChange } from '@/lib/utils/trend';
 import { getBrandRegistry, brandLabel, expandSlugs } from '@/lib/data/brand-registry';
@@ -154,6 +154,16 @@ export default async function AdminDashboard({ searchParams }: Props) {
   const roiEnd   = format(new Date(), 'yyyy-MM-dd');
   const roiStart = format(subDays(new Date(), 29), 'yyyy-MM-dd');
 
+  // Which handles are managed on which store — date-INDEPENDENT, so build it
+  // ONCE and hand it to all three computeManagedGmv windows below (period /
+  // trailing-30d ROI / prior period). Each call used to rebuild it identically:
+  // brands_v2 + ~1,460 paged managed_creators rows + a 5-batch tiktok_accounts
+  // loop over ~950 ids, three times over.
+  //
+  // Deliberately NOT React cache(): it keys on Object.is per argument, and
+  // `activeBrands` is a fresh array here, so every caller would miss.
+  const managedLookup = await buildManagedLookup(activeBrands, reg);
+
   // EVERYTHING that doesn't depend on another fetch goes in ONE wave. This was
   // five sequential round-trips (summaries → mgPeriod → mgRoi/mgPrev → retainer
   // → posts); each computeManagedGmv alone fans out ~1 RPC per store, so the
@@ -162,8 +172,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
   const [
     brandSummaries,
     prevBrandSummaries,
-    creatorsNested,
-    trendsByBrandRaw,
+    latestDate,
     mgPeriod,
     mgRoi,
     mgPrev,
@@ -182,14 +191,19 @@ export default async function AdminDashboard({ searchParams }: Props) {
       console.error('[dashboard] analytics_brand_totals (previous period) failed:', e);
       return null;
     }),
-    Promise.all(activeBrands.map(async (brand) => {
-      try { return (await getCreatorRankings(brand, startDate, endDate, 50)).map((c) => ({ ...c, brand })); }
-      catch { return []; }
-    })),
-    Promise.all(activeBrands.map(b => getDailyTrend(b, startDate, endDate).catch(() => []))),
-    computeManagedGmv(startDate, endDate, activeBrands, reg),
-    computeManagedGmv(roiStart, roiEnd, activeBrands, reg),
-    computeManagedGmv(prevStartDate, prevEndDate, activeBrands, reg),
+    // ONE call for the "Data through" date + stale check. This was 28 RPCs
+    // (get_daily_trend per brand), whose whole day-by-day output was summed in
+    // JS only to read the last date off the end. Deliberately not caught to []:
+    // one RPC is now a single point of failure where 27 of 28 could previously
+    // still yield a date, and "no data in range" must stay distinguishable from
+    // "the query died" (null → "—", not a fake "Awaiting first data sync").
+    getAnalyticsLatestDataDate(activeBrands, startDate, endDate).catch((e) => {
+      console.error('[dashboard] analytics_latest_data_date failed:', e);
+      return undefined; // undefined = failed; null = genuinely no data
+    }),
+    computeManagedGmv(startDate, endDate, activeBrands, reg, managedLookup),
+    computeManagedGmv(roiStart, roiEnd, activeBrands, reg, managedLookup),
+    computeManagedGmv(prevStartDate, prevEndDate, activeBrands, reg, managedLookup),
     fetchRetainerBySlug(supabase),
     activeBrands.length === 0
       ? Promise.resolve({ data: [] as Record<string, unknown>[] })
@@ -204,18 +218,6 @@ export default async function AdminDashboard({ searchParams }: Props) {
   const summaryRows = brandSummaries ?? [];
   const prevSummaryRows = prevBrandSummaries ?? [];
 
-  // ── Aggregate trend across active brands (gmv-only) — feeds the stale-data
-  //    freshness check (latest data date).
-  const trendByDate = new Map<string, number>();
-  for (const brandTrend of trendsByBrandRaw) {
-    for (const day of brandTrend) {
-      trendByDate.set(day.report_date, (trendByDate.get(day.report_date) ?? 0) + day.daily_gmv);
-    }
-  }
-  const aggregatedTrend = Array.from(trendByDate.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, gmv]) => ({ date, gmv }));
-
   // ── Creator-side parallel fetch: managed-GMV-by-brand (for the
   //    BrandPerformance "Managed" column) and the grouped creator list
   //    (for highlights, alerts, top-creator). Both share an underlying
@@ -223,9 +225,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
   //    same wall-clock time as one query. ─────────────────────────────────
   // Managed GMV comes from the canonical computeManagedGmv() (src/lib/data/
   // managed-gmv.ts) — the SAME definition the Earnings + Creators pages use, so
-  // all three tie out. `groupedCreators` powers the creator name/handle lookup
-  // for Top Creators; it does NOT drive managed GMV totals.
-  const allCreators = creatorsNested.flat().sort((a, b) => (b.total_gmv ?? 0) - (a.total_gmv ?? 0));
+  // all three tie out.
   const managedGmvByBrand = mgPeriod.byStore; // data-store slug → managed GMV
 
   let managedGmv30 = 0;
@@ -235,7 +235,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
 
   // ── Managed-GMV daily series (chart) — the one fetch that must follow the
   //    first wave: it needs mgPeriod's exact managed handle set. Runs alongside
-  //    groupedCreators (which needs the creator rankings).
+  //    the handle→name lookup, which needs the same set.
   const managedHandles = Array.from(
     new Set(Array.from(mgPeriod.byStoreCreator.values()).flatMap((m) => Array.from(m.keys()))),
   );
@@ -244,12 +244,19 @@ export default async function AdminDashboard({ searchParams }: Props) {
   for (let i = 0; i < managedHandles.length; i += HCHUNK) handleChunks.push(managedHandles.slice(i, i + HCHUNK));
   // Roster Health is Suspense-streamed (its own async section) so the heavy
   // internal /api/roster call never blocks this render — see Row 3 below.
-  const [seriesChunks, groupedCreators] = await Promise.all([
+  const [seriesChunks, handleMeta] = await Promise.all([
     BRAND_IDS.length === 0 ? Promise.resolve([]) : Promise.all(handleChunks.map((slice) =>
       supabase.rpc('get_creator_handle_gmv_series', {
         handles: slice, brand_ids: BRAND_IDS, days_back: periodLength, p_start_date: startDate, p_end_date: endDate,
       }))),
-    aggregateCreatorsByRealName(allCreators, brandFilter),
+    // Display names for exactly the handles we already have. Was 28 blocking
+    // get_creator_rankings (50 rows each) + 2 more queries inside
+    // aggregateCreatorsByRealName, ~99% of it discarded, to label ten rows.
+    fetchHandleDisplayMeta(managedHandles).catch((e) => {
+      // Degrade to raw handles rather than failing the page — but say so.
+      console.error('[dashboard] fetchHandleDisplayMeta failed; Top Creators will show raw handles:', e);
+      return new Map<string, { name: string; id: string }>();
+    }),
   ]);
   const managedByDay = new Map<string, number>();
   for (const res of seriesChunks) {
@@ -289,16 +296,11 @@ export default async function AdminDashboard({ searchParams }: Props) {
 
   // ── Top Creators — top-10 managed creators by MANAGED GMV this period. Ranked
   //    from the canonical computeManagedGmv (strict-managed, ties to the Managed
-  //    GMV hero), aggregated per-person; real names + detail-page ids resolved
-  //    from groupedCreators, falling back to the handle. Zero new queries. ────
-  const normH = (h: string) => h.replace(/^@/, '').trim().toLowerCase();
-  const handleMeta = new Map<string, { name: string; id?: string }>();
-  for (const g of groupedCreators) {
-    for (const h of g.handles) {
-      const k = normH(h);
-      if (k && !handleMeta.has(k)) handleMeta.set(k, { name: g.display_name, id: g.managed_creator_id ?? undefined });
-    }
-  }
+  //    GMV hero), aggregated per-person; real names + detail-page ids from
+  //    handleMeta, falling back to the handle. ─────────────────────────────────
+  // Merge-then-slice, NOT rank-then-slice: handleMeta supplies the aggregation
+  // KEY below, so one person's several handles must combine BEFORE the top-10
+  // cut or they'd occupy multiple rows with split GMV.
   const creatorAgg = new Map<string, { name: string | null; id?: string; handle: string; gmv: number }>();
   for (const perStore of mgPeriod.byStoreCreator.values()) {
     for (const cg of perStore.values()) {
@@ -400,7 +402,9 @@ export default async function AdminDashboard({ searchParams }: Props) {
   // would otherwise be flagged "16 days old", falsely implying Tempo is out of
   // date. Only evaluate staleness when the range actually reaches the present
   // (presets end at yesterday, so they always do).
-  const latestDate = aggregatedTrend.length > 0 ? aggregatedTrend[aggregatedTrend.length - 1].date : null;
+  // latestDate: a date = real data; null = genuinely no data in range;
+  // undefined = the lookup FAILED (don't claim either — see dataThroughLabel).
+  const dateFailed = latestDate === undefined;
   const rangeReachesToday = differenceInDays(new Date(), new Date(endDate)) <= 3;
   const daysStale  = latestDate ? Math.floor((Date.now() - new Date(latestDate).getTime()) / 86400000) : null;
   const isStale    = rangeReachesToday && daysStale != null && daysStale > 3;
@@ -409,7 +413,11 @@ export default async function AdminDashboard({ searchParams }: Props) {
   const activeBrandName  = brandFilter ? brandLabel(reg, brandFilter) : null;
   const dataThroughLabel = latestDate
     ? `Data through ${format(new Date(latestDate), 'MMM d, yyyy')}`
-    : 'Awaiting first data sync';
+    // Never assert "Awaiting first data sync" over a failed lookup — that's a
+    // fabricated empty state on a freshness claim the user acts on.
+    : dateFailed
+      ? 'Data freshness unavailable'
+      : 'Awaiting first data sync';
 
   // "No data for this brand" is only true if the fetch actually SUCCEEDED and
   // came back empty — otherwise it's a fetch failure wearing an empty state.

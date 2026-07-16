@@ -18,6 +18,7 @@
  * Callers must apply that list with `.in('brand', slugs)` / `.in('brand_id',
  * ids)` so the fail-closed behavior is "see nothing", never "see all".
  */
+import { cache } from 'react';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { getActiveManagerId } from '@/lib/auth/platform-admin';
 
@@ -100,8 +101,24 @@ async function scopeFromProfile(
  * Resolves the current user's Workspace scope, or null if they aren't a
  * Workspace user (unauthenticated, no profile, no tenant, or a
  * brand/creator-portal role). Routes should treat null as 401/redirect.
+ *
+ * Wrapped in React `cache()` — a per-REQUEST memo (same pattern as
+ * getBrandRegistry). A single /dashboard render resolves scope at least 3×
+ * (the admin layout, the view-as banner, and the page's own brand helper),
+ * each re-running auth + the user_profiles read.
+ *
+ * The primary reason is CORRECTNESS, not speed: this function returns null on
+ * several failure paths instead of throwing, so independent resolutions within
+ * one render could DISAGREE — the layout granting finance nav off one result
+ * while the page 401s off another. One call, one snapshot.
+ *
+ * The returned object is shared across the request: treat it as immutable, and
+ * don't call this from a cookie-mutating server action before its cookies().set()
+ * (the memo would hand back the pre-write scope).
+ *
+ * NEVER use unstable_cache / "use cache" here — per-user data, cross-request cache.
  */
-export async function getWorkspaceScope(): Promise<WorkspaceScope | null> {
+export const getWorkspaceScope = cache(async (): Promise<WorkspaceScope | null> => {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
@@ -141,7 +158,7 @@ export async function getWorkspaceScope(): Promise<WorkspaceScope | null> {
     .maybeSingle();
 
   return scopeFromProfile(admin, profile as ProfileRow | null, user.email ?? undefined);
-}
+});
 
 /**
  * True if the given brand (slug or uuid) is visible under this scope.

@@ -4,7 +4,7 @@ import { getBrandRegistry, slugToUuid, uuidToSlug, resolveUuids, expandSlugs } f
 import { getAnalyticsBrandTotals } from '@/lib/data/rpc';
 import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 import { resolveDateRange } from '@/lib/data/date-utils';
-import { computeManagedGmv, sumManagedGmvForBrands, type ManagedGmvResult } from '@/lib/data/managed-gmv';
+import { computeManagedGmv, buildManagedLookup, sumManagedGmvForBrands, type ManagedGmvResult } from '@/lib/data/managed-gmv';
 
 /**
  * Sentinel returned when a real brand is selected but we couldn't resolve any
@@ -270,6 +270,10 @@ export async function GET(request: NextRequest) {
   const product = searchParams.get('product');
   // ?all=1 — return every matching row (for CSV/Excel export), not just a page.
   const exportAll = searchParams.get('all') === '1';
+  // ?summary=0 — skip the KPI-summary block (step 7c). For callers that only want
+  // the roster rows / health counts and would otherwise pay ~84 RPCs of
+  // managed-GMV for nothing. Defaults ON so existing callers are unchanged.
+  const wantSummary = searchParams.get('summary') !== '0';
   const page   = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
   const limit  = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '50', 10)));
 
@@ -947,8 +951,15 @@ export async function GET(request: NextRequest) {
   // the brand's TOTAL affiliate GMV (all creators); managed_gmv_prev / _30d are
   // the roster's managed GMV over the prior period + a fixed trailing-30d window
   // (the latter powers ROI, independent of the selected period).
+  //
+  // `?summary=0` skips this block. The dashboard's Roster Health card calls this
+  // route for FIVE counts (total_managed / healthy / behind / silent / unread
+  // DMs) that are computed at step 6 from managedRows and have nothing to do
+  // with GMV — but because it calls with page=1 it was also paying for this
+  // block: 3x computeManagedGmv (~84 RPCs) + 2 analytics calls, every result
+  // discarded. Defaults ON, so the roster client is unaffected.
   let summary: { affiliate_gmv: number; affiliate_gmv_prev: number; managed_gmv_prev: number; managed_gmv_30d: number } | undefined;
-  if (!exportAll && page === 1) {
+  if (!exportAll && page === 1 && wantSummary) {
     const sEnd = pEndDate ?? new Date().toISOString().slice(0, 10);
     const sStart = pStartDate ?? (() => {
       const d = new Date(sEnd + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() - periodDays);
@@ -995,6 +1006,7 @@ export async function GET(request: NextRequest) {
     // Managed GMV (period / prior period / trailing-30d) all come from the SAME
     // computeManagedGmv() the Earnings page uses, so the cards tie out exactly.
     // Affiliate GMV (brand-wide, all creators) stays on the analytics summaries.
+    const kpiLookup = await buildManagedLookup(kpiStoreSlugs, reg);
     const [affCur, affPrev, mgCur, mgPrev, mg30] = await Promise.all([
       // getAnalyticsBrandTotals, not ...Summaries: this only needs total_gmv, and
       // the summaries RPC's unique_creators count made it slow enough to hit the
@@ -1011,9 +1023,12 @@ export async function GET(request: NextRequest) {
             return [];
           })
         : Promise.resolve([]),
-      computeManagedGmv(sStart, sEnd, kpiStoreSlugs, reg),
-      computeManagedGmv(pvStartStr, pvEndStr, kpiStoreSlugs, reg),
-      computeManagedGmv(roiStartStr, roiEndStr, kpiStoreSlugs, reg),
+      // One shared managed lookup across all three windows — it's
+      // date-independent, and rebuilding it per call meant 3x (brands_v2 +
+      // ~1,460 paged managed_creators rows + a 5-batch tiktok_accounts loop).
+      computeManagedGmv(sStart, sEnd, kpiStoreSlugs, reg, kpiLookup),
+      computeManagedGmv(pvStartStr, pvEndStr, kpiStoreSlugs, reg, kpiLookup),
+      computeManagedGmv(roiStartStr, roiEndStr, kpiStoreSlugs, reg, kpiLookup),
     ]);
     const sumTotalGmv = (rows: unknown) => ((rows as Array<{ total_gmv: number | string }> | null) ?? []).reduce((s, r) => s + (Number(r.total_gmv) || 0), 0);
     total_gmv_period = sumMg(mgCur);

@@ -24,7 +24,11 @@ async function getRosterSignals(brand: string | null, range?: string, start?: st
     const host = h.get('host');
     if (!host) return null;
     const proto = h.get('x-forwarded-proto') ?? (host.startsWith('localhost') ? 'http' : 'https');
-    const qs = new URLSearchParams({ view: 'managed', page: '1' });
+    // summary=0: this card renders FIVE counts (total/healthy/behind/silent/
+    // unread DMs) and nothing GMV-derived, but page=1 made /api/roster compute
+    // its KPI-summary block anyway — 3x computeManagedGmv (~84 RPCs) + 2
+    // analytics calls per dashboard load, every value discarded here.
+    const qs = new URLSearchParams({ view: 'managed', page: '1', summary: '0' });
     if (brand) qs.set('brand', brand);
     if (range) qs.set('range', range);
     // start/end are required for range=custom — /api/roster resolves last7 without them.

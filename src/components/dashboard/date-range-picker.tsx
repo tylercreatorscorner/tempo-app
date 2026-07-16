@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useRef, useEffect, useTransition } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Calendar, ChevronDown, Check } from 'lucide-react';
 import { DATE_PRESETS, type DatePreset } from '@/lib/data/date-utils';
 import { CustomRangePopover } from './custom-range-popover';
+import { useNavigationPending } from '@/components/layout/navigation-pending';
 import { cn } from '@/lib/utils';
 
 /**
@@ -16,7 +17,11 @@ import { cn } from '@/lib/utils';
 export function DateRangePicker() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [isPending, startTransition] = useTransition();
+  // The shell's shared transition, not a local one: this push invalidates every
+  // number on the page, so the pending affordance belongs over the CONTENT. A
+  // local isPending could only ever dim this chip, which is what made changing
+  // period look like nothing happened while stale figures sat there.
+  const { isPending, startNav } = useNavigationPending();
   const [menuOpen, setMenuOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -49,7 +54,7 @@ export function DateRangePicker() {
     params.delete('start');
     params.delete('end');
     setMenuOpen(false);
-    startTransition(() => router.push(`?${params.toString()}`));
+    startNav(() => router.push(`?${params.toString()}`));
   }
 
   function applyCustom(start: string, end: string) {
@@ -59,7 +64,7 @@ export function DateRangePicker() {
     params.set('end', end);
     setPickerOpen(false);
     setMenuOpen(false);
-    startTransition(() => router.push(`?${params.toString()}`));
+    startNav(() => router.push(`?${params.toString()}`));
   }
 
   const fmtCustom = (s: string) => {
@@ -81,7 +86,10 @@ export function DateRangePicker() {
         className={cn(
           'inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3.5 py-1.5 text-xs font-semibold shadow-sm transition-colors',
           'hover:border-[var(--primary)]/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40',
-          isPending && 'opacity-70 pointer-events-none',
+          // No opacity here: the shell's NavigationPendingOverlay already dims
+          // the whole content region (this chip included), and stacking the two
+          // washed it out to ~0.42. Just block re-entry.
+          isPending && 'pointer-events-none',
         )}
       >
         <span className="tabular-nums text-foreground">{currentLabel}</span>
