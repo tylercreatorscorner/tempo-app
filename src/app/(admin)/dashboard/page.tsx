@@ -8,8 +8,6 @@ import { getCreatorRankings, getDailyTrend, getAnalyticsBrandSummaries } from '@
 import { resolveDateRange } from '@/lib/data/date-utils';
 import { aggregateCreatorsByRealName } from '@/lib/data/creator-aggregate';
 import { computeManagedGmv } from '@/lib/data/managed-gmv';
-import { getCreatorRetainers } from '@/lib/data/retainer';
-import { buildCreatorAlerts } from '@/lib/data/creator-alerts';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
 import { pctChange } from '@/lib/utils/trend';
 import { getBrandRegistry, brandLabel, expandSlugs } from '@/lib/data/brand-registry';
@@ -17,21 +15,21 @@ import { createClient } from '@/lib/supabase/server';
 import { getActiveTenantId } from '@/lib/auth/platform-admin';
 
 import { StatCard } from '@/components/dashboard/stat-card';
+import { Greeting } from '@/components/dashboard/greeting';
+import { ManagedOrganicDonut } from '@/components/dashboard/managed-organic-donut';
+import { ManagedGmvChart } from '@/components/dashboard/managed-gmv-chart';
+import { RosterHealthSection, RosterHealthSkeleton } from '@/components/dashboard/roster-health-section';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState } from '@/components/ui/empty-state';
 import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { DateRangePicker } from '@/components/dashboard/date-range-picker';
-import { CommunityHighlights } from '@/components/dashboard/community-highlights';
-import { CreatorAlerts } from '@/components/dashboard/creator-alerts';
 import { BrandPerformance, type BrandRowData } from '@/components/dashboard/brand-performance';
+import { TopCreators } from '@/components/dashboard/top-creators';
+import { TopVideos } from '@/components/dashboard/top-videos';
 import { StaleDataBanner } from '@/components/dashboard/stale-data-banner';
 import { DashboardOnboarding } from '@/components/dashboard/dashboard-onboarding';
-import { TodaysStandouts, TodaysStandoutsSkeleton } from '@/components/dashboard/todays-standouts';
-import { PerformanceChart } from '@/components/analytics/performance-chart';
-import { NotableChanges } from '@/components/analytics/notable-changes';
-import { PacingTile } from '@/components/analytics/pacing-tile';
-import { getFoldInAnalytics } from '@/lib/data/dashboard-fold-analytics';
 
 interface Props {
   searchParams: Promise<{ range?: string; brand?: string }>;
@@ -102,7 +100,6 @@ export default async function AdminDashboard({ searchParams }: Props) {
     brandSummaries,
     prevBrandSummaries,
     creatorsNested,
-    retainerMap,
     trendsByBrandRaw,
   ] = await Promise.all([
     getAnalyticsBrandSummaries(BRAND_IDS, startDate,     endDate).catch(() => []),
@@ -111,31 +108,20 @@ export default async function AdminDashboard({ searchParams }: Props) {
       try { return (await getCreatorRankings(brand, startDate, endDate, 50)).map((c) => ({ ...c, brand })); }
       catch { return []; }
     })),
-    getCreatorRetainers(),
     Promise.all(activeBrands.map(b => getDailyTrend(b, startDate, endDate).catch(() => []))),
   ]);
 
-  // ── Aggregate trend across active brands ────────────────────────────────
-  // gmv-only series for the KPI sparkline, plus a full 4-metric series (summed
-  // across brands) handed to the fold-in chart so the helper skips its own trend
-  // fetch — the per-brand sum is verified identical to the aggregate RPC.
+  // ── Aggregate trend across active brands (gmv-only) — feeds the stale-data
+  //    freshness check (latest data date).
   const trendByDate = new Map<string, number>();
-  const trendFullByDate = new Map<string, { report_date: string; daily_gmv: number; daily_orders: number; daily_items_sold: number; daily_videos: number }>();
   for (const brandTrend of trendsByBrandRaw) {
     for (const day of brandTrend) {
       trendByDate.set(day.report_date, (trendByDate.get(day.report_date) ?? 0) + day.daily_gmv);
-      const e = trendFullByDate.get(day.report_date) ?? { report_date: day.report_date, daily_gmv: 0, daily_orders: 0, daily_items_sold: 0, daily_videos: 0 };
-      e.daily_gmv += day.daily_gmv;
-      e.daily_orders += day.daily_orders;
-      e.daily_items_sold += day.daily_items_sold;
-      e.daily_videos += day.daily_videos;
-      trendFullByDate.set(day.report_date, e);
     }
   }
   const aggregatedTrend = Array.from(trendByDate.entries())
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([date, gmv]) => ({ date, gmv }));
-  const trendCurRows = Array.from(trendFullByDate.values());
 
   // ── Creator-side parallel fetch: managed-GMV-by-brand (for the
   //    BrandPerformance "Managed" column) and the grouped creator list
@@ -160,15 +146,137 @@ export default async function AdminDashboard({ searchParams }: Props) {
   //    Folded-in Analytics (trend chart + movers + pacing) fetches in parallel.
   const roiEnd   = format(new Date(), 'yyyy-MM-dd');
   const roiStart = format(subDays(new Date(), 29), 'yyyy-MM-dd');
-  const [mgRoi, foldIn] = await Promise.all([
+  const [mgRoi, mgPrev] = await Promise.all([
     computeManagedGmv(roiStart, roiEnd, activeBrands, reg),
-    getFoldInAnalytics({
-      startDate, endDate, preset, brandFilter, allowedBrands, activeTenantId,
-      prefetched: { brandIds: BRAND_IDS, bsCur: brandSummaries, bsPrev: prevBrandSummaries, trendCur: trendCurRows },
-    }),
+    // Prior-period managed GMV → the Managed GMV hero card's trend.
+    computeManagedGmv(prevStartDate, prevEndDate, activeBrands, reg),
   ]);
   let managedGmv30 = 0;
   for (const [, g] of mgRoi.byStore) managedGmv30 += g;
+  let prevManagedGmv = 0;
+  for (const [, g] of mgPrev.byStore) prevManagedGmv += g;
+
+  // ── Per-brand monthly retainer from managed_creators.retainer — the SAME
+  //    source /api/roster uses for Total Retainers, so the dashboard's ROI +
+  //    Retainers tie out to the /roster page (creator_brands.retainer is a
+  //    different, incomplete field). managed_creators.brand is the roster slug.
+  //    Paged past PostgREST's 1000-row cap.
+  //    Deduped by (creator_id, brand) taking MAX — matches /api/roster exactly,
+  //    so re-add / merged-identity duplicate rows don't double-count the retainer
+  //    (which would inflate Retainers/mo and deflate ROI vs the /roster page).
+  const retainerBySlug = new Map<string, number>();
+  const maxByCreatorBrand = new Map<string, { brand: string; retainer: number }>();
+  for (let from = 0; ; from += 1000) {
+    const { data: mcPage } = await supabase
+      .from('managed_creators').select('creator_id, brand, retainer').is('archived_at', null)
+      .order('id', { ascending: true }).range(from, from + 999);
+    const rows = (mcPage as { creator_id: string | null; brand: string | null; retainer: number | null }[] | null) ?? [];
+    for (const r of rows) {
+      if (!r.brand) continue;
+      const ret = Number(r.retainer) || 0;
+      if (r.creator_id) {
+        const k = `${r.creator_id}|${r.brand}`;
+        const prev = maxByCreatorBrand.get(k);
+        if (!prev || ret > prev.retainer) maxByCreatorBrand.set(k, { brand: r.brand, retainer: ret });
+      } else {
+        // Unlinked rows can't be deduped by creator — count each once.
+        retainerBySlug.set(r.brand, (retainerBySlug.get(r.brand) ?? 0) + ret);
+      }
+    }
+    if (rows.length < 1000) break;
+  }
+  for (const { brand, retainer } of maxByCreatorBrand.values()) {
+    retainerBySlug.set(brand, (retainerBySlug.get(brand) ?? 0) + retainer);
+  }
+
+  // ── Managed-GMV daily series (chart) + Roster Health signals, in parallel.
+  //    Series: get_creator_handle_gmv_series over the exact managed handle set
+  //    (chunked to stay under the RPC row cap). Signals: reuse /api/roster's
+  //    already-computed health/unread counts (no drift vs the roster page).
+  const managedHandles = Array.from(
+    new Set(Array.from(mgPeriod.byStoreCreator.values()).flatMap((m) => Array.from(m.keys()))),
+  );
+  const HCHUNK = 400;
+  const handleChunks: string[][] = [];
+  for (let i = 0; i < managedHandles.length; i += HCHUNK) handleChunks.push(managedHandles.slice(i, i + HCHUNK));
+  // Roster Health is Suspense-streamed (its own async section) so the heavy
+  // internal /api/roster call never blocks this render — see Row 3 below.
+  // Top Videos (get_managed_posts, top-10 by GMV) runs in parallel with the
+  // daily-series chunks — one fast indexed RPC.
+  const [seriesChunks, topPostsRes] = await Promise.all([
+    BRAND_IDS.length === 0 ? Promise.resolve([]) : Promise.all(handleChunks.map((slice) =>
+      supabase.rpc('get_creator_handle_gmv_series', {
+        handles: slice, brand_ids: BRAND_IDS, days_back: periodLength, p_start_date: startDate, p_end_date: endDate,
+      }))),
+    activeBrands.length === 0
+      ? Promise.resolve({ data: [] as Record<string, unknown>[] })
+      : supabase.rpc('get_managed_posts', {
+          p_brand_slugs: activeBrands, p_start_date: startDate, p_end_date: endDate, p_managed_only: true, p_limit: 10,
+        }),
+  ]);
+  const managedByDay = new Map<string, number>();
+  for (const res of seriesChunks) {
+    for (const s of ((res as { data: { stat_date: string; gmv: string | number }[] | null }).data) ?? []) {
+      const day = String(s.stat_date).slice(0, 10);
+      managedByDay.set(day, (managedByDay.get(day) ?? 0) + (Number(s.gmv) || 0));
+    }
+  }
+  // Zero-fill every day in the range: the chart positions points by index, so
+  // dropping zero-GMV days would collapse multi-day gaps and distort the timeline.
+  const managedDaily: { date: string; gmv: number }[] = [];
+  const seriesEnd = new Date(`${endDate}T00:00:00Z`);
+  for (let d = new Date(`${startDate}T00:00:00Z`); d <= seriesEnd; d.setUTCDate(d.getUTCDate() + 1)) {
+    const day = d.toISOString().slice(0, 10);
+    managedDaily.push({ date: day, gmv: managedByDay.get(day) ?? 0 });
+  }
+  // NOTE: managedDaily comes from roster_creator_daily and over-attributes vs the
+  // canonical computeManagedGmv hero (a handle's GMV on non-managed brands is
+  // included). The chart shows only the trend SHAPE + delta (no headline total),
+  // so no divergent managed number is displayed — pending managed-GMV source
+  // unification (a strict-managed daily series).
+
+  // ── Top Videos — top-10 managed posts by GMV (real videos.video_id, dedup'd
+  //    + correctly attributed by get_managed_posts). No thumbnail field exists,
+  //    so the card renders a play tile + links the TikTok URL. ───────────────
+  const topVideos = (((topPostsRes as { data: Record<string, unknown>[] | null }).data) ?? [])
+    .map((p) => ({
+      title: String(p.video_title ?? ''),
+      url: String(p.video_url ?? ''),
+      handle: String(p.creator_handle ?? ''),
+      brand: String(p.brand_name ?? ''),
+      gmv: Number(p.gmv) || 0,
+      views: Number(p.views) || 0,
+    }))
+    .filter((v) => v.gmv > 0)
+    .slice(0, 10);
+
+  // ── Top Creators — top-10 managed creators by MANAGED GMV this period. Ranked
+  //    from the canonical computeManagedGmv (strict-managed, ties to the Managed
+  //    GMV hero), aggregated per-person; real names + detail-page ids resolved
+  //    from groupedCreators, falling back to the handle. Zero new queries. ────
+  const normH = (h: string) => h.replace(/^@/, '').trim().toLowerCase();
+  const handleMeta = new Map<string, { name: string; id?: string }>();
+  for (const g of groupedCreators) {
+    for (const h of g.handles) {
+      const k = normH(h);
+      if (k && !handleMeta.has(k)) handleMeta.set(k, { name: g.display_name, id: g.managed_creator_id ?? undefined });
+    }
+  }
+  const creatorAgg = new Map<string, { name: string | null; id?: string; handle: string; gmv: number }>();
+  for (const perStore of mgPeriod.byStoreCreator.values()) {
+    for (const cg of perStore.values()) {
+      const meta = handleMeta.get(cg.handleNorm);
+      const name = meta?.name ?? null;
+      const key = meta?.id ?? name ?? cg.handleNorm;
+      const e = creatorAgg.get(key) ?? { name, id: meta?.id, handle: cg.rawName || cg.handleNorm, gmv: 0 };
+      e.gmv += cg.gmv;
+      creatorAgg.set(key, e);
+    }
+  }
+  const topCreators = Array.from(creatorAgg.values())
+    .filter((c) => c.gmv > 0)
+    .sort((a, b) => b.gmv - a.gmv)
+    .slice(0, 10);
 
   // ── Per-roster-brand stats — drives BrandPerformance card and the
   //    "Top Brand" mini-stat in the Period Brief. Aggregates across
@@ -182,17 +290,13 @@ export default async function AdminDashboard({ searchParams }: Props) {
     for (const s of prevBrandSummaries) if (dataSlugSet.has(s.brand_slug)) prevGmv    += s.total_gmv;
     for (const ds of dataSlugSet)  managedGmvForBrand += managedGmvByBrand.get(ds) ?? 0;
 
-    // Sparkline = daily GMV across this brand's data slugs
-    const sparkByDate = new Map<string, number>();
-    for (let i = 0; i < activeBrands.length; i++) {
-      if (!dataSlugSet.has(activeBrands[i])) continue;
-      for (const day of trendsByBrandRaw[i]) {
-        sparkByDate.set(day.report_date, (sparkByDate.get(day.report_date) ?? 0) + day.daily_gmv);
-      }
-    }
-    const sparkline = Array.from(sparkByDate.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([, gmv]) => gmv);
+    // Per-brand ROI: trailing-30d managed GMV ÷ this brand's monthly retainer
+    // (same basis as the portfolio ROI card).
+    let managed30ForBrand = 0;
+    for (const ds of dataSlugSet) managed30ForBrand += mgRoi.byStore.get(ds) ?? 0;
+    let brandRetainer = 0;
+    for (const s of new Set<string>([rosterSlug, ...dataSlugSet])) brandRetainer += retainerBySlug.get(s) ?? 0;
+    const brandRoi = brandRetainer > 0 ? managed30ForBrand / brandRetainer : undefined;
 
     return {
       slug: rosterSlug,
@@ -200,7 +304,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
       managedGmv: managedGmvForBrand,
       prevGmv,
       trend: pctChange(currentGmv, prevGmv),
-      sparkline,
+      roi: brandRoi,
     };
   });
 
@@ -236,18 +340,34 @@ export default async function AdminDashboard({ searchParams }: Props) {
     return acc;
   }, { gmv: 0, orders: 0 });
 
-  const gmvTrend    = pctChange(totals.gmv,    prevTotals.gmv);
-  const ordersTrend = pctChange(totals.orders, prevTotals.orders);
+  const gmvTrend     = pctChange(totals.gmv,    prevTotals.gmv);
+  const managedTrend = pctChange(managedGmv,    prevManagedGmv);
+
+  // Viewer's name for the greeting (user_profiles.name, then auth metadata).
+  const { data: { user: greetUser } } = await supabase.auth.getUser();
+  let userName: string | null = null;
+  if (greetUser) {
+    const { data: profRaw } = await supabase
+      .from('user_profiles').select('name').eq('user_id', greetUser.id).maybeSingle();
+    userName = (profRaw as { name?: string | null } | null)?.name
+      ?? (greetUser.user_metadata?.full_name as string | undefined)
+      ?? null;
+  }
 
   // ROI = managed GMV (trailing 30d) ÷ total monthly retainer — the agency's
   // return on what it pays its creators, always over a 30-day window.
   let totalRetainerSpend = 0;
-  for (const [, info] of retainerMap) totalRetainerSpend += info.retainer ?? 0;
+  for (const rosterSlug of activeRosterBrands) {
+    for (const s of new Set<string>([rosterSlug, ...expandSlugs(reg, rosterSlug)])) {
+      totalRetainerSpend += retainerBySlug.get(s) ?? 0;
+    }
+  }
   const roi = totalRetainerSpend > 0 ? managedGmv30 / totalRetainerSpend : 0;
+  const retainerBrandCount = activeRosterBrands.filter((rs) =>
+    [rs, ...expandSlugs(reg, rs)].some((s) => (retainerBySlug.get(s) ?? 0) > 0),
+  ).length;
   const managedSharePct = totals.gmv > 0 ? (managedGmv / totals.gmv) * 100 : 0;
 
-  // ── Creator alerts (feeds the Creator Alerts card) ─────
-  const allAlerts = buildCreatorAlerts(groupedCreators);
 
   // ── Stale-data check ────────────────────────────────────────────────────
   const latestDate = aggregatedTrend.length > 0 ? aggregatedTrend[aggregatedTrend.length - 1].date : null;
@@ -255,15 +375,15 @@ export default async function AdminDashboard({ searchParams }: Props) {
   const isStale    = daysStale != null && daysStale > 3;
 
   // ── Header copy ─────────────────────────────────────────────────────────
-  const activeBrandColor = brandFilter ? (reg.bySlug.get(brandFilter)?.color ?? null) : null;
   const activeBrandName  = brandFilter ? brandLabel(reg, brandFilter) : null;
-  const headerLabel      = brandFilter ? `${activeBrandName} Today` : 'Today';
-  const headerSub        = brandFilter ? 'Brand performance brief' : 'Portfolio brief';
   const dataThroughLabel = latestDate
     ? `Data through ${format(new Date(latestDate), 'MMM d, yyyy')}`
     : 'Awaiting first data sync';
 
   const isEmptyBrand = brandFilter && totals.gmv === 0 && totals.orders === 0;
+  // Brand Performance shows only brands with activity this period.
+  const activeBrandRows = rosterBrandStats.filter((b) => b.currentGmv > 0);
+  const showBrandPerf = !brandFilter && activeBrandRows.length > 1;
 
   return (
     <div className="space-y-6">
@@ -274,70 +394,67 @@ export default async function AdminDashboard({ searchParams }: Props) {
 
       {/* Header */}
       <PageHeader
-        eyebrow="Overview"
-        title={headerLabel}
-        subtitle={
-          <div className="flex flex-col gap-1">
-            <span>{headerSub}</span>
-            <span className="inline-flex items-center gap-1 text-xs">
+        eyebrow={brandFilter ? `${activeBrandName} · Today` : 'Portfolio · Today'}
+        title={<Greeting name={userName} />}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Suspense fallback={null}>
+              <DateRangePicker />
+            </Suspense>
+            {/* "Data through" live status chip — mirrors the mockup's tinted
+                `.chip.live`; green when fresh, amber when the data is stale. */}
+            <span
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold text-muted-foreground shadow-sm',
+                isStale
+                  ? 'border-[var(--pulse-warn)]/30 bg-[var(--pulse-warn)]/10'
+                  : 'border-[var(--pulse-pos)]/25 bg-[var(--pulse-pos)]/10',
+              )}
+            >
               <span className={cn('h-1.5 w-1.5 rounded-full', isStale ? 'bg-[var(--pulse-warn)]' : 'bg-[var(--pulse-pos)]')} />
               <span className="tabular-nums">{dataThroughLabel}</span>
             </span>
           </div>
         }
-        actions={
-          <Suspense fallback={null}>
-            <DateRangePicker />
-          </Suspense>
-        }
       />
 
-      {/* KPI strip — 4 focused metrics with sparklines */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 stagger-children">
+      {/* KPI strip — 5 metrics, Managed GMV as the gradient hero (mockup).
+          Flat cards (no accent left-border) to match the mockup KPIs. */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-[14px] stagger-children">
         <StatCard
           label="Total GMV"
           value={formatCurrency(totals.gmv)}
           trend={gmvTrend}
-          trendLabel="vs prior period"
-          brandColor={activeBrandColor}
-          hero
-          sparklineData={aggregatedTrend.length > 1 ? aggregatedTrend.map(d => d.gmv) : undefined}
+          trendLabel="vs prev"
+          info="Total affiliate GMV across all brands in the selected period. The trend compares it to the previous period of equal length."
         />
         <StatCard
-          label="Orders"
-          value={formatNumber(totals.orders)}
-          trend={ordersTrend}
-          trendLabel="vs prior period"
-          accentColor="var(--pulse-accent-2)"
+          hero
+          label="Managed GMV"
+          value={formatCurrency(managedGmv)}
+          trend={managedTrend}
+          trendLabel="vs prev"
+          info="GMV driven by your managed creators in the selected period. The trend compares it to the previous period of equal length."
         />
         <StatCard
           label="Managed Share"
           value={totals.gmv > 0 ? `${managedSharePct.toFixed(0)}%` : '—'}
-          accentColor="#10B981"
-          subValue={
-            totals.gmv > 0
-              ? `${formatCurrency(managedGmv)} managed · ${formatCurrency(unmanagedGmv)} unmanaged`
-              : undefined
-          }
+          subValue="of portfolio"
+          info="Managed GMV as a share of total GMV — how much of all affiliate GMV your managed creators drove."
         />
         <StatCard
           label="ROI · 30d"
-          value={roi > 0 ? `${roi.toFixed(1)}x` : 'N/A'}
-          accentColor={activeBrandColor ?? 'var(--primary)'}
-          subValue={totalRetainerSpend > 0 ? `${formatCurrency(managedGmv30)} managed ÷ ${formatCurrency(totalRetainerSpend)}/mo` : undefined}
+          value={roi > 0 ? `${roi.toFixed(1)}×` : 'N/A'}
+          subValue="GMV / retainer"
+          info="Trailing-30-day managed GMV divided by total monthly retainer. Always a fixed 30-day window, regardless of the selected range."
+        />
+        <StatCard
+          label="Retainers /mo"
+          value={formatCurrency(totalRetainerSpend)}
+          subValue={`across ${retainerBrandCount} brand${retainerBrandCount === 1 ? '' : 's'}`}
+          info="Total monthly retainer you pay, summed across brands that carry one."
         />
       </div>
-
-      {/* Month-to-date pacing — projects where GMV lands (in-progress periods
-          only). Folded in from the retired Analytics page. */}
-      {foldIn.pacing && (
-        <PacingTile
-          daysElapsed={foldIn.pacing.daysElapsed}
-          periodLength={foldIn.pacing.periodLength}
-          gmvToDate={foldIn.pacing.gmvToDate}
-          periodLabel={foldIn.pacing.periodLabel}
-        />
-      )}
 
       {/* Empty-state for a brand-filtered view with no activity */}
       {isEmptyBrand && (
@@ -353,48 +470,50 @@ export default async function AdminDashboard({ searchParams }: Props) {
         />
       )}
 
-      {/* Brand Performance — multi-brand-only. The agency operator's most
-          important section: brand-by-brand GMV / trend / sparkline, with
-          click-to-filter. Only renders for tenants with >1 brand on the
-          unfiltered All Brands view. */}
-      {!brandFilter && rosterBrandStats.length > 1 && (
-        <BrandPerformance brands={rosterBrandStats} range={params.range} />
-      )}
-
-      {/* Performance over time — portfolio GMV/orders/videos with prior-period
-          and year-over-year overlays. Folded in from the retired Analytics page. */}
+      {/* Row 2 — Managed GMV trend + Managed-vs-Organic split (mockup) */}
       {!isEmptyBrand && (
-        <PerformanceChart
-          data={foldIn.trend.data}
-          priorData={foldIn.trend.priorData}
-          yoyData={foldIn.trend.yoyData}
-          accentColor={foldIn.trend.accentColor}
-        />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="lg:col-span-2">
+            <ManagedGmvChart
+              data={managedDaily}
+              trend={managedTrend}
+              label={`${brandFilter ? `${activeBrandName} · ` : ''}Managed GMV · ${periodLength}d`}
+            />
+          </div>
+          <Card className="lg:col-span-1">
+            <CardHeader><CardTitle eyebrow>Managed vs Organic</CardTitle></CardHeader>
+            <CardContent>
+              <ManagedOrganicDonut managed={managedGmv} organic={unmanagedGmv} />
+            </CardContent>
+          </Card>
+        </div>
       )}
 
-      {/* What's moving — auto-surfaced brand risers/fallers, breakout creator,
-          hot post, top product (folded in from Analytics). */}
-      {foldIn.notable.hasAny && (
-        <NotableChanges
-          brandRiser={foldIn.notable.brandRiser}
-          brandFaller={foldIn.notable.brandFaller}
-          creatorBreakout={foldIn.notable.creatorBreakout}
-          hotPost={foldIn.notable.hotPost}
-          topProduct={foldIn.notable.topProduct}
-        />
+      {/* Row 3 — Brand Performance + Roster Health (mockup). Roster Health is
+          Suspense-streamed: it runs a heavy internal /api/roster call, so it
+          fills in after the rest of the page rather than blocking navigation. */}
+      {!isEmptyBrand && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {showBrandPerf && (
+            <div className="lg:col-span-2">
+              <BrandPerformance brands={activeBrandRows} range={params.range} />
+            </div>
+          )}
+          <div className={showBrandPerf ? 'lg:col-span-1' : 'lg:col-span-3'}>
+            <Suspense fallback={<RosterHealthSkeleton />}>
+              <RosterHealthSection brand={brandFilter} range={params.range} />
+            </Suspense>
+          </div>
+        </div>
       )}
 
-      {/* Highlights + Alerts — paired, complementary creator views.
-          Alerts also surfaces brand riser/faller when on All Brands view. */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <CommunityHighlights creators={groupedCreators} />
-        <CreatorAlerts alerts={allAlerts} />
-      </div>
-
-      {/* Today's Standouts — single curated video section, streams in via Suspense */}
-      <Suspense fallback={<TodaysStandoutsSkeleton />}>
-        <TodaysStandouts brandFilter={brandFilter} startDate={startDate} endDate={endDate} />
-      </Suspense>
+      {/* Row 4 — Top Creators + Top Videos leaderboards (managed, by GMV) */}
+      {!isEmptyBrand && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <TopCreators creators={topCreators} label={`${periodLength}d`} />
+          <TopVideos videos={topVideos} label={`${periodLength}d`} />
+        </div>
+      )}
     </div>
   );
 }

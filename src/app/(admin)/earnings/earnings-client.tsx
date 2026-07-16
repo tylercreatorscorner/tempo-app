@@ -379,7 +379,7 @@ export function EarningsClient({ initialMonth }: { initialMonth: string }) {
         {loading && !series ? (
           <ChartSkeleton height={280} />
         ) : series && series.length > 0 ? (
-          <EarningsTrendChart data={series} activeMonth={month} height={280} />
+          <EarningsTrendChart data={series} height={280} />
         ) : (
           <EmptyState message="No trend data available yet" />
         )}

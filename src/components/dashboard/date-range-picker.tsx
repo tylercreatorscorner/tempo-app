@@ -1,28 +1,54 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useRef, useEffect, useTransition } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Calendar } from 'lucide-react';
+import { Calendar, ChevronDown, Check } from 'lucide-react';
 import { DATE_PRESETS, type DatePreset } from '@/lib/data/date-utils';
 import { CustomRangePopover } from './custom-range-popover';
 import { cn } from '@/lib/utils';
 
+/**
+ * Compact period control — a single rounded "chip" showing the active range
+ * with a caret, opening a dropdown of presets + a custom range. Matches the
+ * Pulse mockup's `.chip` selector (one small pill, not a wide button bar), and
+ * is the shared date control across the admin cockpit.
+ */
 export function DateRangePicker() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
+  const [menuOpen, setMenuOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
 
-  const current      = (searchParams.get('range') as DatePreset) || 'last7';
-  const customStart  = searchParams.get('start');
-  const customEnd    = searchParams.get('end');
-  const isCustom     = current === 'custom' && !!customStart && !!customEnd;
+  const current     = (searchParams.get('range') as DatePreset) || 'last7';
+  const customStart = searchParams.get('start');
+  const customEnd   = searchParams.get('end');
+  const isCustom    = current === 'custom' && !!customStart && !!customEnd;
+
+  // Close the menu on outside click / Escape.
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onDown(e: MouseEvent) {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setMenuOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setMenuOpen(false);
+    }
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [menuOpen]);
 
   function selectPreset(preset: DatePreset) {
     const params = new URLSearchParams(searchParams.toString());
     params.set('range', preset);
     params.delete('start');
     params.delete('end');
+    setMenuOpen(false);
     startTransition(() => router.push(`?${params.toString()}`));
   }
 
@@ -32,69 +58,81 @@ export function DateRangePicker() {
     params.set('start', start);
     params.set('end', end);
     setPickerOpen(false);
+    setMenuOpen(false);
     startTransition(() => router.push(`?${params.toString()}`));
   }
 
-  // Short label for the custom button when a custom range is active
-  const customLabel = (() => {
-    if (!isCustom || !customStart || !customEnd) return 'Custom';
-    const fmt = (s: string) => {
-      const [y, m, d] = s.split('-');
-      return `${parseInt(m)}/${parseInt(d)}/${y.slice(2)}`;
-    };
-    return `${fmt(customStart)} – ${fmt(customEnd)}`;
-  })();
+  const fmtCustom = (s: string) => {
+    const [y, m, d] = s.split('-');
+    return `${parseInt(m)}/${parseInt(d)}/${y.slice(2)}`;
+  };
+  const currentLabel = isCustom
+    ? `${fmtCustom(customStart!)} – ${fmtCustom(customEnd!)}`
+    : DATE_PRESETS.find((p) => p.value === current)?.label ?? 'Last 7 Days';
 
   return (
-    <div className="relative">
-      <div
+    <div className="relative" ref={rootRef}>
+      <button
+        type="button"
+        onClick={() => setMenuOpen((o) => !o)}
+        disabled={isPending}
+        aria-haspopup="menu"
+        aria-expanded={menuOpen}
         className={cn(
-          'flex flex-wrap gap-1 bg-card p-1 rounded-full border border-border shadow-sm transition-opacity',
-          isPending && 'opacity-70 pointer-events-none'
+          'inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3.5 py-1.5 text-xs font-semibold shadow-sm transition-colors',
+          'hover:border-[var(--primary)]/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40',
+          isPending && 'opacity-70 pointer-events-none',
         )}
       >
-        {DATE_PRESETS.map((p) => {
-          const isActive = !isCustom && current === p.value;
-          return (
-            <button
-              key={p.value}
-              onClick={() => selectPreset(p.value)}
-              disabled={isPending}
-              aria-pressed={isActive}
-              className={cn(
-                'relative px-3.5 py-1.5 text-sm rounded-full transition-all duration-200 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40 focus-visible:ring-offset-1',
-                isActive
-                  ? 'bg-gradient-to-r from-[var(--primary)] to-[var(--pulse-accent-2)] text-white shadow-md'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-              )}
-            >
-              {p.label}
-              {isActive && isPending && (
-                <span className="absolute inset-0 flex items-center justify-center rounded-full bg-card/20">
-                  <span className="h-3 w-3 rounded-full border-2 border-white border-t-transparent animate-spin" />
-                </span>
-              )}
-            </button>
-          );
-        })}
+        <span className="tabular-nums text-foreground">{currentLabel}</span>
+        <ChevronDown className={cn('h-3.5 w-3.5 text-muted-foreground transition-transform', menuOpen && 'rotate-180')} />
+      </button>
 
-        {/* Custom range trigger */}
-        <button
-          onClick={() => setPickerOpen((o) => !o)}
-          disabled={isPending}
-          aria-pressed={isCustom}
-          aria-expanded={pickerOpen}
-          className={cn(
-            'flex items-center gap-1.5 px-3.5 py-1.5 text-sm rounded-full transition-all duration-200 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40 focus-visible:ring-offset-1',
-            isCustom
-              ? 'bg-gradient-to-r from-[var(--primary)] to-[var(--pulse-accent-2)] text-white shadow-md'
-              : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-          )}
+      {menuOpen && (
+        <div
+          role="menu"
+          className="absolute right-0 z-30 mt-2 w-44 overflow-hidden rounded-xl border border-border bg-card p-1 shadow-[var(--pulse-elev-2)]"
         >
-          <Calendar className="h-3.5 w-3.5" />
-          <span className="tabular-nums">{customLabel}</span>
-        </button>
-      </div>
+          {DATE_PRESETS.map((p) => {
+            const active = !isCustom && current === p.value;
+            return (
+              <button
+                key={p.value}
+                type="button"
+                role="menuitemradio"
+                aria-checked={active}
+                onClick={() => selectPreset(p.value)}
+                className={cn(
+                  'flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                  active ? 'bg-primary/10 text-[var(--primary)]' : 'text-foreground hover:bg-muted',
+                )}
+              >
+                {p.label}
+                {active && <Check className="h-3.5 w-3.5" />}
+              </button>
+            );
+          })}
+          <div className="my-1 h-px bg-border" />
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setPickerOpen(true);
+              setMenuOpen(false);
+            }}
+            className={cn(
+              'flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+              isCustom ? 'bg-primary/10 text-[var(--primary)]' : 'text-foreground hover:bg-muted',
+            )}
+          >
+            <span className="inline-flex items-center gap-1.5">
+              <Calendar className="h-3.5 w-3.5" />
+              Custom range…
+            </span>
+            {isCustom && <Check className="h-3.5 w-3.5" />}
+          </button>
+        </div>
+      )}
 
       {pickerOpen && (
         <CustomRangePopover
