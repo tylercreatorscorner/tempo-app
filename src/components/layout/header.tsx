@@ -21,17 +21,53 @@ interface HeaderProps {
   isAdmin?: boolean;
 }
 
+// Every nav destination AND every SectionTabs sub-view. Keep in sync with
+// section-tabs.tsx — a route missing here used to fall through to the literal
+// string 'Dashboard', so ~2/3 of the app (Earnings, Retention, Affiliates, YTD,
+// Invoicing, Products, Team, Upload, Workflows…) displayed the wrong page name
+// in the breadcrumb. The tab consolidation added the routes but not the map.
 const BREADCRUMB_MAP: Record<string, string> = {
   '/': 'Dashboard',
   '/dashboard': 'Dashboard',
-  '/brands': 'Brands',
-  '/payments': 'Payments',
-  '/settings': 'Settings',
+  // Creators
   '/roster': 'Creators',
+  '/retention': 'Retention',
+  '/affiliates': 'Affiliates',
+  '/segments': 'Segments',
+  // Content
+  '/posts': 'Posts',
+  '/reporting': 'Reporting',
+  // Finance
+  '/earnings': 'Earnings',
+  '/ytd': 'Year-to-Date',
+  '/invoicing': 'Invoicing',
+  '/payments': 'Payments',
+  // Products
+  '/products': 'Product Performance',
+  '/products/catalog': 'Catalog',
+  // Settings
+  '/settings': 'Settings',
+  '/settings/brands': 'Brands',
+  '/team': 'Team',
+  '/upload': 'Upload',
+  '/workflows/automations': 'Automations',
+  '/workflows/integrations': 'Integrations',
+  '/workflows/outreach': 'Outreach',
+  // Other
+  '/brands': 'Brands',
   '/messages': 'Messages',
   '/discover': 'Discover',
-  '/reporting': 'Reporting',
+  '/system': 'System',
+  '/invites': 'Invites',
 };
+
+/** Last path segment, title-cased — so an unmapped route names ITSELF rather
+ *  than silently claiming to be the Dashboard. */
+function labelFromPath(pathname: string): string {
+  const seg = pathname.split('/').filter(Boolean).pop();
+  if (!seg) return 'Dashboard';
+  return seg.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
 export function Header({ onMenuClick, tenantName, userName, userEmail, tenantSwitcher, isAdmin }: HeaderProps) {
   const pathname = usePathname();
@@ -74,7 +110,7 @@ export function Header({ onMenuClick, tenantName, userName, userEmail, tenantSwi
       ? fallbackDetailLabel(pathname.split('/creators/')[1] ?? '')
       : isBrandDetail
       ? decodeURIComponent(pathname.split('/brands/')[1] ?? '')
-      : (BREADCRUMB_MAP[pathname] ?? 'Dashboard'));
+      : (BREADCRUMB_MAP[pathname] ?? labelFromPath(pathname)));
 
   useEffect(() => {
     if (!menuOpen) return;
