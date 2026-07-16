@@ -35,7 +35,7 @@ import { SetBreadcrumb } from '@/components/layout/breadcrumb-context';
 
 interface Props {
   params: Promise<{ name: string }>;
-  searchParams: Promise<{ range?: string; brand?: string; tab?: string }>;
+  searchParams: Promise<{ range?: string; brand?: string; tab?: string; start?: string; end?: string }>;
 }
 
 function trendPct(current: number, previous: number): number | undefined {
@@ -109,7 +109,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
   const profile = await getCreatorProfile(creatorId);
   if (!profile) notFound();
 
-  const { startDate, endDate } = resolveDateRange(sp.range);
+  const { startDate, endDate } = resolveDateRange(sp.range, sp.start, sp.end);
   const selectedBrand = sp.brand || null;
   const activeTab = sp.tab || 'overview';
 

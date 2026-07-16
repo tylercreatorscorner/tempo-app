@@ -21,7 +21,7 @@ import { AmNoteEditor } from './am-note-editor';
 
 interface Props {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ range?: string }>;
+  searchParams: Promise<{ range?: string; start?: string; end?: string }>;
 }
 
 export default async function BrandDetailPage({ params, searchParams }: Props) {
@@ -43,7 +43,7 @@ export default async function BrandDetailPage({ params, searchParams }: Props) {
   if (!brand) notFound();
 
   const sp = await searchParams;
-  const { startDate, endDate } = resolveDateRange(sp.range);
+  const { startDate, endDate } = resolveDateRange(sp.range, sp.start, sp.end);
   const color = brand.color ?? 'var(--muted-foreground)';
   const displayName = brand.display_name || brand.name || slug;
 

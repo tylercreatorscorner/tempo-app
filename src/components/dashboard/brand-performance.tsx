@@ -17,8 +17,11 @@ export interface BrandRowData {
 
 interface Props {
   brands: BrandRowData[];
-  /** Pass through the current ?range= param so click-to-filter preserves the date range. */
+  /** Pass through the current date params so click-to-filter preserves the range —
+   *  including start/end, without which a custom range silently reverts to last7. */
   range?: string;
+  start?: string;
+  end?: string;
 }
 
 const TH = 'text-[10px] font-bold uppercase tracking-[0.1em] text-muted-foreground';
@@ -41,7 +44,7 @@ function HeadCell({ label, tip, width }: { label: string; tip: string; width: st
  * filter the dashboard to that brand. Only renders with >1 brand and no filter.
  * Column headers carry tooltips defining each metric.
  */
-export async function BrandPerformance({ brands, range }: Props) {
+export async function BrandPerformance({ brands, range, start, end }: Props) {
   if (brands.length === 0) return null;
 
   const reg = await getBrandRegistry();
@@ -52,6 +55,8 @@ export async function BrandPerformance({ brands, range }: Props) {
     const params = new URLSearchParams();
     params.set('brand', slug);
     if (range) params.set('range', range);
+    if (start) params.set('start', start);
+    if (end) params.set('end', end);
     return `/dashboard?${params.toString()}`;
   }
 

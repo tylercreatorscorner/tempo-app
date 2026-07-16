@@ -11,12 +11,12 @@ import { DollarSign, ShoppingCart, Users, Package } from 'lucide-react';
 import { BrandsActions } from './brands-actions';
 
 interface Props {
-  searchParams: Promise<{ range?: string }>;
+  searchParams: Promise<{ range?: string; start?: string; end?: string }>;
 }
 
 export default async function BrandsPage({ searchParams }: Props) {
   const params = await searchParams;
-  const { startDate, endDate } = resolveDateRange(params.range);
+  const { startDate, endDate } = resolveDateRange(params.range, params.start, params.end);
 
   // Load brands from database (tenant-scoped via RLS)
   const supabase = await createClient();
