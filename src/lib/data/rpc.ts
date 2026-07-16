@@ -158,6 +158,35 @@ export async function getVideoSummary(
 /*  calls that return rows tagged with brand slug.                     */
 /* ------------------------------------------------------------------ */
 
+/**
+ * MAX(report_date) across `brands` within [startDate, endDate] — the "Data
+ * through …" badge and the stale-pipeline check. Returns null when the range
+ * genuinely holds no data.
+ *
+ * Replaces a 28-wide fan-out of getDailyTrend whose entire per-brand day-by-day
+ * output was summed in JS just to read the last date off the end. The chart is
+ * driven by managedDaily, not by this.
+ *
+ * Throws rather than returning null on failure: the caller must distinguish "no
+ * data in range" (→ "Awaiting first data sync") from "the query died" (→ "—"),
+ * and one RPC is now a single point of failure where 28 could partially survive.
+ */
+export async function getAnalyticsLatestDataDate(
+  brands: string[],
+  startDate: string,
+  endDate: string,
+): Promise<string | null> {
+  if (brands.length === 0) return null;
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc('analytics_latest_data_date', {
+    p_brands: brands,
+    p_start_date: startDate,
+    p_end_date: endDate,
+  });
+  if (error) throw new RPCError('analytics_latest_data_date', error.message);
+  return (data as string | null) ?? null;
+}
+
 export interface AnalyticsBrandTotals {
   brand_id: string;
   brand_slug: string;

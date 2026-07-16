@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
-import { getCreatorRetainers, getTotalRetainer, type RetainerInfo } from './retainer';
+import { getCreatorRetainers, getTotalRetainer } from './retainer';
 
 interface RawCreator {
   creator_name: string;
@@ -62,31 +62,62 @@ async function fetchHandleToRealName(handles: string[]): Promise<Map<string, { r
   return map;
 }
 
-/**
- * Per-data-slug managed GMV split for the BrandPerformance card.
- *
- * Uses the same handle→creator mapping as `aggregateCreatorsByRealName` so
- * "managed" stays consistent across the dashboard: a creator counts as
- * managed when their TikTok handle resolves to a row in `creators_v2`.
- *
- * Returns a Map keyed by **data slug** (e.g. `leefar_nutrition`, not the
- * umbrella `leefar`); callers expand umbrella roster slugs back to their
- * stores at the call site.
- */
-export async function computeManagedGmvByBrand(
-  creators: RawCreator[],
-): Promise<Map<string, number>> {
-  const handles = creators.map(c => c.creator_name);
-  const handleMap = await fetchHandleToRealName(handles);
+export interface HandleDisplayMeta {
+  /** creators_v2.real_name */
+  name: string;
+  /** creators_v2 id — the creator detail-page id. */
+  id: string;
+}
 
-  const managedByBrand = new Map<string, number>();
-  for (const c of creators) {
-    if (!c.brand) continue;
-    const isManaged = handleMap.has(c.creator_name.toLowerCase());
-    if (!isManaged) continue;
-    managedByBrand.set(c.brand, (managedByBrand.get(c.brand) ?? 0) + (c.total_gmv ?? 0));
+/**
+ * normalized handle → { real name, creator id }, for a KNOWN set of handles.
+ *
+ * The dashboard only ever needed this: display names for the handles it already
+ * has from computeManagedGmv. It used to get them by fanning out
+ * get_creator_rankings across all 28 brands at 50 rows each (28 blocking RPCs
+ * + 2 more inside aggregateCreatorsByRealName) and then throwing ~99% of the
+ * result away. This is one chunked read of exactly the handles asked for.
+ *
+ * Two things this fixes versus the old path:
+ *  - CHUNKED. The old `.in()` took every handle in one list, which both
+ *    overflows the request URL and truncates at PostgREST's 1000-row cap —
+ *    silently, so handles just lost their real name.
+ *  - DETERMINISTIC. 55 handles map to more than one creator_id (one to nine),
+ *    so first-wins over unordered rows let a creator's displayed name change
+ *    between identical renders. Oldest account wins, stably.
+ *
+ * Throws on error rather than returning a partial map: a half-resolved lookup
+ * silently downgrades real names to raw handles and — because the id is the
+ * aggregation key — splits one person into several rows in Top Creators.
+ */
+export async function fetchHandleDisplayMeta(handles: string[]): Promise<Map<string, HandleDisplayMeta>> {
+  const normalized = Array.from(
+    new Set(handles.map((h) => h.replace(/^@/, '').trim().toLowerCase()).filter(Boolean)),
+  );
+  const out = new Map<string, HandleDisplayMeta>();
+  if (normalized.length === 0) return out;
+
+  const supabase = await createClient();
+  // 400/batch keeps the URL well short of its limit and the response well under
+  // the 1000-row cap (a handle resolves to ~1 row, a few to several).
+  const CHUNK = 400;
+  for (let i = 0; i < normalized.length; i += CHUNK) {
+    const batch = normalized.slice(i, i + CHUNK);
+    const { data, error } = await supabase
+      .from('tiktok_accounts')
+      .select('tiktok_username, creator_id, created_at, creator:creators_v2(real_name)')
+      .in('tiktok_username', batch)
+      // Load-bearing: makes the multi-creator_id pick stable (oldest wins).
+      .order('created_at', { ascending: true });
+    if (error) throw new Error(`fetchHandleDisplayMeta failed: ${error.message}`);
+    for (const row of data ?? []) {
+      const handle = (row.tiktok_username as string | null)?.toLowerCase();
+      const creator = row.creator as unknown as { real_name: string | null } | null;
+      if (!handle || !creator?.real_name || !row.creator_id) continue;
+      if (!out.has(handle)) out.set(handle, { name: creator.real_name, id: row.creator_id as string });
+    }
   }
-  return managedByBrand;
+  return out;
 }
 
 /**

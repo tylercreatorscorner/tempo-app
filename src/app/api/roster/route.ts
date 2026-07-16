@@ -4,7 +4,7 @@ import { getBrandRegistry, slugToUuid, uuidToSlug, resolveUuids, expandSlugs } f
 import { getAnalyticsBrandTotals } from '@/lib/data/rpc';
 import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 import { resolveDateRange } from '@/lib/data/date-utils';
-import { computeManagedGmv, sumManagedGmvForBrands, type ManagedGmvResult } from '@/lib/data/managed-gmv';
+import { computeManagedGmv, buildManagedLookup, sumManagedGmvForBrands, type ManagedGmvResult } from '@/lib/data/managed-gmv';
 
 /**
  * Sentinel returned when a real brand is selected but we couldn't resolve any
@@ -995,6 +995,7 @@ export async function GET(request: NextRequest) {
     // Managed GMV (period / prior period / trailing-30d) all come from the SAME
     // computeManagedGmv() the Earnings page uses, so the cards tie out exactly.
     // Affiliate GMV (brand-wide, all creators) stays on the analytics summaries.
+    const kpiLookup = await buildManagedLookup(kpiStoreSlugs, reg);
     const [affCur, affPrev, mgCur, mgPrev, mg30] = await Promise.all([
       // getAnalyticsBrandTotals, not ...Summaries: this only needs total_gmv, and
       // the summaries RPC's unique_creators count made it slow enough to hit the
@@ -1011,9 +1012,12 @@ export async function GET(request: NextRequest) {
             return [];
           })
         : Promise.resolve([]),
-      computeManagedGmv(sStart, sEnd, kpiStoreSlugs, reg),
-      computeManagedGmv(pvStartStr, pvEndStr, kpiStoreSlugs, reg),
-      computeManagedGmv(roiStartStr, roiEndStr, kpiStoreSlugs, reg),
+      // One shared managed lookup across all three windows — it's
+      // date-independent, and rebuilding it per call meant 3x (brands_v2 +
+      // ~1,460 paged managed_creators rows + a 5-batch tiktok_accounts loop).
+      computeManagedGmv(sStart, sEnd, kpiStoreSlugs, reg, kpiLookup),
+      computeManagedGmv(pvStartStr, pvEndStr, kpiStoreSlugs, reg, kpiLookup),
+      computeManagedGmv(roiStartStr, roiEndStr, kpiStoreSlugs, reg, kpiLookup),
     ]);
     const sumTotalGmv = (rows: unknown) => ((rows as Array<{ total_gmv: number | string }> | null) ?? []).reduce((s, r) => s + (Number(r.total_gmv) || 0), 0);
     total_gmv_period = sumMg(mgCur);
