@@ -32,19 +32,72 @@ import { StaleDataBanner } from '@/components/dashboard/stale-data-banner';
 import { DashboardOnboarding } from '@/components/dashboard/dashboard-onboarding';
 
 interface Props {
-  searchParams: Promise<{ range?: string; brand?: string }>;
+  searchParams: Promise<{ range?: string; brand?: string; start?: string; end?: string }>;
+}
+
+type SB = Awaited<ReturnType<typeof createClient>>;
+
+/**
+ * Per-brand monthly retainer from managed_creators.retainer — the SAME source
+ * /api/roster uses for Total Retainers, so the dashboard's ROI + Retainers tie
+ * out to /roster (creator_brands.retainer is a different, incomplete field).
+ * Paged past PostgREST's 1000-row cap, and deduped by (creator_id, brand) taking
+ * MAX — matching /api/roster exactly, so re-add / merged-identity duplicate rows
+ * don't double-count (which would inflate Retainers/mo and deflate ROI).
+ */
+async function fetchRetainerBySlug(supabase: SB): Promise<Map<string, number>> {
+  const retainerBySlug = new Map<string, number>();
+  const maxByCreatorBrand = new Map<string, { brand: string; retainer: number }>();
+  for (let from = 0; ; from += 1000) {
+    const { data: mcPage } = await supabase
+      .from('managed_creators').select('creator_id, brand, retainer').is('archived_at', null)
+      .order('id', { ascending: true }).range(from, from + 999);
+    const rows = (mcPage as { creator_id: string | null; brand: string | null; retainer: number | null }[] | null) ?? [];
+    for (const r of rows) {
+      if (!r.brand) continue;
+      const ret = Number(r.retainer) || 0;
+      if (r.creator_id) {
+        const k = `${r.creator_id}|${r.brand}`;
+        const prev = maxByCreatorBrand.get(k);
+        if (!prev || ret > prev.retainer) maxByCreatorBrand.set(k, { brand: r.brand, retainer: ret });
+      } else {
+        // Unlinked rows can't be deduped by creator — count each once.
+        retainerBySlug.set(r.brand, (retainerBySlug.get(r.brand) ?? 0) + ret);
+      }
+    }
+    if (rows.length < 1000) break;
+  }
+  for (const { brand, retainer } of maxByCreatorBrand.values()) {
+    retainerBySlug.set(brand, (retainerBySlug.get(brand) ?? 0) + retainer);
+  }
+  return retainerBySlug;
+}
+
+/** Viewer's name for the greeting (user_profiles.name, then auth metadata). */
+async function fetchViewerName(supabase: SB): Promise<string | null> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  const { data: profRaw } = await supabase
+    .from('user_profiles').select('name').eq('user_id', user.id).maybeSingle();
+  return (profRaw as { name?: string | null } | null)?.name
+    ?? (user.user_metadata?.full_name as string | undefined)
+    ?? null;
 }
 
 export default async function AdminDashboard({ searchParams }: Props) {
   const params = await searchParams;
-  const { startDate, endDate, preset } = resolveDateRange(params.range);
+  // start/end are REQUIRED for range=custom — resolveDateRange falls back to
+  // last7 without them ('custom' isn't in DATE_PRESETS), which silently ignored
+  // the user's custom range.
+  const { startDate, endDate, preset } = resolveDateRange(params.range, params.start, params.end);
 
-  // ── Tenant + brand context ──────────────────────────────────────────────
+  // ── Tenant + brand context (parallel — these don't depend on each other) ──
   const supabase = await createClient();
-  const reg = await getBrandRegistry();
-  const activeTenantId = await getActiveTenantId();
-  const { getAllowedBrandsForUser } = await import('@/lib/data/brands');
-  const allowedBrands = await getAllowedBrandsForUser();
+  const [reg, activeTenantId, allowedBrands] = await Promise.all([
+    getBrandRegistry(),
+    getActiveTenantId(),
+    import('@/lib/data/brands').then((m) => m.getAllowedBrandsForUser()),
+  ]);
 
   let brandsQuery = supabase.from('brands_v2').select('slug').eq('is_archived', false).order('name');
   if (activeTenantId) brandsQuery = brandsQuery.eq('tenant_id', activeTenantId);
@@ -96,11 +149,27 @@ export default async function AdminDashboard({ searchParams }: Props) {
   // current + prior) instead of a per-brand fan-out — verified identical to the
   // per-brand sum (GMV/orders/videos/creators match to the penny). The arrays are
   // also handed to the fold-in helper so it doesn't re-fetch them.
+  // ── ROI numerator window: managed GMV over a FIXED trailing-30-day window,
+  //    independent of the page's date range (ROI is always trailing 30d).
+  const roiEnd   = format(new Date(), 'yyyy-MM-dd');
+  const roiStart = format(subDays(new Date(), 29), 'yyyy-MM-dd');
+
+  // EVERYTHING that doesn't depend on another fetch goes in ONE wave. This was
+  // five sequential round-trips (summaries → mgPeriod → mgRoi/mgPrev → retainer
+  // → posts); each computeManagedGmv alone fans out ~1 RPC per store, so the
+  // serial waves dominated load time. Only groupedCreators (needs the creator
+  // rankings) and the daily series (needs mgPeriod's handle set) must follow.
   const [
     brandSummaries,
     prevBrandSummaries,
     creatorsNested,
     trendsByBrandRaw,
+    mgPeriod,
+    mgRoi,
+    mgPrev,
+    retainerBySlug,
+    topPostsRes,
+    userName,
   ] = await Promise.all([
     getAnalyticsBrandSummaries(BRAND_IDS, startDate,     endDate).catch(() => []),
     getAnalyticsBrandSummaries(BRAND_IDS, prevStartDate, prevEndDate).catch(() => []),
@@ -109,6 +178,16 @@ export default async function AdminDashboard({ searchParams }: Props) {
       catch { return []; }
     })),
     Promise.all(activeBrands.map(b => getDailyTrend(b, startDate, endDate).catch(() => []))),
+    computeManagedGmv(startDate, endDate, activeBrands, reg),
+    computeManagedGmv(roiStart, roiEnd, activeBrands, reg),
+    computeManagedGmv(prevStartDate, prevEndDate, activeBrands, reg),
+    fetchRetainerBySlug(supabase),
+    activeBrands.length === 0
+      ? Promise.resolve({ data: [] as Record<string, unknown>[] })
+      : supabase.rpc('get_managed_posts', {
+          p_brand_slugs: activeBrands, p_start_date: startDate, p_end_date: endDate, p_managed_only: true, p_limit: 10,
+        }),
+    fetchViewerName(supabase),
   ]);
 
   // ── Aggregate trend across active brands (gmv-only) — feeds the stale-data
@@ -128,71 +207,21 @@ export default async function AdminDashboard({ searchParams }: Props) {
   //    (for highlights, alerts, top-creator). Both share an underlying
   //    handle→creator lookup; running them in parallel keeps it to the
   //    same wall-clock time as one query. ─────────────────────────────────
-  const allCreators = creatorsNested.flat().sort((a, b) => (b.total_gmv ?? 0) - (a.total_gmv ?? 0));
   // Managed GMV comes from the canonical computeManagedGmv() (src/lib/data/
   // managed-gmv.ts) — the SAME definition the Earnings + Creators pages use, so
-  // all three tie out. `groupedCreators` still powers the creator table / alerts
-  // (its own real-name grouping); it no longer drives the managed GMV totals,
-  // which previously used a broader "any creators_v2 handle" definition over a
-  // top-50-per-brand sample.
-  const [mgPeriod, groupedCreators] = await Promise.all([
-    computeManagedGmv(startDate, endDate, activeBrands, reg),
-    aggregateCreatorsByRealName(allCreators, brandFilter),
-  ]);
+  // all three tie out. `groupedCreators` powers the creator name/handle lookup
+  // for Top Creators; it does NOT drive managed GMV totals.
+  const allCreators = creatorsNested.flat().sort((a, b) => (b.total_gmv ?? 0) - (a.total_gmv ?? 0));
   const managedGmvByBrand = mgPeriod.byStore; // data-store slug → managed GMV
 
-  // ── ROI numerator: managed GMV over a FIXED trailing-30-day window,
-  //    independent of the page's date range (ROI is always trailing 30d).
-  //    Folded-in Analytics (trend chart + movers + pacing) fetches in parallel.
-  const roiEnd   = format(new Date(), 'yyyy-MM-dd');
-  const roiStart = format(subDays(new Date(), 29), 'yyyy-MM-dd');
-  const [mgRoi, mgPrev] = await Promise.all([
-    computeManagedGmv(roiStart, roiEnd, activeBrands, reg),
-    // Prior-period managed GMV → the Managed GMV hero card's trend.
-    computeManagedGmv(prevStartDate, prevEndDate, activeBrands, reg),
-  ]);
   let managedGmv30 = 0;
   for (const [, g] of mgRoi.byStore) managedGmv30 += g;
   let prevManagedGmv = 0;
   for (const [, g] of mgPrev.byStore) prevManagedGmv += g;
 
-  // ── Per-brand monthly retainer from managed_creators.retainer — the SAME
-  //    source /api/roster uses for Total Retainers, so the dashboard's ROI +
-  //    Retainers tie out to the /roster page (creator_brands.retainer is a
-  //    different, incomplete field). managed_creators.brand is the roster slug.
-  //    Paged past PostgREST's 1000-row cap.
-  //    Deduped by (creator_id, brand) taking MAX — matches /api/roster exactly,
-  //    so re-add / merged-identity duplicate rows don't double-count the retainer
-  //    (which would inflate Retainers/mo and deflate ROI vs the /roster page).
-  const retainerBySlug = new Map<string, number>();
-  const maxByCreatorBrand = new Map<string, { brand: string; retainer: number }>();
-  for (let from = 0; ; from += 1000) {
-    const { data: mcPage } = await supabase
-      .from('managed_creators').select('creator_id, brand, retainer').is('archived_at', null)
-      .order('id', { ascending: true }).range(from, from + 999);
-    const rows = (mcPage as { creator_id: string | null; brand: string | null; retainer: number | null }[] | null) ?? [];
-    for (const r of rows) {
-      if (!r.brand) continue;
-      const ret = Number(r.retainer) || 0;
-      if (r.creator_id) {
-        const k = `${r.creator_id}|${r.brand}`;
-        const prev = maxByCreatorBrand.get(k);
-        if (!prev || ret > prev.retainer) maxByCreatorBrand.set(k, { brand: r.brand, retainer: ret });
-      } else {
-        // Unlinked rows can't be deduped by creator — count each once.
-        retainerBySlug.set(r.brand, (retainerBySlug.get(r.brand) ?? 0) + ret);
-      }
-    }
-    if (rows.length < 1000) break;
-  }
-  for (const { brand, retainer } of maxByCreatorBrand.values()) {
-    retainerBySlug.set(brand, (retainerBySlug.get(brand) ?? 0) + retainer);
-  }
-
-  // ── Managed-GMV daily series (chart) + Roster Health signals, in parallel.
-  //    Series: get_creator_handle_gmv_series over the exact managed handle set
-  //    (chunked to stay under the RPC row cap). Signals: reuse /api/roster's
-  //    already-computed health/unread counts (no drift vs the roster page).
+  // ── Managed-GMV daily series (chart) — the one fetch that must follow the
+  //    first wave: it needs mgPeriod's exact managed handle set. Runs alongside
+  //    groupedCreators (which needs the creator rankings).
   const managedHandles = Array.from(
     new Set(Array.from(mgPeriod.byStoreCreator.values()).flatMap((m) => Array.from(m.keys()))),
   );
@@ -201,18 +230,12 @@ export default async function AdminDashboard({ searchParams }: Props) {
   for (let i = 0; i < managedHandles.length; i += HCHUNK) handleChunks.push(managedHandles.slice(i, i + HCHUNK));
   // Roster Health is Suspense-streamed (its own async section) so the heavy
   // internal /api/roster call never blocks this render — see Row 3 below.
-  // Top Videos (get_managed_posts, top-10 by GMV) runs in parallel with the
-  // daily-series chunks — one fast indexed RPC.
-  const [seriesChunks, topPostsRes] = await Promise.all([
+  const [seriesChunks, groupedCreators] = await Promise.all([
     BRAND_IDS.length === 0 ? Promise.resolve([]) : Promise.all(handleChunks.map((slice) =>
       supabase.rpc('get_creator_handle_gmv_series', {
         handles: slice, brand_ids: BRAND_IDS, days_back: periodLength, p_start_date: startDate, p_end_date: endDate,
       }))),
-    activeBrands.length === 0
-      ? Promise.resolve({ data: [] as Record<string, unknown>[] })
-      : supabase.rpc('get_managed_posts', {
-          p_brand_slugs: activeBrands, p_start_date: startDate, p_end_date: endDate, p_managed_only: true, p_limit: 10,
-        }),
+    aggregateCreatorsByRealName(allCreators, brandFilter),
   ]);
   const managedByDay = new Map<string, number>();
   for (const res of seriesChunks) {
@@ -343,16 +366,6 @@ export default async function AdminDashboard({ searchParams }: Props) {
   const gmvTrend     = pctChange(totals.gmv,    prevTotals.gmv);
   const managedTrend = pctChange(managedGmv,    prevManagedGmv);
 
-  // Viewer's name for the greeting (user_profiles.name, then auth metadata).
-  const { data: { user: greetUser } } = await supabase.auth.getUser();
-  let userName: string | null = null;
-  if (greetUser) {
-    const { data: profRaw } = await supabase
-      .from('user_profiles').select('name').eq('user_id', greetUser.id).maybeSingle();
-    userName = (profRaw as { name?: string | null } | null)?.name
-      ?? (greetUser.user_metadata?.full_name as string | undefined)
-      ?? null;
-  }
 
   // ROI = managed GMV (trailing 30d) ÷ total monthly retainer — the agency's
   // return on what it pays its creators, always over a 30-day window.
@@ -370,9 +383,16 @@ export default async function AdminDashboard({ searchParams }: Props) {
 
 
   // ── Stale-data check ────────────────────────────────────────────────────
+  // This warns that the DATA PIPELINE is behind — NOT that you're deliberately
+  // viewing a past period. latestDate is the last point *within the selected
+  // range*, so a historical custom range (e.g. June) always ends in the past and
+  // would otherwise be flagged "16 days old", falsely implying Tempo is out of
+  // date. Only evaluate staleness when the range actually reaches the present
+  // (presets end at yesterday, so they always do).
   const latestDate = aggregatedTrend.length > 0 ? aggregatedTrend[aggregatedTrend.length - 1].date : null;
+  const rangeReachesToday = differenceInDays(new Date(), new Date(endDate)) <= 3;
   const daysStale  = latestDate ? Math.floor((Date.now() - new Date(latestDate).getTime()) / 86400000) : null;
-  const isStale    = daysStale != null && daysStale > 3;
+  const isStale    = rangeReachesToday && daysStale != null && daysStale > 3;
 
   // ── Header copy ─────────────────────────────────────────────────────────
   const activeBrandName  = brandFilter ? brandLabel(reg, brandFilter) : null;
@@ -496,12 +516,12 @@ export default async function AdminDashboard({ searchParams }: Props) {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {showBrandPerf && (
             <div className="lg:col-span-2">
-              <BrandPerformance brands={activeBrandRows} range={params.range} />
+              <BrandPerformance brands={activeBrandRows} range={params.range} start={params.start} end={params.end} />
             </div>
           )}
           <div className={showBrandPerf ? 'lg:col-span-1' : 'lg:col-span-3'}>
             <Suspense fallback={<RosterHealthSkeleton />}>
-              <RosterHealthSection brand={brandFilter} range={params.range} />
+              <RosterHealthSection brand={brandFilter} range={params.range} start={params.start} end={params.end} />
             </Suspense>
           </div>
         </div>

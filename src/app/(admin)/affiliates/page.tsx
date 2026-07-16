@@ -11,14 +11,14 @@ import { AffiliateLeaderboard } from '@/components/affiliates/affiliate-leaderbo
 import { formatCurrency } from '@/lib/utils/format';
 
 interface Props {
-  searchParams: Promise<{ range?: string; brand?: string }>;
+  searchParams: Promise<{ range?: string; brand?: string; start?: string; end?: string }>;
 }
 
 export const metadata = { title: 'Top Affiliates — Tempo' };
 
 export default async function AffiliatesPage({ searchParams }: Props) {
   const params = await searchParams;
-  const { startDate, endDate } = resolveDateRange(params.range);
+  const { startDate, endDate } = resolveDateRange(params.range, params.start, params.end);
 
   // Brand/workspace scope — mirrors the dashboard/retention pages (owner → all,
   // manager → their brands, ?brand= drill-in).

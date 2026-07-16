@@ -18,7 +18,7 @@ interface RosterSignals {
  * renders immediately and Roster Health fills in when ready. Returns null on any
  * failure so the panel degrades gracefully.
  */
-async function getRosterSignals(brand: string | null, range?: string): Promise<RosterSignals | null> {
+async function getRosterSignals(brand: string | null, range?: string, start?: string, end?: string): Promise<RosterSignals | null> {
   try {
     const h = await headers();
     const host = h.get('host');
@@ -27,6 +27,9 @@ async function getRosterSignals(brand: string | null, range?: string): Promise<R
     const qs = new URLSearchParams({ view: 'managed', page: '1' });
     if (brand) qs.set('brand', brand);
     if (range) qs.set('range', range);
+    // start/end are required for range=custom — /api/roster resolves last7 without them.
+    if (start) qs.set('start', start);
+    if (end) qs.set('end', end);
     const res = await fetch(`${proto}://${host}/api/roster?${qs.toString()}`, {
       headers: { cookie: h.get('cookie') ?? '' },
       cache: 'no-store',
@@ -45,8 +48,8 @@ async function getRosterSignals(brand: string | null, range?: string): Promise<R
   }
 }
 
-export async function RosterHealthSection({ brand, range }: { brand: string | null; range?: string }) {
-  const s = await getRosterSignals(brand, range);
+export async function RosterHealthSection({ brand, range, start, end }: { brand: string | null; range?: string; start?: string; end?: string }) {
+  const s = await getRosterSignals(brand, range, start, end);
   if (!s) return null;
   return <RosterHealthPanel total={s.total} healthy={s.healthy} behind={s.behind} silent={s.silent} unreadDms={s.unreadDms} />;
 }
