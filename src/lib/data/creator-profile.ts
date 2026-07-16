@@ -16,7 +16,7 @@
  * that brand's products — independent of which brand the creator is contracted to.
  */
 import { createClient } from '@/lib/supabase/server';
-import { getBrandRegistry, type BrandRegistry } from '@/lib/data/brand-registry';
+import { getBrandRegistry, expandSlugs, type BrandRegistry } from '@/lib/data/brand-registry';
 import { slugToUuid, uuidToSlug } from '@/lib/data/brand-registry-core';
 
 // --- Types ---
@@ -143,6 +143,54 @@ function brandFilters(reg: BrandRegistry, brand?: string): Filter[] {
   if (!brand) return [];
   const uuid = slugToUuid(reg, brand);
   return uuid ? [{ column: 'brand_id', op: 'eq', value: uuid }] : [];
+}
+
+// --- Money from creator_performance (the complete source of truth) ---
+//
+// The profile's GMV/orders/items/commission come from `creator_performance` via
+// the get_creator_perf_by_handles RPC — NOT from daily_video_product_stats,
+// which only captures tracked-video GMV (~17-22% subset) and under-reported the
+// creator's totals vs roster/earnings/dashboard (migration 042 repointed the
+// roster; migration 072 + this repoint bring the profile onto the same source).
+// Video/post COUNTS stay on daily_video_product_stats (they're video-level).
+// Handle match is case-insensitive (the RPC lowercases creator_name), which is
+// load-bearing: case-variant handle rows are otherwise dropped.
+
+interface PerfRow {
+  handle: string; // lowercased
+  brand: string;  // data-store slug
+  gmv: number;
+  orders: number;
+  items_sold: number;
+  commission: number;
+}
+
+async function perfByHandles(handles: string[], startDate: string, endDate: string): Promise<PerfRow[]> {
+  const lowered = Array.from(
+    new Set(handles.map((h) => h.replace(/^@/, '').trim().toLowerCase()).filter(Boolean)),
+  );
+  if (lowered.length === 0) return [];
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc('get_creator_perf_by_handles', {
+    p_handles: lowered,
+    p_start_date: startDate,
+    p_end_date: endDate,
+  });
+  if (error) throw error;
+  return ((data as Record<string, unknown>[] | null) ?? []).map((r) => ({
+    handle: String(r.handle),
+    brand: String(r.brand),
+    gmv: Number(r.gmv) || 0,
+    orders: Number(r.orders) || 0,
+    items_sold: Number(r.items_sold) || 0,
+    commission: Number(r.commission) || 0,
+  }));
+}
+
+/** Set of data-store slugs a brand filter resolves to (umbrella-expanded), or null for no filter. */
+function brandSlugSet(reg: BrandRegistry, brand?: string): Set<string> | null {
+  if (!brand) return null;
+  return new Set(expandSlugs(reg, brand));
 }
 
 // --- Brand discovery (from product stats) ---
@@ -358,8 +406,9 @@ function getPriorPeriod(startDate: string, endDate: string): { prevStart: string
 }
 
 /**
- * Aggregate performance from daily_video_product_stats for given handles + range.
- * `videos` is COUNT(DISTINCT video_id) since the table is per-row-per-product.
+ * Aggregate performance for given handles + range. Money (gmv/orders/items/
+ * commission) comes from creator_performance (complete source, via RPC); the
+ * video COUNT is COUNT(DISTINCT video_id) from daily_video_product_stats.
  */
 async function aggregatePerformance(
   reg: BrandRegistry,
@@ -370,28 +419,27 @@ async function aggregatePerformance(
 ): Promise<{ gmv: number; orders: number; items_sold: number; videos: number; commission: number }> {
   if (handles.length === 0) return { gmv: 0, orders: 0, items_sold: 0, videos: 0, commission: 0 };
 
-  const filters: Filter[] = [
-    { column: 'tiktok_username', op: 'in', value: handles },
-    { column: 'report_date', op: 'gte', value: startDate },
-    { column: 'report_date', op: 'lte', value: endDate },
-    ...brandFilters(reg, brand),
-  ];
+  const [perf, videoRows] = await Promise.all([
+    perfByHandles(handles, startDate, endDate),
+    paginated('daily_video_product_stats', 'video_id', [
+      { column: 'tiktok_username', op: 'in', value: handles },
+      { column: 'report_date', op: 'gte', value: startDate },
+      { column: 'report_date', op: 'lte', value: endDate },
+      ...brandFilters(reg, brand),
+    ]),
+  ]);
 
-  const rows = await paginated(
-    'daily_video_product_stats',
-    'video_id, gmv, orders, items_sold, est_commission',
-    filters
-  );
-
-  const videoIds = new Set<string>();
+  const slugs = brandSlugSet(reg, brand);
   let gmv = 0, orders = 0, items_sold = 0, commission = 0;
-  for (const r of rows) {
-    gmv += Number(r.gmv) || 0;
-    orders += Number(r.orders) || 0;
-    items_sold += Number(r.items_sold) || 0;
-    commission += Number(r.est_commission) || 0;
-    if (r.video_id) videoIds.add(r.video_id as string);
+  for (const p of perf) {
+    if (slugs && !slugs.has(p.brand)) continue;
+    gmv += p.gmv;
+    orders += p.orders;
+    items_sold += p.items_sold;
+    commission += p.commission;
   }
+  const videoIds = new Set<string>();
+  for (const r of videoRows) if (r.video_id) videoIds.add(r.video_id as string);
   return { gmv, orders, items_sold, videos: videoIds.size, commission };
 }
 
@@ -442,7 +490,7 @@ export async function getCreatorAccountBreakdown(
 
   const { data: accounts } = await supabase
     .from('tiktok_accounts')
-    .select('tiktok_username, brand_id')
+    .select('tiktok_username')
     .eq('creator_id', id);
   if (!accounts || accounts.length === 0) return [];
 
@@ -450,48 +498,44 @@ export async function getCreatorAccountBreakdown(
     .map((a: Record<string, unknown>) => a.tiktok_username as string)
     .filter(Boolean);
 
-  const filters: Filter[] = [
-    { column: 'tiktok_username', op: 'in', value: handles },
-    { column: 'report_date', op: 'gte', value: startDate },
-    { column: 'report_date', op: 'lte', value: endDate },
-    ...brandFilters(reg, brand),
-  ];
+  // Money + brands from creator_performance (RPC, keyed by lowercased handle);
+  // video COUNT from the video table.
+  const [perf, videoRows] = await Promise.all([
+    perfByHandles(handles, startDate, endDate),
+    paginated('daily_video_product_stats', 'tiktok_username, video_id', [
+      { column: 'tiktok_username', op: 'in', value: handles },
+      { column: 'report_date', op: 'gte', value: startDate },
+      { column: 'report_date', op: 'lte', value: endDate },
+      ...brandFilters(reg, brand),
+    ]),
+  ]);
+  const slugs = brandSlugSet(reg, brand);
+  const norm = (h: string) => h.replace(/^@/, '').trim().toLowerCase();
 
-  const rows = await paginated(
-    'daily_video_product_stats',
-    'tiktok_username, brand_id, video_id, gmv, orders, items_sold',
-    filters
-  );
-
-  type Acc = AccountBreakdownRow & { videoIds: Set<string>; brandSet: Set<string> };
-  const map = new Map<string, Acc>();
-  for (const a of accounts) {
-    const handle = a.tiktok_username as string;
-    if (!handle) continue;
-    map.set(handle, {
-      tiktok_username: handle,
-      brands: [],
-      gmv: 0,
-      orders: 0,
-      items_sold: 0,
-      videos: 0,
-      videoIds: new Set(),
-      brandSet: new Set(),
-    });
+  type Acc = { tiktok_username: string; gmv: number; orders: number; items_sold: number; brandSet: Set<string>; videoIds: Set<string> };
+  const byLower = new Map<string, Acc>();
+  for (const h of handles) {
+    const k = norm(h);
+    if (k && !byLower.has(k)) {
+      byLower.set(k, { tiktok_username: h, gmv: 0, orders: 0, items_sold: 0, brandSet: new Set(), videoIds: new Set() });
+    }
   }
 
-  for (const r of rows) {
-    const acc = map.get(r.tiktok_username as string);
+  for (const p of perf) {
+    if (slugs && !slugs.has(p.brand)) continue;
+    const acc = byLower.get(p.handle);
     if (!acc) continue;
-    acc.gmv += Number(r.gmv) || 0;
-    acc.orders += Number(r.orders) || 0;
-    acc.items_sold += Number(r.items_sold) || 0;
-    if (r.video_id) acc.videoIds.add(r.video_id as string);
-    const slug = uuidToSlug(reg, r.brand_id as string);
-    if (slug) acc.brandSet.add(slug);
+    acc.gmv += p.gmv;
+    acc.orders += p.orders;
+    acc.items_sold += p.items_sold;
+    if (p.gmv > 0 || p.orders > 0) acc.brandSet.add(p.brand);
+  }
+  for (const r of videoRows) {
+    const acc = byLower.get(norm(String(r.tiktok_username ?? '')));
+    if (acc && r.video_id) acc.videoIds.add(r.video_id as string);
   }
 
-  return Array.from(map.values())
+  return Array.from(byLower.values())
     .map((a) => ({
       tiktok_username: a.tiktok_username,
       brands: Array.from(a.brandSet),
@@ -516,40 +560,41 @@ export async function getCreatorBrandBreakdown(
   const handles = await getHandles(String(creatorId));
   if (handles.length === 0) return [];
 
-  const rows = await paginated(
-    'daily_video_product_stats',
-    'brand_id, video_id, gmv, orders, items_sold, est_commission',
-    [
+  // Money per brand from creator_performance (RPC, brand = data-store slug);
+  // video COUNT per brand from the video table (brand_id → slug).
+  const [perf, videoRows] = await Promise.all([
+    perfByHandles(handles, startDate, endDate),
+    paginated('daily_video_product_stats', 'brand_id, video_id', [
       { column: 'tiktok_username', op: 'in', value: handles },
       { column: 'report_date', op: 'gte', value: startDate },
       { column: 'report_date', op: 'lte', value: endDate },
-    ]
-  );
+    ]),
+  ]);
 
   type Acc = Omit<BrandBreakdownRow, 'videos'> & { videoIds: Set<string> };
   const map = new Map<string, Acc>();
-  for (const r of rows) {
-    const slug = uuidToSlug(reg, r.brand_id as string) ?? (r.brand_id as string);
+  const ensure = (slug: string) => {
     let acc = map.get(slug);
     if (!acc) {
-      acc = {
-        brand: slug,
-        gmv: 0,
-        orders: 0,
-        items_sold: 0,
-        commission: 0,
-        videoIds: new Set(),
-      };
+      acc = { brand: slug, gmv: 0, orders: 0, items_sold: 0, commission: 0, videoIds: new Set() };
       map.set(slug, acc);
     }
-    acc.gmv += Number(r.gmv) || 0;
-    acc.orders += Number(r.orders) || 0;
-    acc.items_sold += Number(r.items_sold) || 0;
-    acc.commission += Number(r.est_commission) || 0;
-    if (r.video_id) acc.videoIds.add(r.video_id as string);
+    return acc;
+  };
+  for (const p of perf) {
+    const acc = ensure(p.brand);
+    acc.gmv += p.gmv;
+    acc.orders += p.orders;
+    acc.items_sold += p.items_sold;
+    acc.commission += p.commission;
+  }
+  for (const r of videoRows) {
+    const slug = uuidToSlug(reg, r.brand_id as string) ?? (r.brand_id as string);
+    if (r.video_id) ensure(slug).videoIds.add(r.video_id as string);
   }
 
   return Array.from(map.values())
+    .filter((a) => a.gmv > 0 || a.orders > 0 || a.videoIds.size > 0)
     .map((a) => ({
       brand: a.brand,
       gmv: a.gmv,
@@ -696,19 +741,25 @@ export async function getCreatorLifetimeStats(
     };
   }
 
-  const rows = await paginated(
-    'daily_video_product_stats',
-    'video_id, gmv, orders, est_commission, report_date',
-    [{ column: 'tiktok_username', op: 'in', value: handles }]
-  );
+  // Money all-time from creator_performance (RPC, wide date bounds); video COUNT
+  // + first-active date from the video table.
+  const [perf, videoRows] = await Promise.all([
+    perfByHandles(handles, '2000-01-01', '2999-12-31'),
+    paginated('daily_video_product_stats', 'video_id, report_date', [
+      { column: 'tiktok_username', op: 'in', value: handles },
+    ]),
+  ]);
+
+  let gmv = 0, orders = 0, commission = 0;
+  for (const p of perf) {
+    gmv += p.gmv;
+    orders += p.orders;
+    commission += p.commission;
+  }
 
   const videoIds = new Set<string>();
   let minDate: string | null = null;
-  let gmv = 0, orders = 0, commission = 0;
-  for (const r of rows) {
-    gmv += Number(r.gmv) || 0;
-    orders += Number(r.orders) || 0;
-    commission += Number(r.est_commission) || 0;
+  for (const r of videoRows) {
     if (r.video_id) videoIds.add(r.video_id as string);
     const d = r.report_date as string;
     if (d && (!minDate || d < minDate)) minDate = d;
