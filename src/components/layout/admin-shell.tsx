@@ -9,6 +9,7 @@ import { useTenant } from '@/hooks/use-tenant';
 import { VideoPanelProvider } from '@/components/video/video-panel-context';
 import { VideoPlayerPanel } from '@/components/video/video-player-panel';
 import { BrandProvider } from '@/hooks/use-global-brand';
+import { NavigationPendingProvider, NavigationPendingOverlay } from '@/components/layout/navigation-pending';
 import { SetupBanner } from '@/components/onboarding/setup-banner';
 import { DashboardGate } from '@/components/onboarding/dashboard-gate';
 import { FirstSyncToast } from '@/components/onboarding/first-sync-toast';
@@ -43,6 +44,8 @@ export function AdminShell({ children, tenantSwitcher, viewAsBanner, canViewFina
 
   return (
     <Suspense>
+    {/* Above BrandProvider: the brand switcher pushes through this transition. */}
+    <NavigationPendingProvider>
     <BrandProvider>
     <BreadcrumbProvider>
     <VideoPanelProvider>
@@ -71,7 +74,12 @@ export function AdminShell({ children, tenantSwitcher, viewAsBanner, canViewFina
             </div>
             <div className="p-3 sm:p-4 md:p-6 pt-2">
               <DashboardGate>
-                {children}
+                {/* Server-rendered pages pass through as a slot — they can't
+                    consume client context themselves, so the affordance wraps
+                    them here and covers every admin surface in one place. */}
+                <NavigationPendingOverlay>
+                  {children}
+                </NavigationPendingOverlay>
               </DashboardGate>
             </div>
           </main>
@@ -82,6 +90,7 @@ export function AdminShell({ children, tenantSwitcher, viewAsBanner, canViewFina
     </VideoPanelProvider>
     </BreadcrumbProvider>
     </BrandProvider>
+    </NavigationPendingProvider>
     </Suspense>
   );
 }

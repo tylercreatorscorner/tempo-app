@@ -1,9 +1,10 @@
 'use client';
 
-import Link from 'next/link';
+import Link, { useLinkStatus } from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
-import { LayoutDashboard, Users, PlaySquare, Wallet, Boxes, Settings as SettingsIcon, PanelLeftClose, PanelLeft } from 'lucide-react';
+import { LayoutDashboard, Users, PlaySquare, Wallet, Boxes, Settings as SettingsIcon, PanelLeftClose, PanelLeft, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useDelayedFlag } from '@/hooks/use-delayed-flag';
 import { TempoLogo, TempoIcon } from '@/components/ui/tempo-logo';
 import { BrandSwitcher } from '@/components/layout/brand-switcher';
 import { SystemStatusFooter } from '@/components/layout/system-status-footer';
@@ -31,6 +32,36 @@ const SETUP: Dest[] = [
   { href: '/products/catalog', label: 'Products', icon: Boxes,        match: ['/products'], adminOnly: true },
   { href: '/settings',         label: 'Settings', icon: SettingsIcon, match: ['/settings', '/team', '/upload', '/workflows'] },
 ];
+
+/**
+ * The nav icon, which becomes a spinner while ITS OWN link's navigation is
+ * pending. This is the app's primary "your click registered" signal: every
+ * admin route is request-time dynamic, so a click waits on a full server render
+ * — and `active` derives from usePathname(), which doesn't update until the
+ * transition COMMITS. Without this, a click changes literally nothing on screen
+ * for the whole wait, which reads as a frozen app rather than a loading one.
+ *
+ * Three things here are load-bearing:
+ *  - MODULE SCOPE. Sidebar re-renders whenever searchParams change; a component
+ *    type declared inside it would be a new type every render, so React would
+ *    remount the subtree and destroy the pending state being tracked.
+ *  - useLinkStatus() only reports for the nearest ancestor <Link>, so this must
+ *    render INSIDE the Link.
+ *  - It SWAPS the icon rather than adding an element — the collapsed 68px rail
+ *    would shift otherwise. And it's an additive cue, never the active
+ *    treatment: `active` stays owned by isActive() alone, or the old row and the
+ *    clicked row would both look active for the entire navigation.
+ */
+function NavIcon({ icon: Icon, active }: { icon: React.ComponentType<{ className?: string }>; active: boolean }) {
+  const { pending } = useLinkStatus();
+  // Gated so routes that commit fast (e.g. /posts, which has a loading.tsx)
+  // don't flash a spinner on every click. House rule — see useDelayedFlag.
+  const spin = useDelayedFlag(pending);
+  const tone = active ? 'text-[var(--primary)]' : 'text-muted-foreground';
+  return spin
+    ? <Loader2 className={cn('h-4 w-4 flex-shrink-0 animate-spin', tone)} />
+    : <Icon className={cn('h-4 w-4 flex-shrink-0', tone)} />;
+}
 
 interface SidebarProps {
   className?: string;
@@ -68,7 +99,7 @@ export function Sidebar({ className, isAdmin = false, canViewFinance = true, col
           active ? 'bg-primary/10 text-[var(--primary)] font-medium' : 'text-muted-foreground hover:text-foreground hover:bg-muted',
         )}
       >
-        <d.icon className={cn('h-4 w-4 flex-shrink-0', active ? 'text-[var(--primary)]' : 'text-muted-foreground')} />
+        <NavIcon icon={d.icon} active={active} />
         {!collapsed && <span className="truncate">{d.label}</span>}
         {!collapsed && active && <span className="ml-auto h-4 w-1 rounded-full bg-[var(--primary)]" />}
       </Link>
