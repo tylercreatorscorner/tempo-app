@@ -383,9 +383,16 @@ export default async function AdminDashboard({ searchParams }: Props) {
 
 
   // ── Stale-data check ────────────────────────────────────────────────────
+  // This warns that the DATA PIPELINE is behind — NOT that you're deliberately
+  // viewing a past period. latestDate is the last point *within the selected
+  // range*, so a historical custom range (e.g. June) always ends in the past and
+  // would otherwise be flagged "16 days old", falsely implying Tempo is out of
+  // date. Only evaluate staleness when the range actually reaches the present
+  // (presets end at yesterday, so they always do).
   const latestDate = aggregatedTrend.length > 0 ? aggregatedTrend[aggregatedTrend.length - 1].date : null;
+  const rangeReachesToday = differenceInDays(new Date(), new Date(endDate)) <= 3;
   const daysStale  = latestDate ? Math.floor((Date.now() - new Date(latestDate).getTime()) / 86400000) : null;
-  const isStale    = daysStale != null && daysStale > 3;
+  const isStale    = rangeReachesToday && daysStale != null && daysStale > 3;
 
   // ── Header copy ─────────────────────────────────────────────────────────
   const activeBrandName  = brandFilter ? brandLabel(reg, brandFilter) : null;
