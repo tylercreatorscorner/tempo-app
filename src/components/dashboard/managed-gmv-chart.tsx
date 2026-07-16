@@ -14,12 +14,10 @@ const H = 150;
 
 export function ManagedGmvChart({
   data,
-  total,
   trend,
   label,
 }: {
   data: { date: string; gmv: number }[];
-  total: number;
   trend?: number;
   label: string;
 }) {
@@ -50,10 +48,10 @@ export function ManagedGmvChart({
   return (
     <Card>
       <CardHeader>
-        <div className="min-w-0">
-          <p className="text-[10.5px] font-bold uppercase tracking-[0.12em] text-muted-foreground">{label}</p>
-          <p className="mt-1 text-2xl font-extrabold tracking-tight tabular-nums text-foreground">{formatCurrency(total)}</p>
-        </div>
+        {/* Trend card — the canonical Managed GMV number lives in the KPI hero
+            above; this card shows only the shape + period-over-period delta, so
+            it never displays a second (source-divergent) managed total. */}
+        <p className="text-[10.5px] font-bold uppercase tracking-[0.12em] text-muted-foreground">{label}</p>
         {trend !== undefined && (
           <span className={cn('shrink-0 text-[13px] font-bold tabular-nums', isPos ? 'text-[var(--pulse-pos)]' : 'text-[var(--pulse-neg)]')}>
             {isPos ? '▲' : '▼'}{Math.abs(trend) < 1 ? Math.abs(trend).toFixed(1) : Math.round(Math.abs(trend))}%

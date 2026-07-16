@@ -229,12 +229,11 @@ export default async function AdminDashboard({ searchParams }: Props) {
     const day = d.toISOString().slice(0, 10);
     managedDaily.push({ date: day, gmv: managedByDay.get(day) ?? 0 });
   }
-  // The chart's headline ties to the plotted series' own total so the card is
-  // internally consistent (area == number above it). This roster_creator_daily
-  // sum can differ slightly from the canonical computeManagedGmv hero KPI — the
-  // known managed-GMV multi-source gap (same as the profile/affiliates figures),
-  // pending source unification.
-  const managedDailyTotal = managedDaily.reduce((s, p) => s + p.gmv, 0);
+  // NOTE: managedDaily comes from roster_creator_daily and over-attributes vs the
+  // canonical computeManagedGmv hero (a handle's GMV on non-managed brands is
+  // included). The chart shows only the trend SHAPE + delta (no headline total),
+  // so no divergent managed number is displayed — pending managed-GMV source
+  // unification (a strict-managed daily series).
 
   // ── Top Videos — top-10 managed posts by GMV (real videos.video_id, dedup'd
   //    + correctly attributed by get_managed_posts). No thumbnail field exists,
@@ -477,7 +476,6 @@ export default async function AdminDashboard({ searchParams }: Props) {
           <div className="lg:col-span-2">
             <ManagedGmvChart
               data={managedDaily}
-              total={managedDailyTotal}
               trend={managedTrend}
               label={`${brandFilter ? `${activeBrandName} · ` : ''}Managed GMV · ${periodLength}d`}
             />
