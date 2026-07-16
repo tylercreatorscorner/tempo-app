@@ -24,11 +24,22 @@ interface AdminShellProps {
   canViewFinance?: boolean;
   /** Impersonation-aware owner/admin flag — gates the header's User Management entry. */
   isAdmin?: boolean;
+  /** Initial collapsed state, read from the `sidebar_collapsed` cookie server-side
+   *  so the first paint matches (no expand→collapse flash on load). */
+  defaultCollapsed?: boolean;
 }
 
-export function AdminShell({ children, tenantSwitcher, viewAsBanner, canViewFinance = true, isAdmin = false }: AdminShellProps) {
+export function AdminShell({ children, tenantSwitcher, viewAsBanner, canViewFinance = true, isAdmin = false, defaultCollapsed = false }: AdminShellProps) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(defaultCollapsed);
   const { tenant, userName, userEmail } = useTenant();
+
+  const toggleCollapse = () =>
+    setCollapsed((v) => {
+      const next = !v;
+      document.cookie = `sidebar_collapsed=${next ? '1' : '0'}; path=/; max-age=31536000; samesite=lax`;
+      return next;
+    });
 
   return (
     <Suspense>
@@ -40,7 +51,7 @@ export function AdminShell({ children, tenantSwitcher, viewAsBanner, canViewFina
           while hovering the sidebar). Sidebar is now `sticky top-0 h-screen`
           internally so it stays pinned while the document scrolls. */}
       <div className="flex min-h-screen" style={{ backgroundColor: 'var(--background)' }}>
-        <Sidebar className="hidden lg:flex" isAdmin={isAdmin} canViewFinance={canViewFinance} />
+        <Sidebar className="hidden lg:flex" isAdmin={isAdmin} canViewFinance={canViewFinance} collapsed={collapsed} onToggleCollapse={toggleCollapse} />
         <MobileNav open={mobileNavOpen} onClose={() => setMobileNavOpen(false)} isAdmin={isAdmin} canViewFinance={canViewFinance} />
 
         <div className="flex-1 flex flex-col min-w-0">

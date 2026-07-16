@@ -2,9 +2,9 @@
 
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
-import { LayoutDashboard, Users, PlaySquare, Wallet, Boxes, Settings as SettingsIcon } from 'lucide-react';
+import { LayoutDashboard, Users, PlaySquare, Wallet, Boxes, Settings as SettingsIcon, PanelLeftClose, PanelLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { TempoLogo } from '@/components/ui/tempo-logo';
+import { TempoLogo, TempoIcon } from '@/components/ui/tempo-logo';
 import { BrandSwitcher } from '@/components/layout/brand-switcher';
 import { SystemStatusFooter } from '@/components/layout/system-status-footer';
 
@@ -38,9 +38,14 @@ interface SidebarProps {
   isAdmin?: boolean;
   /** Finance visibility (impersonation-aware) — gates the Finance destination. */
   canViewFinance?: boolean;
+  /** Collapsed to an icon-only rail (desktop). */
+  collapsed?: boolean;
+  /** When provided, renders the collapse/expand toggle (desktop sidebar only —
+   *  the mobile drawer omits it). */
+  onToggleCollapse?: () => void;
 }
 
-export function Sidebar({ className, isAdmin = false, canViewFinance = true }: SidebarProps) {
+export function Sidebar({ className, isAdmin = false, canViewFinance = true, collapsed = false, onToggleCollapse }: SidebarProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const brand = searchParams.get('brand');
@@ -55,14 +60,17 @@ export function Sidebar({ className, isAdmin = false, canViewFinance = true }: S
       <Link
         key={d.href}
         href={withBrand(d.href)}
+        title={collapsed ? d.label : undefined}
+        aria-label={d.label}
         className={cn(
-          'group flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-150',
+          'group flex items-center rounded-lg text-sm transition-colors duration-150',
+          collapsed ? 'justify-center py-2.5' : 'gap-3 px-3 py-2',
           active ? 'bg-primary/10 text-[var(--primary)] font-medium' : 'text-muted-foreground hover:text-foreground hover:bg-muted',
         )}
       >
-        <d.icon className={cn('h-4 w-4 flex-shrink-0 transition-colors', active ? 'text-[var(--primary)]' : 'text-muted-foreground group-hover:text-muted-foreground')} />
-        {d.label}
-        {active && <span className="ml-auto w-1 h-4 rounded-full bg-[var(--primary)]" />}
+        <d.icon className={cn('h-4 w-4 flex-shrink-0', active ? 'text-[var(--primary)]' : 'text-muted-foreground')} />
+        {!collapsed && <span className="truncate">{d.label}</span>}
+        {!collapsed && active && <span className="ml-auto h-4 w-1 rounded-full bg-[var(--primary)]" />}
       </Link>
     );
   };
@@ -72,37 +80,56 @@ export function Sidebar({ className, isAdmin = false, canViewFinance = true }: S
   return (
     <aside
       className={cn(
-        'sticky top-0 flex flex-col w-64 h-screen bg-card border-r border-border shrink-0',
+        'sticky top-0 flex h-screen flex-col overflow-hidden bg-card border-r border-border shrink-0 transition-[width] duration-200 ease-in-out',
+        collapsed ? 'w-[68px]' : 'w-64',
         className,
       )}
     >
       {/* Logo */}
-      <div className="flex items-center gap-2 px-5 py-5">
-        <TempoLogo size="md" animated />
+      <div className={cn('flex items-center py-5', collapsed ? 'justify-center' : 'px-5')}>
+        {collapsed ? <TempoIcon size={26} /> : <TempoLogo size="md" animated />}
       </div>
 
       {/* Destinations */}
-      <nav className="flex-1 min-h-0 px-2 py-1 overflow-y-auto space-y-0.5">
+      <nav className="flex-1 min-h-0 overflow-y-auto px-2 py-1 space-y-0.5">
         {PRIMARY.filter(visible).map(renderItem)}
 
         {setup.length > 0 && (
           <>
-            <div className="pt-4 pb-1 px-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Setup</div>
+            {collapsed ? (
+              <div className="my-2 border-t border-border" />
+            ) : (
+              <div className="px-3 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Setup</div>
+            )}
             {setup.map(renderItem)}
           </>
         )}
       </nav>
 
-      {/* System health — admin-only footer indicator. */}
-      {isAdmin && (
-        <div className="px-2 pt-2 border-t border-border">
-          <SystemStatusFooter />
-        </div>
-      )}
-
-      {/* Brand selector pinned to bottom */}
-      <div className="px-2 pb-4 pt-2 border-t border-border">
-        <BrandSwitcher />
+      {/* Bottom cluster — system health + brand (expanded only) + collapse toggle. */}
+      <div className="border-t border-border px-2 py-2 space-y-2">
+        {!collapsed && isAdmin && <SystemStatusFooter />}
+        {!collapsed && <BrandSwitcher />}
+        {onToggleCollapse && (
+          <button
+            onClick={onToggleCollapse}
+            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            className={cn(
+              'flex w-full items-center rounded-lg text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground',
+              collapsed ? 'justify-center py-2.5' : 'gap-3 px-3 py-2',
+            )}
+          >
+            {collapsed ? (
+              <PanelLeft className="h-4 w-4" />
+            ) : (
+              <>
+                <PanelLeftClose className="h-4 w-4" />
+                <span>Collapse</span>
+              </>
+            )}
+          </button>
+        )}
       </div>
     </aside>
   );
