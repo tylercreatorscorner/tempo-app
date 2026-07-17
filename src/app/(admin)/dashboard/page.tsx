@@ -4,7 +4,7 @@ import { Suspense } from 'react';
 import { BarChart3 } from 'lucide-react';
 import { format, subDays, differenceInDays } from 'date-fns';
 
-import { getAnalyticsBrandTotals, getAnalyticsLatestDataDate } from '@/lib/data/rpc';
+import { getAnalyticsBrandTotals, getAnalyticsLatestDataDate, getAnalyticsBrandDailySeries } from '@/lib/data/rpc';
 import { resolveDateRange } from '@/lib/data/date-utils';
 import { fetchHandleDisplayMeta } from '@/lib/data/creator-aggregate';
 import { computeManagedGmv, buildManagedLookup } from '@/lib/data/managed-gmv';
@@ -173,6 +173,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
     brandSummaries,
     prevBrandSummaries,
     latestDate,
+    brandDaily,
     mgPeriod,
     mgRoi,
     mgPrev,
@@ -200,6 +201,13 @@ export default async function AdminDashboard({ searchParams }: Props) {
     getAnalyticsLatestDataDate(activeBrands, startDate, endDate).catch((e) => {
       console.error('[dashboard] analytics_latest_data_date failed:', e);
       return undefined; // undefined = failed; null = genuinely no data
+    }),
+    // Per-brand daily GMV for the Brand Performance sparklines — ONE call for
+    // every brand (~91 rows for a 13-brand week). Degrades to no sparkline
+    // rather than failing the page; the row's numbers don't depend on it.
+    getAnalyticsBrandDailySeries(BRAND_IDS, startDate, endDate).catch((e) => {
+      console.error('[dashboard] analytics_brand_daily_series failed; sparklines omitted:', e);
+      return [];
     }),
     computeManagedGmv(startDate, endDate, activeBrands, reg, managedLookup),
     computeManagedGmv(roiStart, roiEnd, activeBrands, reg, managedLookup),
@@ -320,14 +328,37 @@ export default async function AdminDashboard({ searchParams }: Props) {
   // ── Per-roster-brand stats — drives BrandPerformance card and the
   //    "Top Brand" mini-stat in the Period Brief. Aggregates across
   //    data slugs (e.g. leefar_nutrition + leefar_supplements → leefar). ──
+  // Daily GMV per DATA slug, for the row sparklines. The RPC returns brand_id;
+  // fold it to slug here so umbrella roster brands can sum their stores per day.
+  const dailyBySlug = new Map<string, Map<string, number>>();
+  for (const p of brandDaily) {
+    const slug = reg.byId.get(p.brand_id)?.slug;
+    if (!slug) continue;
+    const m = dailyBySlug.get(slug) ?? new Map<string, number>();
+    m.set(p.report_date, (m.get(p.report_date) ?? 0) + p.gmv);
+    dailyBySlug.set(slug, m);
+  }
+  // Every day in the range, in order — the sparkline plots by index, so a brand
+  // missing a day (cosrx has 6 of 7 today) must read as a zero, not close the gap
+  // and imply continuity that isn't there.
+  const rangeDays: string[] = [];
+  for (let d = new Date(`${startDate}T00:00:00Z`); d <= new Date(`${endDate}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + 1)) {
+    rangeDays.push(d.toISOString().slice(0, 10));
+  }
+
   const rosterBrandStats: BrandRowData[] = activeRosterBrands.map((rosterSlug) => {
     const dataSlugSet = new Set(expandSlugs(reg, rosterSlug));
     let currentGmv = 0;
     let prevGmv    = 0;
     let managedGmvForBrand = 0;
+    let prevManagedForBrand = 0;
     for (const s of summaryRows)     if (dataSlugSet.has(s.brand_slug)) currentGmv += s.total_gmv;
     for (const s of prevSummaryRows) if (dataSlugSet.has(s.brand_slug)) prevGmv    += s.total_gmv;
-    for (const ds of dataSlugSet)  managedGmvForBrand += managedGmvByBrand.get(ds) ?? 0;
+    for (const ds of dataSlugSet)  managedGmvForBrand  += managedGmvByBrand.get(ds) ?? 0;
+    // Prior-period managed GMV was already fetched for the portfolio KPI — it
+    // just wasn't read per brand. Same canonical computeManagedGmv source, so
+    // the row's managed trend ties to the Managed GMV hero's.
+    for (const ds of dataSlugSet)  prevManagedForBrand += mgPrev.byStore.get(ds) ?? 0;
 
     // Per-brand ROI: trailing-30d managed GMV ÷ this brand's monthly retainer
     // (same basis as the portfolio ROI card).
@@ -337,13 +368,25 @@ export default async function AdminDashboard({ searchParams }: Props) {
     for (const s of new Set<string>([rosterSlug, ...dataSlugSet])) brandRetainer += retainerBySlug.get(s) ?? 0;
     const brandRoi = brandRetainer > 0 ? managed30ForBrand / brandRetainer : undefined;
 
+    // Sum the brand's stores per day, then read the range in order.
+    const perDay = new Map<string, number>();
+    for (const ds of dataSlugSet) {
+      for (const [day, v] of dailyBySlug.get(ds) ?? []) perDay.set(day, (perDay.get(day) ?? 0) + v);
+    }
+    const series = rangeDays.map((d) => perDay.get(d) ?? 0);
+
     return {
       slug: rosterSlug,
       currentGmv,
       managedGmv: managedGmvForBrand,
       prevGmv,
+      prevManagedGmv: prevManagedForBrand,
       trend: pctChange(currentGmv, prevGmv),
+      managedTrend: pctChange(managedGmvForBrand, prevManagedForBrand),
+      retainer: brandRetainer,
       roi: brandRoi,
+      series,
+      days: rangeDays,
     };
   });
 
@@ -557,7 +600,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
           including those with $0 managed GMV: a brand you have no managed
           creators on is a coverage gap worth seeing, not noise to hide. */}
       {!isEmptyBrand && showBrandPerf && (
-        <BrandPerformance brands={activeBrandRows} range={params.range} start={params.start} end={params.end} />
+        <BrandPerformance brands={activeBrandRows} range={params.range} start={params.start} end={params.end} periodLength={periodLength} />
       )}
 
       {/* Row 4 — Top Creators + Top Videos leaderboards (managed, by GMV) */}

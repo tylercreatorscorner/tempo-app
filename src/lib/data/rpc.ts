@@ -187,6 +187,41 @@ export async function getAnalyticsLatestDataDate(
   return (data as string | null) ?? null;
 }
 
+export interface BrandDailyPoint {
+  brand_id: string;
+  report_date: string;
+  gmv: number;
+}
+
+/**
+ * Per-brand daily GMV for a range, in ONE call — powers the Brand Performance
+ * sparkline column. Same source as getAnalyticsBrandTotals (daily_creator_stats),
+ * so each row's line and its GMV figure agree; verified to sum to the penny.
+ *
+ * Not a return of the 28x get_daily_trend fan-out migration 074 removed: that
+ * was one round-trip per brand, this is one for all of them (~91 rows for a
+ * 13-brand week).
+ */
+export async function getAnalyticsBrandDailySeries(
+  brandIds: string[],
+  startDate: string,
+  endDate: string,
+): Promise<BrandDailyPoint[]> {
+  if (brandIds.length === 0) return [];
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc('analytics_brand_daily_series', {
+    p_brand_ids: brandIds,
+    p_start_date: startDate,
+    p_end_date: endDate,
+  });
+  if (error) throw new RPCError('analytics_brand_daily_series', error.message);
+  return ((data ?? []) as Record<string, unknown>[]).map((r) => ({
+    brand_id: String(r.brand_id),
+    report_date: String(r.report_date).slice(0, 10),
+    gmv: Number(r.gmv) || 0,
+  }));
+}
+
 export interface AnalyticsBrandTotals {
   brand_id: string;
   brand_slug: string;
