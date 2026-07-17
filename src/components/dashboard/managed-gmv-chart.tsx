@@ -2,15 +2,30 @@
 
 import { useState, type MouseEvent } from 'react';
 import { formatCurrency } from '@/lib/utils/format';
+import { fmtCompactCurrency } from '@/components/charts/format';
 import { Card, CardHeader, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 
 // Bespoke SVG area chart matching the Pulse mockup: accent gradient fill + a
-// clean 2.5px line, no axes/gridlines. SVG resolves CSS vars, so it's fully
-// theme-aware. Dots/guide/tooltip are HTML overlays (positioned by %) so the
-// preserveAspectRatio="none" stretch never distorts them.
+// clean 2.5px line. SVG resolves CSS vars, so it's fully theme-aware.
+//
+// Axis labels + gridlines are HTML/percent overlays, NOT SVG text: the plot uses
+// preserveAspectRatio="none" and stretches horizontally, which would smear any
+// text or stroke drawn in user space. Gridlines live in the SVG but carry
+// vectorEffect="non-scaling-stroke" for the same reason.
+//
+// Axes are deliberately recessive — hairline grid, muted 10px labels. The line
+// is the subject; the scale is reference.
 const W = 620;
 const H = 150;
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+/** "Jul 9" from an ISO day. Parsed by parts, NOT new Date(iso), which would
+ *  shift the label a day for viewers behind UTC. */
+function fmtAxisDay(iso: string): string {
+  const [, m, d] = iso.split('-').map(Number);
+  return m && d ? `${MONTHS[m - 1]} ${d}` : iso;
+}
 
 export function ManagedGmvChart({
   data,
@@ -62,8 +77,18 @@ export function ManagedGmvChart({
           </span>
         )}
       </CardHeader>
-      <CardContent className="flex-1">
+      <CardContent className="flex flex-1 flex-col">
         {hasChart ? (
+          <div className="flex flex-1 gap-2">
+            {/* Y axis — three ticks (max / mid / min), aligned to the plot's own
+                6px vertical inset so a label lines up with its gridline. */}
+            <div className="flex w-[52px] flex-shrink-0 flex-col justify-between py-[6px] text-right text-[10px] tabular-nums text-muted-foreground">
+              <span>{fmtCompactCurrency(max)}</span>
+              <span>{fmtCompactCurrency(min + range / 2)}</span>
+              <span>{fmtCompactCurrency(min)}</span>
+            </div>
+
+            <div className="flex min-w-0 flex-1 flex-col">
           // min-h keeps the old floor; h-full lets the plot absorb the extra
           // height from the flex parent rather than leaving dead space below.
           <div className="relative h-full min-h-[150px]" onMouseMove={onMove} onMouseLeave={() => setHi(null)}>
@@ -74,6 +99,21 @@ export function ManagedGmvChart({
                   <stop offset="1" stopColor="var(--primary)" stopOpacity="0" />
                 </linearGradient>
               </defs>
+              {/* Recessive gridlines at the three ticks. non-scaling-stroke or the
+                  horizontal stretch would fatten them. */}
+              {[max, min + range / 2, min].map((v, i) => (
+                <line
+                  key={i}
+                  x1={0}
+                  x2={W}
+                  y1={yOf(v)}
+                  y2={yOf(v)}
+                  stroke="var(--border)"
+                  strokeWidth="1"
+                  strokeDasharray="3 3"
+                  vectorEffect="non-scaling-stroke"
+                />
+              ))}
               <path d={area} fill="url(#mgv-fill)" />
               <path
                 d={line}
@@ -109,6 +149,17 @@ export function ManagedGmvChart({
                 style={{ left: '100%', top: `${yPct(pts[n - 1].gmv)}%` }}
               />
             )}
+              </div>
+
+              {/* X axis — first / middle / last day. Three ticks, not n: at 30d a
+                  label per point is unreadable mush, and the hover tooltip already
+                  names the exact day. */}
+              <div className="mt-1.5 flex justify-between text-[10px] tabular-nums text-muted-foreground">
+                <span>{fmtAxisDay(pts[0].date)}</span>
+                {n > 2 && <span>{fmtAxisDay(pts[Math.floor((n - 1) / 2)].date)}</span>}
+                <span>{fmtAxisDay(pts[n - 1].date)}</span>
+              </div>
+            </div>
           </div>
         ) : (
           <div className="grid h-[150px] place-items-center text-sm text-muted-foreground">Not enough data for a trend</div>

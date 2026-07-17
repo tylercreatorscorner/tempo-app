@@ -290,6 +290,17 @@ export default async function AdminDashboard({ searchParams }: Props) {
   // ── Top Videos — top-10 managed posts by GMV (real videos.video_id, dedup'd
   //    + correctly attributed by get_managed_posts). No thumbnail field exists,
   //    so the card renders a play tile + links the TikTok URL. ───────────────
+  //
+  // CHECK .error, not just .data. supabase.rpc() resolves {data, error}; on
+  // failure data is null, and `?? []` turned that into "No managed videos in
+  // this period" — a confident empty state over a dead query. That is exactly
+  // what happened: get_managed_posts took 12.5s on a 30-day window and blew the
+  // statement_timeout, so Top Videos claimed you had no videos while the RPC
+  // could return ten (migration 076 took it to ~380ms). The RPC being fast now
+  // is not the fix — reading the error is.
+  const topPostsErr = (topPostsRes as { error?: { message?: string } | null }).error;
+  if (topPostsErr) console.error('[dashboard] get_managed_posts failed:', topPostsErr.message);
+  const topVideosFailed = !!topPostsErr;
   const topVideos = (((topPostsRes as { data: Record<string, unknown>[] | null }).data) ?? [])
     .map((p) => ({
       title: String(p.video_title ?? ''),
@@ -573,14 +584,19 @@ export default async function AdminDashboard({ searchParams }: Props) {
           <Card className="lg:col-span-1">
             <CardHeader><CardTitle eyebrow>Managed vs Organic</CardTitle></CardHeader>
             <CardContent>
-              {/* Organic is derived from total GMV — without it the donut would
+              {/* Organic is derived from total GMV — without it the split would
                   read a flat "100% managed", so say nothing rather than lie. */}
               {totalsFailed ? (
                 <p className="py-10 text-center text-sm text-muted-foreground">
                   Split unavailable — total GMV couldn&apos;t be loaded.
                 </p>
               ) : (
-                <ManagedOrganicDonut managed={managedGmv} organic={unmanagedGmv} />
+                <ManagedOrganicDonut
+                  managed={managedGmv}
+                  organic={unmanagedGmv}
+                  prevManaged={prevManagedGmv}
+                  prevTotal={prevTotals.gmv}
+                />
               )}
             </CardContent>
           </Card>
@@ -607,7 +623,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
       {!isEmptyBrand && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <TopCreators creators={topCreators} label={`${periodLength}d`} />
-          <TopVideos videos={topVideos} label={`${periodLength}d`} />
+          <TopVideos videos={topVideos} label={`${periodLength}d`} failed={topVideosFailed} />
         </div>
       )}
     </div>

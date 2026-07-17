@@ -16,8 +16,13 @@ export interface TopVideoRow {
  * Top managed videos by GMV for the period (get_managed_posts, deduped by the
  * real videos.video_id). No thumbnail is available from the RPC, so each row
  * uses a play tile and links out to the TikTok video.
+ *
+ * `failed` is separate from an empty list on purpose. "No managed videos in this
+ * period" is a CLAIM about your data; if the query died we haven't earned it.
+ * This card spent weeks asserting it on any window over ~a week, because
+ * get_managed_posts was timing out and the page read only `.data`.
  */
-export function TopVideos({ videos, label }: { videos: TopVideoRow[]; label: string }) {
+export function TopVideos({ videos, label, failed = false }: { videos: TopVideoRow[]; label: string; failed?: boolean }) {
   return (
     <Card className="overflow-hidden">
       <CardHeader>
@@ -27,7 +32,11 @@ export function TopVideos({ videos, label }: { videos: TopVideoRow[]; label: str
         </Link>
       </CardHeader>
 
-      {videos.length === 0 ? (
+      {failed ? (
+        <div className="px-5 py-8 text-center text-sm text-muted-foreground">
+          Couldn&apos;t load videos — this is an error on our side, not an empty period.
+        </div>
+      ) : videos.length === 0 ? (
         <div className="px-5 py-8 text-center text-sm text-muted-foreground">No managed videos in this period.</div>
       ) : (
         <div className="divide-y divide-border">

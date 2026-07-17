@@ -140,6 +140,16 @@ html.dark { color-scheme: dark; }
   --pulse-warn: #B9770A; --pulse-warn-bg: #F8EFDB;
   --pulse-grad: linear-gradient(92deg, var(--primary), var(--pulse-accent-2));
   --pulse-hero: linear-gradient(135deg, #5B4BFF, #9A3FD4 52%, #FF5C9A);
+  /* ON-HERO semantics. The hero gradient ENDS in magenta (#FF5C9A light /
+     #C23A86 dark) and --pulse-neg IS pink (#E0356B / #FF6A98) — so a semantic
+     "down" delta painted straight onto the hero is pink-on-pink, i.e. invisible.
+     That's why the hero's delta was plain white and carried no red/green signal.
+     Fix: the delta gets its own dark ground, and these tokens sit on THAT, not
+     on the gradient. Deliberately do NOT flip per theme — the pill supplies the
+     same dark ground in both, so the colours on it shouldn't move either. */
+  --pulse-on-hero-bg:  rgba(12, 8, 34, 0.55);
+  --pulse-on-hero-pos: #3FEBA9;
+  --pulse-on-hero-neg: #FF6A98;
   --pulse-elev-1: 0 1px 2px rgba(30,20,70,.05);
   --pulse-elev-2: 0 2px 8px rgba(30,20,70,.05), 0 14px 34px rgba(40,25,90,.07);
   /* Data-viz categorical palette — CVD-validated (indigo·green·amber·pink·teal),

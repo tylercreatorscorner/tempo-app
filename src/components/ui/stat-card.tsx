@@ -51,9 +51,21 @@ export function StatCard({
         </div>
         <p className="mt-2 text-2xl leading-none font-extrabold tracking-tight tabular-nums">{value}</p>
         {(trend !== undefined || subValue || trendLabel) && (
-          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs font-semibold text-white/80">
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs font-semibold text-white/80">
             {trend !== undefined && (
-              <span className="tabular-nums">{isPositive ? '▲' : '▼'}{Math.abs(trend) < 1 ? Math.abs(trend).toFixed(1) : Math.round(Math.abs(trend))}%</span>
+              // The delta rides its own dark pill rather than the gradient. Painted
+              // straight on, a red "down" would be pink-on-pink against the hero's
+              // magenta end and vanish — which is why this used to be plain white
+              // and carried no signal at all. See --pulse-on-hero-* in globals.css.
+              <span
+                className="inline-flex items-center rounded-full px-1.5 py-0.5 tabular-nums"
+                style={{
+                  backgroundColor: 'var(--pulse-on-hero-bg)',
+                  color: isPositive ? 'var(--pulse-on-hero-pos)' : 'var(--pulse-on-hero-neg)',
+                }}
+              >
+                {isPositive ? '▲' : '▼'}{Math.abs(trend) < 1 ? Math.abs(trend).toFixed(1) : Math.round(Math.abs(trend))}%
+              </span>
             )}
             {trendLabel && <span className="text-white/60">{trendLabel}</span>}
             {subValue && <span className="tabular-nums text-xs text-white/70">{subValue}</span>}
