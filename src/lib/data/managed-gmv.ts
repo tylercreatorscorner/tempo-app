@@ -109,6 +109,9 @@ export interface ManagedLookup {
   labelByStore: Map<string, string>;
   /** `${handle}|||${store}` membership. */
   managedLookup: Set<string>;
+  /** Every distinct normalized managed handle — the SQL pre-filter's argument.
+   *  ~1,290 today vs 285k distinct handles in creator_performance. */
+  handles: string[];
 }
 
 export async function buildManagedLookup(
@@ -134,7 +137,7 @@ export async function buildManagedLookup(
   const storeSlugs = activeRows.map((b) => b.slug);
   const labelByStore = new Map(activeRows.map((b) => [b.slug, b.name] as const));
 
-  if (storeSlugs.length === 0) return { storeSlugs, labelByStore, managedLookup: new Set() };
+  if (storeSlugs.length === 0) return { storeSlugs, labelByStore, managedLookup: new Set(), handles: [] };
 
   type ManagedRowLite = {
     brand: string | null;
@@ -187,6 +190,7 @@ export async function buildManagedLookup(
   // Build (handle|||store) membership. Umbrella brands expand to their stores
   // so an umbrella-managed creator counts toward every store it drives GMV on.
   const managedLookup = new Set<string>();
+  const allHandles = new Set<string>();
   for (const m of managedRows) {
     if (!m.brand) continue;
     const dataBrands = expandSlugs(reg, m.brand);
@@ -198,11 +202,12 @@ export async function buildManagedLookup(
             .map(normalizeHandle)
             .filter(Boolean);
     for (const handle of handles) {
+      allHandles.add(handle);
       for (const dataBrand of dataBrands) managedLookup.add(`${handle}|||${dataBrand}`);
     }
   }
 
-  return { storeSlugs, labelByStore, managedLookup };
+  return { storeSlugs, labelByStore, managedLookup, handles: Array.from(allHandles) };
 }
 
 /**
@@ -227,7 +232,7 @@ export async function computeManagedGmv(
   lookupArg?: ManagedLookup,
 ): Promise<ManagedGmvResult> {
   const supabase = await createAdminClient();
-  const { storeSlugs, labelByStore, managedLookup } =
+  const { storeSlugs, labelByStore, managedLookup, handles } =
     lookupArg ?? (await buildManagedLookup(brandFilterSlugs, regArg));
 
   const empty: ManagedGmvResult = {
@@ -237,35 +242,40 @@ export async function computeManagedGmv(
     managedLookup: new Set(),
     labelByStore,
   };
-  if (storeSlugs.length === 0) return empty;
+  if (storeSlugs.length === 0 || handles.length === 0) return empty;
 
-  // perfData: get_creator_brand_gmv results are capped at 100,000 rows by
-  // PostgREST. The all-brands set (~144k (brand, creator) rows) EXCEEDS that cap,
-  // so a single call silently drops ~44k rows and under-counts managed GMV (this
-  // is why all-brands Earnings/Dashboard were wrong while per-brand Creators was
-  // fine). Fetch ONE store per call — and concat. For a scoped (per-brand) view
-  // this is just 1–3 calls.
+  // ONE call for every store, pre-filtered to managed handles in SQL.
   //
-  // WARNING — this cap is closer than the fan-out makes it look: cosrx is at
-  // ~84,693 aggregated rows (85% of the cap) and it is WINDOW-INDEPENDENT, so no
-  // date narrowing helps. Truncation is silent. The per-store split is the only
-  // thing holding it under; filtering the RPC to managed handles (which is ~2k
-  // rows) is the durable fix.
-  const perfResults = await Promise.all(storeSlugs.map((slug) =>
-    supabase.rpc('get_creator_brand_gmv', {
-      p_start_date: startDate,
-      p_end_date: endDate,
-      p_brands: [slug],
-    })));
-
-  const perfData: PerfRow[] = [];
-  for (const res of perfResults) {
-    // THROW, don't continue. Skipping a failed store silently drops that store's
-    // GMV and renders a smaller-but-plausible total — an invisible wrong number
-    // on the metric the whole agency is measured by.
-    if (res.error) throw new Error(`[managed-gmv] get_creator_brand_gmv failed: ${res.error.message}`);
-    perfData.push(...((res.data as PerfRow[] | null) ?? []));
-  }
+  // This used to be one get_creator_brand_gmv PER STORE (28 round-trips), each
+  // returning every creator on that brand — ~291,000 (brand, creator) rows for a
+  // 30-day window — of which the managedLookup check below kept ~2,400 (0.8%).
+  // The dashboard does this for three windows, so 84 round-trips per load, which
+  // is what starved the pool and timed out its neighbours.
+  //   30d: 291,198 rows / 28 calls  ->  2,446 rows / 1 call
+  //
+  // It also defuses a live bomb. get_creator_brand_gmv results are capped at
+  // 100,000 rows by PostgREST and truncation is SILENT: cosrx alone returns
+  // ~74,000 rows (74% of the cap) and is WINDOW-INDEPENDENT, so no date
+  // narrowing helps. The per-store split was the only thing holding it under —
+  // one more busy brand and managed GMV would have started under-counting with
+  // no error at all. Filtering to managed handles removes the ceiling entirely.
+  //
+  // The SQL filter is a PRE-FILTER ONLY. The authority on "managed" stays the
+  // managedLookup check below (handle|||store), which carries the umbrella
+  // expansion and the account_1..5 fallback. Porting that rule into SQL would
+  // create a second definition of managed — exactly what this module exists to
+  // prevent. Verified per brand against the old 28-call path: ties to the penny.
+  const { data: perfRaw, error: perfErr } = await supabase.rpc('get_managed_creator_brand_gmv', {
+    p_start_date: startDate,
+    p_end_date: endDate,
+    p_brands: storeSlugs,
+    p_handles: handles,
+  });
+  // THROW, don't swallow. A failed read here silently drops GMV and renders a
+  // smaller-but-plausible total — an invisible wrong number on the metric the
+  // whole agency is measured by.
+  if (perfErr) throw new Error(`[managed-gmv] get_managed_creator_brand_gmv failed: ${perfErr.message}`);
+  const perfData: PerfRow[] = (perfRaw as PerfRow[] | null) ?? [];
 
   // Aggregate GMV per (store, handle) — managed creators only, deduped by handle.
   const storeSet = new Set(storeSlugs);
