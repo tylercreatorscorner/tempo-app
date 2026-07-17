@@ -46,7 +46,11 @@ export function ManagedGmvChart({
   const hd = hi != null ? pts[hi] : null;
 
   return (
-    <Card>
+    // h-full + flex: this card shares a grid row with the donut and Roster
+    // Health, whose content is taller. Grid cells stretch, but a Card that isn't
+    // h-full doesn't fill its cell — so this one bottom-aligned ~38px short of
+    // its neighbours. The plot region grows to take up the slack.
+    <Card className="flex h-full flex-col">
       <CardHeader>
         {/* Trend card — the canonical Managed GMV number lives in the KPI hero
             above; this card shows only the shape + period-over-period delta, so
@@ -58,9 +62,11 @@ export function ManagedGmvChart({
           </span>
         )}
       </CardHeader>
-      <CardContent>
+      <CardContent className="flex-1">
         {hasChart ? (
-          <div className="relative h-[150px]" onMouseMove={onMove} onMouseLeave={() => setHi(null)}>
+          // min-h keeps the old floor; h-full lets the plot absorb the extra
+          // height from the flex parent rather than leaving dead space below.
+          <div className="relative h-full min-h-[150px]" onMouseMove={onMove} onMouseLeave={() => setHi(null)}>
             <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="absolute inset-0 h-full w-full">
               <defs>
                 <linearGradient id="mgv-fill" x1="0" y1="0" x2="0" y2="1">
