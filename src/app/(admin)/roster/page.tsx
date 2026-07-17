@@ -719,7 +719,7 @@ function CreatorPanel({
           {confirmRemove && (
             <div className="rounded-xl border border-red-500/25 bg-red-500/10 p-4 space-y-3">
               <div>
-                <p className="text-sm font-semibold text-red-900">
+                <p className="text-sm font-semibold text-foreground">
                   Remove {creator.real_name || primaryHandle(creator) || 'this creator'}?
                 </p>
                 <p className="text-xs text-red-500 mt-1 leading-relaxed">

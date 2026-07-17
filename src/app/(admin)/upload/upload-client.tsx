@@ -520,14 +520,14 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
           <div className="flex items-start gap-3">
             <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
             <div className="flex-1">
-              <div className="text-sm font-bold text-amber-900">
+              <div className="text-sm font-bold text-foreground">
                 {unrecoveredItems.length} unfinished upload{unrecoveredItems.length === 1 ? '' : 's'} from your last session
               </div>
               <div className="text-xs text-amber-500 mt-1">
                 Browser refreshed mid-upload. Re-drop these files (we can't auto-recover
                 the file content, only the metadata):
               </div>
-              <ul className="mt-2 space-y-0.5 text-xs text-amber-900">
+              <ul className="mt-2 space-y-0.5 text-xs text-foreground">
                 {unrecoveredItems.map(it => (
                   <li key={it.id} className="flex items-center gap-2">
                     <span className="font-medium">{it.filename}</span>
@@ -540,7 +540,7 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
               </ul>
               <button
                 onClick={() => setUnrecoveredItems([])}
-                className="mt-3 text-xs font-semibold text-amber-500 hover:text-amber-900"
+                className="mt-3 text-xs font-semibold text-amber-500 hover:text-foreground"
               >
                 Dismiss
               </button>

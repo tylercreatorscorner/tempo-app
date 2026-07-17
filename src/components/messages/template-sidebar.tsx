@@ -88,7 +88,7 @@ export function TemplateSidebar({ creatorName, brandName, postCount, gmv, onSele
               <button
                 key={template.id}
                 onClick={() => handleSelect(template)}
-                className="w-full text-left p-3 rounded-xl border border-border hover:border-purple-500/25 hover:bg-purple-500/10/50 transition-all group"
+                className="w-full text-left p-3 rounded-xl border border-border hover:border-purple-500/25 hover:bg-purple-500/10 transition-all group"
               >
                 <div className="flex items-center gap-2 mb-1">
                   <span className="text-base">{template.icon}</span>

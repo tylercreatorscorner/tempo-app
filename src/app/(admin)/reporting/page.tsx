@@ -258,7 +258,7 @@ function FreshnessBanner() {
   return (
     <div className="rounded-xl bg-amber-500/10 border border-amber-500/25 px-4 py-3 flex items-start gap-3">
       <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
-      <div className="text-xs text-amber-900">
+      <div className="text-xs text-foreground">
         <strong>Data is {state.daysOld} days old.</strong> Last upload processed: {dateLabel} (UTC).
         Reports below anchor to that date — period windows will show the most recent data available, not today's.
       </div>
@@ -455,7 +455,7 @@ function BrandClientReportCard() {
         </div>
 
         {/* Right: Sections preview */}
-        <div className="lg:col-span-2 bg-gradient-to-br from-purple-50 via-primary/10 to-white border-l border-border p-6">
+        <div className="lg:col-span-2 bg-gradient-to-br from-purple-500/10 via-primary/10 to-card border-l border-border p-6">
           <div className="text-[10px] font-bold uppercase tracking-[0.15em] text-purple-500 mb-3">What's inside</div>
           <ul className="space-y-2 text-xs text-foreground">
             {[

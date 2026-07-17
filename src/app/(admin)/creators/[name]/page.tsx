@@ -170,7 +170,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
             <AlertTriangle className="h-4 w-4 text-amber-600" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-amber-900">
+            <p className="text-sm font-semibold text-foreground">
               Performance data is {daysStale} days old
             </p>
             <p className="text-xs text-amber-500 mt-0.5">

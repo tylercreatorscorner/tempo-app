@@ -25,11 +25,14 @@ export function TikTokConnect({ companyName, connected }: TikTokConnectProps) {
       <div className="rounded-2xl border border-green-500/25 bg-green-500/10 p-6 space-y-3">
         <div className="flex items-center gap-3">
           <div className="h-10 w-10 rounded-xl bg-green-500/15 flex items-center justify-center">
-            <CheckCircle2 className="h-5 w-5 text-green-600" />
+            <CheckCircle2 className="h-5 w-5" style={{ color: 'var(--pulse-pos)' }} />
           </div>
           <div>
-            <h3 className="font-semibold text-green-900">TikTok Shop Connected</h3>
-            <p className="text-sm text-green-500">Your data is syncing automatically</p>
+            {/* Text wears TEXT tokens; the tint + icon carry the "success" meaning.
+                text-green-900 is a fixed near-black green that never flips, so on
+                the dark ground this heading rendered at 1.25:1 contrast — invisible. */}
+            <h3 className="font-semibold text-foreground">TikTok Shop Connected</h3>
+            <p className="text-sm text-muted-foreground">Your data is syncing automatically</p>
           </div>
         </div>
       </div>

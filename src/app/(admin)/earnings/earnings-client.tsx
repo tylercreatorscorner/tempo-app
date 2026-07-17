@@ -453,9 +453,11 @@ export function EarningsClient({ initialMonth }: { initialMonth: string }) {
           <div
             className={cn(
               'flex items-start gap-3 px-4 py-3 rounded-xl shadow-2xl border max-w-sm',
+              // Text tokens, not palette: -900 shades are fixed near-black and
+              // never flip, so these toasts were unreadable on the dark ground.
               toast.kind === 'success'
-                ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-900'
-                : 'bg-red-500/10 border-red-500/25 text-red-900',
+                ? 'bg-emerald-500/10 border-emerald-500/25 text-foreground'
+                : 'bg-red-500/10 border-red-500/25 text-foreground',
             )}
           >
             {toast.kind === 'success'

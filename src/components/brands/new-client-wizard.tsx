@@ -266,7 +266,7 @@ export function NewClientWizard({ open, onClose, onCreated }: Props) {
                     'flex items-center justify-between gap-3 rounded-xl border px-3 py-2 text-xs',
                     c.status === 'error'
                       ? 'bg-red-500/10 border-red-500/20 text-red-500'
-                      : 'bg-emerald-500/10/70 border-emerald-500/20 text-emerald-500',
+                      : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500',
                   )}
                 >
                   <span className="font-medium truncate">{c.email}</span>

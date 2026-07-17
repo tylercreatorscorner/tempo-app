@@ -268,9 +268,9 @@ function RenewalSection({
       {/* Section header */}
       <div className={cn(
         'flex items-center justify-between px-5 py-3 border-b border-border',
-        section.accent === 'red'   && 'bg-red-500/10/40',
-        section.accent === 'amber' && 'bg-amber-500/10/40',
-        section.accent === 'green' && 'bg-emerald-500/10/40',
+        section.accent === 'red'   && 'bg-red-500/10',
+        section.accent === 'amber' && 'bg-amber-500/10',
+        section.accent === 'green' && 'bg-emerald-500/10',
       )}>
         <button
           onClick={onToggleCollapse}

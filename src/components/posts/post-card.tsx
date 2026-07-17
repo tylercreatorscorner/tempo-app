@@ -103,7 +103,7 @@ export function PostCard({ post: p, onClick }: Props) {
         <div className="absolute top-2 right-2 flex flex-col items-end gap-1">
           {p.flagged && (
             <span
-              className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-500 bg-amber-500/10/95 backdrop-blur-sm ring-1 ring-amber-200 rounded-full px-2 py-0.5"
+              className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-500 bg-amber-500/10 backdrop-blur-sm ring-1 ring-amber-200 rounded-full px-2 py-0.5"
               title="Flagged: off-brand or needs rework"
             >
               <AlertTriangle className="h-3 w-3" />

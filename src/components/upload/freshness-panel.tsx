@@ -99,7 +99,7 @@ export function FreshnessPanel({ refreshKey = 0 }: { refreshKey?: number }) {
       {data.futureIssues.length > 0 && (
         <div className="rounded-xl bg-amber-500/10 border border-amber-500/25 px-4 py-3 flex items-start gap-3">
           <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
-          <div className="text-xs text-amber-900 leading-relaxed">
+          <div className="text-xs text-foreground leading-relaxed">
             <strong>Future-dated data detected:</strong>{' '}
             {data.futureIssues.slice(0, 3).map((i, idx) => (
               <span key={idx}>

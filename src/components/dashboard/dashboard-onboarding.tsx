@@ -61,7 +61,7 @@ export function DashboardOnboarding({
         {tiktokConnected ? (
           <DoneCard title="TikTok Shop Connected" subtitle="Your data is syncing automatically." />
         ) : (
-          <a href="/settings" className="group rounded-2xl border-2 border-[var(--primary)]/30 bg-gradient-to-br from-[var(--primary)]/5 to-white p-6 hover:border-[var(--primary)]/60 hover:shadow-lg hover:shadow-[var(--primary)]/10 transition-all duration-300 block">
+          <a href="/settings" className="group rounded-2xl border-2 border-[var(--primary)]/30 bg-gradient-to-br from-[var(--primary)]/5 to-card p-6 hover:border-[var(--primary)]/60 hover:shadow-lg hover:shadow-[var(--primary)]/10 transition-all duration-300 block">
             <div className="flex items-start gap-4">
               <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-[var(--primary)] to-[var(--primary)]/80 flex items-center justify-center flex-shrink-0 shadow-lg shadow-[var(--primary)]/20">
                 <span className="text-2xl">🎵</span>
@@ -84,7 +84,7 @@ export function DashboardOnboarding({
         {planActive ? (
           <DoneCard title="Plan Active" subtitle="Your subscription is active. Full access unlocked." />
         ) : (
-          <a href="/settings" className="group rounded-2xl border-2 border-[var(--pulse-accent-2)]/30 bg-gradient-to-br from-[var(--pulse-accent-2)]/5 to-white p-6 hover:border-[var(--pulse-accent-2)]/60 hover:shadow-lg hover:shadow-[var(--pulse-accent-2)]/10 transition-all duration-300 block">
+          <a href="/settings" className="group rounded-2xl border-2 border-[var(--pulse-accent-2)]/30 bg-gradient-to-br from-[var(--pulse-accent-2)]/5 to-card p-6 hover:border-[var(--pulse-accent-2)]/60 hover:shadow-lg hover:shadow-[var(--pulse-accent-2)]/10 transition-all duration-300 block">
             <div className="flex items-start gap-4">
               <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-[var(--pulse-accent-2)] to-[var(--pulse-accent-2)]/80 flex items-center justify-center flex-shrink-0 shadow-lg shadow-[var(--pulse-accent-2)]/20">
                 <span className="text-2xl">💎</span>
@@ -143,15 +143,18 @@ export function DashboardOnboarding({
   );
 }
 
+// Was `from-green-50 to-white` + `text-green-900`: a hardcoded white gradient stop
+// and a fixed near-black green, neither of which flips — i.e. a white card with
+// invisible text on the dark ground. The tint + icon carry the "done" meaning.
 function DoneCard({ title, subtitle }: { title: string; subtitle: string }) {
   return (
-    <div className="rounded-2xl border-2 border-green-500/25 bg-gradient-to-br from-green-50 to-white p-6 flex items-center gap-4">
+    <div className="rounded-2xl border-2 border-green-500/25 bg-green-500/10 p-6 flex items-center gap-4">
       <div className="h-12 w-12 rounded-xl bg-green-500 flex items-center justify-center flex-shrink-0">
         <Checkmark className="h-6 w-6" />
       </div>
       <div>
-        <h3 className="font-semibold text-green-900">{title}</h3>
-        <p className="text-sm text-green-500/70 mt-0.5">{subtitle}</p>
+        <h3 className="font-semibold text-foreground">{title}</h3>
+        <p className="text-sm text-muted-foreground mt-0.5">{subtitle}</p>
       </div>
     </div>
   );
@@ -159,13 +162,13 @@ function DoneCard({ title, subtitle }: { title: string; subtitle: string }) {
 
 function DoneCardCompact({ title, subtitle }: { title: string; subtitle: string }) {
   return (
-    <div className="rounded-2xl border border-green-500/25 bg-green-500/10/50 p-5 flex items-center gap-4">
+    <div className="rounded-2xl border border-green-500/25 bg-green-500/10 p-5 flex items-center gap-4">
       <div className="h-10 w-10 rounded-xl bg-green-500 flex items-center justify-center flex-shrink-0">
         <Checkmark className="h-5 w-5" />
       </div>
       <div>
-        <h3 className="font-semibold text-green-900 text-sm">{title}</h3>
-        <p className="text-xs text-green-500/70">{subtitle}</p>
+        <h3 className="font-semibold text-foreground text-sm">{title}</h3>
+        <p className="text-xs text-muted-foreground">{subtitle}</p>
       </div>
     </div>
   );

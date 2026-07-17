@@ -10,7 +10,7 @@ export function ViewAsBanner({ name }: { name: string }) {
   const [pending, setPending] = useState(false);
   return (
     <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-500/10 px-4 py-2 text-sm">
-      <span className="inline-flex items-center gap-2 font-medium text-amber-900">
+      <span className="inline-flex items-center gap-2 font-medium text-foreground">
         <Eye className="h-4 w-4 flex-shrink-0" />
         Viewing as <span className="font-bold">{name}</span> — read-only preview
       </span>

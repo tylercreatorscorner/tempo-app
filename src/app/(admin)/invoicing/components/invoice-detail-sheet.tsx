@@ -472,7 +472,7 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
               'rounded-xl px-3 py-2.5 text-xs flex items-start gap-2',
               emailNotice.kind === 'success'
                 ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-500'
-                : 'bg-amber-500/10 border border-amber-500/20 text-amber-900',
+                : 'bg-amber-500/10 border border-amber-500/20 text-foreground',
             )}>
               {emailNotice.kind === 'success'
                 ? <CheckCircle2 className="h-4 w-4 text-emerald-600 flex-shrink-0 mt-0.5" />
@@ -577,7 +577,7 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
                 </div>
                 {invoice.amount_received !== undefined && invoice.amount_received !== null &&
                   Math.abs(Number(invoice.amount_received) - Number(invoice.total_amount)) > 0.01 && (
-                    <div className="flex items-baseline justify-between text-[11px] text-amber-500 border-t border-emerald-500/25/60 pt-2">
+                    <div className="flex items-baseline justify-between text-[11px] text-amber-500 border-t border-emerald-500/25 pt-2">
                       <span>{Number(invoice.amount_received) < Number(invoice.total_amount) ? 'Short' : 'Over'}</span>
                       <span className="tabular-nums">
                         {formatCurrency(Math.abs(Number(invoice.amount_received) - Number(invoice.total_amount)))}
@@ -592,7 +592,7 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
                   </div>
                 )}
                 {invoice.payment_received_notes && (
-                  <div className="border-t border-emerald-500/25/60 pt-2">
+                  <div className="border-t border-emerald-500/25 pt-2">
                     <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-500 mb-1">Notes</p>
                     <p className="text-xs text-foreground whitespace-pre-line leading-relaxed">{invoice.payment_received_notes}</p>
                   </div>

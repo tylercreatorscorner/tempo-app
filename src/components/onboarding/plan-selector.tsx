@@ -49,11 +49,13 @@ export function PlanSelector({ currentPlan, onSelect }: PlanSelectorProps) {
       <div className="rounded-2xl border border-green-500/25 bg-green-500/10 p-6">
         <div className="flex items-center gap-3">
           <div className="h-10 w-10 rounded-xl bg-green-500/15 flex items-center justify-center">
-            <Check className="h-5 w-5 text-green-600" />
+            <Check className="h-5 w-5" style={{ color: 'var(--pulse-pos)' }} />
           </div>
           <div>
-            <h3 className="font-semibold text-green-900">Plan Active</h3>
-            <p className="text-sm text-green-500">Your Brand plan is active. You have full access to all features.</p>
+            {/* See tiktok-connect.tsx: text-green-900 is fixed and never flips —
+                it rendered at 1.25:1 on the dark ground. */}
+            <h3 className="font-semibold text-foreground">Plan Active</h3>
+            <p className="text-sm text-muted-foreground">Your Brand plan is active. You have full access to all features.</p>
           </div>
         </div>
       </div>
@@ -62,7 +64,7 @@ export function PlanSelector({ currentPlan, onSelect }: PlanSelectorProps) {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl border-2 border-[var(--primary)]/30 bg-gradient-to-br from-white to-[var(--primary)]/5 p-6">
+      <div className="rounded-2xl border-2 border-[var(--primary)]/30 bg-gradient-to-br from-card to-[var(--primary)]/5 p-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h3 className="text-lg font-bold text-[var(--foreground)]">Brand Plan</h3>
