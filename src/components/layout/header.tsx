@@ -57,7 +57,6 @@ const BREADCRUMB_MAP: Record<string, string> = {
   '/brands': 'Brands',
   '/messages': 'Messages',
   '/discover': 'Discover',
-  '/system': 'System',
   '/invites': 'Invites',
 };
 
