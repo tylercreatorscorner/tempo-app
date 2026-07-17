@@ -7,7 +7,6 @@ import { cn } from '@/lib/utils';
 import { useDelayedFlag } from '@/hooks/use-delayed-flag';
 import { TempoLogo, TempoIcon } from '@/components/ui/tempo-logo';
 import { BrandSwitcher } from '@/components/layout/brand-switcher';
-import { SystemStatusFooter } from '@/components/layout/system-status-footer';
 
 interface Dest {
   href: string;
@@ -137,9 +136,8 @@ export function Sidebar({ className, isAdmin = false, canViewFinance = true, col
         )}
       </nav>
 
-      {/* Bottom cluster — system health + brand (expanded only) + collapse toggle. */}
+      {/* Bottom cluster — brand (expanded only) + collapse toggle. */}
       <div className="border-t border-border px-2 py-2 space-y-2">
-        {!collapsed && isAdmin && <SystemStatusFooter />}
         {!collapsed && <BrandSwitcher />}
         {onToggleCollapse && (
           <button
