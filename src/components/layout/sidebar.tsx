@@ -2,7 +2,7 @@
 
 import Link, { useLinkStatus } from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
-import { LayoutDashboard, Users, PlaySquare, Wallet, Boxes, Settings as SettingsIcon, PanelLeftClose, PanelLeft, Loader2 } from 'lucide-react';
+import { LayoutDashboard, Users, PlaySquare, Wallet, Boxes, PanelLeftClose, PanelLeft, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useDelayedFlag } from '@/hooks/use-delayed-flag';
 import { TempoLogo, TempoIcon } from '@/components/ui/tempo-logo';
@@ -18,18 +18,24 @@ interface Dest {
   financeGated?: boolean;
 }
 
-// SIX destinations. Sub-views (Roster/Retention/Affiliates/Segments,
-// Earnings/YTD/Invoicing/Payments, …) live as tabs ON the page via SectionTabs —
-// NOT as sidebar rows. Messages is in the top bar; Discover is hidden until real.
+// FIVE destinations (four for a manager — Products is admin-only). Sub-views
+// (Roster/Retention/Affiliates/Segments, Earnings/YTD/Invoicing/Payments, …)
+// live as tabs ON the page via SectionTabs — NOT as sidebar rows. Messages is in
+// the top bar; Discover is hidden until real.
+// Settings deliberately has NO sidebar row: it already lives in the profile
+// dropdown (header.tsx) alongside User Management, and one destination in two
+// places is one too many. The dropdown link is ungated, so every role still
+// reaches it; /settings' own SectionTabs still carry General/Team/Upload/
+// Automations/Integrations/Outreach.
+//
+// With Settings gone, "Setup" was a section header over a single row, so
+// Products folds into the one list. It stays adminOnly, so managers see four.
 const PRIMARY: Dest[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, match: ['/dashboard'] },
   { href: '/roster',    label: 'Creators',  icon: Users,           match: ['/roster', '/retention', '/affiliates', '/segments', '/creators'] },
   { href: '/posts',     label: 'Content',   icon: PlaySquare,      match: ['/posts', '/reporting'] },
   { href: '/earnings',  label: 'Finance',   icon: Wallet,          match: ['/earnings', '/ytd', '/invoicing', '/payments'], financeGated: true },
-];
-const SETUP: Dest[] = [
-  { href: '/products/catalog', label: 'Products', icon: Boxes,        match: ['/products'], adminOnly: true },
-  { href: '/settings',         label: 'Settings', icon: SettingsIcon, match: ['/settings', '/team', '/upload', '/workflows'] },
+  { href: '/products/catalog', label: 'Products', icon: Boxes,     match: ['/products'], adminOnly: true },
 ];
 
 /**
@@ -105,8 +111,6 @@ export function Sidebar({ className, isAdmin = false, canViewFinance = true, col
     );
   };
 
-  const setup = SETUP.filter(visible);
-
   return (
     <aside
       className={cn(
@@ -120,20 +124,11 @@ export function Sidebar({ className, isAdmin = false, canViewFinance = true, col
         {collapsed ? <TempoIcon size={26} /> : <TempoLogo size="md" animated />}
       </div>
 
-      {/* Destinations */}
+      {/* Destinations — one flat list. The "Setup" group existed to hold
+          Products + Settings; Settings now lives only in the profile dropdown,
+          and a section header over a single row is just noise. */}
       <nav className="flex-1 min-h-0 overflow-y-auto px-2 py-1 space-y-0.5">
         {PRIMARY.filter(visible).map(renderItem)}
-
-        {setup.length > 0 && (
-          <>
-            {collapsed ? (
-              <div className="my-2 border-t border-border" />
-            ) : (
-              <div className="px-3 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Setup</div>
-            )}
-            {setup.map(renderItem)}
-          </>
-        )}
       </nav>
 
       {/* Bottom cluster — brand (expanded only) + collapse toggle. */}

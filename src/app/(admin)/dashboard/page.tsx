@@ -512,8 +512,14 @@ export default async function AdminDashboard({ searchParams }: Props) {
       )}
 
       {/* Row 2 — Managed GMV trend + Managed-vs-Organic split (mockup) */}
+      {/* Row 2 — Managed GMV trend + Managed-vs-Organic + Roster Health.
+          All three are fixed-height summary cards, so they sit on one 4-col row.
+          Roster Health used to live beside Brand Performance, but that table runs
+          to every brand in the portfolio (13 today) while this card is short —
+          the 2:1 grid left ~300px of dead space in the right column, and it grew
+          with every brand added. Up here all three heights agree. */}
       {!isEmptyBrand && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="lg:col-span-2">
             <ManagedGmvChart
               data={managedDaily}
@@ -535,20 +541,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
               )}
             </CardContent>
           </Card>
-        </div>
-      )}
-
-      {/* Row 3 — Brand Performance + Roster Health (mockup). Roster Health is
-          Suspense-streamed: it runs a heavy internal /api/roster call, so it
-          fills in after the rest of the page rather than blocking navigation. */}
-      {!isEmptyBrand && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {showBrandPerf && (
-            <div className="lg:col-span-2">
-              <BrandPerformance brands={activeBrandRows} range={params.range} start={params.start} end={params.end} />
-            </div>
-          )}
-          <div className={showBrandPerf ? 'lg:col-span-1' : 'lg:col-span-3'}>
+          <div className="lg:col-span-1">
             <Suspense fallback={<RosterHealthSkeleton />}>
               {/* Brand-scoped only — NOT range-scoped. These five counts are all
                   period-independent (roster size, a fixed 14d silent threshold,
@@ -558,6 +551,13 @@ export default async function AdminDashboard({ searchParams }: Props) {
             </Suspense>
           </div>
         </div>
+      )}
+
+      {/* Row 3 — Brand Performance, full width. Deliberately shows EVERY brand,
+          including those with $0 managed GMV: a brand you have no managed
+          creators on is a coverage gap worth seeing, not noise to hide. */}
+      {!isEmptyBrand && showBrandPerf && (
+        <BrandPerformance brands={activeBrandRows} range={params.range} start={params.start} end={params.end} />
       )}
 
       {/* Row 4 — Top Creators + Top Videos leaderboards (managed, by GMV) */}

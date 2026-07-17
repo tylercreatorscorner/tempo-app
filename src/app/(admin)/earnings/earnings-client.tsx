@@ -677,7 +677,10 @@ function BrandTable({
             return (
             <Fragment key={row.brand}>
             <tr
-              className="border-b border-border hover:bg-primary/10/40 cursor-pointer transition-colors group"
+              // hover:bg-primary/10/40 was invalid (double opacity) so Tailwind
+              // emitted nothing — these rows are clickable but the only hover
+              // affordance was the cursor. Matches the dashboard's clickable rows.
+              className="border-b border-border hover:bg-muted/60 cursor-pointer transition-colors group"
               onClick={() => toggle(row.brand)}
             >
               <td className="px-4 py-3">
