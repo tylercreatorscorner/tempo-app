@@ -89,10 +89,10 @@ export function ManagedGmvChart({
             </div>
 
             <div className="flex min-w-0 flex-1 flex-col">
-          // min-h keeps the old floor; h-full lets the plot absorb the extra
-          // height from the flex parent rather than leaving dead space below.
-          <div className="relative h-full min-h-[150px]" onMouseMove={onMove} onMouseLeave={() => setHi(null)}>
-            <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="absolute inset-0 h-full w-full">
+              {/* min-h keeps the old floor; h-full lets the plot absorb the extra
+                  height from the flex parent rather than leaving dead space below. */}
+              <div className="relative h-full min-h-[150px]" onMouseMove={onMove} onMouseLeave={() => setHi(null)}>
+                <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="absolute inset-0 h-full w-full">
               <defs>
                 <linearGradient id="mgv-fill" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0" stopColor="var(--primary)" stopOpacity="0.28" />
