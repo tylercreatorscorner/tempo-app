@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { Play } from 'lucide-react';
-import { formatCurrency, formatNumber } from '@/lib/utils/format';
+import { formatCurrency } from '@/lib/utils/format';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 
 export interface TopVideoRow {
@@ -9,18 +9,21 @@ export interface TopVideoRow {
   handle: string;
   brand: string;
   gmv: number;
-  views: number;
 }
 
 /**
- * Top managed videos by GMV for the period (get_managed_posts, deduped by the
- * real videos.video_id). No thumbnail is available from the RPC, so each row
- * uses a play tile and links out to the TikTok video.
+ * Top managed videos by GMV EARNED in the period (get_top_videos_by_window_gmv,
+ * migration 079), deduped by the real videos.video_id. No thumbnail is available,
+ * so each row uses a play tile and links out to the TikTok video.
+ *
+ * No views column: engagement lives only on `videos` as a lifetime snapshot
+ * (median 1) and can't be windowed to sit honestly beside windowed GMV — a row
+ * with 0 views next to $24k of GMV would invite a meaningless GMV-per-view read.
  *
  * `failed` is separate from an empty list on purpose. "No managed videos in this
  * period" is a CLAIM about your data; if the query died we haven't earned it.
- * This card spent weeks asserting it on any window over ~a week, because
- * get_managed_posts was timing out and the page read only `.data`.
+ * This card spent weeks asserting it on any window over ~a week, because the RPC
+ * was timing out and the page read only `.data`.
  */
 export function TopVideos({ videos, label, failed = false }: { videos: TopVideoRow[]; label: string; failed?: boolean }) {
   return (
@@ -41,9 +44,7 @@ export function TopVideos({ videos, label, failed = false }: { videos: TopVideoR
       ) : (
         <div className="divide-y divide-border">
           {videos.map((v, i) => {
-            const sub = [`@${v.handle}`, v.brand, v.views > 0 ? `${formatNumber(v.views)} views` : null]
-              .filter(Boolean)
-              .join(' · ');
+            const sub = [`@${v.handle}`, v.brand].filter(Boolean).join(' · ');
             return (
               <a
                 key={`${v.url}-${i}`}

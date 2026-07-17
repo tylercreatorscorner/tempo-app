@@ -48,6 +48,7 @@ export default async function PostReviewPage({ params, searchParams }: Props) {
   // The videos table is keyed by (video_id, brand). If brand isn't in the URL
   // we'll just pick the first matching row — videos almost never appear under
   // multiple brands but if they do, the user can switch via ?brand=.
+  // Engagement (impressions/likes/comments) lives only here.
   let q = admin.from('videos')
     .select('video_id, brand, creator_name, video_name, video_link, post_date, impressions, likes, comments, total_gmv, affiliate_gmv, items_sold, orders')
     .eq('video_id', videoId);
@@ -57,18 +58,38 @@ export default async function PostReviewPage({ params, searchParams }: Props) {
   const video = rows?.[0];
   if (!video) notFound();
 
+  const toNum = (v: number | string | null): number => {
+    if (v === null || v === '') return 0;
+    const n = typeof v === 'number' ? v : parseFloat(v);
+    return Number.isNaN(n) ? 0 : n;
+  };
+
+  // GMV/orders/items — lifetime sum from video_performance (migration 079's
+  // source), NOT videos.total_gmv, which is a frozen last-upload-CSV snapshot.
+  // Deduped per (product_id, report_date) so a video selling several products,
+  // or a cross-brand duplicate-ingest day, doesn't double-count — the same rule
+  // the list RPC uses, so this detail page agrees with the row that linked here.
+  const { data: perfRows } = await admin
+    .from('video_performance')
+    .select('report_date, product_id, gmv, orders, items_sold')
+    .eq('video_id', video.video_id)
+    .eq('brand', video.brand)
+    .eq('period_type', 'daily');
+  const seen = new Set<string>();
+  let lifeGmv = 0, lifeOrders = 0, lifeItems = 0;
+  for (const r of (perfRows as Array<{ report_date: string; product_id: string | null; gmv: number | string | null; orders: number | string | null; items_sold: number | string | null }> | null) ?? []) {
+    const key = `${r.product_id ?? ''}|||${r.report_date}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    lifeGmv += toNum(r.gmv); lifeOrders += toNum(r.orders); lifeItems += toNum(r.items_sold);
+  }
+
   // Resolve brand display name for the header
   const { data: brandRow } = await admin
     .from('brands_v2')
     .select('name')
     .eq('slug', video.brand)
     .maybeSingle<{ name: string }>();
-
-  const toNum = (v: number | string | null): number => {
-    if (v === null || v === '') return 0;
-    const n = typeof v === 'number' ? v : parseFloat(v);
-    return Number.isNaN(n) ? 0 : n;
-  };
 
   const meta: VideoMeta = {
     video_id: video.video_id,
@@ -81,9 +102,9 @@ export default async function PostReviewPage({ params, searchParams }: Props) {
     views: Math.round(toNum(video.impressions)),
     likes: Math.round(toNum(video.likes)),
     comments: Math.round(toNum(video.comments)),
-    gmv: toNum(video.affiliate_gmv) > 0 ? toNum(video.affiliate_gmv) : toNum(video.total_gmv),
-    orders: Math.round(toNum(video.orders)),
-    items_sold: Math.round(toNum(video.items_sold)),
+    gmv: lifeGmv,
+    orders: Math.round(lifeOrders),
+    items_sold: Math.round(lifeItems),
   };
 
   return <PostReviewClient meta={meta} />;

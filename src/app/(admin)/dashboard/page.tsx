@@ -8,7 +8,7 @@ import { getAnalyticsBrandTotals, getAnalyticsLatestDataDate, getAnalyticsBrandD
 import { resolveDateRange } from '@/lib/data/date-utils';
 import { fetchHandleDisplayMeta } from '@/lib/data/creator-aggregate';
 import { computeManagedGmv, buildManagedLookup } from '@/lib/data/managed-gmv';
-import { formatCurrency, formatNumber } from '@/lib/utils/format';
+import { formatCurrency } from '@/lib/utils/format';
 import { pctChange } from '@/lib/utils/trend';
 import { getBrandRegistry, brandLabel, expandSlugs } from '@/lib/data/brand-registry';
 import { createClient } from '@/lib/supabase/server';
@@ -215,8 +215,8 @@ export default async function AdminDashboard({ searchParams }: Props) {
     fetchRetainerBySlug(supabase),
     activeBrands.length === 0
       ? Promise.resolve({ data: [] as Record<string, unknown>[] })
-      : supabase.rpc('get_managed_posts', {
-          p_brand_slugs: activeBrands, p_start_date: startDate, p_end_date: endDate, p_managed_only: true, p_limit: 10,
+      : supabase.rpc('get_top_videos_by_window_gmv', {
+          p_brand_slugs: activeBrands, p_start_date: startDate, p_end_date: endDate, p_limit: 10,
         }),
     fetchViewerName(supabase),
   ]);
@@ -287,19 +287,21 @@ export default async function AdminDashboard({ searchParams }: Props) {
   // so no divergent managed number is displayed — pending managed-GMV source
   // unification (a strict-managed daily series).
 
-  // ── Top Videos — top-10 managed posts by GMV (real videos.video_id, dedup'd
-  //    + correctly attributed by get_managed_posts). No thumbnail field exists,
-  //    so the card renders a play tile + links the TikTok URL. ───────────────
+  // ── Top Videos — top-10 managed videos by GMV EARNED in the selected window
+  //    (get_top_videos_by_window_gmv, migration 079). GMV is SUM(video_performance)
+  //    over report_date — the same basis as the creator card — not the frozen
+  //    last-upload snapshot on videos.total_gmv the card used to read (which left
+  //    97% of its own rows at $0 and hid evergreen earners posted before the
+  //    window). No views: engagement lives only on `videos` as a lifetime
+  //    snapshot (median 1), so it can't be windowed to sit beside windowed GMV.
   //
   // CHECK .error, not just .data. supabase.rpc() resolves {data, error}; on
   // failure data is null, and `?? []` turned that into "No managed videos in
   // this period" — a confident empty state over a dead query. That is exactly
-  // what happened: get_managed_posts took 12.5s on a 30-day window and blew the
-  // statement_timeout, so Top Videos claimed you had no videos while the RPC
-  // could return ten (migration 076 took it to ~380ms). The RPC being fast now
-  // is not the fix — reading the error is.
+  // what happened before: the RPC blew the statement_timeout and the card claimed
+  // you had no videos. The RPC being fast now is not the fix — reading the error is.
   const topPostsErr = (topPostsRes as { error?: { message?: string } | null }).error;
-  if (topPostsErr) console.error('[dashboard] get_managed_posts failed:', topPostsErr.message);
+  if (topPostsErr) console.error('[dashboard] get_top_videos_by_window_gmv failed:', topPostsErr.message);
   const topVideosFailed = !!topPostsErr;
   const topVideos = (((topPostsRes as { data: Record<string, unknown>[] | null }).data) ?? [])
     .map((p) => ({
@@ -308,7 +310,6 @@ export default async function AdminDashboard({ searchParams }: Props) {
       handle: String(p.creator_handle ?? ''),
       brand: String(p.brand_name ?? ''),
       gmv: Number(p.gmv) || 0,
-      views: Number(p.views) || 0,
     }))
     .filter((v) => v.gmv > 0)
     .slice(0, 10);

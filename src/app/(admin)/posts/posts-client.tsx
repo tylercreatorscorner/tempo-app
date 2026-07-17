@@ -346,7 +346,8 @@ export function PostsClient({
 
       {/* KPI strip */}
       <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
-        <StatCard className="col-span-2" hero label="Total GMV" value={data ? formatCurrency(data.totals.totalGmv) : '—'} />
+        <StatCard className="col-span-2" hero label="Total GMV" value={data ? formatCurrency(data.totals.totalGmv) : '—'}
+          info="GMV earned by these videos during the selected period, attributed to the video. Excludes live-stream and product-showcase sales, which aren't tied to a specific video — so this runs below the creator-level total." />
         <StatCard label="Posts"        value={data ? formatNumber(data.totals.postCount)    : '—'} />
         <StatCard label="Total Views"  value={data ? formatNumber(data.totals.totalViews)   : '—'} />
         <StatCard label="Total Likes"  value={data ? formatNumber(data.totals.totalLikes)   : '—'} />
