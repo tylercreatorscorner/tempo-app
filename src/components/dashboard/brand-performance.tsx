@@ -41,13 +41,20 @@ interface Props {
 
 const TH = 'text-[10px] font-bold uppercase tracking-[0.1em] text-muted-foreground';
 // Brand | GMV | Δ | sparkline | Managed | Δ | Mgd% | Retainer | ROI
-const COLS = 'grid grid-cols-[minmax(120px,1fr)_auto_auto_auto_auto_auto_auto_auto_auto] items-center gap-x-4';
+//
+// The brand track is BOUNDED and the eight data tracks are equal 1fr. Previously
+// brand was `1fr` and everything else `auto`, so the brand column absorbed all
+// the free width — short names like "M3" sat alone on the left beside ~200px of
+// void while every number crowded the right edge. Now the data spreads evenly
+// across the full width instead of pooling at one end.
+const COLS = 'grid grid-cols-[minmax(140px,2.2fr)_repeat(8,minmax(0,1fr))] items-center gap-x-3';
 
-/** Right-aligned column header with a hover tooltip explaining the metric. */
-function HeadCell({ label, tip, width }: { label: string; tip: string; width: string }) {
+/** Right-aligned column header with a hover tooltip explaining the metric.
+ *  Width comes from the grid track, not the cell — see COLS. */
+function HeadCell({ label, tip }: { label: string; tip: string }) {
   return (
     <InfoTooltip label={tip}>
-      <span className={`${TH} ${width} cursor-help text-right underline decoration-muted-foreground/30 decoration-dotted underline-offset-2`}>
+      <span className={`${TH} cursor-help text-right underline decoration-muted-foreground/30 decoration-dotted underline-offset-2`}>
         {label}
       </span>
     </InfoTooltip>
@@ -56,12 +63,12 @@ function HeadCell({ label, tip, width }: { label: string; tip: string; width: st
 
 /** Inline period-over-period delta. Sub-1% keeps a decimal so a real move
  *  doesn't render as a flat 0%. */
-function Delta({ value, width }: { value: number | undefined; width: string }) {
-  if (value === undefined) return <span className={`${width} text-right text-[13px] text-muted-foreground`}>—</span>;
+function Delta({ value }: { value: number | undefined }) {
+  if (value === undefined) return <span className="text-right text-[13px] text-muted-foreground">—</span>;
   const pos = value >= 0;
   return (
     <span
-      className={`${width} text-right text-[13px] font-bold tabular-nums`}
+      className="text-right text-[13px] font-bold tabular-nums"
       style={{ color: pos ? 'var(--pulse-pos)' : 'var(--pulse-neg)' }}
     >
       {pos ? '▲' : '▼'}{Math.abs(value) < 1 ? Math.abs(value).toFixed(1) : Math.round(Math.abs(value))}%
@@ -111,14 +118,14 @@ export async function BrandPerformance({ brands, range, start, end, periodLength
       {/* Column headers — each metric header hover-explains itself */}
       <div className={`${COLS} border-b border-border px-5 py-2`}>
         <span className={TH}>Brand</span>
-        <HeadCell label="GMV"      width="min-w-[76px]" tip="Total affiliate GMV for this brand in the selected period." />
-        <HeadCell label="Δ"        width="min-w-[46px]" tip="Total GMV vs the previous period of equal length." />
-        <span className={`${TH} min-w-[88px] text-right`}>{sparkLabel}</span>
-        <HeadCell label="Managed"  width="min-w-[76px]" tip="GMV from your managed creators for this brand, in the selected period." />
-        <HeadCell label="Δ"        width="min-w-[46px]" tip="Managed GMV vs the previous period — your own momentum on this brand, independent of how the brand is doing overall." />
-        <HeadCell label="Mgd %"    width="min-w-[42px]" tip="Managed GMV as a share of this brand's total GMV." />
-        <HeadCell label="Retainer" width="min-w-[72px]" tip="What this brand pays you per month — the denominator of ROI." />
-        <HeadCell label="ROI"      width="min-w-[42px]" tip="Trailing-30-day managed GMV divided by this brand's monthly retainer (a fixed 30-day window, independent of the period above)." />
+        <HeadCell label="GMV"      tip="Total affiliate GMV for this brand in the selected period." />
+        <HeadCell label="Δ"        tip="Total GMV vs the previous period of equal length." />
+        <span className={`${TH} text-right`}>{sparkLabel}</span>
+        <HeadCell label="Managed"  tip="GMV from your managed creators for this brand, in the selected period." />
+        <HeadCell label="Δ"        tip="Managed GMV vs the previous period — your own momentum on this brand, independent of how the brand is doing overall." />
+        <HeadCell label="Mgd %"    tip="Managed GMV as a share of this brand's total GMV." />
+        <HeadCell label="Retainer" tip="What this brand pays you per month — the denominator of ROI." />
+        <HeadCell label="ROI"      tip="Trailing-30-day managed GMV divided by this brand's monthly retainer (a fixed 30-day window, independent of the period above)." />
       </div>
 
       <div className="divide-y divide-border">
@@ -142,35 +149,35 @@ export async function BrandPerformance({ brands, range, start, end, periodLength
               </span>
 
               {/* Total GMV + its delta */}
-              <span className="min-w-[76px] text-right text-[13.5px] font-semibold tabular-nums text-foreground">
+              <span className="text-right text-[13.5px] font-semibold tabular-nums text-foreground">
                 {formatCurrency(b.currentGmv)}
               </span>
-              <Delta value={b.trend} width="min-w-[46px]" />
+              <Delta value={b.trend} />
 
               {/* Shape of the period. Same source as the GMV figure two columns
                   left, so the line can't disagree with the number beside it. */}
-              <span className="flex min-w-[88px] justify-end">
+              <span className="flex justify-end">
                 <BrandSparkline data={b.series} days={b.days} color={color} />
               </span>
 
               {/* Managed GMV + its delta */}
-              <span className="min-w-[76px] text-right text-[13.5px] font-semibold tabular-nums text-foreground">
+              <span className="text-right text-[13.5px] font-semibold tabular-nums text-foreground">
                 {formatCurrency(b.managedGmv)}
               </span>
-              <Delta value={b.managedTrend} width="min-w-[46px]" />
+              <Delta value={b.managedTrend} />
 
               {/* Managed share of the brand's total GMV */}
-              <span className="min-w-[42px] text-right text-[13px] font-semibold tabular-nums text-muted-foreground">
+              <span className="text-right text-[13px] font-semibold tabular-nums text-muted-foreground">
                 {b.currentGmv > 0 ? `${managedPct.toFixed(0)}%` : '—'}
               </span>
 
               {/* Monthly retainer spend — ROI's denominator, shown */}
-              <span className="min-w-[72px] text-right text-[13px] font-semibold tabular-nums text-muted-foreground">
+              <span className="text-right text-[13px] font-semibold tabular-nums text-muted-foreground">
                 {b.retainer > 0 ? formatCurrency(b.retainer) : '—'}
               </span>
 
               {/* ROI — trailing-30d managed GMV / monthly retainer */}
-              <span className="min-w-[42px] text-right text-[13.5px] font-semibold tabular-nums text-foreground">
+              <span className="text-right text-[13.5px] font-semibold tabular-nums text-foreground">
                 {b.roi != null && b.roi > 0 ? `${b.roi.toFixed(1)}×` : '—'}
               </span>
             </Link>
