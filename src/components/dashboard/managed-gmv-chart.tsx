@@ -79,10 +79,13 @@ export function ManagedGmvChart({
       </CardHeader>
       <CardContent className="flex flex-1 flex-col">
         {hasChart ? (
-          <div className="flex flex-1 gap-2">
+          <div className="flex flex-1 gap-1.5">
             {/* Y axis — three ticks (max / mid / min), aligned to the plot's own
-                6px vertical inset so a label lines up with its gridline. */}
-            <div className="flex w-[52px] flex-shrink-0 flex-col justify-between py-[6px] text-right text-[10px] tabular-nums text-muted-foreground">
+                6px vertical inset so a label lines up with its gridline.
+                Width is deliberately tight to the compact labels ("$154K" ≈ 30px):
+                at 52px the gutter pushed the plot 60px right of centre inside the
+                card, which read as the whole chart being off-centre. */}
+            <div className="flex w-[34px] flex-shrink-0 flex-col justify-between py-[6px] text-right text-[10px] tabular-nums text-muted-foreground">
               <span>{fmtCompactCurrency(max)}</span>
               <span>{fmtCompactCurrency(min + range / 2)}</span>
               <span>{fmtCompactCurrency(min)}</span>
