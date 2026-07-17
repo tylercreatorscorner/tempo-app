@@ -18,7 +18,7 @@ interface RosterSignals {
  * renders immediately and Roster Health fills in when ready. Returns null on any
  * failure so the panel degrades gracefully.
  */
-async function getRosterSignals(brand: string | null, range?: string, start?: string, end?: string): Promise<RosterSignals | null> {
+async function getRosterSignals(brand: string | null): Promise<RosterSignals | null> {
   try {
     const h = await headers();
     const host = h.get('host');
@@ -28,12 +28,20 @@ async function getRosterSignals(brand: string | null, range?: string, start?: st
     // unread DMs) and nothing GMV-derived, but page=1 made /api/roster compute
     // its KPI-summary block anyway — 3x computeManagedGmv (~84 RPCs) + 2
     // analytics calls per dashboard load, every value discarded here.
+    //
+    // Deliberately does NOT forward the dashboard's range/start/end. None of
+    // these five are period metrics: "active creators" is roster size, "Silent
+    // 14d+" is a fixed threshold, and "behind pace" is month-to-date by
+    // definition (posts so far this month vs the MONTHLY target vs how far
+    // through the month we are).
+    //
+    // #135 forwarded the range here and broke exactly that: /api/roster derives
+    // health from posts in the SELECTED window, so a 7-day range compared 7 days
+    // of posts against a monthly quota and reported almost everyone "behind" —
+    // 530 healthy on /dashboard vs 84 on /dashboard?range=last7, with the same
+    // "Last 7 Days" chip showing in both. Scope by brand only.
     const qs = new URLSearchParams({ view: 'managed', page: '1', summary: '0' });
     if (brand) qs.set('brand', brand);
-    if (range) qs.set('range', range);
-    // start/end are required for range=custom — /api/roster resolves last7 without them.
-    if (start) qs.set('start', start);
-    if (end) qs.set('end', end);
     const res = await fetch(`${proto}://${host}/api/roster?${qs.toString()}`, {
       headers: { cookie: h.get('cookie') ?? '' },
       cache: 'no-store',
@@ -52,8 +60,8 @@ async function getRosterSignals(brand: string | null, range?: string, start?: st
   }
 }
 
-export async function RosterHealthSection({ brand, range, start, end }: { brand: string | null; range?: string; start?: string; end?: string }) {
-  const s = await getRosterSignals(brand, range, start, end);
+export async function RosterHealthSection({ brand }: { brand: string | null }) {
+  const s = await getRosterSignals(brand);
   if (!s) return null;
   return <RosterHealthPanel total={s.total} healthy={s.healthy} behind={s.behind} silent={s.silent} unreadDms={s.unreadDms} />;
 }

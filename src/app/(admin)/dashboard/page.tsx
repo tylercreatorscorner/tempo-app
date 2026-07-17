@@ -550,7 +550,11 @@ export default async function AdminDashboard({ searchParams }: Props) {
           )}
           <div className={showBrandPerf ? 'lg:col-span-1' : 'lg:col-span-3'}>
             <Suspense fallback={<RosterHealthSkeleton />}>
-              <RosterHealthSection brand={brandFilter} range={params.range} start={params.start} end={params.end} />
+              {/* Brand-scoped only — NOT range-scoped. These five counts are all
+                  period-independent (roster size, a fixed 14d silent threshold,
+                  month-to-date pace), and feeding them the page's range made the
+                  card report 84 healthy on ?range=last7 vs 530 with no param. */}
+              <RosterHealthSection brand={brandFilter} />
             </Suspense>
           </div>
         </div>
