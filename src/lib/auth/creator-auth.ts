@@ -4,6 +4,10 @@ import { randomBytes } from 'node:crypto';
 
 const COOKIE_NAME = 'creator_session';
 const MAGIC_LINK_TTL_SECONDS = 15 * 60;
+// Claim links are DM'd to creators who may not open them for a while, so they
+// live much longer than a magic link. They're single-creator-scoped and
+// single-use (the JTI is marked consumed in creator_claim_tokens on first claim).
+const CLAIM_LINK_TTL_SECONDS = 60 * 60 * 24 * 60; // 60 days
 
 function loadJwtSecret(): Uint8Array {
   const fromEnv = process.env.CREATOR_JWT_SECRET;
@@ -25,7 +29,8 @@ const JWT_SECRET = loadJwtSecret();
 export interface CreatorTokenPayload {
   creatorId: number;
   email: string;
-  jti?: string; // unique token id, used for magic-link replay protection
+  jti?: string; // unique token id, used for magic-link/claim replay protection
+  purpose?: 'claim'; // present on claim-link tokens; absent on session tokens
 }
 
 /**
@@ -44,6 +49,27 @@ export async function generateMagicToken(
     .setIssuedAt()
     .setJti(jti)
     .setExpirationTime(`${MAGIC_LINK_TTL_SECONDS}s`)
+    .sign(JWT_SECRET);
+  return { token, jti, expiresAt };
+}
+
+/**
+ * Generate a long-lived (60-day) claim-link token for a specific creator, to be
+ * DM'd by the bot. Carries `purpose: 'claim'` and a fresh JTI; the /creator-claim
+ * route inserts the JTI into `creator_claim_tokens` on mint and marks it consumed
+ * on first successful claim (single-use). A leaked link only ever exposes that one
+ * creator's own portal, never another creator's or any agency internals.
+ */
+export async function generateClaimToken(
+  payload: CreatorTokenPayload
+): Promise<{ token: string; jti: string; expiresAt: Date }> {
+  const jti = randomBytes(24).toString('base64url');
+  const expiresAt = new Date(Date.now() + CLAIM_LINK_TTL_SECONDS * 1000);
+  const token = await new SignJWT({ ...payload, purpose: 'claim', jti })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setIssuedAt()
+    .setJti(jti)
+    .setExpirationTime(`${CLAIM_LINK_TTL_SECONDS}s`)
     .sign(JWT_SECRET);
   return { token, jti, expiresAt };
 }
