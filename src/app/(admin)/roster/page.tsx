@@ -459,6 +459,30 @@ function RoiCell({ roi }: { roi: number | null }) {
   return <span className={`text-xs tabular-nums ${cls}`}>{roi.toFixed(1)}×</span>;
 }
 
+// Per-row health indicator — a small colour-coded dot that ties to the Triage
+// chips above. Colours match those chips. no_data (unmanaged / no signal) renders
+// an invisible spacer so every row's avatar stays column-aligned.
+const HEALTH_DOT_META: Record<CreatorHealth, { color: string; label: string } | null> = {
+  healthy:   { color: 'var(--pulse-pos)',        label: 'Healthy' },
+  behind:    { color: 'var(--pulse-warn)',       label: 'Behind pace' },
+  silent:    { color: 'var(--pulse-neg)',        label: 'Silent 14d+' },
+  affiliate: { color: 'var(--muted-foreground)', label: 'Affiliate-only — $0 retainer, no post commitment' },
+  churned:   { color: 'var(--muted-foreground)', label: 'Churned' },
+  no_data:   null,
+};
+function HealthDot({ health }: { health: CreatorHealth }) {
+  const meta = HEALTH_DOT_META[health];
+  if (!meta) return <span className="h-2 w-2 flex-shrink-0" aria-hidden />;
+  return (
+    <span
+      className="h-2 w-2 flex-shrink-0 rounded-full"
+      style={{ backgroundColor: meta.color }}
+      title={meta.label}
+      aria-label={meta.label}
+    />
+  );
+}
+
 function ExtraAccountsBadge({ creator }: { creator: Creator }) {
   const extras = extraHandles(creator);
   const [open, setOpen] = useState(false);
@@ -1360,6 +1384,12 @@ function RosterContent() {
   type View = 'managed' | 'all' | 'unmanaged';
   const [view, setView] = useState<View>('managed');
   const [productFilter, setProductFilter] = useState('');
+  // Health triage filter (drill-in, NOT a default): 'all' shows the full roster;
+  // a health value narrows to that bucket. Counts come back on every response
+  // (computed over the full managed set, brand-scoped), so the chips always show
+  // totals even while a filter is active. See deriveHealth in /api/roster.
+  const [health, setHealth] = useState<string>('all');
+  const [healthCounts, setHealthCounts] = useState({ healthy: 0, behind: 0, silent: 0, low_roi: 0, affiliate: 0 });
   const showManagedTag = view !== 'managed';
   const showAddAction = view !== 'managed';
 
@@ -1461,6 +1491,7 @@ function RosterContent() {
       if (productFilter) params.set('product', productFilter);
       if (view !== 'managed') params.set('include', 'all');
       if (view === 'unmanaged') params.set('managed', 'unmanaged');
+      if (health !== 'all') params.set('health', health);
       if (segFilters?.min_gmv != null) params.set('min_gmv', String(segFilters.min_gmv));
       if (segFilters?.max_gmv != null) params.set('max_gmv', String(segFilters.max_gmv));
       if (segFilters?.min_posts != null) params.set('min_posts', String(segFilters.min_posts));
@@ -1475,13 +1506,22 @@ function RosterContent() {
       if (json.total_gmv_period != null) setTotalGmvPeriod(json.total_gmv_period);
       setTotalRetainer(json.total_retainer ?? 0);
       setTotalManaged(json.total_managed ?? 0);
+      // Health counts are over the FULL managed set (unaffected by the active
+      // health filter), so the triage chips always show totals.
+      setHealthCounts({
+        healthy: json.healthy_count ?? 0,
+        behind: json.behind_count ?? 0,
+        silent: json.silent_count ?? 0,
+        low_roi: json.low_roi_count ?? 0,
+        affiliate: json.affiliate_count ?? 0,
+      });
       if (json.summary) setSummary(json.summary);
     } catch (err) {
       console.error('Failed to fetch roster:', err);
     } finally {
       setLoading(false);
     }
-  }, [brand, view, search, productFilter, page, sortBy, sortDir, preset, customStart, customEnd, isCustomPeriod, segFilters]);
+  }, [brand, view, search, productFilter, health, page, sortBy, sortDir, preset, customStart, customEnd, isCustomPeriod, segFilters]);
 
   useEffect(() => { fetchRoster(); }, [fetchRoster]);
 
@@ -1685,12 +1725,58 @@ function RosterContent() {
         />
       </div>
 
+      {/* Triage chips — health drill-in filter (NOT a default view; the full
+          roster is still the default). Click a chip to narrow to that bucket;
+          click again to clear. Counts are over the full brand-scoped managed set
+          so they hold steady while a filter is active. Managed view only —
+          health is a managed-creator concept. See deriveHealth in /api/roster:
+          Behind/Silent/Healthy are CONTRACTED-only; Affiliate is $0-retainer. */}
+      {view === 'managed' && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">Triage</span>
+          {[
+            { key: 'behind', label: 'Behind pace', count: healthCounts.behind, color: 'var(--pulse-warn)' },
+            { key: 'silent', label: 'Silent 14d+', count: healthCounts.silent, color: 'var(--pulse-neg)' },
+            { key: 'low_roi', label: 'Low ROI', count: healthCounts.low_roi, color: '#F97316' },
+            { key: 'healthy', label: 'Healthy', count: healthCounts.healthy, color: 'var(--pulse-pos)' },
+            { key: 'affiliate', label: 'Affiliate-only', count: healthCounts.affiliate, color: 'var(--muted-foreground)' },
+          ].map((c) => {
+            const active = health === c.key;
+            return (
+              <button
+                key={c.key}
+                type="button"
+                onClick={() => { setHealth(active ? 'all' : c.key); setPage(1); }}
+                aria-pressed={active}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
+                  active ? 'bg-muted text-foreground' : 'border-border bg-card text-muted-foreground hover:bg-muted'
+                }`}
+                style={active ? { borderColor: c.color } : undefined}
+              >
+                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: c.color }} />
+                {c.label}
+                <span className="tabular-nums opacity-70">{c.count}</span>
+              </button>
+            );
+          })}
+          {health !== 'all' && (
+            <button
+              type="button"
+              onClick={() => { setHealth('all'); setPage(1); }}
+              className="text-xs font-medium text-[var(--primary)] hover:underline"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Filter row: All / Managed / Unmanaged + search */}
       <div className="flex flex-col sm:flex-row gap-3">
         <SegmentedControl<View>
           className="self-start"
           value={view}
-          onValueChange={setView}
+          onValueChange={(v) => { setView(v); if (v !== 'managed') setHealth('all'); setPage(1); }}
           ariaLabel="Creator view"
           options={[
             { value: 'all', label: 'All Creators' },
@@ -1871,6 +1957,7 @@ function RosterContent() {
                               {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                             </span>
                           )}
+                          {c.is_managed && <HealthDot health={c.health} />}
                           <CreatorAvatar creator={c} />
                           <div className="min-w-0">
                             <div className="flex items-center gap-1 font-semibold text-[13.5px] text-[var(--foreground)]">
