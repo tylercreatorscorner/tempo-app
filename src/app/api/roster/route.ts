@@ -804,9 +804,11 @@ export async function GET(request: NextRequest) {
         lastPostDate: r.last_post_date,
       });
     }
-    // (b) collapse by creator_id — interactive table only (CSV export stays
-    // granular per-brand). null creator_id / unmanaged → own row.
-    if (!exportAll) {
+    // (b) collapse by creator_id — interactive table, UNFILTERED browse only.
+    // When a triage chip is active we deliberately DON'T collapse: the manager
+    // wants per-contract rows (creator × brand) so "behind" names the exact brand,
+    // and so the row count matches the chip. CSV export also stays granular.
+    if (!exportAll && healthFilter === 'all') {
     const byCreator = new Map<string, EnrichedRow[]>();
     const out: EnrichedRow[] = [];
     for (const r of enriched) {
@@ -878,28 +880,33 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // ── 4c. Health counts over the collapsed managed set the table actually shows,
-  // so the triage chips match the filtered totals exactly (and so "behind" is the
-  // per-brand-accurate count, not the pre-rescope cross-brand undercount). In the
-  // all-brands owner view `working` is post-rescope + collapsed (one row per
-  // creator); elsewhere it's `enriched`. Managed-only — the cards are about MY
-  // roster, not the universe.
-  const managedView = working.filter((r) => r.is_managed);
-  const total_managed = managedView.length;
+  // ── 4c. Health counts, PER-CONTRACT (creator × brand) — Tyler's call: a creator
+  // can be Healthy on one brand and Behind on another, and "behind" should name
+  // the specific contract. Computed on the RESCOPED enriched rows (each contract
+  // judged on its OWN brand's posts vs its quota — not the pre-rescope cross-brand
+  // undercount). The collapse below is SKIPPED whenever a triage chip is active,
+  // so the filtered table is these same per-contract rows → chip count === filtered
+  // total, exactly.
+  const managedContracts = enriched.filter((r) => r.is_managed);
+  // total_managed + the health counts are all PER-CONTRACT, so they share one
+  // denominator (a "Behind 250 of 1,502" reads cleanly, and the dashboard's
+  // composition bars don't mix contracts with creators). The unfiltered roster
+  // still COLLAPSES multi-brand creators for a clean browse, so its pagination
+  // total is smaller than this header figure — that's the roster's display choice,
+  // not a health-count concern.
+  const total_managed = managedContracts.length;
   // behind/silent/healthy are CONTRACTED-only by construction (affiliate-only rows
   // resolve to 'affiliate'); affiliate_count is the $0-retainer tracked creators.
-  const behind_count    = managedView.filter((r) => r.health === 'behind').length;
-  const silent_count    = managedView.filter((r) => r.health === 'silent').length;
-  const healthy_count   = managedView.filter((r) => r.health === 'healthy').length;
-  const affiliate_count = managedView.filter((r) => r.health === 'affiliate').length;
+  const behind_count    = managedContracts.filter((r) => r.health === 'behind').length;
+  const silent_count    = managedContracts.filter((r) => r.health === 'silent').length;
+  const healthy_count   = managedContracts.filter((r) => r.health === 'healthy').length;
+  const affiliate_count = managedContracts.filter((r) => r.health === 'affiliate').length;
   // Low ROI is contracted-only too — affiliate rows have retainer 0 → roi null,
   // so already excluded, but be explicit. Matches the low_roi health-filter below.
-  const low_roi_count = managedView.filter(
+  const low_roi_count = managedContracts.filter(
     (r) => r.roi_period !== null && r.roi_period < 1 && r.health !== 'churned' && r.health !== 'affiliate',
   ).length;
-  // Per-creator (collapsed) so a creator's unread DMs aren't counted once per
-  // brand-contract, as the pre-collapse sum did.
-  const unread_dms_total = managedView.reduce((s, r) => s + (r.unread_count || 0), 0);
+  const unread_dms_total = managedContracts.reduce((s, r) => s + (r.unread_count || 0), 0);
 
   // ── 5. Apply health filter.
   let filtered = working;
