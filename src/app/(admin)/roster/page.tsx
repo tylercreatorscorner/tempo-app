@@ -32,6 +32,7 @@ import { Input } from '@/components/ui/input';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Chip } from '@/components/ui/chip';
 import { Badge } from '@/components/ui/badge';
+import { ScrollFade } from '@/components/ui/scroll-fade';
 
 const PAGE_SIZE = 50;
 
@@ -1619,20 +1620,23 @@ function RosterContent() {
         />
       </div>
 
-      {/* KPI strip — hero-led (Affiliate GMV), matching the Pulse mockup */}
+      {/* KPI strip — hero-led (Managed GMV: what this roster actually drove).
+          Affiliate GMV is the whole-market context number, so it sits beside the
+          hero as a plain card rather than leading. Mirrors the dashboard, where
+          Managed GMV is the hero. */}
       <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
         <StatCard
           className="col-span-2"
           hero
-          label="Affiliate GMV"
-          value={loading && !summary ? '…' : fmt(affiliateGmv)}
-          trend={summary ? pctDelta(affiliateGmv, summary.affiliate_gmv_prev) : undefined}
-          trendLabel={periodLabel}
-        />
-        <StatCard
           label="Managed GMV"
           value={loading ? '…' : fmt(totalGmvPeriod)}
           trend={summary ? pctDelta(totalGmvPeriod, summary.managed_gmv_prev) : undefined}
+          trendLabel={periodLabel}
+        />
+        <StatCard
+          label="Affiliate GMV"
+          value={loading && !summary ? '…' : fmt(affiliateGmv)}
+          trend={summary ? pctDelta(affiliateGmv, summary.affiliate_gmv_prev) : undefined}
           trendLabel={periodLabel}
           accentColor="var(--primary)"
         />
@@ -1744,7 +1748,10 @@ function RosterContent() {
               (brand / period / sort / page change), even with rows on screen.
               Gated by showLoadBar (150ms delay) so fast loads don't flash it. */}
           <TableLoadBar active={showLoadBar} />
-          <div className={`overflow-x-auto transition-opacity duration-200 ${showLoadBar && roster.length > 0 ? 'opacity-60' : 'opacity-100'}`}>
+          {/* ScrollFade: 8 columns overflow ~1,440px, so ROI/Joined sit off the
+              right edge. The edge fade announces the sideways scroll instead of
+              leaving the page's headline metric silently hidden. */}
+          <ScrollFade className={`transition-opacity duration-200 ${showLoadBar && roster.length > 0 ? 'opacity-60' : 'opacity-100'}`}>
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border bg-secondary">
@@ -2001,7 +2008,7 @@ function RosterContent() {
                 })}
               </tbody>
             </table>
-          </div>
+          </ScrollFade>
 
           {/* Pagination */}
           <div className="flex items-center justify-between px-5 py-3.5 border-t border-border bg-secondary">
