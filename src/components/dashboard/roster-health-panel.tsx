@@ -52,6 +52,12 @@ export function RosterHealthPanel({ total, healthy, behind, silent, affiliate, u
       count: affiliate,
       color: 'var(--muted-foreground)',
       tip: 'In your brand servers with GMV tracked, but on a $0 retainer with no post commitment — so posting-health doesn’t apply. Not a problem to fix; shown for composition.',
+      // Plain label, not a Radix InfoTooltip trigger: this is the LAST row of a
+      // Suspense-streamed panel, and Radix Tooltip.Trigger `asChild` intermittently
+      // fails to project a lazily-streamed child into the DOM — the label vanished
+      // while the count/bar rendered. A native title is streaming-safe and the
+      // affiliate row is self-explanatory anyway.
+      plain: true,
     },
   ];
   const max = Math.max(total, healthy, behind, silent, affiliate, 1);
@@ -73,11 +79,17 @@ export function RosterHealthPanel({ total, healthy, behind, silent, affiliate, u
           {rows.map((r) => (
             <div key={r.label}>
               <div className="flex items-center justify-between text-[13px]">
-                <InfoTooltip label={r.tip}>
-                  <span className="cursor-help font-semibold text-muted-foreground underline decoration-muted-foreground/30 decoration-dotted underline-offset-2">
+                {r.plain ? (
+                  <span className="font-semibold text-muted-foreground" title={r.tip}>
                     {r.label}
                   </span>
-                </InfoTooltip>
+                ) : (
+                  <InfoTooltip label={r.tip}>
+                    <span className="cursor-help font-semibold text-muted-foreground underline decoration-muted-foreground/30 decoration-dotted underline-offset-2">
+                      {r.label}
+                    </span>
+                  </InfoTooltip>
+                )}
                 <span className="font-bold tabular-nums text-foreground">{formatNumber(r.count)}</span>
               </div>
               <div className="mt-1.5 h-2 overflow-hidden rounded-md bg-secondary">
