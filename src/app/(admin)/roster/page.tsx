@@ -27,7 +27,7 @@ import { useBodyScrollLock } from '@/hooks/use-body-scroll-lock';
 import { ModalOverlay } from '@/components/ui/modal-overlay';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
-import { SegmentedControl } from '@/components/ui/segmented';
+import { Select } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Chip } from '@/components/ui/chip';
@@ -300,7 +300,7 @@ function BrandSelect({
         ref={buttonRef}
         type="button"
         onClick={() => setOpen(o => !o)}
-        className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-border bg-card text-sm font-semibold text-[var(--foreground)] hover:bg-muted hover:border-border transition-colors min-w-[180px]"
+        className="inline-flex items-center gap-2 px-3.5 py-[9px] rounded-md border border-border bg-card text-[13.5px] font-medium text-[var(--foreground)] transition-colors hover:border-[var(--primary)]/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/25 min-w-[180px]"
       >
         {current.slug !== 'all' && (
           <span
@@ -387,10 +387,11 @@ function BrandSelect({
   );
 }
 
-// Period selector — preset chips + a custom date-range popover. Presets come
-// from the shared resolveDateRange engine (same set as the Dashboard + brand
-// portal), so every surface speaks the same [start, end] windows. The Custom
-// chip opens the two-month calendar popover reused from the Dashboard.
+// Period selector — a compact DROPDOWN (trigger + menu of presets + a custom
+// range), matching the dashboard's DateRangePicker but driven by the roster's
+// local state, not the URL. Presets come from the shared resolveDateRange engine
+// so every surface speaks the same [start, end] windows. (Was a pill bar — Tyler
+// prefers dropdowns; all the roster filters are dropdowns now.)
 function PeriodSelector({
   preset, customStart, customEnd, onPreset, onCustom,
 }: {
@@ -400,48 +401,77 @@ function PeriodSelector({
   onPreset: (p: DatePreset) => void;
   onCustom: (start: string, end: string) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
   const isCustom = preset === 'custom' && !!customStart && !!customEnd;
-  const customLabel = isCustom && customStart && customEnd
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDown = (e: MouseEvent) => { if (rootRef.current && !rootRef.current.contains(e.target as Node)) setMenuOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenuOpen(false); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
+  }, [menuOpen]);
+
+  const currentLabel = isCustom && customStart && customEnd
     ? `${fmtShortDate(customStart)} – ${fmtShortDate(customEnd)}`
-    : 'Custom';
+    : DATE_PRESETS.find((p) => p.value === preset)?.label ?? 'Last 7 Days';
 
   return (
-    <div className="relative flex flex-wrap gap-1 p-1 bg-muted border border-border rounded-xl">
-      {DATE_PRESETS.map((p) => {
-        const active = !isCustom && preset === p.value;
-        return (
-          <button
-            key={p.value}
-            onClick={() => onPreset(p.value)}
-            title={p.label}
-            className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-              active
-                ? 'bg-card text-[var(--foreground)] shadow'
-                : 'text-muted-foreground hover:text-foreground hover:bg-card'
-            }`}
-          >
-            {PERIOD_SHORT[p.value]}
-          </button>
-        );
-      })}
+    <div className="relative" ref={rootRef}>
       <button
-        onClick={() => setOpen(o => !o)}
-        className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors inline-flex items-center gap-1 ${
-          isCustom
-            ? 'bg-card text-[var(--foreground)] shadow'
-            : 'text-muted-foreground hover:text-foreground hover:bg-card'
-        }`}
+        type="button"
+        onClick={() => setMenuOpen((o) => !o)}
+        aria-haspopup="menu"
+        aria-expanded={menuOpen}
+        className="inline-flex min-w-[150px] items-center justify-between gap-1.5 rounded-md border border-border bg-card px-3.5 py-[9px] text-[13.5px] font-medium text-foreground transition-colors hover:border-[var(--primary)]/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/25"
       >
-        <Calendar className="h-3 w-3" />
-        {customLabel}
+        <span className="inline-flex items-center gap-1.5 truncate tabular-nums">
+          <Calendar className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
+          <span className="truncate">{currentLabel}</span>
+        </span>
+        <ChevronDown className={`h-4 w-4 flex-shrink-0 text-muted-foreground transition-transform ${menuOpen ? 'rotate-180' : ''}`} />
       </button>
-      {open && (
+
+      {menuOpen && (
+        <div role="menu" className="absolute left-0 z-30 mt-2 w-48 overflow-hidden rounded-xl border border-border bg-card p-1 shadow-[var(--pulse-elev-2)]">
+          {DATE_PRESETS.map((p) => {
+            const active = !isCustom && preset === p.value;
+            return (
+              <button
+                key={p.value}
+                type="button"
+                role="menuitemradio"
+                aria-checked={active}
+                onClick={() => { onPreset(p.value); setMenuOpen(false); }}
+                className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition-colors ${active ? 'bg-primary/10 text-[var(--primary)]' : 'text-foreground hover:bg-muted'}`}
+              >
+                {p.label}
+                {active && <Check className="h-3.5 w-3.5" />}
+              </button>
+            );
+          })}
+          <div className="my-1 h-px bg-border" />
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => { setPickerOpen(true); setMenuOpen(false); }}
+            className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition-colors ${isCustom ? 'bg-primary/10 text-[var(--primary)]' : 'text-foreground hover:bg-muted'}`}
+          >
+            <span className="inline-flex items-center gap-1.5"><Calendar className="h-3.5 w-3.5" /> Custom range…</span>
+            {isCustom && <Check className="h-3.5 w-3.5" />}
+          </button>
+        </div>
+      )}
+
+      {pickerOpen && (
         <CustomRangePopover
           initialStart={customStart}
           initialEnd={customEnd}
-          onApply={(s, e) => { onCustom(s, e); setOpen(false); }}
-          onClose={() => setOpen(false)}
+          onApply={(s, e) => { onCustom(s, e); setPickerOpen(false); }}
+          onClose={() => setPickerOpen(false)}
         />
       )}
     </div>
@@ -480,6 +510,93 @@ function HealthDot({ health }: { health: CreatorHealth }) {
       title={meta.label}
       aria-label={meta.label}
     />
+  );
+}
+
+// Health triage as a DROPDOWN (Tyler prefers dropdowns over the old chip row).
+// The menu keeps the at-a-glance value the chips had — a coloured dot + live
+// count per bucket — and the trigger shows the active filter. 'all' clears it.
+// low_roi is a derived filter (roi<1), the rest are deriveHealth states.
+const HEALTH_FILTER_OPTS: { key: string; label: string; color: string }[] = [
+  { key: 'behind',    label: 'Behind pace',    color: 'var(--pulse-warn)' },
+  { key: 'silent',    label: 'Silent 14d+',    color: 'var(--pulse-neg)' },
+  { key: 'low_roi',   label: 'Low ROI',        color: '#F97316' },
+  { key: 'healthy',   label: 'Healthy',        color: 'var(--pulse-pos)' },
+  { key: 'affiliate', label: 'Affiliate-only', color: 'var(--muted-foreground)' },
+];
+function HealthFilterMenu({
+  value, counts, onChange,
+}: {
+  value: string;
+  counts: { healthy: number; behind: number; silent: number; low_roi: number; affiliate: number };
+  onChange: (v: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => { if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
+  }, [open]);
+  const active = HEALTH_FILTER_OPTS.find((o) => o.key === value);
+  const countFor = (k: string) => (counts as unknown as Record<string, number>)[k] ?? 0;
+
+  return (
+    <div className="relative" ref={rootRef}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className="inline-flex min-w-[150px] items-center justify-between gap-1.5 rounded-md border border-border bg-card px-3.5 py-[9px] text-[13.5px] font-medium text-foreground transition-colors hover:border-[var(--primary)]/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/25"
+      >
+        <span className="inline-flex items-center gap-1.5 truncate">
+          {active && <span className="h-2 w-2 flex-shrink-0 rounded-full" style={{ backgroundColor: active.color }} />}
+          <span className="truncate">{active ? active.label : 'Health: All'}</span>
+        </span>
+        <ChevronDown className={`h-4 w-4 flex-shrink-0 text-muted-foreground transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div role="menu" className="absolute left-0 z-30 mt-2 w-56 overflow-hidden rounded-xl border border-border bg-card p-1 shadow-[var(--pulse-elev-2)]">
+          <button
+            type="button"
+            role="menuitemradio"
+            aria-checked={value === 'all'}
+            onClick={() => { onChange('all'); setOpen(false); }}
+            className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition-colors ${value === 'all' ? 'bg-primary/10 text-[var(--primary)]' : 'text-foreground hover:bg-muted'}`}
+          >
+            <span className="inline-flex items-center gap-2"><Globe className="h-3.5 w-3.5 text-muted-foreground" /> All health</span>
+            {value === 'all' && <Check className="h-3.5 w-3.5" />}
+          </button>
+          <div className="my-1 h-px bg-border" />
+          {HEALTH_FILTER_OPTS.map((o) => {
+            const isActive = value === o.key;
+            return (
+              <button
+                key={o.key}
+                type="button"
+                role="menuitemradio"
+                aria-checked={isActive}
+                onClick={() => { onChange(o.key); setOpen(false); }}
+                className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition-colors ${isActive ? 'bg-primary/10 text-[var(--primary)]' : 'text-foreground hover:bg-muted'}`}
+              >
+                <span className="inline-flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: o.color }} />
+                  {o.label}
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="tabular-nums text-muted-foreground">{countFor(o.key)}</span>
+                  {isActive && <Check className="h-3.5 w-3.5 text-[var(--primary)]" />}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -1673,8 +1790,10 @@ function RosterContent() {
         }
       />
 
-      {/* Brand + period selectors */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      {/* Scope bar — Brand + Period dropdowns, grouped left. These scope the KPIs
+          and the table; the table-drill filters (View/Health/Product/…) live in
+          the toolbar just above the table. */}
+      <div className="flex flex-wrap items-center gap-2">
         <BrandSelect value={brand} options={brandOptions} onChange={setBrand} />
         <PeriodSelector
           preset={preset}
@@ -1725,66 +1844,27 @@ function RosterContent() {
         />
       </div>
 
-      {/* Triage chips — health drill-in filter (NOT a default view; the full
-          roster is still the default). Click a chip to narrow to that bucket;
-          click again to clear. Counts are over the full brand-scoped managed set
-          so they hold steady while a filter is active. Managed view only —
-          health is a managed-creator concept. See deriveHealth in /api/roster:
-          Behind/Silent/Healthy are CONTRACTED-only; Affiliate is $0-retainer. */}
-      {view === 'managed' && (
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">Triage</span>
-          {[
-            { key: 'behind', label: 'Behind pace', count: healthCounts.behind, color: 'var(--pulse-warn)' },
-            { key: 'silent', label: 'Silent 14d+', count: healthCounts.silent, color: 'var(--pulse-neg)' },
-            { key: 'low_roi', label: 'Low ROI', count: healthCounts.low_roi, color: '#F97316' },
-            { key: 'healthy', label: 'Healthy', count: healthCounts.healthy, color: 'var(--pulse-pos)' },
-            { key: 'affiliate', label: 'Affiliate-only', count: healthCounts.affiliate, color: 'var(--muted-foreground)' },
-          ].map((c) => {
-            const active = health === c.key;
-            return (
-              <button
-                key={c.key}
-                type="button"
-                onClick={() => { setHealth(active ? 'all' : c.key); setPage(1); }}
-                aria-pressed={active}
-                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
-                  active ? 'bg-muted text-foreground' : 'border-border bg-card text-muted-foreground hover:bg-muted'
-                }`}
-                style={active ? { borderColor: c.color } : undefined}
-              >
-                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: c.color }} />
-                {c.label}
-                <span className="tabular-nums opacity-70">{c.count}</span>
-              </button>
-            );
-          })}
-          {health !== 'all' && (
-            <button
-              type="button"
-              onClick={() => { setHealth('all'); setPage(1); }}
-              className="text-xs font-medium text-[var(--primary)] hover:underline"
-            >
-              Clear
-            </button>
-          )}
+      {/* Table toolbar — all DROPDOWNS (Tyler prefers them to pills). View +
+          Health replace the old segmented control + triage chip row; the Health
+          menu keeps the per-bucket counts + colour dots the chips had. Wraps at
+          narrow widths. Search grows to fill; Segments + export sit at the end. */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="w-[150px]">
+          <Select
+            value={view}
+            onChange={(e) => { const v = e.target.value as View; setView(v); if (v !== 'managed') setHealth('all'); setPage(1); }}
+            aria-label="Creator view"
+          >
+            <option value="all">All Creators</option>
+            <option value="managed">Managed</option>
+            <option value="unmanaged">Unmanaged</option>
+          </Select>
         </div>
-      )}
-
-      {/* Filter row: All / Managed / Unmanaged + search */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <SegmentedControl<View>
-          className="self-start"
-          value={view}
-          onValueChange={(v) => { setView(v); if (v !== 'managed') setHealth('all'); setPage(1); }}
-          ariaLabel="Creator view"
-          options={[
-            { value: 'all', label: 'All Creators' },
-            { value: 'managed', label: 'Managed' },
-            { value: 'unmanaged', label: 'Unmanaged' },
-          ]}
-        />
-        <div className="relative flex-1">
+        {view === 'managed' && (
+          <HealthFilterMenu value={health} counts={healthCounts} onChange={(v) => { setHealth(v); setPage(1); }} />
+        )}
+        <ProductFilterSelect brand={brand} value={productFilter} onChange={setProductFilter} />
+        <div className="relative min-w-[200px] flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none z-10" />
           <Input
             type="text"
@@ -1794,9 +1874,8 @@ function RosterContent() {
             className="pl-10"
           />
         </div>
-        <ProductFilterSelect brand={brand} value={productFilter} onChange={setProductFilter} />
         <RosterSegmentControls currentCriteria={currentCriteria} onApply={applySegment} />
-        <div className="flex items-center gap-2 self-start">
+        <div className="flex items-center gap-2">
           <Button
             variant="outline"
             size="sm"
