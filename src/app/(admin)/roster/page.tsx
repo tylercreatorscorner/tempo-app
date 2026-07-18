@@ -33,6 +33,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { Chip } from '@/components/ui/chip';
 import { Badge } from '@/components/ui/badge';
 import { ScrollFade } from '@/components/ui/scroll-fade';
+import { InfoTooltip } from '@/components/ui/info-tooltip';
 
 const PAGE_SIZE = 50;
 
@@ -1284,15 +1285,39 @@ function DeltaBadge({ value }: { value?: number | null }) {
 }
 
 // Creator level L1–L7 (from trailing-30-day GMV). Managed rows only.
+const LEVEL_BANDS: { level: number; range: string }[] = [
+  { level: 1, range: '$0 – 5K' },
+  { level: 2, range: '$5K – 25K' },
+  { level: 3, range: '$25K – 60K' },
+  { level: 4, range: '$60K – 150K' },
+  { level: 5, range: '$150K – 400K' },
+  { level: 6, range: '$400K – 1.5M' },
+  { level: 7, range: '$1.5M+' },
+];
 function LevelBadge({ level }: { level?: number | null }) {
   if (!level) return null;
+  // Radix tooltip (via InfoTooltip) rather than a native title: the badge is
+  // cryptic on its own, so the explanation should be discoverable and styled,
+  // not a slow browser tooltip. The creator's own band is emphasised.
   return (
-    <span
-      className="ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-600 align-middle"
-      title="Creator level — trailing 30-day GMV (L1 $0–5K · L2 5–25K · L3 25–60K · L4 60–150K · L5 150–400K · L6 400K–1.5M · L7 1.5M+)"
+    <InfoTooltip
+      label={
+        <div className="space-y-1">
+          <p className="font-semibold">Creator level · trailing-30-day GMV</p>
+          <ul className="space-y-0.5">
+            {LEVEL_BANDS.map((b) => (
+              <li key={b.level} className={b.level === level ? 'font-bold text-background' : 'text-background/70'}>
+                L{b.level} &nbsp;{b.range}
+              </li>
+            ))}
+          </ul>
+        </div>
+      }
     >
-      L{level}
-    </span>
+      <span className="ml-1.5 cursor-help text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-600 align-middle">
+        L{level}
+      </span>
+    </InfoTooltip>
   );
 }
 
