@@ -9,6 +9,7 @@ const PUBLIC_PATHS = [
   '/onboarding',
   '/join',
   '/creator-login',
+  '/creator-claim', // claim-link landing — the pre-session portal entry point
   '/api/auth/creator',
   '/api/webhooks',
   '/api/og',
@@ -80,14 +81,19 @@ export async function updateSession(request: NextRequest) {
   const isLanding = path === '/';
   const isApi = path.startsWith('/api/');
 
-  // Dev-only escape hatch: if a creator_session cookie is present, allow
-  // /creator-dashboard and /api/dev/* to bypass the supabase auth check.
-  // The creator portal layout still verifies the JWT via getCreatorProfile().
+  // The creator portal authenticates via the creator_session JWT cookie (NOT a
+  // Supabase user), so a valid creator session must bypass the Supabase auth
+  // guard below — the portal layout re-verifies the JWT via getCreatorProfile().
+  // This MUST work in production: it was previously gated behind `isDev`, which
+  // made the entire portal (and the claim/onboarding entry) redirect every real
+  // creator to /login — the reason no creator had ever onboarded.
   const isDev = process.env.NODE_ENV !== 'production';
   const hasCreatorSession = !!request.cookies.get('creator_session')?.value;
-  const isCreatorDashboard = path === '/creator-dashboard' || path.startsWith('/creator-dashboard/');
+  const isCreatorPortal =
+    path === '/creator-dashboard' || path.startsWith('/creator-dashboard/') ||
+    path === '/creator-onboarding' || path.startsWith('/creator-onboarding/');
   const isDevApi = path.startsWith('/api/dev/');
-  if (isDev && (isDevApi || (hasCreatorSession && isCreatorDashboard))) {
+  if ((isDev && isDevApi) || (hasCreatorSession && isCreatorPortal)) {
     return supabaseResponse;
   }
 
