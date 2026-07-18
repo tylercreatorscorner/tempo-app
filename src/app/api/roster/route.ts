@@ -733,23 +733,13 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // ── 4. Aggregate counts BEFORE filters (so cards stay useful as triggers).
-  // Managed-only — the cards are about MY roster, not the universe.
+  // ── 4. Managed row set (for retainer). The HEALTH COUNTS are NOT computed
+  // here — they're derived from the post-rescope/post-collapse `working` set
+  // below (step 4c), so the triage-chip counts match the rows the table actually
+  // shows. Computing them here (pre-rescope) undercounts "behind": it credits a
+  // creator's cross-brand posts toward each brand's quota, hiding a creator who
+  // is behind on the brand they're contracted for.
   const managedRows  = enriched.filter((r) => r.is_managed);
-  const total_managed = managedRows.length;
-  // behind/silent/healthy are now CONTRACTED-only by construction (affiliate-only
-  // rows resolve to 'affiliate', never these), so these counts are the actionable
-  // triage numbers, not inflated by the ~901 no-commitment affiliates.
-  const behind_count   = managedRows.filter((r) => r.health === 'behind').length;
-  const silent_count   = managedRows.filter((r) => r.health === 'silent').length;
-  const healthy_count  = managedRows.filter((r) => r.health === 'healthy').length;
-  const affiliate_count = managedRows.filter((r) => r.health === 'affiliate').length;
-  // Low ROI is a contracted-only concept too — affiliate rows have retainer 0 →
-  // roi_period null, so they're already excluded, but be explicit.
-  const low_roi_count = managedRows.filter(
-    (r) => r.roi_period !== null && r.roi_period < 1 && r.health !== 'churned' && r.health !== 'affiliate',
-  ).length;
-  const unread_dms_total = managedRows.reduce((s, r) => s + (r.unread_count || 0), 0);
   // Total monthly retainer commitment across the brand-scoped managed roster.
   // NOT period-driven — retainer is a fixed monthly contract figure, so this
   // is the same whether the period selector is on Yesterday or YTD.
@@ -887,6 +877,29 @@ export async function GET(request: NextRequest) {
     working = out;
     }
   }
+
+  // ── 4c. Health counts over the collapsed managed set the table actually shows,
+  // so the triage chips match the filtered totals exactly (and so "behind" is the
+  // per-brand-accurate count, not the pre-rescope cross-brand undercount). In the
+  // all-brands owner view `working` is post-rescope + collapsed (one row per
+  // creator); elsewhere it's `enriched`. Managed-only — the cards are about MY
+  // roster, not the universe.
+  const managedView = working.filter((r) => r.is_managed);
+  const total_managed = managedView.length;
+  // behind/silent/healthy are CONTRACTED-only by construction (affiliate-only rows
+  // resolve to 'affiliate'); affiliate_count is the $0-retainer tracked creators.
+  const behind_count    = managedView.filter((r) => r.health === 'behind').length;
+  const silent_count    = managedView.filter((r) => r.health === 'silent').length;
+  const healthy_count   = managedView.filter((r) => r.health === 'healthy').length;
+  const affiliate_count = managedView.filter((r) => r.health === 'affiliate').length;
+  // Low ROI is contracted-only too — affiliate rows have retainer 0 → roi null,
+  // so already excluded, but be explicit. Matches the low_roi health-filter below.
+  const low_roi_count = managedView.filter(
+    (r) => r.roi_period !== null && r.roi_period < 1 && r.health !== 'churned' && r.health !== 'affiliate',
+  ).length;
+  // Per-creator (collapsed) so a creator's unread DMs aren't counted once per
+  // brand-contract, as the pre-collapse sum did.
+  const unread_dms_total = managedView.reduce((s, r) => s + (r.unread_count || 0), 0);
 
   // ── 5. Apply health filter.
   let filtered = working;
