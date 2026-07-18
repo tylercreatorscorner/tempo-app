@@ -585,6 +585,46 @@ export async function getCreatorStreak(
 }
 
 /** Distinct video IDs posted this calendar month — for retainer pace. */
+export interface BrandBreakdownRow {
+  brandSlug: string;
+  brandDisplayName: string;
+  retainer: number;
+  monthlyPostRequirement: number;
+  postsThisMonth: number | null;
+  gmv: number | null;
+  orders: number | null;
+}
+
+/**
+ * Per-brand breakdown for the creator's "All Brands" view: their retainer + post
+ * quota (from their own contracts) joined with GMV over the window and posts this
+ * month, one row per contracted brand. gmv/posts come back null (rendered "—") on
+ * a failed read — never a fake $0. These are only ever the creator's OWN numbers.
+ */
+export async function getAllBrandsBreakdown(
+  handles: string[],
+  contracts: CreatorContract[],
+  window: DateWindow,
+): Promise<BrandBreakdownRow[]> {
+  return Promise.all(
+    contracts.map(async (c) => {
+      const [summary, posts] = await Promise.all([
+        getCreatorSummary(handles, c.brandSlug, window).catch(() => null),
+        getMonthVideoCount(handles, c.brandSlug).catch(() => null),
+      ]);
+      return {
+        brandSlug: c.brandSlug,
+        brandDisplayName: c.brandDisplayName,
+        retainer: c.retainer,
+        monthlyPostRequirement: c.monthlyPostRequirement,
+        postsThisMonth: posts,
+        gmv: summary ? summary.totalGmv : null,
+        orders: summary ? summary.totalOrders : null,
+      };
+    }),
+  );
+}
+
 export async function getMonthVideoCount(
   handles: string[],
   brandSlug: string | null

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Home, Sparkles, BarChart3, Trophy, Menu, X, LogOut } from 'lucide-react';
+import { Home, Sparkles, BarChart3, Trophy, Menu, X, LogOut, Wallet } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TempoLogo } from '@/components/ui/tempo-logo';
 import { useState } from 'react';
@@ -11,6 +11,7 @@ import type { CreatorProfile } from '@/lib/data/creator-context';
 
 const NAV_ITEMS: { href: string; label: string; icon: typeof Home; exact?: boolean; badge?: string }[] = [
   { href: '/creator-dashboard', label: 'Home', icon: Home, exact: true },
+  { href: '/creator-dashboard/brands', label: 'My Brands', icon: Wallet },
   { href: '/creator-dashboard/stats', label: 'Performance', icon: BarChart3 },
   { href: '/creator-dashboard/rankings', label: 'Rankings', icon: Trophy },
   { href: '/creator-dashboard/discover', label: 'Inspiration', icon: Sparkles },
