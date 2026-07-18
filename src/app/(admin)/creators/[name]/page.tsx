@@ -252,9 +252,13 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                   <span
                     className="text-xs px-2.5 py-0.5 rounded-md font-semibold border"
                     style={{
-                      borderColor: perfStatusInfo.color,
+                      // Tint the background from the status hue (not the light-only
+                      // bgColor hex in creator-status.ts, which is a near-white blob
+                      // on a dark card). A translucent hue reads correctly on both
+                      // the light (#FFF) and dark (#17182F) card surfaces.
+                      borderColor: `${perfStatusInfo.color}59`,
                       color: perfStatusInfo.color,
-                      backgroundColor: perfStatusInfo.bgColor,
+                      backgroundColor: `${perfStatusInfo.color}1F`,
                     }}
                   >
                     {perfStatusInfo.label}

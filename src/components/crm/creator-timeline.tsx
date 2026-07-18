@@ -110,7 +110,7 @@ export function CreatorTimeline({ creatorId }: { creatorId: string }) {
       </div>
 
       {/* Entries */}
-      <div className="divide-y divide-gray-50">
+      <div className="divide-y divide-border">
         {entries.map(entry => {
           const Icon = ICONS[entry.activity_type] || MessageSquare;
           const colorClass = ICON_COLORS[entry.activity_type] || 'bg-muted text-muted-foreground';
@@ -122,7 +122,7 @@ export function CreatorTimeline({ creatorId }: { creatorId: string }) {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-sm font-medium text-[var(--foreground)]">{entry.title || entry.activity_type}</span>
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{entry.created_by}</span>
+                  <span className="text-xs px-2 py-0.5 rounded-md bg-muted text-muted-foreground">{entry.created_by}</span>
                   <span className="text-xs text-muted-foreground flex items-center gap-1">
                     <Clock className="h-3 w-3" />
                     {relativeTime(entry.created_at)}

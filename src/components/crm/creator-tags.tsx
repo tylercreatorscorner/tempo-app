@@ -7,7 +7,14 @@ function tagColor(tag: string) {
   let hash = 0;
   for (let i = 0; i < tag.length; i++) hash = tag.charCodeAt(i) + ((hash << 5) - hash);
   const hue = Math.abs(hash) % 360;
-  return { bg: `hsl(${hue}, 70%, 95%)`, text: `hsl(${hue}, 60%, 35%)`, border: `hsl(${hue}, 60%, 80%)` };
+  // Theme-safe: a translucent hue tint for the bg/border (reads on both light and
+  // dark card surfaces) + a mid-lightness saturated hue for the text. The old
+  // 95%-lightness bg was a near-white blob on a dark card.
+  return {
+    bg: `hsla(${hue}, 70%, 50%, 0.14)`,
+    text: `hsl(${hue}, 70%, 52%)`,
+    border: `hsla(${hue}, 65%, 50%, 0.32)`,
+  };
 }
 
 export function CreatorTags({ creatorId }: { creatorId: string }) {
