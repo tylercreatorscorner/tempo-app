@@ -33,7 +33,7 @@ export default function SegmentsPage() {
   const [readOnly, setReadOnly] = useState(false);
   const [confirming, setConfirming] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [members, setMembers] = useState<Record<string, MemberRow[] | 'loading'>>({});
+  const [members, setMembers] = useState<Record<string, MemberRow[] | 'loading' | 'error'>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -60,8 +60,12 @@ export default function SegmentsPage() {
     qs.set('limit', '1');
     try {
       const res = await fetch(`/api/roster?${qs.toString()}`);
+      // A 500/401 still parses as JSON ({error}), so without res.ok the count
+      // silently falls to 0 — a segment that failed to load reads as "0
+      // members." Guard, and render "—" (null), never a fake 0.
+      if (!res.ok) throw new Error(`Count failed (${res.status})`);
       const json = await res.json();
-      setCounts((prev) => ({ ...prev, [key]: typeof json.total === 'number' ? json.total : 0 }));
+      setCounts((prev) => ({ ...prev, [key]: typeof json.total === 'number' ? json.total : null }));
     } catch {
       setCounts((prev) => ({ ...prev, [key]: null }));
     }
@@ -83,10 +87,12 @@ export default function SegmentsPage() {
       qs.set('limit', '50');
       try {
         const res = await fetch(`/api/roster?${qs.toString()}`);
+        if (!res.ok) throw new Error(`Members failed (${res.status})`);
         const json = await res.json();
         setMembers((prev) => ({ ...prev, [key]: (json.data ?? []) as MemberRow[] }));
       } catch {
-        setMembers((prev) => ({ ...prev, [key]: [] }));
+        // Don't render a load failure as "No creators match" — flag it.
+        setMembers((prev) => ({ ...prev, [key]: 'error' }));
       }
     }
   }
@@ -145,6 +151,8 @@ export default function SegmentsPage() {
           <div className="border-t border-border bg-muted/50">
             {mem === 'loading' || mem === undefined ? (
               <p className="px-4 py-3 text-xs text-muted-foreground">Loading creators…</p>
+            ) : mem === 'error' ? (
+              <p className="px-4 py-3 text-xs text-[var(--pulse-warn)]">Couldn’t load creators for this segment. Try reopening it.</p>
             ) : mem.length === 0 ? (
               <p className="px-4 py-3 text-xs text-muted-foreground">No creators match this segment.</p>
             ) : (
@@ -178,7 +186,7 @@ export default function SegmentsPage() {
         {!readOnly && (
           <button
             onClick={() => setShowCreate(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium text-white bg-[var(--primary)] hover:bg-[#e63e7c] flex-shrink-0"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium text-white bg-[var(--primary)] hover:brightness-[1.07] transition-all flex-shrink-0"
           >
             <Plus className="h-4 w-4" /> New Segment
           </button>

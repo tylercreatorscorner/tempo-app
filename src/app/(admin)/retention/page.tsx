@@ -140,7 +140,7 @@ export default async function RetentionPage({ searchParams }: Props) {
             </div>
             <Link
               href={reengageHref}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[var(--primary)] text-white text-sm font-semibold hover:bg-[#e63d7d] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40 focus-visible:ring-offset-1 shrink-0"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[var(--primary)] text-white text-sm font-semibold hover:brightness-[1.07] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40 focus-visible:ring-offset-1 shrink-0"
             >
               Re-engage silent creators <ArrowRight className="h-4 w-4" />
             </Link>

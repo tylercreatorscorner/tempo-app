@@ -431,7 +431,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                 <div className="rounded-2xl bg-card border border-border shadow-sm overflow-hidden">
                   <div className="px-6 py-4 border-b border-border">
                     <h3 className="text-sm font-bold text-[var(--foreground)]">Account Breakdown</h3>
-                    <p className="text-xs text-muted-foreground mt-0.5">Performance by TikTok account</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Performance by TikTok account · selected period (not lifetime)</p>
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
@@ -445,7 +445,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                           <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Videos</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-gray-50">
+                      <tbody className="divide-y divide-border">
                         {accountBreakdown.map((a) => (
                           <tr key={a.tiktok_username} className="hover:bg-muted/60 transition-colors">
                             <td className="px-5 py-3.5 font-medium text-[var(--foreground)]">
@@ -490,7 +490,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                 <div className="rounded-2xl bg-card border border-border shadow-sm overflow-hidden">
                   <div className="px-6 py-4 border-b border-border">
                     <h3 className="text-sm font-bold text-[var(--foreground)]">Brand Breakdown</h3>
-                    <p className="text-xs text-muted-foreground mt-0.5">Performance split across brands</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Performance split across brands · selected period (not lifetime)</p>
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
@@ -504,7 +504,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                           <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Commission</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-gray-50">
+                      <tbody className="divide-y divide-border">
                         {filteredBrandBreakdown.map((b) => (
                           <tr key={b.brand} className="hover:bg-muted/60 transition-colors">
                             <td className="px-5 py-3.5">
@@ -558,7 +558,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                       <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Days</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50">
+                  <tbody className="divide-y divide-border">
                     {videos.map((v, i) => (
                       <tr key={v.video_id} className="hover:bg-muted/60 transition-colors">
                         <td className="px-5 py-3.5 text-muted-foreground font-medium tabular-nums">{i + 1}</td>

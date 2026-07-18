@@ -10,7 +10,7 @@ import type { SegmentFilterCriteria } from '@/lib/data/segments';
 import {
   UserPlus, Search, Users, UserCheck, X,
   ChevronLeft, ChevronRight, ChevronDown, ExternalLink, Loader2,
-  UserX, Globe, Pencil, Check, Plus, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Upload, FileDown, Calendar,
+  UserX, Globe, Pencil, Check, Plus, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Upload, FileDown, Calendar, AlertTriangle,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useBrandMeta } from '@/hooks/use-brand-meta';
@@ -1111,7 +1111,7 @@ function CreatorPanel({
                     <img
                       src={creator.discord_avatar}
                       alt=""
-                      className="h-7 w-7 rounded-full ring-2 ring-gray-100"
+                      className="h-7 w-7 rounded-full ring-2 ring-border"
                       onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                     />
                   )}
@@ -1519,6 +1519,12 @@ function RosterContent() {
   const [totalManaged, setTotalManaged] = useState(0);
   const [summary, setSummary] = useState<{ affiliate_gmv: number; affiliate_gmv_prev: number; managed_gmv_prev: number; managed_gmv_30d: number } | null>(null);
   const [loading, setLoading] = useState(true);
+  // A failed roster load must NOT read as "0 creators / $0". Track it and render
+  // an error surface (or keep the last-good rows), never a confident fake-empty.
+  const [loadError, setLoadError] = useState(false);
+  // Distinguishes a COLD failure (never loaded → KPIs show "—", not $0) from a
+  // warm refetch failure (keep last-good numbers + a stale banner).
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   // Gate the load bar behind a short delay so it doesn't flash on the now-fast
   // (~0.3s) loads — it only appears when a fetch genuinely drags.
   const showLoadBar = useDelayedFlag(loading);
@@ -1614,7 +1620,16 @@ function RosterContent() {
       if (segFilters?.min_posts != null) params.set('min_posts', String(segFilters.min_posts));
 
       const res = await fetch(`/api/roster?${params}`);
+      // res.json() succeeds on a 500/401/403 too (the body is {error}), so
+      // WITHOUT this guard json.data is undefined → setRoster([]) → a confident
+      // "No creators found" over $0 KPIs. Guard, then let catch handle it.
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.error || `Roster load failed (${res.status})`);
+      }
       const json = await res.json();
+      setLoadError(false);
+      setHasLoadedOnce(true);
       setRoster(json.data || []);
       setSparkDays(json.spark_days || []);
       setTotal(json.total || 0);
@@ -1635,6 +1650,10 @@ function RosterContent() {
       if (json.summary) setSummary(json.summary);
     } catch (err) {
       console.error('Failed to fetch roster:', err);
+      // Flag the error; leave the last-good rows/KPIs in place rather than
+      // zeroing them. The render shows an error banner (or an error state on a
+      // cold failure with no rows) — never a fake-empty roster.
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -1761,6 +1780,10 @@ function RosterContent() {
   const affiliateGmv = summary?.affiliate_gmv ?? 0;
   const managed30 = summary?.managed_gmv_30d ?? 0;
   const roi = totalRetainer > 0 ? managed30 / totalRetainer : 0;
+  // Cold load failure: no successful load yet, so the 0-initialized KPIs are not
+  // real numbers — show "—" instead of a fake $0. (A warm refetch failure keeps
+  // last-good values and shows the stale banner instead.)
+  const kpiFailed = loadError && !hasLoadedOnce;
 
   return (
     <div className="space-y-5">
@@ -1813,32 +1836,32 @@ function RosterContent() {
           className="col-span-2"
           hero
           label="Managed GMV"
-          value={loading ? '…' : fmt(totalGmvPeriod)}
+          value={kpiFailed ? '—' : loading ? '…' : fmt(totalGmvPeriod)}
           trend={summary ? pctDelta(totalGmvPeriod, summary.managed_gmv_prev) : undefined}
           trendLabel={periodLabel}
         />
         <StatCard
           label="Affiliate GMV"
-          value={loading && !summary ? '…' : fmt(affiliateGmv)}
+          value={kpiFailed ? '—' : loading && !summary ? '…' : fmt(affiliateGmv)}
           trend={summary ? pctDelta(affiliateGmv, summary.affiliate_gmv_prev) : undefined}
           trendLabel={periodLabel}
           accentColor="var(--primary)"
         />
         <StatCard
           label="Managed Share"
-          value={affiliateGmv > 0 ? `${((totalGmvPeriod / affiliateGmv) * 100).toFixed(0)}%` : '—'}
+          value={kpiFailed ? '—' : affiliateGmv > 0 ? `${((totalGmvPeriod / affiliateGmv) * 100).toFixed(0)}%` : '—'}
           subValue={affiliateGmv > 0 ? `${fmt(totalGmvPeriod)} of ${fmt(affiliateGmv)}` : undefined}
           accentColor="#22C55E"
         />
         <StatCard
           label="Total Retainers"
-          value={loading ? '…' : fmt(totalRetainer)}
+          value={kpiFailed ? '—' : loading ? '…' : fmt(totalRetainer)}
           subValue="per month"
           accentColor="#F59E0B"
         />
         <StatCard
           label="ROI · 30d"
-          value={roi > 0 ? `${roi.toFixed(1)}x` : 'N/A'}
+          value={kpiFailed ? '—' : roi > 0 ? `${roi.toFixed(1)}x` : 'N/A'}
           subValue={totalRetainer > 0 ? `${fmt(managed30)} / ${fmt(totalRetainer)}/mo` : undefined}
           accentColor="#0EA5E9"
         />
@@ -1878,7 +1901,7 @@ function RosterContent() {
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
-            size="sm"
+            size="md"
             onClick={() => handleExport('csv')}
             disabled={exporting || roster.length === 0}
             title="Export the current view to CSV"
@@ -1887,7 +1910,7 @@ function RosterContent() {
           </Button>
           <Button
             variant="outline"
-            size="sm"
+            size="md"
             onClick={() => handleExport('xlsx')}
             disabled={exporting || roster.length === 0}
             title="Export the current view to Excel"
@@ -1925,13 +1948,40 @@ function RosterContent() {
         </div>
       )}
 
+      {/* A stale-data banner when a refetch failed but we still have last-good
+          rows on screen — so the numbers below are visibly "as of last load,"
+          never silently wrong. */}
+      {loadError && roster.length > 0 && (
+        <div className="mb-4 flex items-center gap-2 rounded-lg border border-[var(--pulse-warn)]/30 bg-[var(--pulse-warn)]/10 px-4 py-2.5 text-[13px] text-foreground">
+          <AlertTriangle className="h-4 w-4 shrink-0 text-[var(--pulse-warn)]" />
+          <span>Couldn’t refresh — showing the last loaded data.</span>
+          <button onClick={() => fetchRoster()} className="ml-auto font-semibold text-primary hover:underline">Retry</button>
+        </div>
+      )}
+
       {/* Table */}
       {!loading && roster.length === 0 ? (
-        <EmptyState
-          icon={<Users className="h-8 w-8" />}
-          title="No creators found"
-          description={search ? 'Try a different search.' : undefined}
-        />
+        loadError ? (
+          <EmptyState
+            icon={<AlertTriangle className="h-8 w-8" />}
+            title="Couldn’t load the roster"
+            description="Something went wrong fetching creators. This is a load error, not an empty roster — retry or reload the page."
+            action={
+              <button
+                onClick={() => fetchRoster()}
+                className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
+              >
+                Retry
+              </button>
+            }
+          />
+        ) : (
+          <EmptyState
+            icon={<Users className="h-8 w-8" />}
+            title="No creators found"
+            description={search ? 'Try a different search.' : undefined}
+          />
+        )
       ) : (
         <div className="relative rounded-xl bg-card border border-border shadow-[var(--pulse-elev-2)] overflow-hidden">
           {/* Indeterminate load bar — shows on first load AND every refetch

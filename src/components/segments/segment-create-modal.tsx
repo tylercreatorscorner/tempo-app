@@ -151,7 +151,7 @@ export function SegmentCreateModal({
             <button
               onClick={save}
               disabled={saving}
-              className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-[var(--primary)] hover:bg-[#e63e7c] disabled:opacity-50"
+              className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-[var(--primary)] hover:brightness-[1.07] transition-all disabled:opacity-50"
             >
               {saving ? 'Saving…' : 'Create Segment'}
             </button>
