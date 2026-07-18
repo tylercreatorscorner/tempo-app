@@ -1831,9 +1831,8 @@ function RosterContent() {
           Affiliate GMV is the whole-market context number, so it sits beside the
           hero as a plain card rather than leading. Mirrors the dashboard, where
           Managed GMV is the hero. */}
-      <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <StatCard
-          className="col-span-2 lg:col-span-1"
           label="Total Affiliate GMV"
           value={kpiFailed ? '—' : loading && !summary ? '…' : fmt(affiliateGmv)}
           trend={summary ? pctDelta(affiliateGmv, summary.affiliate_gmv_prev) : undefined}
@@ -1841,7 +1840,6 @@ function RosterContent() {
           accentColor="var(--primary)"
         />
         <StatCard
-          className="col-span-2"
           hero
           label="Managed GMV"
           value={kpiFailed ? '—' : loading ? '…' : fmt(totalGmvPeriod)}

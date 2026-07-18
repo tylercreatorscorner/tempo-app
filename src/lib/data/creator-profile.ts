@@ -219,11 +219,12 @@ async function getBrandsByHandle(reg: BrandRegistry, handles: string[]): Promise
 // --- Managed contract resolution ---
 
 const MANAGED_CREATOR_COLUMNS =
-  'id, brand, retainer, monthly_post_requirement, notes, status, employment_status, retainer_start_date, ' +
+  'id, real_name, brand, retainer, monthly_post_requirement, notes, status, employment_status, retainer_start_date, ' +
   'account_1, account_2, account_3, account_4, account_5, account_6, account_7, account_8, account_9, account_10';
 
 interface ManagedRow {
   id: number;
+  real_name: string | null;
   brand: string;
   retainer: number | null;
   monthly_post_requirement: number | null;
@@ -347,9 +348,22 @@ export async function getCreatorProfile(creatorId: string | number): Promise<Cre
     Array.from(accountBrands)[0] ??
     '';
 
+  // Display name resolution. creators_v2.real_name is the nominal source of
+  // truth, but ~34% of rows were seeded with the TikTok HANDLE instead of a
+  // human name. When it's blank or equals one of the creator's own handles,
+  // fall back to the human-entered managed_creators.real_name (which the roster
+  // uses) so the two surfaces agree. managedRows[0] is the highest-retainer
+  // contract. See the data-model note in memory.
+  const handleSet = new Set(handles.map((h) => h.trim().toLowerCase()).filter(Boolean));
+  const cvName = (creator.real_name ?? '').trim();
+  const cvNameIsHandle = cvName !== '' && handleSet.has(cvName.toLowerCase());
+  const managedName = (primary?.real_name ?? '').trim();
+  const resolvedName =
+    (cvName === '' || cvNameIsHandle) && managedName ? managedName : (cvName || managedName || 'Unknown');
+
   return {
     id: creator.id,
-    real_name: creator.real_name ?? 'Unknown',
+    real_name: resolvedName,
     brand: primaryBrand,
     role: (creator.role as string | null) ?? null,
     status: (creator.status as string | null) ?? primary?.employment_status ?? null,
