@@ -34,7 +34,9 @@ export function SparklineCell({ data, days, color = 'var(--primary)', width = 88
   const [hover, setHover] = useState<{ i: number; x: number; y: number } | null>(null);
 
   const hasData = series.length > 1 && series.some((v) => v > 0);
-  if (!hasData) return <span className="text-muted-foreground text-xs">—</span>;
+  // Reserve the same box the sparkline would occupy so number columns stay
+  // aligned row-to-row (a bare "—" collapses to ~8px and ragged the columns).
+  if (!hasData) return <span className="inline-flex items-center justify-center text-muted-foreground text-xs" style={{ width, height }}>—</span>;
 
   const max = Math.max(...series);
   const min = Math.min(...series, 0);

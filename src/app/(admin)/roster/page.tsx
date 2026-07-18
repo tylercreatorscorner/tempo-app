@@ -151,7 +151,7 @@ function StatusBadge({ status }: { status: string | null }) {
   };
   const cls = STYLE[status] ?? 'bg-muted text-muted-foreground';
   return (
-    <span className={`inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-full ${cls}`}>
+    <span className={`inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-md ${cls}`}>
       {status}
     </span>
   );
@@ -486,7 +486,7 @@ function RoiCell({ roi }: { roi: number | null }) {
     : roi >= 1 ? 'text-green-600'
     : roi >= 0.5 ? 'text-orange-600'
     : 'text-red-600 font-semibold';
-  return <span className={`text-xs tabular-nums ${cls}`}>{roi.toFixed(1)}×</span>;
+  return <span className={`text-xs tabular-nums ${cls}`}>{roi.toFixed(1)}x</span>;
 }
 
 // Per-row health indicator — a small colour-coded dot that ties to the Triage
@@ -619,7 +619,7 @@ function ExtraAccountsBadge({ creator }: { creator: Creator }) {
     <div className="relative inline-block ml-1.5" ref={ref}>
       <button
         onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
-        className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-primary/10 text-[var(--primary)] hover:bg-primary/10 transition-colors"
+        className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-primary/10 text-[var(--primary)] hover:bg-primary/10 transition-colors"
       >
         +{extras.length}
       </button>
@@ -827,7 +827,7 @@ function CreatorPanel({
                 >
                   <Pencil className="h-3.5 w-3.5" /> Edit
                 </button>
-                <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted transition-colors">
+                <button onClick={onClose} aria-label="Close panel" className="p-1.5 rounded-lg hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40">
                   <X className="h-5 w-5 text-muted-foreground" />
                 </button>
               </>
@@ -843,7 +843,7 @@ function CreatorPanel({
                 <button
                   onClick={handleSave}
                   disabled={saving}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[var(--primary)] text-white hover:brightness-[1.07] disabled:opacity-60 transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[var(--primary)] text-primary-foreground hover:brightness-[1.07] disabled:opacity-60 transition-colors"
                 >
                   {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
                   {saving ? 'Saving…' : 'Save'}
@@ -1138,7 +1138,7 @@ function CreatorPanel({
               {primaryHandle(creator) && (
                 <Link
                   href={`/creators/${encodeURIComponent(primaryHandle(creator)!)}`}
-                  className="flex items-center justify-center gap-2 w-full mt-2 px-4 py-3 rounded-xl bg-[var(--primary)] text-white text-sm font-semibold hover:brightness-[1.07] transition-colors"
+                  className="flex items-center justify-center gap-2 w-full mt-2 px-4 py-3 rounded-xl bg-[var(--primary)] text-primary-foreground text-sm font-semibold hover:brightness-[1.07] transition-colors"
                 >
                   <ExternalLink className="h-4 w-4" />
                   View Full Profile
@@ -1221,7 +1221,7 @@ function AddCreatorModal({ prefill, onClose, onSuccess }: AddCreatorModalProps) 
       >
         <div className="flex items-center justify-between px-6 py-4 border-b border-border sticky top-0 bg-card z-10">
           <h2 className="text-base font-bold text-[var(--foreground)]">Add Creator</h2>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted transition-colors">
+          <button onClick={onClose} aria-label="Close" className="p-1.5 rounded-lg hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40">
             <X className="h-5 w-5 text-muted-foreground" />
           </button>
         </div>
@@ -1396,7 +1396,7 @@ function AddCreatorModal({ prefill, onClose, onSuccess }: AddCreatorModalProps) 
             <button
               type="submit"
               disabled={saving}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[var(--primary)] text-white text-sm font-semibold hover:brightness-[1.07] disabled:opacity-60 transition-colors"
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[var(--primary)] text-primary-foreground text-sm font-semibold hover:brightness-[1.07] disabled:opacity-60 transition-colors"
             >
               {saving && <Loader2 className="h-4 w-4 animate-spin" />}
               {saving ? 'Adding...' : 'Add Creator'}
@@ -1831,7 +1831,15 @@ function RosterContent() {
           Affiliate GMV is the whole-market context number, so it sits beside the
           hero as a plain card rather than leading. Mirrors the dashboard, where
           Managed GMV is the hero. */}
-      <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
+        <StatCard
+          className="col-span-2 lg:col-span-1"
+          label="Total Affiliate GMV"
+          value={kpiFailed ? '—' : loading && !summary ? '…' : fmt(affiliateGmv)}
+          trend={summary ? pctDelta(affiliateGmv, summary.affiliate_gmv_prev) : undefined}
+          trendLabel={periodLabel}
+          accentColor="var(--primary)"
+        />
         <StatCard
           className="col-span-2"
           hero
@@ -1841,17 +1849,10 @@ function RosterContent() {
           trendLabel={periodLabel}
         />
         <StatCard
-          label="Affiliate GMV"
-          value={kpiFailed ? '—' : loading && !summary ? '…' : fmt(affiliateGmv)}
-          trend={summary ? pctDelta(affiliateGmv, summary.affiliate_gmv_prev) : undefined}
-          trendLabel={periodLabel}
-          accentColor="var(--primary)"
-        />
-        <StatCard
           label="Managed Share"
           value={kpiFailed ? '—' : affiliateGmv > 0 ? `${((totalGmvPeriod / affiliateGmv) * 100).toFixed(0)}%` : '—'}
           subValue={affiliateGmv > 0 ? `${fmt(totalGmvPeriod)} of ${fmt(affiliateGmv)}` : undefined}
-          accentColor="#22C55E"
+          accentColor="var(--pulse-pos)"
         />
         <StatCard
           label="Total Retainers"
@@ -1860,6 +1861,7 @@ function RosterContent() {
           accentColor="#F59E0B"
         />
         <StatCard
+          className="col-span-2 lg:col-span-1"
           label="ROI · 30d"
           value={kpiFailed ? '—' : roi > 0 ? `${roi.toFixed(1)}x` : 'N/A'}
           subValue={totalRetainer > 0 ? `${fmt(managed30)} / ${fmt(totalRetainer)}/mo` : undefined}
@@ -1867,11 +1869,22 @@ function RosterContent() {
         />
       </div>
 
-      {/* Table toolbar — all DROPDOWNS (Tyler prefers them to pills). View +
+      {/* Table toolbar — all DROPDOWNS (Tyler prefers them to pills). Search leads
+          (the primary tool, grows to fill), then the filter dropdowns (View +
           Health replace the old segmented control + triage chip row; the Health
-          menu keeps the per-bucket counts + colour dots the chips had. Wraps at
-          narrow widths. Search grows to fill; Segments + export sit at the end. */}
+          menu keeps the per-bucket counts + colour dots the chips had), then
+          Segments + export at the end. Wraps at narrow widths. */}
       <div className="flex flex-wrap items-center gap-2">
+        <div className="relative min-w-[220px] flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none z-10" />
+          <Input
+            type="text"
+            placeholder="Search by name or handle…"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            className="pl-10"
+          />
+        </div>
         <div className="w-[150px]">
           <Select
             value={view}
@@ -1887,16 +1900,6 @@ function RosterContent() {
           <HealthFilterMenu value={health} counts={healthCounts} onChange={(v) => { setHealth(v); setPage(1); }} />
         )}
         <ProductFilterSelect brand={brand} value={productFilter} onChange={setProductFilter} />
-        <div className="relative min-w-[200px] flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none z-10" />
-          <Input
-            type="text"
-            placeholder="Search by name or handle…"
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            className="pl-10"
-          />
-        </div>
         <RosterSegmentControls currentCriteria={currentCriteria} onApply={applySegment} />
         <div className="flex items-center gap-2">
           <Button
@@ -1923,7 +1926,7 @@ function RosterContent() {
       {/* Active segment chip — indicates applied filters (incl. hidden thresholds) */}
       {segFilters && (
         <div className="flex items-center gap-2 -mt-1">
-          <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-primary/10 text-[var(--primary)] border border-primary/10">
+          <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-md bg-primary/10 text-[var(--primary)] border border-primary/10">
             Segment: {segFilters.name}
             <button onClick={() => setSegFilters(null)} className="ml-0.5 leading-none text-sm hover:text-foreground" aria-label="Clear segment">×</button>
           </span>
@@ -1952,7 +1955,7 @@ function RosterContent() {
           rows on screen — so the numbers below are visibly "as of last load,"
           never silently wrong. */}
       {loadError && roster.length > 0 && (
-        <div className="mb-4 flex items-center gap-2 rounded-lg border border-[var(--pulse-warn)]/30 bg-[var(--pulse-warn)]/10 px-4 py-2.5 text-[13px] text-foreground">
+        <div className="flex items-center gap-2 rounded-lg border border-[var(--pulse-warn)]/30 bg-[var(--pulse-warn)]/10 px-4 py-2.5 text-[13px] text-foreground">
           <AlertTriangle className="h-4 w-4 shrink-0 text-[var(--pulse-warn)]" />
           <span>Couldn’t refresh — showing the last loaded data.</span>
           <button onClick={() => fetchRoster()} className="ml-auto font-semibold text-primary hover:underline">Retry</button>
@@ -2204,7 +2207,7 @@ function RosterContent() {
                           {!c.is_managed && (
                             <button
                               onClick={(e) => { e.stopPropagation(); setAddModalPrefill({ account_1: primary ?? '', brand: c.brand ?? '' }); }}
-                              className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border border-primary/15 bg-primary/10 text-[var(--primary)] hover:bg-primary/10 transition-colors whitespace-nowrap"
+                              className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md border border-primary/15 bg-primary/10 text-[var(--primary)] hover:bg-primary/10 transition-colors whitespace-nowrap"
                             >
                               <Plus className="h-3 w-3" /> Add to roster
                             </button>
@@ -2219,13 +2222,17 @@ function RosterContent() {
                       return (
                         <tr
                           key={`${c.id}:${child.brand ?? 'none'}`}
-                          className="bg-muted/60 hover:bg-muted/70 cursor-pointer"
+                          role="button"
+                          tabIndex={0}
+                          aria-label={`Open ${childLabel} details`}
+                          className="bg-muted/60 hover:bg-muted/70 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--primary)]/50"
                           onClick={(e) => { e.stopPropagation(); openChild(c, child); }}
+                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openChild(c, child); } }}
                         >
                           {showAddAction && <td />}
                           <td className="px-5 py-2.5">
                             <div className="flex items-center gap-2 pl-8">
-                              <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: child.brand ? brandMeta.color(child.brand) : '#D1D5DB' }} />
+                              <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: child.brand ? brandMeta.color(child.brand) : 'var(--muted-foreground)' }} />
                               <span className="truncate text-sm font-medium text-muted-foreground">{childLabel}</span>
                             </div>
                           </td>
@@ -2278,7 +2285,7 @@ function RosterContent() {
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
-              <span className="grid h-8 min-w-8 place-items-center rounded-lg bg-primary px-2 text-xs font-semibold tabular-nums text-white">{page}</span>
+              <span className="grid h-8 min-w-8 place-items-center rounded-lg bg-primary px-2 text-xs font-semibold tabular-nums text-primary-foreground">{page}</span>
               <button
                 onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                 disabled={page === totalPages}

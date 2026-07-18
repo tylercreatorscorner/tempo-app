@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
  * the tint + text stay legible in both themes. Pass `dot` for a leading dot.
  */
 export const badgeVariants = cva(
-  'inline-flex items-center gap-1.5 rounded-full font-bold leading-none whitespace-nowrap',
+  'inline-flex items-center gap-1.5 rounded-md font-bold leading-none whitespace-nowrap',
   {
     variants: {
       variant: {

@@ -10,7 +10,7 @@ export function Chip({ className, dotColor, children, ...props }: ChipProps) {
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-full text-xs font-semibold text-foreground bg-secondary border border-border px-3 py-1',
+        'inline-flex items-center gap-1.5 rounded-md text-xs font-semibold text-foreground bg-secondary border border-border px-3 py-1',
         className,
       )}
       {...props}

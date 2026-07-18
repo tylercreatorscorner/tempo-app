@@ -98,7 +98,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
         </div>
         <Link
           href="/roster"
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[var(--primary)] text-white text-sm font-semibold hover:brightness-[1.07] transition-colors"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[var(--primary)] text-primary-foreground text-sm font-semibold hover:brightness-[1.07] transition-colors"
         >
           <ArrowLeft className="h-4 w-4" /> Back to Creators
         </Link>
@@ -227,7 +227,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                 <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
                   {profile.status && (
                     <span className={cn(
-                      'text-xs px-2.5 py-0.5 rounded-full font-semibold border capitalize',
+                      'text-xs px-2.5 py-0.5 rounded-md font-semibold border capitalize',
                       {
                         active:   'bg-green-500/10 text-green-500 border-green-500/25',
                         churned:  'bg-red-500/10 text-red-600 border-red-500/25',
@@ -240,17 +240,17 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                     </span>
                   )}
                   {profile.role && (
-                    <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold border bg-purple-500/10 text-purple-500 border-purple-500/25 capitalize">
+                    <span className="text-xs px-2.5 py-0.5 rounded-md font-semibold border bg-purple-500/10 text-purple-500 border-purple-500/25 capitalize">
                       {profile.role}
                     </span>
                   )}
                   {managedInfo && (
-                    <span className="inline-flex items-center gap-1 text-xs px-2.5 py-0.5 rounded-full font-semibold border bg-primary/10 text-[var(--primary)] border-primary/15">
+                    <span className="inline-flex items-center gap-1 text-xs px-2.5 py-0.5 rounded-md font-semibold border bg-primary/10 text-[var(--primary)] border-primary/15">
                       <Shield className="h-3 w-3" /> Managed
                     </span>
                   )}
                   <span
-                    className="text-xs px-2.5 py-0.5 rounded-full font-semibold border"
+                    className="text-xs px-2.5 py-0.5 rounded-md font-semibold border"
                     style={{
                       borderColor: perfStatusInfo.color,
                       color: perfStatusInfo.color,
@@ -299,7 +299,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                       return (
                         <span
                           key={b}
-                          className={cn('text-xs px-2 py-0.5 rounded-full font-medium', !hasData && 'opacity-40')}
+                          className={cn('text-xs px-2 py-0.5 rounded-md font-medium', !hasData && 'opacity-40')}
                           style={{ backgroundColor: `${color}18`, color }}
                         >
                           {brandLabel(reg, b)}
@@ -380,12 +380,14 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
               value={`${roi.toFixed(1)}x`}
               subValue={`GMV / ${fmt(managedInfo.retainer)} retainer`}
               accentColor={roiColor}
+              className="col-span-2 sm:col-span-1"
             />
           );
         })() : (
           <StatCard
             label="Avg GMV / Video"
             value={summary.total_videos > 0 ? formatCurrency(summary.total_gmv / summary.total_videos) : '—'}
+            className="col-span-2 sm:col-span-1"
           />
         )}
       </div>
@@ -465,7 +467,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                                   .map((b) => (
                                     <span
                                       key={b}
-                                      className="text-xs px-2 py-0.5 rounded-full font-medium"
+                                      className="text-xs px-2 py-0.5 rounded-md font-medium"
                                       style={{ backgroundColor: `${brandColor(reg, b)}18`, color: brandColor(reg, b) }}
                                     >
                                       {brandLabel(reg, b)}
@@ -540,7 +542,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                     {summary.total_videos > 20 ? ` · showing top 20 of ${formatNumber(summary.total_videos)}` : ''}
                   </p>
                 </div>
-                <span className="text-xs font-semibold text-muted-foreground bg-muted px-2.5 py-1 rounded-full">
+                <span className="text-xs font-semibold text-muted-foreground bg-muted px-2.5 py-1 rounded-md">
                   {videos.length} shown
                 </span>
               </div>
@@ -583,7 +585,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                         <td className="px-5 py-3.5 text-muted-foreground text-xs">@{v.creator_name}</td>
                         <td className="px-5 py-3.5">
                           <span
-                            className="text-xs px-2 py-0.5 rounded-full font-medium"
+                            className="text-xs px-2 py-0.5 rounded-md font-medium"
                             style={{ backgroundColor: `${brandColor(reg, v.brand)}18`, color: brandColor(reg, v.brand) }}
                           >
                             {brandLabel(reg, v.brand)}
