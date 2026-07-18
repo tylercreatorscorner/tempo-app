@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { ExternalLink, Flame, Sparkles, Video } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import type { CreatorVideoRow } from '@/lib/data/creator-portal';
+import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
 
 type InspirationVideo = CreatorVideoRow & { isMine: boolean };
 
@@ -50,13 +52,13 @@ export function InspirationClient({ currentBrand, currentBrandDisplay, rangeDays
     <div className="space-y-6 max-w-6xl mx-auto pb-12">
       <motion.div {...fade} className="flex items-baseline justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-[#1A1B3A] flex items-center gap-2">
-            <Sparkles className="h-6 w-6 text-[#FF4D8D]" />
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground flex items-center gap-2">
+            <Sparkles className="h-6 w-6 text-primary" />
             Inspiration
           </h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-sm text-muted-foreground mt-1">
             {currentBrandDisplay ? (
-              <>What's winning on <span className="font-medium text-gray-700">{currentBrandDisplay}</span> · last {rangeDays} days</>
+              <>What's winning on <span className="font-medium text-foreground">{currentBrandDisplay}</span> · last {rangeDays} days</>
             ) : (
               <>What's winning across the network · last {rangeDays} days</>
             )}
@@ -67,33 +69,37 @@ export function InspirationClient({ currentBrand, currentBrandDisplay, rangeDays
 
       {/* Filters */}
       <motion.div {...fade} transition={{ ...fade.transition, delay: 0.05 }} className="flex items-center gap-3 flex-wrap">
-        <input
+        <Input
           type="text"
           placeholder="Search by title, @handle, or product…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="flex-1 min-w-[240px] px-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-100 focus:border-[#FF4D8D]"
+          className="flex-1 min-w-[240px]"
         />
-        <label className="inline-flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
-          <input
-            type="checkbox"
+        <div className="inline-flex items-center gap-2 text-sm text-muted-foreground select-none">
+          <Switch
             checked={excludeMine}
-            onChange={(e) => setExcludeMine(e.target.checked)}
-            className="accent-[#FF4D8D]"
+            onCheckedChange={setExcludeMine}
+            aria-label="Hide my videos"
           />
-          Hide my videos
-        </label>
+          <span
+            onClick={() => setExcludeMine((v) => !v)}
+            className="cursor-pointer hover:text-foreground transition-colors"
+          >
+            Hide my videos
+          </span>
+        </div>
       </motion.div>
 
       {!currentBrand && (
-        <motion.div {...fade} transition={{ ...fade.transition, delay: 0.1 }} className="rounded-2xl p-4 border border-amber-100 bg-amber-50/60 text-sm text-amber-900">
+        <motion.div {...fade} transition={{ ...fade.transition, delay: 0.1 }} className="rounded-2xl p-4 border border-[var(--pulse-warn)]/25 bg-[var(--pulse-warn-bg)] text-sm text-[var(--pulse-warn)]">
           Showing the whole network. Switch to a brand to filter inspiration to that brand's products.
         </motion.div>
       )}
 
       {/* Grid */}
       {filtered.length === 0 ? (
-        <p className="text-center py-16 text-gray-400 text-sm">No videos match your filters.</p>
+        <p className="text-center py-16 text-muted-foreground text-sm">No videos match your filters.</p>
       ) : (
         <motion.div {...fade} transition={{ ...fade.transition, delay: 0.15 }} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map((v, i) => (
@@ -109,44 +115,44 @@ function VideoCard({ video, index }: { video: InspirationVideo; index: number })
   const isHot = index < 3;
   const card = (
     <div
-      className={`group bg-white rounded-2xl border shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all p-4 h-full ${
-        video.isMine ? 'border-[#FF4D8D]/40 ring-1 ring-pink-100' : 'border-gray-100'
+      className={`group bg-card rounded-2xl border shadow-[var(--pulse-elev-1)] hover:shadow-[var(--pulse-elev-2)] hover:-translate-y-0.5 transition-all p-4 h-full ${
+        video.isMine ? 'border-primary/40 ring-1 ring-primary/20' : 'border-border'
       }`}
     >
       <div className="flex items-start justify-between gap-2 mb-3">
-        <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-pink-50 to-purple-50 flex items-center justify-center flex-shrink-0">
-          <Video className="h-4 w-4 text-[#FF4D8D]" />
+        <div className="h-10 w-10 rounded-xl bg-secondary flex items-center justify-center flex-shrink-0">
+          <Video className="h-4 w-4 text-primary" />
         </div>
         {isHot && (
-          <span className="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-[#FF4D8D] bg-pink-50 px-2 py-0.5 rounded-full">
+          <span className="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-primary bg-primary/10 px-2 py-0.5 rounded-full">
             <Flame className="h-3 w-3" />
             Top {index + 1}
           </span>
         )}
         {video.isMine && (
-          <span className="text-[11px] font-bold uppercase tracking-wider text-white bg-gradient-to-br from-[#FF4D8D] to-[#7C5CFC] px-2 py-0.5 rounded-full">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-white bg-pulse-grad px-2 py-0.5 rounded-full">
             Yours
           </span>
         )}
       </div>
-      <p className="text-sm font-semibold text-[#1A1B3A] line-clamp-2 group-hover:text-[#FF4D8D] transition-colors min-h-[2.5rem]">
+      <p className="text-sm font-semibold text-foreground line-clamp-2 group-hover:text-primary transition-colors min-h-[2.5rem]">
         {video.videoTitle}
       </p>
       {video.topProduct && (
-        <p className="text-xs text-gray-500 mt-1 line-clamp-1">{video.topProduct}</p>
+        <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{video.topProduct}</p>
       )}
-      <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-50">
+      <div className="flex items-center justify-between mt-3 pt-3 border-t border-border">
         <div>
-          <p className="text-lg font-extrabold text-[#34D399]">{fmt(video.gmv)}</p>
-          <p className="text-xs text-gray-400">{video.orders.toLocaleString()} orders</p>
+          <p className="text-lg font-extrabold text-[var(--pulse-pos)]">{fmt(video.gmv)}</p>
+          <p className="text-xs text-muted-foreground">{video.orders.toLocaleString()} orders</p>
         </div>
         <div className="text-right">
-          <p className="text-xs text-gray-400">@{video.tiktokUsername}</p>
-          <p className="text-[11px] text-gray-300 mt-0.5">{video.brandSlug}</p>
+          <p className="text-xs text-muted-foreground">@{video.tiktokUsername}</p>
+          <p className="text-[11px] text-muted-foreground/60 mt-0.5">{video.brandSlug}</p>
         </div>
       </div>
       {video.videoUrl && (
-        <p className="mt-2 text-xs text-[#FF4D8D] inline-flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <p className="mt-2 text-xs text-primary inline-flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           Watch on TikTok <ExternalLink className="h-3 w-3" />
         </p>
       )}
@@ -165,13 +171,13 @@ function VideoCard({ video, index }: { video: InspirationVideo; index: number })
 function RangePicker({ value, onChange }: { value: number; onChange: (n: number) => void }) {
   const opts = [7, 14, 30];
   return (
-    <div className="inline-flex bg-gray-100 rounded-lg p-1 text-sm">
+    <div className="inline-flex bg-secondary border border-border rounded-lg p-1 text-sm">
       {opts.map((n) => (
         <button
           key={n}
           onClick={() => onChange(n)}
           className={`px-3 py-1 rounded-md transition-all ${
-            value === n ? 'bg-white text-[#1A1B3A] shadow-sm font-medium' : 'text-gray-500 hover:text-gray-700'
+            value === n ? 'bg-card text-foreground shadow-[var(--pulse-elev-1)] font-medium' : 'text-muted-foreground hover:text-foreground'
           }`}
         >
           {n}d

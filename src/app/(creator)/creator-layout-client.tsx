@@ -11,7 +11,7 @@ export function CreatorLayoutClient({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex h-screen overflow-hidden" style={{ backgroundColor: '#F8F9FC' }}>
+    <div className="flex h-screen overflow-hidden bg-background">
       <CreatorSidebar className="hidden lg:flex" profile={profile} />
       <div className="flex-1 flex flex-col overflow-hidden">
         <CreatorMobileNav profile={profile} />

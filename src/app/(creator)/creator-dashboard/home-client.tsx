@@ -4,17 +4,15 @@ import Link from 'next/link';
 import { motion } from 'framer-motion';
 import {
   ArrowRight,
-  ArrowUpRight,
-  ArrowDownRight,
   BarChart3,
   Flame,
   Lightbulb,
-  Package,
   Search,
   Sparkles,
   Trophy,
   Video,
 } from 'lucide-react';
+import { StatCard } from '@/components/ui/stat-card';
 import type {
   CoachingNudge,
   CreatorSummary,
@@ -65,19 +63,19 @@ export function HomeClient(props: Props) {
       {/* Header */}
       <motion.div {...fade}>
         <div className="flex items-baseline justify-between flex-wrap gap-3">
-          <h1 className="text-2xl sm:text-3xl font-bold text-[#1A1B3A]">
-            {greeting}, <span className="text-[#FF4D8D]">{realName}</span> 👋
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
+            {greeting}, <span className="text-pulse-grad">{realName}</span> 👋
           </h1>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-muted-foreground">
             {currentBrandDisplay ? (
-              <>Showing <span className="font-medium text-gray-700">{currentBrandDisplay}</span> · last 7 days</>
+              <>Showing <span className="font-semibold text-foreground">{currentBrandDisplay}</span> · last 7 days</>
             ) : (
               <>Last 7 days · all brands</>
             )}
           </p>
         </div>
         {handles.length > 0 && (
-          <p className="text-sm text-gray-400 mt-1">
+          <p className="text-sm text-muted-foreground mt-1">
             {handles.slice(0, 4).map((h) => `@${h}`).join(' · ')}
             {handles.length > 4 ? ` · +${handles.length - 4}` : ''}
           </p>
@@ -91,29 +89,34 @@ export function HomeClient(props: Props) {
         </motion.div>
       )}
 
-      {/* Stat grid */}
+      {/* Stat grid — canonical Pulse StatCards so the portal matches the admin. */}
       <motion.div {...fade} transition={{ ...fade.transition, delay: 0.1 }} className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        {/* summary === null means the read FAILED (a zero-activity creator gets a
+            zeros object, not null) — show "—", never a fake $0. */}
         <StatCard
-          label="GMV (7d)"
-          value={formatMoney(summary?.totalGmv ?? 0)}
-          changePct={summary?.gmvChangePct ?? null}
-          tone="mint"
+          hero
+          label="GMV · 7d"
+          value={summary ? formatMoney(summary.totalGmv) : '—'}
+          trend={summary?.gmvChangePct ?? undefined}
+          trendLabel="vs prior 7d"
         />
         <StatCard
           label="Orders"
-          value={(summary?.totalOrders ?? 0).toLocaleString()}
-          changePct={summary?.orderChangePct ?? null}
+          value={summary ? summary.totalOrders.toLocaleString() : '—'}
+          trend={summary?.orderChangePct ?? undefined}
+          trendLabel="vs prior 7d"
         />
         <StatCard
           label="Videos posted"
-          value={String(summary?.videoCount ?? 0)}
-          changePct={summary?.videoChangePct ?? null}
+          value={summary ? String(summary.videoCount) : '—'}
+          trend={summary?.videoChangePct ?? undefined}
+          trendLabel="vs prior 7d"
         />
         <StatCard
           label="Day streak"
           value={String(streak)}
-          subtitle={streak > 0 ? 'Keep it going 🔥' : 'Post today to start'}
-          icon={<Flame className="h-4 w-4" />}
+          subValue={streak > 0 ? 'Keep it going 🔥' : 'Post today to start'}
+          accentColor="var(--pulse-warn)"
         />
       </motion.div>
 
@@ -122,13 +125,13 @@ export function HomeClient(props: Props) {
         <motion.section
           {...fade}
           transition={{ ...fade.transition, delay: 0.15 }}
-          className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm"
+          className="rounded-2xl border border-border bg-card p-5 shadow-[var(--pulse-elev-1)]"
         >
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold text-[#1A1B3A] flex items-center gap-2">
+            <h2 className="font-bold text-foreground flex items-center gap-2">
               🎯 Retainer pace
             </h2>
-            <span className="text-xs text-gray-400">This month</span>
+            <span className="text-xs text-muted-foreground">This month</span>
           </div>
           <div className="flex items-center gap-6 flex-wrap">
             <PaceRing current={monthVideos} target={monthlyTarget} />
@@ -200,60 +203,6 @@ export function HomeClient(props: Props) {
 
 // ---- Components ----------------------------------------------------------
 
-function StatCard({
-  label,
-  value,
-  changePct,
-  subtitle,
-  tone,
-  icon,
-}: {
-  label: string;
-  value: string;
-  changePct?: number | null;
-  subtitle?: string;
-  tone?: 'mint';
-  icon?: React.ReactNode;
-}) {
-  return (
-    <div className="bg-white border border-gray-100 rounded-2xl p-4 sm:p-5 shadow-sm hover:shadow-md transition-all">
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-medium uppercase tracking-wider text-gray-400">{label}</span>
-        {icon && <span className="text-[#FF4D8D]">{icon}</span>}
-      </div>
-      <p
-        className={`text-2xl sm:text-3xl font-extrabold ${
-          tone === 'mint' ? 'text-[#34D399]' : 'text-[#1A1B3A]'
-        }`}
-      >
-        {value}
-      </p>
-      {changePct !== undefined && changePct !== null ? (
-        <DeltaBadge pct={changePct} />
-      ) : subtitle ? (
-        <p className="text-xs text-gray-400 mt-1">{subtitle}</p>
-      ) : (
-        <p className="text-xs text-gray-300 mt-1">vs prior period</p>
-      )}
-    </div>
-  );
-}
-
-function DeltaBadge({ pct }: { pct: number }) {
-  const positive = pct >= 0;
-  const Icon = positive ? ArrowUpRight : ArrowDownRight;
-  return (
-    <p
-      className={`inline-flex items-center gap-1 text-xs font-medium mt-1 ${
-        positive ? 'text-[#10B981]' : 'text-[#EF4444]'
-      }`}
-    >
-      <Icon className="h-3 w-3" />
-      {Math.abs(pct).toFixed(0)}%<span className="text-gray-400 ml-1">vs prior 7d</span>
-    </p>
-  );
-}
-
 function PaceRing({ current, target }: { current: number; target: number }) {
   const pct = Math.min(1, target > 0 ? current / target : 0);
   const circumference = 2 * Math.PI * 52;
@@ -263,13 +212,13 @@ function PaceRing({ current, target }: { current: number; target: number }) {
   return (
     <div className="relative w-28 h-28 flex-shrink-0">
       <svg viewBox="0 0 120 120" className="w-full h-full">
-        <circle cx="60" cy="60" r="52" fill="none" stroke="#E5E7EB" strokeWidth="8" />
+        <circle cx="60" cy="60" r="52" fill="none" stroke="var(--border)" strokeWidth="8" />
         <circle
           cx="60"
           cy="60"
           r="52"
           fill="none"
-          stroke={onTrack ? '#34D399' : 'url(#paceGrad)'}
+          stroke={onTrack ? 'var(--pulse-pos)' : 'url(#paceGrad)'}
           strokeWidth="8"
           strokeLinecap="round"
           strokeDasharray={circumference}
@@ -279,14 +228,14 @@ function PaceRing({ current, target }: { current: number; target: number }) {
         />
         <defs>
           <linearGradient id="paceGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#FF4D8D" />
-            <stop offset="100%" stopColor="#7C5CFC" />
+            <stop offset="0%" stopColor="var(--primary)" />
+            <stop offset="100%" stopColor="var(--pulse-accent-2)" />
           </linearGradient>
         </defs>
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-2xl font-bold text-[#1A1B3A]">{current}</span>
-        <span className="text-xs text-gray-400">of {target}</span>
+        <span className="text-2xl font-bold text-foreground">{current}</span>
+        <span className="text-xs text-muted-foreground">of {target}</span>
       </div>
     </div>
   );
@@ -295,26 +244,26 @@ function PaceRing({ current, target }: { current: number; target: number }) {
 function PaceRow({ label, value, emphasis }: { label: string; value: string; emphasis?: boolean }) {
   return (
     <div className="flex justify-between">
-      <span className="text-gray-500">{label}</span>
-      <span className={emphasis ? 'font-bold text-[#FF4D8D]' : 'font-medium text-gray-900'}>{value}</span>
+      <span className="text-muted-foreground">{label}</span>
+      <span className={emphasis ? 'font-bold text-primary' : 'font-semibold text-foreground'}>{value}</span>
     </div>
   );
 }
 
 function NudgeCard({ nudge }: { nudge: CoachingNudge }) {
   return (
-    <div className="rounded-2xl p-5 border border-pink-100 bg-gradient-to-br from-pink-50 via-white to-purple-50 shadow-sm">
+    <div className="rounded-2xl p-5 border border-primary/20 bg-primary/5 shadow-[var(--pulse-elev-1)]">
       <div className="flex gap-3 items-start">
-        <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-[#FF4D8D] to-[#7C5CFC] flex items-center justify-center text-white flex-shrink-0">
+        <div className="h-9 w-9 rounded-xl bg-pulse-grad flex items-center justify-center text-white flex-shrink-0">
           <Lightbulb className="h-5 w-5" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-semibold text-[#1A1B3A]">{nudge.headline}</p>
-          <p className="text-sm text-gray-600 mt-1">{nudge.detail}</p>
+          <p className="font-bold text-foreground">{nudge.headline}</p>
+          <p className="text-sm text-muted-foreground mt-1">{nudge.detail}</p>
           {nudge.cta && (
             <Link
               href={nudge.cta.href}
-              className="inline-flex items-center gap-1 mt-2 text-sm font-medium text-[#FF4D8D] hover:underline"
+              className="inline-flex items-center gap-1 mt-2 text-sm font-semibold text-primary hover:underline"
             >
               {nudge.cta.label} <ArrowRight className="h-3.5 w-3.5" />
             </Link>
@@ -343,18 +292,18 @@ function VideoColumn({
   showCreator?: boolean;
 }) {
   return (
-    <section className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+    <section className="rounded-2xl border border-border bg-card p-5 shadow-[var(--pulse-elev-1)]">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="font-semibold text-[#1A1B3A] flex items-center gap-2 text-sm">
-          {icon}
+        <h3 className="font-bold text-foreground flex items-center gap-2 text-sm">
+          <span className="text-primary">{icon}</span>
           {title}
         </h3>
-        <Link href={ctaHref} className="text-xs text-[#FF4D8D] hover:underline">
+        <Link href={ctaHref} className="text-xs font-semibold text-primary hover:underline">
           {ctaLabel} →
         </Link>
       </div>
       {videos.length === 0 ? (
-        <p className="text-sm text-gray-400 py-6">{emptyText}</p>
+        <p className="text-sm text-muted-foreground py-6">{emptyText}</p>
       ) : (
         <ul className="space-y-2.5">
           {videos.slice(0, 5).map((v) => (
@@ -371,21 +320,21 @@ function VideoColumn({
 function VideoLink({ video, showCreator }: { video: CreatorVideoRow; showCreator?: boolean }) {
   const inner = (
     <div className="flex items-center gap-3 group">
-      <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-pink-50 to-purple-50 flex items-center justify-center flex-shrink-0">
-        <Video className="h-4 w-4 text-[#FF4D8D]" />
+      <div className="h-10 w-10 rounded-lg bg-secondary flex items-center justify-center flex-shrink-0">
+        <Video className="h-4 w-4 text-primary" />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-[#1A1B3A] truncate group-hover:text-[#FF4D8D] transition-colors">
+        <p className="text-sm font-semibold text-foreground truncate group-hover:text-primary transition-colors">
           {video.videoTitle}
         </p>
-        <div className="flex items-center gap-2 text-xs text-gray-400 mt-0.5">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
           {showCreator && <span>@{video.tiktokUsername}</span>}
           {video.topProduct && <span className="truncate">{showCreator ? '·' : ''} {video.topProduct}</span>}
         </div>
       </div>
       <div className="text-right flex-shrink-0">
-        <p className="text-sm font-bold text-[#34D399]">{formatMoney(video.gmv)}</p>
-        <p className="text-xs text-gray-400">{video.orders.toLocaleString()} orders</p>
+        <p className="text-sm font-bold tabular-nums text-[var(--pulse-pos)]">{formatMoney(video.gmv)}</p>
+        <p className="text-xs text-muted-foreground tabular-nums">{video.orders.toLocaleString()} orders</p>
       </div>
     </div>
   );
@@ -413,14 +362,14 @@ function QuickAction({
   return (
     <Link
       href={href}
-      className="flex items-center gap-3 p-4 bg-white border border-gray-100 rounded-2xl shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all"
+      className="flex items-center gap-3 p-4 rounded-2xl border border-border bg-card shadow-[var(--pulse-elev-1)] hover:shadow-[var(--pulse-elev-2)] hover:-translate-y-0.5 transition-all"
     >
-      <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-pink-50 to-purple-50 flex items-center justify-center text-[#FF4D8D] flex-shrink-0">
+      <div className="h-10 w-10 rounded-xl bg-secondary flex items-center justify-center text-primary flex-shrink-0">
         {icon}
       </div>
       <div className="min-w-0">
-        <p className="text-sm font-semibold text-[#1A1B3A]">{label}</p>
-        <p className="text-xs text-gray-400 truncate">{subtitle}</p>
+        <p className="text-sm font-bold text-foreground">{label}</p>
+        <p className="text-xs text-muted-foreground truncate">{subtitle}</p>
       </div>
     </Link>
   );

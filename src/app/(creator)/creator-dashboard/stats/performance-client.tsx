@@ -3,8 +3,10 @@
 import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { ArrowUpRight, ArrowDownRight, ExternalLink } from 'lucide-react';
-import { useMemo } from 'react';
+import { ExternalLink } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { useTheme } from 'next-themes';
+import { StatCard } from '@/components/ui/stat-card';
 import type {
   CreatorDailyPoint,
   CreatorSummary,
@@ -50,10 +52,10 @@ export function PerformanceClient({
     <div className="space-y-6 max-w-6xl mx-auto pb-12">
       <motion.div {...fade} className="flex items-baseline justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-[#1A1B3A]">Performance</h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Performance</h1>
+          <p className="text-sm text-muted-foreground mt-1">
             {currentBrandDisplay ? (
-              <>Showing <span className="font-medium text-gray-700">{currentBrandDisplay}</span> · last {rangeDays} days</>
+              <>Showing <span className="font-medium text-foreground">{currentBrandDisplay}</span> · last {rangeDays} days</>
             ) : (
               <>All brands · last {rangeDays} days</>
             )}
@@ -62,44 +64,64 @@ export function PerformanceClient({
         <RangePicker value={rangeDays} onChange={setRange} />
       </motion.div>
 
-      {/* Summary tiles */}
+      {/* Summary tiles — canonical Pulse StatCards so the portal matches the admin.
+          summary === null means the read FAILED (a zero-activity creator gets a
+          zeros object, not null) — show "—", never a fake $0. */}
       <motion.div {...fade} transition={{ ...fade.transition, delay: 0.05 }} className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <Tile label={`GMV (${rangeDays}d)`} value={formatMoney(summary?.totalGmv ?? 0)} changePct={summary?.gmvChangePct ?? null} tone="mint" />
-        <Tile label="Orders" value={(summary?.totalOrders ?? 0).toLocaleString()} changePct={summary?.orderChangePct ?? null} />
-        <Tile label="Items sold" value={(summary?.totalItemsSold ?? 0).toLocaleString()} />
-        <Tile label="Est. commission" value={formatMoney(summary?.totalCommission ?? 0)} tone="mint" />
+        <StatCard
+          hero
+          label={`GMV · ${rangeDays}d`}
+          value={summary ? formatMoney(summary.totalGmv) : '—'}
+          trend={summary?.gmvChangePct ?? undefined}
+          trendLabel="vs prior period"
+        />
+        <StatCard
+          label="Orders"
+          value={summary ? summary.totalOrders.toLocaleString() : '—'}
+          trend={summary?.orderChangePct ?? undefined}
+          trendLabel="vs prior period"
+        />
+        <StatCard
+          label="Items sold"
+          value={summary ? summary.totalItemsSold.toLocaleString() : '—'}
+        />
+        <StatCard
+          label="Est. commission"
+          value={summary ? formatMoney(summary.totalCommission) : '—'}
+          accentColor="var(--pulse-pos)"
+        />
       </motion.div>
 
       {/* Daily chart */}
-      <motion.section {...fade} transition={{ ...fade.transition, delay: 0.1 }} className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
-        <h2 className="font-semibold text-[#1A1B3A] mb-3 text-sm">📈 Daily GMV</h2>
+      <motion.section {...fade} transition={{ ...fade.transition, delay: 0.1 }} className="bg-card border border-border rounded-2xl p-5 shadow-[var(--pulse-elev-1)]">
+        <h2 className="font-semibold text-foreground mb-3 text-sm">📈 Daily GMV</h2>
         <DailyChart daily={daily} />
       </motion.section>
 
       {/* Best day callout */}
       {summary?.bestDay && summary.bestDay.gmv > 0 && (
-        <motion.div {...fade} transition={{ ...fade.transition, delay: 0.15 }} className="rounded-2xl p-4 border border-emerald-100 bg-emerald-50/60">
-          <p className="text-sm text-emerald-900">
+        <motion.div {...fade} transition={{ ...fade.transition, delay: 0.15 }} className="rounded-2xl p-4 border border-border bg-[var(--pulse-pos-bg)]">
+          <p className="text-sm text-foreground">
             🏆 <span className="font-semibold">Best day:</span>{' '}
             {formatDate(summary.bestDay.date)} did{' '}
-            <span className="font-bold">{formatMoney(summary.bestDay.gmv)}</span>.
+            <span className="font-bold text-[var(--pulse-pos)]">{formatMoney(summary.bestDay.gmv)}</span>.
           </p>
         </motion.div>
       )}
 
       {/* Video table */}
-      <motion.section {...fade} transition={{ ...fade.transition, delay: 0.2 }} className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h2 className="font-semibold text-[#1A1B3A] text-sm">Videos in this period</h2>
-          <span className="text-xs text-gray-400">{topVideos.length} video{topVideos.length === 1 ? '' : 's'}</span>
+      <motion.section {...fade} transition={{ ...fade.transition, delay: 0.2 }} className="bg-card border border-border rounded-2xl shadow-[var(--pulse-elev-1)] overflow-hidden">
+        <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+          <h2 className="font-semibold text-foreground text-sm">Videos in this period</h2>
+          <span className="text-xs text-muted-foreground">{topVideos.length} video{topVideos.length === 1 ? '' : 's'}</span>
         </div>
         {topVideos.length === 0 ? (
-          <p className="px-5 py-8 text-sm text-gray-400 text-center">No videos with sales in this period.</p>
+          <p className="px-5 py-8 text-sm text-muted-foreground text-center">No videos with sales in this period.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-xs uppercase tracking-wider text-gray-400 border-b border-gray-100">
+                <tr className="text-left text-xs uppercase tracking-wider text-muted-foreground border-b border-border">
                   <th className="px-5 py-3 font-medium">Video</th>
                   <th className="px-5 py-3 font-medium hidden sm:table-cell">Top product</th>
                   <th className="px-5 py-3 font-medium text-right">GMV</th>
@@ -109,26 +131,26 @@ export function PerformanceClient({
               </thead>
               <tbody>
                 {topVideos.map((v) => (
-                  <tr key={v.videoId} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors">
+                  <tr key={v.videoId} className="border-b border-border last:border-0 hover:bg-secondary/50 transition-colors">
                     <td className="px-5 py-3 max-w-[280px]">
                       <div className="flex items-center gap-2">
                         {v.videoUrl ? (
-                          <a href={v.videoUrl} target="_blank" rel="noopener noreferrer" className="text-[#1A1B3A] hover:text-[#FF4D8D] truncate font-medium flex items-center gap-1">
+                          <a href={v.videoUrl} target="_blank" rel="noopener noreferrer" className="text-foreground hover:text-primary truncate font-medium flex items-center gap-1">
                             <span className="truncate">{v.videoTitle}</span>
-                            <ExternalLink className="h-3 w-3 flex-shrink-0 text-gray-400" />
+                            <ExternalLink className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
                           </a>
                         ) : (
-                          <span className="text-[#1A1B3A] truncate font-medium">{v.videoTitle}</span>
+                          <span className="text-foreground truncate font-medium">{v.videoTitle}</span>
                         )}
                       </div>
-                      <p className="text-xs text-gray-400 mt-0.5">@{v.tiktokUsername} · {v.brandSlug}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">@{v.tiktokUsername} · {v.brandSlug}</p>
                     </td>
-                    <td className="px-5 py-3 hidden sm:table-cell text-gray-500 max-w-[200px]">
+                    <td className="px-5 py-3 hidden sm:table-cell text-muted-foreground max-w-[200px]">
                       <span className="truncate block">{v.topProduct ?? '—'}</span>
                     </td>
-                    <td className="px-5 py-3 text-right font-bold text-[#34D399]">{formatMoney(v.gmv)}</td>
-                    <td className="px-5 py-3 text-right hidden md:table-cell text-gray-700">{v.orders.toLocaleString()}</td>
-                    <td className="px-5 py-3 text-right hidden md:table-cell text-gray-500">{v.daysActive}d</td>
+                    <td className="px-5 py-3 text-right font-bold text-[var(--pulse-pos)]">{formatMoney(v.gmv)}</td>
+                    <td className="px-5 py-3 text-right hidden md:table-cell text-foreground">{v.orders.toLocaleString()}</td>
+                    <td className="px-5 py-3 text-right hidden md:table-cell text-muted-foreground">{v.daysActive}d</td>
                   </tr>
                 ))}
               </tbody>
@@ -143,13 +165,13 @@ export function PerformanceClient({
 function RangePicker({ value, onChange }: { value: number; onChange: (n: number) => void }) {
   const opts = [7, 14, 30, 90];
   return (
-    <div className="inline-flex bg-gray-100 rounded-lg p-1 text-sm">
+    <div className="inline-flex bg-secondary rounded-lg p-1 text-sm">
       {opts.map((n) => (
         <button
           key={n}
           onClick={() => onChange(n)}
           className={`px-3 py-1 rounded-md transition-all ${
-            value === n ? 'bg-white text-[#1A1B3A] shadow-sm font-medium' : 'text-gray-500 hover:text-gray-700'
+            value === n ? 'bg-card text-foreground shadow-[var(--pulse-elev-1)] font-medium' : 'text-muted-foreground hover:text-foreground'
           }`}
         >
           {n}d
@@ -159,34 +181,40 @@ function RangePicker({ value, onChange }: { value: number; onChange: (n: number)
   );
 }
 
-function Tile({
-  label,
-  value,
-  changePct,
-  tone,
-}: {
-  label: string;
-  value: string;
-  changePct?: number | null;
-  tone?: 'mint';
-}) {
-  return (
-    <div className="bg-white border border-gray-100 rounded-2xl p-4 sm:p-5 shadow-sm">
-      <span className="text-xs font-medium uppercase tracking-wider text-gray-400">{label}</span>
-      <p className={`text-2xl sm:text-3xl font-extrabold mt-2 ${tone === 'mint' ? 'text-[#34D399]' : 'text-[#1A1B3A]'}`}>
-        {value}
-      </p>
-      {changePct !== undefined && changePct !== null && (
-        <p className={`inline-flex items-center gap-1 text-xs font-medium mt-1 ${changePct >= 0 ? 'text-[#10B981]' : 'text-[#EF4444]'}`}>
-          {changePct >= 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
-          {Math.abs(changePct).toFixed(0)}%<span className="text-gray-400 ml-1">vs prior</span>
-        </p>
-      )}
-    </div>
-  );
+/**
+ * ApexCharts needs concrete hex strings, not CSS vars, so we resolve the Pulse
+ * tokens off the document root and recompute whenever the theme flips. Falls
+ * back to the light-mode token values before the first client read.
+ */
+function useChartColors() {
+  const { resolvedTheme } = useTheme();
+  const [colors, setColors] = useState({
+    primary: '#4B45FF',
+    accent2: '#9A37EF',
+    pos: '#12A150',
+    muted: '#6D6A8B',
+    border: '#E8E5F3',
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const cs = getComputedStyle(document.documentElement);
+    const read = (name: string, fallback: string) => cs.getPropertyValue(name).trim() || fallback;
+    setColors({
+      primary: read('--primary', '#4B45FF'),
+      accent2: read('--pulse-accent-2', '#9A37EF'),
+      pos: read('--pulse-pos', '#12A150'),
+      muted: read('--muted-foreground', '#6D6A8B'),
+      border: read('--border', '#E8E5F3'),
+    });
+  }, [resolvedTheme]);
+
+  return { colors, isDark: resolvedTheme === 'dark' };
 }
 
 function DailyChart({ daily }: { daily: CreatorDailyPoint[] }) {
+  const { colors, isDark } = useChartColors();
+
   const series = useMemo(
     () => [
       { name: 'GMV', data: daily.map((d) => ({ x: d.date, y: Number(d.gmv.toFixed(2)) })) },
@@ -200,9 +228,10 @@ function DailyChart({ daily }: { daily: CreatorDailyPoint[] }) {
         toolbar: { show: false },
         sparkline: { enabled: false },
         animations: { enabled: true, speed: 600 },
+        background: 'transparent',
       },
       stroke: { curve: 'smooth' as const, width: 3 },
-      colors: ['#FF4D8D'],
+      colors: [colors.primary],
       fill: {
         type: 'gradient',
         gradient: {
@@ -211,32 +240,33 @@ function DailyChart({ daily }: { daily: CreatorDailyPoint[] }) {
           opacityTo: 0.05,
           stops: [0, 100],
           colorStops: [
-            { offset: 0, color: '#FF4D8D', opacity: 0.4 },
-            { offset: 100, color: '#7C5CFC', opacity: 0.05 },
+            { offset: 0, color: colors.primary, opacity: 0.4 },
+            { offset: 100, color: colors.accent2, opacity: 0.05 },
           ],
         },
       },
-      grid: { borderColor: '#F3F4F6', strokeDashArray: 4 },
+      grid: { borderColor: colors.border, strokeDashArray: 4 },
       xaxis: {
         type: 'datetime' as const,
-        labels: { style: { colors: '#9CA3AF', fontSize: '11px' } },
+        labels: { style: { colors: colors.muted, fontSize: '11px' } },
         axisBorder: { show: false },
         axisTicks: { show: false },
       },
       yaxis: {
         labels: {
-          style: { colors: '#9CA3AF', fontSize: '11px' },
+          style: { colors: colors.muted, fontSize: '11px' },
           formatter: (val: number) =>
             val >= 1000 ? `$${(val / 1000).toFixed(1)}k` : `$${val.toFixed(0)}`,
         },
       },
       tooltip: {
+        theme: isDark ? 'dark' : 'light',
         x: { format: 'MMM d, yyyy' },
         y: { formatter: (val: number) => `$${val.toLocaleString()}` },
       },
       dataLabels: { enabled: false },
     }),
-    []
+    [colors, isDark]
   );
   return <Chart options={options as any} series={series} type="area" height={280} />;
 }

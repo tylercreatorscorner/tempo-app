@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { TempoLogo } from '@/components/ui/tempo-logo';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 const VERIFY_ERROR_MESSAGES: Record<string, string> = {
   missing_token: 'That sign-in link is missing its token. Request a new one below.',
@@ -51,30 +53,30 @@ export default function CreatorLoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#F8F9FC] px-4">
+    <div className="min-h-screen flex items-center justify-center bg-background px-4">
       <div className="w-full max-w-sm">
         <div className="flex justify-center mb-8">
           <TempoLogo size="lg" animated />
         </div>
 
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8">
-          <h1 className="text-xl font-bold text-[#1A1B3A] text-center mb-2">Creator Login</h1>
-          <p className="text-sm text-gray-500 text-center mb-6">
+        <div className="bg-card rounded-2xl border border-border shadow-[var(--pulse-elev-1)] p-8">
+          <h1 className="text-xl font-bold text-foreground text-center mb-2">Creator Login</h1>
+          <p className="text-sm text-muted-foreground text-center mb-6">
             Enter your email and we will send you a login link.
           </p>
 
           {sent ? (
             <div className="text-center space-y-4">
               <div className="text-4xl">📬</div>
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-muted-foreground">
                 Check your email for a login link. It will expire in 15 minutes.
               </p>
               {devUrl && (
-                <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-xl text-xs">
-                  <p className="font-semibold text-yellow-800 mb-1">Dev Mode: Click to log in</p>
+                <div className="mt-4 p-3 bg-[var(--pulse-warn-bg)] border border-[var(--pulse-warn)]/30 rounded-xl text-xs">
+                  <p className="font-semibold text-[var(--pulse-warn)] mb-1">Dev Mode: Click to log in</p>
                   <a
                     href={devUrl}
-                    className="text-[#FF4D8D] underline break-all"
+                    className="text-primary underline break-all"
                   >
                     Open login link
                   </a>
@@ -82,34 +84,34 @@ export default function CreatorLoginPage() {
               )}
               <button
                 onClick={() => { setSent(false); setDevUrl(null); }}
-                className="text-sm text-gray-400 hover:text-gray-600"
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
               >
                 Try a different email
               </button>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
-              <input
+              <Input
                 type="email"
                 placeholder="your@email.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D]"
+                className="px-4 py-3 text-sm rounded-xl"
               />
-              {error && <p className="text-sm text-red-500">{error}</p>}
-              <button
+              {error && <p className="text-sm text-[var(--pulse-neg)]">{error}</p>}
+              <Button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3 rounded-xl bg-[#FF4D8D] text-white font-semibold text-sm hover:bg-[#e8447f] transition-colors disabled:opacity-50"
+                className="w-full rounded-xl py-3 text-sm"
               >
                 {loading ? 'Sending...' : 'Send me a login link'}
-              </button>
+              </Button>
             </form>
           )}
         </div>
 
-        <p className="text-xs text-gray-400 text-center mt-6">
+        <p className="text-xs text-muted-foreground text-center mt-6">
           New here? Ask your brand manager for an invite link.
         </p>
       </div>

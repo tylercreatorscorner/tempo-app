@@ -42,10 +42,10 @@ export function RankingsClient({ currentBrand, currentBrandDisplay, rangeDays, r
     <div className="space-y-6 max-w-5xl mx-auto pb-12">
       <motion.div {...fade} className="flex items-baseline justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-[#1A1B3A]">🏆 Rankings</h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">🏆 Rankings</h1>
+          <p className="text-sm text-muted-foreground mt-1">
             {currentBrandDisplay ? (
-              <>Where you stack up on <span className="font-medium text-gray-700">{currentBrandDisplay}</span> · last {rangeDays} days</>
+              <>Where you stack up on <span className="font-medium text-foreground">{currentBrandDisplay}</span> · last {rangeDays} days</>
             ) : (
               <>All brands · last {rangeDays} days</>
             )}
@@ -55,7 +55,7 @@ export function RankingsClient({ currentBrand, currentBrandDisplay, rangeDays, r
       </motion.div>
 
       {!currentBrand && (
-        <motion.div {...fade} transition={{ ...fade.transition, delay: 0.05 }} className="rounded-2xl p-4 border border-amber-100 bg-amber-50/60 text-sm text-amber-900">
+        <motion.div {...fade} transition={{ ...fade.transition, delay: 0.05 }} className="rounded-2xl p-4 border border-[var(--pulse-warn)]/20 bg-[var(--pulse-warn-bg)] text-sm text-[var(--pulse-warn)]">
           Pick a brand from the switcher to see brand-specific rankings.
         </motion.div>
       )}
@@ -63,14 +63,14 @@ export function RankingsClient({ currentBrand, currentBrandDisplay, rangeDays, r
       {/* Your Position */}
       {myBest && (
         <motion.div {...fade} transition={{ ...fade.transition, delay: 0.1 }}>
-          <div className="bg-gradient-to-br from-pink-50 via-white to-purple-50 border border-pink-100 rounded-2xl p-6 text-center shadow-sm">
-            <span className="text-xs font-bold uppercase tracking-widest text-[#FF4D8D]">Your rank</span>
-            <p className="text-5xl font-extrabold text-[#1A1B3A] mt-2">#{myBest.rank}</p>
-            <p className="text-sm text-gray-500 mt-1">@{myBest.tiktokUsername} · out of {totalShown}+ creators</p>
+          <div className="bg-primary/5 border border-primary/20 rounded-2xl p-6 text-center shadow-[var(--pulse-elev-1)]">
+            <span className="text-xs font-bold uppercase tracking-widest text-primary">Your rank</span>
+            <p className="text-5xl font-extrabold text-pulse-grad mt-2">#{myBest.rank}</p>
+            <p className="text-sm text-muted-foreground mt-1">@{myBest.tiktokUsername} · out of {totalShown}+ creators</p>
             <RankDelta currentRank={myBest.rank} priorRank={myBest.priorRank} className="mt-2" />
-            <p className="text-lg font-bold text-[#34D399] mt-2">{fmt(myBest.gmv)} GMV</p>
+            <p className="text-lg font-bold text-[var(--pulse-pos)] mt-2">{fmt(myBest.gmv)} GMV</p>
             {myEntries.length > 1 && (
-              <p className="text-xs text-gray-400 mt-2">
+              <p className="text-xs text-muted-foreground mt-2">
                 You also have {myEntries.length - 1} other handle{myEntries.length - 1 === 1 ? '' : 's'} in this leaderboard
               </p>
             )}
@@ -90,14 +90,14 @@ export function RankingsClient({ currentBrand, currentBrandDisplay, rangeDays, r
       )}
 
       {/* Full Leaderboard */}
-      <motion.section {...fade} transition={{ ...fade.transition, delay: 0.2 }} className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
-        <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
-          <h2 className="font-semibold text-[#1A1B3A] text-sm">Leaderboard</h2>
+      <motion.section {...fade} transition={{ ...fade.transition, delay: 0.2 }} className="bg-card border border-border rounded-2xl shadow-[var(--pulse-elev-1)] overflow-hidden">
+        <div className="px-5 py-3 border-b border-border flex items-center justify-between">
+          <h2 className="font-semibold text-foreground text-sm">Leaderboard</h2>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-xs uppercase tracking-wider text-gray-400 border-b border-gray-100">
+              <tr className="text-left text-xs uppercase tracking-wider text-muted-foreground border-b border-border">
                 <th className="px-5 py-3 font-medium w-16">Rank</th>
                 <th className="px-5 py-3 font-medium">Creator</th>
                 <th className="px-5 py-3 font-medium text-right">GMV</th>
@@ -112,23 +112,23 @@ export function RankingsClient({ currentBrand, currentBrandDisplay, rangeDays, r
                 return (
                   <tr
                     key={r.tiktokUsername + i}
-                    className={`border-b border-gray-50 last:border-0 transition-colors ${
-                      isMe ? 'bg-pink-50/60' : i % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'
-                    } hover:bg-pink-50/40`}
+                    className={`border-b border-border last:border-0 transition-colors ${
+                      isMe ? 'bg-primary/5' : i % 2 === 0 ? 'bg-card' : 'bg-secondary/30'
+                    } hover:bg-primary/5`}
                   >
-                    <td className="px-5 py-3 font-bold text-gray-400">
+                    <td className="px-5 py-3 font-bold text-muted-foreground">
                       {i < 3 ? <span className="text-base">{MEDALS[i]}</span> : `#${r.rank}`}
                     </td>
                     <td className="px-5 py-3">
-                      <p className={`font-medium ${isMe ? 'text-[#FF4D8D]' : 'text-[#1A1B3A]'} truncate`}>
+                      <p className={`font-medium ${isMe ? 'text-primary' : 'text-foreground'} truncate`}>
                         {r.realName ?? `@${r.tiktokUsername}`}
-                        {isMe && <span className="text-xs text-[#FF4D8D] ml-1">(you)</span>}
+                        {isMe && <span className="text-xs text-primary ml-1">(you)</span>}
                       </p>
-                      {r.realName && <p className="text-xs text-gray-400">@{r.tiktokUsername}</p>}
+                      {r.realName && <p className="text-xs text-muted-foreground">@{r.tiktokUsername}</p>}
                     </td>
-                    <td className="px-5 py-3 text-right font-bold text-[#34D399]">{fmt(r.gmv)}</td>
-                    <td className="px-5 py-3 text-right text-gray-700 hidden sm:table-cell">{r.orders.toLocaleString()}</td>
-                    <td className="px-5 py-3 text-right text-gray-500 hidden md:table-cell">{r.videos}</td>
+                    <td className="px-5 py-3 text-right font-bold text-[var(--pulse-pos)]">{fmt(r.gmv)}</td>
+                    <td className="px-5 py-3 text-right text-foreground hidden sm:table-cell">{r.orders.toLocaleString()}</td>
+                    <td className="px-5 py-3 text-right text-muted-foreground hidden md:table-cell">{r.videos}</td>
                     <td className="px-5 py-3 text-right">
                       <RankDelta currentRank={r.rank} priorRank={r.priorRank} />
                     </td>
@@ -138,7 +138,7 @@ export function RankingsClient({ currentBrand, currentBrandDisplay, rangeDays, r
             </tbody>
           </table>
           {rankings.length === 0 && (
-            <p className="text-center py-12 text-gray-400 text-sm">No ranking data for this period.</p>
+            <p className="text-center py-12 text-muted-foreground text-sm">No ranking data for this period.</p>
           )}
         </div>
       </motion.section>
@@ -156,26 +156,26 @@ function RankDelta({
   className?: string;
 }) {
   if (priorRank === null) {
-    return <span className={`inline-flex items-center text-xs text-gray-400 ${className ?? ''}`}>—</span>;
+    return <span className={`inline-flex items-center text-xs text-muted-foreground ${className ?? ''}`}>—</span>;
   }
   const diff = priorRank - currentRank; // positive = moved up
   if (diff === 0) {
     return (
-      <span className={`inline-flex items-center gap-0.5 text-xs text-gray-400 ${className ?? ''}`}>
+      <span className={`inline-flex items-center gap-0.5 text-xs text-muted-foreground ${className ?? ''}`}>
         <Minus className="h-3 w-3" />
       </span>
     );
   }
   if (diff > 0) {
     return (
-      <span className={`inline-flex items-center gap-0.5 text-xs font-medium text-[#10B981] ${className ?? ''}`}>
+      <span className={`inline-flex items-center gap-0.5 text-xs font-medium text-[var(--pulse-pos)] ${className ?? ''}`}>
         <ArrowUp className="h-3 w-3" />
         {diff}
       </span>
     );
   }
   return (
-    <span className={`inline-flex items-center gap-0.5 text-xs font-medium text-[#EF4444] ${className ?? ''}`}>
+    <span className={`inline-flex items-center gap-0.5 text-xs font-medium text-[var(--pulse-neg)] ${className ?? ''}`}>
       <ArrowDown className="h-3 w-3" />
       {Math.abs(diff)}
     </span>
@@ -197,18 +197,18 @@ function PodiumCard({
     <div className="flex flex-col items-center w-28 sm:w-36">
       <div
         className={`w-12 h-12 rounded-full flex items-center justify-center text-lg mb-2 ${
-          highlight ? 'bg-gradient-to-br from-[#FF4D8D] to-[#7C5CFC] text-white shadow-lg' : 'bg-gray-100 text-gray-600'
+          highlight ? 'bg-pulse-grad text-white shadow-[var(--pulse-elev-2)]' : 'bg-secondary text-muted-foreground'
         }`}
       >
         {MEDALS[rank - 1]}
       </div>
-      <p className="text-xs font-semibold text-[#1A1B3A] truncate w-full text-center">
+      <p className="text-xs font-semibold text-foreground truncate w-full text-center">
         {entry.realName ?? `@${entry.tiktokUsername}`}
       </p>
-      <p className="text-xs font-bold text-[#34D399]">{fmt(entry.gmv)}</p>
+      <p className="text-xs font-bold text-[var(--pulse-pos)]">{fmt(entry.gmv)}</p>
       <div
         className={`w-full ${height} mt-2 rounded-t-xl ${
-          highlight ? 'bg-gradient-to-t from-[#FF4D8D]/30 to-[#FF4D8D]/5' : 'bg-gray-100'
+          highlight ? 'bg-gradient-to-t from-primary/30 to-primary/5' : 'bg-secondary'
         }`}
       />
     </div>
@@ -218,13 +218,13 @@ function PodiumCard({
 function RangePicker({ value, onChange }: { value: number; onChange: (n: number) => void }) {
   const opts = [7, 30, 90];
   return (
-    <div className="inline-flex bg-gray-100 rounded-lg p-1 text-sm">
+    <div className="inline-flex bg-secondary rounded-lg p-1 text-sm">
       {opts.map((n) => (
         <button
           key={n}
           onClick={() => onChange(n)}
           className={`px-3 py-1 rounded-md transition-all ${
-            value === n ? 'bg-white text-[#1A1B3A] shadow-sm font-medium' : 'text-gray-500 hover:text-gray-700'
+            value === n ? 'bg-card text-foreground shadow-[var(--pulse-elev-1)] font-medium' : 'text-muted-foreground hover:text-foreground'
           }`}
         >
           {n}d
