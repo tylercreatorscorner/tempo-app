@@ -8,40 +8,53 @@ interface Props {
   healthy: number;
   behind: number;
   silent: number;
+  affiliate: number;
   unreadDms: number;
 }
 
 /**
  * Roster Health (mockup) — managed-creator counts by health bucket, sourced from
  * the SAME deriveHealth() classification the /roster page uses (so they tie out):
- * healthy · behind pace · silent 14d+, plus unread creator DMs.
+ * healthy · behind pace · silent 14d+ · affiliate, plus unread creator DMs.
+ *
+ * Health (healthy/behind/silent) is a CONTRACTED-creator concept — it measures
+ * whether someone you PAY is honoring their post commitment. Affiliate-only
+ * creators ($0 retainer) have no commitment, so they get their own neutral row
+ * rather than being judged (and mis-flagged "behind") against a quota they never
+ * agreed to. That distinction is most of the roster here, so it's shown.
  *
  * Tooltip copy is written from deriveHealth() itself (SILENT_DAYS_THRESHOLD = 14,
  * the 10-point pace slack) rather than from intent — if the rule changes, the
  * copy has to change with it.
  */
-export function RosterHealthPanel({ total, healthy, behind, silent, unreadDms }: Props) {
+export function RosterHealthPanel({ total, healthy, behind, silent, affiliate, unreadDms }: Props) {
   const rows = [
     {
       label: 'Healthy',
       count: healthy,
       color: 'var(--pulse-pos)',
-      tip: 'Posted within the last 14 days and, if they have a monthly post quota, keeping up with it.',
+      tip: 'Contracted (paid) creators who posted within the last 14 days and are keeping up with their monthly post quota.',
     },
     {
       label: 'Behind pace',
       count: behind,
       color: 'var(--pulse-warn)',
-      tip: 'Has a monthly post quota and is tracking behind the pace needed to hit it, with 10 points of slack before flagging so one missed post doesn’t trip it. Creators with no quota are never counted here.',
+      tip: 'Contracted creators tracking behind the pace needed to hit their monthly quota, with 10 points of slack so one missed post doesn’t trip it. Affiliate-only creators (no retainer, no commitment) are never counted here.',
     },
     {
       label: 'Silent 14d+',
       count: silent,
       color: 'var(--pulse-neg)',
-      tip: 'No post in more than 14 days — or no posts on record at all while on a retainer. Churned and inactive creators are excluded.',
+      tip: 'Contracted creators with no post in more than 14 days — or none on record at all. Churned, inactive, and affiliate-only creators are excluded.',
+    },
+    {
+      label: 'Affiliate-only',
+      count: affiliate,
+      color: 'var(--muted-foreground)',
+      tip: 'In your brand servers with GMV tracked, but on a $0 retainer with no post commitment — so posting-health doesn’t apply. Not a problem to fix; shown for composition.',
     },
   ];
-  const max = Math.max(total, healthy, behind, silent, 1);
+  const max = Math.max(total, healthy, behind, silent, affiliate, 1);
 
   return (
     <Card>

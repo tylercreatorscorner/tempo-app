@@ -53,7 +53,7 @@ const fmtShortDate = (s: string) => {
   return `${parseInt(m, 10)}/${parseInt(d, 10)}/${y.slice(2)}`;
 };
 
-type CreatorHealth = 'healthy' | 'behind' | 'silent' | 'churned' | 'no_data';
+type CreatorHealth = 'healthy' | 'behind' | 'silent' | 'churned' | 'affiliate' | 'no_data';
 
 interface Creator {
   id: string;

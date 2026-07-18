@@ -7,6 +7,7 @@ interface RosterSignals {
   healthy: number;
   behind: number;
   silent: number;
+  affiliate: number;
   unreadDms: number;
 }
 
@@ -53,6 +54,7 @@ async function getRosterSignals(brand: string | null): Promise<RosterSignals | n
       healthy: Number(d.healthy_count) || 0,
       behind: Number(d.behind_count) || 0,
       silent: Number(d.silent_count) || 0,
+      affiliate: Number(d.affiliate_count) || 0,
       unreadDms: Number(d.unread_dms_total) || 0,
     };
   } catch {
@@ -63,7 +65,7 @@ async function getRosterSignals(brand: string | null): Promise<RosterSignals | n
 export async function RosterHealthSection({ brand }: { brand: string | null }) {
   const s = await getRosterSignals(brand);
   if (!s) return null;
-  return <RosterHealthPanel total={s.total} healthy={s.healthy} behind={s.behind} silent={s.silent} unreadDms={s.unreadDms} />;
+  return <RosterHealthPanel total={s.total} healthy={s.healthy} behind={s.behind} silent={s.silent} affiliate={s.affiliate} unreadDms={s.unreadDms} />;
 }
 
 export function RosterHealthSkeleton() {

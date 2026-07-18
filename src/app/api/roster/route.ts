@@ -32,17 +32,28 @@ const COLUMNS = [
 // Health is computed per-row from the perf signals (GMV 30d, posts this month,
 // last post date) plus the contractual post quota.
 //
-//   churned  — contract status is Churned/Inactive (terminal)
-//   silent   — last post > 14 days ago (or never, with retainer > 0)
-//   behind   — posts_this_month / target < expected pace at this point in month
-//   healthy  — meeting quota AND not silent
-//   no_data  — unmanaged or no signal yet (newly added, no posts ever)
+// It only applies to CONTRACTED creators (retainer > 0). Affiliate-only creators
+// ($0 retainer) are in our brand servers and we track their GMV, but they have
+// NO post commitment — so "behind pace" is a category error for them (they never
+// agreed to post). They get their own neutral 'affiliate' classification. NOTE:
+// ~63% of managed_creators are affiliate-only, and nearly all carry a leftover
+// monthly_post_requirement=30 default, so judging them on pace flagged ~172
+// phantom "behind" — over half the count. Gate health on the retainer, not the
+// (meaningless-for-affiliates) post requirement.
+//
+//   churned   — contract status is Churned/Inactive (terminal)
+//   affiliate — $0 retainer: tracked, no commitment (no health judgment)
+//   silent    — contracted, last post > 14 days ago (or never)
+//   behind    — contracted, posts_this_month / target < expected pace this month
+//   healthy   — contracted, meeting quota AND not silent
+//   no_data   — unmanaged, or contracted with no signal yet
 
 export type CreatorHealth =
   | 'healthy'
   | 'behind'
   | 'silent'
   | 'churned'
+  | 'affiliate'
   | 'no_data';
 
 const SILENT_DAYS_THRESHOLD = 14;
@@ -85,11 +96,16 @@ function deriveHealth(opts: {
   // Terminal contract states win.
   if (status === 'Churned' || status === 'Inactive') return 'churned';
 
-  // No signal at all — only meaningful if they're on a retainer (otherwise
-  // we don't really care).
+  // Affiliate-only ($0 retainer): tracked, no post commitment. Health (pace /
+  // silence-as-a-problem) doesn't apply — they never agreed to post. Classify
+  // as 'affiliate' and stop, so they don't pollute the behind/silent counts.
+  if (retainer <= 0) return 'affiliate';
+
+  // From here on the creator is CONTRACTED (retainer > 0).
+  // No signal at all — contracted but never posted.
   const dsince = daysSince(lastPostDate);
   if (dsince === null) {
-    return retainer > 0 ? 'silent' : 'no_data';
+    return 'silent';
   }
 
   // Silent gate: last post older than threshold.
@@ -252,7 +268,7 @@ type DbSort = typeof SORTABLE_DB[number];
 type ComputedSort = typeof SORTABLE_COMPUTED[number];
 type SortCol = DbSort | ComputedSort;
 
-const HEALTH_FILTERS = ['all', 'healthy', 'behind', 'silent', 'churned', 'no_data', 'low_roi'] as const;
+const HEALTH_FILTERS = ['all', 'healthy', 'behind', 'silent', 'churned', 'affiliate', 'no_data', 'low_roi'] as const;
 type HealthFilter = typeof HEALTH_FILTERS[number];
 
 // GET /api/roster?brand=&status=&search=&page=1&limit=50&sort=&dir=&health=
@@ -721,11 +737,17 @@ export async function GET(request: NextRequest) {
   // Managed-only — the cards are about MY roster, not the universe.
   const managedRows  = enriched.filter((r) => r.is_managed);
   const total_managed = managedRows.length;
-  const behind_count  = managedRows.filter((r) => r.health === 'behind').length;
-  const silent_count  = managedRows.filter((r) => r.health === 'silent').length;
-  const healthy_count = managedRows.filter((r) => r.health === 'healthy').length;
+  // behind/silent/healthy are now CONTRACTED-only by construction (affiliate-only
+  // rows resolve to 'affiliate', never these), so these counts are the actionable
+  // triage numbers, not inflated by the ~901 no-commitment affiliates.
+  const behind_count   = managedRows.filter((r) => r.health === 'behind').length;
+  const silent_count   = managedRows.filter((r) => r.health === 'silent').length;
+  const healthy_count  = managedRows.filter((r) => r.health === 'healthy').length;
+  const affiliate_count = managedRows.filter((r) => r.health === 'affiliate').length;
+  // Low ROI is a contracted-only concept too — affiliate rows have retainer 0 →
+  // roi_period null, so they're already excluded, but be explicit.
   const low_roi_count = managedRows.filter(
-    (r) => r.roi_period !== null && r.roi_period < 1 && r.health !== 'churned',
+    (r) => r.roi_period !== null && r.roi_period < 1 && r.health !== 'churned' && r.health !== 'affiliate',
   ).length;
   const unread_dms_total = managedRows.reduce((s, r) => s + (r.unread_count || 0), 0);
   // Total monthly retainer commitment across the brand-scoped managed roster.
@@ -808,17 +830,22 @@ export async function GET(request: NextRequest) {
       const primary = rows[0];
       const children: BrandChild[] = [];
       const seen = new Set<string>();
-      // Parent health aggregates across the creator's per-brand contracts: total
-      // month-to-date posts vs the SUM of the per-brand monthly quotas (the whole
-      // obligation), deduped per brand alongside gmv/posts/retainer.
+      // Parent health aggregates across the creator's CONTRACTED per-brand
+      // contracts only: total month-to-date posts vs the SUM of the per-brand
+      // monthly quotas (the whole paid obligation). Affiliate brand-rows ($0
+      // retainer) are excluded — their phantom post_requirement would otherwise
+      // inflate the parent's target. If every brand-row is affiliate, totRet is 0
+      // and deriveHealth classifies the parent as 'affiliate'.
       let totPostsThisMonth = 0;
       let totTarget = 0;
       for (const r of rows) {
         const b = r.brand ?? '';
         if (seen.has(b)) continue;
         seen.add(b);
-        totPostsThisMonth += r.posts_this_month || 0;
-        totTarget += Number(r.monthly_post_requirement) || 0;
+        if ((Number(r.retainer) || 0) > 0) {
+          totPostsThisMonth += r.posts_this_month || 0;
+          totTarget += Number(r.monthly_post_requirement) || 0;
+        }
         children.push({
           brand: r.brand,
           row_id: String(r.id),
@@ -1128,10 +1155,13 @@ export async function GET(request: NextRequest) {
     period_days: rangeParam ? null : periodDays,
     period_start: pStartDate,
     period_end: pEndDate,
-    // Action-oriented aggregates (managed-only — the cards filter the table)
+    // Action-oriented aggregates (managed-only — the cards filter the table).
+    // behind/silent/healthy count CONTRACTED creators only; affiliate_count is
+    // the $0-retainer tracked creators (no post commitment, not a triage state).
     behind_count,
     silent_count,
     healthy_count,
+    affiliate_count,
     low_roi_count,
     unread_dms_total,
     // Total GMV across the (unfiltered) managed roster for the period.
