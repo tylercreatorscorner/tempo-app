@@ -6,15 +6,18 @@
 import {
   SlashCommandBuilder,
   type ChatInputCommandInteraction,
+  PermissionFlagsBits,
 } from 'discord.js';
 import { tempoEmbed, errorEmbed } from '../embeds';
 import { getGuildConfig } from '../config';
 import { getSupabase, daysAgo } from '../supabase';
 import { sendTrackedDM } from '../relay';
+import { requireAdmin } from '../permissions';
 
 const data = new SlashCommandBuilder()
   .setName('reminder')
   .setDescription('Reminder commands')
+  .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
   .addSubcommand((sub) =>
     sub
       .setName('create')
@@ -84,6 +87,9 @@ function parseWhen(when: string): Date | null {
 }
 
 async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
+  // Admin-only: scheduling and (especially) the mass "posting" reminder are staff
+  // actions. Without this, any member could DM the entire roster.
+  if (!(await requireAdmin(interaction))) return;
   const sub = interaction.options.getSubcommand();
   const guildConfig = interaction.guildId ? getGuildConfig(interaction.guildId) : undefined;
 

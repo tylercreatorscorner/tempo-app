@@ -9,14 +9,17 @@ import {
   ChannelType,
   type TextChannel,
   EmbedBuilder,
+  PermissionFlagsBits,
 } from 'discord.js';
 import { tempoEmbed, errorEmbed } from '../embeds';
 import { getGuildConfig } from '../config';
 import { sendBulkDMs } from '../relay';
+import { requireAdmin } from '../permissions';
 
 const data = new SlashCommandBuilder()
   .setName('bulk')
   .setDescription('Bulk messaging commands')
+  .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
   .addSubcommand((sub) =>
     sub
       .setName('dm')
@@ -54,6 +57,9 @@ const data = new SlashCommandBuilder()
   );
 
 async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
+  // Hard server-side guard: bulk DM / announce are admin-only regardless of any
+  // guild override of the command's default permissions.
+  if (!(await requireAdmin(interaction))) return;
   const sub = interaction.options.getSubcommand();
   const guildConfig = interaction.guildId ? getGuildConfig(interaction.guildId) : undefined;
 

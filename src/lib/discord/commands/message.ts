@@ -8,15 +8,18 @@ import {
   type ChatInputCommandInteraction,
   ChannelType,
   type TextChannel,
+  PermissionFlagsBits,
 } from 'discord.js';
 import { tempoEmbed, errorEmbed } from '../embeds';
 import { getGuildConfig } from '../config';
 import { getSupabase } from '../supabase';
 import { sendTrackedDM } from '../relay';
+import { requireAdmin } from '../permissions';
 
 const data = new SlashCommandBuilder()
   .setName('message')
   .setDescription('Send messages to creators')
+  .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
   .addSubcommand((sub) =>
     sub
       .setName('creator')
@@ -45,6 +48,8 @@ const data = new SlashCommandBuilder()
   );
 
 async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
+  // Admin-only: DMing creators / posting to channels is a staff action.
+  if (!(await requireAdmin(interaction))) return;
   const sub = interaction.options.getSubcommand();
   const guildConfig = interaction.guildId ? getGuildConfig(interaction.guildId) : undefined;
 
