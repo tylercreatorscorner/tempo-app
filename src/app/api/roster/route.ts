@@ -199,6 +199,14 @@ interface EnrichedRow extends ManagedRow {
   // Per-(brand-slug) posts split for the period — parallel to gmv_by_store.
   // Lets the All-Brands view rescope a row's posts to its own brand.
   posts_by_store?: Record<string, number>;
+  // Posts MONTH-TO-DATE (1st-of-month → today), INDEPENDENT of the period
+  // selector. This — not posts_period — is the correct basis for the "behind
+  // pace" health signal, which compares progress against a MONTHLY quota at this
+  // point in the month. posts_period drives the display column; these drive
+  // health only. Kept per-store so the All-Brands view can rescope health to a
+  // row's own brand, mirroring posts_by_store.
+  posts_this_month: number;
+  posts_this_month_by_store: Record<string, number>;
   // All-Brands collapse: when true this row is a per-creator PARENT and `brands`
   // holds its per-brand children (one managed contract each).
   grouped?: boolean;
@@ -315,6 +323,18 @@ export async function GET(request: NextRequest) {
     const periodParam = parseInt(searchParams.get('period') || '30', 10);
     periodDays = Number.isFinite(periodParam) ? Math.max(1, Math.min(366, periodParam)) : 30;
   }
+
+  // Month-to-date window [1st-of-month, today] for the health signal. Health is
+  // a MONTHLY-quota concept ("are they on pace for their monthly posts, this far
+  // into the month?") and MUST NOT move with the period selector — the promise a
+  // few lines up that the old code broke by feeding deriveHealth the period post
+  // count, so "Last 7 days" made quota-hitting creators read "behind". Uses local
+  // date to agree with paceExpectedPct() (also local `new Date()`); both must
+  // reference the same month boundaries or pace and progress disagree.
+  const _now = new Date();
+  const _mm = String(_now.getMonth() + 1).padStart(2, '0');
+  const mtdStart = `${_now.getFullYear()}-${_mm}-01`;
+  const mtdEnd = `${_now.getFullYear()}-${_mm}-${String(_now.getDate()).padStart(2, '0')}`;
 
   // ?store=<slug> — optional sub-filter when an umbrella brand is active.
   // Filters managed rows down to those whose period-GMV came primarily from
@@ -438,6 +458,9 @@ export async function GET(request: NextRequest) {
   const perfByHandle = new Map<string, { gmv_period: number; posts_period: number; last_post_date: string | null }>();
   // brand_id (uuid string) → { gmv, posts } for that handle on that brand, period.
   const brandGmvByHandle = new Map<string, Map<string, { gmv: number; posts: number }>>();
+  // brand_id (uuid string) → posts MONTH-TO-DATE for that handle on that brand.
+  // Feeds the health signal only; independent of the period selector.
+  const mtdPostsByHandle = new Map<string, Map<string, number>>();
   const msgByHandle = new Map<string, { last_message_at: string | null; unread_count: number }>();
 
   // Resolve the brand filter to data-level UUIDs. null = no filter (all);
@@ -446,7 +469,7 @@ export async function GET(request: NextRequest) {
   const brandIds = resolved && resolved.length === 0 ? [NO_MATCH_BRAND_ID] : resolved;
 
   if (allHandles.length > 0) {
-    const [perfRes, brandGmvRes, msgRes] = await Promise.all([
+    const [perfRes, brandGmvRes, mtdRes, msgRes] = await Promise.all([
       supabase.rpc('get_creator_handle_perf', {
         handles: allHandles,
         brand_ids: brandIds,
@@ -460,6 +483,16 @@ export async function GET(request: NextRequest) {
         days_back: periodDays,
         p_start_date: pStartDate,
         p_end_date: pEndDate,
+      }),
+      // Month-to-date posts per (handle, brand) for the health signal — same RPC,
+      // pinned to the [1st-of-month, today] window so health never moves with the
+      // period selector. We read only its posts_period (= MTD post count).
+      supabase.rpc('get_creator_handle_brand_gmv', {
+        handles: allHandles,
+        brand_ids: brandIds,
+        days_back: 31,
+        p_start_date: mtdStart,
+        p_end_date: mtdEnd,
       }),
       supabase.rpc('get_creator_message_signals', { handles: allHandles }),
     ]);
@@ -485,6 +518,20 @@ export async function GET(request: NextRequest) {
         const slot = brandGmvByHandle.get(handle) ?? new Map<string, { gmv: number; posts: number }>();
         slot.set(r.brand_id, { gmv: Number(r.gmv_period) || 0, posts: Number(r.posts_period) || 0 });
         brandGmvByHandle.set(handle, slot);
+      }
+    }
+
+    if (mtdRes.error) {
+      // Non-fatal: health simply falls back to the silence/terminal signals. Do
+      // NOT let a month-to-date read failure blank the whole roster.
+      console.error('[/api/roster] month-to-date posts RPC failed:', mtdRes.error.message);
+    } else {
+      for (const r of (mtdRes.data as BrandGmvRow[] | null) ?? []) {
+        if (!r.brand_id) continue;
+        const handle = r.tiktok_username.toLowerCase();
+        const slot = mtdPostsByHandle.get(handle) ?? new Map<string, number>();
+        slot.set(r.brand_id, Number(r.posts_period) || 0);
+        mtdPostsByHandle.set(handle, slot);
       }
     }
 
@@ -515,6 +562,9 @@ export async function GET(request: NextRequest) {
     // section and drives the row's store-mix indicator.
     const gmvByStore: Record<string, number> = {};
     const postsByStore: Record<string, number> = {};
+    // Month-to-date twins of the period post counts, for the health signal only.
+    const postsThisMonthByStore: Record<string, number> = {};
+    let postsThisMonth = 0;
     for (const h of hs) {
       const p = perfByHandle.get(h);
       if (p) {
@@ -539,13 +589,23 @@ export async function GET(request: NextRequest) {
           postsByStore[slug] = (postsByStore[slug] ?? 0) + bv.posts;
         }
       }
+      const bgm = mtdPostsByHandle.get(h);
+      if (bgm) {
+        for (const [brandUuid, mtdPosts] of bgm) {
+          const slug = uuidToSlug(reg, brandUuid) ?? brandUuid;
+          postsThisMonthByStore[slug] = (postsThisMonthByStore[slug] ?? 0) + mtdPosts;
+          postsThisMonth += mtdPosts;
+        }
+      }
     }
     const retainer = Number(row.retainer) || 0;
     const target = Number(row.monthly_post_requirement) || 0;
+    // Health uses MONTH-TO-DATE posts (not `posts`, the period count) so the
+    // "behind pace" flag reflects the monthly quota, not the selector window.
     const health = deriveHealth({
       status: row.status,
       retainer,
-      postsThisMonth: posts,
+      postsThisMonth,
       monthlyTarget: target,
       lastPostDate: lastPost,
     });
@@ -557,6 +617,8 @@ export async function GET(request: NextRequest) {
       gmv_by_store: gmvByStore,
       posts_by_store: postsByStore,
       posts_period: posts,
+      posts_this_month: postsThisMonth,
+      posts_this_month_by_store: postsThisMonthByStore,
       posts_7d: 0,
       last_post_date: lastPost,
       health,
@@ -639,6 +701,8 @@ export async function GET(request: NextRequest) {
           gmv_period: Number(u.gmv_period) || 0,
           gmv_by_store: unmanagedBreakdown,
           posts_period: Number(u.posts_period) || 0,
+          posts_this_month: 0,
+          posts_this_month_by_store: {},
           posts_7d: 0,
           last_post_date: u.last_post_date,
           health: 'no_data',
@@ -709,18 +773,21 @@ export async function GET(request: NextRequest) {
       const stores = r.brand ? expandSlugs(reg, r.brand) : [];
       let bg = 0;
       let bp = 0;
+      let bpm = 0; // month-to-date posts rescoped to this row's own brand (health)
       for (const s of stores) {
         bg += r.gmv_by_store[s] ?? 0;
         bp += r.posts_by_store?.[s] ?? 0;
+        bpm += r.posts_this_month_by_store[s] ?? 0;
       }
       const ret = Number(r.retainer) || 0;
       r.gmv_period = bg;
       r.posts_period = bp;
+      r.posts_this_month = bpm;
       r.roi_period = ret > 0 ? bg / ret : null;
       r.health = deriveHealth({
         status: r.status,
         retainer: ret,
-        postsThisMonth: bp,
+        postsThisMonth: bpm,
         monthlyTarget: Number(r.monthly_post_requirement) || 0,
         lastPostDate: r.last_post_date,
       });
@@ -741,10 +808,17 @@ export async function GET(request: NextRequest) {
       const primary = rows[0];
       const children: BrandChild[] = [];
       const seen = new Set<string>();
+      // Parent health aggregates across the creator's per-brand contracts: total
+      // month-to-date posts vs the SUM of the per-brand monthly quotas (the whole
+      // obligation), deduped per brand alongside gmv/posts/retainer.
+      let totPostsThisMonth = 0;
+      let totTarget = 0;
       for (const r of rows) {
         const b = r.brand ?? '';
         if (seen.has(b)) continue;
         seen.add(b);
+        totPostsThisMonth += r.posts_this_month || 0;
+        totTarget += Number(r.monthly_post_requirement) || 0;
         children.push({
           brand: r.brand,
           row_id: String(r.id),
@@ -768,14 +842,15 @@ export async function GET(request: NextRequest) {
         ...primary,
         gmv_period: totGmv,
         posts_period: totPosts,
+        posts_this_month: totPostsThisMonth,
         retainer: totRet,
         roi_period: totRet > 0 ? totGmv / totRet : null,
         last_post_date: lastPost,
         health: deriveHealth({
           status: primary.status,
           retainer: totRet,
-          postsThisMonth: totPosts,
-          monthlyTarget: Number(primary.monthly_post_requirement) || 0,
+          postsThisMonth: totPostsThisMonth,
+          monthlyTarget: totTarget,
           lastPostDate: lastPost,
         }),
         grouped: true,
