@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Plus, Trash2, Users, ChevronDown, ChevronRight, Layers } from 'lucide-react';
+import { Plus, Trash2, Users, ChevronDown, ChevronRight } from 'lucide-react';
 import { PREBUILT_SEGMENTS } from '@/lib/data/prebuilt-segments';
 import {
   criteriaToRosterParams,
@@ -10,6 +10,7 @@ import {
   type SegmentFilterCriteria,
 } from '@/lib/data/segments';
 import { SegmentCreateModal } from '@/components/segments/segment-create-modal';
+import { PageHeader } from '@/components/ui/page-header';
 
 interface BrandOption { slug: string; label: string; }
 interface MemberRow {
@@ -175,23 +176,22 @@ export default function SegmentsPage() {
   }
 
   return (
-    <div className="px-3 sm:px-4 md:px-6 py-4 sm:py-6 max-w-4xl mx-auto space-y-6">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold text-foreground flex items-center gap-2">
-            <Layers className="h-5 w-5 text-[var(--primary)]" /> Segments
-          </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Saved audiences you can reuse across the roster, messaging, and contests.</p>
-        </div>
-        {!readOnly && (
-          <button
-            onClick={() => setShowCreate(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium text-white bg-[var(--primary)] hover:brightness-[1.07] transition-all flex-shrink-0"
-          >
-            <Plus className="h-4 w-4" /> New Segment
-          </button>
-        )}
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        eyebrow="Creators"
+        title="Segments"
+        subtitle="Saved audiences you can reuse across the roster, messaging, and contests."
+        actions={
+          !readOnly && (
+            <button
+              onClick={() => setShowCreate(true)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium text-white bg-[var(--primary)] hover:brightness-[1.07] transition-all flex-shrink-0"
+            >
+              <Plus className="h-4 w-4" /> New Segment
+            </button>
+          )
+        }
+      />
 
       <section className="space-y-2">
         <h2 className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Lifecycle</h2>

@@ -9,6 +9,7 @@ import { getActiveTenantId } from '@/lib/auth/platform-admin';
 import { getCohortRetention } from '@/lib/data/cohort-retention';
 import { StatCard } from '@/components/dashboard/stat-card';
 import { CohortHeatmap } from '@/components/retention/cohort-heatmap';
+import { PageHeader } from '@/components/ui/page-header';
 
 interface Props {
   searchParams: Promise<{ brand?: string }>;
@@ -45,18 +46,20 @@ export default async function RetentionPage({ searchParams }: Props) {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[var(--foreground)]">Retention</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Creator cohort retention · <span className="font-medium text-foreground">{scopeLabel}</span>
-        </p>
-        {result.hasData && result.frontierLabel && (
-          <p className="text-xs text-muted-foreground mt-1 tabular-nums">
-            {ins.cohortCount} cohorts · {ins.totalCreators.toLocaleString()} creators · complete months through {result.frontierLabel}
-          </p>
-        )}
-      </div>
+      <PageHeader
+        eyebrow="Creators"
+        title="Retention"
+        subtitle={
+          <>
+            <p>Creator cohort retention · <span className="font-medium text-foreground">{scopeLabel}</span></p>
+            {result.hasData && result.frontierLabel && (
+              <p className="mt-0.5 text-xs tabular-nums">
+                {ins.cohortCount} cohorts · {ins.totalCreators.toLocaleString()} creators · complete months through {result.frontierLabel}
+              </p>
+            )}
+          </>
+        }
+      />
 
       {!result.hasData ? (
         <div className="rounded-2xl border border-border bg-card shadow-sm">

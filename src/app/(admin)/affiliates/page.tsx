@@ -8,6 +8,7 @@ import { resolveDateRange } from '@/lib/data/date-utils';
 import { getAffiliateLeaderboard } from '@/lib/data/affiliate-leaderboard';
 import { DateRangePicker } from '@/components/dashboard/date-range-picker';
 import { AffiliateLeaderboard } from '@/components/affiliates/affiliate-leaderboard';
+import { PageHeader } from '@/components/ui/page-header';
 import { formatCurrency } from '@/lib/utils/format';
 
 interface Props {
@@ -49,22 +50,25 @@ export default async function AffiliatesPage({ searchParams }: Props) {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[var(--foreground)]">Top Affiliates</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Highest-grossing creators across {scopeLabel} — and how many of your brands each one spans.
-          </p>
-          {result.hasData && (
-            <p className="text-xs text-muted-foreground mt-1 tabular-nums">
-              Top {result.rows.length} · {formatCurrency(result.totalGmv)} agency GMV shown
-            </p>
-          )}
-        </div>
-        <Suspense fallback={null}>
-          <DateRangePicker />
-        </Suspense>
-      </div>
+      <PageHeader
+        eyebrow="Creators"
+        title="Top Affiliates"
+        subtitle={
+          <>
+            <p>Highest-grossing creators across {scopeLabel} — and how many of your brands each one spans.</p>
+            {result.hasData && (
+              <p className="mt-0.5 text-xs tabular-nums">
+                Top {result.rows.length} · {formatCurrency(result.totalGmv)} agency GMV shown
+              </p>
+            )}
+          </>
+        }
+        actions={
+          <Suspense fallback={null}>
+            <DateRangePicker />
+          </Suspense>
+        }
+      />
 
       <AffiliateLeaderboard rows={result.rows} brandColors={brandColors} />
     </div>

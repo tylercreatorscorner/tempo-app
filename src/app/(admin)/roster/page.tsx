@@ -2056,14 +2056,29 @@ function RosterContent() {
                   const primary = primaryHandle(c);
                   const isGroup = !!c.grouped;
                   const isOpen = isGroup && expanded.has(c.id);
+                  // The row IS a control (opens details / expands a group / adds an
+                  // unmanaged creator). Give it button semantics + keyboard activation
+                  // so it's not mouse-only.
+                  const activateRow = () => {
+                    if (isGroup) { toggleExpand(c.id); return; }
+                    if (c.is_managed) setSelectedCreator(c);
+                    else setAddModalPrefill({ account_1: primary ?? '', brand: c.brand ?? '' });
+                  };
+                  const who = primary ? `@${primary}` : 'creator';
+                  const rowLabel = isGroup
+                    ? `${isOpen ? 'Collapse' : 'Expand'} ${who}`
+                    : c.is_managed ? `Open details for ${who}` : `Add ${who}`;
                   return (
                     <Fragment key={c.id}>
                     <tr
-                      className={`transition-colors cursor-pointer ${c.is_managed ? 'hover:bg-secondary' : 'bg-muted/30 hover:bg-muted/50'} ${isOpen ? 'bg-secondary' : ''}`}
-                      onClick={() => {
-                        if (isGroup) { toggleExpand(c.id); return; }
-                        if (c.is_managed) setSelectedCreator(c);
-                        else setAddModalPrefill({ account_1: primary ?? '', brand: c.brand ?? '' });
+                      role="button"
+                      tabIndex={0}
+                      aria-label={rowLabel}
+                      aria-expanded={isGroup ? isOpen : undefined}
+                      className={`transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--primary)]/50 ${c.is_managed ? 'hover:bg-secondary' : 'bg-muted/30 hover:bg-muted/50'} ${isOpen ? 'bg-secondary' : ''}`}
+                      onClick={activateRow}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activateRow(); }
                       }}
                     >
                       {showAddAction && (
