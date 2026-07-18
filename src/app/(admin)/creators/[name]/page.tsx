@@ -221,6 +221,15 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                       })),
                     }}
                   />
+                  <a
+                    href={`/api/admin/view-as-creator?creatorId=${profile.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="Open this creator's portal (signed in as them) in a new tab"
+                    className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-2.5 py-1 text-xs font-semibold text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+                  >
+                    <ExternalLink className="h-3 w-3" /> View portal
+                  </a>
                 </div>
 
                 {/* Badges row */}
