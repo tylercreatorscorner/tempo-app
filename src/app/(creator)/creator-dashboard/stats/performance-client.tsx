@@ -1,21 +1,17 @@
 'use client';
 
-import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { ExternalLink } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
-import { useTheme } from 'next-themes';
 import { StatCard } from '@/components/ui/stat-card';
 import { RangePicker } from '@/components/creator/range-picker';
+import { AreaLineChart } from '@/components/charts/area-line-chart';
+import { fmtCompactCurrency } from '@/components/charts/format';
 import type {
   CreatorDailyPoint,
   CreatorSummary,
   CreatorVideoRow,
 } from '@/lib/data/creator-portal';
-
-// ApexCharts is client-only
-const Chart = dynamic(() => import('react-apexcharts'), { ssr: false });
 
 interface Props {
   realName: string;
@@ -164,93 +160,16 @@ export function PerformanceClient({
 }
 
 /**
- * ApexCharts needs concrete hex strings, not CSS vars, so we resolve the Pulse
- * tokens off the document root and recompute whenever the theme flips. Falls
- * back to the light-mode token values before the first client read.
+ * Daily GMV trend. Uses the shared index-based AreaLineChart (same component as
+ * the admin dashboard) rather than ApexCharts' datetime axis — the datetime axis
+ * picks its own "nice" tick boundaries and drops the last label short of the
+ * final data point, which read as "data stops mid-month." Index-based points +
+ * first/last date labels can't drift out of alignment.
  */
-function useChartColors() {
-  const { resolvedTheme } = useTheme();
-  const [colors, setColors] = useState({
-    primary: '#4B45FF',
-    accent2: '#9A37EF',
-    pos: '#12A150',
-    muted: '#6D6A8B',
-    border: '#E8E5F3',
-  });
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const cs = getComputedStyle(document.documentElement);
-    const read = (name: string, fallback: string) => cs.getPropertyValue(name).trim() || fallback;
-    setColors({
-      primary: read('--primary', '#4B45FF'),
-      accent2: read('--pulse-accent-2', '#9A37EF'),
-      pos: read('--pulse-pos', '#12A150'),
-      muted: read('--muted-foreground', '#6D6A8B'),
-      border: read('--border', '#E8E5F3'),
-    });
-  }, [resolvedTheme]);
-
-  return { colors, isDark: resolvedTheme === 'dark' };
-}
-
 function DailyChart({ daily }: { daily: CreatorDailyPoint[] }) {
-  const { colors, isDark } = useChartColors();
-
-  const series = useMemo(
-    () => [
-      { name: 'GMV', data: daily.map((d) => ({ x: d.date, y: Number(d.gmv.toFixed(2)) })) },
-    ],
-    [daily]
-  );
-  const options = useMemo(
-    () => ({
-      chart: {
-        type: 'area' as const,
-        toolbar: { show: false },
-        sparkline: { enabled: false },
-        animations: { enabled: true, speed: 600 },
-        background: 'transparent',
-      },
-      stroke: { curve: 'smooth' as const, width: 3 },
-      colors: [colors.primary],
-      fill: {
-        type: 'gradient',
-        gradient: {
-          shadeIntensity: 1,
-          opacityFrom: 0.4,
-          opacityTo: 0.05,
-          stops: [0, 100],
-          colorStops: [
-            { offset: 0, color: colors.primary, opacity: 0.4 },
-            { offset: 100, color: colors.accent2, opacity: 0.05 },
-          ],
-        },
-      },
-      grid: { borderColor: colors.border, strokeDashArray: 4 },
-      xaxis: {
-        type: 'datetime' as const,
-        labels: { style: { colors: colors.muted, fontSize: '11px' } },
-        axisBorder: { show: false },
-        axisTicks: { show: false },
-      },
-      yaxis: {
-        labels: {
-          style: { colors: colors.muted, fontSize: '11px' },
-          formatter: (val: number) =>
-            val >= 1000 ? `$${(val / 1000).toFixed(1)}k` : `$${val.toFixed(0)}`,
-        },
-      },
-      tooltip: {
-        theme: isDark ? 'dark' : 'light',
-        x: { format: 'MMM d, yyyy' },
-        y: { formatter: (val: number) => `$${val.toLocaleString()}` },
-      },
-      dataLabels: { enabled: false },
-    }),
-    [colors, isDark]
-  );
-  return <Chart options={options as any} series={series} type="area" height={280} />;
+  const labels = daily.map((d) => formatDate(d.date));
+  const series = [{ name: 'GMV', data: daily.map((d) => Number(d.gmv.toFixed(2))) }];
+  return <AreaLineChart labels={labels} series={series} height={280} showAxis format={fmtCompactCurrency} />;
 }
 
 function formatMoney(n: number): string {
