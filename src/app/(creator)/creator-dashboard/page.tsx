@@ -20,18 +20,23 @@ export default async function CreatorHomePage() {
   const profile = await loadCreatorPortalProfile(String(session.creatorId), brandCookie);
   if (!profile) redirect('/creator-login');
 
-  const window7 = dateWindow(7);
+  // Home leads with a 30-day window (representative recent activity, aligned with
+  // the monthly retainer) plus a lifetime GMV headline — a 7-day default made big
+  // creators with a slow week read as ~$0, which looks broken and is demoralizing.
+  const window30 = dateWindow(30);
   const monthlyTarget = profile.contracts
     .filter((c) => !profile.currentBrand || c.brandSlug === profile.currentBrand)
     .reduce((sum, c) => sum + (c.monthlyPostRequirement || 0), 0);
 
-  const [summary, streak, topVideos, inspiration, monthVideos] = await Promise.all([
-    getCreatorSummary(profile.handles, profile.currentBrand, window7).catch(() => null),
+  const [summary, streak, topVideos, inspiration, monthVideos, lifetime] = await Promise.all([
+    getCreatorSummary(profile.handles, profile.currentBrand, window30).catch(() => null),
     getCreatorStreak(profile.handles, profile.currentBrand).catch(() => 0),
-    getCreatorTopVideos(profile.handles, profile.currentBrand, window7, 6).catch(() => []),
-    getInspirationVideos(profile.currentBrand, window7, 6).catch(() => []),
+    getCreatorTopVideos(profile.handles, profile.currentBrand, window30, 6).catch(() => []),
+    getInspirationVideos(profile.currentBrand, window30, 6).catch(() => []),
     getMonthVideoCount(profile.handles, profile.currentBrand).catch(() => 0),
+    getCreatorSummary(profile.handles, profile.currentBrand, dateWindow(3650)).catch(() => null),
   ]);
+  const lifetimeGmv = lifetime ? lifetime.totalGmv : null;
 
   const daysLeftInMonth = (() => {
     const now = new Date();
@@ -61,6 +66,7 @@ export default async function CreatorHomePage() {
       currentBrand={profile.currentBrand}
       currentBrandDisplay={currentContract?.brandDisplayName ?? null}
       summary={summary}
+      lifetimeGmv={lifetimeGmv}
       streak={streak}
       monthVideos={monthVideos}
       monthlyTarget={monthlyTarget}

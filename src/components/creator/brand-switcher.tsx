@@ -43,9 +43,20 @@ export function BrandSwitcher({ brands, currentBrand }: BrandSwitcherProps) {
     router.refresh();
   };
 
-  if (brands.length <= 1) return null;
+  // Dedupe + drop empty/"all brands" entries (a null/blank contract brand was
+  // rendering a second "All Brands" row alongside the real one).
+  const cleanBrands = Array.from(
+    new Set(
+      brands
+        .filter((b) => b && b.trim())
+        .map((b) => b.trim())
+        .filter((b) => !['all brands', 'all_brands', 'all'].includes(b.toLowerCase())),
+    ),
+  );
 
-  const options: (string | null)[] = [null, ...brands];
+  if (cleanBrands.length <= 1) return null;
+
+  const options: (string | null)[] = [null, ...cleanBrands];
 
   return (
     <div ref={ref} className="relative">

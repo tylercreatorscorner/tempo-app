@@ -25,6 +25,7 @@ interface Props {
   currentBrand: string | null;
   currentBrandDisplay: string | null;
   summary: CreatorSummary | null;
+  lifetimeGmv: number | null;
   streak: number;
   monthVideos: number;
   monthlyTarget: number;
@@ -40,6 +41,7 @@ export function HomeClient(props: Props) {
     handles,
     currentBrandDisplay,
     summary,
+    lifetimeGmv,
     streak,
     monthVideos,
     monthlyTarget,
@@ -68,9 +70,9 @@ export function HomeClient(props: Props) {
           </h1>
           <p className="text-sm text-muted-foreground">
             {currentBrandDisplay ? (
-              <>Showing <span className="font-semibold text-foreground">{currentBrandDisplay}</span> · last 7 days</>
+              <>Showing <span className="font-semibold text-foreground">{currentBrandDisplay}</span> · last 30 days</>
             ) : (
-              <>Last 7 days · all brands</>
+              <>Last 30 days · all brands</>
             )}
           </p>
         </div>
@@ -78,6 +80,11 @@ export function HomeClient(props: Props) {
           <p className="text-sm text-muted-foreground mt-1">
             {handles.slice(0, 4).map((h) => `@${h}`).join(' · ')}
             {handles.length > 4 ? ` · +${handles.length - 4}` : ''}
+          </p>
+        )}
+        {lifetimeGmv != null && lifetimeGmv > 0 && (
+          <p className="mt-2 text-sm text-muted-foreground">
+            <span className="font-bold tabular-nums text-[var(--pulse-pos)]">{formatMoney(lifetimeGmv)}</span> driven all-time 🎉
           </p>
         )}
       </motion.div>
@@ -95,22 +102,22 @@ export function HomeClient(props: Props) {
             zeros object, not null) — show "—", never a fake $0. */}
         <StatCard
           hero
-          label="GMV · 7d"
+          label="GMV · 30d"
           value={summary ? formatMoney(summary.totalGmv) : '—'}
           trend={summary?.gmvChangePct ?? undefined}
-          trendLabel="vs prior 7d"
+          trendLabel="vs prior 30d"
         />
         <StatCard
           label="Orders"
           value={summary ? summary.totalOrders.toLocaleString() : '—'}
           trend={summary?.orderChangePct ?? undefined}
-          trendLabel="vs prior 7d"
+          trendLabel="vs prior 30d"
         />
         <StatCard
           label="Videos posted"
           value={summary ? String(summary.videoCount) : '—'}
           trend={summary?.videoChangePct ?? undefined}
-          trendLabel="vs prior 7d"
+          trendLabel="vs prior 30d"
         />
         <StatCard
           label="Day streak"
@@ -154,10 +161,10 @@ export function HomeClient(props: Props) {
       {/* Two-column: Your top videos + What's winning */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <VideoColumn
-          title="Your top videos this week"
+          title="Your top videos (30d)"
           icon={<Trophy className="h-4 w-4" />}
           videos={topVideos}
-          emptyText="No videos in the last 7 days. Post something today to see it here."
+          emptyText="No videos in the last 30 days. Post something today to see it here."
           ctaHref="/creator-dashboard/stats"
           ctaLabel="See all my stats"
         />
