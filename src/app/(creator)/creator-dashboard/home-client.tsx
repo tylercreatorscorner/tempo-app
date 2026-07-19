@@ -295,7 +295,9 @@ function LedgerHero({
           </div>
           <p className="mt-3.5 inline-flex items-center gap-2 text-xs text-muted-foreground">
             <span className="h-1.5 w-1.5 rounded-full bg-[var(--pulse-pos)] ring-2 ring-[var(--pulse-pos-bg)]" />
-            {retainerTotal > 0 && <>{fmtCompactCurrency(retainerTotal)}/mo retainer secured · </>}
+            {retainerTotal > 0 && (
+              <>${Math.round(retainerTotal).toLocaleString('en-US')}/mo retainer secured · </>
+            )}
             {lifetimeGmv != null ? (
               <>{fmtCompactCurrency(lifetimeGmv)} driven all-time</>
             ) : (
