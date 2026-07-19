@@ -183,11 +183,18 @@ export async function sendTestInvite(discordId: string, creatorId?: string): Pro
     if (!cv) return { outcome: 'error', error: 'No creator with that id. Leave it blank to auto-pick one.' };
     creatorName = (cv.real_name as string | null) ?? '';
   } else {
-    const { data } = await supabase.rpc('get_creators_to_invite', { p_limit: 1 });
+    // Any managed creator works for a test claim link — the DM goes to YOUR
+    // discord id, not theirs. (Don't use the eligibility RPC here: after you
+    // Enqueue, it's empty because everyone already has a token.)
+    const { data } = await supabase
+      .from('managed_creators')
+      .select('creator_id, real_name')
+      .not('creator_id', 'is', null)
+      .limit(1);
     const first = ((data as { creator_id: string; real_name: string }[] | null) ?? [])[0];
-    if (!first) return { outcome: 'error', error: 'No eligible creator to test with (none managed with a linked Discord).' };
+    if (!first?.creator_id) return { outcome: 'error', error: 'No creator found to test with.' };
     cid = first.creator_id;
-    creatorName = first.real_name ?? '';
+    creatorName = (first.real_name ?? '').trim();
   }
 
   const { token, jti, expiresAt } = await generateClaimToken({ creatorId: cid as unknown as number, email: '' });
