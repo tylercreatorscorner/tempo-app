@@ -15,7 +15,7 @@ import { StatCard } from '@/components/ui/stat-card';
 import { RangePicker } from '@/components/creator/range-picker';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Table, TBody, TR, TD, DataAvatar } from '@/components/ui/table';
+import { DataAvatar } from '@/components/ui/table';
 import { Badge, Tag } from '@/components/ui/badge';
 import { Chip } from '@/components/ui/chip';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -342,13 +342,11 @@ function VideoColumn({
         {rows.length === 0 ? (
           empty
         ) : (
-          <Table className="[&_tr:last-child_td]:border-b-0">
-            <TBody>
-              {rows.map((v, i) => (
-                <VideoRow key={v.videoId} video={v} rank={i + 1} showCreator={showCreator} />
-              ))}
-            </TBody>
-          </Table>
+          <ul className="divide-y divide-border">
+            {rows.map((v, i) => (
+              <VideoRow key={v.videoId} video={v} rank={i + 1} showCreator={showCreator} />
+            ))}
+          </ul>
         )}
       </CardContent>
     </Card>
@@ -369,43 +367,50 @@ function VideoRow({
       href={video.videoUrl}
       target="_blank"
       rel="noopener noreferrer"
-      className="block min-w-0 truncate font-semibold text-foreground hover:text-primary transition-colors"
+      className="block truncate font-semibold text-foreground hover:text-primary transition-colors"
     >
       {video.videoTitle}
     </a>
   ) : (
-    <span className="block min-w-0 truncate font-semibold text-foreground">{video.videoTitle}</span>
+    <span className="block truncate font-semibold text-foreground">{video.videoTitle}</span>
   );
 
+  // Flex row (not a table): the middle column shrinks + truncates via min-w-0,
+  // while the stats column is flex-shrink-0 so GMV/orders are ALWAYS visible.
   return (
-    <TR className={video.isMine ? 'bg-primary/5' : 'hover:bg-secondary/60'}>
-      {/* w-full makes this column absorb the slack so the stats column stays pinned
-          to its content width; the min-w-0 chain lets the long caption truncate. */}
-      <TD className="px-2 py-2.5 w-full">
-        <div className="flex items-center gap-3 min-w-0">
-          <DataAvatar>{rank}</DataAvatar>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2 min-w-0 text-sm">
-              <span className="min-w-0 flex-1 truncate">{titleNode}</span>
-              {video.isMine && <span className="flex-shrink-0"><Tag>You</Tag></span>}
-            </div>
-            <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground min-w-0">
-              {showCreator && <span className="flex-shrink-0">@{video.tiktokUsername}</span>}
-              {video.topProduct && (
-                <span className="min-w-0 truncate">
-                  {showCreator ? '· ' : ''}
-                  {video.topProduct}
-                </span>
-              )}
-            </div>
-          </div>
+    <li
+      className={
+        'flex items-center gap-3 py-2.5' +
+        (video.isMine ? ' -mx-2 rounded-lg bg-primary/5 px-2' : '')
+      }
+    >
+      <DataAvatar>{rank}</DataAvatar>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2 text-sm">
+          <span className="min-w-0 flex-1 truncate">{titleNode}</span>
+          {video.isMine && (
+            <span className="flex-shrink-0">
+              <Tag>You</Tag>
+            </span>
+          )}
         </div>
-      </TD>
-      <TD className="px-2 py-2.5 align-middle text-right whitespace-nowrap">
+        <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+          {showCreator && <span className="flex-shrink-0">@{video.tiktokUsername}</span>}
+          {video.topProduct && (
+            <span className="truncate">
+              {showCreator ? '· ' : ''}
+              {video.topProduct}
+            </span>
+          )}
+        </div>
+      </div>
+      <div className="flex-shrink-0 text-right">
         <p className="text-sm font-bold tabular-nums text-[var(--pulse-pos)]">{fmtCompactCurrency(video.gmv)}</p>
-        <p className="text-xs text-muted-foreground tabular-nums">{video.orders.toLocaleString()} orders</p>
-      </TD>
-    </TR>
+        <p className="whitespace-nowrap text-xs text-muted-foreground tabular-nums">
+          {video.orders.toLocaleString()} orders
+        </p>
+      </div>
+    </li>
   );
 }
 
