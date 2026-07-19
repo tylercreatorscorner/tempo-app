@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Menu, ChevronRight, LogOut } from 'lucide-react';
+import { Menu, ChevronRight, LogOut, Settings } from 'lucide-react';
 import { TempoLogo } from '@/components/ui/tempo-logo';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import type { CreatorProfile } from '@/lib/data/creator-context';
@@ -13,6 +14,7 @@ const BREADCRUMB_MAP: Record<string, string> = {
   '/creator-dashboard/stats': 'Performance',
   '/creator-dashboard/rankings': 'Rankings',
   '/creator-dashboard/discover': 'Inspiration',
+  '/creator-dashboard/settings': 'Settings',
 };
 
 function getInitials(name: string): string {
@@ -104,6 +106,13 @@ export function CreatorHeader({
                 <p className="mt-0.5 truncate text-xs text-muted-foreground">Creator</p>
               </div>
               <div className="py-1">
+                <Link
+                  href="/creator-dashboard/settings"
+                  onClick={() => setMenuOpen(false)}
+                  className="flex w-full items-center gap-2.5 px-4 py-2 text-sm text-foreground transition-colors hover:bg-muted"
+                >
+                  <Settings className="h-4 w-4 text-muted-foreground" /> Settings
+                </Link>
                 <button
                   onClick={handleLogout}
                   className="flex w-full items-center gap-2.5 px-4 py-2 text-sm text-red-500 transition-colors hover:bg-red-500/10"

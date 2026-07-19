@@ -21,7 +21,6 @@ import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { DataAvatar } from '@/components/ui/table';
 import { Badge, Tag } from '@/components/ui/badge';
-import { Chip } from '@/components/ui/chip';
 import { EmptyState } from '@/components/ui/empty-state';
 import { NumberTicker } from '@/components/ui/number-ticker';
 import { Gauge } from '@/components/charts/gauge';
@@ -65,7 +64,6 @@ interface Props {
 export function HomeClient(props: Props) {
   const {
     realName,
-    handles,
     currentBrandDisplay,
     rangeDays,
     summary,
@@ -102,7 +100,7 @@ export function HomeClient(props: Props) {
       <PageHeader
         title={
           <>
-            {greeting}, <span className="text-pulse-grad">{realName}</span> 👋
+            {greeting}, <span className="text-pulse-grad">{realName}</span>
           </>
         }
         subtitle={
@@ -124,7 +122,6 @@ export function HomeClient(props: Props) {
         rangeDays={rangeDays}
         retainerTotal={retainerTotal}
         lifetimeGmv={lifetimeGmv}
-        handles={handles}
       />
 
       {/* Your next moves — the spine of the hub. */}
@@ -167,7 +164,7 @@ export function HomeClient(props: Props) {
         <StatCard
           label="Day streak"
           value={String(streak)}
-          subValue={streak > 0 ? 'Keep it going 🔥' : 'Post today to start'}
+          subValue={streak > 0 ? 'Keep it going' : 'Post today to start'}
           accentColor="var(--pulse-warn)"
         />
       </div>
@@ -246,13 +243,11 @@ function MomentumBand({
   rangeDays,
   retainerTotal,
   lifetimeGmv,
-  handles,
 }: {
   summary: CreatorSummary | null;
   rangeDays: number;
   retainerTotal: number;
   lifetimeGmv: number | null;
-  handles: string[];
 }) {
   const pct = summary?.gmvChangePct ?? null;
   const up = pct != null && pct >= 5;
@@ -263,15 +258,16 @@ function MomentumBand({
   if (!summary || gmv == null) {
     story = 'Your recent momentum will show here.';
   } else if (up) {
-    story = `Up ${Math.round(pct!)}% — ${gmv} in the last ${rangeDays} days. Keep the momentum going.`;
+    story = `${gmv} in the last ${rangeDays} days, up ${Math.round(pct!)}% vs the prior period.`;
   } else if (down) {
-    story = `Down ${Math.abs(Math.round(pct!))}% — ${gmv} in the last ${rangeDays} days. Let's turn it around.`;
+    story = `${gmv} in the last ${rangeDays} days, down ${Math.abs(Math.round(pct!))}% vs the prior period.`;
   } else {
-    story = `${gmv} in the last ${rangeDays} days${pct != null ? ' — holding steady' : ''}.`;
+    story = `${gmv} in the last ${rangeDays} days${pct != null ? ', holding steady' : ''}.`;
   }
 
   const Icon = up ? TrendingUp : down ? TrendingDown : Sparkles;
   const tone = up ? 'var(--pulse-pos)' : down ? 'var(--pulse-warn)' : 'var(--primary)';
+  const hasBadges = retainerTotal > 0 || (lifetimeGmv != null && lifetimeGmv > 0);
 
   return (
     <div className="space-y-2.5">
@@ -284,19 +280,17 @@ function MomentumBand({
         </span>
         <p className="text-base font-semibold text-foreground sm:text-lg">{story}</p>
       </div>
-      <div className="flex flex-wrap items-center gap-2 pl-[38px]">
-        {handles.slice(0, 3).map((h) => (
-          <Chip key={h}>@{h}</Chip>
-        ))}
-        {handles.length > 3 && <Chip>+{handles.length - 3} more</Chip>}
-        {retainerTotal > 0 && (
-          <Badge variant="neutral">{fmtCompactCurrency(retainerTotal)}/mo retainer</Badge>
-        )}
-        {/* lifetimeGmv === null means the read FAILED — show nothing, never fake $0. */}
-        {lifetimeGmv != null && lifetimeGmv > 0 && (
-          <Badge variant="positive">{fmtCompactCurrency(lifetimeGmv)} all-time 🎉</Badge>
-        )}
-      </div>
+      {hasBadges && (
+        <div className="flex flex-wrap items-center gap-2 pl-[38px]">
+          {retainerTotal > 0 && (
+            <Badge variant="neutral">{fmtCompactCurrency(retainerTotal)}/mo retainer</Badge>
+          )}
+          {/* lifetimeGmv === null means the read FAILED — show nothing, never fake $0. */}
+          {lifetimeGmv != null && lifetimeGmv > 0 && (
+            <Badge variant="positive">{fmtCompactCurrency(lifetimeGmv)} all-time</Badge>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -397,9 +391,14 @@ function RetainerPace({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">🎯 Retainer pace</CardTitle>
+        <CardTitle className="flex items-center gap-2">
+          <span className="text-primary">
+            <Target className="h-4 w-4" />
+          </span>
+          Retainer pace
+        </CardTitle>
         {onTrack ? (
-          <Badge variant="positive" size="sm">Quota met 🎉</Badge>
+          <Badge variant="positive" size="sm">Quota met</Badge>
         ) : (
           <Badge variant="neutral" size="sm">This month</Badge>
         )}
@@ -422,7 +421,7 @@ function RetainerPace({
               <PaceRow label="Days left" value={String(daysLeftInMonth)} />
               <PaceRow
                 label="Status"
-                value={onTrack ? 'Quota crushed 🎉' : `${dailyPace}/day needed`}
+                value={onTrack ? 'Quota crushed' : `${dailyPace}/day needed`}
                 emphasis
               />
               {retainerTotal > 0 && (
@@ -440,7 +439,7 @@ function RetainerPace({
             </div>
             <p className="text-xs text-muted-foreground">
               {onTrack
-                ? "You've hit your posts this month — every extra video is pure upside."
+                ? "You've hit your posts this month. Every extra video is pure upside."
                 : 'Hitting your posts is exactly what your retainer pays for. Stay on pace.'}
             </p>
           </div>
@@ -471,7 +470,12 @@ function MilestoneGoal({ lifetimeGmv }: { lifetimeGmv: number | null }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">🏆 Next milestone</CardTitle>
+        <CardTitle className="flex items-center gap-2">
+          <span className="text-primary">
+            <Trophy className="h-4 w-4" />
+          </span>
+          Next milestone
+        </CardTitle>
         <Badge variant="neutral" size="sm">All-time</Badge>
       </CardHeader>
       <CardContent>
@@ -480,7 +484,7 @@ function MilestoneGoal({ lifetimeGmv }: { lifetimeGmv: number | null }) {
             <p className="text-sm text-foreground">
               You've driven{' '}
               <span className="font-bold text-[var(--pulse-pos)]">{fmtCompactCurrency(lifetimeGmv)}</span>{' '}
-              all-time — you're{' '}
+              all-time. You're{' '}
               <span className="font-bold text-primary">{fmtCompactCurrency(toGo)}</span> from the{' '}
               <span className="font-bold text-foreground">{fmtCompactCurrency(nextTier)} Club</span>.
             </p>
@@ -496,7 +500,7 @@ function MilestoneGoal({ lifetimeGmv }: { lifetimeGmv: number | null }) {
           </div>
         ) : (
           <p className="text-sm text-foreground">
-            {fmtCompactCurrency(lifetimeGmv)} all-time — you've cleared every milestone. Legend. 🐐
+            {fmtCompactCurrency(lifetimeGmv)} all-time. You've cleared every milestone.
           </p>
         )}
       </CardContent>

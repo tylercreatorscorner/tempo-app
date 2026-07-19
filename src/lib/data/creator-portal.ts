@@ -1061,74 +1061,7 @@ export async function getInspirationVideos(
   });
 }
 
-// ---- Coaching nudge (Home page) ------------------------------------------
-
-export interface CoachingNudge {
-  kind: 'pace_behind' | 'top_video' | 'streak' | 'no_recent_post' | 'celebrate';
-  headline: string;
-  detail: string;
-  cta?: { label: string; href: string };
-}
-
-export function buildCoachingNudge(args: {
-  monthVideos: number;
-  monthlyTarget: number;
-  streak: number;
-  topVideo: CreatorVideoRow | null;
-  summary: CreatorSummary;
-  daysLeftInMonth: number;
-}): CoachingNudge | null {
-  const { monthVideos, monthlyTarget, streak, topVideo, summary, daysLeftInMonth } = args;
-
-  // 1) Behind retainer pace
-  if (monthlyTarget > 0 && daysLeftInMonth > 0) {
-    const behindBy = monthlyTarget - monthVideos;
-    if (behindBy > 0) {
-      const dailyNeeded = Math.ceil(behindBy / Math.max(1, daysLeftInMonth));
-      if (dailyNeeded >= 2) {
-        return {
-          kind: 'pace_behind',
-          headline: `You're behind retainer pace`,
-          detail: `Need ${behindBy} more video${behindBy === 1 ? '' : 's'} this month — that's ${dailyNeeded}/day for the next ${daysLeftInMonth} days. Find inspiration or check what's winning.`,
-          cta: { label: 'Find inspiration', href: '/creator-dashboard/discover' },
-        };
-      }
-    }
-  }
-
-  // 2) A standout video
-  if (topVideo && summary.videoCount > 0) {
-    const avgPerVideo = summary.totalGmv / Math.max(1, summary.videoCount);
-    if (topVideo.gmv >= avgPerVideo * 2.5 && topVideo.gmv >= 200) {
-      return {
-        kind: 'top_video',
-        headline: `One of your videos is on fire`,
-        detail: `"${truncate(topVideo.videoTitle, 60)}" did ${formatMoney(topVideo.gmv)} — ${(topVideo.gmv / avgPerVideo).toFixed(1)}× your average. Post a follow-up while it's hot.`,
-      };
-    }
-  }
-
-  // 3) Streak shoutout
-  if (streak >= 7) {
-    return {
-      kind: 'streak',
-      headline: `${streak}-day posting streak`,
-      detail: `Consistency compounds. Keep it going — your top creators average 5+ posts/week.`,
-    };
-  }
-
-  // 4) No recent activity
-  if (summary.videoCount === 0) {
-    return {
-      kind: 'no_recent_post',
-      headline: `No videos this period`,
-      detail: `Get back in the loop. Browse what's winning across the network for a quick start.`,
-      cta: { label: 'See what\'s winning', href: '/creator-dashboard/discover' },
-    };
-  }
-
-  return null;
-}
+// ---- Action stack (Home page) --------------------------------------------
 
 export interface CreatorAction {
   kind: 'no_post' | 'pace_behind' | 'rank_gap' | 'hot_video' | 'streak';
@@ -1184,7 +1117,7 @@ export function buildActionStack(args: {
       kind: 'pace_behind',
       tone: 'urgent',
       headline: `Protect your ${b.brandDisplayName} retainer`,
-      detail: `${behind} more post${behind === 1 ? '' : 's'} this month fully earns your ${formatMoney(b.retainer)}/mo${daysLeftInMonth > 0 ? ` — about ${perDay}/day for ${daysLeftInMonth} day${daysLeftInMonth === 1 ? '' : 's'}` : ''}.`,
+      detail: `${behind} more post${behind === 1 ? '' : 's'} this month fully earns your ${formatMoney(b.retainer)}/mo${daysLeftInMonth > 0 ? `, about ${perDay}/day for ${daysLeftInMonth} day${daysLeftInMonth === 1 ? '' : 's'}` : ''}.`,
       cta: { label: 'Find inspiration', href: DISCOVER },
       // Dollars at stake = the retainer; nudged up as the gap widens.
       score: b.retainer + behind * 15,
@@ -1199,7 +1132,7 @@ export function buildActionStack(args: {
         kind: 'pace_behind',
         tone: 'urgent',
         headline: `You're behind retainer pace`,
-        detail: `${behind} more post${behind === 1 ? '' : 's'} this month${daysLeftInMonth > 0 ? ` — about ${perDay}/day for ${daysLeftInMonth} day${daysLeftInMonth === 1 ? '' : 's'}` : ''}.`,
+        detail: `${behind} more post${behind === 1 ? '' : 's'} this month${daysLeftInMonth > 0 ? `, about ${perDay}/day for ${daysLeftInMonth} day${daysLeftInMonth === 1 ? '' : 's'}` : ''}.`,
         cta: { label: 'Find inspiration', href: DISCOVER },
         score: 500 + behind * 15,
       });
@@ -1214,7 +1147,7 @@ export function buildActionStack(args: {
       kind: 'rank_gap',
       tone: 'opportunity',
       headline: `Catch ${rankChase.above.name} for #${rankChase.myRank - 1}`,
-      detail: `You're ${formatMoney(rankChase.above.gap)} behind${vids ? ` — about ${vids} video${vids === 1 ? '' : 's'} at your average` : ''}. You're currently #${rankChase.myRank}.`,
+      detail: `You're ${formatMoney(rankChase.above.gap)} behind${vids ? `, about ${vids} video${vids === 1 ? '' : 's'} at your average` : ''}. You're currently #${rankChase.myRank}.`,
       cta: { label: 'See the leaderboard', href: '/creator-dashboard/rankings' },
       // Closer gaps score higher (more beatable).
       score: 350 + Math.max(0, 150 - rankChase.above.gap / 20),
@@ -1252,7 +1185,7 @@ export function buildActionStack(args: {
           kind: 'hot_video',
           tone: 'opportunity',
           headline: `Re-hit ${subject}`,
-          detail: `Your "${truncate(topVideo.videoTitle, 50)}" did ${formatMoney(topVideo.gmv)} — ${mult}× your average. A follow-up is your highest-odds next post.`,
+          detail: `Your "${truncate(topVideo.videoTitle, 50)}" did ${formatMoney(topVideo.gmv)}, ${mult}× your average. A follow-up is your highest-odds next post.`,
           cta,
           score: Math.min(300, topVideo.gmv / 10),
         });
@@ -1265,8 +1198,8 @@ export function buildActionStack(args: {
     actions.push({
       kind: 'streak',
       tone: 'positive',
-      headline: `${streak}-day posting streak 🔥`,
-      detail: `Consistency compounds — every post keeps you in the algorithm. Don't break it today.`,
+      headline: `${streak}-day posting streak`,
+      detail: `Consistency compounds. Every post keeps you in the algorithm, so don't break it today.`,
       score: 40,
     });
   }
