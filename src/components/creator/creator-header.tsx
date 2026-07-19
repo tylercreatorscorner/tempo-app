@@ -2,9 +2,9 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { useTheme } from 'next-themes';
-import { Menu, ChevronRight, Sun, Moon, LogOut } from 'lucide-react';
+import { Menu, ChevronRight, LogOut } from 'lucide-react';
 import { TempoLogo } from '@/components/ui/tempo-logo';
+import { ThemeToggle } from '@/components/ui/theme-toggle';
 import type { CreatorProfile } from '@/lib/data/creator-context';
 
 const BREADCRUMB_MAP: Record<string, string> = {
@@ -40,12 +40,9 @@ export function CreatorHeader({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { resolvedTheme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => setMounted(true), []);
   useEffect(() => {
     if (!menuOpen) return;
     const h = (e: MouseEvent) => {
@@ -82,18 +79,8 @@ export function CreatorHeader({
         </nav>
       </div>
 
-      <div className="flex items-center gap-1">
-        <button
-          onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
-          className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          aria-label="Toggle theme"
-        >
-          {mounted && resolvedTheme === 'dark' ? (
-            <Sun className="h-[18px] w-[18px]" />
-          ) : (
-            <Moon className="h-[18px] w-[18px]" />
-          )}
-        </button>
+      <div className="flex items-center gap-2">
+        <ThemeToggle />
 
         <div className="mx-1 h-6 w-px bg-secondary" />
 

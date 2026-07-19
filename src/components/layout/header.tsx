@@ -1,13 +1,12 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { flushSync } from 'react-dom';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useTheme } from 'next-themes';
-import { Menu, ChevronRight, LogOut, Settings, Bell, MessageSquare, Users, Sun, Moon } from 'lucide-react';
+import { Menu, ChevronRight, LogOut, Settings, Bell, MessageSquare, Users } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { TempoLogo } from '@/components/ui/tempo-logo';
+import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { createClient } from '@/lib/supabase/client';
 import { useBreadcrumbOverride } from '@/components/layout/breadcrumb-context';
 
@@ -74,26 +73,6 @@ export function Header({ onMenuClick, tenantName, userName, userEmail, tenantSwi
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const { label: overrideLabel } = useBreadcrumbOverride();
-  const { resolvedTheme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-
-  // Light/dark toggle with a circular-reveal View Transition from the click
-  // point. Falls back to an instant swap where the API is unsupported or the
-  // user prefers reduced motion.
-  const toggleTheme = (e: React.MouseEvent) => {
-    const next = resolvedTheme === 'dark' ? 'light' : 'dark';
-    const doc = document as Document & { startViewTransition?: (cb: () => void) => unknown };
-    if (typeof doc.startViewTransition !== 'function'
-        || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      setTheme(next);
-      return;
-    }
-    document.documentElement.style.setProperty('--vt-x', `${e.clientX}px`);
-    document.documentElement.style.setProperty('--vt-y', `${e.clientY}px`);
-    doc.startViewTransition(() => flushSync(() => setTheme(next)));
-  };
-
   const isCreatorDetail = pathname.startsWith('/creators/') && pathname !== '/creators';
   const isBrandDetail = pathname.startsWith('/brands/') && pathname !== '/brands';
 
@@ -188,15 +167,7 @@ export function Header({ onMenuClick, tenantName, userName, userEmail, tenantSwi
         </Link>
 
         {/* Light / dark toggle */}
-        <button
-          onClick={toggleTheme}
-          className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-          aria-label="Toggle light/dark theme"
-        >
-          {mounted && resolvedTheme === 'dark'
-            ? <Sun className="h-[18px] w-[18px]" />
-            : <Moon className="h-[18px] w-[18px]" />}
-        </button>
+        <ThemeToggle />
 
         {/* Divider */}
         <div className="w-px h-6 bg-secondary mx-1" />
