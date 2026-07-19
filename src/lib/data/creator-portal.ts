@@ -285,12 +285,63 @@ function brandFilter(reg: BrandRegistry, brandSlug: string | null): string[] | n
   return resolveUuids(reg, brandSlug);
 }
 
+/** Umbrella-aware set of data-store SLUGS for a brand (creator_performance is keyed by slug). */
+function brandSlugSet(reg: BrandRegistry, brandSlug: string | null): Set<string> | null {
+  if (!brandSlug) return null;
+  const slugs = new Set<string>([brandSlug.toLowerCase()]);
+  const uuids = resolveUuids(reg, brandSlug);
+  if (uuids) for (const u of uuids) { const s = uuidToSlug(reg, u); if (s) slugs.add(s.toLowerCase()); }
+  return slugs;
+}
+
+interface PerfRow { brand: string; gmv: number; orders: number; items_sold: number; commission: number }
+
+/**
+ * Money (gmv/orders/items/commission) from creator_performance via the SAME RPC
+ * the ADMIN creator profile uses — so the portal ties out to the admin exactly.
+ * daily_video_product_stats (the portal's old source) undercounts by ~10%+.
+ */
+async function perfByHandles(
+  supabase: SupabaseClient,
+  handles: string[],
+  start: string,
+  end: string,
+): Promise<PerfRow[]> {
+  const lowered = Array.from(
+    new Set(handles.map((h) => h.replace(/^@/, '').trim().toLowerCase()).filter(Boolean)),
+  );
+  if (lowered.length === 0) return [];
+  const { data, error } = await supabase.rpc('get_creator_perf_by_handles', {
+    p_handles: lowered,
+    p_start_date: start,
+    p_end_date: end,
+  });
+  if (error) throw error;
+  return ((data as Record<string, unknown>[] | null) ?? []).map((r) => ({
+    brand: String(r.brand),
+    gmv: Number(r.gmv) || 0,
+    orders: Number(r.orders) || 0,
+    items_sold: Number(r.items_sold) || 0,
+    commission: Number(r.commission) || 0,
+  }));
+}
+
 function pctChange(curr: number, prior: number): number | null {
   if (prior === 0) return null;
   return ((curr - prior) / prior) * 100;
 }
 
-/** Aggregated summary from daily_video_product_stats. */
+/**
+ * Aggregated creator summary.
+ *
+ * MONEY (gmv / orders / items / commission, current + prior) comes from
+ * creator_performance via the SAME RPC the admin creator profile uses
+ * (get_creator_perf_by_handles) — so the portal ties out to the admin exactly.
+ * daily_video_product_stats (the portal's old money source) undercounts by ~10%+.
+ *
+ * Video/product counts, refunds and best-day come from daily_video_product_stats
+ * — the per-video granularity the money RPC doesn't expose.
+ */
 export async function getCreatorSummary(
   handles: string[],
   brandSlug: string | null,
@@ -299,79 +350,70 @@ export async function getCreatorSummary(
   if (handles.length === 0) return emptySummary();
   const supabase = await createAdminClient();
   const reg = await getBrandRegistry();
-  const brandUuid = brandFilter(reg, brandSlug);
+  const brandUuid = brandFilter(reg, brandSlug); // UUIDs → daily_video_product_stats.brand_id
+  const slugs = brandSlugSet(reg, brandSlug); // slugs → creator_performance.brand
+  const prior = priorWindow(window);
 
-  const filters: { column: string; op: 'eq' | 'in' | 'gte' | 'lte'; value: any }[] = [
-    { column: 'tiktok_username', op: 'in', value: handles },
-    { column: 'report_date', op: 'gte', value: window.start },
-    { column: 'report_date', op: 'lte', value: window.end },
-  ];
-  if (brandUuid) filters.push({ column: 'brand_id', op: 'in', value: brandUuid });
+  const dvps = (start: string, end: string, cols: string) => {
+    const f: { column: string; op: 'eq' | 'in' | 'gte' | 'lte'; value: any }[] = [
+      { column: 'tiktok_username', op: 'in', value: handles },
+      { column: 'report_date', op: 'gte', value: start },
+      { column: 'report_date', op: 'lte', value: end },
+    ];
+    if (brandUuid) f.push({ column: 'brand_id', op: 'in', value: brandUuid });
+    return paginated(supabase, 'daily_video_product_stats', cols, f);
+  };
 
-  const rows = await paginated(
-    supabase,
-    'daily_video_product_stats',
-    'report_date, video_id, product_id, gmv, orders, items_sold, est_commission, refunded_gmv',
-    filters
-  );
+  const [perf, priorPerf, rows, priorRows] = await Promise.all([
+    perfByHandles(supabase, handles, window.start, window.end),
+    perfByHandles(supabase, handles, prior.start, prior.end),
+    dvps(window.start, window.end, 'report_date, video_id, product_id, gmv, refunded_gmv'),
+    dvps(prior.start, prior.end, 'video_id'),
+  ]);
 
-  let gmv = 0, orders = 0, items = 0, commission = 0, refunds = 0;
+  const sumPerf = (pr: PerfRow[]) => {
+    let gmv = 0, orders = 0, items = 0, commission = 0;
+    for (const p of pr) {
+      if (slugs && !slugs.has(p.brand.toLowerCase())) continue;
+      gmv += p.gmv; orders += p.orders; items += p.items_sold; commission += p.commission;
+    }
+    return { gmv, orders, items, commission };
+  };
+  const cur = sumPerf(perf);
+  const prv = sumPerf(priorPerf);
+
+  // Video-level context (refunds, distinct videos/products, best day).
+  let refunds = 0;
   const videoIds = new Set<string>();
   const productIds = new Set<string>();
   const gmvByDate = new Map<string, number>();
   for (const r of rows) {
-    gmv += Number(r.gmv) || 0;
-    orders += Number(r.orders) || 0;
-    items += Number(r.items_sold) || 0;
-    commission += Number(r.est_commission) || 0;
     refunds += Number(r.refunded_gmv) || 0;
     if (r.video_id) videoIds.add(r.video_id);
     if (r.product_id) productIds.add(r.product_id);
     gmvByDate.set(r.report_date, (gmvByDate.get(r.report_date) ?? 0) + (Number(r.gmv) || 0));
   }
-
   let bestDay: { date: string; gmv: number } | null = null;
   for (const [date, dayGmv] of gmvByDate) {
     if (!bestDay || dayGmv > bestDay.gmv) bestDay = { date, gmv: dayGmv };
   }
-
-  // Prior period for comparison.
-  const prior = priorWindow(window);
-  const priorFilters: { column: string; op: 'eq' | 'in' | 'gte' | 'lte'; value: any }[] = [
-    { column: 'tiktok_username', op: 'in', value: handles },
-    { column: 'report_date', op: 'gte', value: prior.start },
-    { column: 'report_date', op: 'lte', value: prior.end },
-  ];
-  if (brandUuid) priorFilters.push({ column: 'brand_id', op: 'in', value: brandUuid });
-
-  const priorRows = await paginated(
-    supabase,
-    'daily_video_product_stats',
-    'video_id, gmv, orders',
-    priorFilters
-  );
-  let priorGmv = 0, priorOrders = 0;
   const priorVideos = new Set<string>();
-  for (const r of priorRows) {
-    priorGmv += Number(r.gmv) || 0;
-    priorOrders += Number(r.orders) || 0;
-    if (r.video_id) priorVideos.add(r.video_id);
-  }
+  for (const r of priorRows) if (r.video_id) priorVideos.add(r.video_id);
 
   return {
-    totalGmv: gmv,
-    totalOrders: orders,
-    totalItemsSold: items,
-    totalCommission: commission,
+    totalGmv: cur.gmv,
+    totalOrders: cur.orders,
+    totalItemsSold: cur.items,
+    totalCommission: cur.commission,
     refunds,
     videoCount: videoIds.size,
     productCount: productIds.size,
     bestDay,
-    priorGmv,
-    priorOrders,
+    priorGmv: prv.gmv,
+    priorOrders: prv.orders,
     priorVideoCount: priorVideos.size,
-    gmvChangePct: pctChange(gmv, priorGmv),
-    orderChangePct: pctChange(orders, priorOrders),
+    gmvChangePct: pctChange(cur.gmv, prv.gmv),
+    orderChangePct: pctChange(cur.orders, prv.orders),
     videoChangePct: pctChange(videoIds.size, priorVideos.size),
   };
 }

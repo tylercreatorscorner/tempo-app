@@ -8,6 +8,7 @@ import {
   dateWindow,
 } from '@/lib/data/creator-portal';
 import { PerformanceClient } from './performance-client';
+import { parseRange } from '@/components/creator/range-picker';
 
 export default async function PerformancePage({
   searchParams,
@@ -22,7 +23,7 @@ export default async function PerformancePage({
   if (!profile) redirect('/creator-login');
 
   const params = await searchParams;
-  const rangeDays = parseRange(params.range);
+  const rangeDays = parseRange(params.range, 30);
   const window = dateWindow(rangeDays);
 
   const [summary, daily, topVideos] = await Promise.all([
@@ -46,10 +47,4 @@ export default async function PerformancePage({
       topVideos={topVideos}
     />
   );
-}
-
-function parseRange(raw: string | undefined): number {
-  const n = Number(raw);
-  if ([7, 14, 30, 90].includes(n)) return n;
-  return 7;
 }

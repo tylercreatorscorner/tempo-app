@@ -1,11 +1,11 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import {
   ArrowRight,
   BarChart3,
-  Flame,
   Lightbulb,
   Search,
   Sparkles,
@@ -13,6 +13,7 @@ import {
   Video,
 } from 'lucide-react';
 import { StatCard } from '@/components/ui/stat-card';
+import { RangePicker } from '@/components/creator/range-picker';
 import type {
   CoachingNudge,
   CreatorSummary,
@@ -24,6 +25,7 @@ interface Props {
   handles: string[];
   currentBrand: string | null;
   currentBrandDisplay: string | null;
+  rangeDays: number;
   summary: CreatorSummary | null;
   lifetimeGmv: number | null;
   streak: number;
@@ -40,6 +42,7 @@ export function HomeClient(props: Props) {
     realName,
     handles,
     currentBrandDisplay,
+    rangeDays,
     summary,
     lifetimeGmv,
     streak,
@@ -50,6 +53,14 @@ export function HomeClient(props: Props) {
     inspiration,
     nudge,
   } = props;
+
+  const router = useRouter();
+  const params = useSearchParams();
+  const setRange = (n: number) => {
+    const next = new URLSearchParams(params?.toString() ?? '');
+    next.set('range', String(n));
+    router.push(`/creator-dashboard?${next.toString()}`);
+  };
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
@@ -64,17 +75,20 @@ export function HomeClient(props: Props) {
     <div className="space-y-6 max-w-6xl mx-auto pb-12">
       {/* Header */}
       <motion.div {...fade}>
-        <div className="flex items-baseline justify-between flex-wrap gap-3">
+        <div className="flex items-start justify-between flex-wrap gap-3">
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
             {greeting}, <span className="text-pulse-grad">{realName}</span> 👋
           </h1>
-          <p className="text-sm text-muted-foreground">
-            {currentBrandDisplay ? (
-              <>Showing <span className="font-semibold text-foreground">{currentBrandDisplay}</span> · last 30 days</>
-            ) : (
-              <>Last 30 days · all brands</>
-            )}
-          </p>
+          <div className="flex flex-col items-end gap-1.5">
+            <RangePicker value={rangeDays} onChange={setRange} />
+            <p className="text-sm text-muted-foreground">
+              {currentBrandDisplay ? (
+                <>Showing <span className="font-semibold text-foreground">{currentBrandDisplay}</span> · last {rangeDays} days</>
+              ) : (
+                <>Last {rangeDays} days · all brands</>
+              )}
+            </p>
+          </div>
         </div>
         {handles.length > 0 && (
           <p className="text-sm text-muted-foreground mt-1">
@@ -102,22 +116,22 @@ export function HomeClient(props: Props) {
             zeros object, not null) — show "—", never a fake $0. */}
         <StatCard
           hero
-          label="GMV · 30d"
+          label={`GMV · ${rangeDays}d`}
           value={summary ? formatMoney(summary.totalGmv) : '—'}
           trend={summary?.gmvChangePct ?? undefined}
-          trendLabel="vs prior 30d"
+          trendLabel={`vs prior ${rangeDays}d`}
         />
         <StatCard
           label="Orders"
           value={summary ? summary.totalOrders.toLocaleString() : '—'}
           trend={summary?.orderChangePct ?? undefined}
-          trendLabel="vs prior 30d"
+          trendLabel={`vs prior ${rangeDays}d`}
         />
         <StatCard
           label="Videos posted"
           value={summary ? String(summary.videoCount) : '—'}
           trend={summary?.videoChangePct ?? undefined}
-          trendLabel="vs prior 30d"
+          trendLabel={`vs prior ${rangeDays}d`}
         />
         <StatCard
           label="Day streak"
@@ -161,10 +175,10 @@ export function HomeClient(props: Props) {
       {/* Two-column: Your top videos + What's winning */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <VideoColumn
-          title="Your top videos (30d)"
+          title={`Your top videos (${rangeDays}d)`}
           icon={<Trophy className="h-4 w-4" />}
           videos={topVideos}
-          emptyText="No videos in the last 30 days. Post something today to see it here."
+          emptyText={`No videos in the last ${rangeDays} days. Post something today to see it here.`}
           ctaHref="/creator-dashboard/stats"
           ctaLabel="See all my stats"
         />

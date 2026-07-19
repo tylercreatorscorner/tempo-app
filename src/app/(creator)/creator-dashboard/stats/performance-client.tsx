@@ -7,6 +7,7 @@ import { ExternalLink } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useTheme } from 'next-themes';
 import { StatCard } from '@/components/ui/stat-card';
+import { RangePicker } from '@/components/creator/range-picker';
 import type {
   CreatorDailyPoint,
   CreatorSummary,
@@ -158,25 +159,6 @@ export function PerformanceClient({
           </div>
         )}
       </motion.section>
-    </div>
-  );
-}
-
-function RangePicker({ value, onChange }: { value: number; onChange: (n: number) => void }) {
-  const opts = [7, 14, 30, 90];
-  return (
-    <div className="inline-flex bg-secondary rounded-lg p-1 text-sm">
-      {opts.map((n) => (
-        <button
-          key={n}
-          onClick={() => onChange(n)}
-          className={`px-3 py-1 rounded-md transition-all ${
-            value === n ? 'bg-card text-foreground shadow-[var(--pulse-elev-1)] font-medium' : 'text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          {n}d
-        </button>
-      ))}
     </div>
   );
 }
