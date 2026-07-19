@@ -4,10 +4,13 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   ArrowRight,
-  BarChart3,
-  Lightbulb,
-  Search,
+  Crown,
+  Flame,
+  MessageCircle,
   Sparkles,
+  Target,
+  TrendingDown,
+  TrendingUp,
   Trophy,
   Video,
 } from 'lucide-react';
@@ -23,10 +26,18 @@ import { NumberTicker } from '@/components/ui/number-ticker';
 import { Gauge } from '@/components/charts/gauge';
 import { fmtCompactCurrency } from '@/components/charts/format';
 import type {
-  CoachingNudge,
+  CreatorAction,
   CreatorSummary,
   CreatorVideoRow,
+  RankChase,
 } from '@/lib/data/creator-portal';
+
+// Where "message your manager" points. TODO(owner): replace with the real
+// Creator's Corner Discord invite / support channel URL.
+const DISCORD_SUPPORT_URL = 'https://discord.com/channels/@me';
+
+// Lifetime-GMV "clubs" — the next one is the affiliate creator's forward target.
+const GMV_TIERS = [1_000, 5_000, 10_000, 25_000, 50_000, 100_000, 250_000, 500_000, 1_000_000, 2_500_000, 5_000_000];
 
 interface Props {
   realName: string;
@@ -36,13 +47,16 @@ interface Props {
   rangeDays: number;
   summary: CreatorSummary | null;
   lifetimeGmv: number | null;
+  retainerTotal: number;
   streak: number;
   monthVideos: number;
   monthlyTarget: number;
   daysLeftInMonth: number;
   topVideos: CreatorVideoRow[];
   inspiration: (CreatorVideoRow & { isMine: boolean })[];
-  nudge: CoachingNudge | null;
+  actions: CreatorAction[];
+  rankChase: RankChase | null;
+  chaseBrandLabel: string | null;
 }
 
 export function HomeClient(props: Props) {
@@ -53,13 +67,14 @@ export function HomeClient(props: Props) {
     rangeDays,
     summary,
     lifetimeGmv,
+    retainerTotal,
     streak,
     monthVideos,
     monthlyTarget,
     daysLeftInMonth,
     topVideos,
     inspiration,
-    nudge,
+    actions,
   } = props;
 
   const router = useRouter();
@@ -95,27 +110,33 @@ export function HomeClient(props: Props) {
         actions={<RangePicker value={rangeDays} onChange={setRange} />}
       />
 
-      {/* Handles + lifetime GMV */}
-      {(handles.length > 0 || (lifetimeGmv != null && lifetimeGmv > 0)) && (
-        <div className="flex flex-wrap items-center gap-2">
-          {handles.slice(0, 4).map((h) => (
-            <Chip key={h}>@{h}</Chip>
-          ))}
-          {handles.length > 4 && <Chip>+{handles.length - 4} more</Chip>}
-          {/* lifetimeGmv === null means the read FAILED — show nothing, never a fake $0. */}
-          {lifetimeGmv != null && lifetimeGmv > 0 && (
-            <Badge variant="positive">{fmtCompactCurrency(lifetimeGmv)} driven all-time 🎉</Badge>
-          )}
-        </div>
+      {/* Momentum story — the north-star line, not just a bare number. */}
+      <MomentumBand
+        summary={summary}
+        rangeDays={rangeDays}
+        retainerTotal={retainerTotal}
+        lifetimeGmv={lifetimeGmv}
+        handles={handles}
+      />
+
+      {/* Your next moves — the spine of the hub. */}
+      {actions.length > 0 && (
+        <section className="space-y-2.5">
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Your next moves</h2>
+            <span className="h-px flex-1 bg-border" />
+          </div>
+          <div className="space-y-2.5">
+            {actions.map((a, i) => (
+              <ActionCard key={a.kind + i} action={a} />
+            ))}
+          </div>
+        </section>
       )}
 
-      {/* Coaching nudge */}
-      {nudge && <NudgeCard nudge={nudge} />}
-
-      {/* Stat grid — canonical Pulse StatCards so the portal matches the admin. */}
+      {/* Stat grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        {/* summary === null means the read FAILED (a zero-activity creator gets a
-            zeros object, not null) — show "—", never a fake $0. */}
+        {/* summary === null means the read FAILED — show "—", never a fake $0. */}
         <StatCard
           hero
           label={`GMV · ${rangeDays}d`}
@@ -143,13 +164,17 @@ export function HomeClient(props: Props) {
         />
       </div>
 
-      {/* Retainer pace */}
-      {monthlyTarget > 0 && (
+      {/* Earn & pace — retainer quota for contracted creators, a GMV milestone for
+          affiliate-only creators (no quota) so everyone gets a forward target. */}
+      {monthlyTarget > 0 ? (
         <RetainerPace
           monthVideos={monthVideos}
           monthlyTarget={monthlyTarget}
           daysLeftInMonth={daysLeftInMonth}
+          retainerTotal={retainerTotal}
         />
+      ) : (
+        <MilestoneGoal lifetimeGmv={lifetimeGmv} />
       )}
 
       {/* Two-column: Your top videos + What's winning */}
@@ -195,41 +220,159 @@ export function HomeClient(props: Props) {
         />
       </div>
 
-      {/* Quick actions */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        <QuickAction
-          href="/creator-dashboard/stats"
-          icon={<BarChart3 className="h-5 w-5" />}
-          label="My performance"
-          subtitle="Trends, products, brand split"
-        />
-        <QuickAction
-          href="/creator-dashboard/rankings"
-          icon={<Trophy className="h-5 w-5" />}
-          label="Rankings"
-          subtitle="Where I stack up"
-        />
-        <QuickAction
-          href="/creator-dashboard/discover"
-          icon={<Search className="h-5 w-5" />}
-          label="Find inspiration"
-          subtitle="What's working right now"
-        />
+      {/* Support handoff — reach your manager. */}
+      <ManagerHandoff />
+    </div>
+  );
+}
+
+// ---- Momentum ------------------------------------------------------------
+
+function MomentumBand({
+  summary,
+  rangeDays,
+  retainerTotal,
+  lifetimeGmv,
+  handles,
+}: {
+  summary: CreatorSummary | null;
+  rangeDays: number;
+  retainerTotal: number;
+  lifetimeGmv: number | null;
+  handles: string[];
+}) {
+  const pct = summary?.gmvChangePct ?? null;
+  const up = pct != null && pct >= 5;
+  const down = pct != null && pct <= -5;
+  const gmv = summary ? fmtCompactCurrency(summary.totalGmv) : null;
+
+  let story: string;
+  if (!summary || gmv == null) {
+    story = 'Your recent momentum will show here.';
+  } else if (up) {
+    story = `Up ${Math.round(pct!)}% — ${gmv} in the last ${rangeDays} days. Keep the momentum going.`;
+  } else if (down) {
+    story = `Down ${Math.abs(Math.round(pct!))}% — ${gmv} in the last ${rangeDays} days. Let's turn it around.`;
+  } else {
+    story = `${gmv} in the last ${rangeDays} days${pct != null ? ' — holding steady' : ''}.`;
+  }
+
+  const Icon = up ? TrendingUp : down ? TrendingDown : Sparkles;
+  const tone = up ? 'var(--pulse-pos)' : down ? 'var(--pulse-warn)' : 'var(--primary)';
+
+  return (
+    <div className="space-y-2.5">
+      <div className="flex items-start gap-2.5">
+        <span
+          className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg"
+          style={{ backgroundColor: `color-mix(in srgb, ${tone} 14%, transparent)`, color: tone }}
+        >
+          <Icon className="h-4 w-4" />
+        </span>
+        <p className="text-base font-semibold text-foreground sm:text-lg">{story}</p>
+      </div>
+      <div className="flex flex-wrap items-center gap-2 pl-[38px]">
+        {handles.slice(0, 3).map((h) => (
+          <Chip key={h}>@{h}</Chip>
+        ))}
+        {handles.length > 3 && <Chip>+{handles.length - 3} more</Chip>}
+        {retainerTotal > 0 && (
+          <Badge variant="neutral">{fmtCompactCurrency(retainerTotal)}/mo retainer</Badge>
+        )}
+        {/* lifetimeGmv === null means the read FAILED — show nothing, never fake $0. */}
+        {lifetimeGmv != null && lifetimeGmv > 0 && (
+          <Badge variant="positive">{fmtCompactCurrency(lifetimeGmv)} all-time 🎉</Badge>
+        )}
       </div>
     </div>
   );
 }
 
-// ---- Components ----------------------------------------------------------
+// ---- Action stack --------------------------------------------------------
+
+const ACTION_META: Record<
+  CreatorAction['kind'],
+  { icon: React.ComponentType<{ className?: string }> }
+> = {
+  no_post: { icon: Video },
+  pace_behind: { icon: Target },
+  rank_gap: { icon: Crown },
+  hot_video: { icon: Flame },
+  streak: { icon: Flame },
+};
+
+const TONE_STYLE: Record<CreatorAction['tone'], { wrap: string; chip: string; color: string }> = {
+  urgent: {
+    wrap: 'border-[var(--pulse-warn)]/30 bg-[var(--pulse-warn-bg)]',
+    chip: 'bg-[var(--pulse-warn)]/15',
+    color: 'var(--pulse-warn)',
+  },
+  opportunity: {
+    wrap: 'border-primary/20 bg-primary/5',
+    chip: 'bg-primary/10',
+    color: 'var(--primary)',
+  },
+  positive: {
+    wrap: 'border-[var(--pulse-pos)]/25 bg-[var(--pulse-pos-bg)]',
+    chip: 'bg-[var(--pulse-pos)]/15',
+    color: 'var(--pulse-pos)',
+  },
+};
+
+function ActionCard({ action }: { action: CreatorAction }) {
+  const Icon = ACTION_META[action.kind].icon;
+  const t = TONE_STYLE[action.tone];
+  const external = action.cta?.href.startsWith('http');
+  return (
+    <div className={`rounded-xl border p-4 shadow-[var(--pulse-elev-1)] ${t.wrap}`}>
+      <div className="flex items-start gap-3">
+        <span
+          className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg ${t.chip}`}
+          style={{ color: t.color }}
+        >
+          <Icon className="h-5 w-5" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="font-bold text-foreground">{action.headline}</p>
+          <p className="mt-0.5 text-sm text-muted-foreground">{action.detail}</p>
+          {action.cta &&
+            (external ? (
+              <a
+                href={action.cta.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-2 inline-flex items-center gap-1 text-sm font-semibold hover:underline"
+                style={{ color: t.color }}
+              >
+                {action.cta.label} <ArrowRight className="h-3.5 w-3.5" />
+              </a>
+            ) : (
+              <Link
+                href={action.cta.href}
+                className="mt-2 inline-flex items-center gap-1 text-sm font-semibold hover:underline"
+                style={{ color: t.color }}
+              >
+                {action.cta.label} <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---- Earn & pace ---------------------------------------------------------
 
 function RetainerPace({
   monthVideos,
   monthlyTarget,
   daysLeftInMonth,
+  retainerTotal,
 }: {
   monthVideos: number;
   monthlyTarget: number;
   daysLeftInMonth: number;
+  retainerTotal: number;
 }) {
   const fraction = monthlyTarget > 0 ? monthVideos / monthlyTarget : 0;
   const onTrack = monthVideos >= monthlyTarget;
@@ -253,13 +396,19 @@ function RetainerPace({
             sublabel={`of ${monthlyTarget}`}
             color={onTrack ? 'var(--pulse-pos)' : 'var(--primary)'}
           />
-          <div className="flex-1 min-w-[200px] space-y-3 text-sm">
+          <div className="flex-1 min-w-[220px] space-y-3 text-sm">
             <div className="space-y-2">
               <PaceRow label="Videos posted" value={`${monthVideos} / ${monthlyTarget}`} />
               <PaceRow label="Days left" value={String(daysLeftInMonth)} />
-              <PaceRow label="Daily pace needed" value={`${dailyPace}/day`} emphasis />
+              <PaceRow
+                label={onTrack ? 'Status' : 'Daily pace needed'}
+                value={onTrack ? 'On track ✓' : `${dailyPace}/day`}
+                emphasis
+              />
+              {retainerTotal > 0 && (
+                <PaceRow label="Retainer at stake" value={`${fmtCompactCurrency(retainerTotal)}/mo`} />
+              )}
             </div>
-            {/* Progress meter (token-based, reads in both themes). */}
             <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
               <div
                 className="h-full rounded-full transition-[width] duration-700"
@@ -269,6 +418,11 @@ function RetainerPace({
                 }}
               />
             </div>
+            <p className="text-xs text-muted-foreground">
+              {onTrack
+                ? "You've hit your posts this month — every extra video is pure upside."
+                : 'Hitting your posts is exactly what your retainer pays for. Stay on pace.'}
+            </p>
           </div>
         </div>
       </CardContent>
@@ -285,29 +439,52 @@ function PaceRow({ label, value, emphasis }: { label: string; value: string; emp
   );
 }
 
-function NudgeCard({ nudge }: { nudge: CoachingNudge }) {
+/** Affiliate-only creators (no retainer/quota) get a lifetime-GMV milestone as
+ *  their forward target instead of a quota ring. */
+function MilestoneGoal({ lifetimeGmv }: { lifetimeGmv: number | null }) {
+  if (lifetimeGmv == null || lifetimeGmv <= 0) return null;
+  const nextTier = GMV_TIERS.find((t) => t > lifetimeGmv) ?? null;
+  const prevTier = [...GMV_TIERS].reverse().find((t) => t <= lifetimeGmv) ?? 0;
+  const toGo = nextTier ? nextTier - lifetimeGmv : 0;
+  const fraction = nextTier ? (lifetimeGmv - prevTier) / (nextTier - prevTier) : 1;
+
   return (
-    <div className="rounded-xl p-5 border border-primary/20 bg-primary/5 shadow-[var(--pulse-elev-1)]">
-      <div className="flex gap-3 items-start">
-        <div className="h-9 w-9 rounded-xl bg-pulse-grad flex items-center justify-center text-white flex-shrink-0">
-          <Lightbulb className="h-5 w-5" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="font-bold text-foreground">{nudge.headline}</p>
-          <p className="text-sm text-muted-foreground mt-1">{nudge.detail}</p>
-          {nudge.cta && (
-            <Link
-              href={nudge.cta.href}
-              className="inline-flex items-center gap-1 mt-2 text-sm font-semibold text-primary hover:underline"
-            >
-              {nudge.cta.label} <ArrowRight className="h-3.5 w-3.5" />
-            </Link>
-          )}
-        </div>
-      </div>
-    </div>
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">🏆 Next milestone</CardTitle>
+        <Badge variant="neutral" size="sm">All-time</Badge>
+      </CardHeader>
+      <CardContent>
+        {nextTier ? (
+          <div className="space-y-3">
+            <p className="text-sm text-foreground">
+              You've driven{' '}
+              <span className="font-bold text-[var(--pulse-pos)]">{fmtCompactCurrency(lifetimeGmv)}</span>{' '}
+              all-time — you're{' '}
+              <span className="font-bold text-primary">{fmtCompactCurrency(toGo)}</span> from the{' '}
+              <span className="font-bold text-foreground">{fmtCompactCurrency(nextTier)} Club</span>.
+            </p>
+            <div className="h-2.5 w-full overflow-hidden rounded-full bg-secondary">
+              <div
+                className="h-full rounded-full bg-pulse-grad transition-[width] duration-700"
+                style={{ width: `${Math.min(100, Math.max(2, fraction * 100))}%` }}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Every video you post moves this bar. Keep selling to unlock the next club.
+            </p>
+          </div>
+        ) : (
+          <p className="text-sm text-foreground">
+            {fmtCompactCurrency(lifetimeGmv)} all-time — you've cleared every milestone. Legend. 🐐
+          </p>
+        )}
+      </CardContent>
+    </Card>
   );
 }
+
+// ---- Video columns -------------------------------------------------------
 
 function VideoColumn({
   title,
@@ -414,30 +591,23 @@ function VideoRow({
   );
 }
 
-function QuickAction({
-  href,
-  icon,
-  label,
-  subtitle,
-}: {
-  href: string;
-  icon: React.ReactNode;
-  label: string;
-  subtitle: string;
-}) {
+// ---- Support handoff -----------------------------------------------------
+
+function ManagerHandoff() {
   return (
-    <Link href={href} className="block">
-      <Card className="p-4 hover:shadow-[var(--pulse-elev-2)] hover:-translate-y-0.5 transition-all">
+    <a href={DISCORD_SUPPORT_URL} target="_blank" rel="noopener noreferrer" className="block">
+      <Card className="p-4 transition-all hover:-translate-y-0.5 hover:shadow-[var(--pulse-elev-2)]">
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl bg-secondary flex items-center justify-center text-primary flex-shrink-0">
-            {icon}
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-secondary text-primary">
+            <MessageCircle className="h-5 w-5" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-bold text-foreground">Questions about your brands or payouts?</p>
+            <p className="text-xs text-muted-foreground">Message your Creator's Corner manager on Discord.</p>
           </div>
-          <div className="min-w-0">
-            <p className="text-sm font-bold text-foreground">{label}</p>
-            <p className="text-xs text-muted-foreground truncate">{subtitle}</p>
-          </div>
+          <ArrowRight className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
         </div>
       </Card>
-    </Link>
+    </a>
   );
 }

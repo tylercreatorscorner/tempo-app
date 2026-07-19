@@ -833,6 +833,45 @@ export async function getBrandRankings(
   return result;
 }
 
+export interface RankChase {
+  brandSlug: string | null;
+  myRank: number;
+  total: number; // size of the ranked pool (floor — capped by getBrandRankings)
+  gmv: number;
+  /** The creator one spot above (null if the creator is #1). */
+  above: { name: string; gmv: number; gap: number } | null;
+}
+
+/**
+ * The 3-rung "catch the creator above you" chase for one brand: the creator's
+ * rank + the creator one spot up with the closeable GMV gap. Built on
+ * getBrandRankings (owner-approved to show other creators' names + GMV).
+ */
+export async function getRankChase(
+  handles: string[],
+  brandSlug: string | null,
+  window: DateWindow,
+): Promise<RankChase | null> {
+  if (handles.length === 0) return null;
+  const rankings = await getBrandRankings(brandSlug, window, handles, 200);
+  const me = rankings.find((r) => r.isMe);
+  if (!me || me.gmv <= 0) return null; // no standing without any GMV
+  const above = rankings.find((r) => r.rank === me.rank - 1) ?? null;
+  return {
+    brandSlug,
+    myRank: me.rank,
+    total: rankings.length,
+    gmv: me.gmv,
+    above: above
+      ? {
+          name: above.realName || `@${above.tiktokUsername}`,
+          gmv: above.gmv,
+          gap: Math.max(0, above.gmv - me.gmv),
+        }
+      : null,
+  };
+}
+
 /** Network-wide top videos (for Inspiration). */
 export async function getInspirationVideos(
   brandSlug: string | null,
@@ -998,6 +1037,130 @@ export function buildCoachingNudge(args: {
   }
 
   return null;
+}
+
+export interface CreatorAction {
+  kind: 'no_post' | 'pace_behind' | 'rank_gap' | 'hot_video' | 'streak';
+  tone: 'urgent' | 'opportunity' | 'positive';
+  headline: string;
+  detail: string;
+  cta?: { label: string; href: string };
+  /** Higher = surfaced first. Roughly "dollars / retainer at stake". */
+  score: number;
+}
+
+/**
+ * "Your next moves" — a scored, deduped stack of up to 3 concrete, data-backed
+ * actions, each with a real CTA. Replaces the single-nudge engine: instead of
+ * showing one of four hardcoded rules, it scores every applicable signal by
+ * dollars/retainer at stake and returns the top few. Every branch has a
+ * destination — no dead-ends.
+ */
+export function buildActionStack(args: {
+  monthVideos: number;
+  monthlyTarget: number;
+  streak: number;
+  topVideo: CreatorVideoRow | null;
+  summary: CreatorSummary;
+  daysLeftInMonth: number;
+  brands: BrandBreakdownRow[];
+  rankChase: RankChase | null;
+}): CreatorAction[] {
+  const { monthVideos, monthlyTarget, streak, topVideo, summary, daysLeftInMonth, brands, rankChase } = args;
+  const actions: CreatorAction[] = [];
+  const DISCOVER = '/creator-dashboard/discover';
+
+  // Hasn't posted at all in the window — the most urgent state.
+  if (summary.videoCount === 0) {
+    actions.push({
+      kind: 'no_post',
+      tone: 'urgent',
+      headline: `You haven't posted this period`,
+      detail: `Momentum fades fast. Browse what's winning across the network and get one up today.`,
+      cta: { label: 'Find something to post', href: DISCOVER },
+      score: 1000,
+    });
+  }
+
+  // Per-brand retainer pace — specific to the brand whose retainer is at risk.
+  const contracted = brands.filter((b) => b.retainer > 0 && b.monthlyPostRequirement > 0);
+  for (const b of contracted) {
+    const posted = b.postsThisMonth ?? 0;
+    const behind = b.monthlyPostRequirement - posted;
+    if (behind <= 0) continue;
+    const perDay = daysLeftInMonth > 0 ? Math.ceil(behind / daysLeftInMonth) : behind;
+    actions.push({
+      kind: 'pace_behind',
+      tone: 'urgent',
+      headline: `Protect your ${b.brandDisplayName} retainer`,
+      detail: `${behind} more post${behind === 1 ? '' : 's'} this month fully earns your ${formatMoney(b.retainer)}/mo${daysLeftInMonth > 0 ? ` — about ${perDay}/day for ${daysLeftInMonth} day${daysLeftInMonth === 1 ? '' : 's'}` : ''}.`,
+      cta: { label: 'Find inspiration', href: DISCOVER },
+      // Dollars at stake = the retainer; nudged up as the gap widens.
+      score: b.retainer + behind * 15,
+    });
+  }
+  // Aggregate fallback if we have a target but no per-brand rows resolved.
+  if (contracted.length === 0 && monthlyTarget > 0) {
+    const behind = monthlyTarget - monthVideos;
+    if (behind > 0) {
+      const perDay = daysLeftInMonth > 0 ? Math.ceil(behind / daysLeftInMonth) : behind;
+      actions.push({
+        kind: 'pace_behind',
+        tone: 'urgent',
+        headline: `You're behind retainer pace`,
+        detail: `${behind} more post${behind === 1 ? '' : 's'} this month${daysLeftInMonth > 0 ? ` — about ${perDay}/day for ${daysLeftInMonth} day${daysLeftInMonth === 1 ? '' : 's'}` : ''}.`,
+        cta: { label: 'Find inspiration', href: DISCOVER },
+        score: 500 + behind * 15,
+      });
+    }
+  }
+
+  // Catch the creator one rank above — competitive pull.
+  if (rankChase?.above && rankChase.above.gap > 0) {
+    const avgPerVideo = summary.totalGmv / Math.max(1, summary.videoCount);
+    const vids = avgPerVideo > 0 ? Math.max(1, Math.ceil(rankChase.above.gap / avgPerVideo)) : null;
+    actions.push({
+      kind: 'rank_gap',
+      tone: 'opportunity',
+      headline: `Catch ${rankChase.above.name} for #${rankChase.myRank - 1}`,
+      detail: `You're ${formatMoney(rankChase.above.gap)} behind${vids ? ` — about ${vids} video${vids === 1 ? '' : 's'} at your average` : ''}. You're currently #${rankChase.myRank}.`,
+      cta: { label: 'See the leaderboard', href: '/creator-dashboard/rankings' },
+      // Closer gaps score higher (more beatable).
+      score: 350 + Math.max(0, 150 - rankChase.above.gap / 20),
+    });
+  }
+
+  // A proven winner — re-hit it while the audience/algorithm still favor it.
+  if (topVideo && summary.videoCount > 0) {
+    const avgPerVideo = summary.totalGmv / Math.max(1, summary.videoCount);
+    if (topVideo.gmv >= avgPerVideo * 2.5 && topVideo.gmv >= 200) {
+      const mult = (topVideo.gmv / Math.max(1, avgPerVideo)).toFixed(1);
+      const subject = topVideo.topProduct || `"${truncate(topVideo.videoTitle, 44)}"`;
+      actions.push({
+        kind: 'hot_video',
+        tone: 'opportunity',
+        headline: `Re-hit ${subject}`,
+        detail: `Your "${truncate(topVideo.videoTitle, 50)}" did ${formatMoney(topVideo.gmv)} — ${mult}× your average. A follow-up is your highest-odds next post.`,
+        cta: topVideo.videoUrl
+          ? { label: 'Rewatch it', href: topVideo.videoUrl }
+          : { label: 'Find inspiration', href: DISCOVER },
+        score: Math.min(300, topVideo.gmv / 10),
+      });
+    }
+  }
+
+  // Positive reinforcement — lowest priority, only if nothing more urgent fills the slot.
+  if (streak >= 7) {
+    actions.push({
+      kind: 'streak',
+      tone: 'positive',
+      headline: `${streak}-day posting streak 🔥`,
+      detail: `Consistency compounds — every post keeps you in the algorithm. Don't break it today.`,
+      score: 40,
+    });
+  }
+
+  return actions.sort((a, b) => b.score - a.score).slice(0, 3);
 }
 
 function truncate(s: string, n: number) {
