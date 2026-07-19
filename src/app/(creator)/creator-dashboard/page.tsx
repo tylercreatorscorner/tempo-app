@@ -6,6 +6,7 @@ import {
   getCreatorLifetimeGmv,
   getCreatorStreak,
   getCreatorTopVideos,
+  getCreatorTopProducts,
   getInspirationVideos,
   getMonthVideoCount,
   getRankChase,
@@ -50,11 +51,12 @@ export default async function CreatorHomePage({
     profile.brandSlugs[0] ??
     null;
 
-  const [summary, streak, topVideos, inspiration, monthVideos, lifetimeGmv, rankChase, contractedPosts] =
+  const [summary, streak, topVideos, topProducts, inspiration, monthVideos, lifetimeGmv, rankChase, contractedPosts] =
     await Promise.all([
       getCreatorSummary(profile.handles, profile.currentBrand, window).catch(() => null),
       getCreatorStreak(profile.handles, profile.currentBrand).catch(() => 0),
       getCreatorTopVideos(profile.handles, profile.currentBrand, window, 6).catch(() => []),
+      getCreatorTopProducts(profile.handles, profile.currentBrand, window, 5).catch(() => []),
       getInspirationVideos(profile.currentBrand, window, 6).catch(() => []),
       getMonthVideoCount(profile.handles, profile.currentBrand).catch(() => 0),
       getCreatorLifetimeGmv(profile.handles, profile.currentBrand).catch(() => null),
@@ -115,6 +117,7 @@ export default async function CreatorHomePage({
       monthlyTarget={monthlyTarget}
       daysLeftInMonth={daysLeftInMonth}
       topVideos={topVideos}
+      topProducts={topProducts}
       inspiration={inspiration}
       actions={actions}
       rankChase={rankChase}

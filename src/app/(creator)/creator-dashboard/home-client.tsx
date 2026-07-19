@@ -7,6 +7,7 @@ import {
   Crown,
   Flame,
   MessageCircle,
+  Package,
   Sparkles,
   Target,
   TrendingDown,
@@ -27,6 +28,7 @@ import { Gauge } from '@/components/charts/gauge';
 import { fmtCompactCurrency } from '@/components/charts/format';
 import type {
   CreatorAction,
+  CreatorProductRow,
   CreatorSummary,
   CreatorVideoRow,
   RankChase,
@@ -53,6 +55,7 @@ interface Props {
   monthlyTarget: number;
   daysLeftInMonth: number;
   topVideos: CreatorVideoRow[];
+  topProducts: CreatorProductRow[];
   inspiration: (CreatorVideoRow & { isMine: boolean })[];
   actions: CreatorAction[];
   rankChase: RankChase | null;
@@ -73,9 +76,14 @@ export function HomeClient(props: Props) {
     monthlyTarget,
     daysLeftInMonth,
     topVideos,
+    topProducts,
     inspiration,
     actions,
   } = props;
+
+  // Products the creator actually sells — used to flag "You sell this" on the
+  // network-winners list (turns inspiration into a targeted action).
+  const sellableProducts = new Set(topProducts.map((p) => p.productName.toLowerCase()));
 
   const router = useRouter();
   const params = useSearchParams();
@@ -177,12 +185,16 @@ export function HomeClient(props: Props) {
         <MilestoneGoal lifetimeGmv={lifetimeGmv} />
       )}
 
+      {/* Your money-makers — which products convert into the most GMV. */}
+      {topProducts.length > 0 && <MoneyMakers products={topProducts} rangeDays={rangeDays} />}
+
       {/* Two-column: Your top videos + What's winning */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <VideoColumn
           title={`Your top videos (${rangeDays}d)`}
           icon={<Trophy className="h-4 w-4" />}
           videos={topVideos}
+          showCooling
           empty={
             <EmptyState
               icon={<Video className="h-8 w-8" />}
@@ -217,6 +229,7 @@ export function HomeClient(props: Props) {
           ctaHref="/creator-dashboard/discover"
           ctaLabel="Browse inspiration"
           showCreator
+          sellableProducts={sellableProducts}
         />
       </div>
 
@@ -385,7 +398,11 @@ function RetainerPace({
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">🎯 Retainer pace</CardTitle>
-        <Badge variant="neutral" size="sm">This month</Badge>
+        {onTrack ? (
+          <Badge variant="positive" size="sm">Quota met 🎉</Badge>
+        ) : (
+          <Badge variant="neutral" size="sm">This month</Badge>
+        )}
       </CardHeader>
       <CardContent>
         <div className="flex items-center gap-6 flex-wrap">
@@ -393,16 +410,19 @@ function RetainerPace({
             fraction={fraction}
             size={128}
             label={<NumberTicker value={monthVideos} className="text-foreground" />}
-            sublabel={`of ${monthlyTarget}`}
+            sublabel={onTrack ? 'quota met ✓' : `of ${monthlyTarget}`}
             color={onTrack ? 'var(--pulse-pos)' : 'var(--primary)'}
           />
           <div className="flex-1 min-w-[220px] space-y-3 text-sm">
             <div className="space-y-2">
-              <PaceRow label="Videos posted" value={`${monthVideos} / ${monthlyTarget}`} />
+              <PaceRow
+                label="Videos posted"
+                value={`${monthVideos} / ${monthlyTarget}${onTrack ? ' ✓' : ''}`}
+              />
               <PaceRow label="Days left" value={String(daysLeftInMonth)} />
               <PaceRow
-                label={onTrack ? 'Status' : 'Daily pace needed'}
-                value={onTrack ? 'On track ✓' : `${dailyPace}/day`}
+                label="Status"
+                value={onTrack ? 'Quota crushed 🎉' : `${dailyPace}/day needed`}
                 emphasis
               />
               {retainerTotal > 0 && (
@@ -484,6 +504,61 @@ function MilestoneGoal({ lifetimeGmv }: { lifetimeGmv: number | null }) {
   );
 }
 
+// ---- Money-makers --------------------------------------------------------
+
+function MoneyMakers({ products, rangeDays }: { products: CreatorProductRow[]; rangeDays: number }) {
+  const rows = products.slice(0, 5);
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <span className="text-primary">
+            <Package className="h-4 w-4" />
+          </span>
+          Your money-makers ({rangeDays}d)
+        </CardTitle>
+        <Link
+          href="/creator-dashboard/stats"
+          className="text-xs font-semibold text-primary hover:underline whitespace-nowrap"
+        >
+          See all →
+        </Link>
+      </CardHeader>
+      <CardContent className="pt-0">
+        <ul className="divide-y divide-border">
+          {rows.map((p, i) => (
+            <li key={p.productName} className="flex items-center gap-3 py-2.5">
+              <DataAvatar>{i + 1}</DataAvatar>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-foreground">{p.productName}</p>
+                <p className="text-xs tabular-nums text-muted-foreground">
+                  {p.orders.toLocaleString()} orders
+                </p>
+              </div>
+              <div className="flex-shrink-0 text-right">
+                <p className="text-sm font-bold tabular-nums text-[var(--pulse-pos)]">
+                  {fmtCompactCurrency(p.gmv)}
+                </p>
+                {p.gmvChangePct != null && (
+                  <p
+                    className="whitespace-nowrap text-xs tabular-nums"
+                    style={{
+                      color: p.gmvChangePct >= 0 ? 'var(--pulse-pos)' : 'var(--pulse-warn)',
+                    }}
+                  >
+                    {p.gmvChangePct >= 0 ? '▲' : '▼'}
+                    {Math.abs(Math.round(p.gmvChangePct))}% vs prior
+                  </p>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
+  );
+}
+
 // ---- Video columns -------------------------------------------------------
 
 function VideoColumn({
@@ -494,6 +569,8 @@ function VideoColumn({
   ctaHref,
   ctaLabel,
   showCreator,
+  showCooling,
+  sellableProducts,
 }: {
   title: string;
   icon: React.ReactNode;
@@ -502,6 +579,8 @@ function VideoColumn({
   ctaHref: string;
   ctaLabel: string;
   showCreator?: boolean;
+  showCooling?: boolean;
+  sellableProducts?: Set<string>;
 }) {
   const rows = videos.slice(0, 5);
   return (
@@ -521,7 +600,20 @@ function VideoColumn({
         ) : (
           <ul className="divide-y divide-border">
             {rows.map((v, i) => (
-              <VideoRow key={v.videoId} video={v} rank={i + 1} showCreator={showCreator} />
+              <VideoRow
+                key={v.videoId}
+                video={v}
+                rank={i + 1}
+                showCreator={showCreator}
+                cooling={
+                  !!showCooling &&
+                  v.priorGmv != null &&
+                  v.recentGmv != null &&
+                  v.priorGmv >= 200 &&
+                  v.recentGmv < v.priorGmv * 0.5
+                }
+                sells={!!sellableProducts?.has((v.topProduct ?? '').toLowerCase())}
+              />
             ))}
           </ul>
         )}
@@ -534,10 +626,14 @@ function VideoRow({
   video,
   rank,
   showCreator,
+  cooling,
+  sells,
 }: {
   video: CreatorVideoRow & { isMine?: boolean };
   rank: number;
   showCreator?: boolean;
+  cooling?: boolean;
+  sells?: boolean;
 }) {
   const titleNode = video.videoUrl ? (
     <a
@@ -565,6 +661,16 @@ function VideoRow({
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 text-sm">
           <span className="min-w-0 flex-1 truncate">{titleNode}</span>
+          {cooling && (
+            <span className="flex-shrink-0">
+              <Badge variant="warning" size="sm">Cooling</Badge>
+            </span>
+          )}
+          {sells && (
+            <span className="flex-shrink-0">
+              <Badge variant="positive" size="sm">You sell this</Badge>
+            </span>
+          )}
           {video.isMine && (
             <span className="flex-shrink-0">
               <Tag>You</Tag>

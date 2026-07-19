@@ -79,6 +79,18 @@ export interface CreatorVideoRow {
   commission: number;
   daysActive: number;
   topProduct: string | null;
+  /** GMV in the recent vs prior half of the window — for the cooling-winner
+   *  detector (a video that was earning but is now fading). */
+  recentGmv?: number;
+  priorGmv?: number;
+}
+
+export interface CreatorProductRow {
+  productName: string;
+  gmv: number;
+  orders: number;
+  commission: number;
+  gmvChangePct: number | null;
 }
 
 export interface CreatorDailyPoint {
@@ -514,6 +526,73 @@ export async function getCreatorLifetimeGmv(
   return gmv;
 }
 
+/** The YYYY-MM-DD halfway between two date strings (inclusive window). */
+function midpointDate(start: string, end: string): string {
+  const s = new Date(start + 'T00:00:00Z').getTime();
+  const e = new Date(end + 'T00:00:00Z').getTime();
+  return new Date(s + (e - s) / 2).toISOString().slice(0, 10);
+}
+
+/**
+ * The creator's top products by GMV over the window (their money-makers), with a
+ * prior-equal-period delta. Aggregates daily_video_product_stats by product_name.
+ */
+export async function getCreatorTopProducts(
+  handles: string[],
+  brandSlug: string | null,
+  window: DateWindow,
+  limit = 5,
+): Promise<CreatorProductRow[]> {
+  if (handles.length === 0) return [];
+  const supabase = await createAdminClient();
+  const reg = await getBrandRegistry();
+  const brandUuid = brandFilter(reg, brandSlug);
+  const prior = priorWindow(window);
+
+  const read = (start: string, end: string) => {
+    const f: { column: string; op: 'eq' | 'in' | 'gte' | 'lte'; value: any }[] = [
+      { column: 'tiktok_username', op: 'in', value: handles },
+      { column: 'report_date', op: 'gte', value: start },
+      { column: 'report_date', op: 'lte', value: end },
+    ];
+    if (brandUuid) f.push({ column: 'brand_id', op: 'in', value: brandUuid });
+    return paginated(supabase, 'daily_video_product_stats', 'product_name, gmv, orders, est_commission', f);
+  };
+
+  const [rows, priorRows] = await Promise.all([
+    read(window.start, window.end),
+    read(prior.start, prior.end),
+  ]);
+
+  type Acc = { gmv: number; orders: number; commission: number };
+  const cur = new Map<string, Acc>();
+  for (const r of rows) {
+    const name = r.product_name;
+    if (!name) continue;
+    const a = cur.get(name) ?? { gmv: 0, orders: 0, commission: 0 };
+    a.gmv += Number(r.gmv) || 0;
+    a.orders += Number(r.orders) || 0;
+    a.commission += Number(r.est_commission) || 0;
+    cur.set(name, a);
+  }
+  const priorGmv = new Map<string, number>();
+  for (const r of priorRows) {
+    if (!r.product_name) continue;
+    priorGmv.set(r.product_name, (priorGmv.get(r.product_name) ?? 0) + (Number(r.gmv) || 0));
+  }
+
+  return Array.from(cur.entries())
+    .map(([productName, a]) => ({
+      productName,
+      gmv: a.gmv,
+      orders: a.orders,
+      commission: a.commission,
+      gmvChangePct: pctChange(a.gmv, priorGmv.get(productName) ?? 0),
+    }))
+    .sort((a, b) => b.gmv - a.gmv)
+    .slice(0, limit);
+}
+
 /** Top videos for a creator in a window. */
 export async function getCreatorTopVideos(
   handles: string[],
@@ -540,6 +619,9 @@ export async function getCreatorTopVideos(
     filters
   );
 
+  // Split date: gmv on/after `mid` is "recent", before is "prior" — for cooling.
+  const mid = midpointDate(window.start, window.end);
+
   type Acc = {
     videoId: string;
     title: string;
@@ -551,6 +633,8 @@ export async function getCreatorTopVideos(
     orders: number;
     itemsSold: number;
     commission: number;
+    recentGmv: number;
+    priorGmv: number;
     days: Set<string>;
     productGmv: Map<string, number>;
   };
@@ -569,13 +653,18 @@ export async function getCreatorTopVideos(
         orders: 0,
         itemsSold: 0,
         commission: 0,
+        recentGmv: 0,
+        priorGmv: 0,
         days: new Set<string>(),
         productGmv: new Map<string, number>(),
       } satisfies Acc);
-    slot.gmv += Number(r.gmv) || 0;
+    const g = Number(r.gmv) || 0;
+    slot.gmv += g;
     slot.orders += Number(r.orders) || 0;
     slot.itemsSold += Number(r.items_sold) || 0;
     slot.commission += Number(r.est_commission) || 0;
+    if (r.report_date >= mid) slot.recentGmv += g;
+    else slot.priorGmv += g;
     slot.days.add(r.report_date);
     if (r.product_name) {
       slot.productGmv.set(
@@ -608,6 +697,8 @@ export async function getCreatorTopVideos(
       commission: v.commission,
       daysActive: v.days.size,
       topProduct,
+      recentGmv: v.recentGmv,
+      priorGmv: v.priorGmv,
     };
   });
   out.sort((a, b) => b.gmv - a.gmv);
@@ -1131,21 +1222,41 @@ export function buildActionStack(args: {
   }
 
   // A proven winner — re-hit it while the audience/algorithm still favor it.
+  // If it's actively COOLING (recent-half GMV well below the prior half), that's
+  // more urgent: catch the residual demand before it dies.
   if (topVideo && summary.videoCount > 0) {
     const avgPerVideo = summary.totalGmv / Math.max(1, summary.videoCount);
     if (topVideo.gmv >= avgPerVideo * 2.5 && topVideo.gmv >= 200) {
       const mult = (topVideo.gmv / Math.max(1, avgPerVideo)).toFixed(1);
       const subject = topVideo.topProduct || `"${truncate(topVideo.videoTitle, 44)}"`;
-      actions.push({
-        kind: 'hot_video',
-        tone: 'opportunity',
-        headline: `Re-hit ${subject}`,
-        detail: `Your "${truncate(topVideo.videoTitle, 50)}" did ${formatMoney(topVideo.gmv)} — ${mult}× your average. A follow-up is your highest-odds next post.`,
-        cta: topVideo.videoUrl
-          ? { label: 'Rewatch it', href: topVideo.videoUrl }
-          : { label: 'Find inspiration', href: DISCOVER },
-        score: Math.min(300, topVideo.gmv / 10),
-      });
+      const cooling =
+        topVideo.priorGmv != null &&
+        topVideo.recentGmv != null &&
+        topVideo.priorGmv >= 200 &&
+        topVideo.recentGmv < topVideo.priorGmv * 0.5;
+      const cta = topVideo.videoUrl
+        ? { label: 'Rewatch it', href: topVideo.videoUrl }
+        : { label: 'Find inspiration', href: DISCOVER };
+      if (cooling) {
+        const drop = Math.round((1 - topVideo.recentGmv! / topVideo.priorGmv!) * 100);
+        actions.push({
+          kind: 'hot_video',
+          tone: 'urgent',
+          headline: `Your ${subject} winner is cooling`,
+          detail: `"${truncate(topVideo.videoTitle, 50)}" did ${formatMoney(topVideo.gmv)} but has slowed ${drop}%. Shoot a v2 now to catch the last of the demand.`,
+          cta,
+          score: 420 + topVideo.gmv / 20,
+        });
+      } else {
+        actions.push({
+          kind: 'hot_video',
+          tone: 'opportunity',
+          headline: `Re-hit ${subject}`,
+          detail: `Your "${truncate(topVideo.videoTitle, 50)}" did ${formatMoney(topVideo.gmv)} — ${mult}× your average. A follow-up is your highest-odds next post.`,
+          cta,
+          score: Math.min(300, topVideo.gmv / 10),
+        });
+      }
     }
   }
 
