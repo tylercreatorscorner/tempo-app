@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
 import {
   ArrowRight,
   Crown,
@@ -16,7 +15,7 @@ import {
   Video,
 } from 'lucide-react';
 import { StatCard } from '@/components/ui/stat-card';
-import { RangePicker } from '@/components/creator/range-picker';
+import { DateRangePicker } from '@/components/dashboard/date-range-picker';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { DataAvatar } from '@/components/ui/table';
@@ -45,7 +44,7 @@ interface Props {
   handles: string[];
   currentBrand: string | null;
   currentBrandDisplay: string | null;
-  rangeDays: number;
+  rangeLabel: string;
   summary: CreatorSummary | null;
   lifetimeGmv: number | null;
   retainerTotal: number;
@@ -65,7 +64,7 @@ export function HomeClient(props: Props) {
   const {
     realName,
     currentBrandDisplay,
-    rangeDays,
+    rangeLabel,
     summary,
     lifetimeGmv,
     retainerTotal,
@@ -83,14 +82,6 @@ export function HomeClient(props: Props) {
   // network-winners list (turns inspiration into a targeted action).
   const sellableProducts = new Set(topProducts.map((p) => p.productName.toLowerCase()));
 
-  const router = useRouter();
-  const params = useSearchParams();
-  const setRange = (n: number) => {
-    const next = new URLSearchParams(params?.toString() ?? '');
-    next.set('range', String(n));
-    router.push(`/creator-dashboard?${next.toString()}`);
-  };
-
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 
@@ -106,23 +97,18 @@ export function HomeClient(props: Props) {
         subtitle={
           currentBrandDisplay ? (
             <>
-              Showing <span className="font-semibold text-foreground">{currentBrandDisplay}</span> · last{' '}
-              {rangeDays} days
+              Showing <span className="font-semibold text-foreground">{currentBrandDisplay}</span> ·{' '}
+              {rangeLabel}
             </>
           ) : (
-            <>Last {rangeDays} days · all brands</>
+            <>{rangeLabel} · all brands</>
           )
         }
-        actions={<RangePicker value={rangeDays} onChange={setRange} />}
+        actions={<DateRangePicker defaultPreset="last30" />}
       />
 
       {/* Momentum story — the north-star line, not just a bare number. */}
-      <MomentumBand
-        summary={summary}
-        rangeDays={rangeDays}
-        retainerTotal={retainerTotal}
-        lifetimeGmv={lifetimeGmv}
-      />
+      <MomentumBand summary={summary} />
 
       {/* Your next moves — the spine of the hub. */}
       {actions.length > 0 && (
@@ -144,22 +130,22 @@ export function HomeClient(props: Props) {
         {/* summary === null means the read FAILED — show "—", never a fake $0. */}
         <StatCard
           hero
-          label={`GMV · ${rangeDays}d`}
+          label="GMV"
           value={summary ? fmtCompactCurrency(summary.totalGmv) : '—'}
           trend={summary?.gmvChangePct ?? undefined}
-          trendLabel={`vs prior ${rangeDays}d`}
+          trendLabel="vs prior period"
         />
         <StatCard
           label="Orders"
           value={summary ? summary.totalOrders.toLocaleString() : '—'}
           trend={summary?.orderChangePct ?? undefined}
-          trendLabel={`vs prior ${rangeDays}d`}
+          trendLabel="vs prior period"
         />
         <StatCard
           label="Videos posted"
           value={summary ? String(summary.videoCount) : '—'}
           trend={summary?.videoChangePct ?? undefined}
-          trendLabel={`vs prior ${rangeDays}d`}
+          trendLabel="vs prior period"
         />
         <StatCard
           label="Day streak"
@@ -183,12 +169,12 @@ export function HomeClient(props: Props) {
       )}
 
       {/* Your money-makers — which products convert into the most GMV. */}
-      {topProducts.length > 0 && <MoneyMakers products={topProducts} rangeDays={rangeDays} />}
+      {topProducts.length > 0 && <MoneyMakers products={topProducts} />}
 
       {/* Two-column: Your top videos + What's winning */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <VideoColumn
-          title={`Your top videos (${rangeDays}d)`}
+          title="Your top videos"
           icon={<Trophy className="h-4 w-4" />}
           videos={topVideos}
           showCooling
@@ -196,7 +182,7 @@ export function HomeClient(props: Props) {
             <EmptyState
               icon={<Video className="h-8 w-8" />}
               title="Your best work will live here"
-              description={`No videos in the last ${rangeDays} days yet. Post something today and watch it climb this list.`}
+              description="No videos in this period yet. Post something today and watch it climb this list."
               action={
                 <Link
                   href="/creator-dashboard/discover"
@@ -238,17 +224,7 @@ export function HomeClient(props: Props) {
 
 // ---- Momentum ------------------------------------------------------------
 
-function MomentumBand({
-  summary,
-  rangeDays,
-  retainerTotal,
-  lifetimeGmv,
-}: {
-  summary: CreatorSummary | null;
-  rangeDays: number;
-  retainerTotal: number;
-  lifetimeGmv: number | null;
-}) {
+function MomentumBand({ summary }: { summary: CreatorSummary | null }) {
   const pct = summary?.gmvChangePct ?? null;
   const up = pct != null && pct >= 5;
   const down = pct != null && pct <= -5;
@@ -258,39 +234,25 @@ function MomentumBand({
   if (!summary || gmv == null) {
     story = 'Your recent momentum will show here.';
   } else if (up) {
-    story = `${gmv} in the last ${rangeDays} days, up ${Math.round(pct!)}% vs the prior period.`;
+    story = `${gmv} this period, up ${Math.round(pct!)}% vs the prior period.`;
   } else if (down) {
-    story = `${gmv} in the last ${rangeDays} days, down ${Math.abs(Math.round(pct!))}% vs the prior period.`;
+    story = `${gmv} this period, down ${Math.abs(Math.round(pct!))}% vs the prior period.`;
   } else {
-    story = `${gmv} in the last ${rangeDays} days${pct != null ? ', holding steady' : ''}.`;
+    story = `${gmv} this period${pct != null ? ', holding steady' : ''}.`;
   }
 
   const Icon = up ? TrendingUp : down ? TrendingDown : Sparkles;
   const tone = up ? 'var(--pulse-pos)' : down ? 'var(--pulse-warn)' : 'var(--primary)';
-  const hasBadges = retainerTotal > 0 || (lifetimeGmv != null && lifetimeGmv > 0);
 
   return (
-    <div className="space-y-2.5">
-      <div className="flex items-start gap-2.5">
-        <span
-          className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg"
-          style={{ backgroundColor: `color-mix(in srgb, ${tone} 14%, transparent)`, color: tone }}
-        >
-          <Icon className="h-4 w-4" />
-        </span>
-        <p className="text-base font-semibold text-foreground sm:text-lg">{story}</p>
-      </div>
-      {hasBadges && (
-        <div className="flex flex-wrap items-center gap-2 pl-[38px]">
-          {retainerTotal > 0 && (
-            <Badge variant="neutral">{fmtCompactCurrency(retainerTotal)}/mo retainer</Badge>
-          )}
-          {/* lifetimeGmv === null means the read FAILED — show nothing, never fake $0. */}
-          {lifetimeGmv != null && lifetimeGmv > 0 && (
-            <Badge variant="positive">{fmtCompactCurrency(lifetimeGmv)} all-time</Badge>
-          )}
-        </div>
-      )}
+    <div className="flex items-start gap-2.5">
+      <span
+        className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg"
+        style={{ backgroundColor: `color-mix(in srgb, ${tone} 14%, transparent)`, color: tone }}
+      >
+        <Icon className="h-4 w-4" />
+      </span>
+      <p className="text-base font-semibold text-foreground sm:text-lg">{story}</p>
     </div>
   );
 }
@@ -308,61 +270,39 @@ const ACTION_META: Record<
   streak: { icon: Flame },
 };
 
-const TONE_STYLE: Record<CreatorAction['tone'], { wrap: string; chip: string; color: string }> = {
-  urgent: {
-    wrap: 'border-[var(--pulse-warn)]/30 bg-[var(--pulse-warn-bg)]',
-    chip: 'bg-[var(--pulse-warn)]/15',
-    color: 'var(--pulse-warn)',
-  },
-  opportunity: {
-    wrap: 'border-primary/20 bg-primary/5',
-    chip: 'bg-primary/10',
-    color: 'var(--primary)',
-  },
-  positive: {
-    wrap: 'border-[var(--pulse-pos)]/25 bg-[var(--pulse-pos-bg)]',
-    chip: 'bg-[var(--pulse-pos)]/15',
-    color: 'var(--pulse-pos)',
-  },
+const TONE_STYLE: Record<CreatorAction['tone'], { chip: string; color: string }> = {
+  urgent: { chip: 'bg-[var(--pulse-warn)]/12', color: 'var(--pulse-warn)' },
+  opportunity: { chip: 'bg-primary/10', color: 'var(--primary)' },
+  positive: { chip: 'bg-[var(--pulse-pos)]/12', color: 'var(--pulse-pos)' },
 };
 
+/** Subtle neutral card — a small tinted icon carries the tone, not the whole block. */
 function ActionCard({ action }: { action: CreatorAction }) {
   const Icon = ACTION_META[action.kind].icon;
   const t = TONE_STYLE[action.tone];
   const external = action.cta?.href.startsWith('http');
+  const ctaClass = 'mt-1.5 inline-flex items-center gap-1 text-[13px] font-semibold text-primary hover:underline';
   return (
-    <div className={`rounded-xl border p-4 shadow-[var(--pulse-elev-1)] ${t.wrap}`}>
-      <div className="flex items-start gap-3">
-        <span
-          className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg ${t.chip}`}
-          style={{ color: t.color }}
-        >
-          <Icon className="h-5 w-5" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="font-bold text-foreground">{action.headline}</p>
-          <p className="mt-0.5 text-sm text-muted-foreground">{action.detail}</p>
-          {action.cta &&
-            (external ? (
-              <a
-                href={action.cta.href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-2 inline-flex items-center gap-1 text-sm font-semibold hover:underline"
-                style={{ color: t.color }}
-              >
-                {action.cta.label} <ArrowRight className="h-3.5 w-3.5" />
-              </a>
-            ) : (
-              <Link
-                href={action.cta.href}
-                className="mt-2 inline-flex items-center gap-1 text-sm font-semibold hover:underline"
-                style={{ color: t.color }}
-              >
-                {action.cta.label} <ArrowRight className="h-3.5 w-3.5" />
-              </Link>
-            ))}
-        </div>
+    <div className="flex items-start gap-3 rounded-xl border border-border bg-card p-3.5 shadow-[var(--pulse-elev-1)]">
+      <span
+        className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${t.chip}`}
+        style={{ color: t.color }}
+      >
+        <Icon className="h-4 w-4" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold text-foreground">{action.headline}</p>
+        <p className="mt-0.5 text-sm text-muted-foreground">{action.detail}</p>
+        {action.cta &&
+          (external ? (
+            <a href={action.cta.href} target="_blank" rel="noopener noreferrer" className={ctaClass}>
+              {action.cta.label} <ArrowRight className="h-3.5 w-3.5" />
+            </a>
+          ) : (
+            <Link href={action.cta.href} className={ctaClass}>
+              {action.cta.label} <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          ))}
       </div>
     </div>
   );
@@ -510,7 +450,7 @@ function MilestoneGoal({ lifetimeGmv }: { lifetimeGmv: number | null }) {
 
 // ---- Money-makers --------------------------------------------------------
 
-function MoneyMakers({ products, rangeDays }: { products: CreatorProductRow[]; rangeDays: number }) {
+function MoneyMakers({ products }: { products: CreatorProductRow[] }) {
   const rows = products.slice(0, 5);
   return (
     <Card>
@@ -519,7 +459,7 @@ function MoneyMakers({ products, rangeDays }: { products: CreatorProductRow[]; r
           <span className="text-primary">
             <Package className="h-4 w-4" />
           </span>
-          Your money-makers ({rangeDays}d)
+          Your money-makers
         </CardTitle>
         <Link
           href="/creator-dashboard/stats"

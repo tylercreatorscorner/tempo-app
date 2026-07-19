@@ -1,16 +1,13 @@
 import { redirect } from 'next/navigation';
 import { getCreatorSession, getCurrentBrandCookie } from '@/lib/auth/creator-auth';
-import {
-  loadCreatorPortalProfile,
-  getBrandRankings,
-  dateWindow,
-} from '@/lib/data/creator-portal';
+import { loadCreatorPortalProfile, getBrandRankings } from '@/lib/data/creator-portal';
+import { resolveCreatorRange } from '@/lib/creator/range';
 import { RankingsClient } from './rankings-client';
 
 export default async function RankingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ range?: string }>;
+  searchParams: Promise<{ range?: string; start?: string; end?: string }>;
 }) {
   const session = await getCreatorSession();
   if (!session) redirect('/creator-login');
@@ -19,14 +16,20 @@ export default async function RankingsPage({
   const profile = await loadCreatorPortalProfile(String(session.creatorId), brandCookie);
   if (!profile) redirect('/creator-login');
 
-  const params = await searchParams;
-  const rangeDays = parseRange(params.range);
-  const window = dateWindow(rangeDays);
-  const priorWin = dateWindow(rangeDays, (() => {
-    const d = new Date();
-    d.setDate(d.getDate() - rangeDays);
-    return d;
-  })());
+  const { window, rangeLabel } = resolveCreatorRange(await searchParams);
+  // Prior equal-length window immediately before, for the ↑↓ rank deltas.
+  const priorWin = (() => {
+    const DAY = 86400000;
+    const s = new Date(window.start + 'T00:00:00Z').getTime();
+    const e = new Date(window.end + 'T00:00:00Z').getTime();
+    const len = Math.round((e - s) / DAY) + 1;
+    const priorEnd = s - DAY;
+    const priorStart = priorEnd - (len - 1) * DAY;
+    return {
+      start: new Date(priorStart).toISOString().slice(0, 10),
+      end: new Date(priorEnd).toISOString().slice(0, 10),
+    };
+  })();
 
   const [current, prior] = await Promise.all([
     getBrandRankings(profile.currentBrand, window, profile.handles, 50).catch(() => []),
@@ -48,14 +51,8 @@ export default async function RankingsPage({
           ? profile.contracts.find((c) => c.brandSlug === profile.currentBrand)?.brandDisplayName ?? profile.currentBrand
           : null
       }
-      rangeDays={rangeDays}
+      rangeLabel={rangeLabel}
       rankings={decorated}
     />
   );
-}
-
-function parseRange(raw: string | undefined): number {
-  const n = Number(raw);
-  if ([7, 30, 90].includes(n)) return n;
-  return 7;
 }

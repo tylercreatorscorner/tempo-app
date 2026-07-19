@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils';
  * Pulse mockup's `.chip` selector (one small pill, not a wide button bar), and
  * is the shared date control across the admin cockpit.
  */
-export function DateRangePicker() {
+export function DateRangePicker({ defaultPreset = 'last7' }: { defaultPreset?: DatePreset } = {}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   // The shell's shared transition, not a local one: this push invalidates every
@@ -26,7 +26,7 @@ export function DateRangePicker() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
-  const current     = (searchParams.get('range') as DatePreset) || 'last7';
+  const current     = (searchParams.get('range') as DatePreset) || defaultPreset;
   const customStart = searchParams.get('start');
   const customEnd   = searchParams.get('end');
   const isCustom    = current === 'custom' && !!customStart && !!customEnd;
@@ -72,7 +72,7 @@ export function DateRangePicker() {
     return `${parseInt(m)}/${parseInt(d)}/${y.slice(2)}`;
   };
   const currentLabel = isCustom
-    ? `${fmtCustom(customStart!)} – ${fmtCustom(customEnd!)}`
+    ? `${fmtCustom(customStart!)} to ${fmtCustom(customEnd!)}`
     : DATE_PRESETS.find((p) => p.value === current)?.label ?? 'Last 7 Days';
 
   return (

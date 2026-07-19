@@ -5,15 +5,14 @@ import {
   getCreatorSummary,
   getCreatorDailySeries,
   getCreatorTopVideos,
-  dateWindow,
 } from '@/lib/data/creator-portal';
 import { PerformanceClient } from './performance-client';
-import { parseRange } from '@/lib/creator/range';
+import { resolveCreatorRange } from '@/lib/creator/range';
 
 export default async function PerformancePage({
   searchParams,
 }: {
-  searchParams: Promise<{ range?: string }>;
+  searchParams: Promise<{ range?: string; start?: string; end?: string }>;
 }) {
   const session = await getCreatorSession();
   if (!session) redirect('/creator-login');
@@ -22,9 +21,7 @@ export default async function PerformancePage({
   const profile = await loadCreatorPortalProfile(String(session.creatorId), brandCookie);
   if (!profile) redirect('/creator-login');
 
-  const params = await searchParams;
-  const rangeDays = parseRange(params.range, 30);
-  const window = dateWindow(rangeDays);
+  const { window, rangeLabel } = resolveCreatorRange(await searchParams);
 
   const [summary, daily, topVideos] = await Promise.all([
     getCreatorSummary(profile.handles, profile.currentBrand, window).catch(() => null),
@@ -41,7 +38,7 @@ export default async function PerformancePage({
           ? profile.contracts.find((c) => c.brandSlug === profile.currentBrand)?.brandDisplayName ?? profile.currentBrand
           : null
       }
-      rangeDays={rangeDays}
+      rangeLabel={rangeLabel}
       summary={summary}
       daily={daily}
       topVideos={topVideos}

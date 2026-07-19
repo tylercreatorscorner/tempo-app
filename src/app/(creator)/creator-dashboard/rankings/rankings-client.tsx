@@ -1,6 +1,5 @@
 'use client';
 
-import { useRouter, useSearchParams } from 'next/navigation';
 import { Trophy, Info } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { StatCard } from '@/components/ui/stat-card';
@@ -9,7 +8,7 @@ import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/empty-state';
 import { NumberTicker } from '@/components/ui/number-ticker';
-import { RangePicker } from '@/components/creator/range-picker';
+import { DateRangePicker } from '@/components/dashboard/date-range-picker';
 import { Gauge } from '@/components/charts/gauge';
 import { fmtCompactCurrency } from '@/components/charts/format';
 import { cn } from '@/lib/utils';
@@ -20,22 +19,13 @@ type RowWithDelta = RankingEntry & { priorRank: number | null };
 interface Props {
   currentBrand: string | null;
   currentBrandDisplay: string | null;
-  rangeDays: number;
+  rangeLabel: string;
   rankings: RowWithDelta[];
 }
 
 const MEDALS = ['🥇', '🥈', '🥉'];
 
-export function RankingsClient({ currentBrand, currentBrandDisplay, rangeDays, rankings }: Props) {
-  const router = useRouter();
-  const params = useSearchParams();
-
-  const setRange = (n: number) => {
-    const next = new URLSearchParams(params?.toString() ?? '');
-    next.set('range', String(n));
-    router.push(`/creator-dashboard/rankings?${next.toString()}`);
-  };
-
+export function RankingsClient({ currentBrand, currentBrandDisplay, rangeLabel, rankings }: Props) {
   const myEntries = rankings.filter((r) => r.isMe);
   const myBest = myEntries.length > 0 ? myEntries.reduce((a, b) => (a.rank < b.rank ? a : b)) : null;
 
@@ -54,14 +44,14 @@ export function RankingsClient({ currentBrand, currentBrandDisplay, rangeDays, r
         subtitle={
           currentBrandDisplay ? (
             <>
-              Where you stack up on <span className="font-medium text-foreground">{currentBrandDisplay}</span> · last{' '}
-              {rangeDays} days
+              Where you stack up on <span className="font-medium text-foreground">{currentBrandDisplay}</span> ·{' '}
+              {rangeLabel}
             </>
           ) : (
-            <>All brands · last {rangeDays} days</>
+            <>{rangeLabel} · all brands</>
           )
         }
-        actions={<RangePicker value={rangeDays} onChange={setRange} />}
+        actions={<DateRangePicker defaultPreset="last30" />}
       />
 
       {!currentBrand && (
@@ -77,8 +67,8 @@ export function RankingsClient({ currentBrand, currentBrandDisplay, rangeDays, r
           title="The leaderboard is warming up"
           description={
             currentBrandDisplay
-              ? `No ranked sales for ${currentBrandDisplay} in the last ${rangeDays} days yet. Post something and you could be the first name on the board.`
-              : `No ranked sales in the last ${rangeDays} days yet. Keep posting — the board fills as sales land.`
+              ? `No ranked sales for ${currentBrandDisplay} in this period yet. Post something and you could be the first name on the board.`
+              : `No ranked sales in this period yet. Keep posting; the board fills as sales land.`
           }
         />
       ) : (

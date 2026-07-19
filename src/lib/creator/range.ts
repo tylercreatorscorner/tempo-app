@@ -1,13 +1,32 @@
+import { resolveDateRange, DATE_PRESETS } from '@/lib/data/date-utils';
+
+export interface CreatorRange {
+  window: { start: string; end: string };
+  rangeLabel: string;
+}
+
+/** e.g. "7/1" — for the custom-range label. */
+function fmtShort(iso: string) {
+  const [, m, d] = iso.split('-');
+  return `${parseInt(m)}/${parseInt(d)}`;
+}
+
 /**
- * Creator-portal period-window helpers (pure — no 'use client', so server
- * components can call parseRange while the client RangePicker imports the
- * option list from the same source of truth).
+ * Resolve the creator-portal date window + a display label from URL params,
+ * using the SAME preset/custom-range system as the admin (date-utils), defaulting
+ * to Last 30 Days (a slow week at 7d reads as broken for big creators).
  */
-
-export const RANGE_OPTIONS = [7, 14, 30, 90] as const;
-
-/** Coerce a `?range=` query value to a supported window; falls back to 30d. */
-export function parseRange(raw: string | undefined, fallback = 30): number {
-  const n = Number(raw);
-  return (RANGE_OPTIONS as readonly number[]).includes(n) ? n : fallback;
+export function resolveCreatorRange(sp: {
+  range?: string;
+  start?: string;
+  end?: string;
+}): CreatorRange {
+  const { startDate, endDate, preset } = resolveDateRange(sp.range ?? 'last30', sp.start, sp.end);
+  return {
+    window: { start: startDate, end: endDate },
+    rangeLabel:
+      preset === 'custom'
+        ? `${fmtShort(startDate)} to ${fmtShort(endDate)}`
+        : DATE_PRESETS.find((p) => p.value === preset)?.label ?? 'Last 30 Days',
+  };
 }

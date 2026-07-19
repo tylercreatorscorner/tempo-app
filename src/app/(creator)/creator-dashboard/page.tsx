@@ -11,16 +11,15 @@ import {
   getMonthVideoCount,
   getRankChase,
   buildActionStack,
-  dateWindow,
   type BrandBreakdownRow,
 } from '@/lib/data/creator-portal';
+import { resolveCreatorRange } from '@/lib/creator/range';
 import { HomeClient } from './home-client';
-import { parseRange } from '@/lib/creator/range';
 
 export default async function CreatorHomePage({
   searchParams,
 }: {
-  searchParams: Promise<{ range?: string }>;
+  searchParams: Promise<{ range?: string; start?: string; end?: string }>;
 }) {
   const session = await getCreatorSession();
   if (!session) redirect('/creator-login');
@@ -29,10 +28,8 @@ export default async function CreatorHomePage({
   const profile = await loadCreatorPortalProfile(String(session.creatorId), brandCookie);
   if (!profile) redirect('/creator-login');
 
-  // Home defaults to a 30-day window (representative recent activity) + a lifetime
-  // headline. A period selector (?range=) widens/narrows it, like the admin.
-  const rangeDays = parseRange((await searchParams).range, 30);
-  const window = dateWindow(rangeDays);
+  // Same date system as the admin (presets + custom range), defaulting to 30 days.
+  const { window, rangeLabel } = resolveCreatorRange(await searchParams);
 
   const activeContracts = profile.contracts.filter(
     (c) => !profile.currentBrand || c.brandSlug === profile.currentBrand,
@@ -108,7 +105,7 @@ export default async function CreatorHomePage({
       handles={profile.handles}
       currentBrand={profile.currentBrand}
       currentBrandDisplay={currentContract?.brandDisplayName ?? null}
-      rangeDays={rangeDays}
+      rangeLabel={rangeLabel}
       summary={summary}
       lifetimeGmv={lifetimeGmv}
       retainerTotal={retainerTotal}

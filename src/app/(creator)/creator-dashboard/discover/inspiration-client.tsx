@@ -1,6 +1,5 @@
 'use client';
 
-import { useRouter, useSearchParams } from 'next/navigation';
 import { AlertTriangle, ExternalLink, Flame, Video } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import type { CreatorVideoRow } from '@/lib/data/creator-portal';
@@ -10,7 +9,7 @@ import { PageHeader } from '@/components/ui/page-header';
 import { Card } from '@/components/ui/card';
 import { Badge, Tag } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/empty-state';
-import { RangePicker } from '@/components/creator/range-picker';
+import { DateRangePicker } from '@/components/dashboard/date-range-picker';
 import { fmtCompactCurrency } from '@/components/charts/format';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
 import { useBrandMeta } from '@/hooks/use-brand-meta';
@@ -20,21 +19,13 @@ type InspirationVideo = CreatorVideoRow & { isMine: boolean };
 interface Props {
   currentBrand: string | null;
   currentBrandDisplay: string | null;
-  rangeDays: number;
+  rangeLabel: string;
   videos: InspirationVideo[];
 }
 
-export function InspirationClient({ currentBrand, currentBrandDisplay, rangeDays, videos }: Props) {
-  const router = useRouter();
-  const params = useSearchParams();
+export function InspirationClient({ currentBrand, currentBrandDisplay, rangeLabel, videos }: Props) {
   const [excludeMine, setExcludeMine] = useState(false);
   const [search, setSearch] = useState('');
-
-  const setRange = (n: number) => {
-    const next = new URLSearchParams(params?.toString() ?? '');
-    next.set('range', String(n));
-    router.push(`/creator-dashboard/discover?${next.toString()}`);
-  };
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -57,13 +48,13 @@ export function InspirationClient({ currentBrand, currentBrandDisplay, rangeDays
         subtitle={
           currentBrandDisplay ? (
             <>
-              What&apos;s winning on <b>{currentBrandDisplay}</b> · last {rangeDays} days
+              What&apos;s winning on <b>{currentBrandDisplay}</b> · {rangeLabel}
             </>
           ) : (
-            <>What&apos;s winning across the network · last {rangeDays} days</>
+            <>What&apos;s winning across the network · {rangeLabel}</>
           )
         }
-        actions={<RangePicker value={rangeDays} onChange={setRange} />}
+        actions={<DateRangePicker defaultPreset="last30" />}
       />
 
       {/* Filters */}

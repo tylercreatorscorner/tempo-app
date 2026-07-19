@@ -1,6 +1,5 @@
 'use client';
 
-import { useRouter, useSearchParams } from 'next/navigation';
 import { ExternalLink, Sparkles, TrendingUp } from 'lucide-react';
 import { StatCard } from '@/components/ui/stat-card';
 import { PageHeader } from '@/components/ui/page-header';
@@ -9,7 +8,7 @@ import { TableCard, Table, THead, TBody, TR, TH, TD } from '@/components/ui/tabl
 import { Chip } from '@/components/ui/chip';
 import { EmptyState } from '@/components/ui/empty-state';
 import { NumberTicker } from '@/components/ui/number-ticker';
-import { RangePicker } from '@/components/creator/range-picker';
+import { DateRangePicker } from '@/components/dashboard/date-range-picker';
 import { AreaLineChart } from '@/components/charts/area-line-chart';
 import { fmtCompactCurrency, formatCurrency } from '@/components/charts/format';
 import { useBrandMeta } from '@/hooks/use-brand-meta';
@@ -23,7 +22,7 @@ interface Props {
   realName: string;
   currentBrand: string | null;
   currentBrandDisplay: string | null;
-  rangeDays: number;
+  rangeLabel: string;
   summary: CreatorSummary | null;
   daily: CreatorDailyPoint[];
   topVideos: CreatorVideoRow[];
@@ -31,20 +30,12 @@ interface Props {
 
 export function PerformanceClient({
   currentBrandDisplay,
-  rangeDays,
+  rangeLabel,
   summary,
   daily,
   topVideos,
 }: Props) {
-  const router = useRouter();
-  const params = useSearchParams();
   const brandMeta = useBrandMeta();
-
-  const setRange = (n: number) => {
-    const next = new URLSearchParams(params?.toString() ?? '');
-    next.set('range', String(n));
-    router.push(`/creator-dashboard/stats?${next.toString()}`);
-  };
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-12">
@@ -54,13 +45,13 @@ export function PerformanceClient({
         subtitle={
           currentBrandDisplay ? (
             <>
-              Showing <span className="font-medium text-foreground">{currentBrandDisplay}</span> · last {rangeDays} days
+              Showing <span className="font-medium text-foreground">{currentBrandDisplay}</span> · {rangeLabel}
             </>
           ) : (
-            <>All brands · last {rangeDays} days</>
+            <>{rangeLabel} · all brands</>
           )
         }
-        actions={<RangePicker value={rangeDays} onChange={setRange} />}
+        actions={<DateRangePicker defaultPreset="last30" />}
       />
 
       {/* Summary tiles — canonical Pulse StatCards so the portal matches the admin.
@@ -69,7 +60,7 @@ export function PerformanceClient({
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <StatCard
           hero
-          label={`GMV · ${rangeDays}d`}
+          label="GMV"
           value={summary ? fmtCompactCurrency(summary.totalGmv) : '—'}
           trend={summary?.gmvChangePct ?? undefined}
           trendLabel="vs prior period"
