@@ -83,11 +83,11 @@ export function OnboardingForm({
 
         <div className="bg-card rounded-2xl border border-border shadow-[var(--pulse-elev-1)] p-8">
           <h1 className="text-xl font-bold text-foreground text-center">
-            {firstName ? `Welcome, ${firstName}!` : 'Welcome to Tempo!'}
+            {firstName ? `Welcome, ${firstName}! 👋` : 'Welcome to Tempo! 👋'}
           </h1>
           <p className="text-sm text-muted-foreground text-center mt-1.5 mb-6">
-            Add your contact info so your manager can reach you about campaigns,
-            payouts, and opportunities.
+            Add your email so you can always sign back in — and a phone number so your
+            manager can reach you about payouts, campaigns, and new opportunities.
           </p>
 
           <form onSubmit={handleSave} className="space-y-4">
@@ -99,6 +99,7 @@ export function OnboardingForm({
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
+              <p className="mt-1 text-[11px] text-muted-foreground">Your way back in — we&apos;ll email you a sign-in link next time.</p>
             </div>
 
             <div>

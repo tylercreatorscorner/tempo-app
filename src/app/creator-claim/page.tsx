@@ -27,15 +27,17 @@ export default async function CreatorClaimPage({
         </p>
         {info ? (
           <>
-            <h1 className="text-xl font-extrabold tracking-tight text-foreground">
-              Welcome, {info.realName} 👋
+            <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.16em] text-primary">Your portal is ready</p>
+            <h1 className="text-2xl font-extrabold tracking-tight text-foreground">
+              Welcome, {info.realName.split(/\s+/)[0]} 👋
             </h1>
             <p className="mt-2 text-sm text-muted-foreground">
-              Continue to your Tempo dashboard to see your brands, retainers, posts, and GMV — all in one place.
+              Everything in one place — every brand you&apos;re on, your retainers, posts, and GMV,
+              and how you stack up across the network.
             </p>
             <ClaimContinue token={token!} />
             <p className="mt-4 text-[11px] text-muted-foreground">
-              This is your personal link — please don&apos;t share it.
+              This is your personal link — please keep it to yourself.
             </p>
           </>
         ) : (
