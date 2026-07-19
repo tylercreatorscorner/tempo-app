@@ -51,8 +51,12 @@ export function InvitesClient() {
       } else if (data.enqueued !== undefined) {
         addLog(`✅ ${label}: enqueued ${data.enqueued}`);
         if (data.status) setStatus(data.status as Status);
+      } else if (data.outcome === 'error') {
+        addLog(`❌ ${label}: ${data.error ?? 'error'}`);
       } else if (data.outcome) {
-        addLog(`✅ ${label}: ${data.outcome} — ${data.url}`);
+        addLog(
+          `${data.outcome === 'sent' ? '✅' : '⚠️'} ${label}: ${data.outcome}${data.creatorName ? ` (as ${data.creatorName})` : ''}${data.url ? ` — ${data.url}` : ''}`,
+        );
       } else {
         addLog(`✅ ${label}`);
       }
@@ -84,15 +88,18 @@ export function InvitesClient() {
       <div className="space-y-3 rounded-xl border border-border bg-card p-4 shadow-[var(--pulse-elev-1)]">
         <h3 className="font-bold text-foreground">1 · Test on yourself first</h3>
         <p className="text-sm text-muted-foreground">
-          Send one real invite to your own Discord user id (for any creator id) to check the DM + login flow before a blast.
+          Send one real invite to your own Discord to check the DM + login flow. You only need your Discord{' '}
+          <strong>user id</strong> — in Discord: Settings → Advanced → <strong>Developer Mode</strong> on, then
+          right-click your name → <strong>Copy User ID</strong> (a ~19-digit number). Leave the creator field blank to
+          auto-pick one.
         </p>
         <div className="flex flex-wrap gap-2">
-          <Input placeholder="Your Discord user id" value={testDiscord} onChange={(e) => setTestDiscord(e.target.value)} className="w-56" />
-          <Input placeholder="Creator id (uuid)" value={testCreator} onChange={(e) => setTestCreator(e.target.value)} className="w-72" />
+          <Input placeholder="Your Discord user id (e.g. 144445…)" value={testDiscord} onChange={(e) => setTestDiscord(e.target.value)} className="w-64" />
+          <Input placeholder="Creator id (optional — auto-picks one)" value={testCreator} onChange={(e) => setTestCreator(e.target.value)} className="w-72" />
           <Button
             variant="outline"
-            disabled={!!busy || !testDiscord || !testCreator}
-            onClick={() => post({ action: 'test', discordId: testDiscord, creatorId: testCreator }, 'test DM')}
+            disabled={!!busy || !testDiscord}
+            onClick={() => post({ action: 'test', discordId: testDiscord, creatorId: testCreator || undefined }, 'test DM')}
           >
             Send test DM
           </Button>

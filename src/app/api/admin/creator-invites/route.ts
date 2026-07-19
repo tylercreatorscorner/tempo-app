@@ -52,10 +52,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ...r, status: await getInviteStatus() });
     }
     if (body.action === 'test') {
-      if (!body.discordId || !body.creatorId) {
-        return NextResponse.json({ error: 'discordId and creatorId required' }, { status: 400 });
+      if (!body.discordId) {
+        return NextResponse.json({ error: 'Your Discord user id is required' }, { status: 400 });
       }
-      const r = await sendTestInvite(String(body.discordId), String(body.creatorId));
+      const r = await sendTestInvite(String(body.discordId), body.creatorId ? String(body.creatorId) : undefined);
       return NextResponse.json(r);
     }
     return NextResponse.json({ error: 'unknown_action' }, { status: 400 });

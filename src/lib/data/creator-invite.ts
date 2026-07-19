@@ -110,6 +110,7 @@ export async function sendClaimBatch(opts: { limit?: number; dryRun?: boolean } 
   const { data } = await supabase
     .from('creator_claim_tokens')
     .select('jti, token, discord_id')
+    .eq('created_by', 'bulk-invite') // never send test-invite rows in the blast
     .in('dm_status', ['pending', 'failed'])
     .is('consumed_at', null)
     .gt('expires_at', nowIso)
@@ -147,27 +148,62 @@ export async function sendClaimBatch(opts: { limit?: number; dryRun?: boolean } 
   return result;
 }
 
-/** Send ONE real invite to a specific Discord id (test on yourself before a blast). */
-export async function sendTestInvite(
-  discordId: string,
-  creatorId: string,
-): Promise<{ outcome: string; url: string }> {
+export interface TestInviteResult {
+  outcome: string; // sent | blocked | failed | rate_limited | error
+  url?: string;
+  creatorName?: string;
+  error?: string;
+}
+
+/**
+ * Send ONE real invite to a Discord id (test on yourself before a blast).
+ * creatorId is optional — blank auto-picks an eligible creator, so you only need
+ * your own Discord user id. The test token is created_by='test-invite', so it
+ * never blocks that creator's real invite (see the eligibility RPC) and is never
+ * sent in the blast.
+ */
+export async function sendTestInvite(discordId: string, creatorId?: string): Promise<TestInviteResult> {
+  const did = (discordId ?? '').trim();
+  // A Discord user id is a numeric snowflake, not a username.
+  if (!/^\d{17,20}$/.test(did)) {
+    return {
+      outcome: 'error',
+      error:
+        'That is not a Discord user id. In Discord: Settings → Advanced → Developer Mode on, then right-click your name → "Copy User ID" (a ~19-digit number).',
+    };
+  }
+
   const supabase = await createAdminClient();
-  const { token, jti, expiresAt } = await generateClaimToken({
-    creatorId: creatorId as unknown as number,
-    email: '',
-  });
-  await supabase.from('creator_claim_tokens').insert({
+
+  // Resolve the creator: the given uuid, else auto-pick an eligible one.
+  let cid = (creatorId ?? '').trim();
+  let creatorName = '';
+  if (cid) {
+    const { data: cv } = await supabase.from('creators_v2').select('id, real_name').eq('id', cid).maybeSingle();
+    if (!cv) return { outcome: 'error', error: 'No creator with that id. Leave it blank to auto-pick one.' };
+    creatorName = (cv.real_name as string | null) ?? '';
+  } else {
+    const { data } = await supabase.rpc('get_creators_to_invite', { p_limit: 1 });
+    const first = ((data as { creator_id: string; real_name: string }[] | null) ?? [])[0];
+    if (!first) return { outcome: 'error', error: 'No eligible creator to test with (none managed with a linked Discord).' };
+    cid = first.creator_id;
+    creatorName = first.real_name ?? '';
+  }
+
+  const { token, jti, expiresAt } = await generateClaimToken({ creatorId: cid as unknown as number, email: '' });
+  const { error: insErr } = await supabase.from('creator_claim_tokens').insert({
     jti,
     token,
-    creator_id: creatorId,
+    creator_id: cid,
     expires_at: expiresAt.toISOString(),
     created_by: 'test-invite',
-    discord_id: discordId,
+    discord_id: did,
     dm_status: 'pending',
   });
+  if (insErr) return { outcome: 'error', error: `Could not record the test token: ${insErr.message}` };
+
   const url = claimUrl(token);
-  const outcome = await sendDirectMessage(discordId, inviteMessage(url));
+  const outcome = await sendDirectMessage(did, inviteMessage(url));
   await supabase
     .from('creator_claim_tokens')
     .update({
@@ -176,5 +212,6 @@ export async function sendTestInvite(
       dm_error: outcome.status === 'failed' ? outcome.error : outcome.status === 'blocked' ? 'dms_closed' : null,
     })
     .eq('jti', jti);
-  return { outcome: outcome.status, url };
+
+  return { outcome: outcome.status, url, creatorName };
 }
