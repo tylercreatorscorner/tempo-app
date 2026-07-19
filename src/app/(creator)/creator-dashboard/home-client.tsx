@@ -259,16 +259,15 @@ function LedgerHero({
   return (
     <header className="space-y-5">
       <div className="flex items-start justify-between gap-4">
-        <p className="font-ledger text-[15px] italic text-muted-foreground">
-          {greeting},{' '}
-          <span className="text-pulse-grad font-semibold not-italic">{firstName}</span>
+        <p className="font-ledger text-2xl font-semibold text-foreground">
+          {greeting}, <span className="text-pulse-grad italic">{firstName}</span>.
         </p>
         <DateRangePicker defaultPreset="last30" />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-end">
         <div>
-          <p className="font-ledger-num text-[clamp(3rem,7vw,5.25rem)] font-bold leading-[0.9] text-foreground">
+          <p className="font-ledger-num text-[clamp(3.25rem,6vw,4.875rem)] font-bold leading-[0.9] text-foreground">
             {gmvFull}
           </p>
           <div className="mt-3.5 flex flex-wrap items-baseline gap-x-4 gap-y-1">

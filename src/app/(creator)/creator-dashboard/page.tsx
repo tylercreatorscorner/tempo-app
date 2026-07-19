@@ -53,7 +53,7 @@ export default async function CreatorHomePage({
     profile.brandSlugs[0] ??
     null;
 
-  const [summary, streak, topVideos, topProducts, inspiration, monthVideos, lifetimeGmv, dailySeries, brandStanding, contractedPosts] =
+  const [summary, streak, topVideos, topProducts, inspiration, monthVideos, lifetimeGmv, dailySeries, brandStanding, contractedPosts, untapped] =
     await Promise.all([
       getCreatorSummary(profile.handles, profile.currentBrand, window).catch(() => null),
       getCreatorStreak(profile.handles, profile.currentBrand).catch(() => 0),
@@ -69,11 +69,10 @@ export default async function CreatorHomePage({
       Promise.all(
         contractedBrands.map((c) => getMonthVideoCount(profile.handles, c.brandSlug).catch(() => null)),
       ),
+      // An assigned-but-unsold product for the "untapped" nudge. No-op for
+      // creators without product assignments.
+      getUntappedAssignment(profile.handles, activeContracts, window).catch(() => null),
     ]);
-
-  // An assigned-but-unsold product to surface as an "untapped" nudge. Cheap/no-op
-  // for creators without product assignments; scoped to the active brand view.
-  const untapped = await getUntappedAssignment(profile.handles, activeContracts, window).catch(() => null);
 
   // Rank-chase input for the action stack is derived from the (already-fetched)
   // brand standing — one brand scan feeds both the ladder and the "catch up" move.

@@ -979,10 +979,13 @@ export interface BrandStanding {
 /**
  * The creator's standing within ONE brand: brand-wide totals (GMV / orders /
  * creators / posts), the creator's share + rank, and the neighbours one rung up
- * and down. A single brand scan powers BOTH the "where you stand" band and the
- * rank-chase ladder on Home (supersedes getRankChase there — same scan cost).
- * Returns null when the creator has no GMV on the brand (no standing to show),
- * never a fake zero.
+ * and down. Powers BOTH the "where you stand" band and the rank ladder on Home.
+ *
+ * Backed by the get_brand_standing RPC (migration 085) — ONE round-trip. The
+ * previous TS version paginated the whole brand window out of
+ * daily_video_product_stats (94k rows ≈ 95 sequential round-trips on LeeFar
+ * 30d), which alone made Home take ~10s. Count round-trips, not SQL.
+ * Returns null when the creator has no GMV on the brand — never a fake zero.
  */
 export async function getBrandStanding(
   handles: string[],
@@ -993,91 +996,73 @@ export async function getBrandStanding(
   const supabase = await createAdminClient();
   const reg = await getBrandRegistry();
   const brandUuid = brandFilter(reg, brandSlug);
+  if (brandUuid !== null && brandUuid.length === 0) return null; // unresolvable brand
 
-  const filters: { column: string; op: 'eq' | 'in' | 'gte' | 'lte'; value: any }[] = [
-    { column: 'report_date', op: 'gte', value: window.start },
-    { column: 'report_date', op: 'lte', value: window.end },
-  ];
-  if (brandUuid) filters.push({ column: 'brand_id', op: 'in', value: brandUuid });
-
-  const rows = await paginated(
-    supabase,
-    'daily_video_product_stats',
-    'tiktok_username, video_id, gmv, orders',
-    filters,
+  const lowered = Array.from(
+    new Set(handles.map((h) => h.replace(/^@/, '').trim().toLowerCase()).filter(Boolean)),
   );
+  const { data, error } = await supabase.rpc('get_brand_standing', {
+    p_handles: lowered,
+    p_brand_ids: brandUuid, // null = no filter
+    p_start: window.start,
+    p_end: window.end,
+  });
+  if (error) throw error;
+  const row = (data as Record<string, unknown>[] | null)?.[0];
+  if (!row || row.my_rank == null) return null; // no standing without GMV
 
-  type Acc = { gmv: number; orders: number; videos: Set<string> };
-  const byUser = new Map<string, Acc>();
-  const brandVideos = new Set<string>();
-  let brandGmv = 0;
-  let brandOrders = 0;
-  for (const r of rows) {
-    const u = (r.tiktok_username || '').toLowerCase();
-    if (!u) continue;
-    const g = Number(r.gmv) || 0;
-    const o = Number(r.orders) || 0;
-    brandGmv += g;
-    brandOrders += o;
-    if (r.video_id) brandVideos.add(r.video_id);
-    const slot = byUser.get(u) ?? { gmv: 0, orders: 0, videos: new Set<string>() };
-    slot.gmv += g;
-    slot.orders += o;
-    if (r.video_id) slot.videos.add(r.video_id);
-    byUser.set(u, slot);
-  }
-
-  const ranked = Array.from(byUser.entries())
-    .map(([handle, a]) => ({ handle, gmv: a.gmv, orders: a.orders, videos: a.videos.size }))
-    .filter((r) => r.gmv > 0)
-    .sort((a, b) => b.gmv - a.gmv);
-
-  const myHandleSet = new Set(handles.map((h) => h.toLowerCase()));
-  const myIdx = ranked.findIndex((r) => myHandleSet.has(r.handle));
-  if (myIdx < 0) return null; // no standing without GMV
-
-  const meRow = ranked[myIdx];
-  const aboveRow = myIdx > 0 ? ranked[myIdx - 1] : null;
-  const belowRow = myIdx < ranked.length - 1 ? ranked[myIdx + 1] : null;
+  const brandGmv = Number(row.brand_gmv) || 0;
+  const myGmv = Number(row.my_gmv) || 0;
+  const aboveHandle = (row.above_handle as string | null) ?? null;
+  const belowHandle = (row.below_handle as string | null) ?? null;
 
   // Resolve display names for just the two neighbours we'll render.
   const nameMap = new Map<string, string>();
-  const needNames = [aboveRow?.handle, belowRow?.handle].filter(Boolean) as string[];
+  const needNames = [aboveHandle, belowHandle].filter(Boolean) as string[];
   if (needNames.length > 0) {
     const { data: ta } = await supabase
       .from('tiktok_accounts')
       .select('tiktok_username, creators_v2!inner(real_name)')
       .in('tiktok_username', needNames);
-    for (const row of ta ?? []) {
-      const name = (row as any).creators_v2?.real_name;
-      if (name && row.tiktok_username) nameMap.set(row.tiktok_username.toLowerCase(), name);
+    for (const r of ta ?? []) {
+      const name = (r as any).creators_v2?.real_name;
+      if (name && r.tiktok_username) nameMap.set(r.tiktok_username.toLowerCase(), name);
     }
   }
 
   return {
     brandSlug,
     brandGmv,
-    brandOrders,
-    creatorCount: ranked.length,
-    postCount: brandVideos.size,
-    myRank: myIdx + 1,
-    myGmv: meRow.gmv,
-    myShare: brandGmv > 0 ? meRow.gmv / brandGmv : 0,
-    above: aboveRow
+    brandOrders: Number(row.brand_orders) || 0,
+    creatorCount: Number(row.creator_count) || 0,
+    postCount: Number(row.post_count) || 0,
+    myRank: Number(row.my_rank) || 0,
+    myGmv,
+    myShare: brandGmv > 0 ? myGmv / brandGmv : 0,
+    above: aboveHandle
       ? {
-          name: nameMap.get(aboveRow.handle) || `@${aboveRow.handle}`,
-          handle: aboveRow.handle,
-          gmv: aboveRow.gmv,
-          gap: Math.max(0, aboveRow.gmv - meRow.gmv),
+          name: nameMap.get(aboveHandle) || `@${aboveHandle}`,
+          handle: aboveHandle,
+          gmv: Number(row.above_gmv) || 0,
+          gap: Math.max(0, (Number(row.above_gmv) || 0) - myGmv),
         }
       : null,
-    below: belowRow
-      ? { name: nameMap.get(belowRow.handle) || `@${belowRow.handle}`, handle: belowRow.handle, gmv: belowRow.gmv }
+    below: belowHandle
+      ? {
+          name: nameMap.get(belowHandle) || `@${belowHandle}`,
+          handle: belowHandle,
+          gmv: Number(row.below_gmv) || 0,
+        }
       : null,
   };
 }
 
-/** Network-wide top videos (for Inspiration). */
+/**
+ * Network-wide top videos (for Inspiration). Backed by the
+ * get_inspiration_videos RPC (migration 085) — one round-trip. The previous TS
+ * version paginated the ENTIRE brand window (94k rows ≈ 95 round-trips on
+ * LeeFar 30d) just to keep the top N after aggregating client-side.
+ */
 export async function getInspirationVideos(
   brandSlug: string | null,
   window: DateWindow,
@@ -1086,93 +1071,31 @@ export async function getInspirationVideos(
   const supabase = await createAdminClient();
   const reg = await getBrandRegistry();
   const brandUuid = brandFilter(reg, brandSlug);
+  if (brandUuid !== null && brandUuid.length === 0) return []; // unresolvable brand
 
-  const filters: { column: string; op: 'eq' | 'in' | 'gte' | 'lte'; value: any }[] = [
-    { column: 'report_date', op: 'gte', value: window.start },
-    { column: 'report_date', op: 'lte', value: window.end },
-  ];
-  if (brandUuid) filters.push({ column: 'brand_id', op: 'in', value: brandUuid });
-
-  const rows = await paginated(
-    supabase,
-    'daily_video_product_stats',
-    'video_id, video_title, video_url, post_date, tiktok_username, brand_id, product_name, gmv, orders, items_sold, est_commission, report_date',
-    filters
-  );
-
-  type Acc = {
-    videoId: string;
-    title: string;
-    url: string | null;
-    postDate: string | null;
-    username: string;
-    brandSlug: string;
-    gmv: number;
-    orders: number;
-    itemsSold: number;
-    commission: number;
-    days: Set<string>;
-    productGmv: Map<string, number>;
-  };
-  const byVideo = new Map<string, Acc>();
-  for (const r of rows) {
-    if (!r.video_id) continue;
-    const slot =
-      byVideo.get(r.video_id) ?? ({
-        videoId: r.video_id,
-        title: r.video_title || '(untitled)',
-        url: r.video_url || null,
-        postDate: r.post_date || null,
-        username: r.tiktok_username,
-        brandSlug: uuidToSlug(reg, r.brand_id) || r.brand_id,
-        gmv: 0,
-        orders: 0,
-        itemsSold: 0,
-        commission: 0,
-        days: new Set<string>(),
-        productGmv: new Map<string, number>(),
-      } satisfies Acc);
-    slot.gmv += Number(r.gmv) || 0;
-    slot.orders += Number(r.orders) || 0;
-    slot.itemsSold += Number(r.items_sold) || 0;
-    slot.commission += Number(r.est_commission) || 0;
-    slot.days.add(r.report_date);
-    if (r.product_name) {
-      slot.productGmv.set(
-        r.product_name,
-        (slot.productGmv.get(r.product_name) ?? 0) + (Number(r.gmv) || 0)
-      );
-    }
-    byVideo.set(r.video_id, slot);
-  }
-
-  const all = Array.from(byVideo.values()).sort((a, b) => b.gmv - a.gmv);
-
-  return all.slice(0, limit).map((v) => {
-    let topProduct: string | null = null;
-    let topProductGmv = -1;
-    for (const [name, g] of v.productGmv) {
-      if (g > topProductGmv) {
-        topProduct = name;
-        topProductGmv = g;
-      }
-    }
-    return {
-      videoId: v.videoId,
-      videoTitle: v.title,
-      videoUrl: v.url,
-      postDate: v.postDate,
-      tiktokUsername: v.username,
-      brandSlug: v.brandSlug,
-      gmv: v.gmv,
-      orders: v.orders,
-      itemsSold: v.itemsSold,
-      commission: v.commission,
-      daysActive: v.days.size,
-      topProduct,
-      isMine: false,
-    };
+  const { data, error } = await supabase.rpc('get_inspiration_videos', {
+    p_brand_ids: brandUuid, // null = no filter
+    p_start: window.start,
+    p_end: window.end,
+    p_limit: limit,
   });
+  if (error) throw error;
+
+  return ((data as Record<string, unknown>[] | null) ?? []).map((r) => ({
+    videoId: String(r.video_id),
+    videoTitle: (r.video_title as string) || '(untitled)',
+    videoUrl: (r.video_url as string) || null,
+    postDate: (r.post_date as string) || null,
+    tiktokUsername: String(r.tiktok_username || ''),
+    brandSlug: uuidToSlug(reg, String(r.brand_id)) || String(r.brand_id),
+    gmv: Number(r.gmv) || 0,
+    orders: Number(r.orders) || 0,
+    itemsSold: Number(r.items_sold) || 0,
+    commission: Number(r.commission) || 0,
+    daysActive: Number(r.days_active) || 0,
+    topProduct: (r.top_product as string) || null,
+    isMine: false,
+  }));
 }
 
 // ---- Network flex + untapped assignment (Home) ---------------------------
