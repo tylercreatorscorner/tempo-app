@@ -8,9 +8,13 @@
  */
 
 const DISCORD_API = 'https://discord.com/api/v10';
-// Message flag: SUPPRESS_EMBEDS (1 << 2). Stops Discord unfurling the claim link
-// into a preview (belt-and-suspenders with the GET-doesn't-consume design).
-const SUPPRESS_EMBEDS = 1 << 2;
+
+export interface DiscordMessagePayload {
+  content?: string;
+  embeds?: unknown[];
+  components?: unknown[];
+  flags?: number;
+}
 
 export type DmOutcome =
   | { status: 'sent' }
@@ -31,7 +35,7 @@ async function retryAfterMs(res: Response): Promise<number> {
 }
 
 /** DM a Discord user by id. One attempt (the caller paces + retries). */
-export async function sendDirectMessage(discordUserId: string, content: string): Promise<DmOutcome> {
+export async function sendDirectMessage(discordUserId: string, message: DiscordMessagePayload): Promise<DmOutcome> {
   try {
     // 1) Open (or reuse) the DM channel.
     const dmRes = await fetch(`${DISCORD_API}/users/@me/channels`, {
@@ -52,7 +56,7 @@ export async function sendDirectMessage(discordUserId: string, content: string):
     const msgRes = await fetch(`${DISCORD_API}/channels/${channel.id}/messages`, {
       method: 'POST',
       headers: botHeaders(),
-      body: JSON.stringify({ content, flags: SUPPRESS_EMBEDS }),
+      body: JSON.stringify(message),
     });
     if (msgRes.status === 429) return { status: 'rate_limited', retryAfterMs: await retryAfterMs(msgRes) };
     if (msgRes.status === 403) return { status: 'blocked' };

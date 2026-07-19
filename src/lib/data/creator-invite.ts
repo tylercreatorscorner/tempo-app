@@ -1,6 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/server';
 import { generateClaimToken } from '@/lib/auth/creator-auth';
-import { sendDirectMessage } from '@/lib/discord/rest';
+import { sendDirectMessage, type DiscordMessagePayload } from '@/lib/discord/rest';
 
 /**
  * Creator-portal invite distribution — the "reach every creator" job. Runs
@@ -21,15 +21,38 @@ function claimUrl(token: string): string {
   return `${APP_BASE_URL}/creator-claim?token=${encodeURIComponent(token)}`;
 }
 
-function inviteMessage(url: string): string {
-  return [
-    '👋 Your Tempo creator portal is ready!',
-    '',
-    "See every brand you're on — your retainer, posts, and GMV — in one place, plus how you rank across the network.",
-    '',
-    "Sign in with your personal link (please don't share it):",
-    `<${url}>`,
-  ].join('\n');
+const TEMPO_INDIGO = 0x5b4bff; // matches the Pulse hero gradient start
+
+/** A branded Discord embed + a "Open my portal" link button, personalized. */
+function inviteMessage(url: string, name?: string): DiscordMessagePayload {
+  const firstName = (name ?? '').trim().split(/\s+/)[0];
+  const greeting = firstName ? `Hi ${firstName} 👋` : 'Hi 👋';
+  return {
+    embeds: [
+      {
+        color: TEMPO_INDIGO,
+        title: '🎬 Your Tempo creator portal is ready',
+        description:
+          `${greeting}\n\nSee **every brand you're on** — your retainer, posts, and GMV — all in one place, ` +
+          'plus how you rank across the network. Tap below to sign in.',
+        footer: { text: "Your personal link — please don't share it." },
+      },
+    ],
+    components: [
+      {
+        type: 1, // action row
+        components: [
+          { type: 2, style: 5, label: 'Open my portal  →', url }, // link button
+        ],
+      },
+    ],
+  };
+}
+
+function extractName(c: unknown): string | undefined {
+  if (!c) return undefined;
+  const obj = Array.isArray(c) ? c[0] : c;
+  return (obj as { real_name?: string | null } | undefined)?.real_name || undefined;
 }
 
 export interface InviteStatus {
@@ -109,7 +132,7 @@ export async function sendClaimBatch(opts: { limit?: number; dryRun?: boolean } 
 
   const { data } = await supabase
     .from('creator_claim_tokens')
-    .select('jti, token, discord_id')
+    .select('jti, token, discord_id, creator:creators_v2(real_name)')
     .eq('created_by', 'bulk-invite') // never send test-invite rows in the blast
     .in('dm_status', ['pending', 'failed'])
     .is('consumed_at', null)
@@ -117,13 +140,13 @@ export async function sendClaimBatch(opts: { limit?: number; dryRun?: boolean } 
     .not('discord_id', 'is', null)
     .not('token', 'is', null)
     .limit(limit);
-  const rows = ((data as { jti: string; token: string; discord_id: string }[] | null) ?? []);
+  const rows = ((data as { jti: string; token: string; discord_id: string; creator: unknown }[] | null) ?? []);
 
   const result: SendResult = { attempted: 0, sent: 0, blocked: 0, failed: 0, rateLimited: false, remaining: 0 };
 
   for (const row of rows) {
     if (opts.dryRun) { result.attempted++; continue; }
-    const outcome = await sendDirectMessage(row.discord_id, inviteMessage(claimUrl(row.token)));
+    const outcome = await sendDirectMessage(row.discord_id, inviteMessage(claimUrl(row.token), extractName(row.creator)));
     if (outcome.status === 'rate_limited') {
       result.rateLimited = true;
       await sleep(outcome.retryAfterMs);
@@ -210,7 +233,7 @@ export async function sendTestInvite(discordId: string, creatorId?: string): Pro
   if (insErr) return { outcome: 'error', error: `Could not record the test token: ${insErr.message}` };
 
   const url = claimUrl(token);
-  const outcome = await sendDirectMessage(did, inviteMessage(url));
+  const outcome = await sendDirectMessage(did, inviteMessage(url, creatorName));
   await supabase
     .from('creator_claim_tokens')
     .update({
