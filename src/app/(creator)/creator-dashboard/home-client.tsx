@@ -300,7 +300,12 @@ function LedgerHero({
               <span className="text-muted-foreground/60">peak {fmtCompactCurrency(peak)}</span>
             </div>
             <div className="h-[118px] w-full text-primary">
-              <Sparkline data={sparkData} className="h-full w-full" idKey="hero" />
+              <Sparkline
+                data={sparkData}
+                labels={series.map((d) => d.date)}
+                className="h-full w-full"
+                idKey="hero"
+              />
             </div>
           </div>
         )}
@@ -390,7 +395,7 @@ function BrandStandingBand({ standing, brandLabel }: { standing: BrandStanding; 
         {cells.map((c) => (
           <div key={c.k} className="bg-card p-4 sm:p-5">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">{c.k}</p>
-            <p className="font-ledger-num mt-1.5 text-xl font-bold text-foreground sm:text-2xl">{c.v}</p>
+            <p className="font-ledger-num mt-1.5 text-2xl font-bold text-foreground sm:text-[28px]">{c.v}</p>
           </div>
         ))}
         <div
@@ -398,7 +403,7 @@ function BrandStandingBand({ standing, brandLabel }: { standing: BrandStanding; 
           style={{ background: 'color-mix(in srgb, var(--primary) 7%, var(--card))' }}
         >
           <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">Your share</p>
-          <p className="text-pulse-grad font-ledger-num mt-1.5 text-xl font-bold sm:text-2xl">
+          <p className="text-pulse-grad font-ledger-num mt-1.5 text-2xl font-bold sm:text-[28px]">
             {(standing.myShare * 100).toFixed(1)}%
           </p>
           <p className="mt-1 font-mono text-[11px] text-muted-foreground tabular-nums">
