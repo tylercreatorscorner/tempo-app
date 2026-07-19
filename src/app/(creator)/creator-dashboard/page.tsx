@@ -7,11 +7,13 @@ import {
   getCreatorStreak,
   getCreatorTopVideos,
   getCreatorTopProducts,
+  getCreatorDailySeries,
   getInspirationVideos,
   getMonthVideoCount,
-  getRankChase,
+  getBrandStanding,
   buildActionStack,
   type BrandBreakdownRow,
+  type RankChase,
 } from '@/lib/data/creator-portal';
 import { resolveCreatorRange } from '@/lib/creator/range';
 import { HomeClient } from './home-client';
@@ -48,7 +50,7 @@ export default async function CreatorHomePage({
     profile.brandSlugs[0] ??
     null;
 
-  const [summary, streak, topVideos, topProducts, inspiration, monthVideos, lifetimeGmv, rankChase, contractedPosts] =
+  const [summary, streak, topVideos, topProducts, inspiration, monthVideos, lifetimeGmv, dailySeries, brandStanding, contractedPosts] =
     await Promise.all([
       getCreatorSummary(profile.handles, profile.currentBrand, window).catch(() => null),
       getCreatorStreak(profile.handles, profile.currentBrand).catch(() => 0),
@@ -57,13 +59,28 @@ export default async function CreatorHomePage({
       getInspirationVideos(profile.currentBrand, window, 6).catch(() => []),
       getMonthVideoCount(profile.handles, profile.currentBrand).catch(() => 0),
       getCreatorLifetimeGmv(profile.handles, profile.currentBrand).catch(() => null),
+      getCreatorDailySeries(profile.handles, profile.currentBrand, window).catch(() => []),
       chaseBrand
-        ? getRankChase(profile.handles, chaseBrand, window).catch(() => null)
+        ? getBrandStanding(profile.handles, chaseBrand, window).catch(() => null)
         : Promise.resolve(null),
       Promise.all(
         contractedBrands.map((c) => getMonthVideoCount(profile.handles, c.brandSlug).catch(() => null)),
       ),
     ]);
+
+  // Rank-chase input for the action stack is derived from the (already-fetched)
+  // brand standing — one brand scan feeds both the ladder and the "catch up" move.
+  const rankChase: RankChase | null = brandStanding
+    ? {
+        brandSlug: chaseBrand,
+        myRank: brandStanding.myRank,
+        total: brandStanding.creatorCount,
+        gmv: brandStanding.myGmv,
+        above: brandStanding.above
+          ? { name: brandStanding.above.name, gmv: brandStanding.above.gmv, gap: brandStanding.above.gap }
+          : null,
+      }
+    : null;
 
   const paceRows: BrandBreakdownRow[] = contractedBrands.map((c, i) => ({
     brandSlug: c.brandSlug,
@@ -117,7 +134,8 @@ export default async function CreatorHomePage({
       topProducts={topProducts}
       inspiration={inspiration}
       actions={actions}
-      rankChase={rankChase}
+      dailySeries={dailySeries}
+      brandStanding={brandStanding}
       chaseBrandLabel={
         activeContracts.find((c) => c.brandSlug === chaseBrand)?.brandDisplayName ?? null
       }

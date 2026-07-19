@@ -9,14 +9,10 @@ import {
   Package,
   Sparkles,
   Target,
-  TrendingDown,
-  TrendingUp,
   Trophy,
   Video,
 } from 'lucide-react';
-import { StatCard } from '@/components/ui/stat-card';
 import { DateRangePicker } from '@/components/dashboard/date-range-picker';
-import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { DataAvatar } from '@/components/ui/table';
 import { Badge, Tag } from '@/components/ui/badge';
@@ -24,12 +20,16 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { NumberTicker } from '@/components/ui/number-ticker';
 import { Gauge } from '@/components/charts/gauge';
 import { fmtCompactCurrency } from '@/components/charts/format';
+import { formatCurrency } from '@/lib/utils/format';
+import { Sparkline } from '@/components/creator/sparkline';
+import { cn } from '@/lib/utils';
 import type {
+  BrandStanding,
   CreatorAction,
+  CreatorDailyPoint,
   CreatorProductRow,
   CreatorSummary,
   CreatorVideoRow,
-  RankChase,
 } from '@/lib/data/creator-portal';
 
 // Where "message your manager" points. TODO(owner): replace with the real
@@ -56,13 +56,15 @@ interface Props {
   topProducts: CreatorProductRow[];
   inspiration: (CreatorVideoRow & { isMine: boolean })[];
   actions: CreatorAction[];
-  rankChase: RankChase | null;
+  dailySeries: CreatorDailyPoint[];
+  brandStanding: BrandStanding | null;
   chaseBrandLabel: string | null;
 }
 
 export function HomeClient(props: Props) {
   const {
     realName,
+    handles,
     currentBrandDisplay,
     rangeLabel,
     summary,
@@ -76,87 +78,63 @@ export function HomeClient(props: Props) {
     topProducts,
     inspiration,
     actions,
+    dailySeries,
+    brandStanding,
+    chaseBrandLabel,
   } = props;
 
-  // Products the creator actually sells — used to flag "You sell this" on the
-  // network-winners list (turns inspiration into a targeted action).
+  // Products the creator actually sells — flags "You sell this" on the network-winners list.
   const sellableProducts = new Set(topProducts.map((p) => p.productName.toLowerCase()));
+  const avgPerVideo =
+    summary && summary.videoCount > 0 ? summary.totalGmv / summary.videoCount : 0;
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 
+  const bandLabel = chaseBrandLabel ?? currentBrandDisplay ?? 'your brand';
+  const moneyMakersUp = topProducts.length > 0 && !!brandStanding;
+
   return (
-    <div className="space-y-6 max-w-6xl mx-auto pb-12">
-      {/* Header */}
-      <PageHeader
-        title={
-          <>
-            {greeting}, <span className="text-pulse-grad">{realName}</span>
-          </>
-        }
-        subtitle={
-          currentBrandDisplay ? (
-            <>
-              Showing <span className="font-semibold text-foreground">{currentBrandDisplay}</span> ·{' '}
-              {rangeLabel}
-            </>
-          ) : (
-            <>{rangeLabel} · all brands</>
-          )
-        }
-        actions={<DateRangePicker defaultPreset="last30" />}
+    <div className="mx-auto max-w-6xl space-y-8 pb-12">
+      <LedgerHero
+        greeting={greeting}
+        realName={realName}
+        currentBrandDisplay={currentBrandDisplay}
+        rangeLabel={rangeLabel}
+        summary={summary}
+        lifetimeGmv={lifetimeGmv}
+        retainerTotal={retainerTotal}
+        handleCount={handles.length}
+        series={dailySeries}
       />
 
-      {/* Momentum story — the north-star line, not just a bare number. */}
-      <MomentumBand summary={summary} />
+      <LedgerStrip summary={summary} streak={streak} />
+
+      {brandStanding && <BrandStandingBand standing={brandStanding} brandLabel={bandLabel} />}
 
       {/* Your next moves — the spine of the hub. */}
       {actions.length > 0 && (
-        <section className="space-y-2.5">
-          <div className="flex items-center gap-2">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Your next moves</h2>
-            <span className="h-px flex-1 bg-border" />
-          </div>
+        <section>
+          <SectionHead title="Your next moves" />
           <div className="space-y-2.5">
             {actions.map((a, i) => (
-              <ActionCard key={a.kind + i} action={a} />
+              <ActionCard key={a.kind + i} action={a} index={i} />
             ))}
           </div>
         </section>
       )}
 
-      {/* Stat grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        {/* summary === null means the read FAILED — show "—", never a fake $0. */}
-        <StatCard
-          hero
-          label="GMV"
-          value={summary ? fmtCompactCurrency(summary.totalGmv) : '—'}
-          trend={summary?.gmvChangePct ?? undefined}
-          trendLabel="vs prior period"
-        />
-        <StatCard
-          label="Orders"
-          value={summary ? summary.totalOrders.toLocaleString() : '—'}
-          trend={summary?.orderChangePct ?? undefined}
-          trendLabel="vs prior period"
-        />
-        <StatCard
-          label="Videos posted"
-          value={summary ? String(summary.videoCount) : '—'}
-          trend={summary?.videoChangePct ?? undefined}
-          trendLabel="vs prior period"
-        />
-        <StatCard
-          label="Day streak"
-          value={String(streak)}
-          subValue={streak > 0 ? 'Keep it going' : 'Post today to start'}
-          accentColor="var(--pulse-warn)"
-        />
-      </div>
+      {/* Money-makers + rank ladder */}
+      {(topProducts.length > 0 || brandStanding) && (
+        <div className={moneyMakersUp ? 'grid gap-5 lg:grid-cols-2' : ''}>
+          {topProducts.length > 0 && <MoneyMakers products={topProducts} />}
+          {brandStanding && (
+            <RankLadder standing={brandStanding} brandLabel={bandLabel} avgPerVideo={avgPerVideo} />
+          )}
+        </div>
+      )}
 
-      {/* Earn & pace — retainer quota for contracted creators, a GMV milestone for
-          affiliate-only creators (no quota) so everyone gets a forward target. */}
+      {/* Earn & pace — retainer quota for contracted, GMV milestone for affiliate-only. */}
       {monthlyTarget > 0 ? (
         <RetainerPace
           monthVideos={monthVideos}
@@ -168,11 +146,8 @@ export function HomeClient(props: Props) {
         <MilestoneGoal lifetimeGmv={lifetimeGmv} />
       )}
 
-      {/* Your money-makers — which products convert into the most GMV. */}
-      {topProducts.length > 0 && <MoneyMakers products={topProducts} />}
-
       {/* Two-column: Your top videos + What's winning */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <VideoColumn
           title="Your top videos"
           icon={<Trophy className="h-4 w-4" />}
@@ -216,53 +191,215 @@ export function HomeClient(props: Props) {
         />
       </div>
 
-      {/* Support handoff — reach your manager. */}
       <ManagerHandoff />
     </div>
   );
 }
 
-// ---- Momentum ------------------------------------------------------------
+// ---- Section heading (editorial rule) ------------------------------------
 
-function MomentumBand({ summary }: { summary: CreatorSummary | null }) {
+function SectionHead({ title, href, cta }: { title: string; href?: string; cta?: string }) {
+  return (
+    <div className="mb-3.5 flex items-center gap-3">
+      <h2 className="font-ledger text-lg font-semibold text-foreground">{title}</h2>
+      <span className="h-px flex-1 bg-border" />
+      {href && cta && (
+        <Link
+          href={href}
+          className="whitespace-nowrap text-xs font-semibold text-primary hover:underline"
+        >
+          {cta}
+        </Link>
+      )}
+    </div>
+  );
+}
+
+// ---- Hero ----------------------------------------------------------------
+
+function LedgerHero({
+  greeting,
+  realName,
+  currentBrandDisplay,
+  rangeLabel,
+  summary,
+  lifetimeGmv,
+  retainerTotal,
+  handleCount,
+  series,
+}: {
+  greeting: string;
+  realName: string;
+  currentBrandDisplay: string | null;
+  rangeLabel: string;
+  summary: CreatorSummary | null;
+  lifetimeGmv: number | null;
+  retainerTotal: number;
+  handleCount: number;
+  series: CreatorDailyPoint[];
+}) {
+  const gmvFull = summary ? formatCurrency(summary.totalGmv) : '—';
   const pct = summary?.gmvChangePct ?? null;
-  const up = pct != null && pct >= 5;
-  const down = pct != null && pct <= -5;
-  const gmv = summary ? fmtCompactCurrency(summary.totalGmv) : null;
-
-  let story: string;
-  if (!summary || gmv == null) {
-    story = 'Your recent momentum will show here.';
-  } else if (up) {
-    story = `${gmv} this period, up ${Math.round(pct!)}% vs the prior period.`;
-  } else if (down) {
-    story = `${gmv} this period, down ${Math.abs(Math.round(pct!))}% vs the prior period.`;
-  } else {
-    story = `${gmv} this period${pct != null ? ', holding steady' : ''}.`;
-  }
-
-  const Icon = up ? TrendingUp : down ? TrendingDown : Sparkles;
-  const tone = up ? 'var(--pulse-pos)' : down ? 'var(--pulse-warn)' : 'var(--primary)';
+  const sparkData = series.map((d) => d.gmv);
+  const hasSpark = sparkData.length >= 2 && sparkData.some((v) => v > 0);
 
   return (
-    <div className="flex items-start gap-2.5">
-      <span
-        className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg"
-        style={{ backgroundColor: `color-mix(in srgb, ${tone} 14%, transparent)`, color: tone }}
-      >
-        <Icon className="h-4 w-4" />
-      </span>
-      <p className="text-base font-semibold text-foreground sm:text-lg">{story}</p>
+    <header className="space-y-5">
+      <div className="flex items-start justify-between gap-4">
+        <p className="font-ledger text-[15px] italic text-muted-foreground">
+          {greeting},{' '}
+          <span className="text-pulse-grad font-semibold not-italic">{realName}</span>
+        </p>
+        <DateRangePicker defaultPreset="last30" />
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-end">
+        <div>
+          <p className="font-ledger-num text-[clamp(3rem,7vw,5.25rem)] font-bold leading-[0.9] text-foreground">
+            {gmvFull}
+          </p>
+          <div className="mt-3.5 flex flex-wrap items-baseline gap-x-4 gap-y-1">
+            {pct != null && <DeltaPill pct={pct} />}
+            <p className="text-sm text-muted-foreground">
+              GMV this period ·{' '}
+              <span className="font-semibold text-foreground">
+                {summary ? `${summary.totalOrders.toLocaleString()} orders` : '—'}
+              </span>
+              {handleCount > 1 ? ` across ${handleCount} handles` : ''}
+              {currentBrandDisplay ? '' : ' · all brands'}
+            </p>
+          </div>
+          <p className="mt-3.5 inline-flex items-center gap-2 text-xs text-muted-foreground">
+            <span className="h-1.5 w-1.5 rounded-full bg-[var(--pulse-pos)] ring-2 ring-[var(--pulse-pos-bg)]" />
+            {retainerTotal > 0 && <>{fmtCompactCurrency(retainerTotal)}/mo retainer secured · </>}
+            {lifetimeGmv != null ? (
+              <>{fmtCompactCurrency(lifetimeGmv)} driven all-time</>
+            ) : (
+              <>building your all-time total</>
+            )}
+          </p>
+        </div>
+
+        {hasSpark && (
+          <div className="rounded-2xl border border-border bg-card p-4 shadow-[var(--pulse-elev-1)]">
+            <div className="mb-1 flex items-center justify-between text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              <span>Daily GMV</span>
+              <span className="text-muted-foreground/60">{rangeLabel}</span>
+            </div>
+            <div className="h-[118px] w-full text-primary">
+              <Sparkline data={sparkData} className="h-full w-full" idKey="hero" />
+            </div>
+          </div>
+        )}
+      </div>
+    </header>
+  );
+}
+
+function DeltaPill({ pct }: { pct: number }) {
+  const up = pct >= 0;
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-lg px-2 py-0.5 font-mono text-sm font-semibold tabular-nums"
+      style={{
+        color: up ? 'var(--pulse-pos)' : 'var(--pulse-neg)',
+        backgroundColor: up ? 'var(--pulse-pos-bg)' : 'var(--pulse-neg-bg)',
+      }}
+    >
+      {up ? '▲' : '▼'} {Math.abs(pct).toFixed(1)}%
+    </span>
+  );
+}
+
+// ---- Ledger strip --------------------------------------------------------
+
+function LedgerStrip({ summary, streak }: { summary: CreatorSummary | null; streak: number }) {
+  const cells: { k: string; v: string; d: number | null; sub?: string }[] = [
+    { k: 'GMV', v: summary ? fmtCompactCurrency(summary.totalGmv) : '—', d: summary?.gmvChangePct ?? null },
+    { k: 'Orders', v: summary ? summary.totalOrders.toLocaleString() : '—', d: summary?.orderChangePct ?? null },
+    { k: 'Videos posted', v: summary ? String(summary.videoCount) : '—', d: summary?.videoChangePct ?? null },
+    {
+      k: 'Day streak',
+      v: String(streak),
+      d: null,
+      sub: streak > 0 ? 'days · keep it going' : 'post today to start',
+    },
+  ];
+  return (
+    <div className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-border bg-border shadow-[var(--pulse-elev-1)] sm:grid-cols-4">
+      {cells.map((c) => (
+        <div key={c.k} className="bg-card p-4 sm:p-5">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">{c.k}</p>
+          <p className="font-ledger-num mt-1.5 text-2xl font-bold text-foreground sm:text-[28px]">{c.v}</p>
+          {c.d != null ? (
+            <DeltaText pct={c.d} />
+          ) : (
+            <p className="mt-1 text-[11px] text-muted-foreground/70">{c.sub}</p>
+          )}
+        </div>
+      ))}
     </div>
+  );
+}
+
+function DeltaText({ pct }: { pct: number | null }) {
+  if (pct == null) {
+    return <p className="mt-1 font-mono text-[11px] text-muted-foreground/50">vs prior</p>;
+  }
+  const up = pct >= 0;
+  return (
+    <p
+      className="mt-1 font-mono text-[11px] tabular-nums"
+      style={{ color: up ? 'var(--pulse-pos)' : 'var(--pulse-neg)' }}
+    >
+      {up ? '▲' : '▼'} {Math.abs(Math.round(pct))}% vs prior
+    </p>
+  );
+}
+
+// ---- Brand standing band -------------------------------------------------
+
+function BrandStandingBand({ standing, brandLabel }: { standing: BrandStanding; brandLabel: string }) {
+  const cells: { k: string; v: string }[] = [
+    { k: 'Brand GMV', v: fmtCompactCurrency(standing.brandGmv) },
+    { k: 'Orders', v: compactNum(standing.brandOrders) },
+    { k: 'Creators', v: compactNum(standing.creatorCount) },
+    { k: 'Posts', v: compactNum(standing.postCount) },
+  ];
+  return (
+    <section>
+      <SectionHead
+        title={`${brandLabel} · where you stand`}
+        href="/creator-dashboard/rankings"
+        cta="Full rankings →"
+      />
+      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-border bg-border shadow-[var(--pulse-elev-1)] sm:grid-cols-5">
+        {cells.map((c) => (
+          <div key={c.k} className="bg-card p-4 sm:p-5">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">{c.k}</p>
+            <p className="font-ledger-num mt-1.5 text-xl font-bold text-foreground sm:text-2xl">{c.v}</p>
+          </div>
+        ))}
+        <div
+          className="col-span-2 p-4 sm:col-span-1 sm:p-5"
+          style={{ background: 'color-mix(in srgb, var(--primary) 7%, var(--card))' }}
+        >
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">Your share</p>
+          <p className="text-pulse-grad font-ledger-num mt-1.5 text-xl font-bold sm:text-2xl">
+            {(standing.myShare * 100).toFixed(1)}%
+          </p>
+          <p className="mt-1 font-mono text-[11px] text-muted-foreground tabular-nums">
+            {fmtCompactCurrency(standing.myGmv)} · rank #{standing.myRank} of {standing.creatorCount}
+          </p>
+        </div>
+      </div>
+    </section>
   );
 }
 
 // ---- Action stack --------------------------------------------------------
 
-const ACTION_META: Record<
-  CreatorAction['kind'],
-  { icon: React.ComponentType<{ className?: string }> }
-> = {
+const ACTION_META: Record<CreatorAction['kind'], { icon: React.ComponentType<{ className?: string }> }> = {
   no_post: { icon: Video },
   pace_behind: { icon: Target },
   rank_gap: { icon: Crown },
@@ -276,18 +413,18 @@ const TONE_STYLE: Record<CreatorAction['tone'], { chip: string; color: string }>
   positive: { chip: 'bg-[var(--pulse-pos)]/12', color: 'var(--pulse-pos)' },
 };
 
-/** Subtle neutral card — a small tinted icon carries the tone, not the whole block. */
-function ActionCard({ action }: { action: CreatorAction }) {
+/** Subtle neutral card — a serif index + tinted icon carry the tone, quietly. */
+function ActionCard({ action, index }: { action: CreatorAction; index: number }) {
   const Icon = ACTION_META[action.kind].icon;
   const t = TONE_STYLE[action.tone];
   const external = action.cta?.href.startsWith('http');
   const ctaClass = 'mt-1.5 inline-flex items-center gap-1 text-[13px] font-semibold text-primary hover:underline';
   return (
-    <div className="flex items-start gap-3 rounded-xl border border-border bg-card p-3.5 shadow-[var(--pulse-elev-1)]">
-      <span
-        className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${t.chip}`}
-        style={{ color: t.color }}
-      >
+    <div className="flex items-start gap-3.5 rounded-xl border border-border bg-card p-3.5 shadow-[var(--pulse-elev-1)] transition-colors hover:border-input">
+      <span className="font-ledger-num w-4 pt-0.5 text-center text-[15px] font-bold text-muted-foreground/50">
+        {index + 1}
+      </span>
+      <span className={cn('grid h-8 w-8 shrink-0 place-items-center rounded-lg', t.chip)} style={{ color: t.color }}>
         <Icon className="h-4 w-4" />
       </span>
       <div className="min-w-0 flex-1">
@@ -308,6 +445,131 @@ function ActionCard({ action }: { action: CreatorAction }) {
   );
 }
 
+// ---- Money-makers --------------------------------------------------------
+
+function MoneyMakers({ products }: { products: CreatorProductRow[] }) {
+  const rows = products.slice(0, 5);
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 font-ledger text-[15px]">
+          <span className="text-primary">
+            <Package className="h-4 w-4" />
+          </span>
+          Your money-makers
+        </CardTitle>
+        <Link
+          href="/creator-dashboard/stats"
+          className="whitespace-nowrap text-xs font-semibold text-primary hover:underline"
+        >
+          See all →
+        </Link>
+      </CardHeader>
+      <CardContent className="pt-0">
+        <ul className="divide-y divide-border">
+          {rows.map((p, i) => (
+            <li key={p.productName} className="flex items-center gap-3 py-2.5">
+              <DataAvatar>{i + 1}</DataAvatar>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-foreground">{p.productName}</p>
+                <p className="text-xs tabular-nums text-muted-foreground">{p.orders.toLocaleString()} orders</p>
+              </div>
+              <div className="flex-shrink-0 text-right">
+                <p className="text-sm font-bold tabular-nums text-[var(--pulse-pos)]">{fmtCompactCurrency(p.gmv)}</p>
+                {p.gmvChangePct != null && (
+                  <p
+                    className="whitespace-nowrap text-xs tabular-nums"
+                    style={{ color: p.gmvChangePct >= 0 ? 'var(--pulse-pos)' : 'var(--pulse-warn)' }}
+                  >
+                    {p.gmvChangePct >= 0 ? '▲' : '▼'}
+                    {Math.abs(Math.round(p.gmvChangePct))}% vs prior
+                  </p>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ---- Rank ladder ---------------------------------------------------------
+
+function RankLadder({
+  standing,
+  brandLabel,
+  avgPerVideo,
+}: {
+  standing: BrandStanding;
+  brandLabel: string;
+  avgPerVideo: number;
+}) {
+  const { above, below, myRank, myGmv } = standing;
+  const gapVideos = above && avgPerVideo > 0 ? Math.max(1, Math.ceil(above.gap / avgPerVideo)) : null;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 font-ledger text-[15px]">
+          <span className="text-primary">
+            <Crown className="h-4 w-4" />
+          </span>
+          {above ? 'Catch the creator above you' : "You're leading the pack"}
+        </CardTitle>
+        <span className="whitespace-nowrap text-xs text-muted-foreground">{brandLabel}</span>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {above && <LadderRung pos={myRank - 1} name={above.name} gmv={above.gmv} />}
+        <LadderRung pos={myRank} name="You" gmv={myGmv} me />
+        {below && <LadderRung pos={myRank + 1} name={below.name} gmv={below.gmv} />}
+        {above ? (
+          <p className="pt-1.5 text-center text-[13px] text-muted-foreground">
+            Close the gap:{' '}
+            <span className="font-semibold text-foreground">{fmtCompactCurrency(above.gap)}</span>
+            {gapVideos ? (
+              <>
+                {' '}≈ <span className="font-semibold text-foreground">
+                  {gapVideos} video{gapVideos === 1 ? '' : 's'}
+                </span>
+              </>
+            ) : null}{' '}
+            passes {above.name} for #{myRank - 1}.
+          </p>
+        ) : (
+          <p className="pt-1.5 text-center text-[13px] text-muted-foreground">
+            You&apos;re #{myRank} of {standing.creatorCount} on {brandLabel}. Keep the lead.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function LadderRung({ pos, name, gmv, me }: { pos: number; name: string; gmv: number; me?: boolean }) {
+  return (
+    <div
+      className={cn(
+        'flex items-center gap-3 rounded-xl border px-3.5 py-2.5',
+        me ? 'border-primary bg-primary/5' : 'border-border',
+      )}
+    >
+      <span
+        className={cn(
+          'font-ledger-num w-9 text-lg font-bold',
+          me ? 'text-primary' : 'text-muted-foreground',
+        )}
+      >
+        #{pos}
+      </span>
+      <span className={cn('flex-1 truncate text-sm font-semibold', me ? 'text-primary' : 'text-foreground')}>
+        {name}
+      </span>
+      <span className="font-mono text-sm font-semibold tabular-nums text-foreground">{fmtCompactCurrency(gmv)}</span>
+    </div>
+  );
+}
+
 // ---- Earn & pace ---------------------------------------------------------
 
 function RetainerPace({
@@ -323,28 +585,29 @@ function RetainerPace({
 }) {
   const fraction = monthlyTarget > 0 ? monthVideos / monthlyTarget : 0;
   const onTrack = monthVideos >= monthlyTarget;
-  const dailyPace = Math.max(
-    0,
-    Math.ceil(Math.max(0, monthlyTarget - monthVideos) / Math.max(1, daysLeftInMonth)),
-  );
+  const dailyPace = Math.max(0, Math.ceil(Math.max(0, monthlyTarget - monthVideos) / Math.max(1, daysLeftInMonth)));
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
+        <CardTitle className="flex items-center gap-2 font-ledger text-[15px]">
           <span className="text-primary">
             <Target className="h-4 w-4" />
           </span>
           Retainer pace
         </CardTitle>
         {onTrack ? (
-          <Badge variant="positive" size="sm">Quota met</Badge>
+          <Badge variant="positive" size="sm">
+            Quota met
+          </Badge>
         ) : (
-          <Badge variant="neutral" size="sm">This month</Badge>
+          <Badge variant="neutral" size="sm">
+            This month
+          </Badge>
         )}
       </CardHeader>
       <CardContent>
-        <div className="flex items-center gap-6 flex-wrap">
+        <div className="flex flex-wrap items-center gap-6">
           <Gauge
             fraction={fraction}
             size={128}
@@ -352,12 +615,9 @@ function RetainerPace({
             sublabel={onTrack ? 'quota met ✓' : `of ${monthlyTarget}`}
             color={onTrack ? 'var(--pulse-pos)' : 'var(--primary)'}
           />
-          <div className="flex-1 min-w-[220px] space-y-3 text-sm">
+          <div className="min-w-[220px] flex-1 space-y-3 text-sm">
             <div className="space-y-2">
-              <PaceRow
-                label="Videos posted"
-                value={`${monthVideos} / ${monthlyTarget}${onTrack ? ' ✓' : ''}`}
-              />
+              <PaceRow label="Videos posted" value={`${monthVideos} / ${monthlyTarget}${onTrack ? ' ✓' : ''}`} />
               <PaceRow label="Days left" value={String(daysLeftInMonth)} />
               <PaceRow
                 label="Status"
@@ -398,8 +658,7 @@ function PaceRow({ label, value, emphasis }: { label: string; value: string; emp
   );
 }
 
-/** Affiliate-only creators (no retainer/quota) get a lifetime-GMV milestone as
- *  their forward target instead of a quota ring. */
+/** Affiliate-only creators (no retainer/quota) get a lifetime-GMV milestone. */
 function MilestoneGoal({ lifetimeGmv }: { lifetimeGmv: number | null }) {
   if (lifetimeGmv == null || lifetimeGmv <= 0) return null;
   const nextTier = GMV_TIERS.find((t) => t > lifetimeGmv) ?? null;
@@ -410,22 +669,23 @@ function MilestoneGoal({ lifetimeGmv }: { lifetimeGmv: number | null }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
+        <CardTitle className="flex items-center gap-2 font-ledger text-[15px]">
           <span className="text-primary">
             <Trophy className="h-4 w-4" />
           </span>
           Next milestone
         </CardTitle>
-        <Badge variant="neutral" size="sm">All-time</Badge>
+        <Badge variant="neutral" size="sm">
+          All-time
+        </Badge>
       </CardHeader>
       <CardContent>
         {nextTier ? (
           <div className="space-y-3">
             <p className="text-sm text-foreground">
-              You've driven{' '}
-              <span className="font-bold text-[var(--pulse-pos)]">{fmtCompactCurrency(lifetimeGmv)}</span>{' '}
-              all-time. You're{' '}
-              <span className="font-bold text-primary">{fmtCompactCurrency(toGo)}</span> from the{' '}
+              You&apos;ve driven{' '}
+              <span className="font-bold text-[var(--pulse-pos)]">{fmtCompactCurrency(lifetimeGmv)}</span> all-time.
+              You&apos;re <span className="font-bold text-primary">{fmtCompactCurrency(toGo)}</span> from the{' '}
               <span className="font-bold text-foreground">{fmtCompactCurrency(nextTier)} Club</span>.
             </p>
             <div className="h-2.5 w-full overflow-hidden rounded-full bg-secondary">
@@ -440,64 +700,9 @@ function MilestoneGoal({ lifetimeGmv }: { lifetimeGmv: number | null }) {
           </div>
         ) : (
           <p className="text-sm text-foreground">
-            {fmtCompactCurrency(lifetimeGmv)} all-time. You've cleared every milestone.
+            {fmtCompactCurrency(lifetimeGmv)} all-time. You&apos;ve cleared every milestone.
           </p>
         )}
-      </CardContent>
-    </Card>
-  );
-}
-
-// ---- Money-makers --------------------------------------------------------
-
-function MoneyMakers({ products }: { products: CreatorProductRow[] }) {
-  const rows = products.slice(0, 5);
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <span className="text-primary">
-            <Package className="h-4 w-4" />
-          </span>
-          Your money-makers
-        </CardTitle>
-        <Link
-          href="/creator-dashboard/stats"
-          className="text-xs font-semibold text-primary hover:underline whitespace-nowrap"
-        >
-          See all →
-        </Link>
-      </CardHeader>
-      <CardContent className="pt-0">
-        <ul className="divide-y divide-border">
-          {rows.map((p, i) => (
-            <li key={p.productName} className="flex items-center gap-3 py-2.5">
-              <DataAvatar>{i + 1}</DataAvatar>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold text-foreground">{p.productName}</p>
-                <p className="text-xs tabular-nums text-muted-foreground">
-                  {p.orders.toLocaleString()} orders
-                </p>
-              </div>
-              <div className="flex-shrink-0 text-right">
-                <p className="text-sm font-bold tabular-nums text-[var(--pulse-pos)]">
-                  {fmtCompactCurrency(p.gmv)}
-                </p>
-                {p.gmvChangePct != null && (
-                  <p
-                    className="whitespace-nowrap text-xs tabular-nums"
-                    style={{
-                      color: p.gmvChangePct >= 0 ? 'var(--pulse-pos)' : 'var(--pulse-warn)',
-                    }}
-                  >
-                    {p.gmvChangePct >= 0 ? '▲' : '▼'}
-                    {Math.abs(Math.round(p.gmvChangePct))}% vs prior
-                  </p>
-                )}
-              </div>
-            </li>
-          ))}
-        </ul>
       </CardContent>
     </Card>
   );
@@ -530,11 +735,11 @@ function VideoColumn({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
+        <CardTitle className="flex items-center gap-2 font-ledger text-[15px]">
           <span className="text-primary">{icon}</span>
           {title}
         </CardTitle>
-        <Link href={ctaHref} className="text-xs font-semibold text-primary hover:underline whitespace-nowrap">
+        <Link href={ctaHref} className="whitespace-nowrap text-xs font-semibold text-primary hover:underline">
           See all →
         </Link>
       </CardHeader>
@@ -584,7 +789,7 @@ function VideoRow({
       href={video.videoUrl}
       target="_blank"
       rel="noopener noreferrer"
-      className="block truncate font-semibold text-foreground hover:text-primary transition-colors"
+      className="block truncate font-semibold text-foreground transition-colors hover:text-primary"
     >
       {video.videoTitle}
     </a>
@@ -592,14 +797,9 @@ function VideoRow({
     <span className="block truncate font-semibold text-foreground">{video.videoTitle}</span>
   );
 
-  // Flex row (not a table): the middle column shrinks + truncates via min-w-0,
-  // while the stats column is flex-shrink-0 so GMV/orders are ALWAYS visible.
   return (
     <li
-      className={
-        'flex items-center gap-3 py-2.5' +
-        (video.isMine ? ' -mx-2 rounded-lg bg-primary/5 px-2' : '')
-      }
+      className={'flex items-center gap-3 py-2.5' + (video.isMine ? ' -mx-2 rounded-lg bg-primary/5 px-2' : '')}
     >
       <DataAvatar>{rank}</DataAvatar>
       <div className="min-w-0 flex-1">
@@ -607,12 +807,16 @@ function VideoRow({
           <span className="min-w-0 flex-1 truncate">{titleNode}</span>
           {cooling && (
             <span className="flex-shrink-0">
-              <Badge variant="warning" size="sm">Cooling</Badge>
+              <Badge variant="warning" size="sm">
+                Cooling
+              </Badge>
             </span>
           )}
           {sells && (
             <span className="flex-shrink-0">
-              <Badge variant="positive" size="sm">You sell this</Badge>
+              <Badge variant="positive" size="sm">
+                You sell this
+              </Badge>
             </span>
           )}
           {video.isMine && (
@@ -633,7 +837,7 @@ function VideoRow({
       </div>
       <div className="flex-shrink-0 text-right">
         <p className="text-sm font-bold tabular-nums text-[var(--pulse-pos)]">{fmtCompactCurrency(video.gmv)}</p>
-        <p className="whitespace-nowrap text-xs text-muted-foreground tabular-nums">
+        <p className="whitespace-nowrap text-xs tabular-nums text-muted-foreground">
           {video.orders.toLocaleString()} orders
         </p>
       </div>
@@ -653,11 +857,20 @@ function ManagerHandoff() {
           </span>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-bold text-foreground">Questions about your brands or payouts?</p>
-            <p className="text-xs text-muted-foreground">Message your Creator's Corner manager on Discord.</p>
+            <p className="text-xs text-muted-foreground">Message your Creator&apos;s Corner manager on Discord.</p>
           </div>
           <ArrowRight className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
         </div>
       </Card>
     </a>
   );
+}
+
+// ---- utils ---------------------------------------------------------------
+
+function compactNum(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 10_000) return `${Math.round(n / 1_000)}K`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return n.toLocaleString();
 }

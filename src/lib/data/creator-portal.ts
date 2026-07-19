@@ -963,6 +963,120 @@ export async function getRankChase(
   };
 }
 
+export interface BrandStanding {
+  brandSlug: string;
+  brandGmv: number;
+  brandOrders: number;
+  creatorCount: number; // distinct creators with GMV > 0 (the ranked pool)
+  postCount: number;    // distinct videos across the brand in the window
+  myRank: number;
+  myGmv: number;
+  myShare: number;      // myGmv / brandGmv, 0..1
+  above: { name: string; handle: string; gmv: number; gap: number } | null;
+  below: { name: string; handle: string; gmv: number } | null;
+}
+
+/**
+ * The creator's standing within ONE brand: brand-wide totals (GMV / orders /
+ * creators / posts), the creator's share + rank, and the neighbours one rung up
+ * and down. A single brand scan powers BOTH the "where you stand" band and the
+ * rank-chase ladder on Home (supersedes getRankChase there — same scan cost).
+ * Returns null when the creator has no GMV on the brand (no standing to show),
+ * never a fake zero.
+ */
+export async function getBrandStanding(
+  handles: string[],
+  brandSlug: string | null,
+  window: DateWindow,
+): Promise<BrandStanding | null> {
+  if (handles.length === 0 || !brandSlug) return null;
+  const supabase = await createAdminClient();
+  const reg = await getBrandRegistry();
+  const brandUuid = brandFilter(reg, brandSlug);
+
+  const filters: { column: string; op: 'eq' | 'in' | 'gte' | 'lte'; value: any }[] = [
+    { column: 'report_date', op: 'gte', value: window.start },
+    { column: 'report_date', op: 'lte', value: window.end },
+  ];
+  if (brandUuid) filters.push({ column: 'brand_id', op: 'in', value: brandUuid });
+
+  const rows = await paginated(
+    supabase,
+    'daily_video_product_stats',
+    'tiktok_username, video_id, gmv, orders',
+    filters,
+  );
+
+  type Acc = { gmv: number; orders: number; videos: Set<string> };
+  const byUser = new Map<string, Acc>();
+  const brandVideos = new Set<string>();
+  let brandGmv = 0;
+  let brandOrders = 0;
+  for (const r of rows) {
+    const u = (r.tiktok_username || '').toLowerCase();
+    if (!u) continue;
+    const g = Number(r.gmv) || 0;
+    const o = Number(r.orders) || 0;
+    brandGmv += g;
+    brandOrders += o;
+    if (r.video_id) brandVideos.add(r.video_id);
+    const slot = byUser.get(u) ?? { gmv: 0, orders: 0, videos: new Set<string>() };
+    slot.gmv += g;
+    slot.orders += o;
+    if (r.video_id) slot.videos.add(r.video_id);
+    byUser.set(u, slot);
+  }
+
+  const ranked = Array.from(byUser.entries())
+    .map(([handle, a]) => ({ handle, gmv: a.gmv, orders: a.orders, videos: a.videos.size }))
+    .filter((r) => r.gmv > 0)
+    .sort((a, b) => b.gmv - a.gmv);
+
+  const myHandleSet = new Set(handles.map((h) => h.toLowerCase()));
+  const myIdx = ranked.findIndex((r) => myHandleSet.has(r.handle));
+  if (myIdx < 0) return null; // no standing without GMV
+
+  const meRow = ranked[myIdx];
+  const aboveRow = myIdx > 0 ? ranked[myIdx - 1] : null;
+  const belowRow = myIdx < ranked.length - 1 ? ranked[myIdx + 1] : null;
+
+  // Resolve display names for just the two neighbours we'll render.
+  const nameMap = new Map<string, string>();
+  const needNames = [aboveRow?.handle, belowRow?.handle].filter(Boolean) as string[];
+  if (needNames.length > 0) {
+    const { data: ta } = await supabase
+      .from('tiktok_accounts')
+      .select('tiktok_username, creators_v2!inner(real_name)')
+      .in('tiktok_username', needNames);
+    for (const row of ta ?? []) {
+      const name = (row as any).creators_v2?.real_name;
+      if (name && row.tiktok_username) nameMap.set(row.tiktok_username.toLowerCase(), name);
+    }
+  }
+
+  return {
+    brandSlug,
+    brandGmv,
+    brandOrders,
+    creatorCount: ranked.length,
+    postCount: brandVideos.size,
+    myRank: myIdx + 1,
+    myGmv: meRow.gmv,
+    myShare: brandGmv > 0 ? meRow.gmv / brandGmv : 0,
+    above: aboveRow
+      ? {
+          name: nameMap.get(aboveRow.handle) || `@${aboveRow.handle}`,
+          handle: aboveRow.handle,
+          gmv: aboveRow.gmv,
+          gap: Math.max(0, aboveRow.gmv - meRow.gmv),
+        }
+      : null,
+    below: belowRow
+      ? { name: nameMap.get(belowRow.handle) || `@${belowRow.handle}`, handle: belowRow.handle, gmv: belowRow.gmv }
+      : null,
+  };
+}
+
 /** Network-wide top videos (for Inspiration). */
 export async function getInspirationVideos(
   brandSlug: string | null,
