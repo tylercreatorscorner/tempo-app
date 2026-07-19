@@ -22,6 +22,7 @@ import { Gauge } from '@/components/charts/gauge';
 import { fmtCompactCurrency } from '@/components/charts/format';
 import { formatCurrency } from '@/lib/utils/format';
 import { Sparkline } from '@/components/creator/sparkline';
+import { useBrandMeta } from '@/hooks/use-brand-meta';
 import { cn } from '@/lib/utils';
 import type {
   BrandStanding,
@@ -30,6 +31,7 @@ import type {
   CreatorProductRow,
   CreatorSummary,
   CreatorVideoRow,
+  UntappedProduct,
 } from '@/lib/data/creator-portal';
 
 // Where "message your manager" points. TODO(owner): replace with the real
@@ -58,7 +60,10 @@ interface Props {
   actions: CreatorAction[];
   dailySeries: CreatorDailyPoint[];
   brandStanding: BrandStanding | null;
+  untapped: UntappedProduct | null;
   chaseBrandLabel: string | null;
+  /** Streamed network-flex band (async server component behind Suspense). */
+  flexSlot?: React.ReactNode;
 }
 
 export function HomeClient(props: Props) {
@@ -66,7 +71,6 @@ export function HomeClient(props: Props) {
     realName,
     handles,
     currentBrandDisplay,
-    rangeLabel,
     summary,
     lifetimeGmv,
     retainerTotal,
@@ -80,7 +84,9 @@ export function HomeClient(props: Props) {
     actions,
     dailySeries,
     brandStanding,
+    untapped,
     chaseBrandLabel,
+    flexSlot,
   } = props;
 
   // Products the creator actually sells — flags "You sell this" on the network-winners list.
@@ -92,7 +98,8 @@ export function HomeClient(props: Props) {
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 
   const bandLabel = chaseBrandLabel ?? currentBrandDisplay ?? 'your brand';
-  const moneyMakersUp = topProducts.length > 0 && !!brandStanding;
+  const hasMoneyMakers = topProducts.length > 0 || !!untapped;
+  const moneyMakersUp = hasMoneyMakers && !!brandStanding;
 
   return (
     <div className="mx-auto max-w-6xl space-y-8 pb-12">
@@ -100,7 +107,6 @@ export function HomeClient(props: Props) {
         greeting={greeting}
         realName={realName}
         currentBrandDisplay={currentBrandDisplay}
-        rangeLabel={rangeLabel}
         summary={summary}
         lifetimeGmv={lifetimeGmv}
         retainerTotal={retainerTotal}
@@ -110,7 +116,8 @@ export function HomeClient(props: Props) {
 
       <LedgerStrip summary={summary} streak={streak} />
 
-      {brandStanding && <BrandStandingBand standing={brandStanding} brandLabel={bandLabel} />}
+      {/* Network-scale morale beat — streamed so it never blocks Home. */}
+      {flexSlot}
 
       {/* Your next moves — the spine of the hub. */}
       {actions.length > 0 && (
@@ -124,24 +131,30 @@ export function HomeClient(props: Props) {
         </section>
       )}
 
+      {brandStanding && <BrandStandingBand standing={brandStanding} brandLabel={bandLabel} />}
+
       {/* Money-makers + rank ladder */}
-      {(topProducts.length > 0 || brandStanding) && (
+      {(hasMoneyMakers || brandStanding) && (
         <div className={moneyMakersUp ? 'grid gap-5 lg:grid-cols-2' : ''}>
-          {topProducts.length > 0 && <MoneyMakers products={topProducts} />}
+          {hasMoneyMakers && <MoneyMakers products={topProducts} untapped={untapped} />}
           {brandStanding && (
             <RankLadder standing={brandStanding} brandLabel={bandLabel} avgPerVideo={avgPerVideo} />
           )}
         </div>
       )}
 
-      {/* Earn & pace — retainer quota for contracted, GMV milestone for affiliate-only. */}
+      {/* Earn & pace — retainer quota for contracted, GMV milestone for everyone.
+          Contracted creators see both side by side; affiliate-only get the milestone. */}
       {monthlyTarget > 0 ? (
-        <RetainerPace
-          monthVideos={monthVideos}
-          monthlyTarget={monthlyTarget}
-          daysLeftInMonth={daysLeftInMonth}
-          retainerTotal={retainerTotal}
-        />
+        <div className={lifetimeGmv && lifetimeGmv > 0 ? 'grid gap-5 lg:grid-cols-2' : ''}>
+          <RetainerPace
+            monthVideos={monthVideos}
+            monthlyTarget={monthlyTarget}
+            daysLeftInMonth={daysLeftInMonth}
+            retainerTotal={retainerTotal}
+          />
+          {lifetimeGmv != null && lifetimeGmv > 0 && <MilestoneGoal lifetimeGmv={lifetimeGmv} />}
+        </div>
       ) : (
         <MilestoneGoal lifetimeGmv={lifetimeGmv} />
       )}
@@ -221,7 +234,6 @@ function LedgerHero({
   greeting,
   realName,
   currentBrandDisplay,
-  rangeLabel,
   summary,
   lifetimeGmv,
   retainerTotal,
@@ -231,7 +243,6 @@ function LedgerHero({
   greeting: string;
   realName: string;
   currentBrandDisplay: string | null;
-  rangeLabel: string;
   summary: CreatorSummary | null;
   lifetimeGmv: number | null;
   retainerTotal: number;
@@ -240,15 +251,17 @@ function LedgerHero({
 }) {
   const gmvFull = summary ? formatCurrency(summary.totalGmv) : '—';
   const pct = summary?.gmvChangePct ?? null;
+  const firstName = realName.split(' ')[0] || realName;
   const sparkData = series.map((d) => d.gmv);
   const hasSpark = sparkData.length >= 2 && sparkData.some((v) => v > 0);
+  const peak = hasSpark ? Math.max(...sparkData) : 0;
 
   return (
     <header className="space-y-5">
       <div className="flex items-start justify-between gap-4">
         <p className="font-ledger text-[15px] italic text-muted-foreground">
           {greeting},{' '}
-          <span className="text-pulse-grad font-semibold not-italic">{realName}</span>
+          <span className="text-pulse-grad font-semibold not-italic">{firstName}</span>
         </p>
         <DateRangePicker defaultPreset="last30" />
       </div>
@@ -284,7 +297,7 @@ function LedgerHero({
           <div className="rounded-2xl border border-border bg-card p-4 shadow-[var(--pulse-elev-1)]">
             <div className="mb-1 flex items-center justify-between text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
               <span>Daily GMV</span>
-              <span className="text-muted-foreground/60">{rangeLabel}</span>
+              <span className="text-muted-foreground/60">peak {fmtCompactCurrency(peak)}</span>
             </div>
             <div className="h-[118px] w-full text-primary">
               <Sparkline data={sparkData} className="h-full w-full" idKey="hero" />
@@ -319,7 +332,7 @@ function LedgerStrip({ summary, streak }: { summary: CreatorSummary | null; stre
     { k: 'Orders', v: summary ? summary.totalOrders.toLocaleString() : '—', d: summary?.orderChangePct ?? null },
     { k: 'Videos posted', v: summary ? String(summary.videoCount) : '—', d: summary?.videoChangePct ?? null },
     {
-      k: 'Day streak',
+      k: 'Posting streak',
       v: String(streak),
       d: null,
       sub: streak > 0 ? 'days · keep it going' : 'post today to start',
@@ -447,8 +460,15 @@ function ActionCard({ action, index }: { action: CreatorAction; index: number })
 
 // ---- Money-makers --------------------------------------------------------
 
-function MoneyMakers({ products }: { products: CreatorProductRow[] }) {
-  const rows = products.slice(0, 5);
+function MoneyMakers({
+  products,
+  untapped,
+}: {
+  products: CreatorProductRow[];
+  untapped?: UntappedProduct | null;
+}) {
+  const brandMeta = useBrandMeta();
+  const rows = products.slice(0, untapped ? 4 : 5);
   return (
     <Card>
       <CardHeader>
@@ -488,6 +508,27 @@ function MoneyMakers({ products }: { products: CreatorProductRow[] }) {
               </div>
             </li>
           ))}
+          {untapped && (
+            <li className="flex items-center gap-3 py-2.5">
+              <DataAvatar color="var(--secondary)" className="text-primary">
+                <Sparkles className="h-3.5 w-3.5" />
+              </DataAvatar>
+              <div className="min-w-0 flex-1">
+                <p className="flex items-center gap-2 truncate text-sm font-semibold text-foreground">
+                  <span className="truncate">{untapped.displayName}</span>
+                  <Badge variant="accent" size="sm">
+                    Untapped
+                  </Badge>
+                </p>
+                <p className="truncate text-xs text-muted-foreground">
+                  {brandMeta.label(untapped.brandSlug)} · assigned to you, not sold yet
+                </p>
+              </div>
+              <div className="flex-shrink-0 text-right">
+                <p className="text-sm font-bold tabular-nums text-muted-foreground">$0</p>
+              </div>
+            </li>
+          )}
         </ul>
       </CardContent>
     </Card>

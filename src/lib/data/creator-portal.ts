@@ -1175,6 +1175,109 @@ export async function getInspirationVideos(
   });
 }
 
+// ---- Network flex + untapped assignment (Home) ---------------------------
+
+export interface NetworkFlex {
+  networkGmv: number;
+  creatorCount: number;
+  myGmv: number;
+  myRank: number;
+  percentile: number; // myRank / creatorCount, 0..1
+}
+
+/**
+ * Network-scale context for the Home hero band: total network GMV, how many
+ * creators drove GMV, and the creator's rank across the whole network in the
+ * window. Backed by get_creator_network_flex (migration 084) on the small
+ * daily_creator_stats rollup — one RPC round-trip, streamed behind Suspense so
+ * it never blocks Home. Returns null with no standing (no GMV) → band hidden.
+ */
+export async function getNetworkFlex(
+  handles: string[],
+  window: DateWindow,
+): Promise<NetworkFlex | null> {
+  if (handles.length === 0) return null;
+  const supabase = await createAdminClient();
+  const lowered = Array.from(
+    new Set(handles.map((h) => h.replace(/^@/, '').trim().toLowerCase()).filter(Boolean)),
+  );
+  if (lowered.length === 0) return null;
+  const { data, error } = await supabase.rpc('get_creator_network_flex', {
+    p_handles: lowered,
+    p_start: window.start,
+    p_end: window.end,
+  });
+  if (error) throw error;
+  const row = (data as Record<string, unknown>[] | null)?.[0];
+  if (!row) return null;
+  const networkGmv = Number(row.network_gmv) || 0;
+  const creatorCount = Number(row.creator_count) || 0;
+  const myGmv = Number(row.my_gmv) || 0;
+  const myRank = Number(row.my_rank) || 0;
+  if (myGmv <= 0 || creatorCount === 0 || myRank === 0) return null;
+  return { networkGmv, creatorCount, myGmv, myRank, percentile: myRank / creatorCount };
+}
+
+export interface UntappedProduct {
+  productKey: string;
+  displayName: string;
+  brandSlug: string;
+}
+
+/**
+ * One product the creator is ASSIGNED (managed_creators.product_assignments,
+ * catalog product_keys) but has NOT sold in the window — a "you're leaving this
+ * on the table" nudge for the money-makers list. Resolves keys → the products
+ * catalog (display_name + product_ids) and checks the creator's sold product_ids.
+ * Returns null when the creator has no assignments (cost-free for them) or has
+ * sold everything they're assigned.
+ */
+export async function getUntappedAssignment(
+  handles: string[],
+  contracts: CreatorContract[],
+  window: DateWindow,
+): Promise<UntappedProduct | null> {
+  const assignedKeys = Array.from(
+    new Set(contracts.flatMap((c) => c.productAssignments || []).filter(Boolean)),
+  );
+  if (assignedKeys.length === 0 || handles.length === 0) return null;
+
+  const supabase = await createAdminClient();
+  const { data: cat } = await supabase
+    .from('products')
+    .select('product_key, display_name, brand, product_ids, status')
+    .in('product_key', assignedKeys);
+
+  type CatRow = {
+    product_key: string;
+    display_name: string | null;
+    brand: string;
+    product_ids: string[] | null;
+    status: string | null;
+  };
+  const catalog = ((cat ?? []) as CatRow[]).filter(
+    (p) => p.status !== 'archived' && Array.isArray(p.product_ids) && p.product_ids.length > 0,
+  );
+  if (catalog.length === 0) return null;
+
+  // The creator's own sold product_ids in the window (their rows only — bounded).
+  const soldRows = await paginated(supabase, 'daily_video_product_stats', 'product_id', [
+    { column: 'tiktok_username', op: 'in', value: handles },
+    { column: 'report_date', op: 'gte', value: window.start },
+    { column: 'report_date', op: 'lte', value: window.end },
+  ]);
+  const sold = new Set<string>();
+  for (const r of soldRows) if (r.product_id) sold.add(String(r.product_id));
+
+  const untapped = catalog.find((p) => !(p.product_ids ?? []).some((id) => sold.has(String(id))));
+  if (!untapped) return null;
+  return {
+    productKey: untapped.product_key,
+    displayName: untapped.display_name || untapped.product_key,
+    brandSlug: untapped.brand,
+  };
+}
+
 // ---- Action stack (Home page) --------------------------------------------
 
 export interface CreatorAction {

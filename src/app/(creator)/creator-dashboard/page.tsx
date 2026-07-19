@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { redirect } from 'next/navigation';
 import { getCreatorSession, getCurrentBrandCookie } from '@/lib/auth/creator-auth';
 import {
@@ -11,11 +12,13 @@ import {
   getInspirationVideos,
   getMonthVideoCount,
   getBrandStanding,
+  getUntappedAssignment,
   buildActionStack,
   type BrandBreakdownRow,
   type RankChase,
 } from '@/lib/data/creator-portal';
 import { resolveCreatorRange } from '@/lib/creator/range';
+import { NetworkFlexBand, NetworkFlexSkeleton } from '@/components/creator/network-flex-band';
 import { HomeClient } from './home-client';
 
 export default async function CreatorHomePage({
@@ -67,6 +70,10 @@ export default async function CreatorHomePage({
         contractedBrands.map((c) => getMonthVideoCount(profile.handles, c.brandSlug).catch(() => null)),
       ),
     ]);
+
+  // An assigned-but-unsold product to surface as an "untapped" nudge. Cheap/no-op
+  // for creators without product assignments; scoped to the active brand view.
+  const untapped = await getUntappedAssignment(profile.handles, activeContracts, window).catch(() => null);
 
   // Rank-chase input for the action stack is derived from the (already-fetched)
   // brand standing — one brand scan feeds both the ladder and the "catch up" move.
@@ -136,8 +143,14 @@ export default async function CreatorHomePage({
       actions={actions}
       dailySeries={dailySeries}
       brandStanding={brandStanding}
+      untapped={untapped}
       chaseBrandLabel={
         activeContracts.find((c) => c.brandSlug === chaseBrand)?.brandDisplayName ?? null
+      }
+      flexSlot={
+        <Suspense fallback={<NetworkFlexSkeleton />}>
+          <NetworkFlexBand handles={profile.handles} window={window} />
+        </Suspense>
       }
     />
   );
