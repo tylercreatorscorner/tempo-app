@@ -13,6 +13,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { RangePicker } from '@/components/creator/range-picker';
 import { fmtCompactCurrency } from '@/components/charts/format';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
+import { useBrandMeta } from '@/hooks/use-brand-meta';
 
 type InspirationVideo = CreatorVideoRow & { isMine: boolean };
 
@@ -124,6 +125,7 @@ export function InspirationClient({ currentBrand, currentBrandDisplay, rangeDays
 
 function VideoCard({ video, index }: { video: InspirationVideo; index: number }) {
   const isHot = index < 3;
+  const brandMeta = useBrandMeta();
   const card = (
     <Card
       className={`group p-4 h-full transition-all hover:-translate-y-0.5 hover:shadow-[var(--pulse-elev-2)] ${
@@ -162,7 +164,7 @@ function VideoCard({ video, index }: { video: InspirationVideo; index: number })
         </div>
         <div className="text-right">
           <p className="text-xs text-muted-foreground">@{video.tiktokUsername}</p>
-          <p className="text-[11px] text-muted-foreground/60 mt-0.5">{video.brandSlug}</p>
+          <p className="text-[11px] text-muted-foreground/60 mt-0.5">{brandMeta.label(video.brandSlug)}</p>
         </div>
       </div>
       {video.videoUrl && (

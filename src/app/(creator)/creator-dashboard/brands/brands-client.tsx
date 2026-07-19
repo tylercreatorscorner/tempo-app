@@ -37,7 +37,6 @@ export function BrandsClient({ realName, rows }: { realName: string; rows: Brand
   const totalGmv = anyGmv ? rows.reduce((s, r) => s + (r.gmv ?? 0), 0) : null;
   const anyPosts = rows.some((r) => r.postsThisMonth != null);
   const totalPosts = anyPosts ? rows.reduce((s, r) => s + (r.postsThisMonth ?? 0), 0) : null;
-  const totalRequired = rows.reduce((s, r) => s + r.monthlyPostRequirement, 0);
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-12">
@@ -53,7 +52,7 @@ export function BrandsClient({ realName, rows }: { realName: string; rows: Brand
         <StatCard label="GMV · 30d" value={gmvLabel(totalGmv)} accentColor="var(--pulse-pos)" />
         <StatCard
           label="Posts this month"
-          value={totalPosts == null ? '—' : `${totalPosts}${totalRequired > 0 ? ` / ${totalRequired}` : ''}`}
+          value={totalPosts == null ? '—' : String(totalPosts)}
           accentColor="var(--pulse-accent-2)"
         />
         <StatCard label="Brands" value={String(rows.length)} accentColor="var(--primary)" />
@@ -88,7 +87,11 @@ export function BrandsClient({ realName, rows }: { realName: string; rows: Brand
               </THead>
               <TBody>
                 {rows.map((r) => {
-                  const hasReq = r.monthlyPostRequirement > 0;
+                  // A post commitment only exists on a CONTRACTED brand (retainer > 0).
+                  // Affiliate-only brands ($0 retainer) carry a phantom
+                  // monthly_post_requirement default and must NOT be flagged "Behind".
+                  const contracted = r.retainer > 0;
+                  const hasReq = contracted && r.monthlyPostRequirement > 0;
                   const behind =
                     r.postsThisMonth != null && hasReq && r.postsThisMonth < r.monthlyPostRequirement;
                   return (
@@ -111,12 +114,15 @@ export function BrandsClient({ realName, rows }: { realName: string; rows: Brand
                                 <span className="text-muted-foreground"> / {r.monthlyPostRequirement}</span>
                               )}
                             </span>
-                            {hasReq &&
-                              (behind ? (
+                            {hasReq ? (
+                              behind ? (
                                 <Badge variant="warning" size="sm">Behind</Badge>
                               ) : (
                                 <Badge variant="positive" size="sm">On track</Badge>
-                              ))}
+                              )
+                            ) : !contracted ? (
+                              <Badge variant="neutral" size="sm">Affiliate</Badge>
+                            ) : null}
                           </div>
                         )}
                       </TD>
