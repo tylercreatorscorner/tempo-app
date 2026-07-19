@@ -3,6 +3,7 @@ import { getCreatorSession, getCurrentBrandCookie } from '@/lib/auth/creator-aut
 import {
   loadCreatorPortalProfile,
   getCreatorSummary,
+  getCreatorLifetimeGmv,
   getCreatorStreak,
   getCreatorTopVideos,
   getInspirationVideos,
@@ -35,15 +36,14 @@ export default async function CreatorHomePage({
     .filter((c) => !profile.currentBrand || c.brandSlug === profile.currentBrand)
     .reduce((sum, c) => sum + (c.monthlyPostRequirement || 0), 0);
 
-  const [summary, streak, topVideos, inspiration, monthVideos, lifetime] = await Promise.all([
+  const [summary, streak, topVideos, inspiration, monthVideos, lifetimeGmv] = await Promise.all([
     getCreatorSummary(profile.handles, profile.currentBrand, window).catch(() => null),
     getCreatorStreak(profile.handles, profile.currentBrand).catch(() => 0),
     getCreatorTopVideos(profile.handles, profile.currentBrand, window, 6).catch(() => []),
     getInspirationVideos(profile.currentBrand, window, 6).catch(() => []),
     getMonthVideoCount(profile.handles, profile.currentBrand).catch(() => 0),
-    getCreatorSummary(profile.handles, profile.currentBrand, dateWindow(3650)).catch(() => null),
+    getCreatorLifetimeGmv(profile.handles, profile.currentBrand).catch(() => null),
   ]);
-  const lifetimeGmv = lifetime ? lifetime.totalGmv : null;
 
   const daysLeftInMonth = (() => {
     const now = new Date();

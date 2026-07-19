@@ -479,6 +479,33 @@ export async function getCreatorDailySeries(
   return out;
 }
 
+/**
+ * Lifetime GMV headline — RPC ONLY (no daily_video_product_stats scan).
+ *
+ * The home page only needs the all-time total, so calling getCreatorSummary()
+ * with a 3650-day window was pathological: it ran two multi-year
+ * daily_video_product_stats paginated scans (current + prior period) whose
+ * video/best-day output was thrown away. This is a single get_creator_perf_by_handles
+ * call over the same wide window — the slow part deleted.
+ */
+export async function getCreatorLifetimeGmv(
+  handles: string[],
+  brandSlug: string | null,
+): Promise<number | null> {
+  if (handles.length === 0) return 0;
+  const supabase = await createAdminClient();
+  const reg = await getBrandRegistry();
+  const slugs = brandSlugSet(reg, brandSlug);
+  const w = dateWindow(3650);
+  const perf = await perfByHandles(supabase, handles, w.start, w.end);
+  let gmv = 0;
+  for (const p of perf) {
+    if (slugs && !slugs.has(p.brand.toLowerCase())) continue;
+    gmv += p.gmv;
+  }
+  return gmv;
+}
+
 /** Top videos for a creator in a window. */
 export async function getCreatorTopVideos(
   handles: string[],

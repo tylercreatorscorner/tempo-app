@@ -369,28 +369,30 @@ function VideoRow({
       href={video.videoUrl}
       target="_blank"
       rel="noopener noreferrer"
-      className="font-semibold text-foreground truncate hover:text-primary transition-colors"
+      className="block min-w-0 truncate font-semibold text-foreground hover:text-primary transition-colors"
     >
       {video.videoTitle}
     </a>
   ) : (
-    <span className="font-semibold text-foreground truncate">{video.videoTitle}</span>
+    <span className="block min-w-0 truncate font-semibold text-foreground">{video.videoTitle}</span>
   );
 
   return (
     <TR className={video.isMine ? 'bg-primary/5' : 'hover:bg-secondary/60'}>
-      <TD className="px-2 py-2.5">
-        <div className="flex items-center gap-3">
+      {/* w-full makes this column absorb the slack so the stats column stays pinned
+          to its content width; the min-w-0 chain lets the long caption truncate. */}
+      <TD className="px-2 py-2.5 w-full">
+        <div className="flex items-center gap-3 min-w-0">
           <DataAvatar>{rank}</DataAvatar>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 text-sm">
-              {titleNode}
-              {video.isMine && <Tag>You</Tag>}
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 min-w-0 text-sm">
+              <span className="min-w-0 flex-1 truncate">{titleNode}</span>
+              {video.isMine && <span className="flex-shrink-0"><Tag>You</Tag></span>}
             </div>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5 truncate">
-              {showCreator && <span>@{video.tiktokUsername}</span>}
+            <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground min-w-0">
+              {showCreator && <span className="flex-shrink-0">@{video.tiktokUsername}</span>}
               {video.topProduct && (
-                <span className="truncate">
+                <span className="min-w-0 truncate">
                   {showCreator ? '· ' : ''}
                   {video.topProduct}
                 </span>
@@ -399,7 +401,7 @@ function VideoRow({
           </div>
         </div>
       </TD>
-      <TD className="px-2 py-2.5 align-middle">
+      <TD className="px-2 py-2.5 align-middle text-right whitespace-nowrap">
         <p className="text-sm font-bold tabular-nums text-[var(--pulse-pos)]">{fmtCompactCurrency(video.gmv)}</p>
         <p className="text-xs text-muted-foreground tabular-nums">{video.orders.toLocaleString()} orders</p>
       </TD>
