@@ -8,7 +8,7 @@ import {
   dateWindow,
 } from '@/lib/data/creator-portal';
 import { PerformanceClient } from './performance-client';
-import { parseRange } from '@/components/creator/range-picker';
+import { parseRange } from '@/lib/creator/range';
 
 export default async function PerformancePage({
   searchParams,

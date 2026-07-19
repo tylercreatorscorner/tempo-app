@@ -11,7 +11,7 @@ import {
   dateWindow,
 } from '@/lib/data/creator-portal';
 import { HomeClient } from './home-client';
-import { parseRange } from '@/components/creator/range-picker';
+import { parseRange } from '@/lib/creator/range';
 
 export default async function CreatorHomePage({
   searchParams,
