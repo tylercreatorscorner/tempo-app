@@ -1,8 +1,18 @@
 'use client';
 
-import { motion } from 'framer-motion';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowDown, ArrowUp, Minus } from 'lucide-react';
+import { Trophy, Info } from 'lucide-react';
+import { PageHeader } from '@/components/ui/page-header';
+import { StatCard } from '@/components/ui/stat-card';
+import { TableCard, Table, THead, TBody, TR, TH, TD, DataAvatar } from '@/components/ui/table';
+import { Card, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { EmptyState } from '@/components/ui/empty-state';
+import { NumberTicker } from '@/components/ui/number-ticker';
+import { RangePicker } from '@/components/creator/range-picker';
+import { Gauge } from '@/components/charts/gauge';
+import { fmtCompactCurrency } from '@/components/charts/format';
+import { cn } from '@/lib/utils';
 import type { RankingEntry } from '@/lib/data/creator-portal';
 
 type RowWithDelta = RankingEntry & { priorRank: number | null };
@@ -32,153 +42,193 @@ export function RankingsClient({ currentBrand, currentBrandDisplay, rangeDays, r
   const top3 = rankings.slice(0, 3);
   const totalShown = rankings.length;
 
-  const fade = {
-    initial: { opacity: 0, y: 8 },
-    animate: { opacity: 1, y: 0 },
-    transition: { duration: 0.35, ease: 'easeOut' as const },
-  };
+  // Position within the shown leaderboard, drawn as a ring. Honest because the
+  // sublabel says "of N shown" — it never implies a percentile of the full field.
+  const gaugeFraction = myBest && totalShown > 0 ? Math.max(0, (totalShown - myBest.rank + 1) / totalShown) : 0;
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-12">
-      <motion.div {...fade} className="flex items-baseline justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">🏆 Rankings</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {currentBrandDisplay ? (
-              <>Where you stack up on <span className="font-medium text-foreground">{currentBrandDisplay}</span> · last {rangeDays} days</>
-            ) : (
-              <>All brands · last {rangeDays} days</>
-            )}
-          </p>
-        </div>
-        <RangePicker value={rangeDays} onChange={setRange} />
-      </motion.div>
+      <PageHeader
+        eyebrow="Leaderboard"
+        title="Rankings"
+        subtitle={
+          currentBrandDisplay ? (
+            <>
+              Where you stack up on <span className="font-medium text-foreground">{currentBrandDisplay}</span> · last{' '}
+              {rangeDays} days
+            </>
+          ) : (
+            <>All brands · last {rangeDays} days</>
+          )
+        }
+        actions={<RangePicker value={rangeDays} onChange={setRange} />}
+      />
 
       {!currentBrand && (
-        <motion.div {...fade} transition={{ ...fade.transition, delay: 0.05 }} className="rounded-2xl p-4 border border-[var(--pulse-warn)]/20 bg-[var(--pulse-warn-bg)] text-sm text-[var(--pulse-warn)]">
-          Pick a brand from the switcher to see brand-specific rankings.
-        </motion.div>
+        <Badge variant="warning" className="gap-1.5">
+          <Info className="h-3.5 w-3.5" />
+          Pick a brand from the switcher for brand-specific rankings.
+        </Badge>
       )}
 
-      {/* Your Position */}
-      {myBest && (
-        <motion.div {...fade} transition={{ ...fade.transition, delay: 0.1 }}>
-          <div className="bg-primary/5 border border-primary/20 rounded-2xl p-6 text-center shadow-[var(--pulse-elev-1)]">
-            <span className="text-xs font-bold uppercase tracking-widest text-primary">Your rank</span>
-            <p className="text-5xl font-extrabold text-pulse-grad mt-2">#{myBest.rank}</p>
-            <p className="text-sm text-muted-foreground mt-1">@{myBest.tiktokUsername} · out of {totalShown}+ creators</p>
-            <RankDelta currentRank={myBest.rank} priorRank={myBest.priorRank} className="mt-2" />
-            <p className="text-lg font-bold text-[var(--pulse-pos)] mt-2">{fmt(myBest.gmv)} GMV</p>
-            {myEntries.length > 1 && (
-              <p className="text-xs text-muted-foreground mt-2">
-                You also have {myEntries.length - 1} other handle{myEntries.length - 1 === 1 ? '' : 's'} in this leaderboard
-              </p>
-            )}
-          </div>
-        </motion.div>
-      )}
+      {rankings.length === 0 ? (
+        <EmptyState
+          icon={<Trophy className="h-8 w-8" />}
+          title="The leaderboard is warming up"
+          description={
+            currentBrandDisplay
+              ? `No ranked sales for ${currentBrandDisplay} in the last ${rangeDays} days yet. Post something and you could be the first name on the board.`
+              : `No ranked sales in the last ${rangeDays} days yet. Keep posting — the board fills as sales land.`
+          }
+        />
+      ) : (
+        <>
+          {/* Your position — canonical hero StatCard beside a standing ring. */}
+          {myBest && (
+            <section className="grid gap-4 sm:grid-cols-[auto_1fr] sm:items-stretch">
+              <Card className="flex flex-col items-center justify-center gap-3 p-5">
+                <Gauge
+                  fraction={gaugeFraction}
+                  size={132}
+                  thickness={11}
+                  color="var(--pulse-accent-2)"
+                  label={
+                    <span className="tabular-nums">
+                      #
+                      <NumberTicker
+                        value={myBest.rank}
+                        className="text-foreground dark:text-foreground tracking-tight"
+                      />
+                    </span>
+                  }
+                  sublabel={`of ${totalShown} shown`}
+                />
+                <RankDeltaBadge currentRank={myBest.rank} priorRank={myBest.priorRank} />
+              </Card>
 
-      {/* Podium */}
-      {top3.length === 3 && (
-        <motion.div {...fade} transition={{ ...fade.transition, delay: 0.15 }}>
-          <div className="flex items-end justify-center gap-3 sm:gap-6">
-            <PodiumCard entry={top3[1]} rank={2} height="h-28" />
-            <PodiumCard entry={top3[0]} rank={1} height="h-36" highlight />
-            <PodiumCard entry={top3[2]} rank={3} height="h-24" />
-          </div>
-        </motion.div>
-      )}
-
-      {/* Full Leaderboard */}
-      <motion.section {...fade} transition={{ ...fade.transition, delay: 0.2 }} className="bg-card border border-border rounded-2xl shadow-[var(--pulse-elev-1)] overflow-hidden">
-        <div className="px-5 py-3 border-b border-border flex items-center justify-between">
-          <h2 className="font-semibold text-foreground text-sm">Leaderboard</h2>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs uppercase tracking-wider text-muted-foreground border-b border-border">
-                <th className="px-5 py-3 font-medium w-16">Rank</th>
-                <th className="px-5 py-3 font-medium">Creator</th>
-                <th className="px-5 py-3 font-medium text-right">GMV</th>
-                <th className="px-5 py-3 font-medium text-right hidden sm:table-cell">Orders</th>
-                <th className="px-5 py-3 font-medium text-right hidden md:table-cell">Videos</th>
-                <th className="px-5 py-3 font-medium text-right">Δ</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rankings.map((r, i) => {
-                const isMe = r.isMe;
-                return (
-                  <tr
-                    key={r.tiktokUsername + i}
-                    className={`border-b border-border last:border-0 transition-colors ${
-                      isMe ? 'bg-primary/5' : i % 2 === 0 ? 'bg-card' : 'bg-secondary/30'
-                    } hover:bg-primary/5`}
-                  >
-                    <td className="px-5 py-3 font-bold text-muted-foreground">
-                      {i < 3 ? <span className="text-base">{MEDALS[i]}</span> : `#${r.rank}`}
-                    </td>
-                    <td className="px-5 py-3">
-                      <p className={`font-medium ${isMe ? 'text-primary' : 'text-foreground'} truncate`}>
-                        {r.realName ?? `@${r.tiktokUsername}`}
-                        {isMe && <span className="text-xs text-primary ml-1">(you)</span>}
-                      </p>
-                      {r.realName && <p className="text-xs text-muted-foreground">@{r.tiktokUsername}</p>}
-                    </td>
-                    <td className="px-5 py-3 text-right font-bold text-[var(--pulse-pos)]">{fmt(r.gmv)}</td>
-                    <td className="px-5 py-3 text-right text-foreground hidden sm:table-cell">{r.orders.toLocaleString()}</td>
-                    <td className="px-5 py-3 text-right text-muted-foreground hidden md:table-cell">{r.videos}</td>
-                    <td className="px-5 py-3 text-right">
-                      <RankDelta currentRank={r.rank} priorRank={r.priorRank} />
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          {rankings.length === 0 && (
-            <p className="text-center py-12 text-muted-foreground text-sm">No ranking data for this period.</p>
+              <StatCard
+                hero
+                label="Your rank"
+                value={`#${myBest.rank}`}
+                subValue={`${fmtCompactCurrency(myBest.gmv)} GMV`}
+                trendLabel={`@${myBest.tiktokUsername} · of ${totalShown}+ creators`}
+              />
+            </section>
           )}
-        </div>
-      </motion.section>
+
+          {myEntries.length > 1 && (
+            <p className="-mt-2 text-xs text-muted-foreground">
+              You also have {myEntries.length - 1} other handle{myEntries.length - 1 === 1 ? '' : 's'} on this
+              leaderboard.
+            </p>
+          )}
+
+          {/* Podium — the one intentional custom flourish, rebuilt from kit atoms. */}
+          {top3.length === 3 && (
+            <div className="flex items-end justify-center gap-3 sm:gap-6">
+              <PodiumCard entry={top3[1]} rank={2} height="h-24" />
+              <PodiumCard entry={top3[0]} rank={1} height="h-32" highlight />
+              <PodiumCard entry={top3[2]} rank={3} height="h-20" />
+            </div>
+          )}
+
+          {/* Full leaderboard */}
+          <TableCard>
+            <CardHeader>
+              <CardTitle>Leaderboard</CardTitle>
+              <span className="text-xs text-muted-foreground tabular-nums">
+                {totalShown} creator{totalShown === 1 ? '' : 's'}
+              </span>
+            </CardHeader>
+            <div className="overflow-x-auto">
+              <Table>
+                <THead>
+                  <TR>
+                    <TH className="w-16 text-left">Rank</TH>
+                    <TH className="text-left">Creator</TH>
+                    <TH>GMV</TH>
+                    <TH className="hidden sm:table-cell">Orders</TH>
+                    <TH className="hidden md:table-cell">Videos</TH>
+                    <TH>Δ</TH>
+                  </TR>
+                </THead>
+                <TBody>
+                  {rankings.map((r, i) => {
+                    const isMe = r.isMe;
+                    return (
+                      <TR
+                        key={r.tiktokUsername + i}
+                        className={cn('hover:bg-secondary/50', isMe && 'bg-primary/5')}
+                      >
+                        <TD className="text-left font-bold text-muted-foreground">
+                          {i < 3 ? <span className="text-base">{MEDALS[i]}</span> : `#${r.rank}`}
+                        </TD>
+                        <TD className="text-left">
+                          <div className="flex items-center gap-3">
+                            <DataAvatar
+                              color={isMe ? undefined : 'var(--secondary)'}
+                              className={cn(!isMe && 'text-muted-foreground')}
+                            >
+                              {initials(r)}
+                            </DataAvatar>
+                            <div className="min-w-0">
+                              <p className={cn('truncate font-medium', isMe ? 'text-primary' : 'text-foreground')}>
+                                {r.realName ?? `@${r.tiktokUsername}`}
+                                {isMe && <span className="ml-1 text-xs text-primary">(you)</span>}
+                              </p>
+                              {r.realName && (
+                                <p className="truncate text-xs text-muted-foreground">@{r.tiktokUsername}</p>
+                              )}
+                            </div>
+                          </div>
+                        </TD>
+                        <TD className="font-bold text-[var(--pulse-pos)]">{fmtCompactCurrency(r.gmv)}</TD>
+                        <TD className="hidden sm:table-cell text-foreground">{r.orders.toLocaleString()}</TD>
+                        <TD className="hidden md:table-cell">{r.videos}</TD>
+                        <TD>
+                          <RankDeltaBadge currentRank={r.rank} priorRank={r.priorRank} />
+                        </TD>
+                      </TR>
+                    );
+                  })}
+                </TBody>
+              </Table>
+            </div>
+          </TableCard>
+        </>
+      )}
     </div>
   );
 }
 
-function RankDelta({
-  currentRank,
-  priorRank,
-  className,
-}: {
-  currentRank: number;
-  priorRank: number | null;
-  className?: string;
-}) {
+/** Rank movement vs the prior window, as a semantic Badge. */
+function RankDeltaBadge({ currentRank, priorRank }: { currentRank: number; priorRank: number | null }) {
   if (priorRank === null) {
-    return <span className={`inline-flex items-center text-xs text-muted-foreground ${className ?? ''}`}>—</span>;
+    return (
+      <Badge variant="neutral" size="sm">
+        —
+      </Badge>
+    );
   }
-  const diff = priorRank - currentRank; // positive = moved up
+  const diff = priorRank - currentRank; // positive = climbed
   if (diff === 0) {
     return (
-      <span className={`inline-flex items-center gap-0.5 text-xs text-muted-foreground ${className ?? ''}`}>
-        <Minus className="h-3 w-3" />
-      </span>
+      <Badge variant="neutral" size="sm">
+        —
+      </Badge>
     );
   }
   if (diff > 0) {
     return (
-      <span className={`inline-flex items-center gap-0.5 text-xs font-medium text-[var(--pulse-pos)] ${className ?? ''}`}>
-        <ArrowUp className="h-3 w-3" />
-        {diff}
-      </span>
+      <Badge variant="positive" size="sm">
+        ▲ {diff}
+      </Badge>
     );
   }
   return (
-    <span className={`inline-flex items-center gap-0.5 text-xs font-medium text-[var(--pulse-neg)] ${className ?? ''}`}>
-      <ArrowDown className="h-3 w-3" />
-      {Math.abs(diff)}
-    </span>
+    <Badge variant="negative" size="sm">
+      ▼ {Math.abs(diff)}
+    </Badge>
   );
 }
 
@@ -194,48 +244,32 @@ function PodiumCard({
   highlight?: boolean;
 }) {
   return (
-    <div className="flex flex-col items-center w-28 sm:w-36">
-      <div
-        className={`w-12 h-12 rounded-full flex items-center justify-center text-lg mb-2 ${
-          highlight ? 'bg-pulse-grad text-white shadow-[var(--pulse-elev-2)]' : 'bg-secondary text-muted-foreground'
-        }`}
+    <div className="flex w-24 flex-col items-center sm:w-32">
+      <DataAvatar
+        color={highlight ? undefined : 'var(--secondary)'}
+        className={cn(
+          'mb-2 h-12 w-12 text-lg',
+          highlight ? 'shadow-[var(--pulse-elev-2)]' : 'shadow-[var(--pulse-elev-1)]',
+        )}
       >
         {MEDALS[rank - 1]}
-      </div>
-      <p className="text-xs font-semibold text-foreground truncate w-full text-center">
+      </DataAvatar>
+      <Badge variant={highlight ? 'accent' : 'neutral'} size="sm" className="mb-1">
+        #{rank}
+      </Badge>
+      <p className="w-full truncate text-center text-xs font-semibold text-foreground">
         {entry.realName ?? `@${entry.tiktokUsername}`}
       </p>
-      <p className="text-xs font-bold text-[var(--pulse-pos)]">{fmt(entry.gmv)}</p>
-      <div
-        className={`w-full ${height} mt-2 rounded-t-xl ${
-          highlight ? 'bg-gradient-to-t from-primary/30 to-primary/5' : 'bg-secondary'
-        }`}
-      />
+      <p className="text-xs font-bold tabular-nums text-[var(--pulse-pos)]">{fmtCompactCurrency(entry.gmv)}</p>
+      <div className={cn('mt-2 w-full rounded-t-xl', height, highlight ? 'bg-pulse-grad' : 'bg-secondary')} />
     </div>
   );
 }
 
-function RangePicker({ value, onChange }: { value: number; onChange: (n: number) => void }) {
-  const opts = [7, 30, 90];
-  return (
-    <div className="inline-flex bg-secondary rounded-lg p-1 text-sm">
-      {opts.map((n) => (
-        <button
-          key={n}
-          onClick={() => onChange(n)}
-          className={`px-3 py-1 rounded-md transition-all ${
-            value === n ? 'bg-card text-foreground shadow-[var(--pulse-elev-1)] font-medium' : 'text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          {n}d
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function fmt(n: number): string {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `$${(n / 1_000).toFixed(1)}k`;
-  return `$${n.toFixed(0)}`;
+/** Two-letter avatar seed from a display name (falls back to the handle). */
+function initials(entry: RankingEntry): string {
+  const src = (entry.realName ?? entry.tiktokUsername ?? '').trim();
+  const parts = src.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return src.slice(0, 2).toUpperCase() || '@';
 }

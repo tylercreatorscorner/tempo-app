@@ -1,12 +1,18 @@
 'use client';
 
-import { motion } from 'framer-motion';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ExternalLink, Flame, Sparkles, Video } from 'lucide-react';
+import { AlertTriangle, ExternalLink, Flame, Video } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import type { CreatorVideoRow } from '@/lib/data/creator-portal';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
+import { PageHeader } from '@/components/ui/page-header';
+import { Card } from '@/components/ui/card';
+import { Badge, Tag } from '@/components/ui/badge';
+import { EmptyState } from '@/components/ui/empty-state';
+import { RangePicker } from '@/components/creator/range-picker';
+import { fmtCompactCurrency } from '@/components/charts/format';
+import { formatCurrency, formatNumber } from '@/lib/utils/format';
 
 type InspirationVideo = CreatorVideoRow & { isMine: boolean };
 
@@ -42,33 +48,25 @@ export function InspirationClient({ currentBrand, currentBrandDisplay, rangeDays
     });
   }, [videos, excludeMine, search]);
 
-  const fade = {
-    initial: { opacity: 0, y: 8 },
-    animate: { opacity: 1, y: 0 },
-    transition: { duration: 0.35, ease: 'easeOut' as const },
-  };
-
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-12">
-      <motion.div {...fade} className="flex items-baseline justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-foreground flex items-center gap-2">
-            <Sparkles className="h-6 w-6 text-primary" />
-            Inspiration
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {currentBrandDisplay ? (
-              <>What's winning on <span className="font-medium text-foreground">{currentBrandDisplay}</span> · last {rangeDays} days</>
-            ) : (
-              <>What's winning across the network · last {rangeDays} days</>
-            )}
-          </p>
-        </div>
-        <RangePicker value={rangeDays} onChange={setRange} />
-      </motion.div>
+      <PageHeader
+        eyebrow="Discover"
+        title="Inspiration"
+        subtitle={
+          currentBrandDisplay ? (
+            <>
+              What&apos;s winning on <b>{currentBrandDisplay}</b> · last {rangeDays} days
+            </>
+          ) : (
+            <>What&apos;s winning across the network · last {rangeDays} days</>
+          )
+        }
+        actions={<RangePicker value={rangeDays} onChange={setRange} />}
+      />
 
       {/* Filters */}
-      <motion.div {...fade} transition={{ ...fade.transition, delay: 0.05 }} className="flex items-center gap-3 flex-wrap">
+      <div className="flex items-center gap-3 flex-wrap">
         <Input
           type="text"
           placeholder="Search by title, @handle, or product…"
@@ -77,11 +75,7 @@ export function InspirationClient({ currentBrand, currentBrandDisplay, rangeDays
           className="flex-1 min-w-[240px]"
         />
         <div className="inline-flex items-center gap-2 text-sm text-muted-foreground select-none">
-          <Switch
-            checked={excludeMine}
-            onCheckedChange={setExcludeMine}
-            aria-label="Hide my videos"
-          />
+          <Switch checked={excludeMine} onCheckedChange={setExcludeMine} aria-label="Hide my videos" />
           <span
             onClick={() => setExcludeMine((v) => !v)}
             className="cursor-pointer hover:text-foreground transition-colors"
@@ -89,23 +83,40 @@ export function InspirationClient({ currentBrand, currentBrandDisplay, rangeDays
             Hide my videos
           </span>
         </div>
-      </motion.div>
+      </div>
 
       {!currentBrand && (
-        <motion.div {...fade} transition={{ ...fade.transition, delay: 0.1 }} className="rounded-2xl p-4 border border-[var(--pulse-warn)]/25 bg-[var(--pulse-warn-bg)] text-sm text-[var(--pulse-warn)]">
-          Showing the whole network. Switch to a brand to filter inspiration to that brand's products.
-        </motion.div>
+        <Card className="p-4 flex items-start gap-3 border-[var(--pulse-warn)]/25 bg-[var(--pulse-warn-bg)] shadow-none">
+          <AlertTriangle className="h-4 w-4 text-[var(--pulse-warn)] mt-0.5 shrink-0" />
+          <p className="text-sm text-[var(--pulse-warn)]">
+            Showing the whole network. Switch to a brand to filter inspiration to that brand&apos;s products.
+          </p>
+        </Card>
       )}
 
       {/* Grid */}
       {filtered.length === 0 ? (
-        <p className="text-center py-16 text-muted-foreground text-sm">No videos match your filters.</p>
+        <EmptyState
+          icon={<Video className="h-8 w-8" />}
+          title="No videos match your filters"
+          description="Try widening the range or clearing search — there's plenty winning out there."
+          action={
+            search ? (
+              <button
+                onClick={() => setSearch('')}
+                className="text-sm font-semibold text-primary hover:underline"
+              >
+                Clear search
+              </button>
+            ) : undefined
+          }
+        />
       ) : (
-        <motion.div {...fade} transition={{ ...fade.transition, delay: 0.15 }} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map((v, i) => (
             <VideoCard key={v.videoId} video={v} index={i} />
           ))}
-        </motion.div>
+        </div>
       )}
     </div>
   );
@@ -114,9 +125,9 @@ export function InspirationClient({ currentBrand, currentBrandDisplay, rangeDays
 function VideoCard({ video, index }: { video: InspirationVideo; index: number }) {
   const isHot = index < 3;
   const card = (
-    <div
-      className={`group bg-card rounded-2xl border shadow-[var(--pulse-elev-1)] hover:shadow-[var(--pulse-elev-2)] hover:-translate-y-0.5 transition-all p-4 h-full ${
-        video.isMine ? 'border-primary/40 ring-1 ring-primary/20' : 'border-border'
+    <Card
+      className={`group p-4 h-full transition-all hover:-translate-y-0.5 hover:shadow-[var(--pulse-elev-2)] ${
+        video.isMine ? 'border-primary/40 ring-1 ring-primary/20' : ''
       }`}
     >
       <div className="flex items-start justify-between gap-2 mb-3">
@@ -124,16 +135,12 @@ function VideoCard({ video, index }: { video: InspirationVideo; index: number })
           <Video className="h-4 w-4 text-primary" />
         </div>
         {isHot && (
-          <span className="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-primary bg-primary/10 px-2 py-0.5 rounded-full">
+          <Badge variant="accent" size="sm">
             <Flame className="h-3 w-3" />
             Top {index + 1}
-          </span>
+          </Badge>
         )}
-        {video.isMine && (
-          <span className="text-[11px] font-bold uppercase tracking-wider text-white bg-pulse-grad px-2 py-0.5 rounded-full">
-            Yours
-          </span>
-        )}
+        {video.isMine && <Tag>Yours</Tag>}
       </div>
       <p className="text-sm font-semibold text-foreground line-clamp-2 group-hover:text-primary transition-colors min-h-[2.5rem]">
         {video.videoTitle}
@@ -143,8 +150,15 @@ function VideoCard({ video, index }: { video: InspirationVideo; index: number })
       )}
       <div className="flex items-center justify-between mt-3 pt-3 border-t border-border">
         <div>
-          <p className="text-lg font-extrabold text-[var(--pulse-pos)]">{fmt(video.gmv)}</p>
-          <p className="text-xs text-muted-foreground">{video.orders.toLocaleString()} orders</p>
+          <p
+            className="text-lg font-extrabold text-[var(--pulse-pos)]"
+            title={video.gmv == null ? undefined : formatCurrency(video.gmv)}
+          >
+            {video.gmv == null ? '—' : fmtCompactCurrency(video.gmv)}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {video.orders == null ? '—' : `${formatNumber(video.orders)} orders`}
+          </p>
         </div>
         <div className="text-right">
           <p className="text-xs text-muted-foreground">@{video.tiktokUsername}</p>
@@ -156,7 +170,7 @@ function VideoCard({ video, index }: { video: InspirationVideo; index: number })
           Watch on TikTok <ExternalLink className="h-3 w-3" />
         </p>
       )}
-    </div>
+    </Card>
   );
   if (video.videoUrl) {
     return (
@@ -166,29 +180,4 @@ function VideoCard({ video, index }: { video: InspirationVideo; index: number })
     );
   }
   return card;
-}
-
-function RangePicker({ value, onChange }: { value: number; onChange: (n: number) => void }) {
-  const opts = [7, 14, 30];
-  return (
-    <div className="inline-flex bg-secondary border border-border rounded-lg p-1 text-sm">
-      {opts.map((n) => (
-        <button
-          key={n}
-          onClick={() => onChange(n)}
-          className={`px-3 py-1 rounded-md transition-all ${
-            value === n ? 'bg-card text-foreground shadow-[var(--pulse-elev-1)] font-medium' : 'text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          {n}d
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function fmt(n: number): string {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `$${(n / 1_000).toFixed(1)}k`;
-  return `$${n.toFixed(0)}`;
 }

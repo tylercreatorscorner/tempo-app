@@ -1,12 +1,18 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { motion } from 'framer-motion';
-import { ExternalLink } from 'lucide-react';
+import { ExternalLink, Sparkles, TrendingUp } from 'lucide-react';
 import { StatCard } from '@/components/ui/stat-card';
+import { PageHeader } from '@/components/ui/page-header';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { TableCard, Table, THead, TBody, TR, TH, TD } from '@/components/ui/table';
+import { Chip } from '@/components/ui/chip';
+import { EmptyState } from '@/components/ui/empty-state';
+import { NumberTicker } from '@/components/ui/number-ticker';
 import { RangePicker } from '@/components/creator/range-picker';
 import { AreaLineChart } from '@/components/charts/area-line-chart';
-import { fmtCompactCurrency } from '@/components/charts/format';
+import { fmtCompactCurrency, formatCurrency } from '@/components/charts/format';
+import { useBrandMeta } from '@/hooks/use-brand-meta';
 import type {
   CreatorDailyPoint,
   CreatorSummary,
@@ -32,6 +38,7 @@ export function PerformanceClient({
 }: Props) {
   const router = useRouter();
   const params = useSearchParams();
+  const brandMeta = useBrandMeta();
 
   const setRange = (n: number) => {
     const next = new URLSearchParams(params?.toString() ?? '');
@@ -39,36 +46,31 @@ export function PerformanceClient({
     router.push(`/creator-dashboard/stats?${next.toString()}`);
   };
 
-  const fade = {
-    initial: { opacity: 0, y: 8 },
-    animate: { opacity: 1, y: 0 },
-    transition: { duration: 0.35, ease: 'easeOut' as const },
-  };
-
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-12">
-      <motion.div {...fade} className="flex items-baseline justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Performance</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {currentBrandDisplay ? (
-              <>Showing <span className="font-medium text-foreground">{currentBrandDisplay}</span> · last {rangeDays} days</>
-            ) : (
-              <>All brands · last {rangeDays} days</>
-            )}
-          </p>
-        </div>
-        <RangePicker value={rangeDays} onChange={setRange} />
-      </motion.div>
+      <PageHeader
+        eyebrow="Performance"
+        title="Performance"
+        subtitle={
+          currentBrandDisplay ? (
+            <>
+              Showing <span className="font-medium text-foreground">{currentBrandDisplay}</span> · last {rangeDays} days
+            </>
+          ) : (
+            <>All brands · last {rangeDays} days</>
+          )
+        }
+        actions={<RangePicker value={rangeDays} onChange={setRange} />}
+      />
 
       {/* Summary tiles — canonical Pulse StatCards so the portal matches the admin.
           summary === null means the read FAILED (a zero-activity creator gets a
           zeros object, not null) — show "—", never a fake $0. */}
-      <motion.div {...fade} transition={{ ...fade.transition, delay: 0.05 }} className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <StatCard
           hero
           label={`GMV · ${rangeDays}d`}
-          value={summary ? formatMoney(summary.totalGmv) : '—'}
+          value={summary ? fmtCompactCurrency(summary.totalGmv) : '—'}
           trend={summary?.gmvChangePct ?? undefined}
           trendLabel="vs prior period"
         />
@@ -84,55 +86,88 @@ export function PerformanceClient({
         />
         <StatCard
           label="Est. commission"
-          value={summary ? formatMoney(summary.totalCommission) : '—'}
+          value={summary ? formatCurrency(summary.totalCommission) : '—'}
           accentColor="var(--pulse-pos)"
         />
-      </motion.div>
+      </div>
 
       {/* Daily chart */}
-      <motion.section {...fade} transition={{ ...fade.transition, delay: 0.1 }} className="bg-card border border-border rounded-2xl p-5 shadow-[var(--pulse-elev-1)]">
-        <h2 className="font-semibold text-foreground mb-3 text-sm">📈 Daily GMV</h2>
-        <DailyChart daily={daily} />
-      </motion.section>
+      <Card>
+        <CardHeader>
+          <CardTitle>Daily GMV</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <DailyChart daily={daily} />
+        </CardContent>
+      </Card>
 
-      {/* Best day callout */}
+      {/* Best day — positive callout. summary.bestDay is only set when there was
+          real sales activity, so a null gmv never reaches here as a fake $0. */}
       {summary?.bestDay && summary.bestDay.gmv > 0 && (
-        <motion.div {...fade} transition={{ ...fade.transition, delay: 0.15 }} className="rounded-2xl p-4 border border-border bg-[var(--pulse-pos-bg)]">
-          <p className="text-sm text-foreground">
-            🏆 <span className="font-semibold">Best day:</span>{' '}
-            {formatDate(summary.bestDay.date)} did{' '}
-            <span className="font-bold text-[var(--pulse-pos)]">{formatMoney(summary.bestDay.gmv)}</span>.
-          </p>
-        </motion.div>
+        <Card className="border-[var(--pulse-pos)]/25 bg-[var(--pulse-pos-bg)] shadow-[var(--pulse-elev-1)]">
+          <CardContent className="flex items-center gap-4 pt-5">
+            <span
+              className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-white"
+              style={{ backgroundColor: 'var(--pulse-pos)' }}
+            >
+              <TrendingUp className="h-5 w-5" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-[10.5px] font-bold uppercase tracking-[0.12em] text-[var(--pulse-pos)]">
+                Best day
+              </p>
+              <p className="mt-1 text-sm text-foreground">
+                <span className="font-medium">{formatDate(summary.bestDay.date)}</span> brought in{' '}
+                <span className="font-extrabold tabular-nums text-[var(--pulse-pos)]">
+                  $<NumberTicker
+                    value={summary.bestDay.gmv}
+                    className="text-[var(--pulse-pos)] dark:text-[var(--pulse-pos)] tracking-tight"
+                  />
+                </span>
+              </p>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Video table */}
-      <motion.section {...fade} transition={{ ...fade.transition, delay: 0.2 }} className="bg-card border border-border rounded-2xl shadow-[var(--pulse-elev-1)] overflow-hidden">
-        <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-          <h2 className="font-semibold text-foreground text-sm">Videos in this period</h2>
-          <span className="text-xs text-muted-foreground">{topVideos.length} video{topVideos.length === 1 ? '' : 's'}</span>
-        </div>
-        {topVideos.length === 0 ? (
-          <p className="px-5 py-8 text-sm text-muted-foreground text-center">No videos with sales in this period.</p>
-        ) : (
+      {topVideos.length === 0 ? (
+        <EmptyState
+          icon={<Sparkles className="h-8 w-8" />}
+          title="No videos with sales yet"
+          description="Once your posts start driving sales in this window, every video shows up here with its GMV, orders, and top product. Keep posting — your next hit could be the first row."
+        />
+      ) : (
+        <TableCard>
+          <CardHeader>
+            <CardTitle>Videos in this period</CardTitle>
+            <span className="text-xs text-muted-foreground tabular-nums">
+              {topVideos.length} video{topVideos.length === 1 ? '' : 's'}
+            </span>
+          </CardHeader>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs uppercase tracking-wider text-muted-foreground border-b border-border">
-                  <th className="px-5 py-3 font-medium">Video</th>
-                  <th className="px-5 py-3 font-medium hidden sm:table-cell">Top product</th>
-                  <th className="px-5 py-3 font-medium text-right">GMV</th>
-                  <th className="px-5 py-3 font-medium text-right hidden md:table-cell">Orders</th>
-                  <th className="px-5 py-3 font-medium text-right hidden md:table-cell">Days</th>
-                </tr>
-              </thead>
-              <tbody>
+            <Table>
+              <THead>
+                <TR>
+                  <TH>Video</TH>
+                  <TH className="hidden sm:table-cell text-left">Top product</TH>
+                  <TH>GMV</TH>
+                  <TH className="hidden md:table-cell">Orders</TH>
+                  <TH className="hidden md:table-cell">Days</TH>
+                </TR>
+              </THead>
+              <TBody>
                 {topVideos.map((v) => (
-                  <tr key={v.videoId} className="border-b border-border last:border-0 hover:bg-secondary/50 transition-colors">
-                    <td className="px-5 py-3 max-w-[280px]">
+                  <TR key={v.videoId} className="hover:bg-secondary/50">
+                    <TD className="max-w-[280px] align-top">
                       <div className="flex items-center gap-2">
                         {v.videoUrl ? (
-                          <a href={v.videoUrl} target="_blank" rel="noopener noreferrer" className="text-foreground hover:text-primary truncate font-medium flex items-center gap-1">
+                          <a
+                            href={v.videoUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-foreground hover:text-primary truncate font-medium flex items-center gap-1"
+                          >
                             <span className="truncate">{v.videoTitle}</span>
                             <ExternalLink className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
                           </a>
@@ -140,21 +175,24 @@ export function PerformanceClient({
                           <span className="text-foreground truncate font-medium">{v.videoTitle}</span>
                         )}
                       </div>
-                      <p className="text-xs text-muted-foreground mt-0.5">@{v.tiktokUsername} · {v.brandSlug}</p>
-                    </td>
-                    <td className="px-5 py-3 hidden sm:table-cell text-muted-foreground max-w-[200px]">
+                      <div className="mt-1 flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">@{v.tiktokUsername}</span>
+                        <Chip dotColor={brandMeta.color(v.brandSlug)}>{brandMeta.label(v.brandSlug)}</Chip>
+                      </div>
+                    </TD>
+                    <TD className="hidden sm:table-cell text-left max-w-[200px]">
                       <span className="truncate block">{v.topProduct ?? '—'}</span>
-                    </td>
-                    <td className="px-5 py-3 text-right font-bold text-[var(--pulse-pos)]">{formatMoney(v.gmv)}</td>
-                    <td className="px-5 py-3 text-right hidden md:table-cell text-foreground">{v.orders.toLocaleString()}</td>
-                    <td className="px-5 py-3 text-right hidden md:table-cell text-muted-foreground">{v.daysActive}d</td>
-                  </tr>
+                    </TD>
+                    <TD className="font-bold text-[var(--pulse-pos)]">{fmtCompactCurrency(v.gmv)}</TD>
+                    <TD className="hidden md:table-cell text-foreground">{v.orders.toLocaleString()}</TD>
+                    <TD className="hidden md:table-cell">{v.daysActive}d</TD>
+                  </TR>
                 ))}
-              </tbody>
-            </table>
+              </TBody>
+            </Table>
           </div>
-        )}
-      </motion.section>
+        </TableCard>
+      )}
     </div>
   );
 }
@@ -170,12 +208,6 @@ function DailyChart({ daily }: { daily: CreatorDailyPoint[] }) {
   const labels = daily.map((d) => formatDate(d.date));
   const series = [{ name: 'GMV', data: daily.map((d) => Number(d.gmv.toFixed(2))) }];
   return <AreaLineChart labels={labels} series={series} height={280} showAxis format={fmtCompactCurrency} />;
-}
-
-function formatMoney(n: number): string {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(2)}M`;
-  if (n >= 1_000) return `$${(n / 1_000).toFixed(1)}k`;
-  return `$${n.toFixed(0)}`;
 }
 
 function formatDate(s: string): string {

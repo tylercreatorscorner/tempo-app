@@ -1,13 +1,34 @@
 'use client';
 
+import Link from 'next/link';
 import { StatCard } from '@/components/ui/stat-card';
+import { Badge } from '@/components/ui/badge';
+import { EmptyState } from '@/components/ui/empty-state';
+import {
+  TableCard,
+  Table,
+  THead,
+  TBody,
+  TR,
+  TH,
+  TD,
+  DataAvatar,
+} from '@/components/ui/table';
+import { PageHeader } from '@/components/ui/page-header';
+import { fmtCompactCurrency, formatCurrency } from '@/components/charts/format';
 import type { BrandBreakdownRow } from '@/lib/data/creator-portal';
 
-function money(n: number | null): string {
-  if (n == null) return '—';
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `$${(n / 1_000).toFixed(1)}k`;
-  return `$${n.toFixed(0)}`;
+/** Compact GMV, honest about missing data: null → "—", never a fake $0. */
+function gmvLabel(n: number | null): string {
+  return n == null ? '—' : fmtCompactCurrency(n);
+}
+
+/** Up-to-two-letter brand initials for the identity swatch. */
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[1][0]).toUpperCase();
 }
 
 export function BrandsClient({ realName, rows }: { realName: string; rows: BrandBreakdownRow[] }) {
@@ -20,19 +41,16 @@ export function BrandsClient({ realName, rows }: { realName: string; rows: Brand
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-12">
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
-          {realName ? `${realName}'s brands` : 'My Brands'}
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Every brand you&apos;re on — your retainer, posts this month, and GMV over the last 30 days.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="My Brands"
+        title={realName ? `${realName}'s brands` : 'My Brands'}
+        subtitle="Every brand you're on — retainer, posts this month, and GMV over the last 30 days."
+      />
 
       {/* Cross-brand summary */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <StatCard hero label="Total Retainer" value={money(totalRetainer)} subValue="per month" />
-        <StatCard label="GMV · 30d" value={money(totalGmv)} accentColor="var(--pulse-pos)" />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard hero label="Total Retainer" value={formatCurrency(totalRetainer)} subValue="per month" />
+        <StatCard label="GMV · 30d" value={gmvLabel(totalGmv)} accentColor="var(--pulse-pos)" />
         <StatCard
           label="Posts this month"
           value={totalPosts == null ? '—' : `${totalPosts}${totalRequired > 0 ? ` / ${totalRequired}` : ''}`}
@@ -43,53 +61,73 @@ export function BrandsClient({ realName, rows }: { realName: string; rows: Brand
 
       {/* Per-brand table */}
       {rows.length === 0 ? (
-        <div className="rounded-2xl border border-border bg-card p-8 text-center shadow-[var(--pulse-elev-1)]">
-          <p className="text-sm text-muted-foreground">You&apos;re not contracted on any brands yet.</p>
-        </div>
+        <EmptyState
+          icon={<span className="text-3xl" aria-hidden>🎬</span>}
+          title="No brand contracts yet"
+          description="You're not contracted on any brands yet. Once you're set up, every brand you're on — with retainer, posts, and GMV — shows up right here."
+          action={
+            <Link
+              href="/creator-dashboard"
+              className="inline-flex items-center rounded-lg bg-pulse-grad px-4 py-2 text-sm font-semibold text-white shadow-[var(--pulse-elev-1)]"
+            >
+              Back to dashboard
+            </Link>
+          }
+        />
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--pulse-elev-1)]">
+        <TableCard>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border bg-muted/60">
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Brand</th>
-                  <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Retainer / mo</th>
-                  <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Posts (mo)</th>
-                  <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">GMV · 30d</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
+            <Table>
+              <THead>
+                <TR>
+                  <TH>Brand</TH>
+                  <TH>Retainer / mo</TH>
+                  <TH>Posts (mo)</TH>
+                  <TH>GMV · 30d</TH>
+                </TR>
+              </THead>
+              <TBody>
                 {rows.map((r) => {
+                  const hasReq = r.monthlyPostRequirement > 0;
                   const behind =
-                    r.postsThisMonth != null &&
-                    r.monthlyPostRequirement > 0 &&
-                    r.postsThisMonth < r.monthlyPostRequirement;
+                    r.postsThisMonth != null && hasReq && r.postsThisMonth < r.monthlyPostRequirement;
                   return (
-                    <tr key={r.brandSlug} className="transition-colors hover:bg-secondary/50">
-                      <td className="px-5 py-3.5 font-semibold text-foreground">{r.brandDisplayName}</td>
-                      <td className="px-5 py-3.5 text-right tabular-nums text-foreground">{money(r.retainer)}</td>
-                      <td className="px-5 py-3.5 text-right tabular-nums">
+                    <TR key={r.brandSlug} className="hover:bg-secondary/50">
+                      <TD className="text-foreground">
+                        <div className="flex items-center gap-3">
+                          <DataAvatar color={r.brandColor}>{initials(r.brandDisplayName)}</DataAvatar>
+                          <span className="font-semibold">{r.brandDisplayName}</span>
+                        </div>
+                      </TD>
+                      <TD className="text-foreground">{formatCurrency(r.retainer)}</TD>
+                      <TD>
                         {r.postsThisMonth == null ? (
                           <span className="text-muted-foreground">—</span>
                         ) : (
-                          <span className={behind ? 'font-semibold text-[var(--pulse-warn)]' : 'text-foreground'}>
-                            {r.postsThisMonth}
-                            {r.monthlyPostRequirement > 0 ? (
-                              <span className="text-muted-foreground"> / {r.monthlyPostRequirement}</span>
-                            ) : null}
-                          </span>
+                          <div className="flex items-center justify-end gap-2">
+                            <span className="font-medium text-foreground">
+                              {r.postsThisMonth}
+                              {hasReq && (
+                                <span className="text-muted-foreground"> / {r.monthlyPostRequirement}</span>
+                              )}
+                            </span>
+                            {hasReq &&
+                              (behind ? (
+                                <Badge variant="warning" size="sm">Behind</Badge>
+                              ) : (
+                                <Badge variant="positive" size="sm">On track</Badge>
+                              ))}
+                          </div>
                         )}
-                      </td>
-                      <td className="px-5 py-3.5 text-right font-semibold tabular-nums text-[var(--pulse-pos)]">
-                        {money(r.gmv)}
-                      </td>
-                    </tr>
+                      </TD>
+                      <TD className="font-semibold text-[var(--pulse-pos)]">{gmvLabel(r.gmv)}</TD>
+                    </TR>
                   );
                 })}
-              </tbody>
-            </table>
+              </TBody>
+            </Table>
           </div>
-        </div>
+        </TableCard>
       )}
 
       <p className="text-[11px] text-muted-foreground">

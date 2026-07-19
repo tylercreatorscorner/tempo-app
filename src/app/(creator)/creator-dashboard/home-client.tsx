@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { motion } from 'framer-motion';
 import {
   ArrowRight,
   BarChart3,
@@ -14,6 +13,15 @@ import {
 } from 'lucide-react';
 import { StatCard } from '@/components/ui/stat-card';
 import { RangePicker } from '@/components/creator/range-picker';
+import { PageHeader } from '@/components/ui/page-header';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Table, TBody, TR, TD, DataAvatar } from '@/components/ui/table';
+import { Badge, Tag } from '@/components/ui/badge';
+import { Chip } from '@/components/ui/chip';
+import { EmptyState } from '@/components/ui/empty-state';
+import { NumberTicker } from '@/components/ui/number-ticker';
+import { Gauge } from '@/components/charts/gauge';
+import { fmtCompactCurrency } from '@/components/charts/format';
 import type {
   CoachingNudge,
   CreatorSummary,
@@ -65,59 +73,53 @@ export function HomeClient(props: Props) {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 
-  const fade = {
-    initial: { opacity: 0, y: 8 },
-    animate: { opacity: 1, y: 0 },
-    transition: { duration: 0.35, ease: 'easeOut' as const },
-  };
-
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-12">
       {/* Header */}
-      <motion.div {...fade}>
-        <div className="flex items-start justify-between flex-wrap gap-3">
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
+      <PageHeader
+        title={
+          <>
             {greeting}, <span className="text-pulse-grad">{realName}</span> 👋
-          </h1>
-          <div className="flex flex-col items-end gap-1.5">
-            <RangePicker value={rangeDays} onChange={setRange} />
-            <p className="text-sm text-muted-foreground">
-              {currentBrandDisplay ? (
-                <>Showing <span className="font-semibold text-foreground">{currentBrandDisplay}</span> · last {rangeDays} days</>
-              ) : (
-                <>Last {rangeDays} days · all brands</>
-              )}
-            </p>
-          </div>
-        </div>
-        {handles.length > 0 && (
-          <p className="text-sm text-muted-foreground mt-1">
-            {handles.slice(0, 4).map((h) => `@${h}`).join(' · ')}
-            {handles.length > 4 ? ` · +${handles.length - 4}` : ''}
-          </p>
-        )}
-        {lifetimeGmv != null && lifetimeGmv > 0 && (
-          <p className="mt-2 text-sm text-muted-foreground">
-            <span className="font-bold tabular-nums text-[var(--pulse-pos)]">{formatMoney(lifetimeGmv)}</span> driven all-time 🎉
-          </p>
-        )}
-      </motion.div>
+          </>
+        }
+        subtitle={
+          currentBrandDisplay ? (
+            <>
+              Showing <span className="font-semibold text-foreground">{currentBrandDisplay}</span> · last{' '}
+              {rangeDays} days
+            </>
+          ) : (
+            <>Last {rangeDays} days · all brands</>
+          )
+        }
+        actions={<RangePicker value={rangeDays} onChange={setRange} />}
+      />
 
-      {/* Coaching nudge */}
-      {nudge && (
-        <motion.div {...fade} transition={{ ...fade.transition, delay: 0.05 }}>
-          <NudgeCard nudge={nudge} />
-        </motion.div>
+      {/* Handles + lifetime GMV */}
+      {(handles.length > 0 || (lifetimeGmv != null && lifetimeGmv > 0)) && (
+        <div className="flex flex-wrap items-center gap-2">
+          {handles.slice(0, 4).map((h) => (
+            <Chip key={h}>@{h}</Chip>
+          ))}
+          {handles.length > 4 && <Chip>+{handles.length - 4} more</Chip>}
+          {/* lifetimeGmv === null means the read FAILED — show nothing, never a fake $0. */}
+          {lifetimeGmv != null && lifetimeGmv > 0 && (
+            <Badge variant="positive">{fmtCompactCurrency(lifetimeGmv)} driven all-time 🎉</Badge>
+          )}
+        </div>
       )}
 
+      {/* Coaching nudge */}
+      {nudge && <NudgeCard nudge={nudge} />}
+
       {/* Stat grid — canonical Pulse StatCards so the portal matches the admin. */}
-      <motion.div {...fade} transition={{ ...fade.transition, delay: 0.1 }} className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {/* summary === null means the read FAILED (a zero-activity creator gets a
             zeros object, not null) — show "—", never a fake $0. */}
         <StatCard
           hero
           label={`GMV · ${rangeDays}d`}
-          value={summary ? formatMoney(summary.totalGmv) : '—'}
+          value={summary ? fmtCompactCurrency(summary.totalGmv) : '—'}
           trend={summary?.gmvChangePct ?? undefined}
           trendLabel={`vs prior ${rangeDays}d`}
         />
@@ -139,37 +141,15 @@ export function HomeClient(props: Props) {
           subValue={streak > 0 ? 'Keep it going 🔥' : 'Post today to start'}
           accentColor="var(--pulse-warn)"
         />
-      </motion.div>
+      </div>
 
       {/* Retainer pace */}
       {monthlyTarget > 0 && (
-        <motion.section
-          {...fade}
-          transition={{ ...fade.transition, delay: 0.15 }}
-          className="rounded-2xl border border-border bg-card p-5 shadow-[var(--pulse-elev-1)]"
-        >
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-bold text-foreground flex items-center gap-2">
-              🎯 Retainer pace
-            </h2>
-            <span className="text-xs text-muted-foreground">This month</span>
-          </div>
-          <div className="flex items-center gap-6 flex-wrap">
-            <PaceRing current={monthVideos} target={monthlyTarget} />
-            <div className="flex-1 min-w-[200px] space-y-2 text-sm">
-              <PaceRow label="Videos posted" value={`${monthVideos} / ${monthlyTarget}`} />
-              <PaceRow label="Days left" value={String(daysLeftInMonth)} />
-              <PaceRow
-                label="Daily pace needed"
-                value={`${Math.max(
-                  0,
-                  Math.ceil(Math.max(0, monthlyTarget - monthVideos) / Math.max(1, daysLeftInMonth))
-                )}/day`}
-                emphasis
-              />
-            </div>
-          </div>
-        </motion.section>
+        <RetainerPace
+          monthVideos={monthVideos}
+          monthlyTarget={monthlyTarget}
+          daysLeftInMonth={daysLeftInMonth}
+        />
       )}
 
       {/* Two-column: Your top videos + What's winning */}
@@ -178,7 +158,22 @@ export function HomeClient(props: Props) {
           title={`Your top videos (${rangeDays}d)`}
           icon={<Trophy className="h-4 w-4" />}
           videos={topVideos}
-          emptyText={`No videos in the last ${rangeDays} days. Post something today to see it here.`}
+          empty={
+            <EmptyState
+              icon={<Video className="h-8 w-8" />}
+              title="Your best work will live here"
+              description={`No videos in the last ${rangeDays} days yet. Post something today and watch it climb this list.`}
+              action={
+                <Link
+                  href="/creator-dashboard/discover"
+                  className="inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline"
+                >
+                  Find inspiration <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              }
+              className="border-0 shadow-none"
+            />
+          }
           ctaHref="/creator-dashboard/stats"
           ctaLabel="See all my stats"
         />
@@ -186,7 +181,14 @@ export function HomeClient(props: Props) {
           title="What's winning across the network"
           icon={<Sparkles className="h-4 w-4" />}
           videos={inspiration}
-          emptyText="No top videos to show right now."
+          empty={
+            <EmptyState
+              icon={<Sparkles className="h-8 w-8" />}
+              title="Fresh inspiration incoming"
+              description="No standout videos to show right now. Check back soon to see what's taking off across the network."
+              className="border-0 shadow-none"
+            />
+          }
           ctaHref="/creator-dashboard/discover"
           ctaLabel="Browse inspiration"
           showCreator
@@ -194,11 +196,7 @@ export function HomeClient(props: Props) {
       </div>
 
       {/* Quick actions */}
-      <motion.section
-        {...fade}
-        transition={{ ...fade.transition, delay: 0.25 }}
-        className="grid grid-cols-2 sm:grid-cols-3 gap-3"
-      >
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <QuickAction
           href="/creator-dashboard/stats"
           icon={<BarChart3 className="h-5 w-5" />}
@@ -217,48 +215,64 @@ export function HomeClient(props: Props) {
           label="Find inspiration"
           subtitle="What's working right now"
         />
-      </motion.section>
+      </div>
     </div>
   );
 }
 
 // ---- Components ----------------------------------------------------------
 
-function PaceRing({ current, target }: { current: number; target: number }) {
-  const pct = Math.min(1, target > 0 ? current / target : 0);
-  const circumference = 2 * Math.PI * 52;
-  const offset = circumference * (1 - pct);
-  const onTrack = current >= target;
+function RetainerPace({
+  monthVideos,
+  monthlyTarget,
+  daysLeftInMonth,
+}: {
+  monthVideos: number;
+  monthlyTarget: number;
+  daysLeftInMonth: number;
+}) {
+  const fraction = monthlyTarget > 0 ? monthVideos / monthlyTarget : 0;
+  const onTrack = monthVideos >= monthlyTarget;
+  const dailyPace = Math.max(
+    0,
+    Math.ceil(Math.max(0, monthlyTarget - monthVideos) / Math.max(1, daysLeftInMonth)),
+  );
 
   return (
-    <div className="relative w-28 h-28 flex-shrink-0">
-      <svg viewBox="0 0 120 120" className="w-full h-full">
-        <circle cx="60" cy="60" r="52" fill="none" stroke="var(--border)" strokeWidth="8" />
-        <circle
-          cx="60"
-          cy="60"
-          r="52"
-          fill="none"
-          stroke={onTrack ? 'var(--pulse-pos)' : 'url(#paceGrad)'}
-          strokeWidth="8"
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-          transform="rotate(-90 60 60)"
-          style={{ transition: 'stroke-dashoffset 1s ease-out' }}
-        />
-        <defs>
-          <linearGradient id="paceGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="var(--primary)" />
-            <stop offset="100%" stopColor="var(--pulse-accent-2)" />
-          </linearGradient>
-        </defs>
-      </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-2xl font-bold text-foreground">{current}</span>
-        <span className="text-xs text-muted-foreground">of {target}</span>
-      </div>
-    </div>
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">🎯 Retainer pace</CardTitle>
+        <Badge variant="neutral" size="sm">This month</Badge>
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-center gap-6 flex-wrap">
+          <Gauge
+            fraction={fraction}
+            size={128}
+            label={<NumberTicker value={monthVideos} className="text-foreground" />}
+            sublabel={`of ${monthlyTarget}`}
+            color={onTrack ? 'var(--pulse-pos)' : 'var(--primary)'}
+          />
+          <div className="flex-1 min-w-[200px] space-y-3 text-sm">
+            <div className="space-y-2">
+              <PaceRow label="Videos posted" value={`${monthVideos} / ${monthlyTarget}`} />
+              <PaceRow label="Days left" value={String(daysLeftInMonth)} />
+              <PaceRow label="Daily pace needed" value={`${dailyPace}/day`} emphasis />
+            </div>
+            {/* Progress meter (token-based, reads in both themes). */}
+            <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
+              <div
+                className="h-full rounded-full transition-[width] duration-700"
+                style={{
+                  width: `${Math.min(100, Math.max(0, fraction * 100))}%`,
+                  background: onTrack ? 'var(--pulse-pos)' : 'var(--pulse-grad)',
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -273,7 +287,7 @@ function PaceRow({ label, value, emphasis }: { label: string; value: string; emp
 
 function NudgeCard({ nudge }: { nudge: CoachingNudge }) {
   return (
-    <div className="rounded-2xl p-5 border border-primary/20 bg-primary/5 shadow-[var(--pulse-elev-1)]">
+    <div className="rounded-xl p-5 border border-primary/20 bg-primary/5 shadow-[var(--pulse-elev-1)]">
       <div className="flex gap-3 items-start">
         <div className="h-9 w-9 rounded-xl bg-pulse-grad flex items-center justify-center text-white flex-shrink-0">
           <Lightbulb className="h-5 w-5" />
@@ -299,74 +313,98 @@ function VideoColumn({
   title,
   icon,
   videos,
-  emptyText,
+  empty,
   ctaHref,
   ctaLabel,
   showCreator,
 }: {
   title: string;
   icon: React.ReactNode;
-  videos: CreatorVideoRow[];
-  emptyText: string;
+  videos: (CreatorVideoRow & { isMine?: boolean })[];
+  empty: React.ReactNode;
   ctaHref: string;
   ctaLabel: string;
   showCreator?: boolean;
 }) {
+  const rows = videos.slice(0, 5);
   return (
-    <section className="rounded-2xl border border-border bg-card p-5 shadow-[var(--pulse-elev-1)]">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="font-bold text-foreground flex items-center gap-2 text-sm">
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
           <span className="text-primary">{icon}</span>
           {title}
-        </h3>
-        <Link href={ctaHref} className="text-xs font-semibold text-primary hover:underline">
-          {ctaLabel} →
+        </CardTitle>
+        <Link href={ctaHref} className="text-xs font-semibold text-primary hover:underline whitespace-nowrap">
+          See all →
         </Link>
-      </div>
-      {videos.length === 0 ? (
-        <p className="text-sm text-muted-foreground py-6">{emptyText}</p>
-      ) : (
-        <ul className="space-y-2.5">
-          {videos.slice(0, 5).map((v) => (
-            <li key={v.videoId}>
-              <VideoLink video={v} showCreator={showCreator} />
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
+      </CardHeader>
+      <CardContent className="pt-0">
+        {rows.length === 0 ? (
+          empty
+        ) : (
+          <Table className="[&_tr:last-child_td]:border-b-0">
+            <TBody>
+              {rows.map((v, i) => (
+                <VideoRow key={v.videoId} video={v} rank={i + 1} showCreator={showCreator} />
+              ))}
+            </TBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
-function VideoLink({ video, showCreator }: { video: CreatorVideoRow; showCreator?: boolean }) {
-  const inner = (
-    <div className="flex items-center gap-3 group">
-      <div className="h-10 w-10 rounded-lg bg-secondary flex items-center justify-center flex-shrink-0">
-        <Video className="h-4 w-4 text-primary" />
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-foreground truncate group-hover:text-primary transition-colors">
-          {video.videoTitle}
-        </p>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-          {showCreator && <span>@{video.tiktokUsername}</span>}
-          {video.topProduct && <span className="truncate">{showCreator ? '·' : ''} {video.topProduct}</span>}
-        </div>
-      </div>
-      <div className="text-right flex-shrink-0">
-        <p className="text-sm font-bold tabular-nums text-[var(--pulse-pos)]">{formatMoney(video.gmv)}</p>
-        <p className="text-xs text-muted-foreground tabular-nums">{video.orders.toLocaleString()} orders</p>
-      </div>
-    </div>
+function VideoRow({
+  video,
+  rank,
+  showCreator,
+}: {
+  video: CreatorVideoRow & { isMine?: boolean };
+  rank: number;
+  showCreator?: boolean;
+}) {
+  const titleNode = video.videoUrl ? (
+    <a
+      href={video.videoUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="font-semibold text-foreground truncate hover:text-primary transition-colors"
+    >
+      {video.videoTitle}
+    </a>
+  ) : (
+    <span className="font-semibold text-foreground truncate">{video.videoTitle}</span>
   );
-  if (video.videoUrl) {
-    return (
-      <a href={video.videoUrl} target="_blank" rel="noopener noreferrer" className="block">
-        {inner}
-      </a>
-    );
-  }
-  return inner;
+
+  return (
+    <TR className={video.isMine ? 'bg-primary/5' : 'hover:bg-secondary/60'}>
+      <TD className="px-2 py-2.5">
+        <div className="flex items-center gap-3">
+          <DataAvatar>{rank}</DataAvatar>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-sm">
+              {titleNode}
+              {video.isMine && <Tag>You</Tag>}
+            </div>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5 truncate">
+              {showCreator && <span>@{video.tiktokUsername}</span>}
+              {video.topProduct && (
+                <span className="truncate">
+                  {showCreator ? '· ' : ''}
+                  {video.topProduct}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      </TD>
+      <TD className="px-2 py-2.5 align-middle">
+        <p className="text-sm font-bold tabular-nums text-[var(--pulse-pos)]">{fmtCompactCurrency(video.gmv)}</p>
+        <p className="text-xs text-muted-foreground tabular-nums">{video.orders.toLocaleString()} orders</p>
+      </TD>
+    </TR>
+  );
 }
 
 function QuickAction({
@@ -381,25 +419,18 @@ function QuickAction({
   subtitle: string;
 }) {
   return (
-    <Link
-      href={href}
-      className="flex items-center gap-3 p-4 rounded-2xl border border-border bg-card shadow-[var(--pulse-elev-1)] hover:shadow-[var(--pulse-elev-2)] hover:-translate-y-0.5 transition-all"
-    >
-      <div className="h-10 w-10 rounded-xl bg-secondary flex items-center justify-center text-primary flex-shrink-0">
-        {icon}
-      </div>
-      <div className="min-w-0">
-        <p className="text-sm font-bold text-foreground">{label}</p>
-        <p className="text-xs text-muted-foreground truncate">{subtitle}</p>
-      </div>
+    <Link href={href} className="block">
+      <Card className="p-4 hover:shadow-[var(--pulse-elev-2)] hover:-translate-y-0.5 transition-all">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-xl bg-secondary flex items-center justify-center text-primary flex-shrink-0">
+            {icon}
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-bold text-foreground">{label}</p>
+            <p className="text-xs text-muted-foreground truncate">{subtitle}</p>
+          </div>
+        </div>
+      </Card>
     </Link>
   );
-}
-
-// ---- Helpers -------------------------------------------------------------
-
-function formatMoney(n: number): string {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `$${(n / 1_000).toFixed(1)}k`;
-  return `$${n.toFixed(0)}`;
 }

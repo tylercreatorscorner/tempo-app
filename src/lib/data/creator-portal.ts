@@ -630,6 +630,7 @@ export async function getCreatorStreak(
 export interface BrandBreakdownRow {
   brandSlug: string;
   brandDisplayName: string;
+  brandColor: string;
   retainer: number;
   monthlyPostRequirement: number;
   postsThisMonth: number | null;
@@ -657,6 +658,7 @@ export async function getAllBrandsBreakdown(
       return {
         brandSlug: c.brandSlug,
         brandDisplayName: c.brandDisplayName,
+        brandColor: c.brandColor,
         retainer: c.retainer,
         monthlyPostRequirement: c.monthlyPostRequirement,
         postsThisMonth: posts,

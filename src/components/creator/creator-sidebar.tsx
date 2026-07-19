@@ -1,9 +1,10 @@
 'use client';
 
-import Link from 'next/link';
+import Link, { useLinkStatus } from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, Sparkles, BarChart3, Trophy, Wallet } from 'lucide-react';
+import { Home, Sparkles, BarChart3, Trophy, Wallet, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useDelayedFlag } from '@/hooks/use-delayed-flag';
 import { TempoLogo } from '@/components/ui/tempo-logo';
 import { BrandSwitcher } from '@/components/creator/brand-switcher';
 import type { CreatorProfile } from '@/lib/data/creator-context';
@@ -15,6 +16,24 @@ const NAV_ITEMS: { href: string; label: string; icon: typeof Home; exact?: boole
   { href: '/creator-dashboard/rankings', label: 'Rankings', icon: Trophy },
   { href: '/creator-dashboard/discover', label: 'Inspiration', icon: Sparkles },
 ];
+
+/**
+ * Nav icon that becomes a spinner while ITS OWN link's navigation is pending —
+ * the "your click registered" cue the portal was missing (routes are dynamic, so
+ * `active` only flips on commit; without this a click changed zero pixels for the
+ * whole wait). Module-scope so it isn't remounted each render; the swap keeps the
+ * row width stable. Mirrors the admin sidebar's NavIcon.
+ */
+function NavIcon({ icon: Icon, active }: { icon: React.ComponentType<{ className?: string }>; active: boolean }) {
+  const { pending } = useLinkStatus();
+  const spin = useDelayedFlag(pending);
+  const tone = active ? 'text-[var(--primary)]' : 'text-muted-foreground';
+  return spin ? (
+    <Loader2 className={cn('h-4 w-4 flex-shrink-0 animate-spin', tone)} />
+  ) : (
+    <Icon className={cn('h-4 w-4 flex-shrink-0', tone)} />
+  );
+}
 
 /**
  * Creator portal sidebar — matches the admin/brand shell: logo top, nav (active
@@ -55,7 +74,7 @@ export function CreatorSidebar({
                   : 'text-muted-foreground hover:bg-muted hover:text-foreground',
               )}
             >
-              <item.icon className="h-4 w-4 flex-shrink-0" />
+              <NavIcon icon={item.icon} active={active} />
               <span className="truncate">{item.label}</span>
               {active && <span className="ml-auto h-4 w-1 rounded-full bg-[var(--primary)]" />}
             </Link>

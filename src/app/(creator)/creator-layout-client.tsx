@@ -5,6 +5,10 @@ import { X } from 'lucide-react';
 import { CreatorProfile } from '@/lib/data/creator-context';
 import { CreatorSidebar } from '@/components/creator/creator-sidebar';
 import { CreatorHeader } from '@/components/creator/creator-header';
+import {
+  NavigationPendingProvider,
+  NavigationPendingOverlay,
+} from '@/components/layout/navigation-pending';
 
 /**
  * Creator portal shell — mirrors the admin/brand shell (src/components/layout/
@@ -22,6 +26,7 @@ export function CreatorLayoutClient({
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   return (
+    <NavigationPendingProvider>
     <div className="flex min-h-screen" style={{ backgroundColor: 'var(--background)' }}>
       <CreatorSidebar className="sticky top-0 hidden h-screen lg:flex" profile={profile} />
 
@@ -44,9 +49,12 @@ export function CreatorLayoutClient({
       <div className="flex min-w-0 flex-1 flex-col">
         <CreatorHeader profile={profile} onMenuClick={() => setMobileNavOpen(true)} />
         <main className="flex-1 animate-fade-in">
-          <div className="p-3 sm:p-4 md:p-6">{children}</div>
+          <div className="p-3 sm:p-4 md:p-6">
+            <NavigationPendingOverlay>{children}</NavigationPendingOverlay>
+          </div>
         </main>
       </div>
     </div>
+    </NavigationPendingProvider>
   );
 }
