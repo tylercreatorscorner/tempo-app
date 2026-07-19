@@ -229,16 +229,18 @@ html.dark { color-scheme: dark; }
 }
 
 /* ── "The Ledger" editorial type (creator portal) ─────────────────────────
-   Serif display face for hero money + section headings. --font-serif is set on
-   the (creator) layout wrapper; the stack degrades gracefully elsewhere. */
+   Serif display face for hero money + section headings. The SYSTEM serif stack
+   from the approved mockup (Iowan/Palatino/Georgia) — chunky round numerals,
+   zero webfont download. Newsreader was tried and looked visibly thinner than
+   the mockup; don't substitute a webfont here without re-approving the look. */
 .font-ledger {
-  font-family: var(--font-serif), 'Iowan Old Style', 'Palatino Linotype', Georgia, 'Times New Roman', serif;
-  letter-spacing: -0.015em;
+  font-family: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, 'Times New Roman', serif;
+  letter-spacing: -0.01em;
 }
 .font-ledger-num {
-  font-family: var(--font-serif), 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
+  font-family: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, 'Times New Roman', serif;
   font-variant-numeric: lining-nums tabular-nums;
-  letter-spacing: -0.025em;
+  letter-spacing: -0.02em;
 }
 
 /* Animations */

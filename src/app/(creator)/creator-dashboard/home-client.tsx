@@ -20,7 +20,6 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { NumberTicker } from '@/components/ui/number-ticker';
 import { Gauge } from '@/components/charts/gauge';
 import { fmtCompactCurrency } from '@/components/charts/format';
-import { formatCurrency } from '@/lib/utils/format';
 import { Sparkline } from '@/components/creator/sparkline';
 import { useBrandMeta } from '@/hooks/use-brand-meta';
 import { cn } from '@/lib/utils';
@@ -249,7 +248,10 @@ function LedgerHero({
   handleCount: number;
   series: CreatorDailyPoint[];
 }) {
-  const gmvFull = summary ? formatCurrency(summary.totalGmv) : '—';
+  const gmvNumber =
+    summary != null
+      ? Math.round(summary.totalGmv).toLocaleString('en-US')
+      : null;
   const pct = summary?.gmvChangePct ?? null;
   const firstName = realName.split(' ')[0] || realName;
   const sparkData = series.map((d) => d.gmv);
@@ -267,8 +269,18 @@ function LedgerHero({
 
       <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-end">
         <div>
-          <p className="font-ledger-num text-[clamp(3.25rem,6vw,4.875rem)] font-bold leading-[0.9] text-foreground">
-            {gmvFull}
+          <p className="font-ledger-num text-[clamp(3.25rem,6vw,4.875rem)] font-bold leading-[0.92] tracking-[-0.03em] text-foreground">
+            {gmvNumber != null ? (
+              <>
+                {/* Mockup treatment: half-size, raised, muted currency mark. */}
+                <span className="mr-[0.04em] align-[0.34em] text-[0.5em] font-semibold text-muted-foreground">
+                  $
+                </span>
+                {gmvNumber}
+              </>
+            ) : (
+              '—'
+            )}
           </p>
           <div className="mt-3.5 flex flex-wrap items-baseline gap-x-4 gap-y-1">
             {pct != null && <DeltaPill pct={pct} />}
