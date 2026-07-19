@@ -18,6 +18,7 @@
  * in managed_creators only describes their contract obligations.
  */
 
+import { cache } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createAdminClient } from '@/lib/supabase/server';
 import { getBrandRegistry, resolveUuids, uuidToSlug, type BrandRegistry } from '@/lib/data/brand-registry';
@@ -103,7 +104,7 @@ export interface RankingEntry {
  * Load full creator profile by JWT subject (creators_v2.id).
  * Bridges via tiktok_accounts to find managed_creators contract rows.
  */
-export async function loadCreatorPortalProfile(
+async function loadCreatorPortalProfileImpl(
   creatorId: string,
   currentBrandCookie: string | null
 ): Promise<CreatorPortalProfile | null> {
@@ -216,6 +217,13 @@ export async function loadCreatorPortalProfile(
     currentBrand,
   };
 }
+
+/**
+ * Request-cached: the (creator) layout and each page both call this with the same
+ * (creatorId, brandCookie), so cache() collapses them into ONE handle→contract
+ * bridge per request instead of two.
+ */
+export const loadCreatorPortalProfile = cache(loadCreatorPortalProfileImpl);
 
 // ---- Stats queries -------------------------------------------------------
 

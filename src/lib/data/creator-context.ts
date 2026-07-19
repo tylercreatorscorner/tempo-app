@@ -1,6 +1,7 @@
 import { getCreatorSession, getCurrentBrandCookie } from '@/lib/auth/creator-auth';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { getBrandRegistry, uuidToSlug } from '@/lib/data/brand-registry';
+import { loadCreatorPortalProfile } from '@/lib/data/creator-portal';
 import { cookies } from 'next/headers';
 
 export interface CreatorAccount {
@@ -57,11 +58,21 @@ export async function getCreatorProfile(): Promise<CreatorProfile | null> {
     is_primary: !!a.is_primary,
     verified: !!a.verified,
   }));
-  const brands = [...new Set(accts.map((a) => a.brand))];
 
-  // Current brand from cookie
+  // Brands the switcher offers = the creator's CONTRACT brands (matches My Brands +
+  // the portal's brand filter), resolved via loadCreatorPortalProfile (admin client,
+  // handle→contract bridge, archived-filtered). tiktok_accounts.brand is only the
+  // account ASSIGNMENT and — under the creator's RLS-bound session — may not even
+  // load, so it hid the switcher for multi-brand creators. loadCreatorPortalProfile
+  // is React-cached, so sharing it with the page render is free.
   const brandCookie = await getCurrentBrandCookie();
-  const current_brand = brandCookie && brands.includes(brandCookie) ? brandCookie : null;
+  const portal = await loadCreatorPortalProfile(creator.id, brandCookie);
+  const brands =
+    portal && portal.brandSlugs.length > 0
+      ? portal.brandSlugs
+      : [...new Set(accts.map((a) => a.brand))];
+  const current_brand =
+    portal?.currentBrand ?? (brandCookie && brands.includes(brandCookie) ? brandCookie : null);
 
   return {
     creator_id: creator.id,
