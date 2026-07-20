@@ -3,7 +3,6 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { AtSign, Loader2, Plus, ShieldCheck, Trash2 } from 'lucide-react';
-import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -63,16 +62,19 @@ export function SettingsClient({
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 pb-12">
-      <PageHeader
-        eyebrow="Account"
-        title="Settings"
-        subtitle="Manage your profile and the TikTok handles linked to your account."
-      />
+      {/* Ledger page header */}
+      <div>
+        <p className="font-ledger text-[13px] italic text-primary">Account</p>
+        <h1 className="font-ledger mt-1 text-[26px] font-bold tracking-tight text-foreground">Settings</h1>
+        <p className="mt-1 text-[13.5px] text-muted-foreground">
+          Your profile and the TikTok handles we track for you.
+        </p>
+      </div>
 
       {/* Profile */}
       <Card>
         <CardHeader>
-          <CardTitle>Profile</CardTitle>
+          <CardTitle className="font-ledger text-[15px]">Profile</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <Field label="Name" value={realName} />
@@ -86,7 +88,7 @@ export function SettingsClient({
       {/* TikTok accounts */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+          <CardTitle className="font-ledger flex items-center gap-2 text-[15px]">
             <span className="text-primary">
               <AtSign className="h-4 w-4" />
             </span>
