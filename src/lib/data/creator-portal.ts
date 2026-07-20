@@ -826,65 +826,57 @@ export async function getMonthVideoCount(
   return ids.size;
 }
 
-/** Brand-level rankings: leaderboard of creators by GMV. Includes "me" flag. */
+/**
+ * Brand-level leaderboard with CURRENT + PRIOR-window ranks, in one RPC
+ * round-trip (get_brand_rankings, migration 086). The old TS version paginated
+ * the whole brand window TWICE (current + prior ≈ 2×95 round-trips on LeeFar
+ * 30d) and ranked client-side. Rows beyond `limit` are included when they're
+ * the caller's own handles, so "me" always shows with a true rank.
+ */
 export async function getBrandRankings(
   brandSlug: string | null,
   window: DateWindow,
   myHandles: string[],
-  limit = 50
-): Promise<RankingEntry[]> {
+  limit = 50,
+): Promise<(RankingEntry & { priorRank: number | null })[]> {
   const supabase = await createAdminClient();
   const reg = await getBrandRegistry();
   const brandUuid = brandFilter(reg, brandSlug);
+  if (brandUuid !== null && brandUuid.length === 0) return []; // unresolvable brand
+  const prior = priorWindow(window);
 
-  const filters: { column: string; op: 'eq' | 'in' | 'gte' | 'lte'; value: any }[] = [
-    { column: 'report_date', op: 'gte', value: window.start },
-    { column: 'report_date', op: 'lte', value: window.end },
-  ];
-  if (brandUuid) filters.push({ column: 'brand_id', op: 'in', value: brandUuid });
-
-  const rows = await paginated(
-    supabase,
-    'daily_video_product_stats',
-    'tiktok_username, video_id, gmv, orders',
-    filters
+  const lowered = Array.from(
+    new Set(myHandles.map((h) => h.replace(/^@/, '').trim().toLowerCase()).filter(Boolean)),
   );
+  const { data, error } = await supabase.rpc('get_brand_rankings', {
+    p_handles: lowered,
+    p_brand_ids: brandUuid,
+    p_start: window.start,
+    p_end: window.end,
+    p_prior_start: prior.start,
+    p_prior_end: prior.end,
+    p_limit: limit,
+  });
+  if (error) throw error;
 
-  type Acc = { gmv: number; orders: number; videos: Set<string> };
-  const byUser = new Map<string, Acc>();
-  for (const r of rows) {
-    const u = (r.tiktok_username || '').toLowerCase();
-    if (!u) continue;
-    const slot = byUser.get(u) ?? { gmv: 0, orders: 0, videos: new Set() };
-    slot.gmv += Number(r.gmv) || 0;
-    slot.orders += Number(r.orders) || 0;
-    if (r.video_id) slot.videos.add(r.video_id);
-    byUser.set(u, slot);
-  }
+  const rows = ((data as Record<string, unknown>[] | null) ?? []).map((r) => ({
+    rank: Number(r.rank) || 0,
+    tiktokUsername: String(r.tiktok_username || ''),
+    gmv: Number(r.gmv) || 0,
+    orders: Number(r.orders) || 0,
+    videos: Number(r.videos) || 0,
+    priorRank: r.prior_rank == null ? null : Number(r.prior_rank),
+    isMe: !!r.is_me,
+  }));
 
-  const ranked = Array.from(byUser.entries())
-    .map(([username, acc]) => ({
-      tiktokUsername: username,
-      gmv: acc.gmv,
-      orders: acc.orders,
-      videos: acc.videos.size,
-    }))
-    .sort((a, b) => b.gmv - a.gmv);
-
-  // Map handles → real names (best-effort, for the ones we'll show).
-  const topUsernames = ranked.slice(0, Math.max(limit, 10)).map((r) => r.tiktokUsername);
-  const myHandleSet = new Set(myHandles.map((h) => h.toLowerCase()));
-  // Include all my handles so we can highlight "me" even past the limit.
-  for (const h of myHandles) topUsernames.push(h.toLowerCase());
-
-  // managed_creators stores handles in account_1..10 — need to query each col.
-  // Build a name map by querying tiktok_accounts joined to creators_v2 first.
+  // Resolve display names for the rows we'll actually show (one bounded read).
   const nameMap = new Map<string, string>();
-  if (topUsernames.length > 0) {
+  const usernames = Array.from(new Set(rows.map((r) => r.tiktokUsername).filter(Boolean)));
+  if (usernames.length > 0) {
     const { data: ta } = await supabase
       .from('tiktok_accounts')
       .select('tiktok_username, creator_id, creators_v2!inner(real_name)')
-      .in('tiktok_username', Array.from(new Set(topUsernames)));
+      .in('tiktok_username', usernames);
     for (const row of ta ?? []) {
       const name = (row as any).creators_v2?.real_name;
       if (name && row.tiktok_username) {
@@ -893,75 +885,19 @@ export async function getBrandRankings(
     }
   }
 
-  const myRankIdx = ranked.findIndex((r) => myHandleSet.has(r.tiktokUsername));
-  const result: RankingEntry[] = ranked.slice(0, limit).map((r, i) => ({
-    rank: i + 1,
-    tiktokUsername: r.tiktokUsername,
-    realName: nameMap.get(r.tiktokUsername) ?? null,
-    gmv: r.gmv,
-    orders: r.orders,
-    videos: r.videos,
-    isMe: myHandleSet.has(r.tiktokUsername),
-  }));
-
-  // If "me" not in top N, append my row(s) with their actual ranks.
-  if (myRankIdx >= limit) {
-    for (let i = 0; i < ranked.length; i++) {
-      if (myHandleSet.has(ranked[i].tiktokUsername) && i >= limit) {
-        result.push({
-          rank: i + 1,
-          tiktokUsername: ranked[i].tiktokUsername,
-          realName: nameMap.get(ranked[i].tiktokUsername) ?? null,
-          gmv: ranked[i].gmv,
-          orders: ranked[i].orders,
-          videos: ranked[i].videos,
-          isMe: true,
-        });
-      }
-    }
-  }
-
-  return result;
+  return rows.map((r) => ({ ...r, realName: nameMap.get(r.tiktokUsername) ?? null }));
 }
 
 export interface RankChase {
   brandSlug: string | null;
   myRank: number;
-  total: number; // size of the ranked pool (floor — capped by getBrandRankings)
+  total: number; // size of the ranked pool
   gmv: number;
   /** The creator one spot above (null if the creator is #1). */
   above: { name: string; gmv: number; gap: number } | null;
 }
-
-/**
- * The 3-rung "catch the creator above you" chase for one brand: the creator's
- * rank + the creator one spot up with the closeable GMV gap. Built on
- * getBrandRankings (owner-approved to show other creators' names + GMV).
- */
-export async function getRankChase(
-  handles: string[],
-  brandSlug: string | null,
-  window: DateWindow,
-): Promise<RankChase | null> {
-  if (handles.length === 0) return null;
-  const rankings = await getBrandRankings(brandSlug, window, handles, 200);
-  const me = rankings.find((r) => r.isMe);
-  if (!me || me.gmv <= 0) return null; // no standing without any GMV
-  const above = rankings.find((r) => r.rank === me.rank - 1) ?? null;
-  return {
-    brandSlug,
-    myRank: me.rank,
-    total: rankings.length,
-    gmv: me.gmv,
-    above: above
-      ? {
-          name: above.realName || `@${above.tiktokUsername}`,
-          gmv: above.gmv,
-          gap: Math.max(0, above.gmv - me.gmv),
-        }
-      : null,
-  };
-}
+// NOTE: the old getRankChase() is gone — Home derives RankChase from
+// getBrandStanding (one RPC), which also powers the standing band + ladder.
 
 export interface BrandStanding {
   brandSlug: string;
@@ -1066,7 +1002,9 @@ export async function getBrandStanding(
 export async function getInspirationVideos(
   brandSlug: string | null,
   window: DateWindow,
-  limit = 24
+  limit = 24,
+  /** Only videos POSTED on/after this date (YYYY-MM-DD) — the "New (7)" view. */
+  postedSince?: string,
 ): Promise<(CreatorVideoRow & { isMine: boolean })[]> {
   const supabase = await createAdminClient();
   const reg = await getBrandRegistry();
@@ -1078,6 +1016,7 @@ export async function getInspirationVideos(
     p_start: window.start,
     p_end: window.end,
     p_limit: limit,
+    p_posted_since: postedSince ?? null,
   });
   if (error) throw error;
 

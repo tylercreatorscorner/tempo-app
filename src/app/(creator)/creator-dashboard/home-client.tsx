@@ -21,6 +21,7 @@ import { NumberTicker } from '@/components/ui/number-ticker';
 import { Gauge } from '@/components/charts/gauge';
 import { fmtCompactCurrency } from '@/components/charts/format';
 import { Sparkline } from '@/components/creator/sparkline';
+import { StandingBand } from '@/components/creator/standing-band';
 import { useBrandMeta } from '@/hooks/use-brand-meta';
 import { cn } from '@/lib/utils';
 import type {
@@ -130,7 +131,16 @@ export function HomeClient(props: Props) {
         </section>
       )}
 
-      {brandStanding && <BrandStandingBand standing={brandStanding} brandLabel={bandLabel} />}
+      {brandStanding && (
+        <section>
+          <SectionHead
+            title={`${bandLabel} · where you stand`}
+            href="/creator-dashboard/rankings"
+            cta="Full rankings →"
+          />
+          <StandingBand standing={brandStanding} variant="share" />
+        </section>
+      )}
 
       {/* Money-makers + rank ladder */}
       {(hasMoneyMakers || brandStanding) && (
@@ -386,46 +396,6 @@ function DeltaText({ pct }: { pct: number | null }) {
     >
       {up ? '▲' : '▼'} {Math.abs(Math.round(pct))}% vs prior
     </p>
-  );
-}
-
-// ---- Brand standing band -------------------------------------------------
-
-function BrandStandingBand({ standing, brandLabel }: { standing: BrandStanding; brandLabel: string }) {
-  const cells: { k: string; v: string }[] = [
-    { k: 'Brand GMV', v: fmtCompactCurrency(standing.brandGmv) },
-    { k: 'Orders', v: compactNum(standing.brandOrders) },
-    { k: 'Creators', v: compactNum(standing.creatorCount) },
-    { k: 'Posts', v: compactNum(standing.postCount) },
-  ];
-  return (
-    <section>
-      <SectionHead
-        title={`${brandLabel} · where you stand`}
-        href="/creator-dashboard/rankings"
-        cta="Full rankings →"
-      />
-      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-border bg-border shadow-[var(--pulse-elev-1)] sm:grid-cols-5">
-        {cells.map((c) => (
-          <div key={c.k} className="bg-card p-4 sm:p-5">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">{c.k}</p>
-            <p className="font-ledger-num mt-1.5 text-2xl font-bold text-foreground sm:text-[28px]">{c.v}</p>
-          </div>
-        ))}
-        <div
-          className="col-span-2 p-4 sm:col-span-1 sm:p-5"
-          style={{ background: 'color-mix(in srgb, var(--primary) 7%, var(--card))' }}
-        >
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">Your share</p>
-          <p className="text-pulse-grad font-ledger-num mt-1.5 text-2xl font-bold sm:text-[28px]">
-            {(standing.myShare * 100).toFixed(1)}%
-          </p>
-          <p className="mt-1 font-mono text-[11px] text-muted-foreground tabular-nums">
-            {fmtCompactCurrency(standing.myGmv)} · rank #{standing.myRank} of {standing.creatorCount}
-          </p>
-        </div>
-      </div>
-    </section>
   );
 }
 
@@ -926,11 +896,3 @@ function ManagerHandoff() {
   );
 }
 
-// ---- utils ---------------------------------------------------------------
-
-function compactNum(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 10_000) return `${Math.round(n / 1_000)}K`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return n.toLocaleString();
-}
