@@ -15,6 +15,12 @@ interface Status {
   claimed: number;
 }
 
+interface Candidate {
+  id: string;
+  name: string;
+  handles: string[];
+}
+
 export function InvitesClient() {
   const [status, setStatus] = useState<Status | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -22,6 +28,11 @@ export function InvitesClient() {
   const [dryRun, setDryRun] = useState(true);
   const [testDiscord, setTestDiscord] = useState('');
   const [testCreator, setTestCreator] = useState('');
+  // One-off link minting
+  const [mintQuery, setMintQuery] = useState('');
+  const [candidates, setCandidates] = useState<Candidate[] | null>(null);
+  const [mintedUrl, setMintedUrl] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const refresh = useCallback(async () => {
     const res = await fetch('/api/admin/creator-invites');
@@ -67,6 +78,52 @@ export function InvitesClient() {
     refresh();
   }
 
+  async function findCandidates() {
+    setBusy('find');
+    setMintedUrl(null);
+    try {
+      const res = await fetch('/api/admin/creator-invites', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'mint_link', query: mintQuery.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        addLog(`❌ find creator: ${data.error ?? res.status}`);
+        setCandidates([]);
+      } else {
+        const list = (data.candidates ?? []) as Candidate[];
+        setCandidates(list);
+        // Exactly one match → mint straight away, no extra click.
+        if (list.length === 1) await mintFor(list[0]);
+      }
+    } catch {
+      addLog('❌ find creator: network error');
+    }
+    setBusy(null);
+  }
+
+  async function mintFor(c: Candidate) {
+    setBusy('mint');
+    try {
+      const res = await fetch('/api/admin/creator-invites', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'mint_link', creatorId: c.id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.minted?.url) {
+        addLog(`❌ mint link: ${data.error ?? res.status}`);
+      } else {
+        setMintedUrl(data.minted.url as string);
+        addLog(`✅ minted invite link for ${c.name}`);
+      }
+    } catch {
+      addLog('❌ mint link: network error');
+    }
+    setBusy(null);
+  }
+
   return (
     <div className="space-y-5">
       <PageHeader
@@ -82,6 +139,81 @@ export function InvitesClient() {
         <StatCard label="Claimed" value={String(status?.claimed ?? '…')} accentColor="var(--pulse-pos)" />
         <StatCard label="DMs closed" value={String(status?.blocked ?? '…')} />
         <StatCard label="Failed" value={String(status?.failed ?? '…')} accentColor="var(--pulse-neg)" />
+      </div>
+
+      {/* One-off link — for a single creator, no DM (most creators have no
+          email on file, so the email login can't reach them; copy this link and
+          send it by text/DM yourself). */}
+      <div className="space-y-3 rounded-xl border border-border bg-card p-4 shadow-[var(--pulse-elev-1)]">
+        <h3 className="font-bold text-foreground">One-off invite link</h3>
+        <p className="text-sm text-muted-foreground">
+          Mint a personal sign-in link for one creator and send it however you like (text, DM). Single-use,
+          valid 60 days. Search by name or @handle.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <Input
+            placeholder="Creator name or @handle…"
+            value={mintQuery}
+            onChange={(e) => {
+              setMintQuery(e.target.value);
+              setCandidates(null);
+              setMintedUrl(null);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && mintQuery.trim().length >= 2) {
+                void findCandidates();
+              }
+            }}
+            className="w-72"
+          />
+          <Button
+            variant="outline"
+            disabled={!!busy || mintQuery.trim().length < 2}
+            onClick={() => void findCandidates()}
+          >
+            Find
+          </Button>
+        </div>
+        {candidates && candidates.length === 0 && (
+          <p className="text-sm text-muted-foreground">No creators match that search.</p>
+        )}
+        {candidates && candidates.length > 0 && !mintedUrl && (
+          <div className="flex flex-wrap gap-2">
+            {candidates.map((c) => (
+              <Button
+                key={c.id}
+                variant="outline"
+                disabled={!!busy}
+                onClick={() => void mintFor(c)}
+                title={c.id}
+              >
+                {c.name}
+                {c.handles.length > 0 && (
+                  <span className="ml-1.5 font-mono text-xs text-muted-foreground">
+                    @{c.handles[0]}
+                    {c.handles.length > 1 ? ` +${c.handles.length - 1}` : ''}
+                  </span>
+                )}
+              </Button>
+            ))}
+          </div>
+        )}
+        {mintedUrl && (
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-secondary/50 p-2.5">
+            <code className="min-w-0 flex-1 truncate font-mono text-xs text-foreground">{mintedUrl}</code>
+            <Button
+              variant="primary"
+              onClick={() => {
+                navigator.clipboard.writeText(mintedUrl).then(() => {
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 2000);
+                });
+              }}
+            >
+              {copied ? 'Copied' : 'Copy link'}
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* 1. Test on yourself */}

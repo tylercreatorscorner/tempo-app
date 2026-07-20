@@ -6,6 +6,10 @@
  *   enqueue         -> mint a claim token per eligible creator.
  *   send {limit,dryRun} -> DM a batch of pending invites (dryRun = count only).
  *   test {discordId, creatorId} -> DM ONE real invite (test on yourself first).
+ *   mint_link {query | creatorId} -> one-off: search creators by name/handle,
+ *     or mint a single-use 60-day claim link for one creator (no DM — the admin
+ *     copies the link and sends it however they like). Built because most
+ *     creators have no email on file, so the email login can't reach them.
  *
  * requireAdmin (owner/admin) + assertNotImpersonating — a super-admin viewing as a
  * manager must not be able to fire a real mass-DM.
@@ -18,7 +22,10 @@ import {
   enqueueInvites,
   sendClaimBatch,
   sendTestInvite,
+  searchCreatorsForInvite,
+  inviteBaseUrl,
 } from '@/lib/data/creator-invite';
+import { mintClaimLink } from '@/lib/auth/creator-claim';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -40,9 +47,21 @@ export async function POST(request: NextRequest) {
     dryRun?: boolean;
     discordId?: string;
     creatorId?: string;
+    query?: string;
   };
 
   try {
+    if (body.action === 'mint_link') {
+      if (body.creatorId) {
+        const minted = await mintClaimLink(String(body.creatorId), inviteBaseUrl(), 'admin-one-off');
+        return NextResponse.json({ minted: { url: minted.url, creatorId: minted.creatorId } });
+      }
+      if (body.query) {
+        const candidates = await searchCreatorsForInvite(String(body.query));
+        return NextResponse.json({ candidates });
+      }
+      return NextResponse.json({ error: 'query or creatorId required' }, { status: 400 });
+    }
     if (body.action === 'enqueue') {
       const r = await enqueueInvites();
       return NextResponse.json({ ...r, status: await getInviteStatus() });

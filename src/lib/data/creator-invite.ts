@@ -55,6 +55,67 @@ function extractName(c: unknown): string | undefined {
   return (obj as { real_name?: string | null } | undefined)?.real_name || undefined;
 }
 
+// ---- One-off link minting (admin "Copy invite link") -----------------------
+
+export interface InviteCandidate {
+  id: string;
+  name: string;
+  handles: string[];
+}
+
+/**
+ * Find creators by name or tiktok handle for the one-off invite flow.
+ * Returns up to 8 candidates with their handles so an admin can disambiguate
+ * duplicate identity rows (same person, different creators_v2 ids) by eye.
+ */
+export async function searchCreatorsForInvite(query: string): Promise<InviteCandidate[]> {
+  const q = query.trim().replace(/^@/, '');
+  if (q.length < 2) return [];
+  const supabase = await createAdminClient();
+
+  const [byName, byHandle] = await Promise.all([
+    supabase.from('creators_v2').select('id, real_name').ilike('real_name', `%${q}%`).limit(8),
+    supabase
+      .from('tiktok_accounts')
+      .select('creator_id, creators_v2!inner(real_name)')
+      .ilike('tiktok_username', `%${q}%`)
+      .limit(8),
+  ]);
+
+  const ids = new Map<string, string>(); // id -> name
+  for (const r of byName.data ?? []) ids.set(String(r.id), (r.real_name as string) || '(no name)');
+  for (const r of byHandle.data ?? []) {
+    const name = (Array.isArray(r.creators_v2) ? r.creators_v2[0] : r.creators_v2) as
+      | { real_name?: string | null }
+      | undefined;
+    ids.set(String(r.creator_id), name?.real_name || '(no name)');
+  }
+  const idList = Array.from(ids.keys()).slice(0, 8);
+  if (idList.length === 0) return [];
+
+  const { data: ta } = await supabase
+    .from('tiktok_accounts')
+    .select('creator_id, tiktok_username')
+    .in('creator_id', idList);
+  const handlesById = new Map<string, string[]>();
+  for (const r of ta ?? []) {
+    const arr = handlesById.get(String(r.creator_id)) ?? [];
+    if (r.tiktok_username) arr.push(String(r.tiktok_username));
+    handlesById.set(String(r.creator_id), arr);
+  }
+
+  return idList.map((id) => ({
+    id,
+    name: ids.get(id) ?? '(no name)',
+    handles: handlesById.get(id) ?? [],
+  }));
+}
+
+/** Base URL for claim links (also used by the batch sender). */
+export function inviteBaseUrl(): string {
+  return APP_BASE_URL;
+}
+
 export interface InviteStatus {
   toEnqueue: number; // eligible creators without an active token yet
   pending: number;
