@@ -1,18 +1,18 @@
 'use client';
 
-import { AlertTriangle, ExternalLink, Flame, Video } from 'lucide-react';
+import { AlertTriangle, Flame, Play, Video } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import type { CreatorVideoRow } from '@/lib/data/creator-portal';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { PageHeader } from '@/components/ui/page-header';
 import { Card } from '@/components/ui/card';
 import { Badge, Tag } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/empty-state';
 import { DateRangePicker } from '@/components/dashboard/date-range-picker';
-import { fmtCompactCurrency } from '@/components/charts/format';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
 import { useBrandMeta } from '@/hooks/use-brand-meta';
+import { useTikTokThumbnail } from '@/hooks/use-tiktok-thumbnail';
+import { cn } from '@/lib/utils';
 
 type InspirationVideo = CreatorVideoRow & { isMine: boolean };
 
@@ -21,11 +21,24 @@ interface Props {
   currentBrandDisplay: string | null;
   rangeLabel: string;
   videos: InspirationVideo[];
+  /** Product names the creator has actually sold — powers "You sell this". */
+  myProductNames: string[];
 }
 
-export function InspirationClient({ currentBrand, currentBrandDisplay, rangeLabel, videos }: Props) {
+export function InspirationClient({
+  currentBrand,
+  currentBrandDisplay,
+  rangeLabel,
+  videos,
+  myProductNames,
+}: Props) {
   const [excludeMine, setExcludeMine] = useState(false);
   const [search, setSearch] = useState('');
+
+  const sellable = useMemo(
+    () => new Set(myProductNames.map((p) => p.toLowerCase())),
+    [myProductNames],
+  );
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -41,36 +54,44 @@ export function InspirationClient({ currentBrand, currentBrandDisplay, rangeLabe
   }, [videos, excludeMine, search]);
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto pb-12">
-      <PageHeader
-        eyebrow="Discover"
-        title="Inspiration"
-        subtitle={
-          currentBrandDisplay ? (
-            <>
-              What&apos;s winning on <b>{currentBrandDisplay}</b> · {rangeLabel}
-            </>
-          ) : (
-            <>What&apos;s winning across the network · {rangeLabel}</>
-          )
-        }
-        actions={<DateRangePicker defaultPreset="last30" />}
-      />
+    <div className="mx-auto max-w-6xl space-y-8 pb-12">
+      {/* Ledger page header */}
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="font-ledger text-[13px] italic text-primary">Discover</p>
+          <h1 className="font-ledger mt-1 text-[26px] font-bold tracking-tight text-foreground">
+            Learn from what&apos;s winning
+          </h1>
+          <p className="mt-1 text-[13.5px] text-muted-foreground">
+            Top network videos
+            {currentBrandDisplay ? (
+              <>
+                {' '}
+                on <span className="font-medium text-foreground">{currentBrandDisplay}</span>
+              </>
+            ) : (
+              ' across the network'
+            )}{' '}
+            · {rangeLabel}
+          </p>
+        </div>
+        <DateRangePicker defaultPreset="last30" />
+      </div>
 
       {/* Filters */}
-      <div className="flex items-center gap-3 flex-wrap">
+      <div className="flex flex-wrap items-center gap-3">
         <Input
           type="text"
           placeholder="Search by title, @handle, or product…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="flex-1 min-w-[240px]"
+          className="min-w-[240px] flex-1"
         />
-        <div className="inline-flex items-center gap-2 text-sm text-muted-foreground select-none">
+        <div className="inline-flex select-none items-center gap-2 text-sm text-muted-foreground">
           <Switch checked={excludeMine} onCheckedChange={setExcludeMine} aria-label="Hide my videos" />
           <span
             onClick={() => setExcludeMine((v) => !v)}
-            className="cursor-pointer hover:text-foreground transition-colors"
+            className="cursor-pointer transition-colors hover:text-foreground"
           >
             Hide my videos
           </span>
@@ -78,8 +99,8 @@ export function InspirationClient({ currentBrand, currentBrandDisplay, rangeLabe
       </div>
 
       {!currentBrand && (
-        <Card className="p-4 flex items-start gap-3 border-[var(--pulse-warn)]/25 bg-[var(--pulse-warn-bg)] shadow-none">
-          <AlertTriangle className="h-4 w-4 text-[var(--pulse-warn)] mt-0.5 shrink-0" />
+        <Card className="flex items-start gap-3 border-[var(--pulse-warn)]/25 bg-[var(--pulse-warn-bg)] p-4 shadow-none">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[var(--pulse-warn)]" />
           <p className="text-sm text-[var(--pulse-warn)]">
             Showing the whole network. Switch to a brand to filter inspiration to that brand&apos;s products.
           </p>
@@ -104,9 +125,14 @@ export function InspirationClient({ currentBrand, currentBrandDisplay, rangeLabe
           }
         />
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filtered.map((v, i) => (
-            <VideoCard key={v.videoId} video={v} index={i} />
+            <VideoCard
+              key={v.videoId}
+              video={v}
+              index={i}
+              sells={!!v.topProduct && sellable.has(v.topProduct.toLowerCase())}
+            />
           ))}
         </div>
       )}
@@ -114,57 +140,86 @@ export function InspirationClient({ currentBrand, currentBrandDisplay, rangeLabe
   );
 }
 
-function VideoCard({ video, index }: { video: InspirationVideo; index: number }) {
+function VideoCard({ video, index, sells }: { video: InspirationVideo; index: number; sells: boolean }) {
   const isHot = index < 3;
   const brandMeta = useBrandMeta();
+  const { thumbnail, loading } = useTikTokThumbnail(video.videoUrl);
+
   const card = (
     <Card
-      className={`group p-4 h-full transition-all hover:-translate-y-0.5 hover:shadow-[var(--pulse-elev-2)] ${
-        video.isMine ? 'border-primary/40 ring-1 ring-primary/20' : ''
-      }`}
+      className={cn(
+        'group h-full overflow-hidden p-0 transition-all hover:-translate-y-0.5 hover:shadow-[var(--pulse-elev-2)]',
+        video.isMine && 'border-primary/40 ring-1 ring-primary/20',
+      )}
     >
-      <div className="flex items-start justify-between gap-2 mb-3">
-        <div className="h-10 w-10 rounded-xl bg-secondary flex items-center justify-center flex-shrink-0">
-          <Video className="h-4 w-4 text-primary" />
-        </div>
-        {isHot && (
-          <Badge variant="accent" size="sm">
-            <Flame className="h-3 w-3" />
-            Top {index + 1}
-          </Badge>
-        )}
-        {video.isMine && <Tag>Yours</Tag>}
-      </div>
-      <p className="text-sm font-semibold text-foreground line-clamp-2 group-hover:text-primary transition-colors min-h-[2.5rem]">
-        {video.videoTitle}
-      </p>
-      {video.topProduct && (
-        <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{video.topProduct}</p>
-      )}
-      <div className="flex items-center justify-between mt-3 pt-3 border-t border-border">
-        <div>
-          <p
-            className="text-lg font-extrabold text-[var(--pulse-pos)]"
-            title={video.gmv == null ? undefined : formatCurrency(video.gmv)}
+      {/* Cover — real TikTok thumbnail via oEmbed; branded placeholder otherwise. */}
+      <div className="relative aspect-[16/10] w-full overflow-hidden border-b border-border bg-secondary">
+        {thumbnail ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={thumbnail}
+            alt=""
+            loading="lazy"
+            className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+          />
+        ) : (
+          <div
+            className={cn(
+              'absolute inset-0 grid place-items-center text-muted-foreground/40',
+              loading && 'animate-pulse',
+            )}
           >
-            {video.gmv == null ? '—' : fmtCompactCurrency(video.gmv)}
-          </p>
-          <p className="text-xs text-muted-foreground">
-            {video.orders == null ? '—' : `${formatNumber(video.orders)} orders`}
-          </p>
+            <Play className="h-7 w-7 fill-current" />
+          </div>
+        )}
+        <div className="absolute left-2.5 top-2.5 flex items-center gap-1.5">
+          {isHot && (
+            <Badge variant="accent" size="sm">
+              <Flame className="h-3 w-3" />
+              Top {index + 1}
+            </Badge>
+          )}
+          {video.isMine && <Tag>Yours</Tag>}
         </div>
-        <div className="text-right">
-          <p className="text-xs text-muted-foreground">@{video.tiktokUsername}</p>
-          <p className="text-[11px] text-muted-foreground/60 mt-0.5">{brandMeta.label(video.brandSlug)}</p>
+        {sells && (
+          <div className="absolute bottom-2.5 left-2.5">
+            <Badge variant="positive" size="sm">
+              You sell this
+            </Badge>
+          </div>
+        )}
+        {thumbnail && (
+          <span className="absolute bottom-2.5 right-2.5 grid h-6 w-6 place-items-center rounded-md bg-black/55 opacity-0 transition-opacity group-hover:opacity-100">
+            <Play className="h-3 w-3 fill-white text-white" />
+          </span>
+        )}
+      </div>
+
+      <div className="p-4">
+        <p className="line-clamp-2 min-h-[2.5rem] text-sm font-semibold text-foreground transition-colors group-hover:text-primary">
+          {video.videoTitle}
+        </p>
+        {video.topProduct && (
+          <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">{video.topProduct}</p>
+        )}
+        <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
+          <div>
+            <p className="font-ledger-num text-lg font-bold text-[var(--pulse-pos)]">
+              {video.gmv == null ? '—' : formatCurrency(video.gmv)}
+            </p>
+            <p className="text-xs tabular-nums text-muted-foreground">
+              {video.orders == null ? '—' : `${formatNumber(video.orders)} orders`}
+            </p>
+          </div>
+          <div className="text-right">
+            <p className="font-mono text-xs text-muted-foreground">@{video.tiktokUsername}</p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground/60">{brandMeta.label(video.brandSlug)}</p>
+          </div>
         </div>
       </div>
-      {video.videoUrl && (
-        <p className="mt-2 text-xs text-primary inline-flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          Watch on TikTok <ExternalLink className="h-3 w-3" />
-        </p>
-      )}
     </Card>
   );
+
   if (video.videoUrl) {
     return (
       <a href={video.videoUrl} target="_blank" rel="noopener noreferrer" className="block">

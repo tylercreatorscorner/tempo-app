@@ -1,6 +1,10 @@
 import { redirect } from 'next/navigation';
 import { getCreatorSession, getCurrentBrandCookie } from '@/lib/auth/creator-auth';
-import { loadCreatorPortalProfile, getInspirationVideos } from '@/lib/data/creator-portal';
+import {
+  loadCreatorPortalProfile,
+  getInspirationVideos,
+  getCreatorTopProducts,
+} from '@/lib/data/creator-portal';
 import { resolveCreatorRange } from '@/lib/creator/range';
 import { InspirationClient } from './inspiration-client';
 
@@ -18,7 +22,12 @@ export default async function InspirationPage({
 
   const { window, rangeLabel } = resolveCreatorRange(await searchParams);
 
-  const videos = await getInspirationVideos(profile.currentBrand, window, 48).catch(() => []);
+  const [videos, myProducts] = await Promise.all([
+    getInspirationVideos(profile.currentBrand, window, 48).catch(() => []),
+    // The creator's own selling products — powers "You sell this" tags that turn
+    // inspiration into a targeted next post.
+    getCreatorTopProducts(profile.handles, profile.currentBrand, window, 25).catch(() => []),
+  ]);
 
   // Mark "mine" by handle overlap.
   const myHandles = new Set(profile.handles.map((h) => h.toLowerCase()));
@@ -37,6 +46,7 @@ export default async function InspirationPage({
       }
       rangeLabel={rangeLabel}
       videos={decorated}
+      myProductNames={myProducts.map((p) => p.productName)}
     />
   );
 }
