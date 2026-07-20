@@ -259,17 +259,16 @@ function LedgerHero({
   const peak = hasSpark ? Math.max(...sparkData) : 0;
 
   return (
-    <header className="space-y-5">
-      <div className="flex items-start justify-between gap-4">
-        <p className="font-ledger text-2xl font-semibold text-foreground">
+    /* One grid, mockup structure: the greeting lives INSIDE the left column a
+       fixed 14px above the figure (a separate greeting row + items-end used to
+       dump all the slack as dead air between greeting and number). The range
+       picker sits at the top of the right column, above the sparkline card. */
+    <header className="grid gap-x-6 gap-y-5 lg:grid-cols-[1.1fr_0.9fr] lg:items-end">
+      <div>
+        <p className="font-ledger mb-3.5 text-2xl font-semibold text-foreground">
           {greeting}, <span className="text-pulse-grad italic">{firstName}</span>.
         </p>
-        <DateRangePicker defaultPreset="last30" />
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-end">
-        <div>
-          <p className="font-ledger-num text-[clamp(3.25rem,6vw,4.875rem)] font-bold leading-[0.92] tracking-[-0.03em] text-foreground">
+        <p className="font-ledger-num text-[clamp(3.25rem,6vw,4.875rem)] font-bold leading-[0.92] tracking-[-0.03em] text-foreground">
             {gmvNumber != null ? (
               <>
                 {/* Mockup treatment: half-size, raised, muted currency mark. */}
@@ -306,8 +305,10 @@ function LedgerHero({
           </p>
         </div>
 
+      <div className={cn('flex flex-col items-end gap-3', !hasSpark && 'lg:self-start')}>
+        <DateRangePicker defaultPreset="last30" />
         {hasSpark && (
-          <div className="rounded-2xl border border-border bg-card p-4 shadow-[var(--pulse-elev-1)]">
+          <div className="w-full rounded-2xl border border-border bg-card p-4 shadow-[var(--pulse-elev-1)]">
             <div className="mb-1 flex items-center justify-between text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
               <span>Daily GMV</span>
               <span className="text-muted-foreground/60">peak {fmtCompactCurrency(peak)}</span>

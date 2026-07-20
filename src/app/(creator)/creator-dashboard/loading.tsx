@@ -9,15 +9,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 export default function Loading() {
   return (
     <div className="mx-auto max-w-6xl space-y-8 pb-12">
-      {/* Greeting + range chip */}
-      <div className="flex items-start justify-between gap-4">
-        <Skeleton className="h-8 w-64" />
-        <Skeleton className="h-9 w-36 rounded-full" />
-      </div>
-
-      {/* Hero: big number + delta line (left), sparkline card (right) */}
-      <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-end">
+      {/* Hero: greeting + big number + delta (left), range chip + sparkline card (right) */}
+      <div className="grid gap-x-6 gap-y-5 lg:grid-cols-[1.1fr_0.9fr] lg:items-end">
         <div className="space-y-4">
+          <Skeleton className="h-8 w-64" />
           <Skeleton className="h-[72px] w-[340px] max-w-full" />
           <div className="flex items-center gap-3">
             <Skeleton className="h-6 w-20 rounded-lg" />
@@ -25,7 +20,10 @@ export default function Loading() {
           </div>
           <Skeleton className="h-3.5 w-72" />
         </div>
-        <Skeleton className="h-[158px] rounded-2xl" />
+        <div className="flex flex-col items-end gap-3">
+          <Skeleton className="h-9 w-36 rounded-full" />
+          <Skeleton className="h-[158px] w-full rounded-2xl" />
+        </div>
       </div>
 
       {/* Ledger KPI strip */}
