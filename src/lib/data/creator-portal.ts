@@ -1307,8 +1307,7 @@ export function buildActionStack(args: {
 function truncate(s: string, n: number) {
   return s.length <= n ? s : s.slice(0, n - 1) + '…';
 }
+// Whole dollars, never compact rounding — owner call ("not rounded like $80K").
 function formatMoney(n: number) {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `$${(n / 1_000).toFixed(1)}k`;
-  return `$${n.toFixed(0)}`;
+  return `$${Math.round(n).toLocaleString('en-US')}`;
 }

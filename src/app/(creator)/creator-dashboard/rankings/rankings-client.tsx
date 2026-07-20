@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/empty-state';
 import { DateRangePicker } from '@/components/dashboard/date-range-picker';
 import { StandingBand } from '@/components/creator/standing-band';
-import { fmtCompactCurrency } from '@/components/charts/format';
+import { formatCurrency } from '@/lib/utils/format';
 import { useTikTokThumbnail } from '@/hooks/use-tiktok-thumbnail';
 import { cn } from '@/lib/utils';
 import type { BrandStanding, CreatorVideoRow, RankingEntry } from '@/lib/data/creator-portal';
@@ -160,7 +160,7 @@ function PodiumCard({ entry, place }: { entry: RowWithDelta; place: 0 | 1 | 2 })
       </p>
       <p className="truncate font-mono text-[11px] text-muted-foreground">@{entry.tiktokUsername}</p>
       <p className={cn('font-ledger-num mt-1.5 font-bold text-[var(--pulse-pos)]', first ? 'text-2xl' : 'text-xl')}>
-        {fmtCompactCurrency(entry.gmv)}
+        {formatCurrency(entry.gmv)}
       </p>
       <p className="mt-0.5 text-[10.5px] font-medium uppercase tracking-wider text-muted-foreground/70">
         {entry.isMe ? "That's you" : medal.label}
@@ -276,7 +276,7 @@ function Leaderboard({ rankings }: { rankings: RowWithDelta[] }) {
                       </div>
                     </div>
                   </TD>
-                  <TD className="font-bold tabular-nums text-[var(--pulse-pos)]">{fmtCompactCurrency(r.gmv)}</TD>
+                  <TD className="font-bold tabular-nums text-[var(--pulse-pos)]">{formatCurrency(r.gmv)}</TD>
                   <TD className="hidden tabular-nums text-foreground sm:table-cell">
                     {r.orders.toLocaleString()}
                   </TD>
@@ -476,7 +476,7 @@ function TopVideoRow({
       </span>
 
       <span className="shrink-0 font-mono text-[13px] font-bold tabular-nums text-[var(--pulse-pos)]">
-        {fmtCompactCurrency(video.gmv)}
+        {formatCurrency(video.gmv)}
       </span>
     </li>
   );

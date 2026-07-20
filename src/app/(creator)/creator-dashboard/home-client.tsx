@@ -20,6 +20,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { NumberTicker } from '@/components/ui/number-ticker';
 import { Gauge } from '@/components/charts/gauge';
 import { fmtCompactCurrency } from '@/components/charts/format';
+import { formatCurrency } from '@/lib/utils/format';
 import { Sparkline } from '@/components/creator/sparkline';
 import { StandingBand } from '@/components/creator/standing-band';
 import { useBrandMeta } from '@/hooks/use-brand-meta';
@@ -308,7 +309,7 @@ function LedgerHero({
               <>${Math.round(retainerTotal).toLocaleString('en-US')}/mo retainer secured · </>
             )}
             {lifetimeGmv != null ? (
-              <>{fmtCompactCurrency(lifetimeGmv)} driven all-time</>
+              <>{formatCurrency(lifetimeGmv)} driven all-time</>
             ) : (
               <>building your all-time total</>
             )}
@@ -321,7 +322,7 @@ function LedgerHero({
           <div className="w-full rounded-2xl border border-border bg-card p-4 shadow-[var(--pulse-elev-1)]">
             <div className="mb-1 flex items-center justify-between text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
               <span>Daily GMV</span>
-              <span className="text-muted-foreground/60">peak {fmtCompactCurrency(peak)}</span>
+              <span className="text-muted-foreground/60">peak {formatCurrency(peak)}</span>
             </div>
             <div className="h-[118px] w-full text-primary">
               <Sparkline
@@ -357,7 +358,7 @@ function DeltaPill({ pct }: { pct: number }) {
 
 function LedgerStrip({ summary, streak }: { summary: CreatorSummary | null; streak: number }) {
   const cells: { k: string; v: string; d: number | null; sub?: string }[] = [
-    { k: 'GMV', v: summary ? fmtCompactCurrency(summary.totalGmv) : '—', d: summary?.gmvChangePct ?? null },
+    { k: 'GMV', v: summary ? formatCurrency(summary.totalGmv) : '—', d: summary?.gmvChangePct ?? null },
     { k: 'Orders', v: summary ? summary.totalOrders.toLocaleString() : '—', d: summary?.orderChangePct ?? null },
     { k: 'Videos posted', v: summary ? String(summary.videoCount) : '—', d: summary?.videoChangePct ?? null },
     {
@@ -372,7 +373,8 @@ function LedgerStrip({ summary, streak }: { summary: CreatorSummary | null; stre
       {cells.map((c) => (
         <div key={c.k} className="bg-card p-4 sm:p-5">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">{c.k}</p>
-          <p className="font-ledger-num mt-1.5 text-2xl font-bold text-foreground sm:text-[28px]">{c.v}</p>
+          {/* 23px matches the StandingBand values — the two strips must stay twins. */}
+          <p className="font-ledger-num mt-1.5 text-xl font-bold text-foreground sm:text-[23px]">{c.v}</p>
           {c.d != null ? (
             <DeltaText pct={c.d} />
           ) : (
@@ -484,7 +486,7 @@ function MoneyMakers({
                 <p className="text-xs tabular-nums text-muted-foreground">{p.orders.toLocaleString()} orders</p>
               </div>
               <div className="flex-shrink-0 text-right">
-                <p className="text-sm font-bold tabular-nums text-[var(--pulse-pos)]">{fmtCompactCurrency(p.gmv)}</p>
+                <p className="text-sm font-bold tabular-nums text-[var(--pulse-pos)]">{formatCurrency(p.gmv)}</p>
                 {p.gmvChangePct != null && (
                   <p
                     className="whitespace-nowrap text-xs tabular-nums"
@@ -556,7 +558,7 @@ function RankLadder({
         {above ? (
           <p className="pt-1.5 text-center text-[13px] text-muted-foreground">
             Close the gap:{' '}
-            <span className="font-semibold text-foreground">{fmtCompactCurrency(above.gap)}</span>
+            <span className="font-semibold text-foreground">{formatCurrency(above.gap)}</span>
             {gapVideos ? (
               <>
                 {' '}≈ <span className="font-semibold text-foreground">
@@ -595,7 +597,7 @@ function LadderRung({ pos, name, gmv, me }: { pos: number; name: string; gmv: nu
       <span className={cn('flex-1 truncate text-sm font-semibold', me ? 'text-primary' : 'text-foreground')}>
         {name}
       </span>
-      <span className="font-mono text-sm font-semibold tabular-nums text-foreground">{fmtCompactCurrency(gmv)}</span>
+      <span className="font-mono text-sm font-semibold tabular-nums text-foreground">{formatCurrency(gmv)}</span>
     </div>
   );
 }
@@ -655,7 +657,7 @@ function RetainerPace({
                 emphasis
               />
               {retainerTotal > 0 && (
-                <PaceRow label="Retainer at stake" value={`${fmtCompactCurrency(retainerTotal)}/mo`} />
+                <PaceRow label="Retainer at stake" value={`${formatCurrency(retainerTotal)}/mo`} />
               )}
             </div>
             <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
@@ -714,8 +716,9 @@ function MilestoneGoal({ lifetimeGmv }: { lifetimeGmv: number | null }) {
           <div className="space-y-3">
             <p className="text-sm text-foreground">
               You&apos;ve driven{' '}
-              <span className="font-bold text-[var(--pulse-pos)]">{fmtCompactCurrency(lifetimeGmv)}</span> all-time.
-              You&apos;re <span className="font-bold text-primary">{fmtCompactCurrency(toGo)}</span> from the{' '}
+              <span className="font-bold text-[var(--pulse-pos)]">{formatCurrency(lifetimeGmv)}</span> all-time.
+              You&apos;re <span className="font-bold text-primary">{formatCurrency(toGo)}</span> from the{' '}
+              {/* Tier NAME stays compact — "$500K Club" is branding, not a data value. */}
               <span className="font-bold text-foreground">{fmtCompactCurrency(nextTier)} Club</span>.
             </p>
             <div className="h-2.5 w-full overflow-hidden rounded-full bg-secondary">
@@ -730,7 +733,7 @@ function MilestoneGoal({ lifetimeGmv }: { lifetimeGmv: number | null }) {
           </div>
         ) : (
           <p className="text-sm text-foreground">
-            {fmtCompactCurrency(lifetimeGmv)} all-time. You&apos;ve cleared every milestone.
+            {formatCurrency(lifetimeGmv)} all-time. You&apos;ve cleared every milestone.
           </p>
         )}
       </CardContent>
@@ -866,7 +869,7 @@ function VideoRow({
         </div>
       </div>
       <div className="flex-shrink-0 text-right">
-        <p className="text-sm font-bold tabular-nums text-[var(--pulse-pos)]">{fmtCompactCurrency(video.gmv)}</p>
+        <p className="text-sm font-bold tabular-nums text-[var(--pulse-pos)]">{formatCurrency(video.gmv)}</p>
         <p className="whitespace-nowrap text-xs tabular-nums text-muted-foreground">
           {video.orders.toLocaleString()} orders
         </p>

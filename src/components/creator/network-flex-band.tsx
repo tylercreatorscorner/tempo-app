@@ -1,6 +1,6 @@
 import { Globe2 } from 'lucide-react';
 import { getNetworkFlex, type DateWindow } from '@/lib/data/creator-portal';
-import { fmtCompactCurrency } from '@/components/charts/format';
+import { formatCurrency } from '@/lib/utils/format';
 
 /**
  * "You're 1 of N creators powering $X across the network · Top Y%" — the Home
@@ -37,7 +37,7 @@ export async function NetworkFlexBand({
         <span className="font-semibold text-foreground">
           You&apos;re 1 of {flex.creatorCount.toLocaleString()} creators
         </span>{' '}
-        powering <span className="font-semibold text-foreground">{fmtCompactCurrency(flex.networkGmv)}</span>{' '}
+        powering <span className="font-semibold text-foreground">{formatCurrency(flex.networkGmv)}</span>{' '}
         across the network this period.
       </p>
       <span className="shrink-0 rounded-lg bg-primary/10 px-2.5 py-1 font-mono text-xs font-semibold text-primary">
