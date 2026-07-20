@@ -1,17 +1,19 @@
 'use client';
 
-import { ExternalLink, Sparkles, TrendingUp } from 'lucide-react';
-import { StatCard } from '@/components/ui/stat-card';
-import { PageHeader } from '@/components/ui/page-header';
+import { ArrowUpRight, Play, Sparkles, TrendingUp } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { TableCard, Table, THead, TBody, TR, TH, TD } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
 import { Chip } from '@/components/ui/chip';
 import { EmptyState } from '@/components/ui/empty-state';
 import { NumberTicker } from '@/components/ui/number-ticker';
 import { DateRangePicker } from '@/components/dashboard/date-range-picker';
 import { AreaLineChart } from '@/components/charts/area-line-chart';
-import { fmtCompactCurrency, formatCurrency } from '@/components/charts/format';
+import { fmtCompactCurrency } from '@/components/charts/format';
+import { formatCurrency } from '@/lib/utils/format';
 import { useBrandMeta } from '@/hooks/use-brand-meta';
+import { useTikTokThumbnail } from '@/hooks/use-tiktok-thumbnail';
+import { cn } from '@/lib/utils';
 import type {
   CreatorDailyPoint,
   CreatorSummary,
@@ -35,57 +37,41 @@ export function PerformanceClient({
   daily,
   topVideos,
 }: Props) {
-  const brandMeta = useBrandMeta();
-
   return (
-    <div className="space-y-6 max-w-6xl mx-auto pb-12">
-      <PageHeader
-        eyebrow="Performance"
-        title="Performance"
-        subtitle={
-          currentBrandDisplay ? (
-            <>
-              Showing <span className="font-medium text-foreground">{currentBrandDisplay}</span> · {rangeLabel}
-            </>
-          ) : (
-            <>{rangeLabel} · all brands</>
-          )
-        }
-        actions={<DateRangePicker defaultPreset="last30" />}
-      />
-
-      {/* Summary tiles — canonical Pulse StatCards so the portal matches the admin.
-          summary === null means the read FAILED (a zero-activity creator gets a
-          zeros object, not null) — show "—", never a fake $0. */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <StatCard
-          hero
-          label="GMV"
-          value={summary ? fmtCompactCurrency(summary.totalGmv) : '—'}
-          trend={summary?.gmvChangePct ?? undefined}
-          trendLabel="vs prior period"
-        />
-        <StatCard
-          label="Orders"
-          value={summary ? summary.totalOrders.toLocaleString() : '—'}
-          trend={summary?.orderChangePct ?? undefined}
-          trendLabel="vs prior period"
-        />
-        <StatCard
-          label="Items sold"
-          value={summary ? summary.totalItemsSold.toLocaleString() : '—'}
-        />
-        <StatCard
-          label="Est. commission"
-          value={summary ? formatCurrency(summary.totalCommission) : '—'}
-          accentColor="var(--pulse-pos)"
-        />
+    <div className="mx-auto max-w-6xl space-y-8 pb-12">
+      {/* Ledger page header */}
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="font-ledger text-[13px] italic text-primary">Performance</p>
+          <h1 className="font-ledger mt-1 text-[26px] font-bold tracking-tight text-foreground">
+            The full record
+          </h1>
+          <p className="mt-1 text-[13.5px] text-muted-foreground">
+            Your GMV, orders, and every video that sold ·{' '}
+            {currentBrandDisplay ? (
+              <>
+                on <span className="font-medium text-foreground">{currentBrandDisplay}</span>
+              </>
+            ) : (
+              'all brands'
+            )}{' '}
+            · {rangeLabel}
+          </p>
+        </div>
+        <DateRangePicker defaultPreset="last30" />
       </div>
+
+      {/* Ledger KPI strip — summary === null means the read FAILED (a
+          zero-activity creator gets a zeros object, not null) — "—", never $0. */}
+      <LedgerStrip summary={summary} />
 
       {/* Daily chart */}
       <Card>
         <CardHeader>
-          <CardTitle>Daily GMV</CardTitle>
+          <CardTitle className="font-ledger text-[15px]">Daily GMV</CardTitle>
+          <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/60">
+            {rangeLabel}
+          </span>
         </CardHeader>
         <CardContent>
           <DailyChart daily={daily} />
@@ -109,7 +95,7 @@ export function PerformanceClient({
               </p>
               <p className="mt-1 text-sm text-foreground">
                 <span className="font-medium">{formatDate(summary.bestDay.date)}</span> brought in{' '}
-                <span className="font-extrabold tabular-nums text-[var(--pulse-pos)]">
+                <span className="font-ledger-num text-lg font-bold tabular-nums text-[var(--pulse-pos)]">
                   $<NumberTicker
                     value={summary.bestDay.gmv}
                     className="text-[var(--pulse-pos)] dark:text-[var(--pulse-pos)] tracking-tight"
@@ -131,8 +117,8 @@ export function PerformanceClient({
       ) : (
         <TableCard>
           <CardHeader>
-            <CardTitle>Videos in this period</CardTitle>
-            <span className="text-xs text-muted-foreground tabular-nums">
+            <CardTitle className="font-ledger text-[15px]">Videos in this period</CardTitle>
+            <span className="text-xs tabular-nums text-muted-foreground">
               {topVideos.length} video{topVideos.length === 1 ? '' : 's'}
             </span>
           </CardHeader>
@@ -149,35 +135,16 @@ export function PerformanceClient({
               </THead>
               <TBody>
                 {topVideos.map((v) => (
-                  <TR key={v.videoId} className="hover:bg-secondary/50">
-                    <TD className="max-w-[280px] align-top">
-                      <div className="flex items-center gap-2">
-                        {v.videoUrl ? (
-                          <a
-                            href={v.videoUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-foreground hover:text-primary truncate font-medium flex items-center gap-1"
-                          >
-                            <span className="truncate">{v.videoTitle}</span>
-                            <ExternalLink className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
-                          </a>
-                        ) : (
-                          <span className="text-foreground truncate font-medium">{v.videoTitle}</span>
-                        )}
-                      </div>
-                      <div className="mt-1 flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">@{v.tiktokUsername}</span>
-                        <Chip dotColor={brandMeta.color(v.brandSlug)}>{brandMeta.label(v.brandSlug)}</Chip>
-                      </div>
-                    </TD>
-                    <TD className="hidden sm:table-cell text-left max-w-[200px]">
-                      <span className="truncate block">{v.topProduct ?? '—'}</span>
-                    </TD>
-                    <TD className="font-bold text-[var(--pulse-pos)]">{fmtCompactCurrency(v.gmv)}</TD>
-                    <TD className="hidden md:table-cell text-foreground">{v.orders.toLocaleString()}</TD>
-                    <TD className="hidden md:table-cell">{v.daysActive}d</TD>
-                  </TR>
+                  <VideoTableRow
+                    key={v.videoId}
+                    video={v}
+                    cooling={
+                      v.priorGmv != null &&
+                      v.recentGmv != null &&
+                      v.priorGmv >= 200 &&
+                      v.recentGmv < v.priorGmv * 0.5
+                    }
+                  />
                 ))}
               </TBody>
             </Table>
@@ -187,6 +154,116 @@ export function PerformanceClient({
     </div>
   );
 }
+
+// ---- Ledger strip ----------------------------------------------------------
+
+function LedgerStrip({ summary }: { summary: CreatorSummary | null }) {
+  const cells: { k: string; v: string; d: number | null }[] = [
+    { k: 'GMV', v: summary ? formatCurrency(summary.totalGmv) : '—', d: summary?.gmvChangePct ?? null },
+    {
+      k: 'Orders',
+      v: summary ? summary.totalOrders.toLocaleString('en-US') : '—',
+      d: summary?.orderChangePct ?? null,
+    },
+    { k: 'Items sold', v: summary ? summary.totalItemsSold.toLocaleString('en-US') : '—', d: null },
+    { k: 'Est. commission', v: summary ? formatCurrency(summary.totalCommission) : '—', d: null },
+  ];
+  return (
+    <div className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-border bg-border shadow-[var(--pulse-elev-1)] sm:grid-cols-4">
+      {cells.map((c) => (
+        <div key={c.k} className="bg-card p-4 sm:p-5">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">{c.k}</p>
+          <p className="font-ledger-num mt-1.5 text-xl font-bold text-foreground sm:text-[23px]">{c.v}</p>
+          {c.d != null && (
+            <p
+              className="mt-1 font-mono text-[11px] tabular-nums"
+              style={{ color: c.d >= 0 ? 'var(--pulse-pos)' : 'var(--pulse-neg)' }}
+            >
+              {c.d >= 0 ? '▲' : '▼'} {Math.abs(Math.round(c.d))}% vs prior
+            </p>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ---- Video row (with thumbnail) -------------------------------------------
+
+function VideoTableRow({ video: v, cooling }: { video: CreatorVideoRow; cooling: boolean }) {
+  const brandMeta = useBrandMeta();
+  const { thumbnail, loading } = useTikTokThumbnail(v.videoUrl);
+
+  const thumb = (
+    <span className="relative block h-[46px] w-9 shrink-0 overflow-hidden rounded-md border border-border bg-secondary">
+      {thumbnail ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={thumbnail} alt="" loading="lazy" className="h-full w-full object-cover" />
+      ) : (
+        <span
+          className={cn(
+            'grid h-full w-full place-items-center text-muted-foreground/50',
+            loading && 'animate-pulse',
+          )}
+        >
+          <Play className="h-3 w-3 fill-current" />
+        </span>
+      )}
+    </span>
+  );
+
+  return (
+    <TR className="hover:bg-secondary/50">
+      <TD className="max-w-[300px] align-top">
+        <div className="flex items-center gap-2.5">
+          {v.videoUrl ? (
+            <a href={v.videoUrl} target="_blank" rel="noopener noreferrer" className="shrink-0">
+              {thumb}
+            </a>
+          ) : (
+            thumb
+          )}
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5">
+              {v.videoUrl ? (
+                <a
+                  href={v.videoUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex min-w-0 items-center gap-1 font-medium text-foreground transition-colors hover:text-primary"
+                >
+                  <span className="truncate">{v.videoTitle}</span>
+                  <ArrowUpRight className="h-3 w-3 flex-shrink-0 text-muted-foreground/50" />
+                </a>
+              ) : (
+                <span className="truncate font-medium text-foreground">{v.videoTitle}</span>
+              )}
+              {cooling && (
+                <span className="flex-shrink-0">
+                  <Badge variant="warning" size="sm">
+                    Cooling
+                  </Badge>
+                </span>
+              )}
+            </div>
+            <div className="mt-1 flex items-center gap-2">
+              <span className="font-mono text-xs text-muted-foreground">@{v.tiktokUsername}</span>
+              <Chip dotColor={brandMeta.color(v.brandSlug)}>{brandMeta.label(v.brandSlug)}</Chip>
+            </div>
+          </div>
+        </div>
+      </TD>
+      <TD className="hidden max-w-[200px] text-left sm:table-cell">
+        <span className="block truncate">{v.topProduct ?? '—'}</span>
+      </TD>
+      <TD className="font-bold tabular-nums text-[var(--pulse-pos)]">{formatCurrency(v.gmv)}</TD>
+      <TD className="hidden tabular-nums text-foreground md:table-cell">{v.orders.toLocaleString()}</TD>
+      <TD className="hidden md:table-cell">{v.daysActive}d</TD>
+    </TR>
+  );
+}
+
+// ---- Chart -----------------------------------------------------------------
 
 /**
  * Daily GMV trend. Uses the shared index-based AreaLineChart (same component as
