@@ -702,7 +702,25 @@ export async function getCreatorTopVideos(
     };
   });
   out.sort((a, b) => b.gmv - a.gmv);
-  return out.slice(0, limit);
+  const top = out.slice(0, limit);
+
+  // dvps.video_url is a tiktokcdn MEDIA url, not a watch URL — swap in the real
+  // tiktok.com link from `videos` (one bounded .in() on ≤limit ids). Null when
+  // missing, so callers never link a creator to a raw CDN file.
+  if (top.length > 0) {
+    const { data: vids } = await supabase
+      .from('videos')
+      .select('video_id, video_link')
+      .in('video_id', top.map((t) => t.videoId));
+    const watch = new Map<string, string>();
+    for (const v of vids ?? []) {
+      if (v.video_link && String(v.video_link).includes('tiktok.com')) {
+        watch.set(String(v.video_id), String(v.video_link));
+      }
+    }
+    for (const t of top) t.videoUrl = watch.get(t.videoId) ?? null;
+  }
+  return top;
 }
 
 /** Posting streak: distinct days with at least one video in the past 90 days. */
