@@ -187,7 +187,7 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
         file: f,
         filename: f.name,
         type: detectFileType(f.name),
-        brand: extractBrand(f.name),
+        brand: extractBrand(f.name, activeBrands),
         reportDate: extractDate(f.name),
         status: 'queued',
         log: [],
@@ -276,6 +276,14 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
     }
     if (item.type === 'unknown') {
       appendLog(item.id, 'error', 'File type not detected — pick a type from the dropdown above and retry.');
+      updateItem(item.id, { status: 'error' });
+      return;
+    }
+
+    // Never let an unresolved brand reach the API — rows written under a junk
+    // brand slug are invisible to every surface (the worst kind of "success").
+    if (!item.brand || item.brand === 'unknown' || !brandLabelBySlug.has(item.brand)) {
+      appendLog(item.id, 'error', 'Brand not detected — pick the brand from the dropdown above and retry.');
       updateItem(item.id, { status: 'error' });
       return;
     }

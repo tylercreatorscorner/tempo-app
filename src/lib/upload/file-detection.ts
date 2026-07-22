@@ -68,8 +68,23 @@ export function detectFileType(filename: string): FileType {
   return 'unknown';
 }
 
-/** Detect brand from filename (longest-prefix match). */
-export function extractBrand(filename: string): string {
+/**
+ * Detect brand from filename (longest-prefix match).
+ *
+ * Two passes:
+ *   1. BRAND_MAP — hand-curated aliases (PC, Cata-Kor, …) that a name match
+ *      can't infer.
+ *   2. The LIVE brand list (brands_v2, passed by the upload page) — filename
+ *      prefix matched against each brand's slug and display name. This is what
+ *      keeps detection working for brands added AFTER this file was written:
+ *      the hardcoded map alone silently returned 'unknown' for bondie /
+ *      dr_dent / m3 / kitsch / … during the Jen "brands not reflecting"
+ *      incident, adding friction to exactly the brands newest to the tool.
+ */
+export function extractBrand(
+  filename: string,
+  liveBrands?: { slug: string; name: string }[],
+): string {
   // Drop extension and surrounding paths, lowercase, normalize whitespace
   const base = filename.replace(/\.(xlsx|xls|csv)$/i, '').replace(/[\\/]/g, ' ');
   const lower = base.toLowerCase().replace(/\s+/g, ' ').trim();
@@ -85,6 +100,23 @@ export function extractBrand(filename: string): string {
       if (BRAND_MAP[c]) return BRAND_MAP[c];
     }
   }
+
+  // Live-list fallback: compare alphanumeric-only prefixes, longest key wins
+  // ("leefarsupplements" must beat "leefar").
+  if (liveBrands && liveBrands.length > 0) {
+    const flat = lower.replace(/[^a-z0-9]/g, '');
+    let best: { slug: string; len: number } | null = null;
+    for (const b of liveBrands) {
+      for (const key of [b.slug, b.name]) {
+        const k = (key || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (k.length >= 3 && flat.startsWith(k) && (!best || k.length > best.len)) {
+          best = { slug: b.slug, len: k.length };
+        }
+      }
+    }
+    if (best) return best.slug;
+  }
+
   return 'unknown';
 }
 

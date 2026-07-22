@@ -159,11 +159,19 @@ export async function POST(request: NextRequest) {
       // again instead of being deduped.
     }
 
-    // ── Activity log (best-effort — don't fail the upload if this errors)
+    // ── Activity log (best-effort — don't fail the upload if this errors).
+    // activity_log has user_name/user_email/brand/description — NOT user_id.
+    // The old insert set user_id, failed on every upload, and the catch
+    // swallowed it: ZERO Tempo uploads were ever logged, which blinded the
+    // history panel AND the who-uploaded-what forensics during the Jen
+    // "brands not reflecting" incident. Log the failure at minimum.
     try {
-      await admin.from('activity_log').insert({
+      const { error: logErr } = await admin.from('activity_log').insert({
         activity_type: 'upload',
-        user_id: profile.user_id,
+        brand,
+        user_name: profile.name ?? null,
+        user_email: profile.email ?? null,
+        description: `Uploaded ${table} for ${brand} (${reportDate ?? 'no date'}): ${upserted} rows`,
         details: {
           table,
           brand,
@@ -173,8 +181,9 @@ export async function POST(request: NextRequest) {
           uploaded_by: profile.name ?? profile.email ?? 'unknown',
         },
       });
-    } catch {
-      // ignore
+      if (logErr) console.error('[upload/run] activity_log insert failed:', logErr.message);
+    } catch (e) {
+      console.error('[upload/run] activity_log insert threw:', e);
     }
 
     return NextResponse.json({ ok: true, upserted, deleted });
