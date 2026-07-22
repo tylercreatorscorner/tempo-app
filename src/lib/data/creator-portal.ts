@@ -83,6 +83,9 @@ export interface CreatorVideoRow {
    *  detector (a video that was earning but is now fading). */
   recentGmv?: number;
   priorGmv?: number;
+  /** Windowed views (migration 088, from video_performance engagement) — null
+   *  until that window's daily files carry engagement; render only when real. */
+  views?: number | null;
 }
 
 export interface CreatorProductRow {
@@ -1051,6 +1054,7 @@ export async function getInspirationVideos(
     commission: Number(r.commission) || 0,
     daysActive: Number(r.days_active) || 0,
     topProduct: (r.top_product as string) || null,
+    views: r.views == null ? null : Number(r.views),
     isMine: false,
   }));
 }

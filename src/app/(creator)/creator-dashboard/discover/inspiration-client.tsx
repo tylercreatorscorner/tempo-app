@@ -209,6 +209,7 @@ function VideoCard({ video, index, sells }: { video: InspirationVideo; index: nu
             </p>
             <p className="text-xs tabular-nums text-muted-foreground">
               {video.orders == null ? '—' : `${formatNumber(video.orders)} orders`}
+              {video.views != null && video.views > 0 && <> · {formatNumber(video.views)} views</>}
             </p>
           </div>
           <div className="text-right">

@@ -472,6 +472,9 @@ function TopVideoRow({
               {age}
             </span>
           )}
+          {video.views != null && video.views > 0 && (
+            <span className="truncate">· {video.views.toLocaleString()} views</span>
+          )}
         </span>
       </span>
 

@@ -292,8 +292,9 @@ export default async function AdminDashboard({ searchParams }: Props) {
   //    over report_date — the same basis as the creator card — not the frozen
   //    last-upload snapshot on videos.total_gmv the card used to read (which left
   //    97% of its own rows at $0 and hid evergreen earners posted before the
-  //    window). No views: engagement lives only on `videos` as a lifetime
-  //    snapshot (median 1), so it can't be windowed to sit beside windowed GMV.
+  //    window). Views (migration 088): windowed from the daily engagement columns
+  //    the Video Data upload now ingests — NULL until a day's file has been
+  //    (re)uploaded post-088, so the card shows views only when real.
   //
   // CHECK .error, not just .data. supabase.rpc() resolves {data, error}; on
   // failure data is null, and `?? []` turned that into "No managed videos in
@@ -310,6 +311,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
       handle: String(p.creator_handle ?? ''),
       brand: String(p.brand_name ?? ''),
       gmv: Number(p.gmv) || 0,
+      views: p.views == null ? null : Number(p.views),
     }))
     .filter((v) => v.gmv > 0)
     .slice(0, 10);

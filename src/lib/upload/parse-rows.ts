@@ -74,6 +74,11 @@ export interface VideoPerformanceRecord {
   items_refunded: number;
   est_commission: number;
   est_flat_fee: number;
+  // Engagement — null when the file's column is absent (never a fake 0).
+  views: number | null;
+  likes: number | null;
+  comments: number | null;
+  shares: number | null;
 }
 
 export interface VideoListRecord {
@@ -174,6 +179,16 @@ export function parseCreatorRows(
   };
 }
 
+/** Engagement cell: NULL when the file lacks the column ("no data for this
+ *  day"), a real number (junk → 0) when the column is present. */
+function parseEngagement(
+  row: Record<string, unknown>,
+  key: 'views' | 'likes' | 'comments' | 'shares',
+): number | null {
+  const raw = findColumn(row, key, 'video_performance');
+  return raw === undefined ? null : parseInteger(raw);
+}
+
 export function parseVideoRows(
   rows: Record<string, unknown>[],
   brand: string,
@@ -213,6 +228,10 @@ export function parseVideoRows(
       items_refunded:       parseInteger(findColumn(row, 'items_refunded', 'video_performance')),
       est_commission:       parseNum(findColumn(row, 'est_commission', 'video_performance')),
       est_flat_fee:         parseNum(findColumn(row, 'est_flat_fee', 'video_performance')),
+      views:                parseEngagement(row, 'views'),
+      likes:                parseEngagement(row, 'likes'),
+      comments:             parseEngagement(row, 'comments'),
+      shares:               parseEngagement(row, 'shares'),
     });
   }
 

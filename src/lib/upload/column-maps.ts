@@ -55,6 +55,13 @@ export const COLUMN_MAPS: Record<UploadTable, ColumnMap> = {
     items_refunded:                  ['items refunded'],
     est_commission:                  ['est. commission'],
     est_flat_fee:                    ['est. flat fee'],
+    // Per-day engagement (added 2026-07 — the export carried these all along;
+    // we were discarding them). Parsed as NULL when the column is absent, so
+    // old files never write a fake 0.
+    views:                           ['video views'],
+    likes:                           ['likes'],
+    comments:                        ['comments'],
+    shares:                          ['shares'],
   },
   videos: {
     // Prefer the real Video ID column when present. TikTok's exports include a

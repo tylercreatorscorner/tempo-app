@@ -9,6 +9,9 @@ export interface TopVideoRow {
   handle: string;
   brand: string;
   gmv: number;
+  /** Windowed views (migration 088) — null until that window's daily files
+   *  have been uploaded with engagement columns; rendered only when real. */
+  views?: number | null;
 }
 
 /**
@@ -16,9 +19,9 @@ export interface TopVideoRow {
  * migration 079), deduped by the real videos.video_id. No thumbnail is available,
  * so each row uses a play tile and links out to the TikTok video.
  *
- * No views column: engagement lives only on `videos` as a lifetime snapshot
- * (median 1) and can't be windowed to sit honestly beside windowed GMV — a row
- * with 0 views next to $24k of GMV would invite a meaningless GMV-per-view read.
+ * Views (migration 088) are WINDOWED — summed from the per-day engagement the
+ * Video Data upload now ingests — so they sit honestly beside windowed GMV.
+ * They render only when non-null (history has no engagement until re-uploaded).
  *
  * `failed` is separate from an empty list on purpose. "No managed videos in this
  * period" is a CLAIM about your data; if the query died we haven't earned it.
@@ -44,7 +47,13 @@ export function TopVideos({ videos, label, failed = false }: { videos: TopVideoR
       ) : (
         <div className="divide-y divide-border">
           {videos.map((v, i) => {
-            const sub = [`@${v.handle}`, v.brand].filter(Boolean).join(' · ');
+            const sub = [
+              `@${v.handle}`,
+              v.brand,
+              v.views != null && v.views > 0 ? `${v.views.toLocaleString()} views` : '',
+            ]
+              .filter(Boolean)
+              .join(' · ');
             return (
               <a
                 key={`${v.url}-${i}`}
