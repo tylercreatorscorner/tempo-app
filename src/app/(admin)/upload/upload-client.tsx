@@ -436,7 +436,9 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
         cur.push(rec);
         curBytes += recBytes;
       }
-      if (cur.length > 0) chunks.push(cur);
+      // Always send at least one request (even for an empty parse) so a
+      // confirmed overwrite still clears the existing day, as it always did.
+      if (cur.length > 0 || chunks.length === 0) chunks.push(cur);
     }
 
     if (chunks.length > 1) {
