@@ -487,6 +487,7 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
 
     try {
       let totalUpserted = 0;
+      let totalDroppedFuture = 0;
       for (let i = 0; i < chunks.length; i++) {
         const chunk = chunks[i];
         // Only the first chunk carries the user's overwrite decision. If
@@ -508,7 +509,7 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
         // platform (not our route) — read as text first and surface clearly
         // instead of dying on JSON.parse.
         const text = await res.text();
-        let j: { error?: string; upserted?: number; idempotent?: boolean; message?: string };
+        let j: { error?: string; upserted?: number; idempotent?: boolean; message?: string; droppedFutureRows?: number };
         try {
           j = JSON.parse(text);
         } catch {
@@ -523,11 +524,18 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
           appendLog(item.id, 'info', j.message ?? 'Identical chunk was already processed (idempotency).');
         }
         totalUpserted += j.upserted ?? 0;
+        totalDroppedFuture += j.droppedFutureRows ?? 0;
         if (chunks.length > 1) {
           appendLog(item.id, 'info', `Chunk ${i + 1}/${chunks.length}: ${(j.upserted ?? 0).toLocaleString()} rows upserted.`);
         }
       }
 
+      if (totalDroppedFuture > 0) {
+        appendLog(
+          item.id, 'warning',
+          `${totalDroppedFuture.toLocaleString()} row(s) skipped: future post date (scheduled, not-yet-published videos). Each will import automatically from a later export once it publishes.`
+        );
+      }
       appendLog(
         item.id, 'success',
         `${totalUpserted.toLocaleString()} rows upserted. Total GMV: $${totalGmv.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}, Orders: ${totalOrders.toLocaleString()}.`

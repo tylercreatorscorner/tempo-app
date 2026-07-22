@@ -76,6 +76,42 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Missing reportDate' }, { status: 400 });
   }
 
+  // ── Server-side future-date guard. The client validates too
+  // (validateReportDate), but the server is the enforcement point: TikTok
+  // data lags ~1 day, so a report date after today is invalid by definition.
+  const todayGuard = new Date();
+  todayGuard.setUTCHours(12, 0, 0, 0);
+  const todayStr = todayGuard.toISOString().split('T')[0];
+  if (requiresReportDate && typeof reportDate === 'string' && reportDate > todayStr) {
+    return NextResponse.json({
+      error: `BLOCKED: report date ${reportDate} is in the future — TikTok data can't be from the future. Fix the date field and retry.`,
+    }, { status: 400 });
+  }
+
+  // Video List exports include SCHEDULED (not-yet-published) videos carrying
+  // their future publish date and all-zero stats (confirmed 2026-07-22: 21
+  // rows across 8 brands, every one gmv=0/impressions=0, video IDs minted
+  // days before the stored date). Drop those rows — each video re-appears in
+  // the next export once it actually publishes. post_date === today is kept:
+  // videos posted earlier today legitimately show up in a same-day export.
+  let droppedFutureRows = 0;
+  let uploadRecords = records;
+  if (table === 'videos') {
+    uploadRecords = records.filter(r => {
+      const pd = (r as Record<string, unknown>).post_date;
+      if (typeof pd === 'string' && pd > todayStr) {
+        droppedFutureRows++;
+        return false;
+      }
+      return true;
+    });
+    if (uploadRecords.length === 0) {
+      return NextResponse.json({
+        error: `BLOCKED: all ${records.length} rows have future post dates — scheduled-only export or wrong file.`,
+      }, { status: 400 });
+    }
+  }
+
   // ── Server-side hard-block: zero GMV with non-zero orders means the GMV
   // column wasn't matched. Catch this BEFORE we call any destructive RPC.
   const tablesNeedingGmvCheck = new Set<UploadTable>(['creator_performance', 'video_performance', 'product_performance']);
@@ -104,7 +140,7 @@ export async function POST(request: NextRequest) {
   //    is the same anyway. Common scenario: user re-uploads the same file
   //    thinking the first attempt failed.
   const payloadHash = createHash('sha256')
-    .update(JSON.stringify({ table, brand, reportDate, records }))
+    .update(JSON.stringify({ table, brand, reportDate, records: uploadRecords }))
     .digest('hex');
 
   const ttlCutoff = new Date(Date.now() - IDEMPOTENCY_TTL_HOURS * 60 * 60 * 1000).toISOString();
@@ -132,8 +168,8 @@ export async function POST(request: NextRequest) {
   try {
     const rpcArgs =
       table === 'videos'
-        ? { p_records: records }
-        : { p_brand: brand, p_report_date: reportDate, p_records: records, p_overwrite: !!overwrite };
+        ? { p_records: uploadRecords }
+        : { p_brand: brand, p_report_date: reportDate, p_records: uploadRecords, p_overwrite: !!overwrite };
 
     const { data, error } = await admin.rpc(RPC_NAME[table], rpcArgs);
     if (error) {
@@ -186,7 +222,12 @@ export async function POST(request: NextRequest) {
       console.error('[upload/run] activity_log insert threw:', e);
     }
 
-    return NextResponse.json({ ok: true, upserted, deleted });
+    return NextResponse.json({
+      ok: true,
+      upserted,
+      deleted,
+      ...(droppedFutureRows > 0 ? { droppedFutureRows } : {}),
+    });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Upload failed';
     return NextResponse.json({ error: message }, { status: 500 });

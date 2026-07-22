@@ -77,9 +77,21 @@ export async function GET() {
   //    db-max-rows cap for busy tenants — dropping brands alphabetically past
   //    the cutoff. get_upload_coverage pre-aggregates in Postgres so we get
   //    O(brands × days) rows back regardless of tenant size.
-  const nextWeek = new Date(today);
-  nextWeek.setUTCDate(today.getUTCDate() + 7);
-  const nextWeekStr = nextWeek.toISOString().split('T')[0];
+  // Future window starts TOMORROW, not today: videos posted earlier today
+  // legitimately appear in a same-day Video List export with post_date =
+  // today (confirmed 2026-07-22 by decoding the timestamp embedded in the
+  // TikTok video IDs), and a today-dated report file is allowed with a
+  // warning at upload. Only strictly-future dates are impossible.
+  const tomorrow = new Date(today);
+  tomorrow.setUTCDate(today.getUTCDate() + 1);
+  const tomorrowStr = tomorrow.toISOString().split('T')[0];
+  // +30 days, not +7: TikTok lets creators schedule posts up to a month out,
+  // and the 2026-07-22 audit found rows 11 days ahead that a 7-day window
+  // would have missed. The RPC returns DISTINCT dates, so the wider window
+  // costs nothing.
+  const futureEnd = new Date(today);
+  futureEnd.setUTCDate(today.getUTCDate() + 30);
+  const futureEndStr = futureEnd.toISOString().split('T')[0];
   const filePulls = await Promise.all(FILE_TYPES.map(async (ft) => {
     const [windowResult, futureResult] = await Promise.all([
       admin.rpc('get_upload_coverage', {
@@ -92,8 +104,8 @@ export async function GET() {
       admin.rpc('get_upload_coverage', {
         p_table:  ft.table,
         p_brands: activeBrandSlugs,
-        p_start:  today.toISOString().split('T')[0],
-        p_end:    nextWeekStr,
+        p_start:  tomorrowStr,
+        p_end:    futureEndStr,
       }),
     ]);
     return {
