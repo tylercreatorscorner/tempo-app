@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { AlertTriangle, RotateCw } from 'lucide-react';
 
 /**
@@ -13,9 +14,26 @@ import { AlertTriangle, RotateCw } from 'lucide-react';
  * `$0`/empty on failure (`.catch(() => [])`) never reach here — those are fixed
  * at the call site by returning null and rendering "—".
  *
+ * STALE-DEPLOY AUTO-RECOVERY: after a production deploy, a tab opened before it
+ * holds a bundle whose lazy chunks no longer exist — the next client navigation
+ * throws ChunkLoadError / "failed to fetch dynamically imported module" into
+ * this boundary (client throw, so NO digest), and "Try again" can't fix it
+ * because reset() re-renders the same stale bundle. Detect that signature and
+ * hard-reload ONCE (sessionStorage-guarded against loops) — the reload pulls
+ * the current bundle and the user lands where they were going. This exact
+ * failure hit a manager on /creators after a 5-deploy day.
+ *
  * Shows the digest (so a failure can be traced in the Vercel logs) but not the
  * stack — this is a live client-facing app, not a debug console.
  */
+
+function isStaleChunkError(error: Error): boolean {
+  const s = `${error.name} ${error.message}`;
+  return /ChunkLoadError|Loading chunk .* failed|failed to fetch dynamically imported module|error loading dynamically imported module|Importing a module script failed/i.test(
+    s,
+  );
+}
+
 export function PageError({
   error,
   reset,
@@ -26,6 +44,29 @@ export function PageError({
   /** e.g. "the dashboard" — used in the message. */
   what?: string;
 }) {
+  const [reloading, setReloading] = useState(false);
+
+  useEffect(() => {
+    if (!isStaleChunkError(error)) return;
+    const KEY = 'tempo-chunk-reload';
+    // One automatic reload per 30s window — enough to heal a stale deploy,
+    // guarded so a genuinely-broken bundle can't reload-loop.
+    const last = Number(sessionStorage.getItem(KEY) || 0);
+    if (Date.now() - last < 30_000) return;
+    sessionStorage.setItem(KEY, String(Date.now()));
+    setReloading(true);
+    window.location.reload();
+  }, [error]);
+
+  if (reloading) {
+    return (
+      <div className="flex min-h-[50vh] flex-col items-center justify-center gap-3 px-6 text-center">
+        <RotateCw className="h-5 w-5 animate-spin text-muted-foreground" />
+        <p className="text-sm text-muted-foreground">A new version of Tempo was deployed — refreshing…</p>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-[50vh] flex-col items-center justify-center gap-3 px-6 text-center">
       <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[var(--pulse-neg)]/10">

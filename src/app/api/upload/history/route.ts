@@ -22,7 +22,10 @@ const TABLE_LABELS: Record<string, string> = {
 interface ActivityRow {
   id: string;
   created_at: string;
-  user_id: string | null;
+  // activity_log has user_name/user_email — NOT user_id. Selecting user_id
+  // made PostgREST 42703 on every request, so history 500'd silently for ages.
+  user_name: string | null;
+  user_email: string | null;
   details: {
     table?: string;
     brand?: string;
@@ -41,7 +44,7 @@ export async function GET(request: NextRequest) {
   const admin = await createAdminClient();
   const { data, error } = await admin
     .from('activity_log')
-    .select('id, created_at, user_id, details')
+    .select('id, created_at, user_name, user_email, details')
     .eq('activity_type', 'upload')
     .order('created_at', { ascending: false })
     .limit(limit);
@@ -62,7 +65,7 @@ export async function GET(request: NextRequest) {
       brandLabel: details.brand ? brandLabel(reg, details.brand) : '',
       reportDate: details.report_date ?? null,
       rowCount: details.row_count ?? 0,
-      uploadedBy: details.uploaded_by ?? 'unknown',
+      uploadedBy: details.uploaded_by ?? r.user_name ?? r.user_email ?? 'unknown',
     };
   });
 
