@@ -399,9 +399,13 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
 
     // 7. Upsert via server route
     //
-    // Vercel caps request bodies at ~4.5 MB. Any table can exceed that on a
-    // busy brand-day — COSRX Creator Data at 42k rows was hitting it. All
-    // four upload types get chunked at CHUNK_SIZE rows.
+    // Vercel caps request bodies at ~4.5 MB. Chunking by ROW COUNT alone
+    // (formerly CHUNK_SIZE=5000) kept failing whenever rows got wider — COSRX
+    // Creator Data at 42k rows first, then LeeFar US Video Data (long captions
+    // + links pushed 5,000 rows past the cap). So chunk by SERIALIZED SIZE:
+    // accumulate rows until the measured payload reaches CHUNK_TARGET_BYTES
+    // (a wide margin under the platform cap — captions are emoji-heavy, and
+    // the envelope adds overhead), with a row-count ceiling as a secondary cap.
     //
     // Chunking is safe across all tables:
     //   - videos (video-list): the RPC is pure upsert on (video_id, brand),
@@ -415,16 +419,28 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
     //     once. Trade-off: if the run fails mid-chunks, the state is partial
     //     until the user retries — a fresh retry with overwrite=true fully
     //     heals it because the first chunk deletes the partial rows.
-    const CHUNK_SIZE = 5000;
-    const chunks: unknown[][] = parsed.records.length > CHUNK_SIZE
-      ? Array.from(
-          { length: Math.ceil(parsed.records.length / CHUNK_SIZE) },
-          (_, i) => parsed.records.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE),
-        )
-      : [parsed.records];
+    const CHUNK_TARGET_BYTES = 3 * 1024 * 1024; // ~3 MB payload target
+    const CHUNK_MAX_ROWS = 5000;
+    const encoder = new TextEncoder(); // byte-accurate: emoji captions are 2-4 bytes/char
+    const chunks: unknown[][] = [];
+    {
+      let cur: unknown[] = [];
+      let curBytes = 0;
+      for (const rec of parsed.records) {
+        const recBytes = encoder.encode(JSON.stringify(rec)).length + 1;
+        if (cur.length > 0 && (curBytes + recBytes > CHUNK_TARGET_BYTES || cur.length >= CHUNK_MAX_ROWS)) {
+          chunks.push(cur);
+          cur = [];
+          curBytes = 0;
+        }
+        cur.push(rec);
+        curBytes += recBytes;
+      }
+      if (cur.length > 0) chunks.push(cur);
+    }
 
     if (chunks.length > 1) {
-      appendLog(item.id, 'info', `Uploading ${parsed.records.length.toLocaleString()} rows to ${table} in ${chunks.length} chunks of up to ${CHUNK_SIZE.toLocaleString()}...`);
+      appendLog(item.id, 'info', `Uploading ${parsed.records.length.toLocaleString()} rows to ${table} in ${chunks.length} chunks (max ${CHUNK_MAX_ROWS.toLocaleString()} rows / ~${Math.round(CHUNK_TARGET_BYTES / 1024 / 1024)} MB each)...`);
     } else {
       appendLog(item.id, 'info', `Uploading ${parsed.records.length.toLocaleString()} rows to ${table}...`);
     }
@@ -458,7 +474,7 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
         } catch {
           throw new Error(
             res.status === 413
-              ? `Chunk ${i + 1}/${chunks.length} rejected as too large (${chunk.length.toLocaleString()} rows) despite CHUNK_SIZE=${CHUNK_SIZE}. An individual row is unusually large — file a bug.`
+              ? `Chunk ${i + 1}/${chunks.length} rejected as too large (${chunk.length.toLocaleString()} rows) even after size-based chunking (~${Math.round(CHUNK_TARGET_BYTES / 1024 / 1024)} MB target). A single row may exceed the platform body cap — file a bug.`
               : `HTTP ${res.status}: ${text.slice(0, 200)}`
           );
         }
