@@ -43,6 +43,7 @@ import {
   parseVideoListRows,
   parseProductRows,
 } from '@/lib/upload/parse-rows';
+import { COLUMN_MAPS, auditColumnMatches, type UploadTable as MapTable } from '@/lib/upload/column-maps';
 import {
   validateCreatorRecords,
   validateVideoRecords,
@@ -340,7 +341,35 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
     }
 
     if (parsed.records.length === 0) {
-      appendLog(item.id, 'error', `No valid records after parsing. Check that columns match TikTok's export format.`);
+      // Cross-audit the headers against every OTHER upload type's map. Feeding
+      // a file into the wrong type (e.g. a daily Video DATA export saved as
+      // "..._Video_List.xlsx" — the Bondie incident) matches almost nothing on
+      // the chosen map but nearly everything on the right one — say so instead
+      // of the generic "check the format".
+      const TYPE_LABELS: Record<MapTable, string> = {
+        creator_performance: 'Creator Data',
+        video_performance: 'Video Data',
+        videos: 'Video List',
+        product_performance: 'Affiliate Product',
+      };
+      let best: { t: MapTable; matched: number; total: number } | null = null;
+      for (const t of Object.keys(COLUMN_MAPS) as MapTable[]) {
+        if (t === table) continue;
+        const a = auditColumnMatches(rows[0], t);
+        const total = a.matched.length + a.missing.length;
+        if (total > 0 && (!best || a.matched.length / total > best.matched / best.total)) {
+          best = { t, matched: a.matched.length, total };
+        }
+      }
+      const chosenRatio = parsed.totalCols > 0 ? parsed.matchedColumns.length / parsed.totalCols : 0;
+      if (best && best.matched / best.total >= 0.7 && best.matched / best.total > chosenRatio) {
+        appendLog(
+          item.id, 'error',
+          `No valid records — this file's columns match the ${TYPE_LABELS[best.t]} format (${best.matched}/${best.total} columns), not ${TYPE_LABELS[table]} (${parsed.matchedColumns.length}/${parsed.totalCols}). Switch the Type dropdown to ${TYPE_LABELS[best.t]} and retry.`,
+        );
+      } else {
+        appendLog(item.id, 'error', `No valid records after parsing. Check that columns match TikTok's export format.`);
+      }
       updateItem(item.id, { status: 'error' });
       return;
     }
