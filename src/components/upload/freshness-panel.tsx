@@ -41,18 +41,26 @@ interface FreshnessResponse {
 }
 
 const DOT_STYLES = {
-  ok:      'bg-emerald-500/15 text-emerald-500 ring-1 ring-emerald-200',
-  stale:   'bg-amber-500/15 text-amber-500 ring-1 ring-amber-200',
-  missing: 'bg-red-500/15 text-red-500 ring-1 ring-red-200',
-  never:   'bg-muted text-muted-foreground ring-1 ring-border',
+  ok:      'bg-[var(--pulse-pos-bg)] text-[var(--pulse-pos)]',
+  stale:   'bg-[var(--pulse-warn-bg)] text-[var(--pulse-warn)]',
+  missing: 'bg-[var(--pulse-neg-bg)] text-[var(--pulse-neg)]',
+  never:   'bg-muted text-muted-foreground',
 } as const;
 
 const STATUS_BADGE = {
-  current: 'bg-emerald-500/10 text-emerald-500 ring-1 ring-emerald-200',
-  behind:  'bg-amber-500/10 text-amber-500 ring-1 ring-amber-200',
-  stale:   'bg-red-500/10 text-red-600 ring-1 ring-red-200',
-  never:   'bg-muted text-muted-foreground ring-1 ring-border',
+  current: 'bg-[var(--pulse-pos-bg)] text-[var(--pulse-pos)]',
+  behind:  'bg-[var(--pulse-warn-bg)] text-[var(--pulse-warn)]',
+  stale:   'bg-[var(--pulse-neg-bg)] text-[var(--pulse-neg)]',
+  never:   'bg-muted text-muted-foreground',
 } as const;
+
+/** Sort weight — problems first, worst first. */
+const STATUS_ORDER: Record<'stale' | 'behind' | 'never' | 'current', number> = {
+  stale: 0,
+  behind: 1,
+  never: 2,
+  current: 3,
+};
 
 export function FreshnessPanel({ refreshKey = 0 }: { refreshKey?: number }) {
   const [data, setData] = useState<FreshnessResponse | null>(null);
@@ -93,42 +101,59 @@ export function FreshnessPanel({ refreshKey = 0 }: { refreshKey?: number }) {
 
   if (!data) return null;
 
-  return (
-    <div className="space-y-3">
-      {/* Future-dated data warning */}
-      {data.futureIssues.length > 0 && (
-        <div className="rounded-xl bg-amber-500/10 border border-amber-500/25 px-4 py-3 flex items-start gap-3">
-          <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
-          <div className="text-xs text-foreground leading-relaxed">
-            <strong>Future-dated data detected:</strong>{' '}
-            {data.futureIssues.slice(0, 3).map((i, idx) => (
-              <span key={idx}>
-                {idx > 0 && ' · '}
-                {i.brand} {i.fileType}: {i.dates.join(', ')}
-              </span>
-            ))}
-            {data.futureIssues.length > 3 && ` +${data.futureIssues.length - 3} more`}
-          </div>
-        </div>
-      )}
+  // Problems first, worst first; healthy brands collapse into one line so the
+  // rail reads as a TO-DO LIST, not a wall of green.
+  const sorted = [...data.brands].sort(
+    (a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status] || b.daysBehind - a.daysBehind,
+  );
+  const problems = sorted.filter((b) => b.status === 'stale' || b.status === 'behind');
+  const current = sorted.filter((b) => b.status === 'current');
+  const never = sorted.filter((b) => b.status === 'never');
 
-      {/* Header */}
-      <div className="flex items-end justify-between">
+  return (
+    <div className="rounded-2xl bg-card border border-border shadow-[var(--pulse-elev-1)] overflow-hidden">
+      <div className="flex items-center justify-between border-b border-border px-5 py-3">
         <div>
           <div className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">Data freshness</div>
-          <h2 className="text-base font-bold text-[var(--foreground)] mt-0.5">Latest uploads by brand</h2>
+          <h2 className="mt-0.5 text-sm font-bold text-[var(--foreground)]">Gaps to fill</h2>
         </div>
-        <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
-          <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-emerald-400" />Current</span>
-          <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-amber-400" />Behind</span>
-          <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-red-400" />Stale</span>
-          <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-secondary" />No data</span>
-        </div>
+        <span
+          className={cn(
+            'rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider',
+            problems.length === 0
+              ? 'bg-[var(--pulse-pos-bg)] text-[var(--pulse-pos)]'
+              : 'bg-[var(--pulse-warn-bg)] text-[var(--pulse-warn)]',
+          )}
+        >
+          {problems.length === 0 ? 'All current' : `${problems.length} behind`}
+        </span>
       </div>
 
-      {/* Brand cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-        {data.brands.map(b => {
+      <div className="space-y-3 p-4">
+        {/* Future-dated data warning */}
+        {data.futureIssues.length > 0 && (
+          <div className="flex items-start gap-2.5 rounded-lg border border-[var(--pulse-warn)]/25 bg-[var(--pulse-warn-bg)] px-3 py-2">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--pulse-warn)]" />
+            <div className="text-[11px] leading-relaxed text-foreground">
+              <strong>Future-dated data:</strong>{' '}
+              {data.futureIssues.slice(0, 3).map((i, idx) => (
+                <span key={idx}>
+                  {idx > 0 && ' · '}
+                  {i.brand} {i.fileType}: {i.dates.join(', ')}
+                </span>
+              ))}
+              {data.futureIssues.length > 3 && ` +${data.futureIssues.length - 3} more`}
+            </div>
+          </div>
+        )}
+
+        {problems.length === 0 && (
+          <p className="py-2 text-center text-sm text-muted-foreground">
+            Every brand is current. Nothing to fill.
+          </p>
+        )}
+
+        {problems.map((b) => {
           const dateLabel = b.latestDate
             ? new Date(b.latestDate + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
             : '—';
@@ -136,35 +161,40 @@ export function FreshnessPanel({ refreshKey = 0 }: { refreshKey?: number }) {
             <div
               key={b.brand}
               className={cn(
-                'rounded-xl bg-card border shadow-sm p-3.5 flex flex-col gap-2.5',
-                b.status === 'current' && 'border-emerald-500/20',
-                b.status === 'behind'  && 'border-amber-500/20',
-                b.status === 'stale'   && 'border-red-500/20',
-                b.status === 'never'   && 'border-border',
+                'rounded-xl border p-3',
+                b.status === 'stale'
+                  ? 'border-[var(--pulse-neg)]/25 bg-[var(--pulse-neg-bg)]/40'
+                  : 'border-[var(--pulse-warn)]/25 bg-[var(--pulse-warn-bg)]/40',
               )}
             >
               <div className="flex items-start justify-between gap-2">
-                <div>
-                  <div className="text-sm font-bold text-[var(--foreground)] truncate">{b.displayName}</div>
-                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground mt-0.5">latest: {dateLabel}</div>
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-bold text-[var(--foreground)]">{b.displayName}</div>
+                  <div className="mt-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+                    latest: {dateLabel}
+                  </div>
                 </div>
-                <span className={cn('text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full whitespace-nowrap', STATUS_BADGE[b.status])}>
+                <span
+                  className={cn(
+                    'whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider',
+                    STATUS_BADGE[b.status],
+                  )}
+                >
                   {b.statusLabel}
                 </span>
               </div>
 
               {/* Per-file-type dots */}
-              <div className="flex gap-1.5">
-                {data.fileTypes.map(ft => {
+              <div className="mt-2 flex gap-1.5">
+                {data.fileTypes.map((ft) => {
                   const f = b.files[ft.key];
-                  const tooltip = `${f.name}: ${f.latestDate ? f.latestDate : 'no data'}`;
                   return (
                     <div
                       key={ft.key}
-                      title={tooltip}
+                      title={`${f.name}: ${f.latestDate ?? 'no data'}`}
                       className={cn(
-                        'h-7 w-7 rounded-md flex items-center justify-center text-[11px] font-bold cursor-help',
-                        DOT_STYLES[f.status]
+                        'flex h-6 w-6 cursor-help items-center justify-center rounded-md text-[10.5px] font-bold',
+                        DOT_STYLES[f.status],
                       )}
                     >
                       {ft.label}
@@ -173,15 +203,27 @@ export function FreshnessPanel({ refreshKey = 0 }: { refreshKey?: number }) {
                 })}
               </div>
 
-              {/* Gaps */}
               {b.gaps.length > 0 && (
-                <div className="text-[11px] text-amber-500 bg-amber-500/10 border border-amber-500/20 rounded-md px-2 py-1.5">
-                  ⚠ Gaps: {b.gaps.slice(0, 4).join(', ')}{b.gaps.length > 4 && ` +${b.gaps.length - 4}`}
+                <div className="mt-2 text-[11px] text-muted-foreground">
+                  Missing: <span className="font-medium text-foreground">{b.gaps.slice(0, 5).join(', ')}</span>
+                  {b.gaps.length > 5 && ` +${b.gaps.length - 5} more`}
                 </div>
               )}
             </div>
           );
         })}
+
+        {current.length > 0 && problems.length > 0 && (
+          <p className="text-[11.5px] text-muted-foreground">
+            <span className="font-semibold text-[var(--pulse-pos)]">✓ Current:</span>{' '}
+            {current.map((b) => b.displayName).join(', ')}
+          </p>
+        )}
+        {never.length > 0 && (
+          <p className="text-[11px] text-muted-foreground/60">
+            No data yet: {never.map((b) => b.displayName).join(', ')}
+          </p>
+        )}
       </div>
     </div>
   );

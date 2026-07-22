@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { requireAdmin } from '@/lib/auth/require-admin';
 import { createAdminClient } from '@/lib/supabase/server';
+import { PageHeader } from '@/components/ui/page-header';
 import { UploadClient } from './upload-client';
 
 export const dynamic = 'force-dynamic';
@@ -29,12 +30,11 @@ export default async function UploadPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-extrabold text-[var(--foreground)]">Upload</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          Drop your TikTok Shop XLSX exports — we'll auto-detect the file type, brand, and date.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Data Ops"
+        title="Upload"
+        subtitle="Keep every brand current — drop TikTok Shop exports, watch the gaps clear as they land."
+      />
       <UploadClient activeBrands={activeBrands} />
     </div>
   );

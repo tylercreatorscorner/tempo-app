@@ -20,6 +20,7 @@ import {
   ChevronDown, ChevronUp, AlertTriangle,
 } from 'lucide-react';
 import { FreshnessPanel } from '@/components/upload/freshness-panel';
+import { Badge } from '@/components/ui/badge';
 import { DataMatrix } from '@/components/upload/data-matrix';
 import { UploadHistory } from '@/components/upload/upload-history';
 import { cn } from '@/lib/utils';
@@ -604,9 +605,11 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
         </div>
       )}
 
-      {/* Freshness — at-a-glance: which brand uploads are current vs stale */}
-      <FreshnessPanel refreshKey={refreshKey} />
-
+      {/* Working row: ACT (drop + queue) beside the SIGNAL (gaps to fill).
+          The Jen incident showed this page's real job is keeping every brand
+          current — the gap list sits at eye level next to the dropzone so
+          "what still needs uploading" is never below the fold. */}
+      <div className="grid items-start gap-5 xl:grid-cols-[1.55fr_1fr]">
       {/* Drop zone + queue */}
       <div className="space-y-5">
       <div
@@ -614,18 +617,21 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
         onDragOver={onDragOver}
         onDragLeave={onDragLeave}
         className={cn(
-          'rounded-2xl border-2 border-dashed p-10 text-center transition-colors',
+          'rounded-2xl border-2 border-dashed p-10 text-center transition-all',
           dragActive
-            ? 'border-[var(--primary)] bg-primary/10'
-            : 'border-border bg-muted/40 hover:border-border'
+            ? 'border-[var(--primary)] bg-primary/10 scale-[1.01]'
+            : 'border-border bg-card shadow-[var(--pulse-elev-1)] hover:border-primary/40'
         )}
       >
-        <Upload className="h-7 w-7 text-muted-foreground mx-auto mb-3" />
+        <span className="bg-pulse-grad mx-auto mb-3 grid h-12 w-12 place-items-center rounded-2xl text-white shadow-pulse-primary">
+          <Upload className="h-5 w-5" />
+        </span>
         <p className="text-sm font-semibold text-[var(--foreground)]">Drop TikTok Shop XLSX exports here</p>
         <p className="text-xs text-muted-foreground mt-1">
-          Filename auto-detection: <code className="text-muted-foreground">Brand_FileType_YYYYMMDD.xlsx</code>
+          Auto-detects brand, file type, and date from names like{' '}
+          <code className="text-muted-foreground">Brand_FileType_YYYYMMDD.xlsx</code>
         </p>
-        <label className="inline-block mt-4 px-4 py-2 rounded-xl bg-[var(--primary)] hover:brightness-[1.07] text-white text-sm font-semibold cursor-pointer transition-colors">
+        <label className="inline-block mt-4 px-4 py-2 rounded-xl bg-[var(--primary)] hover:brightness-[1.07] text-white text-sm font-semibold cursor-pointer transition-colors shadow-[var(--pulse-elev-1)]">
           Choose files
           <input type="file" multiple accept=".xlsx,.xls" className="hidden" onChange={onFileInput} />
         </label>
@@ -671,6 +677,10 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
       )}
       </div>
 
+      {/* Gaps to fill — per-brand freshness, worst first (the right rail) */}
+      <FreshnessPanel refreshKey={refreshKey} />
+      </div>
+
       {/* Coverage matrix — visual "did I miss any days" check */}
       <DataMatrix refreshKey={refreshKey} />
 
@@ -693,11 +703,11 @@ function QueueRow({
   const editable = item.status === 'queued' || item.status === 'error';
 
   const statusConfig = {
-    queued:     { Icon: FileSpreadsheet, color: 'text-muted-foreground',    bg: 'bg-muted',    label: 'Queued' },
-    processing: { Icon: Loader2,         color: 'text-[var(--primary)]',   bg: 'bg-primary/10',    label: 'Processing' },
-    success:    { Icon: CheckCircle2,    color: 'text-emerald-600', bg: 'bg-emerald-500/10', label: 'Done' },
-    error:      { Icon: AlertCircle,     color: 'text-red-500',     bg: 'bg-red-500/10',     label: 'Error' },
-    cancelled:  { Icon: AlertTriangle,   color: 'text-muted-foreground',    bg: 'bg-muted',    label: 'Cancelled' },
+    queued:     { Icon: FileSpreadsheet, color: 'text-muted-foreground',        bg: 'bg-muted',                    label: 'Queued',     badge: 'neutral' as const },
+    processing: { Icon: Loader2,         color: 'text-[var(--primary)]',        bg: 'bg-primary/10',               label: 'Processing', badge: 'accent' as const },
+    success:    { Icon: CheckCircle2,    color: 'text-[var(--pulse-pos)]',      bg: 'bg-[var(--pulse-pos-bg)]',    label: 'Done',       badge: 'positive' as const },
+    error:      { Icon: AlertCircle,     color: 'text-[var(--pulse-neg)]',      bg: 'bg-[var(--pulse-neg-bg)]',    label: 'Error',      badge: 'negative' as const },
+    cancelled:  { Icon: AlertTriangle,   color: 'text-muted-foreground',        bg: 'bg-muted',                    label: 'Cancelled',  badge: 'neutral' as const },
   }[item.status];
 
   return (
@@ -709,7 +719,7 @@ function QueueRow({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1.5">
             <span className="text-sm font-medium text-[var(--foreground)] truncate">{item.filename}</span>
-            <span className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">{statusConfig.label}</span>
+            <Badge variant={statusConfig.badge} size="sm">{statusConfig.label}</Badge>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <select
