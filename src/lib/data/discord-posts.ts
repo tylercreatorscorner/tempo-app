@@ -599,26 +599,22 @@ export async function getDailyDropData(brandFilter: string): Promise<DailyDropDa
   ];
   if (brandUuids) ypFilters.push({ column: 'brand_id', op: 'in', value: brandUuids });
 
-  // Video sections (Top 5 Videos + One to Watch) read video_performance — the
-  // table whose video_id is a REAL TikTok id. daily_video_product_stats.video_id
-  // is a reused PRODUCT id, so grouping/linking on it mis-attributed GMV and
-  // posted dead tiktok.com links. ONE targeted pull covers both sections:
-  // report_date spans the 3-day OTW window (which includes videoYesterday for
-  // the Top 5), ordered by gmv desc under a hard cap so a huge all-brands window
-  // can only shave sub-dollar tail rows off the aggregation, never blow memory.
+  // Video sections (Top 5 Videos + One to Watch) come from ONE RPC
+  // (get_video_day_leaders, mig 092) over video_performance — the table whose
+  // video_id is a REAL TikTok id. daily_video_product_stats.video_id is a
+  // reused PRODUCT id, so grouping/linking on it mis-attributed GMV and posted
+  // dead tiktok.com links. The RPC runs the mig-079 dedup + per-video
+  // aggregation + watch-URL resolution in SQL under its own 30s timeout — a
+  // raw PostgREST select over the 3-day all-brands window died on the
+  // authenticator role's 8s statement_timeout (57014). 179ms measured.
   const videoThreeDaysAgoStr = formatDate(videoThreeDaysAgo);
-  let vpQuery = supabase
-    .from('video_performance')
-    .select('video_id, product_id, report_date, post_date, creator_name, gmv')
-    .eq('period_type', 'daily')
-    .gte('report_date', videoThreeDaysAgoStr)
-    .lte('report_date', videoYesterdayStr)
-    .gt('gmv', 0)
-    .not('video_id', 'is', null)
-    .neq('video_id', '')
-    .order('gmv', { ascending: false })
-    .limit(3000);
-  if (vpBrandSlugs) vpQuery = vpQuery.in('brand', vpBrandSlugs);
+  const vpQuery = supabase.rpc('get_video_day_leaders', {
+    p_brand_slugs: vpBrandSlugs,          // null = all brands
+    p_day: videoYesterdayStr,
+    p_window_start: videoThreeDaysAgoStr,
+    p_limit: 5,
+    p_min_gmv: 25,
+  });
 
   const [yesterdayCreators, dayBeforeCreators, mtdSumRes, vpRes, yesterdayProducts, goalInfo, discordMap] = await Promise.all([
     paginatedFetch(supabase, 'daily_creator_stats', 'tiktok_username, gmv', ycFilters),
@@ -630,78 +626,38 @@ export async function getDailyDropData(brandFilter: string): Promise<DailyDropDa
     getDiscordMap(supabase, brandFilter),
   ]);
 
-  if (vpRes.error) throw new Error(`[discord-posts] video_performance read failed: ${vpRes.error.message}`);
-  const vpRows = (vpRes.data ?? []) as {
-    video_id: string; product_id: string | null; report_date: string;
-    post_date: string | null; creator_name: string | null; gmv: number | string;
-  }[];
-
-  // The mig-079 dedup: byte-identical cross-brand copies collapse to one row per
-  // (video_id, product_id, report_date) cell, keeping the max-gmv row, while
-  // genuinely different products under two shops still sum.
-  const vpDedup = new Map<string, { video_id: string; creator_name: string; post_date: string | null; report_date: string; gmv: number }>();
-  for (const r of vpRows) {
-    const gmv = parseFloat(String(r.gmv)) || 0;
-    const key = `${r.video_id}|${r.product_id ?? ''}|${r.report_date}`;
-    const prev = vpDedup.get(key);
-    if (!prev || gmv > prev.gmv) {
-      vpDedup.set(key, {
-        video_id: r.video_id,
-        creator_name: r.creator_name || '',
-        post_date: r.post_date,
-        report_date: r.report_date,
-        gmv,
-      });
-    }
+  if (vpRes.error) throw new Error(`[discord-posts] get_video_day_leaders failed: ${vpRes.error.message}`);
+  interface LeaderRow {
+    section: 'day' | 'new';
+    video_id: string;
+    creator_handle: string | null;
+    gmv: number | string;
+    post_date: string | null;
+    video_url: string | null;
   }
-
-  // Top 5 Videos: GMV earned YESTERDAY, summed per real video.
-  const videoMap = new Map<string, { video_id: string; tiktok_username: string; gmv: number }>();
-  // One to Watch: 3-day-window GMV per real video, for videos POSTED in the window.
-  const otwMap = new Map<string, { video_id: string; tiktok_username: string; gmv: number; post_date: string }>();
-  for (const row of vpDedup.values()) {
-    if (row.report_date === videoYesterdayStr) {
-      const existing = videoMap.get(row.video_id);
-      if (!existing) {
-        videoMap.set(row.video_id, { video_id: row.video_id, tiktok_username: row.creator_name, gmv: row.gmv });
-      } else {
-        existing.gmv += row.gmv;
-      }
-    }
-    if (row.post_date && row.post_date >= videoThreeDaysAgoStr) {
-      const existing = otwMap.get(row.video_id);
-      if (!existing) {
-        otwMap.set(row.video_id, { video_id: row.video_id, tiktok_username: row.creator_name, gmv: row.gmv, post_date: row.post_date });
-      } else {
-        existing.gmv += row.gmv;
-      }
-    }
-  }
-  const topVideosRaw = Array.from(videoMap.values()).sort((a, b) => b.gmv - a.gmv).slice(0, 5);
-  const otwSorted = Array.from(otwMap.values()).filter(v => v.gmv >= 25).sort((a, b) => b.gmv - a.gmv);
-  const otwBest = otwSorted[0] ?? null;
-
-  // Watch URLs: videos.video_link when present, else the synthesized permalink
-  // (per mig 079: video_performance.video_link is ~0% usable — expired CDN blobs).
-  const linkIds = [...new Set([...topVideosRaw.map(v => v.video_id), ...(otwBest ? [otwBest.video_id] : [])])];
-  const linkById = new Map<string, string>();
-  if (linkIds.length > 0) {
-    const { data: linkRows, error: linkErr } = await supabase
-      .from('videos')
-      .select('video_id, video_link')
-      .in('video_id', linkIds);
-    if (linkErr) {
-      console.error('[discord-posts] videos link lookup failed - falling back to synthesized permalinks:', linkErr.message);
-    }
-    (linkRows || []).forEach((r: any) => {
-      const link = typeof r.video_link === 'string' ? r.video_link.trim() : '';
-      if (r.video_id && link && !linkById.has(r.video_id)) linkById.set(r.video_id, link);
-    });
-  }
-  const resolveWatchUrl = (videoId: string, creatorName: string): string | null =>
-    linkById.get(videoId) ?? getTikTokUrl(creatorName, videoId);
-
-  const topVideos = topVideosRaw.map(v => ({ ...v, video_url: resolveWatchUrl(v.video_id, v.tiktok_username) }));
+  const leaderRows = (vpRes.data ?? []) as LeaderRow[];
+  // section='day': GMV earned yesterday, summed per real video, top 5.
+  const topVideos = leaderRows
+    .filter(r => r.section === 'day')
+    .map(r => ({
+      video_id: r.video_id,
+      tiktok_username: r.creator_handle ?? '',
+      gmv: parseFloat(String(r.gmv)) || 0,
+      video_url: r.video_url,
+    }))
+    .sort((a, b) => b.gmv - a.gmv)
+    .slice(0, 5);
+  // section='new': 3-day-window GMV for videos POSTED in the window (>= $25).
+  const otwBest = leaderRows
+    .filter(r => r.section === 'new' && r.post_date)
+    .map(r => ({
+      video_id: r.video_id,
+      tiktok_username: r.creator_handle ?? '',
+      gmv: parseFloat(String(r.gmv)) || 0,
+      post_date: r.post_date!,
+      video_url: r.video_url,
+    }))
+    .sort((a, b) => b.gmv - a.gmv)[0] ?? null;
 
   // Aggregate products from daily_video_product_stats (rows are per
   // video×product×day, so sum gmv by product_name).
@@ -726,7 +682,7 @@ export async function getDailyDropData(brandFilter: string): Promise<DailyDropDa
       tiktok_username: otwBest.tiktok_username,
       gmv: otwBest.gmv,
       hoursAgo,
-      video_url: resolveWatchUrl(otwBest.video_id, otwBest.tiktok_username),
+      video_url: otwBest.video_url,
     };
   }
 
