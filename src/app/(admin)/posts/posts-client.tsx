@@ -364,8 +364,8 @@ export function PostsClient({
         eyebrow="Content"
         title="Posts"
         subtitle={dateBasis === 'earned'
-          ? 'Every video that earned in the window, whenever it was posted. Click the cover to watch it here; click the row to review it.'
-          : 'Every video posted in the window. Click the cover to watch it here; click the row to review it.'}
+          ? 'All GMV in the window, whenever the video was posted.'
+          : 'Only videos posted in the window.'}
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <div className="w-44">
