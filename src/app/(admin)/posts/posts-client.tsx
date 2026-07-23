@@ -361,6 +361,7 @@ export function PostsClient({
     <div className="space-y-6">
       {/* Header */}
       <PageHeader
+        wide
         eyebrow="Content"
         title="Posts"
         subtitle={dateBasis === 'earned'
