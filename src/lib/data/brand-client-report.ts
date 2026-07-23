@@ -207,24 +207,37 @@ async function paginatedFetch(
 
 // Build the set of "managed" tiktok handles for this brand filter.
 // managed_creators stores up to 10 handles per signed creator; flatten and lowercase them.
+//
+// Paged past PostgREST's silent 1000-row cap: managed_creators is over it, and
+// the truncated tail silently misclassified real signed creators as "organic"
+// on the client-facing managed/organic split. Errors THROW — a partial handle
+// set is a confidently wrong money number on a client PDF, same class of lie
+// as rendering $0 for a failed read.
 async function getManagedHandleSet(supabase: any, brandSlug: string): Promise<Set<string>> {
-  let query = supabase
-    .from('managed_creators')
-    .select('account_1, account_2, account_3, account_4, account_5, account_6, account_7, account_8, account_9, account_10');
-  if (brandSlug && brandSlug !== 'all') {
-    query = query.eq('brand', brandSlug);
-  }
-  const { data } = await query;
+  const PAGE = 1000;
   const set = new Set<string>();
-  (data || []).forEach((row: any) => {
-    for (const k of ['account_1','account_2','account_3','account_4','account_5','account_6','account_7','account_8','account_9','account_10']) {
-      const v = row[k];
-      if (typeof v === 'string') {
-        const handle = v.replace('@','').trim().toLowerCase();
-        if (handle) set.add(handle);
-      }
+  for (let from = 0; ; from += PAGE) {
+    let query = supabase
+      .from('managed_creators')
+      .select('account_1, account_2, account_3, account_4, account_5, account_6, account_7, account_8, account_9, account_10')
+      .order('id')
+      .range(from, from + PAGE - 1);
+    if (brandSlug && brandSlug !== 'all') {
+      query = query.eq('brand', brandSlug);
     }
-  });
+    const { data, error } = await query;
+    if (error) throw new Error(`[brand-client-report] managed_creators read failed: ${error.message}`);
+    (data || []).forEach((row: any) => {
+      for (const k of ['account_1','account_2','account_3','account_4','account_5','account_6','account_7','account_8','account_9','account_10']) {
+        const v = row[k];
+        if (typeof v === 'string') {
+          const handle = v.replace('@','').trim().toLowerCase();
+          if (handle) set.add(handle);
+        }
+      }
+    });
+    if (!data || data.length < PAGE) break;
+  }
   return set;
 }
 
@@ -301,14 +314,15 @@ export async function getBrandClientReportData(
   };
 
   // ── Fire all queries in parallel.
-  // creator_performance is creator-level (one row per creator/day); the three
-  // video_performance pulls are video×product grained — top videos aggregate by
-  // video_id, products by product_name, and the breakdown joins product↔creator.
+  // creator_performance is creator-level (one row per creator/day). ONE
+  // video_performance pull carries the superset of columns for the three
+  // video×product-grained sections (top videos by video_id, products by
+  // product_name, product↔creator breakdown) — it was three separate paged
+  // pulls of the SAME window with different column sets, i.e. 3x the
+  // round-trips for identical rows.
   const [
     creatorRowsCur,
     creatorRowsPrior,
-    videoRows,
-    productRows,
     videoProductRows,
     managedHandles,
   ] = await Promise.all([
@@ -319,16 +333,13 @@ export async function getBrandClientReportData(
       'creator_name, gmv, orders, videos',
       dateRange(priorStartStr, priorEndStr)),
     paginatedFetch(supabase, 'video_performance',
-      'video_id, video_title, video_link, creator_name, gmv, orders',
-      dateRange(startStr, endStr)),
-    paginatedFetch(supabase, 'video_performance',
-      'product_name, gmv, orders',
-      dateRange(startStr, endStr)),
-    paginatedFetch(supabase, 'video_performance',
-      'product_name, creator_name, gmv',
+      'video_id, video_title, video_link, creator_name, product_name, gmv, orders',
       dateRange(startStr, endStr)),
     getManagedHandleSet(supabase, brandSlug),
   ]);
+  // The three legacy row shapes all derive from the single pull.
+  const videoRows = videoProductRows;
+  const productRows = videoProductRows;
 
   // ── Aggregate creators (current period)
   const creatorMap = new Map<string, { name: string; gmv: number; orders: number; videos: number; commission: number }>();
@@ -660,8 +671,8 @@ export function buildBrandClientSlackMessage(data: BrandClientReportData): strin
   const cc = data.creatorsCorner;
   const lines: string[] = [];
 
-  lines.push(`*${data.brandName} — creator performance*`);
-  lines.push(`🗓️ ${data.periodLabel}`);
+  lines.push(`*${data.brandName} - creator performance*`);
+  lines.push(data.periodLabel);
   lines.push('');
   lines.push(`*${money(data.totalGmv)} GMV*${deltaTag(data.gmvChangePct, data.periodLengthDays)}`);
   lines.push(
@@ -670,26 +681,26 @@ export function buildBrandClientSlackMessage(data: BrandClientReportData): strin
   );
   lines.push('');
   lines.push(
-    `🤝 *Creators Corner delivered ${money(cc.gmv)}* — ${cc.pctOfStoreGmv.toFixed(0)}% of store GMV ` +
+    `*Creators Corner delivered ${money(cc.gmv)}* - ${cc.pctOfStoreGmv.toFixed(0)}% of store GMV ` +
     `from ${cc.activeCreatorCount} signed creator${cc.activeCreatorCount === 1 ? '' : 's'}` +
     `${cc.newlyActivatedCount > 0 ? `, ${cc.newlyActivatedCount} newly activated` : ''}.`,
   );
 
   if (data.topCreator) {
     lines.push(
-      `🏆 Top creator: *${data.topCreator.name}* — ${money(data.topCreator.gmv)} ` +
+      `Top creator: *${data.topCreator.name}* - ${money(data.topCreator.gmv)} ` +
       `(${data.topCreator.videos} post${data.topCreator.videos === 1 ? '' : 's'})`,
     );
   }
   if (data.topVideo) {
-    lines.push(`🎬 Top video: ${data.topVideo.title} — ${money(data.topVideo.gmv)} (${data.topVideo.creator})`);
+    lines.push(`Top video: ${data.topVideo.title} - ${money(data.topVideo.gmv)} (${data.topVideo.creator})`);
   }
   if (data.bestDay) {
-    lines.push(`📈 Best day: ${data.bestDay.weekday} — ${money(data.bestDay.gmv)}`);
+    lines.push(`Best day: ${data.bestDay.weekday} - ${money(data.bestDay.gmv)}`);
   }
 
   lines.push('');
-  lines.push('📎 Full breakdown in the attached report.');
+  lines.push('Full breakdown in the attached report.');
 
   return lines.join('\n');
 }

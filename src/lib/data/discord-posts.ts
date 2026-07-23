@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
-import { getBrandRegistry, resolveUuids } from '@/lib/data/brand-registry';
+import { getBrandRegistry, resolveUuids, expandSlugs } from '@/lib/data/brand-registry';
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -124,44 +124,103 @@ export async function getLatestReportDate(brandFilter: string): Promise<Date | n
   return new Date(data[0].report_date + 'T12:00:00Z');
 }
 
-async function getDiscordMap(supabase: any, brandUuids: string[] | null): Promise<Map<string, { discord_id: string | null; discord_name: string | null }>> {
+/**
+ * Fetch EVERY row of a table query, paging past PostgREST's silent 1000-row
+ * cap. `makeQuery` must return a FRESH builder each call (builders are
+ * single-use) carrying a stable `.order()` so successive range windows line
+ * up. Same idiom as fetchAllRows in managed-gmv.ts.
+ */
+async function fetchAllRows<T>(
+  makeQuery: () => { range: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }> },
+): Promise<T[]> {
+  const PAGE = 1000;
+  const out: T[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await makeQuery().range(from, from + PAGE - 1);
+    if (error) throw new Error(`[discord-posts] paged fetch failed: ${error.message}`);
+    if (!data || data.length === 0) break;
+    out.push(...data);
+    if (data.length < PAGE) break;
+  }
+  return out;
+}
+
+async function getDiscordMap(supabase: any, brandFilter: string): Promise<Map<string, { discord_id: string | null; discord_name: string | null }>> {
   const map = new Map<string, { discord_id: string | null; discord_name: string | null }>();
 
-  // Primary source: managed_creators (has the most discord IDs — 650+)
-  // Most tiktok_accounts aren't linked to creators_v2 yet, so this is the reliable source
-  const { data: mcData } = await supabase
-    .from('managed_creators')
-    .select('account_1, account_2, account_3, account_4, account_5, discord_id, discord_name');
+  // Mentions must degrade gracefully — a failed lookup falls back to plain
+  // @handle text, never a crashed post and never a silent unfiltered read.
+  let mcBrands: string[] | null = null;   // managed_creators is keyed at umbrella grain
+  let brandUuids: string[] | null = null; // tiktok_accounts is keyed by brand_id uuid
+  try {
+    if (brandFilter && brandFilter !== 'all') {
+      const reg = await getBrandRegistry();
+      const row = reg.bySlug.get(brandFilter);
+      // Include the parent umbrella slug when a store slug was selected —
+      // roster rows live at the umbrella grain.
+      const parentSlug = row?.parent_brand_id ? reg.byId.get(row.parent_brand_id)?.slug : undefined;
+      mcBrands = parentSlug ? [brandFilter, parentSlug] : [brandFilter];
+      brandUuids = resolveUuids(reg, brandFilter);
+    }
+  } catch (err) {
+    console.error('[discord-posts] getDiscordMap: brand registry read failed - mentions will fall back to @handle:', err);
+    return map;
+  }
 
-  (mcData || []).forEach((mc: any) => {
-    if (!mc.discord_id) return;
-    const accounts = [mc.account_1, mc.account_2, mc.account_3, mc.account_4, mc.account_5].filter(Boolean);
-    accounts.forEach((acc: string) => {
-      const handle = acc.toLowerCase().replace('@', '').trim();
-      if (handle && !map.has(handle)) {
+  // Primary source: managed_creators (has the most discord IDs — 650+).
+  // Paged: the table is over PostgREST's 1000-row cap, an un-paged read
+  // silently dropped the tail of the roster.
+  try {
+    const mcData = await fetchAllRows<any>(() => {
+      let q = supabase
+        .from('managed_creators')
+        .select('account_1, account_2, account_3, account_4, account_5, discord_id, discord_name')
+        .not('discord_id', 'is', null)
+        .order('id');
+      if (mcBrands) q = q.in('brand', mcBrands);
+      return q;
+    });
+    mcData.forEach((mc: any) => {
+      if (!mc.discord_id) return;
+      const accounts = [mc.account_1, mc.account_2, mc.account_3, mc.account_4, mc.account_5].filter(Boolean);
+      accounts.forEach((acc: string) => {
+        const handle = acc.toLowerCase().replace('@', '').trim();
+        if (handle && !map.has(handle)) {
+          map.set(handle, {
+            discord_id: mc.discord_id,
+            discord_name: mc.discord_name,
+          });
+        }
+      });
+    });
+  } catch (err) {
+    console.error('[discord-posts] getDiscordMap: managed_creators read failed - mentions will fall back to @handle:', err);
+  }
+
+  // Secondary source: creators_v2 via tiktok_accounts (for newer creators not
+  // in managed_creators). Also paged — tiktok_accounts is over the 1000 cap.
+  try {
+    const v2Data = await fetchAllRows<any>(() => {
+      let q = supabase
+        .from('tiktok_accounts')
+        .select('tiktok_username, creator:creators_v2!inner(discord_id, discord_username)')
+        .not('creator_id', 'is', null)
+        .order('id');
+      if (brandUuids) q = q.in('brand_id', brandUuids);
+      return q;
+    });
+    v2Data.forEach((row: any) => {
+      const handle = (row.tiktok_username || '').toLowerCase().replace('@', '');
+      if (handle && row.creator?.discord_id && !map.has(handle)) {
         map.set(handle, {
-          discord_id: mc.discord_id,
-          discord_name: mc.discord_name,
+          discord_id: row.creator.discord_id,
+          discord_name: row.creator.discord_username,
         });
       }
     });
-  });
-
-  // Secondary source: creators_v2 via tiktok_accounts (for newer creators not in managed_creators)
-  const { data: v2Data } = await supabase
-    .from('tiktok_accounts')
-    .select('tiktok_username, creator:creators_v2!inner(discord_id, discord_username)')
-    .not('creator_id', 'is', null);
-
-  (v2Data || []).forEach((row: any) => {
-    const handle = (row.tiktok_username || '').toLowerCase().replace('@', '');
-    if (handle && row.creator?.discord_id && !map.has(handle)) {
-      map.set(handle, {
-        discord_id: row.creator.discord_id,
-        discord_name: row.creator.discord_username,
-      });
-    }
-  });
+  } catch (err) {
+    console.error('[discord-posts] getDiscordMap: tiktok_accounts read failed - mentions will fall back to @handle:', err);
+  }
 
   return map;
 }
@@ -269,7 +328,7 @@ export async function getWhatsCookingData(brandFilter: string, period: '7d' | '3
   };
 
   // Discord mention map stays in JS — it isn't brand-volume-dependent.
-  const discordMap = await getDiscordMap(supabase, brandUuids);
+  const discordMap = await getDiscordMap(supabase, brandFilter);
 
   return {
     hotVideos: a.hotVideos ?? [],
@@ -340,7 +399,7 @@ export async function getWhosCookingData(brandFilter: string, period: '7d' | '30
 
   // Discord mention map stays in JS — it isn't brand-volume-dependent. Attach
   // the mention id/name to each creator by handle.
-  const discordMap = await getDiscordMap(supabase, brandUuids);
+  const discordMap = await getDiscordMap(supabase, brandFilter);
   const attach = (c: any) => {
     const handle = (c.tiktok_username || '').toLowerCase().replace('@', '');
     const d = discordMap.get(handle);
@@ -371,20 +430,56 @@ export async function getWhosCookingData(brandFilter: string, period: '7d' | '30
   };
 }
 
-// ─── Monthly Goal Constants ─────────────────────────────────────
+// ─── Monthly Goal (DB-driven: brands_v2.monthly_gmv_goal) ───────
 
-const MONTHLY_GOALS: Record<string, number> = {
-  jiyu: 100000,
-  catakor: 75000,
-  physicians_choice: 150000,
-  toplux: 50000,
-};
+interface MonthlyGoalInfo {
+  /** null = no goal configured (or the read failed) — the Daily Drop omits its
+   *  goal/pacing block instead of fabricating one. */
+  goal: number | null;
+  /** How many brands the goal covers (>1 only for the all-brands drop). */
+  brandCount: number;
+}
 
-function getMonthlyGoal(brandFilter: string): number {
-  if (!brandFilter || brandFilter === 'all') {
-    return Object.values(MONTHLY_GOALS).reduce((a, b) => a + b, 0);
+async function getMonthlyGoalInfo(supabase: any, brandFilter: string): Promise<MonthlyGoalInfo> {
+  try {
+    if (brandFilter && brandFilter !== 'all') {
+      const { data, error } = await supabase
+        .from('brands_v2')
+        .select('monthly_gmv_goal')
+        .eq('slug', brandFilter)
+        .limit(1);
+      if (error) throw new Error(error.message);
+      const raw = data?.[0]?.monthly_gmv_goal;
+      const goal = raw === null || raw === undefined ? NaN : Number(raw);
+      return Number.isFinite(goal) && goal > 0
+        ? { goal, brandCount: 1 }
+        : { goal: null, brandCount: 0 };
+    }
+    // All-brands: sum only the brands that HAVE a goal and report how many that
+    // is. Skip child stores whose parent umbrella also carries a goal so an
+    // umbrella and its stores never double count.
+    const { data, error } = await supabase
+      .from('brands_v2')
+      .select('id, parent_brand_id, monthly_gmv_goal')
+      .eq('is_archived', false)
+      .not('monthly_gmv_goal', 'is', null);
+    if (error) throw new Error(error.message);
+    const rows = (data ?? []) as { id: string; parent_brand_id: string | null; monthly_gmv_goal: number | string }[];
+    const idsWithGoal = new Set(rows.map((r) => r.id));
+    let sum = 0;
+    let count = 0;
+    for (const r of rows) {
+      if (r.parent_brand_id && idsWithGoal.has(r.parent_brand_id)) continue;
+      const g = Number(r.monthly_gmv_goal);
+      if (!Number.isFinite(g) || g <= 0) continue;
+      sum += g;
+      count += 1;
+    }
+    return count > 0 ? { goal: sum, brandCount: count } : { goal: null, brandCount: 0 };
+  } catch (err) {
+    console.error('[discord-posts] monthly goal read failed - omitting goal block:', err);
+    return { goal: null, brandCount: 0 };
   }
-  return MONTHLY_GOALS[brandFilter] || 100000;
 }
 
 // ─── Daily Drop Types & Data ────────────────────────────────────
@@ -392,8 +487,14 @@ function getMonthlyGoal(brandFilter: string): number {
 export interface DailyDropData {
   yesterdayGmv: number;
   dayBeforeGmv: number;
-  mtdGmv: number;
-  monthlyGoal: number;
+  /** null = the MTD aggregate (dcs_gmv_sum) FAILED — the formatter omits the
+   *  goal/pacing block rather than posting a fake $0 MTD to Discord. */
+  mtdGmv: number | null;
+  /** null = no goal configured in brands_v2.monthly_gmv_goal — the formatter
+   *  omits the goal/pacing block rather than fabricating a target. */
+  monthlyGoal: number | null;
+  /** How many brands the goal covers (>1 only for the all-brands drop). */
+  goalBrandCount: number;
   yesterdayDate: Date;
   dayBeforeDate: Date;
   /** Date the video/OTW data is reporting on (may lag yesterdayDate when video uploads are stale). */
@@ -401,23 +502,46 @@ export interface DailyDropData {
   /** Date the product data is reporting on (may lag yesterdayDate when product uploads are stale). */
   productAsOf: Date;
   topCreators: { tiktok_username: string; gmv: number }[];
-  topVideos: { video_id: string; tiktok_username: string; gmv: number }[];
+  topVideos: { video_id: string; tiktok_username: string; gmv: number; video_url: string | null }[];
   topProducts: { name: string; gmv: number }[];
-  oneToWatch: { video_id: string; tiktok_username: string; gmv: number; hoursAgo: number } | null;
+  oneToWatch: { video_id: string; tiktok_username: string; gmv: number; hoursAgo: number; video_url: string | null } | null;
   discordMap: Map<string, { discord_id: string | null; discord_name: string | null }>;
+}
+
+/**
+ * Latest report_date in video_performance (period_type='daily'), plus one day —
+ * the anchor for the Daily Drop's video sections, which read video_performance
+ * (real TikTok video ids), not daily_video_product_stats (whose video_id is a
+ * reused PRODUCT id). Falls back to real now() when the table has no data.
+ */
+async function resolveVideoPerfAnchor(supabase: any, brandSlugs: string[] | null): Promise<Date> {
+  let query = supabase
+    .from('video_performance')
+    .select('report_date')
+    .eq('period_type', 'daily')
+    .order('report_date', { ascending: false })
+    .limit(1);
+  if (brandSlugs) query = query.in('brand', brandSlugs);
+  const { data } = await query;
+  if (!data || data.length === 0) return new Date();
+  const latest = new Date(data[0].report_date + 'T12:00:00Z');
+  latest.setUTCDate(latest.getUTCDate() + 1);
+  return latest;
 }
 
 export async function getDailyDropData(brandFilter: string): Promise<DailyDropData> {
   const supabase = await createClient();
-  const brandUuids = await getBrandUuids(supabase, brandFilter);
+  const reg = await getBrandRegistry();
+  const brandUuids = brandFilter && brandFilter !== 'all' ? resolveUuids(reg, brandFilter) : null;
+  // video_performance is keyed by brand SLUG (store grain) — umbrellas expand.
+  const vpBrandSlugs = brandFilter && brandFilter !== 'all' ? expandSlugs(reg, brandFilter) : null;
 
-  // Each table can have its own latest upload date. For JiYu, daily_creator_stats
-  // is current through Apr but daily_video_stats and daily_product_stats stopped
-  // at Mar 14. Anchor each section's queries to its own table so video/product
-  // sections still show the freshest data they have, instead of empty results.
+  // Each table can have its own latest upload date. Anchor each section's
+  // queries to its own table so video/product sections still show the freshest
+  // data they have, instead of empty results.
   const [creatorAnchor, videoAnchor, productAnchor] = await Promise.all([
     resolveAnchorToday(supabase, brandUuids, 'daily_creator_stats'),
-    resolveAnchorToday(supabase, brandUuids, 'daily_video_product_stats'),
+    resolveVideoPerfAnchor(supabase, vpBrandSlugs),
     resolveAnchorToday(supabase, brandUuids, 'daily_video_product_stats'),
   ]);
 
@@ -454,9 +578,12 @@ export async function getDailyDropData(brandFilter: string): Promise<DailyDropDa
   ];
   if (brandUuids) ycFilters.push({ column: 'brand_id', op: 'in', value: brandUuids });
 
-  // Day-before creator stats - paginated
+  // Day-before creator stats - paginated. Same gmv > 0 filter as yesterday's
+  // pull: the day-before rows are only summed, and zero-GMV rows add nothing
+  // but page round-trips.
   const dbFilters: { column: string; op: string; value: any }[] = [
     { column: 'report_date', op: 'eq', value: dayBeforeStr },
+    { column: 'gmv', op: 'gt', value: 0 },
   ];
   if (brandUuids) dbFilters.push({ column: 'brand_id', op: 'in', value: brandUuids });
 
@@ -465,13 +592,6 @@ export async function getDailyDropData(brandFilter: string): Promise<DailyDropDa
   // (~259k) the old paginated sum was dozens/hundreds of deep-offset round-trips
   // and timed the function out (504). brandUuids null = all brands.
 
-  // Video sections use the video table's anchor (may differ from creator anchor).
-  const yvFilters: { column: string; op: string; value: any }[] = [
-    { column: 'report_date', op: 'eq', value: videoYesterdayStr },
-    { column: 'gmv', op: 'gt', value: 0 },
-  ];
-  if (brandUuids) yvFilters.push({ column: 'brand_id', op: 'in', value: brandUuids });
-
   // Product section uses the product table's anchor.
   const ypFilters: { column: string; op: string; value: any }[] = [
     { column: 'report_date', op: 'eq', value: productYesterdayStr },
@@ -479,34 +599,109 @@ export async function getDailyDropData(brandFilter: string): Promise<DailyDropDa
   ];
   if (brandUuids) ypFilters.push({ column: 'brand_id', op: 'in', value: brandUuids });
 
-  // One to Watch: anchored to the video table's latest 3-day window.
-  const otwFilters: { column: string; op: string; value: any }[] = [
-    { column: 'post_date', op: 'gte', value: formatDate(videoThreeDaysAgo) },
-    { column: 'gmv', op: 'gt', value: 0 },
-  ];
-  if (brandUuids) otwFilters.push({ column: 'brand_id', op: 'in', value: brandUuids });
+  // Video sections (Top 5 Videos + One to Watch) read video_performance — the
+  // table whose video_id is a REAL TikTok id. daily_video_product_stats.video_id
+  // is a reused PRODUCT id, so grouping/linking on it mis-attributed GMV and
+  // posted dead tiktok.com links. ONE targeted pull covers both sections:
+  // report_date spans the 3-day OTW window (which includes videoYesterday for
+  // the Top 5), ordered by gmv desc under a hard cap so a huge all-brands window
+  // can only shave sub-dollar tail rows off the aggregation, never blow memory.
+  const videoThreeDaysAgoStr = formatDate(videoThreeDaysAgo);
+  let vpQuery = supabase
+    .from('video_performance')
+    .select('video_id, product_id, report_date, post_date, creator_name, gmv')
+    .eq('period_type', 'daily')
+    .gte('report_date', videoThreeDaysAgoStr)
+    .lte('report_date', videoYesterdayStr)
+    .gt('gmv', 0)
+    .not('video_id', 'is', null)
+    .neq('video_id', '')
+    .order('gmv', { ascending: false })
+    .limit(3000);
+  if (vpBrandSlugs) vpQuery = vpQuery.in('brand', vpBrandSlugs);
 
-  const [yesterdayCreators, dayBeforeCreators, mtdSumRes, yesterdayVideos, yesterdayProducts, recentVideoStats, discordMap] = await Promise.all([
+  const [yesterdayCreators, dayBeforeCreators, mtdSumRes, vpRes, yesterdayProducts, goalInfo, discordMap] = await Promise.all([
     paginatedFetch(supabase, 'daily_creator_stats', 'tiktok_username, gmv', ycFilters),
     paginatedFetch(supabase, 'daily_creator_stats', 'gmv', dbFilters),
     supabase.rpc('dcs_gmv_sum', { p_brand_ids: brandUuids, p_start: monthStartStr, p_end: yesterdayStr }),
-    paginatedFetch(supabase, 'daily_video_product_stats', 'video_id, tiktok_username, gmv', yvFilters),
+    vpQuery,
     paginatedFetch(supabase, 'daily_video_product_stats', 'product_name, gmv', ypFilters),
-    paginatedFetch(supabase, 'daily_video_product_stats', 'video_id, tiktok_username, gmv, post_date, report_date', otwFilters),
-    getDiscordMap(supabase, brandUuids),
+    getMonthlyGoalInfo(supabase, brandFilter),
+    getDiscordMap(supabase, brandFilter),
   ]);
 
-  // Aggregate videos by video_id
-  const videoMap = new Map<string, { video_id: string; tiktok_username: string; gmv: number }>();
-  (yesterdayVideos || []).forEach((v: any) => {
-    const existing = videoMap.get(v.video_id);
-    if (!existing) {
-      videoMap.set(v.video_id, { video_id: v.video_id, tiktok_username: v.tiktok_username, gmv: parseFloat(v.gmv) || 0 });
-    } else {
-      existing.gmv += parseFloat(v.gmv) || 0;
+  if (vpRes.error) throw new Error(`[discord-posts] video_performance read failed: ${vpRes.error.message}`);
+  const vpRows = (vpRes.data ?? []) as {
+    video_id: string; product_id: string | null; report_date: string;
+    post_date: string | null; creator_name: string | null; gmv: number | string;
+  }[];
+
+  // The mig-079 dedup: byte-identical cross-brand copies collapse to one row per
+  // (video_id, product_id, report_date) cell, keeping the max-gmv row, while
+  // genuinely different products under two shops still sum.
+  const vpDedup = new Map<string, { video_id: string; creator_name: string; post_date: string | null; report_date: string; gmv: number }>();
+  for (const r of vpRows) {
+    const gmv = parseFloat(String(r.gmv)) || 0;
+    const key = `${r.video_id}|${r.product_id ?? ''}|${r.report_date}`;
+    const prev = vpDedup.get(key);
+    if (!prev || gmv > prev.gmv) {
+      vpDedup.set(key, {
+        video_id: r.video_id,
+        creator_name: r.creator_name || '',
+        post_date: r.post_date,
+        report_date: r.report_date,
+        gmv,
+      });
     }
-  });
-  const topVideos = Array.from(videoMap.values()).sort((a, b) => b.gmv - a.gmv).slice(0, 5);
+  }
+
+  // Top 5 Videos: GMV earned YESTERDAY, summed per real video.
+  const videoMap = new Map<string, { video_id: string; tiktok_username: string; gmv: number }>();
+  // One to Watch: 3-day-window GMV per real video, for videos POSTED in the window.
+  const otwMap = new Map<string, { video_id: string; tiktok_username: string; gmv: number; post_date: string }>();
+  for (const row of vpDedup.values()) {
+    if (row.report_date === videoYesterdayStr) {
+      const existing = videoMap.get(row.video_id);
+      if (!existing) {
+        videoMap.set(row.video_id, { video_id: row.video_id, tiktok_username: row.creator_name, gmv: row.gmv });
+      } else {
+        existing.gmv += row.gmv;
+      }
+    }
+    if (row.post_date && row.post_date >= videoThreeDaysAgoStr) {
+      const existing = otwMap.get(row.video_id);
+      if (!existing) {
+        otwMap.set(row.video_id, { video_id: row.video_id, tiktok_username: row.creator_name, gmv: row.gmv, post_date: row.post_date });
+      } else {
+        existing.gmv += row.gmv;
+      }
+    }
+  }
+  const topVideosRaw = Array.from(videoMap.values()).sort((a, b) => b.gmv - a.gmv).slice(0, 5);
+  const otwSorted = Array.from(otwMap.values()).filter(v => v.gmv >= 25).sort((a, b) => b.gmv - a.gmv);
+  const otwBest = otwSorted[0] ?? null;
+
+  // Watch URLs: videos.video_link when present, else the synthesized permalink
+  // (per mig 079: video_performance.video_link is ~0% usable — expired CDN blobs).
+  const linkIds = [...new Set([...topVideosRaw.map(v => v.video_id), ...(otwBest ? [otwBest.video_id] : [])])];
+  const linkById = new Map<string, string>();
+  if (linkIds.length > 0) {
+    const { data: linkRows, error: linkErr } = await supabase
+      .from('videos')
+      .select('video_id, video_link')
+      .in('video_id', linkIds);
+    if (linkErr) {
+      console.error('[discord-posts] videos link lookup failed - falling back to synthesized permalinks:', linkErr.message);
+    }
+    (linkRows || []).forEach((r: any) => {
+      const link = typeof r.video_link === 'string' ? r.video_link.trim() : '';
+      if (r.video_id && link && !linkById.has(r.video_id)) linkById.set(r.video_id, link);
+    });
+  }
+  const resolveWatchUrl = (videoId: string, creatorName: string): string | null =>
+    linkById.get(videoId) ?? getTikTokUrl(creatorName, videoId);
+
+  const topVideos = topVideosRaw.map(v => ({ ...v, video_url: resolveWatchUrl(v.video_id, v.tiktok_username) }));
 
   // Aggregate products from daily_video_product_stats (rows are per
   // video×product×day, so sum gmv by product_name).
@@ -520,25 +715,19 @@ export async function getDailyDropData(brandFilter: string): Promise<DailyDropDa
     .sort((a, b) => b.gmv - a.gmv)
     .slice(0, 5);
 
-  // Aggregate One to Watch by video_id
-  const otwMap = new Map<string, { video_id: string; tiktok_username: string; gmv: number; post_date: string }>();
-  (recentVideoStats || []).forEach((v: any) => {
-    const existing = otwMap.get(v.video_id);
-    if (!existing) {
-      otwMap.set(v.video_id, { video_id: v.video_id, tiktok_username: v.tiktok_username, gmv: parseFloat(v.gmv) || 0, post_date: v.post_date });
-    } else {
-      existing.gmv += parseFloat(v.gmv) || 0;
-    }
-  });
-  const otwSorted = Array.from(otwMap.values()).filter(v => v.gmv >= 25).sort((a, b) => b.gmv - a.gmv);
   let oneToWatch: DailyDropData['oneToWatch'] = null;
-  if (otwSorted.length > 0) {
-    const best = otwSorted[0];
-    const postDate = new Date(best.post_date + 'T12:00:00');
+  if (otwBest) {
+    const postDate = new Date(otwBest.post_date + 'T12:00:00');
     // hoursAgo is relative to the video table's anchor — when comparing to
     // creator's "today" we'd get nonsensical numbers when the tables diverge.
     const hoursAgo = Math.round((videoAnchor.getTime() - postDate.getTime()) / (1000 * 60 * 60));
-    oneToWatch = { video_id: best.video_id, tiktok_username: best.tiktok_username, gmv: best.gmv, hoursAgo };
+    oneToWatch = {
+      video_id: otwBest.video_id,
+      tiktok_username: otwBest.tiktok_username,
+      gmv: otwBest.gmv,
+      hoursAgo,
+      video_url: resolveWatchUrl(otwBest.video_id, otwBest.tiktok_username),
+    };
   }
 
   // Aggregate creators
@@ -554,13 +743,25 @@ export async function getDailyDropData(brandFilter: string): Promise<DailyDropDa
 
   const yesterdayGmv = (yesterdayCreators || []).reduce((s: number, c: any) => s + (parseFloat(c.gmv) || 0), 0);
   const dayBeforeGmv = (dayBeforeCreators || []).reduce((s: number, c: any) => s + (parseFloat(c.gmv) || 0), 0);
-  const mtdGmv = Number((mtdSumRes as { data?: number | string | null })?.data ?? 0) || 0;
+
+  // Silent-zero rule: a failed dcs_gmv_sum must NOT post $0 MTD + bogus pacing
+  // to Discord. null → the formatter omits the goal/pacing block entirely; the
+  // rest of the post still generates.
+  const mtdRes = mtdSumRes as { data?: number | string | null; error?: { message?: string } | null };
+  let mtdGmv: number | null;
+  if (mtdRes?.error) {
+    console.error('[discord-posts] dcs_gmv_sum failed - omitting goal/pacing block:', mtdRes.error.message ?? mtdRes.error);
+    mtdGmv = null;
+  } else {
+    mtdGmv = Number(mtdRes?.data ?? 0) || 0;
+  }
 
   return {
     yesterdayGmv,
     dayBeforeGmv,
     mtdGmv,
-    monthlyGoal: getMonthlyGoal(brandFilter),
+    monthlyGoal: goalInfo.goal,
+    goalBrandCount: goalInfo.brandCount,
     yesterdayDate: yesterday,
     dayBeforeDate: dayBefore,
     videoAsOf: videoYesterday,
@@ -737,9 +938,6 @@ function getDailyDropMention(handle: string, discordMap: Map<string, { discord_i
 export function formatDailyDropDiscord(data: DailyDropData, brandName: string): string {
   const yesterdayDate = new Date(data.yesterdayDate);
   const dateFull = yesterdayDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-
-  const progressPercent = Math.round((data.mtdGmv / data.monthlyGoal) * 100);
-  const progressBar = generateProgressBar(progressPercent);
   const monthName = yesterdayDate.toLocaleDateString('en-US', { month: 'long' }).toUpperCase();
 
   // Day-over-day change
@@ -751,20 +949,39 @@ export function formatDailyDropDiscord(data: DailyDropData, brandName: string): 
     dodChange = ` (${changeArrow}${Math.abs(changePercent)}% vs ${dayBeforeName})`;
   }
 
-  // Goal pacing — anchor month math to the yesterday date so we project against
-  // the correct month even when data is stale (otherwise we'd compare MTD against
-  // the wrong month's day count)
-  const daysInMonth = new Date(yesterdayDate.getFullYear(), yesterdayDate.getMonth() + 1, 0).getDate();
-  const dayOfMonth = yesterdayDate.getDate();
-  const daysRemaining = daysInMonth - dayOfMonth;
-  const dailyAverage = dayOfMonth > 0 ? data.mtdGmv / dayOfMonth : 0;
-  const projectedTotal = data.mtdGmv + (dailyAverage * daysRemaining);
-  let pacingNote = '';
-  if (projectedTotal >= data.monthlyGoal) {
-    pacingNote = `📈 On pace to hit **${formatCurrency(projectedTotal)}** by month end`;
-  } else {
-    const neededPerDay = daysRemaining > 0 ? (data.monthlyGoal - data.mtdGmv) / daysRemaining : 0;
-    pacingNote = `⚡ Need **${formatCurrency(neededPerDay)}/day** to hit goal`;
+  // Goal / progress / pacing block — only when we have BOTH a configured goal
+  // (brands_v2.monthly_gmv_goal) and a successful MTD read. A null goal or a
+  // failed dcs_gmv_sum omits the block honestly instead of posting a fabricated
+  // target or a fake $0 MTD.
+  let goalBlock = '';
+  if (data.monthlyGoal !== null && data.monthlyGoal > 0 && data.mtdGmv !== null) {
+    const mtdGmv = data.mtdGmv;
+    const monthlyGoal = data.monthlyGoal;
+    const progressPercent = Math.round((mtdGmv / monthlyGoal) * 100);
+    const progressBar = generateProgressBar(progressPercent);
+
+    // Goal pacing — anchor month math to the yesterday date so we project against
+    // the correct month even when data is stale (otherwise we'd compare MTD against
+    // the wrong month's day count)
+    const daysInMonth = new Date(yesterdayDate.getFullYear(), yesterdayDate.getMonth() + 1, 0).getDate();
+    const dayOfMonth = yesterdayDate.getDate();
+    const daysRemaining = daysInMonth - dayOfMonth;
+    const dailyAverage = dayOfMonth > 0 ? mtdGmv / dayOfMonth : 0;
+    const projectedTotal = mtdGmv + (dailyAverage * daysRemaining);
+    let pacingNote = '';
+    if (projectedTotal >= monthlyGoal) {
+      pacingNote = `📈 On pace to hit **${formatCurrency(projectedTotal)}** by month end`;
+    } else {
+      const neededPerDay = daysRemaining > 0 ? (monthlyGoal - mtdGmv) / daysRemaining : 0;
+      pacingNote = `⚡ Need **${formatCurrency(neededPerDay)}/day** to hit goal`;
+    }
+
+    const goalScope = data.goalBrandCount > 1
+      ? ` _(across ${data.goalBrandCount} brands with goals set)_`
+      : '';
+    goalBlock = `📊 ${monthName} GOAL: **${formatCurrency(monthlyGoal)}**${goalScope}\n`
+      + `🔥 PROGRESS: ${progressBar} **${progressPercent}%** (${formatCurrency(mtdGmv)})\n`
+      + `${pacingNote}\n`;
   }
 
   const DIV = `━━━━━━━━━━━━━━━━━━━━━━━━`;
@@ -773,10 +990,8 @@ export function formatDailyDropDiscord(data: DailyDropData, brandName: string): 
   let msg = `# 📈 DAILY DROP | ${brandName} | ${dateFull}\n\n`;
   msg += `${DIV}\n\n`;
   msg += `💰 YESTERDAY'S GMV: **${formatCurrency(data.yesterdayGmv)}**${dodChange}\n`;
-  msg += `📊 ${monthName} GOAL: **${formatCurrency(data.monthlyGoal)}**\n`;
-  msg += `🔥 PROGRESS: ${progressBar} **${progressPercent}%** (${formatCurrency(data.mtdGmv)})\n`;
-  msg += `${pacingNote}\n\n`;
-  msg += `${DIV}\n\n`;
+  msg += goalBlock;
+  msg += `\n${DIV}\n\n`;
 
   // Top 5 Creators — @handle linked to their TikTok profile (clean, no mass-ping)
   msg += `**__👑 TOP 5 CREATORS (Yesterday)__**\n`;
@@ -803,7 +1018,7 @@ export function formatDailyDropDiscord(data: DailyDropData, brandName: string): 
   } else {
     data.topVideos.slice(0, 5).forEach((v, i) => {
       const handle = (v.tiktok_username || '').replace('@', '');
-      const url = getTikTokUrl(v.tiktok_username, v.video_id);
+      const url = v.video_url || getTikTokUrl(v.tiktok_username, v.video_id);
       if (url) {
         msg += `> ${i + 1}. [@${handle}](${url}) — **${formatCurrency(v.gmv)}**\n`;
       } else {
@@ -832,7 +1047,8 @@ export function formatDailyDropDiscord(data: DailyDropData, brandName: string): 
   msg += `**__👀 ONE TO WATCH__**\n`;
   if (data.oneToWatch) {
     const handle = (data.oneToWatch.tiktok_username || '').replace('@', '');
-    const url = getTikTokUrl(data.oneToWatch.tiktok_username, data.oneToWatch.video_id);
+    const url = data.oneToWatch.video_url
+      || getTikTokUrl(data.oneToWatch.tiktok_username, data.oneToWatch.video_id);
     msg += `> @${handle} — ${url || 'Link unavailable'}\n`;
     msg += `> Posted ${data.oneToWatch.hoursAgo} hours ago. Already at **${formatCurrency(data.oneToWatch.gmv)}** and climbing.\n`;
   } else {

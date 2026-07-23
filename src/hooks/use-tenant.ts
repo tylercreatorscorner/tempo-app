@@ -17,25 +17,49 @@ interface TenantInfo {
   stripe_subscription_id: string | null;
 }
 
-/** Hook to get the current user's tenant, role, and plan awareness */
-export function useTenant() {
-  const [tenant, setTenant] = useState<TenantInfo | null>(null);
-  const [userRole, setUserRole] = useState<string>('customer');
-  const [userName, setUserName] = useState<string>('');
-  const [userEmail, setUserEmail] = useState<string>('');
-  const [brandCount, setBrandCount] = useState(0);
-  const [allowedBrands, setAllowedBrands] = useState<string[] | null>(null);
-  const [canViewFinance, setCanViewFinance] = useState(true);
-  const [loading, setLoading] = useState(true);
+interface TenantSnapshot {
+  tenant: TenantInfo | null;
+  userRole: string;
+  userName: string;
+  userEmail: string;
+  brandCount: number;
+  allowedBrands: string[] | null;
+  canViewFinance: boolean;
+}
 
-  useEffect(() => {
-    const supabase = createClient();
+const DEFAULT_SNAPSHOT: TenantSnapshot = {
+  tenant: null,
+  userRole: 'customer',
+  userName: '',
+  userEmail: '',
+  brandCount: 0,
+  allowedBrands: null,
+  canViewFinance: true,
+};
 
-    async function fetchTenant() {
+// Module-level cache (same pattern as use-brand-meta): a page can mount many
+// useTenant consumers, and without this each one re-ran the full
+// auth.getUser -> user_profiles -> tenants + brands_v2-count chain. One
+// in-flight promise is shared across instances; the resolved snapshot is
+// reused for the lifetime of the tab.
+let cache: TenantSnapshot | null = null;
+let inflight: Promise<TenantSnapshot> | null = null;
+
+async function fetchTenantSnapshot(): Promise<TenantSnapshot> {
+  if (cache) return cache;
+  if (inflight) return inflight;
+
+  inflight = (async () => {
+    const snapshot: TenantSnapshot = { ...DEFAULT_SNAPSHOT };
+    try {
+      const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { setLoading(false); return; }
+      if (!user) {
+        cache = snapshot;
+        return snapshot;
+      }
 
-      setUserEmail(user.email || '');
+      snapshot.userEmail = user.email || '';
 
       const { data: profile } = await supabase
         .from('user_profiles')
@@ -44,19 +68,17 @@ export function useTenant() {
         .maybeSingle();
 
       if (profile) {
-        setUserRole(profile.role || 'customer');
-        setUserName(profile.name || user.user_metadata?.full_name || '');
-        setAllowedBrands(
+        snapshot.userRole = profile.role || 'customer';
+        snapshot.userName = profile.name || user.user_metadata?.full_name || '';
+        snapshot.allowedBrands =
           Array.isArray(profile.allowed_brands) && profile.allowed_brands.length > 0
             ? profile.allowed_brands
-            : null
-        );
+            : null;
         // Owner/admin/viewer always see finance; managers only if their flag is set.
-        setCanViewFinance(
+        snapshot.canViewFinance =
           profile.role === 'owner' || profile.role === 'admin' || profile.role === 'viewer'
             ? true
-            : ((profile as { can_view_finance?: boolean | null }).can_view_finance ?? true)
-        );
+            : ((profile as { can_view_finance?: boolean | null }).can_view_finance ?? true);
       }
 
       if (profile?.tenant_id) {
@@ -65,14 +87,43 @@ export function useTenant() {
           supabase.from('brands_v2').select('id', { count: 'exact', head: true }),
         ]);
 
-        setTenant(tenantRes.data as TenantInfo | null);
-        setBrandCount(countRes.count ?? 0);
+        snapshot.tenant = tenantRes.data as TenantInfo | null;
+        snapshot.brandCount = countRes.count ?? 0;
       }
-      setLoading(false);
-    }
 
-    fetchTenant();
+      cache = snapshot;
+      return snapshot;
+    } catch {
+      // Unexpected throw (e.g. network failure inside supabase-js): return the
+      // defaults WITHOUT caching so the next mount retries.
+      return snapshot;
+    }
+  })();
+
+  try {
+    return await inflight;
+  } finally {
+    inflight = null;
+  }
+}
+
+/** Hook to get the current user's tenant, role, and plan awareness */
+export function useTenant() {
+  const [snapshot, setSnapshot] = useState<TenantSnapshot | null>(cache);
+  const [loading, setLoading] = useState(!cache);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchTenantSnapshot().then((s) => {
+      if (cancelled) return;
+      setSnapshot(s);
+      setLoading(false);
+    });
+    return () => { cancelled = true; };
   }, []);
+
+  const { tenant, userRole, userName, userEmail, brandCount, allowedBrands, canViewFinance } =
+    snapshot ?? DEFAULT_SNAPSHOT;
 
   const isMultiBrand = useMemo(() => brandCount > 1, [brandCount]);
   const isBrandPlan = useMemo(() => tenant?.plan === 'brand', [tenant]);
