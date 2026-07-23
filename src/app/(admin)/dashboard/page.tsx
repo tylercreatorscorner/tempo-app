@@ -143,11 +143,15 @@ export default async function AdminDashboard({ searchParams }: Props) {
   //    ACTIVE brands whose rollup (the same one the money below reads) is >3
   //    days behind. Brands with no data EVER are excluded (not-yet-onboarded is
   //    not a regression); archive dead brands in brands_v2 to silence them.
-  const STALE_AFTER_DAYS = 3;
+  // Day counts anchor on YESTERDAY (TikTok exports lag one day, so yesterday
+  // is the newest data that can exist) — the SAME anchor as the upload page's
+  // freshness rail, so the two surfaces never disagree on "N days behind".
+  const STALE_AFTER_DAYS = 2; // >2 days behind expectation = alarm (same sensitivity as before)
   let staleBrands: StaleBrand[] = [];
   try {
     const { data: fresh } = await supabase.rpc('brand_data_freshness', { p_brand_ids: BRAND_IDS });
-    const todayMs = Date.parse(new Date().toISOString().slice(0, 10) + 'T00:00:00Z');
+    const yesterdayMs =
+      Date.parse(new Date().toISOString().slice(0, 10) + 'T00:00:00Z') - 86400000;
     staleBrands = ((fresh as { brand_id: string; last_date: string | null }[] | null) ?? [])
       .filter((r) => r.last_date != null)
       .map((r) => {
@@ -155,7 +159,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
         return {
           label: row ? (row.display_name || row.name || row.slug) : 'unknown brand',
           lastDate: r.last_date,
-          staleDays: Math.floor((todayMs - Date.parse(r.last_date + 'T00:00:00Z')) / 86400000),
+          staleDays: Math.floor((yesterdayMs - Date.parse(r.last_date + 'T00:00:00Z')) / 86400000),
         };
       })
       .filter((s) => s.staleDays > STALE_AFTER_DAYS)

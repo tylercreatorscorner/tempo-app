@@ -13,7 +13,7 @@
  *   - Editable per-file before processing: brand, date, type — in case
  *     filename detection got something wrong.
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import {
   AlertCircle, CheckCircle2, FileSpreadsheet, Loader2, Trash2, Upload,
@@ -64,7 +64,25 @@ interface QueueItem {
   log: { level: 'info' | 'warning' | 'error' | 'success'; message: string }[];
   result?: { rowCount: number; totalGmv: number; totalOrders: number };
   expanded: boolean;
+  /** Existing rows for (table, brand, date), resolved at QUEUE time so the
+   *  overwrite decision happens on the row, not as a mid-batch confirm().
+   *  undefined = not checked yet · null = check in flight · number = known. */
+  existingCount?: number | null;
+  /** Row-level overwrite toggle (defaults on). Only meaningful when
+   *  existingCount > 0: on = delete-then-insert, off = merge-upsert. */
+  overwriteOk?: boolean;
 }
+
+/** The DB table a file type writes to — used for the queue-time existing-data
+ *  check. 'videos' has no report_date, so it never needs the check. */
+const TABLE_FOR_TYPE: Record<FileType, string | null> = {
+  creator: 'creator_performance',
+  video: 'video_performance',
+  videolist: null, // 'videos' — keyed (video_id, brand); overwrite doesn't apply
+  affiliateproduct: 'product_performance',
+  product: null,
+  unknown: null,
+};
 
 const FILE_TYPE_OPTIONS: { value: FileType; label: string }[] = [
   { value: 'creator',          label: 'Creator Data' },
@@ -134,6 +152,10 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
   );
 
   const [queue, setQueue] = useState<QueueItem[]>([]);
+  // Always-current snapshot for async workers (processAll's pool + the
+  // queue-time existing checks read latest state, not a stale closure).
+  const queueRef = useRef<QueueItem[]>([]);
+  useEffect(() => { queueRef.current = queue; }, [queue]);
   const [dragActive, setDragActive] = useState(false);
   const [running, setRunning] = useState(false);
   // Recovery banner: items the user had queued before refresh, surfaced so
@@ -215,10 +237,51 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
     }
 
     setQueue(q => [...q, ...items]);
+    // Resolve the overwrite chips up front — by the time the user hits
+    // "Upload all", every row already knows whether it replaces existing data.
+    for (const it of items) {
+      if (it.status !== 'error') void runExistingCheck(it.id, it.type, it.brand, it.reportDate);
+    }
   }
 
   function updateItem(id: string, patch: Partial<QueueItem>) {
     setQueue(q => q.map(i => i.id === id ? { ...i, ...patch } : i));
+  }
+
+  /** Queue-time existing-data check — resolves the overwrite question on the
+   *  ROW (chip + toggle) instead of a mid-batch window.confirm() per file
+   *  (14-file daily runs meant up to 14 modal interrupts). Re-runs whenever
+   *  type/brand/date change. Failure leaves existingCount undefined and
+   *  processItem re-checks inline without prompting. */
+  async function runExistingCheck(id: string, type: FileType, brand: string, reportDate: string) {
+    const table = TABLE_FOR_TYPE[type];
+    if (!table || !brand || brand === 'unknown' || !reportDate) {
+      updateItem(id, { existingCount: undefined });
+      return;
+    }
+    updateItem(id, { existingCount: null }); // in flight
+    try {
+      const url = `/api/upload/check?table=${encodeURIComponent(table)}&brand=${encodeURIComponent(brand)}&date=${encodeURIComponent(reportDate)}`;
+      const res = await fetch(url);
+      const j = await res.json();
+      // Ignore stale responses: only apply if the row still matches the inputs.
+      const current = queueRef.current.find(i => i.id === id);
+      if (!current || current.type !== type || current.brand !== brand || current.reportDate !== reportDate) return;
+      updateItem(id, { existingCount: res.ok ? Number(j.existingCount) || 0 : undefined });
+    } catch {
+      updateItem(id, { existingCount: undefined });
+    }
+  }
+
+  /** QueueRow's onChange — patches the item and re-resolves the overwrite
+   *  chip when any of the check inputs changed. */
+  function patchItem(id: string, patch: Partial<QueueItem>) {
+    updateItem(id, patch);
+    if ('type' in patch || 'brand' in patch || 'reportDate' in patch) {
+      const it = queueRef.current.find(i => i.id === id);
+      const next = { ...it, ...patch } as QueueItem;
+      void runExistingCheck(id, next.type, next.brand, next.reportDate);
+    }
   }
 
   function removeItem(id: string) {
@@ -408,30 +471,32 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
       return;
     }
 
-    // 6. Existing-data check (skip for the 'videos' table — keyed differently)
+    // 6. Overwrite decision — resolved at QUEUE time (the chip + toggle on the
+    // row), so "Upload all" runs unattended: no window.confirm() per file
+    // (a 14-file daily batch used to mean up to 14 modal interrupts mid-run).
+    // If the queue-time check never completed (network), re-check inline once,
+    // still without prompting — the row's toggle (default on) is the decision.
     let overwrite = false;
     if (table !== 'videos') {
-      try {
-        const url = `/api/upload/check?table=${encodeURIComponent(table)}&brand=${encodeURIComponent(item.brand)}&date=${encodeURIComponent(item.reportDate)}`;
-        const res = await fetch(url);
-        const j = await res.json();
-        if (res.ok && j.existingCount > 0) {
-          appendLog(item.id, 'warning', `Found ${j.existingCount.toLocaleString()} existing rows for ${item.brand} on ${item.reportDate}.`);
-          const ok = window.confirm(
-            `Overwrite ${j.existingCount.toLocaleString()} existing rows for ${brandLabelBySlug.get(item.brand) ?? item.brand} on ${item.reportDate}?\n\n` +
-            `Click OK to delete existing rows + insert new (${parsed.records.length.toLocaleString()} rows). Cancel to skip this file.`
-          );
-          if (!ok) {
-            appendLog(item.id, 'warning', 'Cancelled by user.');
-            updateItem(item.id, { status: 'cancelled' });
-            return;
-          }
-          overwrite = true;
-          appendLog(item.id, 'info', 'Will overwrite existing rows.');
+      let count = item.existingCount;
+      if (count == null) {
+        try {
+          const url = `/api/upload/check?table=${encodeURIComponent(table)}&brand=${encodeURIComponent(item.brand)}&date=${encodeURIComponent(item.reportDate)}`;
+          const res = await fetch(url);
+          const j = await res.json();
+          if (res.ok) count = Number(j.existingCount) || 0;
+        } catch (err) {
+          const message = err instanceof Error ? err.message : 'check failed';
+          appendLog(item.id, 'warning', `Existing-data check failed (${message}) — proceeding as a merge (no delete).`);
         }
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'check failed';
-        appendLog(item.id, 'warning', `Existing-data check failed (${message}) — proceeding anyway.`);
+      }
+      if ((count ?? 0) > 0) {
+        if (item.overwriteOk !== false) {
+          overwrite = true;
+          appendLog(item.id, 'info', `Overwriting ${count!.toLocaleString()} existing rows for ${brandLabelBySlug.get(item.brand) ?? item.brand} on ${item.reportDate}.`);
+        } else {
+          appendLog(item.id, 'info', `Keeping ${count!.toLocaleString()} existing rows — merging on top (no delete), per the row's toggle.`);
+        }
       }
     }
 
@@ -552,16 +617,42 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
     }
   }
 
-  // Snapshot the queue items to process at click time. Edits during processing
-  // (which user can't make anyway, since editable=false during 'processing')
-  // are not picked up — the user changes need to happen before they hit Upload.
+  // Process the queue with BOUNDED PARALLELISM. Files for different
+  // (type, brand, date) keys are independent — the server serializes real
+  // conflicts with per-key advisory locks anyway — so 3 at a time cuts a
+  // 14-file daily batch's wall-clock to roughly a third. Files sharing a key
+  // stay strictly sequential (chunked overwrite semantics must not interleave).
+  // Items are re-read from queueRef at start so each worker sees the latest
+  // row state (overwrite toggles, edits made before the click).
+  const UPLOAD_CONCURRENCY = 3;
   async function processAll() {
     setRunning(true);
     try {
-      const toProcess = queue.filter(q => q.status === 'queued');
-      for (const item of toProcess) {
-        await processItem(item);
+      const ids = queue.filter(q => q.status === 'queued').map(q => q.id);
+      const groups = new Map<string, string[]>();
+      for (const id of ids) {
+        const it = queueRef.current.find(i => i.id === id);
+        if (!it) continue;
+        const key = `${it.type}|${it.brand}|${it.reportDate}`;
+        const g = groups.get(key);
+        if (g) g.push(id);
+        else groups.set(key, [id]);
       }
+      const groupList = [...groups.values()];
+      let next = 0;
+      await Promise.all(
+        Array.from({ length: Math.min(UPLOAD_CONCURRENCY, groupList.length) }, async () => {
+          while (next < groupList.length) {
+            const group = groupList[next++];
+            for (const id of group) {
+              const current = queueRef.current.find(i => i.id === id);
+              if (current && current.status === 'queued') {
+                await processItem(current);
+              }
+            }
+          }
+        }),
+      );
     } finally {
       setRunning(false);
     }
@@ -678,7 +769,7 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
           </div>
           <ul className="divide-y divide-border">
             {queue.map(item => (
-              <QueueRow key={item.id} item={item} brands={activeBrands} onChange={p => updateItem(item.id, p)} onRemove={() => removeItem(item.id)} />
+              <QueueRow key={item.id} item={item} brands={activeBrands} onChange={p => patchItem(item.id, p)} onRemove={() => removeItem(item.id)} />
             ))}
           </ul>
         </div>
@@ -761,12 +852,49 @@ function QueueRow({
               disabled={!editable}
               className="text-xs bg-card border border-border rounded-lg px-2 py-1.5 disabled:bg-muted disabled:text-muted-foreground"
             />
+            {/* Overwrite chip — the queue-time answer to the old mid-run
+                confirm(). Only appears when the day already has data. */}
+            {item.existingCount === null && (
+              <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+                <Loader2 className="h-3 w-3 animate-spin" /> checking…
+              </span>
+            )}
+            {typeof item.existingCount === 'number' && item.existingCount > 0 && (
+              <label
+                className={cn(
+                  'inline-flex cursor-pointer select-none items-center gap-1.5 rounded-lg border px-2 py-1 text-[11px] font-semibold',
+                  item.overwriteOk !== false
+                    ? 'border-[var(--pulse-warn)]/35 bg-[var(--pulse-warn-bg)] text-[var(--pulse-warn)]'
+                    : 'border-border bg-muted text-muted-foreground',
+                  !editable && 'cursor-default opacity-60',
+                )}
+                title="On: delete that day's existing rows, then insert this file. Off: merge this file on top without deleting."
+              >
+                <input
+                  type="checkbox"
+                  checked={item.overwriteOk !== false}
+                  onChange={e => onChange({ overwriteOk: e.target.checked })}
+                  disabled={!editable}
+                  className="h-3 w-3 accent-[var(--pulse-warn)]"
+                />
+                Overwrite {item.existingCount.toLocaleString()} rows
+              </label>
+            )}
             {item.result && (
-              <span className="text-xs text-emerald-600 font-medium ml-2">
+              <span className="text-xs text-[var(--pulse-pos)] font-medium ml-2">
                 {item.result.rowCount.toLocaleString()} rows · ${Math.round(item.result.totalGmv).toLocaleString()} GMV · {item.result.totalOrders.toLocaleString()} orders
               </span>
             )}
           </div>
+          {/* A failed row explains itself inline — the WHY was previously
+              buried behind the "N log lines" toggle, which is how upload
+              failures went unread for days during the Jen incident. */}
+          {item.status === 'error' && (() => {
+            const lastError = [...item.log].reverse().find(l => l.level === 'error')?.message;
+            return lastError ? (
+              <p className="mt-1.5 text-xs font-medium text-[var(--pulse-neg)]">{lastError}</p>
+            ) : null;
+          })()}
           {item.log.length > 0 && (
             <button
               onClick={() => onChange({ expanded: !item.expanded })}
