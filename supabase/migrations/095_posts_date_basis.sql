@@ -347,3 +347,22 @@ GRANT EXECUTE ON FUNCTION public.get_video_review_aggs(text[], uuid) TO authenti
 COMMENT ON FUNCTION public.get_video_review_aggs(text[], uuid) IS
   'Review aggregates PER VIDEO (across brands, all time) for videos under in-scope brands. '
   'flagged matches the slug tags (off-brand, needs-rework); keep in sync with REVIEW_TAGS in src/lib/data/review-tags.ts.';
+
+-- ── COMPAT SHIM (lesson learned: never DROP a function the deployed app still
+--    calls - the ~4-minute gap between this migration and the app deploy had
+--    prod /posts throwing on the missing RPC; zero 5xx observed, but only by
+--    luck). Old signature delegates to the new aggregate; drop once the
+--    date-basis app code is confirmed on prod.
+CREATE OR REPLACE FUNCTION public.get_video_reviews_in_window(
+  p_brand_slugs text[], p_start_date date, p_end_date date, p_user_id uuid DEFAULT NULL
+)
+RETURNS TABLE(
+  video_id text, review_count bigint, avg_rating numeric,
+  flagged boolean, has_my_review boolean
+)
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = 'public'
+AS $$
+  SELECT * FROM get_video_review_aggs(p_brand_slugs, p_user_id);
+$$;
+
+GRANT EXECUTE ON FUNCTION public.get_video_reviews_in_window(text[], date, date, uuid) TO authenticated, service_role;
