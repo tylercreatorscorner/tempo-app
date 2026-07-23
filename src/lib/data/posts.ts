@@ -58,6 +58,15 @@ export interface PostRow {
 
 export type ReviewFilter = 'all' | 'unreviewed' | 'reviewed-by-me' | 'flagged';
 
+/**
+ * Which dates the window filters on (mig 095):
+ *   - 'earned' (the standard): every video that EARNED during the range,
+ *     whenever it was posted — "all GMV during that range".
+ *   - 'posted': only videos POSTED during the range (the publishing/review
+ *     lens; GMV still earned-in-window).
+ */
+export type DateBasis = 'earned' | 'posted';
+
 export interface PostsResult {
   posts: PostRow[];
   totals: {
@@ -151,6 +160,8 @@ interface GetPostsOpts {
    * ride on every row); the server param exists for deep-linked first loads.
    */
   reviewFilter?: ReviewFilter;
+  /** Window semantics — see DateBasis. Defaults to 'earned' (the standard). */
+  dateBasis?: DateBasis;
   /**
    * When provided (non-null), restrict to these brand slugs only — used to
    * scope a manager to their own brands. null/undefined = all active brands
@@ -176,7 +187,7 @@ function emptyResult(startDate: string, endDate: string): PostsResult {
 
 export async function getPosts(opts: GetPostsOpts): Promise<PostsResult> {
   const supabase = await createAdminClient();
-  const { brand, startDate, endDate, managedOnly = true, limit = ROW_CAP, currentUserId, reviewFilter = 'all', allowedBrandSlugs } = opts;
+  const { brand, startDate, endDate, managedOnly = true, limit = ROW_CAP, currentUserId, reviewFilter = 'all', dateBasis = 'earned', allowedBrandSlugs } = opts;
 
   // ── 1. Resolve the brand-slug allow-list. Active, non-umbrella brands
   //       (umbrella brands like Leefar are excluded so they don't
@@ -207,17 +218,19 @@ export async function getPosts(opts: GetPostsOpts): Promise<PostsResult> {
       p_end_date: endDate,
       p_managed_only: managedOnly,
       p_limit: limit,
+      p_date_basis: dateBasis,
     }),
     supabase.rpc('get_managed_posts_totals', {
       p_brand_slugs: brandSlugs,
       p_start_date: startDate,
       p_end_date: endDate,
       p_managed_only: managedOnly,
+      p_date_basis: dateBasis,
     }),
-    supabase.rpc('get_video_reviews_in_window', {
+    // Un-windowed (mig 095): the earned basis surfaces pre-window posts whose
+    // reviews a window-scoped aggregate would silently drop.
+    supabase.rpc('get_video_review_aggs', {
       p_brand_slugs: brandSlugs,
-      p_start_date: startDate,
-      p_end_date: endDate,
       p_user_id: currentUserId ?? null,
     }),
   ]);

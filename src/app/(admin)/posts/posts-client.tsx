@@ -129,6 +129,10 @@ export function PostsClient({
   const searchParams = useSearchParams();
   const brandMeta = useBrandMeta();
 
+  // Date basis (mig 095): 'earned' (default) = all GMV during the range, any
+  // post date; 'posted' = only videos posted during the range (review lens).
+  const dateBasis: 'earned' | 'posted' = searchParams.get('basis') === 'posted' ? 'posted' : 'earned';
+
   const [data, setData] = useState<PostsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -179,7 +183,7 @@ export function PostsClient({
   // loading/error reset happens DURING RENDER when the fetch key changes (the
   // sanctioned derive-state-from-props pattern) — not synchronously inside the
   // effect, which the react-hooks lint forbids for cascading-render reasons.
-  const fetchKey = `${selectedBrand ?? ''}|${startDate}|${endDate}|${managedOnly}`;
+  const fetchKey = `${selectedBrand ?? ''}|${startDate}|${endDate}|${managedOnly}|${dateBasis}`;
   const [prevFetchKey, setPrevFetchKey] = useState<string | null>(null);
   if (fetchKey !== prevFetchKey) {
     setPrevFetchKey(fetchKey);
@@ -193,6 +197,7 @@ export function PostsClient({
     params.set('start', startDate);
     params.set('end', endDate);
     if (!managedOnly) params.set('managed', 'false');
+    if (dateBasis === 'posted') params.set('basis', 'posted');
     fetch(`/api/posts?${params.toString()}`)
       .then(async (r) => {
         // Guard res.ok BEFORE trusting the body: a JSON-shaped error response
@@ -211,7 +216,7 @@ export function PostsClient({
       })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [selectedBrand, startDate, endDate, managedOnly]);
+  }, [selectedBrand, startDate, endDate, managedOnly, dateBasis]);
 
   const visiblePosts = useMemo(() => {
     if (!data) return [];
@@ -293,6 +298,13 @@ export function PostsClient({
     router.push(`?${params.toString()}`);
   }
 
+  function setBasis(next: 'earned' | 'posted') {
+    const params = new URLSearchParams(searchParams.toString());
+    if (next === 'posted') params.set('basis', 'posted');
+    else params.delete('basis');
+    router.push(`?${params.toString()}`);
+  }
+
   function setBrand(slug: string) {
     const params = new URLSearchParams(searchParams.toString());
     if (slug === 'all') params.delete('brand');
@@ -351,7 +363,9 @@ export function PostsClient({
       <PageHeader
         eyebrow="Content"
         title="Posts"
-        subtitle="Every video in the window. Click the cover to watch it here; click the row to review it."
+        subtitle={dateBasis === 'earned'
+          ? 'Every video that earned in the window, whenever it was posted. Click the cover to watch it here; click the row to review it.'
+          : 'Every video posted in the window. Click the cover to watch it here; click the row to review it.'}
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <div className="w-44">
@@ -375,6 +389,16 @@ export function PostsClient({
                 { value: 'managed', label: 'Managed' },
               ]}
             />
+            <SegmentedControl
+              ariaLabel="Date basis"
+              size="sm"
+              value={dateBasis}
+              onValueChange={(v) => setBasis(v as 'earned' | 'posted')}
+              options={[
+                { value: 'earned', label: 'Earned in range' },
+                { value: 'posted', label: 'Posted in range' },
+              ]}
+            />
             <DateRangePicker />
           </div>
         }
@@ -388,8 +412,10 @@ export function PostsClient({
           "—" means no engagement data, never zero. */}
       <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
         <StatCard className="col-span-2" hero label="Total GMV" value={data ? formatCurrency(data.totals.totalGmv) : '—'}
-          info="GMV earned by these videos during the selected period, attributed to the video. Excludes live-stream and product-showcase sales, which aren't tied to a specific video, so this runs below the creator-level total." />
-        <StatCard label="Posts"        value={data ? formatNumber(data.totals.postCount)    : '—'} />
+          info={dateBasis === 'earned'
+            ? 'All video-attributed GMV earned during the selected period, whenever the videos were posted. Excludes live-stream and product-showcase sales, which aren\'t tied to a specific video, so this runs below the creator-level total.'
+            : 'GMV earned during the selected period by videos POSTED in the period. Evergreen videos posted earlier are excluded here; switch to Earned in range to include them.'} />
+        <StatCard label={dateBasis === 'earned' ? 'Videos earning' : 'Posts'} value={data ? formatNumber(data.totals.postCount) : '—'} />
         <StatCard label="Total Views"  value={data ? fmtN(data.totals.totalViews)   : '—'}
           subValue={viewsCoverage}
           info="Views accrued during the selected period, from the daily Video Data uploads. Posts whose uploads predate engagement tracking show no view data and are excluded." />

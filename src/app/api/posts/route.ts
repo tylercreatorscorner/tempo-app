@@ -16,7 +16,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
-import { getPosts, type ReviewFilter } from '@/lib/data/posts';
+import { getPosts, type ReviewFilter, type DateBasis } from '@/lib/data/posts';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
@@ -39,6 +39,9 @@ export async function GET(request: NextRequest) {
   const end     = searchParams.get('end');
   const managed = searchParams.get('managed');
   const reviewParam = searchParams.get('review');
+  // 'earned' (default): all GMV during the range, any post date.
+  // 'posted': only videos posted during the range (the review lens).
+  const dateBasis: DateBasis = searchParams.get('basis') === 'posted' ? 'posted' : 'earned';
 
   if (!start || !end) {
     return NextResponse.json({ error: 'Missing start/end' }, { status: 400 });
@@ -56,6 +59,7 @@ export async function GET(request: NextRequest) {
       managedOnly: managed !== 'false',
       currentUserId: scope.userId,
       reviewFilter,
+      dateBasis,
       allowedBrandSlugs: scopedSlugs,
     });
     return NextResponse.json(result);
