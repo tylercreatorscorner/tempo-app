@@ -225,41 +225,6 @@ async function getDiscordMap(supabase: any, brandFilter: string): Promise<Map<st
   return map;
 }
 
-// ─── Paginated Fetch Helper ─────────────────────────────────────
-
-async function paginatedFetch(
-  supabase: any,
-  table: string,
-  columns: string,
-  filters: { column: string; op: string; value: any }[]
-): Promise<any[]> {
-  const PAGE_SIZE = 1000;
-  const allData: any[] = [];
-  let from = 0;
-
-  while (true) {
-    let query = supabase.from(table).select(columns).range(from, from + PAGE_SIZE - 1);
-    for (const f of filters) {
-      switch (f.op) {
-        case 'eq': query = query.eq(f.column, f.value); break;
-        case 'in': query = query.in(f.column, f.value); break;
-        case 'gte': query = query.gte(f.column, f.value); break;
-        case 'lte': query = query.lte(f.column, f.value); break;
-        case 'lt': query = query.lt(f.column, f.value); break;
-        case 'gt': query = query.gt(f.column, f.value); break;
-      }
-    }
-    const { data, error } = await query;
-    if (error) throw error;
-    if (!data || data.length === 0) break;
-    allData.push(...data);
-    if (data.length < PAGE_SIZE) break;
-    from += PAGE_SIZE;
-  }
-
-  return allData;
-}
-
 // ─── What's Cooking Data ────────────────────────────────────────
 
 export async function getWhatsCookingData(brandFilter: string, period: '7d' | '30d'): Promise<WhatsCookingData> {
@@ -568,36 +533,19 @@ export async function getDailyDropData(brandFilter: string): Promise<DailyDropDa
   const videoYesterdayStr = formatDate(videoYesterday);
   const productYesterdayStr = formatDate(productYesterday);
 
-  // All queries below run in parallel — sequential awaits were timing out on JiYu
-  // (140K+ rows/month) on the Hobby-plan 10s function ceiling.
-
-  // Yesterday's creator stats - paginated
-  const ycFilters: { column: string; op: string; value: any }[] = [
-    { column: 'report_date', op: 'eq', value: yesterdayStr },
-    { column: 'gmv', op: 'gt', value: 0 },
-  ];
-  if (brandUuids) ycFilters.push({ column: 'brand_id', op: 'in', value: brandUuids });
-
-  // Day-before creator stats - paginated. Same gmv > 0 filter as yesterday's
-  // pull: the day-before rows are only summed, and zero-GMV rows add nothing
-  // but page round-trips.
-  const dbFilters: { column: string; op: string; value: any }[] = [
-    { column: 'report_date', op: 'eq', value: dayBeforeStr },
-    { column: 'gmv', op: 'gt', value: 0 },
-  ];
-  if (brandUuids) dbFilters.push({ column: 'brand_id', op: 'in', value: brandUuids });
+  // All queries below run in parallel and are ALL aggregate RPCs. The old
+  // paginated table pulls ran through per-row RLS policy evaluation - one
+  // page of the yesterday-creators read measured 5,128ms under the
+  // authenticated role (the report_date index visits ~40k rows and evaluates
+  // get_tenant_id()/get_user_role()/is_platform_admin() on every one) - and
+  // three of them in parallel blew the authenticator's 8s statement_timeout.
+  // get_daily_drop_agg (mig 093) returns yesterday total + top-5 creators +
+  // day-before total + top-5 products in one 93ms call.
 
   // MTD GMV is a single SQL aggregate (dcs_gmv_sum RPC), NOT a paginate-every-row
   // sum. For a multi-store umbrella (LeeFar ~47k MTD rows) or the all-brands drop
   // (~259k) the old paginated sum was dozens/hundreds of deep-offset round-trips
   // and timed the function out (504). brandUuids null = all brands.
-
-  // Product section uses the product table's anchor.
-  const ypFilters: { column: string; op: string; value: any }[] = [
-    { column: 'report_date', op: 'eq', value: productYesterdayStr },
-    { column: 'gmv', op: 'gt', value: 0 },
-  ];
-  if (brandUuids) ypFilters.push({ column: 'brand_id', op: 'in', value: brandUuids });
 
   // Video sections (Top 5 Videos + One to Watch) come from ONE RPC
   // (get_video_day_leaders, mig 092) over video_performance — the table whose
@@ -616,15 +564,26 @@ export async function getDailyDropData(brandFilter: string): Promise<DailyDropDa
     p_min_gmv: 25,
   });
 
-  const [yesterdayCreators, dayBeforeCreators, mtdSumRes, vpRes, yesterdayProducts, goalInfo, discordMap] = await Promise.all([
-    paginatedFetch(supabase, 'daily_creator_stats', 'tiktok_username, gmv', ycFilters),
-    paginatedFetch(supabase, 'daily_creator_stats', 'gmv', dbFilters),
+  const [aggRes, mtdSumRes, vpRes, goalInfo, discordMap] = await Promise.all([
+    supabase.rpc('get_daily_drop_agg', {
+      p_brand_ids: brandUuids,
+      p_yesterday: yesterdayStr,
+      p_day_before: dayBeforeStr,
+      p_product_day: productYesterdayStr,
+    }),
     supabase.rpc('dcs_gmv_sum', { p_brand_ids: brandUuids, p_start: monthStartStr, p_end: yesterdayStr }),
     vpQuery,
-    paginatedFetch(supabase, 'daily_video_product_stats', 'product_name, gmv', ypFilters),
     getMonthlyGoalInfo(supabase, brandFilter),
     getDiscordMap(supabase, brandFilter),
   ]);
+
+  if (aggRes.error) throw new Error(`[discord-posts] get_daily_drop_agg failed: ${aggRes.error.message}`);
+  const agg = (aggRes.data ?? {}) as {
+    yesterday_gmv?: number | string;
+    day_before_gmv?: number | string;
+    top_creators?: Array<{ handle: string; gmv: number | string }>;
+    top_products?: Array<{ name: string; gmv: number | string }>;
+  };
 
   if (vpRes.error) throw new Error(`[discord-posts] get_video_day_leaders failed: ${vpRes.error.message}`);
   interface LeaderRow {
@@ -659,17 +618,12 @@ export async function getDailyDropData(brandFilter: string): Promise<DailyDropDa
     }))
     .sort((a, b) => b.gmv - a.gmv)[0] ?? null;
 
-  // Aggregate products from daily_video_product_stats (rows are per
-  // video×product×day, so sum gmv by product_name).
-  const productMap = new Map<string, number>();
-  (yesterdayProducts || []).forEach((p: any) => {
-    const name = p.product_name || 'Unknown Product';
-    productMap.set(name, (productMap.get(name) || 0) + (parseFloat(p.gmv) || 0));
-  });
-  const topProducts = Array.from(productMap.entries())
-    .map(([name, gmv]) => ({ name, gmv }))
-    .sort((a, b) => b.gmv - a.gmv)
-    .slice(0, 5);
+  // Products come pre-aggregated from the RPC (summed per product_name over
+  // the product-anchor day, top 5).
+  const topProducts = (agg.top_products ?? []).map(p => ({
+    name: p.name || 'Unknown Product',
+    gmv: parseFloat(String(p.gmv)) || 0,
+  }));
 
   let oneToWatch: DailyDropData['oneToWatch'] = null;
   if (otwBest) {
@@ -686,19 +640,14 @@ export async function getDailyDropData(brandFilter: string): Promise<DailyDropDa
     };
   }
 
-  // Aggregate creators
-  const creatorAgg = new Map<string, number>();
-  (yesterdayCreators || []).forEach((c: any) => {
-    const handle = c.tiktok_username;
-    creatorAgg.set(handle, (creatorAgg.get(handle) || 0) + (parseFloat(c.gmv) || 0));
-  });
-  const topCreators = Array.from(creatorAgg.entries())
-    .map(([tiktok_username, gmv]) => ({ tiktok_username, gmv }))
-    .sort((a, b) => b.gmv - a.gmv)
-    .slice(0, 5);
+  // Creators come pre-aggregated from the RPC (summed per handle, top 5).
+  const topCreators = (agg.top_creators ?? []).map(c => ({
+    tiktok_username: c.handle,
+    gmv: parseFloat(String(c.gmv)) || 0,
+  }));
 
-  const yesterdayGmv = (yesterdayCreators || []).reduce((s: number, c: any) => s + (parseFloat(c.gmv) || 0), 0);
-  const dayBeforeGmv = (dayBeforeCreators || []).reduce((s: number, c: any) => s + (parseFloat(c.gmv) || 0), 0);
+  const yesterdayGmv = parseFloat(String(agg.yesterday_gmv ?? 0)) || 0;
+  const dayBeforeGmv = parseFloat(String(agg.day_before_gmv ?? 0)) || 0;
 
   // Silent-zero rule: a failed dcs_gmv_sum must NOT post $0 MTD + bogus pacing
   // to Discord. null → the formatter omits the goal/pacing block entirely; the
