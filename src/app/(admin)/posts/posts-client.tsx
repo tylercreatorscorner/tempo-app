@@ -1,34 +1,40 @@
 'use client';
 
 /**
- * Posts page — every video posted by a managed creator with engagement + revenue.
+ * Posts page — every video in the window, one dense sortable table.
  *
- * Top-down: title + managed/all control + DateRangePicker → brand pills →
- * review-queue pills → KPI strip → card grid (default) or table.
+ * Rebuilt 2026-07-23 to the approved mockup:
+ *   - The TABLE is the page. No cards mode, no view toggle, nothing between
+ *     the KPI strip and the rows but a single toolbar.
+ *   - Brand scoping is a DROPDOWN in the header (synced with the sidebar
+ *     switcher via the shared ?brand= param) — the old pill wall is gone.
+ *   - Default scope is ALL creators; Managed is the opt-in toggle.
+ *   - Each row carries a small lazy TikTok cover. Clicking the cover opens
+ *     the QUICK-WATCH modal: the video plays inside Tempo (official embed)
+ *     and "Next post" steps down the current filtered list. Clicking
+ *     anywhere else on the row opens the full review page.
+ *   - The review queue (All / Unreviewed / Mine / Flagged) lives in the
+ *     toolbar as filter chips with live counts — a pure client-side
+ *     predicate over fields already on every row, zero refetches.
  *
- * Engagement (views/likes/comments/shares) is WINDOWED from video_performance
- * (migrations 088/090) and NULLABLE — null means "no engagement data in this
- * window" and renders as an em dash placeholder, never a fake 0. Money is
- * windowed per migration 079. Cards resolve real TikTok covers lazily via
- * oEmbed (useTikTokThumbnail + useInView).
- *
- * The review-queue filter is a pure client-side predicate: every row already
- * carries review_count / flagged / has_my_review, so pill toggles never
- * refetch (the old behavior cost ~5 DB round-trips per toggle to return a
- * subset of rows the client was already holding).
+ * Engagement (views/likes/comments/shares) is WINDOWED from
+ * video_performance (migrations 088/090) and NULLABLE — null means "no
+ * engagement data in this window" and renders as an em dash placeholder,
+ * never a fake 0. Money is windowed per migration 079.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Download, Eye, Heart, Loader2, MessageCircle, Search, ExternalLink,
-  AlertTriangle, MessageSquare, Star, LayoutGrid, List,
+  Download, Eye, Loader2, Search, ExternalLink,
+  AlertTriangle, MessageSquare, Star, Play,
 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useBrandMeta } from '@/hooks/use-brand-meta';
+import { useInView } from '@/hooks/use-in-view';
+import { useTikTokThumbnail } from '@/hooks/use-tiktok-thumbnail';
 import { DateRangePicker } from '@/components/dashboard/date-range-picker';
-import { BrandFilter } from '@/components/creators/brand-filter';
 import { StatCard } from '@/components/dashboard/stat-card';
-import { PostCard } from '@/components/posts/post-card';
+import { QuickWatchModal } from '@/components/posts/quick-watch-modal';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
 import { useDelayedFlag } from '@/hooks/use-delayed-flag';
 import { TableLoadBar } from '@/components/ui/table-load-bar';
@@ -88,23 +94,17 @@ interface PostsResponse {
   endDate: string;
 }
 
-// How many cards/rows to mount at once. The full result set (which can be
+// How many rows to mount at once. The full result set (which can be
 // thousands of posts) stays in memory for instant sort/search; we just grow
 // the rendered slice as the user scrolls so we never mount thousands of DOM
 // nodes up front.
 const RENDER_CHUNK = 300;
 
-type SortKey = 'gmv' | 'views' | 'likes' | 'comments' | 'shares' | 'engagement_rate' | 'post_date' | 'creator_handle';
+type SortKey = 'gmv' | 'views' | 'likes' | 'comments' | 'shares' | 'engagement_rate' | 'post_date';
 type SortDir = 'asc' | 'desc';
 type ReviewFilter = 'all' | 'unreviewed' | 'reviewed-by-me' | 'flagged';
-type ViewMode = 'cards' | 'table';
 
-const VIEW_MODES: ViewMode[] = ['cards', 'table'];
-function isViewMode(v: string | null): v is ViewMode {
-  return v !== null && (VIEW_MODES as string[]).includes(v);
-}
-
-const SORT_KEYS: SortKey[] = ['gmv', 'views', 'likes', 'comments', 'shares', 'engagement_rate', 'post_date', 'creator_handle'];
+const SORT_KEYS: SortKey[] = ['gmv', 'views', 'likes', 'comments', 'shares', 'engagement_rate', 'post_date'];
 function isSortKey(v: string | null): v is SortKey {
   return v !== null && (SORT_KEYS as string[]).includes(v);
 }
@@ -127,6 +127,7 @@ export function PostsClient({
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const brandMeta = useBrandMeta();
 
   const [data, setData] = useState<PostsResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -144,22 +145,17 @@ export function PostsClient({
     const fromUrl = searchParams.get('review');
     return isReviewFilter(fromUrl) ? fromUrl : 'all';
   });
-  // View mode defaults to 'cards' — the Posts page is primarily a creative-
-  // review surface, and the table is the analytical fallback. Explicit
-  // `?view=table` opts into the dense view. The choice is persisted in
-  // the URL so refresh / share preserves it.
-  const [viewMode, setViewMode] = useState<ViewMode>(() => {
-    const fromUrl = searchParams.get('view');
-    return isViewMode(fromUrl) ? fromUrl : 'cards';
-  });
+  // Quick-watch: index into the CURRENT filtered + sorted list, so "Next
+  // post" steps down exactly what the user is looking at.
+  const [watchIndex, setWatchIndex] = useState<number | null>(null);
   // How many of the matching posts are currently mounted. Grows as the user
   // scrolls (see the sentinel below) or clicks "Show more".
   const [renderLimit, setRenderLimit] = useState(RENDER_CHUNK);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
-  // Sync sort/search/review filter/view to URL (without re-triggering data
-  // fetch unnecessarily) — debounced for search so we're not pushing a
-  // history entry per keystroke.
+  // Sync sort/search/review filter to URL (without re-triggering data fetch
+  // unnecessarily) — debounced for search so we're not pushing a history
+  // entry per keystroke.
   useEffect(() => {
     const t = setTimeout(() => {
       const params = new URLSearchParams(searchParams.toString());
@@ -167,7 +163,6 @@ export function PostsClient({
       if (sortDir === 'desc') params.delete('dir'); else params.set('dir', sortDir);
       if (!search) params.delete('q'); else params.set('q', search);
       if (reviewFilter === 'all') params.delete('review'); else params.set('review', reviewFilter);
-      if (viewMode === 'cards') params.delete('view'); else params.set('view', viewMode);
       const next = params.toString();
       const current = searchParams.toString();
       if (next !== current) {
@@ -175,15 +170,24 @@ export function PostsClient({
       }
     }, 250);
     return () => clearTimeout(t);
-  }, [sortKey, sortDir, search, reviewFilter, viewMode, router, searchParams]);
+  }, [sortKey, sortDir, search, reviewFilter, router, searchParams]);
 
   // Fetch on mount + whenever the DATA scope changes (brand/date/managed).
   // The review filter is deliberately NOT here — it is a pure predicate over
   // fields already on every row, applied client-side below.
-  useEffect(() => {
-    let cancelled = false;
+  //
+  // loading/error reset happens DURING RENDER when the fetch key changes (the
+  // sanctioned derive-state-from-props pattern) — not synchronously inside the
+  // effect, which the react-hooks lint forbids for cascading-render reasons.
+  const fetchKey = `${selectedBrand ?? ''}|${startDate}|${endDate}|${managedOnly}`;
+  const [prevFetchKey, setPrevFetchKey] = useState<string | null>(null);
+  if (fetchKey !== prevFetchKey) {
+    setPrevFetchKey(fetchKey);
     setLoading(true);
     setError(null);
+  }
+  useEffect(() => {
+    let cancelled = false;
     const params = new URLSearchParams();
     if (selectedBrand) params.set('brand', selectedBrand);
     params.set('start', startDate);
@@ -209,11 +213,6 @@ export function PostsClient({
     return () => { cancelled = true; };
   }, [selectedBrand, startDate, endDate, managedOnly]);
 
-  const brandsWithData = useMemo(() => {
-    if (!data) return [] as string[];
-    return Array.from(new Set(data.posts.map(p => p.brand_slug)));
-  }, [data]);
-
   const visiblePosts = useMemo(() => {
     if (!data) return [];
     let list = data.posts;
@@ -230,9 +229,9 @@ export function PostsClient({
     }
     const dir = sortDir === 'asc' ? 1 : -1;
     list = [...list].sort((a, b) => {
-      if (sortKey === 'creator_handle' || sortKey === 'post_date') {
-        const av = String(a[sortKey] ?? '').toLowerCase();
-        const bv = String(b[sortKey] ?? '').toLowerCase();
+      if (sortKey === 'post_date') {
+        const av = String(a.post_date ?? '');
+        const bv = String(b.post_date ?? '');
         return av < bv ? -dir : av > bv ? dir : 0;
       }
       // Unknown (null) engagement sorts below a real 0 in either direction.
@@ -243,9 +242,16 @@ export function PostsClient({
     return list;
   }, [data, search, sortKey, sortDir, reviewFilter]);
 
-  // Reset the rendered window whenever the matching set changes, so we don't
-  // stay scrolled deep into a stale slice after a new search/sort/filter.
-  useEffect(() => { setRenderLimit(RENDER_CHUNK); }, [search, sortKey, sortDir, reviewFilter, data]);
+  // Reset the rendered window + close quick-watch whenever the matching set
+  // changes, so neither points into a stale slice. Render-time adjust (not an
+  // effect) per the same lint rule as the fetch-key reset above.
+  const listKey = `${search}|${sortKey}|${sortDir}|${reviewFilter}|${data?.startDate ?? ''}|${data?.endDate ?? ''}|${data?.posts.length ?? -1}`;
+  const [prevListKey, setPrevListKey] = useState(listKey);
+  if (listKey !== prevListKey) {
+    setPrevListKey(listKey);
+    setRenderLimit(RENDER_CHUNK);
+    setWatchIndex(null);
+  }
 
   const renderedPosts = useMemo(
     () => visiblePosts.slice(0, renderLimit),
@@ -276,14 +282,21 @@ export function PostsClient({
       setSortDir(d => d === 'asc' ? 'desc' : 'asc');
     } else {
       setSortKey(key);
-      setSortDir(key === 'creator_handle' ? 'asc' : 'desc');
+      setSortDir('desc');
     }
   }
 
-  function setManaged(next: 'managed' | 'all') {
+  function setManaged(next: 'all' | 'managed') {
     const params = new URLSearchParams(searchParams.toString());
-    if (next === 'all') params.set('managed', 'false');
+    if (next === 'managed') params.set('managed', 'true');
     else params.delete('managed');
+    router.push(`?${params.toString()}`);
+  }
+
+  function setBrand(slug: string) {
+    const params = new URLSearchParams(searchParams.toString());
+    if (slug === 'all') params.delete('brand');
+    else params.set('brand', slug);
     router.push(`?${params.toString()}`);
   }
 
@@ -316,17 +329,21 @@ export function PostsClient({
     URL.revokeObjectURL(url);
   }
 
+  function reviewHref(p: PostRow): string {
+    const qs = new URLSearchParams({ brand: p.brand_slug, start: startDate, end: endDate });
+    return `/posts/${encodeURIComponent(p.video_id)}?${qs.toString()}`;
+  }
+
   function handleRowClick(p: PostRow) {
     if (!p.video_id) return;
-    // Carry the window through so the review page can tie its numbers to the
-    // row that was clicked.
-    const qs = new URLSearchParams({ brand: p.brand_slug, start: startDate, end: endDate });
-    router.push(`/posts/${encodeURIComponent(p.video_id)}?${qs.toString()}`);
+    router.push(reviewHref(p));
   }
 
   const viewsCoverage = data && data.totals.totalViews !== null && data.totals.viewsKnown < data.totals.postCount
     ? `across ${formatNumber(data.totals.viewsKnown)} of ${formatNumber(data.totals.postCount)} posts`
     : undefined;
+
+  const watching = watchIndex !== null ? visiblePosts[watchIndex] ?? null : null;
 
   return (
     <div className="space-y-6">
@@ -334,35 +351,33 @@ export function PostsClient({
       <PageHeader
         eyebrow="Content"
         title="Posts"
-        subtitle="Every video in the window. Click a post to open its review page: rate it, tag it, leave notes."
+        subtitle="Every video in the window. Click the cover to watch it here; click the row to review it."
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="w-44">
+              <Select
+                value={selectedBrand ?? 'all'}
+                onChange={(e) => setBrand(e.target.value)}
+                aria-label="Brand filter"
+                className="py-1.5 text-xs"
+              >
+                <option value="all">All Brands</option>
+                {brands.map(b => <option key={b} value={b}>{brandMeta.label(b)}</option>)}
+              </Select>
+            </div>
             <SegmentedControl
               ariaLabel="Creator scope"
               size="sm"
               value={managedOnly ? 'managed' : 'all'}
-              onValueChange={(v) => setManaged(v as 'managed' | 'all')}
+              onValueChange={(v) => setManaged(v as 'all' | 'managed')}
               options={[
-                { value: 'managed', label: 'Managed' },
                 { value: 'all', label: 'All creators' },
+                { value: 'managed', label: 'Managed' },
               ]}
             />
             <DateRangePicker />
           </div>
         }
-      />
-
-      {/* Brand pills */}
-      <BrandFilter brands={brands} brandsWithData={brandsWithData} selectedBrand={selectedBrand} collapseNoData />
-
-      {/* Review queue filter — pills with live counts so you can see at a
-          glance how much work is queued. Counts come from `totals` and
-          reflect the unfiltered scope, so flipping pills doesn't make the
-          numbers shift around under your cursor. */}
-      <ReviewFilterPills
-        active={reviewFilter}
-        onChange={setReviewFilter}
-        totals={data?.totals}
       />
 
       {error && (
@@ -395,28 +410,10 @@ export function PostsClient({
         </div>
       )}
 
-      {/* Header bar — shared between card + table views. Title + count on
-          the left, view toggle / sort dropdown / search / CSV on the right. */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-1">
-        <div className="flex items-center gap-3">
-          <h2 className="text-sm font-bold text-[var(--foreground)]">All posts</h2>
-          <span className="text-xs text-muted-foreground">
-            {hasMore
-              ? `Showing ${renderedPosts.length.toLocaleString()} of ${visiblePosts.length.toLocaleString()}`
-              : `${visiblePosts.length.toLocaleString()} ${visiblePosts.length === 1 ? 'post' : 'posts'}`}
-          </span>
-        </div>
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          {/* View toggle — small segmented control. Cards is the default; the
-              icon ordering (grid → list) follows YouTube Studio / TikTok
-              Studio convention. */}
-          <ViewToggle value={viewMode} onChange={setViewMode} />
-          {/* In card view we can't sort via table headers, so we surface a
-              compact sort dropdown. In table view this stays mounted but
-              hidden — the header arrows handle it there. */}
-          {viewMode === 'cards' && (
-            <SortDropdown sortKey={sortKey} sortDir={sortDir} onChange={(k, d) => { setSortKey(k); setSortDir(d); }} />
-          )}
+      {/* Toolbar: review queue chips + search + CSV, one row. */}
+      <div className="flex flex-col gap-3 pt-1 sm:flex-row sm:items-center sm:justify-between">
+        <ReviewFilterPills active={reviewFilter} onChange={setReviewFilter} totals={data?.totals} />
+        <div className="flex w-full items-center gap-2 sm:w-auto">
           <div className="relative flex-1 sm:flex-initial">
             <Search className="h-3.5 w-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground z-10" />
             <Input
@@ -439,60 +436,55 @@ export function PostsClient({
         </div>
       </div>
 
-      {/* Body — cards (default) or table (analytical fallback) */}
-      {viewMode === 'cards' ? (
-        loading && !data ? (
-          <CardLoadingGrid />
-        ) : visiblePosts.length === 0 ? (
-          <PostsEmptyState reviewFilter={reviewFilter} />
-        ) : (
-          <div className="relative">
-            <TableLoadBar active={showBar} />
-            <div className={cn(
-              'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4',
+      {/* The table IS the page. */}
+      <TableCard className="relative">
+        <TableLoadBar active={showBar} />
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left">
+                <Th>Post</Th>
+                <SortableTh label="Posted"       sortKey="post_date"      current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
+                <SortableTh label="Views"        sortKey="views"          current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
+                <SortableTh label="Likes"        sortKey="likes"          current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
+                <SortableTh label="Comments"     sortKey="comments"       current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
+                <SortableTh label="Shares"       sortKey="shares"         current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
+                <SortableTh label="Engagement"   sortKey="engagement_rate" current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
+                <SortableTh label="GMV"          sortKey="gmv"            current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
+                <Th align="right">Reviews</Th>
+              </tr>
+            </thead>
+            <tbody className={cn(
               showBar && visiblePosts.length > 0 ? 'opacity-60 transition-opacity duration-200' : 'opacity-100',
             )}>
-              {renderedPosts.map(p => <PostCard key={`${p.video_id}|${p.brand_slug}`} post={p} onClick={handleRowClick} />)}
-            </div>
-          </div>
-        )
-      ) : (
-        <TableCard className="relative">
-          <TableLoadBar active={showBar} />
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left">
-                  <SortableTh label="Creator"      sortKey="creator_handle" current={sortKey} dir={sortDir} onClick={changeSort} />
-                  <Th>Brand</Th>
-                  <Th>Post</Th>
-                  <SortableTh label="Posted"       sortKey="post_date"      current={sortKey} dir={sortDir} onClick={changeSort} />
-                  <SortableTh label="Views"        sortKey="views"          current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
-                  <SortableTh label="Likes"        sortKey="likes"          current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
-                  <SortableTh label="Comments"     sortKey="comments"       current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
-                  <SortableTh label="Shares"       sortKey="shares"         current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
-                  <SortableTh label="Engagement"   sortKey="engagement_rate" current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
-                  <SortableTh label="GMV"          sortKey="gmv"            current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
-                  <Th>Reviews</Th>
-                </tr>
-              </thead>
-              <tbody className={cn(
-                showBar && visiblePosts.length > 0 ? 'opacity-60 transition-opacity duration-200' : 'opacity-100',
-              )}>
-                {loading && !data ? (
-                  <tr><td colSpan={11} className="text-center text-muted-foreground py-12 text-sm">
-                    <Loader2 className="h-4 w-4 animate-spin inline mr-2" />Loading posts...
-                  </td></tr>
-                ) : visiblePosts.length === 0 ? (
-                  <tr><td colSpan={11} className="py-0"><PostsEmptyState reviewFilter={reviewFilter} /></td></tr>
-                ) : (
-                  renderedPosts.map(p => <PostRowView key={`${p.video_id}|${p.brand_slug}`} post={p} onClick={handleRowClick} />)
-                )}
-              </tbody>
-            </table>
-          </div>
-        </TableCard>
-      )}
+              {loading && !data ? (
+                <tr><td colSpan={9} className="text-center text-muted-foreground py-12 text-sm">
+                  <Loader2 className="h-4 w-4 animate-spin inline mr-2" />Loading posts...
+                </td></tr>
+              ) : visiblePosts.length === 0 ? (
+                <tr><td colSpan={9} className="py-0"><PostsEmptyState reviewFilter={reviewFilter} /></td></tr>
+              ) : (
+                renderedPosts.map((p, i) => (
+                  <PostRowView
+                    key={`${p.video_id}|${p.brand_slug}`}
+                    post={p}
+                    onClick={handleRowClick}
+                    onWatch={() => setWatchIndex(i)}
+                  />
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+        <div className="flex items-center justify-between border-t border-border px-4 py-2.5 text-xs text-muted-foreground">
+          <span>
+            {hasMore
+              ? `Showing ${renderedPosts.length.toLocaleString()} of ${visiblePosts.length.toLocaleString()}. Scroll to load more.`
+              : `${visiblePosts.length.toLocaleString()} ${visiblePosts.length === 1 ? 'post' : 'posts'}`}
+          </span>
+          <span>Sorted by {sortKey === 'engagement_rate' ? 'engagement' : sortKey === 'post_date' ? 'post date' : sortKey}, earned in window</span>
+        </div>
+      </TableCard>
 
       {/* Infinite-scroll sentinel + explicit fallback. The sentinel grows the
           mounted slice as it nears the viewport; the button is there for
@@ -508,83 +500,18 @@ export function PostsClient({
           </Button>
         </div>
       )}
-    </div>
-  );
-}
 
-// ── View toggle (segmented control) ────────────────────────────────
-function ViewToggle({ value, onChange }: { value: ViewMode; onChange: (v: ViewMode) => void }) {
-  return (
-    <SegmentedControl
-      ariaLabel="View mode"
-      size="sm"
-      value={value}
-      onValueChange={onChange}
-      options={[
-        { value: 'cards', label: <LayoutGrid className="h-3.5 w-3.5" /> },
-        { value: 'table', label: <List className="h-3.5 w-3.5" /> },
-      ]}
-    />
-  );
-}
-
-// ── Sort dropdown (card view only) ─────────────────────────────────
-function SortDropdown({
-  sortKey, sortDir, onChange,
-}: {
-  sortKey: SortKey;
-  sortDir: SortDir;
-  onChange: (key: SortKey, dir: SortDir) => void;
-}) {
-  const SORT_LABELS: Record<SortKey, string> = {
-    gmv: 'GMV',
-    views: 'Views',
-    likes: 'Likes',
-    comments: 'Comments',
-    shares: 'Shares',
-    engagement_rate: 'Engagement',
-    post_date: 'Posted',
-    creator_handle: 'Creator',
-  };
-  return (
-    <div className="flex items-center gap-2">
-      <div className="w-36">
-        <Select
-          value={sortKey}
-          onChange={(e) => onChange(e.target.value as SortKey, sortDir)}
-          aria-label="Sort by"
-          className="py-1.5 text-xs"
-        >
-          {SORT_KEYS.map(k => <option key={k} value={k}>{SORT_LABELS[k]}</option>)}
-        </Select>
-      </div>
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => onChange(sortKey, sortDir === 'asc' ? 'desc' : 'asc')}
-        title={sortDir === 'asc' ? 'Ascending. Click for descending.' : 'Descending. Click for ascending.'}
-        aria-label="Toggle sort direction"
-      >
-        {sortDir === 'asc' ? '↑' : '↓'}
-      </Button>
-    </div>
-  );
-}
-
-// ── Card loading skeleton ──────────────────────────────────────────
-function CardLoadingGrid() {
-  return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-      {Array.from({ length: 8 }).map((_, i) => (
-        <div key={i} className="rounded-2xl bg-card border border-border shadow-[var(--pulse-elev-1)] overflow-hidden animate-pulse">
-          <div className="aspect-video bg-muted" />
-          <div className="p-4 space-y-3">
-            <div className="h-3 w-2/3 bg-muted rounded" />
-            <div className="h-3 w-full bg-muted rounded" />
-            <div className="h-3 w-1/2 bg-muted rounded" />
-          </div>
-        </div>
-      ))}
+      {/* Quick-watch: plays inside Tempo, steps down the current list. */}
+      {watching && (
+        <QuickWatchModal
+          post={watching}
+          reviewHref={reviewHref(watching)}
+          onClose={() => setWatchIndex(null)}
+          onNext={watchIndex !== null && watchIndex + 1 < visiblePosts.length
+            ? () => setWatchIndex(watchIndex + 1)
+            : null}
+        />
+      )}
     </div>
   );
 }
@@ -603,71 +530,99 @@ function PostsEmptyState({ reviewFilter }: { reviewFilter: ReviewFilter }) {
       icon={<Eye className="h-8 w-8" />}
       title={copy}
       description={reviewFilter === 'all'
-        ? 'Try a wider date range, different brand, or include unmanaged creators.'
+        ? 'Try a wider date range or a different brand.'
         : undefined}
     />
   );
 }
 
+// ── Row cover — lazy TikTok cover with a play affordance ───────────
+function RowCover({
+  videoUrl, brandColor, onWatch,
+}: {
+  videoUrl: string | null;
+  brandColor: string;
+  onWatch: () => void;
+}) {
+  const { ref, inView } = useInView<HTMLButtonElement>('300px');
+  const { thumbnail } = useTikTokThumbnail(inView ? videoUrl : null);
+  return (
+    <button
+      ref={ref}
+      onClick={(e) => { e.stopPropagation(); onWatch(); }}
+      title="Watch here"
+      aria-label="Watch video"
+      className="group/cover relative h-11 w-[34px] shrink-0 overflow-hidden rounded-md"
+      style={!thumbnail ? { background: `linear-gradient(135deg, ${brandColor}33 0%, ${brandColor}88 100%)` } : undefined}
+    >
+      {thumbnail && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={thumbnail} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
+      )}
+      <span className="absolute inset-0 flex items-center justify-center bg-black/25 opacity-0 transition-opacity group-hover/cover:opacity-100">
+        <Play className="h-3.5 w-3.5 text-white drop-shadow" />
+      </span>
+    </button>
+  );
+}
+
 // ── Row + cells ────────────────────────────────────────────────────
 
-function PostRowView({ post: p, onClick }: { post: PostRow; onClick: (p: PostRow) => void }) {
+function PostRowView({
+  post: p, onClick, onWatch,
+}: {
+  post: PostRow;
+  onClick: (p: PostRow) => void;
+  onWatch: () => void;
+}) {
   const brandMeta = useBrandMeta();
   const brandColor = brandMeta.color(p.brand_slug);
-  const titleClipped = p.video_title.length > 90 ? p.video_title.slice(0, 90) + '…' : p.video_title;
 
   return (
     <tr
       onClick={() => onClick(p)}
       className="border-t border-border hover:bg-muted/50 cursor-pointer transition-colors"
     >
-      <td className="px-4 py-3 align-top">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-[var(--foreground)]">@{p.creator_handle}</span>
-          {p.is_managed && <Badge variant="positive" size="sm">Managed</Badge>}
+      <td className="px-4 py-2.5 align-middle max-w-md">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <RowCover videoUrl={p.video_url} brandColor={brandColor} onWatch={onWatch} />
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="truncate text-[13px] font-medium text-[var(--foreground)]" title={p.video_title}>
+                {p.video_title}
+              </span>
+              {p.video_url && (
+                <a
+                  href={p.video_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={e => e.stopPropagation()}
+                  className="shrink-0 text-muted-foreground hover:text-[var(--primary)]"
+                  title="Open on TikTok"
+                >
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              )}
+            </div>
+            <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+              <span className="font-semibold">@{p.creator_handle}</span>
+              {p.is_managed && <Badge variant="positive" size="sm">Managed</Badge>}
+              <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: brandColor }} />
+              <span className="truncate">{p.brand_name}</span>
+            </div>
+          </div>
         </div>
       </td>
-      <td className="px-4 py-3 align-top">
-        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-          <span aria-hidden="true" className="h-2 w-2 rounded-full" style={{ backgroundColor: brandColor }} />
-          {p.brand_name}
-        </span>
-      </td>
-      <td className="px-4 py-3 align-top max-w-md">
-        <div className="flex items-start gap-2">
-          <span className="text-sm text-[var(--foreground)] line-clamp-2" title={p.video_title}>{titleClipped}</span>
-          {p.video_url && (
-            <a
-              href={p.video_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={e => e.stopPropagation()}
-              className="text-muted-foreground hover:text-[var(--primary)] mt-0.5 shrink-0"
-              title="Open on TikTok"
-            >
-              <ExternalLink className="h-3 w-3" />
-            </a>
-          )}
-        </div>
-      </td>
-      <td className="px-4 py-3 align-top text-xs text-muted-foreground whitespace-nowrap">
+      <td className="px-4 py-2.5 align-middle text-right text-xs text-muted-foreground whitespace-nowrap">
         {p.post_date
-          ? new Date(p.post_date + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit', timeZone: 'America/Chicago' })
+          ? new Date(p.post_date + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Chicago' })
           : '—'}
       </td>
-      <td className="px-4 py-3 align-top text-right tabular-nums text-foreground">{fmtN(p.views)}</td>
-      <td className="px-4 py-3 align-top text-right tabular-nums text-foreground">
-        <span className="inline-flex items-center gap-1 text-primary">
-          <Heart className="h-3 w-3" />{fmtN(p.likes)}
-        </span>
-      </td>
-      <td className="px-4 py-3 align-top text-right tabular-nums text-foreground">
-        <span className="inline-flex items-center gap-1">
-          <MessageCircle className="h-3 w-3 text-muted-foreground" />{fmtN(p.comments)}
-        </span>
-      </td>
-      <td className="px-4 py-3 align-top text-right tabular-nums text-foreground">{fmtN(p.shares)}</td>
-      <td className="px-4 py-3 align-top text-right tabular-nums text-foreground">
+      <td className="px-4 py-2.5 align-middle text-right tabular-nums text-foreground">{fmtN(p.views)}</td>
+      <td className="px-4 py-2.5 align-middle text-right tabular-nums text-foreground">{fmtN(p.likes)}</td>
+      <td className="px-4 py-2.5 align-middle text-right tabular-nums text-foreground">{fmtN(p.comments)}</td>
+      <td className="px-4 py-2.5 align-middle text-right tabular-nums text-foreground">{fmtN(p.shares)}</td>
+      <td className="px-4 py-2.5 align-middle text-right tabular-nums">
         <span className={cn(
           'font-medium',
           p.engagement_rate === null
@@ -681,8 +636,8 @@ function PostRowView({ post: p, onClick }: { post: PostRow; onClick: (p: PostRow
           {p.engagement_rate === null ? '—' : `${p.engagement_rate.toFixed(2)}%`}
         </span>
       </td>
-      <td className="px-4 py-3 align-top text-right tabular-nums font-bold text-[var(--primary)]">{formatCurrency(p.gmv)}</td>
-      <td className="px-4 py-3 align-top">
+      <td className="px-4 py-2.5 align-middle text-right tabular-nums font-bold text-[var(--primary)]">{formatCurrency(p.gmv)}</td>
+      <td className="px-4 py-2.5 align-middle text-right">
         <ReviewCell post={p} />
       </td>
     </tr>
@@ -694,13 +649,12 @@ function ReviewCell({ post: p }: { post: PostRow }) {
   if (p.review_count === 0) {
     return (
       <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-        <MessageSquare className="h-3 w-3" />
         none
       </span>
     );
   }
   return (
-    <div className="flex items-center gap-2 text-xs">
+    <div className="inline-flex items-center gap-2 text-xs">
       <span className="inline-flex items-center gap-1 text-foreground font-semibold tabular-nums">
         <MessageSquare className="h-3 w-3 text-muted-foreground" />
         {p.review_count}
@@ -737,15 +691,16 @@ function ReviewFilterPills({
   // switches between pills. Show "—" while data is in flight.
   const fmt = (n: number | undefined) => (n === undefined ? '—' : n.toLocaleString());
   const items: Array<{ key: ReviewFilter; label: string; count?: number; icon?: React.ReactNode }> = [
-    { key: 'all',             label: 'All',           count: totals?.postCount },
-    { key: 'unreviewed',      label: 'Unreviewed',    count: totals?.unreviewedCount, icon: <MessageSquare className="h-3 w-3" /> },
-    { key: 'reviewed-by-me',  label: 'Reviewed by me', count: totals?.reviewedByMeCount },
-    { key: 'flagged',         label: 'Flagged',       count: totals?.flaggedCount, icon: <AlertTriangle className="h-3 w-3" /> },
+    { key: 'all',             label: 'All',        count: totals?.postCount },
+    { key: 'unreviewed',      label: 'Unreviewed', count: totals?.unreviewedCount },
+    { key: 'reviewed-by-me',  label: 'Mine',       count: totals?.reviewedByMeCount },
+    { key: 'flagged',         label: 'Flagged',    count: totals?.flaggedCount, icon: <AlertTriangle className="h-3 w-3" /> },
   ];
   return (
     <div className="overflow-x-auto">
       <SegmentedControl
         ariaLabel="Review queue filter"
+        size="sm"
         value={active}
         onValueChange={onChange}
         options={items.map(it => ({
@@ -779,7 +734,7 @@ function SortableTh({
     <th
       onClick={() => onClick(sortKey)}
       className={cn(
-        'px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider cursor-pointer select-none transition-colors',
+        'px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider cursor-pointer select-none transition-colors whitespace-nowrap',
         align === 'right' ? 'text-right' : 'text-left',
         active ? 'text-[var(--primary)]' : 'text-muted-foreground hover:text-foreground',
       )}
@@ -789,6 +744,13 @@ function SortableTh({
   );
 }
 
-function Th({ children }: { children: React.ReactNode }) {
-  return <th className="px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{children}</th>;
+function Th({ children, align = 'left' }: { children: React.ReactNode; align?: 'left' | 'right' }) {
+  return (
+    <th className={cn(
+      'px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap',
+      align === 'right' ? 'text-right' : 'text-left',
+    )}>
+      {children}
+    </th>
+  );
 }

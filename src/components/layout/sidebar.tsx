@@ -2,7 +2,7 @@
 
 import Link, { useLinkStatus } from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
-import { LayoutDashboard, Users, PlaySquare, Wallet, Boxes, PanelLeftClose, PanelLeft, Loader2 } from 'lucide-react';
+import { LayoutDashboard, Users, PlaySquare, FileBarChart, Wallet, Boxes, PanelLeftClose, PanelLeft, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useDelayedFlag } from '@/hooks/use-delayed-flag';
 import { TempoLogo, TempoIcon } from '@/components/ui/tempo-logo';
@@ -33,7 +33,10 @@ interface Dest {
 const PRIMARY: Dest[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, match: ['/dashboard'] },
   { href: '/roster',    label: 'Creators',  icon: Users,           match: ['/roster', '/retention', '/affiliates', '/segments', '/creators'] },
-  { href: '/posts',     label: 'Content',   icon: PlaySquare,      match: ['/posts', '/reporting'] },
+  { href: '/posts',     label: 'Content',   icon: PlaySquare,      match: ['/posts'] },
+  // Reporting is a generator console, not a content view — owner's call
+  // (2026-07-23): its own destination, out of the Content tabs.
+  { href: '/reporting', label: 'Reporting', icon: FileBarChart,    match: ['/reporting'] },
   { href: '/earnings',  label: 'Finance',   icon: Wallet,          match: ['/earnings', '/ytd', '/invoicing', '/payments'], financeGated: true },
   { href: '/products/catalog', label: 'Products', icon: Boxes,     match: ['/products'], adminOnly: true },
 ];

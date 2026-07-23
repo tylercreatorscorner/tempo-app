@@ -5,8 +5,8 @@
  *
  * Layout:
  *   - Header: back link + brand/creator/date + title + Watch on TikTok
- *   - Left rail: the real TikTok cover (oEmbed via useTikTokThumbnail),
- *     portrait crop, click-through to the video
+ *   - Left rail: the IN-PLATFORM player (official TikTok embed) — the video
+ *     plays here, no round-trip to tiktok.com
  *   - Right: money strip (windowed tie-out + lifetime) + engagement strip
  *     (tracked days, nullable → "—") + daily GMV/views trend sparklines
  *   - YOUR review (form: rating 1-5, tags, notes) — upserts on save
@@ -20,11 +20,11 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import {
-  ArrowLeft, ExternalLink, Loader2, PlayCircle, Save, Star, Trash2,
+  ArrowLeft, ExternalLink, Loader2, Save, Star, Trash2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useBrandMeta } from '@/hooks/use-brand-meta';
-import { useTikTokThumbnail } from '@/hooks/use-tiktok-thumbnail';
+import { TikTokPlayer } from '@/components/posts/tiktok-player';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
 import { REVIEW_TAGS, reviewTagLabel } from '@/lib/data/review-tags';
 import { Badge } from '@/components/ui/badge';
@@ -231,9 +231,9 @@ export function PostReviewClient({
         </div>
       )}
 
-      {/* Cover + stats */}
-      <div className="grid gap-5 lg:grid-cols-[240px_1fr] items-start">
-        <CoverTile videoUrl={meta.video_url} title={meta.title} brandColor={brandColor} />
+      {/* Player + stats */}
+      <div className="grid gap-5 lg:grid-cols-[300px_1fr] items-start">
+        <PlayerRail videoId={meta.video_id} videoUrl={meta.video_url} />
 
         <div className="space-y-5 min-w-0">
           <Card className="p-5">
@@ -469,34 +469,27 @@ export function PostReviewClient({
 
 // ── Smaller pieces ─────────────────────────────────────────────────
 
-/** Portrait TikTok cover with click-through; brand-gradient fallback. */
-function CoverTile({ videoUrl, title, brandColor }: { videoUrl: string | null; title: string; brandColor: string }) {
-  const { thumbnail } = useTikTokThumbnail(videoUrl);
-  const inner = (
-    <div
-      className="group relative aspect-[9/16] w-full overflow-hidden rounded-2xl border border-border shadow-[var(--pulse-elev-1)]"
-      style={!thumbnail ? { background: `linear-gradient(135deg, ${brandColor}33 0%, ${brandColor}88 100%)` } : undefined}
-    >
-      {thumbnail ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={thumbnail} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.03]" />
-      ) : (
-        <div className="absolute inset-0 flex items-end p-4">
-          <div className="text-white/90 text-sm font-semibold line-clamp-4 drop-shadow">{title}</div>
-        </div>
-      )}
+/** The in-platform player rail: official TikTok embed, playable in place.
+ *  Deleted/private videos render TikTok's own unavailable state inside the
+ *  frame; the external link below stays as the escape hatch. */
+function PlayerRail({ videoId, videoUrl }: { videoId: string; videoUrl: string | null }) {
+  return (
+    <div className="space-y-2">
+      <div className="overflow-hidden rounded-2xl border border-border bg-black shadow-[var(--pulse-elev-1)]">
+        <TikTokPlayer videoId={videoId} className="block aspect-[9/16] w-full border-0" />
+      </div>
       {videoUrl && (
-        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/25">
-          <PlayCircle className="h-12 w-12 text-white drop-shadow" />
-        </div>
+        <a
+          href={videoUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <ExternalLink className="h-3 w-3" />
+          Open on TikTok
+        </a>
       )}
     </div>
-  );
-  if (!videoUrl) return inner;
-  return (
-    <a href={videoUrl} target="_blank" rel="noopener noreferrer" aria-label="Watch on TikTok" className="block">
-      {inner}
-    </a>
   );
 }
 

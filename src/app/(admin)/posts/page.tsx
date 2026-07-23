@@ -37,8 +37,9 @@ export default async function PostsPage({ searchParams }: Props) {
     .filter((slug: string) => !allowedBrands || allowedBrands.includes(slug));
 
   const selectedBrand = params.brand && brands.includes(params.brand) ? params.brand : null;
-  // Default: managed creators only (Tyler's spec). ?managed=false to include all.
-  const managedOnly = params.managed !== 'false';
+  // Default: ALL creators (owner's call, 2026-07-23 rebuild). ?managed=true
+  // opts into the managed-only scope.
+  const managedOnly = params.managed === 'true';
 
   return (
     <div className="space-y-6">
