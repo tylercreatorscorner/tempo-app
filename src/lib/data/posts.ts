@@ -1,28 +1,36 @@
 /**
  * Posts data fetcher.
  *
- * Powers the /posts page. The heavy lifting lives in two RPCs (migration
- * 043_posts_page_rpc):
+ * Powers the /posts page. The heavy lifting lives in three RPCs (migrations
+ * 043/076/079/090):
  *
- *   - get_managed_posts        → one row per UNIQUE video_id, deduped across
- *                                brands (a video_id is one video and must
- *                                never count under two shops), filtered to
- *                                active non-umbrella brands + the date window
- *                                + (by default) managed creators, ordered by
- *                                GMV desc and capped at p_limit.
- *   - get_managed_posts_totals → the KPI aggregate over the FULL window
- *                                (uncapped), so the headline numbers add up
- *                                no matter how many rows the table renders.
+ *   - get_managed_posts            → one row per UNIQUE video_id, deduped
+ *                                    across brands (a video_id is one video and
+ *                                    must never count under two shops),
+ *                                    filtered to active non-umbrella brands +
+ *                                    the date window + (by default) managed
+ *                                    creators, ordered by GMV desc, capped at
+ *                                    p_limit.
+ *   - get_managed_posts_totals     → the KPI aggregate over the FULL window
+ *                                    (uncapped), so the headline numbers add up
+ *                                    no matter how many rows the table renders.
+ *   - get_video_reviews_in_window  → review aggregates for videos posted in
+ *                                    the window (mig 090), replacing an
+ *                                    un-paginated all-time video_reviews read
+ *                                    that silently truncated at the PostgREST
+ *                                    1000-row cap.
  *
- * Why `videos` and not the v2 stats tables: engagement (impressions / likes /
- * comments) only exists on `videos`. daily_video_stats is empty and
- * daily_video_product_stats has GMV but no engagement.
+ * Money (gmv/orders/items) is WINDOWED from video_performance (mig 079).
+ * Engagement (views/likes/comments/shares) is ALSO windowed from
+ * video_performance since mig 090 — per-day values ingested by mig 088,
+ * aggregated MAX-per-day-then-SUM in SQL. NULL means "no engagement data in
+ * this window" (typically uploads that predate the engagement ingest) and is
+ * rendered as absent, never a fake 0.
  *
  * Filtered by post_date (when the video was originally posted) being in the
  * date range. Each unique video appears once.
  */
 import { createAdminClient } from '@/lib/supabase/server';
-import { engagementRate } from '@/lib/utils/format';
 
 export interface PostRow {
   video_id: string;
@@ -32,18 +40,19 @@ export interface PostRow {
   brand_slug: string;
   brand_name: string;
   post_date: string | null;       // YYYY-MM-DD
-  views: number;                  // = impressions
-  likes: number;
-  comments: number;
-  engagement_rate: number;        // % — (likes + comments) / views × 100
-  gmv: number;                    // affiliate_gmv (creator-attributed), falls back to total_gmv
+  views: number | null;           // windowed; null = no engagement data
+  likes: number | null;
+  comments: number | null;
+  shares: number | null;
+  engagement_rate: number | null; // % — (likes + comments) / views × 100; null when views unknown
+  gmv: number;                    // earned in the window (video_performance, mig 079)
   orders: number;
   items_sold: number;
   is_managed: boolean;
-  // Review aggregates (computed from video_reviews join)
+  // Review aggregates (get_video_reviews_in_window)
   review_count: number;
   avg_rating: number | null;      // null when no rated reviews exist
-  flagged: boolean;               // any review tagged "⚠️ off-brand" or "✏️ needs rework"
+  flagged: boolean;               // any review tagged off-brand / needs-rework
   has_my_review: boolean;         // current user has reviewed this post
 }
 
@@ -53,11 +62,13 @@ export interface PostsResult {
   posts: PostRow[];
   totals: {
     postCount: number;            // distinct videos in the window (full scope)
-    totalViews: number;
+    totalViews: number | null;    // null = no post in the window has engagement data
+    totalLikes: number | null;
+    totalComments: number | null;
+    totalShares: number | null;
+    viewsKnown: number;           // posts with engagement data — coverage for the KPI copy
     totalGmv: number;
-    totalLikes: number;
-    totalComments: number;
-    avgEngagement: number;
+    avgEngagement: number | null;
     // Review counts over the in-scope post set (before reviewFilter is applied)
     // so the filter pills can show how many posts each filter would surface.
     reviewedCount: number;
@@ -76,10 +87,6 @@ export interface PostsResult {
   endDate: string;
 }
 
-// Tags that surface a post in the "Flagged" review queue. Mirrors the
-// presets in post-review-client.tsx — keep them in sync if presets change.
-const FLAGGED_TAGS = new Set(['⚠️ off-brand', '✏️ needs rework']);
-
 // Safety bound on rows shipped to the browser in one request. Managed windows
 // (the default) are well under this even at 90 days; only pathological
 // all-creators ranges hit it, and when they do the KPI totals still reflect
@@ -97,16 +104,33 @@ interface RpcRow {
   views: number | string | null;
   likes: number | string | null;
   comments: number | string | null;
+  shares: number | string | null;
   gmv: number | string | null;
   orders: number | string | null;
   items_sold: number | string | null;
   is_managed: boolean | null;
 }
 
+interface ReviewRpcRow {
+  video_id: string;
+  brand: string;
+  review_count: number | string | null;
+  avg_rating: number | string | null;
+  flagged: boolean | null;
+  has_my_review: boolean | null;
+}
+
 function pNum(v: unknown): number {
   if (v === null || v === undefined || v === '') return 0;
   const n = typeof v === 'number' ? v : parseFloat(String(v));
   return Number.isNaN(n) ? 0 : n;
+}
+
+/** Like pNum but preserves null — engagement values must never fake a 0. */
+function pNumOrNull(v: unknown): number | null {
+  if (v === null || v === undefined || v === '') return null;
+  const n = typeof v === 'number' ? v : parseFloat(String(v));
+  return Number.isNaN(n) ? null : n;
 }
 
 interface GetPostsOpts {
@@ -123,6 +147,9 @@ interface GetPostsOpts {
    *   - 'unreviewed'      → posts with zero reviews
    *   - 'reviewed-by-me'  → posts the current user has reviewed
    *   - 'flagged'         → posts tagged with off-brand or needs-rework
+   *
+   * The client applies this same predicate locally on pill toggles (the fields
+   * ride on every row); the server param exists for deep-linked first loads.
    */
   reviewFilter?: ReviewFilter;
   /**
@@ -137,7 +164,9 @@ function emptyResult(startDate: string, endDate: string): PostsResult {
   return {
     posts: [],
     totals: {
-      postCount: 0, totalViews: 0, totalGmv: 0, totalLikes: 0, totalComments: 0, avgEngagement: 0,
+      postCount: 0,
+      totalViews: null, totalLikes: null, totalComments: null, totalShares: null,
+      viewsKnown: 0, totalGmv: 0, avgEngagement: null,
       reviewedCount: 0, unreviewedCount: 0, flaggedCount: 0, reviewedByMeCount: 0,
     },
     deliveredCount: 0,
@@ -169,9 +198,10 @@ export async function getPosts(opts: GetPostsOpts): Promise<PostsResult> {
   }
   if (brandSlugs.length === 0) return emptyResult(startDate, endDate);
 
-  // ── 2. Deduped rows (capped) + full-window totals, in parallel. The RPCs
-  //       do the managed-handle join and the dedupe-by-video_id in SQL.
-  const [rowsRes, totalsRes] = await Promise.all([
+  // ── 2. Deduped rows (capped) + full-window totals + review aggregates, in
+  //       parallel. All three are SQL-side (managed join, dedupe, review
+  //       grouping) — 3 round-trips regardless of window size.
+  const [rowsRes, totalsRes, reviewsRes] = await Promise.all([
     supabase.rpc('get_managed_posts', {
       p_brand_slugs: brandSlugs,
       p_start_date: startDate,
@@ -185,24 +215,41 @@ export async function getPosts(opts: GetPostsOpts): Promise<PostsResult> {
       p_end_date: endDate,
       p_managed_only: managedOnly,
     }),
+    supabase.rpc('get_video_reviews_in_window', {
+      p_brand_slugs: brandSlugs,
+      p_start_date: startDate,
+      p_end_date: endDate,
+      p_user_id: currentUserId ?? null,
+    }),
   ]);
   if (rowsRes.error) throw rowsRes.error;
   if (totalsRes.error) throw totalsRes.error;
+  // Reviews are load-bearing for the queue pills — a failed read must surface
+  // as an error, never as a fake "inbox zero".
+  if (reviewsRes.error) throw reviewsRes.error;
 
   const rpcRows = (rowsRes.data as RpcRow[] | null) ?? [];
   const tot = ((totalsRes.data as Array<Record<string, unknown>> | null) ?? [])[0] ?? {};
-  const postCount    = pNum(tot.post_count);
-  const totalViews   = pNum(tot.total_views);
-  const totalLikes   = pNum(tot.total_likes);
-  const totalComments = pNum(tot.total_comments);
-  const totalGmv     = pNum(tot.total_gmv);
+  const postCount     = pNum(tot.post_count);
+  const totalViews    = pNumOrNull(tot.total_views);
+  const totalLikes    = pNumOrNull(tot.total_likes);
+  const totalComments = pNumOrNull(tot.total_comments);
+  const totalShares   = pNumOrNull(tot.total_shares);
+  const viewsKnown    = pNum(tot.views_known);
+  const totalGmv      = pNum(tot.total_gmv);
 
-  // ── 3. Map RPC rows → PostRow. Engagement uses the shared util so the
-  //       per-row % and the headline avg are computed identically.
+  const reviewByKey = new Map<string, ReviewRpcRow>();
+  for (const r of (reviewsRes.data as ReviewRpcRow[] | null) ?? []) {
+    reviewByKey.set(`${r.video_id}|||${r.brand}`, r);
+  }
+
+  // ── 3. Map RPC rows → PostRow. Engagement stays nullable end-to-end.
   let posts: PostRow[] = rpcRows.map(r => {
-    const views = pNum(r.views);
-    const likes = pNum(r.likes);
-    const comments = pNum(r.comments);
+    const views = pNumOrNull(r.views);
+    const likes = pNumOrNull(r.likes);
+    const comments = pNumOrNull(r.comments);
+    const shares = pNumOrNull(r.shares);
+    const review = reviewByKey.get(`${r.video_id}|||${r.brand_slug}`);
     return {
       video_id: r.video_id,
       video_title: r.video_title ?? '(untitled)',
@@ -211,76 +258,23 @@ export async function getPosts(opts: GetPostsOpts): Promise<PostsResult> {
       brand_slug: r.brand_slug,
       brand_name: r.brand_name ?? r.brand_slug,
       post_date: r.post_date,
-      views, likes, comments,
-      engagement_rate: engagementRate(views, likes, comments),
+      views, likes, comments, shares,
+      engagement_rate: views !== null && views > 0
+        ? (((likes ?? 0) + (comments ?? 0)) / views) * 100
+        : null,
       gmv: pNum(r.gmv),
       orders: pNum(r.orders),
       items_sold: pNum(r.items_sold),
       is_managed: !!r.is_managed,
-      // Filled in by step 4 (review join). Defaults keep the type stable
-      // when video_reviews is empty.
-      review_count: 0,
-      avg_rating: null,
-      flagged: false,
-      has_my_review: false,
+      review_count: review ? pNum(review.review_count) : 0,
+      avg_rating: review ? pNumOrNull(review.avg_rating) : null,
+      flagged: !!review?.flagged,
+      has_my_review: !!review?.has_my_review,
     };
   });
 
   const deliveredCount = posts.length;
   const capped = deliveredCount >= limit && postCount > deliveredCount;
-
-  // ── 4. Review aggregates. video_reviews is keyed (video_id, brand) and is
-  //       small (hand-entered creative reviews), so we pull it by brand —
-  //       far cheaper than an .in() over thousands of video_ids — and group
-  //       in JS. Short-circuits when there are no posts.
-  if (posts.length > 0) {
-    const { data: reviewsRaw } = await supabase
-      .from('video_reviews')
-      .select('video_id, brand, reviewer_user_id, rating, tags')
-      .in('brand', brandSlugs);
-
-    interface ReviewRow {
-      video_id: string;
-      brand: string;
-      reviewer_user_id: string | null;
-      rating: number | null;
-      tags: string[] | null;
-    }
-    interface Aggregate {
-      count: number;
-      ratings: number[];
-      tags: Set<string>;
-      reviewers: Set<string>;
-    }
-    const aggregateByKey = new Map<string, Aggregate>();
-    for (const r of (reviewsRaw as ReviewRow[] | null) ?? []) {
-      const key = `${r.video_id}|||${r.brand}`;
-      const agg = aggregateByKey.get(key) ?? { count: 0, ratings: [], tags: new Set<string>(), reviewers: new Set<string>() };
-      agg.count++;
-      if (typeof r.rating === 'number') agg.ratings.push(r.rating);
-      if (Array.isArray(r.tags)) for (const t of r.tags) agg.tags.add(t);
-      if (r.reviewer_user_id) agg.reviewers.add(r.reviewer_user_id);
-      aggregateByKey.set(key, agg);
-    }
-
-    if (aggregateByKey.size > 0) {
-      posts = posts.map(p => {
-        const agg = aggregateByKey.get(`${p.video_id}|||${p.brand_slug}`);
-        if (!agg) return p;
-        const flagged = [...agg.tags].some(t => FLAGGED_TAGS.has(t));
-        const avg = agg.ratings.length > 0
-          ? agg.ratings.reduce((a, b) => a + b, 0) / agg.ratings.length
-          : null;
-        return {
-          ...p,
-          review_count: agg.count,
-          avg_rating: avg,
-          flagged,
-          has_my_review: currentUserId ? agg.reviewers.has(currentUserId) : false,
-        };
-      });
-    }
-  }
 
   // Pre-filter review counts so the pills can show how many posts each filter
   // would surface. unreviewedCount is taken against the TRUE total so the
@@ -296,13 +290,18 @@ export async function getPosts(opts: GetPostsOpts): Promise<PostsResult> {
   else if (reviewFilter === 'reviewed-by-me') posts = posts.filter(p => p.has_my_review);
   else if (reviewFilter === 'flagged') posts = posts.filter(p => p.flagged);
 
-  const avgEngagement = engagementRate(totalViews, totalLikes, totalComments);
+  // Headline engagement over the posts whose views are known (the totals RPC
+  // sums each metric over its non-null set; views is the denominator).
+  const avgEngagement = totalViews !== null && totalViews > 0
+    ? (((totalLikes ?? 0) + (totalComments ?? 0)) / totalViews) * 100
+    : null;
 
   return {
     posts,
     totals: {
       postCount,
-      totalViews, totalGmv, totalLikes, totalComments, avgEngagement,
+      totalViews, totalLikes, totalComments, totalShares, viewsKnown,
+      totalGmv, avgEngagement,
       reviewedCount, unreviewedCount, flaggedCount, reviewedByMeCount,
     },
     deliveredCount,

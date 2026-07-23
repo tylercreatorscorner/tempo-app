@@ -1,27 +1,50 @@
-import { Loader2 } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
+import { PageHeaderSkeleton } from '@/components/ui/page-skeletons';
 
-export default function Loading() {
+/**
+ * /posts route skeleton — mirrors the real layout (header with controls,
+ * pill rows, 6-col KPI strip with the 2-span hero, toolbar, card grid) so
+ * nothing jumps when the page commits.
+ */
+export default function PostsLoading() {
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
-        <div className="space-y-2">
-          <div className="h-7 w-32 bg-muted rounded animate-pulse" />
-          <div className="h-4 w-72 bg-muted rounded animate-pulse" />
-        </div>
-        <div className="h-9 w-48 bg-muted rounded-xl animate-pulse" />
+      <PageHeaderSkeleton />
+      {/* Brand pills + review pills */}
+      <div className="flex flex-wrap gap-2">
+        {Array.from({ length: 7 }).map((_, i) => (
+          <Skeleton key={i} className="h-7 w-24 rounded-full" />
+        ))}
       </div>
-      <div className="flex gap-2">
+      <Skeleton className="h-9 w-96 max-w-full rounded-full" />
+      {/* KPI strip: hero spans 2 of 6 */}
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
+        <Skeleton className="col-span-2 h-[104px] rounded-[20px]" />
         {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="h-7 w-20 bg-muted rounded-full animate-pulse" />
+          <Skeleton key={i} className="h-[104px] rounded-[20px]" />
         ))}
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="h-20 bg-muted rounded-2xl animate-pulse" />
-        ))}
+      {/* Toolbar */}
+      <div className="flex items-center justify-between gap-3 pt-1">
+        <Skeleton className="h-4 w-32" />
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-8 w-20 rounded-lg" />
+          <Skeleton className="h-8 w-56 rounded-lg" />
+          <Skeleton className="h-8 w-16 rounded-lg" />
+        </div>
       </div>
-      <div className="rounded-2xl bg-card border border-border shadow-sm p-12 text-center text-sm text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin inline mr-2" />Loading posts…
+      {/* Card grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <div key={i} className="rounded-2xl bg-card border border-border overflow-hidden">
+            <Skeleton className="aspect-video w-full rounded-none" />
+            <div className="p-4 space-y-3">
+              <Skeleton className="h-3 w-2/3" />
+              <Skeleton className="h-3 w-full" />
+              <Skeleton className="h-3 w-1/2" />
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

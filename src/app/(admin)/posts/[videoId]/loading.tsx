@@ -1,28 +1,42 @@
-import { Loader2 } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 
-export default function Loading() {
+/** /posts/[videoId] skeleton — mirrors header + cover rail + stat card + review form. */
+export default function PostReviewLoading() {
   return (
     <div className="space-y-5">
       <div className="flex items-start gap-3">
-        <div className="h-9 w-9 rounded-lg bg-muted animate-pulse" />
+        <Skeleton className="h-9 w-9 rounded-lg" />
         <div className="flex-1 space-y-2">
-          <div className="h-3 w-40 bg-muted rounded animate-pulse" />
-          <div className="h-6 w-3/4 bg-muted rounded animate-pulse" />
+          <Skeleton className="h-3 w-40" />
+          <Skeleton className="h-7 w-3/4" />
         </div>
+        <Skeleton className="h-8 w-36 rounded-lg" />
       </div>
-      <div className="rounded-2xl bg-card border border-border shadow-sm p-5">
-        <div className="grid grid-cols-2 sm:grid-cols-6 gap-4">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="space-y-2">
-              <div className="h-3 w-12 bg-muted rounded animate-pulse" />
-              <div className="h-6 w-16 bg-muted rounded animate-pulse" />
+      <div className="grid gap-5 lg:grid-cols-[240px_1fr] items-start">
+        <Skeleton className="aspect-[9/16] w-full rounded-2xl" />
+        <div className="space-y-5">
+          <div className="rounded-xl bg-card border border-border p-5 space-y-5">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="space-y-2">
+                  <Skeleton className="h-3 w-16" />
+                  <Skeleton className="h-6 w-20" />
+                </div>
+              ))}
             </div>
-          ))}
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 pt-4 border-t border-border">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="space-y-2">
+                  <Skeleton className="h-3 w-12" />
+                  <Skeleton className="h-6 w-16" />
+                </div>
+              ))}
+            </div>
+          </div>
+          <Skeleton className="h-28 w-full rounded-xl" />
         </div>
       </div>
-      <div className="rounded-2xl bg-card border border-border shadow-sm p-12 text-center text-sm text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin inline mr-2" />Loading post…
-      </div>
+      <Skeleton className="h-72 w-full rounded-xl" />
     </div>
   );
 }

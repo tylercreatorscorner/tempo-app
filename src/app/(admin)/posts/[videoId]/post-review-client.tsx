@@ -4,30 +4,43 @@
  * Per-video review page — every team member can leave one review per video.
  *
  * Layout:
- *   - Header: back link + title + brand pill + creator
- *   - KPI strip: views · likes · comments · engagement · GMV · orders
- *   - "Watch on TikTok" button if video_url present
+ *   - Header: back link + brand/creator/date + title + Watch on TikTok
+ *   - Left rail: the real TikTok cover (oEmbed via useTikTokThumbnail),
+ *     portrait crop, click-through to the video
+ *   - Right: money strip (windowed tie-out + lifetime) + engagement strip
+ *     (tracked days, nullable → "—") + daily GMV/views trend sparklines
  *   - YOUR review (form: rating 1-5, tags, notes) — upserts on save
  *   - OTHER reviews (read-only list)
  *
  * Reviews are stored in the `video_reviews` table — UNIQUE on
- * (video_id, brand, reviewer_user_id). Saving creates or updates your
- * one review. Deleting removes only your own.
+ * (video_id, brand, reviewer_user_id). Tags are stored as stable SLUGS
+ * (see lib/data/review-tags) and rendered as labels. The initial review list
+ * is server-rendered (no loading flash); mutations refetch.
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import {
-  ArrowLeft, ExternalLink, Eye, Heart, Loader2, MessageCircle,
-  Save, Star, Trash2,
+  ArrowLeft, ExternalLink, Loader2, PlayCircle, Save, Star, Trash2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useBrandMeta } from '@/hooks/use-brand-meta';
-import { engagementRate, formatCurrency, formatNumber } from '@/lib/utils/format';
+import { useTikTokThumbnail } from '@/hooks/use-tiktok-thumbnail';
+import { formatCurrency, formatNumber } from '@/lib/utils/format';
+import { REVIEW_TAGS, reviewTagLabel } from '@/lib/data/review-tags';
 import { Badge } from '@/components/ui/badge';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { InfoTooltip } from '@/components/ui/info-tooltip';
+import { ModalOverlay } from '@/components/ui/modal-overlay';
+import { Sparkline } from '@/components/charts/sparkline';
+
+export interface DailyPoint {
+  d: string;                  // YYYY-MM-DD
+  gmv: number;
+  views: number | null;
+}
 
 export interface VideoMeta {
   video_id: string;
@@ -37,15 +50,25 @@ export interface VideoMeta {
   title: string;
   video_url: string | null;
   post_date: string | null;
-  views: number;
-  likes: number;
-  comments: number;
-  gmv: number;
-  orders: number;
-  items_sold: number;
+  /** null = the stats RPC failed — render "—", never $0. */
+  stats: {
+    gmv: number;              // lifetime, windowed-source (video_performance)
+    orders: number;
+    items_sold: number;
+    views: number | null;     // summed over tracked days; null = never carried
+    likes: number | null;
+    comments: number | null;
+    shares: number | null;
+    first_earn_date: string | null;
+    last_earn_date: string | null;
+    days_active: number;
+  } | null;
+  daily: DailyPoint[];
+  /** The /posts window this page was opened from, for the tie-out figure. */
+  window: { start: string; end: string; gmv: number } | null;
 }
 
-interface ReviewRow {
+export interface ReviewRow {
   id: string;
   reviewer_user_id: string;
   reviewer_name: string | null;
@@ -56,50 +79,51 @@ interface ReviewRow {
   updated_at: string;
 }
 
-const TAG_PRESETS = ['🔥 banger', '✏️ needs rework', '📣 shoutout', '⚠️ off-brand', '💡 inspo'];
+const fmtN = (n: number | null | undefined) => (n === null || n === undefined ? '—' : formatNumber(n));
 
-export function PostReviewClient({ meta }: { meta: VideoMeta }) {
+function fmtShortDate(iso: string): string {
+  return new Date(iso + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+}
+
+export function PostReviewClient({
+  meta, initialReviews, currentUserId,
+}: {
+  meta: VideoMeta;
+  initialReviews: ReviewRow[];
+  currentUserId: string;
+}) {
   const brandMeta = useBrandMeta();
-  const [reviews, setReviews] = useState<ReviewRow[]>([]);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [reviews, setReviews] = useState<ReviewRow[]>(initialReviews);
   const [error, setError] = useState<string | null>(null);
 
-  // Local form state for YOUR review
-  const [draftRating, setDraftRating] = useState<number | null>(null);
-  const [draftNotes, setDraftNotes] = useState('');
-  const [draftTags, setDraftTags] = useState<string[]>([]);
+  const myInitial = initialReviews.find(r => r.reviewer_user_id === currentUserId);
+
+  // Local form state for YOUR review — hydrated from the SSR'd list.
+  const [draftRating, setDraftRating] = useState<number | null>(myInitial?.rating ?? null);
+  const [draftNotes, setDraftNotes] = useState(myInitial?.notes ?? '');
+  const [draftTags, setDraftTags] = useState<string[]>(myInitial?.tags ?? []);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
+  async function refresh() {
     setError(null);
     try {
       const res = await fetch(`/api/posts/${encodeURIComponent(meta.video_id)}/reviews?brand=${encodeURIComponent(meta.brand_slug)}`);
-      const j = await res.json();
-      if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
-      setReviews(j.reviews ?? []);
-      setCurrentUserId(j.currentUserId ?? null);
-      // Hydrate the form from your existing review (if any)
-      const mine = (j.reviews as ReviewRow[]).find(r => r.reviewer_user_id === j.currentUserId);
-      if (mine) {
-        setDraftRating(mine.rating);
-        setDraftNotes(mine.notes ?? '');
-        setDraftTags(mine.tags ?? []);
-      } else {
-        setDraftRating(null);
-        setDraftNotes('');
-        setDraftTags([]);
-      }
+      // res.ok first; parse defensively so an HTML error body can't throw a
+      // raw SyntaxError into the banner.
+      const j = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(j?.error || `HTTP ${res.status}`);
+      const next: ReviewRow[] = j?.reviews ?? [];
+      setReviews(next);
+      const mine = next.find(r => r.reviewer_user_id === currentUserId);
+      setDraftRating(mine?.rating ?? null);
+      setDraftNotes(mine?.notes ?? '');
+      setDraftTags(mine?.tags ?? []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load reviews');
-    } finally {
-      setLoading(false);
     }
-  }, [meta.video_id, meta.brand_slug]);
-
-  useEffect(() => { refresh(); }, [refresh]);
+  }
 
   async function saveReview() {
     setSaving(true);
@@ -115,8 +139,8 @@ export function PostReviewClient({ meta }: { meta: VideoMeta }) {
           tags: draftTags,
         }),
       });
-      const j = await res.json();
-      if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
+      const j = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(j?.error || `HTTP ${res.status}`);
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save failed');
@@ -126,15 +150,15 @@ export function PostReviewClient({ meta }: { meta: VideoMeta }) {
   }
 
   async function deleteReview() {
-    if (!confirm('Delete your review?')) return;
+    setConfirmingDelete(false);
     setDeleting(true);
     setError(null);
     try {
       const res = await fetch(`/api/posts/${encodeURIComponent(meta.video_id)}/reviews?brand=${encodeURIComponent(meta.brand_slug)}`, {
         method: 'DELETE',
       });
-      const j = await res.json();
-      if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
+      const j = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(j?.error || `HTTP ${res.status}`);
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Delete failed');
@@ -143,14 +167,23 @@ export function PostReviewClient({ meta }: { meta: VideoMeta }) {
     }
   }
 
-  function toggleTag(tag: string) {
-    setDraftTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
+  function toggleTag(slug: string) {
+    setDraftTags(prev => prev.includes(slug) ? prev.filter(t => t !== slug) : [...prev, slug]);
   }
 
   const myReview = reviews.find(r => r.reviewer_user_id === currentUserId);
   const otherReviews = reviews.filter(r => r.reviewer_user_id !== currentUserId);
-  const engagement = engagementRate(meta.views, meta.likes, meta.comments);
   const brandColor = brandMeta.color(meta.brand_slug);
+
+  const s = meta.stats;
+  const engagement = s && s.views !== null && s.views > 0
+    ? (((s.likes ?? 0) + (s.comments ?? 0)) / s.views) * 100
+    : null;
+
+  const gmvSeries = meta.daily.map(p => p.gmv);
+  const dayLabels = meta.daily.map(p => p.d);
+  const viewsSeries = meta.daily.map(p => p.views ?? NaN); // Sparkline drops non-finite points
+  const hasViewsSeries = meta.daily.some(p => p.views !== null && p.views > 0);
 
   return (
     <div className="space-y-5">
@@ -174,7 +207,7 @@ export function PostReviewClient({ meta }: { meta: VideoMeta }) {
               </>
             )}
           </div>
-          <h1 className="text-xl font-bold text-[var(--foreground)] leading-snug">{meta.title}</h1>
+          <h1 className="text-2xl font-extrabold text-[var(--foreground)] leading-snug">{meta.title}</h1>
         </div>
         {meta.video_url && (
           <a
@@ -189,21 +222,99 @@ export function PostReviewClient({ meta }: { meta: VideoMeta }) {
         )}
       </div>
 
-      {/* KPI strip */}
-      <Card className="p-5">
-        <div className="grid grid-cols-2 sm:grid-cols-6 gap-4">
-          <Kpi icon={<Eye className="h-3.5 w-3.5" />}            label="Views"      value={formatNumber(meta.views)} />
-          <Kpi icon={<Heart className="h-3.5 w-3.5" />}          label="Likes"      value={formatNumber(meta.likes)}     accent="pink" />
-          <Kpi icon={<MessageCircle className="h-3.5 w-3.5" />}  label="Comments"   value={formatNumber(meta.comments)}  accent="blue" />
-          <Kpi label="Engagement" value={`${engagement.toFixed(2)}%`} accent={engagement >= 5 ? 'green' : engagement >= 2 ? 'amber' : 'gray'} />
-          <Kpi label="GMV"        value={formatCurrency(meta.gmv)} accent="pink" />
-          <Kpi label="Orders"     value={formatNumber(meta.orders)} />
-        </div>
-      </Card>
-
       {error && (
         <div className="rounded-xl bg-[var(--pulse-neg-bg)] border border-[var(--pulse-neg)]/25 px-4 py-3 text-sm text-[var(--pulse-neg)]">{error}</div>
       )}
+      {!s && (
+        <div className="rounded-xl bg-[var(--pulse-warn-bg)] border border-[var(--pulse-warn)]/25 px-4 py-3 text-sm text-[var(--pulse-warn)]">
+          Performance stats couldn&apos;t be loaded. The figures below show a placeholder; refresh to retry.
+        </div>
+      )}
+
+      {/* Cover + stats */}
+      <div className="grid gap-5 lg:grid-cols-[240px_1fr] items-start">
+        <CoverTile videoUrl={meta.video_url} title={meta.title} brandColor={brandColor} />
+
+        <div className="space-y-5 min-w-0">
+          <Card className="p-5">
+            {/* Money row */}
+            <div className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground mb-3">Revenue</div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              {meta.window && (
+                <Kpi
+                  label={`GMV · ${fmtShortDate(meta.window.start)} to ${fmtShortDate(meta.window.end)}`}
+                  value={s ? formatCurrency(meta.window.gmv) : '—'}
+                  accent="primary"
+                  info="Earned in the period selected on the Posts page — the figure on the row you clicked."
+                />
+              )}
+              <Kpi
+                label="Lifetime GMV"
+                value={s ? formatCurrency(s.gmv) : '—'}
+                accent={meta.window ? 'plain' : 'primary'}
+                info={s?.first_earn_date && s.last_earn_date
+                  ? `All tracked earnings: ${s.days_active} active day${s.days_active === 1 ? '' : 's'} between ${fmtShortDate(s.first_earn_date)} and ${fmtShortDate(s.last_earn_date)}.`
+                  : 'All tracked earnings for this video.'}
+              />
+              <Kpi label="Orders" value={s ? formatNumber(s.orders) : '—'} />
+              <Kpi label="Items sold" value={s ? formatNumber(s.items_sold) : '—'} />
+            </div>
+
+            {/* Engagement row — tracked days only, honest nulls */}
+            <div className="mt-5 pt-4 border-t border-border">
+              <div className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground mb-3 inline-flex items-center gap-1">
+                Engagement · tracked days
+                <InfoTooltip label="Summed from the daily Video Data uploads. Days uploaded before engagement tracking carry no data; a placeholder means no data, not zero." />
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+                <Kpi label="Views"    value={s ? fmtN(s.views) : '—'} />
+                <Kpi label="Likes"    value={s ? fmtN(s.likes) : '—'} accent="primary" />
+                <Kpi label="Comments" value={s ? fmtN(s.comments) : '—'} />
+                <Kpi label="Shares"   value={s ? fmtN(s.shares) : '—'} />
+                <Kpi
+                  label="Engagement"
+                  value={engagement === null ? '—' : `${engagement.toFixed(2)}%`}
+                  accent={engagement === null ? 'plain' : engagement >= 5 ? 'pos' : engagement >= 2 ? 'warn' : 'plain'}
+                />
+              </div>
+            </div>
+          </Card>
+
+          {/* Daily trend — did it spike and die, or is it compounding? */}
+          {gmvSeries.length > 1 && (
+            <Card className="p-5">
+              <div className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground mb-3">
+                Daily trend · {meta.daily.length} tracked days
+              </div>
+              <div className="flex flex-wrap gap-8">
+                <div>
+                  <div className="text-[11px] text-muted-foreground mb-1">GMV / day</div>
+                  <Sparkline
+                    data={gmvSeries}
+                    days={dayLabels}
+                    width={280}
+                    height={48}
+                    format={(v) => formatCurrency(v)}
+                  />
+                </div>
+                {hasViewsSeries && (
+                  <div>
+                    <div className="text-[11px] text-muted-foreground mb-1">Views / day</div>
+                    <Sparkline
+                      data={viewsSeries}
+                      days={dayLabels}
+                      width={280}
+                      height={48}
+                      color="var(--pulse-accent-2)"
+                      format={(v) => formatNumber(Math.round(v))}
+                    />
+                  </div>
+                )}
+              </div>
+            </Card>
+          )}
+        </div>
+      </div>
 
       {/* YOUR review (form) */}
       <Card>
@@ -220,7 +331,7 @@ export function PostReviewClient({ meta }: { meta: VideoMeta }) {
             <Button
               variant="ghost"
               size="sm"
-              onClick={deleteReview}
+              onClick={() => setConfirmingDelete(true)}
               disabled={deleting}
               className="text-muted-foreground hover:text-[var(--pulse-neg)]"
             >
@@ -233,19 +344,22 @@ export function PostReviewClient({ meta }: { meta: VideoMeta }) {
         <CardContent className="space-y-4 pt-5">
           {/* Rating */}
           <div>
-            <Label>Rating</Label>
-            <div className="flex items-center gap-1">
+            <Label id={`rating-label-${meta.video_id}`}>Rating</Label>
+            <div className="flex items-center gap-1" role="radiogroup" aria-labelledby={`rating-label-${meta.video_id}`}>
               {[1, 2, 3, 4, 5].map(n => (
                 <button
                   key={n}
+                  role="radio"
+                  aria-checked={draftRating === n}
+                  aria-label={`${n} star${n > 1 ? 's' : ''}`}
                   onClick={() => setDraftRating(n === draftRating ? null : n)}
                   className={cn(
                     'p-1 transition-transform hover:scale-110',
-                    draftRating !== null && n <= draftRating ? 'text-amber-400' : 'text-muted-foreground',
+                    draftRating !== null && n <= draftRating ? 'text-[var(--pulse-warn)]' : 'text-muted-foreground',
                   )}
                   title={`${n} star${n > 1 ? 's' : ''}`}
                 >
-                  <Star className={cn('h-6 w-6', draftRating !== null && n <= draftRating && 'fill-amber-400')} />
+                  <Star className={cn('h-6 w-6', draftRating !== null && n <= draftRating && 'fill-[var(--pulse-warn)]')} />
                 </button>
               ))}
               {draftRating !== null && (
@@ -259,16 +373,17 @@ export function PostReviewClient({ meta }: { meta: VideoMeta }) {
             </div>
           </div>
 
-          {/* Tags */}
+          {/* Tags — stored as slugs, rendered as labels */}
           <div>
             <Label>Tags</Label>
             <div className="flex flex-wrap gap-2">
-              {TAG_PRESETS.map(tag => {
-                const active = draftTags.includes(tag);
+              {REVIEW_TAGS.map(tag => {
+                const active = draftTags.includes(tag.slug);
                 return (
                   <button
-                    key={tag}
-                    onClick={() => toggleTag(tag)}
+                    key={tag.slug}
+                    onClick={() => toggleTag(tag.slug)}
+                    aria-pressed={active}
                     className={cn(
                       'px-3 py-1 rounded-full text-xs font-medium transition-colors',
                       active
@@ -276,7 +391,7 @@ export function PostReviewClient({ meta }: { meta: VideoMeta }) {
                         : 'bg-muted text-muted-foreground hover:bg-secondary',
                     )}
                   >
-                    {tag}
+                    {tag.label}
                   </button>
                 );
               })}
@@ -315,11 +430,7 @@ export function PostReviewClient({ meta }: { meta: VideoMeta }) {
             Team reviews · {otherReviews.length}
           </div>
         </CardHeader>
-        {loading && reviews.length === 0 ? (
-          <div className="px-5 py-8 text-center text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin inline mr-2" />Loading…
-          </div>
-        ) : otherReviews.length === 0 ? (
+        {otherReviews.length === 0 ? (
           <div className="px-5 py-8 text-center text-sm text-muted-foreground">No reviews from other team members yet.</div>
         ) : (
           <ul className="divide-y divide-border">
@@ -327,32 +438,78 @@ export function PostReviewClient({ meta }: { meta: VideoMeta }) {
           </ul>
         )}
       </Card>
+
+      {/* Delete confirm — themed modal, not window.confirm */}
+      {confirmingDelete && (
+        <ModalOverlay onClose={() => setConfirmingDelete(false)}>
+          <div className="w-full max-w-sm rounded-2xl bg-card border border-border shadow-[var(--pulse-elev-2)] p-5">
+            <div className="text-sm font-bold text-[var(--foreground)]">Delete your review?</div>
+            <p className="mt-1.5 text-sm text-muted-foreground">
+              Your rating, tags, and notes for this post will be removed. Other team members&apos; reviews are not affected.
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => setConfirmingDelete(false)}>Cancel</Button>
+              <Button variant="danger" size="sm" onClick={deleteReview}>Delete review</Button>
+            </div>
+          </div>
+        </ModalOverlay>
+      )}
     </div>
   );
 }
 
 // ── Smaller pieces ─────────────────────────────────────────────────
 
+/** Portrait TikTok cover with click-through; brand-gradient fallback. */
+function CoverTile({ videoUrl, title, brandColor }: { videoUrl: string | null; title: string; brandColor: string }) {
+  const { thumbnail } = useTikTokThumbnail(videoUrl);
+  const inner = (
+    <div
+      className="group relative aspect-[9/16] w-full overflow-hidden rounded-2xl border border-border shadow-[var(--pulse-elev-1)]"
+      style={!thumbnail ? { background: `linear-gradient(135deg, ${brandColor}33 0%, ${brandColor}88 100%)` } : undefined}
+    >
+      {thumbnail ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={thumbnail} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.03]" />
+      ) : (
+        <div className="absolute inset-0 flex items-end p-4">
+          <div className="text-white/90 text-sm font-semibold line-clamp-4 drop-shadow">{title}</div>
+        </div>
+      )}
+      {videoUrl && (
+        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/25">
+          <PlayCircle className="h-12 w-12 text-white drop-shadow" />
+        </div>
+      )}
+    </div>
+  );
+  if (!videoUrl) return inner;
+  return (
+    <a href={videoUrl} target="_blank" rel="noopener noreferrer" aria-label="Watch on TikTok" className="block">
+      {inner}
+    </a>
+  );
+}
+
 function Kpi({
-  label, value, icon, accent = 'gray',
+  label, value, info, accent = 'plain',
 }: {
   label: string;
   value: string;
-  icon?: React.ReactNode;
-  accent?: 'pink' | 'blue' | 'green' | 'amber' | 'gray';
+  info?: string;
+  accent?: 'primary' | 'pos' | 'warn' | 'plain';
 }) {
   const colorMap = {
-    pink:  'text-[var(--primary)]',
-    blue:  'text-blue-600',
-    green: 'text-emerald-600',
-    amber: 'text-amber-600',
-    gray:  'text-[var(--foreground)]',
+    primary: 'text-[var(--primary)]',
+    pos:     'text-[var(--pulse-pos)]',
+    warn:    'text-[var(--pulse-warn)]',
+    plain:   'text-[var(--foreground)]',
   } as const;
   return (
     <div>
-      <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-        {icon}
-        {label}
+      <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+        <span className="truncate">{label}</span>
+        {info && <InfoTooltip label={info} />}
       </div>
       <div className={cn('text-xl font-extrabold tabular-nums mt-1', colorMap[accent])}>{value}</div>
     </div>
@@ -376,14 +533,14 @@ function OtherReviewRow({ review }: { review: ReviewRow }) {
           {review.rating !== null && (
             <div className="flex items-center gap-0.5 mt-1">
               {[1, 2, 3, 4, 5].map(n => (
-                <Star key={n} className={cn('h-3 w-3', n <= (review.rating ?? 0) ? 'text-amber-400 fill-amber-400' : 'text-muted-foreground')} />
+                <Star key={n} className={cn('h-3 w-3', n <= (review.rating ?? 0) ? 'text-[var(--pulse-warn)] fill-[var(--pulse-warn)]' : 'text-muted-foreground')} />
               ))}
             </div>
           )}
           {review.tags && review.tags.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mt-2">
               {review.tags.map(t => (
-                <Badge key={t} variant="neutral" size="sm">{t}</Badge>
+                <Badge key={t} variant="neutral" size="sm">{reviewTagLabel(t)}</Badge>
               ))}
             </div>
           )}

@@ -3,19 +3,19 @@
 /**
  * Posts page — every video posted by a managed creator with engagement + revenue.
  *
- * Top-down: title + DateRangePicker → brand pills → managed/all toggle →
- * KPI strip → table.
+ * Top-down: title + managed/all control + DateRangePicker → brand pills →
+ * review-queue pills → KPI strip → card grid (default) or table.
  *
- * Table columns:
- *   Creator · Brand · Post (clickable to TikTok) · Posted · Views ·
- *   Likes · Comments · Engagement % · GMV
+ * Engagement (views/likes/comments/shares) is WINDOWED from video_performance
+ * (migrations 088/090) and NULLABLE — null means "no engagement data in this
+ * window" and renders as an em dash placeholder, never a fake 0. Money is
+ * windowed per migration 079. Cards resolve real TikTok covers lazily via
+ * oEmbed (useTikTokThumbnail + useInView).
  *
- * Sortable on every metric. Click a row → opens the in-app video panel
- * (existing VideoPanelProvider used elsewhere).
- *
- * Note: shares isn't captured anywhere in our schema — TikTok exports
- * don't include it as a column. If we want shares, it's a column add to
- * daily_video_stats + an upload column-map update.
+ * The review-queue filter is a pure client-side predicate: every row already
+ * carries review_count / flagged / has_my_review, so pill toggles never
+ * refetch (the old behavior cost ~5 DB round-trips per toggle to return a
+ * subset of rows the client was already holding).
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -33,6 +33,7 @@ import { formatCurrency, formatNumber } from '@/lib/utils/format';
 import { useDelayedFlag } from '@/hooks/use-delayed-flag';
 import { TableLoadBar } from '@/components/ui/table-load-bar';
 import { PageHeader } from '@/components/ui/page-header';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -48,10 +49,11 @@ interface PostRow {
   brand_slug: string;
   brand_name: string;
   post_date: string | null;
-  views: number;
-  likes: number;
-  comments: number;
-  engagement_rate: number;
+  views: number | null;
+  likes: number | null;
+  comments: number | null;
+  shares: number | null;
+  engagement_rate: number | null;
   gmv: number;
   orders: number;
   items_sold: number;
@@ -66,11 +68,13 @@ interface PostsResponse {
   posts: PostRow[];
   totals: {
     postCount: number;
-    totalViews: number;
+    totalViews: number | null;
+    totalLikes: number | null;
+    totalComments: number | null;
+    totalShares: number | null;
+    viewsKnown: number;
     totalGmv: number;
-    totalLikes: number;
-    totalComments: number;
-    avgEngagement: number;
+    avgEngagement: number | null;
     reviewedCount: number;
     unreviewedCount: number;
     flaggedCount: number;
@@ -90,7 +94,7 @@ interface PostsResponse {
 // nodes up front.
 const RENDER_CHUNK = 300;
 
-type SortKey = 'gmv' | 'views' | 'likes' | 'comments' | 'engagement_rate' | 'post_date' | 'creator_handle';
+type SortKey = 'gmv' | 'views' | 'likes' | 'comments' | 'shares' | 'engagement_rate' | 'post_date' | 'creator_handle';
 type SortDir = 'asc' | 'desc';
 type ReviewFilter = 'all' | 'unreviewed' | 'reviewed-by-me' | 'flagged';
 type ViewMode = 'cards' | 'table';
@@ -100,7 +104,7 @@ function isViewMode(v: string | null): v is ViewMode {
   return v !== null && (VIEW_MODES as string[]).includes(v);
 }
 
-const SORT_KEYS: SortKey[] = ['gmv', 'views', 'likes', 'comments', 'engagement_rate', 'post_date', 'creator_handle'];
+const SORT_KEYS: SortKey[] = ['gmv', 'views', 'likes', 'comments', 'shares', 'engagement_rate', 'post_date', 'creator_handle'];
 function isSortKey(v: string | null): v is SortKey {
   return v !== null && (SORT_KEYS as string[]).includes(v);
 }
@@ -109,6 +113,8 @@ const REVIEW_FILTERS: ReviewFilter[] = ['all', 'unreviewed', 'reviewed-by-me', '
 function isReviewFilter(v: string | null): v is ReviewFilter {
   return v !== null && (REVIEW_FILTERS as string[]).includes(v);
 }
+
+const fmtN = (n: number | null) => (n === null ? '—' : formatNumber(n));
 
 export function PostsClient({
   brands, selectedBrand, startDate, endDate, managedOnly,
@@ -171,9 +177,9 @@ export function PostsClient({
     return () => clearTimeout(t);
   }, [sortKey, sortDir, search, reviewFilter, viewMode, router, searchParams]);
 
-  // Fetch on mount + whenever filters change. The reviewFilter is part of
-  // the request because the server applies it before returning rows; the
-  // pre-filter pill counts come back in `totals`.
+  // Fetch on mount + whenever the DATA scope changes (brand/date/managed).
+  // The review filter is deliberately NOT here — it is a pure predicate over
+  // fields already on every row, applied client-side below.
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -183,18 +189,25 @@ export function PostsClient({
     params.set('start', startDate);
     params.set('end', endDate);
     if (!managedOnly) params.set('managed', 'false');
-    if (reviewFilter !== 'all') params.set('review', reviewFilter);
     fetch(`/api/posts?${params.toString()}`)
-      .then(r => r.json())
-      .then((d: PostsResponse | { error: string }) => {
-        if (cancelled) return;
-        if ('error' in d) setError(d.error);
-        else setData(d);
+      .then(async (r) => {
+        // Guard res.ok BEFORE trusting the body: a JSON-shaped error response
+        // must never be handed to setData as if it were rows.
+        const body = await r.json().catch(() => null) as PostsResponse | { error: string } | null;
+        if (!r.ok) {
+          throw new Error(body && typeof body === 'object' && 'error' in body ? body.error : `HTTP ${r.status}`);
+        }
+        if (!body || typeof body !== 'object' || 'error' in body) {
+          throw new Error(body && 'error' in body ? body.error : 'Malformed response');
+        }
+        if (!cancelled) setData(body);
       })
-      .catch(() => { if (!cancelled) setError('Failed to load posts'); })
+      .catch((e: unknown) => {
+        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load posts');
+      })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [selectedBrand, startDate, endDate, managedOnly, reviewFilter]);
+  }, [selectedBrand, startDate, endDate, managedOnly]);
 
   const brandsWithData = useMemo(() => {
     if (!data) return [] as string[];
@@ -203,8 +216,12 @@ export function PostsClient({
 
   const visiblePosts = useMemo(() => {
     if (!data) return [];
-    const term = search.trim().toLowerCase();
     let list = data.posts;
+    // Review-queue filter — instant, in-memory.
+    if (reviewFilter === 'unreviewed') list = list.filter(p => p.review_count === 0);
+    else if (reviewFilter === 'reviewed-by-me') list = list.filter(p => p.has_my_review);
+    else if (reviewFilter === 'flagged') list = list.filter(p => p.flagged);
+    const term = search.trim().toLowerCase();
     if (term) {
       list = list.filter(p =>
         p.video_title.toLowerCase().includes(term) ||
@@ -213,17 +230,18 @@ export function PostsClient({
     }
     const dir = sortDir === 'asc' ? 1 : -1;
     list = [...list].sort((a, b) => {
-      let av: string | number = a[sortKey] ?? 0;
-      let bv: string | number = b[sortKey] ?? 0;
       if (sortKey === 'creator_handle' || sortKey === 'post_date') {
-        av = String(av ?? '').toLowerCase();
-        bv = String(bv ?? '').toLowerCase();
+        const av = String(a[sortKey] ?? '').toLowerCase();
+        const bv = String(b[sortKey] ?? '').toLowerCase();
         return av < bv ? -dir : av > bv ? dir : 0;
       }
+      // Unknown (null) engagement sorts below a real 0 in either direction.
+      const av = a[sortKey] ?? -1;
+      const bv = b[sortKey] ?? -1;
       return ((av as number) - (bv as number)) * dir;
     });
     return list;
-  }, [data, search, sortKey, sortDir]);
+  }, [data, search, sortKey, sortDir, reviewFilter]);
 
   // Reset the rendered window whenever the matching set changes, so we don't
   // stay scrolled deep into a stale slice after a new search/sort/filter.
@@ -235,7 +253,7 @@ export function PostsClient({
   );
   const hasMore = renderedPosts.length < visiblePosts.length;
 
-  // Thin load bar on refetch (brand/date/managed/review changes). Delayed so it
+  // Thin load bar on refetch (brand/date/managed changes). Delayed so it
   // doesn't flash on fast loads; the skeletons still cover the first empty load.
   const showBar = useDelayedFlag(loading);
 
@@ -262,25 +280,26 @@ export function PostsClient({
     }
   }
 
-  function toggleManaged() {
+  function setManaged(next: 'managed' | 'all') {
     const params = new URLSearchParams(searchParams.toString());
-    if (managedOnly) params.set('managed', 'false');
+    if (next === 'all') params.set('managed', 'false');
     else params.delete('managed');
     router.push(`?${params.toString()}`);
   }
 
   function downloadCsv() {
     if (!visiblePosts.length) return;
-    const headers = ['Creator', 'Brand', 'Title', 'Posted', 'Views', 'Likes', 'Comments', 'Engagement %', 'GMV', 'Orders', 'URL'];
+    const headers = ['Creator', 'Brand', 'Title', 'Posted', 'Views', 'Likes', 'Comments', 'Shares', 'Engagement %', 'GMV', 'Orders', 'URL'];
     const rows = visiblePosts.map(p => [
       `@${p.creator_handle}`,
       p.brand_name,
       p.video_title,
       p.post_date ?? '',
-      p.views,
-      p.likes,
-      p.comments,
-      p.engagement_rate.toFixed(2),
+      p.views ?? '',
+      p.likes ?? '',
+      p.comments ?? '',
+      p.shares ?? '',
+      p.engagement_rate === null ? '' : p.engagement_rate.toFixed(2),
       p.gmv.toFixed(2),
       p.orders,
       p.video_url ?? '',
@@ -299,8 +318,15 @@ export function PostsClient({
 
   function handleRowClick(p: PostRow) {
     if (!p.video_id) return;
-    router.push(`/posts/${encodeURIComponent(p.video_id)}?brand=${encodeURIComponent(p.brand_slug)}`);
+    // Carry the window through so the review page can tie its numbers to the
+    // row that was clicked.
+    const qs = new URLSearchParams({ brand: p.brand_slug, start: startDate, end: endDate });
+    router.push(`/posts/${encodeURIComponent(p.video_id)}?${qs.toString()}`);
   }
+
+  const viewsCoverage = data && data.totals.totalViews !== null && data.totals.viewsKnown < data.totals.postCount
+    ? `across ${formatNumber(data.totals.viewsKnown)} of ${formatNumber(data.totals.postCount)} posts`
+    : undefined;
 
   return (
     <div className="space-y-6">
@@ -308,27 +334,26 @@ export function PostsClient({
       <PageHeader
         eyebrow="Content"
         title="Posts"
-        subtitle={
-          <>
-            Every video posted by{' '}
-            <button
-              onClick={toggleManaged}
-              className={cn(
-                'underline-offset-2 hover:underline transition-colors',
-                managedOnly ? 'text-[var(--primary)] font-semibold' : 'text-muted-foreground',
-              )}
-              title="Toggle: managed creators only / all creators"
-            >
-              {managedOnly ? 'managed creators' : 'all creators (managed + organic)'}
-            </button>
-            {' '}— click any row to open the review page (rate + leave notes).
-          </>
+        subtitle="Every video in the window. Click a post to open its review page: rate it, tag it, leave notes."
+        actions={
+          <div className="flex items-center gap-2">
+            <SegmentedControl
+              ariaLabel="Creator scope"
+              size="sm"
+              value={managedOnly ? 'managed' : 'all'}
+              onValueChange={(v) => setManaged(v as 'managed' | 'all')}
+              options={[
+                { value: 'managed', label: 'Managed' },
+                { value: 'all', label: 'All creators' },
+              ]}
+            />
+            <DateRangePicker />
+          </div>
         }
-        actions={<DateRangePicker />}
       />
 
       {/* Brand pills */}
-      <BrandFilter brands={brands} brandsWithData={brandsWithData} selectedBrand={selectedBrand} />
+      <BrandFilter brands={brands} brandsWithData={brandsWithData} selectedBrand={selectedBrand} collapseNoData />
 
       {/* Review queue filter — pills with live counts so you can see at a
           glance how much work is queued. Counts come from `totals` and
@@ -341,27 +366,31 @@ export function PostsClient({
       />
 
       {error && (
-        <div className="rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-500">{error}</div>
+        <div className="rounded-xl bg-[var(--pulse-neg-bg)] border border-[var(--pulse-neg)]/25 px-4 py-3 text-sm text-[var(--pulse-neg)]">{error}</div>
       )}
 
-      {/* KPI strip */}
+      {/* KPI strip. Engagement values are windowed (mig 090) and honest:
+          "—" means no engagement data, never zero. */}
       <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
         <StatCard className="col-span-2" hero label="Total GMV" value={data ? formatCurrency(data.totals.totalGmv) : '—'}
-          info="GMV earned by these videos during the selected period, attributed to the video. Excludes live-stream and product-showcase sales, which aren't tied to a specific video — so this runs below the creator-level total." />
+          info="GMV earned by these videos during the selected period, attributed to the video. Excludes live-stream and product-showcase sales, which aren't tied to a specific video, so this runs below the creator-level total." />
         <StatCard label="Posts"        value={data ? formatNumber(data.totals.postCount)    : '—'} />
-        <StatCard label="Total Views"  value={data ? formatNumber(data.totals.totalViews)   : '—'} />
-        <StatCard label="Total Likes"  value={data ? formatNumber(data.totals.totalLikes)   : '—'} />
-        <StatCard label="Avg Engagement" value={data ? `${data.totals.avgEngagement.toFixed(2)}%` : '—'} />
+        <StatCard label="Total Views"  value={data ? fmtN(data.totals.totalViews)   : '—'}
+          subValue={viewsCoverage}
+          info="Views accrued during the selected period, from the daily Video Data uploads. Posts whose uploads predate engagement tracking show no view data and are excluded." />
+        <StatCard label="Total Likes"  value={data ? fmtN(data.totals.totalLikes)   : '—'} />
+        <StatCard label="Avg Engagement" value={data ? (data.totals.avgEngagement === null ? '—' : `${data.totals.avgEngagement.toFixed(2)}%`) : '—'}
+          info="(Likes + comments) / views across posts with engagement data in the window." />
       </div>
 
       {/* Capped-window notice. The KPI totals above are always computed over
           the full window server-side; this only fires when the row payload
           itself was bounded (very large all-creators ranges). */}
       {data?.capped && (
-        <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 px-4 py-2.5 text-xs text-amber-500">
+        <div className="rounded-xl bg-[var(--pulse-warn-bg)] border border-[var(--pulse-warn)]/25 px-4 py-2.5 text-xs text-[var(--pulse-warn)]">
           Showing the top {data.deliveredCount.toLocaleString()} posts by GMV of{' '}
           {data.totals.postCount.toLocaleString()} in this range. The totals above
-          still reflect all {data.totals.postCount.toLocaleString()} — narrow the
+          still reflect all {data.totals.postCount.toLocaleString()}. Narrow the
           date range to load every post into the table.
         </div>
       )}
@@ -441,6 +470,7 @@ export function PostsClient({
                   <SortableTh label="Views"        sortKey="views"          current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
                   <SortableTh label="Likes"        sortKey="likes"          current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
                   <SortableTh label="Comments"     sortKey="comments"       current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
+                  <SortableTh label="Shares"       sortKey="shares"         current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
                   <SortableTh label="Engagement"   sortKey="engagement_rate" current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
                   <SortableTh label="GMV"          sortKey="gmv"            current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
                   <Th>Reviews</Th>
@@ -450,11 +480,11 @@ export function PostsClient({
                 showBar && visiblePosts.length > 0 ? 'opacity-60 transition-opacity duration-200' : 'opacity-100',
               )}>
                 {loading && !data ? (
-                  <tr><td colSpan={10} className="text-center text-muted-foreground py-12 text-sm">
+                  <tr><td colSpan={11} className="text-center text-muted-foreground py-12 text-sm">
                     <Loader2 className="h-4 w-4 animate-spin inline mr-2" />Loading posts...
                   </td></tr>
                 ) : visiblePosts.length === 0 ? (
-                  <tr><td colSpan={10} className="py-0"><PostsEmptyState reviewFilter={reviewFilter} /></td></tr>
+                  <tr><td colSpan={11} className="py-0"><PostsEmptyState reviewFilter={reviewFilter} /></td></tr>
                 ) : (
                   renderedPosts.map(p => <PostRowView key={`${p.video_id}|${p.brand_slug}`} post={p} onClick={handleRowClick} />)
                 )}
@@ -511,6 +541,7 @@ function SortDropdown({
     views: 'Views',
     likes: 'Likes',
     comments: 'Comments',
+    shares: 'Shares',
     engagement_rate: 'Engagement',
     post_date: 'Posted',
     creator_handle: 'Creator',
@@ -531,7 +562,7 @@ function SortDropdown({
         variant="outline"
         size="sm"
         onClick={() => onChange(sortKey, sortDir === 'asc' ? 'desc' : 'asc')}
-        title={sortDir === 'asc' ? 'Ascending — click for descending' : 'Descending — click for ascending'}
+        title={sortDir === 'asc' ? 'Ascending. Click for descending.' : 'Descending. Click for ascending.'}
         aria-label="Toggle sort direction"
       >
         {sortDir === 'asc' ? '↑' : '↓'}
@@ -545,7 +576,7 @@ function CardLoadingGrid() {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
       {Array.from({ length: 8 }).map((_, i) => (
-        <div key={i} className="rounded-xl bg-card border border-border shadow-[var(--pulse-elev-1)] overflow-hidden animate-pulse">
+        <div key={i} className="rounded-2xl bg-card border border-border shadow-[var(--pulse-elev-1)] overflow-hidden animate-pulse">
           <div className="aspect-video bg-muted" />
           <div className="p-4 space-y-3">
             <div className="h-3 w-2/3 bg-muted rounded" />
@@ -563,7 +594,7 @@ function PostsEmptyState({ reviewFilter }: { reviewFilter: ReviewFilter }) {
   const copy = reviewFilter === 'all'
     ? 'No posts in this window'
     : reviewFilter === 'unreviewed'
-      ? 'Inbox zero — every post in this window has a review.'
+      ? 'Inbox zero: every post in this window has a review.'
       : reviewFilter === 'reviewed-by-me'
         ? 'You haven\'t reviewed anything in this window yet.'
         : 'Nothing flagged. Nice.';
@@ -593,7 +624,7 @@ function PostRowView({ post: p, onClick }: { post: PostRow; onClick: (p: PostRow
       <td className="px-4 py-3 align-top">
         <div className="flex items-center gap-2">
           <span className="text-sm font-semibold text-[var(--foreground)]">@{p.creator_handle}</span>
-          {p.is_managed && <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-500 bg-emerald-500/10 ring-1 ring-emerald-200 rounded px-1 py-0.5">Managed</span>}
+          {p.is_managed && <Badge variant="positive" size="sm">Managed</Badge>}
         </div>
       </td>
       <td className="px-4 py-3 align-top">
@@ -624,23 +655,30 @@ function PostRowView({ post: p, onClick }: { post: PostRow; onClick: (p: PostRow
           ? new Date(p.post_date + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit', timeZone: 'America/Chicago' })
           : '—'}
       </td>
-      <td className="px-4 py-3 align-top text-right tabular-nums text-foreground">{formatNumber(p.views)}</td>
+      <td className="px-4 py-3 align-top text-right tabular-nums text-foreground">{fmtN(p.views)}</td>
       <td className="px-4 py-3 align-top text-right tabular-nums text-foreground">
         <span className="inline-flex items-center gap-1 text-primary">
-          <Heart className="h-3 w-3" />{formatNumber(p.likes)}
+          <Heart className="h-3 w-3" />{fmtN(p.likes)}
         </span>
       </td>
       <td className="px-4 py-3 align-top text-right tabular-nums text-foreground">
-        <span className="inline-flex items-center gap-1 text-blue-500">
-          <MessageCircle className="h-3 w-3" />{formatNumber(p.comments)}
+        <span className="inline-flex items-center gap-1">
+          <MessageCircle className="h-3 w-3 text-muted-foreground" />{fmtN(p.comments)}
         </span>
       </td>
+      <td className="px-4 py-3 align-top text-right tabular-nums text-foreground">{fmtN(p.shares)}</td>
       <td className="px-4 py-3 align-top text-right tabular-nums text-foreground">
         <span className={cn(
           'font-medium',
-          p.engagement_rate >= 5 ? 'text-emerald-600' : p.engagement_rate >= 2 ? 'text-amber-600' : 'text-muted-foreground',
+          p.engagement_rate === null
+            ? 'text-muted-foreground'
+            : p.engagement_rate >= 5
+              ? 'text-[var(--pulse-pos)]'
+              : p.engagement_rate >= 2
+                ? 'text-[var(--pulse-warn)]'
+                : 'text-muted-foreground',
         )}>
-          {p.engagement_rate.toFixed(2)}%
+          {p.engagement_rate === null ? '—' : `${p.engagement_rate.toFixed(2)}%`}
         </span>
       </td>
       <td className="px-4 py-3 align-top text-right tabular-nums font-bold text-[var(--primary)]">{formatCurrency(p.gmv)}</td>
@@ -668,13 +706,13 @@ function ReviewCell({ post: p }: { post: PostRow }) {
         {p.review_count}
       </span>
       {p.avg_rating !== null && (
-        <span className="inline-flex items-center gap-0.5 text-amber-500 tabular-nums">
-          <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+        <span className="inline-flex items-center gap-0.5 tabular-nums">
+          <Star className="h-3 w-3 fill-[var(--pulse-warn)] text-[var(--pulse-warn)]" />
           <span className="text-foreground font-medium">{p.avg_rating.toFixed(1)}</span>
         </span>
       )}
       {p.flagged && (
-        <span title="Flagged: off-brand or needs rework" className="inline-flex items-center gap-0.5 text-amber-600">
+        <span title="Flagged: off-brand or needs rework" className="inline-flex items-center gap-0.5 text-[var(--pulse-warn)]">
           <AlertTriangle className="h-3 w-3" />
         </span>
       )}

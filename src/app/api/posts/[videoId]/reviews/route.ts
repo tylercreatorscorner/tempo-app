@@ -13,6 +13,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getWorkspaceScope, type WorkspaceScope } from '@/lib/auth/workspace-scope';
 import { createAdminClient } from '@/lib/supabase/server';
+import { REVIEW_TAGS } from '@/lib/data/review-tags';
+
+// Only known tag slugs may be stored — arbitrary strings would silently
+// detach from the label mapping and the Flagged-queue slug matching.
+const VALID_TAG_SLUGS = new Set<string>(REVIEW_TAGS.map(t => t.slug));
 
 /** Managers may only review posts for brands in their access. */
 function brandDenied(scope: WorkspaceScope, brand: string): NextResponse | null {
@@ -97,10 +102,23 @@ export async function POST(
     if (!Array.isArray(tags) || tags.length > TAG_MAX) {
       return NextResponse.json({ error: `tags must be array of ≤${TAG_MAX} strings` }, { status: 400 });
     }
-    safeTags = tags.filter(t => typeof t === 'string' && t.length > 0 && t.length < 64).slice(0, TAG_MAX);
+    safeTags = tags.filter(t => typeof t === 'string' && VALID_TAG_SLUGS.has(t)).slice(0, TAG_MAX);
   }
 
   const admin = await createAdminClient();
+
+  // The (video_id, brand) pair must exist — otherwise reviews could be
+  // attached to arbitrary strings and never surface anywhere.
+  const { data: videoRow, error: videoErr } = await admin
+    .from('videos')
+    .select('video_id')
+    .eq('video_id', videoId)
+    .eq('brand', brand)
+    .limit(1)
+    .maybeSingle();
+  if (videoErr) return NextResponse.json({ error: videoErr.message }, { status: 500 });
+  if (!videoRow) return NextResponse.json({ error: 'Video not found for this brand' }, { status: 404 });
+
   const { data, error } = await admin
     .from('video_reviews')
     .upsert({
