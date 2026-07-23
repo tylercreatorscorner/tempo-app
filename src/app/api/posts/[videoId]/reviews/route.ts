@@ -3,12 +3,14 @@
  *
  * GET    /api/posts/[videoId]/reviews?brand=catakor
  * POST   /api/posts/[videoId]/reviews     (body: { brand, rating?, notes?, tags? })
- *   Upsert by (video_id, brand, reviewer_user_id) — each user has at most
- *   one review per video.
  * DELETE /api/posts/[videoId]/reviews?brand=catakor
- *   Delete the current user's review for this video.
  *
- * All routes admin-gated.
+ * Model (mig 094): reviews attach to the VIDEO identity — one review per
+ * (video_id, reviewer) ACROSS brands, because cross-store videos flip which
+ * brand their /posts row carries between windows. The brand param is the
+ * scope gate (the brand the caller is viewing under) and the provenance
+ * stored on newly-inserted rows; reads and deletes span all brands of the
+ * video. All routes Workspace-gated.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { getWorkspaceScope, type WorkspaceScope } from '@/lib/auth/workspace-scope';
@@ -56,11 +58,13 @@ export async function GET(
   if (denied) return denied;
 
   const admin = await createAdminClient();
+  // ALL brands of the video: reviews attach to the video identity (mig 094).
+  // The brand param remains the scope gate (it names the brand the caller is
+  // viewing the video under).
   const { data, error } = await admin
     .from('video_reviews')
     .select('id, reviewer_user_id, reviewer_name, rating, notes, tags, created_at, updated_at')
     .eq('video_id', videoId)
-    .eq('brand', brand)
     .order('updated_at', { ascending: false });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -119,19 +123,40 @@ export async function POST(
   if (videoErr) return NextResponse.json({ error: videoErr.message }, { status: 500 });
   if (!videoRow) return NextResponse.json({ error: 'Video not found for this brand' }, { status: 404 });
 
-  const { data, error } = await admin
+  // One review per (video, reviewer) ACROSS brands: a cross-store video must
+  // never accumulate two divergent reviews from the same person because the
+  // /posts row linked here under a different sibling brand (mig 094 model —
+  // reviews attach to the video identity; brand is provenance). Update the
+  // existing row wherever it lives; insert under the current brand otherwise.
+  const { data: existing, error: existingErr } = await admin
     .from('video_reviews')
-    .upsert({
-      video_id: videoId,
-      brand,
-      reviewer_user_id: scope.userId,
-      reviewer_name: scope.name ?? scope.email ?? 'unknown',
-      rating: rating ?? null,
-      notes: notes ?? null,
-      tags: safeTags ?? [],
-    }, { onConflict: 'video_id,brand,reviewer_user_id' })
-    .select('id, reviewer_user_id, reviewer_name, rating, notes, tags, created_at, updated_at')
-    .single();
+    .select('id')
+    .eq('video_id', videoId)
+    .eq('reviewer_user_id', scope.userId)
+    .limit(1)
+    .maybeSingle();
+  if (existingErr) return NextResponse.json({ error: existingErr.message }, { status: 500 });
+
+  const payload = {
+    reviewer_name: scope.name ?? scope.email ?? 'unknown',
+    rating: rating ?? null,
+    notes: notes ?? null,
+    tags: safeTags ?? [],
+    updated_at: new Date().toISOString(),
+  };
+
+  const { data, error } = existing
+    ? await admin
+        .from('video_reviews')
+        .update(payload)
+        .eq('id', existing.id)
+        .select('id, reviewer_user_id, reviewer_name, rating, notes, tags, created_at, updated_at')
+        .single()
+    : await admin
+        .from('video_reviews')
+        .insert({ video_id: videoId, brand, reviewer_user_id: scope.userId, ...payload })
+        .select('id, reviewer_user_id, reviewer_name, rating, notes, tags, created_at, updated_at')
+        .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ review: data });
@@ -151,11 +176,11 @@ export async function DELETE(
   if (denied) return denied;
 
   const admin = await createAdminClient();
+  // Across brands, matching the one-review-per-(video, reviewer) model.
   const { error } = await admin
     .from('video_reviews')
     .delete()
     .eq('video_id', videoId)
-    .eq('brand', brand)
     .eq('reviewer_user_id', scope.userId);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

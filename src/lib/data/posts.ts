@@ -113,7 +113,6 @@ interface RpcRow {
 
 interface ReviewRpcRow {
   video_id: string;
-  brand: string;
   review_count: number | string | null;
   avg_rating: number | string | null;
   flagged: boolean | null;
@@ -238,9 +237,14 @@ export async function getPosts(opts: GetPostsOpts): Promise<PostsResult> {
   const viewsKnown    = pNum(tot.views_known);
   const totalGmv      = pNum(tot.total_gmv);
 
-  const reviewByKey = new Map<string, ReviewRpcRow>();
+  // Keyed by video_id ALONE: /posts renders one row per video, and the brand
+  // that row carries is the WINDOWED-GMV winner, which flips between windows
+  // for cross-store videos (3,833 managed videos live under 2+ brands). Keying
+  // reviews by (video, brand) silently detached them whenever the winner
+  // flipped — mig 094 aggregates per video across brands.
+  const reviewByVideo = new Map<string, ReviewRpcRow>();
   for (const r of (reviewsRes.data as ReviewRpcRow[] | null) ?? []) {
-    reviewByKey.set(`${r.video_id}|||${r.brand}`, r);
+    reviewByVideo.set(r.video_id, r);
   }
 
   // ── 3. Map RPC rows → PostRow. Engagement stays nullable end-to-end.
@@ -249,7 +253,7 @@ export async function getPosts(opts: GetPostsOpts): Promise<PostsResult> {
     const likes = pNumOrNull(r.likes);
     const comments = pNumOrNull(r.comments);
     const shares = pNumOrNull(r.shares);
-    const review = reviewByKey.get(`${r.video_id}|||${r.brand_slug}`);
+    const review = reviewByVideo.get(r.video_id);
     return {
       video_id: r.video_id,
       video_title: r.video_title ?? '(untitled)',

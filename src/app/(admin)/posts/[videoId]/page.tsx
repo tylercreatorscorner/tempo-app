@@ -119,11 +119,13 @@ export default async function PostReviewPage({ params, searchParams }: Props) {
   // the registry ride-along resolves the display name per the house rule.
   const [statsRes, reviewsRes, registry] = await Promise.all([
     admin.rpc('get_video_lifetime_stats', { p_video_id: video.video_id, p_brand: video.brand }),
+    // ALL brands of this video: reviews attach to the video identity (mig 094)
+    // — a cross-store video's review must not vanish because the /posts row
+    // linked here under the sibling brand.
     admin
       .from('video_reviews')
       .select('id, reviewer_user_id, reviewer_name, rating, notes, tags, created_at, updated_at')
       .eq('video_id', video.video_id)
-      .eq('brand', video.brand)
       .order('updated_at', { ascending: false }),
     getBrandRegistry(),
   ]);
@@ -135,10 +137,12 @@ export default async function PostReviewPage({ params, searchParams }: Props) {
     stats = ((statsRes.data as LifetimeRpcRow[] | null) ?? [])[0] ?? null;
   }
 
+  // A failed reviews read must THROW (error boundary), never render as an
+  // empty review list: the client has no mount-time fetch anymore, so a
+  // silently-empty initialReviews would show a blank form whose Save upserts
+  // over the user's existing review without them ever seeing it.
   if (reviewsRes.error) {
-    // Reviews also load client-side after any mutation; a failed SSR read just
-    // means the client shows its own error state on refresh.
-    console.error('[posts/[videoId]] reviews read failed:', reviewsRes.error.message);
+    throw new Error(`Failed to load reviews: ${reviewsRes.error.message}`);
   }
   const initialReviews = (reviewsRes.data as ReviewRow[] | null) ?? [];
 

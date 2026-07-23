@@ -245,7 +245,7 @@ export function PostReviewClient({
                   label={`GMV · ${fmtShortDate(meta.window.start)} to ${fmtShortDate(meta.window.end)}`}
                   value={s ? formatCurrency(meta.window.gmv) : '—'}
                   accent="primary"
-                  info="Earned in the period selected on the Posts page — the figure on the row you clicked."
+                  info="Earned in the period selected on the Posts page: the figure on the row you clicked."
                 />
               )}
               <Kpi
@@ -439,17 +439,26 @@ export function PostReviewClient({
         )}
       </Card>
 
-      {/* Delete confirm — themed modal, not window.confirm */}
+      {/* Delete confirm — themed modal, not window.confirm. ModalOverlay's
+          contract: the consumer supplies the centering wrapper, backdrop, and
+          stopPropagation on the panel (same shape as the reporting
+          ConfirmDeleteModal). */}
       {confirmingDelete && (
         <ModalOverlay onClose={() => setConfirmingDelete(false)}>
-          <div className="w-full max-w-sm rounded-2xl bg-card border border-border shadow-[var(--pulse-elev-2)] p-5">
-            <div className="text-sm font-bold text-[var(--foreground)]">Delete your review?</div>
-            <p className="mt-1.5 text-sm text-muted-foreground">
-              Your rating, tags, and notes for this post will be removed. Other team members&apos; reviews are not affected.
-            </p>
-            <div className="mt-4 flex justify-end gap-2">
-              <Button variant="outline" size="sm" onClick={() => setConfirmingDelete(false)}>Cancel</Button>
-              <Button variant="danger" size="sm" onClick={deleteReview}>Delete review</Button>
+          <div className="absolute inset-0 flex items-center justify-center p-4" onClick={() => setConfirmingDelete(false)}>
+            <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" />
+            <div
+              className="relative w-full max-w-sm rounded-2xl bg-card border border-border shadow-[var(--pulse-elev-2)] p-5"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="text-sm font-bold text-[var(--foreground)]">Delete your review?</div>
+              <p className="mt-1.5 text-sm text-muted-foreground">
+                Your rating, tags, and notes for this post will be removed. Other team members&apos; reviews are not affected.
+              </p>
+              <div className="mt-4 flex justify-end gap-2">
+                <Button variant="outline" size="sm" onClick={() => setConfirmingDelete(false)}>Cancel</Button>
+                <Button variant="danger" size="sm" onClick={deleteReview}>Delete review</Button>
+              </div>
             </div>
           </div>
         </ModalOverlay>

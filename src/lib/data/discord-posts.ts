@@ -151,7 +151,6 @@ async function getDiscordMap(supabase: any, brandFilter: string): Promise<Map<st
   // Mentions must degrade gracefully — a failed lookup falls back to plain
   // @handle text, never a crashed post and never a silent unfiltered read.
   let mcBrands: string[] | null = null;   // managed_creators is keyed at umbrella grain
-  let brandUuids: string[] | null = null; // tiktok_accounts is keyed by brand_id uuid
   try {
     if (brandFilter && brandFilter !== 'all') {
       const reg = await getBrandRegistry();
@@ -160,7 +159,6 @@ async function getDiscordMap(supabase: any, brandFilter: string): Promise<Map<st
       // roster rows live at the umbrella grain.
       const parentSlug = row?.parent_brand_id ? reg.byId.get(row.parent_brand_id)?.slug : undefined;
       mcBrands = parentSlug ? [brandFilter, parentSlug] : [brandFilter];
-      brandUuids = resolveUuids(reg, brandFilter);
     }
   } catch (err) {
     console.error('[discord-posts] getDiscordMap: brand registry read failed - mentions will fall back to @handle:', err);
@@ -199,16 +197,19 @@ async function getDiscordMap(supabase: any, brandFilter: string): Promise<Map<st
 
   // Secondary source: creators_v2 via tiktok_accounts (for newer creators not
   // in managed_creators). Also paged — tiktok_accounts is over the 1000 cap.
+  // Deliberately NOT scoped by brand_id: the column's write-grain is
+  // inconsistent — rows carry the umbrella's OWN uuid, a child-store uuid, or
+  // NULL (creator-linked rows) — so an .in('brand_id', childStoreUuids) filter
+  // silently dropped real Discord mappings. The table is small and the map is
+  // keyed by handle, so over-fetching is harmless.
   try {
-    const v2Data = await fetchAllRows<any>(() => {
-      let q = supabase
+    const v2Data = await fetchAllRows<any>(() =>
+      supabase
         .from('tiktok_accounts')
         .select('tiktok_username, creator:creators_v2!inner(discord_id, discord_username)')
         .not('creator_id', 'is', null)
-        .order('id');
-      if (brandUuids) q = q.in('brand_id', brandUuids);
-      return q;
-    });
+        .order('id'),
+    );
     v2Data.forEach((row: any) => {
       const handle = (row.tiktok_username || '').toLowerCase().replace('@', '');
       if (handle && row.creator?.discord_id && !map.has(handle)) {

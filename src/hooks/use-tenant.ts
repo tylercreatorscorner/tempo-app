@@ -53,19 +53,32 @@ async function fetchTenantSnapshot(): Promise<TenantSnapshot> {
     const snapshot: TenantSnapshot = { ...DEFAULT_SNAPSHOT };
     try {
       const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
+      // supabase-js reports most failures as VALUES, not throws:
+      // auth.getUser() resolves { data: { user: null }, error } on a network/
+      // refresh failure, and table reads resolve { data: null, error }. Every
+      // error field below must be checked explicitly — otherwise one transient
+      // failure would cache the default (wrong-tenant/no-brands) snapshot for
+      // the whole tab session. On ANY error: return the defaults WITHOUT
+      // caching so the next mount retries (inflight is cleared in the caller's
+      // finally, so a retry starts a fresh fetch).
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError) return snapshot;
+
       if (!user) {
+        // getUser succeeded with no user: a definitive signed-out state, safe
+        // to cache for the lifetime of the tab.
         cache = snapshot;
         return snapshot;
       }
 
       snapshot.userEmail = user.email || '';
 
-      const { data: profile } = await supabase
+      const { data: profile, error: profileError } = await supabase
         .from('user_profiles')
         .select('tenant_id, role, name, allowed_brands, can_view_finance')
         .eq('user_id', user.id)
         .maybeSingle();
+      if (profileError) return snapshot;
 
       if (profile) {
         snapshot.userRole = profile.role || 'customer';
@@ -86,16 +99,19 @@ async function fetchTenantSnapshot(): Promise<TenantSnapshot> {
           supabase.from('tenants').select('*').eq('id', profile.tenant_id).single(),
           supabase.from('brands_v2').select('id', { count: 'exact', head: true }),
         ]);
+        if (tenantRes.error || countRes.error) return snapshot;
 
         snapshot.tenant = tenantRes.data as TenantInfo | null;
         snapshot.brandCount = countRes.count ?? 0;
       }
 
+      // Only reached when getUser returned a real user and the whole profile
+      // chain completed error-free — the only authenticated state worth caching.
       cache = snapshot;
       return snapshot;
     } catch {
-      // Unexpected throw (e.g. network failure inside supabase-js): return the
-      // defaults WITHOUT caching so the next mount retries.
+      // Unexpected throw: return the defaults WITHOUT caching so the next
+      // mount retries.
       return snapshot;
     }
   })();
