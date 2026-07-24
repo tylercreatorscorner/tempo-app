@@ -148,7 +148,7 @@ function pctChange(curr: number, prior: number): number | null {
 // headline GMV is from one week and "Top Videos" is from another (or empty).
 // Using the oldest shared date guarantees every section reports on the
 // same window, even if it means the report is a few weeks behind real time.
-async function resolveSharedAnchor(supabase: any, brandSlugs: string[] | null): Promise<Date> {
+async function resolveSharedAnchor(supabase: SupabaseClient, brandSlugs: string[] | null): Promise<Date> {
   // Anchor to the oldest of the latest dates across the creator- and
   // video-level source tables so every section reports on the same window.
   const tables: ('creator_performance' | 'video_performance')[] = [
@@ -173,75 +173,23 @@ async function resolveSharedAnchor(supabase: any, brandSlugs: string[] | null): 
   return oldestLatest;
 }
 
-// Paginated fetch helper (same as discord-posts but inlined to avoid coupling)
-async function paginatedFetch(
-  supabase: any,
-  table: string,
-  columns: string,
-  filters: { column: string; op: string; value: any }[]
-): Promise<any[]> {
-  const PAGE_SIZE = 1000;
-  const allData: any[] = [];
-  let from = 0;
-  while (true) {
-    let query = supabase.from(table).select(columns).range(from, from + PAGE_SIZE - 1);
-    for (const f of filters) {
-      switch (f.op) {
-        case 'eq':  query = query.eq(f.column, f.value); break;
-        case 'in':  query = query.in(f.column, f.value); break;
-        case 'gte': query = query.gte(f.column, f.value); break;
-        case 'lte': query = query.lte(f.column, f.value); break;
-        case 'lt':  query = query.lt(f.column, f.value); break;
-        case 'gt':  query = query.gt(f.column, f.value); break;
-      }
-    }
-    const { data, error } = await query;
-    if (error) throw error;
-    if (!data || data.length === 0) break;
-    allData.push(...data);
-    if (data.length < PAGE_SIZE) break;
-    from += PAGE_SIZE;
-  }
-  return allData;
-}
-
-// Build the set of "managed" tiktok handles for this brand filter.
-// managed_creators stores up to 10 handles per signed creator; flatten and lowercase them.
+// ── Main fetcher ───────────────────────────────────────────────────
 //
-// Paged past PostgREST's silent 1000-row cap: managed_creators is over it, and
-// the truncated tail silently misclassified real signed creators as "organic"
-// on the client-facing managed/organic split. Errors THROW — a partial handle
-// set is a confidently wrong money number on a client PDF, same class of lie
-// as rendering $0 for a failed read.
-async function getManagedHandleSet(supabase: any, brandSlug: string): Promise<Set<string>> {
-  const PAGE = 1000;
-  const set = new Set<string>();
-  for (let from = 0; ; from += PAGE) {
-    let query = supabase
-      .from('managed_creators')
-      .select('account_1, account_2, account_3, account_4, account_5, account_6, account_7, account_8, account_9, account_10')
-      .order('id')
-      .range(from, from + PAGE - 1);
-    if (brandSlug && brandSlug !== 'all') {
-      query = query.eq('brand', brandSlug);
-    }
-    const { data, error } = await query;
-    if (error) throw new Error(`[brand-client-report] managed_creators read failed: ${error.message}`);
-    (data || []).forEach((row: any) => {
-      for (const k of ['account_1','account_2','account_3','account_4','account_5','account_6','account_7','account_8','account_9','account_10']) {
-        const v = row[k];
-        if (typeof v === 'string') {
-          const handle = v.replace('@','').trim().toLowerCase();
-          if (handle) set.add(handle);
-        }
-      }
-    });
-    if (!data || data.length < PAGE) break;
-  }
-  return set;
-}
+// ONE round-trip (mig 096): get_brand_client_report_agg computes every
+// section as bounded aggregates in SQL - totals, prior totals, managed/
+// organic (+ managed prior), new-vs-returning, newly-activated, daily
+// series, leaderboards (overall + managed), products, product x creator.
+// The old path paginate-looped creator_performance twice and
+// video_performance once through per-row RLS: ~100+ sequential pages,
+// 10-20s, and the same 8s-timeout cliff that killed the Daily Drop.
+// Measured now: single brand ~1.8s, all-brands ~9s (one statement, its own
+// 60s timeout). The RPC throws on error - a failed money read must never
+// render as $0 on a client-facing PDF.
 
-// Group an aggregated creator map into a top-N leaderboard with pct-of-total
+interface AggLeaderCreator { name: string; gmv: number; orders: number; videos: number }
+interface AggLeaderVideo { title: string; creator: string; gmv: number; orders: number; url: string | null }
+
+// Top-N leaderboard with pct-of-total.
 function buildLeaderboard<T extends { gmv: number }>(
   rows: T[],
   totalGmv: number,
@@ -253,7 +201,10 @@ function buildLeaderboard<T extends { gmv: number }>(
   }));
 }
 
-// ── Main fetcher ───────────────────────────────────────────────────
+function num(v: unknown): number {
+  const n = typeof v === 'number' ? v : parseFloat(String(v ?? 0));
+  return Number.isNaN(n) ? 0 : n;
+}
 
 export async function getBrandClientReportData(
   brandSlug: string,
@@ -261,9 +212,8 @@ export async function getBrandClientReportData(
   period: ReportPeriod | { start: string; end: string } = '7d',
   /**
    * Optional pre-built Supabase client. The brand portal passes the admin
-   * client here to bypass RLS — access is already validated at the layout
-   * level, and the per-row RLS subqueries cause statement timeouts on the
-   * large stats tables.
+   * client here - access is already validated at the layout level. The
+   * aggregate RPC is SECURITY DEFINER either way.
    */
   clientOverride?: SupabaseClient,
 ): Promise<BrandClientReportData> {
@@ -271,9 +221,19 @@ export async function getBrandClientReportData(
   const reg = await getBrandRegistry();
   const brandSlugs = getBrandDataSlugs(reg, brandSlug);
 
+  // Managed-roster grain: managed_creators rows live at the umbrella/roster
+  // slug. For a store slug include its parent umbrella so store-grain runs
+  // stop returning an empty managed set (the old exact-match did).
+  let rosterSlugs: string[] | null = null;
+  if (brandSlug && brandSlug !== 'all') {
+    const row = reg.bySlug.get(brandSlug);
+    const parentSlug = row?.parent_brand_id ? reg.byId.get(row.parent_brand_id)?.slug : undefined;
+    rosterSlugs = parentSlug ? [brandSlug, parentSlug] : [brandSlug];
+  }
+
   // ── Resolve the time window. A preset ('7d'/'30d') anchors to the oldest of
   // the latest dates across creator/video tables so every section reports on
-  // the same window. A custom { start, end } uses the picked dates verbatim —
+  // the same window. A custom { start, end } uses the picked dates verbatim -
   // the operator chose them, so we don't anchor.
   let startDate: Date, endDate: Date, periodDays: number;
   if (typeof period === 'object') {
@@ -286,7 +246,7 @@ export async function getBrandClientReportData(
     endDate = new Date(today);
     endDate.setDate(today.getDate() - 1);
     startDate = new Date(endDate);
-    startDate.setDate(endDate.getDate() - (periodDays - 1));   // inclusive — N days through endDate
+    startDate.setDate(endDate.getDate() - (periodDays - 1));   // inclusive - N days through endDate
   }
 
   // Prior window = the same-length window immediately before the selected one
@@ -296,151 +256,61 @@ export async function getBrandClientReportData(
   const priorStart = new Date(priorEnd);
   priorStart.setDate(priorEnd.getDate() - (periodDays - 1));
 
-  const startStr = formatDate(startDate);
-  const endStr = formatDate(endDate);
-  const priorStartStr = formatDate(priorStart);
-  const priorEndStr = formatDate(priorEnd);
+  const { data: aggRaw, error: aggErr } = await supabase.rpc('get_brand_client_report_agg', {
+    p_data_slugs: brandSlugs,
+    p_roster_slugs: rosterSlugs,
+    p_start: formatDate(startDate),
+    p_end: formatDate(endDate),
+    p_prior_start: formatDate(priorStart),
+    p_prior_end: formatDate(priorEnd),
+  });
+  if (aggErr) throw new Error(`[brand-client-report] get_brand_client_report_agg failed: ${aggErr.message}`);
+  /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+  const agg = (aggRaw ?? {}) as Record<string, any>;
 
-  // ── Filter builders (keep DRY). Source tables are keyed by brand SLUG and
-  // hold multiple period_types — scope to daily so we never double-count.
-  const dateRange = (s: string, e: string) => {
-    const f: { column: string; op: string; value: any }[] = [
-      { column: 'report_date', op: 'gte', value: s },
-      { column: 'report_date', op: 'lte', value: e },
-      { column: 'period_type', op: 'eq', value: 'daily' },
-    ];
-    if (brandSlugs) f.push({ column: 'brand', op: 'in', value: brandSlugs });
-    return f;
-  };
+  const t = agg.totals ?? {};
+  const pt = agg.prior_totals ?? {};
+  const m = agg.managed ?? {};
+  const o = agg.organic ?? {};
+  const mp = agg.managed_prior ?? {};
+  const nvr = agg.new_vs_returning ?? {};
 
-  // ── Fire all queries in parallel.
-  // creator_performance is creator-level (one row per creator/day). ONE
-  // video_performance pull carries the superset of columns for the three
-  // video×product-grained sections (top videos by video_id, products by
-  // product_name, product↔creator breakdown) — it was three separate paged
-  // pulls of the SAME window with different column sets, i.e. 3x the
-  // round-trips for identical rows.
-  const [
-    creatorRowsCur,
-    creatorRowsPrior,
-    videoProductRows,
-    managedHandles,
-  ] = await Promise.all([
-    paginatedFetch(supabase, 'creator_performance',
-      'creator_name, gmv, orders, videos, est_commission, report_date',
-      dateRange(startStr, endStr)),
-    paginatedFetch(supabase, 'creator_performance',
-      'creator_name, gmv, orders, videos',
-      dateRange(priorStartStr, priorEndStr)),
-    paginatedFetch(supabase, 'video_performance',
-      'video_id, video_title, video_link, creator_name, product_name, gmv, orders',
-      dateRange(startStr, endStr)),
-    getManagedHandleSet(supabase, brandSlug),
-  ]);
-  // The three legacy row shapes all derive from the single pull.
-  const videoRows = videoProductRows;
-  const productRows = videoProductRows;
-
-  // ── Aggregate creators (current period)
-  const creatorMap = new Map<string, { name: string; gmv: number; orders: number; videos: number; commission: number }>();
-  const dayCreatorSet = new Map<string, Set<string>>();   // report_date → handles (for daily creators count)
-  let totalCommission = 0;
-
-  for (const row of (creatorRowsCur || []) as any[]) {
-    const handle = (row.creator_name || '').toLowerCase().replace('@', '');
-    if (!handle) continue;
-    if (!creatorMap.has(handle)) {
-      creatorMap.set(handle, { name: row.creator_name || handle, gmv: 0, orders: 0, videos: 0, commission: 0 });
-    }
-    const c = creatorMap.get(handle)!;
-    const gmv = parseFloat(row.gmv) || 0;
-    const ord = parseInt(row.orders) || 0;
-    const vid = parseInt(row.videos) || 0;
-    const com = parseFloat(row.est_commission) || 0;
-    c.gmv += gmv;
-    c.orders += ord;
-    c.videos += vid;
-    c.commission += com;
-    totalCommission += com;
-
-    // For daily aggregation
-    const dStr = row.report_date as string;
-    if (!dayCreatorSet.has(dStr)) dayCreatorSet.set(dStr, new Set());
-    dayCreatorSet.get(dStr)!.add(handle);
-  }
-
-  // ── Aggregate creators (prior period — just GMV per handle, for new/returning + WoW)
-  const priorCreatorMap = new Map<string, { gmv: number; orders: number; videos: number }>();
-  for (const row of (creatorRowsPrior || []) as any[]) {
-    const handle = (row.creator_name || '').toLowerCase().replace('@', '');
-    if (!handle) continue;
-    if (!priorCreatorMap.has(handle)) priorCreatorMap.set(handle, { gmv: 0, orders: 0, videos: 0 });
-    const p = priorCreatorMap.get(handle)!;
-    p.gmv += parseFloat(row.gmv) || 0;
-    p.orders += parseInt(row.orders) || 0;
-    p.videos += parseInt(row.videos) || 0;
-  }
-
-  // ── Headline totals
-  const totalGmv = Array.from(creatorMap.values()).reduce((s, c) => s + c.gmv, 0);
-  const totalOrders = Array.from(creatorMap.values()).reduce((s, c) => s + c.orders, 0);
-  const totalVideos = Array.from(creatorMap.values()).reduce((s, c) => s + c.videos, 0);
-  const activeCreators = creatorMap.size;
+  const totalGmv = num(t.gmv);
+  const totalOrders = num(t.orders);
+  const totalVideos = num(t.videos);
+  const activeCreators = num(t.active_creators);
+  const totalCommission = num(t.commission);
   const avgOrderValue = totalOrders > 0 ? totalGmv / totalOrders : 0;
   const avgGmvPerCreator = activeCreators > 0 ? totalGmv / activeCreators : 0;
   // Falls back to estimated 20% if est_commission column was zero/null in the data
   const estCommission = totalCommission > 0 ? totalCommission : totalGmv * 0.20;
 
-  const priorTotalGmv = Array.from(priorCreatorMap.values()).reduce((s, c) => s + c.gmv, 0);
-  const priorTotalOrders = Array.from(priorCreatorMap.values()).reduce((s, c) => s + c.orders, 0);
-  const priorActiveCreators = priorCreatorMap.size;
-  const priorTotalVideos = Array.from(priorCreatorMap.values()).reduce((s, c) => s + c.videos, 0);
+  const priorTotalGmv = num(pt.gmv);
+  const priorTotalOrders = num(pt.orders);
+  const priorActiveCreators = num(pt.active_creators);
+  const priorTotalVideos = num(pt.videos);
 
-  // ── Managed vs Organic split
-  let managedGmv = 0, managedOrders = 0, organicGmv = 0, organicOrders = 0;
-  const managedSet = new Set<string>();
-  const organicSet = new Set<string>();
-  for (const [handle, c] of creatorMap) {
-    if (managedHandles.has(handle)) {
-      managedGmv += c.gmv; managedOrders += c.orders; managedSet.add(handle);
-    } else {
-      organicGmv += c.gmv; organicOrders += c.orders; organicSet.add(handle);
-    }
-  }
+  const managedGmv = num(m.gmv);
+  const managedOrders = num(m.orders);
+  const managedCreatorCount = num(m.creators);
+  const organicGmv = num(o.gmv);
+  const organicOrders = num(o.orders);
+  const organicCreatorCount = num(o.creators);
   const managedPct = totalGmv > 0 ? (managedGmv / totalGmv) * 100 : 0;
 
-  // ── New vs Returning
-  let newCount = 0, newGmv = 0, returningCount = 0, returningGmv = 0;
-  for (const [handle, c] of creatorMap) {
-    if (priorCreatorMap.has(handle)) {
-      returningCount += 1; returningGmv += c.gmv;
-    } else {
-      newCount += 1; newGmv += c.gmv;
-    }
-  }
-
-  // ── Daily performance (per report_date)
-  const dailyMap = new Map<string, { gmv: number; orders: number }>();
-  for (const row of (creatorRowsCur || []) as any[]) {
-    const dStr = row.report_date as string;
-    if (!dailyMap.has(dStr)) dailyMap.set(dStr, { gmv: 0, orders: 0 });
-    const d = dailyMap.get(dStr)!;
-    d.gmv += parseFloat(row.gmv) || 0;
-    d.orders += parseInt(row.orders) || 0;
-  }
-  const dailyArray = Array.from(dailyMap.entries())
-    .map(([dStr, m]) => ({
-      date: new Date(dStr + 'T12:00:00Z'),
-      weekday: new Date(dStr + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'long' }),
-      gmv: m.gmv,
-      orders: m.orders,
-      creators: dayCreatorSet.get(dStr)?.size ?? 0,
+  // ── Daily performance + day-of-week (derived from the SQL daily series)
+  const dailyArray = ((agg.daily ?? []) as Array<{ d: string; gmv: number; orders: number; creators: number }>)
+    .map(r => ({
+      date: new Date(r.d + 'T12:00:00Z'),
+      weekday: new Date(r.d + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'long' }),
+      gmv: num(r.gmv),
+      orders: num(r.orders),
+      creators: num(r.creators),
     }))
     .sort((a, b) => a.date.getTime() - b.date.getTime());
   const peakGmv = Math.max(0, ...dailyArray.map(d => d.gmv));
   const dailyPerformance = dailyArray.map(d => ({ ...d, isPeak: d.gmv === peakGmv && peakGmv > 0 }));
 
-  // ── Day of week aggregation (Sun=0..Sat=6)
   const dowOrder = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const dowMap = new Map<string, number>();
   for (const d of dailyPerformance) {
@@ -454,64 +324,36 @@ export async function getBrandClientReportData(
     isPeak: (dowMap.get(day) || 0) === dowPeak && dowPeak > 0,
   }));
 
-  // ── Top creators leaderboard
-  const sortedCreators = Array.from(creatorMap.values()).sort((a, b) => b.gmv - a.gmv);
-  const topCreatorsRaw = sortedCreators.slice(0, 10).map(c => ({
-    name: c.name, gmv: c.gmv, orders: c.orders, videos: c.videos,
+  // ── Leaderboards
+  const topCreatorsRaw = ((agg.top_creators ?? []) as AggLeaderCreator[]).map(c => ({
+    name: c.name, gmv: num(c.gmv), orders: num(c.orders), videos: num(c.videos),
   }));
   const topCreators = buildLeaderboard(topCreatorsRaw, totalGmv, 10);
 
-  // ── Top videos leaderboard (aggregate by video_id)
-  const videoMap = new Map<string, { title: string; creator: string; gmv: number; orders: number; videoUrl: string | null }>();
-  for (const row of (videoRows || []) as any[]) {
-    const id = row.video_id;
-    if (!id) continue;
-    if (!videoMap.has(id)) {
-      videoMap.set(id, {
-        title: row.video_title || '(untitled)',
-        creator: row.creator_name || '',
-        gmv: 0,
-        orders: 0,
-        videoUrl: row.video_link || null,
-      });
-    }
-    const v = videoMap.get(id)!;
-    v.gmv += parseFloat(row.gmv) || 0;
-    v.orders += parseInt(row.orders) || 0;
-  }
-  const topVideos = Array.from(videoMap.values()).sort((a, b) => b.gmv - a.gmv).slice(0, 10);
+  const mapVideo = (v: AggLeaderVideo) => ({
+    title: v.title || '(untitled)',
+    creator: v.creator || '',
+    gmv: num(v.gmv),
+    orders: num(v.orders),
+    videoUrl: v.url || null,
+  });
+  const topVideos = ((agg.top_videos ?? []) as AggLeaderVideo[]).map(mapVideo);
 
-  // ── Top products
-  const productMap = new Map<string, { gmv: number; orders: number }>();
-  for (const row of (productRows || []) as any[]) {
-    const name = row.product_name || 'Unknown Product';
-    if (!productMap.has(name)) productMap.set(name, { gmv: 0, orders: 0 });
-    const p = productMap.get(name)!;
-    p.gmv += parseFloat(row.gmv) || 0;
-    p.orders += parseInt(row.orders) || 0;
-  }
-  const sortedProducts = Array.from(productMap.entries())
-    .map(([name, p]) => ({ name, gmv: p.gmv, orders: p.orders }))
-    .sort((a, b) => b.gmv - a.gmv);
-  const topProducts = buildLeaderboard(sortedProducts.slice(0, 10), totalGmv, 10);
+  const topProductsRaw = ((agg.top_products ?? []) as Array<{ name: string; gmv: number; orders: number }>).map(p => ({
+    name: p.name, gmv: num(p.gmv), orders: num(p.orders),
+  }));
+  const topProducts = buildLeaderboard(topProductsRaw, totalGmv, 10);
 
-  // ── Product → Creator breakdown (top 5 products, top 3 creators each)
-  const productCreatorMap = new Map<string, Map<string, number>>();
-  for (const row of (videoProductRows || []) as any[]) {
-    const pname = row.product_name || 'Unknown Product';
-    const handle = (row.creator_name || '').replace('@', '');
-    if (!handle) continue;
-    if (!productCreatorMap.has(pname)) productCreatorMap.set(pname, new Map());
-    const m = productCreatorMap.get(pname)!;
-    m.set(handle, (m.get(handle) || 0) + (parseFloat(row.gmv) || 0));
-  }
-  const productCreatorBreakdown = sortedProducts.slice(0, 5).map(p => ({
+  // ── Product -> Creator breakdown (top 5 products, top 3 creators each)
+  const pcRows = (agg.product_creators ?? []) as Array<{ product: string; name: string; gmv: number }>;
+  const productCreatorBreakdown = topProductsRaw.slice(0, 5).map(p => ({
     productName: p.name,
     productGmv: p.gmv,
     productOrders: p.orders,
     pctOfTotal: totalGmv > 0 ? (p.gmv / totalGmv) * 100 : 0,
-    topCreators: Array.from(productCreatorMap.get(p.name)?.entries() ?? [])
-      .map(([name, gmv]) => ({ name, gmv }))
+    topCreators: pcRows
+      .filter(r => r.product === p.name)
+      .map(r => ({ name: r.name, gmv: num(r.gmv) }))
       .sort((a, b) => b.gmv - a.gmv)
       .slice(0, 3),
   }));
@@ -520,85 +362,39 @@ export async function getBrandClientReportData(
   const topCreator = topCreatorsRaw[0]
     ? { name: topCreatorsRaw[0].name, gmv: topCreatorsRaw[0].gmv, orders: topCreatorsRaw[0].orders, videos: topCreatorsRaw[0].videos }
     : null;
-  const topVideo = topVideos[0]
-    ? { title: topVideos[0].title, creator: topVideos[0].creator, gmv: topVideos[0].gmv, orders: topVideos[0].orders, videoUrl: topVideos[0].videoUrl }
-    : null;
+  const topVideo = topVideos[0] ?? null;
   const peakDay = dailyPerformance.find(d => d.isPeak);
   const bestDay = peakDay
     ? { date: peakDay.date, weekday: peakDay.weekday, gmv: peakDay.gmv, orders: peakDay.orders, creators: peakDay.creators }
     : null;
 
   // ── Creators Corner (managed) contribution detail
-  // Prior-period managed totals (for the contribution trend).
-  let ccPriorGmv = 0, ccPriorOrders = 0;
-  const ccPriorCreators = new Set<string>();
-  for (const [handle, p] of priorCreatorMap) {
-    if (managedHandles.has(handle)) {
-      ccPriorGmv += p.gmv; ccPriorOrders += p.orders; ccPriorCreators.add(handle);
-    }
-  }
-  // Current managed creators (videos, commission, leaderboard).
-  let ccVideos = 0, ccCommission = 0;
-  const ccCreatorRows: { name: string; gmv: number; orders: number; videos: number }[] = [];
-  for (const [handle, c] of creatorMap) {
-    if (!managedHandles.has(handle)) continue;
-    ccVideos += c.videos;
-    ccCommission += c.commission;
-    ccCreatorRows.push({ name: c.name, gmv: c.gmv, orders: c.orders, videos: c.videos });
-  }
-  ccCreatorRows.sort((a, b) => b.gmv - a.gmv);
-  const ccTopCreators = ccCreatorRows.slice(0, 5).map(c => ({
-    ...c,
-    pctOfManaged: managedGmv > 0 ? (c.gmv / managedGmv) * 100 : 0,
+  const ccCommission = num(m.commission);
+  const ccTopCreators = ((agg.managed_top_creators ?? []) as AggLeaderCreator[]).map(c => ({
+    name: c.name, gmv: num(c.gmv), orders: num(c.orders), videos: num(c.videos),
+    pctOfManaged: managedGmv > 0 ? (num(c.gmv) / managedGmv) * 100 : 0,
   }));
-  // Top videos from managed creators only.
-  const ccVideoMap = new Map<string, { title: string; creator: string; gmv: number; orders: number; videoUrl: string | null }>();
-  for (const row of (videoRows || []) as any[]) {
-    const h = (row.creator_name || '').toLowerCase().replace('@', '');
-    if (!h || !managedHandles.has(h)) continue;
-    const id = row.video_id;
-    if (!id) continue;
-    if (!ccVideoMap.has(id)) {
-      ccVideoMap.set(id, {
-        title: row.video_title || '(untitled)',
-        creator: row.creator_name || '',
-        gmv: 0, orders: 0,
-        videoUrl: row.video_link || null,
-      });
-    }
-    const v = ccVideoMap.get(id)!;
-    v.gmv += parseFloat(row.gmv) || 0;
-    v.orders += parseInt(row.orders) || 0;
-  }
-  const ccTopVideos = Array.from(ccVideoMap.values()).sort((a, b) => b.gmv - a.gmv).slice(0, 5);
-  // Roster activation.
-  let ccNewlyActivated = 0;
-  for (const h of managedSet) { if (!priorCreatorMap.has(h)) ccNewlyActivated += 1; }
-  // Efficiency vs organic.
-  const ccManagedAov = managedOrders > 0 ? managedGmv / managedOrders : 0;
-  const ccOrganicAov = organicOrders > 0 ? organicGmv / organicOrders : 0;
-  const ccManagedPerCreator = managedSet.size > 0 ? managedGmv / managedSet.size : 0;
-  const ccOrganicPerCreator = organicSet.size > 0 ? organicGmv / organicSet.size : 0;
+  const ccTopVideos = ((agg.managed_top_videos ?? []) as AggLeaderVideo[]).map(mapVideo);
 
   const creatorsCorner = {
     gmv: managedGmv,
     orders: managedOrders,
-    creatorCount: managedSet.size,
-    videos: ccVideos,
+    creatorCount: managedCreatorCount,
+    videos: num(m.videos),
     commission: ccCommission > 0 ? ccCommission : managedGmv * 0.20,
     pctOfStoreGmv: managedPct,
-    priorGmv: ccPriorGmv,
-    priorOrders: ccPriorOrders,
-    priorCreatorCount: ccPriorCreators.size,
-    gmvChangePct: pctChange(managedGmv, ccPriorGmv),
-    orderChangePct: pctChange(managedOrders, ccPriorOrders),
-    managedAov: ccManagedAov,
-    organicAov: ccOrganicAov,
-    managedGmvPerCreator: ccManagedPerCreator,
-    organicGmvPerCreator: ccOrganicPerCreator,
-    signedCreatorCount: managedHandles.size,
-    activeCreatorCount: managedSet.size,
-    newlyActivatedCount: ccNewlyActivated,
+    priorGmv: num(mp.gmv),
+    priorOrders: num(mp.orders),
+    priorCreatorCount: num(mp.creators),
+    gmvChangePct: pctChange(managedGmv, num(mp.gmv)),
+    orderChangePct: pctChange(managedOrders, num(mp.orders)),
+    managedAov: managedOrders > 0 ? managedGmv / managedOrders : 0,
+    organicAov: organicOrders > 0 ? organicGmv / organicOrders : 0,
+    managedGmvPerCreator: managedCreatorCount > 0 ? managedGmv / managedCreatorCount : 0,
+    organicGmvPerCreator: organicCreatorCount > 0 ? organicGmv / organicCreatorCount : 0,
+    signedCreatorCount: num(agg.signed_creator_count),
+    activeCreatorCount: managedCreatorCount,
+    newlyActivatedCount: num(agg.newly_activated),
     topCreators: ccTopCreators,
     topVideos: ccTopVideos,
   };
@@ -635,13 +431,13 @@ export async function getBrandClientReportData(
     topVideo,
     bestDay,
 
-    managed: { gmv: managedGmv, creatorCount: managedSet.size, orders: managedOrders },
-    organic: { gmv: organicGmv, creatorCount: organicSet.size, orders: organicOrders },
+    managed: { gmv: managedGmv, creatorCount: managedCreatorCount, orders: managedOrders },
+    organic: { gmv: organicGmv, creatorCount: organicCreatorCount, orders: organicOrders },
     managedPct,
     creatorsCorner,
 
-    newCreators: { count: newCount, gmv: newGmv },
-    returningCreators: { count: returningCount, gmv: returningGmv },
+    newCreators: { count: num(nvr.new_count), gmv: num(nvr.new_gmv) },
+    returningCreators: { count: num(nvr.returning_count), gmv: num(nvr.returning_gmv) },
 
     dayOfWeek,
     dailyPerformance,
