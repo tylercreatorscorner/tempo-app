@@ -28,7 +28,7 @@ import { EarningsKpis } from './components/earnings-kpis';
 import { BrandEarningsTable, type SortKey } from './components/brand-earnings-table';
 import { RunInvoicesModal } from './components/run-invoices-modal';
 import { YearView } from './components/year-view';
-import { BrandEditSheet } from './components/brand-edit-sheet';
+import { BrandEditSheet, type BrandSettingsValues } from './components/brand-edit-sheet';
 import type { SeriesPoint } from './components/earnings-trend-chart';
 import type { BrandRow, EarningsResponse, RunPlan } from './components/types';
 
@@ -47,7 +47,16 @@ export function EarningsClient({ initialMonth, initialView, initialYear }: {
   const [plan, setPlan] = useState<RunPlan | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [editingBrand, setEditingBrand] = useState<BrandRow | null>(null);
+  // Brand KEY, not a captured row object: the sheet's initialValues always
+  // resolve from the CURRENT rows array, so reopening during the post-save
+  // refetch shows the optimistic values, never a stale pre-save snapshot.
+  const [editingBrandKey, setEditingBrandKey] = useState<string | null>(null);
+  // Post-save reconcile: the saved brand's money cells shimmer until the
+  // authoritative refetch lands, then the row flashes highlight.
+  const [reconcilingBrand, setReconcilingBrand] = useState<string | null>(null);
+  const [flashBrand, setFlashBrand] = useState<string | null>(null);
+  const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (flashTimer.current) clearTimeout(flashTimer.current); }, []);
   const [sortKey, setSortKey] = useState<SortKey>('total');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [generatingBrand, setGeneratingBrand] = useState<string | null>(null);
@@ -85,7 +94,9 @@ export function EarningsClient({ initialMonth, initialView, initialYear }: {
   // loading state.
   const fetchSeq = useRef(0);
 
-  const fetchAll = useCallback(async (m: string, tmId: string | null) => {
+  // Resolves true only when THIS call's data committed to state (not stale,
+  // not errored) — the post-save reconcile uses it to time the row flash.
+  const fetchAll = useCallback(async (m: string, tmId: string | null): Promise<boolean> => {
     const seq = ++fetchSeq.current;
     setLoading(true);
     setError(null);
@@ -101,7 +112,7 @@ export function EarningsClient({ initialMonth, initialView, initialYear }: {
       const earningsJson = await earningsRes.json();
       const seriesJson = seriesRes.ok ? await seriesRes.json() : null;
       const planJson = planRes.ok ? await planRes.json() : null;
-      if (seq !== fetchSeq.current) return; // stale — a newer selection owns the UI
+      if (seq !== fetchSeq.current) return false; // stale — a newer selection owns the UI
       if (!earningsRes.ok) throw new Error(earningsJson.error || `HTTP ${earningsRes.status}`);
       setData(earningsJson);
 
@@ -109,9 +120,11 @@ export function EarningsClient({ initialMonth, initialView, initialYear }: {
       // Plan failure is non-fatal: the run button falls back to counts derived
       // from the (same-source) enriched earnings rows.
       setPlan(planJson);
+      return true;
     } catch (err) {
-      if (seq !== fetchSeq.current) return; // stale — drop the error too
+      if (seq !== fetchSeq.current) return false; // stale — drop the error too
       setError(err instanceof Error ? err.message : 'Failed to load earnings');
+      return false;
     } finally {
       if (seq === fetchSeq.current) setLoading(false);
     }
@@ -245,6 +258,58 @@ export function EarningsClient({ initialMonth, initialView, initialYear }: {
     ]);
   }, [data, month]);
 
+  // The active payee's display name — the edit sheet header and the save toast
+  // both name the payee, since arrangements are per (brand, team member).
+  const payeeName = useMemo(
+    () => teamMembers.find((tm) => tm.id === teamMemberId)?.name ?? data?.teamMember?.name ?? null,
+    [teamMembers, teamMemberId, data],
+  );
+
+  // Always re-derived from the CURRENT rows array (stale-reopen fix): after an
+  // optimistic patch or a refetch, the sheet sees the freshest values.
+  const editingRow = useMemo(
+    () => (editingBrandKey ? data?.brands.find((b) => b.brand === editingBrandKey) ?? null : null),
+    [editingBrandKey, data],
+  );
+
+  // Post-save flow: (1) the sheet already PATCHed successfully and handed us
+  // the saved values; (2) patch the CONFIGURED fields onto the row in place —
+  // the derived money (commission/retainer/total) is NOT reproducible
+  // client-side (per-creator overrides live server-side), so those cells
+  // shimmer as "recalculating"; (3) toast; (4) refetch reconciles, row flashes.
+  const handleArrangementSaved = useCallback((row: BrandRow, saved: BrandSettingsValues) => {
+    setData((prev) => prev && ({
+      ...prev,
+      brands: prev.brands.map((b) => (b.brand === row.brand ? {
+        ...b,
+        rate: saved.commission_rate,
+        configuredRetainer: saved.retainer,
+        launchFee: saved.launch_fee,
+        launchFeeName: saved.launch_fee_name,
+        launchFeeEnds: saved.launch_fee_ends,
+        productRetainer: saved.product_retainer_amount,
+        productRetainerName: saved.product_retainer_name,
+        monthlyGoal: saved.monthly_gmv_goal,
+        marketingCommissionRate: saved.marketing_commission_rate,
+        compensationModel: saved.compensation_model,
+        billToName: saved.bill_to_name,
+        billToEmail: saved.bill_to_email,
+        billToAddress: saved.bill_to_address,
+        paymentInstructions: saved.payment_instructions,
+      } : b)),
+    }));
+    setReconcilingBrand(row.brand);
+    setToast({ kind: 'success', message: `Saved - ${row.brandLabel}${payeeName ? ` · ${payeeName}` : ''}` });
+    void fetchAll(month, teamMemberId).then((landed) => {
+      setReconcilingBrand((cur) => (cur === row.brand ? null : cur));
+      if (landed) {
+        setFlashBrand(row.brand);
+        if (flashTimer.current) clearTimeout(flashTimer.current);
+        flashTimer.current = setTimeout(() => setFlashBrand(null), 1600);
+      }
+    });
+  }, [fetchAll, month, teamMemberId, payeeName]);
+
   // Ready count for the run button — plan-driven, falling back to the enriched
   // rows (identical definition: total > 0 and no invoice yet).
   const readyCount = plan
@@ -351,9 +416,11 @@ export function EarningsClient({ initialMonth, initialView, initialYear }: {
                     sortKey={sortKey}
                     sortDir={sortDir}
                     onSort={handleSort}
-                    onEdit={(row) => setEditingBrand(row)}
+                    onEdit={(row) => setEditingBrandKey(row.brand)}
                     onGenerateInvoice={handleGenerateInvoice}
                     generatingBrand={generatingBrand}
+                    reconcilingBrand={reconcilingBrand}
+                    flashBrand={flashBrand}
                     totals={data?.totals ?? null}
                     month={month}
                     onMarketingSaved={() => {
@@ -400,31 +467,42 @@ export function EarningsClient({ initialMonth, initialView, initialYear }: {
         />
       )}
 
-      {/* Edit drawer */}
-      {editingBrand && (
+      {/* Edit drawer — keyed by brand so each open is a fresh mount, and fed
+          from editingRow (derived from the CURRENT rows array) so a reopen
+          during the post-save refetch shows the optimistic values. */}
+      {editingRow && (
         <BrandEditSheet
+          key={editingRow.brand}
           open
-          brand={editingBrand.brand}
-          brandLabel={editingBrand.brandLabel}
+          brand={editingRow.brand}
+          brandLabel={editingRow.brandLabel}
           teamMemberId={teamMemberId}
-          initialValues={{
-            commission_rate: editingBrand.rate,
-            retainer: editingBrand.configuredRetainer,
-            launch_fee: editingBrand.launchFee,
-            launch_fee_name: editingBrand.launchFeeName,
-            launch_fee_ends: editingBrand.launchFeeEnds,
-            product_retainer_amount: editingBrand.productRetainer,
-            product_retainer_name: editingBrand.productRetainerName,
-            monthly_gmv_goal: editingBrand.monthlyGoal,
-            marketing_commission_rate: editingBrand.marketingCommissionRate,
-            compensation_model: editingBrand.compensationModel,
-            bill_to_name: editingBrand.billToName,
-            bill_to_email: editingBrand.billToEmail,
-            bill_to_address: editingBrand.billToAddress,
-            payment_instructions: editingBrand.paymentInstructions,
+          payeeName={payeeName}
+          preview={{
+            monthLabel: monthName,
+            affiliateGmv: editingRow.affiliateGmv,
+            marketingGmv: editingRow.marketingGmv,
+            brandRate: editingRow.rate,
+            creators: editingRow.creators.map((c) => ({ gmv: c.gmv, rate: c.rate })),
           }}
-          onClose={() => setEditingBrand(null)}
-          onSaved={() => fetchAll(month, teamMemberId)}
+          initialValues={{
+            commission_rate: editingRow.rate,
+            retainer: editingRow.configuredRetainer,
+            launch_fee: editingRow.launchFee,
+            launch_fee_name: editingRow.launchFeeName,
+            launch_fee_ends: editingRow.launchFeeEnds,
+            product_retainer_amount: editingRow.productRetainer,
+            product_retainer_name: editingRow.productRetainerName,
+            monthly_gmv_goal: editingRow.monthlyGoal,
+            marketing_commission_rate: editingRow.marketingCommissionRate,
+            compensation_model: editingRow.compensationModel,
+            bill_to_name: editingRow.billToName,
+            bill_to_email: editingRow.billToEmail,
+            bill_to_address: editingRow.billToAddress,
+            payment_instructions: editingRow.paymentInstructions,
+          }}
+          onClose={() => setEditingBrandKey(null)}
+          onSaved={(saved) => handleArrangementSaved(editingRow, saved)}
         />
       )}
     </div>

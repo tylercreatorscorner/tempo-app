@@ -20,7 +20,7 @@ export type SortKey = 'brandLabel' | 'totalGmv' | 'commission' | 'retainer' | 't
 
 export function BrandEarningsTable({
   rows, todayIso, sortKey, sortDir, onSort, onEdit, onGenerateInvoice, generatingBrand,
-  totals, month, onMarketingSaved, onMarketingError,
+  totals, month, onMarketingSaved, onMarketingError, reconcilingBrand, flashBrand,
 }: {
   rows: BrandRow[];
   /** yyyy-mm-dd (UTC) — computed once per page render so every surface agrees. */
@@ -35,6 +35,11 @@ export function BrandEarningsTable({
   month: string;
   onMarketingSaved: () => void;
   onMarketingError: (message: string) => void;
+  /** Brand whose arrangement was just saved: its derived money cells shimmer
+   *  ("recalculating") until the authoritative refetch reconciles them. */
+  reconcilingBrand?: string | null;
+  /** Brand to flash-highlight — set when the post-save refetch lands. */
+  flashBrand?: string | null;
 }) {
   const meta = useBrandMeta();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -63,10 +68,18 @@ export function BrandEarningsTable({
           {rows.map((row) => {
             const isExpanded = expanded.has(row.brand);
             const retainerTotal = row.retainer + row.productRetainer;
+            // Post-save states: shimmer the derived money cells while the
+            // refetch reconciles; flash the row when it lands.
+            const reconciling = reconcilingBrand === row.brand;
+            const moneyCell = reconciling ? 'animate-pulse opacity-60' : undefined;
+            const moneyTitle = reconciling ? 'Recalculating from the saved arrangement' : undefined;
             return (
               <Fragment key={row.brand}>
                 <tr
-                  className="group cursor-pointer border-b border-border transition-colors hover:bg-muted/60"
+                  className={cn(
+                    'group cursor-pointer border-b border-border transition-colors hover:bg-muted/60',
+                    flashBrand === row.brand && 'bg-primary/10 duration-700',
+                  )}
                   onClick={() => toggle(row.brand)}
                 >
                   {/* Brand */}
@@ -125,7 +138,7 @@ export function BrandEarningsTable({
                     )}
                   </td>
                   {/* Commission */}
-                  <td className="px-4 py-3 text-right font-semibold tabular-nums" style={{ color: 'var(--pulse-pos)' }}>
+                  <td className={cn('px-4 py-3 text-right font-semibold tabular-nums', moneyCell)} style={{ color: 'var(--pulse-pos)' }} title={moneyTitle}>
                     {row.commission > 0 ? formatCurrency(row.commission) : <span className="font-normal text-muted-foreground">—</span>}
                     {row.commission > 0 && row.marketingCommission > 0 && (
                       <div className="mt-0.5 text-[10px] font-normal text-muted-foreground" title="Affiliate vs marketing commission split">
@@ -140,7 +153,7 @@ export function BrandEarningsTable({
                       save (owner-reported: edits under a commission_only
                       payee "didn't take"; they saved fine, the billed value
                       is just 0 by model). */}
-                  <td className="px-4 py-3 text-right tabular-nums text-foreground">
+                  <td className={cn('px-4 py-3 text-right tabular-nums text-foreground', moneyCell)} title={moneyTitle}>
                     {retainerTotal > 0 ? (
                       formatCurrency(retainerTotal)
                     ) : row.configuredRetainer > 0 ? (
@@ -160,7 +173,7 @@ export function BrandEarningsTable({
                     )}
                   </td>
                   {/* Total */}
-                  <td className="px-4 py-3 text-right font-bold tabular-nums text-foreground">
+                  <td className={cn('px-4 py-3 text-right font-bold tabular-nums text-foreground', moneyCell)} title={moneyTitle}>
                     {formatCurrency(row.total)}
                     {row.launchFee > 0 && (
                       <div className="mt-0.5 text-[10px] font-normal text-muted-foreground">
