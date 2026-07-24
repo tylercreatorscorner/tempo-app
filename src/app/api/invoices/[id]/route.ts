@@ -8,6 +8,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getWorkspaceScope, type WorkspaceScope } from '@/lib/auth/workspace-scope';
 import { createAdminClient } from '@/lib/supabase/server';
+import { getBrandRegistry } from '@/lib/data/brand-registry';
+import { recomputeTotal, resolveCompensationModel } from '@/lib/finance/invoice-math';
 
 export const runtime = 'nodejs';
 
@@ -108,15 +110,40 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   if (denied) return denied;
 
   if (lineItemsChanged) {
-    const { data: current } = await supabase.from('invoices').select('commission, retainer, product_retainer, launch_fee').eq('id', id).maybeSingle();
+    const { data: current, error: curErr } = await supabase
+      .from('invoices')
+      .select('commission, retainer, product_retainer, launch_fee, brand, team_member_id')
+      .eq('id', id)
+      .maybeSingle();
+    if (curErr) return NextResponse.json({ error: curErr.message }, { status: 500 });
     if (current) {
       const merged = { ...current, ...update };
-      const total =
-        Number(merged.commission ?? 0) +
-        Number(merged.retainer ?? 0) +
-        Number(merged.product_retainer ?? 0) +
-        Number(merged.launch_fee ?? 0);
-      update.total_amount = total;
+      // Recompute through the shared invoice math, honoring the brand's
+      // compensation model for THIS invoice's payee. The old unconditional
+      // commission+retainer+fees sum over-billed revshare_max / *_only brands
+      // on every line-item edit.
+      try {
+        const reg = await getBrandRegistry();
+        const model = await resolveCompensationModel(
+          supabase,
+          reg,
+          current.brand as string,
+          (current.team_member_id as string | null) ?? null,
+        );
+        update.total_amount = recomputeTotal(
+          {
+            commission: Number(merged.commission ?? 0),
+            retainer: Number(merged.retainer ?? 0),
+            productRetainer: Number(merged.product_retainer ?? 0),
+            launchFee: Number(merged.launch_fee ?? 0),
+          },
+          model,
+        );
+      } catch (e) {
+        // A failed model read must not fall back to a silently-wrong sum.
+        const message = e instanceof Error ? e.message : 'Failed to resolve compensation model';
+        return NextResponse.json({ error: message }, { status: 500 });
+      }
     }
   }
 

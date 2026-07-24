@@ -7,7 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 import { createAdminClient } from '@/lib/supabase/server';
-import { renderInvoicePdf, type InvoicePdfData } from '@/lib/invoices/pdf';
+import { renderInvoicePdf, invoiceRowToPdfData } from '@/lib/invoices/pdf';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
@@ -39,43 +39,9 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     .eq('slug', invoice.brand)
     .maybeSingle();
 
-  const data: InvoicePdfData = {
-    invoiceNumber: invoice.invoice_number,
-    brandSlug: invoice.brand,
-    brandName: brandRow?.name ?? invoice.brand,
-    periodMonth: invoice.period_month,
-    generatedAt: invoice.generated_at,
-    dueDate: invoice.due_date,
-    status: invoice.status,
-    affiliateGmv: Number(invoice.affiliate_gmv ?? 0),
-    marketingGmv: Number(invoice.marketing_gmv ?? 0),
-    totalGmv: Number(invoice.total_gmv ?? 0),
-    commission: Number(invoice.commission ?? 0),
-    retainer: Number(invoice.retainer ?? 0),
-    productRetainer: Number(invoice.product_retainer ?? 0),
-    launchFee: Number(invoice.launch_fee ?? 0),
-    totalAmount: Number(invoice.total_amount ?? 0),
-    notes: invoice.notes,
-    paymentInstructions: invoice.payment_instructions,
-    billTo: {
-      name: invoice.bill_to_name,
-      email: invoice.bill_to_email,
-      address: invoice.bill_to_address,
-    },
-    billFrom: {
-      name: invoice.bill_from_name,
-      email: invoice.bill_from_email,
-      address: invoice.bill_from_address,
-    },
-    creators: Array.isArray(invoice.creator_breakdown)
-      ? invoice.creator_breakdown.map((c: { name?: string; gmv?: number; rate?: number; commission?: number }) => ({
-          name: String(c.name ?? ''),
-          gmv: Number(c.gmv ?? 0),
-          rate: Number(c.rate ?? 0),
-          commission: Number(c.commission ?? 0),
-        }))
-      : [],
-  };
+  // Shared row→PDF mapper (also used by the share download and the email
+  // attachment) so every PDF renders from identical data.
+  const data = invoiceRowToPdfData(invoice, brandRow?.name ?? invoice.brand);
 
   const pdfBuffer = await renderInvoicePdf(data);
 

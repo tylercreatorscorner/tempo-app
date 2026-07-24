@@ -19,7 +19,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { randomBytes } from 'node:crypto';
 import { requireAdmin } from '@/lib/auth/require-admin';
 import { createAdminClient } from '@/lib/supabase/server';
-import { renderInvoicePdf, type InvoicePdfData } from '@/lib/invoices/pdf';
+import { renderInvoicePdf, invoiceRowToPdfData } from '@/lib/invoices/pdf';
 import { formatPeriod } from '@/lib/utils/format';
 
 export const runtime = 'nodejs';
@@ -162,38 +162,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     .maybeSingle();
   const brandName = brandRow?.name ?? invoice.brand;
 
-  const pdfData: InvoicePdfData = {
-    invoiceNumber: invoice.invoice_number,
-    brandSlug: invoice.brand,
-    brandName,
-    periodMonth: invoice.period_month,
-    generatedAt: invoice.generated_at,
-    dueDate: invoice.due_date,
-    status: invoice.status,
-    affiliateGmv: Number(invoice.affiliate_gmv ?? 0),
-    marketingGmv: Number(invoice.marketing_gmv ?? 0),
-    totalGmv: Number(invoice.total_gmv ?? 0),
-    commission: Number(invoice.commission ?? 0),
-    retainer: Number(invoice.retainer ?? 0),
-    productRetainer: Number(invoice.product_retainer ?? 0),
-    launchFee: Number(invoice.launch_fee ?? 0),
-    totalAmount: Number(invoice.total_amount ?? 0),
-    notes: invoice.notes,
-    paymentInstructions: invoice.payment_instructions,
-    billTo: {
-      name: invoice.bill_to_name,
-      email: invoice.bill_to_email,
-      address: invoice.bill_to_address,
-    },
-    creators: Array.isArray(invoice.creator_breakdown)
-      ? invoice.creator_breakdown.map((c: { name?: string; gmv?: number; rate?: number; commission?: number }) => ({
-          name: String(c.name ?? ''),
-          gmv: Number(c.gmv ?? 0),
-          rate: Number(c.rate ?? 0),
-          commission: Number(c.commission ?? 0),
-        }))
-      : [],
-  };
+  // Shared row→PDF mapper — the attachment must be byte-identical to the
+  // download endpoints. The old hand-rolled mapping here dropped billFrom, so
+  // emailed PDFs fell back to the hardcoded business name.
+  const pdfData = invoiceRowToPdfData(invoice, brandName);
   const pdfBuffer = await renderInvoicePdf(pdfData);
 
   // Build sender-friendly subject + body

@@ -55,6 +55,14 @@ export default async function InvoiceSharePage({ params }: Props) {
       email: invoice.bill_to_email,
       address: invoice.bill_to_address,
     },
+    // Bill-FROM snapshot (who issued the invoice) — the share view renders
+    // this, with the legacy business name only as a fallback for invoices
+    // created before the snapshot columns existed.
+    billFrom: {
+      name: invoice.bill_from_name,
+      email: invoice.bill_from_email,
+      address: invoice.bill_from_address,
+    },
     creators: Array.isArray(invoice.creator_breakdown) ? invoice.creator_breakdown : [],
   };
 

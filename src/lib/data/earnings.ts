@@ -8,9 +8,14 @@
  *
  * Pulls from:
  *   creator_performance        — affiliate GMV per (creator, brand) for the month
+ *                                (via computeManagedGmv, filtered to managed creators)
  *   managed_creators           — to filter to managed creators only
- *   brand_settings             — per-brand rate, retainer, launch fee, product retainer, monthly goal,
+ *   brand_compensation         — PER-PAYEE financials, keyed (team_member_id, brand):
+ *                                rate, retainer, launch fee, product retainer,
  *                                compensation_model, marketing_commission_rate
+ *   brand_settings             — brand-level (payee-independent) fields only:
+ *                                bill_to_*, monthly_gmv_goal
+ *   team_members               — the payee: name/email/address + payment_instructions
  *   creator_commission_rates   — per-(brand, creator) rate overrides
  *   marketing_gmv              — per-(brand, month) manual marketing GMV
  *   brands_v2                  — active brand list (filters is_archived + is_umbrella)
@@ -32,8 +37,17 @@
  *   controls how the resulting commission combines with the retainer.
  */
 import { createAdminClient } from '@/lib/supabase/server';
-import { getBrandRegistry } from '@/lib/data/brand-registry';
+import { getBrandRegistry, brandLabel } from '@/lib/data/brand-registry';
 import { computeManagedGmv } from '@/lib/data/managed-gmv';
+import {
+  applyCompensationModel,
+  type CompensationModel,
+  type RevshareMaxOutcome,
+} from '@/lib/finance/invoice-math';
+
+// Re-exported for existing importers — the type now lives with the shared
+// invoice math (src/lib/finance/invoice-math.ts).
+export type { CompensationModel };
 
 export interface CreatorContribution {
   /** Creator handle as it appears in creator_performance (with @ stripped). */
@@ -87,7 +101,7 @@ export interface BrandRow {
    * Populated when compensationModel = 'revshare_max'. Indicates which side
    * of the MAX(retainer, commission) won and what the loser would have been.
    */
-  revshareMaxOutcome: { winner: 'retainer' | 'commission'; activeAmount: number; comparison: number } | null;
+  revshareMaxOutcome: RevshareMaxOutcome | null;
   /**
    * Per-creator breakdown of who drove what GMV and the commission earned
    * on each. Sorted by commission descending. Excludes marketing GMV (which
@@ -95,8 +109,6 @@ export interface BrandRow {
    */
   creators: CreatorContribution[];
 }
-
-export type CompensationModel = 'standard' | 'revshare_max' | 'commission_only' | 'retainer_only';
 
 export interface EarningsResult {
   month: string;
@@ -175,6 +187,80 @@ function getBrandRatePct(s: BrandSettingsRow | undefined): number {
   const rsr = s.revenue_share_rate;
   if (rsr != null && String(rsr).trim() !== '') return pNum(rsr) * 100;
   return 2;
+}
+
+/**
+ * Merge an umbrella's child-store rows into one umbrella-grain BrandRow.
+ * Extracted (math unchanged) from the previously LeeFar-only roll-up:
+ * financials SUM across stores; creators merge by normalized handle (the same
+ * creator posting on two stores must not appear twice); "first store" wins
+ * rate / marketing-rate / compensation-model tie-breaks; bill-to and name
+ * fields take the first non-null value across stores.
+ */
+function mergeUmbrellaRow(
+  umbrellaSlug: string,
+  umbrellaLabel: string,
+  storeBrands: BrandRow[],
+): BrandRow {
+  const mergedCreators = new Map<string, CreatorContribution>();
+  for (const b of storeBrands) {
+    for (const c of b.creators) {
+      const key = normalizeHandle(c.name);
+      const existing = mergedCreators.get(key);
+      if (existing) {
+        existing.gmv += c.gmv;
+        existing.commission += c.commission;
+        // Use whichever rate is higher (override if any). Equal in practice
+        // because sibling stores share the brand rate.
+        if (c.rate > existing.rate) existing.rate = c.rate;
+      } else {
+        mergedCreators.set(key, { ...c });
+      }
+    }
+  }
+
+  // First non-null across stores — bill-to / fee-name fields typically live
+  // on one store only.
+  const pickFirstString = (...vals: Array<string | null>) => vals.find(v => v != null) ?? null;
+
+  const sumNum = (key: keyof BrandRow) =>
+    storeBrands.reduce((acc, b) => acc + (Number(b[key]) || 0), 0);
+
+  const first = storeBrands[0];
+  return {
+    brand: umbrellaSlug,
+    brandLabel: umbrellaLabel,
+    affiliateGmv: sumNum('affiliateGmv'),
+    marketingGmv: sumNum('marketingGmv'),
+    totalGmv: sumNum('totalGmv'),
+    rate: first.rate,
+    effectiveRate: (() => {
+      const totalAff = sumNum('affiliateGmv');
+      const totalAffComm = sumNum('affiliateCommission');
+      return totalAff > 0 ? (totalAffComm / totalAff) * 100 : first.rate;
+    })(),
+    affiliateCommission: sumNum('affiliateCommission'),
+    marketingCommission: sumNum('marketingCommission'),
+    commission: sumNum('commission'),
+    retainer: sumNum('retainer'),
+    configuredRetainer: sumNum('configuredRetainer'),
+    productRetainer: sumNum('productRetainer'),
+    productRetainerName: pickFirstString(...storeBrands.map(b => b.productRetainerName)),
+    launchFee: sumNum('launchFee'),
+    launchFeeName: pickFirstString(...storeBrands.map(b => b.launchFeeName)),
+    launchFeeEnds: pickFirstString(...storeBrands.map(b => b.launchFeeEnds)),
+    totalFees: sumNum('totalFees'),
+    total: sumNum('total'),
+    monthlyGoal: sumNum('monthlyGoal'),
+    marketingCommissionRate: first.marketingCommissionRate,
+    billToName: pickFirstString(...storeBrands.map(b => b.billToName)),
+    billToEmail: pickFirstString(...storeBrands.map(b => b.billToEmail)),
+    billToAddress: pickFirstString(...storeBrands.map(b => b.billToAddress)),
+    paymentInstructions: pickFirstString(...storeBrands.map(b => b.paymentInstructions)),
+    compensationModel: first.compensationModel,
+    revshareMaxOutcome: null, // not meaningful when summing across stores
+    creators: Array.from(mergedCreators.values()).sort((a, b) => b.commission - a.commission),
+  };
 }
 
 // ── Main fetcher ───────────────────────────────────────────────────
@@ -352,7 +438,6 @@ export async function getEarnings(
   for (const brand of activeBrandSlugs) {
     const s = settingsByBrand.get(brand);
     const ratePct = getBrandRatePct(s);
-    const rateMul = ratePct / 100;
     // Honor an explicitly configured marketing rate — INCLUDING 0% (a brand
     // that pays no marketing commission). Only fall back to the 2% default when
     // the brand has no rate set at all (null/blank). The old `pNum(...) || 0.02`
@@ -397,34 +482,16 @@ export async function getEarnings(
     const launchFee = pNum(s?.launch_fee);
     const monthlyGoal = pNum(s?.monthly_gmv_goal);
     const compensationModel: CompensationModel = s?.compensation_model ?? 'standard';
-    let revshareMaxOutcome: BrandRow['revshareMaxOutcome'] = null;
 
-    // Apply compensation model. Per-creator overrides have already been
-    // baked into `commission` above — the model only controls how
+    // Apply compensation model — the SHARED math (invoice-math.ts) that
+    // invoice generation, refresh, and line-item edits also run, so the page
+    // and the invoices it feeds can never disagree. Per-creator overrides have
+    // already been baked into `commission` above — the model only controls how
     // `commission` and `retainer` combine.
-    switch (compensationModel) {
-      case 'revshare_max': {
-        // MAX(retainer, commission). Whichever wins, the other goes to 0.
-        if (commission >= retainer) {
-          revshareMaxOutcome = { winner: 'commission', activeAmount: commission, comparison: retainer };
-          retainer = 0;
-        } else {
-          revshareMaxOutcome = { winner: 'retainer', activeAmount: retainer, comparison: commission };
-          commission = 0;
-        }
-        break;
-      }
-      case 'commission_only':
-        retainer = 0;
-        break;
-      case 'retainer_only':
-        commission = 0;
-        break;
-      case 'standard':
-      default:
-        // Both apply additively — no adjustment needed.
-        break;
-    }
+    const adjusted = applyCompensationModel(commission, retainer, compensationModel);
+    commission = adjusted.commission;
+    retainer = adjusted.retainer;
+    const revshareMaxOutcome = adjusted.revshareMaxOutcome;
 
     const totalFees = retainer + productRetainer + launchFee;
     const total = commission + totalFees;
@@ -477,96 +544,31 @@ export async function getEarnings(
     });
   }
 
-  // ── Roll up LeeFar's two stores into a single 'leefar' umbrella row.
-  // brand_settings is still keyed per-store (one might have the retainer,
-  // both share the rate). We sum the financials and merge creators by handle
-  // so the page shows ONE LeeFar entry — but per-store GMV is still tracked
-  // upstream for any drill-in views that want it.
-  // LeeFar's own store slugs, from the registry (children of the 'leefar'
-  // umbrella). Replaces the hardcoded LEEFAR_STORE_SLUGS — byte-identical today,
-  // and scoped to LeeFar specifically so a future 2nd umbrella's stores won't get
-  // mis-merged into this hardcoded 'leefar' row.
-  const leefarUmbrella = reg.bySlug.get('leefar');
-  const leefarStoreSlugs = new Set(
-    (leefarUmbrella ? reg.childrenByParentId.get(leefarUmbrella.id) ?? [] : []).map((s) => s.slug),
-  );
-  const leefarStoreBrands: BrandRow[] = [];
-  const otherBrands: BrandRow[] = [];
-  for (const b of brands) {
-    if (leefarStoreSlugs.has(b.brand)) {
-      leefarStoreBrands.push(b);
-    } else {
-      otherBrands.push(b);
-    }
+  // ── Roll up umbrella brands, registry-driven. brand_compensation stays
+  // keyed per-store (one store might carry the retainer, all share the rate);
+  // we sum the financials and merge creators by handle so the page shows ONE
+  // row per umbrella — but per-store GMV is still tracked upstream for any
+  // drill-in views that want it. Generalizes the old hardcoded-'leefar' merge:
+  // EVERY brands_v2 umbrella parent (children via parent_brand_id) aggregates
+  // its child stores with the exact same math, so a 2nd umbrella needs zero
+  // code changes. Store rows are collected in `brands` order (not registry
+  // store_order) to preserve the previous "first store" tie-breaks.
+  const umbrellaRows: BrandRow[] = [];
+  const mergedStoreSlugs = new Set<string>();
+  for (const umbrella of reg.rows) {
+    if (!umbrella.is_umbrella) continue;
+    const childSlugs = new Set(
+      (reg.childrenByParentId.get(umbrella.id) ?? []).map((s) => s.slug),
+    );
+    if (childSlugs.size === 0) continue;
+    const storeBrands = brands.filter((b) => childSlugs.has(b.brand));
+    if (storeBrands.length === 0) continue;
+    for (const b of storeBrands) mergedStoreSlugs.add(b.brand);
+    umbrellaRows.push(mergeUmbrellaRow(umbrella.slug, brandLabel(reg, umbrella.slug), storeBrands));
   }
 
-  const finalBrands: BrandRow[] = otherBrands;
-  if (leefarStoreBrands.length > 0) {
-    // Merge creator contributions across both stores by normalized handle —
-    // same creator posting on both stores shouldn't appear twice.
-    const mergedCreators = new Map<string, CreatorContribution>();
-    for (const b of leefarStoreBrands) {
-      for (const c of b.creators) {
-        const key = normalizeHandle(c.name);
-        const existing = mergedCreators.get(key);
-        if (existing) {
-          existing.gmv += c.gmv;
-          existing.commission += c.commission;
-          // Use whichever rate is higher (override if any). Equal in practice
-          // because both stores share the brand rate.
-          if (c.rate > existing.rate) existing.rate = c.rate;
-        } else {
-          mergedCreators.set(key, { ...c });
-        }
-      }
-    }
-
-    // Pick the first non-zero settings field as the umbrella's value
-    // (retainer, launchFee, productRetainer typically live on one store).
-    const pickFirstNonZero = (...vals: number[]) => vals.find(v => v > 0) ?? 0;
-    const pickFirstString = (...vals: Array<string | null>) => vals.find(v => v != null) ?? null;
-
-    const sumNum = (key: keyof BrandRow) =>
-      leefarStoreBrands.reduce((acc, b) => acc + (Number(b[key]) || 0), 0);
-
-    const first = leefarStoreBrands[0];
-    const merged: BrandRow = {
-      brand: 'leefar',
-      brandLabel: 'LeeFar',
-      affiliateGmv: sumNum('affiliateGmv'),
-      marketingGmv: sumNum('marketingGmv'),
-      totalGmv: sumNum('totalGmv'),
-      rate: first.rate,
-      effectiveRate: (() => {
-        const totalAff = sumNum('affiliateGmv');
-        const totalAffComm = sumNum('affiliateCommission');
-        return totalAff > 0 ? (totalAffComm / totalAff) * 100 : first.rate;
-      })(),
-      affiliateCommission: sumNum('affiliateCommission'),
-      marketingCommission: sumNum('marketingCommission'),
-      commission: sumNum('commission'),
-      retainer: sumNum('retainer'),
-      configuredRetainer: sumNum('configuredRetainer'),
-      productRetainer: sumNum('productRetainer'),
-      productRetainerName: pickFirstString(...leefarStoreBrands.map(b => b.productRetainerName)),
-      launchFee: sumNum('launchFee'),
-      launchFeeName: pickFirstString(...leefarStoreBrands.map(b => b.launchFeeName)),
-      launchFeeEnds: pickFirstString(...leefarStoreBrands.map(b => b.launchFeeEnds)),
-      totalFees: sumNum('totalFees'),
-      total: sumNum('total'),
-      monthlyGoal: sumNum('monthlyGoal'),
-      marketingCommissionRate: first.marketingCommissionRate,
-      billToName: pickFirstString(...leefarStoreBrands.map(b => b.billToName)),
-      billToEmail: pickFirstString(...leefarStoreBrands.map(b => b.billToEmail)),
-      billToAddress: pickFirstString(...leefarStoreBrands.map(b => b.billToAddress)),
-      paymentInstructions: pickFirstString(...leefarStoreBrands.map(b => b.paymentInstructions)),
-      compensationModel: first.compensationModel,
-      revshareMaxOutcome: null, // not meaningful when summing across two stores
-      creators: Array.from(mergedCreators.values()).sort((a, b) => b.commission - a.commission),
-    };
-    void pickFirstNonZero; // currently unused; kept for future per-field pickers
-    finalBrands.push(merged);
-  }
+  const finalBrands: BrandRow[] = brands.filter((b) => !mergedStoreSlugs.has(b.brand));
+  finalBrands.push(...umbrellaRows);
 
   // Sort: keep stable by total earnings desc (matches what the UI expects)
   finalBrands.sort((a, b) => b.total - a.total);

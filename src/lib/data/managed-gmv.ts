@@ -21,6 +21,7 @@
  */
 import { createAdminClient } from '@/lib/supabase/server';
 import { getBrandRegistry, expandSlugs, type BrandRegistry } from '@/lib/data/brand-registry';
+import { fetchAllRows } from '@/lib/data/fetch-all-rows';
 
 export interface ManagedCreatorGmv {
   /** Normalized handle (lowercased, @-stripped). */
@@ -61,35 +62,13 @@ export function normalizeHandle(h: string | null | undefined): string {
   return h.replace(/^@/, '').trim().toLowerCase();
 }
 
-/**
- * Fetch EVERY row of a Supabase table query, paging past PostgREST's default
- * 1000-row cap. `makeQuery` must return a FRESH builder each call (builders are
- * single-use) carrying a stable `.order()` so successive range windows line up.
- *
- * This matters here: RPC calls (get_creator_brand_gmv) are NOT subject to the
- * cap, but plain `.select()` table reads ARE. managed_creators (~1.3k rows) and
- * tiktok_accounts (~1.4k rows for managed creators) both exceed 1000, so an
- * un-paged read silently dropped handles → an incomplete managedLookup →
- * under-counted managed GMV (e.g. Lemme read $65,728.62 instead of $66,030.85).
- */
-async function fetchAllRows<T>(
-  makeQuery: () => { range: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }> },
-): Promise<T[]> {
-  const PAGE = 1000;
-  const out: T[] = [];
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await makeQuery().range(from, from + PAGE - 1);
-    // THROW, don't break. Swallowing here returned a PARTIAL lookup, which
-    // silently under-counts managed GMV — a confident low number, which is the
-    // same class of lie as rendering $0 for a failed read. A money read must
-    // fail loudly.
-    if (error) throw new Error(`[managed-gmv] paged fetch failed: ${error.message}`);
-    if (!data || data.length === 0) break;
-    out.push(...data);
-    if (data.length < PAGE) break;
-  }
-  return out;
-}
+// Paged reads use the shared fetchAllRows (src/lib/data/fetch-all-rows.ts),
+// extracted from here. This matters in this module: RPC calls are NOT subject
+// to the 1000-row cap, but plain `.select()` table reads ARE. managed_creators
+// (~1.3k rows) and tiktok_accounts (~1.4k rows for managed creators) both
+// exceed 1000, so an un-paged read silently dropped handles → an incomplete
+// managedLookup → under-counted managed GMV (e.g. Lemme read $65,728.62
+// instead of $66,030.85).
 
 /**
  * The date-INDEPENDENT half of computeManagedGmv: which handles are managed on
@@ -151,7 +130,7 @@ export async function buildManagedLookup(
       .from('managed_creators')
       .select('brand, creator_id, account_1, account_2, account_3, account_4, account_5')
       .is('archived_at', null)
-      .order('id', { ascending: true }));
+      .order('id', { ascending: true }), 'managed-gmv');
 
   // Canonical handles per creator_id from tiktok_accounts, with the legacy
   // account_1..5 columns as a fallback for rows lacking a creator_id.
@@ -175,7 +154,7 @@ export async function buildManagedLookup(
           .from('tiktok_accounts')
           .select('creator_id, tiktok_username')
           .in('creator_id', batch)
-          .order('id', { ascending: true }))));
+          .order('id', { ascending: true }), 'managed-gmv')));
     for (const taRows of batchResults) {
       for (const r of taRows) {
         const handle = normalizeHandle(r.tiktok_username);

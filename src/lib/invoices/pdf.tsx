@@ -7,6 +7,7 @@
 import { Document, Page, Text, View, StyleSheet, Font, Svg, Circle, Polygon, LinearGradient, Stop, Defs, renderToBuffer } from '@react-pdf/renderer';
 import path from 'node:path';
 import React from 'react';
+import { buildDisplayLineItems } from '@/lib/finance/invoice-math';
 
 // ── Font registration (Inter, matching the dashboard) ────────────────
 // Resolved against node_modules so it works in dev + serverless production.
@@ -91,6 +92,80 @@ export interface InvoicePdfData {
     address: string | null;
   };
   creators: InvoicePdfCreator[];
+}
+
+/** The invoices-table columns the PDF consumes. Routes select('*'), so the
+ *  raw row satisfies this structurally. */
+export interface InvoiceDbRow {
+  invoice_number: string;
+  brand: string;
+  period_month: string;
+  generated_at: string;
+  due_date: string | null;
+  status: string;
+  affiliate_gmv: number | string | null;
+  marketing_gmv: number | string | null;
+  total_gmv: number | string | null;
+  commission: number | string | null;
+  retainer: number | string | null;
+  product_retainer: number | string | null;
+  launch_fee: number | string | null;
+  total_amount: number | string | null;
+  notes: string | null;
+  payment_instructions: string | null;
+  bill_to_name: string | null;
+  bill_to_email: string | null;
+  bill_to_address: string | null;
+  bill_from_name: string | null;
+  bill_from_email: string | null;
+  bill_from_address: string | null;
+  creator_breakdown: unknown;
+}
+
+/**
+ * Map a DB invoices row to the PDF's data shape. The ONE mapper shared by the
+ * admin download, the public share download, AND the email attachment — the
+ * email route used to hand-roll this and dropped billFrom, so emailed PDFs
+ * fell back to the hardcoded business name while downloads showed the payee.
+ */
+export function invoiceRowToPdfData(invoice: InvoiceDbRow, brandName: string): InvoicePdfData {
+  return {
+    invoiceNumber: invoice.invoice_number,
+    brandSlug: invoice.brand,
+    brandName,
+    periodMonth: invoice.period_month,
+    generatedAt: invoice.generated_at,
+    dueDate: invoice.due_date,
+    status: invoice.status,
+    affiliateGmv: Number(invoice.affiliate_gmv ?? 0),
+    marketingGmv: Number(invoice.marketing_gmv ?? 0),
+    totalGmv: Number(invoice.total_gmv ?? 0),
+    commission: Number(invoice.commission ?? 0),
+    retainer: Number(invoice.retainer ?? 0),
+    productRetainer: Number(invoice.product_retainer ?? 0),
+    launchFee: Number(invoice.launch_fee ?? 0),
+    totalAmount: Number(invoice.total_amount ?? 0),
+    notes: invoice.notes,
+    paymentInstructions: invoice.payment_instructions,
+    billTo: {
+      name: invoice.bill_to_name,
+      email: invoice.bill_to_email,
+      address: invoice.bill_to_address,
+    },
+    billFrom: {
+      name: invoice.bill_from_name,
+      email: invoice.bill_from_email,
+      address: invoice.bill_from_address,
+    },
+    creators: Array.isArray(invoice.creator_breakdown)
+      ? invoice.creator_breakdown.map((c: { name?: string; gmv?: number; rate?: number; commission?: number }) => ({
+          name: String(c.name ?? ''),
+          gmv: Number(c.gmv ?? 0),
+          rate: Number(c.rate ?? 0),
+          commission: Number(c.commission ?? 0),
+        }))
+      : [],
+  };
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────
@@ -279,20 +354,15 @@ function TempoLogoMark() {
 
 // ── Component ────────────────────────────────────────────────────────
 function InvoicePdfDoc({ data }: { data: InvoicePdfData }) {
-  const lineItems: { title: string; sub?: string; amount: number }[] = [];
-  if (data.commission > 0) {
+  // Which lines render (and their order) is the shared invoice math's call —
+  // the public share view builds from the same function, so PDF and web can
+  // never disagree about which rows an invoice has.
+  const lineItems = buildDisplayLineItems(data).map((item) => {
     const subParts: string[] = [];
-    if (data.affiliateGmv > 0) subParts.push(`Affiliate GMV ${fmtCurrencyCompact(data.affiliateGmv)}`);
-    if (data.marketingGmv > 0) subParts.push(`Marketing GMV ${fmtCurrencyCompact(data.marketingGmv)}`);
-    lineItems.push({
-      title: 'Creator Commission',
-      sub: subParts.join('  ·  '),
-      amount: data.commission,
-    });
-  }
-  if (data.retainer > 0)        lineItems.push({ title: 'Monthly Retainer', amount: data.retainer });
-  if (data.productRetainer > 0) lineItems.push({ title: 'Product Retainer', amount: data.productRetainer });
-  if (data.launchFee > 0)       lineItems.push({ title: 'Launch Fee', amount: data.launchFee });
+    if (item.affiliateGmv) subParts.push(`Affiliate GMV ${fmtCurrencyCompact(item.affiliateGmv)}`);
+    if (item.marketingGmv) subParts.push(`Marketing GMV ${fmtCurrencyCompact(item.marketingGmv)}`);
+    return { title: item.title, sub: subParts.length ? subParts.join('  ·  ') : undefined, amount: item.amount };
+  });
 
   const totalCreatorCommission = data.creators.reduce((sum, c) => sum + c.commission, 0);
   const totalCreatorGmv = data.creators.reduce((sum, c) => sum + c.gmv, 0);

@@ -10,8 +10,25 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 import { createAdminClient } from '@/lib/supabase/server';
+import { fetchAllRows } from '@/lib/data/fetch-all-rows';
 
 export const runtime = 'nodejs';
+
+/** The managed_creators columns this route reads (select('*') returns more —
+ *  the enriched response passes the full row through untouched). */
+interface ManagedCreatorRow {
+  id?: string;
+  brand: string;
+  retainer: number | null;
+  real_name: string | null;
+  monthly_post_requirement: number | null;
+  retainer_start_date: string | null;
+  account_1: string | null;
+  account_2: string | null;
+  account_3: string | null;
+  account_4: string | null;
+  account_5: string | null;
+}
 
 export async function GET(request: NextRequest) {
   const scope = await getWorkspaceScope();
@@ -39,19 +56,22 @@ export async function GET(request: NextRequest) {
     // Managers: restrict the "all" set to their brands.
     if (scopedSlugs) activeBrandSlugs = activeBrandSlugs.filter((s) => scopedSlugs.includes(s));
 
-    let query = supabase
-      .from('managed_creators')
-      .select('*')
-      .gt('retainer', 0);
-
-    if (brand !== 'all') {
-      query = query.eq('brand', brand);
-    } else {
-      query = query.in('brand', activeBrandSlugs);
-    }
-
-    const { data: creators, error } = await query.order('real_name');
-    if (error) throw error;
+    // Paged past the 1000-row cap — managed_creators is ~1.3k rows total, so
+    // an un-paged read can silently drop retainer creators as the roster grows.
+    // The secondary `.order('id')` disambiguates duplicate real_names so
+    // successive range windows line up.
+    const creators = await fetchAllRows<ManagedCreatorRow>(() => {
+      let query = supabase
+        .from('managed_creators')
+        .select('*')
+        .gt('retainer', 0);
+      if (brand !== 'all') {
+        query = query.eq('brand', brand);
+      } else {
+        query = query.in('brand', activeBrandSlugs);
+      }
+      return query.order('real_name').order('id', { ascending: true });
+    }, 'payments-retainers');
 
     // Period boundaries for post verification
     const now = new Date();
@@ -62,42 +82,33 @@ export async function GET(request: NextRequest) {
     yesterday.setDate(yesterday.getDate() - 1);
     const periodEnd = yesterday.toISOString().split('T')[0];
 
-    // Get payment records for this period to check post verification
-    const { data: payments } = await supabase
-      .from('creator_payments')
-      .select('creator_name, brand, posts_found, posting_verified, status')
-      .eq('payment_type', 'retainer')
-      .eq('period_month', `${year}-${month}`);
-
     interface PaymentRow {
+      id?: string;
       creator_name: string;
       brand: string;
       posts_found: number | null;
       posting_verified: boolean | null;
       status: string;
     }
+    // Payment records for this period (post verification). Paged + throwing:
+    // the old unchecked read silently defaulted posts_found to 0 on failure,
+    // flagging every creator "At Risk" off a fabricated zero.
+    const payments = await fetchAllRows<PaymentRow>(() =>
+      supabase
+        .from('creator_payments')
+        .select('id, creator_name, brand, posts_found, posting_verified, status')
+        .eq('payment_type', 'retainer')
+        .eq('period_month', `${year}-${month}`)
+        .order('id', { ascending: true }), 'payments-retainers');
+
     const paymentMap: Record<string, PaymentRow> = {};
-    for (const p of (payments as PaymentRow[] | null ?? [])) {
+    for (const p of payments) {
       paymentMap[`${p.creator_name}|${p.brand}`] = p;
     }
 
-    interface ManagedCreatorRow {
-      brand: string;
-      retainer: number | null;
-      real_name: string | null;
-      monthly_post_requirement: number | null;
-      retainer_start_date: string | null;
-      account_1: string | null;
-      account_2: string | null;
-      account_3: string | null;
-      account_4: string | null;
-      account_5: string | null;
-    }
+    const totalRetainerSpend = creators.reduce((sum, c) => sum + (c.retainer ?? 0), 0);
 
-    const totalRetainerSpend = (creators as ManagedCreatorRow[] | null ?? [])
-      .reduce((sum, c) => sum + (c.retainer ?? 0), 0);
-
-    const enriched = ((creators as ManagedCreatorRow[] | null) ?? []).map((c) => {
+    const enriched = creators.map((c) => {
       const key = `${c.account_1}|${c.brand}`;
       const payment = paymentMap[key];
       const postsFound = payment?.posts_found ?? 0;

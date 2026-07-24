@@ -8,6 +8,10 @@
 
 import { Download, Lock } from 'lucide-react';
 import { formatCurrency, formatDate, formatPeriod } from '@/lib/utils/format';
+import { buildDisplayLineItems } from '@/lib/finance/invoice-math';
+
+/** Rendered only when an invoice predates the bill_from snapshot columns. */
+const FALLBACK_BILL_FROM_NAME = 'Creators Corner';
 
 export interface ShareInvoice {
   id: string;
@@ -33,6 +37,12 @@ export interface ShareInvoice {
     email: string | null;
     address: string | null;
   };
+  /** Who issued the invoice — snapshotted at creation from team_members. */
+  billFrom: {
+    name: string | null;
+    email: string | null;
+    address: string | null;
+  };
   creators: Array<{ name?: string; gmv?: number; rate?: number; commission?: number }>;
 }
 
@@ -42,16 +52,15 @@ interface Props {
 }
 
 export function ShareView({ token, invoice }: Props) {
-  const lineItems: { title: string; sub?: string; amount: number }[] = [];
-  if (invoice.commission > 0) {
+  // Which lines render (and their order) comes from the shared invoice math —
+  // the PDF builds from the same function, so web and PDF can never disagree
+  // about which rows an invoice has.
+  const lineItems = buildDisplayLineItems(invoice).map((item) => {
     const subParts: string[] = [];
-    if (invoice.affiliateGmv > 0) subParts.push(`Affiliate GMV ${formatCurrency(invoice.affiliateGmv)}`);
-    if (invoice.marketingGmv > 0) subParts.push(`Marketing GMV ${formatCurrency(invoice.marketingGmv)}`);
-    lineItems.push({ title: 'Creator Commission', sub: subParts.join(' · '), amount: invoice.commission });
-  }
-  if (invoice.retainer > 0)        lineItems.push({ title: 'Monthly Retainer', amount: invoice.retainer });
-  if (invoice.productRetainer > 0) lineItems.push({ title: 'Product Retainer', amount: invoice.productRetainer });
-  if (invoice.launchFee > 0)       lineItems.push({ title: 'Launch Fee', amount: invoice.launchFee });
+    if (item.affiliateGmv) subParts.push(`Affiliate GMV ${formatCurrency(item.affiliateGmv)}`);
+    if (item.marketingGmv) subParts.push(`Marketing GMV ${formatCurrency(item.marketingGmv)}`);
+    return { title: item.title, sub: subParts.length ? subParts.join(' · ') : undefined, amount: item.amount };
+  });
 
   const creators = invoice.creators.filter((c) => c && c.name);
   const totalCreatorCommission = creators.reduce((s, c) => s + Number(c.commission ?? 0), 0);
@@ -81,7 +90,7 @@ export function ShareView({ token, invoice }: Props) {
         {/* Action bar */}
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <p className="text-xs text-gray-500">
-            <Lock className="inline h-3 w-3 -mt-0.5" /> This is a private invoice link. Please don't share publicly.
+            <Lock className="inline h-3 w-3 -mt-0.5" /> This is a private invoice link. Please don&apos;t share publicly.
           </p>
           <a
             href={`/api/invoices/share/${token}/pdf`}
@@ -110,7 +119,11 @@ export function ShareView({ token, invoice }: Props) {
             {invoice.billTo.email && <p className="text-sm text-gray-600 mt-1">{invoice.billTo.email}</p>}
           </PartyBlock>
           <PartyBlock label="From">
-            <p className="text-base font-bold text-[#1A1B3A]">Creators Corner</p>
+            <p className="text-base font-bold text-[#1A1B3A]">{invoice.billFrom.name || FALLBACK_BILL_FROM_NAME}</p>
+            {invoice.billFrom.address && (
+              <p className="text-sm text-gray-600 mt-1 whitespace-pre-line">{invoice.billFrom.address}</p>
+            )}
+            {invoice.billFrom.email && <p className="text-sm text-gray-600 mt-1">{invoice.billFrom.email}</p>}
           </PartyBlock>
         </div>
 

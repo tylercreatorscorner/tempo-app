@@ -58,6 +58,22 @@ export function NewInvoiceModal({ open, defaultMonth, onClose, onCreated, onView
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [conflict, setConflict] = useState<ExistingInvoiceConflict | null>(null);
+  // Payee — whose compensation arrangements the invoice is generated from.
+  // Mirrors the earnings page's payee select; the preview AND the POST must
+  // carry the same team_member_id or the created invoice's line items won't
+  // match the preview shown.
+  const [teamMembers, setTeamMembers] = useState<Array<{ id: string; name: string }>>([]);
+  const [teamMemberId, setTeamMemberId] = useState<string | null>(null);
+
+  // Load team members once (defaults to the first — same as the API's own
+  // fallback, so the select never changes behavior for single-payee tenants).
+  useEffect(() => {
+    fetch('/api/team-members').then(r => r.json()).then(j => {
+      const list = (j.teamMembers ?? []) as Array<{ id: string; name: string }>;
+      setTeamMembers(list);
+      setTeamMemberId((current) => current ?? (list.length > 0 ? list[0].id : null));
+    }).catch(() => {});
+  }, []);
 
   // Reset state when re-opened
   useEffect(() => {
@@ -69,14 +85,15 @@ export function NewInvoiceModal({ open, defaultMonth, onClose, onCreated, onView
     }
   }, [open, defaultMonth]);
 
-  // Fetch earnings preview when month changes
+  // Fetch earnings preview when month or payee changes
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
     setLoadingPreview(true);
     setError(null);
     setConflict(null);
-    fetch(`/api/earnings?month=${month}`)
+    const tmParam = teamMemberId ? `&team_member_id=${teamMemberId}` : '';
+    fetch(`/api/earnings?month=${month}${tmParam}`)
       .then((r) => r.json())
       .then((j) => {
         if (cancelled) return;
@@ -90,7 +107,7 @@ export function NewInvoiceModal({ open, defaultMonth, onClose, onCreated, onView
       .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load brands'); })
       .finally(() => { if (!cancelled) setLoadingPreview(false); });
     return () => { cancelled = true; };
-  }, [open, month]);
+  }, [open, month, teamMemberId]);
 
   const handleCreate = useCallback(async () => {
     if (!selectedBrand) return;
@@ -101,7 +118,11 @@ export function NewInvoiceModal({ open, defaultMonth, onClose, onCreated, onView
       const res = await fetch('/api/invoices', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ brand: selectedBrand, month }),
+        body: JSON.stringify({
+          brand: selectedBrand,
+          month,
+          ...(teamMemberId ? { team_member_id: teamMemberId } : {}),
+        }),
       });
       const j = await res.json();
       if (!res.ok) {
@@ -117,7 +138,7 @@ export function NewInvoiceModal({ open, defaultMonth, onClose, onCreated, onView
     } finally {
       setCreating(false);
     }
-  }, [selectedBrand, month, onCreated]);
+  }, [selectedBrand, month, teamMemberId, onCreated]);
 
   if (!open) return null;
 
@@ -159,6 +180,22 @@ export function NewInvoiceModal({ open, defaultMonth, onClose, onCreated, onView
               {monthOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </Select>
           </div>
+
+          {/* Payee picker — hidden for single-payee tenants (the default payee
+              is what the API falls back to anyway) */}
+          {teamMembers.length > 1 && (
+            <div>
+              <Label>Payee</Label>
+              <Select
+                value={teamMemberId ?? ''}
+                onChange={(e) => { setTeamMemberId(e.target.value || null); setSelectedBrand(null); }}
+                disabled={creating}
+                title="Generate the invoice from this team member's compensation arrangements"
+              >
+                {teamMembers.map((tm) => <option key={tm.id} value={tm.id}>{tm.name}</option>)}
+              </Select>
+            </div>
+          )}
 
           {/* Brand picker */}
           <div>
