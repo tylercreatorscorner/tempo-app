@@ -82,14 +82,20 @@ export async function createInvoiceForBrand(args: CreateInvoiceForBrandArgs): Pr
 
   // Reject if an invoice already exists for this (brand, period, team_member).
   // The unique index allows different team members to invoice the same brand
-  // for the same month — which is the whole point.
-  const { data: existing } = await supabase
+  // for the same month — which is the whole point. NULL-payee legacy invoices
+  // count as existing too: .eq never matches NULL and the unique index treats
+  // NULLs as distinct, so without this a legacy-invoiced month rendered
+  // "Ready to invoice" and could be double-invoiced (adversarial-review
+  // finding — prod has 6 such rows, and 2026-04 already carries real dupes).
+  const { data: existingRows } = await supabase
     .from('invoices')
-    .select('id, invoice_number, status')
+    .select('id, invoice_number, status, team_member_id')
     .eq('brand', brand)
     .eq('period_month', month)
-    .eq('team_member_id', teamMemberId)
-    .maybeSingle();
+    .or(`team_member_id.eq.${teamMemberId},team_member_id.is.null`)
+    .order('team_member_id', { ascending: true, nullsFirst: false })
+    .limit(1);
+  const existing = existingRows?.[0] ?? null;
   if (existing) {
     return {
       ok: false,
@@ -146,18 +152,25 @@ export async function createInvoiceForBrand(args: CreateInvoiceForBrandArgs): Pr
     created_by: args.createdBy ?? null,
   };
 
-  // Sequential invoice number for this month (TEMPO-YYYY-MM-{N}). count(*)+1
-  // is only a STARTING guess — two concurrent generates can compute the same
-  // seq, and the DB's unique index on invoice_number then rejects the loser
-  // (23505). Retry with seq+1 instead of surfacing a raw duplicate-key 500.
-  const { count, error: countErr } = await supabase
+  // Sequential invoice number for this month (TEMPO-YYYY-MM-{N}). The start
+  // is MAX(existing seq)+1, NOT count(*)+1: after deleting drafts, count
+  // undercounts and can land the retry window entirely inside still-occupied
+  // numbers, deterministically bricking the month after >=5 deletions
+  // (adversarial-review finding). MAX+1 always lands above every occupied
+  // number; the 23505 retry loop remains purely for concurrent-insert races.
+  const { data: numberRows, error: numErr } = await supabase
     .from('invoices')
-    .select('*', { count: 'exact', head: true })
-    .eq('period_month', month);
-  if (countErr) return { ok: false, status: 500, error: countErr.message };
+    .select('invoice_number')
+    .eq('period_month', month)
+    .like('invoice_number', `TEMPO-${month}-%`);
+  if (numErr) return { ok: false, status: 500, error: numErr.message };
+  const maxSeq = ((numberRows as { invoice_number: string }[] | null) ?? []).reduce((max, r) => {
+    const n = parseInt(r.invoice_number.slice(`TEMPO-${month}-`.length), 10);
+    return Number.isFinite(n) && n > max ? n : max;
+  }, 0);
 
   let created: Record<string, unknown> | null = null;
-  let seq = (count ?? 0) + 1;
+  let seq = maxSeq + 1;
   for (let attempt = 0; attempt < MAX_NUMBER_ATTEMPTS; attempt++, seq++) {
     const invoiceNumber = `TEMPO-${month}-${String(seq).padStart(3, '0')}`;
     const { data, error } = await supabase

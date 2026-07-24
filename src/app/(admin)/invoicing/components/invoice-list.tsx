@@ -19,6 +19,7 @@ import {
 import { downloadCsv } from '@/lib/utils/csv';
 import { downloadXlsx } from '@/lib/utils/xlsx';
 import { cn } from '@/lib/utils';
+import { daysOverdue } from '@/lib/finance/overdue';
 import { formatCurrency, formatDate, formatPeriod } from '@/lib/utils/format';
 import { useBrandMeta } from '@/hooks/use-brand-meta';
 import { useDelayedFlag } from '@/hooks/use-delayed-flag';
@@ -46,6 +47,8 @@ export interface TeamMemberOption { id: string; name: string }
 interface Props {
   invoices: Invoice[];
   loading: boolean;
+  /** yyyy-mm-dd (UTC) — computed once per page render so every surface agrees. */
+  todayIso: string;
   teamMembers: TeamMemberOption[];
   onOpen: (inv: Invoice) => void;
   onCreate: () => void;
@@ -54,7 +57,7 @@ interface Props {
   onMerge: (updated: Invoice[]) => void;
 }
 
-export function InvoiceList({ invoices, loading, teamMembers, onOpen, onCreate, onRefresh, onMerge }: Props) {
+export function InvoiceList({ invoices, loading, todayIso, teamMembers, onOpen, onCreate, onRefresh, onMerge }: Props) {
   const brandMeta = useBrandMeta();
   const [status, setStatus] = useState<Status>('all');
   const [brand, setBrand] = useState<string>('all');
@@ -110,11 +113,10 @@ export function InvoiceList({ invoices, loading, teamMembers, onOpen, onCreate, 
 
   // Status + aging + search on top of the brand/payee scope.
   const filteredInvoices = useMemo(() => {
-    const now = new Date();
     const q = search.trim().toLowerCase();
     return scopedInvoices.filter((inv) => {
       if (status !== 'all' && inv.status !== status) return false;
-      if (agingBucket !== 'all' && bucketFor(inv, now) !== agingBucket) return false;
+      if (agingBucket !== 'all' && bucketFor(inv, todayIso) !== agingBucket) return false;
       if (q) {
         const haystack = [
           inv.invoice_number,
@@ -128,7 +130,7 @@ export function InvoiceList({ invoices, loading, teamMembers, onOpen, onCreate, 
       }
       return true;
     });
-  }, [scopedInvoices, status, agingBucket, search, brandMeta]);
+  }, [scopedInvoices, status, agingBucket, search, brandMeta, todayIso]);
 
   // Selection helpers — selection is keyed by invoice id and persists across filters.
   const visibleSelectedCount = filteredInvoices.filter((i) => selectedIds.has(i.id)).length;
@@ -245,7 +247,7 @@ export function InvoiceList({ invoices, loading, teamMembers, onOpen, onCreate, 
       </div>
 
       {/* Aging panel — click a bucket to filter the table */}
-      <AgingPanel invoices={scopedInvoices} active={agingBucket} onPick={setAgingBucket} />
+      <AgingPanel invoices={scopedInvoices} todayIso={todayIso} active={agingBucket} onPick={setAgingBucket} />
 
       {/* Filter bar + table */}
       <Card className="relative overflow-hidden">
@@ -416,7 +418,7 @@ export function InvoiceList({ invoices, loading, teamMembers, onOpen, onCreate, 
                         {inv.due_date ? (
                           <div>
                             <div className="text-muted-foreground">{formatDate(inv.due_date)}</div>
-                            <DueIndicator invoice={inv} />
+                            <DueIndicator invoice={inv} todayIso={todayIso} />
                           </div>
                         ) : (
                           <span className="text-muted-foreground">—</span>
@@ -516,13 +518,13 @@ function SearchInput({ value, onChange }: { value: string; onChange: (v: string)
   );
 }
 
-function DueIndicator({ invoice }: { invoice: Invoice }) {
+function DueIndicator({ invoice, todayIso }: { invoice: Invoice; todayIso: string }) {
   if (invoice.status === 'paid' || invoice.status === 'void') return null;
   if (!invoice.due_date) return null;
-  const due = new Date(invoice.due_date);
-  const days = Math.floor((new Date().getTime() - due.getTime()) / (1000 * 60 * 60 * 24));
-  if (days <= 0) {
-    const inDays = Math.abs(days);
+  // THE shared overdue rule (lib/finance/overdue) — 0 means not yet due.
+  const days = daysOverdue(invoice, todayIso);
+  if (days === 0) {
+    const inDays = Math.max(0, Math.round((Date.parse(invoice.due_date) - Date.parse(todayIso)) / 86_400_000));
     return (
       <div className="mt-0.5 text-[10px] text-muted-foreground">
         {inDays === 0 ? 'Due today' : `Due in ${inDays} day${inDays === 1 ? '' : 's'}`}

@@ -18,6 +18,7 @@
 import Link from 'next/link';
 import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { daysOverdue } from '@/lib/finance/overdue';
 import { formatCurrency } from '@/lib/utils/format';
 import { Badge } from '@/components/ui/badge';
 import { RUN_MINIMUM_USD, type BrandRow, type RowInvoice } from './types';
@@ -29,20 +30,13 @@ function shortDate(value: string): string {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
 }
 
-/** Days past due for a not-paid, not-void invoice; 0 when current. */
-function daysOverdue(inv: RowInvoice): number {
-  if (!inv.dueDate || inv.status === 'paid' || inv.status === 'void') return 0;
-  const today = new Date().toISOString().slice(0, 10);
-  if (inv.dueDate >= today) return 0;
-  return Math.floor((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${inv.dueDate}T00:00:00Z`)) / 86_400_000);
-}
-
-function invoiceChipProps(inv: RowInvoice): { variant: 'positive' | 'warning' | 'negative' | 'neutral' | 'accent'; label: string } {
+function invoiceChipProps(inv: RowInvoice, todayIso: string): { variant: 'positive' | 'warning' | 'negative' | 'neutral' | 'accent'; label: string } {
   if (inv.status === 'void') return { variant: 'neutral', label: 'Void' };
   if (inv.status === 'paid') {
     return { variant: 'positive', label: inv.paidAt ? `Paid ${shortDate(inv.paidAt)}` : 'Paid' };
   }
-  const late = daysOverdue(inv);
+  // THE shared overdue rule (lib/finance/overdue) — drafts count.
+  const late = daysOverdue(inv, todayIso);
   if (late > 0) return { variant: 'negative', label: `Overdue ${late}d` };
   if (inv.status === 'sent') {
     return { variant: 'accent', label: inv.dueDate ? `Sent · due ${shortDate(inv.dueDate)}` : 'Sent' };
@@ -52,10 +46,13 @@ function invoiceChipProps(inv: RowInvoice): { variant: 'positive' | 'warning' | 
 
 export function InvoiceChip({
   row,
+  todayIso,
   generating,
   onGenerate,
 }: {
   row: BrandRow;
+  /** yyyy-mm-dd (UTC) — computed once per page render so every surface agrees. */
+  todayIso: string;
   /** True while this row's single-brand generation request is in flight. */
   generating: boolean;
   onGenerate: (brand: string) => void;
@@ -69,7 +66,7 @@ export function InvoiceChip({
   ) : null;
 
   if (inv) {
-    const chip = invoiceChipProps(inv);
+    const chip = invoiceChipProps(inv, todayIso);
     return (
       <span className="inline-flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
         <Link href={`/invoicing?id=${inv.id}`} title={inv.invoiceNumber} className="shrink-0">

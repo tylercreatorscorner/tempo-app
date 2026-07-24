@@ -4,9 +4,11 @@
  * Invoicing lifecycle board — the default read of where every invoice stands.
  *
  * Four columns, per the finance-overhaul mockup (Surface 3):
- *   Draft   — status 'pending' (generated, not yet sent)
+ *   Draft   — status 'pending' and not past due (generated, not yet sent)
  *   Sent    — status 'sent' and not past due
- *   Overdue — status 'sent' and past due_date (neg-tinted card, "N days late")
+ *   Overdue — any open invoice (pending OR sent) past its due_date, per THE
+ *             shared rule in lib/finance/overdue — drafts count. Neg-tinted
+ *             card with an "N days late" line.
  *   Paid    — paid within the selected month (defaults to the current month)
  *
  * Column headers carry count + $ sum. Cards open the same detail sheet the
@@ -21,6 +23,7 @@
 import { useMemo, useState } from 'react';
 import { Plus, Receipt } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { daysOverdue, isOverdue } from '@/lib/finance/overdue';
 import { formatCurrency, formatDate, formatPeriod, currentMonth, buildMonthOptions } from '@/lib/utils/format';
 import { useBrandMeta } from '@/hooks/use-brand-meta';
 import { Card } from '@/components/ui/card';
@@ -33,18 +36,10 @@ import type { Invoice } from './invoice-detail-sheet';
 interface Props {
   invoices: Invoice[];
   loading: boolean;
+  /** yyyy-mm-dd (UTC) — computed once per page render so every surface agrees. */
+  todayIso: string;
   onOpen: (inv: Invoice) => void;
   onCreate: () => void;
-}
-
-const DAY_MS = 86_400_000;
-
-/** Whole days past due (0 when not yet due or no due date). */
-function daysLate(inv: Invoice, nowMs: number): number {
-  if (!inv.due_date) return 0;
-  const due = new Date(inv.due_date).getTime();
-  if (Number.isNaN(due)) return 0;
-  return Math.max(0, Math.floor((nowMs - due) / DAY_MS));
 }
 
 const METHOD_LABELS: Record<string, string> = {
@@ -68,21 +63,21 @@ interface Column {
   tone: string;
 }
 
-export function InvoiceBoard({ invoices, loading, onOpen, onCreate }: Props) {
+export function InvoiceBoard({ invoices, loading, todayIso, onOpen, onCreate }: Props) {
   const brandMeta = useBrandMeta();
   const [paidMonth, setPaidMonth] = useState(currentMonth());
   const monthOptions = useMemo(() => buildMonthOptions(13), []);
 
   const columns = useMemo<Column[]>(() => {
-    const nowMs = new Date().getTime();
     const draft: Invoice[] = [];
     const sent: Invoice[] = [];
     const overdue: Invoice[] = [];
     const paid: Invoice[] = [];
     for (const inv of invoices) {
-      if (inv.status === 'pending') draft.push(inv);
-      else if (inv.status === 'sent') {
-        if (daysLate(inv, nowMs) > 0) overdue.push(inv);
+      if (inv.status === 'pending' || inv.status === 'sent') {
+        // THE shared rule: pending or sent, past due — drafts count.
+        if (isOverdue(inv, todayIso)) overdue.push(inv);
+        else if (inv.status === 'pending') draft.push(inv);
         else sent.push(inv);
       } else if (inv.status === 'paid') {
         // paid_at is a timestamp; scope to the selected YYYY-MM.
@@ -92,7 +87,7 @@ export function InvoiceBoard({ invoices, loading, onOpen, onCreate }: Props) {
     }
     draft.sort((a, b) => ts(b.generated_at) - ts(a.generated_at));
     sent.sort((a, b) => (ts(a.due_date) || Infinity) - (ts(b.due_date) || Infinity));
-    overdue.sort((a, b) => daysLate(b, nowMs) - daysLate(a, nowMs));
+    overdue.sort((a, b) => daysOverdue(b, todayIso) - daysOverdue(a, todayIso));
     paid.sort((a, b) => ts(b.paid_at) - ts(a.paid_at));
     const sum = (rows: Invoice[]) => rows.reduce((s, i) => s + Number(i.total_amount), 0);
     return [
@@ -101,7 +96,7 @@ export function InvoiceBoard({ invoices, loading, onOpen, onCreate }: Props) {
       { key: 'overdue', title: 'Overdue', rows: overdue, sum: sum(overdue), tone: 'text-[var(--pulse-neg)]' },
       { key: 'paid',    title: `Paid · ${formatPeriod(paidMonth, { short: true })}`, rows: paid, sum: sum(paid), tone: 'text-[var(--pulse-pos)]' },
     ];
-  }, [invoices, paidMonth]);
+  }, [invoices, paidMonth, todayIso]);
 
   if (loading && invoices.length === 0) {
     return (
@@ -175,6 +170,7 @@ export function InvoiceBoard({ invoices, loading, onOpen, onCreate }: Props) {
                     invoice={inv}
                     hot={col.key === 'overdue'}
                     metaKind={col.key}
+                    todayIso={todayIso}
                     brandLabel={brandMeta.label(inv.brand)}
                     brandColor={brandMeta.color(inv.brand)}
                     onOpen={onOpen}
@@ -189,7 +185,7 @@ export function InvoiceBoard({ invoices, loading, onOpen, onCreate }: Props) {
   );
 }
 
-function metaLine(inv: Invoice, kind: ColumnKey): string {
+function metaLine(inv: Invoice, kind: ColumnKey, todayIso: string): string {
   switch (kind) {
     case 'draft':
       return `created ${formatDate(inv.generated_at)}`;
@@ -200,7 +196,7 @@ function metaLine(inv: Invoice, kind: ColumnKey): string {
       return parts.length ? parts.join(' · ') : 'sent';
     }
     case 'overdue': {
-      const n = daysLate(inv, new Date().getTime());
+      const n = daysOverdue(inv, todayIso);
       const late = `${n} day${n === 1 ? '' : 's'} late`;
       return inv.due_date ? `${late} · due ${formatDate(inv.due_date)}` : late;
     }
@@ -213,11 +209,12 @@ function metaLine(inv: Invoice, kind: ColumnKey): string {
 }
 
 function BoardCard({
-  invoice, hot, metaKind, brandLabel, brandColor, onOpen,
+  invoice, hot, metaKind, todayIso, brandLabel, brandColor, onOpen,
 }: {
   invoice: Invoice;
   hot: boolean;
   metaKind: ColumnKey;
+  todayIso: string;
   brandLabel: string;
   brandColor: string;
   onOpen: (inv: Invoice) => void;
@@ -243,7 +240,7 @@ function BoardCard({
         {formatCurrency(Number(invoice.total_amount))}
       </span>
       <span className={cn('mt-0.5 block text-[11px]', hot ? 'font-semibold text-[var(--pulse-neg)]' : 'text-muted-foreground')}>
-        {metaLine(invoice, metaKind)}
+        {metaLine(invoice, metaKind, todayIso)}
       </span>
     </button>
   );

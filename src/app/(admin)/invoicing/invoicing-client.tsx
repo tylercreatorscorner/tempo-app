@@ -16,6 +16,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AlertCircle, Columns3, Plus, Rows3 } from 'lucide-react';
+import { todayIsoUtc } from '@/lib/finance/overdue';
 import { currentMonth } from '@/lib/utils/format';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
@@ -36,6 +37,9 @@ interface Props {
 
 export function InvoicingClient({ initialOpenId, initialView = 'board' }: Props) {
   const router = useRouter();
+  // ONE "today" per render — the board, list, and aging panel all read the
+  // shared overdue rule against the same date so they can never disagree.
+  const todayIso = todayIsoUtc();
   const [view, setView] = useState<InvoicingView>(initialView);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
@@ -174,6 +178,7 @@ export function InvoicingClient({ initialOpenId, initialView = 'board' }: Props)
         <InvoiceBoard
           invoices={invoices}
           loading={loading}
+          todayIso={todayIso}
           onOpen={setActiveInvoice}
           onCreate={() => setCreating(true)}
         />
@@ -181,6 +186,7 @@ export function InvoicingClient({ initialOpenId, initialView = 'board' }: Props)
         <InvoiceList
           invoices={invoices}
           loading={loading}
+          todayIso={todayIso}
           teamMembers={teamMembers}
           onOpen={setActiveInvoice}
           onCreate={() => setCreating(true)}

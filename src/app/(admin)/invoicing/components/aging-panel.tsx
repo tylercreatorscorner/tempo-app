@@ -17,22 +17,23 @@
 import { useMemo } from 'react';
 import { Clock, AlertTriangle, Flame } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { daysOverdue } from '@/lib/finance/overdue';
 import { formatCurrency } from '@/lib/utils/format';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { Invoice } from './invoice-detail-sheet';
 
 export type AgingBucket = 'all' | 'current' | '1-30' | '31-60' | '61-90' | '90+';
 
-export function bucketFor(inv: Invoice, now = new Date()): Exclude<AgingBucket, 'all'> | null {
+export function bucketFor(inv: Invoice, todayIso: string): Exclude<AgingBucket, 'all'> | null {
   // Only unpaid (pending/sent) invoices are aged. Paid + void are excluded.
   if (inv.status === 'paid' || inv.status === 'void') return null;
-  if (!inv.due_date) return 'current';
-  const due = new Date(inv.due_date);
-  const daysOverdue = Math.floor((now.getTime() - due.getTime()) / (1000 * 60 * 60 * 24));
-  if (daysOverdue <= 0) return 'current';
-  if (daysOverdue <= 30) return '1-30';
-  if (daysOverdue <= 60) return '31-60';
-  if (daysOverdue <= 90) return '61-90';
+  // Bucket membership via THE shared overdue rule (lib/finance/overdue):
+  // 0 days = not yet due (or no due_date) = current.
+  const days = daysOverdue(inv, todayIso);
+  if (days <= 0) return 'current';
+  if (days <= 30) return '1-30';
+  if (days <= 60) return '31-60';
+  if (days <= 90) return '61-90';
   return '90+';
 }
 
@@ -60,14 +61,15 @@ const BUCKETS: BucketDef[] = [
 
 interface Props {
   invoices: Invoice[];
+  /** yyyy-mm-dd (UTC) — computed once per page render so every surface agrees. */
+  todayIso: string;
   /** Currently active bucket filter, or 'all' for no filter. */
   active: AgingBucket;
   onPick: (b: AgingBucket) => void;
 }
 
-export function AgingPanel({ invoices, active, onPick }: Props) {
+export function AgingPanel({ invoices, todayIso, active, onPick }: Props) {
   const buckets = useMemo(() => {
-    const now = new Date();
     const totals: Record<Exclude<AgingBucket, 'all'>, { amount: number; count: number }> = {
       current: { amount: 0, count: 0 },
       '1-30':  { amount: 0, count: 0 },
@@ -76,13 +78,13 @@ export function AgingPanel({ invoices, active, onPick }: Props) {
       '90+':   { amount: 0, count: 0 },
     };
     for (const inv of invoices) {
-      const b = bucketFor(inv, now);
+      const b = bucketFor(inv, todayIso);
       if (!b) continue;
       totals[b].amount += Number(inv.total_amount);
       totals[b].count += 1;
     }
     return totals;
-  }, [invoices]);
+  }, [invoices, todayIso]);
 
   const totalUnpaid = (Object.values(buckets) as { amount: number }[]).reduce((s, b) => s + b.amount, 0);
 

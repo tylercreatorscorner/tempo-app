@@ -8,7 +8,9 @@
  *                      MAX. Mirrors the dashboard's fetchRetainerBySlug / the
  *                      roster's Total Retainers exactly, so the three tie out.
  *   outstanding      — invoices in pending/sent ($ + count)
- *   overdue          — sent invoices past their due_date ($ + count)
+ *   overdue          — open (pending or sent) invoices past their due_date
+ *                      ($ + count) — THE shared rule from lib/finance/overdue,
+ *                      so drafts count and this KPI ties to the board/chips
  *   collected        — invoices with paid_at inside the current month
  *   brandSpend       — the retainer book split by brand (chart source)
  *
@@ -26,6 +28,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 import { getBrandRegistry, activeBrandSlugs } from '@/lib/data/brand-registry';
 import { fetchAllRows } from '@/lib/data/fetch-all-rows';
+import { isOverdue } from '@/lib/finance/overdue';
 
 export const runtime = 'nodejs';
 
@@ -128,9 +131,9 @@ export async function GET() {
     for (const inv of openInvoices) {
       const amt = Number(inv.total_amount) || 0;
       outstandingAmount += amt;
-      // Overdue = SENT and past due. A pending draft past its nominal due date
-      // was never billed, so it doesn't count — same rule as the lifecycle board.
-      if (inv.status === 'sent' && inv.due_date && inv.due_date < todayIso) {
+      // Overdue = THE shared rule (lib/finance/overdue): pending or sent, past
+      // due — drafts COUNT, matching the board, chips, and aging panel.
+      if (isOverdue(inv, todayIso)) {
         overdueAmount += amt;
         overdueCount += 1;
       }

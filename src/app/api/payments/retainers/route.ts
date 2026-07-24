@@ -11,14 +11,19 @@
  * status column flagged everyone off fake data. Pace/health now lives with the
  * roster health model; this route no longer touches creator_payments.
  *
- * Brand list is sourced from brands_v2 (active + non-umbrella) to avoid drift
- * from a hardcoded constant. Rows are deduped by (creator_id, brand) taking
- * MAX retainer — same rule as the overview KPI, roster, and dashboard — so the
- * table's sum ties out to the "Retainer book /mo" card.
+ * Brand list is activeBrandSlugs from the brand registry — the UMBRELLA grain
+ * managed_creators.brand is keyed to, exactly mirroring /api/payments/overview.
+ * (The old brands_v2 read filtered is_umbrella=false, which silently dropped
+ * every umbrella-keyed roster row — LeeFar's whole book — from the table and
+ * its brand dropdown while the KPI card above still counted them.) Rows are
+ * deduped by (creator_id, brand) taking MAX retainer — same rule as the
+ * overview KPI, roster, and dashboard — so the table's sum ties out to the
+ * "Retainer book /mo" card.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 import { createAdminClient } from '@/lib/supabase/server';
+import { getBrandRegistry, activeBrandSlugs } from '@/lib/data/brand-registry';
 import { fetchAllRows } from '@/lib/data/fetch-all-rows';
 
 export const runtime = 'nodejs';
@@ -61,14 +66,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden: brand not in your access' }, { status: 403 });
     }
 
-    // Resolve active brand list from brands_v2 (source of truth).
-    const { data: brandRows, error: brandsErr } = await supabase
-      .from('brands_v2')
-      .select('slug')
-      .eq('is_archived', false)
-      .eq('is_umbrella', false);
-    if (brandsErr) throw brandsErr;
-    let activeSlugs = (brandRows ?? []).map((b: { slug: string }) => b.slug);
+    // Active brands at UMBRELLA grain (non-archived, not a child store) — the
+    // grain managed_creators.brand is keyed to. Umbrellas like LeeFar MUST be
+    // in this set or their roster rows vanish from the book.
+    const reg = await getBrandRegistry();
+    let activeSlugs = activeBrandSlugs(reg);
     if (scopedSlugs) activeSlugs = activeSlugs.filter((s) => scopedSlugs.includes(s));
 
     // Paged past the 1000-row cap; throws on error (never a partial sum).

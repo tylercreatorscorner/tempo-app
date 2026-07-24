@@ -11,9 +11,10 @@
  * lives in ./components: earnings-kpis, brand-earnings-table, invoice-chip,
  * marketing-gmv-editor, run-invoices-modal, year-view, brand-edit-sheet.
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, CheckCircle2, Download, FileSpreadsheet, Receipt, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { todayIsoUtc } from '@/lib/finance/overdue';
 import { downloadCsv } from '@/lib/utils/csv';
 import { downloadXlsx } from '@/lib/utils/xlsx';
 import { buildMonthOptions } from '@/lib/utils/format';
@@ -78,7 +79,14 @@ export function EarningsClient({ initialMonth, initialView, initialYear }: {
     window.history.replaceState(null, '', url.toString());
   }, []);
 
+  // Stale-response guard (house pattern — see compose-panel's previewSeq):
+  // bumped on every fetch and on every month/payee/view change, so a slow
+  // older request can never overwrite the newer selection's data, error, or
+  // loading state.
+  const fetchSeq = useRef(0);
+
   const fetchAll = useCallback(async (m: string, tmId: string | null) => {
+    const seq = ++fetchSeq.current;
     setLoading(true);
     setError(null);
     try {
@@ -91,26 +99,31 @@ export function EarningsClient({ initialMonth, initialView, initialYear }: {
         fetch(`/api/invoices/run?month=${m}${tmParam}`, { cache: 'no-store' }),
       ]);
       const earningsJson = await earningsRes.json();
+      const seriesJson = seriesRes.ok ? await seriesRes.json() : null;
+      const planJson = planRes.ok ? await planRes.json() : null;
+      if (seq !== fetchSeq.current) return; // stale — a newer selection owns the UI
       if (!earningsRes.ok) throw new Error(earningsJson.error || `HTTP ${earningsRes.status}`);
       setData(earningsJson);
 
-      if (seriesRes.ok) {
-        const seriesJson = await seriesRes.json();
-        setSeries(seriesJson.series);
-      }
+      if (seriesJson) setSeries(seriesJson.series);
       // Plan failure is non-fatal: the run button falls back to counts derived
       // from the (same-source) enriched earnings rows.
-      setPlan(planRes.ok ? await planRes.json() : null);
+      setPlan(planJson);
     } catch (err) {
+      if (seq !== fetchSeq.current) return; // stale — drop the error too
       setError(err instanceof Error ? err.message : 'Failed to load earnings');
     } finally {
-      setLoading(false);
+      if (seq === fetchSeq.current) setLoading(false);
     }
   }, []);
 
   // Month-view data. The Year view owns its own /api/earnings/ytd fetch.
   useEffect(() => {
-    if (view !== 'month') return;
+    if (view !== 'month') {
+      // Leaving the month view invalidates any in-flight month fetch.
+      fetchSeq.current += 1;
+      return;
+    }
     fetchAll(month, teamMemberId);
   }, [view, month, teamMemberId, fetchAll]);
 
@@ -247,6 +260,10 @@ export function EarningsClient({ initialMonth, initialView, initialYear }: {
   // Delayed so it doesn't flash on fast loads; dims existing data while active.
   const showBar = useDelayedFlag(loading);
 
+  // ONE "today" per render — the KPI band and every invoice chip read the
+  // shared overdue rule against the same date so they can never disagree.
+  const todayIso = todayIsoUtc();
+
   return (
     <div className="space-y-6">
       {/* Controls toolbar (page title lives in the server page wrapper) */}
@@ -314,7 +331,7 @@ export function EarningsClient({ initialMonth, initialView, initialYear }: {
           <div className="relative">
             <TableLoadBar active={showBar} />
             <div className={cn('space-y-6', showBar && data && 'opacity-60 transition-opacity duration-200')}>
-              <EarningsKpis data={data} series={series} />
+              <EarningsKpis data={data} series={series} todayIso={todayIso} />
 
               <Card className="overflow-hidden">
                 <div className="px-5 pb-3 pt-4">
@@ -330,6 +347,7 @@ export function EarningsClient({ initialMonth, initialView, initialYear }: {
                 ) : (
                   <BrandEarningsTable
                     rows={sortedBrands}
+                    todayIso={todayIso}
                     sortKey={sortKey}
                     sortDir={sortDir}
                     onSort={handleSort}

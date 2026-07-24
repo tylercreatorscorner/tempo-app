@@ -73,9 +73,12 @@ export async function GET(request: NextRequest) {
       const [invoicesRes, ledgerRes] = await Promise.all([
         supabase
           .from('invoices')
-          .select('id, brand, invoice_number, status, total_amount, due_date, paid_at')
+          .select('id, brand, invoice_number, status, total_amount, due_date, paid_at, team_member_id')
           .eq('period_month', month)
-          .eq('team_member_id', payeeId)
+          // NULL-payee legacy invoices count as this brand-month's invoice —
+          // .eq skips NULLs, which rendered legacy-invoiced months as
+          // "Ready to invoice" (double-invoice risk; review finding).
+          .or(`team_member_id.eq.${payeeId},team_member_id.is.null`)
           .in('brand', brandSlugs),
         supabase
           .from('earnings_ledger')
@@ -93,10 +96,17 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: `earnings_ledger read failed: ${ledgerRes.error.message}` }, { status: 500 });
       }
 
+      // When a brand-month has BOTH the payee's own invoice and a legacy
+      // NULL-payee one, the payee's own wins the chip.
+      const seenOwnInvoice = new Set<string>();
       for (const inv of (invoicesRes.data as Array<{
         id: string; brand: string; invoice_number: string; status: string;
         total_amount: number | string | null; due_date: string | null; paid_at: string | null;
+        team_member_id: string | null;
       }> | null) ?? []) {
+        const isOwn = inv.team_member_id !== null;
+        if (!isOwn && seenOwnInvoice.has(inv.brand)) continue;
+        if (isOwn) seenOwnInvoice.add(inv.brand);
         invoiceByBrand.set(inv.brand, {
           id: String(inv.id),
           invoiceNumber: inv.invoice_number,

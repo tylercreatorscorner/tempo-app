@@ -69,7 +69,10 @@ export async function GET(req: NextRequest) {
         .from('invoices')
         .select('id, brand, status, invoice_number')
         .eq('period_month', month)
-        .eq('team_member_id', payeeId)
+        // NULL-payee legacy invoices block the run for that brand-month —
+        // .eq skips NULLs, which listed already-invoiced brands as Ready
+        // (double-invoice risk; review finding).
+        .or(`team_member_id.eq.${payeeId},team_member_id.is.null`)
         .in('brand', brandSlugs)
     : { data: [], error: null };
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

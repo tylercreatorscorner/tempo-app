@@ -10,6 +10,7 @@
  * Money renders an em-dash while data is missing — never a fake $0.
  */
 import type { ReactNode } from 'react';
+import { isOverdue } from '@/lib/finance/overdue';
 import { formatCurrency } from '@/lib/utils/format';
 import type { SeriesPoint } from './earnings-trend-chart';
 import type { BrandRow, EarningsResponse } from './types';
@@ -59,7 +60,12 @@ function counted(row: BrandRow): boolean {
   return !!row.invoice && row.invoice.status !== 'void';
 }
 
-export function EarningsKpis({ data, series }: { data: EarningsResponse | null; series: SeriesPoint[] | null }) {
+export function EarningsKpis({ data, series, todayIso }: {
+  data: EarningsResponse | null;
+  series: SeriesPoint[] | null;
+  /** yyyy-mm-dd (UTC) — computed once per page render so every surface agrees. */
+  todayIso: string;
+}) {
   const rows = data?.brands ?? [];
   const invoicedRows = rows.filter(counted);
   const invoiceableCount = rows.filter((r) => r.total > 0 || counted(r)).length;
@@ -67,10 +73,8 @@ export function EarningsKpis({ data, series }: { data: EarningsResponse | null; 
   const collectedAmount = invoicedRows
     .filter((r) => r.invoice?.status === 'paid')
     .reduce((s, r) => s + (r.invoice?.totalAmount ?? 0), 0);
-  const today = new Date().toISOString().slice(0, 10);
-  const overdueCount = invoicedRows.filter(
-    (r) => r.invoice && r.invoice.status !== 'paid' && r.invoice.dueDate && r.invoice.dueDate < today,
-  ).length;
+  // THE shared overdue rule (lib/finance/overdue) — drafts count.
+  const overdueCount = invoicedRows.filter((r) => r.invoice && isOverdue(r.invoice, todayIso)).length;
 
   return (
     <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">

@@ -19,10 +19,12 @@ import { modelCaption, type BrandRow, type EarningsResponse } from './types';
 export type SortKey = 'brandLabel' | 'totalGmv' | 'commission' | 'retainer' | 'total';
 
 export function BrandEarningsTable({
-  rows, sortKey, sortDir, onSort, onEdit, onGenerateInvoice, generatingBrand,
+  rows, todayIso, sortKey, sortDir, onSort, onEdit, onGenerateInvoice, generatingBrand,
   totals, month, onMarketingSaved, onMarketingError,
 }: {
   rows: BrandRow[];
+  /** yyyy-mm-dd (UTC) — computed once per page render so every surface agrees. */
+  todayIso: string;
   sortKey: SortKey;
   sortDir: 'asc' | 'desc';
   onSort: (k: SortKey) => void;
@@ -151,7 +153,7 @@ export function BrandEarningsTable({
                   </td>
                   {/* Invoice lifecycle */}
                   <td className="px-4 py-3">
-                    <InvoiceChip row={row} generating={generatingBrand === row.brand} onGenerate={onGenerateInvoice} />
+                    <InvoiceChip row={row} todayIso={todayIso} generating={generatingBrand === row.brand} onGenerate={onGenerateInvoice} />
                   </td>
                   {/* Actions + expander */}
                   <td className="px-4 py-3">
