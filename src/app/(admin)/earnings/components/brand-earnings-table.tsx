@@ -133,9 +133,26 @@ export function BrandEarningsTable({
                       </div>
                     )}
                   </td>
-                  {/* Retainer */}
+                  {/* Retainer. A configured retainer the compensation model
+                      excludes (commission_only, or the losing revshare_max
+                      side) still RENDERS - struck through with the why -
+                      otherwise an operator's saved edit looks like a lost
+                      save (owner-reported: edits under a commission_only
+                      payee "didn't take"; they saved fine, the billed value
+                      is just 0 by model). */}
                   <td className="px-4 py-3 text-right tabular-nums text-foreground">
-                    {retainerTotal > 0 ? formatCurrency(retainerTotal) : <span className="text-muted-foreground">—</span>}
+                    {retainerTotal > 0 ? (
+                      formatCurrency(retainerTotal)
+                    ) : row.configuredRetainer > 0 ? (
+                      <span
+                        className="text-muted-foreground line-through decoration-[var(--pulse-warn)]/60"
+                        title={`Configured ${formatCurrency(row.configuredRetainer)} - not billed under the ${modelCaption(row.compensationModel, row.rate)} model`}
+                      >
+                        {formatCurrency(row.configuredRetainer)}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
                     {row.productRetainer > 0 && (
                       <div className="mt-0.5 text-[10px] text-muted-foreground">
                         +{formatCurrency(row.productRetainer)} {row.productRetainerName ?? 'product'}

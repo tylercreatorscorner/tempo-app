@@ -184,7 +184,15 @@ export function BrandEditSheet({ open, brand, brandLabel, teamMemberId, initialV
 
           {/* Rates */}
           <Section title="Rates">
-            <Field label="Commission Rate" suffix="%" hint="Your commission on creator GMV">
+            <Field
+              label="Commission Rate"
+              suffix="%"
+              hint={
+                values.compensation_model === 'retainer_only'
+                  ? 'Saved but NOT billed: this arrangement is retainer only. Change the model below to bill it.'
+                  : 'Your commission on creator GMV'
+              }
+            >
               <NumberInput value={values.commission_rate} step={0.25} onChange={(v) => set('commission_rate', v)} />
             </Field>
             <Field label="Marketing Commission Rate" suffix="%" hint="Rate on manually-entered marketing GMV">
@@ -198,7 +206,17 @@ export function BrandEditSheet({ open, brand, brandLabel, teamMemberId, initialV
 
           {/* Retainers + fees */}
           <Section title="Retainer & Fees">
-            <Field label="Monthly Retainer" prefix="$">
+            <Field
+              label="Monthly Retainer"
+              prefix="$"
+              hint={
+                values.compensation_model === 'commission_only'
+                  ? 'Saved but NOT billed: this arrangement is commission only. Change the model below to bill it.'
+                  : values.compensation_model === 'revshare_max'
+                    ? 'Billed only when it beats the commission (revshare max).'
+                    : undefined
+              }
+            >
               <NumberInput value={values.retainer} step={100} onChange={(v) => set('retainer', v)} />
             </Field>
             <Field label="Product Retainer" prefix="$" hint="Optional — separate line item">
