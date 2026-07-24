@@ -41,6 +41,7 @@ interface ScheduleRow {
   destination_kind: string;
   webhook_url: string;
   channel_label: string | null;
+  format: string | null;
   active: boolean;
   last_run_at: string | null;
   last_run_status: string | null;
@@ -59,6 +60,16 @@ const REPORT_TYPE_LABELS: Record<string, string> = {
   'creator-activity':     'Creator Activity',
   'brand-report':         'Brand Report',
 };
+
+/** Type label for a row — "Who's Cooking? · Classic" when the classic board
+ *  format is set; highlights is the default and stays unlabeled (mirrors the
+ *  sent feed's chip). */
+function scheduleTypeLabel(s: ScheduleRow): string {
+  const base = REPORT_TYPE_LABELS[s.report_type] ?? s.report_type;
+  return s.report_type === 'whos-cooking' && s.format === 'classic'
+    ? `${base} · Classic`
+    : base;
+}
 
 function relativeTimeAgo(iso: string | null): string {
   if (!iso) return '—';
@@ -232,7 +243,7 @@ export function SchedulesTab() {
               <TBody>
                 {schedules.map(s => (
                   <TR key={s.id} className="hover:bg-muted/60">
-                    <TD className="text-left font-medium text-foreground">{REPORT_TYPE_LABELS[s.report_type] ?? s.report_type}</TD>
+                    <TD className="text-left font-medium text-foreground">{scheduleTypeLabel(s)}</TD>
                     <TD className="text-left">{brandMeta.label(s.brand)}</TD>
                     <TD className="text-left text-xs">{s.cron_label}</TD>
                     <TD className="text-left">
@@ -365,6 +376,10 @@ function ScheduleModal({
   });
   const [reportType, setReportType] = useState<string>(editing?.report_type ?? 'daily-drop');
   const [period, setPeriod] = useState(editing?.period ?? '7d');
+  // Who's Cooking board format — NULL in the DB means 'highlights'.
+  const [boardFormat, setBoardFormat] = useState<'highlights' | 'classic'>(
+    editing?.format === 'classic' ? 'classic' : 'highlights',
+  );
   const [cronLabel, setCronLabel] = useState(editing?.cron_label ?? FREQUENCIES[0].label);
   const [webhookUrl, setWebhookUrl] = useState(editing?.webhook_url ?? '');
   const [channelLabel, setChannelLabel] = useState(editing?.channel_label ?? '');
@@ -392,6 +407,7 @@ function ScheduleModal({
         cron_label: cronLabel,
         webhook_url: webhookUrl,
         channel_label: channelLabel || null,
+        format: reportType === 'whos-cooking' ? boardFormat : null,
       };
       const res = editing
         ? await fetch(`/api/schedules/${editing.id}`, {
@@ -460,6 +476,22 @@ function ScheduleModal({
               </Select>
               <BrandListWarning show={brandsError} />
             </div>
+
+            {/* Board format (Who's Cooking only) */}
+            {reportType === 'whos-cooking' && (
+              <div>
+                <Label>Board format</Label>
+                <SegmentedControl<'highlights' | 'classic'>
+                  ariaLabel="Board format"
+                  options={[
+                    { value: 'highlights', label: 'Highlights' },
+                    { value: 'classic', label: 'Classic board' },
+                  ]}
+                  value={boardFormat}
+                  onValueChange={setBoardFormat}
+                />
+              </div>
+            )}
 
             {/* Period (only for periodic reports) */}
             {(source === 'reporting' || ['whats-cooking', 'whos-cooking'].includes(reportType)) && (

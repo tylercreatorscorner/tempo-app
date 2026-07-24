@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
   const body = await request.json();
   const {
     report_type, source, brand, period,
-    cron_label, destination_kind, webhook_url, channel_label,
+    cron_label, destination_kind, webhook_url, channel_label, format,
   } = body;
 
   // Validation
@@ -52,6 +52,9 @@ export async function POST(request: NextRequest) {
   }
   if (!isValidFrequency(cron_label)) {
     return NextResponse.json({ error: 'Invalid frequency' }, { status: 400 });
+  }
+  if (format !== undefined && format !== null && !['highlights', 'classic'].includes(format)) {
+    return NextResponse.json({ error: "Invalid format (use 'highlights' or 'classic')" }, { status: 400 });
   }
   const detectedKind = detectWebhookKind(webhook_url);
   if (!detectedKind) {
@@ -75,6 +78,9 @@ export async function POST(request: NextRequest) {
       destination_kind: destination_kind || detectedKind,
       webhook_url,
       channel_label: channel_label || null,
+      // Board format only applies to Who's Cooking; NULL means the default
+      // 'highlights' board, so that value is stored as NULL too.
+      format: report_type === 'whos-cooking' && format === 'classic' ? 'classic' : null,
       active: true,
       next_run_at: next.toISOString(),
     })

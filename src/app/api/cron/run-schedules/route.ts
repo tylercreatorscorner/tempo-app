@@ -35,6 +35,7 @@ interface ScheduleRow {
   cron_label: string;
   destination_kind: string;
   webhook_url: string;
+  format: string | null;
 }
 
 async function generateForSchedule(s: ScheduleRow, reg: BrandRegistry): Promise<string> {
@@ -52,7 +53,11 @@ async function generateForSchedule(s: ScheduleRow, reg: BrandRegistry): Promise<
       }
       case 'whos-cooking': {
         const data = await getWhosCookingData(s.brand, period);
-        return formatWhosCookingDiscord(data, brandName, period);
+        // NULL format = the default 'highlights' board.
+        return formatWhosCookingDiscord(
+          data, brandName, period,
+          s.format === 'classic' ? 'classic' : 'highlights',
+        );
       }
       case 'daily-drop': {
         const data = await getDailyDropData(s.brand);

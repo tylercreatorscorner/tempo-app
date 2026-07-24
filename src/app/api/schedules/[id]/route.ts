@@ -28,7 +28,7 @@ export async function PATCH(
   const body = await request.json();
   const allowed = [
     'report_type', 'source', 'brand', 'period',
-    'cron_label', 'destination_kind', 'webhook_url', 'channel_label', 'active',
+    'cron_label', 'destination_kind', 'webhook_url', 'channel_label', 'active', 'format',
   ];
   const updates: Record<string, unknown> = {};
   for (const key of allowed) {
@@ -36,6 +36,30 @@ export async function PATCH(
   }
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
+  }
+
+  // Board format only applies to Who's Cooking rows; NULL means the default
+  // 'highlights' board, so 'highlights' is normalized to NULL before storage.
+  if ('format' in updates) {
+    const fmt = updates.format;
+    if (fmt !== null && fmt !== 'highlights' && fmt !== 'classic') {
+      return NextResponse.json({ error: "Invalid format (use 'highlights' or 'classic')" }, { status: 400 });
+    }
+    let reportType = updates.report_type;
+    if (!('report_type' in updates)) {
+      const admin = await createAdminClient();
+      const { data: existing } = await admin
+        .from('report_schedules')
+        .select('report_type')
+        .eq('id', id)
+        .eq('tenant_id', profile.tenant_id)
+        .maybeSingle();
+      reportType = existing?.report_type;
+    }
+    updates.format = reportType === 'whos-cooking' && fmt === 'classic' ? 'classic' : null;
+  } else if ('report_type' in updates && updates.report_type !== 'whos-cooking') {
+    // Retyping a schedule away from Who's Cooking clears any stale format.
+    updates.format = null;
   }
 
   // If frequency changed, recompute next_run_at
