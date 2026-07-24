@@ -21,6 +21,12 @@ const PUBLIC_PATHS = [
   // Brands view invoices without an account.
   '/share/invoice',
   '/api/invoices/share',
+  // Public client report share links — same opaque-token gate. The trailing
+  // slash matters: '/r' alone would also match /reporting. The PDF export
+  // lives on its own /api/report-pdf prefix so the authed
+  // /api/client-reports/* admin routes stay behind the auth guard.
+  '/r/',
+  '/api/report-pdf/',
 ];
 
 // Page paths a brand-role user is allowed to visit. Anything else → bounce home.
