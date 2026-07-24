@@ -35,6 +35,10 @@ async function assertOwnerOrAdmin() {
 export async function inviteUser(email: string, role: string, canViewFinance = true) {
   const { admin, tenantId } = await assertOwnerOrAdmin();
 
+  // Coach is a hard finance no — enforce server-side regardless of what the
+  // client passed (the invite UI hides the toggle, but never trust that alone).
+  const finance = role === 'coach' ? false : canViewFinance;
+
   // Try to invite a brand-new user first
   const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
     redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback`,
@@ -75,7 +79,7 @@ export async function inviteUser(email: string, role: string, canViewFinance = t
     role,
     tenant_id: tenantId,
     status: 'active',
-    can_view_finance: canViewFinance,
+    can_view_finance: finance,
   }, { onConflict: 'user_id' });
   if (upsertError) throw new Error(`Profile upsert failed: ${upsertError.message}`);
 
@@ -86,14 +90,24 @@ export async function inviteUser(email: string, role: string, canViewFinance = t
 
 export async function updateUserRole(userId: string, role: string) {
   const { admin } = await assertOwnerOrAdmin();
-  await admin.from('user_profiles').update({ role }).eq('user_id', userId);
+  // Moving someone to coach also clears the finance flag: getWorkspaceScope
+  // hardcodes coach finance to false anyway, but the column must not linger true
+  // (defense for any reader that consults the column directly).
+  const patch = role === 'coach' ? { role, can_view_finance: false } : { role };
+  await admin.from('user_profiles').update(patch).eq('user_id', userId);
   revalidatePath('/settings');
   revalidatePath('/team');
 }
 
-/** Toggle a member's Finance access (owner/admin/viewer always see it regardless). */
+/** Toggle a member's Finance access (owner/admin/viewer always see it regardless;
+ *  coaches are a hard no — this action refuses to grant them finance). */
 export async function updateFinanceAccess(userId: string, canViewFinance: boolean) {
   const { admin } = await assertOwnerOrAdmin();
+  if (canViewFinance) {
+    const { data: target } = await admin
+      .from('user_profiles').select('role').eq('user_id', userId).maybeSingle();
+    if (target?.role === 'coach') throw new Error('Coaches can never see Finance.');
+  }
   await admin.from('user_profiles').update({ can_view_finance: canViewFinance }).eq('user_id', userId);
   revalidatePath('/settings');
   revalidatePath('/team');

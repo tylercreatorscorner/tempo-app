@@ -7,8 +7,9 @@ import { createAdminClient } from '@/lib/supabase/server';
 
 /**
  * Platform-admin "view as": start (userId) or exit (null) impersonating a member.
- * Only platform admins can set it; the target must be a manager (in the active
- * tenant, when one is selected). Read-only is enforced separately in middleware.
+ * Only platform admins can set it; the target must be a brand-scoped member — a
+ * manager or coach (in the active tenant, when one is selected). Full-tenant
+ * roles are never impersonable. Read-only is enforced separately in middleware.
  */
 export async function switchManager(userId: string | null) {
   if (!(await isPlatformAdmin())) return;
@@ -17,10 +18,10 @@ export async function switchManager(userId: string | null) {
   if (userId) {
     const activeTenantId = await getActiveTenantId();
     const admin = await createAdminClient();
-    let q = admin.from('user_profiles').select('user_id').eq('user_id', userId).eq('role', 'manager');
+    let q = admin.from('user_profiles').select('user_id').eq('user_id', userId).in('role', ['manager', 'coach']);
     if (activeTenantId) q = q.eq('tenant_id', activeTenantId);
     const { data } = await q.maybeSingle();
-    if (!data) return; // not a valid manager to impersonate → no-op
+    if (!data) return; // not a valid manager/coach to impersonate → no-op
     jar.set(ACTIVE_MANAGER_COOKIE, userId, {
       path: '/', httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production',
     });

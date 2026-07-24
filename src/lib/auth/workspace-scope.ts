@@ -10,6 +10,9 @@
  * Scope rules:
  *   - owner / admin / viewer  -> full tenant (brandScope = { kind: 'all' })
  *   - manager                 -> only brands in user_brand_access
+ *   - coach                   -> only brands in user_brand_access, and
+ *                                canViewFinance is ALWAYS false (hard no —
+ *                                the column is never consulted for coaches)
  *   - brand / creator         -> not Workspace users; returns null (the
  *                                middleware already bounces them, this is
  *                                fail-closed defense-in-depth)
@@ -63,7 +66,13 @@ async function scopeFromProfile(
 
   // Owner/admin/viewer always see finance; a manager sees it only if their flag is
   // set (column defaults true — new finance-blind members are invited with false).
-  const canViewFinance = FULL_TENANT_ROLES.has(role) ? true : (profile.can_view_finance ?? true);
+  // A coach NEVER sees finance — hardcoded false, the column is intentionally not
+  // read for them (no toggle exists; a stray true in the DB must not grant access).
+  const canViewFinance = FULL_TENANT_ROLES.has(role)
+    ? true
+    : role === 'coach'
+      ? false
+      : (profile.can_view_finance ?? true);
   const base = {
     userId: profile.user_id,
     email: profile.email ?? emailFallback ?? '',
@@ -77,7 +86,7 @@ async function scopeFromProfile(
     return { ...base, brandScope: { kind: 'all' } };
   }
 
-  if (role === 'manager') {
+  if (role === 'manager' || role === 'coach') {
     const { data: accessRows } = await admin
       .from('user_brand_access')
       .select('brand_id')
@@ -136,16 +145,17 @@ export const getWorkspaceScope = cache(async (): Promise<WorkspaceScope | null> 
       .select('user_id, email, name, role, tenant_id, can_view_finance')
       .eq('user_id', impersonatedId)
       .maybeSingle();
-    // Only ever impersonate a MANAGER — never resolve a full-tenant role (guards
-    // against role-drift on a stale cookie escalating the view to {kind:'all'}).
+    // Only ever impersonate a brand-scoped member (manager/coach) — never resolve
+    // a full-tenant role (guards against role-drift on a stale cookie escalating
+    // the view to {kind:'all'}).
     const targetRow = target as ProfileRow | null;
-    if (targetRow?.role === 'manager') {
+    if (targetRow?.role === 'manager' || targetRow?.role === 'coach') {
       const targetScope = await scopeFromProfile(admin, targetRow);
       if (targetScope) {
         return { ...targetScope, impersonating: { userId: targetScope.userId, name: targetScope.name } };
       }
     }
-    // Invalid/stale/non-manager target → fall through to the admin's own scope.
+    // Invalid/stale/non-scoped target → fall through to the admin's own scope.
   }
 
   const { data: profile } = await admin

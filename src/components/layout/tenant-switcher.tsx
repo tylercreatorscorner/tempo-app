@@ -7,7 +7,7 @@ import { switchTenant } from '@/app/actions/switch-tenant';
 import { switchManager } from '@/app/actions/switch-manager';
 
 interface Tenant { id: string; name: string; plan: string; }
-interface Manager { id: string; name: string; }
+interface Manager { id: string; name: string; role: string; }
 
 interface Props {
   tenants: Tenant[];
@@ -17,7 +17,7 @@ interface Props {
 }
 
 /** Single platform-admin context control: switch tenant, and (within a tenant)
- *  "view as" a manager — read-only. One pill + one menu (sectioned). */
+ *  "view as" a manager or coach — read-only. One pill + one menu (sectioned). */
 export function TenantSwitcher({ tenants, activeTenantId, managers, activeManagerId }: Props) {
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
@@ -110,11 +110,16 @@ export function TenantSwitcher({ tenants, activeTenantId, managers, activeManage
                 </button>
                 {managers.map((m) => (
                   <button key={m.id} onClick={() => pickManager(m.id)} className="w-full flex items-center justify-between px-3 py-2 text-sm text-foreground hover:bg-muted transition-colors">
-                    <span className="font-medium truncate text-left min-w-0">{m.name}</span>
+                    <span className="flex items-center gap-1.5 min-w-0">
+                      <span className="font-medium truncate text-left min-w-0">{m.name}</span>
+                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground flex-shrink-0">
+                        {m.role === 'coach' ? 'Coach' : 'Manager'}
+                      </span>
+                    </span>
                     {activeManagerId === m.id && <Check className="h-3.5 w-3.5 text-amber-600 flex-shrink-0" />}
                   </button>
                 ))}
-                {managers.length === 0 && <p className="px-3 py-2 text-xs text-muted-foreground">No managers in this tenant.</p>}
+                {managers.length === 0 && <p className="px-3 py-2 text-xs text-muted-foreground">No managers or coaches in this tenant.</p>}
               </>
             )}
           </div>

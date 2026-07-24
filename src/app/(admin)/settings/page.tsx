@@ -11,10 +11,10 @@ import { CompensationArrangementsSection } from '@/components/settings/compensat
 import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 
 export default async function SettingsPage() {
-  // Managers get a minimal, scoped Settings (Profile only). The full agency
-  // config below (TikTok/billing/brand mgmt/team/compensation/API) is
-  // owner/admin only — this page previously had NO gate, so a manager
-  // hitting /settings directly would have seen all of it.
+  // Brand-scoped members (managers/coaches) get a minimal, scoped Settings
+  // (Profile only). The full agency config below (TikTok/billing/brand
+  // mgmt/team/compensation/API) is owner/admin only — this page previously had
+  // NO gate, so a manager hitting /settings directly would have seen all of it.
   const scope = await getWorkspaceScope();
   if (scope && scope.brandScope.kind === 'scoped') {
     return (
@@ -45,7 +45,7 @@ export default async function SettingsPage() {
             <div className="flex flex-col sm:flex-row sm:items-center gap-2">
               <label className="text-sm text-muted-foreground w-32 shrink-0">Role</label>
               <span className="inline-flex items-center px-3 py-1 rounded-full bg-primary/20 text-primary text-sm font-medium">
-                <Shield className="h-3 w-3 mr-1" /> Manager
+                <Shield className="h-3 w-3 mr-1" /> {scope.role === 'coach' ? 'Coach' : 'Manager'}
               </span>
             </div>
             <div className="flex flex-col sm:flex-row sm:items-center gap-2">

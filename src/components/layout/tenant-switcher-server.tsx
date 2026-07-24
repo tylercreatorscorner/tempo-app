@@ -3,7 +3,8 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { TenantSwitcher } from './tenant-switcher';
 
 /** One platform-admin control: switch tenant + (within a tenant) "view as" a
- *  manager. Managers are fetched only when a tenant is active. */
+ *  brand-scoped member (manager or coach). Targets are fetched only when a
+ *  tenant is active. */
 export async function TenantSwitcherServer() {
   if (!(await isPlatformAdmin())) return null;
 
@@ -11,18 +12,19 @@ export async function TenantSwitcherServer() {
     getAllTenants(), getActiveTenantId(), getActiveManagerId(),
   ]);
 
-  let managers: { id: string; name: string }[] = [];
+  let managers: { id: string; name: string; role: string }[] = [];
   if (activeTenantId) {
     const admin = await createAdminClient();
     const { data } = await admin
       .from('user_profiles')
-      .select('user_id, name, email')
-      .eq('role', 'manager')
+      .select('user_id, name, email, role')
+      .in('role', ['manager', 'coach'])
       .eq('tenant_id', activeTenantId)
       .order('name');
     managers = (data ?? []).map((m) => ({
       id: m.user_id as string,
       name: (m.name as string | null) ?? (m.email as string | null) ?? 'Manager',
+      role: (m.role as string | null) ?? 'manager',
     }));
   }
 

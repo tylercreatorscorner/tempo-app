@@ -3,13 +3,14 @@ import type { UserRole, Portal, TenantPlan } from '@/types';
 /** Mapping of portals to allowed roles */
 const PORTAL_ROLES: Record<Portal, UserRole[]> = {
   admin: ['owner', 'admin'],
-  manager: ['owner', 'admin', 'manager'],
+  manager: ['owner', 'admin', 'manager', 'coach'],
   brand: ['owner', 'admin', 'brand'],
   creator: ['owner', 'admin', 'creator'],
 };
 
-/** Role hierarchy — higher index = more privilege */
-const ROLE_HIERARCHY: UserRole[] = ['creator', 'brand', 'viewer', 'manager', 'admin', 'owner'];
+/** Role hierarchy — higher index = more privilege.
+ *  Coach sits just below manager: same brand-scoped workspace, minus finance. */
+const ROLE_HIERARCHY: UserRole[] = ['creator', 'brand', 'viewer', 'coach', 'manager', 'admin', 'owner'];
 
 /** Check if a user role has at least the required role level */
 export function hasRole(userRole: UserRole, requiredRole: UserRole): boolean {
@@ -28,6 +29,7 @@ export function getDefaultPortal(role: UserRole): Portal {
     case 'admin':
       return 'admin';
     case 'manager':
+    case 'coach':
       return 'manager';
     case 'brand':
       return 'brand';

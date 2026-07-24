@@ -29,7 +29,7 @@ export interface UserProfile {
   created_at: string;
 }
 
-export type UserRole = 'owner' | 'admin' | 'manager' | 'viewer' | 'brand' | 'creator';
+export type UserRole = 'owner' | 'admin' | 'manager' | 'coach' | 'viewer' | 'brand' | 'creator';
 
 export interface Brand {
   id: string;

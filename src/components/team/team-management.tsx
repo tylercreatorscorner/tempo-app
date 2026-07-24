@@ -21,16 +21,18 @@ import { cn } from '@/lib/utils';
 const ROLE_OPTIONS = [
   { value: 'admin',   label: 'Admin',         desc: 'Full access, all brands' },
   { value: 'manager', label: 'Manager',       desc: 'Manage creators, scoped to brands' },
+  { value: 'coach',   label: 'Coach',         desc: 'Works creators for assigned brands — no finance' },
   { value: 'brand',   label: 'Brand Contact', desc: 'External client — brand portal only' },
 ];
 const ROLE_LABEL: Record<string, string> = {
-  owner: 'Owner', admin: 'Admin', manager: 'Manager', viewer: 'Viewer',
+  owner: 'Owner', admin: 'Admin', manager: 'Manager', coach: 'Coach', viewer: 'Viewer',
   analyst: 'Analyst', brand: 'Brand Contact', brand_contact: 'Brand Contact',
 };
 const ROLE_STYLE: Record<string, string> = {
   owner:         'bg-purple-500/10 text-purple-500 border-purple-500/25',
   admin:         'bg-blue-500/10 text-blue-500 border-blue-500/25',
   manager:       'bg-emerald-500/10 text-emerald-500 border-emerald-500/25',
+  coach:         'bg-cyan-500/10 text-cyan-500 border-cyan-500/25',
   viewer:        'bg-slate-50 text-slate-600 border-slate-200',
   analyst:       'bg-amber-500/10 text-amber-500 border-amber-500/25',
   brand:         'bg-primary/10 text-[var(--primary)] border-primary/15',
@@ -38,13 +40,15 @@ const ROLE_STYLE: Record<string, string> = {
 };
 // Higher = more access. A change to a lower rank asks for confirmation.
 const RANK: Record<string, number> = {
-  owner: 4, admin: 3, viewer: 3, manager: 2, analyst: 2, brand: 1, brand_contact: 1,
+  owner: 4, admin: 3, viewer: 3, manager: 2, coach: 2, analyst: 2, brand: 1, brand_contact: 1,
 };
 
 const FULL_TENANT = new Set(['owner', 'admin', 'viewer']);
 const isManager = (r: string) => r === 'manager';
+// Coaches NEVER see Finance — no toggle, no column read; hardcoded off everywhere.
+const isCoach = (r: string) => r === 'coach';
 const isClientRole = (r: string) => r === 'brand' || r === 'brand_contact';
-const needsBrandScope = (r: string) => ['manager', 'brand', 'brand_contact'].includes(r);
+const needsBrandScope = (r: string) => ['manager', 'coach', 'brand', 'brand_contact'].includes(r);
 
 interface TeamUser {
   user_id: string;
@@ -102,7 +106,9 @@ export function TeamManagement({ users, brands, tenantId, currentUserId }: Props
     }
     startTransition(async () => {
       try {
-        const canFin = isManager(inviteRole) ? inviteFinance : true;
+        // Coach is a hard finance no (the server re-enforces this); managers use
+        // the checkbox; full-tenant roles always see finance.
+        const canFin = isCoach(inviteRole) ? false : isManager(inviteRole) ? inviteFinance : true;
         const result = await inviteUser(inviteEmail.trim(), inviteRole, canFin);
         if (needsBrandScope(inviteRole) && inviteBrandIds.length > 0 && result?.userId) {
           await updateBrandAccess(result.userId, inviteBrandIds, tenantId);
@@ -297,6 +303,9 @@ export function TeamManagement({ users, brands, tenantId, currentUserId }: Props
 
           {FULL_TENANT.has(u.role) ? (
             <span className="inline-flex items-center gap-1 text-xs text-muted-foreground"><DollarSign className="h-3 w-3" /> Finance: full</span>
+          ) : isCoach(u.role) ? (
+            // No toggle for coaches — finance is a hard no regardless of the column.
+            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground"><DollarSign className="h-3 w-3" /> Finance: none</span>
           ) : isManager(u.role) ? (
             <button
               onClick={() => handleFinanceToggle(u.user_id, !financeOn)}
@@ -542,6 +551,17 @@ function InviteModal(props: {
                 <span className="block text-[10px] text-muted-foreground">Earnings, Invoicing, Payments. Off by default.</span>
               </span>
             </label>
+          )}
+
+          {/* Coaches never see Finance — no toggle, stated plainly instead. */}
+          {isCoach(role) && (
+            <div className="flex items-start gap-2.5 p-3 rounded-xl border border-border select-none">
+              <DollarSign className="mt-0.5 h-4 w-4 text-muted-foreground shrink-0" />
+              <span>
+                <span className="block text-xs font-semibold text-[var(--foreground)]">Finance: none</span>
+                <span className="block text-[10px] text-muted-foreground">Coaches never see Earnings, Invoicing, or Payments.</span>
+              </span>
+            </div>
           )}
 
           <p className="text-[11px] text-muted-foreground">

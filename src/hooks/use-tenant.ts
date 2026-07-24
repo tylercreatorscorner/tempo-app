@@ -87,11 +87,15 @@ async function fetchTenantSnapshot(): Promise<TenantSnapshot> {
           Array.isArray(profile.allowed_brands) && profile.allowed_brands.length > 0
             ? profile.allowed_brands
             : null;
-        // Owner/admin/viewer always see finance; managers only if their flag is set.
+        // Owner/admin/viewer always see finance; managers only if their flag is
+        // set; coaches NEVER (hardcoded — must not fall through to the `?? true`
+        // default, and the column is intentionally not consulted for them).
         snapshot.canViewFinance =
           profile.role === 'owner' || profile.role === 'admin' || profile.role === 'viewer'
             ? true
-            : ((profile as { can_view_finance?: boolean | null }).can_view_finance ?? true);
+            : profile.role === 'coach'
+              ? false
+              : ((profile as { can_view_finance?: boolean | null }).can_view_finance ?? true);
       }
 
       if (profile?.tenant_id) {
