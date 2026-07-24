@@ -12,12 +12,15 @@
  *   - Existing-data check is /api/upload/check?table=&brand=&date=
  *   - Editable per-file before processing: brand, date, type — in case
  *     filename detection got something wrong.
+ *   - Queue-time header sniff (type-sniff.ts) auto-corrects the type when the
+ *     filename lies — TikTok merged the Video List export into the Video Data
+ *     schema (~2026-07-13) while keeping the *_Video_List_*.xlsx filenames.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import {
   AlertCircle, CheckCircle2, FileSpreadsheet, Loader2, Trash2, Upload,
-  ChevronDown, ChevronUp, AlertTriangle,
+  ChevronDown, ChevronUp, AlertTriangle, ArrowLeftRight,
 } from 'lucide-react';
 import { FreshnessPanel } from '@/components/upload/freshness-panel';
 import { Badge } from '@/components/ui/badge';
@@ -45,6 +48,7 @@ import {
   parseProductRows,
 } from '@/lib/upload/parse-rows';
 import { COLUMN_MAPS, auditColumnMatches, type UploadTable as MapTable } from '@/lib/upload/column-maps';
+import { extractHeaderRow, resolveTypeFromHeaders } from '@/lib/upload/type-sniff';
 import {
   validateCreatorRecords,
   validateVideoRecords,
@@ -71,6 +75,10 @@ interface QueueItem {
   /** Row-level overwrite toggle (defaults on). Only meaningful when
    *  existingCount > 0: on = delete-then-insert, off = merge-upsert. */
   overwriteOk?: boolean;
+  /** Queue-time header-sniff verdict (auto-switch or ambiguity chip). Derived
+   *  from the file content each time it's added — deliberately NOT persisted
+   *  (persistQueue stays metadata-only; no sniffed headers/rows in storage). */
+  typeNotice?: { level: 'info' | 'warning'; message: string };
 }
 
 /** The DB table a file type writes to — used for the queue-time existing-data
@@ -93,6 +101,13 @@ const FILE_TYPE_OPTIONS: { value: FileType; label: string }[] = [
 ];
 
 function newId() { return Math.random().toString(36).slice(2, 10); }
+
+/** sha256 hex via WebCrypto — the file-grain idempotency hash sent on every
+ *  chunk so the server can recognize a whole-file duplicate. */
+async function sha256Hex(text: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
 
 interface ActiveBrand {
   slug: string;
@@ -237,14 +252,29 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
     }
 
     setQueue(q => [...q, ...items]);
+    // Eager ref sync (same as updateItem): the sniff below reads queueRef as
+    // soon as the header parse finishes, which can beat the passive effect
+    // that mirrors committed state into the ref.
+    queueRef.current = [...queueRef.current, ...items];
     // Resolve the overwrite chips up front — by the time the user hits
     // "Upload all", every row already knows whether it replaces existing data.
+    // The header sniff runs alongside and may switch the type (re-issuing the
+    // check for the new table). Size-rejected files (status 'error') skip both.
     for (const it of items) {
-      if (it.status !== 'error') void runExistingCheck(it.id, it.type, it.brand, it.reportDate);
+      if (it.status !== 'error') {
+        void runExistingCheck(it.id, it.type, it.brand, it.reportDate);
+        void sniffTypeFromHeaders(it.id, it.file);
+      }
     }
   }
 
   function updateItem(id: string, patch: Partial<QueueItem>) {
+    // Eagerly mirror the patch into queueRef so async workers reading the ref
+    // immediately after an update see it — the sniff's auto-switch updates the
+    // type and then re-issues the existing-data check, whose stale-response
+    // guard compares item.type; the ref must already carry the new type when
+    // that response lands. The commit effect re-syncs the ref right after.
+    queueRef.current = queueRef.current.map(i => i.id === id ? { ...i, ...patch } : i);
     setQueue(q => q.map(i => i.id === id ? { ...i, ...patch } : i));
   }
 
@@ -273,13 +303,66 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
     }
   }
 
+  /** Queue-time content-based type resolution. TikTok merged the Video List
+   *  export into the Video Data schema (~2026-07-13) while keeping the old
+   *  *_Video_List_*.xlsx filenames, so filename detection lies and the ops fix
+   *  was flipping Type dropdowns file-by-file. Read ONLY the header row and
+   *  let the columns decide. The Type dropdown stays editable — this is a
+   *  default, not a lock. Sniffed headers stay local to this function: nothing
+   *  raw may land on the QueueItem (the queue persists to localStorage). */
+  async function sniffTypeFromHeaders(id: string, file: File) {
+    let headerRow: Record<string, unknown> | null = null;
+    try {
+      const ab = await file.arrayBuffer();
+      headerRow = extractHeaderRow(ab);
+    } catch {
+      return; // unreadable — the full run-time parse will surface the real error
+    }
+    if (!headerRow) return; // header-only/empty sheet: leave the type unchanged
+
+    // Decide against the item's CURRENT type — the user may have touched the
+    // dropdown (or removed the row) while the file was being read.
+    const current = queueRef.current.find(i => i.id === id);
+    if (!current || current.status !== 'queued') return;
+    const decision = resolveTypeFromHeaders(headerRow, current.type);
+    if (decision.action === 'none') return;
+
+    if (decision.action === 'ambiguous') {
+      updateItem(id, {
+        typeNotice: {
+          level: 'warning',
+          message: `Ambiguous file: columns match both ${FILE_TYPE_LABELS[decision.chosen.type]} (${decision.chosen.matched}/${decision.chosen.total}) and ${FILE_TYPE_LABELS[decision.best.type]} (${decision.best.matched}/${decision.best.total}) — kept ${FILE_TYPE_LABELS[decision.chosen.type]}; verify the Type dropdown before uploading.`,
+        },
+      });
+      return;
+    }
+
+    const vsChosen = decision.chosen ? ` vs ${decision.chosen.matched}/${decision.chosen.total}` : '';
+    // Type + chip land in ONE update, and updateItem mirrors the patch into
+    // queueRef synchronously — so the existing-data check issued next (for the
+    // NEW type's table) can't have its response dropped by the stale guard,
+    // which compares item.type.
+    updateItem(id, {
+      type: decision.to,
+      typeNotice: {
+        level: 'info',
+        message: `Type auto-switched: ${FILE_TYPE_LABELS[current.type]} → ${FILE_TYPE_LABELS[decision.to]} — columns matched ${decision.best.matched}/${decision.best.total}${vsChosen}`,
+      },
+    });
+    const fresh = queueRef.current.find(i => i.id === id);
+    void runExistingCheck(id, decision.to, fresh?.brand ?? current.brand, fresh?.reportDate ?? current.reportDate);
+  }
+
   /** QueueRow's onChange — patches the item and re-resolves the overwrite
    *  chip when any of the check inputs changed. */
   function patchItem(id: string, patch: Partial<QueueItem>) {
-    updateItem(id, patch);
+    // A manual Type change supersedes the sniff's verdict — drop its chip so a
+    // stale "auto-switched" message can't describe a type the user overrode.
+    const effective: Partial<QueueItem> = 'type' in patch ? { ...patch, typeNotice: undefined } : patch;
+    updateItem(id, effective);
     if ('type' in patch || 'brand' in patch || 'reportDate' in patch) {
       const it = queueRef.current.find(i => i.id === id);
-      const next = { ...it, ...patch } as QueueItem;
+      const next = { ...it, ...effective } as QueueItem;
       void runExistingCheck(id, next.type, next.brand, next.reportDate);
     }
   }
@@ -309,6 +392,15 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
     //    label says it's for date X; if X is in the future, hard-block here
     //    before we even try to parse rows. Per-row dates inside the file are
     //    handled by the parser/validators downstream.
+    //    Dated tables hard-require a real date FIRST: a type switch (e.g.
+    //    videolist → video after the header sniff) turns an undated upload
+    //    into a dated one — video_performance rows carry report_date, the
+    //    videos table doesn't — and validateReportDate would silently pass ''.
+    if (TABLE_FOR_TYPE[item.type] !== null && !/^\d{4}-\d{2}-\d{2}$/.test(item.reportDate)) {
+      appendLog(item.id, 'error', `Report date is required for ${FILE_TYPE_LABELS[item.type]} uploads — set the date field above and retry.`);
+      updateItem(item.id, { status: 'error' });
+      return;
+    }
     const dateCheck = validateReportDate(item.reportDate);
     if (!dateCheck.valid) {
       appendLog(item.id, 'error', dateCheck.error || 'Invalid date');
@@ -550,9 +642,25 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
       appendLog(item.id, 'info', `Uploading ${parsed.records.length.toLocaleString()} rows to ${table}...`);
     }
 
+    // ── File-grain protocol: every chunk carries the identity of the WHOLE
+    // file (hash + totals + position) so the server can run idempotency and
+    // the $0-GMV guard at FILE grain instead of chunk grain — per-chunk
+    // idempotency and per-chunk GMV guards were stranding files mid-upload.
+    // The hash mirrors the server's existing hash-input shape
+    // ({ table, brand, reportDate, records }) but over ALL parsed records,
+    // so the value is stable across retries of the same file.
+    const fileTotals = { gmv: totalGmv, orders: totalOrders, rows: parsed.records.length };
+    const fileHash = await sha256Hex(
+      JSON.stringify({ table, brand: item.brand, reportDate: item.reportDate, records: parsed.records }),
+    );
+
     try {
       let totalUpserted = 0;
       let totalDroppedFuture = 0;
+      // Chunks are STRICTLY SEQUENTIAL with abort-on-first-failure — the
+      // server's record-hash-on-final-chunk invariant depends on ordering, so
+      // intra-file parallelism is forbidden here.
+      let idempotentSkipMessage: string | null = null;
       for (let i = 0; i < chunks.length; i++) {
         const chunk = chunks[i];
         // Only the first chunk carries the user's overwrite decision. If
@@ -568,13 +676,18 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
             reportDate: item.reportDate,
             records: chunk,
             overwrite: chunkOverwrite,
+            // File-grain fields — the server treats all of these as optional.
+            fileHash,
+            chunkIndex: i,
+            chunkCount: chunks.length,
+            fileTotals,
           }),
         });
         // Body-too-large surfaces as a non-JSON plain-text response from the
         // platform (not our route) — read as text first and surface clearly
         // instead of dying on JSON.parse.
         const text = await res.text();
-        let j: { error?: string; upserted?: number; idempotent?: boolean; message?: string; droppedFutureRows?: number };
+        let j: { error?: string; upserted?: number; idempotent?: boolean; skipRemaining?: boolean; message?: string; droppedFutureRows?: number };
         try {
           j = JSON.parse(text);
         } catch {
@@ -584,7 +697,18 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
               : `HTTP ${res.status}: ${text.slice(0, 200)}`
           );
         }
+        // Server errors (including the file-grain BLOCKED mapping-failure
+        // response) surface VERBATIM — the message now carries operator
+        // guidance, and the row's inline error renders it as-is.
         if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
+        if (j.idempotent && j.skipRemaining) {
+          // File-grain no-op: the server recognized the WHOLE file as already
+          // processed. Stop the chunk loop now — continuing would re-receive
+          // the cached file-level count on every remaining chunk and multiply
+          // the totals in the success log.
+          idempotentSkipMessage = j.message ?? 'Identical file was already processed — no-op (idempotency).';
+          break;
+        }
         if (j.idempotent) {
           appendLog(item.id, 'info', j.message ?? 'Identical chunk was already processed (idempotency).');
         }
@@ -595,16 +719,22 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
         }
       }
 
-      if (totalDroppedFuture > 0) {
+      if (idempotentSkipMessage) {
+        // Skipped chunks contribute NO per-chunk counts — the server's no-op
+        // message is the whole story for this file.
+        appendLog(item.id, 'success', idempotentSkipMessage);
+      } else {
+        if (totalDroppedFuture > 0) {
+          appendLog(
+            item.id, 'warning',
+            `${totalDroppedFuture.toLocaleString()} row(s) skipped: future post date (scheduled, not-yet-published videos). Each will import automatically from a later export once it publishes.`
+          );
+        }
         appendLog(
-          item.id, 'warning',
-          `${totalDroppedFuture.toLocaleString()} row(s) skipped: future post date (scheduled, not-yet-published videos). Each will import automatically from a later export once it publishes.`
+          item.id, 'success',
+          `${totalUpserted.toLocaleString()} rows upserted. Total GMV: $${totalGmv.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}, Orders: ${totalOrders.toLocaleString()}.`
         );
       }
-      appendLog(
-        item.id, 'success',
-        `${totalUpserted.toLocaleString()} rows upserted. Total GMV: $${totalGmv.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}, Orders: ${totalOrders.toLocaleString()}.`
-      );
       updateItem(item.id, {
         status: 'success',
         result: { rowCount: parsed.records.length, totalGmv, totalOrders },
@@ -664,6 +794,30 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
     return c;
   }, [queue]);
 
+  // Duplicate-target detection — after auto-switches (or manual edits) two
+  // queue items can resolve to the same (type|brand|date), e.g.
+  // Brand_Video_List_D auto-switched to Video Data next to Brand_Video_Data_D.
+  // The run pool serializes same-key items, so the SECOND one silently
+  // overwrites the first — warn on the later item and let the operator decide
+  // (never auto-remove). Derived from the queue so it stays correct through
+  // every sniff switch and dropdown edit.
+  const duplicateTargetById = useMemo(() => {
+    const firstByKey = new Map<string, string>();
+    const dupes = new Map<string, string>();
+    for (const it of queue) {
+      if (it.status === 'error' || it.status === 'cancelled') continue;
+      if (it.type === 'unknown' || it.type === 'product' || !it.brand || it.brand === 'unknown') continue;
+      const key = `${it.type}|${it.brand}|${it.reportDate}`;
+      const first = firstByKey.get(key);
+      if (first === undefined) {
+        firstByKey.set(key, it.filename);
+      } else if (it.status === 'queued') {
+        dupes.set(it.id, `Same target as ${first} — the second upload overwrites the first`);
+      }
+    }
+    return dupes;
+  }, [queue]);
+
   return (
     <div className="space-y-8">
       {/* Recovery banner — shown when the last session had unfinished items.
@@ -679,7 +833,7 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
                 {unrecoveredItems.length} unfinished upload{unrecoveredItems.length === 1 ? '' : 's'} from your last session
               </div>
               <div className="text-xs text-amber-500 mt-1">
-                Browser refreshed mid-upload. Re-drop these files (we can't auto-recover
+                Browser refreshed mid-upload. Re-drop these files (we can&apos;t auto-recover
                 the file content, only the metadata):
               </div>
               <ul className="mt-2 space-y-0.5 text-xs text-foreground">
@@ -769,7 +923,14 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
           </div>
           <ul className="divide-y divide-border">
             {queue.map(item => (
-              <QueueRow key={item.id} item={item} brands={activeBrands} onChange={p => patchItem(item.id, p)} onRemove={() => removeItem(item.id)} />
+              <QueueRow
+                key={item.id}
+                item={item}
+                brands={activeBrands}
+                duplicateNotice={duplicateTargetById.get(item.id)}
+                onChange={p => patchItem(item.id, p)}
+                onRemove={() => removeItem(item.id)}
+              />
             ))}
           </ul>
         </div>
@@ -792,10 +953,12 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
 // ── Queue Row ──────────────────────────────────────────────────────
 
 function QueueRow({
-  item, brands, onChange, onRemove,
+  item, brands, duplicateNotice, onChange, onRemove,
 }: {
   item: QueueItem;
   brands: ActiveBrand[];
+  /** Set when another queue item resolves to the same (type|brand|date). */
+  duplicateNotice?: string;
   onChange: (patch: Partial<QueueItem>) => void;
   onRemove: () => void;
 }) {
@@ -852,6 +1015,32 @@ function QueueRow({
               disabled={!editable}
               className="text-xs bg-card border border-border rounded-lg px-2 py-1.5 disabled:bg-muted disabled:text-muted-foreground"
             />
+            {/* Header-sniff chip — auto-switch verdict or ambiguity warning.
+                Chips, never popups: the queue is built for unattended batches,
+                and the Type dropdown above stays editable as the override. */}
+            {item.typeNotice && (
+              <span
+                className={cn(
+                  'inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[11px] font-semibold',
+                  item.typeNotice.level === 'warning'
+                    ? 'border-[var(--pulse-warn)]/35 bg-[var(--pulse-warn-bg)] text-[var(--pulse-warn)]'
+                    : 'border-[var(--primary)]/35 bg-primary/10 text-[var(--primary)]',
+                )}
+              >
+                {item.typeNotice.level === 'warning'
+                  ? <AlertTriangle className="h-3 w-3 shrink-0" />
+                  : <ArrowLeftRight className="h-3 w-3 shrink-0" />}
+                {item.typeNotice.message}
+              </span>
+            )}
+            {/* Duplicate-target chip — two queue rows writing the same
+                (type|brand|date). The operator decides which one survives. */}
+            {duplicateNotice && (
+              <span className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--pulse-warn)]/35 bg-[var(--pulse-warn-bg)] px-2 py-1 text-[11px] font-semibold text-[var(--pulse-warn)]">
+                <AlertTriangle className="h-3 w-3 shrink-0" />
+                {duplicateNotice}
+              </span>
+            )}
             {/* Overwrite chip — the queue-time answer to the old mid-run
                 confirm(). Only appears when the day already has data. */}
             {item.existingCount === null && (
@@ -986,5 +1175,3 @@ async function runTypeParser(item: QueueItem, rows: Record<string, unknown>[]): 
     totalGmv: 0, totalOrders: 0,
   };
 }
-
-void FILE_TYPE_LABELS; // keep import for dropdown labels in case we re-introduce it
