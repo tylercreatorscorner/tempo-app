@@ -100,19 +100,25 @@ function topicBullets(topic: MessageTopic, ctx: CreatorContext, brandMeta: Brand
 
 export function CreatorContextPanel({ creatorId, topic, onDraftReply }: Props) {
   const brandMeta = useBrandMeta();
-  const [context, setContext] = useState<CreatorContext | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Loading derives from whether the loaded payload matches the current
+  // creator (render-time reset — no setState at effect start), which also
+  // guards against a slow response landing after the selection changed.
+  const [loaded, setLoaded] = useState<{ id: number; context: CreatorContext | null } | null>(null);
   const [collapsed, setCollapsed] = useState(false);
+  const loading = loaded?.id !== creatorId;
+  const context = loaded?.id === creatorId ? loaded.context : null;
 
   useEffect(() => {
-    setLoading(true);
+    let canceled = false;
     fetch(`/api/messages/${creatorId}/context`)
       .then(r => r.json())
       .then(data => {
-        if (data.creator) setContext(data.creator);
+        if (!canceled) setLoaded({ id: creatorId, context: data.creator ?? null });
       })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+      .catch(() => {
+        if (!canceled) setLoaded({ id: creatorId, context: null });
+      });
+    return () => { canceled = true; };
   }, [creatorId]);
 
   if (collapsed) {

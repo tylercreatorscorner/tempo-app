@@ -1,9 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { FileText, ChevronRight, ChevronLeft, Search } from 'lucide-react';
+import { FileText, ChevronRight, Search } from 'lucide-react';
 import { MESSAGE_TEMPLATES, fillTemplate, type MessageTemplate } from '@/lib/messages/templates';
-import { cn } from '@/lib/utils';
 
 interface Props {
   creatorName?: string;

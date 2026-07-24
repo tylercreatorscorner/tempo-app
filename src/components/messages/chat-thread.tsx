@@ -17,6 +17,23 @@ interface Message {
   sent_at: string;
   sent_by: string | null;
   topic?: string | null;
+  /** Broadcast-originated messages carry the broadcast id here. */
+  metadata?: { broadcast_id?: string } | null;
+}
+
+/** Channel tag inside a bubble. Tone flips with the bubble background:
+ *  outbound sits on the accent gradient, inbound on the card surface. */
+function BubbleChip({ outbound, children }: { outbound: boolean; children: React.ReactNode }) {
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center rounded px-1 py-px text-[9px] font-bold uppercase tracking-[0.06em] leading-none',
+        outbound ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary',
+      )}
+    >
+      {children}
+    </span>
+  );
 }
 
 interface Props {
@@ -259,13 +276,14 @@ export function ChatThread({
                   'flex items-center gap-1.5 mt-1',
                   msg.direction === 'outbound' ? 'justify-end' : 'justify-start'
                 )}>
-                  {/* Channel indicator */}
+                  {/* Channel chip (all 'dm' today; SMS/Email thread in later) */}
                   {msg.channel && (
-                    <ChannelIcon
-                      channel={msg.channel}
-                      size="sm"
-                      className={msg.direction === 'outbound' ? 'opacity-70' : 'opacity-50'}
-                    />
+                    <BubbleChip outbound={msg.direction === 'outbound'}>
+                      {msg.channel === 'dm' || msg.channel === 'discord_dm' ? 'DM' : msg.channel}
+                    </BubbleChip>
+                  )}
+                  {msg.metadata?.broadcast_id && (
+                    <BubbleChip outbound={msg.direction === 'outbound'}>Broadcast</BubbleChip>
                   )}
                   <span className={cn('text-[10px]', msg.direction === 'outbound' ? 'text-white/70' : 'text-muted-foreground')}>
                     {formatTime(msg.sent_at)}

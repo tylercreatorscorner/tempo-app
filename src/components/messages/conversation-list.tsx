@@ -10,7 +10,6 @@ import {
   DollarSign,
   Mail,
   WifiOff,
-  ChevronDown,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ChannelBadge } from './channel-icon';
@@ -50,6 +49,13 @@ export interface Conversation {
 
 export function convKey(conv: Conversation): string {
   return conv.discord_user_id || `creator:${conv.creator_id}`;
+}
+
+/** "Needs attention" staleness: no message ever, or none in 7+ days.
+ *  Module-level so the time read stays out of component render (purity rule). */
+function isStaleConversation(lastMessageAt: string | null): boolean {
+  if (!lastMessageAt) return true;
+  return Date.now() - new Date(lastMessageAt).getTime() > 7 * 24 * 60 * 60 * 1000;
 }
 
 function relativeTime(dateStr: string): string {
@@ -161,12 +167,9 @@ export function ConversationList({ conversations, activeKey, onSelect }: Props) 
 
     // Quick filters
     if (quickFilter === 'needs_attention') {
-      const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
       items = items.filter((c) => {
         const isWorrying = c.status === 'ghost' || c.status === 'behind';
-        const lastMsg = c.last_message_at ? new Date(c.last_message_at).getTime() : 0;
-        const stale = !c.last_message_at || Date.now() - lastMsg > sevenDaysMs;
-        return isWorrying && stale;
+        return isWorrying && isStaleConversation(c.last_message_at);
       });
     } else if (quickFilter === 'top_retainer') {
       items = items.filter((c) => c.retainer_amount && c.retainer_amount > 0);
@@ -307,7 +310,7 @@ export function ConversationList({ conversations, activeKey, onSelect }: Props) 
                   className={cn(
                     'px-2.5 py-1 rounded-lg text-xs font-medium transition-all',
                     !brandFilter
-                      ? 'bg-gray-800 text-white'
+                      ? 'bg-foreground text-background'
                       : 'bg-muted text-muted-foreground hover:bg-secondary'
                   )}
                 >
@@ -348,7 +351,7 @@ export function ConversationList({ conversations, activeKey, onSelect }: Props) 
                   className={cn(
                     'px-2.5 py-1 rounded-lg text-xs font-medium transition-all',
                     !statusFilter
-                      ? 'bg-gray-800 text-white'
+                      ? 'bg-foreground text-background'
                       : 'bg-muted text-muted-foreground hover:bg-secondary'
                   )}
                 >
@@ -458,7 +461,7 @@ export function ConversationList({ conversations, activeKey, onSelect }: Props) 
             onClick={() => setTopicFilter(null)}
             className={cn(
               'text-[11px] font-semibold px-2.5 py-1 rounded-full transition-colors',
-              topicFilter === null ? 'bg-[var(--foreground)] text-white' : 'bg-muted text-muted-foreground hover:bg-secondary'
+              topicFilter === null ? 'bg-foreground text-background' : 'bg-muted text-muted-foreground hover:bg-secondary'
             )}
           >
             All
@@ -472,13 +475,13 @@ export function ConversationList({ conversations, activeKey, onSelect }: Props) 
                 onClick={() => setTopicFilter(active ? null : t)}
                 className={cn(
                   'inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full transition-colors',
-                  active ? 'bg-[var(--foreground)] text-white' : `${colors.bg} ${colors.fg} hover:ring-1 hover:ring-border`
+                  active ? 'bg-foreground text-background' : `${colors.bg} ${colors.fg} hover:ring-1 hover:ring-border`
                 )}
               >
                 {TOPIC_LABELS[t]}
                 <span className={cn(
                   'text-[10px] font-bold px-1.5 rounded-full',
-                  active ? 'bg-card/20 text-white' : 'bg-card/70 text-foreground'
+                  active ? 'bg-background/25 text-background' : 'bg-card/70 text-foreground'
                 )}>{topicCounts[t]}</span>
               </button>
             );
@@ -518,6 +521,9 @@ export function ConversationList({ conversations, activeKey, onSelect }: Props) 
                     {/* Avatar */}
                     <div className="relative flex-shrink-0">
                       {conv.discord_avatar ? (
+                        // Discord CDN avatar — next/image would need a
+                        // remote-pattern config change; out of scope here.
+                        // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={conv.discord_avatar}
                           alt=""

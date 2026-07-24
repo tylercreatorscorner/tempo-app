@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Menu, ChevronRight, LogOut, Settings, Bell, MessageSquare, Users } from 'lucide-react';
+import { Menu, ChevronRight, LogOut, Settings, Bell, Users } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { TempoLogo } from '@/components/ui/tempo-logo';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
@@ -54,7 +54,7 @@ const BREADCRUMB_MAP: Record<string, string> = {
   '/workflows/outreach': 'Outreach',
   // Other
   '/brands': 'Brands',
-  '/messages': 'Messages',
+  '/messages': 'Comms',
   '/discover': 'Discover',
   '/invites': 'Invites',
 };
@@ -158,13 +158,8 @@ export function Header({ onMenuClick, tenantName, userName, userEmail, tenantSwi
           <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-[var(--primary)] ring-2 ring-card" />
         </button>
 
-        {/* Messages shortcut */}
-        <Link
-          href="/messages"
-          className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-        >
-          <MessageSquare className="h-[18px] w-[18px]" />
-        </Link>
+        {/* Comms lives in the sidebar (its own destination) — the old
+            /messages header shortcut is gone with the Comms-hub rebuild. */}
 
         {/* Light / dark toggle */}
         <ThemeToggle />

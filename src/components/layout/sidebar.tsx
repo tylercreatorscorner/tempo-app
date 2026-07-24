@@ -2,7 +2,7 @@
 
 import Link, { useLinkStatus } from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
-import { LayoutDashboard, Users, PlaySquare, FileBarChart, Wallet, Boxes, PanelLeftClose, PanelLeft, Loader2 } from 'lucide-react';
+import { LayoutDashboard, Users, PlaySquare, FileBarChart, MessagesSquare, Wallet, Boxes, PanelLeftClose, PanelLeft, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useDelayedFlag } from '@/hooks/use-delayed-flag';
 import { TempoLogo, TempoIcon } from '@/components/ui/tempo-logo';
@@ -18,10 +18,12 @@ interface Dest {
   financeGated?: boolean;
 }
 
-// FIVE destinations (four for a manager — Products is admin-only). Sub-views
-// (Roster/Retention/Affiliates/Segments, Earnings/YTD/Invoicing/Payments, …)
-// live as tabs ON the page via SectionTabs — NOT as sidebar rows. Messages is in
-// the top bar; Discover is hidden until real.
+// SEVEN destinations (Products is admin-only; Finance is finance-gated).
+// Sub-views (Roster/Retention/Affiliates/Segments, Earnings/YTD/Invoicing/
+// Payments, …) live as tabs ON the page via SectionTabs — NOT as sidebar rows.
+// Comms (/messages) graduated from a header icon to a destination with the
+// Comms-hub rebuild (Broadcasts/Inbox/Templates own their tabs on-page).
+// Discover is hidden until real.
 // Settings deliberately has NO sidebar row: it already lives in the profile
 // dropdown (header.tsx) alongside User Management, and one destination in two
 // places is one too many. The dropdown link is ungated, so every role still
@@ -37,6 +39,7 @@ const PRIMARY: Dest[] = [
   // Reporting is a generator console, not a content view — owner's call
   // (2026-07-23): its own destination, out of the Content tabs.
   { href: '/reporting', label: 'Reporting', icon: FileBarChart,    match: ['/reporting'] },
+  { href: '/messages',  label: 'Comms',     icon: MessagesSquare,  match: ['/messages'] },
   { href: '/earnings',  label: 'Finance',   icon: Wallet,          match: ['/earnings', '/ytd', '/invoicing', '/payments'], financeGated: true },
   { href: '/products/catalog', label: 'Products', icon: Boxes,     match: ['/products'], adminOnly: true },
 ];

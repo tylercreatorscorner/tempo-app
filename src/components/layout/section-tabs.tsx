@@ -22,6 +22,8 @@ const SECTIONS: { key: string; tabs: Tab[] }[] = [
   ] },
   // Content is just Posts (Reporting graduated to its own sidebar destination
   // 2026-07-23); a single tab renders no bar, which is the point.
+  // Comms (/messages) deliberately has NO section here — the hub owns its own
+  // Broadcasts/Inbox/Templates tabs on-page (URL-driven via ?tab=).
   { key: 'content', tabs: [
     { label: 'Posts', href: '/posts' },
   ] },
