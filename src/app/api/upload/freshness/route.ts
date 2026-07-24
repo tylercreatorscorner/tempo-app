@@ -3,7 +3,8 @@
  *
  * Returns per-brand, per-file-type freshness data for the upload page.
  * Each brand reports:
- *   - Latest date in each of the 4 source tables (creator/video/videolist/product)
+ *   - Latest date per file type (creator/video/product: fact-table report_date;
+ *     videolist: activity_log upload evidence — see FILE_TYPES note)
  *   - Overall status (current / behind / stale / no_data) based on creator data
  *   - Detected gaps (days within the last 30 with no creator data, surrounded by days that have it)
  *   - Detected future-dated rows (always invalid — TikTok data can't be from the future)
@@ -26,7 +27,16 @@ export const runtime = 'nodejs';
 const FILE_TYPES = [
   { key: 'creator',   label: 'C', name: 'Creator Data',  table: 'creator_performance', dateField: 'report_date' },
   { key: 'video',     label: 'V', name: 'Video Data',    table: 'video_performance',   dateField: 'report_date' },
-  { key: 'videolist', label: 'L', name: 'Video List',    table: 'videos',              dateField: 'post_date'   },
+  // 'videolist' coverage is NOT videos.post_date anymore: dual-ingest
+  // (mig 110) writes post_dated identity rows into `videos` on every Video
+  // Data upload, so post_date presence no longer proves a Video List file
+  // was uploaded — the L column would go green while a brand's Video List
+  // uploads were silently stopped (the exact Jen-incident failure mode).
+  // get_upload_coverage's 'videos' branch (mig 112) now returns upload-day
+  // evidence from activity_log (details->>'table' = 'videos') instead; the
+  // future-rows probe for this type trivially returns empty (upload
+  // timestamps can't be future).
+  { key: 'videolist', label: 'L', name: 'Video List',    table: 'videos',              dateField: 'upload_day'  },
   { key: 'product',   label: 'P', name: 'Product Data',  table: 'product_performance', dateField: 'report_date' },
 ] as const;
 

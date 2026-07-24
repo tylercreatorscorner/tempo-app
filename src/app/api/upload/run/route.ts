@@ -375,7 +375,52 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Record the idempotency hash for the next 24h.
+    // ── Dual-ingest registry writes. TikTok merged the Video List export
+    // into the Video Data schema (~2026-07-13), so for flipped shops this
+    // upload is the only remaining source of `videos` registry rows (post
+    // counts, identity joins). Identity fields only — the RPC never touches
+    // the lifetime-snapshot stat columns (mig 079/110). Runs only after the
+    // stats RPC committed, never on the idempotent short-circuit. A registry
+    // failure must NOT fail the chunk (the stats already landed) — it
+    // degrades to a response warning the client can surface.
+    //
+    // ORDERING (load-bearing): this block must run BEFORE the idempotency
+    // hash is recorded below. The file-grain hash means "this file is fully
+    // processed — skip retries for 24h", so it may only exist once BOTH the
+    // stats RPC and the registry attempt have happened. If the hash were
+    // recorded first and the registry call then failed (or the function died
+    // between the two), a retry would hit the hash → skipRemaining → the
+    // registry path unreachable for 24h. Re-running both on a retry is safe:
+    // the stats RPC re-upsert and the identity upsert are both pure ON
+    // CONFLICT operations.
+    let registryUpserts: number | null = null;
+    let registryWarning: string | undefined;
+    if (table === 'video_performance') {
+      try {
+        const identities = deriveVideoIdentities(uploadRecords, todayStr);
+        if (identities.length > 0) {
+          const { data: regData, error: regError } = await admin.rpc('upsert_video_identities', {
+            p_records: identities,
+          });
+          if (regError) {
+            registryWarning =
+              `Stats saved, but the video registry update failed: ${regError.message}. ` +
+              `Post counts may lag until a later upload refreshes these videos.`;
+          } else {
+            registryUpserts = (regData as { upserted?: number } | null)?.upserted ?? 0;
+          }
+        } else {
+          registryUpserts = 0;
+        }
+      } catch (e) {
+        registryWarning =
+          `Stats saved, but the video registry update failed: ${e instanceof Error ? e.message : 'unknown error'}. ` +
+          `Post counts may lag until a later upload refreshes these videos.`;
+      }
+    }
+
+    // Record the idempotency hash for the next 24h. Deliberately AFTER the
+    // dual-ingest registry attempt above — see the ORDERING note there.
     //
     // FILE-GRAIN INVARIANT (load-bearing): when the client sent fileHash, the
     // hash covers the WHOLE file, so it may be recorded only once the whole
@@ -405,40 +450,6 @@ export async function POST(request: NextRequest) {
         // Hash insert is best-effort — never fail the upload if the audit-style
         // record can't be stored. Worst case: the next duplicate upload runs
         // again instead of being deduped.
-      }
-    }
-
-    // ── Dual-ingest registry writes. TikTok merged the Video List export
-    // into the Video Data schema (~2026-07-13), so for flipped shops this
-    // upload is the only remaining source of `videos` registry rows (post
-    // counts, identity joins). Identity fields only — the RPC never touches
-    // the lifetime-snapshot stat columns (mig 079/110). Runs only after the
-    // stats RPC committed, never on the idempotent short-circuit. A registry
-    // failure must NOT fail the chunk (the stats already landed) — it
-    // degrades to a response warning the client can surface.
-    let registryUpserts: number | null = null;
-    let registryWarning: string | undefined;
-    if (table === 'video_performance') {
-      try {
-        const identities = deriveVideoIdentities(uploadRecords, todayStr);
-        if (identities.length > 0) {
-          const { data: regData, error: regError } = await admin.rpc('upsert_video_identities', {
-            p_records: identities,
-          });
-          if (regError) {
-            registryWarning =
-              `Stats saved, but the video registry update failed: ${regError.message}. ` +
-              `Post counts may lag until a later upload refreshes these videos.`;
-          } else {
-            registryUpserts = (regData as { upserted?: number } | null)?.upserted ?? 0;
-          }
-        } else {
-          registryUpserts = 0;
-        }
-      } catch (e) {
-        registryWarning =
-          `Stats saved, but the video registry update failed: ${e instanceof Error ? e.message : 'unknown error'}. ` +
-          `Post counts may lag until a later upload refreshes these videos.`;
       }
     }
 

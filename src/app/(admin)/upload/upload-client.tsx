@@ -173,6 +173,17 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
   useEffect(() => { queueRef.current = queue; }, [queue]);
   const [dragActive, setDragActive] = useState(false);
   const [running, setRunning] = useState(false);
+  // Ref mirrors/registries for async workers (closure state goes stale):
+  // - runningRef: header sniffs must never re-type an item while a run is
+  //   active — a late switch would bypass the run's same-key serialization.
+  // - sniffInFlightRef: processAll awaits these before snapshotting its
+  //   serialization groups, so no sniff can land between snapshot and pickup.
+  // - writtenKeysRef: (type|brand|date) keys successfully written this
+  //   session — a later same-key item's queue-time existingCount is stale and
+  //   must be re-checked inline so its Overwrite toggle takes real effect.
+  const runningRef = useRef(false);
+  const sniffInFlightRef = useRef<Map<string, Promise<void>>>(new Map());
+  const writtenKeysRef = useRef<Set<string>>(new Set());
   // Recovery banner: items the user had queued before refresh, surfaced so
   // they can re-drop the files (we can't rehydrate File objects).
   const [unrecoveredItems, setUnrecoveredItems] = useState<PersistedQueueItem[]>([]);
@@ -263,7 +274,12 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
     for (const it of items) {
       if (it.status !== 'error') {
         void runExistingCheck(it.id, it.type, it.brand, it.reportDate);
-        void sniffTypeFromHeaders(it.id, it.file);
+        // Tracked so processAll can await every in-flight sniff BEFORE it
+        // snapshots the serialization groups.
+        const sniff = sniffTypeFromHeaders(it.id, it.file)
+          .catch(() => { /* sniff is best-effort — run-time audit is the backstop */ })
+          .finally(() => { sniffInFlightRef.current.delete(it.id); });
+        sniffInFlightRef.current.set(it.id, sniff);
       }
     }
   }
@@ -311,6 +327,7 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
    *  default, not a lock. Sniffed headers stay local to this function: nothing
    *  raw may land on the QueueItem (the queue persists to localStorage). */
   async function sniffTypeFromHeaders(id: string, file: File) {
+    if (runningRef.current) return; // never re-type items during a run
     let headerRow: Record<string, unknown> | null = null;
     try {
       const ab = await file.arrayBuffer();
@@ -324,6 +341,11 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
     // dropdown (or removed the row) while the file was being read.
     const current = queueRef.current.find(i => i.id === id);
     if (!current || current.status !== 'queued') return;
+    // A run may have started while we were reading the file. A late switch
+    // would re-key this item AROUND the run's same-key serialization snapshot,
+    // so leave the type (and the chip) alone — better unlabeled than
+    // mislabeled; the run-time cross-audit stays the backstop.
+    if (runningRef.current) return;
     const decision = resolveTypeFromHeaders(headerRow, current.type);
     if (decision.action === 'none') return;
 
@@ -368,10 +390,14 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
   }
 
   function removeItem(id: string) {
+    // Eager ref sync (same as updateItem) — a run's item pickup reads queueRef,
+    // and a just-removed row must never be picked up and uploaded anyway.
+    queueRef.current = queueRef.current.filter(i => i.id !== id);
     setQueue(q => q.filter(i => i.id !== id));
   }
 
   function clearQueue() {
+    queueRef.current = queueRef.current.filter(i => i.status === 'processing');
     setQueue(q => q.filter(i => i.status === 'processing'));
   }
 
@@ -571,7 +597,22 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
     let overwrite = false;
     if (table !== 'videos') {
       let count = item.existingCount;
-      if (count == null) {
+      // The queue-time count goes stale the moment another file writes the
+      // same (type|brand|date) in this session: on an empty backfill day both
+      // files of a duplicate-target pair resolve 0 at queue time, so the
+      // second would run overwrite=false and MERGE-union on top of the first,
+      // inflating GMV while its chip promised replacement. Re-check inline
+      // when this key was already written this session, or when a 0-count item
+      // has a same-key peer in the queue (the peer may write before we run —
+      // same-key items execute strictly serialized, so the re-check sees its
+      // committed rows).
+      const itemKey = `${item.type}|${item.brand}|${item.reportDate}`;
+      const hasSameKeyPeer = queueRef.current.some(i =>
+        i.id !== item.id && i.status !== 'error' && i.status !== 'cancelled' &&
+        `${i.type}|${i.brand}|${i.reportDate}` === itemKey,
+      );
+      const countIsStale = writtenKeysRef.current.has(itemKey) || (count === 0 && hasSameKeyPeer);
+      if (count == null || countIsStale) {
         try {
           const url = `/api/upload/check?table=${encodeURIComponent(table)}&brand=${encodeURIComponent(item.brand)}&date=${encodeURIComponent(item.reportDate)}`;
           const res = await fetch(url);
@@ -661,6 +702,7 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
       // server's record-hash-on-final-chunk invariant depends on ordering, so
       // intra-file parallelism is forbidden here.
       let idempotentSkipMessage: string | null = null;
+      const registryWarnings: string[] = [];
       for (let i = 0; i < chunks.length; i++) {
         const chunk = chunks[i];
         // Only the first chunk carries the user's overwrite decision. If
@@ -687,7 +729,13 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
         // platform (not our route) — read as text first and surface clearly
         // instead of dying on JSON.parse.
         const text = await res.text();
-        let j: { error?: string; upserted?: number; idempotent?: boolean; skipRemaining?: boolean; message?: string; droppedFutureRows?: number };
+        let j: {
+          error?: string; upserted?: number; idempotent?: boolean; skipRemaining?: boolean;
+          message?: string; droppedFutureRows?: number;
+          // video_performance uploads maintain the videos registry as a side
+          // effect — a failed registry upsert arrives as a warning, NOT an error.
+          registryWarning?: string; registryUpserts?: number;
+        };
         try {
           j = JSON.parse(text);
         } catch {
@@ -714,9 +762,19 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
         }
         totalUpserted += j.upserted ?? 0;
         totalDroppedFuture += j.droppedFutureRows ?? 0;
+        if (j.registryWarning) registryWarnings.push(j.registryWarning);
         if (chunks.length > 1) {
           appendLog(item.id, 'info', `Chunk ${i + 1}/${chunks.length}: ${(j.upserted ?? 0).toLocaleString()} rows upserted.`);
         }
+      }
+
+      // Registry warnings surface like droppedFutureRows: the performance rows
+      // DID land so the item stays success-with-warning, but a silent registry
+      // failure is exactly how the registry went dark before — the operator
+      // must see it in the row log. Logged outside the skip branch so a
+      // mid-file idempotent skip can't swallow warnings from earlier chunks.
+      for (const w of [...new Set(registryWarnings)]) {
+        appendLog(item.id, 'warning', w);
       }
 
       if (idempotentSkipMessage) {
@@ -735,6 +793,10 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
           `${totalUpserted.toLocaleString()} rows upserted. Total GMV: $${totalGmv.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}, Orders: ${totalOrders.toLocaleString()}.`
         );
       }
+      // Record the written key (idempotent no-ops included — the data exists
+      // server-side either way) so any later same-key item re-checks existing
+      // rows inline instead of trusting its stale queue-time count.
+      writtenKeysRef.current.add(`${item.type}|${item.brand}|${item.reportDate}`);
       updateItem(item.id, {
         status: 'success',
         result: { rowCount: parsed.records.length, totalGmv, totalOrders },
@@ -756,9 +818,21 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
   // row state (overwrite toggles, edits made before the click).
   const UPLOAD_CONCURRENCY = 3;
   async function processAll() {
-    setRunning(true);
+    setRunning(true); // disables per-row edits immediately (QueueRow gates on it)
     try {
-      const ids = queue.filter(q => q.status === 'queued').map(q => q.id);
+      // Let every in-flight header sniff settle BEFORE snapshotting the
+      // serialization groups — a sniff landing between snapshot and pickup
+      // would silently re-key an item into another group's territory (e.g. a
+      // late videolist → video switch running concurrently with the real
+      // Video Data file for the same day: interleaved chunk-1 overwrite
+      // DELETEs corrupt the day, and both fileHashes land in the 24h
+      // idempotency table with no self-heal).
+      await Promise.allSettled([...sniffInFlightRef.current.values()]);
+      // From here to the end of the run, any late sniff leaves types alone
+      // (sniffTypeFromHeaders checks this ref).
+      runningRef.current = true;
+
+      const ids = queueRef.current.filter(q => q.status === 'queued').map(q => q.id);
       const groups = new Map<string, string[]>();
       for (const id of ids) {
         const it = queueRef.current.find(i => i.id === id);
@@ -769,21 +843,39 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
         else groups.set(key, [id]);
       }
       const groupList = [...groups.values()];
+
+      // LIVE same-key serialization, belt to the snapshot's braces: the key is
+      // recomputed from CURRENT item state at pickup and execution is routed
+      // through a per-key promise chain, so two items resolving to the same
+      // (type|brand|date) can never overlap — regardless of where a type
+      // change came from (header sniff, dropdown edit) or when it landed.
+      const keyChains = new Map<string, Promise<void>>();
+      function runSerializedByKey(id: string): Promise<void> {
+        const current = queueRef.current.find(i => i.id === id);
+        if (!current || current.status !== 'queued') return Promise.resolve();
+        const key = `${current.type}|${current.brand}|${current.reportDate}`;
+        const prev = keyChains.get(key) ?? Promise.resolve();
+        const run = prev.then(async () => {
+          const fresh = queueRef.current.find(i => i.id === id);
+          if (fresh && fresh.status === 'queued') await processItem(fresh);
+        });
+        keyChains.set(key, run.catch(() => { /* keep the chain alive */ }));
+        return run;
+      }
+
       let next = 0;
       await Promise.all(
         Array.from({ length: Math.min(UPLOAD_CONCURRENCY, groupList.length) }, async () => {
           while (next < groupList.length) {
             const group = groupList[next++];
             for (const id of group) {
-              const current = queueRef.current.find(i => i.id === id);
-              if (current && current.status === 'queued') {
-                await processItem(current);
-              }
+              await runSerializedByKey(id);
             }
           }
         }),
       );
     } finally {
+      runningRef.current = false;
       setRunning(false);
     }
   }
@@ -812,7 +904,12 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
       if (first === undefined) {
         firstByKey.set(key, it.filename);
       } else if (it.status === 'queued') {
-        dupes.set(it.id, `Same target as ${first} — the second upload overwrites the first`);
+        // Copy must be true in every case: the videos table is a merge-only
+        // upsert (no overwrite path), and for dated tables the later file
+        // replaces the first only when its Overwrite toggle engages.
+        dupes.set(it.id, it.type === 'videolist'
+          ? `Same target as ${first} — the later file merges into the video registry`
+          : `Same target as ${first} — the later file replaces it when its Overwrite toggle is on, otherwise merges on top`);
       }
     }
     return dupes;
@@ -928,6 +1025,7 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
                 item={item}
                 brands={activeBrands}
                 duplicateNotice={duplicateTargetById.get(item.id)}
+                running={running}
                 onChange={p => patchItem(item.id, p)}
                 onRemove={() => removeItem(item.id)}
               />
@@ -953,16 +1051,21 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
 // ── Queue Row ──────────────────────────────────────────────────────
 
 function QueueRow({
-  item, brands, duplicateNotice, onChange, onRemove,
+  item, brands, duplicateNotice, running, onChange, onRemove,
 }: {
   item: QueueItem;
   brands: ActiveBrand[];
   /** Set when another queue item resolves to the same (type|brand|date). */
   duplicateNotice?: string;
+  /** True while a batch run is active. */
+  running: boolean;
   onChange: (patch: Partial<QueueItem>) => void;
   onRemove: () => void;
 }) {
-  const editable = item.status === 'queued' || item.status === 'error';
+  // Edits lock during a run: a type/brand/date change on a queued item still
+  // waiting for a pool slot would re-key it around the run's same-key
+  // serialization — the same race the header sniff is barred from mid-run.
+  const editable = !running && (item.status === 'queued' || item.status === 'error');
 
   const statusConfig = {
     queued:     { Icon: FileSpreadsheet, color: 'text-muted-foreground',        bg: 'bg-muted',                    label: 'Queued',     badge: 'neutral' as const },
