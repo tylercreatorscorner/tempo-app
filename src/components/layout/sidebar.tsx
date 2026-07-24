@@ -34,7 +34,7 @@ interface Dest {
 // Products folds into the one list. It stays adminOnly, so managers see four.
 const PRIMARY: Dest[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, match: ['/dashboard'] },
-  { href: '/roster',    label: 'Creators',  icon: Users,           match: ['/roster', '/retention', '/affiliates', '/segments', '/creators'] },
+  { href: '/roster',    label: 'Creators',  icon: Users,           match: ['/roster', '/retention', '/affiliates', '/segments', '/contests', '/creators'] },
   { href: '/posts',     label: 'Content',   icon: PlaySquare,      match: ['/posts'] },
   // Reporting is a generator console, not a content view — owner's call
   // (2026-07-23): its own destination, out of the Content tabs.

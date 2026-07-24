@@ -19,6 +19,7 @@ const SECTIONS: { key: string; tabs: Tab[] }[] = [
     { label: 'Retention', href: '/retention' },
     { label: 'Affiliates', href: '/affiliates' },
     { label: 'Segments', href: '/segments' },
+    { label: 'Contests', href: '/contests' },
   ] },
   // Content is just Posts (Reporting graduated to its own sidebar destination
   // 2026-07-23); a single tab renders no bar, which is the point.
