@@ -52,6 +52,9 @@ export function ContestsClient() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  // View-as-manager mode: the middleware blocks mutations, so the UI hides its
+  // create/edit/launch/delete/settle controls to match (the segments pattern).
+  const [readOnly, setReadOnly] = useState(false);
   const showBar = useDelayedFlag(loading);
 
   // null = closed; {} = create; { contest } = edit that draft.
@@ -67,6 +70,7 @@ export function ContestsClient() {
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
       setContests((json.contests ?? []) as ContestRow[]);
+      setReadOnly(!!json.readOnly);
       setLoadError(false);
       setHasLoadedOnce(true);
     } catch {
@@ -142,13 +146,18 @@ export function ContestsClient() {
     const raffleRule = contest.scoring === 'raffle' ? raffleRuleLabel(contest) : null;
 
     const openRow = () => {
-      if (isDraft) setBuilder({ contest });
+      // Read-only viewers get the detail view for drafts too — never the builder.
+      if (isDraft && !readOnly) setBuilder({ contest });
       else setDetailId(contest.id);
     };
 
     return (
       <div key={contest.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3.5">
-        <button onClick={openRow} className="min-w-0 flex-1 text-left" title={isDraft ? 'Edit draft' : 'View standings'}>
+        <button
+          onClick={openRow}
+          className="min-w-0 flex-1 text-left"
+          title={isDraft && !readOnly ? 'Edit draft' : 'View standings'}
+        >
           <span className="flex flex-wrap items-center gap-2">
             <span className="text-sm font-extrabold text-foreground">{contest.name}</span>
             {isDraft ? (
@@ -190,7 +199,12 @@ export function ContestsClient() {
         </span>
 
         <span className="flex shrink-0 items-center gap-1.5">
-          {isDraft ? (
+          {readOnly ? (
+            // View-as mode: mutations are middleware-blocked — only offer the view.
+            <Button variant="ghost" size="sm" onClick={() => setDetailId(contest.id)}>
+              {contest.status === 'settled' ? 'Results' : isDraft ? 'View' : 'Standings'}
+            </Button>
+          ) : isDraft ? (
             confirmingDelete === contest.id ? (
               <>
                 <Button variant="danger" size="sm" onClick={() => deleteDraft(contest.id)}>
@@ -246,9 +260,13 @@ export function ContestsClient() {
         title="Contests"
         subtitle="Run the competition. Standings score themselves from the same data as everything else."
         actions={
-          <Button onClick={() => setBuilder({})}>
-            <Plus className="h-4 w-4" /> New Contest
-          </Button>
+          readOnly ? (
+            <p className="text-xs text-muted-foreground">Viewing read-only</p>
+          ) : (
+            <Button onClick={() => setBuilder({})}>
+              <Plus className="h-4 w-4" /> New Contest
+            </Button>
+          )
         }
       />
 
@@ -280,9 +298,11 @@ export function ContestsClient() {
           title="No contests yet"
           description="A contest is a leaderboard with a window and a prize — GMV sprint, posting streak, raffle, or a judged pick. Standings score themselves from uploaded data."
           action={
-            <Button onClick={() => setBuilder({})}>
-              <Plus className="h-4 w-4" /> New Contest
-            </Button>
+            !readOnly && (
+              <Button onClick={() => setBuilder({})}>
+                <Plus className="h-4 w-4" /> New Contest
+              </Button>
+            )
           }
         />
       ) : (
@@ -333,6 +353,7 @@ export function ContestsClient() {
         <ContestDetailSheet
           contestId={detailId}
           segmentName={segmentName}
+          readOnly={readOnly}
           onClose={() => setDetailId(null)}
           onChanged={load}
         />

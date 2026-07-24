@@ -8,11 +8,11 @@
  * manual: the overrides body IS the result — one entrant per prize place.
  * raffle: the draw ships in the next phase — 400.
  *
- * Writes (transactional in spirit — winners, then prizes, then the contest
- * flip; a partial failure reports exactly what landed): contest_winners,
- * creator_prizes (status 'owed', the payouts-ledger seed), contest →
- * status 'settled' with settled_through = the DATA date actually scored
- * through (the honest cutoff — never the window end if uploads lag).
+ * Writes (transactional in spirit — the settled CAS CLAIMS first, then
+ * winners, then prizes; a partial failure reverts the claim and reports
+ * exactly what happened): contest_winners, creator_prizes (status 'owed',
+ * the payouts-ledger seed), with settled_through = the DATA date actually
+ * scored through (the honest cutoff — never the window end if uploads lag).
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
@@ -171,43 +171,19 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       scoredThrough = result.scoredThrough;
       const standings = result.standings ?? [];
 
-      // Tie at the FINAL prize boundary: the entrants inside and just outside
-      // the last paid place share a score — never silently pick. 409 with the
-      // tied group unless the operator overrode every affected place.
-      if (standings.length > n && standings[n - 1].score === standings[n].score) {
-        const boundaryScore = standings[n].score;
-        const ambiguousPlaces: number[] = [];
-        for (let p = 1; p <= n; p++) {
-          if (!overrides.has(p) && standings[p - 1].score === boundaryScore) ambiguousPlaces.push(p);
-        }
-        if (ambiguousPlaces.length > 0) {
-          return NextResponse.json(
-            {
-              error:
-                `Tie at the prize boundary — resolve place${ambiguousPlaces.length > 1 ? 's' : ''} ` +
-                `${ambiguousPlaces.join(', ')} by passing { winners: [{ place, creator_id }] }`,
-              places: ambiguousPlaces,
-              tied: standings
-                .filter((s) => s.score === boundaryScore)
-                .map((s) => ({
-                  creator_id: s.creator_id,
-                  display_name: s.display_name,
-                  handles: s.handles,
-                  score: s.score,
-                })),
-            },
-            { status: 409 },
-          );
-        }
-      }
-
       const standingByCreatorId = new Map(
         standings.filter((s) => s.creator_id).map((s) => [s.creator_id as string, s] as const),
       );
       const used = new Set<string>();
       for (const creatorId of overrides.values()) used.add(creatorId);
 
+      // Fill first, tie-check AFTER: an override consuming a place shifts the
+      // EFFECTIVE cutline, so testing the raw standings[n-1]/[n] boundary can
+      // miss a tie that the shifted cutline lands on (which would then be
+      // "resolved" by the display-name sort — presentation, not merit).
       let cursor = 0;
+      let lastNatural: StandingRow | null = null;
+      const naturalFills: Array<{ place: number; score: number }> = [];
       for (let p = 1; p <= n; p++) {
         const overrideId = overrides.get(p);
         if (overrideId) {
@@ -225,6 +201,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         if (cursor >= standings.length) break; // fewer entrants than prizes — leave the place unawarded
         const s = standings[cursor];
         used.add(standingKey(s));
+        lastNatural = s;
+        naturalFills.push({ place: p, score: s.score });
         assigned.push({
           place: p,
           creator_id: s.creator_id,
@@ -232,6 +210,40 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
           display_name: s.display_name,
           score: s.score,
         });
+      }
+
+      // Tie straddling the EFFECTIVE prize boundary: the last naturally
+      // filled entrant shares a score with the first entrant left outside —
+      // never silently pick. 409 with the tied group (minus entrants the
+      // operator already placed via overrides); resolvable by overriding the
+      // affected places. Payload shape { error, places, tied } is load-
+      // bearing for the UI's TiePicker.
+      if (lastNatural) {
+        let probe = cursor;
+        while (probe < standings.length && used.has(standingKey(standings[probe]))) probe++;
+        const firstLeftOut = probe < standings.length ? standings[probe] : null;
+        if (firstLeftOut && firstLeftOut.score === lastNatural.score) {
+          const tiedScore = lastNatural.score;
+          const overridden = new Set(overrides.values());
+          const places = naturalFills.filter((f) => f.score === tiedScore).map((f) => f.place);
+          return NextResponse.json(
+            {
+              error:
+                `Tie at the prize boundary — resolve place${places.length > 1 ? 's' : ''} ` +
+                `${places.join(', ')} by passing { winners: [{ place, creator_id }] }`,
+              places,
+              tied: standings
+                .filter((s) => s.score === tiedScore && !(s.creator_id && overridden.has(s.creator_id)))
+                .map((s) => ({
+                  creator_id: s.creator_id,
+                  display_name: s.display_name,
+                  handles: s.handles,
+                  score: s.score,
+                })),
+            },
+            { status: 409 },
+          );
+        }
       }
     }
   } catch (e) {
@@ -244,23 +256,68 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     return NextResponse.json({ error: 'No winners could be determined' }, { status: 400 });
   }
 
-  // ── Writes: winners → prizes → contest flip. Wipe first so a retry after a
-  // partial failure is clean (the contest is not yet settled, so no prize row
-  // here can have been announced or paid).
+  // ── CLAIM FIRST (settle race): flip the status via compare-and-set BEFORE
+  // any winner/prize write. The status CHECK constraint has no 'settling'
+  // state and PostgREST statements can't share a transaction, so the flip
+  // itself is the lock: two concurrent settles both pass the read-time status
+  // check, but only one CAS returns a row — the loser 409s having written
+  // NOTHING (previously both proceeded and interleaved into TWO full sets of
+  // owed prize rows). Mig 111's unique index is the loud backstop.
+  const nowIso = new Date().toISOString();
+  const { data: claimedRows, error: claimErr } = await admin
+    .from('contests')
+    .update({
+      status: 'settled',
+      settled_at: nowIso,
+      settled_through: scoredThrough,
+      closed_at: contest.closed_at ?? nowIso,
+    })
+    .eq('id', id)
+    .eq('status', contest.status)
+    .select('*');
+  if (claimErr) {
+    return NextResponse.json({ error: `Settle claim failed: ${claimErr.message}` }, { status: 500 });
+  }
+  const claimed = ((claimedRows as DbContestRow[] | null) ?? [])[0];
+  if (!claimed) {
+    return NextResponse.json(
+      { error: 'Contest was just settled by another request' },
+      { status: 409 },
+    );
+  }
+
+  // Any write failure below: best-effort revert of the claim so the contest
+  // is re-settleable, then 500 telling the operator to retry.
+  const failWrites = async (what: string): Promise<NextResponse> => {
+    const { error: revertErr } = await admin
+      .from('contests')
+      .update({
+        status: contest.status,
+        settled_at: null,
+        settled_through: null,
+        closed_at: contest.closed_at,
+      })
+      .eq('id', id)
+      .eq('status', 'settled');
+    if (revertErr) {
+      console.error('[/api/contests/[id]/settle] claim revert failed:', revertErr.message);
+    }
+    return NextResponse.json(
+      {
+        error: `${what} — ${revertErr
+          ? 'AND the revert failed: the contest reads settled with incomplete winner/prize rows; repair the status, then retry settle'
+          : `the contest was reverted to ${contest.status}; retry settle`}`,
+      },
+      { status: 500 },
+    );
+  };
+
+  // Wipe-then-write keeps a retry after a partial failure clean (nothing can
+  // have been announced or paid between a failed attempt and the retry).
   const { error: wipePrizeErr } = await admin.from('creator_prizes').delete().eq('contest_id', id);
-  if (wipePrizeErr) {
-    return NextResponse.json(
-      { error: `Settle aborted before any writes: ${wipePrizeErr.message}` },
-      { status: 500 },
-    );
-  }
+  if (wipePrizeErr) return failWrites(`Prize wipe failed: ${wipePrizeErr.message}`);
   const { error: wipeWinErr } = await admin.from('contest_winners').delete().eq('contest_id', id);
-  if (wipeWinErr) {
-    return NextResponse.json(
-      { error: `Settle aborted before any writes: ${wipeWinErr.message}` },
-      { status: 500 },
-    );
-  }
+  if (wipeWinErr) return failWrites(`Winner wipe failed: ${wipeWinErr.message}`);
 
   const { error: winErr } = await admin.from('contest_winners').insert(
     assigned.map((w) => ({
@@ -272,12 +329,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       score: w.score,
     })),
   );
-  if (winErr) {
-    return NextResponse.json(
-      { error: `Winner write failed — contest NOT settled: ${winErr.message}` },
-      { status: 500 },
-    );
-  }
+  if (winErr) return failWrites(`Winner write failed: ${winErr.message}`);
 
   const prizeByPlace = new Map(prizes.map((p) => [p.place, p] as const));
   const { error: prizeErr } = await admin.from('creator_prizes').insert(
@@ -296,35 +348,11 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       };
     }),
   );
-  if (prizeErr) {
-    return NextResponse.json(
-      { error: `Winners written but prize write failed — contest NOT settled: ${prizeErr.message}` },
-      { status: 500 },
-    );
-  }
-
-  const nowIso = new Date().toISOString();
-  const { data: updated, error: updErr } = await admin
-    .from('contests')
-    .update({
-      status: 'settled',
-      settled_at: nowIso,
-      settled_through: scoredThrough,
-      closed_at: contest.closed_at ?? nowIso,
-    })
-    .eq('id', id)
-    .select('*')
-    .single();
-  if (updErr) {
-    return NextResponse.json(
-      { error: `Winners and prizes written but the contest could not be marked settled — retry: ${updErr.message}` },
-      { status: 500 },
-    );
-  }
+  if (prizeErr) return failWrites(`Winners written but prize write failed: ${prizeErr.message}`);
 
   return NextResponse.json({
     ok: true,
-    contest: toContestRow(updated as DbContestRow, entrants.length),
+    contest: toContestRow(claimed, entrants.length),
     winners: assigned,
     settled_through: scoredThrough,
   });

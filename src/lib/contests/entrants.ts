@@ -49,42 +49,83 @@ interface EntrantSource {
   displayName: string | null;
 }
 
+interface MutableGroup {
+  creator_id: string | null;
+  display_name: string | null;
+  handles: Set<string>;
+}
+
 /**
- * Group raw rows to one entrant per human. Two passes: creator_id rows claim
- * their handles first; handle-only rows then MERGE into the claiming person
- * when their handle is already taken (a person must never appear — and score —
- * twice), else key on their first handle.
+ * Group raw rows to one entrant per human — a person must never appear (and
+ * score) twice. Groups coalesce when they share a creators_v2 id OR any
+ * handle. The handle merge is load-bearing beyond handle-only rows: Track B
+ * identity cleanup is still pending, so ~20-25 normalized handles sit on ≥2
+ * DISTINCT creator_ids (e.g. findswithkaye/bykayekaye across 3) — without
+ * coalescing on handle intersection one human freezes as several entrants and
+ * scoring credits EACH the full GMV (one person sweeping places 1-3, or
+ * self-tying into a 409). The ownerByHandle map is global and re-pointed on
+ * every merge, so a single pass reaches the fixpoint.
+ *
+ * Deterministic primary when groups collide: a creators_v2-linked group beats
+ * a handle-only one; between two linked groups the LOWEST creator_id wins
+ * (stable regardless of row order); otherwise the earlier group. Handles
+ * union deduped; the first non-empty display_name sticks.
  */
 function groupEntrants(rows: EntrantSource[]): ResolvedEntrant[] {
-  const groups = new Map<
-    string,
-    { creator_id: string | null; display_name: string | null; handles: Set<string> }
-  >();
-  const keyByHandle = new Map<string, string>();
+  const alive = new Set<MutableGroup>();
+  const ownerByHandle = new Map<string, MutableGroup>();
+  const byCreatorId = new Map<string, MutableGroup>();
 
-  const put = (key: string, creatorId: string | null, r: EntrantSource) => {
-    const g =
-      groups.get(key) ?? { creator_id: creatorId, display_name: null, handles: new Set<string>() };
-    if (!g.display_name && r.displayName) g.display_name = r.displayName;
-    for (const h of r.handles) {
-      g.handles.add(h);
-      if (!keyByHandle.has(h)) keyByHandle.set(h, key);
-    }
-    groups.set(key, g);
+  const primaryOf = (a: MutableGroup, b: MutableGroup): MutableGroup => {
+    if (!!a.creator_id !== !!b.creator_id) return a.creator_id ? a : b;
+    if (a.creator_id && b.creator_id && b.creator_id < a.creator_id) return b;
+    return a;
   };
 
   for (const r of rows) {
-    if (r.creatorId) put(r.creatorId, r.creatorId, r);
-  }
-  for (const r of rows) {
-    if (r.creatorId) continue;
-    const claimed = r.handles.map((h) => keyByHandle.get(h)).find((k): k is string => !!k);
-    const key = claimed ?? (r.handles[0] ? `h:${r.handles[0]}` : null);
-    if (!key) continue; // no identity link and no handle — nothing to freeze
-    put(key, groups.get(key)?.creator_id ?? null, r);
+    if (!r.creatorId && r.handles.length === 0) continue; // nothing to key on
+
+    const g: MutableGroup = {
+      creator_id: r.creatorId,
+      display_name: r.displayName,
+      handles: new Set(r.handles),
+    };
+
+    // Every existing group this row touches, by creator identity or by any
+    // shared handle.
+    const touched = new Set<MutableGroup>();
+    if (r.creatorId) {
+      const own = byCreatorId.get(r.creatorId);
+      if (own) touched.add(own);
+    }
+    for (const h of r.handles) {
+      const own = ownerByHandle.get(h);
+      if (own) touched.add(own);
+    }
+
+    // Existing groups fold first so ties prefer the earlier group.
+    let target: MutableGroup | null = null;
+    for (const t of touched) target = target ? primaryOf(target, t) : t;
+    target = target ? primaryOf(target, g) : g;
+
+    const absorb = (src: MutableGroup) => {
+      if (src === target) return;
+      if (!target!.display_name && src.display_name) target!.display_name = src.display_name;
+      for (const h of src.handles) target!.handles.add(h);
+      // Re-point the loser's creator identity so later rows for it join the
+      // primary (the primary keeps its own creator_id).
+      if (src.creator_id) byCreatorId.set(src.creator_id, target!);
+      alive.delete(src);
+    };
+    absorb(g);
+    for (const t of touched) absorb(t);
+
+    alive.add(target);
+    if (target.creator_id) byCreatorId.set(target.creator_id, target);
+    for (const h of target.handles) ownerByHandle.set(h, target);
   }
 
-  return Array.from(groups.values()).map((g) => ({
+  return Array.from(alive).map((g) => ({
     creator_id: g.creator_id,
     display_name: g.display_name,
     handles: Array.from(g.handles),

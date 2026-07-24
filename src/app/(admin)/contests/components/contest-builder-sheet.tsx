@@ -110,6 +110,10 @@ export function ContestBuilderSheet({
       if (places[i].amount.trim() && !Number.isFinite(Number(places[i].amount))) {
         return `The ${placeLabel(i + 1)} place cash amount isn't a number.`;
       }
+      // Matches the server's validation message exactly.
+      if (places[i].amount.trim() && Number(places[i].amount) < 0) {
+        return `prize amount for place ${i + 1} must be empty or 0 or more`;
+      }
     }
     if (scoring === 'raffle' && raffleRule === 'per_gmv_step') {
       const step = Number(gmvStep);

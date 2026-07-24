@@ -16,13 +16,15 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Trophy, X } from 'lucide-react';
+import { AlertTriangle, Pencil, Trophy, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/utils/format';
 import { ModalOverlay } from '@/components/ui/modal-overlay';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { EmptyState } from '@/components/ui/empty-state';
 import { TableLoadBar } from '@/components/ui/table-load-bar';
 import { useDelayedFlag } from '@/hooks/use-delayed-flag';
@@ -71,12 +73,15 @@ function rowKey(row: StandingRow): string {
 export function ContestDetailSheet({
   contestId,
   segmentName,
+  readOnly,
   onClose,
   onChanged,
 }: {
   contestId: string;
   /** Resolves a segment id to its name (list already fetched by the caller). */
   segmentName: (id: string | null) => string;
+  /** View-as-manager mode — mutations are blocked, so hide settle/edit. */
+  readOnly: boolean;
   onClose: () => void;
   /** The contest changed server-side (settled) — caller should refetch its list. */
   onChanged: () => void;
@@ -95,9 +100,17 @@ export function ContestDetailSheet({
   const [settling, setSettling] = useState(false);
   const [settleError, setSettleError] = useState<string | null>(null);
   const [tie, setTie] = useState<TieState | null>(null);
-  const [tiePicks, setTiePicks] = useState<string[]>([]);
   // Manual mode: place number -> creator_id.
   const [manualPicks, setManualPicks] = useState<Record<number, string>>({});
+
+  // Inline name/announce edit for live/closed contests (the only fields the
+  // PATCH allows once launched; drafts edit through the builder instead).
+  const [editOpen, setEditOpen] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editDiscord, setEditDiscord] = useState(false);
+  const [editWins, setEditWins] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
   const fetchDetail = useCallback(async () => {
     setLoading(true);
@@ -224,7 +237,6 @@ export function ContestDetailSheet({
           const places = respPlaces && respPlaces.length > 0 ? respPlaces : computed?.places ?? [];
           if (tied.length > 0 && places.length > 0) {
             setTie({ tied, places });
-            setTiePicks([]);
             return;
           }
           throw new Error(json.error || 'A tie needs resolving, but the tied entrants could not be determined.');
@@ -243,34 +255,67 @@ export function ContestDetailSheet({
     [contestId, computeTie, fetchDetail, onChanged],
   );
 
-  const settleWithTiePicks = () => {
-    if (!tie) return;
-    // Override ONLY the ambiguous places — the server assigns every other
-    // place from standings itself. Picked entrants keep their standings order.
-    const pickedInOrder = tie.tied.filter((t) => tiePicks.includes(t.creator_id));
-    const winners: WinnerPick[] = [];
-    tie.places.forEach((place, i) => {
-      const pick = pickedInOrder[i];
-      if (pick) winners.push({ place, creator_id: pick.creator_id });
-    });
-    settle(winners);
-  };
-
   const manualReady =
     prizes.length > 0 &&
     prizes.every((p) => manualPicks[p.place]) &&
     new Set(prizes.map((p) => manualPicks[p.place])).size === prizes.length;
 
-  // The inner confirm/tie layer intercepts the sheet's close (Esc included) so
-  // Esc peels one layer at a time instead of tearing the whole sheet down.
+  // Name + announce are the only live-editable fields (PATCH contract).
+  const canLiveEdit =
+    !readOnly && !!contest && (contest.status === 'live' || contest.status === 'closed');
+
+  const openEdit = () => {
+    if (!contest) return;
+    setEditName(contest.name);
+    setEditDiscord(contest.announce_discord);
+    setEditWins(contest.announce_wins);
+    setEditError(null);
+    setEditOpen(true);
+  };
+
+  async function saveEdit() {
+    if (!contest) return;
+    const name = editName.trim();
+    if (!name) {
+      setEditError('Give the contest a name.');
+      return;
+    }
+    setSavingEdit(true);
+    setEditError(null);
+    try {
+      const res = await fetch(`/api/contests/${contest.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, announce_discord: editDiscord, announce_wins: editWins }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || `Save failed (${res.status})`);
+      const saved = (json.contest ?? null) as ContestRow | null;
+      setDetail((prev) => (prev && saved ? { ...prev, contest: saved } : prev));
+      setEditOpen(false);
+      onChanged(); // the list shows the name — refresh it
+    } catch (e) {
+      setEditError(e instanceof Error ? e.message : 'Failed to save changes');
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
+  // The inner confirm/tie/edit layer intercepts the sheet's close (Esc
+  // included) so Esc peels one layer at a time instead of tearing the whole
+  // sheet down.
   const requestClose = () => {
-    if (settling) return;
+    if (settling || savingEdit) return;
     if (tie) {
       setTie(null);
       return;
     }
     if (confirmOpen) {
       setConfirmOpen(false);
+      return;
+    }
+    if (editOpen) {
+      setEditOpen(false);
       return;
     }
     onClose();
@@ -293,8 +338,19 @@ export function ContestDetailSheet({
                 <Trophy className="h-[18px] w-[18px]" />
               </span>
               <div className="min-w-0">
-                <h2 className="truncate text-lg font-extrabold text-foreground">
-                  {contest ? contest.name : 'Contest'}
+                <h2 className="flex items-center gap-1.5 text-lg font-extrabold text-foreground">
+                  <span className="truncate">{contest ? contest.name : 'Contest'}</span>
+                  {canLiveEdit && !editOpen && (
+                    <button
+                      type="button"
+                      onClick={openEdit}
+                      aria-label="Edit name and announcements"
+                      title="Edit name and announcements"
+                      className="shrink-0 rounded-md p-1 text-muted-foreground/60 transition-colors hover:bg-muted hover:text-foreground"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                 </h2>
                 {contest && (
                   <p className="mt-0.5 text-[11.5px] text-muted-foreground">
@@ -322,6 +378,42 @@ export function ContestDetailSheet({
               <X className="h-4 w-4" />
             </Button>
           </div>
+
+          {/* Inline live edit: name + announce toggles (all the PATCH allows). */}
+          {canLiveEdit && editOpen && (
+            <div className="space-y-3 border-b border-border bg-muted/30 px-6 py-4">
+              <div>
+                <label
+                  className="mb-1 block text-[11px] font-medium text-muted-foreground"
+                  htmlFor="contest-edit-name"
+                >
+                  Name
+                </label>
+                <Input id="contest-edit-name" value={editName} onChange={(e) => setEditName(e.target.value)} />
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-[13px] font-semibold text-foreground">Discord announcement</p>
+                <Switch checked={editDiscord} onCheckedChange={setEditDiscord} aria-label="Discord announcement" />
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-[13px] font-semibold text-foreground">#wins post</p>
+                <Switch checked={editWins} onCheckedChange={setEditWins} aria-label="#wins post" />
+              </div>
+              <p className="text-[11px] leading-snug text-muted-foreground/80">
+                Audience, scoring, window, and prizes are locked once launched. Announce delivery arrives with
+                the Discord bot revival.
+              </p>
+              {editError && <p className="text-[13px] font-medium text-[var(--pulse-neg)]">{editError}</p>}
+              <div className="flex items-center justify-end gap-2">
+                <Button variant="ghost" size="sm" onClick={() => setEditOpen(false)} disabled={savingEdit}>
+                  Cancel
+                </Button>
+                <Button size="sm" onClick={saveEdit} disabled={savingEdit}>
+                  {savingEdit ? 'Saving…' : 'Save changes'}
+                </Button>
+              </div>
+            </div>
+          )}
 
           {/* Body */}
           <div className="min-h-0 flex-1 overflow-y-auto">
@@ -430,6 +522,8 @@ export function ContestDetailSheet({
                           entrants={manualEntrants}
                           prizes={prizes}
                           picks={manualPicks}
+                          // Read-only viewers see the entrant list, not the picker.
+                          readOnly={readOnly}
                           onPick={(place, creatorId) =>
                             setManualPicks((prev) => ({ ...prev, [place]: creatorId }))
                           }
@@ -444,7 +538,10 @@ export function ContestDetailSheet({
                     ) : (
                       <div className="divide-y divide-border rounded-xl border border-border">
                         {standings.map((row, i) => {
-                          const prize = prizes[i];
+                          // Raffle entries are odds, not a ranking — a prize
+                          // badge on the top entry-holder would imply they've
+                          // already won a draw that hasn't happened.
+                          const prize = isRaffle ? undefined : prizes[i];
                           const width = topScore > 0 ? Math.max((row.score / topScore) * 100, 2) : 2;
                           return (
                             <div key={rowKey(row)} className="flex items-center gap-3 px-4 py-2 text-[13px]">
@@ -491,7 +588,11 @@ export function ContestDetailSheet({
           {/* Footer: the settle flow (live contests only) */}
           {contest && !isSettled && !isDraft && (
             <div className="border-t border-border px-6 py-4">
-              {isRaffle ? (
+              {readOnly ? (
+                <p className="text-[11.5px] text-muted-foreground">
+                  Viewing read-only — settling is disabled while viewing as a member.
+                </p>
+              ) : isRaffle ? (
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-[11.5px] leading-snug text-muted-foreground">
                     Entries are counting now. The provable raffle draw ships next phase — settling a raffle is
@@ -534,22 +635,15 @@ export function ContestDetailSheet({
               <div className="w-full max-w-md rounded-2xl border border-border bg-card p-5 shadow-2xl">
                 {tie ? (
                   <TiePicker
+                    // Remount on a different tie so picker state never carries over.
+                    key={tie.places.join('-')}
                     contest={contest}
                     tie={tie}
-                    picks={tiePicks}
-                    onToggle={(id) =>
-                      setTiePicks((prev) =>
-                        prev.includes(id)
-                          ? prev.filter((p) => p !== id)
-                          : prev.length < tie.places.length
-                            ? [...prev, id]
-                            : prev,
-                      )
-                    }
+                    prizes={prizes}
                     error={settleError}
                     settling={settling}
                     onCancel={() => setTie(null)}
-                    onConfirm={settleWithTiePicks}
+                    onConfirm={(winners) => settle(winners)}
                   />
                 ) : (
                   <>
@@ -648,11 +742,14 @@ function ManualPicker({
   entrants,
   prizes,
   picks,
+  readOnly,
   onPick,
 }: {
   entrants: EntrantLite[];
   prizes: ContestRow['prizes'];
   picks: Record<number, string>;
+  /** Hide the winner selects — the viewer can't settle anyway. */
+  readOnly: boolean;
   onPick: (place: number, creatorId: string) => void;
 }) {
   const chosen = new Set(Object.values(picks).filter(Boolean));
@@ -660,7 +757,7 @@ function ManualPicker({
   const selectable = entrants.filter((e): e is EntrantLite & { creator_id: string } => !!e.creator_id);
   return (
     <div className="space-y-4">
-      <div className="space-y-2">
+      <div className={cn('space-y-2', readOnly && 'hidden')}>
         {prizes.map((prize) => (
           <div key={prize.place} className="flex items-center gap-3">
             <span className="w-8 shrink-0 text-xs font-extrabold tabular-nums text-[var(--pulse-warn)]">
@@ -713,8 +810,7 @@ function ManualPicker({
 function TiePicker({
   contest,
   tie,
-  picks,
-  onToggle,
+  prizes,
   error,
   settling,
   onCancel,
@@ -722,52 +818,180 @@ function TiePicker({
 }: {
   contest: ContestRow;
   tie: TieState;
-  picks: string[];
-  onToggle: (creatorId: string) => void;
+  prizes: ContestRow['prizes'];
   error: string | null;
   settling: boolean;
   onCancel: () => void;
-  onConfirm: () => void;
+  onConfirm: (winners: WinnerPick[]) => void;
 }) {
   const slots = tie.places.length;
-  const ready = picks.length === slots;
   const placeList = tie.places.map(placeLabel).join(', ');
+  const prizeFor = (place: number) => prizes.find((p) => p.place === place);
+
+  // When the ambiguous places carry DIFFERENT prizes ($500 vs $250), which
+  // creator lands on which place changes real dollars — a checkbox set that
+  // maps to places implicitly (by standings order) would let sort order decide.
+  // Per-place selects make the mapping the operator's explicit choice.
+  const samePrize =
+    slots <= 1 ||
+    tie.places.every((place) => {
+      const a = prizeFor(place);
+      const b = prizeFor(tie.places[0]);
+      return a?.label === b?.label && (a?.amount ?? null) === (b?.amount ?? null);
+    });
+
+  // Checkbox mode (equal prizes): an unordered set of creator_ids.
+  const [checks, setChecks] = useState<string[]>([]);
+  // Select mode (different prizes): place -> creator_id.
+  const [perPlace, setPerPlace] = useState<Record<number, string>>({});
+  // ALL tie resolutions review the final place -> creator -> prize mapping
+  // before anything fires — settled contests are immutable.
+  const [reviewing, setReviewing] = useState(false);
+
+  const resolved: WinnerPick[] = samePrize
+    ? (() => {
+        const pickedInOrder = tie.tied.filter((t) => checks.includes(t.creator_id));
+        const winners: WinnerPick[] = [];
+        tie.places.forEach((place, i) => {
+          const pick = pickedInOrder[i];
+          if (pick) winners.push({ place, creator_id: pick.creator_id });
+        });
+        return winners;
+      })()
+    : tie.places.filter((place) => perPlace[place]).map((place) => ({ place, creator_id: perPlace[place] }));
+
+  const complete = samePrize
+    ? checks.length === slots
+    : resolved.length === slots && new Set(resolved.map((w) => w.creator_id)).size === slots;
+
+  const nameOf = (creatorId: string) =>
+    tie.tied.find((t) => t.creator_id === creatorId)?.display_name ?? 'Unknown creator';
+
+  if (reviewing) {
+    return (
+      <>
+        <h3 className="text-base font-extrabold text-foreground">Confirm the tie resolution</h3>
+        <p className="mt-2 text-[13px] text-muted-foreground">
+          These places settle exactly as shown — a settled contest can&apos;t be changed.
+        </p>
+        <div className="mt-3 divide-y divide-border rounded-xl border border-border">
+          {resolved.map((w) => {
+            const prize = prizeFor(w.place);
+            return (
+              <div key={w.place} className="flex items-center gap-2 px-3 py-2 text-[13px]">
+                <span className="w-8 shrink-0 font-extrabold tabular-nums text-[var(--pulse-warn)]">
+                  {placeLabel(w.place)}
+                </span>
+                <span className="min-w-0 flex-1 truncate font-semibold text-foreground">{nameOf(w.creator_id)}</span>
+                {prize && (
+                  <span className="shrink-0 font-bold text-[var(--pulse-warn)]">
+                    {prize.label}
+                    {prize.amount != null && ` (${formatCurrency(prize.amount)})`}
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        {error && <p className="mt-2 text-[13px] font-medium text-[var(--pulse-neg)]">{error}</p>}
+        <div className="mt-4 flex items-center justify-end gap-2">
+          <Button variant="ghost" onClick={() => setReviewing(false)} disabled={settling}>
+            Back
+          </Button>
+          <Button onClick={() => onConfirm(resolved)} disabled={settling}>
+            {settling ? 'Settling…' : 'Settle with these winners'}
+          </Button>
+        </div>
+      </>
+    );
+  }
+
   return (
     <>
       <h3 className="text-base font-extrabold text-foreground">Tie at the last prize</h3>
       <p className="mt-2 text-[13px] text-muted-foreground">
         {tie.tied.length} creators are tied at{' '}
         <b className="text-foreground">{formatScore(contest.scoring, tie.tied[0]?.score ?? 0)}</b> for{' '}
-        {slots === 1 ? `the ${placeList} place` : `places ${placeList}`}. Pick{' '}
-        {slots === 1 ? 'who takes it' : `the ${slots} who take them`}.
+        {slots === 1 ? `the ${placeList} place` : `places ${placeList}`}.{' '}
+        {samePrize
+          ? `Pick ${slots === 1 ? 'who takes it' : `the ${slots} who take them`}.`
+          : 'The places carry different prizes — pick who takes each.'}
       </p>
-      <div className="mt-3 divide-y divide-border rounded-xl border border-border">
-        {tie.tied.map((t) => {
-          const checked = picks.includes(t.creator_id);
-          return (
-            <label key={t.creator_id} className="flex cursor-pointer items-center gap-3 px-4 py-2.5 text-[13px]">
-              <input
-                type="checkbox"
-                checked={checked}
-                onChange={() => onToggle(t.creator_id)}
-                className="h-3.5 w-3.5 accent-[var(--primary)]"
-              />
-              <span className="min-w-0 flex-1 truncate font-semibold text-foreground">{t.display_name}</span>
-              <span className="tabular-nums text-muted-foreground">{formatScore(contest.scoring, t.score)}</span>
-            </label>
-          );
-        })}
-      </div>
-      <p className="mt-2 text-[11px] text-muted-foreground">
-        {picks.length} of {slots} picked.
-      </p>
+
+      {samePrize ? (
+        <>
+          <div className="mt-3 divide-y divide-border rounded-xl border border-border">
+            {tie.tied.map((t) => {
+              const checked = checks.includes(t.creator_id);
+              return (
+                <label key={t.creator_id} className="flex cursor-pointer items-center gap-3 px-4 py-2.5 text-[13px]">
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() =>
+                      setChecks((prev) =>
+                        prev.includes(t.creator_id)
+                          ? prev.filter((p) => p !== t.creator_id)
+                          : prev.length < slots
+                            ? [...prev, t.creator_id]
+                            : prev,
+                      )
+                    }
+                    className="h-3.5 w-3.5 accent-[var(--primary)]"
+                  />
+                  <span className="min-w-0 flex-1 truncate font-semibold text-foreground">{t.display_name}</span>
+                  <span className="tabular-nums text-muted-foreground">{formatScore(contest.scoring, t.score)}</span>
+                </label>
+              );
+            })}
+          </div>
+          <p className="mt-2 text-[11px] text-muted-foreground">
+            {checks.length} of {slots} picked.
+          </p>
+        </>
+      ) : (
+        <div className="mt-3 space-y-2">
+          {tie.places.map((place) => {
+            const prize = prizeFor(place);
+            const chosenElsewhere = new Set(
+              tie.places.filter((p) => p !== place).map((p) => perPlace[p]).filter(Boolean),
+            );
+            return (
+              <div key={place} className="flex items-center gap-3">
+                <span className="w-8 shrink-0 text-xs font-extrabold tabular-nums text-[var(--pulse-warn)]">
+                  {placeLabel(place)}
+                </span>
+                <Select
+                  value={perPlace[place] ?? ''}
+                  onChange={(e) => setPerPlace((prev) => ({ ...prev, [place]: e.target.value }))}
+                  aria-label={`${placeLabel(place)} place winner`}
+                >
+                  <option value="">Pick the {placeLabel(place)}-place winner…</option>
+                  {tie.tied.map((t) => (
+                    <option key={t.creator_id} value={t.creator_id} disabled={chosenElsewhere.has(t.creator_id)}>
+                      {t.display_name}
+                    </option>
+                  ))}
+                </Select>
+                {prize && (
+                  <span className="shrink-0 text-xs font-bold text-[var(--pulse-warn)]">
+                    {prize.label}
+                    {prize.amount != null && ` (${formatCurrency(prize.amount)})`}
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {error && <p className="mt-2 text-[13px] font-medium text-[var(--pulse-neg)]">{error}</p>}
       <div className="mt-4 flex items-center justify-end gap-2">
         <Button variant="ghost" onClick={onCancel} disabled={settling}>
           Cancel
         </Button>
-        <Button onClick={onConfirm} disabled={!ready || settling}>
-          {settling ? 'Settling…' : 'Settle with these winners'}
+        <Button onClick={() => setReviewing(true)} disabled={!complete || settling}>
+          Review winners
         </Button>
       </div>
     </>

@@ -34,9 +34,16 @@ export function raffleRuleLabel(contest: ContestRow): string | null {
   return RAFFLE_RULE_OPTIONS.find((o) => o.value === contest.raffle_entry_rule)?.label ?? null;
 }
 
-/** Today as yyyy-MM-dd (UTC) — contest windows are date-only strings. */
+/**
+ * Today as yyyy-MM-dd on the OPERATOR'S LOCAL calendar — deliberately not UTC.
+ * Grouping and "ended" checks compare against this: with UTC, a contest still
+ * on its final evening (e.g. 7pm CDT) would flip to "Ended — settle" and
+ * suppress the early-settle warning hours early. Stored date STRINGS are still
+ * rendered UTC-safe (displayDate/windowLabel) — only "now" is local.
+ */
 export function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 /**
@@ -86,9 +93,11 @@ export function displayDate(iso: string): string {
   });
 }
 
-/** "6d 14h" until the END of the (inclusive) last window day; null once past. */
+/** "6d 14h" until the END of the (inclusive) last window day in the operator's
+ *  LOCAL timezone (consistent with todayIso-based grouping); null once past. */
 export function closesIn(endIso: string): string | null {
-  const end = new Date(`${endIso.slice(0, 10)}T23:59:59Z`).getTime();
+  const [y, m, d] = endIso.slice(0, 10).split('-').map(Number);
+  const end = new Date(y, m - 1, d, 23, 59, 59).getTime();
   const ms = end - Date.now();
   if (ms <= 0) return null;
   const days = Math.floor(ms / 86_400_000);

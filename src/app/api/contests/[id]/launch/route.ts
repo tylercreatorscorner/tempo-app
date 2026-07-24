@@ -51,15 +51,64 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
   }
 
   if (entrants.length === 0) {
+    // Resolution is READ-ONLY and ran before any write — nothing to revert.
     return NextResponse.json({ error: 'nobody would be in this contest' }, { status: 400 });
   }
 
-  // Wipe-then-freeze keeps a retry after a partial failure clean (the contest
-  // is still draft, so nothing has consumed these rows).
-  const { error: wipeErr } = await admin.from('contest_entrants').delete().eq('contest_id', id);
-  if (wipeErr) {
-    return NextResponse.json({ error: `Entrant freeze failed: ${wipeErr.message}` }, { status: 500 });
+  // ── CLAIM FIRST (double-launch race): CAS draft→live BEFORE any entrant
+  // write. Two overlapping launches would otherwise interleave their wipes
+  // and inserts — and NULL-creator_id entrant rows bypass UNIQUE(contest_id,
+  // creator_id) (SQL NULLs are distinct), so a live contest ends up with
+  // duplicated handle-only entrants. The status CHECK has no 'launching'
+  // state and PostgREST statements can't share a transaction, so the flip
+  // itself is the lock: only the CAS winner writes; the loser 409s having
+  // written nothing. Entrant write failures revert to draft below.
+  const { data: claimedRows, error: claimErr } = await admin
+    .from('contests')
+    .update({
+      status: 'live',
+      launched_at: new Date().toISOString(),
+      criteria: criteria ?? null,
+    })
+    .eq('id', id)
+    .eq('status', 'draft')
+    .select('*');
+  if (claimErr) {
+    return NextResponse.json({ error: `Launch claim failed: ${claimErr.message}` }, { status: 500 });
   }
+  const live = ((claimedRows as DbContestRow[] | null) ?? [])[0];
+  if (!live) {
+    return NextResponse.json(
+      { error: 'Contest was just launched by another request' },
+      { status: 409 },
+    );
+  }
+
+  // Any entrant write failure: best-effort revert to draft (clear the launch
+  // stamps) so the operator can simply retry launch.
+  const failLaunch = async (what: string): Promise<NextResponse> => {
+    const { error: revertErr } = await admin
+      .from('contests')
+      .update({ status: 'draft', launched_at: null, criteria: null })
+      .eq('id', id)
+      .eq('status', 'live');
+    if (revertErr) {
+      console.error('[/api/contests/[id]/launch] revert to draft failed:', revertErr.message);
+    }
+    return NextResponse.json(
+      {
+        error: `${what} — ${revertErr
+          ? 'AND the revert failed: the contest reads live with a partial cohort; repair the status, then retry launch'
+          : 'the contest was reverted to draft; retry launch'}`,
+      },
+      { status: 500 },
+    );
+  };
+
+  // Wipe-then-freeze keeps a retry after a partial failure clean; we hold the
+  // claim, so this section is single-writer.
+  const { error: wipeErr } = await admin.from('contest_entrants').delete().eq('contest_id', id);
+  if (wipeErr) return failLaunch(`Entrant freeze failed: ${wipeErr.message}`);
 
   const entrantRows = entrants.map((e) => ({
     contest_id: id,
@@ -69,32 +118,11 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
   }));
   for (const batch of chunkList(entrantRows, 500)) {
     const { error: insErr } = await admin.from('contest_entrants').insert(batch);
-    if (insErr) {
-      // Contest stays draft — a retry re-wipes and re-freezes.
-      return NextResponse.json({ error: `Entrant freeze failed: ${insErr.message}` }, { status: 500 });
-    }
-  }
-
-  const { data: updated, error: updErr } = await admin
-    .from('contests')
-    .update({
-      status: 'live',
-      launched_at: new Date().toISOString(),
-      criteria: criteria ?? null,
-    })
-    .eq('id', id)
-    .eq('status', 'draft')
-    .select('*')
-    .single();
-  if (updErr) {
-    return NextResponse.json(
-      { error: `Entrants frozen but the contest could not be marked live — retry launch: ${updErr.message}` },
-      { status: 500 },
-    );
+    if (insErr) return failLaunch(`Entrant freeze failed: ${insErr.message}`);
   }
 
   return NextResponse.json({
     ok: true,
-    contest: toContestRow(updated as DbContestRow, entrants.length),
+    contest: toContestRow(live, entrants.length),
   });
 }
