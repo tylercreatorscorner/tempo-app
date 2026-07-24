@@ -11,7 +11,7 @@ import { CreatorTable } from '@/components/dashboard/creator-table';
 import { ProductTable } from '@/components/dashboard/product-table';
 import { DateRangePicker } from '@/components/dashboard/date-range-picker';
 import { aggregateCreatorsByRealName } from '@/lib/data/creator-aggregate';
-import { createClient } from '@/lib/supabase/server';
+import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { getAllowedBrandsForUser } from '@/lib/data/brands';
 import { format, subDays, differenceInDays } from 'date-fns';
 import Link from 'next/link';
@@ -62,7 +62,9 @@ export default async function BrandDetailPage({ params, searchParams }: Props) {
     getCreatorRankings(slug, startDate, endDate, 50).catch(() => []),
     getProductSummary(slug, startDate, endDate, 50).catch(() => []),
     getDailyTrend(slug, startDate, endDate).catch(() => []),
-    supabase
+    // Admin client: mig 106 makes brand_settings service-role only (the
+    // finance lockdown). Access is already gated above via allowedBrands.
+    (await createAdminClient())
       .from('brand_settings')
       .select('brand_overview_note, brand_overview_note_updated_at, brand_overview_note_updated_by')
       .eq('brand', slug)

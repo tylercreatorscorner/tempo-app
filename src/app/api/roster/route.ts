@@ -32,7 +32,10 @@ export async function POST(request: NextRequest) {
   const tenantId = scope.tenantId;
 
   const body = await request.json();
-  const { brand, real_name, retainer, discord_name, notes, monthly_post_requirement } = body;
+  const { brand, real_name, discord_name, notes, monthly_post_requirement } = body;
+  // A finance-blind user (coach / walled-off manager) must not set retainers —
+  // force any submitted value to 0 before it reaches the insert/restore paths.
+  const retainer = scope.canViewFinance ? body.retainer : 0;
 
   const rawHandles: string[] = Array.isArray(body.handles)
     ? body.handles

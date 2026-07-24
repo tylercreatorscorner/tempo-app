@@ -112,6 +112,17 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
   const computedTotal =
     draft.commission + draft.retainer + draft.product_retainer + draft.launch_fee;
 
+  // True once any line item differs from the persisted invoice, i.e. the user is
+  // actively editing. Only then does the additive preview above need the caveat:
+  // the server re-applies the brand's compensation model (revshare_max /
+  // commission_only / retainer_only zero one side) when it persists the total,
+  // so the saved figure can differ from this plain sum.
+  const lineItemsEdited =
+    draft.commission !== Number(invoice.commission) ||
+    draft.retainer !== Number(invoice.retainer) ||
+    draft.product_retainer !== Number(invoice.product_retainer) ||
+    draft.launch_fee !== Number(invoice.launch_fee);
+
   async function handleSave() {
     setSaving(true);
     setError(null);
@@ -553,6 +564,11 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
               <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Total</span>
               <span className="text-xl font-extrabold text-[var(--primary)] tabular-nums">{formatCurrency(computedTotal)}</span>
             </div>
+            {lineItemsEdited && (
+              <p className="text-[11px] text-muted-foreground">
+                Final total is recomputed for the brand&apos;s compensation model on save.
+              </p>
+            )}
           </Section>
 
           {/* Payment received detail (only after paid) */}

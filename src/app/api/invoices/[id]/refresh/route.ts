@@ -89,7 +89,12 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
   // Re-freeze the ledger snapshot alongside the refreshed invoice so the
   // frozen record keeps matching what the invoice now says. Warn-don't-fail:
   // the invoice update already succeeded.
-  const ledgerTeamMemberId = (invoice.team_member_id as string | null) ?? earnings.teamMember?.id ?? null;
+  // No default-payee fallback: a legacy NULL-payee invoice would upsert into
+  // the DEFAULT payee's (brand, month) ledger row and silently clobber the
+  // freeze belonging to that payee's own invoice (adversarial-review finding
+  // — jiyu 2026-04 has exactly this pair in prod). NULL payee = no ledger
+  // write; the warning surfaces it.
+  const ledgerTeamMemberId = (invoice.team_member_id as string | null) ?? null;
   const ledgerError = ledgerTeamMemberId
     ? await upsertEarningsLedger(supabase, {
         brandSlug: invoice.brand,

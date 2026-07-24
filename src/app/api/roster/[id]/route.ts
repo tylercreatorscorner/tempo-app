@@ -53,6 +53,10 @@ export async function PATCH(
   for (const key of ALLOWED) {
     if (key in body) updates[key] = body[key] ?? null;
   }
+  // A finance-blind user must not set retainers. Drop the field (don't 403 the
+  // whole edit): the roster serves them retainer: null, so their edit form
+  // would otherwise round-trip a destructive $0 over the real figure on save.
+  if (!scope.canViewFinance) delete updates.retainer;
 
   let normalizedHandles: string[] | null = null;
   if (Array.isArray(body.handles)) {

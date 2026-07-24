@@ -120,7 +120,8 @@ interface BrandChild {
   row_id: string;
   gmv_period: number;
   posts_period: number;
-  retainer: number;
+  // Null when the viewer can't see finance — cells render "—", never $0.
+  retainer: number | null;
   roi_period: number | null;
   last_post_date: string | null;
   health: CreatorHealth;
@@ -1515,7 +1516,8 @@ function RosterContent() {
   const [segFilters, setSegFilters] = useState<{ name: string; min_gmv: number | null; max_gmv: number | null; min_posts: number | null } | null>(null);
   const [total, setTotal] = useState(0);
   const [totalGmvPeriod, setTotalGmvPeriod] = useState(0);
-  const [totalRetainer, setTotalRetainer] = useState(0);
+  // Null = the API withheld it (finance-blind viewer) → the cards render "—".
+  const [totalRetainer, setTotalRetainer] = useState<number | null>(null);
   const [totalManaged, setTotalManaged] = useState(0);
   const [summary, setSummary] = useState<{ affiliate_gmv: number; affiliate_gmv_prev: number; managed_gmv_prev: number; managed_gmv_30d: number } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1636,7 +1638,8 @@ function RosterContent() {
       // Managed GMV + summary are computed page-1 only (period/brand-level, not
       // page-level). Persist them across pagination instead of zeroing the cards.
       if (json.total_gmv_period != null) setTotalGmvPeriod(json.total_gmv_period);
-      setTotalRetainer(json.total_retainer ?? 0);
+      // null stays null (finance withheld → "—"), never coerced to a fake $0.
+      setTotalRetainer(json.total_retainer ?? null);
       setTotalManaged(json.total_managed ?? 0);
       // Health counts are over the FULL managed set (unaffected by the active
       // health filter), so the triage chips always show totals.
@@ -1686,7 +1689,8 @@ function RosterContent() {
         Brand: brandOptions.find((b) => b.slug === c.brand)?.name ?? brandMeta.label(c.brand) ?? c.brand ?? '',
         Products: (c.product_tags ?? []).map((t) => t.name).join(', '),
         Status: c.status ?? '',
-        Retainer: c.retainer ?? 0,
+        // Blank (not 0) when withheld/unset — an exported $0 would be fabricated.
+        Retainer: c.retainer ?? '',
         'Posts/mo target': c.monthly_post_requirement ?? '',
         [`Posts (${exportPeriodTag})`]: c.posts_period ?? 0,
         'Last post': c.last_post_date ?? '',
@@ -1779,7 +1783,7 @@ function RosterContent() {
   const pctDelta = (cur: number, prev: number): number | undefined => (prev > 0 ? ((cur - prev) / prev) * 100 : undefined);
   const affiliateGmv = summary?.affiliate_gmv ?? 0;
   const managed30 = summary?.managed_gmv_30d ?? 0;
-  const roi = totalRetainer > 0 ? managed30 / totalRetainer : 0;
+  const roi = totalRetainer != null && totalRetainer > 0 ? managed30 / totalRetainer : 0;
   // Cold load failure: no successful load yet, so the 0-initialized KPIs are not
   // real numbers — show "—" instead of a fake $0. (A warm refetch failure keeps
   // last-good values and shows the stale banner instead.)
@@ -1854,15 +1858,15 @@ function RosterContent() {
         />
         <StatCard
           label="Total Retainers"
-          value={kpiFailed ? '—' : loading ? '…' : fmt(totalRetainer)}
-          subValue="per month"
+          value={kpiFailed ? '—' : loading ? '…' : totalRetainer == null ? '—' : fmt(totalRetainer)}
+          subValue={totalRetainer != null ? 'per month' : undefined}
           accentColor="#F59E0B"
         />
         <StatCard
           className="col-span-2 lg:col-span-1"
           label="ROI · 30d"
-          value={kpiFailed ? '—' : roi > 0 ? `${roi.toFixed(1)}x` : 'N/A'}
-          subValue={totalRetainer > 0 ? `${fmt(managed30)} / ${fmt(totalRetainer)}/mo` : undefined}
+          value={kpiFailed ? '—' : totalRetainer == null ? '—' : roi > 0 ? `${roi.toFixed(1)}x` : 'N/A'}
+          subValue={totalRetainer != null && totalRetainer > 0 ? `${fmt(managed30)} / ${fmt(totalRetainer)}/mo` : undefined}
           accentColor="#0EA5E9"
         />
       </div>
@@ -2256,7 +2260,7 @@ function RosterContent() {
                           </td>
                           <td className="px-5 py-2.5"><LastPostCell date={child.last_post_date} /></td>
                           <td className="px-5 py-2.5 text-right font-semibold text-sm text-[var(--foreground)]">
-                            {(child.retainer || 0) > 0 ? fmt(child.retainer) : <span className="text-muted-foreground font-normal">—</span>}
+                            {child.retainer != null && child.retainer > 0 ? fmt(child.retainer) : <span className="text-muted-foreground font-normal">—</span>}
                           </td>
                           <td className="px-5 py-2.5 text-right"><RoiCell roi={child.roi_period} /></td>
                           <td className="px-5 py-2.5" />

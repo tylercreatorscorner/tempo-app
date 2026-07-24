@@ -9,7 +9,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getWorkspaceScope, type WorkspaceScope } from '@/lib/auth/workspace-scope';
 import { createAdminClient } from '@/lib/supabase/server';
 import { getBrandRegistry } from '@/lib/data/brand-registry';
-import { recomputeTotal, resolveCompensationModel } from '@/lib/finance/invoice-math';
+import { applyCompensationModel, resolveCompensationModel } from '@/lib/finance/invoice-math';
 
 export const runtime = 'nodejs';
 
@@ -130,15 +130,19 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
           current.brand as string,
           (current.team_member_id as string | null) ?? null,
         );
-        update.total_amount = recomputeTotal(
-          {
-            commission: Number(merged.commission ?? 0),
-            retainer: Number(merged.retainer ?? 0),
-            productRetainer: Number(merged.product_retainer ?? 0),
-            launchFee: Number(merged.launch_fee ?? 0),
-          },
+        // Persist the MODEL-ADJUSTED line items, not the raw edits — a stored
+        // non-zero loser line would render on the PDF/share view while the
+        // total excludes it: a client-facing invoice whose rows don't sum
+        // (adversarial-review finding). Mirrors generation.
+        const adj = applyCompensationModel(
+          Number(merged.commission ?? 0),
+          Number(merged.retainer ?? 0),
           model,
         );
+        update.commission = adj.commission;
+        update.retainer = adj.retainer;
+        update.total_amount =
+          adj.commission + adj.retainer + Number(merged.product_retainer ?? 0) + Number(merged.launch_fee ?? 0);
       } catch (e) {
         // A failed model read must not fall back to a silently-wrong sum.
         const message = e instanceof Error ? e.message : 'Failed to resolve compensation model';

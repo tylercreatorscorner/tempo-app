@@ -247,7 +247,8 @@ export interface BrandChild {
   row_id: string;
   gmv_period: number;
   posts_period: number;
-  retainer: number;
+  /** Null when the caller's scope can't view finance (rendered as "—"). */
+  retainer: number | null;
   roi_period: number | null;
   last_post_date: string | null;
   health: CreatorHealth;
@@ -300,7 +301,9 @@ export interface RosterQueryBody {
   low_roi_count: number;
   unread_dms_total: number;
   total_gmv_period: number | undefined;
-  total_retainer: number;
+  /** Null when the caller's scope can't view finance — the client renders "—"
+   *  (absence), never a fabricated $0. */
+  total_retainer: number | null;
 }
 
 export type RosterQueryResult =
@@ -888,7 +891,9 @@ export async function runRosterQuery(
       children.sort((a, b) => b.gmv_period - a.gmv_period);
       const totGmv = children.reduce((s, c) => s + c.gmv_period, 0);
       const totPosts = children.reduce((s, c) => s + c.posts_period, 0);
-      const totRet = children.reduce((s, c) => s + c.retainer, 0);
+      // Children are built with real numbers here; the ?? 0 only satisfies the
+      // widened BrandChild type (retainer goes null at the output-scrub step).
+      const totRet = children.reduce((s, c) => s + (c.retainer ?? 0), 0);
       let lastPost: string | null = null;
       for (const c of children) {
         if (c.last_post_date && (!lastPost || c.last_post_date > lastPost)) lastPost = c.last_post_date;
@@ -1104,6 +1109,21 @@ export async function runRosterQuery(
     }
   }
 
+  // ── 7b'. Finance scrub. A finance-blind scope (coach / walled-off manager —
+  // "Finance: none") must never receive retainer dollars or the ROI derived from
+  // them. Null the money fields on the OUTPUT rows only (shape stays stable;
+  // null, not 0, so the UI renders "—" instead of a fabricated $0). Health,
+  // sort, and the low_roi counts above already ran on the real values —
+  // everything else is byte-identical.
+  if (!scope.canViewFinance) {
+    dataOut = dataOut.map((r) => ({
+      ...r,
+      retainer: null,
+      roi_period: null,
+      brands: r.brands?.map((c) => ({ ...c, retainer: null, roi_period: null })),
+    }));
+  }
+
   // ── 7c. KPI-card summary metrics. Computed once (page 1 only) since they're
   // period/brand-level, not page-level — keeps pagination fast. affiliate_gmv =
   // the brand's TOTAL affiliate GMV (all creators); managed_gmv_prev / _30d are
@@ -1225,8 +1245,9 @@ export async function runRosterQuery(
       // Total GMV across the (unfiltered) managed roster for the period.
       // Drives the "Total GMV" banner at the top of My Creators.
       total_gmv_period,
-      // Total monthly retainer commitment (period-independent).
-      total_retainer,
+      // Total monthly retainer commitment (period-independent). Withheld (null,
+      // rendered "—") from finance-blind scopes — never a fabricated $0.
+      total_retainer: scope.canViewFinance ? total_retainer : null,
     },
   };
 }

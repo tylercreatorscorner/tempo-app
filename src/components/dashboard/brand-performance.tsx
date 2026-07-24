@@ -19,8 +19,9 @@ export interface BrandRowData {
   trend: number | undefined;
   /** Managed GMV vs the previous period — the agency's own momentum. */
   managedTrend: number | undefined;
-  /** This brand's monthly retainer spend. */
-  retainer: number;
+  /** This brand's monthly retainer spend. Null when the viewer can't see
+   *  finance (canViewFinance false) — renders "—", never a fabricated $0. */
+  retainer: number | null;
   /** Trailing-30d managed GMV / this brand's monthly retainer. */
   roi?: number;
   /** Daily total GMV across the selected range, zero-filled, index-aligned to `days`. */
@@ -171,9 +172,10 @@ export async function BrandPerformance({ brands, range, start, end, periodLength
                 {b.currentGmv > 0 ? `${managedPct.toFixed(0)}%` : '—'}
               </span>
 
-              {/* Monthly retainer spend — ROI's denominator, shown */}
+              {/* Monthly retainer spend — ROI's denominator, shown.
+                  Null (finance-hidden viewer) renders "—" like a $0 does. */}
               <span className="text-right text-[13px] font-semibold tabular-nums text-muted-foreground">
-                {b.retainer > 0 ? formatCurrency(b.retainer) : '—'}
+                {b.retainer != null && b.retainer > 0 ? formatCurrency(b.retainer) : '—'}
               </span>
 
               {/* ROI — trailing-30d managed GMV / monthly retainer */}

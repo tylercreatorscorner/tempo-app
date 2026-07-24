@@ -118,21 +118,24 @@ export interface EarningsBrandLike {
 /**
  * Derive an invoice's persisted money fields from an earnings brand row.
  *
- * applyCompensationModel is idempotent (re-applying to already-adjusted values
- * changes nothing), so this is correct whether the input row carries raw or
- * model-adjusted commission/retainer — earnings rows arrive pre-adjusted.
+ * Earnings rows arrive with the compensation model ALREADY applied per store.
+ * Do NOT re-apply it here: an umbrella row merges per-store adjusted values,
+ * and under revshare_max one store's commission can win while another's
+ * retainer wins — both legitimately non-zero on the merged row. Re-running
+ * MAX() on that pair would zero one side and invoice LESS than the earnings
+ * page shows (adversarial-review finding). The model belongs to
+ * recomputeTotal, which operates on RAW operator edits.
  */
 export function computeInvoiceLineItems(row: EarningsBrandLike): InvoiceLineItems {
-  const adj = applyCompensationModel(row.commission, row.retainer, row.compensationModel);
   return {
     affiliateGmv: row.affiliateGmv,
     marketingGmv: row.marketingGmv,
     totalGmv: row.totalGmv,
-    commission: adj.commission,
-    retainer: adj.retainer,
+    commission: row.commission,
+    retainer: row.retainer,
     productRetainer: row.productRetainer,
     launchFee: row.launchFee,
-    totalAmount: adj.commission + adj.retainer + row.productRetainer + row.launchFee,
+    totalAmount: row.commission + row.retainer + row.productRetainer + row.launchFee,
   };
 }
 
@@ -221,6 +224,11 @@ export async function resolveCompensationModel(
   }
 
   const storeSlugs = expandSlugs(reg, brandSlug);
+  // Umbrella invoices merge PER-STORE model-adjusted values — picking one
+  // child's model to re-apply at the merged grain would mis-zero mixed
+  // outcomes (same class as the computeInvoiceLineItems double-apply
+  // finding). Merged rows combine additively.
+  if (storeSlugs.length > 1) return 'standard';
   const { data, error } = await supabase
     .from('brand_compensation')
     .select('brand, compensation_model')

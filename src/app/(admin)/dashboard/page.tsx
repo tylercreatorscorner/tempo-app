@@ -13,6 +13,7 @@ import { pctChange } from '@/lib/utils/trend';
 import { getBrandRegistry, brandLabel, expandSlugs } from '@/lib/data/brand-registry';
 import { createClient } from '@/lib/supabase/server';
 import { getActiveTenantId } from '@/lib/auth/platform-admin';
+import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 
 import { StatCard } from '@/components/dashboard/stat-card';
 import { Greeting } from '@/components/dashboard/greeting';
@@ -93,11 +94,16 @@ export default async function AdminDashboard({ searchParams }: Props) {
 
   // ── Tenant + brand context (parallel — these don't depend on each other) ──
   const supabase = await createClient();
-  const [reg, activeTenantId, allowedBrands] = await Promise.all([
+  const [reg, activeTenantId, allowedBrands, scope] = await Promise.all([
     getBrandRegistry(),
     getActiveTenantId(),
     import('@/lib/data/brands').then((m) => m.getAllowedBrandsForUser()),
+    getWorkspaceScope(),
   ]);
+  // Finance: none for finance-blind scopes (e.g. coaches). Retainer dollars must
+  // render as ABSENCE ("—"), never a fabricated $0 — so when this is false the
+  // retainer fetch is skipped entirely and every retainer/ROI surface shows "—".
+  const canViewFinance = scope?.canViewFinance ?? false;
 
   let brandsQuery = supabase.from('brands_v2').select('slug').eq('is_archived', false).order('name');
   if (activeTenantId) brandsQuery = brandsQuery.eq('tenant_id', activeTenantId);
@@ -243,7 +249,9 @@ export default async function AdminDashboard({ searchParams }: Props) {
     computeManagedGmv(startDate, endDate, activeBrands, reg, managedLookup),
     computeManagedGmv(roiStart, roiEnd, activeBrands, reg, managedLookup),
     computeManagedGmv(prevStartDate, prevEndDate, activeBrands, reg, managedLookup),
-    fetchRetainerBySlug(supabase),
+    // Finance-blind viewers never fetch retainers — an empty map keeps the math
+    // below inert; the retainer/ROI cards + columns render "—" via canViewFinance.
+    canViewFinance ? fetchRetainerBySlug(supabase) : Promise.resolve(new Map<string, number>()),
     activeBrands.length === 0
       ? Promise.resolve({ data: [] as Record<string, unknown>[] })
       : supabase.rpc('get_top_videos_by_window_gmv', {
@@ -428,8 +436,9 @@ export default async function AdminDashboard({ searchParams }: Props) {
       prevManagedGmv: prevManagedForBrand,
       trend: pctChange(currentGmv, prevGmv),
       managedTrend: pctChange(managedGmvForBrand, prevManagedForBrand),
-      retainer: brandRetainer,
-      roi: brandRoi,
+      // Finance-blind: null/undefined (absence → "—" in the table), never 0.
+      retainer: canViewFinance ? brandRetainer : null,
+      roi: canViewFinance ? brandRoi : undefined,
       series,
       days: rangeDays,
     };
@@ -577,14 +586,14 @@ export default async function AdminDashboard({ searchParams }: Props) {
         />
         <StatCard
           label="ROI · 30d"
-          value={roi > 0 ? `${roi.toFixed(1)}×` : 'N/A'}
-          subValue="GMV / retainer"
+          value={!canViewFinance ? '—' : roi > 0 ? `${roi.toFixed(1)}×` : 'N/A'}
+          subValue={canViewFinance ? 'GMV / retainer' : undefined}
           info="Trailing-30-day managed GMV divided by total monthly retainer. Always a fixed 30-day window, regardless of the selected range."
         />
         <StatCard
           label="Retainers /mo"
-          value={formatCurrency(totalRetainerSpend)}
-          subValue={`across ${retainerBrandCount} brand${retainerBrandCount === 1 ? '' : 's'}`}
+          value={canViewFinance ? formatCurrency(totalRetainerSpend) : '—'}
+          subValue={canViewFinance ? `across ${retainerBrandCount} brand${retainerBrandCount === 1 ? '' : 's'}` : undefined}
           info="Total monthly retainer you pay, summed across brands that carry one."
         />
       </div>

@@ -28,6 +28,10 @@ export async function POST(
   for (const field of brandFields) {
     if (field in body) brandUpdates[field] = body[field];
   }
+  // A finance-blind user must not set retainers. Drop the field (keep the rest
+  // of the edit): their UI is served retainer-as-absence, so a save would
+  // otherwise round-trip a destructive $0 over the real figure.
+  if (!scope.canViewFinance) delete brandUpdates.retainer;
 
   if (Object.keys(creatorUpdates).length === 0 && Object.keys(brandUpdates).length === 0) {
     return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
