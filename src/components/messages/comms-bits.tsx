@@ -66,6 +66,18 @@ export function InlineError({ children }: { children: ReactNode }) {
 }
 
 // ── Relative time ───────────────────────────────────────────────────
+/** Operator-facing labels for machine skip reasons — raw keys read as bugs. */
+export function skipReasonLabel(reason: string | null | undefined): string {
+  switch (reason) {
+    case 'no_contact': return 'No contact on file';
+    case 'opted_out': return 'Opted out';
+    case 'not_opted_in': return 'Not opted in';
+    case 'duplicate_contact': return 'Duplicate contact (same person via another roster row)';
+    case 'canceled': return 'Canceled before sending';
+    default: return reason ?? '';
+  }
+}
+
 export function relativeTimeAgo(iso: string | null | undefined): string {
   if (!iso) return '—';
   const t = new Date(iso).getTime();

@@ -90,7 +90,10 @@ async function sendDiscordDm(
   }
 
   try {
-    // Step 1: open (or fetch) the DM channel with the user.
+    // Step 1: open (or fetch) the DM channel with the user. Both fetches
+    // carry a hard 10s timeout so a hung Discord call can never make a
+    // claimed recipient straddle the cron function's 60s kill (which would
+    // leave a delivered-but-unrecorded row).
     const dmChannelRes = await fetch(`${DISCORD_API}/users/@me/channels`, {
       method: 'POST',
       headers: {
@@ -98,6 +101,7 @@ async function sendDiscordDm(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ recipient_id: recipient.contact_value }),
+      signal: AbortSignal.timeout(10_000),
     });
     if (!dmChannelRes.ok) return await discordFailure(dmChannelRes, 'open DM channel');
     const dmChannel = (await dmChannelRes.json()) as { id: string };
@@ -110,6 +114,7 @@ async function sendDiscordDm(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ content }),
+      signal: AbortSignal.timeout(10_000),
     });
     if (!msgRes.ok) return await discordFailure(msgRes, 'send message');
   } catch (err) {

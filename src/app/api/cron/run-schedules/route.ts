@@ -71,10 +71,12 @@ async function generateForSchedule(s: ScheduleRow, reg: BrandRegistry): Promise<
 }
 
 export async function GET(request: NextRequest) {
-  // Vercel Cron auth
+  // Vercel Cron auth — FAIL CLOSED (an unset CRON_SECRET must mean "nobody",
+  // not "everybody"; the middleware now exempts /api/cron/* from the session
+  // guard, so this is the only gate).
   const authHeader = request.headers.get('authorization');
   const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

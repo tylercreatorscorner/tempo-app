@@ -64,13 +64,13 @@ function PipelineBanner() {
   if (!health) return null;
 
   if (!health.botOnline) {
-    const lastSeen = health.botLastSeenAt ? relativeTimeAgo(health.botLastSeenAt) : 'never seen';
+    const lastSeen = health.botLastSeenAt ? `last seen ${relativeTimeAgo(health.botLastSeenAt)}` : 'never seen';
     return (
       <div className="flex items-start gap-2 rounded-lg border border-[var(--pulse-warn)]/25 bg-[var(--pulse-warn-bg)] px-3.5 py-2.5 text-xs">
         <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--pulse-warn)]" />
         <span className="text-muted-foreground">
           <strong className="text-[var(--pulse-warn)]">The Discord bot looks offline</strong>
-          {' - '}last seen {lastSeen}{' - '}inbound DMs are not being captured. Check the Railway service.
+          {' ('}{lastSeen}{'). '}Inbound DMs are not being captured. Check the Railway service.
         </span>
       </div>
     );

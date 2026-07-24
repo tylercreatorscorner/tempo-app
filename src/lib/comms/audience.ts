@@ -23,7 +23,7 @@ import type { WorkspaceScope } from '@/lib/auth/workspace-scope';
 export type BroadcastChannel = 'discord_dm' | 'email' | 'sms';
 export const BROADCAST_CHANNELS = ['discord_dm', 'email', 'sms'] as const;
 
-export type SkipReason = 'no_contact' | 'opted_out' | 'not_opted_in';
+export type SkipReason = 'no_contact' | 'opted_out' | 'not_opted_in' | 'duplicate_contact';
 
 /** One resolved audience member (pre-contact-join). Feeds token resolution. */
 export interface AudienceRow {
@@ -245,6 +245,23 @@ export async function resolveAudience(
   const eligible: EligibleRecipient[] = [];
   const skipped: SkippedRecipient[] = [];
 
+  // Person-level dedup upstream is keyed on creators_v2 id, but UNLINKED
+  // managed rows (Track B identity cleanup still pending) can resolve to the
+  // SAME Discord snowflake / email through the legacy paths. Final guard:
+  // never enqueue the same contact value twice in one broadcast. The
+  // audience iterates in rank (GMV desc) order, so the highest-GMV contract
+  // row wins as the single recipient.
+  const seenContactValues = new Set<string>();
+  const pushEligible = (shaped: Omit<EligibleRecipient, 'contactValue'>, rawValue: string) => {
+    const key = channel === 'email' ? rawValue.trim().toLowerCase() : rawValue.trim();
+    if (seenContactValues.has(key)) {
+      skipped.push({ ...shaped, reason: 'duplicate_contact' });
+      return;
+    }
+    seenContactValues.add(key);
+    eligible.push({ ...shaped, contactValue: rawValue.trim() });
+  };
+
   for (const { row, shaped } of audience) {
     const contacts = shaped.creatorId
       ? (contactsByCreator.get(shaped.creatorId) ?? []).filter((c) => (c.value ?? '').trim())
@@ -262,19 +279,19 @@ export async function resolveAudience(
           ? (cv2DiscordByCreator.get(shaped.creatorId) ?? mcDiscordByCreator.get(shaped.creatorId))
           : mcDiscordByRowId.get(String(row.id)));
       if (!value) { skipped.push({ ...shaped, reason: 'no_contact' }); continue; }
-      eligible.push({ ...shaped, contactValue: value });
+      pushEligible(shaped, value);
     } else if (channel === 'email') {
       const emails = contacts.filter((c) => c.channel === 'email');
       if (emails.length === 0) { skipped.push({ ...shaped, reason: 'no_contact' }); continue; }
       const usable = emails.find((c) => c.consent_status !== 'opted_out');
       if (!usable) { skipped.push({ ...shaped, reason: 'opted_out' }); continue; }
-      eligible.push({ ...shaped, contactValue: usable.value!.trim() });
+      pushEligible(shaped, usable.value!);
     } else {
       // sms — TCPA opt-IN: only an explicit opted_in row is ever eligible.
       const sms = contacts.filter((c) => c.channel === 'sms');
       if (sms.length === 0) { skipped.push({ ...shaped, reason: 'no_contact' }); continue; }
       const optedIn = sms.find((c) => c.consent_status === 'opted_in');
-      if (optedIn) { eligible.push({ ...shaped, contactValue: optedIn.value!.trim() }); continue; }
+      if (optedIn) { pushEligible(shaped, optedIn.value!); continue; }
       skipped.push({
         ...shaped,
         reason: sms.some((c) => c.consent_status === 'opted_out') ? 'opted_out' : 'not_opted_in',

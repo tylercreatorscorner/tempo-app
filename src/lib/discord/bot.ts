@@ -49,6 +49,32 @@ async function upsertHeartbeat(): Promise<void> {
   }
 }
 
+// Backup ticker for the broadcast drain: Vercel's per-minute crons require
+// the Pro plan, so the always-on bot ALSO pings the drain endpoint each
+// minute when configured (TEMPO_APP_URL + CRON_SECRET in the bot env). The
+// drain is idempotent under doubled ticks (conditional pending->sending
+// claims), so cron + ticker running together is safe.
+function startBroadcastDrainTicker(): void {
+  const appUrl = (process.env.TEMPO_APP_URL ?? '').replace(/\/$/, '');
+  const secret = process.env.CRON_SECRET;
+  if (!appUrl || !secret) {
+    console.log('[tempo-bot] broadcast drain ticker disabled (TEMPO_APP_URL/CRON_SECRET not set)');
+    return;
+  }
+  const tick = async () => {
+    try {
+      const res = await fetch(`${appUrl}/api/cron/send-broadcasts`, {
+        headers: { Authorization: `Bearer ${secret}` },
+        signal: AbortSignal.timeout(55_000),
+      });
+      if (!res.ok) console.error(`[tempo-bot] drain tick HTTP ${res.status}`);
+    } catch (err) {
+      console.error('[tempo-bot] drain tick failed:', err);
+    }
+  };
+  setInterval(() => { void tick(); }, 60_000);
+}
+
 /** Create a configured Discord client */
 export function createClient(): Client {
   return new Client({
@@ -95,6 +121,7 @@ export function setupEventHandlers(client: Client): void {
     scheduleDailyBriefs(client);
     void upsertHeartbeat();
     setInterval(() => { void upsertHeartbeat(); }, HEARTBEAT_INTERVAL_MS);
+    startBroadcastDrainTicker();
   });
 
   client.on(Events.InteractionCreate, async (interaction: Interaction) => {

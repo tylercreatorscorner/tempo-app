@@ -88,6 +88,19 @@ export async function updateSession(request: NextRequest) {
   const isLanding = path === '/';
   const isApi = path.startsWith('/api/');
 
+  // Vercel Cron requests carry Authorization: Bearer CRON_SECRET and no
+  // session cookie. Without this exemption the auth guard below 307'd every
+  // cron to /login - which is why run-schedules and run-automations never
+  // actually fired (automation_runs has been empty since May). The bearer
+  // token must MATCH here; each cron route re-checks it fail-closed.
+  if (path.startsWith('/api/cron/')) {
+    const cronSecret = process.env.CRON_SECRET;
+    if (cronSecret && request.headers.get('authorization') === `Bearer ${cronSecret}`) {
+      return supabaseResponse;
+    }
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   // The creator portal authenticates via the creator_session JWT cookie (NOT a
   // Supabase user), so a valid creator session must bypass the Supabase auth
   // guard below — the portal layout re-verifies the JWT via getCreatorProfile().

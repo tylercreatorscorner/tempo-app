@@ -55,6 +55,9 @@ export async function GET(
       .limit(RECIPIENT_CAP),
   ]);
   if (recRes.error) return NextResponse.json({ error: recRes.error.message }, { status: 500 });
+  if (counts === null) {
+    return NextResponse.json({ error: 'Failed to load recipient counts' }, { status: 500 });
+  }
 
   const rank = (s: string) => {
     const i = STATUS_ORDER.indexOf(s);

@@ -28,7 +28,7 @@ import { Label } from '@/components/ui/label';
 import { PREBUILT_SEGMENTS } from '@/lib/data/prebuilt-segments';
 import type { Segment, SegmentFilterCriteria } from '@/lib/data/segments';
 import { BROADCAST_TEMPLATES, BROADCAST_TOKENS, getBroadcastTemplate } from './templates';
-import { ChannelChip, InlineError, TokenText, formatEstDuration } from './comms-bits';
+import { ChannelChip, InlineError, TokenText, formatEstDuration, skipReasonLabel } from './comms-bits';
 
 const BODY_MAX = 2000;
 
@@ -204,6 +204,11 @@ export function ComposePanel({
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [sentResult, setSentResult] = useState<{ id: string; eligible: number; skipped: SkipRow[] } | null>(null);
+  // One key per composed broadcast: if the create times out after committing
+  // and the operator retries, the server dedupes on this instead of enqueuing
+  // (and DMing) the whole audience a second time. Regenerated whenever the
+  // composed content changes (audience/channel/body edits re-enter compose).
+  const idempotencyKeyRef = useRef<string>(crypto.randomUUID());
 
   const send = async () => {
     if (!audience || !body.trim()) return;
@@ -218,6 +223,7 @@ export function ComposePanel({
           channel,
           audienceLabel: audience.label,
           body: body.trim(),
+          idempotencyKey: idempotencyKeyRef.current,
           ...(templateKey ? { templateKey } : {}),
         }),
       });
@@ -242,6 +248,7 @@ export function ComposePanel({
   };
 
   const resetForNew = () => {
+    idempotencyKeyRef.current = crypto.randomUUID();
     setBody('');
     setTemplateKey('');
     setSentResult(null);
@@ -387,7 +394,13 @@ export function ComposePanel({
             size="lg"
             className="w-full"
             disabled={!canReview}
-            onClick={() => { setSendError(null); setStep('review'); }}
+            onClick={() => {
+              // New review = new send intent = fresh idempotency key. A retry
+              // of a FAILED send stays on this review step and reuses the key.
+              idempotencyKeyRef.current = crypto.randomUUID();
+              setSendError(null);
+              setStep('review');
+            }}
           >
             {previewLoading
               ? <><Loader2 className="animate-spin" />Checking audience…</>
@@ -524,7 +537,7 @@ function ReviewStep({
               key={`${s.reason}-${i}`}
               className="flex items-baseline justify-between gap-3 border-b border-border px-3.5 py-2.5 text-xs last:border-b-0"
             >
-              <span className="text-muted-foreground">{s.reason}</span>
+              <span className="text-muted-foreground">{skipReasonLabel(s.reason)}</span>
               <span className="min-w-0 text-right font-bold tabular-nums text-foreground">
                 {s.count}
                 {s.count > 0 && s.examples.length > 0 && (

@@ -10,6 +10,10 @@ import {
 } from '@/lib/comms/broadcasts';
 
 export const runtime = 'nodejs';
+// Create replays the full roster export + two perf RPCs + chunked inserts —
+// multiple seconds warm, worse cold. Without this a default-timeout kill
+// mid-enqueue left half-built broadcasts (now also guarded by 'enqueuing').
+export const maxDuration = 60;
 
 // Recipient inserts go in chunks — a 5k-recipient audience in one PostgREST
 // call would blow the request payload cap (house rule from /upload: chunk by
@@ -34,6 +38,9 @@ export async function GET() {
   const rows = ((data as BroadcastRow[] | null) ?? []).filter((b) => canViewBroadcast(scope, b));
 
   const counts = await fetchRecipientCounts(rows.map((b) => b.id));
+  if (counts === null) {
+    return NextResponse.json({ error: 'Failed to load recipient counts' }, { status: 500 });
+  }
 
   return NextResponse.json({
     broadcasts: rows.map((b) => ({
@@ -57,6 +64,7 @@ export async function POST(request: NextRequest) {
   let payload: {
     segmentId?: unknown; criteria?: unknown; channel?: unknown;
     audienceLabel?: unknown; body?: unknown; templateKey?: unknown;
+    idempotencyKey?: unknown;
   };
   try { payload = await request.json(); }
   catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }); }
@@ -99,7 +107,29 @@ export async function POST(request: NextRequest) {
   const admin = await createAdminClient();
   const reg = await getBrandRegistry();
 
-  // 1. The broadcast shell (status 'queued' — the cron drain picks it up).
+  // Idempotency: the client mints a uuid per review step. A timed-out create
+  // + operator retry must return the EXISTING broadcast, never enqueue the
+  // whole audience a second time (everyone would be DMed twice).
+  const idempotencyKey =
+    typeof payload.idempotencyKey === 'string' && payload.idempotencyKey.length >= 8
+      ? payload.idempotencyKey.slice(0, 64)
+      : null;
+  if (idempotencyKey) {
+    const { data: existing } = await admin
+      .from('broadcasts')
+      .select('id')
+      .eq('idempotency_key', idempotencyKey)
+      .maybeSingle();
+    if (existing) {
+      return NextResponse.json({ id: (existing as { id: string }).id, deduped: true }, { status: 200 });
+    }
+  }
+
+  // 1. The broadcast shell — born NON-claimable ('enqueuing') and flipped to
+  // 'queued' only after the last recipient chunk commits. Inserting it as
+  // 'queued' opened a race where a mid-window cron tick found zero pending
+  // recipients and finalized the whole broadcast 'done' before its rows
+  // existed (stranded forever, UI showing complete).
   const { data: inserted, error: insErr } = await admin
     .from('broadcasts')
     .insert({
@@ -110,12 +140,20 @@ export async function POST(request: NextRequest) {
       channel,
       template_key: templateKey,
       body,
-      status: 'queued',
+      status: 'enqueuing',
       created_by: scope.email,
+      idempotency_key: idempotencyKey,
     })
     .select('id')
     .single();
   if (insErr || !inserted) {
+    // 23505 = unique violation on the idempotency index: a concurrent retry
+    // won the race — hand back its broadcast.
+    if (insErr?.code === '23505' && idempotencyKey) {
+      const { data: winner } = await admin
+        .from('broadcasts').select('id').eq('idempotency_key', idempotencyKey).maybeSingle();
+      if (winner) return NextResponse.json({ id: (winner as { id: string }).id, deduped: true }, { status: 200 });
+    }
     return NextResponse.json({ error: insErr?.message ?? 'Failed to create broadcast' }, { status: 500 });
   }
   const broadcastId = (inserted as { id: string }).id;
@@ -152,11 +190,25 @@ export async function POST(request: NextRequest) {
       .from('broadcast_recipients')
       .insert(recipientRows.slice(i, i + INSERT_CHUNK));
     if (recErr) {
-      // A half-enqueued audience must never start sending — roll the shell
-      // back (recipients cascade) and surface the failure.
-      await admin.from('broadcasts').delete().eq('id', broadcastId);
+      // Mark failed — NEVER delete. The shell is 'enqueuing' (not claimable)
+      // so nothing sent, but a delete would be unsafe if that invariant ever
+      // slips: it cascades away rows that are the only delivery record.
+      await admin
+        .from('broadcasts')
+        .update({ status: 'failed', finished_at: new Date().toISOString() })
+        .eq('id', broadcastId);
       return NextResponse.json({ error: `Failed to enqueue recipients: ${recErr.message}` }, { status: 500 });
     }
+  }
+
+  // 3. Every chunk landed — NOW it becomes claimable.
+  const { error: readyErr } = await admin
+    .from('broadcasts')
+    .update({ status: 'queued' })
+    .eq('id', broadcastId)
+    .eq('status', 'enqueuing');
+  if (readyErr) {
+    return NextResponse.json({ error: `Broadcast enqueued but not activated: ${readyErr.message}` }, { status: 500 });
   }
 
   return NextResponse.json({

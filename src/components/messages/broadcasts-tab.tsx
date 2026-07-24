@@ -25,7 +25,7 @@ import { Table, THead, TBody, TR, TH, TD } from '@/components/ui/table';
 import { TableLoadBar } from '@/components/ui/table-load-bar';
 import { TableSkeleton } from '@/components/ui/page-skeletons';
 import { ComposePanel } from './compose-panel';
-import { ChannelChip, InlineError, relativeTimeAgo } from './comms-bits';
+import { ChannelChip, InlineError, relativeTimeAgo, skipReasonLabel } from './comms-bits';
 
 // ── API shapes (contract with GET /api/broadcasts) ──────────────────
 interface BroadcastCounts {
@@ -66,8 +66,10 @@ function StatusBadge({ status }: { status: string }) {
       return <Badge variant="neutral" size="sm">Queued</Badge>;
     case 'sending':
       return <Badge variant="accent" size="sm" dot>Sending</Badge>;
-    case 'cancelled':
-      return <Badge variant="neutral" size="sm">Cancelled</Badge>;
+    case 'canceled': // single-L: matches the DB CHECK + BroadcastRow union
+      return <Badge variant="neutral" size="sm">Canceled</Badge>;
+    case 'enqueuing':
+      return <Badge variant="neutral" size="sm" dot>Preparing</Badge>;
     case 'failed':
       return <Badge variant="negative" size="sm">Failed</Badge>;
     default:
@@ -438,7 +440,7 @@ function BroadcastLogDrawer({ broadcastId, onClose }: { broadcastId: string; onC
                         )}
                       </TD>
                       <TD className="text-left">{recipientBadge(r)}</TD>
-                      <TD className="text-left text-xs">{r.skipReason ?? r.error ?? '—'}</TD>
+                      <TD className="text-left text-xs">{r.skipReason ? skipReasonLabel(r.skipReason) : (r.error ?? '—')}</TD>
                       <TD className="text-xs" title={r.sentAt ? new Date(r.sentAt).toLocaleString() : undefined}>
                         {relativeTimeAgo(r.sentAt)}
                       </TD>

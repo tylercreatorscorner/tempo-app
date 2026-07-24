@@ -117,7 +117,7 @@ export function canViewBroadcast(scope: WorkspaceScope, b: BroadcastRow): boolea
  */
 export async function fetchRecipientCounts(
   broadcastIds: string[],
-): Promise<Map<string, RecipientCounts>> {
+): Promise<Map<string, RecipientCounts> | null> {
   const out = new Map<string, RecipientCounts>();
   if (broadcastIds.length === 0) return out;
   const admin = await createAdminClient();
@@ -129,8 +129,11 @@ export async function fetchRecipientCounts(
       .order('id', { ascending: true })
       .range(from, from + 999);
     if (error) {
+      // Fail LOUD: a partial map would render "0 creators"/empty progress
+      // bars as if they were data (the silent-zero class). Callers 500 and
+      // the UI's error path takes over.
       console.error('[comms/broadcasts] recipient counts read failed:', error.message);
-      break;
+      return null;
     }
     if (!data || data.length === 0) break;
     for (const r of data as { broadcast_id: string; status: string }[]) {

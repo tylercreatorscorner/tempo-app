@@ -9,9 +9,10 @@
  * Idempotency: only 'pending' rows are ever claimed, and each claim is a
  * conditional UPDATE (status='pending' → 'sending') so a doubled tick can't
  * double-send. While a row is 'sending', sent_at holds the CLAIM time; a
- * crash mid-send leaves it stranded, and rows stranded >10 min are reset to
- * pending at the top of each tick. On completion sent_at becomes the actual
- * attempt-finish time.
+ * crash mid-send leaves it stranded, and rows stranded >10 min are marked
+ * FAILED (outcome unknown) — never re-queued, because the DM may have been
+ * delivered and a real person must not be double-messaged. On completion
+ * sent_at becomes the actual attempt-finish time.
  *
  * Auth: Vercel sends `Authorization: Bearer ${CRON_SECRET}` — same pattern as
  * run-schedules.
@@ -39,10 +40,12 @@ interface ClaimedBroadcast {
 }
 
 export async function GET(request: NextRequest) {
-  // Vercel Cron auth
+  // Vercel Cron auth — FAIL CLOSED. The middleware exempts /api/cron/* from
+  // the session guard, so this check is the only gate; an unset CRON_SECRET
+  // must mean "nobody can call this", never "everybody can".
   const authHeader = request.headers.get('authorization');
   const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -58,18 +61,31 @@ export async function GET(request: NextRequest) {
     finalized: [] as { id: string; status: string }[],
   };
 
-  // 0. Reset recipients stranded in 'sending' (claimed >10 min ago and never
-  // resolved — a crashed invocation). sent_at is the claim timestamp while
-  // status='sending', so this is safe to run every tick.
+  // 0. Recipients stranded in 'sending' (claimed >10 min ago, never resolved
+  // — a crashed invocation or a lost outcome write). The DM may or may not
+  // have been delivered, so a blind reset-to-pending would risk DOUBLE-DMing
+  // a real person. Prefer no-duplicate over at-least-once: mark them failed
+  // with an honest error; the operator sees them in the log and can decide.
   {
     const staleCutoff = new Date(Date.now() - STALE_SENDING_MS).toISOString();
     const { data: reset } = await admin
       .from('broadcast_recipients')
-      .update({ status: 'pending', sent_at: null })
+      .update({ status: 'failed', error: 'stranded: outcome unknown (delivery not confirmed, not retried)' })
       .eq('status', 'sending')
       .lt('sent_at', staleCutoff)
       .select('id');
     summary.resetStale = reset?.length ?? 0;
+  }
+
+  // 0b. Sweep abandoned 'enqueuing' shells (create crashed mid-chunk >10 min
+  // ago) to failed — they must never become claimable.
+  {
+    const staleCutoff = new Date(Date.now() - STALE_SENDING_MS).toISOString();
+    await admin
+      .from('broadcasts')
+      .update({ status: 'failed', finished_at: new Date().toISOString() })
+      .eq('status', 'enqueuing')
+      .lt('created_at', staleCutoff);
   }
 
   while (Date.now() - startedAt < TIME_BUDGET_MS) {
@@ -123,9 +139,11 @@ export async function GET(request: NextRequest) {
       continue; // move on to the next-oldest broadcast this same tick
     }
 
-    // 5. Sequential drain with spacing.
+    // 5. Sequential drain with spacing. Claims stop 15s before the budget so
+    // an in-flight send + outcome write can never straddle the 60s function
+    // kill (the Discord fetches themselves time out at 10s).
     for (const recipient of pending) {
-      if (Date.now() - startedAt >= TIME_BUDGET_MS) break;
+      if (Date.now() - startedAt >= TIME_BUDGET_MS - 15_000) break;
 
       // Conditional claim — only a 'pending' row flips, so a doubled cron
       // tick can never dispatch the same recipient twice.
@@ -142,14 +160,26 @@ export async function GET(request: NextRequest) {
         sentBy: broadcast.created_by,
       });
 
-      await admin
-        .from('broadcast_recipients')
-        .update({
-          status: outcome.status,
-          error: outcome.error ?? null,
-          sent_at: new Date().toISOString(),
-        })
-        .eq('id', recipient.id);
+      // The outcome write MUST land: if it silently failed, the row would
+      // stay 'sending' and be swept to failed-unknown even though we know
+      // the real result. Retry with backoff; scream if it still fails.
+      let outcomeWritten = false;
+      for (let attempt = 0; attempt < 3 && !outcomeWritten; attempt++) {
+        if (attempt > 0) await sleep(500 * attempt);
+        const { error: writeErr } = await admin
+          .from('broadcast_recipients')
+          .update({
+            status: outcome.status,
+            error: outcome.error ?? null,
+            sent_at: new Date().toISOString(),
+          })
+          .eq('id', recipient.id);
+        if (!writeErr) { outcomeWritten = true; break; }
+        console.error(
+          `[cron/send-broadcasts] outcome write failed (attempt ${attempt + 1}) broadcast=${recipient.broadcast_id} recipient=${recipient.id}:`,
+          writeErr.message,
+        );
+      }
 
       summary.processed += 1;
       summary[outcome.status] += 1;
