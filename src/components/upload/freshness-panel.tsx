@@ -12,8 +12,9 @@
  * Plus a future-data warning at the top if any table somehow has rows dated
  * after yesterday (always invalid — TikTok data lags by ~1 day).
  */
-import { useEffect, useState } from 'react';
-import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { AlertTriangle, Check, Copy, RefreshCw } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 interface FileStatus {
@@ -61,6 +62,110 @@ const STATUS_ORDER: Record<'stale' | 'behind' | 'never' | 'current', number> = {
   never: 2,
   current: 3,
 };
+
+/** Max expected filenames listed per file type before collapsing to a count. */
+const CHECKLIST_MAX_DATES_PER_TYPE = 14;
+
+/**
+ * UTC yesterday as YYYY-MM-DD — matches the freshness API's anchor convention
+ * (TikTok data lags by ~1 day, so "caught up" means data through yesterday).
+ */
+function utcYesterdayStr(): string {
+  const d = new Date();
+  d.setUTCHours(12, 0, 0, 0);
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().split('T')[0];
+}
+
+/** Every date from (after + 1 day) through end (inclusive), as YYYYMMDD tokens. */
+function expectedDateTokens(after: string, end: string): string[] {
+  const out: string[] = [];
+  const d = new Date(after + 'T12:00:00Z');
+  const endTime = new Date(end + 'T12:00:00Z').getTime();
+  d.setUTCDate(d.getUTCDate() + 1);
+  // Hard cap guards against malformed dates producing a runaway loop; real
+  // gaps are bounded by the API's 30-day window.
+  for (let i = 0; i < 366 && d.getTime() <= endTime; i++) {
+    out.push(d.toISOString().split('T')[0].replace(/-/g, ''));
+    d.setUTCDate(d.getUTCDate() + 1);
+  }
+  return out;
+}
+
+/**
+ * Plain-text checklist of every expected filename a brand still needs, in the
+ * upload page's filename convention: {BrandToken}_{TypeToken}_{YYYYMMDD}.xlsx
+ * (Cata-Kor -> CataKor, Creator Data -> Creator_Data). One line per missing
+ * date per non-ok file type; 'never' types are skipped (nothing to catch up).
+ */
+function buildChecklist(
+  brand: BrandFreshness,
+  fileTypes: FreshnessResponse['fileTypes'],
+  yesterday: string,
+): string {
+  const brandToken = brand.displayName.replace(/[^A-Za-z0-9]/g, '');
+  const lines: string[] = [`${brand.displayName}: files needed through ${yesterday}`];
+  for (const ft of fileTypes) {
+    const f = brand.files[ft.key];
+    if (!f || f.status === 'ok' || f.status === 'never' || !f.latestDate) continue;
+    const typeToken = f.name.replace(/\s+/g, '_');
+    const dates = expectedDateTokens(f.latestDate, yesterday);
+    for (const d of dates.slice(0, CHECKLIST_MAX_DATES_PER_TYPE)) {
+      lines.push(`${brandToken}_${typeToken}_${d}.xlsx`);
+    }
+    if (dates.length > CHECKLIST_MAX_DATES_PER_TYPE) {
+      lines.push(`...and ${dates.length - CHECKLIST_MAX_DATES_PER_TYPE} more days`);
+    }
+  }
+  return lines.join('\n');
+}
+
+/** "Copy checklist" button on a problem card — flips to Copied for ~1.5s. */
+function CopyChecklistButton({
+  brand,
+  fileTypes,
+}: {
+  brand: BrandFreshness;
+  fileTypes: FreshnessResponse['fileTypes'];
+}) {
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const resetTimer = useRef<number | null>(null);
+
+  useEffect(() => () => {
+    if (resetTimer.current !== null) window.clearTimeout(resetTimer.current);
+  }, []);
+
+  const handleCopy = async () => {
+    const text = buildChecklist(brand, fileTypes, utcYesterdayStr());
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopyState('copied');
+    } catch {
+      setCopyState('failed');
+    }
+    if (resetTimer.current !== null) window.clearTimeout(resetTimer.current);
+    resetTimer.current = window.setTimeout(() => setCopyState('idle'), 1500);
+  };
+
+  return (
+    <div className="mt-2 flex items-center gap-2">
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={handleCopy}
+        className="h-6 px-2 text-[11px] gap-1.5"
+      >
+        {copyState === 'copied'
+          ? <Check className="text-[var(--pulse-pos)]" />
+          : <Copy />}
+        {copyState === 'copied' ? 'Copied' : 'Copy checklist'}
+      </Button>
+      {copyState === 'failed' && (
+        <span className="text-[11px] text-[var(--pulse-neg)]">Couldn&apos;t copy</span>
+      )}
+    </div>
+  );
+}
 
 export function FreshnessPanel({ refreshKey = 0 }: { refreshKey?: number }) {
   const [data, setData] = useState<FreshnessResponse | null>(null);
@@ -209,6 +314,8 @@ export function FreshnessPanel({ refreshKey = 0 }: { refreshKey?: number }) {
                   {b.gaps.length > 5 && ` +${b.gaps.length - 5} more`}
                 </div>
               )}
+
+              <CopyChecklistButton brand={b} fileTypes={data.fileTypes} />
             </div>
           );
         })}
