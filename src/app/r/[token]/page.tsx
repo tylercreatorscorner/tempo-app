@@ -10,6 +10,7 @@
 import { createAdminClient } from '@/lib/supabase/server';
 import { reviveReportDates, type ClientReportSnapshot } from '@/lib/data/client-reports';
 import { ReportView } from './report-view';
+import { ViewBeacon } from './view-beacon';
 
 export const dynamic = 'force-dynamic';
 
@@ -62,28 +63,26 @@ export default async function ClientReportPage({ params, searchParams }: Props) 
 
   if (!row || row.revoked_at) return <GonePage />;
 
-  // First real (non-preview) open stamps viewed_at. The .is() guard keeps the
-  // first timestamp if two opens race.
+  // viewed_at is stamped by the client-side ViewBeacon, NOT here: pasting the
+  // link into Slack/iMessage makes the platform's unfurl bot GET this page
+  // immediately, and a server-side stamp would show "Viewed" in the outbox
+  // before the client ever opened it. Bots don't run JS.
   const isPreview = sp?.preview === '1';
-  if (!row.viewed_at && !isPreview) {
-    await supabase
-      .from('client_reports')
-      .update({ viewed_at: new Date().toISOString() })
-      .eq('id', row.id)
-      .is('viewed_at', null);
-  }
 
   const snapshot = row.snapshot as ClientReportSnapshot;
   const report = reviveReportDates(snapshot.report);
 
   return (
-    <ReportView
-      token={token}
-      report={report}
-      snapshot={snapshot}
-      notes={row.notes}
-      brandName={row.brand_name}
-      periodLabel={row.period_label}
-    />
+    <>
+      <ViewBeacon token={token} preview={isPreview} />
+      <ReportView
+        token={token}
+        report={report}
+        snapshot={snapshot}
+        notes={row.notes}
+        brandName={row.brand_name}
+        periodLabel={row.period_label}
+      />
+    </>
   );
 }

@@ -170,10 +170,14 @@ export function ReportView({
   const viewsDelta = s.views !== null && s.priorViews !== null ? pctChange(s.views, s.priorViews) : null;
 
   // 12-week trend context: flag the prior bucket when it was the strongest in
-  // the window (the "down 50% vs a viral spike" honesty note).
+  // the window (the "down 50% vs a viral spike" honesty note). WEEKLY reports
+  // only — the buckets are 7-day slices anchored to the period end, so for a
+  // 30d/custom report weekly[len-2] sits INSIDE the current period and the
+  // "last week's spike" caption would attribute it to the comparison window.
   const weekly = s.weekly;
   const weeklyMax = Math.max(1, ...weekly.map((w) => w.gmv));
   const priorWasSpike =
+    word === 'week' &&
     weekly.length >= 3 &&
     weekly[weekly.length - 2].gmv === weeklyMax &&
     weekly[weekly.length - 2].gmv > weekly[weekly.length - 1].gmv * 1.5;
@@ -308,8 +312,10 @@ export function ReportView({
             </div>
             <div className="mt-1.5 flex justify-between text-[10px] text-[#8a8fb0]">
               <span>{fmtDay(new Date(weekly[0].weekEnd + 'T12:00:00Z'))}</span>
-              {priorWasSpike && <span className="italic text-[#b3b7d4]">last {word}&rsquo;s spike</span>}
-              <span>this {word}</span>
+              {priorWasSpike && <span className="italic text-[#b3b7d4]">last week&rsquo;s spike</span>}
+              {/* The bars are 7-day slices — only a weekly report may call the
+                  final bar "this week"; longer periods span several bars. */}
+              <span>{word === 'week' ? 'this week' : 'latest week'}</span>
             </div>
           </div>
         )}

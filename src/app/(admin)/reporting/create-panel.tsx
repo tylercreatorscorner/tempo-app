@@ -103,12 +103,18 @@ function ClientReportForm({ onSent }: { onSent: () => void }) {
   const [copiedFlash, setCopiedFlash] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Staleness guard: Prepare takes seconds (the snapshot build), so a response
+  // can land AFTER the operator changed brand/period. Each selection change
+  // bumps the sequence; a resolving fetch that no longer matches is dropped —
+  // otherwise brand A's headline and notes silently reappear under brand B.
+  const prepareSeq = useRef(0);
 
   useEffect(() => () => { if (flashTimer.current) clearTimeout(flashTimer.current); }, []);
 
   // Changing brand or period invalidates a prepared preview (its headline and
   // drafted notes describe the old selection) — force a fresh Prepare.
   useEffect(() => {
+    prepareSeq.current += 1;
     setPreview(null);
     setCreated(null);
     setError(null);
@@ -118,6 +124,7 @@ function ClientReportForm({ onSent }: { onSent: () => void }) {
   const periodPayload = preset === 'custom' ? { start: startDate, end: endDate } : preset;
 
   const prepare = async () => {
+    const seq = prepareSeq.current;
     setPreviewLoading(true);
     setError(null);
     setCreated(null);
@@ -128,6 +135,7 @@ function ClientReportForm({ onSent }: { onSent: () => void }) {
         body: JSON.stringify({ brand, period: periodPayload }),
       });
       const data = await res.json().catch(() => ({}));
+      if (seq !== prepareSeq.current) return; // selection changed mid-flight
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
       setPreview({
         periodLabel: data.periodLabel ?? '',
@@ -136,9 +144,10 @@ function ClientReportForm({ onSent }: { onSent: () => void }) {
       });
       setNotes(typeof data.draftNotes === 'string' ? data.draftNotes : '');
     } catch (err) {
+      if (seq !== prepareSeq.current) return;
       setError(err instanceof Error ? err.message : 'Failed to prepare the report');
     } finally {
-      setPreviewLoading(false);
+      if (seq === prepareSeq.current) setPreviewLoading(false);
     }
   };
 
@@ -282,7 +291,7 @@ function HeadlineLine({ periodLabel, headline }: { periodLabel: string; headline
       <div className="mt-1 text-sm text-foreground">
         <strong>{isNum(headline.gmv) ? formatCurrency(headline.gmv) : '—'}</strong> GMV
         <span className="text-muted-foreground"> · </span>
-        <strong>{isNum(headline.activeCreators) ? headline.activeCreators : '—'}</strong> active creators
+        <strong>{isNum(headline.activeCreators) ? headline.activeCreators.toLocaleString('en-US') : '—'}</strong> active creators
         <span className="text-muted-foreground"> · </span>
         <strong>{isNum(headline.managedPct) ? `${Math.round(headline.managedPct)}%` : '—'}</strong> managed
       </div>
@@ -315,28 +324,46 @@ function CreatorPostForm({ onSent }: { onSent: () => void }) {
   const [boardFormat, setBoardFormat] = useState<'highlights' | 'classic'>('highlights');
 
   const [text, setText] = useState<string | null>(null);
+  // Server-built Slack rendition (real @handles, Slack link syntax). The
+  // client-side toSlackFormat fallback is LOSSY — it turns every Discord
+  // mention into the literal '@user' — so it's only used for post types the
+  // API doesn't return slackText for yet (whats-cooking).
+  const [slackText, setSlackText] = useState<string | null>(null);
   const [stats, setStats] = useState<{ totalGmv: number; videoCount: number; creatorCount: number } | null>(null);
   const [mentionMap, setMentionMap] = useState<Record<string, string>>({});
+  // What the current preview was generated FOR — the copy log records these,
+  // never the live selects (a mid-flight selection change must not misfile
+  // the feed row).
+  const [generated, setGenerated] = useState<{ type: PostType; brand: string; period: '7d' | '30d'; format: 'highlights' | 'classic' } | null>(null);
   const [generating, setGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Staleness guard, same reason as the client-report form: a slow generate
+  // must not repopulate the pane after the operator switched selections.
+  const genSeq = useRef(0);
 
   useEffect(() => () => { if (copyTimer.current) clearTimeout(copyTimer.current); }, []);
 
   // A generated preview describes one (type, brand, period, board) combo —
-  // changing any of them invalidates it. Destination is display-only (the
-  // Slack text derives from the Discord source), so it does NOT reset.
+  // changing any of them invalidates it. Destination is display-only (both
+  // renditions come from the same generate), so it does NOT reset.
   useEffect(() => {
+    genSeq.current += 1;
     setText(null);
+    setSlackText(null);
     setStats(null);
+    setGenerated(null);
     setError(null);
   }, [type, brand, period, boardFormat]);
 
   const showPeriod = type !== 'daily-drop';
-  const displayText = text === null ? null : destination === 'slack' ? toSlackFormat(text) : text;
+  const displayText = text === null
+    ? null
+    : destination === 'slack' ? (slackText ?? toSlackFormat(text, mentionMap)) : text;
 
   const generate = async () => {
+    const seq = genSeq.current;
     setGenerating(true);
     setError(null);
     try {
@@ -348,13 +375,17 @@ function CreatorPostForm({ onSent }: { onSent: () => void }) {
         throw new Error(body.error || `HTTP ${res.status}`);
       }
       const data = await res.json();
+      if (seq !== genSeq.current) return; // selection changed mid-flight
       setText(data.text);
+      setSlackText(typeof data.slackText === 'string' ? data.slackText : null);
       setStats(data.stats ?? null);
       setMentionMap(data.mentionMap || {});
+      setGenerated({ type, brand, period, format: boardFormat });
     } catch (err) {
+      if (seq !== genSeq.current) return;
       setError(err instanceof Error ? err.message : 'Failed to generate post');
     } finally {
-      setGenerating(false);
+      if (seq === genSeq.current) setGenerating(false);
     }
   };
 
@@ -372,17 +403,19 @@ function CreatorPostForm({ onSent }: { onSent: () => void }) {
     copyTimer.current = setTimeout(() => setCopied(false), 2000);
 
     // Log the manual send so it lands in the sent feed. Fire-and-forget: a
-    // failed log write must never block the copy the user just made.
-    const periodLabel = type === 'daily-drop'
+    // failed log write must never block the copy the user just made. Logs the
+    // GENERATED selection, not the live selects.
+    const g = generated ?? { type, brand, period, format: boardFormat };
+    const periodLabel = g.type === 'daily-drop'
       ? 'Yesterday'
-      : period === '7d' ? 'Last 7 days' : 'Last 30 days';
+      : g.period === '7d' ? 'Last 7 days' : 'Last 30 days';
     fetch('/api/report-log', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        reportType: type,
-        format: type === 'whos-cooking' ? boardFormat : null,
-        brand,
+        reportType: g.type,
+        format: g.type === 'whos-cooking' ? g.format : null,
+        brand: g.brand,
         periodLabel,
         destination: 'manual',
       }),

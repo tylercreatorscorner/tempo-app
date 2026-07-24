@@ -204,8 +204,11 @@ export function draftClientReportNotes(s: ClientReportSnapshot): string {
     let line = `${r.brandName} finished the ${word} at ${money(r.totalGmv)}, down ${Math.round(Math.abs(r.gmvChangePct))}% from the prior ${word}`;
     // Context guard: if the comparison week was the strongest in the trend
     // window, say so — a lone "down X%" against a viral spike reads worse
-    // than reality.
-    if (s.weekly.length >= 3) {
+    // than reality. WEEKLY reports only: the trend buckets are 7-day slices
+    // anchored to the period end, so for 30d/custom reports bucket len-2 sits
+    // INSIDE the current period and the clause would misattribute the spike
+    // to the comparison window.
+    if (word === 'week' && s.weekly.length >= 3) {
       const priorBucket = s.weekly[s.weekly.length - 2];
       const maxGmv = Math.max(...s.weekly.map((w) => w.gmv));
       if (priorBucket && priorBucket.gmv === maxGmv) {

@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { getBrandRegistry, resolveUuids, expandSlugs, type BrandRegistry } from '@/lib/data/brand-registry';
 
 // ─── Types ──────────────────────────────────────────────────────
@@ -260,7 +260,11 @@ async function getDiscordMap(supabase: any, brandFilter: string): Promise<Map<st
 // ─── What's Cooking Data ────────────────────────────────────────
 
 export async function getWhatsCookingData(brandFilter: string, period: '7d' | '30d'): Promise<WhatsCookingData> {
-  const supabase = await createClient();
+  // Service-role client: the cron schedule runner calls this with NO session
+  // (cookie client = anon), and the admin/manager-only RPCs are being revoked
+  // from anon (mig 100). Authz lives in the callers — /api/discord-posts
+  // scope-guards the requester, /api/cron/run-schedules is secret-gated.
+  const supabase = await createAdminClient();
   const brandUuids = await getBrandUuids(supabase, brandFilter);
 
   // What's Cooking queries daily_video_stats — anchor to that table specifically
@@ -342,7 +346,9 @@ export async function getWhatsCookingData(brandFilter: string, period: '7d' | '3
 // ─── Who's Cooking Data ─────────────────────────────────────────
 
 export async function getWhosCookingData(brandFilter: string, period: '7d' | '30d'): Promise<WhosCookingData> {
-  const supabase = await createClient();
+  // Service-role client — see getWhatsCookingData; whos_cooking_agg_v2 and
+  // get_roster_rookie are anon-revoked and the cron path has no session.
+  const supabase = await createAdminClient();
   const reg = await getBrandRegistry();
   const brandUuids = brandFilter && brandFilter !== 'all' ? resolveUuids(reg, brandFilter) : null;
 
@@ -621,7 +627,9 @@ async function resolveVideoPerfAnchor(supabase: any, brandSlugs: string[] | null
 }
 
 export async function getDailyDropData(brandFilter: string): Promise<DailyDropData> {
-  const supabase = await createClient();
+  // Service-role client — see getWhatsCookingData; get_daily_drop_extras is
+  // anon-revoked and the cron path has no session.
+  const supabase = await createAdminClient();
   const reg = await getBrandRegistry();
   const brandUuids = brandFilter && brandFilter !== 'all' ? resolveUuids(reg, brandFilter) : null;
   // video_performance is keyed by brand SLUG (store grain) — umbrellas expand.

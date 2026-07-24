@@ -133,11 +133,17 @@ function parseInline(text: string, mentionMap: Record<string, string> = {}): Rea
 }
 
 // ── Slack Format Converter ──────────────────────────────────────────
-export function toSlackFormat(discordText: string): string {
+// FALLBACK only: post types the API returns a server-built slackText for
+// (daily-drop, whos-cooking) never come through here. Mentions resolve
+// through the mentionMap so a creator's identity survives the conversion;
+// Discord markdown links become "label (url)" — Slack renders raw
+// [label](url) brackets literally.
+export function toSlackFormat(discordText: string, mentionMap: Record<string, string> = {}): string {
   return discordText
     .replace(/^# (.+)$/gm, '*$1*')           // # Header -> *bold*
     .replace(/^> (.+)$/gm, '> $1')            // Keep blockquotes
+    .replace(/\[([^\]]+)\]\((https?:[^)]+)\)/g, '$1 ($2)') // [label](url) -> label (url)
     .replace(/\*\*(.+?)\*\*/g, '*$1*')        // **bold** -> *bold*
-    .replace(/<@(\d+)>/g, '@user')             // Mentions simplified
+    .replace(/<@(\d+)>/g, (_, id) => `@${mentionMap[id] || 'user'}`) // Mentions -> @handle
     .replace(/__(.+?)__/g, '_$1_');            // __underline__ -> _italic_
 }

@@ -9,7 +9,9 @@
 --   1) whos_cooking_agg is restored byte-identical to mig 055 (rn <= 10).
 --   2) whos_cooking_agg_v2 is the same function with rn <= 15; only the v3
 --      formatter calls it (renders top 10, reads 11+ for the nudge).
--- v2 drops the mig-055 anon grant on purpose - posts are admin/manager-only.
+-- NOTE: omitting anon from the GRANT below revokes NOTHING - Supabase's
+-- default privileges grant EXECUTE to anon on every new function. The
+-- actual anon lockout is mig 100's explicit REVOKE.
 --
 -- (whos_cooking_agg restore omitted here for brevity in the repo record: the
 -- applied migration re-ran the exact mig-055 body. See 055 for the text.)

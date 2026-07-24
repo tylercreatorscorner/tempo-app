@@ -27,6 +27,7 @@ const PUBLIC_PATHS = [
   // /api/client-reports/* admin routes stay behind the auth guard.
   '/r/',
   '/api/report-pdf/',
+  '/api/report-viewed/',
 ];
 
 // Page paths a brand-role user is allowed to visit. Anything else → bounce home.
