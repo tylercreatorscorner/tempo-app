@@ -1,44 +1,55 @@
 'use client';
 
 /**
- * Payments page — operational view of retainer commitments and the audit
- * trail of financial changes.
+ * Payments — the money-side operational view, built on REAL sources only:
  *
- * Scope (after the rebuild):
- *   1. Stats: total retainer spend, creators on retainer, at-risk count, paid this month
- *   2. Brand retainer-spend chart
- *   3. Retainer tracker table (post progress + status per creator)
- *   4. Audit log feed
+ *   1. KPIs: Retainer book /mo (managed_creators — the same figure as the
+ *      roster's Total Retainers), Outstanding invoices, Overdue, Collected
+ *      this month (all from invoices).
+ *   2. Retainer book by brand chart (managed_creators).
+ *   3. Retainer book table (managed_creators).
+ *   4. Audit log feed (payment_audit_log).
  *
- * What's no longer here (and why):
- *   - "Invoices" tab → /invoicing has the dedicated UI now
- *   - "Commissions" tab → rates live on /earnings, +1% bumps managed in BrandEditSheet
- *   - "Overview" → its stats lived elsewhere or are folded into this page
+ * What's intentionally ABSENT: retainer spend / commissions owed / paid this
+ * month as previously shown — those read creator_payments, a table with ONE
+ * row ever written, so the numbers were structurally fake. Commissions owed
+ * to creators isn't re-sourced from anywhere: creator payout tracking is the
+ * future payouts station, and absence is the honest state until it exists.
+ *
+ * Error discipline: a failed money read renders the error banner and "—" on
+ * the cards — never a fabricated $0. Warm refetch failures keep last-good
+ * figures under the banner.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Users, AlertCircle, CheckCircle2, RefreshCw, DollarSign } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { AlertCircle, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { formatCurrency, formatDate } from '@/lib/utils/format';
-import { StatCard } from '@/components/dashboard/stat-card';
+import { formatCurrency, formatPeriod, currentMonth } from '@/lib/utils/format';
+import { PageHeader } from '@/components/ui/page-header';
+import { Button } from '@/components/ui/button';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { StatCard } from '@/components/ui/stat-card';
 import { useDelayedFlag } from '@/hooks/use-delayed-flag';
 import { TableLoadBar } from '@/components/ui/table-load-bar';
 import { BrandSpendChart } from './components/brand-spend-chart';
-import { RetainerTracker, type RetainerCreator } from './components/retainer-tracker';
+import { RetainerBook, type RetainerBookRow } from './components/retainer-book';
 import { AuditFeed, type AuditLog } from './components/audit-feed';
 
 interface OverviewData {
-  totalRetainerSpend: number;
-  totalCommissionsOwed: number;
-  outstandingInvoices: number;
+  retainerBook: number;
+  retainerCreatorCount: number;
   outstandingAmount: number;
-  paidThisMonth: number;
+  outstandingCount: number;
+  overdueAmount: number;
+  overdueCount: number;
+  collectedAmount: number;
+  collectedCount: number;
   brandSpend: Record<string, number>;
 }
 
 export function PaymentsClient() {
   const [overview, setOverview] = useState<OverviewData | null>(null);
-  const [creators, setCreators] = useState<RetainerCreator[]>([]);
+  const [creators, setCreators] = useState<RetainerBookRow[]>([]);
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loadingOverview, setLoadingOverview] = useState(true);
   const [loadingCreators, setLoadingCreators] = useState(true);
@@ -46,8 +57,7 @@ export function PaymentsClient() {
   const [error, setError] = useState<string | null>(null);
 
   const [brandFilter, setBrandFilter] = useState<string>('all');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'On Track' | 'Behind' | 'At Risk'>('all');
-  // Stable brand list for the filter dropdown — captured once when 'all' is loaded
+  // Stable brand list for the filter dropdown — captured when 'all' is loaded
   // so it doesn't shrink to a single brand when the user picks one.
   const [availableBrands, setAvailableBrands] = useState<string[]>([]);
 
@@ -58,14 +68,20 @@ export function PaymentsClient() {
       const j = await res.json();
       if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
       setOverview({
-        totalRetainerSpend: j.totalRetainerSpend ?? 0,
-        totalCommissionsOwed: j.totalCommissionsOwed ?? 0,
-        outstandingInvoices: j.outstandingInvoices ?? 0,
+        retainerBook: j.retainerBook ?? 0,
+        retainerCreatorCount: j.retainerCreatorCount ?? 0,
         outstandingAmount: j.outstandingAmount ?? 0,
-        paidThisMonth: j.paidThisMonth ?? 0,
+        outstandingCount: j.outstandingCount ?? 0,
+        overdueAmount: j.overdueAmount ?? 0,
+        overdueCount: j.overdueCount ?? 0,
+        collectedAmount: j.collectedAmount ?? 0,
+        collectedCount: j.collectedCount ?? 0,
         brandSpend: j.brandSpend ?? {},
       });
+      setError(null);
     } catch (e) {
+      // Cold: overview stays null → cards render "—", never $0.
+      // Warm: last-good figures stay up under the error banner.
       setError(e instanceof Error ? e.message : 'Failed to load overview');
     } finally {
       setLoadingOverview(false);
@@ -78,16 +94,14 @@ export function PaymentsClient() {
       const res = await fetch(`/api/payments/retainers?brand=${encodeURIComponent(brand)}`);
       const j = await res.json();
       if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
-      const list = (j.creators ?? []) as RetainerCreator[];
+      const list = (j.creators ?? []) as RetainerBookRow[];
       setCreators(list);
-      // Capture the full brand pool when we have an unfiltered view so the
-      // dropdown stays populated even after the user picks a single brand.
       if (brand === 'all') {
         const pool = Array.from(new Set(list.map((c) => c.brand))).sort();
         setAvailableBrands(pool);
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load retainers');
+      setError(e instanceof Error ? e.message : 'Failed to load the retainer book');
     } finally {
       setLoadingCreators(false);
     }
@@ -107,7 +121,7 @@ export function PaymentsClient() {
     }
   }, []);
 
-  // Initial load — overview + history are independent of brand filter, creators depends on it
+  // Initial load — overview + history are brand-independent; creators follows the filter.
   useEffect(() => {
     fetchOverview();
     fetchHistory();
@@ -123,122 +137,100 @@ export function PaymentsClient() {
     fetchHistory();
   };
 
-  // Apply status filter client-side on top of server-filtered (by brand) creators
-  const filteredCreators = useMemo(() => {
-    if (statusFilter === 'all') return creators;
-    return creators.filter((c) => c.status === statusFilter);
-  }, [creators, statusFilter]);
-
-  const stats = useMemo(() => {
-    let atRisk = 0;
-    let behind = 0;
-    let onTrack = 0;
-    for (const c of creators) {
-      if (c.status === 'At Risk') atRisk += 1;
-      else if (c.status === 'Behind') behind += 1;
-      else onTrack += 1;
-    }
-    return { atRisk, behind, onTrack };
-  }, [creators]);
-
   const loading = loadingOverview || loadingCreators;
-  // Indeterminate load bar over the retainer tracker — fires on the
-  // brand-filter-driven refetch (loadingCreators), gated by a 150ms delay so
-  // fast loads don't flash it. Mirrors the roster page pattern.
+  // Load bar over the retainer book on brand-filter refetches, gated by a
+  // short delay so fast loads don't flash it.
   const showBar = useDelayedFlag(loadingCreators);
+  const monthLabel = formatPeriod(currentMonth());
 
   return (
     <div className="space-y-6">
-      {/* Page header */}
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-extrabold text-[var(--foreground)]">Payments</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Track creator retainers and audit trail of financial changes.
-          </p>
-        </div>
-        <button
-          onClick={handleRefresh}
-          disabled={loading}
-          className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl border border-border hover:bg-muted text-muted-foreground disabled:opacity-40 transition-colors"
-        >
-          <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
-          Refresh
-        </button>
-      </div>
+      <PageHeader
+        eyebrow="Finance"
+        title="Payments"
+        subtitle="Retainer commitments, invoice collections, and the audit trail."
+        actions={
+          <Button variant="outline" size="sm" onClick={handleRefresh} disabled={loading}>
+            <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
+            Refresh
+          </Button>
+        }
+      />
 
       {error && (
-        <div className="rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-500 flex items-center gap-2">
-          <AlertCircle className="h-4 w-4" />
-          {error}
+        <div className="flex items-center gap-2 rounded-xl border border-[var(--pulse-neg)]/25 bg-[var(--pulse-neg-bg)] px-4 py-3 text-sm text-[var(--pulse-neg)]">
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          <span>{error}</span>
+          <Button variant="outline" size="sm" className="ml-auto" onClick={handleRefresh} disabled={loading}>
+            Retry
+          </Button>
         </div>
       )}
 
-      {/* Stat cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      {/* KPI row — "—" until the read succeeds; a failed read is never a $0. */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard
-          label="Retainer Spend"
-          value={overview ? formatCurrency(overview.totalRetainerSpend) : '—'}
-          subValue="This month"
-          accentColor="var(--primary)"
+          hero
+          label="Retainer book /mo"
+          value={overview ? formatCurrency(overview.retainerBook) : '—'}
+          subValue={overview ? `${overview.retainerCreatorCount} creator${overview.retainerCreatorCount === 1 ? '' : 's'} on retainer` : undefined}
         />
         <StatCard
-          label="On Retainer"
-          value={String(creators.length)}
-          subValue={`${stats.onTrack} on track${stats.behind > 0 || stats.atRisk > 0 ? `, ${stats.behind + stats.atRisk} need attention` : ''}`}
-          accentColor="var(--pulse-accent-2)"
+          label="Outstanding invoices"
+          value={overview ? formatCurrency(overview.outstandingAmount) : '—'}
+          subValue={overview ? `${overview.outstandingCount} pending + sent` : undefined}
+          accentColor="var(--pulse-warn)"
         />
         <StatCard
-          label="At Risk"
-          value={String(stats.atRisk + stats.behind)}
-          subValue={`${stats.atRisk} at risk · ${stats.behind} behind`}
-          accentColor={stats.atRisk > 0 ? '#EF4444' : stats.behind > 0 ? '#F59E0B' : '#10B981'}
+          label="Overdue"
+          value={overview ? formatCurrency(overview.overdueAmount) : '—'}
+          subValue={overview ? `${overview.overdueCount} invoice${overview.overdueCount === 1 ? '' : 's'} past due` : undefined}
+          accentColor="var(--pulse-neg)"
         />
         <StatCard
-          label="Paid This Month"
-          value={overview ? formatCurrency(overview.paidThisMonth) : '—'}
-          subValue="Completed payments"
-          accentColor="#10B981"
+          label="Collected this month"
+          value={overview ? formatCurrency(overview.collectedAmount) : '—'}
+          subValue={overview ? `${overview.collectedCount} paid · ${monthLabel}` : undefined}
+          accentColor="var(--pulse-pos)"
         />
       </div>
 
-      {/* Brand spend chart */}
+      {/* Retainer book by brand */}
       {overview && Object.values(overview.brandSpend).some((v) => v > 0) && (
-        <div className="rounded-2xl bg-card border border-border shadow-sm overflow-hidden">
-          <div className="px-5 pt-4 pb-3">
-            <h3 className="text-sm font-bold text-[var(--foreground)]">Retainer Spend by Brand</h3>
-            <p className="text-xs text-muted-foreground mt-0.5">Monthly retainer commitments allocated across brands</p>
-          </div>
-          <div className="px-5 pb-5">
-            <BrandSpendChart data={overview.brandSpend} height={Math.max(180, Object.values(overview.brandSpend).filter((v) => v > 0).length * 48)} />
-          </div>
-        </div>
+        <Card className="overflow-hidden">
+          <CardHeader className="items-baseline">
+            <div>
+              <CardTitle className="text-sm">Retainer book by brand</CardTitle>
+              <CardDescription className="mt-0.5 text-xs">
+                Monthly retainer commitments across active brands
+              </CardDescription>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <BrandSpendChart data={overview.brandSpend} />
+          </CardContent>
+        </Card>
       )}
 
-      {/* Retainer tracker — main operational view.
-          Indeterminate load bar pinned to the top of the card on every
-          brand-filter-driven refetch. Only the table BODY dims while refetching
-          (and only if rows are already on screen) — the filter bar you just
-          interacted with stays crisp. Mirrors the roster page. */}
+      {/* Retainer book table — the load bar covers brand-filter refetches. */}
       <div className="relative">
         <TableLoadBar active={showBar} />
-        <RetainerTracker
-          creators={filteredCreators}
+        <RetainerBook
+          creators={creators}
           loading={loadingCreators}
           brandFilter={brandFilter}
-          statusFilter={statusFilter}
           availableBrands={availableBrands}
           onBrandFilterChange={setBrandFilter}
-          onStatusFilterChange={setStatusFilter}
           refetching={showBar && creators.length > 0}
         />
       </div>
 
       {/* Audit history */}
       <AuditFeed logs={logs} loading={loadingHistory} />
+
+      <p className="text-xs text-muted-foreground">
+        Creator payout tracking arrives with the payouts release.
+      </p>
     </div>
   );
 }
-
-// Re-export for callers that imported these from the old monolithic file (defensive)
-export { formatDate };

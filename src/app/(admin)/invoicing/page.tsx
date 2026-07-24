@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Invoicing — Tempo' };
 
 interface Props {
-  searchParams: Promise<{ id?: string }>;
+  searchParams: Promise<{ id?: string; view?: string }>;
 }
 
 export default async function InvoicingPage({ searchParams }: Props) {
@@ -17,5 +17,10 @@ export default async function InvoicingPage({ searchParams }: Props) {
 
   const params = await searchParams;
 
-  return <InvoicingClient initialOpenId={params.id ?? null} />;
+  return (
+    <InvoicingClient
+      initialOpenId={params.id ?? null}
+      initialView={params.view === 'list' ? 'list' : 'board'}
+    />
+  );
 }

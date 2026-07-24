@@ -1,15 +1,25 @@
 /**
  * GET /api/payments/overview
  *
- * Headline payment stats for the Payments page. Every read is individually
- * error-checked and paged past the 1000-row PostgREST cap: a failed or
- * truncated money read must 500, never silently sum to a fake $0 (the old
- * version destructured `data` off five reads with no error check).
+ * Headline figures for the Payments page — REAL sources only:
  *
- * NOTE (Phase 2 decision, not addressed here): every creator_payments-sourced
- * figure reads from a table nothing currently writes — the retainer-spend /
- * commissions-owed / paid-this-month numbers are structurally $0 until the
- * write side exists or the source changes.
+ *   retainerBook     — SUM(managed_creators.retainer) over active (non-archived)
+ *                      managed creators, deduped by (creator_id, brand) taking
+ *                      MAX. Mirrors the dashboard's fetchRetainerBySlug / the
+ *                      roster's Total Retainers exactly, so the three tie out.
+ *   outstanding      — invoices in pending/sent ($ + count)
+ *   overdue          — sent invoices past their due_date ($ + count)
+ *   collected        — invoices with paid_at inside the current month
+ *   brandSpend       — the retainer book split by brand (chart source)
+ *
+ * The old version read retainer spend / commissions owed / paid-this-month
+ * from creator_payments — a table with ONE row ever written. Those figures were
+ * structurally fake and are gone; creator payout tracking arrives with the
+ * payouts release.
+ *
+ * Every read is error-checked and paged past the 1000-row PostgREST cap via
+ * fetchAllRows (throws → 500). A failed money read must surface as an error,
+ * never a fabricated $0.
  */
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
@@ -17,9 +27,11 @@ import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 import { getBrandRegistry, activeBrandSlugs } from '@/lib/data/brand-registry';
 import { fetchAllRows } from '@/lib/data/fetch-all-rows';
 
-interface AmountBrandRow { amount: number | null; brand: string | null; id?: string }
-interface InvoiceAmountRow { id: string; total_amount: number | null; brand: string | null }
-interface BrandRetainerRow { brand: string | null; retainer: number | null; id?: string }
+export const runtime = 'nodejs';
+
+interface RetainerRow { id: string; creator_id: string | null; brand: string | null; retainer: number | null }
+interface OpenInvoiceRow { id: string; total_amount: number | null; brand: string | null; status: string; due_date: string | null }
+interface PaidInvoiceRow { id: string; total_amount: number | null; brand: string | null; paid_at: string | null }
 
 export async function GET() {
   try {
@@ -37,101 +49,105 @@ export async function GET() {
 
     const supabase = await createAdminClient();
     const reg = await getBrandRegistry();
+    // managed_creators.brand is keyed at umbrella grain — same slug set the
+    // dashboard's retainer sum uses.
+    const brandSlugs = scopedSlugs ?? activeBrandSlugs(reg);
+
     const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const currentPeriod = `${year}-${month}`;
-    const monthStart = `${year}-${month}-01`;
+    const year = now.getUTCFullYear();
+    const monthIdx = now.getUTCMonth();
+    const monthStart = new Date(Date.UTC(year, monthIdx, 1)).toISOString();
+    const nextMonthStart = new Date(Date.UTC(year, monthIdx + 1, 1)).toISOString();
+    const todayIso = now.toISOString().split('T')[0];
 
-    // Independent reads — run together. fetchAllRows throws on any error,
-    // which the outer catch turns into a 500 (never a fabricated $0).
-    const [retainerData, commissionData, outstandingInvoices, paidData, brandRetainers, recentRes] =
-      await Promise.all([
-        // Total retainer spend this month
-        fetchAllRows<AmountBrandRow>(() => {
-          let q = supabase
-            .from('creator_payments')
-            .select('id, amount, brand')
-            .eq('payment_type', 'retainer')
-            .eq('period_month', currentPeriod);
-          if (scopedSlugs) q = q.in('brand', scopedSlugs);
-          return q.order('id', { ascending: true });
-        }, 'payments-overview'),
-        // Total commissions owed (pending/approved, not yet paid)
-        fetchAllRows<AmountBrandRow>(() => {
-          let q = supabase
-            .from('creator_payments')
-            .select('id, amount, brand')
-            .eq('payment_type', 'commission')
-            .in('status', ['pending', 'approved']);
-          if (scopedSlugs) q = q.in('brand', scopedSlugs);
-          return q.order('id', { ascending: true });
-        }, 'payments-overview'),
-        // Outstanding invoices
-        fetchAllRows<InvoiceAmountRow>(() => {
-          let q = supabase
-            .from('invoices')
-            .select('id, total_amount, brand')
-            .in('status', ['pending', 'sent']);
-          if (scopedSlugs) q = q.in('brand', scopedSlugs);
-          return q.order('id', { ascending: true });
-        }, 'payments-overview'),
-        // Paid this month
-        fetchAllRows<AmountBrandRow>(() => {
-          let q = supabase
-            .from('creator_payments')
-            .select('id, amount, brand')
-            .eq('status', 'paid')
-            .gte('date_paid', monthStart);
-          if (scopedSlugs) q = q.in('brand', scopedSlugs);
-          return q.order('id', { ascending: true });
-        }, 'payments-overview'),
-        // Spend by brand — managed_creators exceeds the 1000-row cap, so an
-        // un-paged read here silently under-counted brand retainer spend.
-        fetchAllRows<BrandRetainerRow>(() =>
-          supabase
-            .from('managed_creators')
-            .select('id, brand, retainer')
-            .in('brand', scopedSlugs ?? activeBrandSlugs(reg))
-            .order('id', { ascending: true }), 'payments-overview'),
-        // Recent activity (limit 10 — no paging, but the error IS checked)
-        (() => {
-          let q = supabase
-            .from('creator_payments')
-            .select('*')
-            .order('date_submitted', { ascending: false })
-            .limit(10);
-          if (scopedSlugs) q = q.in('brand', scopedSlugs);
-          return q;
-        })(),
-      ]);
+    const [retainerRows, openInvoices, paidInvoices] = await Promise.all([
+      // Retainer book — active roster only (archived_at null).
+      fetchAllRows<RetainerRow>(() =>
+        supabase
+          .from('managed_creators')
+          .select('id, creator_id, brand, retainer')
+          .is('archived_at', null)
+          .in('brand', brandSlugs)
+          .order('id', { ascending: true }), 'payments-overview'),
+      // Open invoices (pending + sent) — outstanding and overdue both derive here.
+      fetchAllRows<OpenInvoiceRow>(() => {
+        let q = supabase
+          .from('invoices')
+          .select('id, total_amount, brand, status, due_date')
+          .in('status', ['pending', 'sent']);
+        if (scopedSlugs) q = q.in('brand', scopedSlugs);
+        return q.order('id', { ascending: true });
+      }, 'payments-overview'),
+      // Collected this month.
+      fetchAllRows<PaidInvoiceRow>(() => {
+        let q = supabase
+          .from('invoices')
+          .select('id, total_amount, brand, paid_at')
+          .eq('status', 'paid')
+          .gte('paid_at', monthStart)
+          .lt('paid_at', nextMonthStart);
+        if (scopedSlugs) q = q.in('brand', scopedSlugs);
+        return q.order('id', { ascending: true });
+      }, 'payments-overview'),
+    ]);
 
-    if (recentRes.error) {
-      return NextResponse.json({ error: `creator_payments recent read failed: ${recentRes.error.message}` }, { status: 500 });
+    // Dedup by (creator_id, brand) taking MAX — matching /api/roster and the
+    // dashboard exactly, so re-add / merged-identity duplicate rows don't
+    // double-count the monthly commitment. Rows without a creator_id sum raw.
+    const maxByCreatorBrand = new Map<string, { brand: string; retainer: number }>();
+    const brandSpend: Record<string, number> = {};
+    let retainerBook = 0;
+    let retainerCreatorCount = 0;
+    const addToBrand = (brand: string, amount: number) => {
+      const key = brand.toLowerCase();
+      brandSpend[key] = (brandSpend[key] || 0) + amount;
+    };
+    for (const r of retainerRows) {
+      if (!r.brand) continue;
+      const ret = Number(r.retainer) || 0;
+      if (r.creator_id) {
+        const key = `${r.creator_id}|${r.brand}`;
+        const prev = maxByCreatorBrand.get(key);
+        if (!prev || ret > prev.retainer) maxByCreatorBrand.set(key, { brand: r.brand, retainer: ret });
+      } else if (ret > 0) {
+        retainerBook += ret;
+        retainerCreatorCount += 1;
+        addToBrand(r.brand, ret);
+      }
+    }
+    for (const { brand, retainer } of maxByCreatorBrand.values()) {
+      if (retainer <= 0) continue;
+      retainerBook += retainer;
+      retainerCreatorCount += 1;
+      addToBrand(brand, retainer);
     }
 
-    const totalRetainerSpend = retainerData.reduce((sum, r) => sum + (r.amount || 0), 0);
-    const totalCommissionsOwed = commissionData.reduce((sum, r) => sum + (r.amount || 0), 0);
-    const outstandingCount = outstandingInvoices.length;
-    const outstandingAmount = outstandingInvoices.reduce((sum, i) => sum + (i.total_amount || 0), 0);
-    const paidThisMonth = paidData.reduce((sum, r) => sum + (r.amount || 0), 0);
-
-    const brandSpend: Record<string, number> = {};
-    for (const r of brandRetainers) {
-      if (r.brand && r.retainer) {
-        const key = r.brand.toLowerCase();
-        brandSpend[key] = (brandSpend[key] || 0) + r.retainer;
+    let outstandingAmount = 0;
+    let overdueAmount = 0;
+    let overdueCount = 0;
+    for (const inv of openInvoices) {
+      const amt = Number(inv.total_amount) || 0;
+      outstandingAmount += amt;
+      // Overdue = SENT and past due. A pending draft past its nominal due date
+      // was never billed, so it doesn't count — same rule as the lifecycle board.
+      if (inv.status === 'sent' && inv.due_date && inv.due_date < todayIso) {
+        overdueAmount += amt;
+        overdueCount += 1;
       }
     }
 
+    const collectedAmount = paidInvoices.reduce((sum, i) => sum + (Number(i.total_amount) || 0), 0);
+
     return NextResponse.json({
-      totalRetainerSpend,
-      totalCommissionsOwed,
-      outstandingInvoices: outstandingCount,
+      retainerBook,
+      retainerCreatorCount,
       outstandingAmount,
-      paidThisMonth,
+      outstandingCount: openInvoices.length,
+      overdueAmount,
+      overdueCount,
+      collectedAmount,
+      collectedCount: paidInvoices.length,
       brandSpend,
-      recentActivity: recentRes.data ?? [],
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to load payments overview';

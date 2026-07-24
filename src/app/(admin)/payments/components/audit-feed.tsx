@@ -75,7 +75,7 @@ export function AuditFeed({ logs, loading }: Props) {
           <p className="text-xs text-muted-foreground mt-0.5">Latest {logs.length} change{logs.length === 1 ? '' : 's'} to financial state</p>
         </div>
       </div>
-      <div className="divide-y divide-gray-50 border-t border-border">
+      <div className="divide-y divide-border border-t border-border">
         {logs.map((log) => {
           const { icon: Icon, tint, iconColor } = entityIconAndBg(log.entity_type);
           return (
