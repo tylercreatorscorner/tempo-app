@@ -7,7 +7,10 @@ import {
   getDailyDropData,
   formatWhatsCookingDiscord,
   formatWhosCookingDiscord,
+  formatWhosCookingSlack,
   formatDailyDropDiscord,
+  formatDailyDropSlack,
+  type WhosCookingFormat,
 } from '@/lib/data/discord-posts';
 import { getBrandRegistry, brandLabel } from '@/lib/data/brand-registry';
 
@@ -15,8 +18,8 @@ const VALID_TYPES = new Set([
   'whats-cooking', 'whos-cooking', 'daily-drop',
 ]);
 
-// Headline GMV numbers paginate over daily_creator_stats; a high-volume brand's
-// month-to-date can be tens of thousands of rows, so give the function headroom.
+// Post data comes from aggregate RPCs, but a cold cache can still make the
+// slowest one crawl; give the function headroom beyond the default limit.
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
@@ -32,12 +35,18 @@ export async function GET(request: NextRequest) {
   const type = searchParams.get('type') || 'whats-cooking';
   const brand = searchParams.get('brand') || 'all';
   const period = (searchParams.get('period') || '7d') as '7d' | '30d';
+  // Who's Cooking dual format (v3 mockup): 'highlights' (default) | 'classic'.
+  // Only meaningful for type=whos-cooking; ignored for the other types.
+  const format = (searchParams.get('format') || 'highlights') as WhosCookingFormat;
 
   if (!VALID_TYPES.has(type)) {
     return NextResponse.json({ error: 'Invalid type' }, { status: 400 });
   }
   if (period !== '7d' && period !== '30d') {
     return NextResponse.json({ error: 'Invalid period' }, { status: 400 });
+  }
+  if (type === 'whos-cooking' && format !== 'highlights' && format !== 'classic') {
+    return NextResponse.json({ error: 'Invalid format' }, { status: 400 });
   }
   // Managers may only generate posts for one of their own brands.
   if (scope.brandScope.kind === 'scoped'
@@ -70,13 +79,18 @@ export async function GET(request: NextRequest) {
       });
     } else if (type === 'whos-cooking') {
       const data = await getWhosCookingData(brand, period);
-      const text = formatWhosCookingDiscord(data, brandName, period);
+      const text = formatWhosCookingDiscord(data, brandName, period, format);
+      const slackText = formatWhosCookingSlack(data, brandName, period, format);
+      // Full map (not just leaderboard rows) so rookie/so-close mentions in the
+      // preview resolve too.
       const mentionMap: Record<string, string> = {};
-      data.leaderboard.forEach(c => {
-        if (c.discord_id && c.discord_name) mentionMap[c.discord_id] = c.discord_name;
+      data.discordMap.forEach((v) => {
+        if (v.discord_id && v.discord_name) mentionMap[v.discord_id] = v.discord_name;
       });
       return NextResponse.json({
         text,
+        slackText,
+        format,
         mentionMap,
         stats: {
           totalGmv: data.totalGmv,
@@ -87,12 +101,14 @@ export async function GET(request: NextRequest) {
     } else if (type === 'daily-drop') {
       const data = await getDailyDropData(brand);
       const text = formatDailyDropDiscord(data, brandName);
+      const slackText = formatDailyDropSlack(data, brandName);
       const mentionMap: Record<string, string> = {};
       data.discordMap.forEach((v) => {
         if (v.discord_id && v.discord_name) mentionMap[v.discord_id] = v.discord_name;
       });
       return NextResponse.json({
         text,
+        slackText,
         mentionMap,
         stats: {
           totalGmv: data.yesterdayGmv,

@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
-import { getBrandRegistry, resolveUuids, expandSlugs } from '@/lib/data/brand-registry';
+import { getBrandRegistry, resolveUuids, expandSlugs, type BrandRegistry } from '@/lib/data/brand-registry';
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -37,11 +37,34 @@ export interface WhatsCookingData {
   endDate: Date;
 }
 
+/** One Who's Cooking leaderboard/shoutout entry (agg row + JS-attached fields). */
+export interface WhosCookingEntry extends CreatorEntry {
+  breakoutPct: number;
+  priorGmv: number;
+  daysPosted: number;
+  /** Rank in the PRIOR same-length window's leaderboard (top 10); null = not in
+   *  the prior top 10. Use priorGmv to tell "climbed in from rank 11+" apart
+   *  from genuinely new (zero prior-window GMV). */
+  priorRank: number | null;
+}
+
+/** v3 mockup formats for the Who's Cooking post. */
+export type WhosCookingFormat = 'highlights' | 'classic';
+
 export interface WhosCookingData {
-  leaderboard: (CreatorEntry & { breakoutPct: number; priorGmv: number; daysPosted: number })[];
-  mostProlific: (CreatorEntry & { daysPosted: number }) | null;
-  ironChef: (CreatorEntry & { daysPosted: number }) | null;
-  breakoutStar: (CreatorEntry & { breakoutPct: number; priorGmv: number }) | null;
+  leaderboard: WhosCookingEntry[];
+  mostProlific: WhosCookingEntry | null;
+  ironChef: WhosCookingEntry | null;
+  breakoutStar: WhosCookingEntry | null;
+  /** false = the prior-window agg call failed; formatters omit delta markers
+   *  entirely rather than mislabel everyone "(new)". */
+  priorRanksAvailable: boolean;
+  /** Rookie of the Week (get_roster_rookie). null = none found / RPC failed. */
+  rookie: { handle: string; gmv: number } | null;
+  /** Highest-ranked creator OUTSIDE the top 10 (rank 11+), from
+   *  whos_cooking_agg_v2's 15-row leaderboard (mig 099). */
+  soClose: { handle: string; gmv: number; gap: number } | null;
+  discordMap: Map<string, { discord_id: string | null; discord_name: string | null }>;
   totalGmv: number;
   creatorCount: number;
   videoCount: number;
@@ -67,6 +90,16 @@ async function getBrandUuids(_supabase: any, brandFilter: string): Promise<strin
   if (!brandFilter || brandFilter === 'all') return null;
   const reg = await getBrandRegistry();
   return resolveUuids(reg, brandFilter);
+}
+
+// Umbrella-grain slug list for tables keyed the way managed_creators/roster
+// rollups are (brand slug at umbrella grain): a store slug also includes its
+// parent umbrella slug; 'all'/empty = null (no filter).
+function rosterBrandSlugs(reg: BrandRegistry, brandFilter: string): string[] | null {
+  if (!brandFilter || brandFilter === 'all') return null;
+  const row = reg.bySlug.get(brandFilter);
+  const parentSlug = row?.parent_brand_id ? reg.byId.get(row.parent_brand_id)?.slug : undefined;
+  return parentSlug ? [brandFilter, parentSlug] : [brandFilter];
 }
 
 /**
@@ -154,11 +187,9 @@ async function getDiscordMap(supabase: any, brandFilter: string): Promise<Map<st
   try {
     if (brandFilter && brandFilter !== 'all') {
       const reg = await getBrandRegistry();
-      const row = reg.bySlug.get(brandFilter);
       // Include the parent umbrella slug when a store slug was selected —
       // roster rows live at the umbrella grain.
-      const parentSlug = row?.parent_brand_id ? reg.byId.get(row.parent_brand_id)?.slug : undefined;
-      mcBrands = parentSlug ? [brandFilter, parentSlug] : [brandFilter];
+      mcBrands = rosterBrandSlugs(reg, brandFilter);
     }
   } catch (err) {
     console.error('[discord-posts] getDiscordMap: brand registry read failed - mentions will fall back to @handle:', err);
@@ -312,83 +343,162 @@ export async function getWhatsCookingData(brandFilter: string, period: '7d' | '3
 
 export async function getWhosCookingData(brandFilter: string, period: '7d' | '30d'): Promise<WhosCookingData> {
   const supabase = await createClient();
-  const brandUuids = await getBrandUuids(supabase, brandFilter);
+  const reg = await getBrandRegistry();
+  const brandUuids = brandFilter && brandFilter !== 'all' ? resolveUuids(reg, brandFilter) : null;
 
   const today = await resolveAnchorToday(supabase, brandUuids);
   const yesterday = new Date(today);
   yesterday.setDate(today.getDate() - 1);
   const endDate = formatDate(yesterday);
 
-  let currentStart: string;
-  let priorStart: string;
-  let priorEnd: string;
+  const periodDays = period === '30d' ? 30 : 7;
 
-  if (period === '30d') {
-    const thirtyDaysAgo = new Date(today);
-    thirtyDaysAgo.setDate(today.getDate() - 30);
-    const sixtyDaysAgo = new Date(today);
-    sixtyDaysAgo.setDate(today.getDate() - 60);
+  const currentStartD = new Date(today);
+  currentStartD.setDate(today.getDate() - periodDays);
+  const priorStartD = new Date(today);
+  priorStartD.setDate(today.getDate() - periodDays * 2);
 
-    currentStart = formatDate(thirtyDaysAgo);
-    priorStart = formatDate(sixtyDaysAgo);
-    priorEnd = formatDate(thirtyDaysAgo);
-  } else {
-    const sevenDaysAgo = new Date(today);
-    sevenDaysAgo.setDate(today.getDate() - 7);
-    const fourteenDaysAgo = new Date(today);
-    fourteenDaysAgo.setDate(today.getDate() - 14);
+  const currentStart = formatDate(currentStartD);
+  const priorStart = formatDate(priorStartD);
+  // The RPC's prior window is half-open: [p_prior_start, p_prior_end).
+  const priorEnd = currentStart;
 
-    currentStart = formatDate(sevenDaysAgo);
-    priorStart = formatDate(fourteenDaysAgo);
-    priorEnd = formatDate(sevenDaysAgo);
-  }
+  // For rank deltas the prior window is re-run through the agg as a *current*
+  // window, whose ends are inclusive: [priorStart, currentStart - 1] covers
+  // exactly the same days as the half-open [priorStart, currentStart).
+  const priorEndInclusiveD = new Date(currentStartD);
+  priorEndInclusiveD.setDate(currentStartD.getDate() - 1);
+  const priorEndInclusive = formatDate(priorEndInclusiveD);
+  const prior2StartD = new Date(priorStartD);
+  prior2StartD.setDate(priorStartD.getDate() - periodDays);
+  const prior2Start = formatDate(prior2StartD);
 
   const ironChefMinDays = period === '30d' ? 20 : 5;
+  const rosterSlugs = rosterBrandSlugs(reg, brandFilter);
 
-  // Aggregation runs in Postgres (whos_cooking_agg): leaderboard (top 10), the
-  // three shoutout candidates, and totals — NOT the full current+prior window of
-  // creator-day rows, which for a high-volume / umbrella / all-brands selection
-  // timed the function out.
-  const { data: agg, error } = await supabase.rpc('whos_cooking_agg', {
-    p_brand_ids: brandUuids,
-    p_current_start: currentStart,
-    p_end: endDate,
-    p_prior_start: priorStart,
-    p_prior_end: priorEnd,
-    p_iron_chef_min: ironChefMinDays,
-  });
-  if (error) throw error;
-  const a = (agg ?? {}) as {
+  // Aggregation runs in Postgres (whos_cooking_agg_v2, mig 099: same shape as
+  // mig 055's whos_cooking_agg but the leaderboard carries 15 rows — top 10
+  // renders, rows 11+ feed "So close"; the v1 function stays untouched for
+  // the deployed formatter). NOT the full current+prior window of creator-day
+  // rows, which for a high-volume / umbrella / all-brands selection timed the
+  // function out. Called twice: once for the current window and once for the
+  // window immediately before it, so both v3 formats can show each handle's
+  // rank delta. Rookie of the Week is one cheap RPC on the roster rollups
+  // (get_roster_rookie, mig 097).
+  const [curRes, priorRes, rookieRes, discordMap] = await Promise.all([
+    supabase.rpc('whos_cooking_agg_v2', {
+      p_brand_ids: brandUuids,
+      p_current_start: currentStart,
+      p_end: endDate,
+      p_prior_start: priorStart,
+      p_prior_end: priorEnd,
+      p_iron_chef_min: ironChefMinDays,
+    }),
+    supabase.rpc('whos_cooking_agg_v2', {
+      p_brand_ids: brandUuids,
+      p_current_start: priorStart,
+      p_end: priorEndInclusive,
+      p_prior_start: prior2Start,
+      p_prior_end: priorStart,
+      p_iron_chef_min: ironChefMinDays,
+    }),
+    supabase.rpc('get_roster_rookie', {
+      p_brand_slugs: rosterSlugs,
+      p_start: currentStart,
+      p_end: endDate,
+      p_max_age_days: 21,
+    }),
+    getDiscordMap(supabase, brandFilter),
+  ]);
+
+  interface AggCreatorRow {
+    tiktok_username?: string;
+    gmv?: number | string;
+    orders?: number | string;
+    items_sold?: number | string;
+    videos?: number | string;
+    brand_id?: string;
+    daysPosted?: number | string;
+    priorGmv?: number | string;
+    breakoutPct?: number | string;
+  }
+
+  if (curRes.error) throw curRes.error;
+  const a = (curRes.data ?? {}) as {
     totalGmv?: number; creatorCount?: number; videoCount?: number;
-    leaderboard?: any[]; mostProlific?: any; ironChef?: any; breakoutStar?: any;
+    leaderboard?: AggCreatorRow[];
+    mostProlific?: AggCreatorRow | null;
+    ironChef?: AggCreatorRow | null;
+    breakoutStar?: AggCreatorRow | null;
   };
+
+  // Prior ranks (handle -> rank 1..15 in the prior window). A failed prior call
+  // DEGRADES delta markers (omitted), never fakes "(new)" for everyone.
+  let priorRanks: Map<string, number> | null = null;
+  if (priorRes.error) {
+    console.error('[discord-posts] whos_cooking_agg (prior window) failed - omitting rank deltas:', priorRes.error.message);
+  } else {
+    const p = (priorRes.data ?? {}) as { leaderboard?: AggCreatorRow[] };
+    const ranks = new Map<string, number>();
+    (p.leaderboard ?? []).forEach((c, i) => {
+      const h = String(c.tiktok_username || '').toLowerCase().replace('@', '');
+      if (h && !ranks.has(h)) ranks.set(h, i + 1);
+    });
+    priorRanks = ranks;
+  }
+
+  // Rookie of the Week — degrade on error, omit when the RPC finds nobody.
+  let rookie: WhosCookingData['rookie'] = null;
+  if (rookieRes.error) {
+    console.error('[discord-posts] get_roster_rookie failed - omitting rookie section:', rookieRes.error.message);
+  } else if (rookieRes.data && typeof rookieRes.data === 'object') {
+    const r = rookieRes.data as { handle?: string; gmv?: number | string };
+    const gmv = Number(r.gmv) || 0;
+    if (r.handle && gmv > 0) rookie = { handle: String(r.handle), gmv };
+  }
+
+  // SO CLOSE — highest-ranked creator outside the top 10 (rows 11+ of the
+  // v2 leaderboard). Omitted when nobody ranks 11+.
+  let soClose: WhosCookingData['soClose'] = null;
+  const rawBoard = a.leaderboard ?? [];
+  if (rawBoard.length > 10) {
+    const tenthGmv = Number(rawBoard[9]?.gmv) || 0;
+    const eleventh = rawBoard[10];
+    const gmv = Number(eleventh?.gmv) || 0;
+    const handle = String(eleventh?.tiktok_username || '').replace('@', '');
+    if (handle) soClose = { handle, gmv, gap: Math.max(0, Math.round(tenthGmv - gmv)) };
+  }
 
   // Discord mention map stays in JS — it isn't brand-volume-dependent. Attach
   // the mention id/name to each creator by handle.
-  const discordMap = await getDiscordMap(supabase, brandFilter);
-  const attach = (c: any) => {
+  const attach = (c: AggCreatorRow): WhosCookingEntry => {
     const handle = (c.tiktok_username || '').toLowerCase().replace('@', '');
     const d = discordMap.get(handle);
     return {
-      tiktok_username: c.tiktok_username,
+      tiktok_username: c.tiktok_username ?? '',
       gmv: Number(c.gmv) || 0,
       orders: Number(c.orders) || 0,
       items_sold: Number(c.items_sold) || 0,
       videos: Number(c.videos) || 0,
-      brand_id: c.brand_id,
+      brand_id: c.brand_id ?? '',
       discord_id: d?.discord_id ?? null,
       discord_name: d?.discord_name ?? null,
       daysPosted: Number(c.daysPosted) || 0,
       priorGmv: Number(c.priorGmv) || 0,
       breakoutPct: Number(c.breakoutPct) || 0,
+      priorRank: priorRanks?.get(handle) ?? null,
     };
   };
 
   return {
-    leaderboard: (a.leaderboard ?? []).map(attach),
+    leaderboard: rawBoard.map(attach),
     mostProlific: a.mostProlific ? attach(a.mostProlific) : null,
     ironChef: a.ironChef ? attach(a.ironChef) : null,
     breakoutStar: a.breakoutStar ? attach(a.breakoutStar) : null,
+    priorRanksAvailable: priorRanks !== null,
+    rookie,
+    soClose,
+    discordMap,
     totalGmv: Number(a.totalGmv ?? 0),
     creatorCount: Number(a.creatorCount ?? 0),
     videoCount: Number(a.videoCount ?? 0),
@@ -450,7 +560,22 @@ async function getMonthlyGoalInfo(supabase: any, brandFilter: string): Promise<M
 
 // ─── Daily Drop Types & Data ────────────────────────────────────
 
+/** Game mechanics from get_daily_drop_extras (mig 097, roster rollups). */
+export interface DailyDropExtras {
+  /** Lifetime-GMV threshold crossings yesterday (up to 3, biggest first). */
+  milestones: { handle: string; threshold: number }[];
+  /** First-ever sale yesterday (RPC returns up to 5; formatters show 3). */
+  firstSales: { handle: string; gmv: number }[];
+  /** Longest posting streak ending yesterday (RPC looks back 60 days). */
+  streak: { handle: string; days: number } | null;
+  /** Biggest daily-rank climber, yesterday vs day before. */
+  climber: { handle: string; rank: number; delta: number; gmv: number } | null;
+}
+
 export interface DailyDropData {
+  /** null = get_daily_drop_extras FAILED — the formatter omits the climber and
+   *  milestone sections rather than posting fake celebrations. */
+  extras: DailyDropExtras | null;
   yesterdayGmv: number;
   dayBeforeGmv: number;
   /** null = the MTD aggregate (dcs_gmv_sum) FAILED — the formatter omits the
@@ -501,6 +626,8 @@ export async function getDailyDropData(brandFilter: string): Promise<DailyDropDa
   const brandUuids = brandFilter && brandFilter !== 'all' ? resolveUuids(reg, brandFilter) : null;
   // video_performance is keyed by brand SLUG (store grain) — umbrellas expand.
   const vpBrandSlugs = brandFilter && brandFilter !== 'all' ? expandSlugs(reg, brandFilter) : null;
+  // Roster rollups are keyed at umbrella grain (store slug + its parent).
+  const rosterSlugs = rosterBrandSlugs(reg, brandFilter);
 
   // Each table can have its own latest upload date. Anchor each section's
   // queries to its own table so video/product sections still show the freshest
@@ -565,7 +692,7 @@ export async function getDailyDropData(brandFilter: string): Promise<DailyDropDa
     p_min_gmv: 25,
   });
 
-  const [aggRes, mtdSumRes, vpRes, goalInfo, discordMap] = await Promise.all([
+  const [aggRes, mtdSumRes, vpRes, extrasRes, goalInfo, discordMap] = await Promise.all([
     supabase.rpc('get_daily_drop_agg', {
       p_brand_ids: brandUuids,
       p_yesterday: yesterdayStr,
@@ -574,6 +701,13 @@ export async function getDailyDropData(brandFilter: string): Promise<DailyDropDa
     }),
     supabase.rpc('dcs_gmv_sum', { p_brand_ids: brandUuids, p_start: monthStartStr, p_end: yesterdayStr }),
     vpQuery,
+    // Game mechanics (milestones / streak / first sales / biggest climber) —
+    // one cheap RPC over the pg_cron-refreshed roster rollups (mig 097).
+    supabase.rpc('get_daily_drop_extras', {
+      p_brand_slugs: rosterSlugs,
+      p_yesterday: yesterdayStr,
+      p_day_before: dayBeforeStr,
+    }),
     getMonthlyGoalInfo(supabase, brandFilter),
     getDiscordMap(supabase, brandFilter),
   ]);
@@ -650,6 +784,41 @@ export async function getDailyDropData(brandFilter: string): Promise<DailyDropDa
   const yesterdayGmv = parseFloat(String(agg.yesterday_gmv ?? 0)) || 0;
   const dayBeforeGmv = parseFloat(String(agg.day_before_gmv ?? 0)) || 0;
 
+  // Extras degrade as a unit: a failed get_daily_drop_extras omits the climber
+  // and milestone sections (post still generates), never invents celebrations.
+  let extras: DailyDropExtras | null = null;
+  if (extrasRes.error) {
+    console.error('[discord-posts] get_daily_drop_extras failed - omitting climber/milestone sections:', extrasRes.error.message);
+  } else if (extrasRes.data && typeof extrasRes.data === 'object') {
+    const raw = extrasRes.data as {
+      milestones?: Array<{ handle?: string; threshold?: number | string }>;
+      first_sales?: Array<{ handle?: string; gmv?: number | string }>;
+      streak?: { handle?: string; days?: number | string } | null;
+      climber?: { handle?: string; rank?: number | string; delta?: number | string; gmv?: number | string } | null;
+    };
+    const climber = raw.climber && raw.climber.handle
+      ? {
+          handle: String(raw.climber.handle),
+          rank: Number(raw.climber.rank) || 0,
+          delta: Number(raw.climber.delta) || 0,
+          gmv: Number(raw.climber.gmv) || 0,
+        }
+      : null;
+    extras = {
+      milestones: (raw.milestones ?? [])
+        .map(m => ({ handle: String(m.handle ?? ''), threshold: Number(m.threshold) || 0 }))
+        .filter(m => m.handle && m.threshold > 0),
+      firstSales: (raw.first_sales ?? [])
+        .map(f => ({ handle: String(f.handle ?? ''), gmv: Number(f.gmv) || 0 }))
+        .filter(f => f.handle),
+      streak: raw.streak?.handle
+        ? { handle: String(raw.streak.handle), days: Number(raw.streak.days) || 0 }
+        : null,
+      // The RPC guarantees delta >= 1 and rank <= 50; drop anything malformed.
+      climber: climber && climber.delta > 0 && climber.rank > 0 ? climber : null,
+    };
+  }
+
   // Silent-zero rule: a failed dcs_gmv_sum must NOT post $0 MTD + bogus pacing
   // to Discord. null → the formatter omits the goal/pacing block entirely; the
   // rest of the post still generates.
@@ -663,6 +832,7 @@ export async function getDailyDropData(brandFilter: string): Promise<DailyDropDa
   }
 
   return {
+    extras,
     yesterdayGmv,
     dayBeforeGmv,
     mtdGmv,
@@ -681,12 +851,6 @@ export async function getDailyDropData(brandFilter: string): Promise<DailyDropDa
 }
 
 // ─── Discord Formatters ─────────────────────────────────────────
-
-function formatGmv(gmv: number): string {
-  return gmv % 1 === 0
-    ? gmv.toLocaleString()
-    : gmv.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
 
 function getMention(handle: string, discordId: string | null, discordName: string | null): string {
   if (discordId) return `<@${discordId}>`;
@@ -754,65 +918,164 @@ export function formatWhatsCookingDiscord(
   return text;
 }
 
+// v3 mockup formats. Both carry rank-delta markers vs the prior same-length
+// window; 'highlights' adds Rookie of the Week and So Close.
+
+const PORTAL_RANKINGS_URL = 'https://app.tempoapp.ai/creator-dashboard/rankings';
+
+/** Rank-delta marker: up N / down N / climbed in from 11+ / (new) / unchanged. */
+function deltaMarker(
+  currentRank: number,
+  entry: { priorRank: number | null; priorGmv: number },
+  priorRanksAvailable: boolean,
+): string {
+  if (!priorRanksAvailable) return '';
+  if (entry.priorRank !== null) {
+    const d = entry.priorRank - currentRank;
+    if (d > 0) return `▲${d}`;
+    if (d < 0) return `▼${Math.abs(d)}`;
+    return '-';
+  }
+  // Not in the prior 15-row board but had prior-window sales: climbed in from
+  // 16+, so they moved up AT LEAST (16 - currentRank) spots. Never faked "new".
+  if (entry.priorGmv > 0) return `▲${Math.max(1, 16 - currentRank)}+`;
+  return '(new)';
+}
+
+function whosCookingLabels(data: WhosCookingData, period: '7d' | '30d') {
+  const end = data.endDate;
+  const periodDays = period === '30d' ? 30 : 7;
+  const start = new Date(end);
+  start.setDate(end.getDate() - (periodDays - 1));
+  const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return {
+    rangeLabel: `${fmt(start)} – ${fmt(end)}`,
+    editionLabel: period === '30d' ? 'Monthly' : `Week of ${fmt(start)}`,
+    totalLabel: period === '30d' ? '30-day total' : 'Week total',
+  };
+}
+
+/** Plain-text handle for Slack posts (no Discord mention markup). */
+function slackHandle(handle: string): string {
+  return `@${(handle || '').replace('@', '')}`;
+}
+
+function whosCookingMention(data: WhosCookingData, handle: string): string {
+  const clean = (handle || '').replace('@', '');
+  const d = data.discordMap.get(clean.toLowerCase());
+  return getMention(clean, d?.discord_id ?? null, d?.discord_name ?? null);
+}
+
 export function formatWhosCookingDiscord(
   data: WhosCookingData,
   brandName: string,
-  period: '7d' | '30d'
+  period: '7d' | '30d',
+  format: WhosCookingFormat = 'highlights'
 ): string {
-  const today = data.endDate;
-  const periodDays = period === '30d' ? 30 : 7;
-  const periodStart = new Date(today);
-  periodStart.setDate(today.getDate() - periodDays);
+  const { rangeLabel, editionLabel, totalLabel } = whosCookingLabels(data, period);
 
-  const headerLabel = period === '30d' ? 'MONTHLY' : 'WEEKLY';
-  const rangeLabel = `${periodStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${today.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
-  const comparisonLabel = period === '30d' ? 'vs last month' : 'vs last week';
-  const totalDays = period === '30d' ? 30 : 7;
+  const boardLine = (c: WhosCookingEntry, i: number) => {
+    const handle = c.tiktok_username.replace('@', '');
+    const mention = getMention(handle, c.discord_id, c.discord_name);
+    const marker = deltaMarker(i + 1, c, data.priorRanksAvailable);
+    return `> ${i + 1}. ${mention} · **${formatCurrency(c.gmv)}**${marker ? `  ${marker}` : ''}\n`;
+  };
 
-  const subtitle = period === '30d' ? 'Top performers this month' : 'Top performers from the last 7 days';
-  let text = `👨‍🍳 **Who's Cooking?** | ${brandName} | ${headerLabel}\n`;
-  text += `*${subtitle}*\n\n`;
-  text += `📊 *${rangeLabel}* — **${formatCurrency(data.totalGmv)}** GMV across **${data.creatorCount}** creators (${data.videoCount} videos)\n\n`;
+  const footer = () => {
+    const countPart = data.creatorCount > 0 ? ` across **${data.creatorCount}** creators` : '';
+    return `\n💰 ${totalLabel}: **${formatCurrency(data.totalGmv)}**${countPart}\n`
+      + `🏆 See where you rank: <${PORTAL_RANKINGS_URL}>`;
+  };
 
-  // Leaderboard — top 10 with podium medals on first three
-  text += `**__👑 LEADERBOARD__**\n`;
+  if (format === 'classic') {
+    let text = `👨‍🍳 **WHO'S COOKING · THE BOARD** · ${brandName} · ${editionLabel}\n`;
+    text += `*Top 10 by GMV · ${rangeLabel}*\n\n`;
+    if (data.leaderboard.length === 0) {
+      text += `> No creator activity in this window.\n`;
+    } else {
+      data.leaderboard.slice(0, 10).forEach((c, i) => { text += boardLine(c, i); });
+    }
+    text += footer();
+    return text;
+  }
+
+  // Highlights — top 5, then Rookie of the Week, then So Close.
+  let text = `👨‍🍳 **WHO'S COOKING** · ${brandName} · ${editionLabel}\n`;
+  text += `*The highlight reel · ${rangeLabel}*\n\n`;
+
+  text += `**__👑 TOP 5__**\n`;
   if (data.leaderboard.length === 0) {
     text += `> No creator activity in this window.\n`;
   } else {
-    data.leaderboard.forEach((c, i) => {
-      const medal = i === 0 ? ' 🥇' : i === 1 ? ' 🥈' : i === 2 ? ' 🥉' : '';
-      const handle = c.tiktok_username.replace('@', '');
-      const tiktokUrl = `https://www.tiktok.com/@${handle}`;
-      const mention = getMention(handle, c.discord_id, c.discord_name);
-      text += `> ${i + 1}. ${mention} — [**${formatCurrency(c.gmv)}**](${tiktokUrl})${medal}\n`;
-    });
+    data.leaderboard.slice(0, 5).forEach((c, i) => { text += boardLine(c, i); });
   }
 
-  // Special Shoutouts — only if we have at least one to surface
-  const shoutouts: string[] = [];
-  if (data.mostProlific && data.mostProlific.videos >= 3) {
-    const m = data.mostProlific;
-    const mention = getMention(m.tiktok_username.replace('@', ''), m.discord_id, m.discord_name);
-    shoutouts.push(`> 🎬 **Most Prolific**: ${mention} dropped **${m.videos}** videos this ${period === '30d' ? 'month' : 'week'}!`);
-  }
-  if (data.ironChef) {
-    const ic = data.ironChef;
-    const mention = getMention(ic.tiktok_username.replace('@', ''), ic.discord_id, ic.discord_name);
-    const dayText = ic.daysPosted >= totalDays ? '**every single day**' : `**${ic.daysPosted} of ${totalDays}** days`;
-    shoutouts.push(`> 📅 **Iron Chef**: ${mention} posted ${dayText}!`);
-  }
-  if (data.breakoutStar) {
-    const bs = data.breakoutStar;
-    const mention = getMention(bs.tiktok_username.replace('@', ''), bs.discord_id, bs.discord_name);
-    shoutouts.push(`> 📈 **Breakout Star**: ${mention} up **${Math.round(bs.breakoutPct)}%** ${comparisonLabel}!`);
+  if (data.rookie) {
+    text += `\n**__🌱 ROOKIE OF THE WEEK__**\n`;
+    text += `> ${whosCookingMention(data, data.rookie.handle)} earned **${formatCurrency(data.rookie.gmv)}** in their first 3 weeks\n`;
   }
 
-  if (shoutouts.length > 0) {
-    text += `\n**__⭐ SPECIAL SHOUTOUTS__**\n`;
-    text += shoutouts.join('\n') + '\n';
+  if (data.soClose) {
+    text += `\n**__⚡ SO CLOSE__**\n`;
+    text += `> ${whosCookingMention(data, data.soClose.handle)} is **${formatCurrency(data.soClose.gap)}** from the top 10. One post.\n`;
   }
 
-  text += `\n@everyone`;
+  text += footer();
+  return text;
+}
+
+export function formatWhosCookingSlack(
+  data: WhosCookingData,
+  brandName: string,
+  period: '7d' | '30d',
+  format: WhosCookingFormat = 'highlights'
+): string {
+  const { rangeLabel, editionLabel, totalLabel } = whosCookingLabels(data, period);
+
+  const boardLine = (c: WhosCookingEntry, i: number) => {
+    const marker = deltaMarker(i + 1, c, data.priorRanksAvailable);
+    return `> ${i + 1}. ${slackHandle(c.tiktok_username)} · *${formatCurrency(c.gmv)}*${marker ? `  ${marker}` : ''}\n`;
+  };
+
+  const footer = () => {
+    const countPart = data.creatorCount > 0 ? ` across *${data.creatorCount}* creators` : '';
+    return `\n💰 ${totalLabel}: *${formatCurrency(data.totalGmv)}*${countPart}\n`
+      + `🏆 See where you rank: ${PORTAL_RANKINGS_URL}`;
+  };
+
+  if (format === 'classic') {
+    let text = `👨‍🍳 *WHO'S COOKING · THE BOARD* · ${brandName} · ${editionLabel}\n`;
+    text += `_Top 10 by GMV · ${rangeLabel}_\n\n`;
+    if (data.leaderboard.length === 0) {
+      text += `> No creator activity in this window.\n`;
+    } else {
+      data.leaderboard.slice(0, 10).forEach((c, i) => { text += boardLine(c, i); });
+    }
+    text += footer();
+    return text;
+  }
+
+  let text = `👨‍🍳 *WHO'S COOKING* · ${brandName} · ${editionLabel}\n`;
+  text += `_The highlight reel · ${rangeLabel}_\n\n`;
+
+  text += `*👑 TOP 5*\n`;
+  if (data.leaderboard.length === 0) {
+    text += `> No creator activity in this window.\n`;
+  } else {
+    data.leaderboard.slice(0, 5).forEach((c, i) => { text += boardLine(c, i); });
+  }
+
+  if (data.rookie) {
+    text += `\n*🌱 ROOKIE OF THE WEEK*\n`;
+    text += `> ${slackHandle(data.rookie.handle)} earned *${formatCurrency(data.rookie.gmv)}* in their first 3 weeks\n`;
+  }
+
+  if (data.soClose) {
+    text += `\n*⚡ SO CLOSE*\n`;
+    text += `> ${slackHandle(data.soClose.handle)} is *${formatCurrency(data.soClose.gap)}* from the top 10. One post.\n`;
+  }
+
+  text += footer();
   return text;
 }
 
@@ -841,52 +1104,103 @@ function getDailyDropMention(handle: string, discordMap: Map<string, { discord_i
   return `@${handle.replace('@', '')}`;
 }
 
+// Day-over-day change suffix for the headline GMV line (platform-neutral).
+function dailyDropDodChange(data: DailyDropData): string {
+  if (data.dayBeforeGmv <= 0) return '';
+  const changePercent = Math.round(((data.yesterdayGmv - data.dayBeforeGmv) / data.dayBeforeGmv) * 100);
+  const changeArrow = changePercent >= 0 ? '↑' : '↓';
+  const dayBeforeName = new Date(data.dayBeforeDate).toLocaleDateString('en-US', { weekday: 'short' });
+  return ` (${changeArrow}${Math.abs(changePercent)}% vs ${dayBeforeName})`;
+}
+
+// Goal / progress / pacing numbers — only when we have BOTH a configured goal
+// (brands_v2.monthly_gmv_goal) and a successful MTD read. A null goal or a
+// failed dcs_gmv_sum omits the block honestly instead of posting a fabricated
+// target or a fake $0 MTD. Month math anchors to the yesterday date so we
+// project against the correct month even when data is stale.
+function dailyDropGoalNumbers(data: DailyDropData): {
+  monthName: string;
+  monthlyGoal: number;
+  mtdGmv: number;
+  progressPercent: number;
+  progressBar: string;
+  onPace: boolean;
+  projectedTotal: number;
+  neededPerDay: number;
+} | null {
+  if (data.monthlyGoal === null || data.monthlyGoal <= 0 || data.mtdGmv === null) return null;
+  const yesterdayDate = new Date(data.yesterdayDate);
+  const mtdGmv = data.mtdGmv;
+  const monthlyGoal = data.monthlyGoal;
+  const progressPercent = Math.round((mtdGmv / monthlyGoal) * 100);
+  const daysInMonth = new Date(yesterdayDate.getFullYear(), yesterdayDate.getMonth() + 1, 0).getDate();
+  const dayOfMonth = yesterdayDate.getDate();
+  const daysRemaining = daysInMonth - dayOfMonth;
+  const dailyAverage = dayOfMonth > 0 ? mtdGmv / dayOfMonth : 0;
+  const projectedTotal = mtdGmv + (dailyAverage * daysRemaining);
+  const neededPerDay = daysRemaining > 0 ? (monthlyGoal - mtdGmv) / daysRemaining : 0;
+  return {
+    monthName: yesterdayDate.toLocaleDateString('en-US', { month: 'long' }).toUpperCase(),
+    monthlyGoal,
+    mtdGmv,
+    progressPercent,
+    progressBar: generateProgressBar(progressPercent),
+    onPace: projectedTotal >= monthlyGoal,
+    projectedTotal,
+    neededPerDay,
+  };
+}
+
+// Climber + milestone lines shared by the Discord and Slack variants; only the
+// mention and bold renderers differ per platform.
+function dailyDropClimberLine(
+  climber: NonNullable<DailyDropExtras['climber']>,
+  mention: (handle: string) => string,
+  bold: (s: string) => string,
+): string {
+  const noun = climber.delta === 1 ? 'spot' : 'spots';
+  return `> 🚀 ${mention(climber.handle)} jumped UP ${bold(String(climber.delta))} ${noun} to ${bold(`#${climber.rank}`)} with ${bold(formatCurrency(climber.gmv))} yesterday`;
+}
+
+function dailyDropMilestoneLines(
+  extras: DailyDropExtras | null,
+  mention: (handle: string) => string,
+  bold: (s: string) => string,
+): string[] {
+  if (!extras) return [];
+  const lines: string[] = [];
+  extras.milestones.forEach((m) => {
+    lines.push(`> 💰 ${mention(m.handle)} just crossed ${bold('$' + m.threshold.toLocaleString())} lifetime`);
+  });
+  if (extras.streak) {
+    // The RPC only looks back 60 days — a 60-day run means "60 or more".
+    const days = extras.streak.days >= 60 ? '60+ day' : `${extras.streak.days}-day`;
+    lines.push(`> 🔥 ${mention(extras.streak.handle)} is on a ${bold(days)} posting streak`);
+  }
+  extras.firstSales.slice(0, 3).forEach((f) => {
+    lines.push(`> 🎊 FIRST SALE: ${mention(f.handle)} is on the board. Welcome.`);
+  });
+  return lines;
+}
+
 export function formatDailyDropDiscord(data: DailyDropData, brandName: string): string {
   const yesterdayDate = new Date(data.yesterdayDate);
   const dateFull = yesterdayDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-  const monthName = yesterdayDate.toLocaleDateString('en-US', { month: 'long' }).toUpperCase();
+  const dodChange = dailyDropDodChange(data);
+  const mention = (handle: string) => getDailyDropMention(handle, data.discordMap);
+  const bold = (s: string) => `**${s}**`;
 
-  // Day-over-day change
-  let dodChange = '';
-  if (data.dayBeforeGmv > 0) {
-    const changePercent = Math.round(((data.yesterdayGmv - data.dayBeforeGmv) / data.dayBeforeGmv) * 100);
-    const changeArrow = changePercent >= 0 ? '↑' : '↓';
-    const dayBeforeName = new Date(data.dayBeforeDate).toLocaleDateString('en-US', { weekday: 'short' });
-    dodChange = ` (${changeArrow}${Math.abs(changePercent)}% vs ${dayBeforeName})`;
-  }
-
-  // Goal / progress / pacing block — only when we have BOTH a configured goal
-  // (brands_v2.monthly_gmv_goal) and a successful MTD read. A null goal or a
-  // failed dcs_gmv_sum omits the block honestly instead of posting a fabricated
-  // target or a fake $0 MTD.
+  const goal = dailyDropGoalNumbers(data);
   let goalBlock = '';
-  if (data.monthlyGoal !== null && data.monthlyGoal > 0 && data.mtdGmv !== null) {
-    const mtdGmv = data.mtdGmv;
-    const monthlyGoal = data.monthlyGoal;
-    const progressPercent = Math.round((mtdGmv / monthlyGoal) * 100);
-    const progressBar = generateProgressBar(progressPercent);
-
-    // Goal pacing — anchor month math to the yesterday date so we project against
-    // the correct month even when data is stale (otherwise we'd compare MTD against
-    // the wrong month's day count)
-    const daysInMonth = new Date(yesterdayDate.getFullYear(), yesterdayDate.getMonth() + 1, 0).getDate();
-    const dayOfMonth = yesterdayDate.getDate();
-    const daysRemaining = daysInMonth - dayOfMonth;
-    const dailyAverage = dayOfMonth > 0 ? mtdGmv / dayOfMonth : 0;
-    const projectedTotal = mtdGmv + (dailyAverage * daysRemaining);
-    let pacingNote = '';
-    if (projectedTotal >= monthlyGoal) {
-      pacingNote = `📈 On pace to hit **${formatCurrency(projectedTotal)}** by month end`;
-    } else {
-      const neededPerDay = daysRemaining > 0 ? (monthlyGoal - mtdGmv) / daysRemaining : 0;
-      pacingNote = `⚡ Need **${formatCurrency(neededPerDay)}/day** to hit goal`;
-    }
-
+  if (goal) {
+    const pacingNote = goal.onPace
+      ? `📈 On pace to hit **${formatCurrency(goal.projectedTotal)}** by month end`
+      : `⚡ Need **${formatCurrency(goal.neededPerDay)}/day** to hit goal`;
     const goalScope = data.goalBrandCount > 1
       ? ` _(across ${data.goalBrandCount} brands with goals set)_`
       : '';
-    goalBlock = `📊 ${monthName} GOAL: **${formatCurrency(monthlyGoal)}**${goalScope}\n`
-      + `🔥 PROGRESS: ${progressBar} **${progressPercent}%** (${formatCurrency(mtdGmv)})\n`
+    goalBlock = `📊 ${goal.monthName} GOAL: **${formatCurrency(goal.monthlyGoal)}**${goalScope}\n`
+      + `🔥 PROGRESS: ${goal.progressBar} **${goal.progressPercent}%** (${formatCurrency(goal.mtdGmv)})\n`
       + `${pacingNote}\n`;
   }
 
@@ -899,17 +1213,22 @@ export function formatDailyDropDiscord(data: DailyDropData, brandName: string): 
   msg += goalBlock;
   msg += `\n${DIV}\n\n`;
 
-  // Top 5 Creators — @handle linked to their TikTok profile (clean, no mass-ping)
-  msg += `**__👑 TOP 5 CREATORS (Yesterday)__**\n`;
+  // Top 3 Creators — mentions via the Discord map (falls back to @handle).
+  msg += `**__👑 TOP 3 CREATORS (Yesterday)__**\n`;
   if (data.topCreators.length === 0) {
     msg += `> No creator data available\n`;
   } else {
-    data.topCreators.slice(0, 5).forEach((c, i) => {
-      const handle = (c.tiktok_username || '').replace('@', '');
-      msg += `> ${i + 1}. [@${handle}](https://www.tiktok.com/@${handle}) — **${formatCurrency(c.gmv)}**\n`;
+    data.topCreators.slice(0, 3).forEach((c, i) => {
+      msg += `> ${i + 1}. ${mention(c.tiktok_username || '')} · **${formatCurrency(c.gmv)}**\n`;
     });
   }
-  msg += `\n━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+
+  // Biggest Climber — from get_daily_drop_extras; omitted when null.
+  if (data.extras?.climber) {
+    msg += `\n**__🚀 BIGGEST CLIMBER__**\n`;
+    msg += dailyDropClimberLine(data.extras.climber, mention, bold) + '\n';
+  }
+  msg += `\n${DIV}\n\n`;
 
   // Top 5 Videos — use markdown links rather than naked URLs.
   // Label the section's "as of" date when video data lags creator data.
@@ -926,13 +1245,13 @@ export function formatDailyDropDiscord(data: DailyDropData, brandName: string): 
       const handle = (v.tiktok_username || '').replace('@', '');
       const url = v.video_url || getTikTokUrl(v.tiktok_username, v.video_id);
       if (url) {
-        msg += `> ${i + 1}. [@${handle}](${url}) — **${formatCurrency(v.gmv)}**\n`;
+        msg += `> ${i + 1}. [@${handle}](${url}) · **${formatCurrency(v.gmv)}**\n`;
       } else {
-        msg += `> ${i + 1}. @${handle} — **${formatCurrency(v.gmv)}**\n`;
+        msg += `> ${i + 1}. @${handle} · **${formatCurrency(v.gmv)}**\n`;
       }
     });
   }
-  msg += `\n━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+  msg += `\n${DIV}\n\n`;
 
   // Top 5 Products — label the section's "as of" date when product data lags.
   const productAsOfStr = data.productAsOf.toISOString().slice(0, 10);
@@ -944,10 +1263,10 @@ export function formatDailyDropDiscord(data: DailyDropData, brandName: string): 
     msg += `> No product data available\n`;
   } else {
     data.topProducts.slice(0, 5).forEach((p, i) => {
-      msg += `> ${i + 1}. ${p.name} — **${formatCurrency(p.gmv)}**\n`;
+      msg += `> ${i + 1}. ${p.name} · **${formatCurrency(p.gmv)}**\n`;
     });
   }
-  msg += `\n━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+  msg += `\n${DIV}\n\n`;
 
   // One to Watch — two-line narrative with the naked link (Discord shows a preview)
   msg += `**__👀 ONE TO WATCH__**\n`;
@@ -955,13 +1274,118 @@ export function formatDailyDropDiscord(data: DailyDropData, brandName: string): 
     const handle = (data.oneToWatch.tiktok_username || '').replace('@', '');
     const url = data.oneToWatch.video_url
       || getTikTokUrl(data.oneToWatch.tiktok_username, data.oneToWatch.video_id);
-    msg += `> @${handle} — ${url || 'Link unavailable'}\n`;
+    msg += `> @${handle} · ${url || 'Link unavailable'}\n`;
     msg += `> Posted ${data.oneToWatch.hoursAgo} hours ago. Already at **${formatCurrency(data.oneToWatch.gmv)}** and climbing.\n`;
   } else {
     msg += `> No trending videos to highlight today.\n`;
   }
-
   msg += `\n${DIV}\n\n`;
+
+  // Milestones — crossings, streak, first sales; whole section omitted when
+  // everything is empty (or the extras RPC failed).
+  const milestones = dailyDropMilestoneLines(data.extras, mention, bold);
+  if (milestones.length > 0) {
+    msg += `**__🎉 MILESTONES__**\n`;
+    msg += milestones.join('\n') + '\n';
+    msg += `\n${DIV}\n\n`;
+  }
+
+  msg += `🏆 See where you rank: <${PORTAL_RANKINGS_URL}>\n`;
+  msg += `Let's get it today. 🔥`;
+
+  return msg;
+}
+
+export function formatDailyDropSlack(data: DailyDropData, brandName: string): string {
+  const yesterdayDate = new Date(data.yesterdayDate);
+  const dateFull = yesterdayDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  const dodChange = dailyDropDodChange(data);
+  const mention = (handle: string) => slackHandle(handle);
+  const bold = (s: string) => `*${s}*`;
+
+  let msg = `📈 *DAILY DROP · ${brandName} · ${dateFull}*\n\n`;
+  msg += `💰 YESTERDAY'S GMV: *${formatCurrency(data.yesterdayGmv)}*${dodChange}\n`;
+
+  const goal = dailyDropGoalNumbers(data);
+  if (goal) {
+    const pacingNote = goal.onPace
+      ? `📈 On pace to hit *${formatCurrency(goal.projectedTotal)}* by month end`
+      : `⚡ Need *${formatCurrency(goal.neededPerDay)}/day* to hit goal`;
+    const goalScope = data.goalBrandCount > 1
+      ? ` (across ${data.goalBrandCount} brands with goals set)`
+      : '';
+    msg += `📊 ${goal.monthName} GOAL: *${formatCurrency(goal.monthlyGoal)}*${goalScope}\n`;
+    msg += `🔥 PROGRESS: ${goal.progressBar} *${goal.progressPercent}%* (${formatCurrency(goal.mtdGmv)})\n`;
+    msg += `${pacingNote}\n`;
+  }
+  msg += `\n`;
+
+  msg += `*👑 TOP 3 CREATORS (Yesterday)*\n`;
+  if (data.topCreators.length === 0) {
+    msg += `> No creator data available\n`;
+  } else {
+    data.topCreators.slice(0, 3).forEach((c, i) => {
+      msg += `> ${i + 1}. ${mention(c.tiktok_username || '')} · *${formatCurrency(c.gmv)}*\n`;
+    });
+  }
+
+  if (data.extras?.climber) {
+    msg += `\n*🚀 BIGGEST CLIMBER*\n`;
+    msg += dailyDropClimberLine(data.extras.climber, mention, bold) + '\n';
+  }
+  msg += `\n`;
+
+  const videoAsOfStr = data.videoAsOf.toISOString().slice(0, 10);
+  const yesterdayStr2 = yesterdayDate.toISOString().slice(0, 10);
+  const videoStaleLabel = videoAsOfStr !== yesterdayStr2
+    ? ` (as of ${data.videoAsOf.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})`
+    : '';
+  msg += `*🎬 TOP 5 VIDEOS (Yesterday)*${videoStaleLabel}\n`;
+  if (data.topVideos.length === 0) {
+    msg += `> No video data available\n`;
+  } else {
+    data.topVideos.slice(0, 5).forEach((v, i) => {
+      const handle = (v.tiktok_username || '').replace('@', '');
+      const url = v.video_url || getTikTokUrl(v.tiktok_username, v.video_id);
+      // Slack link syntax: <url|label>
+      const who = url ? `<${url}|@${handle}>` : `@${handle}`;
+      msg += `> ${i + 1}. ${who} · *${formatCurrency(v.gmv)}*\n`;
+    });
+  }
+  msg += `\n`;
+
+  const productAsOfStr = data.productAsOf.toISOString().slice(0, 10);
+  const productStaleLabel = productAsOfStr !== yesterdayStr2
+    ? ` (as of ${data.productAsOf.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})`
+    : '';
+  msg += `*📦 TOP 5 PRODUCTS (Yesterday)*${productStaleLabel}\n`;
+  if (data.topProducts.length === 0) {
+    msg += `> No product data available\n`;
+  } else {
+    data.topProducts.slice(0, 5).forEach((p, i) => {
+      msg += `> ${i + 1}. ${p.name} · *${formatCurrency(p.gmv)}*\n`;
+    });
+  }
+  msg += `\n`;
+
+  msg += `*👀 ONE TO WATCH*\n`;
+  if (data.oneToWatch) {
+    const handle = (data.oneToWatch.tiktok_username || '').replace('@', '');
+    const url = data.oneToWatch.video_url
+      || getTikTokUrl(data.oneToWatch.tiktok_username, data.oneToWatch.video_id);
+    msg += `> @${handle} · ${url || 'Link unavailable'}\n`;
+    msg += `> Posted ${data.oneToWatch.hoursAgo} hours ago. Already at *${formatCurrency(data.oneToWatch.gmv)}* and climbing.\n`;
+  } else {
+    msg += `> No trending videos to highlight today.\n`;
+  }
+
+  const milestones = dailyDropMilestoneLines(data.extras, mention, bold);
+  if (milestones.length > 0) {
+    msg += `\n*🎉 MILESTONES*\n`;
+    msg += milestones.join('\n') + '\n';
+  }
+
+  msg += `\n🏆 See where you rank: ${PORTAL_RANKINGS_URL}\n`;
   msg += `Let's get it today. 🔥`;
 
   return msg;
