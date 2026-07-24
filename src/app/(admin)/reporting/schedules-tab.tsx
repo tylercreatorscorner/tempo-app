@@ -172,10 +172,13 @@ export function SchedulesTab() {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-sm text-muted-foreground">Automated report delivery to Discord and Slack channels.</p>
-        <Button size="md" onClick={() => { setEditing(null); setShowModal(true); }}>
+    <section className="space-y-3">
+      <div className="flex items-end justify-between gap-3">
+        <div>
+          <h2 className="text-base font-bold tracking-tight text-foreground">Scheduled</h2>
+          <p className="mt-0.5 text-sm text-muted-foreground">Automated report delivery to Discord and Slack channels.</p>
+        </div>
+        <Button variant="outline" size="md" className="shrink-0" onClick={() => { setEditing(null); setShowModal(true); }}>
           <Calendar />
           New Schedule
         </Button>
@@ -304,7 +307,7 @@ export function SchedulesTab() {
           onConfirm={handleDeleteConfirmed}
         />
       )}
-    </div>
+    </section>
   );
 }
 
@@ -345,8 +348,14 @@ function ConfirmDeleteModal({
 function ScheduleModal({
   editing, onClose, onSaved,
 }: { editing: ScheduleRow | null; onClose: () => void; onSaved: () => void }) {
+  // The long-form text reports (performance-summary / creator-activity /
+  // brand-report) are retired for NEW schedules — the Outbox only creates
+  // client links and creator posts now. Existing 'reporting'-source rows stay
+  // fully editable (the runner still delivers them), so the legacy source
+  // toggle + options only appear when editing one of those rows.
+  const legacyLongForm = editing?.source === 'reporting';
   const [source, setSource] = useState<'discord-posts' | 'reporting'>(
-    (editing?.source as 'discord-posts' | 'reporting') ?? 'discord-posts',
+    legacyLongForm ? 'reporting' : 'discord-posts',
   );
   // Discord-post schedules aggregate the LeeFar umbrella; text-report schedules
   // are per-store. Collapse the umbrella only for the former.
@@ -416,22 +425,24 @@ function ScheduleModal({
           <h3 className="text-base font-bold text-foreground">{editing ? 'Edit Schedule' : 'New Schedule'}</h3>
 
           <div className="space-y-3">
-            {/* Source */}
-            <div>
-              <Label>Type</Label>
-              <SegmentedControl<'discord-posts' | 'reporting'>
-                ariaLabel="Schedule type"
-                options={[
-                  { value: 'discord-posts', label: 'Quick Post' },
-                  { value: 'reporting',     label: 'Long Report' },
-                ]}
-                value={source}
-                onValueChange={(v) => {
-                  setSource(v);
-                  setReportType(v === 'discord-posts' ? 'daily-drop' : 'performance-summary');
-                }}
-              />
-            </div>
+            {/* Source — legacy long-form rows only; new schedules are always quick posts */}
+            {legacyLongForm && (
+              <div>
+                <Label>Type</Label>
+                <SegmentedControl<'discord-posts' | 'reporting'>
+                  ariaLabel="Schedule type"
+                  options={[
+                    { value: 'discord-posts', label: 'Quick Post' },
+                    { value: 'reporting',     label: 'Long Report' },
+                  ]}
+                  value={source}
+                  onValueChange={(v) => {
+                    setSource(v);
+                    setReportType(v === 'discord-posts' ? 'daily-drop' : 'performance-summary');
+                  }}
+                />
+              </div>
+            )}
 
             {/* Report */}
             <div>
