@@ -333,7 +333,10 @@ export function BrandEditSheet({
                 }
               >
                 <NumberInput
-                  value={values.marketing_commission_rate * 100}
+                  // Stored as a decimal (0.02 = 2%). The x100 display round-trip is
+                  // float-unstable (0.07 * 100 = 7.000000000000001, rewriting the
+                  // user's keystroke) — snap to 4 decimals of a percent.
+                  value={Number((values.marketing_commission_rate * 100).toFixed(4))}
                   step={0.25}
                   onChange={(v) => set('marketing_commission_rate', v / 100)}
                 />

@@ -364,6 +364,19 @@ function InvoicePdfDoc({ data }: { data: InvoicePdfData }) {
     return { title: item.title, sub: subParts.length ? subParts.join('  ·  ') : undefined, amount: item.amount };
   });
 
+  // Coherence check (mirrors share-view): a hand-edited stored total can
+  // drift from its line items — surface the signed difference as an explicit
+  // Adjustment line so the document always sums.
+  const lineSum = lineItems.reduce((sum, item) => sum + item.amount, 0);
+  const totalDelta = data.totalAmount - lineSum;
+  if (Math.abs(totalDelta) > 1) {
+    lineItems.push({
+      title: 'Adjustment',
+      sub: 'Manually adjusted total - the stored total differs from the line items',
+      amount: totalDelta,
+    });
+  }
+
   const totalCreatorCommission = data.creators.reduce((sum, c) => sum + c.commission, 0);
   const totalCreatorGmv = data.creators.reduce((sum, c) => sum + c.gmv, 0);
 
@@ -481,11 +494,14 @@ function InvoicePdfDoc({ data }: { data: InvoicePdfData }) {
           </View>
         </View>
 
-        {/* Grand total panel */}
+        {/* Grand total panel — void invoices must not carry due-language
+            (mirrors the share view's "Voided - no payment due"). */}
         <View style={s.grandWrap} wrap={false}>
           <View>
-            <Text style={s.grandLabel}>Total Due</Text>
-            <Text style={s.grandHint}>Payable on or before {fmtDate(data.dueDate)}</Text>
+            <Text style={s.grandLabel}>{data.status === 'void' ? 'Voided' : 'Total Due'}</Text>
+            <Text style={s.grandHint}>
+              {data.status === 'void' ? 'No payment due' : `Payable on or before ${fmtDate(data.dueDate)}`}
+            </Text>
           </View>
           <Text style={s.grandValue}>{fmtCurrency(data.totalAmount)}</Text>
         </View>

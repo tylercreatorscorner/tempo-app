@@ -283,6 +283,15 @@ export function EarningsClient({ initialMonth, initialView, initialYear }: {
       brands: prev.brands.map((b) => (b.brand === row.brand ? {
         ...b,
         rate: saved.commission_rate,
+        // Keep the per-creator rows coherent with the new brand rate: creators
+        // sitting ON the old default (within the same 0.01 tolerance the sheet
+        // preview uses) follow it; genuine overrides keep their rate. Uses the
+        // PRE-patch b.rate — after the patch, defaults would be
+        // indistinguishable from overrides and a mid-reconcile reopen would
+        // pin the preview at the old rate.
+        creators: b.creators.map((c) =>
+          Math.abs(c.rate - b.rate) <= 0.01 ? { ...c, rate: saved.commission_rate } : c,
+        ),
         configuredRetainer: saved.retainer,
         launchFee: saved.launch_fee,
         launchFeeName: saved.launch_fee_name,

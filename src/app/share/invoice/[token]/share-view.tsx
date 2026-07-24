@@ -119,7 +119,8 @@ export function ShareView({ token, invoice, todayIso }: Props) {
   // the PDF builds from the same function, so web and PDF can never disagree
   // about which rows an invoice has.
   const creatorCount = invoice.creators.filter((c) => c && c.name).length;
-  const lineItems = buildDisplayLineItems(invoice).map((item) => {
+  type DisplayRow = { key: string; title: string; sub?: string | undefined; amount: number; tooltip?: string };
+  const lineItems: DisplayRow[] = buildDisplayLineItems(invoice).map((item) => {
     let sub: string | undefined;
     if (item.key === 'commission') {
       // GMV sub-caption from the STORED totals (frozen at generation).
@@ -135,13 +136,35 @@ export function ShareView({ token, invoice, todayIso }: Props) {
     return { key: item.key, title: item.title, sub, amount: item.amount };
   });
 
+  // Coherence check: the document must always sum. A hand-edited stored total
+  // can drift from its line items (prod: lines $14,650.57 under a $34,650.57
+  // total) — surface the signed difference as an explicit Adjustment line
+  // rather than shipping a client-facing document that doesn't add up.
+  const lineSum = lineItems.reduce((sum, item) => sum + item.amount, 0);
+  const totalDelta = invoice.totalAmount - lineSum;
+  if (Math.abs(totalDelta) > 1) {
+    lineItems.push({
+      key: 'adjustment',
+      title: 'Adjustment',
+      amount: totalDelta,
+      tooltip: 'Manually adjusted total - the stored total differs from the line items',
+    });
+  }
+
+  const isVoid = invoice.status === 'void';
+  // Payment guidance (bank instructions + the pay-online preview) belongs on
+  // OPEN invoices only — a paid or voided document must not ask for money.
+  const isOpenForPayment = invoice.status === 'pending' || invoice.status === 'sent';
+
   // Net terms for the total row, derived from the stored issue + due dates.
   const netDays = invoice.dueDate
     ? Math.round((Date.parse(invoice.dueDate) - Date.parse(invoice.generatedAt.slice(0, 10))) / 86_400_000)
     : null;
   const totalLabel = invoice.status === 'paid'
     ? 'Total paid'
-    : `Total due${netDays && netDays > 0 ? ` · net ${netDays}` : ''}`;
+    : isVoid
+      ? 'Voided - no payment due'
+      : `Total due${netDays && netDays > 0 ? ` · net ${netDays}` : ''}`;
 
   const fromName = invoice.billFrom.name || FALLBACK_BILL_FROM_NAME;
   const noteAuthor = invoice.billFrom.name?.trim().split(/\s+/)[0] || 'your account lead';
@@ -194,7 +217,11 @@ export function ShareView({ token, invoice, todayIso }: Props) {
         {/* Line items */}
         <div className="overflow-hidden rounded-[14px] border border-[#e7e7f2] bg-white">
           {lineItems.map((item) => (
-            <div key={item.key} className="flex items-baseline justify-between gap-3.5 border-b border-[#f2f1f8] px-[18px] py-3">
+            <div
+              key={item.key}
+              title={item.tooltip}
+              className="flex items-baseline justify-between gap-3.5 border-b border-[#f2f1f8] px-[18px] py-3"
+            >
               <div>
                 <div className="text-[13px] font-semibold">{item.title}</div>
                 {item.sub && <div className="mt-px text-[11px] text-[#8a8fb0]">{item.sub}</div>}
@@ -204,7 +231,15 @@ export function ShareView({ token, invoice, todayIso }: Props) {
           ))}
           <div className="flex items-baseline justify-between gap-3.5 bg-[#f7f7fc] px-[18px] py-3.5">
             <div className="text-sm font-extrabold">{totalLabel}</div>
-            <div className="text-xl font-extrabold tabular-nums text-[#5b5ee8]">{formatCurrencyExact(invoice.totalAmount)}</div>
+            <div
+              className={
+                isVoid
+                  ? 'text-xl font-extrabold tabular-nums text-[#8a8fb0] line-through'
+                  : 'text-xl font-extrabold tabular-nums text-[#5b5ee8]'
+              }
+            >
+              {formatCurrencyExact(invoice.totalAmount)}
+            </div>
           </div>
         </div>
 
@@ -216,37 +251,41 @@ export function ShareView({ token, invoice, todayIso }: Props) {
           </div>
         )}
 
-        {/* Payment row: instructions beside the Phase B pay-online preview */}
-        <div className={`mt-4 grid grid-cols-1 gap-3.5 ${invoice.paymentInstructions ? 'md:grid-cols-[1.2fr_1fr]' : ''}`}>
-          {invoice.paymentInstructions && (
-            <div className="rounded-[14px] border border-[#e7e7f2] bg-white px-[18px] py-4">
-              <div className="mb-2 text-[9.5px] font-extrabold uppercase tracking-[0.12em] text-[#8a8fb0]">
-                Pay by bank transfer
+        {/* Payment row: instructions beside the Phase B pay-online preview.
+            Open invoices only — a paid or voided document must not solicit
+            payment. */}
+        {isOpenForPayment && (
+          <div className={`mt-4 grid grid-cols-1 gap-3.5 ${invoice.paymentInstructions ? 'md:grid-cols-[1.2fr_1fr]' : ''}`}>
+            {invoice.paymentInstructions && (
+              <div className="rounded-[14px] border border-[#e7e7f2] bg-white px-[18px] py-4">
+                <div className="mb-2 text-[9.5px] font-extrabold uppercase tracking-[0.12em] text-[#8a8fb0]">
+                  Pay by bank transfer
+                </div>
+                <pre className="whitespace-pre-wrap font-mono text-xs leading-[1.6] text-[#33375c]">{invoice.paymentInstructions}</pre>
               </div>
-              <pre className="whitespace-pre-wrap font-mono text-xs leading-[1.6] text-[#33375c]">{invoice.paymentInstructions}</pre>
-            </div>
-          )}
-          {/* Pay online ships dark until Stripe ACH (Phase B) is armed — this is
-              a non-interactive preview, exactly as mocked. */}
-          <div className="relative rounded-[14px] border border-dashed border-[#c9c6ea] bg-[#fbfaff] px-[18px] py-4">
-            <span className="absolute right-3 top-2.5 rounded-full border border-[#e3e0f5] bg-white px-2 py-0.5 text-[9px] font-extrabold tracking-[0.1em] text-[#8a8fb0]">
-              Coming soon
-            </span>
-            <div className="mb-2 text-[9.5px] font-extrabold uppercase tracking-[0.12em] text-[#8a8fb0]">
-              Or pay online
-            </div>
-            <span
-              className="mb-2 block cursor-default rounded-[11px] py-3 text-center text-sm font-extrabold text-white"
-              style={{ background: 'linear-gradient(135deg,#5b5ee8,#a855f7)' }}
-              aria-disabled="true"
-            >
-              Pay {formatCurrencyExact(invoice.totalAmount)} &middot; bank debit (ACH)
-            </span>
-            <div className="text-center text-[10.5px] text-[#8a8fb0]">
-              Secure ACH via Stripe &middot; fees capped at $5 &middot; marks the invoice paid automatically
+            )}
+            {/* Pay online ships dark until Stripe ACH (Phase B) is armed — this is
+                a non-interactive preview, exactly as mocked. */}
+            <div className="relative rounded-[14px] border border-dashed border-[#c9c6ea] bg-[#fbfaff] px-[18px] py-4">
+              <span className="absolute right-3 top-2.5 rounded-full border border-[#e3e0f5] bg-white px-2 py-0.5 text-[9px] font-extrabold tracking-[0.1em] text-[#8a8fb0]">
+                Coming soon
+              </span>
+              <div className="mb-2 text-[9.5px] font-extrabold uppercase tracking-[0.12em] text-[#8a8fb0]">
+                Or pay online
+              </div>
+              <span
+                className="mb-2 block cursor-default rounded-[11px] py-3 text-center text-sm font-extrabold text-white"
+                style={{ background: 'linear-gradient(135deg,#5b5ee8,#a855f7)' }}
+                aria-disabled="true"
+              >
+                Pay {formatCurrencyExact(invoice.totalAmount)} &middot; bank debit (ACH)
+              </span>
+              <div className="text-center text-[10.5px] text-[#8a8fb0]">
+                Secure ACH via Stripe &middot; fees capped at $5 &middot; marks the invoice paid automatically
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Operator notes (net terms, PO numbers) — also on the PDF, kept here
             so the web view and the export never disagree on client-visible

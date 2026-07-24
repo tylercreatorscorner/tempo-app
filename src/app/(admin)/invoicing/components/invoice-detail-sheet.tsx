@@ -116,10 +116,17 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
     } else {
       setShareUrl(null);
     }
+  }, [invoice]);
+
+  // Transient notices reset only when a DIFFERENT invoice opens. Keyed on the
+  // id, not the object: handleSend/handleEmail set these and then hand a fresh
+  // invoice object back via onUpdated — an [invoice]-keyed reset would wipe
+  // them one frame after they appear.
+  useEffect(() => {
     setCopied(false);
     setEmailNotice(null);
     setSendNotice(null);
-  }, [invoice]);
+  }, [invoice.id]);
 
   const computedTotal =
     draft.commission + draft.retainer + draft.product_retainer + draft.launch_fee;

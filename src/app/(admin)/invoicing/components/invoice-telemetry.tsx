@@ -50,7 +50,11 @@ export function NudgedSpan({ invoice }: { invoice: Invoice }) {
   );
 }
 
-type NudgeState = 'idle' | 'busy' | 'emailed' | 'copied' | 'error';
+type NudgeState =
+  | { kind: 'idle' | 'busy' | 'emailed' | 'copied' | 'error' }
+  /** Nudge logged but the client was NOT emailed — link on the clipboard.
+   *  Sticky (no auto-reset): the operator must see this before moving on. */
+  | { kind: 'not_emailed'; warning: string };
 
 /**
  * One-click nudge. On success the server has ALWAYS stamped the nudge log;
@@ -68,61 +72,85 @@ export function NudgeButton({
   onDone: () => void;
   className?: string;
 }) {
-  const [state, setState] = useState<NudgeState>('idle');
+  const [state, setState] = useState<NudgeState>({ kind: 'idle' });
   const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (resetTimer.current) clearTimeout(resetTimer.current); }, []);
 
+  // A different invoice landing in this slot (list re-sort / refetch reuse)
+  // must not inherit another invoice's sticky warning. Keyed on id, so the
+  // same-invoice refetch that a nudge itself triggers leaves it in place.
+  useEffect(() => {
+    setState({ kind: 'idle' });
+    if (resetTimer.current) clearTimeout(resetTimer.current);
+  }, [invoice.id]);
+
   const settle = (next: NudgeState) => {
     setState(next);
-    resetTimer.current = setTimeout(() => setState('idle'), 2500);
+    if (resetTimer.current) clearTimeout(resetTimer.current);
+    // The not-emailed warning is sticky — the operator has to see it. Every
+    // other settled state fades back to idle.
+    if (next.kind !== 'not_emailed') {
+      resetTimer.current = setTimeout(() => setState({ kind: 'idle' }), 2500);
+    }
   };
 
   async function handleNudge(e: React.MouseEvent) {
     // Cards and rows open the detail sheet on click — a nudge must not.
     e.stopPropagation();
-    if (state === 'busy') return;
-    setState('busy');
+    if (state.kind === 'busy') return;
+    setState({ kind: 'busy' });
     try {
       const res = await fetch(`/api/invoices/${invoice.id}/nudge`, { method: 'POST' });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
       if (j.emailed) {
-        settle('emailed');
+        settle({ kind: 'emailed' });
       } else {
-        // Copy-based nudge: the log is stamped, the link is the payload.
+        // Copy-based nudge: the log is stamped, the link is the payload — but
+        // the client was NOT emailed, and that must not read like success.
         if (j.url) await navigator.clipboard.writeText(j.url).catch(() => {});
-        settle('copied');
+        if (j.warning) {
+          settle({ kind: 'not_emailed', warning: String(j.warning) });
+        } else {
+          settle({ kind: 'copied' });
+        }
       }
       onDone();
     } catch {
-      settle('error');
+      settle({ kind: 'error' });
     }
   }
 
   const count = Number(invoice.nudge_count ?? 0);
   const label =
-    state === 'busy' ? 'Nudging' :
-    state === 'emailed' ? 'Reminder sent' :
-    state === 'copied' ? 'Link copied' :
-    state === 'error' ? 'Nudge failed' :
+    state.kind === 'busy' ? 'Nudging' :
+    state.kind === 'emailed' ? 'Reminder sent' :
+    state.kind === 'copied' ? 'Link copied' :
+    state.kind === 'not_emailed' ? 'Not emailed - link copied' :
+    state.kind === 'error' ? 'Nudge failed' :
     count > 0 ? 'Nudge again' : 'Nudge';
 
   return (
     <button
       type="button"
       onClick={handleNudge}
-      disabled={state === 'busy'}
-      title="Send a payment reminder (emails the invoice link, or copies it if email isn't set up)"
+      disabled={state.kind === 'busy'}
+      title={
+        state.kind === 'not_emailed'
+          ? state.warning
+          : "Send a payment reminder (emails the invoice link, or copies it if email isn't set up)"
+      }
       className={cn(
         'inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-[11px] font-bold text-muted-foreground transition-colors',
         'hover:border-[var(--pulse-warn)]/50 hover:text-[var(--pulse-warn)]',
         'disabled:cursor-not-allowed disabled:opacity-60',
-        state === 'emailed' || state === 'copied' ? 'border-[var(--pulse-pos)]/40 text-[var(--pulse-pos)]' : '',
-        state === 'error' ? 'border-[var(--pulse-neg)]/40 text-[var(--pulse-neg)]' : '',
+        state.kind === 'emailed' || state.kind === 'copied' ? 'border-[var(--pulse-pos)]/40 text-[var(--pulse-pos)]' : '',
+        state.kind === 'not_emailed' ? 'border-[var(--pulse-warn)]/50 text-[var(--pulse-warn)]' : '',
+        state.kind === 'error' ? 'border-[var(--pulse-neg)]/40 text-[var(--pulse-neg)]' : '',
         className,
       )}
     >
-      {state === 'busy'
+      {state.kind === 'busy'
         ? <Loader2 className="h-3 w-3 animate-spin" />
         : <BellRing className="h-3 w-3" />}
       {label}
