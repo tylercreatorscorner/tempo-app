@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Earnings — Tempo' };
 
 interface Props {
-  searchParams: Promise<{ month?: string }>;
+  searchParams: Promise<{ month?: string; view?: string; year?: string }>;
 }
 
 export default async function EarningsPage({ searchParams }: Props) {
@@ -22,6 +22,10 @@ export default async function EarningsPage({ searchParams }: Props) {
 
   const params = await searchParams;
   const month = /^\d{4}-\d{2}$/.test(params.month ?? '') ? params.month! : currentMonth();
+  // ?view=year renders the folded-in YTD lens (the old /ytd page 308s here).
+  const view: 'month' | 'year' = params.view === 'year' ? 'year' : 'month';
+  const yearParam = parseInt(params.year ?? '', 10);
+  const year = Number.isFinite(yearParam) ? yearParam : new Date().getUTCFullYear();
 
   return (
     <div className="space-y-6">
@@ -30,11 +34,11 @@ export default async function EarningsPage({ searchParams }: Props) {
         title="Earnings"
         subtitle={
           scoped
-            ? 'Monthly earnings for your brands — commission + retainers + launch fees.'
-            : 'Your monthly take across all brands — commission + retainers + launch fees.'
+            ? 'What your brands owe for the month, and where each invoice stands.'
+            : 'What every brand owes for the month, and where its invoice stands.'
         }
       />
-      <EarningsClient initialMonth={month} />
+      <EarningsClient initialMonth={month} initialView={view} initialYear={year} />
     </div>
   );
 }

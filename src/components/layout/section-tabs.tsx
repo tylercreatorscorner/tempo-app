@@ -27,9 +27,10 @@ const SECTIONS: { key: string; tabs: Tab[] }[] = [
   { key: 'content', tabs: [
     { label: 'Posts', href: '/posts' },
   ] },
+  // Year-to-Date folded into Earnings as its Year view (/earnings?view=year);
+  // /ytd permanently redirects there.
   { key: 'finance', tabs: [
     { label: 'Earnings', href: '/earnings' },
-    { label: 'Year-to-Date', href: '/ytd' },
     { label: 'Invoicing', href: '/invoicing' },
     { label: 'Payments', href: '/payments' },
   ] },

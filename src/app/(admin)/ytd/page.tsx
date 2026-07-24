@@ -1,23 +1,12 @@
-import { redirect } from 'next/navigation';
-import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
-import { YtdClient } from './ytd-client';
+import { permanentRedirect } from 'next/navigation';
 
-export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Year-to-Date — Tempo' };
-
-interface Props {
-  searchParams: Promise<{ year?: string }>;
-}
-
-export default async function YtdPage({ searchParams }: Props) {
-  // Any Workspace user; /api/earnings/ytd scopes numbers to their brands.
-  const scope = await getWorkspaceScope();
-  if (!scope) redirect('/dashboard');
-  if (!scope.canViewFinance) redirect('/dashboard');
-
-  const params = await searchParams;
-  const yearParam = parseInt(params.year ?? '', 10);
-  const initialYear = Number.isFinite(yearParam) ? yearParam : new Date().getUTCFullYear();
-
-  return <YtdClient initialYear={initialYear} />;
+/**
+ * /ytd is retired — the Year-to-Date lens now lives inside the Earnings
+ * cockpit as its Year view. Permanent (308) redirect, year param preserved.
+ */
+export default async function YtdPage({ searchParams }: { searchParams: Promise<{ year?: string }> }) {
+  const { year } = await searchParams;
+  permanentRedirect(
+    year && /^\d{4}$/.test(year) ? `/earnings?view=year&year=${year}` : '/earnings?view=year',
+  );
 }
