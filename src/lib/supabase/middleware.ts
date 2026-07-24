@@ -28,6 +28,7 @@ const PUBLIC_PATHS = [
   '/r/',
   '/api/report-pdf/',
   '/api/report-viewed/',
+  '/api/invoice-viewed/',
 ];
 
 // Page paths a brand-role user is allowed to visit. Anything else → bounce home.

@@ -15,9 +15,10 @@
  * List view uses. Void invoices intentionally do NOT appear here — the List
  * view carries them (the board is the 4 core lifecycle states only).
  *
- * There is deliberately no "viewed" signal on cards: invoice share links are
- * never stamped on view (nothing in the invoices schema records it), and a
- * fabricated signal would be worse than none.
+ * Cards carry the full collections story (invoice revamp Phase A): sent +
+ * "viewed 2h ago / not viewed yet" (from the bot-safe share-page beacon) and
+ * the nudge log, with a one-click Nudge on overdue cards. Viewed renders only
+ * once the invoice has been sent — before that the signal would be noise.
  */
 
 import { useMemo, useState } from 'react';
@@ -32,6 +33,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Button } from '@/components/ui/button';
 import type { Invoice } from './invoice-detail-sheet';
+import { NudgeButton, NudgedSpan, ViewedSpan } from './invoice-telemetry';
 
 interface Props {
   invoices: Invoice[];
@@ -40,6 +42,8 @@ interface Props {
   todayIso: string;
   onOpen: (inv: Invoice) => void;
   onCreate: () => void;
+  /** Refetch after a nudge so the card meta reflects the new log. */
+  onRefresh: () => void;
 }
 
 const METHOD_LABELS: Record<string, string> = {
@@ -63,7 +67,7 @@ interface Column {
   tone: string;
 }
 
-export function InvoiceBoard({ invoices, loading, todayIso, onOpen, onCreate }: Props) {
+export function InvoiceBoard({ invoices, loading, todayIso, onOpen, onCreate, onRefresh }: Props) {
   const brandMeta = useBrandMeta();
   const [paidMonth, setPaidMonth] = useState(currentMonth());
   const monthOptions = useMemo(() => buildMonthOptions(13), []);
@@ -174,6 +178,7 @@ export function InvoiceBoard({ invoices, loading, todayIso, onOpen, onCreate }: 
                     brandLabel={brandMeta.label(inv.brand)}
                     brandColor={brandMeta.color(inv.brand)}
                     onOpen={onOpen}
+                    onRefresh={onRefresh}
                   />
                 ))}
               </div>
@@ -185,31 +190,54 @@ export function InvoiceBoard({ invoices, loading, todayIso, onOpen, onCreate }: 
   );
 }
 
-function metaLine(inv: Invoice, kind: ColumnKey, todayIso: string): string {
+/**
+ * The card's telemetry line. Segments per column:
+ *   draft   — created {date}
+ *   sent    — sent {date} · viewed {rel} / not viewed yet · due {date}
+ *   overdue — {n} days late · viewed … (once sent) · nudged {rel}
+ *   paid    — paid {date} · {method}
+ * Viewed renders only once sent_at exists — an unsent invoice's link may not
+ * even be minted, so "not viewed yet" would be noise there.
+ */
+function MetaLine({ inv, kind, todayIso }: { inv: Invoice; kind: ColumnKey; todayIso: string }) {
+  const dot = <span aria-hidden="true"> · </span>;
   switch (kind) {
     case 'draft':
-      return `created ${formatDate(inv.generated_at)}`;
-    case 'sent': {
-      const parts: string[] = [];
-      if (inv.sent_at) parts.push(`sent ${formatDate(inv.sent_at)}`);
-      if (inv.due_date) parts.push(`due ${formatDate(inv.due_date)}`);
-      return parts.length ? parts.join(' · ') : 'sent';
-    }
+      return <>created {formatDate(inv.generated_at)}</>;
+    case 'sent':
+      return (
+        <>
+          {inv.sent_at ? <>sent {formatDate(inv.sent_at)}</> : <>sent</>}
+          {dot}
+          <ViewedSpan invoice={inv} />
+          {inv.due_date && <>{dot}due {formatDate(inv.due_date)}</>}
+        </>
+      );
     case 'overdue': {
       const n = daysOverdue(inv, todayIso);
-      const late = `${n} day${n === 1 ? '' : 's'} late`;
-      return inv.due_date ? `${late} · due ${formatDate(inv.due_date)}` : late;
+      const nudged = <NudgedSpan invoice={inv} />;
+      return (
+        <>
+          <span className="font-semibold text-[var(--pulse-neg)]">{n} day{n === 1 ? '' : 's'} late</span>
+          {inv.sent_at && <>{dot}<ViewedSpan invoice={inv} /></>}
+          {Number(inv.nudge_count ?? 0) > 0 ? <>{dot}{nudged}</> : inv.due_date ? <>{dot}due {formatDate(inv.due_date)}</> : null}
+        </>
+      );
     }
     case 'paid': {
-      const base = inv.paid_at ? `paid ${formatDate(inv.paid_at)}` : 'paid';
       const method = inv.payment_method ? (METHOD_LABELS[inv.payment_method] ?? inv.payment_method) : null;
-      return method ? `${base} · ${method}` : base;
+      return (
+        <>
+          {inv.paid_at ? <>paid {formatDate(inv.paid_at)}</> : <>paid</>}
+          {method && <>{dot}{method}</>}
+        </>
+      );
     }
   }
 }
 
 function BoardCard({
-  invoice, hot, metaKind, todayIso, brandLabel, brandColor, onOpen,
+  invoice, hot, metaKind, todayIso, brandLabel, brandColor, onOpen, onRefresh,
 }: {
   invoice: Invoice;
   hot: boolean;
@@ -218,13 +246,23 @@ function BoardCard({
   brandLabel: string;
   brandColor: string;
   onOpen: (inv: Invoice) => void;
+  onRefresh: () => void;
 }) {
   return (
-    <button
-      type="button"
+    // div-with-button-semantics, not <button>: overdue cards nest the Nudge
+    // button, and interactive elements can't nest inside a real <button>.
+    <div
+      role="button"
+      tabIndex={0}
       onClick={() => onOpen(invoice)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onOpen(invoice);
+        }
+      }}
       className={cn(
-        'w-full rounded-lg border bg-card p-3 text-left shadow-[var(--pulse-elev-1)] transition-colors',
+        'w-full cursor-pointer rounded-lg border bg-card p-3 text-left shadow-[var(--pulse-elev-1)] transition-colors',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
         hot ? 'hover:brightness-[1.03]' : 'border-border hover:border-primary/50',
       )}
@@ -239,9 +277,14 @@ function BoardCard({
       <span className="mt-1.5 block text-[15px] font-extrabold tabular-nums text-foreground">
         {formatCurrency(Number(invoice.total_amount))}
       </span>
-      <span className={cn('mt-0.5 block text-[11px]', hot ? 'font-semibold text-[var(--pulse-neg)]' : 'text-muted-foreground')}>
-        {metaLine(invoice, metaKind, todayIso)}
+      <span className="mt-0.5 block text-[11px] leading-normal text-muted-foreground">
+        <MetaLine inv={invoice} kind={metaKind} todayIso={todayIso} />
       </span>
-    </button>
+      {metaKind === 'overdue' && (
+        <span className="mt-1.5 block">
+          <NudgeButton invoice={invoice} onDone={onRefresh} />
+        </span>
+      )}
+    </div>
   );
 }

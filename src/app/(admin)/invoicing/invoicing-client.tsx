@@ -181,6 +181,7 @@ export function InvoicingClient({ initialOpenId, initialView = 'board' }: Props)
           todayIso={todayIso}
           onOpen={setActiveInvoice}
           onCreate={() => setCreating(true)}
+          onRefresh={fetchInvoices}
         />
       ) : (
         <InvoiceList

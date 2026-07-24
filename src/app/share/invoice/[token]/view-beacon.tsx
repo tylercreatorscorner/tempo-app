@@ -1,0 +1,20 @@
+'use client';
+
+/**
+ * Stamps viewed_at from the CLIENT, not the server render: pasting the link
+ * into Slack/iMessage/WhatsApp makes the platform's unfurl bot GET the page
+ * immediately, and a server-side stamp would mark the invoice "viewed" before
+ * the brand ever opened it. Bots don't execute JS, so only a real browser
+ * render fires this. The endpoint's .is('viewed_at', null) guard keeps the
+ * first real timestamp; firing again on later opens is a no-op. Same pattern
+ * as /r/[token]'s report beacon.
+ */
+import { useEffect } from 'react';
+
+export function ViewBeacon({ token, preview }: { token: string; preview: boolean }) {
+  useEffect(() => {
+    if (preview) return; // operator checking their own link (?preview=1)
+    fetch(`/api/invoice-viewed/${encodeURIComponent(token)}`, { method: 'POST' }).catch(() => {});
+  }, [token, preview]);
+  return null;
+}

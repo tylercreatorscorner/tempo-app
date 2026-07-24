@@ -19,7 +19,7 @@ import {
 import { downloadCsv } from '@/lib/utils/csv';
 import { downloadXlsx } from '@/lib/utils/xlsx';
 import { cn } from '@/lib/utils';
-import { daysOverdue } from '@/lib/finance/overdue';
+import { daysOverdue, isOverdue } from '@/lib/finance/overdue';
 import { formatCurrency, formatDate, formatPeriod } from '@/lib/utils/format';
 import { useBrandMeta } from '@/hooks/use-brand-meta';
 import { useDelayedFlag } from '@/hooks/use-delayed-flag';
@@ -31,6 +31,7 @@ import { SegmentedControl } from '@/components/ui/segmented';
 import { TableLoadBar } from '@/components/ui/table-load-bar';
 import type { Invoice } from './invoice-detail-sheet';
 import { AgingPanel, bucketFor, type AgingBucket } from './aging-panel';
+import { NudgeButton, NudgedSpan, ViewedSpan } from './invoice-telemetry';
 
 type Status = 'all' | 'pending' | 'sent' | 'paid' | 'void';
 
@@ -412,6 +413,13 @@ export function InvoiceList({ invoices, loading, todayIso, teamMembers, onOpen, 
                       </td>
                       <td className="px-4 py-3 text-center">
                         <StatusBadge status={inv.status} />
+                        {/* Viewed telemetry is only meaningful once sent. */}
+                        {inv.sent_at && inv.status !== 'void' && (
+                          <div className="mt-1 text-[10px]"><ViewedSpan invoice={inv} /></div>
+                        )}
+                        {Number(inv.nudge_count ?? 0) > 0 && (
+                          <div className="mt-0.5 text-[10px]"><NudgedSpan invoice={inv} /></div>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-xs text-muted-foreground">{formatDate(inv.generated_at)}</td>
                       <td className="px-4 py-3 text-xs">
@@ -425,15 +433,20 @@ export function InvoiceList({ invoices, loading, todayIso, teamMembers, onOpen, 
                         )}
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <a
-                          href={`/api/invoices/${inv.id}/pdf`}
-                          onClick={(e) => e.stopPropagation()}
-                          className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-muted-foreground transition-colors hover:bg-card hover:text-[var(--primary)]"
-                          title="Download PDF"
-                        >
-                          <Download className="h-3.5 w-3.5" />
-                          PDF
-                        </a>
+                        <div className="flex items-center justify-end gap-1.5">
+                          {isOverdue(inv, todayIso) && (
+                            <NudgeButton invoice={inv} onDone={onRefresh} />
+                          )}
+                          <a
+                            href={`/api/invoices/${inv.id}/pdf`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-muted-foreground transition-colors hover:bg-card hover:text-[var(--primary)]"
+                            title="Download PDF"
+                          >
+                            <Download className="h-3.5 w-3.5" />
+                            PDF
+                          </a>
+                        </div>
                       </td>
                     </tr>
                   );

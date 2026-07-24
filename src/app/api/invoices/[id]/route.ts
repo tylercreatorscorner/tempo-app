@@ -43,7 +43,12 @@ const NUMERIC_FIELDS = new Set([
 const STRING_OR_NULL_FIELDS = new Set([
   'notes', 'due_date', 'bill_to_name', 'bill_to_email', 'bill_to_address', 'payment_instructions',
   'payment_method', 'payment_reference', 'payment_received_notes',
+  // The optional personal line on the public invoice page (Phase A). Null/''
+  // clears it.
+  'share_note',
 ]);
+/** share_note renders on a client-facing page — keep it a short human note. */
+const SHARE_NOTE_MAX = 500;
 const STATUS_FIELD = 'status';
 const STATUSES = new Set(['pending', 'sent', 'paid', 'void']);
 
@@ -100,6 +105,13 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
   if (Object.keys(update).length === 0) {
     return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
+  }
+
+  if (typeof update.share_note === 'string' && update.share_note.length > SHARE_NOTE_MAX) {
+    return NextResponse.json(
+      { error: `share_note must be ${SHARE_NOTE_MAX} characters or fewer` },
+      { status: 400 },
+    );
   }
 
   // If line items changed, recompute total_amount.

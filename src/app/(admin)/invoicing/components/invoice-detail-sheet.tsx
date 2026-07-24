@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { X, Save, Download, Trash2, Loader2, Send, CheckCircle2, RotateCcw, RefreshCw, Users, Ban, Link2, Mail, Copy, Check, ExternalLink, Wallet, FileSpreadsheet } from 'lucide-react';
+import { X, Save, Download, Trash2, Loader2, Send, CheckCircle2, RotateCcw, RefreshCw, Users, Ban, Link2, Mail, Copy, Check, ExternalLink, FileSpreadsheet } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
 import { downloadCsv } from '@/lib/utils/csv';
@@ -47,6 +47,13 @@ export interface Invoice {
   bill_from_email?: string | null;
   bill_from_address?: string | null;
   public_token?: string | null;
+  /** First real client open (bot-safe beacon) — null until the link is opened. */
+  viewed_at?: string | null;
+  /** Payment-reminder log (POST /api/invoices/[id]/nudge). */
+  last_nudged_at?: string | null;
+  nudge_count?: number | null;
+  /** Optional personal line on the public invoice page ("A note from …"). */
+  share_note?: string | null;
   payment_method?: string | null;
   payment_reference?: string | null;
   amount_received?: number | string | null;
@@ -73,6 +80,7 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
     bill_to_email: invoice.bill_to_email ?? '',
     bill_to_address: invoice.bill_to_address ?? '',
     payment_instructions: invoice.payment_instructions ?? '',
+    share_note: invoice.share_note ?? '',
   });
   const [saving, setSaving] = useState(false);
   const [statusUpdating, setStatusUpdating] = useState(false);
@@ -81,9 +89,11 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [emailing, setEmailing] = useState(false);
+  const [sending, setSending] = useState(false);
   const [emailNotice, setEmailNotice] = useState<{ kind: 'success' | 'error'; message: string; hint?: string } | null>(null);
   const [markPaidOpen, setMarkPaidOpen] = useState(false);
   const [markingPaid, setMarkingPaid] = useState(false);
+  const [sendNotice, setSendNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -98,6 +108,7 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
       bill_to_email: invoice.bill_to_email ?? '',
       bill_to_address: invoice.bill_to_address ?? '',
       payment_instructions: invoice.payment_instructions ?? '',
+      share_note: invoice.share_note ?? '',
     });
     // Hydrate share URL from existing token (if invoice was previously shared)
     if (invoice.public_token && typeof window !== 'undefined') {
@@ -107,6 +118,7 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
     }
     setCopied(false);
     setEmailNotice(null);
+    setSendNotice(null);
   }, [invoice]);
 
   const computedTotal =
@@ -141,6 +153,7 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
           bill_to_email: draft.bill_to_email || null,
           bill_to_address: draft.bill_to_address || null,
           payment_instructions: draft.payment_instructions || null,
+          share_note: draft.share_note || null,
         }),
       });
       const j = await res.json();
@@ -169,6 +182,38 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
       setError(e instanceof Error ? e.message : 'Status update failed');
     } finally {
       setStatusUpdating(false);
+    }
+  }
+
+  /**
+   * Send = the link IS the invoice: mint/reuse the share link, copy it, and
+   * stamp status sent (server no-ops the status when it's already sent).
+   */
+  async function handleSend() {
+    setSending(true);
+    setSendNotice(null);
+    setError(null);
+    try {
+      const res = await fetch(`/api/invoices/${invoice.id}/send`, { method: 'POST' });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
+      setShareUrl(j.url);
+      let copiedOk = true;
+      try {
+        await navigator.clipboard.writeText(j.url);
+      } catch {
+        copiedOk = false; // clipboard permissions — the link is still below
+      }
+      setSendNotice(
+        j.statusChanged
+          ? (copiedOk ? 'Link copied - marked sent' : 'Marked sent - copy the link below')
+          : (copiedOk ? 'Link copied' : 'Link ready below'),
+      );
+      if (j.invoice) onUpdated(j.invoice);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Send failed');
+    } finally {
+      setSending(false);
     }
   }
 
@@ -353,15 +398,16 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
             {invoice.status === 'void' && <>Voided</>}
           </div>
           <div className="basis-full" />
-          {invoice.status === 'pending' && (
+          {(invoice.status === 'pending' || invoice.status === 'sent') && (
             <Button
               variant="primary"
               size="sm"
-              onClick={() => handleStatus('sent')}
-              disabled={statusUpdating}
+              onClick={handleSend}
+              disabled={sending}
+              title="Copy the invoice link and mark the invoice sent"
             >
-              <Send className="h-3.5 w-3.5" />
-              Mark as Sent
+              {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+              {sending ? 'Sending…' : 'Send'}
             </Button>
           )}
           {invoice.status === 'sent' && (
@@ -415,14 +461,14 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
             </Button>
           )}
           <Button
-            variant="primary"
+            variant="outline"
             size="sm"
             onClick={handleEmail}
             disabled={emailing || invoice.status === 'void'}
             title={invoice.bill_to_email ? `Email this invoice to ${invoice.bill_to_email}` : 'Set Bill-To Email to enable'}
           >
             {emailing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
-            {emailing ? 'Sending…' : 'Email Invoice'}
+            {emailing ? 'Sending…' : 'Email it'}
           </Button>
           <a
             href={`/api/invoices/${invoice.id}/pdf`}
@@ -453,6 +499,11 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
 
         {/* Form body */}
         <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5 space-y-6">
+          {/* Lifecycle timeline — created → sent → viewed → nudged → paid */}
+          <Section title="Timeline">
+            <InvoiceTimeline invoice={invoice} />
+          </Section>
+
           {/* GMV summary (read-only) */}
           <Section title="GMV Snapshot">
             <div className="grid grid-cols-3 gap-2">
@@ -476,6 +527,14 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
               </div>
             )}
           </Section>
+
+          {/* Send confirmation (link copied + status stamped) */}
+          {sendNotice && (
+            <div className="rounded-xl px-3 py-2.5 text-xs flex items-start gap-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-500">
+              <CheckCircle2 className="h-4 w-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+              <p className="font-bold flex-1 min-w-0">{sendNotice}</p>
+            </div>
+          )}
 
           {/* Email status notice (success or config-not-set) */}
           {emailNotice && (
@@ -518,12 +577,15 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
                     {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
                     {copied ? 'Copied' : 'Copy'}
                   </button>
+                  {/* ?preview=1 keeps the operator's own opens from stamping
+                      viewed_at — the copied link (no param) is what the
+                      client gets. */}
                   <a
-                    href={shareUrl}
+                    href={`${shareUrl}?preview=1`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center justify-center px-3 bg-card hover:bg-muted border-l border-border text-muted-foreground transition-colors flex-shrink-0"
-                    title="Open share view"
+                    title="Open share view (preview - doesn't count as viewed)"
                   >
                     <ExternalLink className="h-3.5 w-3.5" />
                   </a>
@@ -544,6 +606,24 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
                 {sharing ? 'Generating link…' : 'Generate share link'}
               </Button>
             )}
+          </Section>
+
+          {/* Personal note on the public invoice page */}
+          <Section title="Note on the invoice">
+            <Field
+              label="Note"
+              hint={`Shows as "A note from ${invoice.bill_from_name?.trim().split(/\s+/)[0] || 'your account lead'}" on the invoice page`}
+            >
+              <textarea
+                value={draft.share_note}
+                maxLength={500}
+                onChange={(e) => setDraft({ ...draft, share_note: e.target.value })}
+                placeholder="One human line about the month, e.g. what drove the commission."
+                rows={3}
+                className="w-full px-3 py-2 rounded-xl border border-border text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] transition-colors resize-y"
+              />
+            </Field>
+            <p className="text-[11px] text-muted-foreground text-right">{draft.share_note.length}/500</p>
           </Section>
 
           {/* Line items (editable) */}
@@ -751,6 +831,55 @@ function invoiceCreatorRows(inv: Invoice): Array<{ creator: string; gmv: number;
     rate_pct: Number(c.rate),
     commission: Number(c.commission),
   }));
+}
+
+/** "Jul 24, 9:14 AM" — timeline entries carry time-of-day, dates elsewhere don't. */
+function fmtDateTime(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
+function TimelineRow({ color, label, detail }: { color: string; label: string; detail: string }) {
+  return (
+    <div className="flex items-baseline gap-2 text-[11.5px] text-muted-foreground">
+      <span className="h-[7px] w-[7px] flex-shrink-0 self-center rounded-full" style={{ backgroundColor: color }} aria-hidden="true" />
+      <span className="font-bold text-foreground">{label}</span>
+      <span>{detail}</span>
+    </div>
+  );
+}
+
+/** Compact lifecycle read: created → sent → viewed → nudged xN → paid. */
+function InvoiceTimeline({ invoice }: { invoice: Invoice }) {
+  const nudges = Number(invoice.nudge_count ?? 0);
+  const rows: { color: string; label: string; detail: string }[] = [
+    { color: 'var(--primary)', label: 'Created', detail: fmtDateTime(invoice.generated_at) },
+  ];
+  if (invoice.sent_at) rows.push({ color: 'var(--primary)', label: 'Sent', detail: fmtDateTime(invoice.sent_at) });
+  if (invoice.viewed_at) rows.push({ color: 'var(--pulse-pos)', label: 'Viewed', detail: fmtDateTime(invoice.viewed_at) });
+  if (nudges > 0 && invoice.last_nudged_at) {
+    rows.push({
+      color: 'var(--pulse-warn)',
+      label: nudges > 1 ? `Nudged x${nudges}` : 'Nudged',
+      detail: `${nudges > 1 ? 'last ' : ''}${fmtDateTime(invoice.last_nudged_at)}`,
+    });
+  }
+  if (invoice.paid_at) rows.push({ color: 'var(--pulse-pos)', label: 'Paid', detail: fmtDateTime(invoice.paid_at) });
+
+  return (
+    <div className="space-y-1.5 rounded-xl border border-border bg-muted/40 px-4 py-3">
+      {rows.map((r) => (
+        <TimelineRow key={`${r.label}-${r.detail}`} color={r.color} label={r.label} detail={r.detail} />
+      ))}
+      {rows.length === 1 && (
+        <div className="flex items-baseline gap-2 text-[11.5px] text-muted-foreground/60">
+          <span className="h-[7px] w-[7px] flex-shrink-0 self-center rounded-full bg-border" aria-hidden="true" />
+          <span>sent · viewed · paid appear here as they happen</span>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function fmtPeriod(ym: string) {
