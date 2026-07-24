@@ -23,7 +23,31 @@ import {
 import { commands, commandMap } from './commands';
 import { getGuildConfig } from './config';
 import { logMessage } from './relay';
+import { getSupabase } from './supabase';
 import { startReminderChecker, scheduleDailyBriefs } from './scheduler';
+
+// ── Liveness heartbeat ───────────────────────────────────────────────────────
+// The DM pipeline died silently in March and nothing surfaced it. The bot now
+// stamps bot_status (single row, id=1) on ready + every 3 minutes; the Comms
+// hub health endpoint reads it and shows "bot offline since X" past 10 min.
+// ⚠️ This file runs as a STANDALONE Node process — only the bot's own supabase
+// client here, never @/lib/supabase/server (next/headers would crash the bot).
+const HEARTBEAT_INTERVAL_MS = 3 * 60 * 1000;
+
+async function upsertHeartbeat(): Promise<void> {
+  try {
+    const now = new Date().toISOString();
+    const { error } = await getSupabase().from('bot_status').upsert({
+      id: 1,
+      last_seen_at: now,
+      version: process.env.RAILWAY_GIT_COMMIT_SHA ?? 'dev',
+      updated_at: now,
+    });
+    if (error) console.error('[tempo-bot] heartbeat upsert failed:', error.message);
+  } catch (err) {
+    console.error('[tempo-bot] heartbeat failed:', err);
+  }
+}
 
 /** Create a configured Discord client */
 export function createClient(): Client {
@@ -69,6 +93,8 @@ export function setupEventHandlers(client: Client): void {
     console.log(`[tempo-bot] Logged in as ${c.user.tag} — serving ${c.guilds.cache.size} guilds`);
     startReminderChecker(client);
     scheduleDailyBriefs(client);
+    void upsertHeartbeat();
+    setInterval(() => { void upsertHeartbeat(); }, HEARTBEAT_INTERVAL_MS);
   });
 
   client.on(Events.InteractionCreate, async (interaction: Interaction) => {

@@ -7,6 +7,10 @@
     {
       "path": "/api/cron/run-automations",
       "schedule": "0 14 * * *"
+    },
+    {
+      "path": "/api/cron/send-broadcasts",
+      "schedule": "* * * * *"
     }
   ]
 }
