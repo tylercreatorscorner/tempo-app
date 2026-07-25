@@ -6,6 +6,16 @@ const PUBLIC_PATHS = [
   '/signup',
   '/auth/callback',
   '/auth/confirm',
+  // TikTok Shop OAuth redirect target. It needs its OWN entry: this list is
+  // matched with startsWith, and '/auth/tiktok/callback' does not start with
+  // '/auth/callback' — without this line the guard below 307s the redirect to
+  // /login before the handler runs and the single-use auth_code is lost, with
+  // no error anywhere. (Same shape as the cron-path bug above.) The browser
+  // finishing TikTok's consent screen may also be the MERCHANT'S, which has no
+  // Tempo session at all. Authenticity comes from the one-time state nonce the
+  // route redeems, and the route writes no connection — an authenticated admin
+  // must still confirm the shop.
+  '/auth/tiktok/callback',
   '/onboarding',
   '/join',
   '/creator-login',

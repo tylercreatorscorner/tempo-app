@@ -1,0 +1,59 @@
+/**
+ * GET /api/tiktok/connections — everything the Settings panel renders.
+ *
+ * Three lists in one round trip because they are read together and are
+ * meaningless apart: the connections, the authorizations waiting on a human,
+ * and the store brands that can legally own a shop.
+ *
+ * No token material is ever in this response.
+ */
+import { NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/auth/require-admin';
+import { getBrandRegistry } from '@/lib/data/brand-registry';
+import { isStoreBrand } from '@/lib/tiktok/brand-resolution';
+import { checkConnectPreflight } from '@/lib/tiktok/authorize';
+import { listConnectionStatus } from '@/lib/tiktok/connections';
+import { listPendingAuthorizations, sweepOauthStates } from '@/lib/tiktok/oauth-state';
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
+export async function GET() {
+  const admin = await requireAdmin();
+  if (!admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
+  try {
+    // Erase lapsed pending credentials BEFORE reading, so the panel can never
+    // list an authorization whose tokens should already be gone. pg_cron is the
+    // real schedule (migration 117); this just makes the Settings page a second
+    // trigger. Non-throwing by design — a failed sweep must not blank the panel.
+    await sweepOauthStates();
+
+    const registry = await getBrandRegistry();
+    const [connections, pending] = await Promise.all([
+      listConnectionStatus(),
+      listPendingAuthorizations(),
+    ]);
+
+    // Umbrellas are excluded because a shop cannot map to one; archived brands
+    // are excluded because connecting a retired brand is never the intent.
+    const brands = registry.rows
+      .filter((b) => isStoreBrand(b) && !b.is_archived)
+      .map((b) => ({ slug: b.slug, label: b.display_name || b.name }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+
+    const preflight = checkConnectPreflight();
+
+    return NextResponse.json({
+      configured: preflight.ok,
+      configurationError: preflight.ok ? null : preflight.message,
+      connections,
+      pending,
+      brands,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`[tiktok/connect] status read failed: ${message}`);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}

@@ -8,6 +8,7 @@ import { PlanSelector } from '@/components/onboarding/plan-selector';
 import { CreatorInvitesSection } from '@/components/settings/creator-invites-section';
 import { TeamMembersSection } from '@/components/settings/team-members-section';
 import { CompensationArrangementsSection } from '@/components/settings/compensation-arrangements-section';
+import { TikTokShopSection } from '@/components/settings/tiktok-shop-section';
 import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 
 export default async function SettingsPage() {
@@ -103,12 +104,12 @@ export default async function SettingsPage() {
         </p>
       </div>
 
-      {/* TikTok Connection. There is no TikTok Shop connection to report: no
-          OAuth flow, no stored shop credentials, no sync job. This used to read
-          `tenants.tiktok_connected`, which is an onboarding-checklist flag that
-          migration 017 backfilled to true — so it claimed a live sync that has
-          never existed. Wire this to the real connection record when the API
-          integration ships. */}
+      {/* Sub-account onboarding instructions (the manual/email data path). This
+          is NOT the API connection — that now lives in Data Sources below, as
+          TikTokShopSection, reading real tiktok_shop_connections rows.
+          Deliberately left un-wired to any status flag: it used to read
+          `tenants.tiktok_connected`, an onboarding-checklist flag migration 017
+          backfilled to true, so it claimed a live sync that never existed. */}
       <Suspense>
         <TikTokConnect companyName={tenant?.name} />
       </Suspense>
@@ -203,15 +204,11 @@ export default async function SettingsPage() {
           </div>
         </div>
         <div className="p-6 space-y-3">
-          <div className="flex items-center justify-between p-3 rounded-lg border border-border/50">
-            <div>
-              <p className="font-medium text-sm">TikTok Shop</p>
-              <p className="text-xs text-muted-foreground">Not connected</p>
-            </div>
-            <span className="text-xs px-2 py-1 rounded-full font-medium bg-muted text-muted-foreground">
-              pending
-            </span>
-          </div>
+          {/* Live TikTok Shop connections. This replaces a hardcoded
+              "Not connected / pending" row that reported a status nothing
+              measured — the same class of lie as the tenants.tiktok_connected
+              flag noted above. */}
+          <TikTokShopSection />
           <div className="flex items-center justify-between p-3 rounded-lg border border-border/50">
             <div>
               <p className="font-medium text-sm">Discord</p>
