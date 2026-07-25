@@ -6,7 +6,8 @@
  * Per-brand cards showing:
  *   - Latest data date (overall, anchored on creator data)
  *   - Status badge (Current / Nd behind / Nd stale / No data)
- *   - Per-file-type status dots (C V L P) — hover for table-specific date
+ *   - Per-file-type status dots, one per expected daily report (C V P) — hover
+ *     for the table-specific date
  *   - Detected gaps inside the 30-day window
  *
  * Plus a future-data warning at the top if any table somehow has rows dated
@@ -38,7 +39,8 @@ interface BrandFreshness {
 interface FreshnessResponse {
   brands: BrandFreshness[];
   futureIssues: { brand: string; fileType: string; dates: string[] }[];
-  fileTypes: { key: string; label: string; name: string }[];
+  /** `exportToken` = the filename token TikTok ships the report under. */
+  fileTypes: { key: string; label: string; name: string; exportToken?: string }[];
 }
 
 const DOT_STYLES = {
@@ -95,8 +97,11 @@ function expectedDateTokens(after: string, end: string): string[] {
 /**
  * Plain-text checklist of every expected filename a brand still needs, in the
  * upload page's filename convention: {BrandToken}_{TypeToken}_{YYYYMMDD}.xlsx
- * (Cata-Kor -> CataKor, Creator Data -> Creator_Data). One line per missing
- * date per non-ok file type; 'never' types are skipped (nothing to catch up).
+ * (Cata-Kor -> CataKor). The type token comes from the API's `exportToken` —
+ * the name TikTok actually ships the file under, which is not the report's
+ * display name (the video report still exports as Video_List, the product
+ * report as Transaction_Analysis). One line per missing date per non-ok file
+ * type; 'never' types are skipped (nothing to catch up).
  */
 function buildChecklist(
   brand: BrandFreshness,
@@ -108,7 +113,7 @@ function buildChecklist(
   for (const ft of fileTypes) {
     const f = brand.files[ft.key];
     if (!f || f.status === 'ok' || f.status === 'never' || !f.latestDate) continue;
-    const typeToken = f.name.replace(/\s+/g, '_');
+    const typeToken = ft.exportToken ?? f.name.replace(/\s+/g, '_');
     const dates = expectedDateTokens(f.latestDate, yesterday);
     for (const d of dates.slice(0, CHECKLIST_MAX_DATES_PER_TYPE)) {
       lines.push(`${brandToken}_${typeToken}_${d}.xlsx`);
@@ -172,19 +177,36 @@ export function FreshnessPanel({ refreshKey = 0 }: { refreshKey?: number }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // res.ok before the body: a 500 whose body isn't the expected shape would
+  // otherwise render as "no brands behind" — the panel's whole job inverted.
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    fetch('/api/upload/freshness', { cache: 'no-store' })
-      .then(r => r.json())
-      .then((d: FreshnessResponse | { error: string }) => {
-        if (cancelled) return;
-        if ('error' in d) setError(d.error);
-        else setData(d);
-      })
-      .catch(() => { if (!cancelled) setError('Failed to load freshness'); })
-      .finally(() => { if (!cancelled) setLoading(false); });
+    (async () => {
+      try {
+        const res = await fetch('/api/upload/freshness', { cache: 'no-store' });
+        const text = await res.text();
+        let body: unknown;
+        try {
+          body = JSON.parse(text);
+        } catch {
+          throw new Error(`HTTP ${res.status}`);
+        }
+        if (!res.ok) {
+          throw new Error((body as { error?: string })?.error || `HTTP ${res.status}`);
+        }
+        const payload = body as FreshnessResponse;
+        if (!Array.isArray(payload?.brands) || !Array.isArray(payload?.fileTypes)) {
+          throw new Error('unexpected response shape');
+        }
+        if (!cancelled) setData(payload);
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load freshness');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
     return () => { cancelled = true; };
   }, [refreshKey]);
 
@@ -196,10 +218,13 @@ export function FreshnessPanel({ refreshKey = 0 }: { refreshKey?: number }) {
     );
   }
 
-  if (error) {
+  // A failed refetch keeps the last good rail rather than blanking it, but says
+  // so — an empty "Gaps to fill" that's really a fetch failure reads as
+  // "everything is current", which is the one lie this panel must never tell.
+  if (error && !data) {
     return (
-      <div className="rounded-2xl bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-500">
-        Couldn't load freshness: {error}
+      <div className="rounded-2xl border border-[var(--pulse-neg)]/25 bg-[var(--pulse-neg-bg)] px-4 py-3 text-sm text-[var(--pulse-neg)]">
+        Couldn&apos;t load freshness: {error}. No brand is being reported as current.
       </div>
     );
   }
@@ -235,6 +260,13 @@ export function FreshnessPanel({ refreshKey = 0 }: { refreshKey?: number }) {
       </div>
 
       <div className="space-y-3 p-4">
+        {error && (
+          <div className="flex items-start gap-2.5 rounded-lg border border-[var(--pulse-neg)]/25 bg-[var(--pulse-neg-bg)] px-3 py-2 text-[11px] leading-relaxed text-[var(--pulse-neg)]">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <span>Refresh failed ({error}) — showing the last good read, which may be stale.</span>
+          </div>
+        )}
+
         {/* Future-dated data warning */}
         {data.futureIssues.length > 0 && (
           <div className="flex items-start gap-2.5 rounded-lg border border-[var(--pulse-warn)]/25 bg-[var(--pulse-warn-bg)] px-3 py-2">

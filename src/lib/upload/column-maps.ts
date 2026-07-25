@@ -29,12 +29,33 @@ export const COLUMN_MAPS: Record<UploadTable, ColumnMap> = {
     items_sold:                      ['creator-attributed items sold', 'affiliate-attributed items sold'],
     items_refunded:                  ['items refunded'],
     aov:                             ['aov'],
-    avg_daily_products_with_sales:   ['avg. daily products sold'],
     videos:                          ['videos'],
     live_streams:                    ['live streams'],
     est_commission:                  ['est. commission'],
     samples_shipped:                 ['samples shipped'],
     est_flat_fee:                    ['est. flat fee'],
+    // ── Added 2026-07-25 (mig 120). TikTok has been sending these all along;
+    // we were dropping them. Header strings verified against the real
+    // Bondie_Creator_Data_20260722.xlsx export (23 columns, all matched).
+    //
+    // The GMV SPLIT is the headline: `gmv` above ("Creator-attributed GMV")
+    // is the TOTAL, and these three are its components. Verified on the
+    // 2026-07-22 Bondie file: total $6,438.91 = live $0.00 + video $6,410.61
+    // + product card $28.30, exact to the cent on all 1,896 rows. Tempo had
+    // zero live-vs-video attribution before this.
+    video_gmv:                       ['creator video-attributed gmv', 'affiliate video-attributed gmv'],
+    live_gmv:                        ['creator live-attributed gmv', 'affiliate live-attributed gmv'],
+    product_card_gmv:                ['affiliate product card-attributed gmv', 'creator product card-attributed gmv'],
+    // Rates. Stored as PERCENTAGE POINTS (the file says "5.93%" → 5.93).
+    ctor:                            ['ctor'],
+    ctr:                             ['ctr'],
+    // Counts.
+    total_sample_content:            ['total sample content'],
+    products_added_to_showcase:      ['products added to showcase'],
+    product_impressions:             ['product impressions'],
+    video_views:                     ['video views'],
+    customers:                       ['customers'],
+    products_sold:                   ['products sold'],
   },
   video_performance: {
     video_title:                     ['video title'],
@@ -62,6 +83,21 @@ export const COLUMN_MAPS: Record<UploadTable, ColumnMap> = {
     likes:                           ['likes'],
     comments:                        ['comments'],
     shares:                          ['shares'],
+    // ── Added 2026-07-25 (mig 120). Funnel + quality metrics the export has
+    // always carried. Header strings verified against the real
+    // Bondie_Video_Data_20260722.xlsx export.
+    // NOTE: that file has NO "Product name" column (mapped above) — the
+    // fallback stays because older exports and other shops still send it.
+    product_impressions:             ['video product impressions'],
+    product_clicks:                  ['video product clicks'],
+    // Rates — PERCENTAGE POINTS ("3.65%" → 3.65). "Engagement" is a rate
+    // despite the bare name: its definition row reads "likes, shares and
+    // comments divided by total views", and the cells are "0.29%".
+    completion_rate:                 ['completion rate'],
+    ctr:                             ['ctr'],
+    engagement_rate:                 ['engagement'],
+    // GMV per 1,000 video impressions — money, arrives as "$9.19".
+    gpm:                             ['video gpm'],
   },
   videos: {
     // Prefer the real Video ID column when present. TikTok's exports include a
@@ -99,16 +135,29 @@ export const COLUMN_MAPS: Record<UploadTable, ColumnMap> = {
     items_sold:                      ['creator-attributed items sold', 'affiliate-attributed items sold'],
     items_refunded:                  ['items refunded'],
     orders:                          ['attributed orders'],
-    avg_daily_customers:             ['avg. daily customers'],
-    avg_daily_creators_with_sales:   ['avg. daily creators with sales'],
-    avg_daily_creators_posted:       ['avg. daily creators posted content'],
-    avg_daily_videos_with_sales:     ['avg. daily videos with sales'],
-    avg_daily_lives_with_sales:      ['avg. daily live streams with sales'],
     videos:                          ['videos'],
     live_streams:                    ['live streams'],
     est_commission:                  ['est. commission'],
     samples_shipped:                 ['samples shipped'],
     est_flat_fee:                    ['est. flat fee'],
+    // ── Added 2026-07-25 (mig 120). These REPLACE the five `avg. daily …`
+    // headers TikTok stopped sending — the export now gives the period totals
+    // directly ("Creators with sales" instead of "Avg. daily creators with
+    // sales"). The dead map entries were removed in the same change; their DB
+    // columns stay for history. Header strings verified against the real
+    // Bondie_Transaction_Analysis_20260722.xlsx export (23 columns, all
+    // matched).
+    videos_with_sales:               ['videos with sales'],
+    live_streams_with_sales:         ['live streams with sales'],
+    creators_posted_content:         ['creators posted content'],
+    creators_with_sales:             ['creators with sales'],
+    customers:                       ['customers'],
+    total_sample_content:            ['total sample content'],
+    product_impressions:             ['product impressions'],
+    product_clicks:                  ['product clicks'],
+    // Rates — PERCENTAGE POINTS ("1.71%" → 1.71).
+    ctor:                            ['ctor'],
+    ctr:                             ['ctr'],
   },
 };
 
@@ -167,6 +216,66 @@ export function parseInteger(val: unknown): number {
   const str = String(val).replace(/[$,]/g, '').trim();
   const num = parseInt(str, 10);
   return Number.isNaN(num) ? 0 : num;
+}
+
+// ── NULL-preserving variants ────────────────────────────────────────
+//
+// House rule (post fake-$0 incident): a real 0 and "TikTok didn't send it"
+// must stay distinguishable, so every column added in mig 120 parses through
+// these instead of parseNum/parseInteger. They return null for all four
+// "no value" shapes the exports produce:
+//
+//   undefined  the column isn't in this file at all (older export, other shop)
+//   null / ''  the cell is blank
+//   '--'       TikTok's own not-applicable placeholder (it really is in the
+//              files — the 2026-07-22 Video Data export has '--' in Video
+//              title / Post date / Video link / Product ID)
+//
+// Junk that isn't a number also becomes null rather than 0, because a metric
+// silently reading 0 is exactly the failure mode these exist to prevent.
+
+/** True for every cell shape that means "no value" (never 0). */
+function isBlankCell(val: unknown): boolean {
+  if (val === null || val === undefined) return true;
+  if (typeof val === 'string') {
+    const t = val.trim();
+    return t === '' || t === '--';
+  }
+  return false;
+}
+
+/** Money/decimal cell → number, or null when the export didn't send a value. */
+export function parseNumOrNull(val: unknown): number | null {
+  if (isBlankCell(val)) return null;
+  const num = parseFloat(String(val).replace(/[$,%]/g, '').trim());
+  return Number.isNaN(num) ? null : num;
+}
+
+/** Count cell → integer, or null when the export didn't send a value. */
+export function parseIntegerOrNull(val: unknown): number | null {
+  if (isBlankCell(val)) return null;
+  const num = parseInt(String(val).replace(/[$,]/g, '').trim(), 10);
+  return Number.isNaN(num) ? null : num;
+}
+
+/**
+ * Rate cell → PERCENTAGE POINTS, or null when the export didn't send a value.
+ *
+ * Ground truth (Bondie exports, 2026-07-22): TikTok writes every rate as a
+ * TEXT cell — "5.93%", "0.55%", "1.9%" — so SheetJS hands us the string even
+ * with `raw: true`, and the number before the '%' is already in percentage
+ * points. We store that verbatim: "5.93%" → 5.93, NOT 0.0593. Rates above
+ * 100 are legitimate and must not be clamped (CTR maxes at 200 in that file).
+ *
+ * Deliberately NOT auto-scaling. If TikTok ever switches to real
+ * percent-FORMATTED numeric cells, SheetJS would return the fraction (0.0593)
+ * and this would store 0.0593 — visibly 100x low rather than silently wrong.
+ * Guessing from magnitude is worse: a genuine 0.5% and a fraction 0.5 are
+ * indistinguishable, so a "helpful" ×100 would corrupt real low rates. If the
+ * cell type ever changes, fix it here explicitly and backfill.
+ */
+export function parsePercentOrNull(val: unknown): number | null {
+  return parseNumOrNull(val);
 }
 
 /**

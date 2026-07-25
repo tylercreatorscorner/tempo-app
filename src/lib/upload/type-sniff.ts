@@ -3,11 +3,12 @@
  * instead of trusting the filename.
  *
  * Why: TikTok merged the "Video List" export into the "Video Data" schema
- * (~2026-07-13) while KEEPING the *_Video_List_*.xlsx filenames.
- * Filename-substring detection (file-detection.ts) types those files as
- * Video List, they match 3/13 columns, parse zero records, and die at the
- * run-time cross-audit — the operator was manually flipping Type dropdowns
- * file-by-file, all day.
+ * (~2026-07-13) while KEEPING the *_Video_List_*.xlsx filenames, and did it
+ * brand by brand. detectFileType now maps that filename to Video Data (the
+ * common case), so this sniff is the BACKSTOP rather than the rescue: it
+ * catches the brands still on the PRE-merge layout, whose identically-named
+ * file matches 3/20 columns against the Video Data map and 13/13 against the
+ * Video List map, and switches them back.
  *
  * The sniff reads ONLY the header row (XLSX.read with sheetRows: 2 — cheap
  * even on large files) and scores it against all four COLUMN_MAPS. The
@@ -100,8 +101,8 @@ function scoreAllTypes(headerRow: Record<string, unknown>): TypeScore[] {
  *      would train the operator to ignore warnings. A MIS-typed affiliate
  *      file (chosen=creator 0.77, best=product ~1.0) still warns.
  *   3. r(best) >= 0.7 AND r(chosen) <= 0.4 AND r(best) - r(chosen) >= 0.3 →
- *      SWITCH to best (e.g. a merged Video List file: Video Data 19/20 vs
- *      Video List 3/13).
+ *      SWITCH to best (e.g. a PRE-merge Video List file that the filename
+ *      typed as Video Data: Video List 13/13 vs Video Data 3/20).
  *   4. Otherwise → none.
  */
 export function resolveTypeFromHeaders(

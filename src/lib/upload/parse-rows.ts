@@ -13,7 +13,10 @@ import {
   auditColumnMatches,
   findColumn,
   parseInteger,
+  parseIntegerOrNull,
   parseNum,
+  parseNumOrNull,
+  parsePercentOrNull,
   parsePostDate,
   sanitizeText,
   type UploadTable,
@@ -35,6 +38,9 @@ export interface ParseResult<T> {
 
 // ── Output record types ────────────────────────────────────────────
 
+// Every field added in mig 120 is `number | null`. null means "this export
+// didn't carry the column / the cell was blank" and must stay distinguishable
+// from a real 0 — see the NULL-preserving parsers in column-maps.ts.
 export interface CreatorPerformanceRecord {
   report_date: string;
   period_type: 'daily';
@@ -46,12 +52,25 @@ export interface CreatorPerformanceRecord {
   items_sold: number;
   items_refunded: number;
   aov: number;
-  avg_daily_products_with_sales: number;
   videos: number;
   live_streams: number;
   est_commission: number;
   samples_shipped: number;
   est_flat_fee: number;
+  // GMV attribution split — the three components of `gmv` above.
+  video_gmv: number | null;
+  live_gmv: number | null;
+  product_card_gmv: number | null;
+  // Rates, in percentage points (5.93 means 5.93%).
+  ctor: number | null;
+  ctr: number | null;
+  // Funnel + activity counts.
+  total_sample_content: number | null;
+  products_added_to_showcase: number | null;
+  product_impressions: number | null;
+  video_views: number | null;
+  customers: number | null;
+  products_sold: number | null;
 }
 
 export interface VideoPerformanceRecord {
@@ -79,6 +98,15 @@ export interface VideoPerformanceRecord {
   likes: number | null;
   comments: number | null;
   shares: number | null;
+  // Funnel + quality (mig 120) — same null-means-absent contract.
+  product_impressions: number | null;
+  product_clicks: number | null;
+  // Rates, in percentage points (3.65 means 3.65%).
+  completion_rate: number | null;
+  ctr: number | null;
+  engagement_rate: number | null;
+  // GMV per 1,000 video impressions.
+  gpm: number | null;
 }
 
 // No video_link: upload_videos_atomic DERIVES the canonical permalink from
@@ -112,16 +140,24 @@ export interface ProductPerformanceRecord {
   items_sold: number;
   items_refunded: number;
   orders: number;
-  avg_daily_customers: number;
-  avg_daily_creators_with_sales: number;
-  avg_daily_creators_posted: number;
-  avg_daily_videos_with_sales: number;
-  avg_daily_lives_with_sales: number;
   videos: number;
   live_streams: number;
   est_commission: number;
   samples_shipped: number;
   est_flat_fee: number;
+  // Period totals (mig 120) — the export replaced its five `avg. daily …`
+  // columns with these. null means the column wasn't in this file.
+  videos_with_sales: number | null;
+  live_streams_with_sales: number | null;
+  creators_posted_content: number | null;
+  creators_with_sales: number | null;
+  customers: number | null;
+  total_sample_content: number | null;
+  product_impressions: number | null;
+  product_clicks: number | null;
+  // Rates, in percentage points (1.71 means 1.71%).
+  ctor: number | null;
+  ctr: number | null;
 }
 
 // ── Helper: column audit + summary boilerplate ─────────────────────
@@ -164,12 +200,24 @@ export function parseCreatorRows(
       items_sold:                    parseInteger(findColumn(row, 'items_sold', 'creator_performance')),
       items_refunded:                parseInteger(findColumn(row, 'items_refunded', 'creator_performance')),
       aov:                           parseNum(findColumn(row, 'aov', 'creator_performance')),
-      avg_daily_products_with_sales: parseNum(findColumn(row, 'avg_daily_products_with_sales', 'creator_performance')),
       videos:                        parseInteger(findColumn(row, 'videos', 'creator_performance')),
       live_streams:                  parseInteger(findColumn(row, 'live_streams', 'creator_performance')),
       est_commission:                parseNum(findColumn(row, 'est_commission', 'creator_performance')),
       samples_shipped:               parseInteger(findColumn(row, 'samples_shipped', 'creator_performance')),
       est_flat_fee:                  parseNum(findColumn(row, 'est_flat_fee', 'creator_performance')),
+      // mig 120 — NULL-preserving (see column-maps.ts). `gmv` above stays the
+      // total; these three are its live/video/product-card components.
+      video_gmv:                     parseNumOrNull(findColumn(row, 'video_gmv', 'creator_performance')),
+      live_gmv:                      parseNumOrNull(findColumn(row, 'live_gmv', 'creator_performance')),
+      product_card_gmv:              parseNumOrNull(findColumn(row, 'product_card_gmv', 'creator_performance')),
+      ctor:                          parsePercentOrNull(findColumn(row, 'ctor', 'creator_performance')),
+      ctr:                           parsePercentOrNull(findColumn(row, 'ctr', 'creator_performance')),
+      total_sample_content:          parseIntegerOrNull(findColumn(row, 'total_sample_content', 'creator_performance')),
+      products_added_to_showcase:    parseIntegerOrNull(findColumn(row, 'products_added_to_showcase', 'creator_performance')),
+      product_impressions:           parseIntegerOrNull(findColumn(row, 'product_impressions', 'creator_performance')),
+      video_views:                   parseIntegerOrNull(findColumn(row, 'video_views', 'creator_performance')),
+      customers:                     parseIntegerOrNull(findColumn(row, 'customers', 'creator_performance')),
+      products_sold:                 parseIntegerOrNull(findColumn(row, 'products_sold', 'creator_performance')),
     });
   }
 
@@ -235,6 +283,13 @@ export function parseVideoRows(
       likes:                parseEngagement(row, 'likes'),
       comments:             parseEngagement(row, 'comments'),
       shares:               parseEngagement(row, 'shares'),
+      // mig 120 — NULL-preserving (see column-maps.ts).
+      product_impressions:  parseIntegerOrNull(findColumn(row, 'product_impressions', 'video_performance')),
+      product_clicks:       parseIntegerOrNull(findColumn(row, 'product_clicks', 'video_performance')),
+      completion_rate:      parsePercentOrNull(findColumn(row, 'completion_rate', 'video_performance')),
+      ctr:                  parsePercentOrNull(findColumn(row, 'ctr', 'video_performance')),
+      engagement_rate:      parsePercentOrNull(findColumn(row, 'engagement_rate', 'video_performance')),
+      gpm:                  parseNumOrNull(findColumn(row, 'gpm', 'video_performance')),
     });
   }
 
@@ -336,16 +391,23 @@ export function parseProductRows(
       items_sold:                    parseInteger(findColumn(row, 'items_sold', 'product_performance')),
       items_refunded:                parseInteger(findColumn(row, 'items_refunded', 'product_performance')),
       orders,
-      avg_daily_customers:           parseNum(findColumn(row, 'avg_daily_customers', 'product_performance')),
-      avg_daily_creators_with_sales: parseNum(findColumn(row, 'avg_daily_creators_with_sales', 'product_performance')),
-      avg_daily_creators_posted:     parseNum(findColumn(row, 'avg_daily_creators_posted', 'product_performance')),
-      avg_daily_videos_with_sales:   parseNum(findColumn(row, 'avg_daily_videos_with_sales', 'product_performance')),
-      avg_daily_lives_with_sales:    parseNum(findColumn(row, 'avg_daily_lives_with_sales', 'product_performance')),
       videos:                        parseInteger(findColumn(row, 'videos', 'product_performance')),
       live_streams:                  parseInteger(findColumn(row, 'live_streams', 'product_performance')),
       est_commission:                parseNum(findColumn(row, 'est_commission', 'product_performance')),
       samples_shipped:               parseInteger(findColumn(row, 'samples_shipped', 'product_performance')),
       est_flat_fee:                  parseNum(findColumn(row, 'est_flat_fee', 'product_performance')),
+      // mig 120 — NULL-preserving (see column-maps.ts). These are the period
+      // totals that replaced the export's five removed `avg. daily …` columns.
+      videos_with_sales:             parseIntegerOrNull(findColumn(row, 'videos_with_sales', 'product_performance')),
+      live_streams_with_sales:       parseIntegerOrNull(findColumn(row, 'live_streams_with_sales', 'product_performance')),
+      creators_posted_content:       parseIntegerOrNull(findColumn(row, 'creators_posted_content', 'product_performance')),
+      creators_with_sales:           parseIntegerOrNull(findColumn(row, 'creators_with_sales', 'product_performance')),
+      customers:                     parseIntegerOrNull(findColumn(row, 'customers', 'product_performance')),
+      total_sample_content:          parseIntegerOrNull(findColumn(row, 'total_sample_content', 'product_performance')),
+      product_impressions:           parseIntegerOrNull(findColumn(row, 'product_impressions', 'product_performance')),
+      product_clicks:                parseIntegerOrNull(findColumn(row, 'product_clicks', 'product_performance')),
+      ctor:                          parsePercentOrNull(findColumn(row, 'ctor', 'product_performance')),
+      ctr:                           parsePercentOrNull(findColumn(row, 'ctr', 'product_performance')),
     });
   }
 

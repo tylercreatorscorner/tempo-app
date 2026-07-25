@@ -2,7 +2,7 @@
  * Auto-detection of TikTok Shop XLSX export files.
  *
  * Given a filename, infer:
- *   - file type   (creator / video / videolist / affiliateproduct / unknown)
+ *   - file type   (creator / video / affiliateproduct / unknown)
  *   - brand       (catakor / jiyu / lemme / ...)
  *   - report date (YYYY-MM-DD from the filename's date suffix)
  *
@@ -17,6 +17,13 @@
 export type FileType =
   | 'creator'
   | 'video'
+  /**
+   * The pre-merge Video List export -> the lifetime `videos` registry.
+   * NOT part of the expected daily set any more (see detectFileType), but the
+   * value must stay in the union: historical activity_log rows reference it,
+   * upload_videos_atomic still exists, and the header sniff still selects it
+   * for brands whose TikTok exports have not been merged yet.
+   */
   | 'videolist'
   | 'affiliateproduct'
   | 'product'
@@ -30,6 +37,35 @@ export const FILE_TYPE_LABELS: Record<FileType, string> = {
   product:          'Product List (legacy)',
   unknown:          'Unknown',
 };
+
+export interface ExpectedDailyFile {
+  /** The FileType the upload pipeline resolves this export to. */
+  type: FileType;
+  /** What the operator downloads it as in TikTok Shop. */
+  exportLabel: string;
+  /** The token TikTok puts in the filename, for the gap checklist. */
+  exportToken: string;
+}
+
+/**
+ * The exports the operator is expected to upload for every brand, every day.
+ * THREE, not four: TikTok merged the Video List export into the Video Data
+ * schema (~2026-07-13), so the *_Video_List_*.xlsx file now carries Video Data
+ * content and the separate *_Video_Data_*.xlsx export is a duplicate (verified
+ * 2026-07-22 on Bondie: same 25 columns, same 1,042 rows, same GMV / orders /
+ * likes / views — the only differing column is `Video link`, an expiring signed
+ * CDN URL that regenerates per export). The owner's call: keep uploading the
+ * file NAMED Video List, drop Video Data.
+ *
+ * Note the label is not the report name: the video report still exports as
+ * Video_List, and the product report as Transaction_Analysis. Anything that
+ * tells the operator which files to go find must read from here.
+ */
+export const EXPECTED_DAILY_FILES: readonly ExpectedDailyFile[] = [
+  { type: 'creator',          exportLabel: 'Creator Data',         exportToken: 'Creator_Data' },
+  { type: 'video',            exportLabel: 'Video List',           exportToken: 'Video_List' },
+  { type: 'affiliateproduct', exportLabel: 'Transaction Analysis', exportToken: 'Transaction_Analysis' },
+] as const;
 
 /** Map filename brand tokens -> canonical brand slug. */
 const BRAND_MAP: Record<string, string> = {
@@ -57,12 +93,27 @@ const BRAND_MAP: Record<string, string> = {
   'cosrx':               'cosrx',
 };
 
-/** Detect file type from filename. */
+/**
+ * Detect file type from filename.
+ *
+ * `*_Video_List_*.xlsx` maps to 'video' (video_performance), NOT 'videolist'.
+ * TikTok merged the Video List export into the Video Data schema ~2026-07-13
+ * while keeping the old filename, so a file named Video List now contains
+ * Video Data. Mapping it to 'videolist' sent it at the `videos` column map,
+ * which matches 3 of 13 headers on the merged format — it parsed to zero rows
+ * and dead-ended. Do NOT "restore" the old mapping.
+ *
+ * A handful of brands (jiyu, leefar_*, lemme as of 2026-07-25) still emit the
+ * PRE-merge Video List layout. Those are rescued by the header sniff
+ * (type-sniff.ts), which scores the real columns and switches back to
+ * 'videolist' — the sniff is the backstop in both directions, not the primary
+ * signal.
+ */
 export function detectFileType(filename: string): FileType {
   const lower = filename.toLowerCase();
   if (lower.includes('creator_data')          || lower.includes('creator data'))          return 'creator';
   if (lower.includes('video_data')            || lower.includes('video data'))            return 'video';
-  if (lower.includes('video_list')            || lower.includes('video list'))            return 'videolist';
+  if (lower.includes('video_list')            || lower.includes('video list'))            return 'video';
   if (lower.includes('transaction_analysis')  || lower.includes('affiliate_product'))     return 'affiliateproduct';
   if (lower.includes('product_list')          || lower.includes('product list'))          return 'product';
   return 'unknown';

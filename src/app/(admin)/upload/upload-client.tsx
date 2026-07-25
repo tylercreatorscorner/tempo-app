@@ -12,9 +12,16 @@
  *   - Existing-data check is /api/upload/check?table=&brand=&date=
  *   - Editable per-file before processing: brand, date, type — in case
  *     filename detection got something wrong.
- *   - Queue-time header sniff (type-sniff.ts) auto-corrects the type when the
- *     filename lies — TikTok merged the Video List export into the Video Data
- *     schema (~2026-07-13) while keeping the *_Video_List_*.xlsx filenames.
+ *   - Queue-time header sniff (type-sniff.ts) is the BACKSTOP for the type,
+ *     not the primary signal. TikTok merged the Video List export into the
+ *     Video Data schema (~2026-07-13) while keeping the *_Video_List_*.xlsx
+ *     filename, so detectFileType maps that filename straight to Video Data.
+ *     The sniff still runs, and still switches a file back to Video List for
+ *     the brands whose exports have not been merged yet.
+ *
+ * Expected daily set: THREE files per brand — Creator Data, Video List (which
+ * carries Video Data content), Transaction Analysis. The separate
+ * *_Video_Data_*.xlsx export is retired; it was byte-identical to Video List.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
@@ -39,6 +46,7 @@ import {
   extractDate,
   validateReportDate,
   FILE_TYPE_LABELS,
+  EXPECTED_DAILY_FILES,
   type FileType,
 } from '@/lib/upload/file-detection';
 import {
@@ -92,11 +100,14 @@ const TABLE_FOR_TYPE: Record<FileType, string | null> = {
   unknown: null,
 };
 
+// The three daily types come first. 'videolist' stays selectable but is no
+// longer part of the expected set: it only applies to the pre-merge Video List
+// layout, which a few brands still export and the header sniff still detects.
 const FILE_TYPE_OPTIONS: { value: FileType; label: string }[] = [
   { value: 'creator',          label: 'Creator Data' },
-  { value: 'video',            label: 'Video Data' },
-  { value: 'videolist',        label: 'Video List' },
+  { value: 'video',            label: 'Video Data (incl. files named Video List)' },
   { value: 'affiliateproduct', label: 'Transaction Analysis (Products)' },
+  { value: 'videolist',        label: 'Video List — pre-merge layout only' },
   { value: 'unknown',          label: 'Unknown — pick one' },
 ];
 
@@ -319,10 +330,12 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
     }
   }
 
-  /** Queue-time content-based type resolution. TikTok merged the Video List
-   *  export into the Video Data schema (~2026-07-13) while keeping the old
-   *  *_Video_List_*.xlsx filenames, so filename detection lies and the ops fix
-   *  was flipping Type dropdowns file-by-file. Read ONLY the header row and
+  /** Queue-time content-based type resolution — the BACKSTOP behind
+   *  detectFileType, which now maps *_Video_List_*.xlsx straight to Video Data
+   *  (TikTok merged the schemas ~2026-07-13). It still earns its keep in the
+   *  other direction: brands whose exports have not been merged yet ship the
+   *  pre-merge Video List layout under the same filename, and the header row
+   *  is the only thing that can tell them apart. Read ONLY the header row and
    *  let the columns decide. The Type dropdown stays editable — this is a
    *  default, not a lock. Sniffed headers stay local to this function: nothing
    *  raw may land on the QueueItem (the queue persists to localStorage). */
@@ -418,10 +431,10 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
     //    label says it's for date X; if X is in the future, hard-block here
     //    before we even try to parse rows. Per-row dates inside the file are
     //    handled by the parser/validators downstream.
-    //    Dated tables hard-require a real date FIRST: a type switch (e.g.
-    //    videolist → video after the header sniff) turns an undated upload
-    //    into a dated one — video_performance rows carry report_date, the
-    //    videos table doesn't — and validateReportDate would silently pass ''.
+    //    Dated tables hard-require a real date FIRST: a header-sniff switch
+    //    into a dated type (video_performance rows carry report_date; the
+    //    videos table doesn't) turns an undated upload into a dated one, and
+    //    validateReportDate would silently pass ''.
     if (TABLE_FOR_TYPE[item.type] !== null && !/^\d{4}-\d{2}-\d{2}$/.test(item.reportDate)) {
       appendLog(item.id, 'error', `Report date is required for ${FILE_TYPE_LABELS[item.type]} uploads — set the date field above and retry.`);
       updateItem(item.id, { status: 'error' });
@@ -531,11 +544,11 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
     }
 
     if (parsed.records.length === 0) {
-      // Cross-audit the headers against every OTHER upload type's map. Feeding
-      // a file into the wrong type (e.g. a daily Video DATA export saved as
-      // "..._Video_List.xlsx" — the Bondie incident) matches almost nothing on
-      // the chosen map but nearly everything on the right one — say so instead
-      // of the generic "check the format".
+      // Cross-audit the headers against every OTHER upload type's map. A file
+      // fed into the wrong type matches almost nothing on the chosen map but
+      // nearly everything on the right one — say so instead of the generic
+      // "check the format". Still reachable after the filename fix: a brand on
+      // the pre-merge Video List layout whose sniff was skipped lands here.
       const TYPE_LABELS: Record<MapTable, string> = {
         creator_performance: 'Creator Data',
         video_performance: 'Video Data',
@@ -823,10 +836,9 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
       // Let every in-flight header sniff settle BEFORE snapshotting the
       // serialization groups — a sniff landing between snapshot and pickup
       // would silently re-key an item into another group's territory (e.g. a
-      // late videolist → video switch running concurrently with the real
-      // Video Data file for the same day: interleaved chunk-1 overwrite
-      // DELETEs corrupt the day, and both fileHashes land in the 24h
-      // idempotency table with no self-heal).
+      // late switch onto the same table as another queued file for the same
+      // day: interleaved chunk-1 overwrite DELETEs corrupt the day, and both
+      // fileHashes land in the 24h idempotency table with no self-heal).
       await Promise.allSettled([...sniffInFlightRef.current.values()]);
       // From here to the end of the run, any late sniff leaves types alone
       // (sniffTypeFromHeaders checks this ref).
@@ -886,9 +898,10 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
     return c;
   }, [queue]);
 
-  // Duplicate-target detection — after auto-switches (or manual edits) two
-  // queue items can resolve to the same (type|brand|date), e.g.
-  // Brand_Video_List_D auto-switched to Video Data next to Brand_Video_Data_D.
+  // Duplicate-target detection — two queue items can resolve to the same
+  // (type|brand|date), which is exactly what happens if an operator still
+  // drops both Brand_Video_List_D and the retired Brand_Video_Data_D: both
+  // now type as Video Data.
   // The run pool serializes same-key items, so the SECOND one silently
   // overwrites the first — warn on the later item and let the operator decide
   // (never auto-remove). Derived from the queue so it stays correct through
@@ -980,6 +993,28 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
         <p className="text-xs text-muted-foreground mt-1">
           Auto-detects brand, file type, and date from names like{' '}
           <code className="text-muted-foreground">Brand_FileType_YYYYMMDD.xlsx</code>
+        </p>
+        {/* Named here because nothing else on the page tells the operator what
+            a complete day looks like. Driven off EXPECTED_DAILY_FILES so this
+            copy can't drift from the freshness dots and the gap checklist. */}
+        <p className="mt-3 text-xs text-muted-foreground">
+          <span className="font-semibold text-[var(--foreground)]">
+            {EXPECTED_DAILY_FILES.length} files per brand, per day:
+          </span>{' '}
+          {EXPECTED_DAILY_FILES.map(f => f.exportLabel).join(' · ')}
+        </p>
+        {/* NOT "the Video Data export is retired" — that is only true for the
+            brands TikTok has already migrated. Verified 2026-07-25: bondie,
+            catakor and physicians_choice ship the merged layout, while jiyu,
+            lemme and all three leefar stores still ship the OLD split exports,
+            where Video List and Video Data are DIFFERENT reports. Telling the
+            operator to drop Video Data everywhere would silently stop daily
+            video performance for that half of the roster. The instruction is
+            therefore "upload whatever TikTok gives you", which is correct in
+            both regimes and needs no maintenance as brands migrate. */}
+        <p className="mt-1 text-[11px] text-muted-foreground/80">
+          For most brands Video List now carries Video Data content and one video file is enough.
+          Some brands still produce both — if TikTok gives you a separate Video Data export, upload it too.
         </p>
         <label className="inline-block mt-4 px-4 py-2 rounded-xl bg-[var(--primary)] hover:brightness-[1.07] text-white text-sm font-semibold cursor-pointer transition-colors shadow-[var(--pulse-elev-1)]">
           Choose files

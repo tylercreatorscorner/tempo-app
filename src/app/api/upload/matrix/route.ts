@@ -14,17 +14,15 @@ export const runtime = 'nodejs';
 const MATRIX_DAYS = 14;
 const UMBRELLA_BRAND_SLUGS = new Set(['leefar']);
 
+// Three file types, not four — the Video List tab is retired. TikTok merged
+// that export into the Video Data schema (~2026-07-13), so a *_Video_List_*
+// file lands in video_performance and the 'video' row already covers it.
+// get_upload_coverage still has a 'videos' branch (mig 112, activity_log
+// upload evidence); it is simply no longer reachable from here.
 const FILE_TYPE_TABLES: Record<string, { table: string; dateField: string }> = {
-  creator:   { table: 'creator_performance', dateField: 'report_date' },
-  video:     { table: 'video_performance',   dateField: 'report_date' },
-  // videolist cells mean "a Video List file was UPLOADED that day", not
-  // "videos with that post_date exist": dual-ingest (mig 110) writes
-  // post_dated identity rows into `videos` on every Video Data upload, so
-  // post_date presence no longer proves a Video List upload happened.
-  // get_upload_coverage's 'videos' branch (mig 112) reads activity_log
-  // upload evidence instead.
-  videolist: { table: 'videos',              dateField: 'upload_day'  },
-  product:   { table: 'product_performance', dateField: 'report_date' },
+  creator: { table: 'creator_performance', dateField: 'report_date' },
+  video:   { table: 'video_performance',   dateField: 'report_date' },
+  product: { table: 'product_performance', dateField: 'report_date' },
 };
 
 export async function GET(request: NextRequest) {

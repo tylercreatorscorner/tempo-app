@@ -14,6 +14,19 @@
  * grain (TikTok files are GMV-desc sorted and ~99% $0 rows — chunk sums are
  * meaningless past the head).
  *
+ * PAYLOAD SHAPE: `records` is forwarded to the RPC verbatim as jsonb — this
+ * route never enumerates metric fields. So the 27 columns added in mig 120
+ * (the creator GMV attribution split, per-video funnel/quality metrics, the
+ * product period totals) ride along with no change here; each RPC picks them
+ * out by key. Two properties of that pass-through are load-bearing and must
+ * survive any future payload optimisation:
+ *   - A field carrying JSON `null` means "TikTok didn't send this column".
+ *     The RPCs insert those columns WITHOUT a COALESCE, so null and an absent
+ *     key both land as SQL NULL — distinct from a real 0 (house rule after
+ *     the fake-$0 incident). Never substitute 0 for a missing metric here.
+ *   - The $0-GMV guard below reads only `gmv`/`orders`, which stay non-null
+ *     numbers; the nullable mig-120 fields are deliberately not part of it.
+ *
  * Routes the upload through a Postgres RPC that does delete + bulk insert
  * atomically inside a single transaction with `SET LOCAL statement_timeout = '60s'`.
  * That bypasses the 8s authenticator-role timeout that PostgREST inherits at

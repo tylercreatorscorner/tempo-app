@@ -42,8 +42,27 @@ export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
   title: 'Connect your TikTok Shop',
-  // Never indexed and never unfurled with a preview: the URL is the secret.
+  // Never INDEXED — the URL is the secret. But noindex does not stop a chat
+  // client or mail scanner from unfurling, and they do: this link arrives in a
+  // merchant's inbox and gets a preview card whether we design one or not. So
+  // it gets the connect variant, which tells the reader what the link does
+  // instead of pitching the product at them. Nothing here widens the leak —
+  // the path already says /connect/tiktok — and the card names no brand, so a
+  // forwarded link never discloses which client it belongs to.
   robots: { index: false, follow: false },
+  openGraph: {
+    title: 'Connect your TikTok Shop',
+    description:
+      'Authorize your agency to sync the performance data they already report on — no posting, no listings, no storefront changes.',
+    images: [{ url: '/api/og?v=connect', width: 1200, height: 630, alt: 'Connect your TikTok Shop to Tempo' }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Connect your TikTok Shop',
+    description:
+      'Authorize your agency to sync the performance data they already report on — no posting, no listings, no storefront changes.',
+    images: ['/api/og?v=connect'],
+  },
 };
 
 interface Props {

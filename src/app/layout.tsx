@@ -20,13 +20,13 @@ export const metadata: Metadata = {
     template: '%s | Tempo',
   },
   description:
-    'Tempo is the creator management platform for TikTok Shop. Real-time GMV tracking, creator rankings, and Discord-native communication — all in one place.',
+    'Tempo is the creator management platform for TikTok Shop. GMV and commission per creator, post-level performance, retainers and invoicing — built for agencies running managed creator programs.',
   keywords: [
     'TikTok Shop',
     'creator management',
     'affiliate marketing',
     'GMV tracking',
-    'Discord bot',
+    'creator commission tracking',
     'TikTok Shop analytics',
     'creator program',
   ],
@@ -40,7 +40,7 @@ export const metadata: Metadata = {
     siteName: 'Tempo',
     title: 'Tempo | Creator Management for TikTok Shop',
     description:
-      'Real-time GMV tracking, creator rankings, and Discord-native communication for TikTok Shop brands.',
+      'GMV and commission per creator, post-level performance, retainers and invoicing — for agencies running managed creator programs.',
     images: [
       {
         url: '/api/og',
@@ -54,7 +54,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'Tempo | Creator Management for TikTok Shop',
     description:
-      'Real-time GMV tracking, creator rankings, and Discord-native communication for TikTok Shop brands.',
+      'GMV and commission per creator, post-level performance, retainers and invoicing — for agencies running managed creator programs.',
     images: ['/api/og'],
   },
   robots: {

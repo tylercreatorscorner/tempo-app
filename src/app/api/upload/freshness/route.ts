@@ -3,14 +3,14 @@
  *
  * Returns per-brand, per-file-type freshness data for the upload page.
  * Each brand reports:
- *   - Latest date per file type (creator/video/product: fact-table report_date;
- *     videolist: activity_log upload evidence — see FILE_TYPES note)
+ *   - Latest report_date per file type, over the THREE reports that make up the
+ *     expected daily set (see FILE_TYPES)
  *   - Overall status (current / behind / stale / no_data) based on creator data
  *   - Detected gaps (days within the last 30 with no creator data, surrounded by days that have it)
  *   - Detected future-dated rows (always invalid — TikTok data can't be from the future)
  *
- * Implementation note: previously fanned out 4 × N brand queries (24+ DB round
- * trips for 6 brands). Now uses 4 queries total — one per source table — each
+ * Implementation note: previously fanned out one query per brand per file type
+ * (24+ DB round trips for 6 brands). Now uses one query per source table, each
  * pulling all brands at once. Aggregation happens in JS. Cuts panel-load
  * latency roughly 5×.
  *
@@ -21,24 +21,29 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth/require-admin';
+import { EXPECTED_DAILY_FILES } from '@/lib/upload/file-detection';
 
 export const runtime = 'nodejs';
 
+// The expected daily set — THREE reports per brand, not four. The Video List
+// row is retired: TikTok merged that export into the Video Data schema
+// (~2026-07-13), so the *_Video_List_*.xlsx file now lands in
+// video_performance and is already covered by the 'video' row below. Tracking
+// it separately (via the activity_log upload evidence of mig 112) would report
+// a permanently-missing report for a file that no longer exists as its own
+// thing. Keep this list aligned with EXPECTED_DAILY_FILE_TYPES in
+// lib/upload/file-detection.ts.
+// One entry per expected daily export — `fileType` ties each back to
+// EXPECTED_DAILY_FILES so the gap checklist names the file the way TikTok
+// actually ships it (the video report is still *_Video_List_*, the product
+// report *_Transaction_Analysis_*).
 const FILE_TYPES = [
-  { key: 'creator',   label: 'C', name: 'Creator Data',  table: 'creator_performance', dateField: 'report_date' },
-  { key: 'video',     label: 'V', name: 'Video Data',    table: 'video_performance',   dateField: 'report_date' },
-  // 'videolist' coverage is NOT videos.post_date anymore: dual-ingest
-  // (mig 110) writes post_dated identity rows into `videos` on every Video
-  // Data upload, so post_date presence no longer proves a Video List file
-  // was uploaded — the L column would go green while a brand's Video List
-  // uploads were silently stopped (the exact Jen-incident failure mode).
-  // get_upload_coverage's 'videos' branch (mig 112) now returns upload-day
-  // evidence from activity_log (details->>'table' = 'videos') instead; the
-  // future-rows probe for this type trivially returns empty (upload
-  // timestamps can't be future).
-  { key: 'videolist', label: 'L', name: 'Video List',    table: 'videos',              dateField: 'upload_day'  },
-  { key: 'product',   label: 'P', name: 'Product Data',  table: 'product_performance', dateField: 'report_date' },
+  { key: 'creator', fileType: 'creator',          label: 'C', name: 'Creator Data', table: 'creator_performance', dateField: 'report_date' },
+  { key: 'video',   fileType: 'video',            label: 'V', name: 'Video Data',   table: 'video_performance',   dateField: 'report_date' },
+  { key: 'product', fileType: 'affiliateproduct', label: 'P', name: 'Product Data', table: 'product_performance', dateField: 'report_date' },
 ] as const;
+
+const EXPORT_TOKEN_BY_TYPE = new Map(EXPECTED_DAILY_FILES.map(f => [f.type, f.exportToken]));
 
 const MATRIX_DAYS = 30;
 const UMBRELLA_BRAND_SLUGS = new Set(['leefar']);
@@ -80,7 +85,7 @@ export async function GET() {
   const activeBrandSlugs = activeBrands.map(b => b.slug);
   const brandLabelBySlug = new Map(activeBrands.map(b => [b.slug, b.name]));
 
-  // ── 4 parallel queries (one per source table) — window via a DISTINCT-aggregating
+  // ── One parallel pull per source table — window via a DISTINCT-aggregating
   //    RPC, future rows via the raw SELECT with an explicit LIMIT that's small
   //    enough to never hit the row cap. The window query used to be a raw SELECT
   //    too, which returned ~15k rows/day/brand and silently hit PostgREST's
@@ -88,10 +93,10 @@ export async function GET() {
   //    the cutoff. get_upload_coverage pre-aggregates in Postgres so we get
   //    O(brands × days) rows back regardless of tenant size.
   // Future window starts TOMORROW, not today: videos posted earlier today
-  // legitimately appear in a same-day Video List export with post_date =
-  // today (confirmed 2026-07-22 by decoding the timestamp embedded in the
-  // TikTok video IDs), and a today-dated report file is allowed with a
-  // warning at upload. Only strictly-future dates are impossible.
+  // legitimately appear in a same-day video export with post_date = today
+  // (confirmed 2026-07-22 by decoding the timestamp embedded in the TikTok
+  // video IDs), and a today-dated report file is allowed with a warning at
+  // upload. Only strictly-future dates are impossible.
   const tomorrow = new Date(today);
   tomorrow.setUTCDate(today.getUTCDate() + 1);
   const tomorrowStr = tomorrow.toISOString().split('T')[0];
@@ -233,6 +238,11 @@ export async function GET() {
   return NextResponse.json({
     brands: brandResults,
     futureIssues,
-    fileTypes: FILE_TYPES.map(ft => ({ key: ft.key, label: ft.label, name: ft.name })),
+    fileTypes: FILE_TYPES.map(ft => ({
+      key: ft.key,
+      label: ft.label,
+      name: ft.name,
+      exportToken: EXPORT_TOKEN_BY_TYPE.get(ft.fileType) ?? ft.name.replace(/\s+/g, '_'),
+    })),
   });
 }

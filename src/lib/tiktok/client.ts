@@ -99,6 +99,14 @@ export interface TikTokClientOptions {
   onTokenExpired?: () => Promise<string | null>;
   timeoutMs?: number;
   maxRetries?: number;
+  /**
+   * API host override. The ONLY reason this exists is
+   * scripts/test-tiktok-client.ts, which points the client at a local server to
+   * prove its failure handling without a live shop. Production callers must
+   * leave it unset so requests go to TIKTOK_API_URL — there is no second real
+   * host, and a wrong one here silently sends signed traffic elsewhere.
+   */
+  baseUrl?: string;
 }
 
 export interface TikTokResult<T> {
@@ -129,6 +137,7 @@ export class TikTokClient {
   private readonly onTokenExpired?: () => Promise<string | null>;
   private readonly timeoutMs: number;
   private readonly maxRetries: number;
+  private readonly baseUrl: string;
   private accessToken: string;
 
   constructor(options: TikTokClientOptions) {
@@ -142,6 +151,7 @@ export class TikTokClient {
     this.onTokenExpired = options.onTokenExpired;
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.maxRetries = options.maxRetries ?? DEFAULT_MAX_RETRIES;
+    this.baseUrl = options.baseUrl ?? TIKTOK_API_URL;
   }
 
   get<T = unknown>(path: string, query?: TikTokRequestOptions['query']): Promise<TikTokResult<T>> {
@@ -250,7 +260,7 @@ export class TikTokClient {
       contentType,
     });
 
-    const url = new URL(path, TIKTOK_API_URL);
+    const url = new URL(path, this.baseUrl);
     for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
 
     const headers: Record<string, string> = { 'x-tts-access-token': this.accessToken };
@@ -269,6 +279,7 @@ export class TikTokClient {
         cache: 'no-store',
       });
     } catch (err) {
+      clearTimeout(timer);
       // Never put `url` in the message: it carries app_key and sign.
       throw new TikTokTransientError({
         status: 0,
@@ -278,13 +289,37 @@ export class TikTokClient {
           ? `${method} ${path} timed out after ${this.timeoutMs}ms`
           : `${method} ${path} network error: ${err instanceof Error ? err.message : String(err)}`,
       });
-    } finally {
-      clearTimeout(timer);
     }
 
     // Read as text first and parse by hand: calling res.json() on an error page
     // throws a SyntaxError that buries the real status.
-    const rawBody = await res.text().catch(() => '');
+    //
+    // The timeout stays ARMED across this read. fetch() resolves as soon as the
+    // response headers arrive, so clearing it above would leave the body read
+    // unbounded, and a peer that sends a status line and then stalls would hang
+    // the caller forever — a 30s timeout that is really no timeout at all.
+    let rawBody = '';
+    try {
+      rawBody = await res.text();
+    } catch (err) {
+      if (controller.signal.aborted) {
+        throw new TikTokTransientError({
+          status: 0,
+          code: null,
+          requestId: null,
+          message: `${method} ${path} timed out after ${this.timeoutMs}ms`,
+        });
+      }
+      // A body that could not be read in full is no reason to throw away the
+      // status we DID receive: fall through empty and classify on the status,
+      // so a truncated 404 stays permanent instead of being retried forever.
+      console.warn(
+        `[tiktok] ${method} ${path} HTTP ${res.status} body could not be read: ${err instanceof Error ? err.message : String(err)}`
+      );
+    } finally {
+      clearTimeout(timer);
+    }
+
     const envelope = parseEnvelope(rawBody);
     const requestId = envelope?.request_id ?? null;
 

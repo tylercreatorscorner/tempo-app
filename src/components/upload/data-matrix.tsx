@@ -4,18 +4,18 @@
  * Data Status Matrix — middle of /upload.
  *
  * 14-day grid: rows = brands, cols = days. Each cell shows whether (brand, day)
- * has any data in the selected file type's table. File type selector at top
- * (Creator / Video / Video List / Products).
+ * has any data in the selected file type's table. File type selector at top —
+ * one tab per report in the expected daily set (Creator / Video / Product).
  *
  * The cells are tiny by design — the value is in the gestalt: solid block of
  * green = healthy, red checkerboard = a brand has gaps.
  */
 import { useEffect, useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
-import { RefreshCw } from 'lucide-react';
+import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
-type FileTypeKey = 'creator' | 'video' | 'videolist' | 'product';
+type FileTypeKey = 'creator' | 'video' | 'product';
 
 interface MatrixRow {
   brand: string;
@@ -29,33 +29,58 @@ interface MatrixResponse {
   rows: MatrixRow[];
 }
 
+// One tab per expected daily report. The Video List tab is retired — TikTok
+// merged that export into the Video Data schema (~2026-07-13), so the file
+// named *_Video_List_* now lands in video_performance and shows up under
+// "Video". A separate tab could only ever read as permanently missing.
 const TABS: { key: FileTypeKey; label: string }[] = [
-  { key: 'creator',   label: 'Creator' },
-  { key: 'video',     label: 'Video' },
-  { key: 'videolist', label: 'Video List' },
-  { key: 'product',   label: 'Product' },
+  { key: 'creator', label: 'Creator' },
+  { key: 'video',   label: 'Video' },
+  { key: 'product', label: 'Product' },
 ];
 
 export function DataMatrix({ refreshKey = 0 }: { refreshKey?: number }) {
   const [tab, setTab] = useState<FileTypeKey>('creator');
   const [data, setData] = useState<MatrixResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   // Rows with zero coverage across the whole window are hidden by default —
   // they're almost always brands that have never uploaded this file type, and
   // an all-red row carries no signal. Not persisted; resets each load.
   const [showNever, setShowNever] = useState(false);
 
+  // A response consumed without checking res.ok renders a 500 as an all-red
+  // grid (or nothing at all) — indistinguishable from "this brand never
+  // uploaded". Surface the failure instead; a coverage panel that lies about
+  // coverage is worse than no panel.
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    fetch(`/api/upload/matrix?fileType=${tab}`, { cache: 'no-store' })
-      .then(r => r.json())
-      .then((d: MatrixResponse | { error: string }) => {
-        if (cancelled) return;
-        if ('error' in d) return;
-        setData(d);
-      })
-      .finally(() => { if (!cancelled) setLoading(false); });
+    setError(null);
+    (async () => {
+      try {
+        const res = await fetch(`/api/upload/matrix?fileType=${tab}`, { cache: 'no-store' });
+        const text = await res.text();
+        let body: unknown;
+        try {
+          body = JSON.parse(text);
+        } catch {
+          throw new Error(`HTTP ${res.status}`);
+        }
+        if (!res.ok) {
+          throw new Error((body as { error?: string })?.error || `HTTP ${res.status}`);
+        }
+        const payload = body as MatrixResponse;
+        if (!Array.isArray(payload?.rows) || !Array.isArray(payload?.dates)) {
+          throw new Error('unexpected response shape');
+        }
+        if (!cancelled) setData(payload);
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Request failed');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
     return () => { cancelled = true; };
   }, [tab, refreshKey]);
 
@@ -117,6 +142,16 @@ export function DataMatrix({ refreshKey = 0 }: { refreshKey?: number }) {
           </div>
         </div>
       </div>
+
+      {error && (
+        <div className="mb-3 flex items-start gap-2 rounded-xl border border-[var(--pulse-neg)]/25 bg-[var(--pulse-neg-bg)] px-3 py-2 text-[12px] text-[var(--pulse-neg)]">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span>
+            Couldn&apos;t load coverage ({error}).{' '}
+            {data ? 'Showing the last good grid — it may be out of date.' : 'Nothing below is a coverage claim.'}
+          </span>
+        </div>
+      )}
 
       {loading && !data ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground py-6 justify-center">
