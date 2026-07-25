@@ -63,7 +63,7 @@ export default async function SettingsPage() {
 
   // Load profile + tenant + brands dynamically
   let profile: { name: string; email: string; role: string; tenant_id: string } | null = null;
-  let tenant: { name: string; tiktok_connected: boolean; discord_connected: boolean; stripe_subscription_id: string | null; plan: string | null } | null = null;
+  let tenant: { name: string; discord_connected: boolean; stripe_subscription_id: string | null; plan: string | null } | null = null;
   let brands: { id: string; name: string; slug: string; color: string | null; display_name: string | null }[] = [];
 
   if (user) {
@@ -77,7 +77,7 @@ export default async function SettingsPage() {
     if (p?.tenant_id) {
       const { data: t } = await supabase
         .from('tenants')
-        .select('name, tiktok_connected, discord_connected, stripe_subscription_id, plan')
+        .select('name, discord_connected, stripe_subscription_id, plan')
         .eq('id', p.tenant_id)
         .single();
       tenant = t;
@@ -93,7 +93,6 @@ export default async function SettingsPage() {
   const displayName = profile?.name || user?.user_metadata?.full_name || 'User';
   const email = profile?.email || user?.email || '';
   const role = profile?.role === 'admin' || profile?.role === 'owner' ? 'Owner' : 'Member';
-  const tiktokConnected = tenant?.tiktok_connected || false;
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -104,9 +103,14 @@ export default async function SettingsPage() {
         </p>
       </div>
 
-      {/* TikTok Connection */}
+      {/* TikTok Connection. There is no TikTok Shop connection to report: no
+          OAuth flow, no stored shop credentials, no sync job. This used to read
+          `tenants.tiktok_connected`, which is an onboarding-checklist flag that
+          migration 017 backfilled to true — so it claimed a live sync that has
+          never existed. Wire this to the real connection record when the API
+          integration ships. */}
       <Suspense>
-        <TikTokConnect companyName={tenant?.name} connected={tiktokConnected} />
+        <TikTokConnect companyName={tenant?.name} />
       </Suspense>
 
       {/* Plan Selection */}
@@ -202,10 +206,10 @@ export default async function SettingsPage() {
           <div className="flex items-center justify-between p-3 rounded-lg border border-border/50">
             <div>
               <p className="font-medium text-sm">TikTok Shop</p>
-              <p className="text-xs text-muted-foreground">{tiktokConnected ? 'Syncing daily' : 'Not connected'}</p>
+              <p className="text-xs text-muted-foreground">Not connected</p>
             </div>
-            <span className={`text-xs px-2 py-1 rounded-full font-medium ${tiktokConnected ? 'bg-green-500/10 text-green-600' : 'bg-muted text-muted-foreground'}`}>
-              {tiktokConnected ? 'connected' : 'pending'}
+            <span className="text-xs px-2 py-1 rounded-full font-medium bg-muted text-muted-foreground">
+              pending
             </span>
           </div>
           <div className="flex items-center justify-between p-3 rounded-lg border border-border/50">

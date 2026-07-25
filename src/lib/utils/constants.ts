@@ -24,10 +24,13 @@ export const ACTIVE_BRANDS = ['jiyu', 'catakor', 'leefar', 'physicians_choice', 
 export type ActiveBrand = (typeof ACTIVE_BRANDS)[number];
 
 /**
- * Brands with active data pipelines (scraper/CSV) — the write gate in
- * api/tiktok/sync/route.ts: only these slugs may write to the v2 data tables.
- * A deliberate write-permission gate, not a brand-identity map, so it stays
- * hardcoded (re-implement against brands_v2 only if/when that gate moves).
+ * Brands with active data pipelines (scraper/CSV): only these slugs may write
+ * to the v2 data tables. A deliberate write-permission gate, not a
+ * brand-identity map, so it stays hardcoded (re-implement against brands_v2
+ * only if/when that gate moves).
+ *
+ * Currently unreferenced: its only consumer was api/tiktok/sync, deleted with
+ * the never-executed API module. Kept as the gate for the ingestion phase.
  */
 export const DATA_ENABLED_BRANDS = ['jiyu', 'catakor', 'physicians_choice', 'leefar_nutrition', 'leefar_supplements', 'leefar_us', 'lemme'] as const;
 
