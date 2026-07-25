@@ -22,6 +22,7 @@ import { cache } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createAdminClient } from '@/lib/supabase/server';
 import { getBrandRegistry, resolveUuids, uuidToSlug, type BrandRegistry } from '@/lib/data/brand-registry';
+import { resolveWatchUrl } from '@/lib/utils/format';
 
 // ---- Types ---------------------------------------------------------------
 
@@ -708,8 +709,16 @@ export async function getCreatorTopVideos(
   const top = out.slice(0, limit);
 
   // dvps.video_url is a tiktokcdn MEDIA url, not a watch URL — swap in the real
-  // tiktok.com link from `videos` (one bounded .in() on ≤limit ids). Null when
-  // missing, so callers never link a creator to a raw CDN file.
+  // tiktok.com link from `videos` (one bounded .in() on ≤limit ids).
+  //
+  // The old code kept the stored link only when it contained 'tiktok.com' and
+  // otherwise set null. Once TikTok started shipping expiring CDN links
+  // (host `tiktokcdn-us.com`, which does NOT contain that substring) that
+  // guard silently DROPPED the watch link for every affected video. Migration
+  // 119 makes the stored link canonical again, but the guard stays as a
+  // fallback rather than a filter: resolveWatchUrl prefers a canonical stored
+  // link, else derives it from the handle + video id, so the portal can never
+  // silently lose a video again — and a CDN/junk link still never wins.
   if (top.length > 0) {
     const { data: vids } = await supabase
       .from('videos')
@@ -717,11 +726,11 @@ export async function getCreatorTopVideos(
       .in('video_id', top.map((t) => t.videoId));
     const watch = new Map<string, string>();
     for (const v of vids ?? []) {
-      if (v.video_link && String(v.video_link).includes('tiktok.com')) {
-        watch.set(String(v.video_id), String(v.video_link));
-      }
+      if (v.video_link) watch.set(String(v.video_id), String(v.video_link));
     }
-    for (const t of top) t.videoUrl = watch.get(t.videoId) ?? null;
+    for (const t of top) {
+      t.videoUrl = resolveWatchUrl(watch.get(t.videoId) ?? null, t.tiktokUsername, t.videoId);
+    }
   }
   return top;
 }
@@ -1044,7 +1053,13 @@ export async function getInspirationVideos(
   return ((data as Record<string, unknown>[] | null) ?? []).map((r) => ({
     videoId: String(r.video_id),
     videoTitle: (r.video_title as string) || '(untitled)',
-    videoUrl: (r.video_url as string) || null,
+    // Same guarantee as getCreatorTopVideos: never surface an expiring CDN
+    // link, never drop a video for want of one (mig 119).
+    videoUrl: resolveWatchUrl(
+      (r.video_url as string) || null,
+      String(r.tiktok_username || ''),
+      String(r.video_id),
+    ),
     postDate: (r.post_date as string) || null,
     tiktokUsername: String(r.tiktok_username || ''),
     brandSlug: uuidToSlug(reg, String(r.brand_id)) || String(r.brand_id),

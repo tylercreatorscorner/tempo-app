@@ -13,6 +13,8 @@
  *   - brand-resolution : the umbrella / unknown / ambiguous hard-fails
  *   - connect-invites : token shape + the invite-state precedence the operator
  *                       panel and the SQL classifier must agree on
+ *   - watch URLs    : the canonical videos.video_link format, which migration
+ *                     119 mirrors in SQL and which nothing else type-checks
  */
 import {
   encryptToken,
@@ -35,6 +37,11 @@ import {
   INVITE_MAX_REDEMPTIONS,
   type ConnectInvite,
 } from '../src/lib/tiktok/connect-invites-core';
+import {
+  canonicalVideoUrl,
+  isCanonicalVideoUrl,
+  resolveWatchUrl,
+} from '../src/lib/utils/format';
 // The real generator lives in ./connect-invites, which reaches the DB client;
 // this mirrors it byte for byte so the shape guard is tested against what is
 // actually issued.
@@ -394,6 +401,93 @@ check(
   'the token needs no URL escaping (base64url is path-safe)',
   encodeURIComponent(issued) === issued,
 );
+
+// ── watch URLs ───────────────────────────────────────────────────────────────
+// videos.video_link is DERIVED from identity, never taken from the TikTok
+// export: that column now carries an EXPIRING SIGNED CDN URL (host
+// tiktokcdn-us.com, ~2-day life). Migration 119 writes the same format in SQL —
+// the literal below is the contract between the two, so do NOT "fix" a failing
+// assertion by pasting in whatever the function currently returns.
+console.log('watch-urls: canonicalVideoUrl');
+check(
+  'valid handle + id builds the canonical permalink',
+  canonicalVideoUrl('lauren', '7401234567890123456') ===
+    'https://www.tiktok.com/@lauren/video/7401234567890123456',
+);
+check(
+  'dots and underscores are legal TikTok handle characters',
+  canonicalVideoUrl('lauren.b_02', '7401234567890123456') ===
+    'https://www.tiktok.com/@lauren.b_02/video/7401234567890123456',
+);
+check('a leading @ is stripped, not doubled',
+  canonicalVideoUrl('@lauren', '7401234567890123456') ===
+    'https://www.tiktok.com/@lauren/video/7401234567890123456');
+check('surrounding whitespace is trimmed',
+  canonicalVideoUrl('  lauren  ', ' 7401234567890123456 ') ===
+    'https://www.tiktok.com/@lauren/video/7401234567890123456');
+check('a numeric id passed as a number still works',
+  canonicalVideoUrl('lauren', 7401234567890) === 'https://www.tiktok.com/@lauren/video/7401234567890');
+
+check('empty handle → null, never a /@/ URL', canonicalVideoUrl('', '7401234567890123456') === null);
+check('whitespace-only handle → null', canonicalVideoUrl('   ', '7401234567890123456') === null);
+check('null handle → null', canonicalVideoUrl(null, '7401234567890123456') === null);
+check('a handle with a space → null, never a URL with a space',
+  canonicalVideoUrl('lauren b', '7401234567890123456') === null);
+check('a handle with a slash cannot smuggle path segments',
+  canonicalVideoUrl('lauren/video/1', '7401234567890123456') === null);
+
+check('non-numeric id → null', canonicalVideoUrl('lauren', 'abc123') === null);
+check('empty id → null', canonicalVideoUrl('lauren', '') === null);
+check('null id → null', canonicalVideoUrl('lauren', null) === null);
+check("the export's junk '--' can never become an id",
+  canonicalVideoUrl('lauren', '--') === null);
+
+console.log('watch-urls: isCanonicalVideoUrl');
+check('recognises its own output',
+  isCanonicalVideoUrl(canonicalVideoUrl('lauren', '7401234567890123456')));
+check(
+  'an EXPIRING CDN link is NOT canonical (the whole point)',
+  !isCanonicalVideoUrl(
+    'https://v16m-default.tiktokcdn-us.com/abc123/6a63ee48/video/tos/useast5/xyz/',
+  ),
+);
+check(
+  "the CDN host does not contain the substring 'tiktok.com' — the bug the old .includes() guard missed",
+  !'https://v16m-default.tiktokcdn-us.com/abc/6a63ee48/video/tos/x/'.includes('tiktok.com'),
+);
+check("literal '--' is not canonical", !isCanonicalVideoUrl('--'));
+check('null is not canonical', !isCanonicalVideoUrl(null));
+check('a bare profile URL is not a watch URL',
+  !isCanonicalVideoUrl('https://www.tiktok.com/@lauren'));
+check('http (not https) is not canonical',
+  !isCanonicalVideoUrl('http://www.tiktok.com/@lauren/video/7401234567890123456'));
+check('a look-alike host is not canonical',
+  !isCanonicalVideoUrl('https://www.tiktok.com.evil.test/@lauren/video/74012345678'));
+
+console.log('watch-urls: resolveWatchUrl');
+const CANON = 'https://www.tiktok.com/@lauren/video/7401234567890123456';
+const CDN = 'https://v16m-default.tiktokcdn-us.com/abc123/6a63ee48/video/tos/useast5/xyz/';
+check('an already-canonical stored link is kept as-is',
+  resolveWatchUrl(CANON, 'lauren', '7401234567890123456') === CANON);
+check('an expiring CDN link is REPLACED by the derived permalink',
+  resolveWatchUrl(CDN, 'lauren', '7401234567890123456') === CANON);
+check("junk '--' is replaced by the derived permalink",
+  resolveWatchUrl('--', 'lauren', '7401234567890123456') === CANON);
+check('a missing stored link still yields the derived permalink',
+  resolveWatchUrl(null, 'lauren', '7401234567890123456') === CANON);
+check(
+  'a stored link for a DIFFERENT handle is kept (already canonical — a rename is not ours to rewrite)',
+  resolveWatchUrl('https://www.tiktok.com/@renamed/video/7401234567890123456', 'lauren', '7401234567890123456') ===
+    'https://www.tiktok.com/@renamed/video/7401234567890123456',
+);
+check(
+  'a /photo/ permalink survives when identity cannot derive anything',
+  resolveWatchUrl('https://www.tiktok.com/@lauren/photo/7401234567890123456', '', '') ===
+    'https://www.tiktok.com/@lauren/photo/7401234567890123456',
+);
+check('nothing usable → null, never a CDN link leaking through',
+  resolveWatchUrl(CDN, '', '') === null);
+check('no stored link and no identity → null', resolveWatchUrl(null, null, null) === null);
 
 console.log(failures === 0 ? '\nAll checks passed.' : `\n${failures} check(s) FAILED.`);
 process.exit(failures === 0 ? 0 : 1);

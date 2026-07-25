@@ -4,6 +4,7 @@ import { getWorkspaceScope, isBrandInScope } from '@/lib/auth/workspace-scope';
 import { createAdminClient } from '@/lib/supabase/server';
 import { getBrandRegistry } from '@/lib/data/brand-registry';
 import { brandLabel } from '@/lib/data/brand-registry-core';
+import { resolveWatchUrl } from '@/lib/utils/format';
 import { PostReviewClient, type VideoMeta, type ReviewRow, type DailyPoint } from './post-review-client';
 
 export const dynamic = 'force-dynamic';
@@ -164,7 +165,12 @@ export default async function PostReviewPage({ params, searchParams }: Props) {
     brand_name: brandLabel(registry, video.brand),
     creator_handle: (video.creator_name ?? '').replace(/^@/, ''),
     title: video.video_name ?? '(untitled)',
-    video_url: video.video_link,
+    // Never render videos.video_link raw: TikTok's export column became an
+    // expiring signed CDN URL (~2-day life), so mig 110's dual-ingest wrote
+    // links that 404 within two days. resolveWatchUrl prefers a canonical
+    // stored link and otherwise rebuilds the permanent permalink from the
+    // handle + video id (mig 119 repairs the stored rows; this is the guard).
+    video_url: resolveWatchUrl(video.video_link, video.creator_name, video.video_id),
     post_date: video.post_date,
     // null = stats RPC failed (render "—"); money 0 = genuinely no earnings rows.
     stats: stats ? {

@@ -143,7 +143,10 @@ export function InspirationClient({
 function VideoCard({ video, index, sells }: { video: InspirationVideo; index: number; sells: boolean }) {
   const isHot = index < 3;
   const brandMeta = useBrandMeta();
-  const { thumbnail, loading } = useTikTokThumbnail(video.videoUrl);
+  const { thumbnail, loading } = useTikTokThumbnail(video.videoUrl, {
+    creatorName: video.tiktokUsername,
+    videoId: video.videoId,
+  });
 
   const card = (
     <Card

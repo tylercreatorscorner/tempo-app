@@ -8,6 +8,7 @@ import {
   type BrandPortalPeriod,
 } from '@/lib/data/brand-portal-overview';
 import { createAdminClient } from '@/lib/supabase/server';
+import { resolveWatchUrl } from '@/lib/utils/format';
 import { StatCard } from '@/components/dashboard/stat-card';
 import { GmvComparisonChart } from '@/components/charts/gmv-comparison-chart';
 import { PeriodTabs } from './period-tabs';
@@ -221,10 +222,11 @@ export default async function BrandOverview({ searchParams }: PageProps) {
               data.videos.slice(0, TOP_VIDEOS_PREVIEW).map((v) => (
                 <a
                   key={v.videoId}
-                  href={
-                    v.url ??
-                    `https://www.tiktok.com/@${v.creatorHandle}/video/${v.videoId}`
-                  }
+                  // resolveWatchUrl, not `v.url ?? …`: v.url comes from
+                  // daily_video_product_stats.video_url, which is an expiring
+                  // signed CDN MEDIA link on 98% of rows — a plain ?? lets the
+                  // dead link win over the permanent derived permalink.
+                  href={resolveWatchUrl(v.url, v.creatorHandle, v.videoId) ?? undefined}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/30 transition-colors"
@@ -470,8 +472,11 @@ function HighlightsCard({
             pill="↗ TikTok"
             accent={accent}
             href={
-              highlights.topViralPost.url ??
-              `https://www.tiktok.com/@${highlights.topViralPost.creatorHandle}/video/${highlights.topViralPost.videoId}`
+              resolveWatchUrl(
+                highlights.topViralPost.url,
+                highlights.topViralPost.creatorHandle,
+                highlights.topViralPost.videoId,
+              ) ?? undefined
             }
             external
             truncatePrimary

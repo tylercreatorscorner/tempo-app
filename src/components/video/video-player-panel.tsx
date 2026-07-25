@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { X, ExternalLink } from 'lucide-react';
 import { useVideoPanel } from './video-panel-context';
-import { formatCurrency, formatNumber } from '@/lib/utils/format';
+import { canonicalVideoUrl, formatCurrency, formatNumber } from '@/lib/utils/format';
 import { useBodyScrollLock } from '@/hooks/use-body-scroll-lock';
 import { useBrandMeta } from '@/hooks/use-brand-meta';
 
@@ -25,9 +25,7 @@ export function VideoPlayerPanel() {
   // clobber (or be clobbered by) a modal/sheet that's open at the same time.
   useBodyScrollLock(isOpen);
 
-  const tiktokUrl = video
-    ? `https://www.tiktok.com/@${video.creator_name}/video/${video.video_id}`
-    : '';
+  const tiktokUrl = video ? canonicalVideoUrl(video.creator_name, video.video_id) ?? '' : '';
 
   return (
     <>

@@ -3,6 +3,9 @@ import { tempoEmbed, errorEmbed } from '../embeds';
 import { getGuildConfig, getBrandForGuild } from '../config';
 import { getSupabase, daysAgo, periodToDays, getBotBrandRegistry } from '../supabase';
 import { slugToUuid } from '@/lib/data/brand-registry-core';
+// Pure formatting helpers only — no next/headers coupling, so this stays
+// importable from the standalone bot process.
+import { resolveWatchUrl } from '@/lib/utils/format';
 import type { TempoCommand } from './index';
 
 const command: TempoCommand = {
@@ -67,7 +70,10 @@ const command: TempoCommand = {
       for (const r of data ?? []) {
         const cur = videoMap.get(r.video_id) ?? {
           title: r.video_title ?? r.video_id,
-          url: r.video_url ?? null,
+          // daily_video_product_stats.video_url is an expiring signed CDN
+          // MEDIA link on 98% of rows — posting it to Discord ships a link
+          // that dies in ~2 days. Prefer the permanent derived permalink.
+          url: resolveWatchUrl(r.video_url, r.tiktok_username, r.video_id),
           creator: r.tiktok_username,
           gmv: 0,
           orders: 0,

@@ -72,12 +72,15 @@ function dropScheduledRows<T extends { post_date?: unknown }>(
   return { kept, dropped };
 }
 
+// No video_link: the RPC DERIVES it from creator_name + video_id (mig 119).
+// TikTok's "Video link" column is now an expiring signed CDN URL (~2-day life,
+// host tiktokcdn-us.com), and mig 110's ON CONFLICT let it overwrite the good
+// canonical link on every upload. Never send the file's value for this field.
 interface VideoIdentityRecord {
   video_id: string;
   brand: string;
   creator_name: string;
   video_name: string;
-  video_link: string;
   post_date: string | null;
 }
 
@@ -107,7 +110,10 @@ function derivePostDateFromId(videoId: string): string | null {
  * the Video List export into the Video Data schema (~2026-07-13), so for
  * flipped shops this is the only remaining source of `videos` registry rows.
  * Stats are deliberately NOT derived — upsert_video_identities (mig 110)
- * never touches the lifetime-snapshot stat columns.
+ * never touches the lifetime-snapshot stat columns. video_link is not sent
+ * either: the RPC derives the canonical permalink from creator_name +
+ * video_id (mig 119), because the file's link column is now an expiring
+ * signed CDN URL.
  */
 function deriveVideoIdentities(
   records: Record<string, unknown>[],
@@ -120,7 +126,6 @@ function deriveVideoIdentities(
     // creator_name is NOT NULL in prod; empty video_id can't key the registry.
     if (!videoId || !creatorName) continue;
     const videoName = typeof r.video_title === 'string' ? r.video_title : '';
-    const videoLink = typeof r.video_link === 'string' ? r.video_link : '';
     const postDate =
       typeof r.post_date === 'string' && r.post_date !== ''
         ? r.post_date
@@ -132,13 +137,11 @@ function deriveVideoIdentities(
         brand: typeof r.brand === 'string' ? r.brand : '',
         creator_name: creatorName,
         video_name: videoName,
-        video_link: videoLink,
         post_date: postDate,
       });
     } else {
       // Per-product rows repeat the video; keep the first non-empty value.
       if (!existing.video_name && videoName) existing.video_name = videoName;
-      if (!existing.video_link && videoLink) existing.video_link = videoLink;
       if (!existing.post_date && postDate) existing.post_date = postDate;
     }
   }

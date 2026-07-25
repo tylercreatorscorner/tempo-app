@@ -8,6 +8,7 @@ import {
 } from '@/lib/data/brand-portal-overview';
 import { createAdminClient } from '@/lib/supabase/server';
 import { getBrandRegistry, slugToUuid } from '@/lib/data/brand-registry';
+import { resolveWatchUrl } from '@/lib/utils/format';
 import { PeriodTabs } from '../period-tabs';
 import { SortableHeader, type SortDir } from '../sortable-header';
 
@@ -216,8 +217,11 @@ export default async function BrandVideosPage({ searchParams }: PageProps) {
                 </thead>
                 <tbody className="divide-y divide-border/40">
                   {visible.map((v) => {
+                    // v.url is daily_video_product_stats.video_url — an
+                    // expiring signed CDN MEDIA link on 98% of rows, so it
+                    // must never simply win over the derived permalink.
                     const href =
-                      v.url ?? `https://www.tiktok.com/@${v.creatorHandle}/video/${v.videoId}`;
+                      resolveWatchUrl(v.url, v.creatorHandle, v.videoId) ?? undefined;
                     return (
                       <tr key={v.videoId} className="hover:bg-muted/30 transition-colors">
                         <td className="px-4 py-2.5">

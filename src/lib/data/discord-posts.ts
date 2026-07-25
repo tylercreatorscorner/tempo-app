@@ -1,5 +1,6 @@
 import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { getBrandRegistry, resolveUuids, expandSlugs, type BrandRegistry } from '@/lib/data/brand-registry';
+import { canonicalVideoUrl } from '@/lib/utils/format';
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -883,9 +884,7 @@ export function formatWhatsCookingDiscord(
     const handle = v.tiktok_username.replace('@', '');
     const discord = data.discordMap.get(handle.toLowerCase());
     const mention = getMention(handle, discord?.discord_id || null, discord?.discord_name || null);
-    const url = v.video_id && handle
-      ? `https://www.tiktok.com/@${handle}/video/${v.video_id}`
-      : '';
+    const url = canonicalVideoUrl(handle, v.video_id) ?? '';
     return url
       ? `> ${i + 1}. ${mention} — [**${formatCurrency(v.gmv)}**](${url})`
       : `> ${i + 1}. ${mention} — **${formatCurrency(v.gmv)}**`;
@@ -1099,10 +1098,9 @@ function generateProgressBar(percent: number): string {
   return '█'.repeat(filled) + '░'.repeat(empty);
 }
 
+/** Thin alias — the canonical format lives in one place (mig 119 mirrors it). */
 function getTikTokUrl(creatorName: string, videoId: string): string | null {
-  const handle = (creatorName || '').replace('@', '').trim();
-  if (!handle || !videoId) return null;
-  return `https://www.tiktok.com/@${handle}/video/${videoId}`;
+  return canonicalVideoUrl(creatorName, videoId);
 }
 
 function getDailyDropMention(handle: string, discordMap: Map<string, { discord_id: string | null; discord_name: string | null }>): string {

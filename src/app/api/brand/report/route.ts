@@ -5,6 +5,7 @@ import {
   type BrandPortalPeriod,
 } from '@/lib/data/brand-portal-overview';
 import { createAdminClient } from '@/lib/supabase/server';
+import { resolveWatchUrl } from '@/lib/utils/format';
 
 export const dynamic = 'force-dynamic';
 
@@ -63,7 +64,9 @@ export async function GET(request: Request) {
         String(v.lifetimeOrders),
         v.periodGmv.toFixed(2),
         String(v.periodOrders),
-        v.url ?? `https://www.tiktok.com/@${v.creatorHandle}/video/${v.videoId}`,
+        // Never export the raw stats video_url: it is an expiring signed CDN
+        // media link on 98% of rows, and a CSV outlives it by months.
+        resolveWatchUrl(v.url, v.creatorHandle, v.videoId) ?? '',
       ]),
     ];
     csv = rows.map(toCsvRow).join('\n');

@@ -81,12 +81,15 @@ export interface VideoPerformanceRecord {
   shares: number | null;
 }
 
+// No video_link: upload_videos_atomic DERIVES the canonical permalink from
+// creator_name + video_id (mig 119). The file's "Video link" column is an
+// expiring signed CDN URL now, so it must never reach a write payload — it is
+// still PARSED below, because it is the fallback source for the video id.
 export interface VideoListRecord {
   video_id: string;
   brand: string;
   creator_name: string;
   video_name: string;
-  video_link: string;
   post_date: string | null;
   total_gmv: number;
   affiliate_gmv: number;
@@ -281,7 +284,8 @@ export function parseVideoListRows(
       brand,
       creator_name:   creatorName,
       video_name:     sanitizeText(findColumn(row, 'video_name', 'videos')).slice(0, 500),
-      video_link:     videoLink,
+      // videoLink is deliberately NOT emitted — see VideoListRecord. It is
+      // read above only to recover the video id when the id column is absent.
       post_date:      parsePostDate(findColumn(row, 'post_date', 'videos')),
       total_gmv,
       affiliate_gmv,

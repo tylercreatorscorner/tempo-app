@@ -192,7 +192,10 @@ function LedgerStrip({ summary }: { summary: CreatorSummary | null }) {
 
 function VideoTableRow({ video: v, cooling }: { video: CreatorVideoRow; cooling: boolean }) {
   const brandMeta = useBrandMeta();
-  const { thumbnail, loading } = useTikTokThumbnail(v.videoUrl);
+  const { thumbnail, loading } = useTikTokThumbnail(v.videoUrl, {
+    creatorName: v.tiktokUsername,
+    videoId: v.videoId,
+  });
 
   const thumb = (
     <span className="relative block h-[46px] w-9 shrink-0 overflow-hidden rounded-md border border-border bg-secondary">

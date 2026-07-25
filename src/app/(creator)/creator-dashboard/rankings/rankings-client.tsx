@@ -411,7 +411,10 @@ function TopVideoRow({
   mine: boolean;
   showAge: boolean;
 }) {
-  const { thumbnail, loading } = useTikTokThumbnail(video.videoUrl);
+  const { thumbnail, loading } = useTikTokThumbnail(video.videoUrl, {
+    creatorName: video.tiktokUsername,
+    videoId: video.videoId,
+  });
   const age = showAge ? daysAgo(video.postDate) : null;
 
   const row = (

@@ -5,6 +5,7 @@ import { requireBrandPortalContext } from '@/lib/data/brand-portal';
 import { getBrandCreatorDetail } from '@/lib/data/brand-portal-creator';
 import { createAdminClient } from '@/lib/supabase/server';
 import { getBrandRegistry, slugToUuid } from '@/lib/data/brand-registry';
+import { resolveWatchUrl } from '@/lib/utils/format';
 import { GmvComparisonChart } from '@/components/charts/gmv-comparison-chart';
 import { PeriodTabs } from '../../period-tabs';
 import type { BrandPortalPeriod } from '@/lib/data/brand-portal-overview';
@@ -150,7 +151,10 @@ export default async function BrandCreatorDetailPage({ params, searchParams }: P
             {detail.videos.map((v) => (
               <a
                 key={v.videoId}
-                href={v.url ?? `https://www.tiktok.com/@${detail.primaryHandle}/video/${v.videoId}`}
+                // v.url is daily_video_product_stats.video_url — an expiring
+                // signed CDN MEDIA link on 98% of rows. Prefer the permanent
+                // derived permalink over it (mig 119 / resolveWatchUrl).
+                href={resolveWatchUrl(v.url, detail.primaryHandle, v.videoId) ?? undefined}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-3 px-4 py-3 hover:bg-muted/30 transition-colors"

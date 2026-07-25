@@ -565,14 +565,22 @@ function PostsEmptyState({ reviewFilter }: { reviewFilter: ReviewFilter }) {
 
 // ── Row cover — lazy TikTok cover with a play affordance ───────────
 function RowCover({
-  videoUrl, brandColor, onWatch,
+  videoUrl, creatorHandle, videoId, brandColor, onWatch,
 }: {
   videoUrl: string | null;
+  creatorHandle: string;
+  videoId: string;
   brandColor: string;
   onWatch: () => void;
 }) {
   const { ref, inView } = useInView<HTMLButtonElement>('300px');
-  const { thumbnail } = useTikTokThumbnail(inView ? videoUrl : null);
+  // Both arguments are gated on inView — the hook derives from the identity
+  // fallback whenever the stored link isn't a canonical watch URL, so passing
+  // it while off-screen would defeat the lazy load.
+  const { thumbnail } = useTikTokThumbnail(
+    inView ? videoUrl : null,
+    inView ? { creatorName: creatorHandle, videoId } : undefined,
+  );
   return (
     <button
       ref={ref}
@@ -612,7 +620,13 @@ function PostRowView({
     >
       <td className="px-4 py-2.5 align-middle max-w-md">
         <div className="flex items-center gap-2.5 min-w-0">
-          <RowCover videoUrl={p.video_url} brandColor={brandColor} onWatch={onWatch} />
+          <RowCover
+            videoUrl={p.video_url}
+            creatorHandle={p.creator_handle}
+            videoId={p.video_id}
+            brandColor={brandColor}
+            onWatch={onWatch}
+          />
           <div className="min-w-0">
             <div className="flex items-center gap-2 min-w-0">
               <span className="truncate text-[13px] font-medium text-[var(--foreground)]" title={p.video_title}>
