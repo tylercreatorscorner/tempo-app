@@ -16,6 +16,19 @@ const PUBLIC_PATHS = [
   // route redeems, and the route writes no connection — an authenticated admin
   // must still confirm the shop.
   '/auth/tiktok/callback',
+  // Client connect links — the shareable URL a shop owner opens to authorize
+  // their TikTok Shop, plus its POST redemption at
+  // /connect/tiktok/<token>/redeem. The recipient is the CLIENT: they have no
+  // Tempo account, so without this entry the guard 307s them to a login form
+  // for a product they cannot log in to, and the connection never happens.
+  // Third time this list has been the failure (crons, /auth/tiktok/callback).
+  //
+  // The trailing slash is deliberate — '/connect' alone would also make any
+  // future '/connections' page public. Nothing else in the app lives under
+  // /connect, and no earlier entry in this list is a prefix of it, so this
+  // opens exactly two routes. Authenticity is the 32-byte token in the path;
+  // the routes write no connection, and an admin still binds the shop.
+  '/connect/tiktok/',
   '/onboarding',
   '/join',
   '/creator-login',

@@ -30,7 +30,14 @@ import { NextResponse } from 'next/server';
 import { exchangeAuthCode, TikTokError } from '@/lib/tiktok/client';
 import { fetchAuthorizedShops } from '@/lib/tiktok/authorize';
 import { isTokenEncryptionConfigured } from '@/lib/tiktok/token-crypto';
-import { claimOauthState, storePendingAuthorization } from '@/lib/tiktok/oauth-state';
+import {
+  claimOauthState,
+  readStateConfirmContext,
+  storePendingAuthorization,
+} from '@/lib/tiktok/oauth-state';
+import { getInviteNotice, markInviteAuthorized } from '@/lib/tiktok/connect-invites';
+import { getBrandRegistry, brandLabel } from '@/lib/data/brand-registry';
+import { notifyPendingAuthorization } from '@/lib/tiktok/notify';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -116,22 +123,86 @@ export async function GET(request: Request) {
     return outcome(request, 'no_shops');
   }
 
+  // Which class of authorization is this? An admin who authorized in one
+  // sitting gets the 15-minute confirm window; a CLIENT who followed an emailed
+  // link gets the window that was fixed when their link minted this state,
+  // because nobody is watching Settings at 8am. Tolerant read — a deployment
+  // ahead of migration 118 gets nulls and behaves exactly as it did before.
+  const inviteContext = await readStateConfirmContext(claimed.state);
+
   try {
     await storePendingAuthorization({
       // The state as the DB stored it, not as the query string spelled it.
       state: claimed.state,
       tokens,
       shopsPayload: shopsResult.raw,
+      confirmDeadlineAt: inviteContext.confirmDeadlineAt,
     });
   } catch (err) {
     console.error(`[tiktok/callback] could not park the pending authorization: ${message(err)}`);
     return outcome(request, 'store_failed');
   }
 
+  // ONLY NOW is the invite marked authorized. Everything before this point —
+  // the click, the redirect, TikTok's consent screen — is a client who might
+  // still have been refused for being on a sub-account. This is the first
+  // moment we hold evidence, and it is the only thing the panel is allowed to
+  // report as "authorized".
+  if (inviteContext.inviteId) {
+    await recordInviteAuthorization(request, inviteContext.inviteId, {
+      brandSlug: claimed.brandSlug,
+      sellerName: tokens.sellerName,
+      shopCount: shopsResult.shops.length,
+      confirmBy: inviteContext.confirmDeadlineAt,
+    });
+  }
+
   // No connection has been written. An admin confirms which shop maps to
   // "${claimed.brandSlug}" in Settings; the confirm screen is rendered there
   // rather than inline here so it uses the real component kit and themes.
   return outcome(request, 'pending');
+}
+
+/**
+ * Stamp the invite and tell the operator. Entirely best-effort: the
+ * authorization is already parked, and neither a missed stamp nor an undelivered
+ * notice may turn a successful authorization into an error page for the client.
+ * Both failures are loud in the log, because the second one is the difference
+ * between an operator acting today and a credential ageing out unnoticed.
+ */
+async function recordInviteAuthorization(
+  request: Request,
+  inviteId: string,
+  details: {
+    brandSlug: string;
+    sellerName: string | null;
+    shopCount: number;
+    confirmBy: string | null;
+  },
+): Promise<void> {
+  try {
+    await markInviteAuthorized(inviteId);
+  } catch (err) {
+    console.error(`[tiktok/callback] could not stamp the invite as authorized: ${message(err)}`);
+  }
+
+  try {
+    const [notice, registry] = await Promise.all([getInviteNotice(inviteId), getBrandRegistry()]);
+    const panel = new URL('/settings', request.url);
+    panel.hash = 'tiktok-shop';
+
+    await notifyPendingAuthorization({
+      brandLabel: brandLabel(registry, details.brandSlug),
+      brandSlug: details.brandSlug,
+      sellerName: details.sellerName,
+      shopCount: details.shopCount,
+      confirmBy: details.confirmBy,
+      notifyEmail: notice?.createdBy ?? null,
+      panelUrl: panel.toString(),
+    });
+  } catch (err) {
+    console.error(`[tiktok/callback] could not notify the operator: ${message(err)}`);
+  }
 }
 
 function outcome(request: Request, result: CallbackOutcome): NextResponse {

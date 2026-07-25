@@ -13,14 +13,32 @@
 import { createAdminClient } from '@/lib/supabase/server';
 import { encryptToken, isEncryptedEnvelope } from './token-crypto';
 import { generateOauthState, parseAuthorizedShops, type AuthorizedShop } from './authorize';
+import { inviteConfirmDeadline } from './connect-invites-core';
 import type { TikTokTokens } from './types';
 
 /**
- * How long an operator has to pick a shop after the merchant consents. Short,
- * because the row holds encrypted merchant tokens for the whole window; long
- * enough that reading three shop names and clicking one is not a race.
+ * How long an operator has to pick a shop after the merchant consents, when the
+ * ADMIN did the authorizing. Short, because the row holds encrypted merchant
+ * tokens for the whole window; long enough that reading three shop names and
+ * clicking one is not a race. Both halves of that flow happen in one sitting,
+ * so fifteen minutes is generous.
  */
-const CONFIRM_WINDOW_MS = 15 * 60_000;
+const ADMIN_CONFIRM_WINDOW_MS = 15 * 60_000;
+
+/**
+ * The ceiling for an authorization that came from a CLIENT CONNECT LINK, where
+ * the two halves are hours or days apart by design: the client clicks at 8am
+ * and the operator may not open Settings until lunch. Fifteen minutes there
+ * means the sweep erases the tokens before anyone can act, and the client
+ * authorized for nothing.
+ *
+ * Longer is a POLICY choice, not a weakened one: the parked pair is AES-256-GCM
+ * ciphertext (./token-crypto) in a service-role-only, RLS-on table, keyed from
+ * the environment. The window buys exposure TIME, and the trade is explicit.
+ * The erase itself is unchanged — the sweep still fires at whatever deadline
+ * the row carries, so an abandoned authorization is still erased.
+ */
+const INVITE_CONFIRM_MAX_MS = 72 * 3_600_000;
 
 export interface PendingAuthorization {
   state: string;
@@ -41,18 +59,44 @@ export interface PendingAuthorizationWithTokens extends PendingAuthorization {
   refreshTokenExpiresAt: string;
 }
 
-/** Issue a nonce for one brand. The brand is decided BEFORE the redirect and
- *  travels in this row, not in a query parameter the callback would have to
- *  trust. */
-export async function createOauthState(brandSlug: string): Promise<string> {
+/**
+ * Issue a nonce for one brand. The brand is decided BEFORE the redirect and
+ * travels in this row, not in a query parameter the callback would have to
+ * trust.
+ *
+ * `invite` marks this state as invite-originated and fixes the CONFIRM window
+ * now, at mint time, rather than leaving the callback to work it out from a row
+ * that may have been swept by then. Both extra columns arrive in migration 118.
+ *
+ * They are omitted from the insert entirely when there is no invite, so the
+ * admin-initiated flow keeps writing exactly the columns it wrote before this
+ * feature existed — deploying this branch ahead of its migration degrades the
+ * new flow only, instead of breaking the working one.
+ */
+export async function createOauthState(
+  brandSlug: string,
+  invite?: { id: string; expiresAt: string },
+): Promise<string> {
   const supabase = await createAdminClient();
   const state = generateOauthState();
+
+  const inviteColumns = invite
+    ? {
+        invite_id: invite.id,
+        confirm_deadline_at: inviteConfirmDeadline(
+          invite.expiresAt,
+          new Date(),
+          ADMIN_CONFIRM_WINDOW_MS,
+          INVITE_CONFIRM_MAX_MS,
+        ).toISOString(),
+      }
+    : {};
 
   // expires_at is left to its column default (now() + 10 minutes) so the
   // redemption window is set by the DB clock, not by ours.
   const { data, error } = await supabase
     .from('tiktok_oauth_states')
-    .insert({ state, brand_slug: brandSlug })
+    .insert({ state, brand_slug: brandSlug, ...inviteColumns })
     .select('state');
 
   if (error) throw new Error(`[tiktok/oauth-state] could not create state: ${error.message}`);
@@ -127,6 +171,10 @@ export async function storePendingAuthorization(args: {
   state: string;
   tokens: TikTokTokens;
   shopsPayload: unknown;
+  /** The deadline decided at MINT time for an invite-originated authorization.
+   *  Absent = the admin flow, and its 15 minutes. Never longer than the invite
+   *  itself had left; see inviteConfirmDeadline. */
+  confirmDeadlineAt?: string | null;
 }): Promise<void> {
   const accessTokenEncrypted = encryptToken(args.tokens.accessToken);
   const refreshTokenEncrypted = encryptToken(args.tokens.refreshToken);
@@ -146,7 +194,9 @@ export async function storePendingAuthorization(args: {
       pending_open_id: args.tokens.openId,
       pending_seller_name: args.tokens.sellerName,
       pending_shops: args.shopsPayload ?? null,
-      pending_expires_at: new Date(Date.now() + CONFIRM_WINDOW_MS).toISOString(),
+      pending_expires_at:
+        args.confirmDeadlineAt ??
+        new Date(Date.now() + ADMIN_CONFIRM_WINDOW_MS).toISOString(),
     })
     // Caller passes the CANONICAL state returned by claimOauthState, never the
     // raw callback parameter.
@@ -163,6 +213,52 @@ export async function storePendingAuthorization(args: {
   // days of data.
   if (((data ?? []) as unknown[]).length !== 1) {
     throw new Error('[tiktok/oauth-state] pending update matched no state row.');
+  }
+}
+
+export interface StateConfirmContext {
+  /** The client link this state came from, if any. */
+  inviteId: string | null;
+  /** The confirm deadline fixed at mint time, if any. */
+  confirmDeadlineAt: string | null;
+}
+
+/**
+ * Read the invite linkage a state was minted with.
+ *
+ * TOLERANT BY DESIGN. Both columns arrive in migration 118, and this is called
+ * from the OAuth callback — the one request in the product that is holding a
+ * single-use auth_code it can never get back. A deployment that runs ahead of
+ * its migration must degrade to "admin flow, 15 minutes", which is exactly
+ * today's behaviour, rather than losing a merchant's authorization to an
+ * unknown-column error.
+ */
+export async function readStateConfirmContext(state: string): Promise<StateConfirmContext> {
+  try {
+    const supabase = await createAdminClient();
+    const { data, error } = await supabase
+      .from('tiktok_oauth_states')
+      .select('invite_id, confirm_deadline_at')
+      .eq('state', state)
+      .maybeSingle();
+
+    if (error) {
+      console.warn(`[tiktok/oauth-state] invite context unavailable: ${error.message}`);
+      return { inviteId: null, confirmDeadlineAt: null };
+    }
+
+    const row = data as unknown as
+      | { invite_id: string | null; confirm_deadline_at: string | null }
+      | null;
+    return {
+      inviteId: row?.invite_id ?? null,
+      confirmDeadlineAt: row?.confirm_deadline_at ?? null,
+    };
+  } catch (err) {
+    console.warn(
+      `[tiktok/oauth-state] invite context read failed: ${err instanceof Error ? err.message : String(err)}`,
+    );
+    return { inviteId: null, confirmDeadlineAt: null };
   }
 }
 
@@ -260,6 +356,9 @@ export async function clearPendingAuthorization(state: string): Promise<boolean>
 export interface SweepResult {
   pendingCleared: number;
   rowsDeleted: number;
+  /** Expired client connect links. Added in migration 118 — an invite holds no
+   *  credential, so it is deleted outright rather than erased then reaped. */
+  invitesDeleted: number;
 }
 
 /**
@@ -286,7 +385,7 @@ export async function sweepOauthStates(): Promise<SweepResult | null> {
       return null;
     }
     const row = (Array.isArray(data) ? data[0] : data) as
-      | { pending_cleared: number; rows_deleted: number }
+      | { pending_cleared: number; rows_deleted: number; invites_deleted?: number }
       | undefined;
     if (!row) return null;
 
@@ -295,7 +394,14 @@ export async function sweepOauthStates(): Promise<SweepResult | null> {
       // without anybody confirming it.
       console.warn(`[tiktok/oauth-state] erased ${row.pending_cleared} lapsed pending authorization(s)`);
     }
-    return { pendingCleared: row.pending_cleared, rowsDeleted: row.rows_deleted };
+    return {
+      pendingCleared: row.pending_cleared,
+      rowsDeleted: row.rows_deleted,
+      // Optional-chained rather than assumed: the column arrives with migration
+      // 118, and a deploy that runs ahead of the migration must not read NaN
+      // into a count.
+      invitesDeleted: row.invites_deleted ?? 0,
+    };
   } catch (err) {
     console.warn(`[tiktok/oauth-state] sweep failed: ${err instanceof Error ? err.message : String(err)}`);
     return null;

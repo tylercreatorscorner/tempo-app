@@ -17,7 +17,11 @@ import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   AlertTriangle,
+  Ban,
+  Check,
   CheckCircle2,
+  Copy,
+  Link2,
   Loader2,
   Music2,
   RefreshCw,
@@ -25,6 +29,7 @@ import {
   Unplug,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Chip } from '@/components/ui/chip';
 
@@ -63,12 +68,38 @@ interface BrandOption {
   label: string;
 }
 
+/** Mirrors the server's classification (api/tiktok/connections). Derived there,
+ *  not here, so it cannot drift from the SQL that decides the same thing.
+ *  'redeemed' means the client was handed to TikTok and NOTHING has come back;
+ *  only 'authorized' is evidence of a completed authorization. */
+type InviteState = 'revoked' | 'authorized' | 'expired' | 'exhausted' | 'redeemed' | 'opened' | 'sent';
+
+interface ClientInvite {
+  id: string;
+  brandSlug: string;
+  url: string;
+  createdAt: string;
+  createdBy: string | null;
+  expiresAt: string;
+  lastOpenedAt: string | null;
+  openCount: number;
+  redeemCount: number;
+  lastRedeemedAt: string | null;
+  state: InviteState;
+  /** An authorization for this brand is parked, waiting to be linked. */
+  awaitingConfirm: boolean;
+}
+
 interface ConnectionsPayload {
   configured: boolean;
   configurationError: string | null;
   connections: ConnectionStatus[];
   pending: PendingAuthorization[];
   brands: BrandOption[];
+  invites: ClientInvite[];
+  /** Scoped to the Client links section — connections and pending authorizations
+   *  are still live when this is set (e.g. deployed ahead of migration 118). */
+  invitesError: string | null;
 }
 
 /** The callback route hands back a code, not a sentence — the wording lives
@@ -135,6 +166,11 @@ function TikTokShopPanel() {
 
   const [selectedBrand, setSelectedBrand] = useState('');
   const [reconnectSlug, setReconnectSlug] = useState<string | null>(null);
+  // Deliberately NOT the same flag as reconnectSlug: acknowledging "yes, send a
+  // link for a brand that is already connected" is a different decision from
+  // "yes, re-authorize it myself right now", and one must not arm the other.
+  const [inviteReconnectSlug, setInviteReconnectSlug] = useState<string | null>(null);
+  const [freshInvite, setFreshInvite] = useState<{ url: string; brandSlug: string; expiresAt: string } | null>(null);
   const [disconnectSlug, setDisconnectSlug] = useState<string | null>(null);
   const [shopChoice, setShopChoice] = useState<Record<string, string>>({});
   const [replaceArmed, setReplaceArmed] = useState<Record<string, boolean>>({});
@@ -221,6 +257,74 @@ function TikTokShopPanel() {
       }
     },
     [post],
+  );
+
+  const createInvite = useCallback(
+    async (brandSlug: string, reconnect: boolean) => {
+      setBusy(`invite:${brandSlug}`);
+      setActionError(null);
+      setNotice(null);
+      try {
+        const result = await post('/api/tiktok/connections/invite', { brandSlug, reconnect });
+        if (!result.ok) {
+          setActionError(result.error);
+          if (result.data.requiresReconnect === true) setInviteReconnectSlug(brandSlug);
+          return;
+        }
+        const url = result.data.url;
+        const expiresAt = result.data.expiresAt;
+        if (typeof url !== 'string' || typeof expiresAt !== 'string') {
+          // Never render a half-built link: an operator would paste it into an
+          // email and only find out when the client says nothing happened.
+          setActionError('The server did not return a usable link. Try again.');
+          return;
+        }
+        setFreshInvite({ url, brandSlug, expiresAt });
+        setInviteReconnectSlug(null);
+        await load();
+      } catch (err) {
+        setActionError(err instanceof Error ? err.message : 'Could not create the link.');
+      } finally {
+        setBusy(null);
+      }
+    },
+    [post, load],
+  );
+
+  /** Issue a fresh link for a brand whose old one is spent, expired-looking, or
+   *  never came back. Selects the brand first so the connect block's
+   *  "Create the link anyway" override targets the right one if the server
+   *  refuses because the brand is already connected. */
+  const reissueInvite = useCallback(
+    async (brandSlug: string) => {
+      setSelectedBrand(brandSlug);
+      await createInvite(brandSlug, inviteReconnectSlug === brandSlug);
+    },
+    [createInvite, inviteReconnectSlug],
+  );
+
+  const revokeInvite = useCallback(
+    async (id: string, url: string) => {
+      setBusy(`revoke-invite:${id}`);
+      setActionError(null);
+      try {
+        const result = await post('/api/tiktok/connections/invite/revoke', { id });
+        if (!result.ok) {
+          setActionError(result.error);
+          return;
+        }
+        // Clear the copy field too if it was showing the link just killed —
+        // leaving it on screen invites pasting a dead URL into an email.
+        setFreshInvite((prev) => (prev && prev.url === url ? null : prev));
+        setNotice('That link no longer works.');
+        await load();
+      } catch (err) {
+        setActionError(err instanceof Error ? err.message : 'Could not revoke the link.');
+      } finally {
+        setBusy(null);
+      }
+    },
+    [post, load],
   );
 
   const confirmShop = useCallback(
@@ -324,11 +428,19 @@ function TikTokShopPanel() {
   const active = data.connections.filter((c) => c.isActive);
   const inactive = data.connections.filter((c) => !c.isActive);
   const connectedSlugs = new Set(active.map((c) => c.brandSlug));
+  const olderInvites = data.invites.filter((i) => i.url !== freshInvite?.url);
 
   return (
     <PanelShell
       status={
-        active.length > 0 ? (
+        // A parked authorization outranks the connection count: it is the only
+        // thing on this panel with a DEADLINE, and the client who authorized
+        // has to redo it if nobody acts.
+        data.pending.length > 0 ? (
+          <Chip className="border-transparent bg-[var(--pulse-warn-bg)] text-[var(--pulse-warn)]">
+            {data.pending.length} waiting on you
+          </Chip>
+        ) : active.length > 0 ? (
           <Chip className="border-transparent bg-[var(--pulse-pos-bg)] text-[var(--pulse-pos)]">
             {active.length} connected
           </Chip>
@@ -342,6 +454,18 @@ function TikTokShopPanel() {
         {loadError && hasLoadedOnce && (
           <Banner tone="warn" icon={<AlertTriangle className="h-4 w-4" />}>
             Showing the last successful read. {loadError}
+          </Banner>
+        )}
+
+        {/* Loud, because the asynchronous flow has no other alarm: a client can
+            authorize at 8am and the tokens are erased when the window passes. */}
+        {data.pending.length > 0 && (
+          <Banner tone="warn" icon={<AlertTriangle className="h-4 w-4" />}>
+            {data.pending.length === 1
+              ? 'A client has authorized TikTok Shop and is waiting for you to link their shop.'
+              : `${data.pending.length} clients have authorized TikTok Shop and are waiting for you to link their shops.`}{' '}
+            Nothing is connected until you confirm below, and an authorization
+            that is left too long has to be done again.
           </Banner>
         )}
 
@@ -560,6 +684,7 @@ function TikTokShopPanel() {
                 onChange={(e) => {
                   setSelectedBrand(e.target.value);
                   setReconnectSlug(null);
+                  setInviteReconnectSlug(null);
                   setActionError(null);
                 }}
                 disabled={data.brands.length === 0 || !data.configured}
@@ -591,9 +716,102 @@ function TikTokShopPanel() {
             </Button>
           </div>
           <p className="text-xs text-muted-foreground mt-2">
-            Opens TikTok&apos;s authorization page. Only store brands appear here &mdash; an umbrella
-            has no shop of its own.
+            Authorizes in <span className="font-medium text-foreground">this</span> browser &mdash;
+            right when you are signed in to TikTok as the shop&apos;s main seller account. Only store
+            brands appear here; an umbrella has no shop of its own.
           </p>
+
+          {/* The client-authorizes path. Not a replacement for Connect above:
+              that one is still correct when the admin IS the main account
+              holder. */}
+          <div className="mt-3 rounded-lg border border-border/60 p-3 space-y-2">
+            <div>
+              <p className="text-sm font-semibold text-foreground">
+                Can&apos;t authorize it yourself?
+              </p>
+              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                TikTok refuses sub-accounts, so for most shops only the client&apos;s main seller
+                account can approve access. Send them a link instead. They approve at TikTok, the
+                authorization comes back <span className="font-medium text-foreground">here</span>,
+                and you still pick which shop maps to the brand &mdash; nothing is linked until you
+                confirm.
+              </p>
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={!selectedBrand || !data.configured || busy !== null}
+              onClick={() =>
+                void createInvite(selectedBrand, inviteReconnectSlug === selectedBrand)
+              }
+            >
+              {busy === `invite:${selectedBrand}` ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Link2 className="h-3.5 w-3.5" />
+              )}
+              {inviteReconnectSlug === selectedBrand
+                ? 'Create the link anyway'
+                : 'Get a link for the client'}
+            </Button>
+          </div>
+
+          {freshInvite && (
+            <div className="mt-3 rounded-lg border border-primary/40 bg-primary/5 p-3 space-y-2">
+              <div>
+                <p className="text-sm font-semibold text-foreground">
+                  Link for {brandLabelOf(data.brands, freshInvite.brandSlug)}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                  Send it to whoever holds the shop&apos;s main TikTok seller account. It stops
+                  working {describeRemaining(freshInvite.expiresAt)}, and they can retry a few
+                  times if TikTok turns them away. The page tells them to switch off a sub-account
+                  before they reach TikTok. When they approve, their shops appear here for you to
+                  link.
+                </p>
+              </div>
+              <CopyField url={freshInvite.url} />
+            </div>
+          )}
+
+          {/* Scoped to this section ONLY. Connections and pending
+              authorizations above are live and usable — the invite table is
+              simply unreadable (most likely deployed ahead of its migration). */}
+          {data.invitesError && (
+            <div className="mt-3">
+              <Banner tone="warn" icon={<AlertTriangle className="h-4 w-4" />}>
+                Client links can&apos;t be listed right now, so any outstanding ones are not shown
+                here. Everything above is live. {data.invitesError}
+              </Banner>
+            </div>
+          )}
+
+          {/* The link just created has its own panel above; listing it again
+              would put two copies of the same URL on screen. */}
+          {olderInvites.length > 0 && (
+            <div className="mt-3">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider pb-2">
+                Client links
+              </p>
+              <div className="space-y-2">
+                {olderInvites.map((invite) => (
+                  <InviteRow
+                    key={invite.id}
+                    invite={invite}
+                    brandLabel={brandLabelOf(data.brands, invite.brandSlug)}
+                    busy={busy}
+                    onRevoke={() => void revokeInvite(invite.id, invite.url)}
+                    onReissue={() => void reissueInvite(invite.brandSlug)}
+                  />
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">
+                &ldquo;Opened&rdquo; can also be an email scanner following the link, so treat it as
+                a hint rather than proof the client saw it. A link can be re-opened a few times, so
+                a client who gets refused for being on a sub-account can just try again.
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-2 pt-1">
@@ -694,6 +912,157 @@ function ConnectionRow({
   );
 }
 
+/**
+ * The copy-to-clipboard field for a client link.
+ *
+ * The URL is always visible in a selectable input, not hidden behind the
+ * button: navigator.clipboard is unavailable on an insecure origin and can be
+ * refused by permissions policy, and an operator who cannot see the link has
+ * nothing to fall back on. The button selects the text on failure so a manual
+ * copy still works.
+ */
+function CopyField({ url }: { url: string }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [copied, setCopied] = useState(false);
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      inputRef.current?.select();
+    }
+  };
+
+  return (
+    <div className="flex flex-col sm:flex-row gap-2">
+      <Input
+        ref={inputRef}
+        readOnly
+        value={url}
+        onFocus={(e) => e.currentTarget.select()}
+        className="font-mono text-[11px]"
+        aria-label="Client connect link"
+      />
+      <Button variant="secondary" size="sm" className="sm:w-auto shrink-0" onClick={() => void copy()}>
+        {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+        {copied ? 'Copied' : 'Copy link'}
+      </Button>
+    </div>
+  );
+}
+
+/**
+ * One client link.
+ *
+ * The status line is the honest part. A REDEMPTION means the browser was handed
+ * to TikTok and nothing more — it reads identically after a sub-account
+ * refusal, a cancelled consent screen, or a closed tab — so it must never be
+ * rendered as "the client authorized". Only `authorized` (stamped by the
+ * callback once a pending authorization is actually parked) earns that
+ * sentence. Reporting a click as a completed authorization is the same class of
+ * lie as the Settings page that claimed a working TikTok sync off a backfilled
+ * boolean.
+ */
+function InviteRow({
+  invite,
+  brandLabel,
+  busy,
+  onRevoke,
+  onReissue,
+}: {
+  invite: ClientInvite;
+  brandLabel: string;
+  busy: string | null;
+  onRevoke: () => void;
+  onReissue: () => void;
+}) {
+  const authorized = invite.state === 'authorized';
+  const spent = authorized || invite.state === 'exhausted';
+  const chip = inviteChip(invite);
+
+  return (
+    <div className="rounded-lg border border-border/60 p-3 space-y-2">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-foreground truncate">{brandLabel}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Sent {formatDateTime(invite.createdAt)} &middot; stops working{' '}
+            {describeRemaining(invite.expiresAt)}
+            {invite.createdBy ? ` · by ${invite.createdBy}` : ''}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Chip className={chip.className}>{chip.label}</Chip>
+          {/* A spent link is not a way in any more; offering Revoke would imply
+              it was. Reissue is the action that actually helps. */}
+          {spent ? (
+            <Button size="sm" variant="ghost" disabled={busy !== null} onClick={onReissue}>
+              {busy === `invite:${invite.brandSlug}` ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Link2 className="h-3.5 w-3.5" />
+              )}
+              Reissue
+            </Button>
+          ) : (
+            <Button size="sm" variant="ghost" disabled={busy !== null} onClick={onRevoke}>
+              {busy === `revoke-invite:${invite.id}` ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Ban className="h-3.5 w-3.5" />
+              )}
+              Revoke
+            </Button>
+          )}
+        </div>
+      </div>
+
+      <p className="text-xs text-muted-foreground leading-relaxed">{inviteExplanation(invite)}</p>
+
+      {!spent && <CopyField url={invite.url} />}
+    </div>
+  );
+}
+
+function inviteChip(invite: ClientInvite): { label: string; className: string } {
+  const positive = 'border-transparent bg-[var(--pulse-pos-bg)] text-[var(--pulse-pos)]';
+  const warn = 'border-transparent bg-[var(--pulse-warn-bg)] text-[var(--pulse-warn)]';
+
+  switch (invite.state) {
+    case 'authorized':
+      return { label: invite.awaitingConfirm ? 'Authorized — link it' : 'Authorized', className: positive };
+    case 'exhausted':
+      return { label: 'Used up', className: warn };
+    case 'redeemed':
+      return { label: 'Sent to TikTok', className: warn };
+    case 'opened':
+      return { label: `Opened ${formatDateTime(invite.lastOpenedAt ?? invite.createdAt)}`, className: warn };
+    default:
+      return { label: 'Not opened yet', className: 'text-muted-foreground' };
+  }
+}
+
+function inviteExplanation(invite: ClientInvite): string {
+  switch (invite.state) {
+    case 'authorized':
+      return invite.awaitingConfirm
+        ? 'The client granted access. Their shops are waiting above — pick which one maps to this brand.'
+        : 'The client granted access. If nothing is waiting above, it has already been linked or the authorization lapsed; reissue to redo it.';
+    case 'exhausted':
+      return 'This link has been opened and sent to TikTok as many times as it allows, and no authorization came back. Reissue to send a fresh one.';
+    case 'redeemed':
+      return invite.lastRedeemedAt
+        ? `Sent to TikTok ${formatDateTime(invite.lastRedeemedAt)} — nothing has come back yet. They may still be signing in as the main account owner; the link still works if they try again.`
+        : 'Sent to TikTok — nothing has come back yet.';
+    case 'opened':
+      return 'Opened, but not sent to TikTok yet.';
+    default:
+      return 'Not opened yet. An email scanner would usually register an open, so this may not have reached them.';
+  }
+}
+
 function Field({ label, value, tone }: { label: string; value: string; tone?: Tone }) {
   return (
     <div className="min-w-0">
@@ -776,6 +1145,28 @@ function describeExpiry(iso: string | null): { label: string; tone: Tone } {
   if (hours < 1) return { label: `${Math.max(1, Math.round(ms / 60_000))}m left`, tone: 'warn' };
   if (hours < 24) return { label: `${Math.round(hours)}h left`, tone: hours < 6 ? 'warn' : 'ok' };
   return { label: `${Math.round(hours / 24)}d left`, tone: 'ok' };
+}
+
+function brandLabelOf(brands: BrandOption[], slug: string): string {
+  return brands.find((b) => b.slug === slug)?.label ?? slug;
+}
+
+/**
+ * "in 3 days" / "in 4 hours" — the operator is about to type this into an
+ * email, so it has to read like something a person would write, not a
+ * timestamp. Rounds DOWN: promising a client three days when 2.9 remain is the
+ * error that produces a dead link on the third morning.
+ */
+function describeRemaining(iso: string): string {
+  const ms = Date.parse(iso) - Date.now();
+  if (!Number.isFinite(ms) || ms <= 0) return 'shortly';
+
+  const minutes = Math.floor(ms / 60_000);
+  if (minutes < 60) return `in ${Math.max(1, minutes)} min`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 48) return `in ${hours} ${hours === 1 ? 'hour' : 'hours'}`;
+  const days = Math.floor(hours / 24);
+  return `in ${days} days`;
 }
 
 function formatDateTime(iso: string): string {
