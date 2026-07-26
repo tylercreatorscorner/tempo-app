@@ -64,6 +64,85 @@ const RPC_NAME: Record<UploadTable, string> = {
   videos:              'upload_videos_atomic',
 };
 
+/**
+ * The write-side ledger (migration 116) for the MANUAL path.
+ *
+ * Until now only src/lib/tiktok/compass-ingest.ts wrote ingestion_runs, and
+ * that path has never run — so the table was empty in production and every cell
+ * on the coverage ledger was judged by row-count shape alone, while three
+ * strings in the UI claimed the count had been "verified after the write".
+ * Writing here is what makes that claim true rather than merely hedged, and it
+ * also lets a successful re-upload SUPERSEDE a failed Compass run that would
+ * otherwise hold a fully-repaired day at amber forever.
+ *
+ * A 'running' row goes in BEFORE the write, deliberately: the incident this
+ * page exists for was a file that stranded partway with every chunk reporting
+ * success on its own terms. If the function dies mid-upload, the running row is
+ * the only evidence that anything was attempted at all.
+ *
+ * Best-effort throughout — a ledger failure must never fail an upload that
+ * landed. The rows are evidence, not the transaction.
+ */
+async function openRunRow(
+  admin: Awaited<ReturnType<typeof createAdminClient>>,
+  args: { brand: string; table: string; reportDate: string | null; rowsExpected: number | null },
+): Promise<void> {
+  try {
+    await admin.from('ingestion_runs').insert({
+      source: 'upload',
+      brand_slug: args.brand,
+      target_table: args.table,
+      report_date: args.reportDate,
+      status: 'running',
+      rows_expected: args.rowsExpected,
+    });
+  } catch (e) {
+    console.error('[upload/run] ingestion_runs open failed:', e instanceof Error ? e.message : e);
+  }
+}
+
+async function closeRunRow(
+  admin: Awaited<ReturnType<typeof createAdminClient>>,
+  args: {
+    brand: string;
+    table: string;
+    reportDate: string | null;
+    status: 'complete' | 'failed';
+    rowsWritten: number | null;
+    error?: string | null;
+  },
+): Promise<void> {
+  try {
+    // The newest still-running row for this cell. Selecting by id would be
+    // tighter, but chunks are separate HTTP requests with no shared memory, so
+    // the cell key is what both ends can agree on.
+    let q = admin
+      .from('ingestion_runs')
+      .select('id')
+      .eq('source', 'upload')
+      .eq('brand_slug', args.brand)
+      .eq('target_table', args.table)
+      .eq('status', 'running')
+      .order('started_at', { ascending: false })
+      .limit(1);
+    q = args.reportDate === null ? q.is('report_date', null) : q.eq('report_date', args.reportDate);
+    const { data } = await q;
+    const id = (data as { id: string }[] | null)?.[0]?.id;
+    if (!id) return;
+    await admin
+      .from('ingestion_runs')
+      .update({
+        status: args.status,
+        rows_written: args.rowsWritten,
+        error: args.error ?? null,
+        finished_at: new Date().toISOString(),
+      })
+      .eq('id', id);
+  } catch (e) {
+    console.error('[upload/run] ingestion_runs close failed:', e instanceof Error ? e.message : e);
+  }
+}
+
 export async function POST(request: NextRequest) {
   // ── Auth: must be owner or admin role.
   const profile = await requireAdmin();
@@ -258,6 +337,18 @@ export async function POST(request: NextRequest) {
   // ── Single RPC call — does delete (if overwrite) + bulk insert atomically
   //    inside a transaction with SET LOCAL statement_timeout = '60s' and an
   //    advisory lock on (brand, report_date) to serialize concurrent uploads.
+  // Evidence BEFORE the write — see openRunRow. One row per file, opened on the
+  // first chunk and closed on the last, so a run that dies at chunk 3 of 5
+  // leaves a 'running' row rather than a silently truncated green day.
+  if (isFirstChunk) {
+    await openRunRow(admin, {
+      brand,
+      table,
+      reportDate: requiresReportDate ? (reportDate as string) : null,
+      rowsExpected: totals?.rows ?? null,
+    });
+  }
+
   try {
     const rpcArgs =
       table === 'videos'
@@ -266,6 +357,14 @@ export async function POST(request: NextRequest) {
 
     const { data, error } = await admin.rpc(RPC_NAME[table], rpcArgs);
     if (error) {
+      await closeRunRow(admin, {
+        brand,
+        table,
+        reportDate: requiresReportDate ? (reportDate as string) : null,
+        status: 'failed',
+        rowsWritten: null,
+        error: error.message,
+      });
       return NextResponse.json({ error: `Upload failed: ${error.message}` }, { status: 500 });
     }
 
@@ -370,6 +469,35 @@ export async function POST(request: NextRequest) {
         // record can't be stored. Worst case: the next duplicate upload runs
         // again instead of being deduped.
       }
+    }
+
+    // ── Close the run row on the last chunk.
+    //
+    // rows_written is a fresh COUNT of what is actually in the table for this
+    // brand-day, not a sum of client-reported chunk sizes. That is the whole
+    // point: the incident that motivated this page was every chunk reporting
+    // success on its own terms while the day as a whole was short, so the
+    // ledger's evidence has to come from the destination, not the caller.
+    if (isFinalChunk && requiresReportDate) {
+      let landed: number | null = null;
+      try {
+        const { count } = await admin
+          .from(table)
+          .select('*', { count: 'exact', head: true })
+          .eq('brand', brand)
+          .eq('report_date', reportDate as string);
+        landed = count ?? null;
+      } catch {
+        // A failed count leaves rows_written null — "we did not measure",
+        // which is honest. Never guess it from the chunk.
+      }
+      await closeRunRow(admin, {
+        brand,
+        table,
+        reportDate: reportDate as string,
+        status: 'complete',
+        rowsWritten: landed,
+      });
     }
 
     // ── Activity log (best-effort — don't fail the upload if this errors).

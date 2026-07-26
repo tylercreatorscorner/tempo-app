@@ -79,7 +79,15 @@ export function DataPipelineClient({ activeBrands }: { activeBrands: ActiveBrand
 
   return (
     <div className="space-y-6">
-      <PipelineHealth data={hasLoadedOnce ? data : null} coverageError={hasLoadedOnce ? null : error} />
+      {/* `error` is passed as BOTH the cold failure and the warm-staleness
+          signal. Pinning the second to null (which is what this did) meant a
+          refetch failure left three lanes asserting a green all-clear while the
+          grid directly below correctly showed its stale banner. */}
+      <PipelineHealth
+        data={hasLoadedOnce ? data : null}
+        coverageError={hasLoadedOnce ? null : error}
+        stale={hasLoadedOnce ? error : null}
+      />
 
       <CoverageLedger
         data={data}

@@ -101,18 +101,29 @@ function derive(data: CoverageResponse): Derived {
 export function PipelineHealth({
   data,
   coverageError,
+  stale,
 }: {
   data: CoverageResponse | null;
   /** Non-null when coverage has never loaded successfully — lanes go to "—". */
   coverageError: string | null;
+  /**
+   * Set when the LAST fetch failed but an earlier one succeeded, so these
+   * numbers are last-good rather than current. The grid below already shows an
+   * amber stale banner in this case; the strip used to be handed a hard-coded
+   * null and kept its green check over numbers derived from a read that had
+   * just failed — and it is the element an operator reads first.
+   */
+  stale?: string | null;
 }) {
   const d = data ? derive(data) : null;
+  // A number from a read that just failed does not get the green tone.
+  const ok = (good: boolean) => (stale ? 'neutral' : good ? 'ok' : 'neutral');
 
   return (
     <div className="space-y-3">
       <div className="grid gap-3 md:grid-cols-3">
         <Lane
-          tone={d ? (d.current === d.expectedBrands ? 'ok' : 'neutral') : 'neutral'}
+          tone={d ? ok(d.current === d.expectedBrands) : 'neutral'}
           icon={<CheckCircle2 />}
           title="Current"
           value={d ? String(d.current) : '—'}
@@ -129,7 +140,7 @@ export function PipelineHealth({
           }
         />
         <Lane
-          tone={d ? (d.attentionDays > 0 ? 'bad' : 'ok') : 'neutral'}
+          tone={d ? (d.attentionDays > 0 ? 'bad' : ok(true)) : 'neutral'}
           icon={<AlertTriangle />}
           title="Needs attention"
           value={d ? String(d.attentionDays) : '—'}
@@ -166,6 +177,12 @@ export function PipelineHealth({
       {coverageError && (
         <p className="text-[11.5px] text-[var(--pulse-neg)]">
           Health above is unavailable because the coverage read failed: {coverageError}
+        </p>
+      )}
+      {!coverageError && stale && (
+        <p className="text-[11.5px] text-[var(--pulse-warn)]">
+          Couldn&apos;t refresh — the numbers above are the last good read
+          {data ? ` from ${new Date(data.generatedAt).toLocaleTimeString()}` : ''}. {stale}
         </p>
       )}
     </div>
@@ -255,7 +272,8 @@ function AutoSyncStrip() {
       <PlugZap
         className={cn(
           'h-3.5 w-3.5 shrink-0',
-          live ? 'text-[var(--pulse-pos)]' : 'text-muted-foreground',
+          // Neutral until something actually ingests — see the branch below.
+          live ? 'text-[var(--pulse-accent-2)]' : 'text-muted-foreground',
         )}
       />
       <span className="font-semibold text-foreground">Automatic sync</span>
@@ -273,8 +291,17 @@ function AutoSyncStrip() {
           upload.
         </span>
       ) : (
+        // Authorization is NOT ingestion. The only API ingest entry point is a
+        // manual POST to /api/tiktok/compass/run — there is no cron for it in
+        // vercel.json, and it has never been run against TikTok. Saying "those
+        // brands ingest without an upload" the moment a client authorizes would
+        // stop the operator uploading a brand nothing is pulling: the same
+        // failure as the Settings page that claimed a working TikTok sync off a
+        // backfilled boolean. Only claim ingestion once a scheduled run exists
+        // and its last success can be read.
         <span className="text-muted-foreground">
-          {active} of {total} shops authorized — those brands ingest without an upload.
+          {active} of {total} {total === 1 ? 'shop is' : 'shops are'} authorized, but automatic
+          ingestion is not scheduled yet — every row below still arrives by manual upload.
         </span>
       )}
       <Link
