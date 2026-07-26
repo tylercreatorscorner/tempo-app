@@ -1,8 +1,7 @@
 import { ImageResponse } from 'next/og';
 import type { NextRequest } from 'next/server';
+import { INTER_FONTS } from './fonts';
 
-// nodejs, not edge: the vendored font files resolve through the standard
-// `new URL(..., import.meta.url)` asset pattern, which Next bundles.
 export const runtime = 'nodejs';
 
 /**
@@ -17,15 +16,10 @@ export const runtime = 'nodejs';
  *
  * The previous card set `fontFamily: 'sans-serif'`, which Satori resolves to a
  * generic fallback face — that alone is why it read as cheap, before any
- * layout question. Inter is vendored beside this route (latin subset, ~31KB
- * per weight) rather than fetched at render time, so the card cannot silently
- * degrade to the fallback if a CDN is slow or blocked.
+ * layout question. Inter is bundled with this route (latin subset, ~31KB per
+ * weight, see ./fonts.ts) rather than fetched at render time, so the card
+ * cannot silently degrade to the fallback if a CDN is slow or blocked.
  */
-const INTER = {
-  regular: new URL('./fonts/Inter-400.woff', import.meta.url),
-  semibold: new URL('./fonts/Inter-600.woff', import.meta.url),
-  extrabold: new URL('./fonts/Inter-800.woff', import.meta.url),
-};
 
 const INK = '#F4F5FF';
 const INK_DIM = '#A5ABCC';
@@ -39,19 +33,6 @@ const VIOLET = '#A78BFA';
  * Satori has no randomness — reading as a plausible GMV curve.
  */
 const BARS = [20, 31, 26, 43, 38, 55, 48, 67, 60, 79, 72, 94];
-
-async function loadFonts() {
-  const [regular, semibold, extrabold] = await Promise.all([
-    fetch(INTER.regular).then((r) => r.arrayBuffer()),
-    fetch(INTER.semibold).then((r) => r.arrayBuffer()),
-    fetch(INTER.extrabold).then((r) => r.arrayBuffer()),
-  ]);
-  return [
-    { name: 'Inter', data: regular, weight: 400 as const, style: 'normal' as const },
-    { name: 'Inter', data: semibold, weight: 600 as const, style: 'normal' as const },
-    { name: 'Inter', data: extrabold, weight: 800 as const, style: 'normal' as const },
-  ];
-}
 
 export async function GET(request: NextRequest) {
   const variant = request.nextUrl.searchParams.get('v') === 'connect' ? 'connect' : 'default';
@@ -103,8 +84,11 @@ export async function GET(request: NextRequest) {
                 color: INK,
               }}
             >
-              Tempo
+              Temp
             </div>
+            {/* The mark IS the "o" — hence "Temp" above, not "Tempo". Beat's
+                geometry lives in a 40x40 box (see components/ui/tempo-logo.tsx);
+                these numbers are that box scaled by 0.7 into 28px. */}
             <div
               style={{
                 display: 'flex',
@@ -112,20 +96,23 @@ export async function GET(request: NextRequest) {
                 height: 28,
                 borderRadius: 14,
                 backgroundImage: `linear-gradient(135deg, ${INDIGO}, ${VIOLET})`,
-                alignItems: 'center',
+                alignItems: 'flex-end',
                 justifyContent: 'center',
+                gap: 1.75,
+                paddingBottom: 6.65,
               }}
             >
-              <div
-                style={{
-                  width: 0,
-                  height: 0,
-                  borderLeft: '8px solid white',
-                  borderTop: '5.5px solid transparent',
-                  borderBottom: '5.5px solid transparent',
-                  marginLeft: 3,
-                }}
-              />
+              {[7, 10.85, 14.7].map((h) => (
+                <div
+                  key={h}
+                  style={{
+                    width: 3.85,
+                    height: h,
+                    borderRadius: 1.925,
+                    backgroundColor: 'white',
+                  }}
+                />
+              ))}
             </div>
           </div>
           <div
@@ -215,6 +202,6 @@ export async function GET(request: NextRequest) {
         </div>
       </div>
     ),
-    { width: 1200, height: 630, fonts: await loadFonts() },
+    { width: 1200, height: 630, fonts: INTER_FONTS },
   );
 }

@@ -11,6 +11,23 @@ interface TempoLogoProps {
   className?: string;
 }
 
+/** The Beat mark, in the 40×40 viewBox shared by every rendering of the logo.
+ *  Bars sit on a common baseline at y = 30.5, and the cluster is centred both
+ *  ways (9.25 → 30.75, 9.5 → 30.5).
+ *
+ *  These numbers were chosen against rasterised proofs at every size the mark
+ *  actually ships at — 16 (favicon), 21 (sidebar), 26 (collapsed rail), 28 (OG
+ *  card), 32, 44. The shortest bar is 10 tall rather than 8 because at 16px an
+ *  8-tall bar is shorter than its own corner radius and degenerates into a dot;
+ *  the 5.5 width holds the 2.5 gaps open at that size instead of letting the
+ *  three bars fuse. Re-run scripts/../rasterize-mark.mjs before changing them. */
+const BAR_WIDTH = 5.5;
+const BARS = [
+  { x: 9.25, y: 20.5, h: 10 },
+  { x: 17.25, y: 15, h: 15.5 },
+  { x: 25.25, y: 9.5, h: 21 },
+];
+
 const SIZE_CONFIG = {
   sm: { fontSize: 20, circleSize: 16, gap: 1 },
   md: { fontSize: 26, circleSize: 21, gap: 1 },
@@ -53,7 +70,7 @@ export function TempoLogo({
           viewBox="0 0 40 40"
           fill="none"
           className={cn(
-            'transition-[filter] duration-300 group-hover:drop-shadow-[0_4px_16px_rgba(255,77,141,0.4)]',
+            'transition-[filter] duration-300 group-hover:drop-shadow-[0_4px_16px_rgba(75,69,255,0.45)]',
             animated && 'animate-tempo-o'
           )}
           style={{
@@ -72,11 +89,23 @@ export function TempoLogo({
             className="animate-tempo-glow"
           />
           <circle cx="20" cy="20" r="20" fill={`url(#${gradId})`} />
-          <polygon
-            points="16,12 16,28 28,20"
-            fill="white"
-            fillOpacity="0.95"
-          />
+          {/* Three ascending bars on a shared baseline (y = 30): a waveform and
+              a bar chart at once. Geometry is identical in icon.svg, the OG
+              card and public/logo/* — change it in all four or not at all. */}
+          {BARS.map((bar, i) => (
+            <rect
+              key={bar.x}
+              x={bar.x}
+              y={bar.y}
+              width={BAR_WIDTH}
+              height={bar.h}
+              rx={BAR_WIDTH / 2}
+              fill="white"
+              fillOpacity="0.97"
+              className={animated ? 'animate-tempo-bar' : undefined}
+              style={animated ? { animationDelay: `${0.28 + i * 0.07}s` } : undefined}
+            />
+          ))}
           <defs>
             <linearGradient id={gradId} x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
               <stop stopColor="var(--primary)" />

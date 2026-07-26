@@ -299,9 +299,16 @@ html.dark { color-scheme: dark; }
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
+/* The mark is a bar cluster, not a disc with a triangle — it lands by scaling
+   in, then the bars climb from the baseline (see tempoBarRise). A rotate-in
+   here would spin the bars, which reads as a loading spinner. */
 @keyframes tempoOIn {
-  from { opacity: 0; transform: scale(0) rotate(-180deg); }
-  to { opacity: 1; transform: scale(1) rotate(0deg); }
+  from { opacity: 0; transform: scale(0.35); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes tempoBarRise {
+  from { opacity: 0; transform: scaleY(0.12); }
+  to { opacity: 1; transform: scaleY(1); }
 }
 @keyframes tempoGlow {
   0%, 100% { opacity: 0; }
@@ -321,6 +328,14 @@ html.dark { color-scheme: dark; }
 }
 .animate-tempo-glow {
   animation: tempoGlow 3s ease-in-out infinite;
+}
+/* fill-box + bottom origin makes each bar grow up off the shared baseline
+   rather than out from its own centre. Per-bar delays are set inline. */
+.animate-tempo-bar {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: bottom;
+  animation: tempoBarRise 0.42s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 .animate-tempo-tag {
   opacity: 0;
@@ -447,4 +462,16 @@ html.dark { color-scheme: dark; }
 @media (prefers-reduced-motion: reduce) {
   ::view-transition-old(root),
   ::view-transition-new(root) { animation: none; }
+
+  /* The logo entrance sets opacity: 0 up front, so it can't simply be switched
+     off — the mark would never appear. Snap it to the end state instead. */
+  .animate-tempo-text,
+  .animate-tempo-o,
+  .animate-tempo-bar,
+  .animate-tempo-tag {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+  .animate-tempo-glow { animation: none; }
 }

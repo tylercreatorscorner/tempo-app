@@ -3,9 +3,9 @@
   "configurations": [
     {
       "name": "tempo-app",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
-      "port": 3000
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["next", "dev", "--webpack", "-p", "3021"],
+      "port": 3021
     }
   ]
 }
