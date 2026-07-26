@@ -14,13 +14,19 @@
  * healthy one. This thinks in COVERAGE: every brand, every day, every report,
  * known-complete or explicitly not.
  *
- * COLOUR IS NEVER THE ONLY CUE. Each of the four states has its own SHAPE, so
- * the grid survives a colourblind reader, a greyscale print and a screenshot:
+ * COLOUR IS NEVER THE ONLY CUE. Every state has its own SHAPE, so the grid
+ * survives a colourblind reader, a greyscale print and a screenshot:
  *
  *   complete      full-height solid bar
  *   partial       half-height bar sitting in a faint track  (literally partial)
  *   missing       hollow outlined bar                        (literally empty)
+ *   unverified    full-height DASHED outline   (all the rows, none of the proof)
+ *   awaiting      three small dots             (not owed yet, not a failure)
  *   not expected  short centred dash                         (nothing is owed)
+ *
+ * `awaiting` and `missing` must never share a shape: one is TikTok's publication
+ * window, the other is a hole. Conflating them is what made every healthy brand
+ * read "Silent 1d" in red every morning.
  */
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { AlertTriangle } from 'lucide-react';
@@ -73,6 +79,8 @@ interface CoverageLedgerProps {
 interface BrandSummary {
   missingDays: number;
   partialDays: number;
+  /** Days that landed rows but have no history to judge them against. */
+  unverifiedDays: number;
   /** Consecutive most-recent days where every expected report is missing —
    *  the "this brand went dark" signal that took ten days to notice. */
   silentStreak: number;
@@ -83,39 +91,70 @@ interface BrandSummary {
 /** `cells` must be oldest-first (display order). */
 function summarize(brand: CoverageBrand, cells: CoverageCell[]): BrandSummary {
   if (!brand.expected) {
-    return { missingDays: 0, partialDays: 0, silentStreak: 0, label: 'Archived — not expected', tone: 'idle' };
+    return { missingDays: 0, partialDays: 0, unverifiedDays: 0, silentStreak: 0, label: 'Archived — not expected', tone: 'idle' };
   }
+  // Awaiting days are inside TikTok's publication window and carry no verdict,
+  // so they must not appear in any tally — otherwise every brand permanently
+  // carries phantom missing days and none can ever read 'Current'.
   let missingDays = 0;
   let partialDays = 0;
+  let unverifiedDays = 0;
   for (const c of cells) {
     const w = worstStatus(c);
     if (w === 'missing') missingDays++;
     else if (w === 'partial') partialDays++;
+    else if (w === 'unverified') unverifiedDays++;
   }
-  // Walk backwards from the newest day for as long as the day is wholly missing.
+
+  // Walk backwards from the newest JUDGED day for as long as the day is wholly
+  // missing.
+  //
+  // The skip is load-bearing. This loop breaks on the first day that is not
+  // wholly missing, and awaiting cells sit at exactly that end — so without the
+  // skip it would break immediately and return 0 for the six brands that have
+  // been dark since 2026-07-09. They would drop from 'Silent 17d' to a bland
+  // '17 missing' and lose their sort priority to the top of the ledger, which is
+  // the precise inverse of what this page is for.
   let silentStreak = 0;
-  for (let i = cells.length - 1; i >= 0; i--) {
+  let i = cells.length - 1;
+  while (i >= 0) {
+    const s = cellStates(cells[i]).filter((x) => x.state && x.state.status !== 'not_expected');
+    if (s.length > 0 && s.every((x) => x.state!.status === 'awaiting')) i--;
+    else break;
+  }
+  for (; i >= 0; i--) {
     const states = cellStates(cells[i]).filter((s) => s.state && s.state.status !== 'not_expected');
     if (states.length > 0 && states.every((s) => s.state!.status === 'missing')) silentStreak++;
     else break;
   }
 
   if (silentStreak > 0) {
-    return { missingDays, partialDays, silentStreak, label: `Silent ${silentStreak}d`, tone: 'bad' };
+    return { missingDays, partialDays, unverifiedDays, silentStreak, label: `Silent ${silentStreak}d`, tone: 'bad' };
   }
   if (missingDays > 0) {
     return {
       missingDays,
       partialDays,
+      unverifiedDays,
       silentStreak,
       label: `${missingDays} missing${partialDays > 0 ? ` · ${partialDays} partial` : ''}`,
       tone: 'bad',
     };
   }
   if (partialDays > 0) {
-    return { missingDays, partialDays, silentStreak, label: `${partialDays} partial`, tone: 'warn' };
+    return { missingDays, partialDays, unverifiedDays, silentStreak, label: `${partialDays} partial`, tone: 'warn' };
   }
-  return { missingDays, partialDays, silentStreak, label: 'Current', tone: 'ok' };
+  if (unverifiedDays > 0) {
+    return {
+      missingDays,
+      partialDays,
+      unverifiedDays,
+      silentStreak,
+      label: `${unverifiedDays} unverified`,
+      tone: 'warn',
+    };
+  }
+  return { missingDays, partialDays, unverifiedDays, silentStreak, label: 'Current', tone: 'ok' };
 }
 
 const TONE_TEXT: Record<BrandSummary['tone'], string> = {
@@ -149,6 +188,25 @@ function TypeMark({ state }: { state: CellState | null }) {
   if (status === 'missing') {
     return (
       <span className="h-3 w-[5px] rounded-[1.5px] border border-[var(--pulse-neg)] bg-transparent" />
+    );
+  }
+  if (status === 'unverified') {
+    // Full height like complete — the rows ARE all here — but hollow, because
+    // nothing checked them. Neutral, never green.
+    return (
+      <span className="h-3 w-[5px] rounded-[1.5px] border border-dashed border-muted-foreground/70 bg-transparent" />
+    );
+  }
+  if (status === 'awaiting') {
+    // A dotted track, distinct from missing's solid outline: the day is not
+    // owed YET. It must not be the same shape as a failure and must not be the
+    // same shape as "nothing is owed here".
+    return (
+      <span className="flex h-3 w-[5px] flex-col items-center justify-between py-[1px]">
+        <span className="h-[2px] w-[2px] rounded-full bg-muted-foreground/45" />
+        <span className="h-[2px] w-[2px] rounded-full bg-muted-foreground/45" />
+        <span className="h-[2px] w-[2px] rounded-full bg-muted-foreground/45" />
+      </span>
     );
   }
   // not_expected / unknown — a short centred dash: nothing is owed here.
@@ -229,15 +287,30 @@ export function CoverageLedger({
       // not_expected for an archived brand). Defaulting it to "no state" would
       // paint those days as neutral dashes: a silent all-clear over the exact
       // hole this page exists to show.
+      // The newest columns are precisely the ones with no GROUP BY row at all,
+      // so this fallback — not classifyCell — is what decides them. It has to
+      // know about the publication window or the whole awaiting state is
+      // bypassed for exactly the days it was built for.
       const synthesize = (date: string): CoverageCell => {
-        const status: CoverageStatus = b.expected ? 'missing' : 'not_expected';
+        const awaiting = b.expected && date > data.judgeThrough;
+        const status: CoverageStatus = !b.expected
+          ? 'not_expected'
+          : awaiting
+            ? 'awaiting'
+            : 'missing';
         const state: CellState = {
           status,
           rows: null,
           expectedRows: null,
-          ...(b.expected
-            ? { reason: 'No rows landed in any tracked table for this day, so the day returned no record at all.' }
-            : {}),
+          ...(awaiting
+            ? {
+                reason:
+                  'Not ingested yet. No upload for a given day has ever landed before ~10:00 ET the ' +
+                  'following morning, so this day is not judged yet.',
+              }
+            : b.expected
+              ? { reason: 'No rows landed in any tracked table for this day, so the day returned no record at all.' }
+              : {}),
         };
         const types: CoverageCell['types'] = {};
         for (const key of owed) types[key] = state;

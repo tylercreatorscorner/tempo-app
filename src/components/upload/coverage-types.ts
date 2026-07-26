@@ -21,7 +21,13 @@
 /** The three reports that make up a complete brand-day. */
 export type CoverageTypeKey = 'creator' | 'video' | 'product';
 
-export type CoverageStatus = 'complete' | 'partial' | 'missing' | 'not_expected';
+export type CoverageStatus =
+  | 'complete'
+  | 'partial'
+  | 'missing'
+  | 'not_expected'
+  | 'awaiting'
+  | 'unverified';
 
 /** Mirrors ingestion_runs.status (migration 116). */
 export type RunStatus = 'running' | 'complete' | 'failed' | 'partial';
@@ -72,6 +78,13 @@ export interface CoverageResponse {
   days: string[];
   brands: CoverageBrand[];
   generatedAt: string;
+  /**
+   * Newest day that carries a verdict. Days after it are inside TikTok's
+   * publication window and render `awaiting`. Comes from the server rather than
+   * being re-derived here, so the grid, the health strip and the drawer cannot
+   * disagree about where the frontier is.
+   */
+  judgeThrough: string;
   warnings?: string[];
 }
 
@@ -128,6 +141,8 @@ export const STATUS_LABEL: Record<CoverageStatus, string> = {
   partial: 'Partial',
   missing: 'Missing',
   not_expected: 'Not expected',
+  awaiting: 'Awaiting',
+  unverified: 'Unverified',
 };
 
 /**
@@ -181,11 +196,23 @@ export function shortDate(iso: string): string {
  * brand-row summary. Order is deliberate: a missing report outranks a partial
  * one, and 'not_expected' can never outrank a real state (a brand that stopped
  * producing one report still has two real ones).
+ *
+ * `awaiting` sits STRICTLY ABOVE not_expected, not equal to it. Ranking it 0
+ * would tie with the seed below and make it unreachable from worstStatus — the
+ * two newest columns of every brand would then report 'not_expected' and render
+ * dimmed, i.e. a silent all-clear over the exact days this page exists to watch.
+ *
+ * `unverified` sits ABOVE complete: rows landed and nothing flagged them, but
+ * with no history to judge against, "nothing flagged them" is not evidence. It
+ * is more worth an operator's attention than a verified-complete day, and less
+ * than a partial one.
  */
 const SEVERITY: Record<CoverageStatus, number> = {
-  missing: 3,
-  partial: 2,
-  complete: 1,
+  missing: 5,
+  partial: 4,
+  unverified: 3,
+  complete: 2,
+  awaiting: 1,
   not_expected: 0,
 };
 

@@ -28,7 +28,10 @@ interface FreshnessPayload {
 interface Derived {
   current: number;
   expectedBrands: number;
+  /** Newest JUDGED day — never the newest rendered one. */
   throughDate: string | null;
+  /** Columns rendered but not judged, i.e. inside the publication window. */
+  awaitingDays: number;
   attentionDays: number;
   partialDays: number;
   missingDays: number;
@@ -47,8 +50,14 @@ interface Derived {
  */
 function derive(data: CoverageResponse): Derived {
   const expected = data.brands.filter((b) => b.expected);
-  // Days arrive newest-first, so days[0] is the freshest day we expect to see.
-  const newest = data.days[0] ?? null;
+  // Days arrive newest-first. days[0] is the newest RENDERED day, which is
+  // inside the publication window and therefore carries no verdict — measuring
+  // "current" against it made this strip read "0 of 8 brands" every morning
+  // while asserting "Complete through <a day nothing has landed for>". Both
+  // numbers hang off the newest JUDGED day instead.
+  const judged = data.days.filter((d) => d <= data.judgeThrough);
+  const newestJudged = judged[0] ?? null;
+  const awaitingDays = data.days.length - judged.length;
 
   let current = 0;
   let partialDays = 0;
@@ -57,7 +66,10 @@ function derive(data: CoverageResponse): Derived {
 
   for (const brand of expected) {
     const byDate = new Map(brand.cells.map((c) => [c.date, c]));
-    for (const date of data.days) {
+    // Only judged days can contribute to attention counts. An absent day is
+    // still MISSING (a GROUP BY cannot emit a zero, so the worst gaps have no
+    // cell at all) — but only once it is past the publication window.
+    for (const date of judged) {
       const cell = byDate.get(date);
       const w = cell ? worstStatus(cell) : 'missing';
       if (w === 'partial' || w === 'missing') {
@@ -66,17 +78,18 @@ function derive(data: CoverageResponse): Derived {
         if (!oldestProblem || date < oldestProblem) oldestProblem = date;
       }
     }
-    // "Current" is a claim about the freshest day only — a brand that filled
-    // yesterday is current even if an old day is still short. An absent newest
-    // cell is not current: nothing landed.
-    const newestCell = newest ? byDate.get(newest) : undefined;
+    // "Current" is a claim about the freshest JUDGED day only — a brand that
+    // filled it is current even if an old day is still short. An absent cell is
+    // not current: nothing landed.
+    const newestCell = newestJudged ? byDate.get(newestJudged) : undefined;
     if (newestCell && worstStatus(newestCell) === 'complete') current++;
   }
 
   return {
     current,
     expectedBrands: expected.length,
-    throughDate: newest,
+    throughDate: newestJudged,
+    awaitingDays,
     attentionDays: partialDays + missingDays,
     partialDays,
     missingDays,
@@ -107,8 +120,11 @@ export function PipelineHealth({
           note={
             d
               ? d.throughDate
-                ? `Complete through ${shortDate(d.throughDate)} — the freshest day TikTok has published.`
-                : 'No days in this window.'
+                ? `Complete through ${shortDate(d.throughDate)}` +
+                  (d.awaitingDays > 0
+                    ? ` · ${d.awaitingDays} newer ${d.awaitingDays === 1 ? 'day' : 'days'} awaiting publication.`
+                    : '.')
+                : 'No judged days in this window.'
               : 'Coverage could not be read, so no brand is being reported as current.'
           }
         />

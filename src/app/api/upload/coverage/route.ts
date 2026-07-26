@@ -30,6 +30,9 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth/require-admin';
 import { fetchAllRows } from '@/lib/data/fetch-all-rows';
 import {
+  AWAITING_WINDOW_DAYS,
+  coverageAnchors,
+  computePeerReady,
   COVERAGE_TABLES,
   DEAD_RUN_MS,
   TABLE_TO_TYPE,
@@ -57,8 +60,16 @@ const UMBRELLA_BRAND_SLUGS = new Set(['leefar']);
 const MAX_DAYS = 90;
 const DEFAULT_DAYS = 30;
 
-/** Days read live from the fact tables rather than the rollup. */
-const LIVE_DAYS = 2;
+/**
+ * Days read live from the fact tables rather than the 10-minute rollup.
+ *
+ * Must cover the awaiting window PLUS the newest judged columns — those are the
+ * only cells that can raise a fresh alarm, and serving them from the cron
+ * rollup means an operator who repairs one watches it stay red for up to ten
+ * minutes after the page refetches. Measured cost of the extra two days on the
+ * worst table (video_performance): 148ms vs 117ms.
+ */
+const LIVE_DAYS = AWAITING_WINDOW_DAYS + 2;
 
 /** Baseline window, each side. Must match the RPC's p_window. */
 const BASELINE_WINDOW = 7;
@@ -84,16 +95,13 @@ export async function GET(request: NextRequest) {
   const admin = await createAdminClient();
   const now = new Date();
 
-  // Report dates are calendar dates, so anchor at UTC noon and slice — a
-  // local-time render shifts the whole ledger a day for half the world.
-  //
-  // Anchored on YESTERDAY, matching every other count on the upload surface.
-  // Today's exports do not exist yet: TikTok reports a completed day. A "today"
-  // column would be red for every brand every single morning, which is the
-  // cheapest possible way to teach an operator that red means nothing.
-  const anchor = new Date(now);
-  anchor.setUTCHours(12, 0, 0, 0);
-  anchor.setUTCDate(anchor.getUTCDate() - 1);
+  // Two frontiers, both from the wall clock — see coverageAnchors(). We RENDER
+  // through yesterday and JUDGE through three days back; the columns between are
+  // inside TikTok's publication window and are shown without a verdict. Rendering
+  // through yesterday and judging it too is what made every healthy brand read
+  // "Silent 1d" in red every morning.
+  const { renderThrough, judgeThrough } = coverageAnchors(now);
+  const anchor = new Date(`${renderThrough}T12:00:00Z`);
   const dayList = buildDayList(days, anchor); // newest first
   const endDate = dayList[0];
   const startDate = dayList[dayList.length - 1];
@@ -120,6 +128,7 @@ export async function GET(request: NextRequest) {
       days: dayList,
       brands: [],
       generatedAt: now.toISOString(),
+      judgeThrough,
       warnings: ['No brands found for this workspace.'],
     });
   }
@@ -233,6 +242,14 @@ export async function GET(request: NextRequest) {
   const splitExportBrands: string[] = [];
   const noPipelineBrands: string[] = [];
 
+  // ── Peer readiness ────────────────────────────────────────────────────────
+  // See computePeerReady(): a day inside the awaiting window is already proven
+  // ingestible once all but at most one of a table's producers have rows for it,
+  // so one brand's hole surfaces at D+2 instead of waiting out the calendar
+  // floor. Shared with the drawer route so the two cannot reach different
+  // verdicts for the same cell.
+  const peerReadyKeys = computePeerReady(counts.values(), dayList);
+
   for (const b of allBrands) {
     // Which reports do we expect of this brand? Observed history, not a
     // hardcoded list: a report is expected once the brand has actually produced
@@ -287,6 +304,8 @@ export async function GET(request: NextRequest) {
           run: runs.get(key) ?? null,
           brandArchived: b.is_archived,
           firstDate: bounds.get(`${b.slug}|${t.table}`)?.first_date ?? null,
+          judgeThrough,
+          peerReady: peerReadyKeys.has(`${t.table}|${date}`),
           now,
         });
       }
@@ -356,6 +375,7 @@ export async function GET(request: NextRequest) {
     days: dayList,
     brands,
     generatedAt: now.toISOString(),
+    judgeThrough,
     ...(warnings.length > 0 ? { warnings } : {}),
   };
   return NextResponse.json(body);

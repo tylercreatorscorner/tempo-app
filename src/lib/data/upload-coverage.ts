@@ -30,7 +30,18 @@
 /* ────────────────────────────────────────────────────────────────────────── */
 
 export type CoverageTypeKey = 'creator' | 'video' | 'product';
-export type CoverageStatus = 'complete' | 'partial' | 'missing' | 'not_expected';
+/**
+ * `awaiting`  — inside the publication window; not judged yet, NOT a failure.
+ * `unverified` — rows landed, but this brand-table has no history to judge them
+ *                against, so "complete" would be a claim we cannot support.
+ */
+export type CoverageStatus =
+  | 'complete'
+  | 'partial'
+  | 'missing'
+  | 'not_expected'
+  | 'awaiting'
+  | 'unverified';
 /** Mirrors ingestion_runs.status (migration 116). */
 export type RunStatus = 'running' | 'complete' | 'failed' | 'partial';
 export type CoverageSource = 'api' | 'upload';
@@ -42,6 +53,16 @@ export interface CellState {
   reason?: string;
   runStatus?: RunStatus;
   source?: CoverageSource;
+  /**
+   * Only meaningful on `partial`. False when the verdict rests on the trailing
+   * baseline alone because no days after this one exist yet — the newest
+   * columns. Measured: a trailing-only collapse produces 10 false positives in
+   * a 30-day window (July 4th, and the lemme/neurogum step-downs), which is why
+   * the both-sides guard exists at all. Those cells are still shown — three true
+   * positives are trailing-only-catchable — but the UI must render them at
+   * lower visual weight and say the verdict is unconfirmed.
+   */
+  confirmed?: boolean;
 }
 
 export interface CoverageCell {
@@ -67,6 +88,13 @@ export interface CoverageResponse {
   brands: CoverageBrand[];
   generatedAt: string;
   warnings?: string[];
+  /**
+   * The newest day that is JUDGED. Columns after it render `awaiting` and are
+   * excluded from every tally. Shipped in the payload rather than re-derived on
+   * the client, so the grid, the health strip and the drawer cannot disagree
+   * about where the frontier is.
+   */
+  judgeThrough: string;
 }
 
 /* ────────────────────────────────────────────────────────────────────────── */
@@ -138,12 +166,98 @@ export const TYPE_LABEL: Record<CoverageTypeKey, string> = Object.fromEntries(
 const CHUNK_SIZE = 5000;
 
 /**
- * How far below the local baseline an exact chunk multiple has to sit before we
- * call it. Loose on purpose — the chunk-multiple signature is already carrying
- * almost all of the evidence, and this only exists to spare a brand whose real
- * volume happens to hover near a multiple of 5,000.
+ * How close a baseline has to sit to the row count before it CONTRADICTS the
+ * chunk-multiple signature — i.e. before we accept that this brand's real volume
+ * genuinely is that number.
+ *
+ * MEASURED (2026-07-26, 5,648 brand-table-days over 297 days of fact-table
+ * history): exactly 7 cells land on an exact multiple of 5,000, and all 7 are
+ * known-broken days (cosrx creator 7/15, 7/16, 7/17, 7/21; jiyu creator 7/17;
+ * lemme creator 7/14, 7/21). Zero legitimate days. The closest a natural count
+ * has ever come is physicians_choice creator 7/12 at 14,950 — fifty rows, 0.33%,
+ * away. So the multiple alone is very nearly proof; this tolerance exists only
+ * to spare a brand whose steady state ever parks ON a multiple.
+ *
+ * It is deliberately checked against the MAX of the available baselines, never
+ * "any baseline within 10%". cosrx creator 2026-07-16 is a real 5,000-row stub
+ * whose own 28-day median sits inside 10% of 5,000 — and drifts to EXACTLY
+ * 5,000 as the window rolls forward — so an any-baseline reading suppresses a
+ * true positive, and does so as a function of when you happen to look.
  */
-const CHUNK_RATIO = 0.9;
+const CONTRADICT_TOLERANCE = 0.1;
+
+/**
+ * How many of the newest columns are inside the publication window: rendered,
+ * but not judged. See coverageAnchors().
+ *
+ * MEASURED (2026-07-26, 7 established actively-uploading brands, 45 report-dates
+ * 2026-06-10..07-24, 1,308 brand-day-table observations):
+ *   · lag is NEVER 0 — the minimum observed is 1, so a "today" column is
+ *     structurally impossible and is correctly excluded already.
+ *   · no first write has EVER landed before 10:00 ET (n=1,015; 10h:139, 11h:221,
+ *     12h:327, 13h:137, 14h:76, 15h:94, 16h:21), so the today-1 column is empty
+ *     for every brand every morning even when the pipeline is perfectly healthy.
+ *     At W=0 (the previous behaviour) all 8 uploading brands read "Silent 1d" in
+ *     red and the Current lane read 0 — a guaranteed daily false alarm.
+ *   · W=1 would judge day D at the end of D+1, and on 6 of 45 report-dates ZERO
+ *     active brands had data by then (per-cell false-red 17% creator / 15%
+ *     product / 29% video).
+ *   · W=2 judges day D at the end of D+2, where 0 of 45 report-dates had zero
+ *     coverage. Per-cell false-red falls to 2.2% creator / 1.6% product.
+ *
+ * CALIBRATION CAVEAT, deliberately written down rather than left to rot: the
+ * 45-day sample pools two regimes. For 2026-06-15..07-20 every session reached
+ * D-1 (lag exactly 1); the last three sessions each stopped at D-2. And the six
+ * dates behind the W=1 argument are dates on which the OPERATOR ran no upload
+ * session (06-14, 06-20, 07-21, 07-23 had zero first-writes) — so under W=2 a
+ * skipped upload day cannot surface at all, which is a real cost, not a free
+ * margin. If the fleet's rolling p90 lag returns to 1, drop this to 1.
+ *
+ * Video is at p90 5 / max 11, far worse than creator and product. That is the
+ * post-2026-07-13 merged-export incident, not a publication property (pre-merge
+ * video p90 was 1), so the window is NOT widened to hide it — fix the ingest.
+ */
+export const AWAITING_WINDOW_DAYS = 2;
+
+/**
+ * The ledger's two frontiers, derived from the wall clock and nothing else.
+ *
+ * `renderThrough` is the newest COLUMN (today-1; today is excluded because lag
+ * is never 0). `judgeThrough` is the newest column that gets a verdict.
+ *
+ * Both come from the same normalised `now`, so the gap between them is
+ * invariantly AWAITING_WINDOW_DAYS and the UTC day-flip (20:00 ET / 17:00 PT — a
+ * window in which no first write has ever occurred) cannot open or close one
+ * without the other.
+ *
+ * ⚠️ Do NOT replace this with a data-derived anchor such as "the newest
+ * report_date any active brand has". That rule is self-referential and fails
+ * exactly when it matters most: if every brand stops uploading, the anchor walks
+ * backward in lockstep with the outage, the newest column is always the last
+ * good day, and the ledger renders GREEN straight through a total blackout —
+ * reintroducing the ten-day silent failure in a strictly worse form, because now
+ * the page actively asserts everything is current. The same objection kills the
+ * per-brand variant (a dark brand becomes its own judge and is never late) and
+ * the max-across-brands variant (one early uploader makes everyone else red).
+ * Never derive the anchor from the data it is meant to police. Judgement may be
+ * moved EARLIER by peer evidence (see peerReady) because that can only ever add
+ * an alarm; it may never be moved later.
+ */
+export function coverageAnchors(now: Date = new Date()): {
+  renderThrough: string;
+  judgeThrough: string;
+} {
+  const base = new Date(now);
+  base.setUTCHours(12, 0, 0, 0);
+  const render = new Date(base);
+  render.setUTCDate(render.getUTCDate() - 1);
+  const judge = new Date(base);
+  judge.setUTCDate(judge.getUTCDate() - 1 - AWAITING_WINDOW_DAYS);
+  return {
+    renderThrough: render.toISOString().slice(0, 10),
+    judgeThrough: judge.toISOString().slice(0, 10),
+  };
+}
 
 /**
  * The collapse threshold. A day under 60% of its neighbours is not a slow
@@ -199,6 +313,21 @@ export interface CellFacts {
   brandArchived?: boolean;
   /** First day this brand ever produced rows in this table, if known. */
   firstDate?: string | null;
+  /**
+   * Newest day that gets a verdict — from coverageAnchors(). REQUIRED, so that a
+   * second call site cannot quietly compute its own offset: the drawer builds
+   * CellFacts independently of the grid, there is no test suite in this repo,
+   * and the compiler is therefore the only thing standing between the two.
+   */
+  judgeThrough: string;
+  /**
+   * True when this (table, date) is already proven ingestible because all but at
+   * most one of the brands that produce this table have rows for it. Lets a
+   * single brand's hole surface at D+2 instead of waiting out the calendar
+   * floor. Monotone: it can only move judgement EARLIER, never later, so it
+   * cannot mask an outage the way a data-derived anchor would.
+   */
+  peerReady?: boolean;
   /** Injected for testability; defaults to now. */
   now?: Date;
 }
@@ -235,7 +364,14 @@ export function classifyCell(f: CellFacts): CellState {
     run?.rowsExpected ?? f.trailingMedian ?? f.leadingMedian ?? null;
 
   // ── not_expected ────────────────────────────────────────────────────────
-  if (f.brandArchived) {
+  // Archived suppresses MISSING — a brand nobody uploads for is not a failure —
+  // but it must NOT suppress PARTIAL on a day that actually has rows. cosrx was
+  // archived 2026-07-25 while still holding rows through 07-23, and this gate
+  // firing before the detectors rendered 6 of the 11 known-broken days in the
+  // window as a grey "no upload is expected". An archived brand still on the
+  // page still has its history read; hiding the evidence that its July days are
+  // truncated is the opposite of what this surface is for.
+  if (f.brandArchived && rows <= 0) {
     return {
       status: 'not_expected',
       rows: f.rows,
@@ -254,6 +390,32 @@ export function classifyCell(f: CellFacts): CellState {
 
   // The run ledger's own words, reused by both the missing and partial branches.
   const runReason = describeRun(run, now);
+
+  // ── awaiting ────────────────────────────────────────────────────────────
+  // Inside the publication window and nothing has landed. This DEFERS the
+  // verdict, it never cancels it: the day is judged unconditionally from
+  // judgeThrough+1 onward and stays red forever after until it is filled.
+  //
+  // Note the rows <= 0 guard — a day inside the window that DID land is judged
+  // normally, so an early upload still gets its verdict and the chunk-multiple
+  // rule still runs on it. `awaiting` only ever replaces a would-be `missing`.
+  //
+  // peerReady overrides the calendar floor when the day is already proven
+  // ingestible by the rest of the fleet.
+  if (f.date > f.judgeThrough && rows <= 0 && !f.peerReady) {
+    return {
+      status: 'awaiting',
+      rows: f.rows,
+      expectedRows,
+      // Deliberately NOT "TikTok has not published this yet". What we measured
+      // is first-WRITE time, which mixes TikTok's publication, the operator's
+      // session time and whether a session ran at all. Say only what is known.
+      reason:
+        `Not ingested yet. No upload for a given day has ever landed before ~10:00 ET the ` +
+        `following morning, and the fleet median is one day, so this day is not judged until ` +
+        `${addDays(f.judgeThrough, 1)}.`,
+    };
+  }
 
   // ── missing ─────────────────────────────────────────────────────────────
   // Zero rows is zero rows. A run row saying 'complete' over an empty day is
@@ -274,39 +436,81 @@ export function classifyCell(f: CellFacts): CellState {
   // (a) Direct evidence from the write side.
   if (runReason) reasons.push(runReason);
 
-  // (b) Heuristics. These run even when a run row says 'complete', because the
-  //     bug that motivated this page did exactly that: every 5,000-row chunk
-  //     succeeded on its own terms while the day as a whole was truncated.
-  const chunkBaseline = maxDefined(f.trailingMedian, f.leadingMedian);
-  if (
-    rows % CHUNK_SIZE === 0 &&
-    rows >= CHUNK_SIZE &&
-    chunkBaseline !== null &&
-    rows < CHUNK_RATIO * chunkBaseline
-  ) {
-    reasons.push(
-      `${fmt(rows)} rows is an exact multiple of the ${fmt(CHUNK_SIZE)}-row upload chunk; ` +
-        `this brand normally lands ${fmt(chunkBaseline)}.`,
-    );
-  }
-
-  // The collapse detector needs BOTH sides to agree the day is an outlier.
-  // Trailing alone flags every step-down in level (10 false positives measured);
-  // requiring the days after to disagree too took that to zero without losing a
-  // single true positive. When there is no "after" yet — the newest days of the
-  // ledger — trailing has to stand alone, which is the correct bias for the day
-  // an operator is actually looking at.
   const trail = f.trailingMedian;
   const lead = f.leadingMedian;
+
+  // (b) The chunk-multiple rule. BASELINE-FREE by design, and that is the whole
+  //     point of it.
+  //
+  //     The previous form required `rows < 0.9 * max(trailing, leading)`, which
+  //     misses on the newest column — where leading is structurally null — any
+  //     time the stub lands ABOVE a trailing median that is itself too low.
+  //     Measured: 3 of the 11 known partials (lemme creator 7/14 @5,000 vs
+  //     trailing 277; cosrx creator 7/15 @15,000 vs 5,060; cosrx creator 7/17
+  //     @20,000 vs 15,000) rendered COMPLETE on the morning they mattered, and
+  //     were only caught days later once a leading median existed.
+  //
+  //     The trailing median is too low for two compounding reasons: the
+  //     2026-07-12 export change moved several brands 10-30x in a day, and — on
+  //     7/17 — the trailing median IS the 7/15 stub. A baseline contaminated by
+  //     the very failure being hunted cannot referee it, which is why stacking
+  //     another median on top (a 28-day gap-independent one was tried and
+  //     scored) changes nothing: replayed over 2,270 cells it was byte-for-byte
+  //     identical to doing nothing, because after the export change the 28-day
+  //     median reports the OLD level and is LOWER still.
+  //
+  //     So the multiple stands on its own and a baseline may only VETO it. See
+  //     CONTRADICT_TOLERANCE for the base rate that licenses this (7 exact
+  //     multiples in 5,648 brand-table-days, all 7 broken) and for why the veto
+  //     tests the MAX baseline rather than any of them.
+  if (rows % CHUNK_SIZE === 0 && rows >= CHUNK_SIZE) {
+    const veto = maxDefined(trail, lead);
+    const contradicted =
+      veto !== null && Math.abs(rows - veto) <= CONTRADICT_TOLERANCE * rows;
+    if (!contradicted) {
+      reasons.push(
+        veto !== null
+          ? `${fmt(rows)} rows is an exact multiple of the ${fmt(CHUNK_SIZE)}-row upload chunk; ` +
+              `this brand normally lands ${fmt(veto)}.`
+          : `${fmt(rows)} rows is an exact multiple of the ${fmt(CHUNK_SIZE)}-row upload chunk. ` +
+              `No day in production history has ever legitimately landed on one.`,
+      );
+    }
+  }
+
+  // (c) The collapse detector wants BOTH sides to agree the day is an outlier.
+  //     Trailing alone flags every step-down in level; requiring the days after
+  //     to disagree too takes that to zero in hindsight.
+  //
+  //     On the newest columns there is no "after" yet, and treating absent-as-
+  //     agreeing silently switches the guard off on exactly the mornings an
+  //     operator reads: measured, that is 10 false positives inside a 30-day
+  //     window (the July 4th dip on lemme/neurogum creator, and a real
+  //     lemme/neurogum video step-down from ~250/day to ~85/day). Suppressing
+  //     the detector there is not an option either — cosrx video 7/20 and 7/21
+  //     and leefar_nutrition video 7/22 are catchable on day one ONLY this way,
+  //     and none is a chunk multiple.
+  //
+  //     So an unconfirmed verdict is shown, and labelled as one.
+  //
+  //     `basis = trail ?? lead`: gating on trailing alone meant a cell with a
+  //     leading median but no trailing one was never collapse-checked at all —
+  //     which is why a brand's first days rendered green regardless of count.
+  const basis = trail ?? lead;
+  let collapseConfirmed = true;
   if (
-    trail !== null &&
-    trail >= MIN_BASELINE &&
-    rows < COLLAPSE_RATIO * trail &&
+    basis !== null &&
+    basis >= MIN_BASELINE &&
+    rows < COLLAPSE_RATIO * basis &&
     (lead === null || rows < COLLAPSE_RATIO * lead)
   ) {
-    const pct = Math.round((rows / trail) * 100);
+    collapseConfirmed = lead !== null;
+    const pct = Math.round((rows / basis) * 100);
     reasons.push(
-      `${fmt(rows)} rows is ${pct}% of the ${fmt(trail)} this brand normally lands.`,
+      `${fmt(rows)} rows is ${pct}% of the ${fmt(basis)} this brand normally lands.` +
+        (collapseConfirmed
+          ? ''
+          : ' No days after this one have landed yet, so nothing has confirmed it.'),
     );
   }
 
@@ -316,7 +520,26 @@ export function classifyCell(f: CellFacts): CellState {
       rows,
       expectedRows,
       reason: reasons.join(' '),
+      confirmed: collapseConfirmed,
       ...(run ? { runStatus: run.status, source: run.source } : {}),
+    };
+  }
+
+  // ── unverified ──────────────────────────────────────────────────────────
+  // Rows landed and nothing flagged them — but with no baseline in either
+  // direction, "nothing flagged them" is not evidence of anything. Calling this
+  // complete would assert a check that never ran. The sharpest illustration is a
+  // newly onboarded brand's product file at 1 row/day: either a correct
+  // one-product catalogue or a catastrophically truncated file, and no signal on
+  // this page can tell the operator which.
+  if (trail === null && lead === null && !run) {
+    return {
+      status: 'unverified',
+      rows,
+      expectedRows,
+      reason:
+        `${fmt(rows)} rows landed, but this brand has no history for this report yet — ` +
+        `there is nothing to judge the count against. Not verified, not a problem.`,
     };
   }
 
@@ -327,6 +550,60 @@ export function classifyCell(f: CellFacts): CellState {
     expectedRows,
     ...(run ? { runStatus: run.status, source: run.source } : {}),
   };
+}
+
+/**
+ * Which (table, date) pairs are already proven ingestible by the fleet.
+ *
+ * A day inside the awaiting window is proven once all but at most one of the
+ * brands that produce that table have rows for it — so a single brand's hole
+ * surfaces at D+2 rather than waiting out the calendar floor.
+ *
+ * "All but one", not "any peer": 15-17% of cells land at lag 2 while some peer
+ * landed at lag 1, so a first-peer trigger would be a false-red generator.
+ *
+ * Monotone: this can only move judgement EARLIER. That is what makes it safe
+ * where a data-derived ANCHOR is not — it can add an alarm, never remove one, so
+ * a dark fleet can never use it to declare itself current.
+ *
+ * Lives here rather than in either route because the grid and the drawer must
+ * reach the same verdict for the same cell, and the drawer builds its facts
+ * independently.
+ */
+export function computePeerReady(
+  rows: Iterable<{ brand_slug: string; target_table: string; report_date: unknown; row_count: number | null }>,
+  dates: string[],
+): Set<string> {
+  const PEER_MIN_FLEET = 3;
+  const landedByTableDate = new Map<string, Set<string>>();
+  const producersByTable = new Map<string, Set<string>>();
+  for (const r of rows) {
+    if ((r.row_count ?? 0) <= 0) continue;
+    const date = String(r.report_date);
+    const producers = producersByTable.get(r.target_table) ?? new Set<string>();
+    producers.add(r.brand_slug);
+    producersByTable.set(r.target_table, producers);
+    const k = `${r.target_table}|${date}`;
+    const landed = landedByTableDate.get(k) ?? new Set<string>();
+    landed.add(r.brand_slug);
+    landedByTableDate.set(k, landed);
+  }
+  const ready = new Set<string>();
+  for (const [table, producers] of producersByTable) {
+    if (producers.size < PEER_MIN_FLEET) continue;
+    for (const date of dates) {
+      const k = `${table}|${date}`;
+      if ((landedByTableDate.get(k)?.size ?? 0) >= producers.size - 1) ready.add(k);
+    }
+  }
+  return ready;
+}
+
+/** Calendar-day arithmetic on an ISO date, no timezone in play. */
+function addDays(iso: string, n: number): string {
+  const d = new Date(`${iso}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
 }
 
 /**

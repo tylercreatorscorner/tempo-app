@@ -43,6 +43,11 @@ const STATUS_VARIANT: Record<CoverageStatus, 'positive' | 'warning' | 'negative'
   partial: 'warning',
   missing: 'negative',
   not_expected: 'neutral',
+  // Neutral, deliberately: a day inside the publication window is not yet an
+  // outcome, and tinting it either way would be a claim.
+  awaiting: 'neutral',
+  // Not 'positive' — rows landed but nothing checked them.
+  unverified: 'neutral',
 };
 
 const RUN_DOT: Record<CoverageRun['status'], string> = {

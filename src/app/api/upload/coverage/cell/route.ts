@@ -20,6 +20,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth/require-admin';
 import {
+  AWAITING_WINDOW_DAYS,
+  coverageAnchors,
+  computePeerReady,
   TYPE_TO_TABLE,
   TYPE_LABEL,
   cellKey,
@@ -39,8 +42,11 @@ export const runtime = 'nodejs';
 /** Days either side shown as context in the drawer. */
 const NEIGHBOUR_DAYS = 7;
 
-/** Must match the matrix route so the drawer and the grid agree exactly. */
-const LIVE_DAYS = 2;
+/**
+ * Must match the matrix route so the drawer and the grid agree exactly — hence
+ * derived from the same exported constant rather than re-typed here.
+ */
+const LIVE_DAYS = AWAITING_WINDOW_DAYS + 2;
 const BASELINE_WINDOW = 7;
 
 interface CoverageRunOut {
@@ -98,23 +104,41 @@ export async function GET(request: NextRequest) {
   const { data: brandRow, error: brandErr } = await admin
     .from('brands_v2')
     .select('slug, name, is_archived')
-    .eq('tenant_id', profile.tenant_id)
-    .eq('slug', brand)
-    .maybeSingle();
+    .eq('tenant_id', profile.tenant_id);
   if (brandErr) {
     return NextResponse.json({ error: `brands_v2 read failed: ${brandErr.message}` }, { status: 500 });
   }
-  if (!brandRow) return NextResponse.json({ error: 'Unknown brand' }, { status: 404 });
-  const brandMeta = brandRow as { slug: string; name: string; is_archived: boolean };
+  // The whole brand list, not just this one: peer readiness is a fleet-level
+  // fact, and the drawer must reach the same verdict as the grid it was opened
+  // from. brands_v2 is tiny.
+  const allBrandRows = (brandRow as { slug: string; name: string; is_archived: boolean }[] | null) ?? [];
+  const brandMeta = allBrandRows.find((b) => b.slug === brand);
+  if (!brandMeta) return NextResponse.json({ error: 'Unknown brand' }, { status: 404 });
+  const peerSlugs = allBrandRows.map((b) => b.slug);
 
   const windowStart = shiftDays(date, -NEIGHBOUR_DAYS);
-  const windowEnd = shiftDays(date, NEIGHBOUR_DAYS);
 
+  // p_end is the GRID's anchor, not this cell's window end.
+  //
+  // The RPC derives live_cut = p_end - p_live_days, so passing windowEnd
+  // (date + 7) put live_cut five days into the FUTURE and the live branch
+  // matched nothing — the drawer was served entirely from the up-to-10-minute
+  // rollup, including the freshest days the grid reads live. That is how the
+  // drawer came to report MISSING for a day the grid had just rendered green,
+  // and told the operator to re-upload the file they had uploaded minutes
+  // earlier. Anchoring on renderThrough makes live_cut identical in both routes.
+  const { renderThrough, judgeThrough } = coverageAnchors(new Date());
+
+  // peerReady is only ever consulted for a day inside the awaiting window, so
+  // the fleet is only worth fetching for those. Everywhere else this stays a
+  // single-brand read. (p_start widening for an old cell only widens the cheap
+  // rollup half — the live fact-table aggregate is bounded by p_live_days.)
+  const needsPeers = date > judgeThrough;
   const [matrixRes, boundsRes, runsRes, activityRes] = await Promise.all([
     admin.rpc('get_upload_coverage_matrix', {
-      p_brands: [brand],
+      p_brands: needsPeers ? peerSlugs : [brand],
       p_start: windowStart,
-      p_end: windowEnd,
+      p_end: renderThrough,
       p_live_days: LIVE_DAYS,
       p_window: BASELINE_WINDOW,
     }),
@@ -177,6 +201,8 @@ export async function GET(request: NextRequest) {
     finishedAt: r.finished_at,
   }));
 
+  const peerReadyKeys = needsPeers ? computePeerReady(matrixRows, [date]) : new Set<string>();
+
   const self = byDate.get(cellKey(brand, table, date));
   const state: CellState = classifyCell({
     date,
@@ -185,6 +211,8 @@ export async function GET(request: NextRequest) {
     leadingMedian: self?.leading_median ?? null,
     run: runRows.length > 0 ? toRunFacts(runRows[0]) : null,
     brandArchived: brandMeta.is_archived,
+    judgeThrough,
+    peerReady: peerReadyKeys.has(`${table}|${date}`),
     firstDate: boundsRow?.first_date ?? null,
     now,
   });
