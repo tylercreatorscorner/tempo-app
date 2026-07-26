@@ -49,19 +49,9 @@ import {
   EXPECTED_DAILY_FILES,
   type FileType,
 } from '@/lib/upload/file-detection';
-import {
-  parseCreatorRows,
-  parseVideoRows,
-  parseVideoListRows,
-  parseProductRows,
-} from '@/lib/upload/parse-rows';
 import { COLUMN_MAPS, auditColumnMatches, type UploadTable as MapTable } from '@/lib/upload/column-maps';
 import { extractHeaderRow, resolveTypeFromHeaders } from '@/lib/upload/type-sniff';
-import {
-  validateCreatorRecords,
-  validateVideoRecords,
-  validateProductRecords,
-} from '@/lib/upload/validators';
+import { parseRowsForType } from '@/lib/upload/parse-dispatch';
 
 type QueueStatus = 'queued' | 'processing' | 'success' | 'error' | 'cancelled';
 
@@ -1261,6 +1251,11 @@ function QueueRow({
 
 // ── Type-specific parser dispatch ───────────────────────────────────
 
+/**
+ * Thin adapter over the shared dispatcher. The switch itself moved to
+ * @/lib/upload/parse-dispatch so the Compass API ingestion path parses and
+ * validates identically — same export, same warehouse, same rules.
+ */
 async function runTypeParser(item: QueueItem, rows: Record<string, unknown>[]): Promise<{
   table: 'creator_performance' | 'video_performance' | 'videos' | 'product_performance' | null;
   parsed: { records: unknown[]; matchedColumns: string[]; missingColumns: string[]; totalCols: number };
@@ -1269,47 +1264,18 @@ async function runTypeParser(item: QueueItem, rows: Record<string, unknown>[]): 
   totalGmv: number;
   totalOrders: number;
 }> {
-  if (item.type === 'creator') {
-    const p = parseCreatorRows(rows, item.brand, item.reportDate);
-    const v = validateCreatorRecords(p.records);
-    return {
-      table: 'creator_performance',
-      parsed: { records: p.records, matchedColumns: p.matchedColumns, missingColumns: p.missingColumns, totalCols: p.totalCols },
-      errors: v.errors, warnings: v.warnings, totalGmv: v.totalGmv, totalOrders: v.totalOrders,
-    };
-  }
-  if (item.type === 'video') {
-    const p = parseVideoRows(rows, item.brand, item.reportDate);
-    const v = validateVideoRecords(p.records);
-    return {
-      table: 'video_performance',
-      parsed: { records: p.records, matchedColumns: p.matchedColumns, missingColumns: p.missingColumns, totalCols: p.totalCols },
-      errors: v.errors, warnings: v.warnings, totalGmv: v.totalGmv, totalOrders: v.totalOrders,
-    };
-  }
-  if (item.type === 'videolist') {
-    const p = parseVideoListRows(rows, item.brand);
-    return {
-      table: 'videos',
-      parsed: { records: p.records, matchedColumns: p.matchedColumns, missingColumns: p.missingColumns, totalCols: p.totalCols },
-      errors: [], warnings: [],
-      totalGmv: p.summary.totalGmv, totalOrders: p.summary.totalOrders,
-    };
-  }
-  if (item.type === 'affiliateproduct') {
-    const p = parseProductRows(rows, item.brand, item.reportDate);
-    const v = validateProductRecords(p.records);
-    return {
-      table: 'product_performance',
-      parsed: { records: p.records, matchedColumns: p.matchedColumns, missingColumns: p.missingColumns, totalCols: p.totalCols },
-      errors: v.errors, warnings: v.warnings, totalGmv: v.totalGmv, totalOrders: v.totalOrders,
-    };
-  }
+  const d = parseRowsForType(item.type, rows, item.brand, item.reportDate);
   return {
-    table: null,
-    parsed: { records: [], matchedColumns: [], missingColumns: [], totalCols: 0 },
-    errors: [`Unknown file type: ${item.type}`],
-    warnings: [],
-    totalGmv: 0, totalOrders: 0,
+    table: d.table,
+    parsed: {
+      records: d.records,
+      matchedColumns: d.matchedColumns,
+      missingColumns: d.missingColumns,
+      totalCols: d.totalCols,
+    },
+    errors: d.errors,
+    warnings: d.warnings,
+    totalGmv: d.totalGmv,
+    totalOrders: d.totalOrders,
   };
 }

@@ -69,7 +69,16 @@ export function extractHeaderRow(ab: ArrayBuffer): Record<string, unknown> | nul
   return rows[0] ?? null;
 }
 
-function scoreAllTypes(headerRow: Record<string, unknown>): TypeScore[] {
+/**
+ * Score a header row against all four column maps.
+ *
+ * Exported for the API ingestion path (src/lib/tiktok/compass.ts), which asks a
+ * STRICTER question than the queue-time decision below: not "should I switch the
+ * operator's chosen type?" but "is this the report I asked TikTok to build?".
+ * That path has no human to adjudicate an ambiguous file, so it needs the raw
+ * scores rather than the switch/ambiguous/none verdict.
+ */
+export function scoreAllTypes(headerRow: Record<string, unknown>): TypeScore[] {
   return (Object.keys(COLUMN_MAPS) as UploadTable[]).map(table => {
     const a = auditColumnMatches(headerRow, table);
     const total = a.matched.length + a.missing.length;
