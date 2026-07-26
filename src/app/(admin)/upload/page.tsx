@@ -2,10 +2,10 @@ import { redirect } from 'next/navigation';
 import { requireAdmin } from '@/lib/auth/require-admin';
 import { createAdminClient } from '@/lib/supabase/server';
 import { PageHeader } from '@/components/ui/page-header';
-import { UploadClient } from './upload-client';
+import { DataPipelineClient } from '@/components/upload/data-pipeline-client';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Upload — Tempo' };
+export const metadata = { title: 'Data Pipeline — Tempo' };
 
 const UMBRELLA_BRAND_SLUGS = new Set(['leefar']);
 
@@ -32,10 +32,10 @@ export default async function UploadPage() {
     <div className="space-y-6">
       <PageHeader
         eyebrow="Data Ops"
-        title="Upload"
-        subtitle="Keep every brand current — drop TikTok Shop exports, watch the gaps clear as they land."
+        title="Data Pipeline"
+        subtitle="Every brand, every day, every report — known-complete or explicitly not. Upload is how the gaps get filled, not how coverage is judged."
       />
-      <UploadClient activeBrands={activeBrands} />
+      <DataPipelineClient activeBrands={activeBrands} />
     </div>
   );
 }

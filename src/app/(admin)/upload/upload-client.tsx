@@ -1,8 +1,17 @@
 'use client';
 
 /**
- * Upload UI — drag/drop XLSX files, auto-detect type/brand/date, queue for review,
- * then process each file (parse → validate → confirm overwrite if needed → upsert).
+ * Upload lane — drag/drop XLSX files, auto-detect type/brand/date, queue for
+ * review, then process each file (parse → validate → confirm overwrite if
+ * needed → upsert).
+ *
+ * DEMOTED, NOT DIMINISHED. This used to be the whole page; it is now one lane
+ * under the coverage ledger. The ledger says what SHOULD exist, this fills the
+ * holes. Every behaviour is unchanged — content-sniff auto-switch chips,
+ * duplicate-target warnings, queue-time overwrite chips, per-row error logs and
+ * the 3-wide parallel pool with same-key serialization. The only structural
+ * change is that a successful upload now reports upward via `onUploaded`
+ * instead of owning a refresh key for panels it no longer renders.
  *
  * Architecture:
  *   - All XLSX parsing happens in the browser via SheetJS (xlsx) — keeps server
@@ -29,10 +38,7 @@ import {
   AlertCircle, CheckCircle2, FileSpreadsheet, Loader2, Trash2, Upload,
   ChevronDown, ChevronUp, AlertTriangle, ArrowLeftRight,
 } from 'lucide-react';
-import { FreshnessPanel } from '@/components/upload/freshness-panel';
 import { Badge } from '@/components/ui/badge';
-import { DataMatrix } from '@/components/upload/data-matrix';
-import { UploadHistory } from '@/components/upload/upload-history';
 import { cn } from '@/lib/utils';
 
 // File size limits — XLSX is parsed in-browser, so genuinely huge files
@@ -117,6 +123,9 @@ interface ActiveBrand {
 
 interface UploadClientProps {
   activeBrands: ActiveBrand[];
+  /** Fired after each file lands so the coverage ledger and history re-read and
+   *  the operator watches the gap they just filled close. */
+  onUploaded?: () => void;
 }
 
 // Survives a browser refresh — we persist the metadata of unfinished items
@@ -161,7 +170,7 @@ function loadPersistedQueue(): PersistedQueueItem[] {
   }
 }
 
-export function UploadClient({ activeBrands }: UploadClientProps) {
+export function UploadClient({ activeBrands, onUploaded }: UploadClientProps) {
   const brandLabelBySlug = useMemo(
     () => new Map(activeBrands.map(b => [b.slug, b.name])),
     [activeBrands],
@@ -188,9 +197,6 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
   // Recovery banner: items the user had queued before refresh, surfaced so
   // they can re-drop the files (we can't rehydrate File objects).
   const [unrecoveredItems, setUnrecoveredItems] = useState<PersistedQueueItem[]>([]);
-  // Bumped each time a file uploads successfully — causes Freshness, Matrix,
-  // and History panels to refetch so what just landed shows up immediately.
-  const [refreshKey, setRefreshKey] = useState(0);
 
   // ── Restore persisted unfinished items on mount
   useEffect(() => {
@@ -804,7 +810,7 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
         status: 'success',
         result: { rowCount: parsed.records.length, totalGmv, totalOrders },
       });
-      setRefreshKey(k => k + 1);
+      onUploaded?.();
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Upload failed';
       appendLog(item.id, 'error', message);
@@ -919,7 +925,23 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
   }, [queue]);
 
   return (
-    <div className="space-y-8">
+    <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--pulse-elev-1)]">
+      <header className="flex flex-wrap items-start justify-between gap-3 border-b border-border px-5 py-3.5">
+        <div className="min-w-0">
+          <h2 className="text-sm font-bold text-foreground">Upload lane</h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            How gaps get filled today. Drop the exports the ledger is asking for — the queue reads
+            the brand, type and date off each filename.
+          </p>
+        </div>
+        {queue.length > 0 && (
+          <span className="rounded-md border border-border bg-secondary px-2.5 py-1 text-[11px] font-semibold text-muted-foreground">
+            {queue.length} file{queue.length === 1 ? '' : 's'} queued
+          </span>
+        )}
+      </header>
+
+      <div className="space-y-4 p-4">
       {/* Recovery banner — shown when the last session had unfinished items.
           We can't restore the actual File handles (browsers don't permit it
           for security reasons), but we surface the metadata so the user
@@ -958,22 +980,15 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
         </div>
       )}
 
-      {/* Working row: ACT (drop + queue) beside the SIGNAL (gaps to fill).
-          The Jen incident showed this page's real job is keeping every brand
-          current — the gap list sits at eye level next to the dropzone so
-          "what still needs uploading" is never below the fold. */}
-      <div className="grid items-start gap-5 xl:grid-cols-[1.55fr_1fr]">
-      {/* Drop zone + queue */}
-      <div className="space-y-5">
       <div
         onDrop={onDrop}
         onDragOver={onDragOver}
         onDragLeave={onDragLeave}
         className={cn(
-          'rounded-2xl border-2 border-dashed p-10 text-center transition-all',
+          'rounded-xl border-2 border-dashed p-8 text-center transition-all',
           dragActive
             ? 'border-[var(--primary)] bg-primary/10 scale-[1.01]'
-            : 'border-border bg-card shadow-[var(--pulse-elev-1)] hover:border-primary/40'
+            : 'border-border bg-background hover:border-primary/40'
         )}
       >
         <span className="bg-pulse-grad mx-auto mb-3 grid h-12 w-12 place-items-center rounded-2xl text-white shadow-pulse-primary">
@@ -1014,7 +1029,7 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
 
       {/* Queue */}
       {queue.length > 0 && (
-        <div className="rounded-2xl bg-card border border-border shadow-sm overflow-hidden">
+        <div className="overflow-hidden rounded-xl border border-border bg-background">
           <div className="flex items-center justify-between px-5 py-3 border-b border-border">
             <div className="text-sm font-semibold text-[var(--foreground)]">
               Queue · <span className="text-muted-foreground font-normal">{queue.length} file{queue.length === 1 ? '' : 's'}</span>
@@ -1059,17 +1074,7 @@ export function UploadClient({ activeBrands }: UploadClientProps) {
         </div>
       )}
       </div>
-
-      {/* Gaps to fill — per-brand freshness, worst first (the right rail) */}
-      <FreshnessPanel refreshKey={refreshKey} />
-      </div>
-
-      {/* Coverage matrix — visual "did I miss any days" check */}
-      <DataMatrix refreshKey={refreshKey} />
-
-      {/* Recent uploads — audit trail sourced from activity_log */}
-      <UploadHistory refreshKey={refreshKey} />
-    </div>
+    </section>
   );
 }
 

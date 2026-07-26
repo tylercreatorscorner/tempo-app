@@ -42,7 +42,7 @@ const SECTIONS: { key: string; tabs: Tab[] }[] = [
   { key: 'settings', tabs: [
     { label: 'General', href: '/settings' },
     { label: 'Team', href: '/team', admin: true },
-    { label: 'Upload', href: '/upload', admin: true },
+    { label: 'Data Pipeline', href: '/upload', admin: true },
     { label: 'Automations', href: '/workflows/automations' },
     { label: 'Integrations', href: '/workflows/integrations', admin: true },
     { label: 'Outreach', href: '/workflows/outreach', admin: true },

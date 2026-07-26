@@ -48,7 +48,7 @@ const BREADCRUMB_MAP: Record<string, string> = {
   '/settings': 'Settings',
   '/settings/brands': 'Brands',
   '/team': 'Team',
-  '/upload': 'Upload',
+  '/upload': 'Data Pipeline',
   '/workflows/automations': 'Automations',
   '/workflows/integrations': 'Integrations',
   '/workflows/outreach': 'Outreach',
