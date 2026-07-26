@@ -365,8 +365,8 @@ export function CoverageLedger({
         <div className="min-w-0">
           <h2 className="text-sm font-bold text-foreground">Coverage ledger</h2>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Every brand, every day, every report. A cell is only complete when its row count was
-            verified after the write.
+            Every brand, every day, every report. Green means the row count is consistent with
+            what this brand normally lands — not that anything checked it after the write.
           </p>
         </div>
         <div className="flex items-center gap-2">

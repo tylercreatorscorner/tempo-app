@@ -33,6 +33,7 @@ import {
   type CoverageCellDetail,
   type CoverageRun,
   type CoverageStatus,
+  type RunStatus,
   type CoverageTypeKey,
   type ExportLayout,
 } from './coverage-types';
@@ -197,8 +198,16 @@ export function CellDetailDrawer({
                   </p>
                 </div>
               )}
+              {/* Labelled with its window on purpose. This is the 28-day median,
+                  which spans the 2026-07-12 TikTok export change and so reads far
+                  below the current level for several brands — leefar_nutrition
+                  video shows 466 against a real ~10,117. Unlabelled as "Brand
+                  median" it is a second, contradictory answer to the question
+                  "Rows expected" already answered two lines above, and the
+                  operator has no way to tell which to believe. It is NOT what
+                  the detectors use; they read the 7-day neighbours. */}
               <Row
-                label="Brand median"
+                label="Median, last 28d"
                 value={
                   loading && !detail
                     ? '…'
@@ -214,7 +223,13 @@ export function CellDetailDrawer({
                     ? 'TikTok Shop API'
                     : shown.source === 'upload'
                       ? 'Manual upload'
-                      : '—'
+                      : // `source` only ever comes from a run row, and the run
+                        // ledger records the API path alone — so without this
+                        // fallback the drawer printed "—" two lines above a
+                        // Last upload line naming the person who uploaded it.
+                        detail?.lastUpload
+                        ? 'Manual upload'
+                        : '—'
                 }
               />
               {detail?.lastUpload && (
@@ -262,7 +277,14 @@ export function CellDetailDrawer({
                 <p className="mt-2.5 text-[12px] leading-relaxed text-muted-foreground">
                   {error
                     ? 'Run history unavailable.'
-                    : 'No ingestion run was ever recorded for this brand-day. Nothing tried and failed — nothing tried at all, which is exactly how six brands went dark for ten days without a single error to find.'}
+                    : detail?.lastUpload
+                      ? // The run ledger records the API ingest path, which is not
+                        // live yet. A hand-uploaded day legitimately has no run
+                        // row, and the upload audit trail above is the evidence
+                        // for it — saying "nothing was tried" here told the
+                        // operator the opposite of what the line above says.
+                        'The ingest run ledger has no rows for this day. It only records the API path, which is not scheduled yet — the upload above is the evidence for this day.'
+                      : 'No ingestion run was ever recorded for this brand-day, and no upload was logged either. Nothing tried and failed — nothing tried at all, which is exactly how six brands went dark for ten days without a single error to find.'}
                 </p>
               ) : (
                 <ul className="mt-2.5 space-y-2.5">
@@ -313,6 +335,7 @@ export function CellDetailDrawer({
               type={type}
               date={date}
               status={shown.status}
+              runStatus={shown.runStatus}
               layout={selection.exportLayout ?? 'unknown'}
             />
           </div>
@@ -408,13 +431,16 @@ function Row({ label, value }: { label: string; value: string }) {
  * lives and links to it instead of POSTing at a route that does not exist.
  */
 function Repair({
-  brand, brandLabel, type, date, status, layout,
+  brand, brandLabel, type, date, status, runStatus, layout,
 }: {
   brand: string;
   brandLabel: string;
   type: CoverageTypeKey;
   date: string;
   status: CoverageStatus;
+  /** Present only when a run row covered this cell — the difference between a
+   *  verified count and a count that merely looks right. */
+  runStatus?: RunStatus;
   layout: ExportLayout;
 }) {
   const [copied, setCopied] = useState(false);
@@ -439,7 +465,9 @@ function Repair({
     return (
       <section className="border-t border-border px-5 py-4">
         <p className="text-[12px] text-muted-foreground">
-          This report landed and its row count was verified after the write. Nothing to repair.
+          {runStatus
+            ? 'This report landed and the run reported its row count after the write. Nothing to repair.'
+            : 'This report landed and its row count is consistent with what this brand normally lands. No run recorded it, so that is a shape check rather than a verification — but there is nothing here to repair.'}
         </p>
       </section>
     );
