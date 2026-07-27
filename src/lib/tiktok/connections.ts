@@ -206,11 +206,13 @@ export async function getActiveConnection(brandSlug: string): Promise<Connection
     },
   });
 
-  // Stamped at hand-out, not per request: this module has no visibility into
-  // what the caller does next, and "a live client was issued for this brand"
-  // is the honest thing we actually know. Callers doing long runs should call
-  // touchApiCall() themselves as they go.
-  await touchApiCall(row.id);
+  // Deliberately NOT touchApiCall() here.
+  //
+  // It used to stamp on hand-out, reasoning that "a live client was issued" is
+  // the honest thing this module knows. In practice that reads as a claim the
+  // panel cannot support: the first real test showed "Last API call: 3:25 PM"
+  // for a connection whose only scoped request had just 403'd. Obtaining a
+  // client is not making a call. Callers stamp it when a request returns.
 
   return {
     ok: true,
@@ -321,7 +323,15 @@ async function rotateTokens(
  * last_api_call / last_error that stopped tracking reality.
  */
 export async function touchApiCall(connectionId: string): Promise<void> {
-  await stampConnection(connectionId, { last_api_call: new Date().toISOString() }, 'last_api_call');
+  // Clearing last_error is the point, not a side effect. A stale breadcrumb from
+  // a call that has since started working is worse than none: it renders in
+  // Settings as a live problem and sends an operator chasing a fault that is
+  // already fixed. A successful call IS the evidence the previous error is over.
+  await stampConnection(
+    connectionId,
+    { last_api_call: new Date().toISOString(), last_error: '' },
+    'last_api_call',
+  );
 }
 
 /** Leave an operator-readable breadcrumb on the row. Never pass a raw error
