@@ -50,17 +50,23 @@ import { scoreAllTypes, type TypeScore } from '../upload/type-sniff';
 /**
  * The `{version}` segment in /affiliate_seller/{version}/compass/... .
  *
- * CONFIDENCE: LOW. The doc sweep that produced these paths did not pin a
- * version, and TikTok versions each endpoint family independently. 202405 is
- * the version family this repo already exercises elsewhere
- * (/affiliate_creator/202405/...), so it is the least-arbitrary starting guess
- * — it is a guess all the same.
+ * CONFIDENCE: HIGH, and no longer a guess. This family shipped EXACTLY ONCE, as
+ * 202603, around 2026-04-10 — see TikTok's changelog "New Capability for
+ * Affiliate Data Compass Offline Data Export". There is no earlier version to
+ * fall back to.
  *
- * Overridable by env so the first live probe can walk candidate versions
- * without a deploy, and per call so the admin route can pass one from a form.
+ * That is why the first live sweep failed the way it did. We probed 202309,
+ * 202312, 202401, 202405, 202409 and 202501 and every one returned 40006 "no
+ * schema found" — not a permissions wall, not a wrong family. The path shape was
+ * already right; all six versions simply predate the API's existence. The old
+ * 202405 here was inferred from /affiliate_creator/202405/..., a DIFFERENT
+ * family, and TikTok versions each family independently.
+ *
+ * Still overridable by env, because TikTok ships new versions without notice and
+ * a version bump should not need a deploy.
  */
 export const DEFAULT_COMPASS_API_VERSION =
-  process.env.TIKTOK_COMPASS_API_VERSION?.trim() || '202405';
+  process.env.TIKTOK_COMPASS_API_VERSION?.trim() || '202603';
 
 /** TikTok versions are a six-digit YYYYMM. Anything else is a typo, not a version. */
 export function isValidApiVersion(version: string): boolean {
@@ -368,12 +374,20 @@ export async function createExportTask(
 
 export interface ListTasksOptions extends CompassRequestOptions {
   /**
-   * Send `doc_type` as a list filter. OFF by default and that is deliberate:
-   * the list parameter is named doc_type while create takes module_type, and an
-   * unsupported/coerced value could filter our own task OUT of the response —
-   * at which case we would conclude the task vanished. We key on the id create
-   * returned, so a filter buys nothing and risks everything. Turn it on only if
-   * a live call proves the parameter is required.
+   * Send `doc_type` as a list filter. Still OFF by default, but the reasoning
+   * has changed and the default is now the thing most likely to be wrong.
+   *
+   * The 202603 docs mark doc_type Require=Y on the list call, enum CREATOR |
+   * BASE — so omitting it may be a hard parameter error, not a wider result set.
+   * Against that: the list parameter is named doc_type while create takes
+   * module_type, and a coerced value could filter our own task OUT, at which
+   * point we would conclude the task vanished. Since we key on the id create
+   * returned, a filter buys nothing and (if wrong) risks everything.
+   *
+   * The connection-test probe sends doc_type=CREATOR, which matches the
+   * module_type we create with. Its answer settles this: a clean response with
+   * it means turn this on by default; a parameter error without it means the
+   * same, more loudly.
    */
   docType?: string;
 }
@@ -1097,9 +1111,11 @@ function stripNulls(echo: CompassTaskEcho): Partial<CompassTaskEcho> {
 // first: it exercises create → poll → download → format → header sniff and
 // writes no fact rows.
 //
-//  1. API VERSION. DEFAULT_COMPASS_API_VERSION = '202405' is a guess.
-//     Symptom of a wrong guess: HTTP 404 from every compass path.
-//     Fix: TIKTOK_COMPASS_API_VERSION, or the route's apiVersion override.
+//  1. API VERSION — RESOLVED. 202603, the only version this family has ever
+//     had. The symptom of a wrong one is 40006 "no schema found" from every
+//     compass path (NOT a 404, and not a permission error — this cost us a
+//     round of misdiagnosis). Fix: TIKTOK_COMPASS_API_VERSION, or the route's
+//     apiVersion override.
 //  2. CREATE PARAM LOCATION. body vs signed query string — CompassRequestOptions
 //     .paramsIn. Symptom: a permanent 400 naming a missing parameter.
 //  3. TASK ID FIELD + NESTING. createExportTask accepts task_id/taskId/id at the
