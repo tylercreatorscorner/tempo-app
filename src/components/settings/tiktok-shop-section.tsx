@@ -26,6 +26,7 @@ import {
   Music2,
   RefreshCw,
   Store,
+  Stethoscope,
   Unplug,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -172,6 +173,10 @@ function TikTokShopPanel() {
   const [inviteReconnectSlug, setInviteReconnectSlug] = useState<string | null>(null);
   const [freshInvite, setFreshInvite] = useState<{ url: string; brandSlug: string; expiresAt: string } | null>(null);
   const [disconnectSlug, setDisconnectSlug] = useState<string | null>(null);
+  // Per-brand test outcome. Kept out of `notice` because it is about ONE
+  // connection and should sit on that connection's card, not float at the top
+  // of a panel that may list several.
+  const [testResult, setTestResult] = useState<Record<string, { ok: boolean; text: string }>>({});
   const [shopChoice, setShopChoice] = useState<Record<string, string>>({});
   const [replaceArmed, setReplaceArmed] = useState<Record<string, boolean>>({});
 
@@ -371,6 +376,45 @@ function TikTokShopPanel() {
         await load();
       } catch (err) {
         setActionError(err instanceof Error ? err.message : 'Could not discard the authorization.');
+      } finally {
+        setBusy(null);
+      }
+    },
+    [post, load],
+  );
+
+  const testConnection = useCallback(
+    async (brandSlug: string) => {
+      setBusy(`test:${brandSlug}`);
+      setActionError(null);
+      setTestResult((prev) => ({ ...prev, [brandSlug]: { ok: false, text: 'Calling TikTok…' } }));
+      try {
+        const result = await post('/api/tiktok/connections/test', { brand: brandSlug });
+        if (!result.ok) {
+          setTestResult((prev) => ({ ...prev, [brandSlug]: { ok: false, text: result.error } }));
+          return;
+        }
+        const data = result.data as {
+          ok?: boolean;
+          probes?: { name: string; ok: boolean; detail: string }[];
+        };
+        const probes = data.probes ?? [];
+        const failed = probes.filter((x) => !x.ok);
+        setTestResult((prev) => ({
+          ...prev,
+          [brandSlug]: failed.length === 0
+            ? { ok: true, text: `${probes.length} of ${probes.length} calls succeeded.` }
+            // Name the probe that failed. "Test failed" sends someone to the
+            // logs; "shop performance: TikTokAuthError" tells them whether it
+            // is the token, the cipher or the endpoint.
+            : { ok: false, text: failed.map((x) => `${x.name}: ${x.detail}`).join(' · ') },
+        }));
+        await load();
+      } catch (err) {
+        setTestResult((prev) => ({
+          ...prev,
+          [brandSlug]: { ok: false, text: err instanceof Error ? err.message : 'Test failed.' },
+        }));
       } finally {
         setBusy(null);
       }
@@ -649,6 +693,8 @@ function TikTokShopPanel() {
             conn={conn}
             busy={busy}
             confirming={disconnectSlug === conn.brandSlug}
+            onTest={() => void testConnection(conn.brandSlug)}
+            testResult={testResult[conn.brandSlug] ?? null}
             onAskDisconnect={() => setDisconnectSlug(conn.brandSlug)}
             onCancelDisconnect={() => setDisconnectSlug(null)}
             onDisconnect={() => void disconnect(conn.brandSlug)}
@@ -829,6 +875,8 @@ function ConnectionRow({
   conn,
   busy,
   confirming,
+  onTest,
+  testResult,
   onAskDisconnect,
   onCancelDisconnect,
   onDisconnect,
@@ -836,6 +884,8 @@ function ConnectionRow({
   conn: ConnectionStatus;
   busy: string | null;
   confirming: boolean;
+  onTest: () => void;
+  testResult: { ok: boolean; text: string } | null;
   onAskDisconnect: () => void;
   onCancelDisconnect: () => void;
   onDisconnect: () => void;
@@ -882,10 +932,20 @@ function ConnectionRow({
             </Button>
           </div>
         ) : (
-          <Button size="sm" variant="secondary" disabled={busy !== null} onClick={onAskDisconnect}>
-            <Unplug className="h-3.5 w-3.5" />
-            Disconnect
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="secondary" disabled={busy !== null} onClick={onTest}>
+              {busy === `test:${conn.brandSlug}` ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Stethoscope className="h-3.5 w-3.5" />
+              )}
+              Test connection
+            </Button>
+            <Button size="sm" variant="secondary" disabled={busy !== null} onClick={onAskDisconnect}>
+              <Unplug className="h-3.5 w-3.5" />
+              Disconnect
+            </Button>
+          </div>
         )}
       </div>
 
@@ -901,6 +961,19 @@ function ConnectionRow({
           value={conn.lastApiCall ? formatDateTime(conn.lastApiCall) : 'Never'}
         />
       </dl>
+
+      {testResult && (
+        <p
+          className={
+            testResult.ok
+              ? 'text-xs text-[var(--pulse-pos)]'
+              : 'text-xs text-[var(--pulse-neg)]'
+          }
+        >
+          {testResult.ok ? '✓ ' : '✕ '}
+          {testResult.text}
+        </p>
+      )}
 
       {conn.lastError && (
         <p className="text-xs text-destructive flex items-start gap-1.5">
