@@ -8,7 +8,7 @@ import { createClient } from '@/lib/supabase/client';
 import { TempoLogo } from '@/components/ui/tempo-logo';
 import { OtpInput } from '@/components/auth/otp-input';
 
-/** Login form with OTP magic code and Discord OAuth */
+/** Login form — email OTP only. Discord OAuth was removed 2026-07-26. */
 export function LoginForm() {
   const [email, setEmail] = useState('');
   const [step, setStep] = useState<'email' | 'code'>('email');
@@ -93,14 +93,6 @@ export function LoginForm() {
     }
 
     setCooldown(60);
-  }
-
-  async function handleDiscordLogin() {
-    const supabase = createClient();
-    await supabase.auth.signInWithOAuth({
-      provider: 'discord',
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
-    });
   }
 
   // Step 2: Code entry
@@ -223,22 +215,6 @@ export function LoginForm() {
           )}
         </button>
       </form>
-
-      <div className="relative">
-        <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-border" />
-        </div>
-        <div className="relative flex justify-center text-xs">
-          <span className="bg-background px-2 text-muted-foreground">or continue with</span>
-        </div>
-      </div>
-
-      <button
-        onClick={handleDiscordLogin}
-        className="w-full py-2.5 rounded-xl border border-border bg-[#5865F2] text-white font-medium text-sm hover:opacity-90 transition-opacity"
-      >
-        Sign in with Discord
-      </button>
 
       <p className="text-center text-sm text-muted-foreground">
         Don&apos;t have an account?{' '}
