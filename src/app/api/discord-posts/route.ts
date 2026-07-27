@@ -10,12 +10,16 @@ import {
   formatWhosCookingSlack,
   formatDailyDropDiscord,
   formatDailyDropSlack,
+  getMoversData,
+  formatMoversDiscord,
+  getMtdData,
+  formatMtdDiscord,
   type WhosCookingFormat,
 } from '@/lib/data/discord-posts';
 import { getBrandRegistry, brandLabel } from '@/lib/data/brand-registry';
 
 const VALID_TYPES = new Set([
-  'whats-cooking', 'whos-cooking', 'daily-drop',
+  'whats-cooking', 'whos-cooking', 'daily-drop', 'movers', 'mtd',
 ]);
 
 // Post data comes from aggregate RPCs, but a cold cache can still make the
@@ -114,6 +118,41 @@ export async function GET(request: NextRequest) {
           totalGmv: data.yesterdayGmv,
           videoCount: data.topVideos.length,
           creatorCount: data.topCreators.length,
+        },
+      });
+    } else if (type === 'movers') {
+      const data = await getMoversData(brand, period);
+      const text = formatMoversDiscord(data, brandName, period);
+      const mentionMap: Record<string, string> = {};
+      data.discordMap.forEach((v) => {
+        if (v.discord_id && v.discord_name) mentionMap[v.discord_id] = v.discord_name;
+      });
+      return NextResponse.json({
+        text,
+        mentionMap,
+        stats: {
+          // No period total here — Movers is a growth board, and summing the
+          // top ten's GMV would read as "the brand did this", which is false.
+          totalGmv: data.movers.reduce((s, m) => s + m.delta, 0),
+          videoCount: 0,
+          creatorCount: data.eligibleCount,
+        },
+      });
+    } else if (type === 'mtd') {
+      // MTD is a calendar-month board — the 7d/30d selector does not apply.
+      const data = await getMtdData(brand);
+      const text = formatMtdDiscord(data, brandName);
+      const mentionMap: Record<string, string> = {};
+      data.discordMap.forEach((v) => {
+        if (v.discord_id && v.discord_name) mentionMap[v.discord_id] = v.discord_name;
+      });
+      return NextResponse.json({
+        text,
+        mentionMap,
+        stats: {
+          totalGmv: data.totalGmv,
+          videoCount: data.videoCount,
+          creatorCount: data.creatorCount,
         },
       });
     } else {

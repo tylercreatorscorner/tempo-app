@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { Clipboard, Check, Loader2, ChefHat, Flame, TrendingUp } from 'lucide-react';
+import { Clipboard, Check, Loader2, ChefHat, Flame, TrendingUp, ArrowUpRight, CalendarDays } from 'lucide-react';
 
 const BRANDS = [
   { value: 'all', label: 'All Brands' },
@@ -29,7 +29,7 @@ function PostCard({
 }: {
   title: string;
   icon: typeof Flame;
-  type: 'whats-cooking' | 'whos-cooking' | 'daily-drop';
+  type: 'whats-cooking' | 'whos-cooking' | 'daily-drop' | 'movers' | 'mtd';
   showPeriod?: boolean;
 }) {
   const [brand, setBrand] = useState('all');
@@ -232,6 +232,20 @@ export function DiscordPostsClient() {
         title="Daily Drop"
         icon={TrendingUp}
         type="daily-drop"
+        showPeriod={false}
+      />
+      {/* Ranked by GROWTH rather than absolute GMV — the point is that a
+          different set of creators can win it than wins What's/Who's Cooking. */}
+      <PostCard
+        title="Biggest Movers"
+        icon={ArrowUpRight}
+        type="movers"
+      />
+      {/* Calendar-month board, so the 7d/30d selector does not apply. */}
+      <PostCard
+        title="Month-to-Date Leaderboard"
+        icon={CalendarDays}
+        type="mtd"
         showPeriod={false}
       />
     </div>

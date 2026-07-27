@@ -258,6 +258,63 @@ async function getDiscordMap(supabase: any, brandFilter: string): Promise<Map<st
   return map;
 }
 
+// ─── Biggest Movers ─────────────────────────────────────────────────────
+//
+// Ranked by GROWTH, not absolute GMV. That is the entire point: What's Cooking
+// and Who's Cooking both rank by absolute GMV, so the same ten names win every
+// week and the drop reads stale. Changing the ranking function is what makes a
+// different set of people winnable.
+
+export interface MoversEntry {
+  tiktok_username: string;
+  gmv: number;
+  priorGmv: number;
+  delta: number;
+  growthPct: number;
+  discord_id: string | null;
+  discord_name: string | null;
+}
+
+export interface MoversData {
+  movers: MoversEntry[];
+  /** How many creators cleared the floors — the pool the top N came from. */
+  eligibleCount: number;
+  /** Every creator with GMV in the window, floors ignored. Context for the above. */
+  poolCount: number;
+  discordMap: Map<string, { discord_id: string | null; discord_name: string | null }>;
+  endDate: Date;
+  periodDays: number;
+}
+
+// ─── Month-to-date leaderboard ──────────────────────────────────────────
+
+export interface MtdEntry {
+  tiktok_username: string;
+  gmv: number;
+  orders: number;
+  videos: number;
+  rank: number;
+  /** Rank at the SAME POINT of the previous month, or null if absent then. */
+  prevRank: number | null;
+  /** Positive = climbed. null when there is no prior rank to compare. */
+  rankDelta: number | null;
+  discord_id: string | null;
+  discord_name: string | null;
+}
+
+export interface MtdData {
+  leaderboard: MtdEntry[];
+  totalGmv: number;
+  prevGmv: number;
+  creatorCount: number;
+  videoCount: number;
+  monthLabel: string;
+  daysElapsed: number;
+  daysInMonth: number;
+  discordMap: Map<string, { discord_id: string | null; discord_name: string | null }>;
+  endDate: Date;
+}
+
 // ─── What's Cooking Data ────────────────────────────────────────
 
 export async function getWhatsCookingData(brandFilter: string, period: '7d' | '30d'): Promise<WhatsCookingData> {
@@ -859,12 +916,260 @@ export async function getDailyDropData(brandFilter: string): Promise<DailyDropDa
   };
 }
 
+// ─── Biggest Movers Data ────────────────────────────────────────
+
+export async function getMoversData(brandFilter: string, period: '7d' | '30d'): Promise<MoversData> {
+  // Service-role: get_creator_movers is anon-revoked (mig 126) and the cron
+  // path has no session — same reasoning as getWhosCookingData.
+  const supabase = await createAdminClient();
+  const reg = await getBrandRegistry();
+  const brandUuids = brandFilter && brandFilter !== 'all' ? resolveUuids(reg, brandFilter) : null;
+
+  const today = await resolveAnchorToday(supabase, brandUuids);
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+
+  const periodDays = period === '30d' ? 30 : 7;
+  const curStart = new Date(today); curStart.setDate(today.getDate() - periodDays);
+  const priStart = new Date(today); priStart.setDate(today.getDate() - periodDays * 2);
+
+  const [res, discordMap] = await Promise.all([
+    supabase.rpc('get_creator_movers', {
+      p_brand_ids: brandUuids,
+      p_current_start: formatDate(curStart),
+      p_end: formatDate(yesterday),
+      p_prior_start: formatDate(priStart),
+      p_prior_end: formatDate(curStart),   // half-open, matches whos_cooking_agg_v2
+      p_min_prior: 250,
+      p_min_current: 500,
+      p_limit: 10,
+    }),
+    getDiscordMap(supabase, brandFilter),
+  ]);
+  if (res.error) throw res.error;
+
+  const raw = (res.data ?? {}) as {
+    movers?: { tiktok_username?: string; gmv?: number | string; priorGmv?: number | string;
+               delta?: number | string; growthPct?: number | string }[];
+    eligibleCount?: number; poolCount?: number;
+  };
+
+  const movers: MoversEntry[] = (raw.movers ?? []).map((m) => {
+    const handle = (m.tiktok_username || '').toLowerCase().replace('@', '');
+    const d = discordMap.get(handle);
+    return {
+      tiktok_username: m.tiktok_username ?? '',
+      gmv: Number(m.gmv) || 0,
+      priorGmv: Number(m.priorGmv) || 0,
+      delta: Number(m.delta) || 0,
+      growthPct: Number(m.growthPct) || 0,
+      discord_id: d?.discord_id ?? null,
+      discord_name: d?.discord_name ?? null,
+    };
+  });
+
+  return {
+    movers,
+    eligibleCount: Number(raw.eligibleCount ?? 0),
+    poolCount: Number(raw.poolCount ?? 0),
+    discordMap,
+    endDate: yesterday,
+    periodDays,
+  };
+}
+
+// ─── Month-to-Date Data ─────────────────────────────────────────
+
+export async function getMtdData(brandFilter: string): Promise<MtdData> {
+  const supabase = await createAdminClient();
+  const reg = await getBrandRegistry();
+  const brandUuids = brandFilter && brandFilter !== 'all' ? resolveUuids(reg, brandFilter) : null;
+
+  const today = await resolveAnchorToday(supabase, brandUuids);
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+
+  // The month the DATA is in, not the wall-clock month — on the 1st and 2nd,
+  // yesterday still belongs to the month that just closed, and anchoring on
+  // today would render an empty board.
+  const monthStart = new Date(yesterday.getFullYear(), yesterday.getMonth(), 1);
+  const daysElapsed = yesterday.getDate();
+  const daysInMonth = new Date(yesterday.getFullYear(), yesterday.getMonth() + 1, 0).getDate();
+
+  // Compare against the SAME POINT of the previous month. Comparing a part-month
+  // against a finished month would show the whole roster collapsing every time.
+  const prevStart = new Date(yesterday.getFullYear(), yesterday.getMonth() - 1, 1);
+  const prevMonthDays = new Date(yesterday.getFullYear(), yesterday.getMonth(), 0).getDate();
+  const prevEnd = new Date(
+    prevStart.getFullYear(), prevStart.getMonth(),
+    Math.min(daysElapsed, prevMonthDays),   // 31 -> 30 when the prior month is shorter
+  );
+
+  const [res, discordMap] = await Promise.all([
+    supabase.rpc('get_creator_mtd', {
+      p_brand_ids: brandUuids,
+      p_month_start: formatDate(monthStart),
+      p_end: formatDate(yesterday),
+      p_prev_start: formatDate(prevStart),
+      p_prev_end: formatDate(prevEnd),
+      p_limit: 10,
+    }),
+    getDiscordMap(supabase, brandFilter),
+  ]);
+  if (res.error) throw res.error;
+
+  const raw = (res.data ?? {}) as {
+    leaderboard?: { tiktok_username?: string; gmv?: number | string; orders?: number | string;
+                    videos?: number | string; rank?: number; prevRank?: number | null;
+                    rankDelta?: number | null }[];
+    totalGmv?: number; prevGmv?: number; creatorCount?: number; videoCount?: number;
+  };
+
+  const leaderboard: MtdEntry[] = (raw.leaderboard ?? []).map((r) => {
+    const handle = (r.tiktok_username || '').toLowerCase().replace('@', '');
+    const d = discordMap.get(handle);
+    return {
+      tiktok_username: r.tiktok_username ?? '',
+      gmv: Number(r.gmv) || 0,
+      orders: Number(r.orders) || 0,
+      videos: Number(r.videos) || 0,
+      rank: Number(r.rank) || 0,
+      prevRank: r.prevRank == null ? null : Number(r.prevRank),
+      rankDelta: r.rankDelta == null ? null : Number(r.rankDelta),
+      discord_id: d?.discord_id ?? null,
+      discord_name: d?.discord_name ?? null,
+    };
+  });
+
+  return {
+    leaderboard,
+    totalGmv: Number(raw.totalGmv ?? 0),
+    prevGmv: Number(raw.prevGmv ?? 0),
+    creatorCount: Number(raw.creatorCount ?? 0),
+    videoCount: Number(raw.videoCount ?? 0),
+    monthLabel: yesterday.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+    daysElapsed,
+    daysInMonth,
+    discordMap,
+    endDate: yesterday,
+  };
+}
+
 // ─── Discord Formatters ─────────────────────────────────────────
 
 function getMention(handle: string, discordId: string | null, discordName: string | null): string {
   if (discordId) return `<@${discordId}>`;
   if (discordName) return `@${discordName}`;
   return `@${handle.replace('@', '')}`;
+}
+
+/**
+ * BIGGEST MOVERS — the growth board.
+ *
+ * Deliberately shows prior -> current alongside the percentage. A bare "+674%"
+ * invites the reader to assume it is noise off a tiny base; showing $1,791 ->
+ * $13,858 proves it is not, and it is the number the creator will screenshot.
+ *
+ * Video counts are NOT shown. daily_creator_stats.videos counts videos POSTED
+ * that day, and GMV routinely arrives from videos posted earlier — several real
+ * movers show 0 videos against four figures of GMV, which reads as a bug to
+ * anyone looking at it.
+ */
+export function formatMoversDiscord(data: MoversData, brandName: string, period: '7d' | '30d'): string {
+  const label = period === '30d' ? 'THIS MONTH' : 'THIS WEEK';
+  const windowLabel = period === '30d' ? 'last 30 days vs the 30 before' : 'last 7 days vs the 7 before';
+  const L: string[] = [];
+
+  L.push(`# 📈 BIGGEST MOVERS — ${brandName.toUpperCase()} · ${label}`);
+  L.push(`_Ranked by growth, not total. ${windowLabel}._`);
+  L.push('');
+
+  if (data.movers.length === 0) {
+    L.push('No creator cleared the growth bar this period. Nothing to celebrate — that itself is the signal.');
+    return L.join('\n');
+  }
+
+  const medals = ['🥇', '🥈', '🥉'];
+  data.movers.forEach((m, i) => {
+    const badge = medals[i] ?? `**${i + 1}.**`;
+    const mention = getMention(m.tiktok_username, m.discord_id, m.discord_name);
+    const pct = Math.round(m.growthPct);
+    L.push(
+      `${badge} ${mention} — **+${pct.toLocaleString()}%**  ` +
+      `(${formatCurrency(m.priorGmv)} → **${formatCurrency(m.gmv)}**, +${formatCurrency(m.delta)})`,
+    );
+  });
+
+  L.push('');
+  L.push(
+    `_${data.eligibleCount.toLocaleString()} creators grew this period out of ` +
+    `${data.poolCount.toLocaleString()} selling. Top ten shown._`,
+  );
+  return L.join('\n');
+}
+
+/**
+ * MONTH-TO-DATE LEADERBOARD.
+ *
+ * The rank delta is the reason this format exists — an absolute board shows the
+ * same faces, but "#58 → #3" is a story, and it is still early enough in the
+ * month for someone to do something about their own line.
+ */
+export function formatMtdDiscord(data: MtdData, brandName: string): string {
+  const L: string[] = [];
+  const pctOfMonth = Math.round((data.daysElapsed / data.daysInMonth) * 100);
+
+  L.push(`# 🗓️ ${data.monthLabel.toUpperCase()} LEADERBOARD — ${brandName.toUpperCase()}`);
+  L.push(`_Day ${data.daysElapsed} of ${data.daysInMonth} · ${pctOfMonth}% through the month_`);
+  L.push('');
+
+  if (data.leaderboard.length === 0) {
+    L.push('No GMV recorded this month yet.');
+    return L.join('\n');
+  }
+
+  // Pace vs the same point last month — the headline everyone reads first.
+  if (data.prevGmv > 0) {
+    const diff = data.totalGmv - data.prevGmv;
+    const pct = Math.round((diff / data.prevGmv) * 100);
+    const arrow = diff >= 0 ? '↑' : '↓';
+    L.push(
+      `**${formatCurrency(data.totalGmv)}** so far — ${arrow}${Math.abs(pct)}% vs the same point last month ` +
+      `(${formatCurrency(data.prevGmv)})`,
+    );
+  } else {
+    L.push(`**${formatCurrency(data.totalGmv)}** so far this month`);
+  }
+  L.push('');
+
+  const medals = ['🥇', '🥈', '🥉'];
+  data.leaderboard.forEach((c, i) => {
+    const badge = medals[i] ?? `**${c.rank}.**`;
+    const mention = getMention(c.tiktok_username, c.discord_id, c.discord_name);
+    // A climb is only interesting if it is a real climb; ±2 is noise.
+    //
+    // Deep climbs are shown as "from #1,381", never as "▲1374". A four-digit
+    // delta is arithmetically true and reads as a broken number — and it is not
+    // even the interesting fact. Where someone came FROM is the story; the
+    // subtraction is noise once the starting rank is off the board.
+    let move = '';
+    if (c.prevRank == null) move = '  🆕';
+    else if (c.rankDelta != null && c.rankDelta >= 3) {
+      move = c.prevRank > 99
+        ? `  ▲ from #${c.prevRank.toLocaleString()}`
+        : `  ▲${c.rankDelta}`;
+    } else if (c.rankDelta != null && c.rankDelta <= -3) {
+      move = c.prevRank > 99 ? '' : `  ▼${Math.abs(c.rankDelta)}`;
+    }
+    L.push(`${badge} ${mention} — **${formatCurrency(c.gmv)}**${move}`);
+  });
+
+  L.push('');
+  L.push(
+    `_${data.creatorCount.toLocaleString()} creators selling · ` +
+    `${data.videoCount.toLocaleString()} videos this month._`,
+  );
+  return L.join('\n');
 }
 
 export function formatWhatsCookingDiscord(
