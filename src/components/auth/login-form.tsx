@@ -104,12 +104,15 @@ export function LoginForm() {
             <TempoLogo size="lg" animated />
           </div>
 
-          <div className="inline-flex h-16 w-16 rounded-full bg-gradient-to-br from-[var(--primary)] to-[var(--pulse-accent-2)] items-center justify-center mx-auto">
+          <div
+            className="auth-settle inline-flex h-16 w-16 rounded-full bg-gradient-to-br from-[var(--primary)] to-[var(--pulse-accent-2)] items-center justify-center mx-auto"
+            style={{ '--d': '.10s' } as React.CSSProperties}
+          >
             <Mail className="h-8 w-8 text-white" />
           </div>
 
-          <h1 className="text-2xl font-bold text-[var(--foreground)]">Check your email</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="auth-rise text-2xl font-bold text-[var(--foreground)]" style={{ '--d': '.16s' } as React.CSSProperties}>Check your email</h1>
+          <p className="auth-rise text-sm text-muted-foreground" style={{ '--d': '.22s' } as React.CSSProperties}>
             We sent a 6-digit code to <strong>{email}</strong>
           </p>
         </div>
@@ -121,11 +124,13 @@ export function LoginForm() {
             </div>
           )}
 
-          <OtpInput
-            onComplete={handleVerifyCode}
-            disabled={verifying}
-            error={otpError}
-          />
+          <div className="auth-rise" style={{ '--d': '.28s' } as React.CSSProperties}>
+            <OtpInput
+              onComplete={handleVerifyCode}
+              disabled={verifying}
+              error={otpError}
+            />
+          </div>
 
           {verifying && (
             <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
@@ -134,7 +139,7 @@ export function LoginForm() {
             </div>
           )}
 
-          <div className="text-center space-y-2">
+          <div className="auth-rise text-center space-y-2" style={{ '--d': '.34s' } as React.CSSProperties}>
             <p className="text-sm text-muted-foreground">
               Didn&apos;t get the code?{' '}
               {cooldown > 0 ? (
@@ -169,8 +174,8 @@ export function LoginForm() {
         <div className="flex justify-center">
           <TempoLogo size="lg" animated />
         </div>
-        <h1 className="text-2xl font-bold text-[var(--foreground)]">Welcome back</h1>
-        <p className="text-sm text-muted-foreground">Sign in to your Tempo account</p>
+        <h1 className="auth-rise text-2xl font-bold text-[var(--foreground)]" style={{ '--d': '.14s' } as React.CSSProperties}>Welcome back</h1>
+        <p className="auth-rise text-sm text-muted-foreground" style={{ '--d': '.20s' } as React.CSSProperties}>Sign in to your Tempo account</p>
       </div>
 
       <form onSubmit={handleSendCode} className="space-y-4">
@@ -183,7 +188,7 @@ export function LoginForm() {
           </div>
         )}
 
-        <div className="space-y-2">
+        <div className="auth-rise space-y-2" style={{ '--d': '.26s' } as React.CSSProperties}>
           <label htmlFor="email" className="text-sm font-medium">Email</label>
           <input
             id="email"
@@ -200,7 +205,8 @@ export function LoginForm() {
         <button
           type="submit"
           disabled={loading || !email.trim()}
-          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-gradient-to-r from-[var(--primary)] to-[var(--pulse-accent-2)] text-white font-medium text-sm hover:opacity-90 disabled:opacity-50 transition-opacity shadow-lg shadow-[var(--primary)]/20"
+          style={{ '--d': '.32s' } as React.CSSProperties}
+          className="auth-rise w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-gradient-to-r from-[var(--primary)] to-[var(--pulse-accent-2)] text-white font-medium text-sm hover:opacity-90 disabled:opacity-50 transition-opacity shadow-lg shadow-[var(--primary)]/20"
         >
           {loading ? (
             <>
@@ -216,7 +222,7 @@ export function LoginForm() {
         </button>
       </form>
 
-      <p className="text-center text-sm text-muted-foreground">
+      <p className="auth-rise text-center text-sm text-muted-foreground" style={{ '--d': '.38s' } as React.CSSProperties}>
         Don&apos;t have an account?{' '}
         <Link href="/onboarding" className="text-[var(--primary)] hover:underline font-medium">Sign up</Link>
       </p>

@@ -18,12 +18,14 @@
  *   from creator_performance over that contract window. Trend = same
  *   metric for the immediately-prior equal-length period.
  *
- * Brand filter: applies to managed_creators.brand (slug)
+ * Brand filter: applies to managed_creators.brand (slug), umbrella-expanded —
+ *   filtering to an umbrella matches its stores and vice versa.
  * Product filter: only includes creators whose product_retainers JSON has
  *   the selected product key. When a product is selected, retainer used
  *   for ROI is the product-specific retainer (not the total).
  */
 import { createAdminClient } from '@/lib/supabase/server';
+import { getBrandRegistry, expandSlugs } from '@/lib/data/brand-registry';
 
 /** Fetch every row of a query, paging past PostgREST's 1000-row cap. `makeQuery`
  *  returns a FRESH builder each call carrying a stable `.order()`. Mirrors the
@@ -193,7 +195,16 @@ export async function getRenewals(opts: {
   product?: string | null;
 }): Promise<RenewalsResult> {
   const supabase = await createAdminClient();
+  const reg = await getBrandRegistry();
   const brandFilter = opts.brand && opts.brand !== 'all' ? opts.brand : null;
+  // An umbrella brand has NO fact rows of its own — its data lives under the
+  // store slugs. Measured 2026-07-26: creator_performance holds 0 rows under
+  // 'leefar' and 620,977 under leefar_*, while 171 active contracts (70 of them
+  // paid, $95,100/mo) are filed against the umbrella. Matching the raw slug on
+  // both sides therefore gave every one of them GMV 0 -> ROI 0 -> 'Cut', i.e.
+  // the page recommended terminating $95,100/mo of contracts it simply could
+  // not see. Both the filter and the per-creator lookup must expand.
+  const filterSlugs = brandFilter ? expandSlugs(reg, brandFilter) : null;
   const productFilter = opts.product && opts.product !== 'all' ? opts.product : null;
 
   // 1. Pull active retainer creators
@@ -201,7 +212,11 @@ export async function getRenewals(opts: {
     .from('managed_creators')
     .select('id, real_name, discord_name, discord_id, discord_user_id, discord_avatar, brand, status, retainer, account_1, account_2, account_3, account_4, account_5, contract_length_days, monthly_post_requirement, retainer_start_date, product_retainers')
     .eq('status', 'Active');
-  if (brandFilter) q = q.eq('brand', brandFilter);
+  // Contracts are filed under whatever slug the operator picked — umbrella OR
+  // store — so a filter on either must match both grains.
+  if (brandFilter && filterSlugs) {
+    q = filterSlugs.length > 1 ? q.in('brand', [brandFilter, ...filterSlugs]) : q.eq('brand', brandFilter);
+  }
   const { data: rawCreators, error: cErr } = await q;
   if (cErr) throw cErr;
 
@@ -237,7 +252,8 @@ export async function getRenewals(opts: {
       .gte('report_date', localDateStr(sixtyAgo))
       .lte('report_date', localDateStr(today))
       .order('id', { ascending: true });
-    if (brandFilter) q = q.eq('brand', brandFilter);
+    // Fact rows only ever carry STORE slugs, never the umbrella.
+    if (filterSlugs) q = q.in('brand', filterSlugs);
     return q;
   });
 
@@ -271,24 +287,29 @@ export async function getRenewals(opts: {
 
     let gmvPeriod = 0, gmvPrev = 0, postsPeriod = 0;
 
+    // A contract filed against an umbrella covers every store beneath it, so
+    // sum across all of them. expandSlugs returns [slug] unchanged for a plain
+    // brand, which keeps the single-store path identical to before.
+    const dataBrands = expandSlugs(reg, c.brand);
+
     for (const acc of accounts) {
-      // Current period
-      const dCur = new Date(period.start);
-      while (dCur <= today) {
-        const dStr = localDateStr(dCur);
-        const k = `${acc}|${c.brand}|${dStr}`;
-        const v = perfIdx.get(k);
-        if (v) { gmvPeriod += v.gmv; postsPeriod += v.videos; }
-        dCur.setUTCDate(dCur.getUTCDate() + 1);
-      }
-      // Prior period
-      const dPrev = new Date(prevStart);
-      while (dPrev <= prevEnd) {
-        const dStr = localDateStr(dPrev);
-        const k = `${acc}|${c.brand}|${dStr}`;
-        const v = perfIdx.get(k);
-        if (v) gmvPrev += v.gmv;
-        dPrev.setUTCDate(dPrev.getUTCDate() + 1);
+      for (const b of dataBrands) {
+        // Current period
+        const dCur = new Date(period.start);
+        while (dCur <= today) {
+          const dStr = localDateStr(dCur);
+          const v = perfIdx.get(`${acc}|${b}|${dStr}`);
+          if (v) { gmvPeriod += v.gmv; postsPeriod += v.videos; }
+          dCur.setUTCDate(dCur.getUTCDate() + 1);
+        }
+        // Prior period
+        const dPrev = new Date(prevStart);
+        while (dPrev <= prevEnd) {
+          const dStr = localDateStr(dPrev);
+          const v = perfIdx.get(`${acc}|${b}|${dStr}`);
+          if (v) gmvPrev += v.gmv;
+          dPrev.setUTCDate(dPrev.getUTCDate() + 1);
+        }
       }
     }
 

@@ -59,16 +59,19 @@ export default function CreatorLoginPage() {
           <TempoLogo size="lg" animated />
         </div>
 
-        <div className="bg-card rounded-2xl border border-border shadow-[var(--pulse-elev-1)] p-8">
-          <h1 className="text-xl font-bold text-foreground text-center mb-2">Creator Login</h1>
-          <p className="text-sm text-muted-foreground text-center mb-6">
+        <div
+          className="auth-settle bg-card rounded-2xl border border-border shadow-[var(--pulse-elev-1)] p-8"
+          style={{ '--d': '.12s' } as React.CSSProperties}
+        >
+          <h1 className="auth-rise text-xl font-bold text-foreground text-center mb-2" style={{ '--d': '.22s' } as React.CSSProperties}>Creator Login</h1>
+          <p className="auth-rise text-sm text-muted-foreground text-center mb-6" style={{ '--d': '.28s' } as React.CSSProperties}>
             Enter your email and we will send you a login link.
           </p>
 
           {sent ? (
             <div className="text-center space-y-4">
-              <div className="text-4xl">📬</div>
-              <p className="text-sm text-muted-foreground">
+              <div className="auth-settle text-4xl" style={{ '--d': '.04s' } as React.CSSProperties}>📬</div>
+              <p className="auth-rise text-sm text-muted-foreground" style={{ '--d': '.12s' } as React.CSSProperties}>
                 Check your email for a login link. It will expire in 15 minutes.
               </p>
               {devUrl && (
@@ -90,7 +93,7 @@ export default function CreatorLoginPage() {
               </button>
             </div>
           ) : (
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="auth-rise space-y-4" style={{ '--d': '.34s' } as React.CSSProperties}>
               <Input
                 type="email"
                 placeholder="your@email.com"

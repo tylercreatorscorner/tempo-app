@@ -342,6 +342,40 @@ html.dark { color-scheme: dark; }
   animation: tempoTagIn 0.4s ease 0.5s forwards;
 }
 
+/* ── Auth surfaces ──────────────────────────────────────────────────────────
+   One shared entrance for /login, /creator-login and the claim pages. The
+   sign-in screen is the first thing anyone sees and it currently snaps into
+   place; a short staggered rise gives it a sense of assembly without turning
+   into a performance.
+
+   Stagger is driven by --d on each element rather than nth-child, so the order
+   survives conditional rendering (the error banner and the dev-mode box appear
+   and disappear between renders and must not renumber everything below them).
+
+   The step change is free: React remounts the subtree when `step` flips, so the
+   new panel replays its own entrance. That is the whole transition. */
+@keyframes authRise {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
+}
+.auth-rise {
+  opacity: 0;
+  animation: authRise 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation-delay: var(--d, 0s);
+}
+
+/* The card itself settles rather than rises — a 10px translate on a bordered
+   panel reads as a jump, where a 1.5% scale reads as it arriving. */
+@keyframes authSettle {
+  from { opacity: 0; transform: scale(0.985); }
+  to   { opacity: 1; transform: none; }
+}
+.auth-settle {
+  opacity: 0;
+  animation: authSettle 0.55s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation-delay: var(--d, 0s);
+}
+
 /* Slide-in for mobile menu */
 @keyframes slideInRight {
   from { transform: translateX(100%); }
@@ -468,7 +502,9 @@ html.dark { color-scheme: dark; }
   .animate-tempo-text,
   .animate-tempo-o,
   .animate-tempo-bar,
-  .animate-tempo-tag {
+  .animate-tempo-tag,
+  .auth-rise,
+  .auth-settle {
     animation: none;
     opacity: 1;
     transform: none;
