@@ -396,18 +396,30 @@ function TikTokShopPanel() {
         }
         const data = result.data as {
           ok?: boolean;
-          probes?: { name: string; ok: boolean; detail: string }[];
+          foundation?: { name: string; ok: boolean; detail: string };
+          compassVersionsThatAnswered?: string[];
         };
-        const probes = data.probes ?? [];
-        const failed = probes.filter((x) => !x.ok);
+        // Health is the FOUNDATION probe. The Compass version sweep is expected
+        // to mostly 40006 — that is how it finds the right version — so rendering
+        // six red lines would read as a broken connection when the connection is
+        // fine. Report the sweep as a finding, not a failure.
+        const live = data.compassVersionsThatAnswered ?? [];
+        const sweep = live.length
+          ? ` Compass answered on: ${live.join(', ')}.`
+          : ' No Compass API version answered — the version guess is still unresolved.';
         setTestResult((prev) => ({
           ...prev,
-          [brandSlug]: failed.length === 0
-            ? { ok: true, text: `${probes.length} of ${probes.length} calls succeeded.` }
+          [brandSlug]: data.foundation?.ok
+            ? { ok: true, text: `Authorized shops call succeeded.${sweep}` }
             // Name the probe that failed. "Test failed" sends someone to the
-            // logs; "shop performance: TikTokAuthError" tells them whether it
-            // is the token, the cipher or the endpoint.
-            : { ok: false, text: failed.map((x) => `${x.name}: ${x.detail}`).join(' · ') },
+            // logs; "authorized shops: TikTokAuthError" says whether it is the
+            // token, the signature or the endpoint.
+            : {
+                ok: false,
+                text: data.foundation
+                  ? `${data.foundation.name}: ${data.foundation.detail}`
+                  : 'No response from the connection test.',
+              },
         }));
         await load();
       } catch (err) {

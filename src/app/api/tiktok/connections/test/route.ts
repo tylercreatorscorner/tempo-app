@@ -106,29 +106,51 @@ export async function POST(request: NextRequest) {
   //    with no shop_cipher in play to confuse the diagnosis.
   await run('authorized shops', '/authorization/202309/shops', {});
 
-  // 2. Scoped. Proves shop_cipher injection works — the piece the condemned
-  //    module got wrong for months by sending an always-undefined shop_id.
-  const end = new Date(Date.now() - 2 * 86_400_000).toISOString().slice(0, 10);
-  const start = new Date(Date.now() - 9 * 86_400_000).toISOString().slice(0, 10);
-  await run(
-    'shop performance',
-    `/analytics/202405/shops/${conn.shopId}/performance`,
-    { start_date_ge: start, end_date_lt: end, granularity: 'ALL' },
-  );
+  // 2. Scoped, AND aimed at the family we actually need.
+  //
+  // The first version of this probe called
+  // /analytics/{v}/shops/{id}/performance — a path I guessed at, which is not in
+  // the confirmed-live set. TikTok answered 40006 "no schema found", i.e. it does
+  // not recognise that path/version pair at all. That taught us nothing about the
+  // client, because probe 1 had already proven the client.
+  //
+  // What is actually worth testing is Compass, because the whole question of
+  // whether the API can replace the spreadsheet runs through it — and its API
+  // VERSION is an open guess. compass.ts says so in as many words: 202405 is
+  // "the least-arbitrary starting guess", picked because a sibling family uses
+  // it. Listing tasks is a read-only GET, so probing several versions is free
+  // and answers item 1 of the spike checklist.
+  //
+  // 40006 "no schema found" means the version is wrong. ANY other outcome —
+  // success, an empty list, a permission error — means the version is real.
+  const versions = ['202309', '202312', '202401', '202405', '202409', '202501'];
+  for (const v of versions) {
+    await run(`compass tasks @${v}`, `/affiliate_seller/${v}/compass/offline_tasks`, {
+      page_size: '1',
+    });
+  }
 
-  const allOk = probes.every((p) => p.ok);
-  if (allOk) {
+  // The version sweep is EXPECTED to mostly fail — that is how it identifies the
+  // right one. So health is judged on the foundation probe alone, and the sweep
+  // is reported separately rather than dragging the whole result red.
+  const foundation = probes[0];
+  const sweep = probes.slice(1);
+  const liveVersions = sweep.filter((p) => p.ok).map((p) => p.name);
+  const ok = Boolean(foundation?.ok);
+
+  if (ok) {
     await touchApiCall(conn.connectionId);
-  } else {
-    const first = probes.find((p) => !p.ok);
-    if (first) await recordConnectionError(conn.connectionId, `${first.name}: ${first.detail}`);
+  } else if (foundation) {
+    await recordConnectionError(conn.connectionId, `${foundation.name}: ${foundation.detail}`);
   }
 
   return NextResponse.json({
     brand: conn.brandSlug,
     shopName: conn.shopName,
     shopId: conn.shopId,
-    ok: allOk,
+    ok,
+    foundation,
+    compassVersionsThatAnswered: liveVersions,
     probes,
   });
 }
