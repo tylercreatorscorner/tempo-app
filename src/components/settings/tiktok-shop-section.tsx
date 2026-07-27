@@ -1238,7 +1238,17 @@ function describeExpiry(iso: string | null): { label: string; tone: Tone } {
   const hours = ms / 3_600_000;
   if (hours < 1) return { label: `${Math.max(1, Math.round(ms / 60_000))}m left`, tone: 'warn' };
   if (hours < 24) return { label: `${Math.round(hours)}h left`, tone: hours < 6 ? 'warn' : 'ok' };
-  return { label: `${Math.round(hours / 24)}d left`, tone: 'ok' };
+
+  const days = Math.round(hours / 24);
+  // TikTok hands back a sentinel far-future expiry for refresh tokens — JiYu's
+  // came back as 2125-07-03 (epoch 4907229412), which is not a bug in our
+  // parsing, it is genuinely what they sent. Counting it down as "36135d left"
+  // is honest and useless: a 99-year countdown reads as a broken number, and on
+  // a card whose entire job is "can you trust this connection" a number that
+  // looks broken costs more than it tells. Anything past ~5 years is a sentinel,
+  // not a deadline, so say what it means.
+  if (days > 1825) return { label: 'Does not expire', tone: 'ok' };
+  return { label: `${days}d left`, tone: 'ok' };
 }
 
 function brandLabelOf(brands: BrandOption[], slug: string): string {

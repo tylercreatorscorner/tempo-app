@@ -87,7 +87,18 @@ export async function GET(request: NextRequest) {
       configured: preflight.ok,
       configurationError: preflight.ok ? null : preflight.message,
       connections,
-      pending,
+      // shop_cipher is stripped before this leaves the server. It is the
+      // per-shop credential required on EVERY subsequent Shop API call, and
+      // nothing in the UI reads it — the operator picks a shop by id, and the
+      // confirm route resolves the cipher server-side from the pending row. So
+      // shipping it to the browser bought nothing and put a credential into
+      // devtools, any exported HAR, and every extension with page access.
+      // The sibling test route already refuses to echo one ("Keys only — never
+      // values"); this makes the two agree.
+      pending: pending.map((p) => ({
+        ...p,
+        shops: p.shops.map(({ cipher: _cipher, ...shop }) => shop),
+      })),
       brands,
       invitesError,
       invites: invites.map((invite) => ({
