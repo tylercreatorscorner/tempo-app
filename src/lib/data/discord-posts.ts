@@ -315,6 +315,58 @@ export interface MtdData {
   endDate: Date;
 }
 
+// ─── Rookie Watch ───────────────────────────────────────────────────────
+//
+// Can only be won by someone new, which is the point — the flagship formats
+// rank by absolute GMV and the same ten creators take every board.
+//
+// ROSTER-SCOPED, unlike get_roster_rookie (mig 097) which backs Who's Cooking:
+// roster_creator_daily carries 402,061 handles, ~1,066 of whom are under
+// contract. Congratulating an affiliate who has never been in the server is
+// worse than posting nothing.
+
+export interface RookieEntry {
+  handle: string;
+  gmv: number;
+  firstActive: string;
+  daysSinceFirst: number;
+  daysActive: number;
+  discord_id: string | null;
+  discord_name: string | null;
+}
+
+export interface RookieData {
+  rookies: RookieEntry[];
+  rookieCount: number;
+  maxAgeDays: number;
+  discordMap: Map<string, { discord_id: string | null; discord_name: string | null }>;
+  endDate: Date;
+}
+
+// ─── Milestones ─────────────────────────────────────────────────────────
+//
+// Reaches most of the roster over time, so it is the best antidote to "the
+// same ten people win everything". Backed by creator_milestones (mig 035),
+// reused rather than rebuilt — a second milestones table would give the
+// concept two sources of truth.
+
+export interface MilestoneEntry {
+  handle: string;
+  brandSlug: string;
+  threshold: number;
+  valueAt: number;
+  achievedOn: string;
+  discord_id: string | null;
+  discord_name: string | null;
+}
+
+export interface MilestoneData {
+  milestones: MilestoneEntry[];
+  sinceDays: number;
+  discordMap: Map<string, { discord_id: string | null; discord_name: string | null }>;
+  endDate: Date;
+}
+
 // ─── What's Cooking Data ────────────────────────────────────────
 
 export async function getWhatsCookingData(brandFilter: string, period: '7d' | '30d'): Promise<WhatsCookingData> {
@@ -1055,6 +1107,148 @@ export async function getMtdData(brandFilter: string): Promise<MtdData> {
   };
 }
 
+// ─── Rookie Watch Data ──────────────────────────────────────────────
+
+export async function getRookieData(brandFilter: string, period: '7d' | '30d'): Promise<RookieData> {
+  const supabase = await createAdminClient();
+  const reg = await getBrandRegistry();
+  const brandUuids = brandFilter && brandFilter !== 'all' ? resolveUuids(reg, brandFilter) : null;
+
+  const today = await resolveAnchorToday(supabase, brandUuids);
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  const periodDays = period === '30d' ? 30 : 7;
+  const start = new Date(today);
+  start.setDate(today.getDate() - periodDays);
+
+  // Roster grain (text slugs), not brand uuids — get_roster_rookies reads
+  // managed_creators.brand and roster_creator_daily.brand_slug.
+  const rosterSlugs = rosterBrandSlugs(reg, brandFilter);
+
+  const [res, discordMap] = await Promise.all([
+    supabase.rpc('get_roster_rookies', {
+      p_brand_slugs: rosterSlugs,
+      p_start: formatDate(start),
+      p_end: formatDate(yesterday),
+      // A "rookie" is someone whose FIRST EVER active day is recent. 30 days
+      // rather than the 21 Who's Cooking uses, because this format needs a
+      // list, not a single winner, and a 21-day cut runs dry on quiet weeks.
+      p_max_age_days: 30,
+      p_limit: 8,
+    }),
+    getDiscordMap(supabase, brandFilter),
+  ]);
+  if (res.error) throw res.error;
+
+  const raw = (res.data ?? {}) as {
+    rookies?: { handle?: string; gmv?: number | string; firstActive?: string;
+                daysSinceFirst?: number | string; daysActive?: number | string }[];
+    rookieCount?: number; maxAgeDays?: number;
+  };
+
+  const mapped: RookieEntry[] = (raw.rookies ?? []).map((r) => {
+    const handle = (r.handle || '').toLowerCase().replace('@', '');
+    const d = discordMap.get(handle);
+    return {
+      handle: r.handle ?? '',
+      gmv: Number(r.gmv) || 0,
+      firstActive: String(r.firstActive ?? ''),
+      daysSinceFirst: Number(r.daysSinceFirst) || 0,
+      daysActive: Number(r.daysActive) || 0,
+      discord_id: d?.discord_id ?? null,
+      discord_name: d?.discord_name ?? null,
+    };
+  });
+
+  // DEDUPE BY PERSON, not by handle. The RPC groups by roster handle, and a
+  // creator running several TikTok accounts has one row per account — so the
+  // same human appeared twice in a list of five, tagged twice, with two
+  // different "day N" numbers. Collapse on the Discord id where we have one
+  // (that IS the person), and keep their strongest handle.
+  const byPerson = new Map<string, RookieEntry>();
+  for (const r of mapped) {
+    const key = r.discord_id ?? `handle:${r.handle.toLowerCase()}`;
+    const seen = byPerson.get(key);
+    if (!seen || r.gmv > seen.gmv) {
+      // Keep the earliest first-sale across their accounts — that is when the
+      // PERSON started, which is what the post is celebrating.
+      byPerson.set(key, seen
+        ? { ...r, daysSinceFirst: Math.max(r.daysSinceFirst, seen.daysSinceFirst) }
+        : r);
+    } else if (r.daysSinceFirst > seen.daysSinceFirst) {
+      byPerson.set(key, { ...seen, daysSinceFirst: r.daysSinceFirst });
+    }
+  }
+  const rookies = [...byPerson.values()].sort((a, b) => b.gmv - a.gmv);
+
+  return {
+    rookies,
+    rookieCount: Number(raw.rookieCount ?? 0),
+    maxAgeDays: Number(raw.maxAgeDays ?? 30),
+    discordMap,
+    endDate: yesterday,
+  };
+}
+
+// ─── Milestones Data ────────────────────────────────────────────────
+
+export async function getMilestoneData(brandFilter: string): Promise<MilestoneData> {
+  const supabase = await createAdminClient();
+  const reg = await getBrandRegistry();
+  const brandUuids = brandFilter && brandFilter !== 'all' ? resolveUuids(reg, brandFilter) : null;
+
+  const today = await resolveAnchorToday(supabase, brandUuids);
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+
+  // Detect first, then read — so a milestone crossed in data that landed this
+  // morning is celebrated today rather than whenever a cron next fires. The
+  // detector is idempotent (ON CONFLICT DO NOTHING) so this is cheap to repeat.
+  const detect = await supabase.rpc('detect_creator_milestones', { p_brand_ids: brandUuids });
+  if (detect.error) {
+    // Degrade: show what is already recorded rather than failing the post.
+    console.error('[discord-posts] detect_creator_milestones failed:', detect.error.message);
+  }
+
+  const [res, discordMap] = await Promise.all([
+    supabase.rpc('get_creator_milestones', {
+      p_brand_ids: brandUuids,
+      p_end: formatDate(yesterday),
+      p_since_days: 10,
+      p_limit: 12,
+    }),
+    getDiscordMap(supabase, brandFilter),
+  ]);
+  if (res.error) throw res.error;
+
+  const raw = (res.data ?? {}) as {
+    milestones?: { handle?: string; brandSlug?: string; threshold?: number | string;
+                   valueAt?: number | string; achievedOn?: string }[];
+    sinceDays?: number;
+  };
+
+  const milestones: MilestoneEntry[] = (raw.milestones ?? []).map((m) => {
+    const handle = (m.handle || '').toLowerCase().replace('@', '');
+    const d = discordMap.get(handle);
+    return {
+      handle: m.handle ?? '',
+      brandSlug: m.brandSlug ?? '',
+      threshold: Number(m.threshold) || 0,
+      valueAt: Number(m.valueAt) || 0,
+      achievedOn: String(m.achievedOn ?? ''),
+      discord_id: d?.discord_id ?? null,
+      discord_name: d?.discord_name ?? null,
+    };
+  });
+
+  return {
+    milestones,
+    sinceDays: Number(raw.sinceDays ?? 10),
+    discordMap,
+    endDate: yesterday,
+  };
+}
+
 // ─── Discord Formatters ─────────────────────────────────────────
 
 function getMention(handle: string, discordId: string | null, discordName: string | null): string {
@@ -1169,6 +1363,80 @@ export function formatMtdDiscord(data: MtdData, brandName: string): string {
     `_${data.creatorCount.toLocaleString()} creators selling · ` +
     `${data.videoCount.toLocaleString()} videos this month._`,
   );
+  return L.join('\n');
+}
+
+/**
+ * ROOKIE WATCH — creators whose first-ever active day is recent.
+ *
+ * Leads with GMV but shows "day N" alongside it, because a rookie doing $900 in
+ * their first 6 days is a better story than one doing $1,400 in 29 — and the
+ * raw number alone hides that.
+ */
+export function formatRookieDiscord(data: RookieData, brandName: string, period: '7d' | '30d'): string {
+  const L: string[] = [];
+  const windowLabel = period === '30d' ? 'last 30 days' : 'last 7 days';
+
+  L.push(`# 🌱 ROOKIE WATCH — ${brandName.toUpperCase()}`);
+  L.push(`_First-timers. Everyone here posted their very first sale within the last ${data.maxAgeDays} days._`);
+  L.push('');
+
+  if (data.rookies.length === 0) {
+    L.push(`No new creators produced in the ${windowLabel}. Worth asking why the top of the funnel is quiet.`);
+    return L.join('\n');
+  }
+
+  data.rookies.forEach((r, i) => {
+    const mention = getMention(r.handle, r.discord_id, r.discord_name);
+    const day = r.daysSinceFirst <= 0 ? 'day 1' : `day ${r.daysSinceFirst}`;
+    L.push(`**${i + 1}.** ${mention} — **${formatCurrency(r.gmv)}** in the ${windowLabel}  ·  ${day}`);
+  });
+
+  L.push('');
+  if (data.rookieCount > data.rookies.length) {
+    L.push(`_${data.rookieCount} creators made their first sale in the last ${data.maxAgeDays} days. Top ${data.rookies.length} shown._`);
+  } else {
+    L.push(`_${data.rookieCount} ${data.rookieCount === 1 ? 'creator' : 'creators'} made their first sale in the last ${data.maxAgeDays} days._`);
+  }
+  L.push('Say hi 👋');
+  return L.join('\n');
+}
+
+/**
+ * MILESTONES — threshold crossings, celebrated once.
+ *
+ * The only format here that most of the roster can eventually appear in, which
+ * is exactly why it exists: a leaderboard has ten slots and the same people
+ * hold them.
+ *
+ * Deliberately says "with <brand>" and never "all time". These totals come from
+ * roster/daily stats that begin 2025-05-01, so an all-time claim would be false
+ * for anyone who was selling before that.
+ */
+export function formatMilestonesDiscord(data: MilestoneData, brandName: string): string {
+  const L: string[] = [];
+
+  L.push(`# 🏆 MILESTONES — ${brandName.toUpperCase()}`);
+  L.push(`_Crossed in the last ${data.sinceDays} days._`);
+  L.push('');
+
+  if (data.milestones.length === 0) {
+    L.push('No new milestones this week. The next one is always closer than it looks.');
+    return L.join('\n');
+  }
+
+  // Biggest first — the RPC orders by threshold desc, and the badge escalates
+  // so a $100k crossing does not read the same as a $1k one.
+  const badge = (t: number) =>
+    t >= 1000000 ? '💎' : t >= 250000 ? '👑' : t >= 100000 ? '🥇' : t >= 25000 ? '⭐' : '🎉';
+
+  for (const m of data.milestones) {
+    const mention = getMention(m.handle, m.discord_id, m.discord_name);
+    L.push(`${badge(m.threshold)} ${mention} just crossed **${formatCurrency(m.threshold)}** with ${m.brandSlug}`);
+  }
+
+  L.push('');
+  L.push('_Totals are since we started tracking, per brand._');
   return L.join('\n');
 }
 

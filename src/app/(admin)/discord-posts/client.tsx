@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { Clipboard, Check, Loader2, ChefHat, Flame, TrendingUp, ArrowUpRight, CalendarDays } from 'lucide-react';
+import { Clipboard, Check, Loader2, ChefHat, Flame, TrendingUp, ArrowUpRight, CalendarDays, Sprout, Trophy } from 'lucide-react';
 
 const BRANDS = [
   { value: 'all', label: 'All Brands' },
@@ -29,7 +29,7 @@ function PostCard({
 }: {
   title: string;
   icon: typeof Flame;
-  type: 'whats-cooking' | 'whos-cooking' | 'daily-drop' | 'movers' | 'mtd';
+  type: 'whats-cooking' | 'whos-cooking' | 'daily-drop' | 'movers' | 'mtd' | 'rookies' | 'milestones';
   showPeriod?: boolean;
 }) {
   const [brand, setBrand] = useState('all');
@@ -246,6 +246,19 @@ export function DiscordPostsClient() {
         title="Month-to-Date Leaderboard"
         icon={CalendarDays}
         type="mtd"
+        showPeriod={false}
+      />
+      {/* Only winnable by someone new. */}
+      <PostCard
+        title="Rookie Watch"
+        icon={Sprout}
+        type="rookies"
+      />
+      {/* Recently-crossed thresholds — not a window, so no period selector. */}
+      <PostCard
+        title="Milestones"
+        icon={Trophy}
+        type="milestones"
         showPeriod={false}
       />
     </div>

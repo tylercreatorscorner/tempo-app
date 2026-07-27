@@ -14,12 +14,16 @@ import {
   formatMoversDiscord,
   getMtdData,
   formatMtdDiscord,
+  getRookieData,
+  formatRookieDiscord,
+  getMilestoneData,
+  formatMilestonesDiscord,
   type WhosCookingFormat,
 } from '@/lib/data/discord-posts';
 import { getBrandRegistry, brandLabel } from '@/lib/data/brand-registry';
 
 const VALID_TYPES = new Set([
-  'whats-cooking', 'whos-cooking', 'daily-drop', 'movers', 'mtd',
+  'whats-cooking', 'whos-cooking', 'daily-drop', 'movers', 'mtd', 'rookies', 'milestones',
 ]);
 
 // Post data comes from aggregate RPCs, but a cold cache can still make the
@@ -153,6 +157,42 @@ export async function GET(request: NextRequest) {
           totalGmv: data.totalGmv,
           videoCount: data.videoCount,
           creatorCount: data.creatorCount,
+        },
+      });
+    } else if (type === 'rookies') {
+      const data = await getRookieData(brand, period);
+      const text = formatRookieDiscord(data, brandName, period);
+      const mentionMap: Record<string, string> = {};
+      data.discordMap.forEach((v) => {
+        if (v.discord_id && v.discord_name) mentionMap[v.discord_id] = v.discord_name;
+      });
+      return NextResponse.json({
+        text,
+        mentionMap,
+        stats: {
+          totalGmv: data.rookies.reduce((s, r) => s + r.gmv, 0),
+          videoCount: 0,
+          creatorCount: data.rookieCount,
+        },
+      });
+    } else if (type === 'milestones') {
+      // Calendar-independent: milestones are "recently crossed", so the 7d/30d
+      // selector does not apply.
+      const data = await getMilestoneData(brand);
+      const text = formatMilestonesDiscord(data, brandName);
+      const mentionMap: Record<string, string> = {};
+      data.discordMap.forEach((v) => {
+        if (v.discord_id && v.discord_name) mentionMap[v.discord_id] = v.discord_name;
+      });
+      return NextResponse.json({
+        text,
+        mentionMap,
+        stats: {
+          // The sum of thresholds crossed, not GMV earned — labelled in the UI
+          // as a count, so do not present this as revenue.
+          totalGmv: 0,
+          videoCount: 0,
+          creatorCount: data.milestones.length,
         },
       });
     } else {
