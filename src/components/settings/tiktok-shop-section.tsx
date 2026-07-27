@@ -398,15 +398,24 @@ function TikTokShopPanel() {
           ok?: boolean;
           foundation?: { name: string; ok: boolean; detail: string };
           compassVersionsThatAnswered?: string[];
+          videoVersionsThatAnswered?: string[];
         };
         // Health is the FOUNDATION probe. The Compass version sweep is expected
         // to mostly 40006 — that is how it finds the right version — so rendering
         // six red lines would read as a broken connection when the connection is
         // fine. Report the sweep as a finding, not a failure.
         const live = data.compassVersionsThatAnswered ?? [];
-        const sweep = live.length
-          ? ` Compass answered on: ${live.join(', ')}.`
-          : ' No Compass API version answered — the version guess is still unresolved.';
+        const liveVideo = data.videoVersionsThatAnswered ?? [];
+        // Video performance is reported FIRST: rolling it up by creator is the
+        // route that could replace the creator export, so it is the answer an
+        // operator is actually waiting on.
+        const sweep =
+          (liveVideo.length
+            ? ` Video analytics answered on: ${liveVideo.join(', ')}.`
+            : ' No video-analytics version answered.') +
+          (live.length
+            ? ` Compass answered on: ${live.join(', ')}.`
+            : ' No Compass version answered.');
         setTestResult((prev) => ({
           ...prev,
           [brandSlug]: data.foundation?.ok

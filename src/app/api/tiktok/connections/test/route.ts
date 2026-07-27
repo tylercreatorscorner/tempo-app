@@ -18,7 +18,7 @@
  *   · an operator looking at a connection should be able to ask "is this still
  *     alive" and get an answer, forever — not just today
  *
- * READ-ONLY. Two GETs. It never writes to the shop.
+ * READ-ONLY. GETs only. It never writes to the shop.
  *
  * ⚠️ It deliberately does NOT call the token refresh. TikTok may rotate and
  * invalidate the old refresh token when a new pair is issued, so a "test" that
@@ -106,27 +106,65 @@ export async function POST(request: NextRequest) {
   //    with no shop_cipher in play to confuse the diagnosis.
   await run('authorized shops', '/authorization/202309/shops', {});
 
-  // 2. Scoped, AND aimed at the family we actually need.
+  // 2. COMPASS — at the only version that has ever existed.
   //
-  // The first version of this probe called
-  // /analytics/{v}/shops/{id}/performance — a path I guessed at, which is not in
-  // the confirmed-live set. TikTok answered 40006 "no schema found", i.e. it does
-  // not recognise that path/version pair at all. That taught us nothing about the
-  // client, because probe 1 had already proven the client.
+  // We previously swept 202309/202312/202401/202405/202409/202501 and every one
+  // answered 40006 "no schema found". That was not a permissions wall and not a
+  // wrong-family guess: the path SHAPE was already correct, and the family
+  // shipped exactly once, as 202603 (~2026-04-10, about three months ago). Every
+  // version we tried predates the API's existence. compass.ts still carries the
+  // old guess and its own comment admitting 202405 was "the least-arbitrary
+  // starting guess" — that constant is what actually has to change.
   //
-  // What is actually worth testing is Compass, because the whole question of
-  // whether the API can replace the spreadsheet runs through it — and its API
-  // VERSION is an open guess. compass.ts says so in as many words: 202405 is
-  // "the least-arbitrary starting guess", picked because a sibling family uses
-  // it. Listing tasks is a read-only GET, so probing several versions is free
-  // and answers item 1 of the spike checklist.
+  // doc_type is REQUIRED on the list call (CREATOR | BASE); omitting it would
+  // produce a parameter error we could mistake for the version being wrong.
+  await run('compass tasks @202603', '/affiliate_seller/202603/compass/offline_tasks', {
+    doc_type: 'CREATOR',
+  });
+
+  // 3. VIDEO + LIVE PERFORMANCE — the route that may make Compass unnecessary.
   //
-  // 40006 "no schema found" means the version is wrong. ANY other outcome —
-  // success, an empty list, a permission error — means the version is real.
-  const versions = ['202309', '202312', '202401', '202405', '202409', '202501'];
-  for (const v of versions) {
-    await run(`compass tasks @${v}`, `/affiliate_seller/${v}/compass/offline_tasks`, {
-      page_size: '1',
+  // creator_performance is fed by its own xlsx export today, so it looked like an
+  // irreducible primitive. It is not: video_performance carries creator_name, so
+  // creator-daily can be ROLLED UP from video-daily. Measured over 2026-07-18..24
+  // that rollup already recovers 74%-99% of creator-table GMV per brand
+  // (bondie 99.4%, jiyu 92.0%, lemme 74.0%).
+  //
+  // The shortfall has two causes, and BOTH are now addressable:
+  //   · truncation — the creator-days with no matching video row have a median
+  //     GMV of $20-$40 and are overwhelmingly under $50, the long tail a
+  //     GMV-sorted export drops. A paginated API pull does not lose them.
+  //   · non-video sales — LIVE and product-card GMV are simply not video rows.
+  //     shop_lives/performance is the missing half, keyed on the HOST's username,
+  //     which is the same join key.
+  //
+  // Both live under data.shop_analytics.public.read, a scope this app ALREADY
+  // holds — so unlike Compass there is no entitlement question at all.
+  const vEnd = new Date(Date.now() - 2 * 86_400_000).toISOString().slice(0, 10);
+  const vStart = new Date(Date.now() - 5 * 86_400_000).toISOString().slice(0, 10);
+  const window = { start_date_ge: vStart, end_date_lt: vEnd, page_size: '1' };
+
+  for (const v of ['202509', '202409', '202605']) {
+    await run(`shop videos @${v}`, `/analytics/${v}/shop_videos/performance`, window);
+  }
+  for (const v of ['202509', '202508']) {
+    await run(`shop lives @${v}`, `/analytics/${v}/shop_lives/performance`, window);
+  }
+
+  // 4. SHOP TOTAL — the reconciliation check, and the cheapest possible proof
+  //    that the analytics scope itself works.
+  //
+  // granularity=1D returns per-day shop totals in ONE call. That is the
+  // denominator every rollup above has to be judged against: if video+live
+  // reconstructs 97% of the shop's own daily total, the remaining 3% is a known
+  // quantity rather than an unknown one. Note the path is SINGULAR `shop` with
+  // no {shop_id} segment — the /analytics/{v}/shops/{id}/performance I probed
+  // first does not exist at any version, which is the whole cause of that 40006.
+  for (const v of ['202509', '202405']) {
+    await run(`shop total @${v}`, `/analytics/${v}/shop/performance`, {
+      start_date_ge: vStart,
+      end_date_lt: vEnd,
+      granularity: '1D',
     });
   }
 
@@ -134,8 +172,16 @@ export async function POST(request: NextRequest) {
   // right one. So health is judged on the foundation probe alone, and the sweep
   // is reported separately rather than dragging the whole result red.
   const foundation = probes[0];
-  const sweep = probes.slice(1);
-  const liveVersions = sweep.filter((p) => p.ok).map((p) => p.name);
+  const answered = (prefix: string) =>
+    probes.filter((p) => p.name.startsWith(prefix) && p.ok).map((p) => p.name);
+  const liveVersions = answered('compass');
+  // Video, live and shop-total are one verdict: they share a scope, so they
+  // stand or fall together and an operator should read them as one answer.
+  const liveVideoVersions = [
+    ...answered('shop videos'),
+    ...answered('shop lives'),
+    ...answered('shop total'),
+  ];
   const ok = Boolean(foundation?.ok);
 
   if (ok) {
@@ -151,6 +197,7 @@ export async function POST(request: NextRequest) {
     ok,
     foundation,
     compassVersionsThatAnswered: liveVersions,
+    videoVersionsThatAnswered: liveVideoVersions,
     probes,
   });
 }
