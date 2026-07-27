@@ -21,6 +21,7 @@ import {
   Check,
   CheckCircle2,
   Copy,
+  Download,
   Link2,
   Loader2,
   Music2,
@@ -120,6 +121,20 @@ const CALLBACK_MESSAGES: Record<string, string> = {
     'That seller account has no shops this app can reach. Check the account authorized the right store, then try again.',
   store_failed: 'The authorization could not be saved. Start the connection again.',
 };
+
+/**
+ * The day the capture spike targets.
+ *
+ * PINNED, not "yesterday". The diff only means something against a day the CSV
+ * pipeline has already loaded, and creator_performance.video_gmv — the only
+ * column that is an honest comparand for a video rollup — is populated from
+ * 2026-07-24 onward and no earlier. 07-25 is the newest day satisfying both.
+ *
+ * Deliberately NOT 07-17: that day's creator export truncated at exactly 5,000
+ * rows for jiyu (20,000 for cosrx), so it would show a false shortfall that has
+ * nothing to do with the API.
+ */
+const CAPTURE_DATE = '2026-07-25';
 
 export function TikTokShopSection() {
   return (
@@ -381,6 +396,63 @@ function TikTokShopPanel() {
       }
     },
     [post, load],
+  );
+
+  /**
+   * Capture one real day and store the raw pages. Deliberately a button and not
+   * a script: the credentials live in Vercel, so the only place this can run is
+   * the deployed app.
+   *
+   * Defaults to the most recent day the CSV pipeline has actually loaded, NOT
+   * yesterday — the export lags ~2 days, and capturing a day the spreadsheet
+   * has no rows for gives nothing to diff against.
+   */
+  const captureDay = useCallback(
+    async (brandSlug: string, date: string, orders: boolean) => {
+      setBusy(`capture:${brandSlug}`);
+      setActionError(null);
+      setTestResult((prev) => ({
+        ...prev,
+        [brandSlug]: { ok: false, text: `Capturing ${date}… this pages to exhaustion, give it a minute.` },
+      }));
+      try {
+        const result = await post('/api/tiktok/capture', { brand: brandSlug, date, orders });
+        if (!result.ok) {
+          setTestResult((prev) => ({ ...prev, [brandSlug]: { ok: false, text: result.error } }));
+          return;
+        }
+        const data = result.data as {
+          runId?: string;
+          results?: {
+            endpoint: string; pages: number; rows: number;
+            containerKey: string | null; tokenKey: string | null;
+            truncated: boolean; error: string | null;
+          }[];
+        };
+        const rs = data.results ?? [];
+        // Per-endpoint, because "it worked" and "it worked for videos and 403'd
+        // on orders" are different answers and must never collapse into one.
+        const lines = rs.map((r) =>
+          r.error
+            ? `${r.endpoint}: ${r.error}`
+            : `${r.endpoint}: ${r.rows} rows over ${r.pages} page(s)` +
+              `${r.containerKey ? ` under "${r.containerKey}"` : ' — NO ARRAY FOUND'}` +
+              `${r.tokenKey ? `, paged by "${r.tokenKey}"` : ', single page'}` +
+              `${r.truncated ? ' ⚠ HIT PAGE CAP' : ''}`,
+        );
+        const allFailed = rs.length > 0 && rs.every((r) => r.error);
+        setTestResult((prev) => ({
+          ...prev,
+          [brandSlug]: {
+            ok: !allFailed,
+            text: `Run ${data.runId?.slice(0, 8) ?? '?'} · ${lines.join(' · ')}`,
+          },
+        }));
+      } finally {
+        setBusy(null);
+      }
+    },
+    [post],
   );
 
   const testConnection = useCallback(
@@ -716,6 +788,7 @@ function TikTokShopPanel() {
             confirming={disconnectSlug === conn.brandSlug}
             onTest={() => void testConnection(conn.brandSlug)}
             testResult={testResult[conn.brandSlug] ?? null}
+            onCapture={() => captureDay(conn.brandSlug, CAPTURE_DATE, true)}
             onAskDisconnect={() => setDisconnectSlug(conn.brandSlug)}
             onCancelDisconnect={() => setDisconnectSlug(null)}
             onDisconnect={() => void disconnect(conn.brandSlug)}
@@ -898,6 +971,7 @@ function ConnectionRow({
   confirming,
   onTest,
   testResult,
+  onCapture,
   onAskDisconnect,
   onCancelDisconnect,
   onDisconnect,
@@ -907,6 +981,7 @@ function ConnectionRow({
   confirming: boolean;
   onTest: () => void;
   testResult: { ok: boolean; text: string } | null;
+  onCapture: () => void;
   onAskDisconnect: () => void;
   onCancelDisconnect: () => void;
   onDisconnect: () => void;
@@ -961,6 +1036,14 @@ function ConnectionRow({
                 <Stethoscope className="h-3.5 w-3.5" />
               )}
               Test connection
+            </Button>
+            <Button size="sm" variant="secondary" disabled={busy !== null} onClick={onCapture}>
+              {busy === `capture:${conn.brandSlug}` ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Download className="h-3.5 w-3.5" />
+              )}
+              Capture a day
             </Button>
             <Button size="sm" variant="secondary" disabled={busy !== null} onClick={onAskDisconnect}>
               <Unplug className="h-3.5 w-3.5" />

@@ -1,0 +1,328 @@
+/**
+ * POST /api/tiktok/capture   { brand: "jiyu", date: "2026-07-25", orders?: true }
+ *
+ * The experiment that decides whether the API can replace the spreadsheet.
+ *
+ * It pulls ONE market-local day for ONE brand from three endpoints, pages each
+ * to exhaustion, and stores every page's raw `data` in tiktok_api_captures.
+ * It writes NOTHING to a fact table and computes no money. The diff against
+ * creator_performance happens afterwards, in SQL, against bytes we can re-read.
+ *
+ * WHY CAPTURE RATHER THAN INGEST DIRECTLY: src/lib/tiktok/types.ts records that
+ * the deleted previous module hand-wrote its response types and got four of
+ * them wrong while every file still compiled. Types get generated from real
+ * responses. That requires real responses, durably stored.
+ *
+ * ⚠️ account_type=AFFILIATE_ACCOUNTS IS NOT A TUNABLE. Every fact table in
+ * Tempo is Affiliate-Center data; the shop_videos/shop_lives endpoints are the
+ * SELLER-CENTER family and will happily return official-account and paid
+ * content too. Pulling ALL would fold GMV no creator earned into per-creator
+ * rows — inflating the managed-share invoice, which is a straight percentage of
+ * affiliate GMV — and would put a silent discontinuity in the fact tables at
+ * the cutover date, with each side internally consistent. TikTok's default for
+ * this parameter is UNVERIFIED, which is exactly why it is always sent.
+ *
+ * READ-ONLY against TikTok. Two GETs and (optionally) one POST search.
+ */
+import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/auth/require-admin';
+import { createAdminClient } from '@/lib/supabase/server';
+import { getActiveConnection, touchApiCall, recordConnectionError } from '@/lib/tiktok/connections';
+import { TikTokError } from '@/lib/tiktok/client';
+import { COMPASS_MARKET_TIME_ZONE } from '@/lib/tiktok/compass';
+
+export const runtime = 'nodejs';
+export const maxDuration = 300;
+
+/** Versions confirmed live by the connection test on 2026-07-27. */
+const VIDEO_VERSION = '202509';
+const LIVE_VERSION = '202509';
+const ORDERS_VERSION = '202410';
+
+/** TikTok's documented maximum. */
+const PAGE_SIZE = 100;
+/**
+ * A hard stop, not an expectation. jiyu's busiest day holds ~12.5k video rows,
+ * so 200 pages is ~4x headroom — but the point is that a mis-read page token
+ * can loop forever, and a loop against someone else's rate limiter is the one
+ * bug that gets an app's access pulled.
+ */
+const MAX_PAGES = 200;
+
+/** Candidate keys for the continuation token. Unknown until we see a real
+ *  response — recorded, not assumed, and reported back so the guess can be
+ *  replaced with a fact. */
+const TOKEN_KEYS = ['next_page_token', 'page_token', 'next_token', 'cursor'];
+
+interface PageResult {
+  endpoint: string;
+  version: string;
+  pages: number;
+  rows: number;
+  /** The array key we actually found, so a wrong guess is visible. */
+  containerKey: string | null;
+  /** Top-level keys of `data`, never values. */
+  dataKeys: string[];
+  /** Keys of the first row, never values — this is what types get generated from. */
+  rowKeys: string[];
+  tokenKey: string | null;
+  truncated: boolean;
+  error: string | null;
+}
+
+/** Find the first array in the envelope's `data` and report which key held it.
+ *  Guessing a container key by name is how the previous module ended up
+ *  reading `data.shop_videos` forever and reporting green on nothing. */
+function findRows(data: unknown): { key: string | null; rows: unknown[] } {
+  if (!data || typeof data !== 'object') return { key: null, rows: [] };
+  for (const [key, value] of Object.entries(data as Record<string, unknown>)) {
+    if (Array.isArray(value)) return { key, rows: value };
+  }
+  return { key: null, rows: [] };
+}
+
+function findToken(data: unknown): { key: string | null; token: string | null } {
+  if (!data || typeof data !== 'object') return { key: null, token: null };
+  const rec = data as Record<string, unknown>;
+  for (const key of TOKEN_KEYS) {
+    const v = rec[key];
+    if (typeof v === 'string' && v.length > 0) return { key, token: v };
+  }
+  return { key: null, token: null };
+}
+
+/** Midnight-to-midnight in the shop's market, as unix seconds. Naive UTC names
+ *  the wrong day for eight hours a night, which would silently shift a whole
+ *  day's orders across the boundary we are trying to measure. */
+function marketDayBounds(date: string, timeZone = COMPASS_MARKET_TIME_ZONE): { start: number; end: number } {
+  const at = (day: string): number => {
+    const guess = new Date(`${day}T00:00:00Z`);
+    // Two passes: the offset itself depends on the instant (DST), so resolve it
+    // against the first guess and then re-apply.
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone, hour12: false,
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+    }).formatToParts(guess);
+    const get = (t: string) => Number(parts.find((p) => p.type === t)?.value ?? '0');
+    const asUtc = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'), get('second'));
+    const offset = asUtc - guess.getTime();
+    return Math.floor((guess.getTime() - offset) / 1000);
+  };
+  const start = at(date);
+  const next = new Date(`${date}T00:00:00Z`);
+  next.setUTCDate(next.getUTCDate() + 1);
+  return { start, end: at(next.toISOString().slice(0, 10)) };
+}
+
+export async function POST(request: NextRequest) {
+  const profile = await requireAdmin();
+  if (!profile) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
+  let brand = '';
+  let date = '';
+  let wantOrders = false;
+  try {
+    const body = (await request.json()) as { brand?: string; date?: string; orders?: boolean };
+    brand = (body.brand ?? '').trim();
+    date = (body.date ?? '').trim();
+    wantOrders = body.orders === true;
+  } catch {
+    return NextResponse.json({ error: 'Body must be JSON: { brand, date }' }, { status: 400 });
+  }
+  if (!brand) return NextResponse.json({ error: 'Missing brand' }, { status: 400 });
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return NextResponse.json({ error: 'date must be YYYY-MM-DD' }, { status: 400 });
+  }
+
+  const conn = await getActiveConnection(brand);
+  if (!conn.ok) {
+    return NextResponse.json(
+      { error: conn.message, reason: conn.reason, needsReauthorization: conn.needsReauthorization },
+      { status: 409 },
+    );
+  }
+
+  // Cron and admin paths both run this; createAdminClient is the service-role
+  // factory and it is async.
+  const supabase = await createAdminClient();
+  const runId = crypto.randomUUID();
+
+  // end_date_lt is EXCLUSIVE — the single most common way to capture two days
+  // or none. One day D means [D, D+1).
+  const next = new Date(`${date}T00:00:00Z`);
+  next.setUTCDate(next.getUTCDate() + 1);
+  const dayAfter = next.toISOString().slice(0, 10);
+
+  const store = async (
+    endpoint: string,
+    version: string,
+    params: Record<string, string>,
+    pageIndex: number,
+    pageToken: string | null,
+    data: unknown,
+    rowCount: number,
+    requestId: string | null,
+  ) => {
+    const { error } = await supabase.from('tiktok_api_captures').insert({
+      run_id: runId,
+      brand_slug: conn.brandSlug,
+      endpoint,
+      api_version: version,
+      request_params: params,
+      page_index: pageIndex,
+      page_token: pageToken,
+      response: data ?? {},
+      row_count: rowCount,
+      request_id: requestId,
+    });
+    // A capture that silently failed to persist is worse than one that failed
+    // loudly: the whole point is that the bytes still exist afterwards.
+    if (error) throw new Error(`capture insert failed (${endpoint} p${pageIndex}): ${error.message}`);
+  };
+
+  const pageThrough = async (
+    endpoint: string,
+    version: string,
+    path: string,
+    baseQuery: Record<string, string>,
+  ): Promise<PageResult> => {
+    const out: PageResult = {
+      endpoint, version, pages: 0, rows: 0,
+      containerKey: null, dataKeys: [], rowKeys: [], tokenKey: null,
+      truncated: false, error: null,
+    };
+    let token: string | null = null;
+    const seen = new Set<string>();
+
+    try {
+      for (let page = 0; page < MAX_PAGES; page++) {
+        const query = { ...baseQuery, ...(token ? { page_token: token } : {}) };
+        const res = await conn.client.get<Record<string, unknown>>(path, query);
+        const { key, rows } = findRows(res.data);
+        const tok = findToken(res.data);
+
+        if (page === 0) {
+          out.dataKeys = res.data && typeof res.data === 'object' ? Object.keys(res.data) : [];
+          out.containerKey = key;
+          out.tokenKey = tok.key;
+          const first = rows[0];
+          out.rowKeys = first && typeof first === 'object' ? Object.keys(first as object) : [];
+        }
+
+        await store(endpoint, version, query, page, token, res.data, rows.length, res.requestId);
+        out.pages = page + 1;
+        out.rows += rows.length;
+
+        if (!tok.token) break;
+        // A token that repeats means we are about to re-request a page we
+        // already have. Treat it as the end, not as more data.
+        if (seen.has(tok.token)) break;
+        seen.add(tok.token);
+        token = tok.token;
+
+        if (page === MAX_PAGES - 1) out.truncated = true;
+      }
+    } catch (e) {
+      const te = e instanceof TikTokError ? e : null;
+      // 403-vs-404 cannot be told apart by error CLASS — both are
+      // TikTokPermanentError — so the status and business code are reported
+      // verbatim. That distinction is the whole difference between "ask TikTok
+      // for a scope" and "we typed the path wrong".
+      out.error = te
+        ? `${te.constructor.name} status=${te.status} code=${te.code ?? '—'}: ${te.message}`
+        : e instanceof Error ? e.message : String(e);
+    }
+    return out;
+  };
+
+  const results: PageResult[] = [];
+  const window = {
+    start_date_ge: date,
+    end_date_lt: dayAfter,
+    page_size: String(PAGE_SIZE),
+    account_type: 'AFFILIATE_ACCOUNTS',
+    currency: 'USD',
+  };
+
+  results.push(await pageThrough(
+    'shop_videos/performance', VIDEO_VERSION,
+    `/analytics/${VIDEO_VERSION}/shop_videos/performance`, window,
+  ));
+  results.push(await pageThrough(
+    'shop_lives/performance', LIVE_VERSION,
+    `/analytics/${LIVE_VERSION}/shop_lives/performance`, window,
+  ));
+
+  // The product-card question. shop_videos and shop_lives structurally cannot
+  // contain showcase/product-card sales, which run 0.4%-6.0% of affiliate GMV
+  // per brand (worst at jiyu). orders/search is the only endpoint documented to
+  // carry a creator identity on a non-video, non-live sale — and two research
+  // agents disagreed about whether it carries an amount at all. This settles it
+  // by calling it. POST, but a search is idempotent, so retries are allowed.
+  if (wantOrders) {
+    const bounds = marketDayBounds(date);
+    const ordersPath = `/affiliate_seller/${ORDERS_VERSION}/orders/search`;
+    const out: PageResult = {
+      endpoint: 'orders/search', version: ORDERS_VERSION, pages: 0, rows: 0,
+      containerKey: null, dataKeys: [], rowKeys: [], tokenKey: null,
+      truncated: false, error: null,
+    };
+    let token: string | null = null;
+    const seen = new Set<string>();
+    try {
+      for (let page = 0; page < MAX_PAGES; page++) {
+        const query: Record<string, string> = {
+          page_size: String(PAGE_SIZE),
+          ...(token ? { page_token: token } : {}),
+        };
+        const res = await conn.client.post<Record<string, unknown>>(ordersPath, {
+          query,
+          body: { create_time_ge: bounds.start, create_time_lt: bounds.end },
+          idempotent: true,
+        });
+        const { key, rows } = findRows(res.data);
+        const tok = findToken(res.data);
+        if (page === 0) {
+          out.dataKeys = res.data && typeof res.data === 'object' ? Object.keys(res.data) : [];
+          out.containerKey = key;
+          out.tokenKey = tok.key;
+          const first = rows[0];
+          out.rowKeys = first && typeof first === 'object' ? Object.keys(first as object) : [];
+        }
+        await store(
+          'orders/search', ORDERS_VERSION,
+          { ...query, create_time_ge: String(bounds.start), create_time_lt: String(bounds.end) },
+          page, token, res.data, rows.length, res.requestId,
+        );
+        out.pages = page + 1;
+        out.rows += rows.length;
+        if (!tok.token || seen.has(tok.token)) break;
+        seen.add(tok.token);
+        token = tok.token;
+        if (page === MAX_PAGES - 1) out.truncated = true;
+      }
+    } catch (e) {
+      const te = e instanceof TikTokError ? e : null;
+      out.error = te
+        ? `${te.constructor.name} status=${te.status} code=${te.code ?? '—'}: ${te.message}`
+        : e instanceof Error ? e.message : String(e);
+    }
+    results.push(out);
+  }
+
+  const anyOk = results.some((r) => r.error === null && r.pages > 0);
+  if (anyOk) await touchApiCall(conn.connectionId);
+  else {
+    const first = results.find((r) => r.error);
+    if (first) await recordConnectionError(conn.connectionId, `capture ${first.endpoint}: ${first.error}`);
+  }
+
+  return NextResponse.json({
+    runId,
+    brand: conn.brandSlug,
+    date,
+    window: { start_date_ge: date, end_date_lt: dayAfter, account_type: 'AFFILIATE_ACCOUNTS' },
+    results,
+  });
+}
