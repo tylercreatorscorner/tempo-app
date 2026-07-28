@@ -539,6 +539,28 @@ async function main(): Promise<void> {
       check('...naming the echoed value', out.ok === true && out.warnings.some((w) => w.includes('VIDEO')));
     });
 
+    // doc_type is REQUIRED on the list call and must default to the module_type
+    // we created with. Measured against TikTok 2026-07-28: a create that
+    // SUCCEEDED (task 01KYMMXK7Q) was followed immediately by a refused poll —
+    // HTTP 400, code 36009004, "DocType is a required field and has not been
+    // provided." Nothing in the type system catches this; only a live call did,
+    // and only after the create had already cost a task.
+    await withServer(compassResponder({ fileBase64: CREATOR_WORKBOOK.toString('base64') }), async (client, server) => {
+      const timing = fakeTimekeeper(0);
+      const out = await fetchDailyExport('bondie', '2026-07-25', 'CREATOR', { client, poll: { sleep: timing.sleep, now: timing.now } });
+      const listReq = server.requests.find((r) => r.method === 'GET' && r.path.endsWith('/offline_tasks'));
+      check('the list call sends doc_type', !!listReq && listReq.query.get('doc_type') === 'CREATOR', listReq ? String(listReq.query.get('doc_type')) : 'no list request');
+      check('...and the run still completes with it set', out.ok === true, out.ok ? 'ok' : out.message);
+    });
+
+    // ...and an explicit override still wins, so a spike can probe the enum.
+    await withServer(compassResponder({}), async (client, server) => {
+      const timing = fakeTimekeeper(0);
+      await fetchDailyExport('bondie', '2026-07-25', 'CREATOR', { client, poll: { sleep: timing.sleep, now: timing.now, docType: 'BASE' } });
+      const listReq = server.requests.find((r) => r.method === 'GET' && r.path.endsWith('/offline_tasks'));
+      check('...and an explicit docType overrides the default', !!listReq && listReq.query.get('doc_type') === 'BASE', listReq ? String(listReq.query.get('doc_type')) : 'no list request');
+    });
+
     // A failed task must never reach the download stage.
     await withServer(compassResponder({ statuses: ['FAILED'] }), async (client, server) => {
       const timing = fakeTimekeeper(0);

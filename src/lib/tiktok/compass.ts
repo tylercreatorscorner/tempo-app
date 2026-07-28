@@ -374,20 +374,19 @@ export async function createExportTask(
 
 export interface ListTasksOptions extends CompassRequestOptions {
   /**
-   * Send `doc_type` as a list filter. Still OFF by default, but the reasoning
-   * has changed and the default is now the thing most likely to be wrong.
+   * `doc_type` on the list call. REQUIRED — settled by measurement.
    *
-   * The 202603 docs mark doc_type Require=Y on the list call, enum CREATOR |
-   * BASE — so omitting it may be a hard parameter error, not a wider result set.
-   * Against that: the list parameter is named doc_type while create takes
-   * module_type, and a coerced value could filter our own task OUT, at which
-   * point we would conclude the task vanished. Since we key on the id create
-   * returned, a filter buys nothing and (if wrong) risks everything.
+   * fetchDailyExport now defaults this to the module_type it created with, so
+   * callers only set it to override. Omitting it is not a wider result set, it
+   * is a hard refusal: HTTP 400, code 36009004, "DocType is a required field
+   * and has not been provided" (2026-07-28, immediately after a create that
+   * had just succeeded and returned a real task id).
    *
-   * The connection-test probe sends doc_type=CREATOR, which matches the
-   * module_type we create with. Its answer settles this: a clean response with
-   * it means turn this on by default; a parameter error without it means the
-   * same, more loudly.
+   * The old worry — that a coerced value could filter our own task OUT and
+   * leave us concluding it had vanished — is handled by defaulting to the
+   * module_type rather than to a guess. The two parameters being spelled
+   * differently (create: module_type, list: doc_type) is what made this look
+   * optional in the first place.
    */
   docType?: string;
 }
@@ -1036,6 +1035,16 @@ export async function fetchDailyExport(
   const pollOptions: PollOptions = {
     ...options.poll,
     apiVersion: options.poll?.apiVersion ?? options.apiVersion,
+    // doc_type is REQUIRED on the list call and TikTok says so outright:
+    // omitting it returns HTTP 400 code 36009004 "DocType is a required field
+    // and has not been provided." Measured 2026-07-28 — the create succeeded
+    // and returned task 01KYMMXK7Q, then the very next poll was refused.
+    //
+    // It defaults to the module_type we created with, which is the only value
+    // that cannot filter our own task out of the response. The two parameters
+    // are spelled differently on purpose (create takes module_type, list takes
+    // doc_type) and that asymmetry is exactly what made this look optional.
+    docType: options.poll?.docType ?? moduleType,
   };
   const outcome = await pollTask(client, created.taskId, pollOptions);
   if (outcome.state !== 'succeeded') {
@@ -1126,8 +1135,8 @@ function stripNulls(echo: CompassTaskEcho): Partial<CompassTaskEcho> {
 //  5. STATUS VOCABULARY. SUCCEEDED_STATUSES / FAILED_STATUSES / PENDING_STATUSES.
 //     Anything unmatched is treated as still-pending and will hit the poll
 //     ceiling — the timeout message reports the raw string it kept seeing.
-//  6. doc_type ON THE LIST CALL. Currently NOT sent (ListTasksOptions.docType).
-//     If the list rejects an unfiltered call, the poll failure message says so.
+//  6. doc_type ON THE LIST CALL — RESOLVED. It is REQUIRED (400/36009004
+//     "DocType is a required field"), and now defaults to the module_type.
 //  7. HOW LONG A TASK TAKES. budgetMs 40s / maxPolls 12 are sized to fit inside
 //     Vercel's 60s function ceiling, not to any measured build time. If real
 //     tasks routinely exceed it, the lifecycle must split across invocations —
