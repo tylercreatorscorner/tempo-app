@@ -136,6 +136,16 @@ const CALLBACK_MESSAGES: Record<string, string> = {
  */
 const CAPTURE_DATE = '2026-07-25';
 
+/**
+ * End of the capture window.
+ *
+ * ⚠️ SAME DAY, deliberately. TikTok calls the parameter `end_date_lt`, but it
+ * does NOT behave exclusively: sending [07-25, 07-26) returned a video posted
+ * ON 07-26, i.e. two days of data. Editable here so the semantics can be
+ * re-measured rather than trusted.
+ */
+const CAPTURE_END_DATE = '2026-07-25';
+
 export function TikTokShopSection() {
   return (
     // useSearchParams needs a boundary; the panel renders its own skeleton.
@@ -408,15 +418,18 @@ function TikTokShopPanel() {
    * has no rows for gives nothing to diff against.
    */
   const captureDay = useCallback(
-    async (brandSlug: string, date: string, orders: boolean) => {
+    async (brandSlug: string, date: string, endDate: string, orders: boolean) => {
       setBusy(`capture:${brandSlug}`);
       setActionError(null);
       setTestResult((prev) => ({
         ...prev,
-        [brandSlug]: { ok: false, text: `Capturing ${date}… this pages to exhaustion, give it a minute.` },
+        [brandSlug]: {
+          ok: false,
+          text: `Capturing ${date}${endDate && endDate !== date ? `..${endDate}` : ''}… this pages to exhaustion, give it a minute.`,
+        },
       }));
       try {
-        const result = await post('/api/tiktok/capture', { brand: brandSlug, date, orders });
+        const result = await post('/api/tiktok/capture', { brand: brandSlug, date, endDate, orders });
         if (!result.ok) {
           setTestResult((prev) => ({ ...prev, [brandSlug]: { ok: false, text: result.error } }));
           return;
@@ -788,7 +801,7 @@ function TikTokShopPanel() {
             confirming={disconnectSlug === conn.brandSlug}
             onTest={() => void testConnection(conn.brandSlug)}
             testResult={testResult[conn.brandSlug] ?? null}
-            onCapture={() => captureDay(conn.brandSlug, CAPTURE_DATE, true)}
+            onCapture={() => captureDay(conn.brandSlug, CAPTURE_DATE, CAPTURE_END_DATE, true)}
             onAskDisconnect={() => setDisconnectSlug(conn.brandSlug)}
             onCancelDisconnect={() => setDisconnectSlug(null)}
             onDisconnect={() => void disconnect(conn.brandSlug)}

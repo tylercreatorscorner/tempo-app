@@ -121,18 +121,26 @@ export async function POST(request: NextRequest) {
 
   let brand = '';
   let date = '';
+  let endDate = '';
   let wantOrders = false;
   try {
-    const body = (await request.json()) as { brand?: string; date?: string; orders?: boolean };
+    const body = (await request.json()) as {
+      brand?: string; date?: string; endDate?: string; orders?: boolean;
+    };
     brand = (body.brand ?? '').trim();
     date = (body.date ?? '').trim();
+    endDate = (body.endDate ?? '').trim();
     wantOrders = body.orders === true;
   } catch {
     return NextResponse.json({ error: 'Body must be JSON: { brand, date }' }, { status: 400 });
   }
   if (!brand) return NextResponse.json({ error: 'Missing brand' }, { status: 400 });
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+  const isDay = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v);
+  if (!isDay(date)) {
     return NextResponse.json({ error: 'date must be YYYY-MM-DD' }, { status: 400 });
+  }
+  if (endDate && !isDay(endDate)) {
+    return NextResponse.json({ error: 'endDate must be YYYY-MM-DD' }, { status: 400 });
   }
 
   const conn = await getActiveConnection(brand);
@@ -148,11 +156,20 @@ export async function POST(request: NextRequest) {
   const supabase = await createAdminClient();
   const runId = crypto.randomUUID();
 
-  // end_date_lt is EXCLUSIVE — the single most common way to capture two days
-  // or none. One day D means [D, D+1).
-  const next = new Date(`${date}T00:00:00Z`);
-  next.setUTCDate(next.getUTCDate() + 1);
-  const dayAfter = next.toISOString().slice(0, 10);
+  // ⚠️ end_date_lt IS NOT EXCLUSIVE, whatever the name says.
+  //
+  // MEASURED, not assumed. The first capture sent [2026-07-25, 2026-07-26) and
+  // came back holding a video whose video_post_time was 2026-07-26 — a video
+  // that cannot possibly have earned GMV on the 25th. Two days, not one, and
+  // the totals agreed: 12,315 of 12,454 videos matched the CSV to the penny,
+  // ZERO were ever lower, and the 139 that differed were the ones that also
+  // sold on the 26th. The metric was right the whole time; the window was
+  // wrong. Had this gone straight to ingest it would have written a doubled
+  // day that looked entirely plausible.
+  //
+  // So a single day D is [D, D], and the caller may override the end to
+  // re-measure the semantics whenever TikTok changes them.
+  const windowEnd = endDate || date;
 
   const store = async (
     endpoint: string,
@@ -239,7 +256,7 @@ export async function POST(request: NextRequest) {
   const results: PageResult[] = [];
   const window = {
     start_date_ge: date,
-    end_date_lt: dayAfter,
+    end_date_lt: windowEnd,
     page_size: String(PAGE_SIZE),
     account_type: 'AFFILIATE_ACCOUNTS',
     currency: 'USD',
@@ -261,7 +278,8 @@ export async function POST(request: NextRequest) {
   // agents disagreed about whether it carries an amount at all. This settles it
   // by calling it. POST, but a search is idempotent, so retries are allowed.
   if (wantOrders) {
-    const bounds = marketDayBounds(date);
+    // Orders filter on create_time, so the window is [start-of-D, end-of-windowEnd).
+    const bounds = { start: marketDayBounds(date).start, end: marketDayBounds(windowEnd).end };
     const ordersPath = `/affiliate_seller/${ORDERS_VERSION}/orders/search`;
     const out: PageResult = {
       endpoint: 'orders/search', version: ORDERS_VERSION, pages: 0, rows: 0,
@@ -322,7 +340,7 @@ export async function POST(request: NextRequest) {
     runId,
     brand: conn.brandSlug,
     date,
-    window: { start_date_ge: date, end_date_lt: dayAfter, account_type: 'AFFILIATE_ACCOUNTS' },
+    window: { start_date_ge: date, end_date_lt: windowEnd, account_type: 'AFFILIATE_ACCOUNTS' },
     results,
   });
 }
