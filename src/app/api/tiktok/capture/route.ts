@@ -156,20 +156,24 @@ export async function POST(request: NextRequest) {
   const supabase = await createAdminClient();
   const runId = crypto.randomUUID();
 
-  // ⚠️ end_date_lt IS NOT EXCLUSIVE, whatever the name says.
+  // end_date_lt IS exclusive, and TikTok enforces it: a same-day window
+  // [D, D] is refused with code 28001022 "start time or end time is invalid".
+  // So one day D is [D, D+1).
   //
-  // MEASURED, not assumed. The first capture sent [2026-07-25, 2026-07-26) and
-  // came back holding a video whose video_post_time was 2026-07-26 — a video
-  // that cannot possibly have earned GMV on the 25th. Two days, not one, and
-  // the totals agreed: 12,315 of 12,454 videos matched the CSV to the penny,
-  // ZERO were ever lower, and the 139 that differed were the ones that also
-  // sold on the 26th. The metric was right the whole time; the window was
-  // wrong. Had this gone straight to ingest it would have written a doubled
-  // day that looked entirely plausible.
+  // ⚠️ I briefly believed the opposite and shipped a same-day window, on the
+  // strength of a captured video whose video_post_time was the day AFTER the
+  // window. That was not evidence: the row carried gmv 0.00. This endpoint
+  // LISTS videos, including ones with no sales in the window, so a post date
+  // outside the range proves nothing on its own — only a non-zero amount
+  // outside the range would. Left here because the mistake is re-makeable.
   //
-  // So a single day D is [D, D], and the caller may override the end to
-  // re-measure the semantics whenever TikTok changes them.
-  const windowEnd = endDate || date;
+  // The end stays overridable so a multi-day window can be requested
+  // deliberately, and so the semantics can be re-measured rather than trusted.
+  const windowEnd = endDate || (() => {
+    const d = new Date(`${date}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + 1);
+    return d.toISOString().slice(0, 10);
+  })();
 
   const store = async (
     endpoint: string,
@@ -196,6 +200,30 @@ export async function POST(request: NextRequest) {
     // A capture that silently failed to persist is worse than one that failed
     // loudly: the whole point is that the bytes still exist afterwards.
     if (error) throw new Error(`capture insert failed (${endpoint} p${pageIndex}): ${error.message}`);
+  };
+
+  /** Record a refusal the same way a page is recorded. `response` holds the
+   *  error rather than a payload, and row_count is NULL — never 0, because
+   *  "TikTok refused" and "TikTok returned nothing" are different facts. */
+  const storeFailure = async (
+    endpoint: string,
+    version: string,
+    params: Record<string, string>,
+    message: string,
+  ) => {
+    const { error } = await supabase.from('tiktok_api_captures').insert({
+      run_id: runId,
+      brand_slug: conn.brandSlug,
+      endpoint,
+      api_version: version,
+      request_params: params,
+      page_index: 0,
+      response: { error: message },
+      row_count: null,
+      request_id: null,
+    });
+    // Best-effort: a failure to record a failure must not mask the failure.
+    if (error) console.error(`capture failure-record failed (${endpoint}): ${error.message}`);
   };
 
   const pageThrough = async (
@@ -249,6 +277,12 @@ export async function POST(request: NextRequest) {
       out.error = te
         ? `${te.constructor.name} status=${te.status} code=${te.code ?? '—'}: ${te.message}`
         : e instanceof Error ? e.message : String(e);
+      // PERSIST THE FAILURE. The first version of this table stored successes
+      // only, so a run where shop_videos errored left no trace at all and the
+      // reason existed nowhere but the operator's screen — the same
+      // silence-reads-as-success failure this whole surface exists to prevent.
+      // A rejected window is a RESULT, and results get written down.
+      await storeFailure(endpoint, version, baseQuery, out.error);
     }
     return out;
   };
@@ -325,6 +359,9 @@ export async function POST(request: NextRequest) {
       out.error = te
         ? `${te.constructor.name} status=${te.status} code=${te.code ?? '—'}: ${te.message}`
         : e instanceof Error ? e.message : String(e);
+      await storeFailure('orders/search', ORDERS_VERSION, {
+        create_time_ge: String(bounds.start), create_time_lt: String(bounds.end),
+      }, out.error);
     }
     results.push(out);
   }

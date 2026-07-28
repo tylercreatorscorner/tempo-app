@@ -125,26 +125,33 @@ const CALLBACK_MESSAGES: Record<string, string> = {
 /**
  * The day the capture spike targets.
  *
- * PINNED, not "yesterday". The diff only means something against a day the CSV
- * pipeline has already loaded, and creator_performance.video_gmv — the only
- * column that is an honest comparand for a video rollup — is populated from
- * 2026-07-24 onward and no earlier. 07-25 is the newest day satisfying both.
+ * NOW 07-18, not 07-25, and the reason is the whole point of this run.
+ *
+ * Capturing 07-25 returned $29,170.64 against the CSV's $19,051.63 — but every
+ * difference was UPWARD (zero videos were ever lower), items_sold rose with it
+ * (344 vs 111 on the same 139 videos), and every sampled order line still read
+ * settlement_status "To-SETTLE". That is the signature of a day still
+ * settling, not of a broken pull, since 12,315 of 12,454 videos matched to the
+ * penny.
+ *
+ * 07-18 is ten days old and should be fully settled, so it separates the two
+ * explanations: if it matches video_performance exactly, the pull is correct
+ * and recent CSV days are simply undercounted. If it does NOT, something else
+ * is going on and restatement was the wrong story.
  *
  * Deliberately NOT 07-17: that day's creator export truncated at exactly 5,000
  * rows for jiyu (20,000 for cosrx), so it would show a false shortfall that has
  * nothing to do with the API.
  */
-const CAPTURE_DATE = '2026-07-25';
+const CAPTURE_DATE = '2026-07-18';
 
 /**
- * End of the capture window.
+ * End of the capture window, EXCLUSIVE — so this is the day after CAPTURE_DATE.
  *
- * ⚠️ SAME DAY, deliberately. TikTok calls the parameter `end_date_lt`, but it
- * does NOT behave exclusively: sending [07-25, 07-26) returned a video posted
- * ON 07-26, i.e. two days of data. Editable here so the semantics can be
- * re-measured rather than trusted.
+ * TikTok enforces exclusivity: a same-day window is refused outright with
+ * 28001022 "start time or end time is invalid".
  */
-const CAPTURE_END_DATE = '2026-07-25';
+const CAPTURE_END_DATE = '2026-07-19';
 
 export function TikTokShopSection() {
   return (
