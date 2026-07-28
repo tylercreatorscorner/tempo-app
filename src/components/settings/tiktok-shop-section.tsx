@@ -20,6 +20,7 @@ import {
   Ban,
   Check,
   CheckCircle2,
+  Compass,
   Copy,
   Download,
   Link2,
@@ -424,6 +425,67 @@ function TikTokShopPanel() {
    * yesterday — the export lags ~2 days, and capturing a day the spreadsheet
    * has no rows for gives nothing to diff against.
    */
+  /**
+   * Compass CREATOR dry run — create the export task, poll it, download the
+   * artifact, sniff its format and header, parse it, and STOP without writing.
+   *
+   * This is the one that matters. Compass reads the same warehouse the manual
+   * export does, so unlike orders/search (94-96% of the CSV, on a different
+   * date basis) it should match to the cent — it is the file Jen downloads,
+   * delivered by API instead of by hand.
+   */
+  const compassDryRun = useCallback(
+    async (brandSlug: string, reportDate: string) => {
+      setBusy(`compass:${brandSlug}`);
+      setActionError(null);
+      setTestResult((prev) => ({
+        ...prev,
+        [brandSlug]: {
+          ok: false,
+          text: `Compass ${reportDate}: creating task, then polling TikTok until the file is built…`,
+        },
+      }));
+      try {
+        const result = await post('/api/tiktok/compass/run', {
+          brandSlug, reportDate, moduleType: 'CREATOR', windowType: 'PAST_24H', dryRun: true,
+        });
+        // A 422 is a COMPLETED run that refused to write — its body is the full
+        // report and is the most informative outcome available. Treat it as a
+        // result to read, not an error to swallow.
+        const data = (result.ok ? result.data : result.data ?? {}) as {
+          stage?: string; message?: string; taskId?: string | null;
+          format?: { kind?: string; detail?: string } | null;
+          matchedColumns?: string[]; missingColumns?: string[]; totalCols?: number;
+          rowsParsed?: number; totalGmv?: number | null; warnings?: string[];
+        };
+        if (!result.ok && !data.stage) {
+          setTestResult((prev) => ({ ...prev, [brandSlug]: { ok: false, text: result.error } }));
+          return;
+        }
+        const bits = [
+          `stage=${data.stage ?? '?'}`,
+          data.taskId ? `task ${String(data.taskId).slice(0, 10)}` : 'no task id',
+          data.format?.kind ? `format=${data.format.kind}` : 'format=UNKNOWN',
+          `${data.rowsParsed ?? 0} rows`,
+          data.totalGmv != null
+            ? `GMV $${data.totalGmv.toLocaleString('en-US', { minimumFractionDigits: 2 })}`
+            : 'GMV —',
+          `cols ${data.matchedColumns?.length ?? 0}/${data.totalCols ?? 0} matched`,
+          data.missingColumns?.length ? `MISSING: ${data.missingColumns.slice(0, 6).join(', ')}` : '',
+          ...(data.warnings ?? []),
+          data.message ?? '',
+        ].filter(Boolean);
+        setTestResult((prev) => ({
+          ...prev,
+          [brandSlug]: { ok: result.ok, text: bits.join(' · ') },
+        }));
+      } finally {
+        setBusy(null);
+      }
+    },
+    [post],
+  );
+
   const captureDay = useCallback(
     async (brandSlug: string, date: string, endDate: string, orders: boolean) => {
       setBusy(`capture:${brandSlug}`);
@@ -809,6 +871,7 @@ function TikTokShopPanel() {
             onTest={() => void testConnection(conn.brandSlug)}
             testResult={testResult[conn.brandSlug] ?? null}
             onCapture={() => captureDay(conn.brandSlug, CAPTURE_DATE, CAPTURE_END_DATE, true)}
+            onCompass={() => compassDryRun(conn.brandSlug, CAPTURE_DATE)}
             onAskDisconnect={() => setDisconnectSlug(conn.brandSlug)}
             onCancelDisconnect={() => setDisconnectSlug(null)}
             onDisconnect={() => void disconnect(conn.brandSlug)}
@@ -992,6 +1055,7 @@ function ConnectionRow({
   onTest,
   testResult,
   onCapture,
+  onCompass,
   onAskDisconnect,
   onCancelDisconnect,
   onDisconnect,
@@ -1002,6 +1066,7 @@ function ConnectionRow({
   onTest: () => void;
   testResult: { ok: boolean; text: string } | null;
   onCapture: () => void;
+  onCompass: () => void;
   onAskDisconnect: () => void;
   onCancelDisconnect: () => void;
   onDisconnect: () => void;
@@ -1064,6 +1129,14 @@ function ConnectionRow({
                 <Download className="h-3.5 w-3.5" />
               )}
               Capture a day
+            </Button>
+            <Button size="sm" variant="secondary" disabled={busy !== null} onClick={onCompass}>
+              {busy === `compass:${conn.brandSlug}` ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Compass className="h-3.5 w-3.5" />
+              )}
+              Compass test
             </Button>
             <Button size="sm" variant="secondary" disabled={busy !== null} onClick={onAskDisconnect}>
               <Unplug className="h-3.5 w-3.5" />
