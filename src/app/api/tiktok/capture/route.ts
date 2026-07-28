@@ -38,6 +38,7 @@ export const maxDuration = 300;
 const VIDEO_VERSION = '202509';
 const LIVE_VERSION = '202509';
 const ORDERS_VERSION = '202410';
+const SHOP_VERSION = '202509';
 
 /** TikTok's documented maximum. */
 const PAGE_SIZE = 100;
@@ -303,6 +304,31 @@ export async function POST(request: NextRequest) {
   results.push(await pageThrough(
     'shop_lives/performance', LIVE_VERSION,
     `/analytics/${LIVE_VERSION}/shop_lives/performance`, window,
+  ));
+
+  // 3b. THE DENOMINATOR — TikTok's own shop-level total for the same day.
+  //
+  // This is the arbiter, and it should have been here from the first capture.
+  // Rolling shop_videos up gave 42-53% MORE GMV than the spreadsheet on two
+  // independent days, always upward, never down, with 13,455 of 13,674 videos
+  // matching to the penny. Two explanations survive that evidence — orders
+  // settling after the export was taken, or the export systematically
+  // excluding something — and NOTHING in our own data can separate them,
+  // because both our tables come from the same export.
+  //
+  // The shop total is the one number that comes from neither. granularity=1D
+  // returns per-day shop totals in a single call. Note the path is singular
+  // `shop` with NO {shop_id} segment.
+  //
+  // ⚠️ NO account_type param here: this endpoint reports the WHOLE shop
+  // (affiliate + official + paid), so it is an upper bound, not a like-for-like
+  // comparand. It cannot confirm the affiliate figure — but if the whole shop
+  // took less than the affiliate rollup claims, the rollup is wrong, and that
+  // is the question worth answering.
+  results.push(await pageThrough(
+    'shop/performance', SHOP_VERSION,
+    `/analytics/${SHOP_VERSION}/shop/performance`,
+    { start_date_ge: date, end_date_lt: windowEnd, granularity: '1D', currency: 'USD' },
   ));
 
   // The product-card question. shop_videos and shop_lives structurally cannot
