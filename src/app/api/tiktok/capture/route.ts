@@ -13,14 +13,34 @@
  * them wrong while every file still compiled. Types get generated from real
  * responses. That requires real responses, durably stored.
  *
- * ⚠️ account_type=AFFILIATE_ACCOUNTS IS NOT A TUNABLE. Every fact table in
- * Tempo is Affiliate-Center data; the shop_videos/shop_lives endpoints are the
- * SELLER-CENTER family and will happily return official-account and paid
- * content too. Pulling ALL would fold GMV no creator earned into per-creator
- * rows — inflating the managed-share invoice, which is a straight percentage of
- * affiliate GMV — and would put a silent discontinuity in the fact tables at
- * the cutover date, with each side internally consistent. TikTok's default for
- * this parameter is UNVERIFIED, which is exactly why it is always sent.
+ * 🚨 NEVER SOURCE GMV FROM /analytics/*. THAT FAMILY IS SELLER CENTER.
+ *
+ * TikTok splits into Seller Center (ALL shop revenue) and Affiliate Center
+ * (affiliate-attributed, commissionable revenue only). Every fact table in
+ * Tempo is Affiliate Center. The two API families mirror that split:
+ *   /analytics/*         → SELLER CENTER  (shop_videos, shop_lives, shop)
+ *   /affiliate_seller/*  → AFFILIATE CENTER (orders/search, Compass CREATOR)
+ *
+ * account_type=AFFILIATE_ACCOUNTS DOES NOT BRIDGE IT. That parameter filters
+ * WHICH ACCOUNT POSTED THE VIDEO — affiliate creator vs the brand's own
+ * official account vs a marketing account. It does NOT filter which GMV is
+ * affiliate-ATTRIBUTED. For a video posted by an affiliate creator it still
+ * returns every dollar that video drove, not the commissionable slice. I sent
+ * that parameter and believed it made the data affiliate-only. It does not.
+ *
+ * MEASURED against live JiYu data: rolling shop_videos up by creator returned
+ * 153% of the export (07-25: $29,170.64 vs $19,051.63; 07-18: $29,442.20 vs
+ * $20,734.47) — replicating on two independent days, every difference upward,
+ * ZERO videos ever lower, items_sold rising in step. orders/search for the
+ * same day returned 96% ($18,291.09) with 96 of 131 matched creators exact to
+ * the cent. Seller is a superset of affiliate, exactly as the split predicts.
+ *
+ * Sourcing GMV here would have inflated the managed-share invoice — a straight
+ * percentage of affiliate GMV — by roughly 50%, in numbers that look entirely
+ * plausible on the page.
+ *
+ * shop_videos still has a job: views, click_through_rate, title, hash_tags,
+ * duration, video_post_time, products[]. Everything EXCEPT money.
  *
  * READ-ONLY against TikTok. Two GETs and (optionally) one POST search.
  */
@@ -306,7 +326,8 @@ export async function POST(request: NextRequest) {
     `/analytics/${LIVE_VERSION}/shop_lives/performance`, window,
   ));
 
-  // 3b. THE DENOMINATOR — TikTok's own shop-level total for the same day.
+  // 3b. SHOP TOTAL — seller-center, and now known to be a DIFFERENT UNIVERSE
+  //     rather than a denominator for the affiliate figure.
   //
   // This is the arbiter, and it should have been here from the first capture.
   // Rolling shop_videos up gave 42-53% MORE GMV than the spreadsheet on two
@@ -320,18 +341,29 @@ export async function POST(request: NextRequest) {
   // returns per-day shop totals in a single call. Note the path is singular
   // `shop` with NO {shop_id} segment.
   //
-  // ⚠️ NO account_type param here: this endpoint reports the WHOLE shop
-  // (affiliate + official + paid), so it is an upper bound, not a like-for-like
-  // comparand. It cannot confirm the affiliate figure — but if the whole shop
-  // took less than the affiliate rollup claims, the rollup is wrong, and that
-  // is the question worth answering.
+  // Kept deliberately, but NOT as a check on affiliate GMV — it cannot be one.
+  // It reports the whole shop, so diffing it against the affiliate family
+  // measures the organic + paid revenue Tempo has never had visibility into.
+  // That is a genuine client-facing number (affiliate share of total shop
+  // revenue) and it must never reach a fact table.
   results.push(await pageThrough(
     'shop/performance', SHOP_VERSION,
     `/analytics/${SHOP_VERSION}/shop/performance`,
     { start_date_ge: date, end_date_lt: windowEnd, granularity: '1D', currency: 'USD' },
   ));
 
-  // The product-card question. shop_videos and shop_lives structurally cannot
+  // 4. ORDERS — THE MONEY SOURCE. Affiliate Center, affiliate-attributed by
+  //     construction, with no filter parameter to get wrong.
+  //
+  //     Each SKU line carries creator_username, price{amount}, quantity,
+  //     content_type (VIDEO|LIVE|SHOP|PROMOTION_PAGE|LINKSHARE), commission_rate,
+  //     settlement_status and estimated/actual commission — so this one endpoint
+  //     reconstructs creator-daily GMV across every channel INCLUDING the
+  //     product card, which no analytics endpoint exposes at all.
+  //
+  //     ⚠️ The first capture returned 450 rows against a reported total_count of
+  //     452. Two rows short is not a rounding difference; the page loop or the
+  //     count is wrong and it must be reconciled before this feeds anything. shop_videos and shop_lives structurally cannot
   // contain showcase/product-card sales, which run 0.4%-6.0% of affiliate GMV
   // per brand (worst at jiyu). orders/search is the only endpoint documented to
   // carry a creator identity on a non-video, non-live sale — and two research
