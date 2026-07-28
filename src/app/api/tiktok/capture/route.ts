@@ -370,8 +370,16 @@ export async function POST(request: NextRequest) {
   // agents disagreed about whether it carries an amount at all. This settles it
   // by calling it. POST, but a search is idempotent, so retries are allowed.
   if (wantOrders) {
-    // Orders filter on create_time, so the window is [start-of-D, end-of-windowEnd).
-    const bounds = { start: marketDayBounds(date).start, end: marketDayBounds(windowEnd).end };
+    // Orders filter on create_time. windowEnd is the EXCLUSIVE end the analytics
+    // endpoints take (D+1 for a single day), so the order window closes at the
+    // START of that day, never its end.
+    //
+    // ⚠️ This was wrong once and produced a convincing false result. Using
+    // `.end` of windowEnd asked for orders through the END of D+1 — two days —
+    // and the two-day total then read as 164% of a one-day CSV figure, which
+    // briefly looked like the affiliate endpoint disagreeing with the export.
+    // It did not: measured against the matching two CSV days it was 94%.
+    const bounds = { start: marketDayBounds(date).start, end: marketDayBounds(windowEnd).start };
     const ordersPath = `/affiliate_seller/${ORDERS_VERSION}/orders/search`;
     const out: PageResult = {
       endpoint: 'orders/search', version: ORDERS_VERSION, pages: 0, rows: 0,
