@@ -36,10 +36,16 @@ import {
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-/** The poll loop's default 40s budget plus create/download/parse/write, inside
- *  Vercel's ceiling. If real tasks need longer, the lifecycle must split across
- *  invocations — which is why the task id is persisted before polling. */
-export const maxDuration = 60;
+/**
+ * The poll loop's 240s budget plus create/download/parse/write.
+ *
+ * Was 60, sized around a 40s poll budget that had only ever been tested against
+ * a task TikTok had CACHED — it answered in one poll. The first cold build was
+ * still RUNNING at 42s. If real tasks eventually need longer than this, the
+ * lifecycle must split across invocations, which is exactly why the task id is
+ * persisted BEFORE polling: a timeout leaves a recoverable id, not a lost job.
+ */
+export const maxDuration = 300;
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const WINDOW_TYPES: CompassWindowType[] = ['PAST_24H', 'PAST_7_DAYS', 'PAST_30_DAYS'];

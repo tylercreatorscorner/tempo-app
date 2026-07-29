@@ -519,8 +519,16 @@ export async function pollTask(
   taskId: string,
   options: PollOptions = {},
 ): Promise<PollOutcome> {
-  const budgetMs = options.budgetMs ?? 40_000;
-  const maxPolls = options.maxPolls ?? 12;
+  // 240s / 40 polls, sized to fit inside the route's maxDuration of 300.
+  //
+  // MEASURED, not guessed. The old 40s / 12 was sized to fit a 60s function and
+  // was never tested against a task TikTok actually had to build: the first real
+  // export answered in ONE poll only because TikTok had cached it from an
+  // earlier identical request. The first genuinely NEW export (jiyu 2026-07-24)
+  // was still "RUNNING" after 7 polls and 42s, so 40s is simply too short for a
+  // cold build.
+  const budgetMs = options.budgetMs ?? 240_000;
+  const maxPolls = options.maxPolls ?? 40;
   const initialDelayMs = options.initialDelayMs ?? 2_000;
   const maxDelayMs = options.maxDelayMs ?? 8_000;
   const backoffFactor = options.backoffFactor ?? 1.5;
@@ -1173,7 +1181,10 @@ function stripNulls(echo: CompassTaskEcho): Partial<CompassTaskEcho> {
 //     ceiling — the timeout message reports the raw string it kept seeing.
 //  6. doc_type ON THE LIST CALL — RESOLVED. It is REQUIRED (400/36009004
 //     "DocType is a required field"), and now defaults to the module_type.
-//  7. HOW LONG A TASK TAKES. budgetMs 40s / maxPolls 12 are sized to fit inside
+//  7. HOW LONG A TASK TAKES — PARTLY ANSWERED. A CACHED task answers in one
+//     poll; a COLD build was still RUNNING after 42s, so the ceiling is now
+//     240s / 40 polls. The upper bound is still unknown. (Original note:
+//     budgetMs 40s / maxPolls 12 were sized to fit inside
 //     Vercel's 60s function ceiling, not to any measured build time. If real
 //     tasks routinely exceed it, the lifecycle must split across invocations —
 //     which is why the task id is persisted before polling begins.
