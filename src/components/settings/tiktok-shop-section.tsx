@@ -22,6 +22,7 @@ import {
   CheckCircle2,
   Compass,
   Copy,
+  KeyRound,
   Download,
   Link2,
   Loader2,
@@ -212,6 +213,9 @@ function TikTokShopPanel() {
   const [testResult, setTestResult] = useState<Record<string, { ok: boolean; text: string }>>({});
   const [shopChoice, setShopChoice] = useState<Record<string, string>>({});
   const [replaceArmed, setReplaceArmed] = useState<Record<string, boolean>>({});
+  // Which brand's token refresh is armed. Deliberately NOT shared with
+  // disconnect/replace: arming one destructive action must never arm another.
+  const [refreshArmed, setRefreshArmed] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -484,6 +488,67 @@ function TikTokShopPanel() {
       }
     },
     [post],
+  );
+
+  /**
+   * Rotate the token pair NOW, on purpose.
+   *
+   * Two-step: the first click ARMS, the second fires. Unlike Test connection and
+   * Capture, this MUTATES live merchant credentials and can, in the bad case,
+   * cost the connection — TikTok may kill the old refresh token the moment it
+   * issues a new pair, and if our write then fails the merchant has to
+   * re-authorize. That is worth doing five days early with someone watching,
+   * and not worth doing by misclick.
+   */
+  const refreshTokens = useCallback(
+    async (brandSlug: string) => {
+      setBusy(`refresh:${brandSlug}`);
+      setActionError(null);
+      setTestResult((prev) => ({
+        ...prev,
+        [brandSlug]: { ok: false, text: 'Asking TikTok for a new token pair, then saving it…' },
+      }));
+      try {
+        const result = await post('/api/tiktok/connections/refresh', { brand: brandSlug });
+        if (!result.ok) {
+          const d = result.data as { needsReauthorization?: boolean };
+          setTestResult((prev) => ({
+            ...prev,
+            [brandSlug]: {
+              ok: false,
+              // The single most important thing an operator needs from a failed
+              // refresh is whether to pick up the phone.
+              text: d?.needsReauthorization
+                ? `${result.error} — THE MERCHANT MUST RE-AUTHORIZE. Send them a fresh connect link.`
+                : `${result.error} (the existing token pair is untouched — safe to retry)`,
+            },
+          }));
+          return;
+        }
+        const d = result.data as {
+          firstEverRefresh?: boolean;
+          previousAccessTokenExpiresAt?: string;
+          accessTokenExpiresAt?: string;
+          refreshTokenExpiresAt?: string;
+        };
+        setTestResult((prev) => ({
+          ...prev,
+          [brandSlug]: {
+            ok: true,
+            text:
+              `Token rotated${d.firstEverRefresh ? ' — FIRST EVER refresh for this connection, the path is proven' : ''}. ` +
+              `Access token ${formatDateTime(d.previousAccessTokenExpiresAt ?? '')} → ${formatDateTime(d.accessTokenExpiresAt ?? '')}.`,
+          },
+        }));
+        // Re-read so the card's own expiry fields agree with what just happened
+        // rather than showing the pre-refresh values behind a success message.
+        await load();
+      } finally {
+        setBusy(null);
+        setRefreshArmed(null);
+      }
+    },
+    [post, load],
   );
 
   const captureDay = useCallback(
@@ -872,6 +937,10 @@ function TikTokShopPanel() {
             testResult={testResult[conn.brandSlug] ?? null}
             onCapture={() => captureDay(conn.brandSlug, CAPTURE_DATE, CAPTURE_END_DATE, true)}
             onCompass={() => compassDryRun(conn.brandSlug, CAPTURE_DATE)}
+            refreshArmed={refreshArmed}
+            onArmRefresh={() => setRefreshArmed(conn.brandSlug)}
+            onCancelRefresh={() => setRefreshArmed(null)}
+            onRefresh={() => refreshTokens(conn.brandSlug)}
             onAskDisconnect={() => setDisconnectSlug(conn.brandSlug)}
             onCancelDisconnect={() => setDisconnectSlug(null)}
             onDisconnect={() => void disconnect(conn.brandSlug)}
@@ -1056,6 +1125,10 @@ function ConnectionRow({
   testResult,
   onCapture,
   onCompass,
+  onArmRefresh,
+  onCancelRefresh,
+  onRefresh,
+  refreshArmed,
   onAskDisconnect,
   onCancelDisconnect,
   onDisconnect,
@@ -1067,6 +1140,10 @@ function ConnectionRow({
   testResult: { ok: boolean; text: string } | null;
   onCapture: () => void;
   onCompass: () => void;
+  onArmRefresh: () => void;
+  onCancelRefresh: () => void;
+  onRefresh: () => void;
+  refreshArmed: string | null;
   onAskDisconnect: () => void;
   onCancelDisconnect: () => void;
   onDisconnect: () => void;
@@ -1138,6 +1215,26 @@ function ConnectionRow({
               )}
               Compass test
             </Button>
+            {refreshArmed === conn.brandSlug ? (
+              <>
+                <Button size="sm" variant="danger" disabled={busy !== null} onClick={onRefresh}>
+                  {busy === `refresh:${conn.brandSlug}` ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <KeyRound className="h-3.5 w-3.5" />
+                  )}
+                  Rotate now
+                </Button>
+                <Button size="sm" variant="ghost" disabled={busy !== null} onClick={onCancelRefresh}>
+                  Cancel
+                </Button>
+              </>
+            ) : (
+              <Button size="sm" variant="secondary" disabled={busy !== null} onClick={onArmRefresh}>
+                <KeyRound className="h-3.5 w-3.5" />
+                Refresh token
+              </Button>
+            )}
             <Button size="sm" variant="secondary" disabled={busy !== null} onClick={onAskDisconnect}>
               <Unplug className="h-3.5 w-3.5" />
               Disconnect

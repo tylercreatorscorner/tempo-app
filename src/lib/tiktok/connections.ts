@@ -97,11 +97,16 @@ interface ConnectionRow {
   refresh_token_encrypted: string | null;
   access_token_expires_at: string;
   refresh_token_expires_at: string;
+  /** NULL until a rotation has actually happened. forceTokenRefresh reports
+   *  whether it is about to be the first one, which is the whole point of
+   *  running it deliberately. */
+  last_token_refresh: string | null;
 }
 
 const LIVE_COLUMNS =
   'id, brand_slug, shop_id, shop_cipher, shop_name, access_token_encrypted, ' +
-  'refresh_token_encrypted, access_token_expires_at, refresh_token_expires_at';
+  'refresh_token_encrypted, access_token_expires_at, refresh_token_expires_at, ' +
+  'last_token_refresh';
 
 const STATUS_COLUMNS =
   'brand_slug, shop_id, shop_name, seller_name, seller_base_region, is_active, connected_at, ' +
@@ -117,21 +122,14 @@ const STATUS_COLUMNS =
  * error message strings will get it wrong. A genuinely unexpected failure (the
  * DB read itself) still throws.
  */
-export async function getActiveConnection(brandSlug: string): Promise<ConnectionResult> {
-  const slug = (brandSlug ?? '').trim();
-  if (!slug) {
-    return fail('not_connected', 'No brand slug supplied.', false);
-  }
-
-  if (!isTokenEncryptionConfigured()) {
-    return fail(
-      'not_configured',
-      'TIKTOK_TOKEN_ENC_KEY is missing or malformed, so stored tokens cannot be read. ' +
-        'This is a deployment problem, not a merchant one.',
-      false,
-    );
-  }
-
+/**
+ * Load the one live connection row for a brand. Shared by getActiveConnection
+ * and forceTokenRefresh so there is a single definition of "the active
+ * connection" — two copies would eventually disagree about is_active.
+ */
+async function loadLiveRow(
+  slug: string,
+): Promise<{ ok: true; row: ConnectionRow } | ConnectionFailure> {
   const supabase = await createAdminClient();
   const { data, error } = await supabase
     .from('tiktok_shop_connections')
@@ -155,6 +153,99 @@ export async function getActiveConnection(brandSlug: string): Promise<Connection
       true,
     );
   }
+  return { ok: true, row };
+}
+
+/**
+ * Rotate a brand's token pair NOW, regardless of how much life the current
+ * access token has left.
+ *
+ * WHY THIS EXISTS: rotateTokens has never executed against TikTok. It only runs
+ * from getActiveConnection inside a 15-minute expiry skew, so the first real
+ * attempt would have happened unattended — for JiYu, at 2026-08-03 15:17 UTC.
+ * A refresh path that has never run is not a working refresh path; it is an
+ * assumption with a date on it. Exercising it deliberately, while someone is
+ * watching and the merchant is reachable, converts a 3am outage into a
+ * business-hours phone call.
+ *
+ * ⚠️ NOT RISK-FREE, and the risk is worth stating plainly. TikTok may invalidate
+ * the old refresh token the moment it issues a new pair. If the mint succeeds
+ * and the write does not, the connection is dead and the merchant must
+ * re-authorize. rotateTokens guards that as well as it can — one atomic update,
+ * rowcount asserted rather than trusting error === null, and an explicit
+ * "reconnect the brand" verdict if the save fails — but the window cannot be
+ * closed entirely. Doing this five days early is what makes it acceptable:
+ * the same failure on 2026-08-03 arrives with no warning and no one looking.
+ *
+ * Returns EXPIRY DATES ONLY. Never the tokens.
+ */
+export async function forceTokenRefresh(
+  brandSlug: string,
+): Promise<
+  | {
+      ok: true;
+      brandSlug: string;
+      shopName: string | null;
+      accessTokenExpiresAt: string;
+      refreshTokenExpiresAt: string;
+      previousAccessTokenExpiresAt: string;
+      firstEverRefresh: boolean;
+    }
+  | ConnectionFailure
+> {
+  const slug = (brandSlug ?? '').trim();
+  if (!slug) return fail('not_connected', 'No brand slug supplied.', false);
+
+  if (!isTokenEncryptionConfigured()) {
+    return fail(
+      'not_configured',
+      'TIKTOK_TOKEN_ENC_KEY is missing or malformed, so stored tokens cannot be read. ' +
+        'This is a deployment problem, not a merchant one.',
+      false,
+    );
+  }
+
+  const loaded = await loadLiveRow(slug);
+  if (!loaded.ok) return loaded;
+  const row = loaded.row;
+
+  const previousAccessTokenExpiresAt = row.access_token_expires_at;
+  const firstEverRefresh = !row.last_token_refresh;
+
+  const rotated = await rotateTokens(row);
+  if (!rotated.ok) return rotated;
+
+  // rotateTokens mutates the row in place with what it persisted, so these are
+  // the stored values rather than a hopeful echo of the request.
+  return {
+    ok: true,
+    brandSlug: row.brand_slug,
+    shopName: row.shop_name ?? null,
+    accessTokenExpiresAt: row.access_token_expires_at,
+    refreshTokenExpiresAt: row.refresh_token_expires_at,
+    previousAccessTokenExpiresAt,
+    firstEverRefresh,
+  };
+}
+
+export async function getActiveConnection(brandSlug: string): Promise<ConnectionResult> {
+  const slug = (brandSlug ?? '').trim();
+  if (!slug) {
+    return fail('not_connected', 'No brand slug supplied.', false);
+  }
+
+  if (!isTokenEncryptionConfigured()) {
+    return fail(
+      'not_configured',
+      'TIKTOK_TOKEN_ENC_KEY is missing or malformed, so stored tokens cannot be read. ' +
+        'This is a deployment problem, not a merchant one.',
+      false,
+    );
+  }
+
+  const loaded = await loadLiveRow(slug);
+  if (!loaded.ok) return loaded;
+  const row = loaded.row;
 
   if (!row.access_token_encrypted || !row.refresh_token_encrypted) {
     return fail(
