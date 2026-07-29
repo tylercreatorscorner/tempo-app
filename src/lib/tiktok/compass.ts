@@ -850,6 +850,20 @@ export interface HeaderMatchVerdict {
   expected: TypeScore | null;
   /** Highest-scoring OTHER report — the thing we might actually have received. */
   runnerUp: TypeScore | null;
+  /**
+   * The file's ACTUAL column labels, verbatim.
+   *
+   * Without these a rejection says "11 of 23 matched" and stops, which is
+   * enough to refuse the write and useless for fixing it — the whole question
+   * is what the other 12 are CALLED. Compass's "Transaction Analysis" exports
+   * are a different report family from the Affiliate Center downloads the
+   * COLUMN_MAPs were built from, so a mismatch is expected to be a naming
+   * difference rather than the wrong data, and naming differences are only
+   * fixable if you can see the names.
+   *
+   * Column LABELS only — never a row of values.
+   */
+  observedColumns: string[];
   message: string;
 }
 
@@ -878,11 +892,15 @@ export function assertReportMatchesModule(
       expectedTable,
       expected: null,
       runnerUp: null,
+      observedColumns: [],
       message:
         `[compass] the workbook produced no header row (empty sheet, or a header-only file). ` +
         `Expected the ${fileType} export for ${expectedTable}. Nothing was written.`,
     };
   }
+
+  // Captured once and attached to every verdict below, pass or fail.
+  const observedColumns = Object.keys(headerRow);
 
   const scores = scoreAllTypes(headerRow);
   const expected = scores.find((s) => s.table === expectedTable) ?? null;
@@ -898,6 +916,7 @@ export function assertReportMatchesModule(
       expectedTable,
       expected,
       runnerUp,
+      observedColumns,
       message:
         `[compass] module_type=${moduleType} asked for the ${expectedTable} report, but the file's columns ` +
         `match it only ${pct(expected)}. Closest other report: ${pct(runnerUp)}. ` +
@@ -911,6 +930,7 @@ export function assertReportMatchesModule(
       expectedTable,
       expected,
       runnerUp,
+      observedColumns,
       message:
         `[compass] module_type=${moduleType} asked for the ${expectedTable} report, and the columns are ` +
         `ambiguous: ${pct(expected)} vs ${pct(runnerUp)}. On the manual upload path a human resolves this; ` +
@@ -923,6 +943,7 @@ export function assertReportMatchesModule(
     expectedTable,
     expected,
     runnerUp,
+    observedColumns,
     message: `columns match ${pct(expected)}; next closest ${pct(runnerUp)}`,
   };
 }
