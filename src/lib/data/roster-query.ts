@@ -1109,13 +1109,16 @@ export async function runRosterQuery(
     }
   }
 
-  // ── 7b'. Finance scrub. A finance-blind scope (coach / walled-off manager —
-  // "Finance: none") must never receive retainer dollars or the ROI derived from
-  // them. Null the money fields on the OUTPUT rows only (shape stays stable;
+  // ── 7b'. Creator-cost scrub. A scope with no creator-cost access (coaches)
+  // must never receive retainer dollars or the ROI derived from them.
+  //
+  // Deliberately NOT canViewFinance: that flag walls off the AGENCY's books,
+  // and a brand manager withheld from their own roster's retainers cannot do
+  // their job — the column rendered "—" as though no retainer existed. Null the money fields on the OUTPUT rows only (shape stays stable;
   // null, not 0, so the UI renders "—" instead of a fabricated $0). Health,
   // sort, and the low_roi counts above already ran on the real values —
   // everything else is byte-identical.
-  if (!scope.canViewFinance) {
+  if (!scope.canViewCreatorCost) {
     dataOut = dataOut.map((r) => ({
       ...r,
       retainer: null,
@@ -1247,7 +1250,7 @@ export async function runRosterQuery(
       total_gmv_period,
       // Total monthly retainer commitment (period-independent). Withheld (null,
       // rendered "—") from finance-blind scopes — never a fabricated $0.
-      total_retainer: scope.canViewFinance ? total_retainer : null,
+      total_retainer: scope.canViewCreatorCost ? total_retainer : null,
     },
   };
 }

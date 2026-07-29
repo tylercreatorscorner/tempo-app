@@ -31,7 +31,9 @@ export async function POST(
   // A finance-blind user must not set retainers. Drop the field (keep the rest
   // of the edit): their UI is served retainer-as-absence, so a save would
   // otherwise round-trip a destructive $0 over the real figure.
-  if (!scope.canViewFinance) delete brandUpdates.retainer;
+  // Creator cost, not agency finance. The creator page now DISPLAYS the
+  // retainer, so a write path that strips it would make read and write disagree.
+  if (!scope.canViewCreatorCost) delete brandUpdates.retainer;
 
   if (Object.keys(creatorUpdates).length === 0 && Object.keys(brandUpdates).length === 0) {
     return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });

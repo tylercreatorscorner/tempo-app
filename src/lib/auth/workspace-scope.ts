@@ -41,7 +41,28 @@ export interface WorkspaceScope {
   /** False for a brand-scoped member the owner has walled off from Finance.
    *  Owner/admin/viewer are always true. THE finance access gate — checked by the
    *  finance pages + every /api/earnings|invoices|payments route. */
+  /**
+   * The AGENCY's books: /earnings, /invoicing, /payments, the Finance nav, and
+   * invoice-guard. Owner/admin/viewer always; a manager only with the flag; a
+   * coach never. This is the one that keeps CC's own invoices and earnings
+   * private, and it is deliberately restrictive.
+   */
   canViewFinance: boolean;
+  /**
+   * What a manager PAYS their own creators — the Retainer column, the ROI
+   * derived from it, and Total Retainers.
+   *
+   * SPLIT OUT OF canViewFinance 2026-07-29, because one flag was wired to two
+   * unrelated things. Withholding the agency P&L from a brand manager is
+   * correct. Withholding the retainer they personally negotiated, from the
+   * creator they personally manage, is not — it made 10 of 11 managers unable
+   * to see the cost of their own roster, and the column rendered "—" as though
+   * no retainer existed.
+   *
+   * Managers AND coaches are already confined to their own brands by
+   * brandScope, so this exposes nothing cross-brand.
+   */
+  canViewCreatorCost: boolean;
   brandScope: BrandScope;
   /** Set when a platform admin is "viewing as" this member (read-only preview). */
   impersonating?: { userId: string; name: string | null };
@@ -73,6 +94,12 @@ async function scopeFromProfile(
     : role === 'coach'
       ? false
       : (profile.can_view_finance ?? true);
+  // EVERY workspace role sees their own creators' cost — managers AND coaches,
+  // flag or no flag. The flag governs the agency's books, not roster spend.
+  // Owner's call, 2026-07-29: a coach working with a creator needs to know what
+  // that creator is being paid. Brand/brand_contact/creator roles never reach
+  // here — scopeFromProfile returns null for them above.
+  const canViewCreatorCost = true;
   const base = {
     userId: profile.user_id,
     email: profile.email ?? emailFallback ?? '',
@@ -80,6 +107,7 @@ async function scopeFromProfile(
     tenantId: profile.tenant_id,
     role,
     canViewFinance,
+    canViewCreatorCost,
   };
 
   if (FULL_TENANT_ROLES.has(role)) {

@@ -114,7 +114,9 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
   // render as "—"/absence below, never a fabricated $0. (Per-request memo, so
   // this is the same snapshot the admin layout already resolved.)
   const scope = await getWorkspaceScope();
-  const canViewFinance = scope?.canViewFinance ?? false;
+  // Creator COST, not agency finance — the manager of this creator pays it.
+  // Named for what it is, so a real finance gate here cannot reuse it by accident.
+  const canViewCost = scope?.canViewCreatorCost ?? false;
 
   const { startDate, endDate } = resolveDateRange(sp.range, sp.start, sp.end);
   const selectedBrand = sp.brand || null;
@@ -391,7 +393,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
           trend={trendPct(summary.total_commission, summary.prev_commission)}
           trendLabel="vs prior period"
         />
-        {managedInfo && managedInfo.retainer > 0 && !canViewFinance ? (
+        {managedInfo && managedInfo.retainer > 0 && !canViewCost ? (
           // Finance-blind viewer: ROI divides by the retainer and the subline
           // spells out the dollars — both render as absence, never numbers.
           <StatCard
@@ -428,7 +430,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
               creatorId: profile.id,
               // Withheld (null) from finance-blind viewers — the tracker keeps
               // the post-quota progress but omits the dollar figure entirely.
-              retainer: canViewFinance ? managedInfo.retainer : null,
+              retainer: canViewCost ? managedInfo.retainer : null,
               monthlyPostRequirement: managedInfo.monthly_post_requirement,
               retainerStartDate: profile.retainer_start_date,
               postsThisMonth,

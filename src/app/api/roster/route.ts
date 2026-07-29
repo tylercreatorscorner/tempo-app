@@ -33,9 +33,13 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json();
   const { brand, real_name, discord_name, notes, monthly_post_requirement } = body;
-  // A finance-blind user (coach / walled-off manager) must not set retainers —
-  // force any submitted value to 0 before it reaches the insert/restore paths.
-  const retainer = scope.canViewFinance ? body.retainer : 0;
+  // Retainers are creator COST, not the agency's books — see workspace-scope.ts.
+  //
+  // ⚠️ This used to read canViewFinance, which meant the 10 managers with that
+  // flag off had every submitted retainer silently coerced to 0. The add form's
+  // "Monthly Retainer ($)" input is not gated, so they could type $2,200, get a
+  // 200, and end up with a $0 row rendering "—". A silent money-write-to-zero.
+  const retainer = scope.canViewCreatorCost ? body.retainer : 0;
 
   const rawHandles: string[] = Array.isArray(body.handles)
     ? body.handles

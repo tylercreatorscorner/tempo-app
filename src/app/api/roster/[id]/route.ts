@@ -56,7 +56,9 @@ export async function PATCH(
   // A finance-blind user must not set retainers. Drop the field (don't 403 the
   // whole edit): the roster serves them retainer: null, so their edit form
   // would otherwise round-trip a destructive $0 over the real figure on save.
-  if (!scope.canViewFinance) delete updates.retainer;
+  // Creator cost, not agency finance. Previously canViewFinance, which made a
+  // retainer edit a silent 200-OK no-op for finance-blind managers.
+  if (!scope.canViewCreatorCost) delete updates.retainer;
 
   let normalizedHandles: string[] | null = null;
   if (Array.isArray(body.handles)) {
