@@ -65,6 +65,21 @@ import { scoreAllTypes, type TypeScore } from '../upload/type-sniff';
  * Still overridable by env, because TikTok ships new versions without notice and
  * a version bump should not need a deploy.
  */
+/**
+ * ⚠️ TIKTOK DEDUPES EXPORT TASKS. Measured 2026-07-29: three separate runs for
+ * jiyu / CREATOR / PAST_24H / end_day 2026-07-18 all returned the SAME task id
+ * (01KYMMXK7QF7VBHPA7JSEJJC36v2), poll_count 1 each time because the file was
+ * already built.
+ *
+ * Two consequences for anything built on this module:
+ *   1. Re-running a brand-day does NOT get you a fresh export. You get the
+ *      artifact built at the FIRST request, however stale. To pick up restated
+ *      figures you need a different end_day or to wait out whatever retention
+ *      TikTok applies to the task — not a re-click.
+ *   2. Any table keyed UNIQUE on task_id must UPSERT, never insert. A plain
+ *      insert fails on the second run and, if the caller treats that as "could
+ *      not record", silently disables every later write for that run.
+ */
 export const DEFAULT_COMPASS_API_VERSION =
   process.env.TIKTOK_COMPASS_API_VERSION?.trim() || '202603';
 
