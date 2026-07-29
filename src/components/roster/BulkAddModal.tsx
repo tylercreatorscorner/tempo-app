@@ -15,14 +15,19 @@ import { SegmentedControl } from '@/components/ui/segmented';
 import { TableCard, Table, THead, TBody, TR, TH, TD } from '@/components/ui/table';
 import { useBrandList } from '@/hooks/use-brand-list';
 
-// One creator headed for the roster. Only `handle` is required; the rest are
-// optional and fall back to the batch defaults / endpoint defaults.
-export interface BulkRow {
-  handle: string;
-  name?: string;
-  retainer?: number;
-  monthly_post_requirement?: number;
-}
+import {
+  type BulkRow,
+  type RejectedRow,
+  type NotedRow,
+  rowsFromCsv,
+  rowsFromPaste,
+  dedupeByHandle,
+  toNum,
+} from '@/lib/roster/bulk-parse';
+
+// Re-exported: /roster/page.tsx has always imported BulkRow from this module,
+// and moving the parser out is not a reason to break that import.
+export type { BulkRow, RejectedRow, NotedRow } from '@/lib/roster/bulk-parse';
 
 interface BulkAddModalProps {
   // Pre-selected brand slug (e.g. the roster's active brand filter). '' / 'all'
@@ -47,99 +52,6 @@ interface BulkResult {
   total: number;
 }
 
-// ── CSV parsing (quote-aware, mirrors the single-cell parser elsewhere). ──
-function parseLine(line: string): string[] {
-  const out: string[] = [];
-  let cur = '';
-  let q = false;
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
-    if (ch === '"') {
-      if (q && line[i + 1] === '"') { cur += '"'; i++; }
-      else q = !q;
-    } else if (ch === ',' && !q) {
-      out.push(cur.trim());
-      cur = '';
-    } else {
-      cur += ch;
-    }
-  }
-  out.push(cur.trim());
-  return out;
-}
-
-// Forgiving header aliases so a roughly-shaped spreadsheet still imports.
-const HANDLE_KEYS = ['handle', 'creator_handle', 'tiktok_handle', 'tiktok_username', 'username', 'account'];
-const NAME_KEYS = ['name', 'creator_name', 'real_name', 'full_name'];
-const RETAINER_KEYS = ['retainer', 'retainer_amount', 'monthly_retainer'];
-const POSTS_KEYS = ['monthly_post_requirement', 'posts_per_month', 'posts', 'post_requirement'];
-
-function pick(row: Record<string, string>, keys: string[]): string {
-  for (const k of keys) if (row[k]) return row[k];
-  return '';
-}
-
-function toNum(v: string): number | undefined {
-  if (!v) return undefined;
-  const n = Number(v.replace(/[$,]/g, ''));
-  // >= 0 so an explicit 0 (e.g. a $0 retainer) survives instead of being
-  // dropped and silently replaced by the batch default downstream.
-  return Number.isFinite(n) && n >= 0 ? n : undefined;
-}
-
-// Dedup by lowercased handle (keep first) so the preview + button count match
-// what the server actually adds — the endpoint dedups the same way.
-function dedupeByHandle(rows: BulkRow[]): BulkRow[] {
-  const seen = new Set<string>();
-  const out: BulkRow[] = [];
-  for (const r of rows) {
-    const k = r.handle.toLowerCase().replace(/^@/, '');
-    if (!k || seen.has(k)) continue;
-    seen.add(k);
-    out.push(r);
-  }
-  return out;
-}
-
-function rowsFromCsv(text: string): { rows: BulkRow[]; error: string | null } {
-  const lines = text.split(/\r?\n/).filter((l) => l.trim());
-  if (lines.length === 0) return { rows: [], error: null };
-  const headers = parseLine(lines[0]).map((h) => h.toLowerCase().replace(/\s+/g, '_'));
-  if (!HANDLE_KEYS.some((k) => headers.includes(k))) {
-    return { rows: [], error: 'CSV needs a handle column (e.g. "handle" or "creator_handle").' };
-  }
-  const rows: BulkRow[] = [];
-  for (const line of lines.slice(1)) {
-    const vals = parseLine(line);
-    const rec: Record<string, string> = {};
-    headers.forEach((h, i) => { rec[h] = vals[i] ?? ''; });
-    const handle = pick(rec, HANDLE_KEYS).replace(/^@/, '').trim();
-    if (!handle) continue;
-    rows.push({
-      handle,
-      name: pick(rec, NAME_KEYS) || undefined,
-      retainer: toNum(pick(rec, RETAINER_KEYS)),
-      monthly_post_requirement: toNum(pick(rec, POSTS_KEYS)),
-    });
-  }
-  return { rows, error: null };
-}
-
-// Paste mode: one creator per line, optionally "handle, name".
-function rowsFromPaste(text: string): BulkRow[] {
-  return text
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const [h, ...rest] = parseLine(line);
-      const handle = (h || '').replace(/^@/, '').trim();
-      const name = rest.join(', ').trim();
-      return { handle, name: name || undefined };
-    })
-    .filter((r) => r.handle.length > 0);
-}
-
 export function BulkAddModal({ defaultBrand, initialRows, onClose, onSuccess }: BulkAddModalProps) {
   const { brands } = useBrandList();
   const hasInitial = !!initialRows && initialRows.length > 0;
@@ -147,6 +59,12 @@ export function BulkAddModal({ defaultBrand, initialRows, onClose, onSuccess }: 
   const [brand, setBrand] = useState(defaultBrand && defaultBrand !== 'all' ? defaultBrand : '');
   const [pasteText, setPasteText] = useState('');
   const [csvRows, setCsvRows] = useState<BulkRow[]>([]);
+  // Rejected + adjusted rows travel WITH the good ones. A CSV import that
+  // quietly drops three of twenty-eight looks identical to one that imported
+  // everything, and the operator only finds out when a creator is missing at
+  // invoice time.
+  const [csvRejected, setCsvRejected] = useState<RejectedRow[]>([]);
+  const [csvNotes, setCsvNotes] = useState<NotedRow[]>([]);
   const [fileName, setFileName] = useState('');
   const [csvError, setCsvError] = useState('');
   const [dragOver, setDragOver] = useState(false);
@@ -157,19 +75,28 @@ export function BulkAddModal({ defaultBrand, initialRows, onClose, onSuccess }: 
   const [result, setResult] = useState<BulkResult | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const pasteOutcome = useMemo(() => rowsFromPaste(pasteText), [pasteText]);
+
   const rows = useMemo<BulkRow[]>(
-    () => dedupeByHandle(hasInitial ? initialRows! : mode === 'paste' ? rowsFromPaste(pasteText) : csvRows),
-    [hasInitial, initialRows, mode, pasteText, csvRows],
+    () => dedupeByHandle(hasInitial ? initialRows! : mode === 'paste' ? pasteOutcome.rows : csvRows),
+    [hasInitial, initialRows, mode, pasteOutcome, csvRows],
   );
+  const rejected = hasInitial ? [] : mode === 'paste' ? pasteOutcome.rejected : csvRejected;
+  const notes = hasInitial ? [] : mode === 'paste' ? pasteOutcome.notes : csvNotes;
 
   const handleFile = useCallback((file: File) => {
     setCsvError('');
     setFileName(file.name);
     const reader = new FileReader();
     reader.onload = (e) => {
-      const { rows: parsed, error: err } = rowsFromCsv((e.target?.result as string) || '');
-      if (err) { setCsvError(err); setCsvRows([]); return; }
-      setCsvRows(parsed);
+      const parsed = rowsFromCsv((e.target?.result as string) || '');
+      if (parsed.error) {
+        setCsvError(parsed.error); setCsvRows([]); setCsvRejected([]); setCsvNotes([]);
+        return;
+      }
+      setCsvRows(parsed.rows);
+      setCsvRejected(parsed.rejected);
+      setCsvNotes(parsed.notes);
     };
     reader.readAsText(file);
   }, []);
@@ -437,7 +364,17 @@ export function BulkAddModal({ defaultBrand, initialRows, onClose, onSuccess }: 
                       <TBody>
                         {rows.slice(0, 50).map((r, i) => (
                           <TR key={i} className="hover:bg-muted">
-                            <TD className="font-medium text-foreground">@{r.handle}</TD>
+                            <TD className="font-medium text-foreground">
+                              @{r.handle}
+                              {/* The other accounts of the SAME person. Shown so
+                                  "one creator, three handles" is visibly one row
+                                  rather than looking like two got lost. */}
+                              {r.extraHandles && r.extraHandles.length > 0 && (
+                                <span className="text-muted-foreground font-normal">
+                                  {' '}+ {r.extraHandles.map((h) => `@${h}`).join(', ')}
+                                </span>
+                              )}
+                            </TD>
                             <TD className="text-left">{r.name || '—'}</TD>
                             <TD className="text-left">{r.retainer ? `$${r.retainer}` : '—'}</TD>
                             <TD className="text-left">{r.monthly_post_requirement ?? '—'}</TD>
@@ -450,6 +387,35 @@ export function BulkAddModal({ defaultBrand, initialRows, onClose, onSuccess }: 
                     <p className="text-xs text-muted-foreground px-4 py-2 bg-secondary border-t border-border">Showing first 50 of {rows.length}</p>
                   )}
                 </TableCard>
+              )}
+
+              {/* Rows we changed. A silent "correction" is a guess the operator
+                  never got to veto, so every adjustment is stated. */}
+              {notes.length > 0 && (
+                <div className="rounded-lg border border-border bg-secondary/40 px-3 py-2 space-y-1">
+                  {notes.map((n, i) => (
+                    <p key={i} className="text-xs text-muted-foreground">
+                      <span className="font-medium text-foreground">@{n.handle}</span> — {n.note}
+                    </p>
+                  ))}
+                </div>
+              )}
+
+              {/* Rows we refused. NEVER silent: a creator that disappears between
+                  the spreadsheet and the roster is one nobody gets paid. */}
+              {rejected.length > 0 && (
+                <div className="rounded-lg border border-[var(--pulse-warn)]/40 bg-[var(--pulse-warn)]/5 px-3 py-2 space-y-1">
+                  <p className="text-xs font-medium text-[var(--pulse-warn)] flex items-center gap-1.5">
+                    <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                    {rejected.length} row{rejected.length === 1 ? '' : 's'} will NOT be added
+                  </p>
+                  {rejected.map((r, i) => (
+                    <p key={i} className="text-xs text-muted-foreground">
+                      {r.name ? <span className="text-foreground">{r.name}</span> : null}
+                      {r.name ? ' — ' : null}{r.reason}
+                    </p>
+                  ))}
+                </div>
               )}
 
               {/* Submit */}

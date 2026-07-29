@@ -28,7 +28,9 @@ import { getBrandRegistry, slugToUuid } from '@/lib/data/brand-registry';
  *
  * Body: {
  *   brand: string,                       // brand slug — required, one per batch
- *   creators: Array<{ handle: string, name?: string, retainer?: number, monthly_post_requirement?: number }>,
+ *   creators: Array<{ handle: string, extraHandles?: string[], name?: string,
+ *                     retainer?: number, monthly_post_requirement?: number }>,
+ *     — extraHandles are the SAME person's other accounts → account_2..5.
  *   defaults?: { retainer?: number, monthly_post_requirement?: number },  // used when a row omits its own
  * }
  */
@@ -117,7 +119,15 @@ export async function POST(request: NextRequest) {
   const defMpr = Number.isFinite(dm) && dm >= 0 ? dm : 30;
 
   // ── Normalize + dedup the payload by handle (lowercased), keeping the first.
-  type InRow = { handle: string; key: string; name: string | null; retainer: number; mpr: number; products: string[] };
+  //
+  // `key` is the primary handle; `allKeys` is every handle this ONE person has
+  // (account_1..5). A sheet writes them in one cell — "supplementbestie,
+  // newtiktokshopcreator, supplementfairy" — and the parser splits them, but
+  // they are one creator and must be deduped, looked up and written as one.
+  type InRow = {
+    handle: string; key: string; allKeys: string[];
+    name: string | null; retainer: number; mpr: number; products: string[];
+  };
   const seen = new Set<string>();
   const incoming: InRow[] = [];
   for (const c of creators) {
@@ -125,7 +135,13 @@ export async function POST(request: NextRequest) {
     if (!raw) continue;
     const key = raw.toLowerCase();
     if (seen.has(key)) continue;
-    seen.add(key);
+    // Extra handles are normalised the same way and deduped against the whole
+    // batch, so the same handle cannot arrive twice under two people.
+    const extras = (Array.isArray(c.extraHandles) ? c.extraHandles : [])
+      .map((h) => String(h ?? '').trim().replace(/^@/, '').toLowerCase())
+      .filter((h) => h && h !== key && !seen.has(h));
+    const allKeys = [key, ...Array.from(new Set(extras))].slice(0, 5);
+    for (const k of allKeys) seen.add(k);
     const rr = Number(c.retainer);
     const rm = Number(c.monthly_post_requirement);
     const name = c.name != null && String(c.name).trim() ? String(c.name).trim() : null;
@@ -135,6 +151,7 @@ export async function POST(request: NextRequest) {
     incoming.push({
       handle: raw,
       key,
+      allKeys,
       name,
       retainer: Number.isFinite(rr) && rr >= 0 ? rr : defRetainer,
       mpr: Number.isFinite(rm) && rm >= 0 ? rm : defMpr,
@@ -146,9 +163,18 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = await createAdminClient();
-  // r.key is the lowercased handle; tiktok_accounts is stored lowercase, so match
-  // on it (r.handle keeps original case for display only).
-  const handles = incoming.map((r) => r.key);
+  // r.key is the lowercased handle. tiktok_accounts IS stored lowercase — but by
+  // a database trigger (trg_tiktok_accounts_lower_username), not by this route,
+  // which used to write r.handle in whatever case the spreadsheet had. The
+  // trigger covered for it there; managed_creators has no such trigger, and 59
+  // of its account_1 values are mixed case as a result. Everything below now
+  // writes the lowercased key, so the invariant holds without the trigger
+  // having to save it.
+  //
+  // EVERY handle is looked up, not just the primary: if "newtiktokshopcreator"
+  // is already on this brand's roster under someone else, adding it as person
+  // B's account_2 would silently create a second owner for the same handle.
+  const handles = incoming.flatMap((r) => r.allKeys);
 
   // ── Read this brand's existing managed_creators (active AND archived) so we
   //    can three-way partition. archived rows still carry their handle in
@@ -289,8 +315,13 @@ export async function POST(request: NextRequest) {
       employment_status: 'active',
       tenant_id: tenantId,
       creator_id: handleToCreator.get(r.key)!,
-      account_1: r.handle,
-      account_2: null, account_3: null, account_4: null, account_5: null,
+      // Lowercased, and account_2..5 actually populated — these columns have
+      // existed since the legacy schema and nothing could fill them until now.
+      account_1: r.allKeys[0] ?? r.key,
+      account_2: r.allKeys[1] ?? null,
+      account_3: r.allKeys[2] ?? null,
+      account_4: r.allKeys[3] ?? null,
+      account_5: r.allKeys[4] ?? null,
       product_assignments: r.products,
     }));
     const { error: mcErr } = await supabase.from('managed_creators').insert(managedRows);
@@ -305,15 +336,19 @@ export async function POST(request: NextRequest) {
     added = ready.length;
 
     // tiktok_accounts — one (handle, brand) row, skipping combos already there.
-    const taRows = ready
-      .filter((r) => !existingCombos.has(`${r.key}|${brandUuid}`))
-      .map((r) => ({
-        creator_id: handleToCreator.get(r.key)!,
-        tenant_id: tenantId,
-        tiktok_username: r.handle,
-        brand_id: brandUuid,
-        is_primary: true,
-      }));
+    // One row per (handle, brand) — for EVERY handle the person has, not just
+    // the primary, or their other accounts' GMV never resolves back to them.
+    const taRows = ready.flatMap((r) =>
+      r.allKeys
+        .filter((k) => !existingCombos.has(`${k}|${brandUuid}`))
+        .map((k, i) => ({
+          creator_id: handleToCreator.get(r.key)!,
+          tenant_id: tenantId,
+          tiktok_username: k,
+          brand_id: brandUuid,
+          is_primary: i === 0,
+        })),
+    );
     if (taRows.length > 0) {
       const { error: taErr } = await supabase.from('tiktok_accounts').insert(taRows);
       if (taErr) warnings.push(`Handle linking partially failed: ${taErr.message}`);
