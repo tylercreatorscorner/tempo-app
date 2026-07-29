@@ -125,9 +125,27 @@ const CALLBACK_MESSAGES: Record<string, string> = {
 };
 
 /**
- * The day the capture spike targets.
+ * The day the capture + Compass buttons target.
  *
- * NOW 07-18, not 07-25, and the reason is the whole point of this run.
+ * NOW 2026-07-24, for two independent reasons.
+ *
+ * ⚠️ COMPASS: TikTok DEDUPES export tasks — every request for the same
+ * module_type + window_type + end_day returns the task built at the FIRST
+ * request, not a fresh one. Three clicks on 07-18 all came back as task
+ * 01KYMMXK7Q with poll_count 1. Re-clicking the same day can therefore never
+ * produce a new artifact; only a different end_day can.
+ *
+ * ⚠️ THE DIFF: 07-24 is the FIRST day creator_performance.video_gmv is
+ * populated (it is NULL for every earlier day), so if the Compass columns do
+ * map, the numbers can be diffed immediately instead of needing another round
+ * trip. Measured, not estimated — jiyu 2026-07-24 in creator_performance:
+ *   all-channel  $22,436.68
+ *   video        $20,329.04
+ *   live          $1,622.03
+ *   product card    $485.61
+ *   8,867 creator rows, of which only 172 earned anything.
+ *
+ * The earlier 07-18 note, kept because the reasoning still holds:
  *
  * Capturing 07-25 returned $29,170.64 against the CSV's $19,051.63 — but every
  * difference was UPWARD (zero videos were ever lower), items_sold rose with it
@@ -145,7 +163,7 @@ const CALLBACK_MESSAGES: Record<string, string> = {
  * rows for jiyu (20,000 for cosrx), so it would show a false shortfall that has
  * nothing to do with the API.
  */
-const CAPTURE_DATE = '2026-07-18';
+const CAPTURE_DATE = '2026-07-24';
 
 /**
  * End of the capture window, EXCLUSIVE — so this is the day after CAPTURE_DATE.
@@ -153,7 +171,7 @@ const CAPTURE_DATE = '2026-07-18';
  * TikTok enforces exclusivity: a same-day window is refused outright with
  * 28001022 "start time or end time is invalid".
  */
-const CAPTURE_END_DATE = '2026-07-19';
+const CAPTURE_END_DATE = '2026-07-25';
 
 export function TikTokShopSection() {
   return (
