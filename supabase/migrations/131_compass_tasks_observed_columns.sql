@@ -1,0 +1,23 @@
+-- 131_compass_tasks_observed_columns.sql
+--
+-- The file's ACTUAL column labels, recorded on the task row.
+--
+-- The first successful Compass download (task 01KYMMXK7Q — a real 429,172-byte
+-- xlsx named Transaction_Analysis_Creator_List_20260718-20260718, raw_status
+-- SUCCEEDED after one poll) was REJECTED by the header sniff at 11/23 = 48%
+-- against creator_performance. The rejection is correct: refusing to write a
+-- report we did not ask for is the coercion guard doing its job.
+--
+-- But it could not be ACTED on. "11 of 23 matched" does not say what the other
+-- 12 columns are called, and TikTok's own filename says Creator_List — so this
+-- is very likely the right data under different labels. Compass's "Transaction
+-- Analysis" family is a different report set from the Affiliate Center
+-- downloads the COLUMN_MAPs were built from. A naming difference is only
+-- fixable if the names are written down, and they were living in a discarded
+-- in-memory object.
+--
+-- Column LABELS only — never a row of values. compass-ingest's updateTask patch
+-- type is deliberately narrowed to string | number | string[] | null rather
+-- than unknown so that stays true.
+ALTER TABLE public.tiktok_compass_tasks
+  ADD COLUMN IF NOT EXISTS observed_columns text[];
