@@ -448,62 +448,69 @@ function TikTokShopPanel() {
    * has no rows for gives nothing to diff against.
    */
   /**
-   * Compass CREATOR dry run — create the export task, poll it, download the
-   * artifact, sniff its format and header, parse it, and STOP without writing.
+   * Compass dry run across ALL THREE module types.
    *
-   * This is the one that matters. Compass reads the same warehouse the manual
-   * export does, so unlike orders/search (94-96% of the CSV, on a different
-   * date basis) it should match to the cent — it is the file Jen downloads,
-   * delivered by API instead of by hand.
+   * WHY ALL THREE: the CREATOR report came back with 11 columns where Jen's
+   * Affiliate Center download has 23 — missing exactly the 12 that migration
+   * 120 added on 2026-07-25, including the video/live/product-card GMV split.
+   * So Compass appears to serve an OLDER revision of that report. Whether that
+   * staleness is CREATOR-specific or systemic is the whole question, and it is
+   * answered by asking for the other two.
+   *
+   * Fired SEQUENTIALLY as three separate requests, not one, so each gets its
+   * own 300s function budget — three cold builds inside one invocation would
+   * blow the ceiling.
+   *
+   * ⚠️ TikTok DEDUPES tasks, so the FIRST click usually creates three jobs and
+   * times out waiting; the SECOND collects all three from cache in about one
+   * poll each. A timeout here is progress, not failure.
    */
   const compassDryRun = useCallback(
     async (brandSlug: string, reportDate: string) => {
       setBusy(`compass:${brandSlug}`);
       setActionError(null);
-      setTestResult((prev) => ({
-        ...prev,
-        [brandSlug]: {
-          ok: false,
-          text: `Compass ${reportDate}: creating task, then polling TikTok until the file is built…`,
-        },
-      }));
-      try {
-        const result = await post('/api/tiktok/compass/run', {
-          brandSlug, reportDate, moduleType: 'CREATOR', windowType: 'PAST_24H', dryRun: true,
-        });
-        // A 422 is a COMPLETED run that refused to write — its body is the full
-        // report and is the most informative outcome available. Treat it as a
-        // result to read, not an error to swallow.
-        const data = (result.ok ? result.data : result.data ?? {}) as {
-          stage?: string; message?: string; taskId?: string | null;
-          format?: { kind?: string; detail?: string } | null;
-          matchedColumns?: string[]; missingColumns?: string[]; totalCols?: number;
-          rowsParsed?: number; totalGmv?: number | null; warnings?: string[];
-        };
-        if (!result.ok && !data.stage) {
-          setTestResult((prev) => ({ ...prev, [brandSlug]: { ok: false, text: result.error } }));
-          return;
-        }
-        const bits = [
-          `stage=${data.stage ?? '?'}`,
-          data.taskId ? `task ${String(data.taskId).slice(0, 10)}` : 'no task id',
-          data.format?.kind ? `format=${data.format.kind}` : 'format=UNKNOWN',
-          `${data.rowsParsed ?? 0} rows`,
-          data.totalGmv != null
-            ? `GMV $${data.totalGmv.toLocaleString('en-US', { minimumFractionDigits: 2 })}`
-            : 'GMV —',
-          `cols ${data.matchedColumns?.length ?? 0}/${data.totalCols ?? 0} matched`,
-          data.missingColumns?.length ? `MISSING: ${data.missingColumns.slice(0, 6).join(', ')}` : '',
-          ...(data.warnings ?? []),
-          data.message ?? '',
-        ].filter(Boolean);
+      const modules = ['CREATOR', 'VIDEO', 'PRODUCT'] as const;
+      const lines: string[] = [];
+
+      for (const moduleType of modules) {
         setTestResult((prev) => ({
           ...prev,
-          [brandSlug]: { ok: result.ok, text: bits.join(' · ') },
+          [brandSlug]: {
+            ok: false,
+            text: `Compass ${reportDate} · ${moduleType}… ${lines.join(' | ')}`,
+          },
         }));
-      } finally {
-        setBusy(null);
+        const result = await post('/api/tiktok/compass/run', {
+          brandSlug, reportDate, moduleType, windowType: 'PAST_24H', dryRun: true,
+        });
+        // A 422 is a COMPLETED run that refused to WRITE — its body is the full
+        // report and is the most informative outcome available here, so it is
+        // read as a result rather than swallowed as an error.
+        const data = (result.data ?? {}) as {
+          stage?: string; message?: string;
+          headerCheck?: { observedColumns?: string[] } | null;
+          matchedColumns?: string[]; totalCols?: number;
+          rowsParsed?: number; totalGmv?: number | null;
+        };
+        if (!result.ok && !data.stage) {
+          lines.push(`${moduleType}: ${result.error}`);
+          continue;
+        }
+        const seen = data.headerCheck?.observedColumns?.length ?? 0;
+        lines.push(
+          `${moduleType}: ${seen} cols` +
+            `${data.totalCols ? ` vs ${data.totalCols} expected` : ''}` +
+            `${data.rowsParsed ? `, ${data.rowsParsed} rows` : ''}` +
+            `${data.totalGmv != null ? `, $${data.totalGmv.toLocaleString('en-US', { minimumFractionDigits: 2 })}` : ''}` +
+            ` (${data.stage ?? '?'})`,
+        );
       }
+
+      setTestResult((prev) => ({
+        ...prev,
+        [brandSlug]: { ok: false, text: lines.join(' | ') },
+      }));
+      setBusy(null);
     },
     [post],
   );
@@ -515,8 +522,8 @@ function TikTokShopPanel() {
    * Capture, this MUTATES live merchant credentials and can, in the bad case,
    * cost the connection — TikTok may kill the old refresh token the moment it
    * issues a new pair, and if our write then fails the merchant has to
-   * re-authorize. That is worth doing five days early with someone watching,
-   * and not worth doing by misclick.
+   * re-authorize. Worth doing early with someone watching; not worth doing by
+   * misclick.
    */
   const refreshTokens = useCallback(
     async (brandSlug: string) => {
@@ -534,8 +541,8 @@ function TikTokShopPanel() {
             ...prev,
             [brandSlug]: {
               ok: false,
-              // The single most important thing an operator needs from a failed
-              // refresh is whether to pick up the phone.
+              // The one thing an operator needs from a failed refresh is
+              // whether to pick up the phone.
               text: d?.needsReauthorization
                 ? `${result.error} — THE MERCHANT MUST RE-AUTHORIZE. Send them a fresh connect link.`
                 : `${result.error} (the existing token pair is untouched — safe to retry)`,
@@ -547,7 +554,6 @@ function TikTokShopPanel() {
           firstEverRefresh?: boolean;
           previousAccessTokenExpiresAt?: string;
           accessTokenExpiresAt?: string;
-          refreshTokenExpiresAt?: string;
         };
         setTestResult((prev) => ({
           ...prev,
@@ -558,8 +564,8 @@ function TikTokShopPanel() {
               `Access token ${formatDateTime(d.previousAccessTokenExpiresAt ?? '')} → ${formatDateTime(d.accessTokenExpiresAt ?? '')}.`,
           },
         }));
-        // Re-read so the card's own expiry fields agree with what just happened
-        // rather than showing the pre-refresh values behind a success message.
+        // Re-read so the card's expiry fields agree with what just happened
+        // rather than showing pre-refresh values behind a success message.
         await load();
       } finally {
         setBusy(null);
