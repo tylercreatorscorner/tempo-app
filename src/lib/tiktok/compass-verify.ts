@@ -57,6 +57,8 @@ function toNumber(v: unknown): number {
 export type VerificationVerdict =
   | 'match'
   | 'csv_short'
+  /** Rows missing, GMV intact — the row-cap signature. See TRUNCATION_PCT. */
+  | 'csv_truncated'
   | 'csv_over'
   | 'csv_missing'
   | 'api_unavailable';
@@ -88,6 +90,26 @@ export interface CompassVerification {
  * which is what a truncated export looks like.
  */
 const TOLERANCE_PCT = 2;
+
+/**
+ * How much bigger the API's creator count may be before the upload is judged
+ * TRUNCATED.
+ *
+ * MEASURED, and the separation is enormous. Run against jiyu 2026-07-17 — the
+ * day the export truncated at exactly 5,000 rows — the watchdog said "match",
+ * because GMV was PERFECT on both sides ($20,961.87, 0%). The 5,000-row cap had
+ * dropped only ZERO-GMV creators, which a GMV comparison cannot see at all.
+ *
+ * The creator count sees it instantly:
+ *     2026-07-17   API 9,275  vs  CSV 5,000   → +4,275  (46.1%)
+ *     2026-07-24   API 8,865  vs  CSV 8,867   →     -2  ( 0.0%)
+ *     2026-07-25   API 8,760  vs  CSV 8,761   →     -1  ( 0.0%)
+ *
+ * Note the DIRECTION: on healthy days the API has one or two FEWER creators, so
+ * only a POSITIVE gap is a signal. 5% is far above the observed noise and far
+ * below the observed fault.
+ */
+const TRUNCATION_PCT = 5;
 
 /**
  * Verify ONE brand-day. Read-only against every fact table.
@@ -222,11 +244,36 @@ export async function verifyBrandDay(
   base.gmvDelta = delta;
   base.gmvDeltaPct = pct;
 
+  // ── Row coverage, checked SEPARATELY from money.
+  //
+  // A day can reconcile to the cent and still be missing thousands of
+  // creators, because a row cap drops the zero-GMV tail first. Every dollar
+  // ties out while roster counts, posting rates and "who was active" are all
+  // wrong. GMV agreement is therefore NOT sufficient evidence of a good day.
+  const creatorGap = (base.apiCreators ?? 0) - (base.csvCreators ?? 0);
+  const creatorGapPct = (base.apiCreators ?? 0) > 0
+    ? round2((creatorGap / (base.apiCreators ?? 1)) * 100)
+    : 0;
+
   if (pct === null || Math.abs(pct) <= TOLERANCE_PCT) {
+    if (creatorGapPct > TRUNCATION_PCT) {
+      return {
+        ...base,
+        verdict: 'csv_truncated',
+        detail:
+          `GMV ties out exactly ($${base.apiGmv}), but the upload is missing ` +
+          `${creatorGap.toLocaleString('en-US')} creators — ${base.apiCreators} in Compass vs ` +
+          `${base.csvCreators} uploaded (${creatorGapPct}%). That is the row-cap signature: ` +
+          `the export dropped its zero-GMV tail, so every dollar reconciles while coverage ` +
+          `does not. Re-export ${reportDate} and re-upload it.`,
+      };
+    }
     return {
       ...base,
       verdict: 'match',
-      detail: `Compass $${base.apiGmv} vs upload $${base.csvGmv} (${pct ?? 0}%).`,
+      detail:
+        `Compass $${base.apiGmv} vs upload $${base.csvGmv} (${pct ?? 0}%), ` +
+        `${base.apiCreators} vs ${base.csvCreators} creators.`,
     };
   }
 
