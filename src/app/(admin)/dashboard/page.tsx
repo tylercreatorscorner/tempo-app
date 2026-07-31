@@ -105,7 +105,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
   // retainer fetch is skipped entirely and every retainer/ROI surface shows "—".
   // Retainer + ROI cards are creator COST (scoped to this user's own brands),
   // not the agency's books. Named for what it IS: a future genuine finance gate
-  // in this file must not reach for `canViewCost` and silently re-fuse the
+  // in this file must not reach for `canViewFinance` and silently re-fuse the
   // two concerns. See workspace-scope.ts.
   const canViewCost = scope?.canViewCreatorCost ?? false;
 
