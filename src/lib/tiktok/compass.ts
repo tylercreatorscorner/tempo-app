@@ -99,6 +99,25 @@ export function isValidApiVersion(version: string): boolean {
  * WRONG REPORT. Nothing downstream trusts this value; the header sniff is the
  * gate. See assertReportMatchesModule.
  */
+/**
+ * ⚠️ MEASURED 2026-07-31: 'VIDEO' and 'PRODUCT' ARE NOT REAL MODULE TYPES.
+ * TikTok rejects both at task CREATION — no task id, no artifact, nothing to
+ * poll. They came from an early doc sweep and were never verified; this type
+ * asserted them for months. Only CREATOR has ever produced a file.
+ *
+ * The doc research reported the enum as CREATOR | BASE, with TikTok's own
+ * example filename being Transaction_Analysis_Core_Metrics_… (the BASE module,
+ * which is shop-level "core metrics", NOT creator/video/product grain). BASE is
+ * still untried and is deliberately NOT added here: it has no target table in
+ * MODULE_TARGET because it does not correspond to any of Tempo's four exports,
+ * and adding an ingestable-looking module that cannot be ingested would be
+ * worse than leaving it out.
+ *
+ * CONSEQUENCE, and it is the important one: Compass CANNOT supply
+ * video_performance or product_performance. Its only creator-grain report is
+ * the 11-column Creator List — a strict subset of the 23-column Affiliate
+ * Center download. No API path currently reproduces Tempo's full exports.
+ */
 export type CompassModuleType = 'CREATOR' | 'VIDEO' | 'PRODUCT';
 
 /**
@@ -1181,6 +1200,12 @@ function stripNulls(echo: CompassTaskEcho): Partial<CompassTaskEcho> {
 //     ceiling — the timeout message reports the raw string it kept seeing.
 //  6. doc_type ON THE LIST CALL — RESOLVED. It is REQUIRED (400/36009004
 //     "DocType is a required field"), and now defaults to the module_type.
+//  0. MODULE TYPES — ANSWERED, and it closes the cutover question. CREATOR is
+//     the ONLY module that produces a file; VIDEO and PRODUCT are refused at
+//     create. Its 11 columns are a strict subset of the manual creator
+//     export's 23. So Compass automates a SUBSET of one of the four uploads
+//     and cannot replace any of them. Treat it as a verification feed, not a
+//     source.
 //  7. HOW LONG A TASK TAKES — PARTLY ANSWERED. A CACHED task answers in one
 //     poll; a COLD build was still RUNNING after 42s, so the ceiling is now
 //     240s / 40 polls. The upper bound is still unknown. (Original note:
