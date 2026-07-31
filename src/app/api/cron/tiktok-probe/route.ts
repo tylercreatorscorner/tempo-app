@@ -16,7 +16,7 @@
  * the entire reason it is safe to expose behind a bearer token.
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { runProbe, isProbeName, PROBES, type ProbeName } from '@/lib/tiktok/probe';
+import { runProbe, runRawProbe, isProbeName, PROBES, type ProbeName } from '@/lib/tiktok/probe';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -37,6 +37,36 @@ export async function GET(request: NextRequest) {
   if (!brand) return NextResponse.json({ error: 'Missing brand' }, { status: 400 });
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     return NextResponse.json({ error: 'date must be YYYY-MM-DD' }, { status: 400 });
+  }
+
+  // ── Raw mode: ?path=/affiliate_seller/202410/foo/search&method=POST&q=a:1,b:2
+  //
+  // So an endpoint research just turned up can be tested immediately. The path
+  // is constrained inside runRawProbe (affiliate_seller//analytics prefixes,
+  // GET or POST-to-/search only) — that check lives in the lib rather than
+  // here so every caller inherits it.
+  const rawPath = url.searchParams.get('path');
+  if (rawPath) {
+    const method = (url.searchParams.get('method') ?? 'GET').toUpperCase() === 'POST' ? 'POST' : 'GET';
+    const parseKv = (s: string | null): Record<string, string> => {
+      const out: Record<string, string> = {};
+      for (const pair of (s ?? '').split(',')) {
+        const i = pair.indexOf(':');
+        if (i > 0) out[pair.slice(0, i).trim()] = pair.slice(i + 1).trim();
+      }
+      return out;
+    };
+    let body: unknown = {};
+    const bodyParam = url.searchParams.get('body');
+    if (bodyParam) {
+      try { body = JSON.parse(bodyParam); }
+      catch { return NextResponse.json({ error: 'body must be valid JSON' }, { status: 400 }); }
+    }
+    const runId = crypto.randomUUID();
+    const result = await runRawProbe(brand, rawPath, {
+      method, query: parseKv(url.searchParams.get('q')), body, runId,
+    });
+    return NextResponse.json({ runId, brand, raw: true, results: [result] });
   }
 
   const requested = whatParam.split(',').map((s) => s.trim()).filter(Boolean);

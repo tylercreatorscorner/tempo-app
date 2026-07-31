@@ -99,6 +99,97 @@ export function isProbeName(v: unknown): v is ProbeName {
   return typeof v === 'string' && v in PROBES;
 }
 
+/**
+ * An ARBITRARY read-only call, so a newly-discovered endpoint can be tested
+ * without a deploy per candidate.
+ *
+ * The named PROBES above cover the endpoints we already rely on. This covers
+ * the ones research turns up — and research turns up a lot of paths that do not
+ * exist, so the loop has to be "call it and see" rather than "ship it and see".
+ *
+ * ⚠️ THE PATH IS CONSTRAINED, deliberately. This runs behind a shared bearer
+ * token, so it must not become a way to reach a mutating endpoint. Only
+ * /affiliate_seller/ and /analytics/ prefixes are allowed, and only GET plus
+ * POST-to-a-/search-path — TikTok's search endpoints are reads that need a body.
+ * Anything else is refused before a request is made.
+ */
+const ALLOWED_PREFIX = /^\/(affiliate_seller|analytics)\/\d{6}\//;
+
+export async function runRawProbe(
+  brandSlug: string,
+  path: string,
+  opts: { method?: 'GET' | 'POST'; query?: Record<string, string>; body?: unknown; runId: string },
+): Promise<ProbeResult> {
+  const method = opts.method ?? 'GET';
+  const out: ProbeResult = {
+    what: `raw ${method} ${path}`, path, pages: 0, rows: 0, totalCount: null,
+    containerKey: null, tokenKey: null, rowKeys: [], truncated: false, error: null,
+  };
+
+  if (!ALLOWED_PREFIX.test(path)) {
+    out.error = `refused: path must start /affiliate_seller/{version}/ or /analytics/{version}/`;
+    return out;
+  }
+  // A POST is only a read when it is a search. Everything else under these
+  // prefixes can create, cancel or modify, and this tool must not be able to.
+  if (method === 'POST' && !/\/(search|query)$/.test(path)) {
+    out.error = `refused: POST is only allowed to a /search or /query path (this is a read-only probe)`;
+    return out;
+  }
+
+  const conn = await getActiveConnection(brandSlug);
+  if (!conn.ok) { out.error = conn.message; return out; }
+  const supabase = await createAdminClient();
+
+  let token: string | null = null;
+  const seen = new Set<string>();
+  try {
+    for (let page = 0; page < MAX_PAGES; page++) {
+      const query = { ...(opts.query ?? {}), ...(token ? { page_token: token } : {}) };
+      const res = method === 'POST'
+        ? await conn.client.post<Record<string, unknown>>(path, { query, body: opts.body ?? {}, idempotent: true })
+        : await conn.client.get<Record<string, unknown>>(path, query);
+
+      const { key, rows } = findRows(res.data);
+      const tok = findToken(res.data);
+      if (page === 0) {
+        out.containerKey = key;
+        out.tokenKey = tok.key;
+        const tc = (res.data as Record<string, unknown>)?.total_count;
+        out.totalCount = typeof tc === 'number' ? tc : null;
+        const first = rows[0];
+        // When there is no array at all, report the ENVELOPE keys instead —
+        // a single-object response is a real and useful shape, not a failure.
+        out.rowKeys = first && typeof first === 'object'
+          ? Object.keys(first as object)
+          : res.data && typeof res.data === 'object' ? Object.keys(res.data) : [];
+      }
+
+      const { error } = await supabase.from('tiktok_api_captures').insert({
+        run_id: opts.runId, brand_slug: conn.brandSlug, endpoint: path,
+        api_version: path.split('/')[2] ?? '?', request_params: query,
+        page_index: page, page_token: token, response: res.data ?? {},
+        row_count: rows.length, request_id: res.requestId,
+      });
+      if (error) throw new Error(`capture insert failed (p${page}): ${error.message}`);
+
+      out.pages = page + 1;
+      out.rows += rows.length;
+      if (!tok.token || seen.has(tok.token)) break;
+      seen.add(tok.token);
+      token = tok.token;
+      if (page === MAX_PAGES - 1) out.truncated = true;
+    }
+    await touchApiCall(conn.connectionId);
+  } catch (e) {
+    const te = e instanceof TikTokError ? e : null;
+    out.error = te
+      ? `${te.constructor.name} status=${te.status} code=${te.code ?? '—'}: ${te.message}`
+      : e instanceof Error ? e.message : String(e);
+  }
+  return out;
+}
+
 export async function runProbe(
   brandSlug: string,
   what: ProbeName,
