@@ -229,30 +229,50 @@ export async function runShadowIngest(
       const overall = (sales.overall ?? {}) as Rec;
       const breakdowns = (sales.breakdowns as Rec[] | undefined) ?? [];
 
-      // One row per (video, product) — video_performance's real grain. When a
-      // video has no product breakdown, a single null-product row keeps the
-      // video present rather than dropping it.
-      const rows = (breakdowns.length ? breakdowns : [null]).map((b) => {
-        const src = (b ?? overall) as Rec;
-        return {
-          run_id: runId, brand_slug: conn.brandSlug, report_date: reportDate,
-          video_id: v.id, product_id: b ? String((b as Rec).product_id ?? '') || null : null,
-          creator_name: v.username.toLowerCase() || null,
-          video_title: v.title || null,
-          post_date: v.postTime ? new Date(v.postTime.replace(' ', 'T') + 'Z').toISOString() : null,
-          gmv: money(src.gmv), items_sold: num(src.items_sold), customers: num(src.customers),
-          // traffic is video-level, so it is NOT divided across product rows —
-          // splitting it would invent per-product likes that do not exist.
-          views: b ? null : num(traffic.views),
-          likes: b ? null : num(traffic.likes),
-          comments: b ? null : num(traffic.comments),
-          shares: b ? null : num(traffic.shares),
-          new_followers: b ? null : num(traffic.new_followers),
-          product_impressions: num(src.product_impressions),
-          product_clicks: num(src.product_clicks),
-          ctr: num(src.ctr), gpm: money(src.gpm),
-        };
-      });
+      // ⚠️ ALWAYS a video-level row (product_id NULL) carrying traffic and the
+      // overall sales figures, PLUS one row per product breakdown carrying only
+      // that product's money.
+      //
+      // The first version wrote traffic only when a video had NO breakdowns —
+      // and every video has breakdowns, so likes/comments/shares landed nowhere
+      // at all. 66 rows, 40 videos, zero traffic. The conditional read as
+      // defensive and was simply wrong.
+      //
+      // Traffic is still NOT divided across the product rows: a video with three
+      // products has one like count, not three thirds of one, and splitting it
+      // would invent per-product engagement that does not exist.
+      const videoRow = {
+        run_id: runId, brand_slug: conn.brandSlug, report_date: reportDate,
+        video_id: v.id, product_id: null,
+        creator_name: v.username.toLowerCase() || null,
+        video_title: v.title || null,
+        post_date: v.postTime ? new Date(v.postTime.replace(' ', 'T') + 'Z').toISOString() : null,
+        gmv: money(overall.gmv), items_sold: num(overall.items_sold),
+        customers: num(overall.customers),
+        views: num(traffic.views), likes: num(traffic.likes),
+        comments: num(traffic.comments), shares: num(traffic.shares),
+        new_followers: num(traffic.new_followers),
+        product_impressions: num(overall.product_impressions),
+        product_clicks: num(overall.product_clicks),
+        ctr: num(overall.ctr), gpm: money(overall.gpm),
+      };
+      const productRows = breakdowns.map((b) => ({
+        run_id: runId, brand_slug: conn.brandSlug, report_date: reportDate,
+        video_id: v.id, product_id: String(b.product_id ?? '') || null,
+        creator_name: v.username.toLowerCase() || null,
+        video_title: v.title || null,
+        post_date: videoRow.post_date,
+        gmv: money(b.gmv), items_sold: num(b.items_sold), customers: num(b.customers),
+        views: null, likes: null, comments: null, shares: null, new_followers: null,
+        product_impressions: num(b.product_impressions),
+        product_clicks: num(b.product_clicks),
+        ctr: num(b.ctr), gpm: money(b.gpm),
+      }));
+      // A breakdown whose product_id is missing would collide with the
+      // video-level row on (run_id, video_id, NULL) under NULLS NOT DISTINCT,
+      // so it is dropped rather than allowed to overwrite the traffic row.
+      const rows = [videoRow, ...productRows.filter((r) => r.product_id !== null)];
+
       const { error } = await supabase
         .from('api_shadow_video_performance')
         .upsert(rows, { onConflict: 'run_id,video_id,product_id' });
