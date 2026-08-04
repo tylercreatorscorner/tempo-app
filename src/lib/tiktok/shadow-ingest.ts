@@ -118,7 +118,9 @@ export async function runShadowIngest(
         { query: { page_size: String(PAGE_SIZE) }, body: {}, idempotent: true },
       );
       out.apiCalls++;
-      for (const c of (res.data?.collaborations as Rec[] | undefined) ?? []) {
+      // Container is `open_collaborations`, NOT `collaborations` — the first run
+      // read the wrong key and every product name came back empty.
+      for (const c of (res.data?.open_collaborations as Rec[] | undefined) ?? []) {
         const p = c.product as Rec | undefined;
         if (p?.id) titles.set(String(p.id), String(p.title ?? ''));
       }
@@ -151,8 +153,24 @@ export async function runShadowIngest(
             affiliate_video_gmv: money(av.attributed_video_gmv),
             affiliate_live_gmv: money(al.live_attributed_gmv),
             shop_tab_gmv: money(st.shop_tab_gmv),
-            refunds: money(t.refunds),
-            refunded_items: num(t.refunded_items), refund_customers: num(t.refund_customers),
+            // ⚠️ REFUNDS ARE ALL-CHANNEL ONLY. affiliate_total_performance has no
+            // refund field of any kind, so the affiliate figure the export
+            // carries ($1,220.03 vs this $5,954.57) has NO exact API source and
+            // is deliberately absent rather than approximated.
+            refunds_all_channel: money(t.refunds),
+            refunded_items_all_channel: num(t.refunded_items),
+            refund_customers_all_channel: num(t.refund_customers),
+            // The AFFILIATE counterparts, from the affiliate block. The first
+            // run read these from total_performance and so reported 1,032
+            // orders against the export's 568.
+            affiliate_orders: num(at.attributed_orders),
+            affiliate_items_sold: num(at.attributed_sold_items),
+            affiliate_sku_orders: num(at.attributed_sku_orders),
+            affiliate_impressions: num(at.product_impressions),
+            affiliate_clicks: num(at.product_clicks),
+            affiliate_ctr: num(at.ctr), affiliate_aov: money(at.aov),
+            affiliate_estimated_customers: num(at.estimated_customers),
+            // All-channel, kept because they are real and useful on their own.
             orders: num(t.orders), items_sold: num(t.items_sold), aov: money(t.aov),
             ctr: num(t.ctr), unique_ctr: num(t.unique_ctr),
             product_impressions: num(t.product_impressions),
