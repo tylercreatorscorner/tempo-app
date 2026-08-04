@@ -59,6 +59,7 @@ const POST_TYPE_LABELS: Record<string, string> = {
   'daily-drop':    'Daily Drop',
   'whats-cooking': "What's Cooking",
   'whos-cooking':  "Who's Cooking",
+  'weekly-kpi':    'Weekly KPI',
 };
 
 const DESTINATION_LABELS: Record<string, string> = {
