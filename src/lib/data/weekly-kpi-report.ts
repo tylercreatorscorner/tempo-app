@@ -153,6 +153,7 @@ export async function getWeeklyKpiReport(
   const adds = agg.roster_adds ?? {};
   const gone = agg.departures ?? {};
   const inact = agg.inactive ?? {};
+  const cov = agg.coverage ?? {};
 
   const gmv = pair(num(g.store), num(g.store_prior), num(g.managed), num(g.managed_prior));
   const sv = pair(num(s.store), num(s.store_prior), num(s.managed), num(s.managed_prior));
@@ -176,6 +177,14 @@ export async function getWeeklyKpiReport(
     // zero, rather than a 0% that reads as "we contributed nothing".
     managedSharePct: gmv.store > 0 ? (gmv.managed / gmv.store) * 100 : null,
     rosterSize: num(agg.roster_size),
+    coverage: {
+      daysExpected: num(cov.days_expected),
+      daysPresent: num(cov.days_present),
+      priorDaysExpected: num(cov.prior_days_expected),
+      priorDaysPresent: num(cov.prior_days_present),
+      missingDays: (Array.isArray(cov.missing_days) ? cov.missing_days : [])
+        .map((d: unknown) => String(d).slice(0, 10)),
+    },
 
     rosterAdds: {
       count: addsCount,

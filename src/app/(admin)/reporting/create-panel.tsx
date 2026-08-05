@@ -31,6 +31,7 @@ import { SegmentedControl } from '@/components/ui/segmented';
 import {
   buildWeeklyKpiSlack,
   buildWeeklyKpiDiscord,
+  incompleteWindowNote,
   money as kpiMoney,
   type WeeklyKpiData,
   type Delta,
@@ -662,6 +663,8 @@ function WeeklyKpiForm({ onSent }: { onSent: () => void }) {
     }
   };
 
+  const windowNote = useMemo(() => (data ? incompleteWindowNote(data) : null), [data]);
+
   const emptySections = useMemo(() => {
     const empty: string[] = [];
     if (!creatorUpdates.trim()) empty.push('Creator updates');
@@ -758,6 +761,13 @@ function WeeklyKpiForm({ onSent }: { onSent: () => void }) {
       <Button size="lg" className="w-full" onClick={generate} disabled={generating || !rangeValid}>
         {generating ? <><Loader2 className="animate-spin" />Generating…</> : <><Wand2 />Generate</>}
       </Button>
+
+      {data && windowNote && (
+        <div className="flex items-start gap-2 rounded-lg bg-[var(--pulse-warn-bg)] px-3 py-2 text-xs text-[var(--pulse-warn)]">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span>{windowNote}</span>
+        </div>
+      )}
 
       {data && (
         <>

@@ -67,6 +67,21 @@ export interface WeeklyKpiData {
    */
   rosterSize: number;
 
+  /**
+   * Days actually present in each window. A brand-day can be missing (never
+   * uploaded, or removed by the cross-brand copy repair), and a short window
+   * compared against a full prior one reports the shortfall as a decline:
+   * a false story told with true numbers. When the windows are uneven the
+   * report says so instead of quietly understating itself.
+   */
+  coverage: {
+    daysExpected: number;
+    daysPresent: number;
+    priorDaysExpected: number;
+    priorDaysPresent: number;
+    missingDays: string[]; // yyyy-mm-dd
+  };
+
   rosterAdds: {
     count: number;
     withRetainer: number;
@@ -139,6 +154,33 @@ function creatorList(creators: RosterCreator[], truncated: number): string {
   return parts.join(', ');
 }
 
+/**
+ * One sentence describing an uneven or incomplete comparison, or null when
+ * both windows are whole. Exported so the Create panel can show the same
+ * warning before the operator ever copies the message.
+ */
+export function incompleteWindowNote(d: WeeklyKpiData): string | null {
+  const c = d.coverage;
+  const missNow = c.daysExpected - c.daysPresent;
+  const missPrior = c.priorDaysExpected - c.priorDaysPresent;
+  if (missNow <= 0 && missPrior <= 0) return null;
+
+  const parts: string[] = [];
+  if (missNow > 0) {
+    const which = c.missingDays.length > 0 ? ` (${c.missingDays.join(', ')})` : '';
+    parts.push(
+      `this period has ${c.daysPresent} of ${c.daysExpected} days of data${which}`,
+    );
+  }
+  if (missPrior > 0) {
+    parts.push(`the comparison period has ${c.priorDaysPresent} of ${c.priorDaysExpected}`);
+  }
+  return (
+    `Incomplete window: ${parts.join(', and ')}. ` +
+    'The change figures below understate the shorter side and are not a like-for-like comparison.'
+  );
+}
+
 // ── Prefill for the narrative sections ─────────────────────────────
 
 /**
@@ -192,6 +234,14 @@ export function buildWeeklyKpiSlack(d: WeeklyKpiData, notes: WeeklyKpiNotes): st
 
   lines.push(`*${d.brandName} - weekly report*`);
   lines.push(`${d.periodLabel}  (vs ${d.priorLabel})`);
+
+  // An uneven comparison is stated up front, not buried. Without this the
+  // missing days read as a decline the brand did not actually have.
+  const gap = incompleteWindowNote(d);
+  if (gap) {
+    lines.push('');
+    lines.push(`:warning: ${gap}`);
+  }
   lines.push('');
 
   // A brand with nobody signed has no Creators Corner line to give. Saying
