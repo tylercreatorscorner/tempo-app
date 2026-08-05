@@ -53,7 +53,19 @@ const SEG_FULL = 'flex w-full [&>button]:flex-1';
 
 type CreateMode = 'client' | 'weekly';
 
-export function CreatePanel({ onSent }: { onSent: () => void }) {
+/**
+ * `lockedBrand` is set when the operator started from a brand row in the
+ * table. The per-form brand picker then disappears: the brand is already
+ * chosen, and re-picking it is both redundant and the one way to send brand
+ * A's numbers under brand B's name.
+ */
+export function CreatePanel({
+  onSent, lockedBrand, lockedBrandName,
+}: {
+  onSent: () => void;
+  lockedBrand?: string;
+  lockedBrandName?: string;
+}) {
   const [mode, setMode] = useState<CreateMode>('client');
 
   // Both forms stay mounted so switching modes never throws away a prepared
@@ -61,9 +73,13 @@ export function CreatePanel({ onSent }: { onSent: () => void }) {
   return (
     <Card className="overflow-hidden">
       <div className="border-b border-border px-5 py-4">
-        <h2 className="text-base font-bold tracking-tight text-foreground">Create</h2>
+        <h2 className="text-base font-bold tracking-tight text-foreground">
+          {lockedBrandName ? `Report for ${lockedBrandName}` : 'Create'}
+        </h2>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          Share a report link with a client, or write the weekly client update.
+          {lockedBrandName
+            ? 'A share link the client opens, or the weekly update you paste to them.'
+            : 'Share a report link with a client, or write the weekly client update.'}
         </p>
       </div>
       <div className="space-y-4 p-5">
@@ -78,10 +94,10 @@ export function CreatePanel({ onSent }: { onSent: () => void }) {
           onValueChange={setMode}
         />
         <div className={mode === 'client' ? undefined : 'hidden'}>
-          <ClientReportForm onSent={onSent} />
+          <ClientReportForm onSent={onSent} lockedBrand={lockedBrand} />
         </div>
         <div className={mode === 'weekly' ? undefined : 'hidden'}>
-          <WeeklyKpiForm onSent={onSent} />
+          <WeeklyKpiForm onSent={onSent} lockedBrand={lockedBrand} />
         </div>
       </div>
     </Card>
@@ -99,9 +115,10 @@ interface PreviewData {
 
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 
-function ClientReportForm({ onSent }: { onSent: () => void }) {
-  const { brand, setBrand, options: brandOptions, error: brandsError } =
-    useBrandSelect({ collapseUmbrella: true });
+function ClientReportForm({ onSent, lockedBrand }: { onSent: () => void; lockedBrand?: string }) {
+  const { brand: pickedBrand, setBrand, options: brandOptions, error: brandsError } =
+    useBrandSelect({ collapseUmbrella: true, initial: lockedBrand });
+  const brand = lockedBrand ?? pickedBrand;
 
   const [preset, setPreset] = useState<PeriodPreset>('7d');
   const [startDate, setStartDate] = useState(() => new Date(Date.now() - 6 * 86_400_000).toISOString().slice(0, 10));
@@ -203,13 +220,15 @@ function ClientReportForm({ onSent }: { onSent: () => void }) {
 
   return (
     <div className="space-y-4">
-      <div>
-        <Label htmlFor="cr-brand">Brand</Label>
-        <Select id="cr-brand" value={brand} onChange={e => setBrand(e.target.value)}>
-          {brandOptions.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}
-        </Select>
-        <BrandListWarning show={brandsError} />
-      </div>
+      {!lockedBrand && (
+        <div>
+          <Label htmlFor="cr-brand">Brand</Label>
+          <Select id="cr-brand" value={brand} onChange={e => setBrand(e.target.value)}>
+            {brandOptions.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}
+          </Select>
+          <BrandListWarning show={brandsError} />
+        </div>
+      )}
 
       <div>
         <Label>Reporting period</Label>
@@ -374,9 +393,10 @@ function KpiRow({
   );
 }
 
-function WeeklyKpiForm({ onSent }: { onSent: () => void }) {
-  const { brand, setBrand, options: brandOptions, error: brandsError } =
-    useBrandSelect({ collapseUmbrella: true });
+function WeeklyKpiForm({ onSent, lockedBrand }: { onSent: () => void; lockedBrand?: string }) {
+  const { brand: pickedBrand, setBrand, options: brandOptions, error: brandsError } =
+    useBrandSelect({ collapseUmbrella: true, initial: lockedBrand });
+  const brand = lockedBrand ?? pickedBrand;
 
   const [preset, setPreset] = useState<PeriodPreset>('7d');
   const [startDate, setStartDate] = useState(() => new Date(Date.now() - 6 * 86_400_000).toISOString().slice(0, 10));
@@ -483,13 +503,15 @@ function WeeklyKpiForm({ onSent }: { onSent: () => void }) {
 
   return (
     <div className="space-y-4">
-      <div>
-        <Label htmlFor="wk-brand">Brand</Label>
-        <Select id="wk-brand" value={brand} onChange={e => setBrand(e.target.value)}>
-          {brandOptions.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}
-        </Select>
-        <BrandListWarning show={brandsError} />
-      </div>
+      {!lockedBrand && (
+        <div>
+          <Label htmlFor="wk-brand">Brand</Label>
+          <Select id="wk-brand" value={brand} onChange={e => setBrand(e.target.value)}>
+            {brandOptions.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}
+          </Select>
+          <BrandListWarning show={brandsError} />
+        </div>
+      )}
 
       <div>
         <Label>Reporting period</Label>

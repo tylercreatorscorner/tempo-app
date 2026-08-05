@@ -1,37 +1,47 @@
 'use client';
 
 /**
- * Reporting — the Outbox. One feed of everything that went out (client report
- * links + creator posts), the schedule strip below it, and a Create panel
- * that is a persistent right column at xl (per the approved v3 mockup) and
- * opens on demand below that.
+ * Reporting — client-facing only, organised by client.
  *
- * Composition: sent feed in ./sent-feed, the two-mode Create panel in
- * ./create-panel, schedules in ./schedules-tab, staleness net in
- * ./freshness-banner.
+ * This was an outbox: a chronological log of everything sent, a create panel
+ * with its own brand picker, and a schedules table. The work it supports is
+ * not chronological. It is per client, low volume, and gated on whether the
+ * data can honestly support a report.
+ *
+ * So the primary surface is a brand table (./brand-table) where coverage sits
+ * in the row, and generating starts FROM a brand rather than re-picking one.
+ * The sent feed survives as a demoted audit trail below.
+ *
+ * Cut in the rebuild:
+ *  - Schedules. Zero rows since it shipped, and the one report type added
+ *    since (Weekly KPI) is deliberately manual because two of its five
+ *    sections have no data source.
+ *  - The global brand picker inside Create, which was the one way to send
+ *    brand A's numbers under brand B's name.
+ *  - Creator posts, which moved to /drops. They go to your Discord, not to
+ *    clients, and this page is client-facing now.
  */
 
 import { useRef, useState } from 'react';
-import { Plus } from 'lucide-react';
+import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
-import { SentFeed } from './sent-feed';
+import { BrandTable } from './brand-table';
 import { CreatePanel } from './create-panel';
-import { SchedulesTab } from './schedules-tab';
+import { SentFeed } from './sent-feed';
 import { FreshnessBanner } from './freshness-banner';
 
 export default function ReportingPage() {
-  // Bumped whenever the Create panel sends something, so the feed refetches.
-  const [feedRefreshKey, setFeedRefreshKey] = useState(0);
-  // Below xl the panel is hidden until "+ Create report"; at xl it is always
-  // visible (the button just scrolls it into view).
-  const [panelOpen, setPanelOpen] = useState(false);
+  // Bumped when something is sent, so the table and feed both refetch.
+  const [refreshKey, setRefreshKey] = useState(0);
+  // Which brand the Create panel is scoped to. null = panel closed; the panel
+  // is never open without a brand, because that was the old failure mode.
+  const [target, setTarget] = useState<{ slug: string; name: string } | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
-  const openPanel = () => {
-    setPanelOpen(true);
-    // Wait a frame so the panel is un-hidden before we scroll to it.
+  const openFor = (slug: string, name: string) => {
+    setTarget({ slug, name });
     requestAnimationFrame(() => {
       panelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
@@ -41,37 +51,44 @@ export default function ReportingPage() {
     <div className="space-y-6">
       <PageHeader
         eyebrow="Reporting"
-        title="Outbox"
-        subtitle="Client report links, creator posts, and everything on a schedule."
-        actions={
-          <Button onClick={openPanel}>
-            <Plus />
-            Create report
-          </Button>
-        }
+        title="Client reporting"
+        subtitle="What each client has received, and whether their data can support the next one."
       />
 
       <FreshnessBanner />
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_400px] xl:items-start">
-        {/* Create panel — first in DOM so it stacks right under the header on
-            small screens; explicit col/row placement pins it right at xl.
-            Sticky with its own scroll so a tall generated preview never pins
-            the page. The -m-3/p-3 ring keeps the card shadow unclipped. */}
+        {/* Create panel — pinned right at xl, and only ever rendered for a
+            chosen brand. On small screens it stacks under the header. */}
         <div
           ref={panelRef}
           className={cn(
             'scroll-mt-20 xl:col-start-2 xl:row-start-1',
             'xl:sticky xl:top-[72px] xl:-m-3 xl:max-h-[calc(100vh-84px)] xl:overflow-y-auto xl:p-3',
-            !panelOpen && 'hidden xl:block',
+            !target && 'hidden',
           )}
         >
-          <CreatePanel onSent={() => setFeedRefreshKey(k => k + 1)} />
+          {target && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-end">
+                <Button variant="ghost" size="sm" onClick={() => setTarget(null)}>
+                  <X />
+                  Close
+                </Button>
+              </div>
+              <CreatePanel
+                key={target.slug}
+                lockedBrand={target.slug}
+                lockedBrandName={target.name}
+                onSent={() => setRefreshKey(k => k + 1)}
+              />
+            </div>
+          )}
         </div>
 
-        <div className="space-y-8 xl:col-start-1 xl:row-start-1">
-          <SentFeed refreshKey={feedRefreshKey} />
-          <SchedulesTab />
+        <div className={cn('space-y-8 xl:col-start-1 xl:row-start-1', !target && 'xl:col-span-2')}>
+          <BrandTable refreshKey={refreshKey} onGenerate={openFor} />
+          <SentFeed refreshKey={refreshKey} />
         </div>
       </div>
     </div>

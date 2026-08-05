@@ -182,9 +182,9 @@ export function SentFeed({ refreshKey }: { refreshKey: number }) {
   return (
     <section className="space-y-3">
       <div>
-        <h2 className="text-base font-bold tracking-tight text-foreground">Sent</h2>
+        <h2 className="text-base font-bold tracking-tight text-foreground">Recent activity</h2>
         <p className="mt-0.5 text-sm text-muted-foreground">
-          Everything that went out: client report links and creator posts.
+          The audit trail. Creator posts now live in Creators &rsaquo; Drops.
         </p>
       </div>
 
