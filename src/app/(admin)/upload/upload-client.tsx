@@ -46,6 +46,17 @@ import { cn } from '@/lib/utils';
 const FILE_SIZE_WARN_BYTES   =  50 * 1024 * 1024;   //  50 MB warn
 const FILE_SIZE_REJECT_BYTES = 200 * 1024 * 1024;   // 200 MB hard reject
 const QUEUE_LOCALSTORAGE_KEY = 'tempo:upload-queue:v1';
+
+/**
+ * Extensions the in-browser parser can actually read.
+ *
+ * .csv is accepted because both parse paths call XLSX.read(ab, {type:'array'}),
+ * which content-detects rather than trusting the extension, so a CSV goes
+ * through the identical workbook path (upload-client parse and type-sniff both).
+ * Anything outside this list becomes a visible error row in addFiles. It is
+ * never dropped: see the note there.
+ */
+const ACCEPTED_FILE_RE = /\.(xlsx|xls|csv)$/i;
 import {
   detectFileType,
   extractBrand,
@@ -233,11 +244,47 @@ export function UploadClient({ activeBrands, onUploaded }: UploadClientProps) {
   }, []);
 
   function addFiles(files: File[]) {
-    const xlsxFiles = files.filter(f => /\.(xlsx|xls)$/i.test(f.name));
-    if (xlsxFiles.length === 0) return;
+    if (files.length === 0) return;
 
     const items: QueueItem[] = [];
-    for (const f of xlsxFiles) {
+    for (const f of files) {
+      // ── Unreadable extension: an ERROR ROW, never a silent drop.
+      //
+      // This used to be `files.filter(...)` with an early return, so a file the
+      // parser could not read left no queue row, no log line and no toast. The
+      // early return only fired when EVERY file was filtered out, which is the
+      // trap: a mixed drop looked identical to a clean one. peach_slices lost
+      // its Video List and Transaction Analysis files for all of July 2026 that
+      // way. 33 Creator files landed, the other two thirds were discarded here,
+      // and because nothing ever reached the server there was no ingestion_runs
+      // row, no idempotency key and no activity_log entry to find afterwards.
+      // The operator's own account was that all three files had been uploaded.
+      //
+      // An oversized file already produced a visible error row. Only the
+      // extension check failed quietly, and the quiet failure is the expensive
+      // one: the ledger cannot show a gap for a file the server never saw.
+      if (!ACCEPTED_FILE_RE.test(f.name)) {
+        const dot = f.name.lastIndexOf('.');
+        const ext = dot > 0 ? f.name.slice(dot).toLowerCase() : null;
+        items.push({
+          id: newId(),
+          file: f,
+          filename: f.name,
+          type: 'unknown',
+          brand: 'unknown',
+          reportDate: extractDate(f.name),
+          status: 'error',
+          expanded: true,
+          log: [{
+            level: 'error',
+            message: ext
+              ? `Not uploaded. ${ext} files cannot be read here, only .xlsx, .xls and .csv. Re-export this report, or unzip it first if TikTok handed you an archive.`
+              : 'Not uploaded. This file has no extension, so it cannot be parsed. Only .xlsx, .xls and .csv are read.',
+          }],
+        });
+        continue;
+      }
+
       const item: QueueItem = {
         id: newId(),
         file: f,
@@ -1023,7 +1070,10 @@ export function UploadClient({ activeBrands, onUploaded }: UploadClientProps) {
         </p>
         <label className="inline-block mt-4 px-4 py-2 rounded-xl bg-[var(--primary)] hover:brightness-[1.07] text-white text-sm font-semibold cursor-pointer transition-colors shadow-[var(--pulse-elev-1)]">
           Choose files
-          <input type="file" multiple accept=".xlsx,.xls" className="hidden" onChange={onFileInput} />
+          {/* Must stay in sync with ACCEPTED_FILE_RE. `accept` only filters the
+              OS picker; drag-and-drop ignores it entirely, which is why the
+              real gate is addFiles and why that gate has to be loud. */}
+          <input type="file" multiple accept=".xlsx,.xls,.csv" className="hidden" onChange={onFileInput} />
         </label>
       </div>
 
