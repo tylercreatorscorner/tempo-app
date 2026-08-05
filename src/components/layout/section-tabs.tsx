@@ -14,12 +14,16 @@ interface Tab {
 // The sub-views for each sidebar destination. One shared bar, driven by the URL,
 // so pages don't each hand-roll their own tabs.
 const SECTIONS: { key: string; tabs: Tab[] }[] = [
+  // Drops sits last, next to Contests: both are the creator-facing
+  // recognition loop, and contest winners will eventually announce through
+  // the same Discord formats.
   { key: 'creators', tabs: [
     { label: 'Roster', href: '/roster' },
     { label: 'Retention', href: '/retention' },
     { label: 'Affiliates', href: '/affiliates' },
     { label: 'Segments', href: '/segments' },
     { label: 'Contests', href: '/contests' },
+    { label: 'Drops', href: '/drops' },
   ] },
   // Content is just Posts (Reporting graduated to its own sidebar destination
   // 2026-07-23); a single tab renders no bar, which is the point.

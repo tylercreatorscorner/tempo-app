@@ -369,7 +369,39 @@ export interface MilestoneData {
 
 // ─── What's Cooking Data ────────────────────────────────────────
 
-export async function getWhatsCookingData(brandFilter: string, period: '7d' | '30d'): Promise<WhatsCookingData> {
+// ─── Custom windows ─────────────────────────────────────────────
+//
+// The period-based generators all derive their dates the same way: resolve an
+// anchor `today` from the data, then walk back `periodDays` for the start and
+// one day for the end. So a custom range needs no new date math anywhere —
+// synthesise a `today` one day AFTER the range ends, and every existing
+// `today - periodDays` / `today - 1` expression lands exactly on the range.
+//
+// Only formats whose window is a free choice accept one. Daily Drop is
+// yesterday, Month to Date is a calendar month, and Milestones is "recently
+// crossed" — a range would be meaningless for those three, so they don't take
+// one and the UI labels their own window instead.
+
+/** Inclusive yyyy-mm-dd range. */
+export interface DropWindow {
+  start: string;
+  end: string;
+}
+
+function windowToAnchor(w: DropWindow): { today: Date; periodDays: number } {
+  const start = new Date(w.start + 'T12:00:00Z');
+  const end = new Date(w.end + 'T12:00:00Z');
+  const periodDays = Math.max(1, Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1);
+  const today = new Date(end);
+  today.setDate(end.getDate() + 1);
+  return { today, periodDays };
+}
+
+export async function getWhatsCookingData(
+  brandFilter: string,
+  period: '7d' | '30d',
+  window?: DropWindow,
+): Promise<WhatsCookingData> {
   // Service-role client: the cron schedule runner calls this with NO session
   // (cookie client = anon), and the admin/manager-only RPCs are being revoked
   // from anon (mig 100). Authz lives in the callers — /api/discord-posts
@@ -379,7 +411,8 @@ export async function getWhatsCookingData(brandFilter: string, period: '7d' | '3
 
   // What's Cooking queries daily_video_stats — anchor to that table specifically
   // so we always show the most recent video data we have (may lag creator data).
-  const today = await resolveAnchorToday(supabase, brandUuids, 'daily_video_product_stats');
+  const wcAnchor = window ? windowToAnchor(window) : null;
+  const today = wcAnchor ? wcAnchor.today : await resolveAnchorToday(supabase, brandUuids, 'daily_video_product_stats');
   const yesterday = new Date(today);
   yesterday.setDate(today.getDate() - 1);
 
@@ -389,7 +422,22 @@ export async function getWhatsCookingData(brandFilter: string, period: '7d' | '3
   let fullStartDate: string;
   const endDate = formatDate(yesterday);
 
-  if (period === '30d') {
+  if (wcAnchor) {
+    // Custom range: "Top" covers the whole range the operator picked, while
+    // Hot/Rising keep their 7-day and 7-to-14-day meaning inside it.
+    const rangeStart = new Date(today);
+    rangeStart.setDate(today.getDate() - wcAnchor.periodDays);
+    const sevenDaysAgo = new Date(today);
+    sevenDaysAgo.setDate(today.getDate() - 7);
+    const fourteenDaysAgo = new Date(today);
+    fourteenDaysAgo.setDate(today.getDate() - 14);
+
+    fullStartDate = formatDate(rangeStart);
+    // Never let the sub-tiers reach outside the chosen range.
+    hotStartDate = formatDate(sevenDaysAgo < rangeStart ? rangeStart : sevenDaysAgo);
+    risingStartDate = formatDate(fourteenDaysAgo < rangeStart ? rangeStart : fourteenDaysAgo);
+    risingEndDate = hotStartDate;
+  } else if (period === '30d') {
     // Monthly: "Hot" = last 7 days of month, "Rising" = 7-14 days ago, "Top" = full month
     const thirtyDaysAgo = new Date(today);
     thirtyDaysAgo.setDate(today.getDate() - 30);
@@ -455,19 +503,24 @@ export async function getWhatsCookingData(brandFilter: string, period: '7d' | '3
 
 // ─── Who's Cooking Data ─────────────────────────────────────────
 
-export async function getWhosCookingData(brandFilter: string, period: '7d' | '30d'): Promise<WhosCookingData> {
+export async function getWhosCookingData(
+  brandFilter: string,
+  period: '7d' | '30d',
+  window?: DropWindow,
+): Promise<WhosCookingData> {
   // Service-role client — see getWhatsCookingData; whos_cooking_agg_v2 and
   // get_roster_rookie are anon-revoked and the cron path has no session.
   const supabase = await createAdminClient();
   const reg = await getBrandRegistry();
   const brandUuids = brandFilter && brandFilter !== 'all' ? resolveUuids(reg, brandFilter) : null;
 
-  const today = await resolveAnchorToday(supabase, brandUuids);
+  const anchor = window ? windowToAnchor(window) : null;
+  const today = anchor ? anchor.today : await resolveAnchorToday(supabase, brandUuids);
   const yesterday = new Date(today);
   yesterday.setDate(today.getDate() - 1);
   const endDate = formatDate(yesterday);
 
-  const periodDays = period === '30d' ? 30 : 7;
+  const periodDays = anchor ? anchor.periodDays : (period === '30d' ? 30 : 7);
 
   const currentStartD = new Date(today);
   currentStartD.setDate(today.getDate() - periodDays);
@@ -489,7 +542,9 @@ export async function getWhosCookingData(brandFilter: string, period: '7d' | '30
   prior2StartD.setDate(priorStartD.getDate() - periodDays);
   const prior2Start = formatDate(prior2StartD);
 
-  const ironChefMinDays = period === '30d' ? 20 : 5;
+  // Driven off periodDays so a custom range scales too. Reproduces the old
+  // rule exactly at the presets: 30d -> 20, 7d -> 5.
+  const ironChefMinDays = periodDays >= 20 ? 20 : 5;
   const rosterSlugs = rosterBrandSlugs(reg, brandFilter);
 
   // Aggregation runs in Postgres (whos_cooking_agg_v2, mig 099: same shape as
@@ -970,18 +1025,23 @@ export async function getDailyDropData(brandFilter: string): Promise<DailyDropDa
 
 // ─── Biggest Movers Data ────────────────────────────────────────
 
-export async function getMoversData(brandFilter: string, period: '7d' | '30d'): Promise<MoversData> {
+export async function getMoversData(
+  brandFilter: string,
+  period: '7d' | '30d',
+  window?: DropWindow,
+): Promise<MoversData> {
   // Service-role: get_creator_movers is anon-revoked (mig 126) and the cron
   // path has no session — same reasoning as getWhosCookingData.
   const supabase = await createAdminClient();
   const reg = await getBrandRegistry();
   const brandUuids = brandFilter && brandFilter !== 'all' ? resolveUuids(reg, brandFilter) : null;
 
-  const today = await resolveAnchorToday(supabase, brandUuids);
+  const anchor = window ? windowToAnchor(window) : null;
+  const today = anchor ? anchor.today : await resolveAnchorToday(supabase, brandUuids);
   const yesterday = new Date(today);
   yesterday.setDate(today.getDate() - 1);
 
-  const periodDays = period === '30d' ? 30 : 7;
+  const periodDays = anchor ? anchor.periodDays : (period === '30d' ? 30 : 7);
   const curStart = new Date(today); curStart.setDate(today.getDate() - periodDays);
   const priStart = new Date(today); priStart.setDate(today.getDate() - periodDays * 2);
 
@@ -1109,15 +1169,20 @@ export async function getMtdData(brandFilter: string): Promise<MtdData> {
 
 // ─── Rookie Watch Data ──────────────────────────────────────────────
 
-export async function getRookieData(brandFilter: string, period: '7d' | '30d'): Promise<RookieData> {
+export async function getRookieData(
+  brandFilter: string,
+  period: '7d' | '30d',
+  window?: DropWindow,
+): Promise<RookieData> {
   const supabase = await createAdminClient();
   const reg = await getBrandRegistry();
   const brandUuids = brandFilter && brandFilter !== 'all' ? resolveUuids(reg, brandFilter) : null;
 
-  const today = await resolveAnchorToday(supabase, brandUuids);
+  const anchor = window ? windowToAnchor(window) : null;
+  const today = anchor ? anchor.today : await resolveAnchorToday(supabase, brandUuids);
   const yesterday = new Date(today);
   yesterday.setDate(today.getDate() - 1);
-  const periodDays = period === '30d' ? 30 : 7;
+  const periodDays = anchor ? anchor.periodDays : (period === '30d' ? 30 : 7);
   const start = new Date(today);
   start.setDate(today.getDate() - periodDays);
 

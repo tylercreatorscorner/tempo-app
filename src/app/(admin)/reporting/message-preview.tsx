@@ -75,7 +75,9 @@ function CopyBtn({ copied, onClick, variant }: { copied: boolean; onClick: () =>
 }
 
 // ── Discord Markdown Renderer ───────────────────────────────────────
-function renderDiscordMarkdown(text: string, mentionMap: Record<string, string> = {}) {
+/** Exported for the Drops board, which renders the same Discord preview inside
+ *  its own card chrome rather than the full MessagePreview pane. */
+export function renderDiscordMarkdown(text: string, mentionMap: Record<string, string> = {}) {
   return text.split('\n').map((line, i) => {
     if (line.startsWith('# ')) return <div key={i} className="text-xl font-bold text-white mt-1 mb-1">{parseInline(line.slice(2), mentionMap)}</div>;
     if (line.startsWith('> ')) return <div key={i} className="border-l-[3px] border-[#4f545c] pl-3 my-0.5 text-[#b9bbbe]">{parseInline(line.slice(2), mentionMap)}</div>;

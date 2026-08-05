@@ -1,19 +1,19 @@
 'use client';
 
 /**
- * Create panel for the Outbox — the one place reports get made. Three modes:
+ * Create panel for the Outbox — where CLIENT-FACING reports get made. Two modes:
  *
  *  - Client report: prepare a preview (headline numbers + drafted notes) via
  *    POST /api/client-reports/preview, then POST /api/client-reports to mint
  *    a share link, copy it, and refresh the sent feed.
- *  - Creator post: the Daily Drop / What's Cooking / Who's Cooking generator
- *    (GET /api/discord-posts) with the Discord/Slack preview. Copying the text
- *    logs a manual send to POST /api/report-log (fire-and-forget) so it lands
- *    in the feed.
  *  - Weekly KPI: the client-requested five-section weekly report
  *    (GET /api/weekly-kpi). Numbers are generated; the two narrative sections
  *    are typed by the operator before copying. Deliberately manual — there is
  *    no schedule behind it, because sections 4 and 5 have no data source.
+ *
+ * Creator posts USED to be a third mode here. They moved to /drops (Creators >
+ * Drops), which runs all seven Discord formats at once instead of hiding four
+ * of them behind a dropdown. This page is client-facing only now.
  *
  * Every fetch is res.ok-guarded; failures render inline pulse-neg text, never
  * a silently-empty success state.
@@ -37,7 +37,7 @@ import {
   type Delta,
 } from '@/lib/data/weekly-kpi-format';
 import { useBrandSelect, BrandListWarning } from './use-report-brands';
-import { MessagePreview, toSlackFormat } from './message-preview';
+import { MessagePreview } from './message-preview';
 
 /** Small tinted error line used under panel controls. */
 function InlineError({ children }: { children: React.ReactNode }) {
@@ -51,20 +51,19 @@ function InlineError({ children }: { children: React.ReactNode }) {
 // Full-width segmented controls inside the narrow panel column.
 const SEG_FULL = 'flex w-full [&>button]:flex-1';
 
-type CreateMode = 'client' | 'post' | 'weekly';
+type CreateMode = 'client' | 'weekly';
 
 export function CreatePanel({ onSent }: { onSent: () => void }) {
   const [mode, setMode] = useState<CreateMode>('client');
 
-  // All three forms stay mounted so switching modes never throws away a
-  // prepared preview, a generated post, or half-typed narrative sections —
-  // only visibility toggles.
+  // Both forms stay mounted so switching modes never throws away a prepared
+  // preview or half-typed narrative sections — only visibility toggles.
   return (
     <Card className="overflow-hidden">
       <div className="border-b border-border px-5 py-4">
         <h2 className="text-base font-bold tracking-tight text-foreground">Create</h2>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          Share a report link, drop a post for your creators, or write the weekly client update.
+          Share a report link with a client, or write the weekly client update.
         </p>
       </div>
       <div className="space-y-4 p-5">
@@ -73,7 +72,6 @@ export function CreatePanel({ onSent }: { onSent: () => void }) {
           className={SEG_FULL}
           options={[
             { value: 'client', label: 'Client report' },
-            { value: 'post', label: 'Creator post' },
             { value: 'weekly', label: 'Weekly KPI' },
           ]}
           value={mode}
@@ -81,9 +79,6 @@ export function CreatePanel({ onSent }: { onSent: () => void }) {
         />
         <div className={mode === 'client' ? undefined : 'hidden'}>
           <ClientReportForm onSent={onSent} />
-        </div>
-        <div className={mode === 'post' ? undefined : 'hidden'}>
-          <CreatorPostForm onSent={onSent} />
         </div>
         <div className={mode === 'weekly' ? undefined : 'hidden'}>
           <WeeklyKpiForm onSent={onSent} />
@@ -314,232 +309,6 @@ function HeadlineLine({ periodLabel, headline }: { periodLabel: string; headline
         <span className="text-muted-foreground"> · </span>
         <strong>{isNum(headline.managedPct) ? `${Math.round(headline.managedPct)}%` : '—'}</strong> managed
       </div>
-    </div>
-  );
-}
-
-// ── Creator post — Daily Drop / What's Cooking / Who's Cooking ──────
-type PostType = 'daily-drop' | 'whats-cooking' | 'whos-cooking';
-
-const POST_TYPE_OPTIONS: { value: PostType; label: string }[] = [
-  { value: 'daily-drop', label: 'Daily Drop' },
-  { value: 'whats-cooking', label: "What's Cooking?" },
-  { value: 'whos-cooking', label: "Who's Cooking?" },
-];
-
-const POST_TYPE_HINTS: Record<PostType, string> = {
-  'daily-drop': "Yesterday's numbers at a glance.",
-  'whats-cooking': 'Top performing videos of the period.',
-  'whos-cooking': 'Top creators leaderboard.',
-};
-
-function CreatorPostForm({ onSent }: { onSent: () => void }) {
-  const { brand, setBrand, options: brandOptions, error: brandsError } =
-    useBrandSelect({ collapseUmbrella: true });
-
-  const [type, setType] = useState<PostType>('daily-drop');
-  const [period, setPeriod] = useState<'7d' | '30d'>('7d');
-  const [destination, setDestination] = useState<'discord' | 'slack'>('discord');
-  const [boardFormat, setBoardFormat] = useState<'highlights' | 'classic'>('highlights');
-
-  const [text, setText] = useState<string | null>(null);
-  // Server-built Slack rendition (real @handles, Slack link syntax). The
-  // client-side toSlackFormat fallback is LOSSY — it turns every Discord
-  // mention into the literal '@user' — so it's only used for post types the
-  // API doesn't return slackText for yet (whats-cooking).
-  const [slackText, setSlackText] = useState<string | null>(null);
-  const [stats, setStats] = useState<{ totalGmv: number; videoCount: number; creatorCount: number } | null>(null);
-  const [mentionMap, setMentionMap] = useState<Record<string, string>>({});
-  // What the current preview was generated FOR — the copy log records these,
-  // never the live selects (a mid-flight selection change must not misfile
-  // the feed row).
-  const [generated, setGenerated] = useState<{ type: PostType; brand: string; period: '7d' | '30d'; format: 'highlights' | 'classic' } | null>(null);
-  const [generating, setGenerating] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Staleness guard, same reason as the client-report form: a slow generate
-  // must not repopulate the pane after the operator switched selections.
-  const genSeq = useRef(0);
-
-  useEffect(() => () => { if (copyTimer.current) clearTimeout(copyTimer.current); }, []);
-
-  // A generated preview describes one (type, brand, period, board) combo —
-  // changing any of them invalidates it. Destination is display-only (both
-  // renditions come from the same generate), so it does NOT reset.
-  useEffect(() => {
-    genSeq.current += 1;
-    setText(null);
-    setSlackText(null);
-    setStats(null);
-    setGenerated(null);
-    setError(null);
-  }, [type, brand, period, boardFormat]);
-
-  const showPeriod = type !== 'daily-drop';
-  const displayText = text === null
-    ? null
-    : destination === 'slack' ? (slackText ?? toSlackFormat(text, mentionMap)) : text;
-
-  const generate = async () => {
-    const seq = genSeq.current;
-    setGenerating(true);
-    setError(null);
-    try {
-      const params = new URLSearchParams({ type, brand, period });
-      if (type === 'whos-cooking') params.set('format', boardFormat);
-      const res = await fetch(`/api/discord-posts?${params.toString()}`);
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || `HTTP ${res.status}`);
-      }
-      const data = await res.json();
-      if (seq !== genSeq.current) return; // selection changed mid-flight
-      setText(data.text);
-      setSlackText(typeof data.slackText === 'string' ? data.slackText : null);
-      setStats(data.stats ?? null);
-      setMentionMap(data.mentionMap || {});
-      setGenerated({ type, brand, period, format: boardFormat });
-    } catch (err) {
-      if (seq !== genSeq.current) return;
-      setError(err instanceof Error ? err.message : 'Failed to generate post');
-    } finally {
-      if (seq === genSeq.current) setGenerating(false);
-    }
-  };
-
-  const handleCopy = async () => {
-    if (!displayText) return;
-    try {
-      await navigator.clipboard.writeText(displayText);
-    } catch {
-      setError('Copy failed: clipboard access blocked. Select and copy manually from the preview.');
-      return;
-    }
-    setError(null);
-    setCopied(true);
-    if (copyTimer.current) clearTimeout(copyTimer.current);
-    copyTimer.current = setTimeout(() => setCopied(false), 2000);
-
-    // Log the manual send so it lands in the sent feed. Fire-and-forget: a
-    // failed log write must never block the copy the user just made. Logs the
-    // GENERATED selection, not the live selects.
-    const g = generated ?? { type, brand, period, format: boardFormat };
-    const periodLabel = g.type === 'daily-drop'
-      ? 'Yesterday'
-      : g.period === '7d' ? 'Last 7 days' : 'Last 30 days';
-    fetch('/api/report-log', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        reportType: g.type,
-        format: g.type === 'whos-cooking' ? g.format : null,
-        brand: g.brand,
-        periodLabel,
-        destination: 'manual',
-      }),
-    })
-      .then((res) => { if (res.ok) onSent(); })
-      .catch(() => {});
-  };
-
-  return (
-    <div className="space-y-4">
-      <div>
-        <Label htmlFor="cp-type">Post</Label>
-        <Select id="cp-type" value={type} onChange={e => setType(e.target.value as PostType)}>
-          {POST_TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </Select>
-        <p className="mt-1.5 text-[11px] text-muted-foreground">{POST_TYPE_HINTS[type]}</p>
-      </div>
-
-      <div>
-        <Label htmlFor="cp-brand">Brand</Label>
-        <Select id="cp-brand" value={brand} onChange={e => setBrand(e.target.value)}>
-          {brandOptions.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}
-        </Select>
-        <BrandListWarning show={brandsError} />
-      </div>
-
-      {showPeriod && (
-        <div>
-          <Label>Period</Label>
-          <SegmentedControl<'7d' | '30d'>
-            ariaLabel="Post period"
-            size="sm"
-            className={SEG_FULL}
-            options={[{ value: '7d', label: 'Last 7d' }, { value: '30d', label: 'Last 30d' }]}
-            value={period}
-            onValueChange={setPeriod}
-          />
-        </div>
-      )}
-
-      {type === 'whos-cooking' && (
-        <div>
-          <Label>Board format</Label>
-          <SegmentedControl<'highlights' | 'classic'>
-            ariaLabel="Board format"
-            size="sm"
-            className={SEG_FULL}
-            options={[
-              { value: 'highlights', label: 'Highlights' },
-              { value: 'classic', label: 'Classic board' },
-            ]}
-            value={boardFormat}
-            onValueChange={setBoardFormat}
-          />
-        </div>
-      )}
-
-      <div>
-        <Label>Send to</Label>
-        <SegmentedControl<'discord' | 'slack'>
-          ariaLabel="Message format"
-          size="sm"
-          className={SEG_FULL}
-          options={[{ value: 'discord', label: 'Discord' }, { value: 'slack', label: 'Slack' }]}
-          value={destination}
-          onValueChange={setDestination}
-        />
-      </div>
-
-      <Button size="lg" className="w-full" onClick={generate} disabled={generating}>
-        {generating ? <><Loader2 className="animate-spin" />Generating…</> : 'Generate'}
-      </Button>
-
-      {stats && (
-        <div className="flex gap-4 text-xs text-muted-foreground">
-          <span><strong className="text-foreground">{formatCurrency(stats.totalGmv)}</strong> GMV</span>
-          <span><strong className="text-foreground">{stats.videoCount}</strong> videos</span>
-          <span><strong className="text-foreground">{stats.creatorCount}</strong> creators</span>
-        </div>
-      )}
-
-      {displayText && (
-        <MessagePreview
-          destination={destination}
-          text={displayText}
-          mentionMap={mentionMap}
-          copied={copied}
-          onCopy={handleCopy}
-        />
-      )}
-
-      {error && <InlineError>{error}</InlineError>}
-
-      {displayText && (
-        <Button
-          size="lg"
-          className="w-full"
-          onClick={handleCopy}
-          // The primary gradient is a background-image; flip to the solid pos
-          // token via inline style for the copied confirmation flash.
-          style={copied ? { backgroundImage: 'none', backgroundColor: 'var(--pulse-pos)' } : undefined}
-        >
-          {copied ? <><Check />Copied</> : <><Clipboard />Copy to Clipboard</>}
-        </Button>
-      )}
     </div>
   );
 }
