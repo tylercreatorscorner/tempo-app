@@ -36,7 +36,12 @@ function getStateSecret(): string {
       ?? '';
 }
 
-export function signState(payload: object): string {
+// NOT exported. A route file may only export route handlers and Next's own
+// config keys; exporting a helper fails `next build` type validation with
+// "Property 'signState' is incompatible with index signature" (tsc --noEmit
+// does not catch this, only the build does). Nothing outside this file uses
+// it — if the callback ever needs it, move it to src/lib, do not re-export.
+function signState(payload: object): string {
   const secret = getStateSecret();
   const json = JSON.stringify(payload);
   const data = Buffer.from(json).toString('base64url');
