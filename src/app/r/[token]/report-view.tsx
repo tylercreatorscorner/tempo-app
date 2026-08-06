@@ -63,6 +63,20 @@ function pctChange(curr: number, prior: number): number | null {
   return ((curr - prior) / prior) * 100;
 }
 
+/**
+ * Snapshots are FROZEN, so a report created before a field existed will never
+ * gain it. Every field added to BrandClientReportData after a report shipped
+ * is `undefined` on the old rows, and `undefined` flows straight through
+ * arithmetic into NaN on the page a client is reading.
+ *
+ * So nothing reaches the renderer without passing through here: a value that
+ * is not a finite number is ABSENT, and absent renders as nothing rather than
+ * as a number.
+ */
+function finite(v: unknown): number | null {
+  return typeof v === 'number' && Number.isFinite(v) ? v : null;
+}
+
 /** Bare handle for a TikTok profile URL. Names arrive with or without the @. */
 function handleOf(name: string): string {
   return name.trim().replace(/^@+/, '').toLowerCase();
@@ -70,23 +84,29 @@ function handleOf(name: string): string {
 
 // ── Small pieces ───────────────────────────────────────────────────
 
-function Delta({ pct, suffix, abs }: { pct: number | null; suffix?: string; abs?: string }) {
-  if (pct === null) {
-    return <div className="mt-0.5 text-[11px] font-bold text-[#8a8fb0]">new this period</div>;
+function Delta({ pct, suffix, abs }: { pct?: number | null; suffix?: string; abs?: string | null }) {
+  const p = finite(pct);
+  // Undefined (an older frozen snapshot) is NOT the same as null ("from
+  // zero"): there is no comparison to show, so show nothing at all.
+  if (p === null) {
+    return pct === null
+      ? <div className="mt-0.5 text-[11px] font-bold text-[#8a8fb0]">new this period</div>
+      : <div className="mt-0.5 text-[11px] text-[#b3b7d4]">&mdash;</div>;
   }
-  if (Math.abs(pct) < 0.5) {
+  if (Math.abs(p) < 0.5) {
     return <div className="mt-0.5 text-[11px] font-bold text-[#8a8fb0]">no change</div>;
   }
-  const up = pct >= 0;
+  const pct_ = p;
+  const up = pct_ >= 0;
   return (
     <div className={`mt-0.5 text-[11px] font-bold tabular-nums ${up ? 'text-[#0d9f6e]' : 'text-[#cf3a6e]'}`}>
-      {up ? '▲' : '▼'} {abs ? `${abs} ` : ''}({Math.abs(pct).toFixed(1)}%){suffix ? ` ${suffix}` : ''}
+      {up ? '▲' : '▼'} {abs ? `${abs} ` : ''}({Math.abs(pct_).toFixed(1)}%){suffix ? ` ${suffix}` : ''}
     </div>
   );
 }
 
 /** Big stat, used in the agency band. */
-function HeroStat({ label, value, pct, abs }: { label: string; value: string; pct: number | null; abs?: string }) {
+function HeroStat({ label, value, pct, abs }: { label: string; value: string; pct?: number | null; abs?: string | null }) {
   return (
     <div>
       <div className="text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">{label}</div>
@@ -97,7 +117,7 @@ function HeroStat({ label, value, pct, abs }: { label: string; value: string; pc
 }
 
 /** Smaller stat, used for store context. */
-function Mini({ label, value, pct }: { label: string; value: string; pct: number | null }) {
+function Mini({ label, value, pct }: { label: string; value: string; pct?: number | null }) {
   return (
     <div className="rounded-[12px] border border-[#e7e7f2] bg-white px-3.5 py-3">
       <div className="text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">{label}</div>
@@ -262,6 +282,16 @@ export function ReportView({
   const cc = r.creatorsCorner;
   const hasRoster = cc.signedCreatorCount > 0;
 
+  // Fields added after older reports were frozen. priorVideos / videoChangePct
+  // simply are not there and cannot be recovered, so they render as absent.
+  // creatorChangePct CAN be recovered: priorCreatorCount predates it.
+  const priorGmv = finite(cc.priorGmv);
+  const priorVideos = finite(cc.priorVideos);
+  const videoPct = finite(cc.videoChangePct) ?? (priorVideos !== null ? pctChange(cc.videos, priorVideos) : undefined);
+  const priorCreators = finite(cc.priorCreatorCount);
+  const creatorPct =
+    finite(cc.creatorChangePct) ?? (priorCreators !== null ? pctChange(cc.activeCreatorCount, priorCreators) : undefined);
+
   const viewsDelta = s.views !== null && s.priorViews !== null ? pctChange(s.views, s.priorViews) : null;
 
   // The honest case: our roster fell while the store rose. Stating it plainly
@@ -351,19 +381,19 @@ export function ReportView({
                   label="Roster GMV"
                   value={money(cc.gmv)}
                   pct={cc.gmvChangePct}
-                  abs={money(Math.abs(cc.gmv - cc.priorGmv))}
+                  abs={priorGmv !== null ? money(Math.abs(cc.gmv - priorGmv)) : null}
                 />
-                <HeroStat label="Share of store" value={`${cc.pctOfStoreGmv.toFixed(1)}%`} pct={null} />
+                <HeroStat label="Share of store" value={`${cc.pctOfStoreGmv.toFixed(1)}%`} />
                 <HeroStat
                   label="Creators active"
                   value={num(cc.activeCreatorCount)}
-                  pct={cc.creatorChangePct}
+                  pct={creatorPct}
                 />
                 <HeroStat
                   label="Posts published"
                   value={num(cc.videos)}
-                  pct={cc.videoChangePct}
-                  abs={num(Math.abs(cc.videos - cc.priorVideos))}
+                  pct={videoPct}
+                  abs={priorVideos !== null ? num(Math.abs(cc.videos - priorVideos)) : null}
                 />
               </div>
             </div>
