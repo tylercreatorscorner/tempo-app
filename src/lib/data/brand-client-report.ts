@@ -80,8 +80,14 @@ export interface BrandClientReportData {
     priorGmv: number;
     priorOrders: number;
     priorCreatorCount: number;
+    /** Posts the roster published in the prior window (mig
+     *  brand_client_report_managed_prior_videos). Every roster figure carries
+     *  a period-over-period change; posts was the one that could not. */
+    priorVideos: number;
     gmvChangePct: number | null; // null = "from zero" (render as "new")
     orderChangePct: number | null;
+    videoChangePct: number | null;
+    creatorChangePct: number | null;
     // Efficiency vs organic (managed creators usually outperform; honest when not)
     managedAov: number;
     organicAov: number;
@@ -386,8 +392,11 @@ export async function getBrandClientReportData(
     priorGmv: num(mp.gmv),
     priorOrders: num(mp.orders),
     priorCreatorCount: num(mp.creators),
+    priorVideos: num(mp.videos),
     gmvChangePct: pctChange(managedGmv, num(mp.gmv)),
     orderChangePct: pctChange(managedOrders, num(mp.orders)),
+    videoChangePct: pctChange(num(m.videos), num(mp.videos)),
+    creatorChangePct: pctChange(managedCreatorCount, num(mp.creators)),
     managedAov: managedOrders > 0 ? managedGmv / managedOrders : 0,
     organicAov: organicOrders > 0 ? organicGmv / organicOrders : 0,
     managedGmvPerCreator: managedCreatorCount > 0 ? managedGmv / managedCreatorCount : 0,
