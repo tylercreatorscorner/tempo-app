@@ -10,6 +10,10 @@ import {
 import { createAdminClient } from '@/lib/supabase/server';
 import { resolveWatchUrl } from '@/lib/utils/format';
 import { StatCard } from '@/components/dashboard/stat-card';
+import {
+  getBrandBillingMonth,
+  type BrandBillingMonth,
+} from '@/lib/data/brand-portal-billing';
 import { GmvComparisonChart } from '@/components/charts/gmv-comparison-chart';
 import { PeriodTabs } from './period-tabs';
 
@@ -46,6 +50,12 @@ export default async function BrandOverview({ searchParams }: PageProps) {
     ctx.activeBrand.display_name || ctx.activeBrand.name,
     period,
   );
+
+  // Month-grain, deliberately independent of `period`. See BillingBand.
+  // Scoped off ctx.activeBrand.slug, never a query param: invoices are
+  // deny-all under RLS and reachable only via the service-role client, so
+  // this call site IS the access control.
+  const billing = await getBrandBillingMonth(admin, ctx.activeBrand.slug);
 
   const accent = ctx.activeBrand.color || '#FF4D8D';
   const dailyGmvSparkline = data.dailyPerformance.map((d) => d.gmv);
@@ -164,6 +174,14 @@ export default async function BrandOverview({ searchParams }: PageProps) {
           </div>
         </Card>
       )}
+
+      {/* ── Billing · monthly basis ────────────────────────────────────────
+          Everything above responds to the period tabs. This does NOT, and the
+          rule says so out loud: retainers and fees are billed monthly, so
+          slicing them into a 7-day window would be apportioning. Without the
+          visual break a client reads the ratio as belonging to the selected
+          week, which is exactly the misreading that would force an estimate. */}
+      <BillingBand billing={billing} />
 
       {/* Snapshot panes: top creators + recent videos side by side */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -783,6 +801,125 @@ function SplitRow({
       <span className="text-xs font-semibold tabular-nums" style={{ color: muted ? 'var(--muted-foreground)' : color }}>
         {pct.toFixed(1)}%
       </span>
+    </div>
+  );
+}
+
+// ── Billing · cost vs return (monthly) ──
+//
+// Brands asked for this: the portal's other ROI figure compares roster GMV to
+// RETAINER only, which flatters us. This one is against the whole invoice.
+//
+// Three things here are deliberate and should survive redesigns:
+//   · the heading names its month, because this pane ignores the period tabs;
+//   · the ratio is "GMV per $1 of fees", never "ROI" — GMV is not profit and
+//     the brand does not keep it, and the caption says so before their finance
+//     team has to point it out;
+//   · a month with no closed invoice renders an em dash, never $0. Zero cost
+//     reads as free and makes the ratio infinite.
+function BillingBand({ billing }: { billing: BrandBillingMonth | null }) {
+  if (!billing) return null;
+
+  const lines: { label: string; value: number }[] = [
+    { label: 'Creator retainers', value: billing.retainer },
+    { label: 'Rev-share commission', value: billing.commission },
+    { label: 'Product retainers', value: billing.productRetainer },
+    { label: 'Launch fees', value: billing.launchFee },
+  ];
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-3">
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          Billing · monthly basis
+        </span>
+        <span className="flex-1 h-px bg-border" aria-hidden="true" />
+      </div>
+
+      <Card>
+        <CardHeader
+          title={`What you spent, and what it returned — ${billing.monthLabel}`}
+          subtitle={
+            billing.monthsStale >= 2
+              ? `Your most recent closed invoice. Nothing has been invoiced in the ${billing.monthsStale} months since.`
+              : 'Last closed month. Not the period selected above.'
+          }
+        />
+        <div className="grid grid-cols-1 lg:grid-cols-2">
+          <div className="p-5">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              GMV per $1 of fees
+            </div>
+            <div className="mt-2 text-4xl font-bold tracking-tight tabular-nums text-foreground">
+              {billing.gmvPerDollar === null ? (
+                <span className="text-muted-foreground">—</span>
+              ) : (
+                `$${billing.gmvPerDollar.toFixed(2)}`
+              )}
+            </div>
+            <p className="mt-2.5 text-sm text-muted-foreground">
+              Your roster produced{' '}
+              <span className="font-semibold text-foreground tabular-nums">
+                {fmtCurrency(billing.gmv)}
+              </span>{' '}
+              in GMV against{' '}
+              <span className="font-semibold text-foreground tabular-nums">
+                {fmtCurrency(billing.total)}
+              </span>{' '}
+              in total fees.
+            </p>
+            <p className="mt-3 text-xs text-muted-foreground">
+              This is GMV, not profit. It is what your creators sold before
+              TikTok&apos;s cut, product cost and returns — not money in your
+              account.
+            </p>
+          </div>
+
+          <div className="p-5 border-t border-border lg:border-t-0 lg:border-l">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2.5">
+              What you were billed
+            </div>
+            <table className="w-full">
+              <tbody>
+                {lines.map((l) => (
+                  <tr key={l.label}>
+                    <td
+                      className={`py-1.5 text-sm ${
+                        l.value === 0 ? 'text-muted-foreground' : 'text-foreground'
+                      }`}
+                    >
+                      {l.label}
+                    </td>
+                    <td
+                      className={`py-1.5 text-sm text-right tabular-nums ${
+                        l.value === 0 ? 'text-muted-foreground' : 'text-foreground'
+                      }`}
+                    >
+                      {fmtCurrency(l.value)}
+                    </td>
+                  </tr>
+                ))}
+                <tr>
+                  <td className="pt-2.5 border-t border-border text-sm font-semibold text-foreground">
+                    Total
+                  </td>
+                  <td className="pt-2.5 border-t border-border text-sm font-semibold text-right tabular-nums text-foreground">
+                    {fmtCurrency(billing.total)}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <p className="px-5 py-2.5 border-t border-border bg-muted/30 text-xs text-muted-foreground">
+          Taken straight from your invoices
+          {billing.invoiceCount > 1 && `, summed across all ${billing.invoiceCount} for the month`}.
+          A month shows &ldquo;—&rdquo; until its invoicing closes; it is never shown as $0.
+          {billing.gmvAmbiguous &&
+            ' Invoices for this month recorded slightly different GMV totals; the most complete figure is shown.'}
+        </p>
+      </Card>
     </div>
   );
 }
