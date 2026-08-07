@@ -72,10 +72,10 @@ export default async function BrandOverview({ searchParams }: PageProps) {
             </div>
           )}
           <div className="min-w-0">
-            <h1 className="text-2xl font-bold text-[#1A1B3A] flex items-center gap-2">
+            <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
               {data.brandName}
             </h1>
-            <p className="text-sm text-gray-500 mt-0.5">
+            <p className="text-sm text-muted-foreground mt-0.5">
               Snapshot · {data.periodLabel}
             </p>
           </div>
@@ -183,7 +183,7 @@ export default async function BrandOverview({ searchParams }: PageProps) {
                   href={`/brand-dashboard/creators/${c.primaryHandle}?period=${period}`}
                   className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/30 transition-colors"
                 >
-                  <span className="text-xs text-gray-400 w-5 tabular-nums">{i + 1}</span>
+                  <span className="text-xs text-muted-foreground w-5 tabular-nums">{i + 1}</span>
                   <div className="flex-1 min-w-0">
                     <p
                       className="text-sm font-medium truncate"
@@ -192,15 +192,15 @@ export default async function BrandOverview({ searchParams }: PageProps) {
                     >
                       @{c.primaryHandle}
                     </p>
-                    <p className="text-xs text-gray-500 truncate">
+                    <p className="text-xs text-muted-foreground truncate">
                       {c.posts} post{c.posts === 1 ? '' : 's'}
                       {c.realName ? ` · ${c.realName}` : ''}
                     </p>
                   </div>
-                  <p className="text-sm font-semibold tabular-nums text-[#1A1B3A]">
+                  <p className="text-sm font-semibold tabular-nums text-foreground">
                     {fmtCurrency(c.gmv)}
                   </p>
-                  <ChevronRight className="h-4 w-4 text-gray-300 shrink-0" />
+                  <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
                 </Link>
               ))
             )}
@@ -232,14 +232,14 @@ export default async function BrandOverview({ searchParams }: PageProps) {
                   className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/30 transition-colors"
                 >
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-[#1A1B3A] truncate" title={v.title}>
+                    <p className="text-sm font-medium text-foreground truncate" title={v.title}>
                       {v.title}
                     </p>
-                    <p className="text-xs text-gray-500 truncate">
+                    <p className="text-xs text-muted-foreground truncate">
                       @{v.creatorHandle}
                       {v.postDate && (
                         <>
-                          <span className="mx-1.5 text-gray-300">·</span>
+                          <span className="mx-1.5 text-muted-foreground">·</span>
                           {fmtDate(v.postDate)}
                         </>
                       )}
@@ -251,7 +251,7 @@ export default async function BrandOverview({ searchParams }: PageProps) {
                   >
                     {fmtCurrency(v.periodGmv)}
                   </p>
-                  <ExternalLink className="h-4 w-4 text-gray-300 shrink-0" />
+                  <ExternalLink className="h-4 w-4 text-muted-foreground shrink-0" />
                 </a>
               ))
             )}
@@ -280,9 +280,9 @@ function AmNoteCard({
     : null;
   return (
     <div
-      className="rounded-2xl border border-border bg-white shadow-sm overflow-hidden relative"
+      className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden relative"
       style={{
-        background: `linear-gradient(135deg, ${accent}08 0%, #FFFFFF 60%)`,
+        background: `linear-gradient(135deg, ${accent}08 0%, var(--card) 60%)`,
       }}
     >
       <div className="p-5 sm:p-6 space-y-3">
@@ -294,15 +294,15 @@ function AmNoteCard({
             <MessageCircle className="h-3.5 w-3.5" style={{ color: accent }} />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
               From your account manager
             </p>
             {note.authorName || updatedLabel ? (
-              <p className="text-xs text-gray-500 truncate">
+              <p className="text-xs text-muted-foreground truncate">
                 {note.authorName ?? 'Your AM'}
                 {updatedLabel && (
                   <>
-                    <span className="mx-1 text-gray-300">·</span>
+                    <span className="mx-1 text-muted-foreground">·</span>
                     {updatedLabel}
                   </>
                 )}
@@ -310,7 +310,7 @@ function AmNoteCard({
             ) : null}
           </div>
         </div>
-        <p className="text-sm leading-relaxed text-[#1A1B3A] whitespace-pre-wrap break-words">
+        <p className="text-sm leading-relaxed text-foreground whitespace-pre-wrap break-words">
           {note.text}
         </p>
       </div>
@@ -333,7 +333,7 @@ function GoalProgressCard({
   const clampedPct = Math.min(100, goal.pctOfGoal);
 
   return (
-    <div className="rounded-2xl border border-border bg-white shadow-sm overflow-hidden">
+    <div className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
       <div className="p-5 sm:p-6 space-y-4">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2.5">
@@ -344,10 +344,10 @@ function GoalProgressCard({
               <Target className="h-3.5 w-3.5" style={{ color: accent }} />
             </div>
             <div>
-              <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
                 Monthly GMV goal
               </p>
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-muted-foreground">
                 Day {goal.daysElapsed} of {goal.daysInMonth}
               </p>
             </div>
@@ -361,9 +361,9 @@ function GoalProgressCard({
 
         <div>
           <div className="flex items-baseline justify-between gap-3 mb-2">
-            <p className="text-2xl font-bold text-[#1A1B3A] tabular-nums">
+            <p className="text-2xl font-bold text-foreground tabular-nums">
               {fmtCurrency(goal.mtdGmv)}
-              <span className="text-sm font-medium text-gray-400 ml-1.5">
+              <span className="text-sm font-medium text-muted-foreground ml-1.5">
                 / {fmtCurrency(goal.monthlyGoal)}
               </span>
             </p>
@@ -374,7 +374,7 @@ function GoalProgressCard({
               {goal.pctOfGoal.toFixed(0)}%
             </p>
           </div>
-          <div className="h-2 w-full rounded-full bg-gray-100 overflow-hidden">
+          <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
             <div
               className="h-full rounded-full transition-all"
               style={{ width: `${clampedPct}%`, backgroundColor: accent }}
@@ -436,7 +436,7 @@ function HighlightsCard({
     <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
       <div className="px-4 pt-4 pb-3 border-b border-border/50 flex items-center gap-2">
         <Sparkles className="h-4 w-4" style={{ color: accent }} />
-        <h3 className="text-sm font-semibold text-[#1A1B3A]">Highlights this period</h3>
+        <h3 className="text-sm font-semibold text-foreground">Highlights this period</h3>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-border/40">
         {highlights.peakDay && (
@@ -520,7 +520,7 @@ function HighlightItem({
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-2 mb-0.5">
-            <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
               {label}
             </p>
             {pill && (
@@ -533,12 +533,12 @@ function HighlightItem({
             )}
           </div>
           <p
-            className={`text-sm font-bold text-[#1A1B3A] ${truncatePrimary ? 'truncate' : ''}`}
+            className={`text-sm font-bold text-foreground ${truncatePrimary ? 'truncate' : ''}`}
             title={truncatePrimary ? primary : undefined}
           >
             {primary}
           </p>
-          <p className="text-xs text-gray-500 mt-0.5 truncate">{secondary}</p>
+          <p className="text-xs text-muted-foreground mt-0.5 truncate">{secondary}</p>
         </div>
       </div>
     </div>
@@ -573,8 +573,8 @@ function EngagementStrip({
     <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
       <div className="px-4 pt-4 pb-3 border-b border-border/50 flex items-end justify-between gap-2">
         <div>
-          <h3 className="text-sm font-semibold text-[#1A1B3A]">Reach &amp; engagement</h3>
-          <p className="text-xs text-gray-500 mt-0.5">
+          <h3 className="text-sm font-semibold text-foreground">Reach &amp; engagement</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
             From {fmtNumber(engagement.posts)} post{engagement.posts === 1 ? '' : 's'} your managed creators published this period
           </p>
         </div>
@@ -643,11 +643,11 @@ function EngagementStat({
     <div className="px-4 py-3.5">
       <div className="flex items-center gap-1.5 mb-1.5">
         <Icon className="h-3.5 w-3.5" style={{ color: accent }} />
-        <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
+        <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
           {label}
         </p>
       </div>
-      <p className="text-lg font-bold text-[#1A1B3A] tabular-nums">{value}</p>
+      <p className="text-lg font-bold text-foreground tabular-nums">{value}</p>
       {changePct != null && Math.abs(changePct) >= 0.1 ? (
         <p
           className={`text-[11px] mt-0.5 font-medium tabular-nums ${
@@ -667,7 +667,7 @@ function EngagementStat({
           {changePctPoints.toFixed(1)}pp vs prior
         </p>
       ) : subtitle ? (
-        <p className="text-[11px] mt-0.5 text-gray-400 tabular-nums">{subtitle}</p>
+        <p className="text-[11px] mt-0.5 text-muted-foreground tabular-nums">{subtitle}</p>
       ) : null}
     </div>
   );
@@ -688,15 +688,15 @@ function ManagedSplitPanel({
     <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
       <div className="px-4 pt-4 pb-3 border-b border-border/50 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-1">
         <div>
-          <h3 className="text-sm font-semibold text-[#1A1B3A]">
+          <h3 className="text-sm font-semibold text-foreground">
             Your roster vs total brand sales
           </h3>
-          <p className="text-xs text-gray-500 mt-0.5">
+          <p className="text-xs text-muted-foreground mt-0.5">
             How much of your brand&apos;s TikTok Shop GMV your managed creators drove this period
           </p>
         </div>
-        <p className="text-xs text-gray-500 tabular-nums">
-          Total: <span className="font-semibold text-[#1A1B3A]">{fmtCurrency(split.totalGmv)}</span>
+        <p className="text-xs text-muted-foreground tabular-nums">
+          Total: <span className="font-semibold text-foreground">{fmtCurrency(split.totalGmv)}</span>
         </p>
       </div>
 
@@ -704,7 +704,7 @@ function ManagedSplitPanel({
         {/* Stacked bar */}
         <div
           className="h-3 w-full rounded-full overflow-hidden flex"
-          style={{ backgroundColor: '#E5E7EB' }}
+          style={{ backgroundColor: 'var(--muted)' }}
         >
           <div
             className="h-full transition-all"
@@ -730,7 +730,7 @@ function ManagedSplitPanel({
             value={split.organicGmv}
             posts={split.organicPosts}
             pct={organicPct}
-            color="#9CA3AF"
+            color="var(--muted-foreground)"
             muted
           />
         </div>
@@ -761,15 +761,15 @@ function SplitRow({
         style={{ backgroundColor: color }}
       />
       <div className="flex-1 min-w-0">
-        <p className={`text-xs ${muted ? 'text-gray-500' : 'text-gray-600'}`}>{label}</p>
-        <p className="text-sm font-semibold text-[#1A1B3A] tabular-nums">
+        <p className={`text-xs ${muted ? 'text-muted-foreground' : 'text-muted-foreground'}`}>{label}</p>
+        <p className="text-sm font-semibold text-foreground tabular-nums">
           {fmtCurrency(value)}
-          <span className="ml-1.5 text-xs font-normal text-gray-400">
+          <span className="ml-1.5 text-xs font-normal text-muted-foreground">
             · {fmtNumber(posts)} post{posts === 1 ? '' : 's'}
           </span>
         </p>
       </div>
-      <span className="text-xs font-semibold tabular-nums" style={{ color: muted ? '#6B7280' : color }}>
+      <span className="text-xs font-semibold tabular-nums" style={{ color: muted ? 'var(--muted-foreground)' : color }}>
         {pct.toFixed(1)}%
       </span>
     </div>
@@ -789,8 +789,8 @@ function Card({ children }: { children: React.ReactNode }) {
 function CardHeader({ title, subtitle }: { title: string; subtitle?: string }) {
   return (
     <div className="px-4 pt-4 pb-3 border-b border-border/50">
-      <h3 className="text-sm font-semibold text-[#1A1B3A]">{title}</h3>
-      {subtitle && <p className="text-xs text-gray-500 mt-0.5">{subtitle}</p>}
+      <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+      {subtitle && <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>}
     </div>
   );
 }
@@ -809,12 +809,12 @@ function CardHeaderWithLink({
   return (
     <div className="px-4 pt-4 pb-3 border-b border-border/50 flex items-start justify-between gap-3">
       <div>
-        <h3 className="text-sm font-semibold text-[#1A1B3A]">{title}</h3>
-        {subtitle && <p className="text-xs text-gray-500 mt-0.5">{subtitle}</p>}
+        <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+        {subtitle && <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>}
       </div>
       <Link
         href={href}
-        className="text-xs font-medium text-gray-500 hover:text-[#1A1B3A] flex items-center gap-0.5 shrink-0"
+        className="text-xs font-medium text-muted-foreground hover:text-foreground flex items-center gap-0.5 shrink-0"
       >
         {linkLabel}
         <ChevronRight className="h-3.5 w-3.5" />
@@ -824,7 +824,7 @@ function CardHeaderWithLink({
 }
 
 function EmptyRow({ text }: { text: string }) {
-  return <p className="text-sm text-gray-400 px-4 py-8 text-center">{text}</p>;
+  return <p className="text-sm text-muted-foreground px-4 py-8 text-center">{text}</p>;
 }
 
 // ── Helpers ──

@@ -55,8 +55,8 @@ export default async function BrandSettingsPage() {
   return (
     <div className="space-y-6 max-w-[900px] mx-auto">
       <div>
-        <h1 className="text-2xl font-bold text-[#1A1B3A]">Settings</h1>
-        <p className="text-sm text-gray-500 mt-0.5">
+        <h1 className="text-2xl font-bold text-foreground">Settings</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">
           Your account, brand, and team — managed by your account manager at the agency.
         </p>
       </div>
@@ -72,20 +72,20 @@ export default async function BrandSettingsPage() {
             <div
               className="h-10 w-10 rounded-full flex items-center justify-center text-white text-sm font-bold"
               style={{
-                background: `linear-gradient(135deg, ${accent}, #7C5CFC)`,
+                background: `linear-gradient(135deg, ${accent}, var(--pulse-accent-2))`,
               }}
             >
               {(accountManager.name ?? accountManager.email)[0]?.toUpperCase()}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-[#1A1B3A]">
+              <p className="text-sm font-semibold text-foreground">
                 {accountManager.name ?? 'Your account manager'}
               </p>
-              <p className="text-xs text-gray-500 truncate">{accountManager.email}</p>
+              <p className="text-xs text-muted-foreground truncate">{accountManager.email}</p>
             </div>
             <a
               href={`mailto:${accountManager.email}`}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border hover:border-gray-300 text-xs font-medium text-gray-700 hover:text-[#1A1B3A] transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border hover:border-border text-xs font-medium text-foreground hover:text-foreground transition-colors"
             >
               <Mail className="h-3.5 w-3.5" />
               Email
@@ -117,10 +117,10 @@ export default async function BrandSettingsPage() {
             )}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-[#1A1B3A]">
+            <p className="text-sm font-semibold text-foreground">
               {ctx.activeBrand.display_name ?? ctx.activeBrand.name}
             </p>
-            <p className="text-xs text-gray-500 mt-0.5">
+            <p className="text-xs text-muted-foreground mt-0.5">
               Brand color:{' '}
               <span
                 className="inline-block h-2.5 w-2.5 rounded-full align-middle mr-1 ml-0.5"
@@ -141,10 +141,10 @@ export default async function BrandSettingsPage() {
         <dl className="divide-y divide-border/40">
           <EditableName initialName={ctx.user.name ?? ''} />
           <div className="flex items-center justify-between px-5 py-3">
-            <dt className="text-xs text-gray-500">Email</dt>
-            <dd className="flex items-center gap-1.5 text-sm font-medium text-[#1A1B3A]">
+            <dt className="text-xs text-muted-foreground">Email</dt>
+            <dd className="flex items-center gap-1.5 text-sm font-medium text-foreground">
               {ctx.user.email}
-              <Lock className="h-3 w-3 text-gray-300" aria-label="Locked" />
+              <Lock className="h-3 w-3 text-muted-foreground" aria-label="Locked" />
             </dd>
           </div>
         </dl>
@@ -179,11 +179,11 @@ export default async function BrandSettingsPage() {
         </div>
         {accountManager && (
           <div className="px-5 py-3 border-t border-border/50 bg-muted/30">
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-muted-foreground">
               Want to invite someone else from your team?{' '}
               <a
                 href={`mailto:${accountManager.email}?subject=Add%20teammate%20to%20${encodeURIComponent(ctx.activeBrand.display_name || ctx.activeBrand.name)}%20portal`}
-                className="font-medium text-[#1A1B3A] hover:underline inline-flex items-center gap-0.5"
+                className="font-medium text-foreground hover:underline inline-flex items-center gap-0.5"
               >
                 Email your account manager
                 <ExternalLink className="h-3 w-3" />
@@ -212,12 +212,12 @@ function SectionCard({
   return (
     <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
       <div className="flex items-center gap-3 px-5 py-4 border-b border-border/50">
-        <div className="h-9 w-9 rounded-lg bg-gray-50 flex items-center justify-center">
-          <Icon className="h-4 w-4 text-gray-400" />
+        <div className="h-9 w-9 rounded-lg bg-muted flex items-center justify-center">
+          <Icon className="h-4 w-4 text-muted-foreground" />
         </div>
         <div>
-          <h2 className="text-sm font-semibold text-[#1A1B3A]">{title}</h2>
-          {description && <p className="text-xs text-gray-500 mt-0.5">{description}</p>}
+          <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+          {description && <p className="text-xs text-muted-foreground mt-0.5">{description}</p>}
         </div>
       </div>
       {children}
@@ -228,8 +228,8 @@ function SectionCard({
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between px-5 py-3">
-      <dt className="text-xs text-gray-500">{label}</dt>
-      <dd className="text-sm font-medium text-[#1A1B3A]">{value}</dd>
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd className="text-sm font-medium text-foreground">{value}</dd>
     </div>
   );
 }
@@ -249,20 +249,20 @@ function TeammateRow({
     <div className="flex items-center gap-3 px-5 py-3">
       <div
         className="h-8 w-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
-        style={{ background: `linear-gradient(135deg, ${accent}, #7C5CFC)` }}
+        style={{ background: `linear-gradient(135deg, ${accent}, var(--pulse-accent-2))` }}
       >
         {(name ?? email)[0]?.toUpperCase()}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-[#1A1B3A] truncate">
+        <p className="text-sm font-medium text-foreground truncate">
           {name ?? email}
           {isYou && (
-            <span className="ml-2 text-[10px] text-gray-400 uppercase tracking-wider font-semibold">
+            <span className="ml-2 text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">
               You
             </span>
           )}
         </p>
-        {name && <p className="text-xs text-gray-500 truncate">{email}</p>}
+        {name && <p className="text-xs text-muted-foreground truncate">{email}</p>}
       </div>
     </div>
   );

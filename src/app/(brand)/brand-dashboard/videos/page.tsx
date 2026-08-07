@@ -114,8 +114,8 @@ export default async function BrandVideosPage({ searchParams }: PageProps) {
     <div className="space-y-6 max-w-[1400px] mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-[#1A1B3A]">Videos</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
+          <h1 className="text-2xl font-bold text-foreground">Videos</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
             {filtered.length} post{filtered.length === 1 ? '' : 's'} from your managed
             creators · {data.periodLabel}
           </p>
@@ -126,14 +126,14 @@ export default async function BrandVideosPage({ searchParams }: PageProps) {
         </div>
       </div>
 
-      <p className="text-xs text-gray-400 -mt-3">
+      <p className="text-xs text-muted-foreground -mt-3">
         GMV is the sales each post generated <strong>during the selected period</strong>.
         Lifetime GMV (totals since posting) is shown as a secondary number.
       </p>
 
       <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
         {visible.length === 0 ? (
-          <p className="text-sm text-gray-400 px-4 py-12 text-center">
+          <p className="text-sm text-muted-foreground px-4 py-12 text-center">
             {data.videos.length === 0
               ? 'No posts in this period.'
               : 'No videos match your search.'}
@@ -229,16 +229,16 @@ export default async function BrandVideosPage({ searchParams }: PageProps) {
                             href={href}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-sm font-medium text-[#1A1B3A] hover:underline truncate block max-w-[420px]"
+                            className="text-sm font-medium text-foreground hover:underline truncate block max-w-[420px]"
                             title={v.title}
                           >
                             {v.title}
                           </a>
-                          <p className="text-xs text-gray-500 mt-0.5 sm:hidden">
+                          <p className="text-xs text-muted-foreground mt-0.5 sm:hidden">
                             @{v.creatorHandle}
                             {v.postDate && (
                               <>
-                                <span className="mx-1.5 text-gray-300">·</span>
+                                <span className="mx-1.5 text-muted-foreground">·</span>
                                 {fmtDate(v.postDate)}
                               </>
                             )}
@@ -249,11 +249,11 @@ export default async function BrandVideosPage({ searchParams }: PageProps) {
                             @{v.creatorHandle}
                           </span>
                         </td>
-                        <td className="px-3 py-2.5 hidden md:table-cell text-gray-500 text-xs">
+                        <td className="px-3 py-2.5 hidden md:table-cell text-muted-foreground text-xs">
                           {v.postDate ? fmtDate(v.postDate) : '—'}
                         </td>
-                        <td className="text-right px-3 py-2.5 tabular-nums text-gray-700">
-                          {v.impressions > 0 ? fmtCompact(v.impressions) : <span className="text-gray-300">—</span>}
+                        <td className="text-right px-3 py-2.5 tabular-nums text-foreground">
+                          {v.impressions > 0 ? fmtCompact(v.impressions) : <span className="text-muted-foreground">—</span>}
                         </td>
                         <td className="text-right px-3 py-2.5 tabular-nums font-medium">
                           {fmtCurrency(v.periodGmv)}
@@ -261,10 +261,10 @@ export default async function BrandVideosPage({ searchParams }: PageProps) {
                         <td className="text-right px-3 py-2.5">
                           <ChangePill curr={v.periodGmv} prior={v.priorGmv} />
                         </td>
-                        <td className="text-right px-3 py-2.5 tabular-nums text-gray-700">
+                        <td className="text-right px-3 py-2.5 tabular-nums text-foreground">
                           {fmtNumber(v.periodOrders)}
                         </td>
-                        <td className="text-right px-4 py-2.5 tabular-nums text-gray-500 hidden lg:table-cell">
+                        <td className="text-right px-4 py-2.5 tabular-nums text-muted-foreground hidden lg:table-cell">
                           {fmtCurrency(v.lifetimeGmv)}
                         </td>
                         <td className="text-right pr-3">
@@ -272,7 +272,7 @@ export default async function BrandVideosPage({ searchParams }: PageProps) {
                             href={href}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-gray-300 hover:text-gray-600 inline-flex"
+                            className="text-muted-foreground hover:text-muted-foreground inline-flex"
                             aria-label="Open on TikTok"
                           >
                             <ExternalLink className="h-4 w-4" />
@@ -286,7 +286,7 @@ export default async function BrandVideosPage({ searchParams }: PageProps) {
             </div>
 
             {totalPages > 1 && (
-              <div className="flex items-center justify-between px-4 py-3 border-t border-border/50 text-xs text-gray-500">
+              <div className="flex items-center justify-between px-4 py-3 border-t border-border/50 text-xs text-muted-foreground">
                 <span>
                   {startIdx + 1}–{Math.min(startIdx + PAGE_SIZE, sorted.length)} of {sorted.length}
                 </span>
@@ -294,13 +294,13 @@ export default async function BrandVideosPage({ searchParams }: PageProps) {
                   {safePage > 1 ? (
                     <Link
                       href={buildHref({ page: safePage - 1 })}
-                      className="inline-flex items-center gap-0.5 px-2 py-1 rounded-md hover:bg-muted/30 text-gray-700"
+                      className="inline-flex items-center gap-0.5 px-2 py-1 rounded-md hover:bg-muted/30 text-foreground"
                     >
                       <ChevronLeft className="h-3.5 w-3.5" />
                       Prev
                     </Link>
                   ) : (
-                    <span className="inline-flex items-center gap-0.5 px-2 py-1 text-gray-300">
+                    <span className="inline-flex items-center gap-0.5 px-2 py-1 text-muted-foreground">
                       <ChevronLeft className="h-3.5 w-3.5" />
                       Prev
                     </span>
@@ -311,13 +311,13 @@ export default async function BrandVideosPage({ searchParams }: PageProps) {
                   {safePage < totalPages ? (
                     <Link
                       href={buildHref({ page: safePage + 1 })}
-                      className="inline-flex items-center gap-0.5 px-2 py-1 rounded-md hover:bg-muted/30 text-gray-700"
+                      className="inline-flex items-center gap-0.5 px-2 py-1 rounded-md hover:bg-muted/30 text-foreground"
                     >
                       Next
                       <ChevronRight className="h-3.5 w-3.5" />
                     </Link>
                   ) : (
-                    <span className="inline-flex items-center gap-0.5 px-2 py-1 text-gray-300">
+                    <span className="inline-flex items-center gap-0.5 px-2 py-1 text-muted-foreground">
                       Next
                       <ChevronRight className="h-3.5 w-3.5" />
                     </span>
@@ -373,7 +373,7 @@ function ChangePill({ curr, prior }: { curr: number; prior: number }) {
   }
   if (Math.abs(pct) < 0.1) {
     return (
-      <span className="inline-flex items-center gap-0.5 text-[11px] text-gray-400">
+      <span className="inline-flex items-center gap-0.5 text-[11px] text-muted-foreground">
         <Minus className="h-3 w-3" />
         0%
       </span>
@@ -404,12 +404,12 @@ function SearchBox({
   return (
     <form className="relative" method="GET">
       <input type="hidden" name="period" value={period} />
-      <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+      <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
       <input
         name="q"
         defaultValue={initialQuery}
         placeholder="Search videos…"
-        className="bg-white border border-border rounded-lg pl-9 pr-3 py-2 text-sm shadow-sm w-full sm:w-56 focus:outline-none focus:border-gray-300 transition-colors"
+        className="bg-card border border-border rounded-lg pl-9 pr-3 py-2 text-sm shadow-sm w-full sm:w-56 focus:outline-none focus:border-border transition-colors"
       />
     </form>
   );

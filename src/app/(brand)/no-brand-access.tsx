@@ -21,7 +21,7 @@ export function NoBrandAccess({ email }: Props) {
   return (
     <div
       className="min-h-screen flex flex-col items-center justify-center px-6"
-      style={{ backgroundColor: '#F8F9FC' }}
+      style={{ backgroundColor: 'var(--background)' }}
     >
       <div className="mb-6">
         <TempoLogo size="lg" animated />
@@ -31,16 +31,16 @@ export function NoBrandAccess({ email }: Props) {
         <div className="h-12 w-12 mx-auto rounded-full bg-amber-50 flex items-center justify-center mb-4">
           <ShieldOff className="h-6 w-6 text-amber-600" />
         </div>
-        <h1 className="text-lg font-semibold text-gray-900">
+        <h1 className="text-lg font-semibold text-foreground">
           No brand assigned to your account
         </h1>
-        <p className="text-sm text-gray-500 mt-2 leading-relaxed">
+        <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
           Your account ({email}) is set up but hasn&apos;t been linked to a
           brand yet. Reach out to your account manager to be granted access.
         </p>
         <button
           onClick={handleLogout}
-          className="mt-6 inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 transition-colors"
+          className="mt-6 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
         >
           <LogOut className="h-4 w-4" />
           Sign out

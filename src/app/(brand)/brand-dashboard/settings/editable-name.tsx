@@ -49,13 +49,13 @@ export function EditableName({ initialName }: Props) {
   if (!editing) {
     return (
       <div className="flex items-center justify-between px-5 py-3">
-        <dt className="text-xs text-gray-500">Name</dt>
+        <dt className="text-xs text-muted-foreground">Name</dt>
         <dd className="flex items-center gap-2">
-          <span className="text-sm font-medium text-[#1A1B3A]">{name || '—'}</span>
+          <span className="text-sm font-medium text-foreground">{name || '—'}</span>
           <button
             type="button"
             onClick={startEdit}
-            className="p-1 rounded-md text-gray-300 hover:text-gray-700 hover:bg-gray-50 transition-colors"
+            className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
             aria-label="Edit name"
           >
             <Pencil className="h-3.5 w-3.5" />
@@ -67,7 +67,7 @@ export function EditableName({ initialName }: Props) {
 
   return (
     <div className="flex items-center justify-between px-5 py-3 gap-3">
-      <dt className="text-xs text-gray-500 shrink-0">Name</dt>
+      <dt className="text-xs text-muted-foreground shrink-0">Name</dt>
       <dd className="flex items-center gap-2 flex-1 justify-end">
         <input
           autoFocus
@@ -82,7 +82,7 @@ export function EditableName({ initialName }: Props) {
           }}
           maxLength={80}
           disabled={pending}
-          className="flex-1 max-w-[260px] px-2.5 py-1.5 rounded-md border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#FF4D8D]/30 focus:border-[#FF4D8D]/50 transition-all disabled:opacity-60"
+          className="flex-1 max-w-[260px] px-2.5 py-1.5 rounded-md border border-border text-sm bg-card focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]/50 transition-all disabled:opacity-60"
         />
         <button
           type="button"
@@ -97,7 +97,7 @@ export function EditableName({ initialName }: Props) {
           type="button"
           onClick={cancel}
           disabled={pending}
-          className="p-1.5 rounded-md text-gray-400 hover:bg-gray-50 transition-colors disabled:opacity-50"
+          className="p-1.5 rounded-md text-muted-foreground hover:bg-muted transition-colors disabled:opacity-50"
           aria-label="Cancel"
         >
           <X className="h-3.5 w-3.5" />

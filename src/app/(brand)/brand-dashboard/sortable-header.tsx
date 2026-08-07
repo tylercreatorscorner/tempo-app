@@ -41,7 +41,7 @@ export function SortableHeader({
         className={cn(
           'inline-flex items-center gap-1 text-xs font-medium uppercase tracking-wider transition-colors',
           align === 'right' ? 'flex-row-reverse' : '',
-          isActive ? 'text-[#1A1B3A]' : 'text-gray-500 hover:text-gray-700',
+          isActive ? 'text-foreground' : 'text-muted-foreground hover:text-foreground',
         )}
       >
         {label}

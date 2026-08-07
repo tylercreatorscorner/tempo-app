@@ -23,7 +23,7 @@ export function PeriodTabs({ current, accentColor }: Props) {
   }
 
   return (
-    <div className="inline-flex bg-white border border-border rounded-lg p-0.5 shadow-sm flex-wrap">
+    <div className="inline-flex bg-card border border-border rounded-lg p-0.5 shadow-sm flex-wrap">
       {PERIOD_ORDER.map((p) => {
         const active = current === p;
         return (
@@ -32,7 +32,7 @@ export function PeriodTabs({ current, accentColor }: Props) {
             onClick={() => setPeriod(p)}
             className={cn(
               'px-3 py-1.5 text-xs font-medium rounded-md transition-all whitespace-nowrap',
-              active ? '' : 'text-gray-500 hover:text-gray-900',
+              active ? '' : 'text-muted-foreground hover:text-foreground',
             )}
             style={
               active

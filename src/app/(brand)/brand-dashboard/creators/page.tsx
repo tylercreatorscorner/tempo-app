@@ -114,8 +114,8 @@ export default async function BrandCreatorsPage({ searchParams }: PageProps) {
     <div className="space-y-6 max-w-[1400px] mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-[#1A1B3A]">Creators</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
+          <h1 className="text-2xl font-bold text-foreground">Creators</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
             {filtered.length} managed creator{filtered.length === 1 ? '' : 's'}
             {filtered.length !== data.creators.length && ` (filtered from ${data.creators.length})`}
             {' · '}
@@ -189,7 +189,7 @@ export default async function BrandCreatorsPage({ searchParams }: PageProps) {
             <tbody className="divide-y divide-border/40">
               {visible.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center text-sm text-gray-400">
+                  <td colSpan={7} className="px-4 py-12 text-center text-sm text-muted-foreground">
                     {data.creators.length === 0
                       ? 'No managed creators yet.'
                       : 'No creators match your search.'}
@@ -209,25 +209,25 @@ export default async function BrandCreatorsPage({ searchParams }: PageProps) {
                           @{c.primaryHandle}
                         </Link>
                       ) : (
-                        <span className="font-medium text-[#1A1B3A]">
+                        <span className="font-medium text-foreground">
                           {c.realName ?? '—'}
                         </span>
                       )}
                       {c.realName && c.primaryHandle && (
-                        <span className="ml-2 text-xs text-gray-400">{c.realName}</span>
+                        <span className="ml-2 text-xs text-muted-foreground">{c.realName}</span>
                       )}
                     </td>
                     <td className="text-right px-3 py-2.5 tabular-nums font-medium">
                       {fmtCurrency(c.gmv)}
                     </td>
-                    <td className="text-right px-3 py-2.5 tabular-nums text-gray-700">
+                    <td className="text-right px-3 py-2.5 tabular-nums text-foreground">
                       {fmtNumber(c.orders)}
                     </td>
-                    <td className="text-right px-3 py-2.5 tabular-nums text-gray-700">
+                    <td className="text-right px-3 py-2.5 tabular-nums text-foreground">
                       {fmtNumber(c.posts)}
                     </td>
-                    <td className="text-right px-3 py-2.5 tabular-nums text-gray-700">
-                      {c.retainer > 0 ? fmtCurrency(c.retainer) : <span className="text-gray-300">—</span>}
+                    <td className="text-right px-3 py-2.5 tabular-nums text-foreground">
+                      {c.retainer > 0 ? fmtCurrency(c.retainer) : <span className="text-muted-foreground">—</span>}
                     </td>
                     <td className="text-right px-4 py-2.5">
                       <RoiCell gmv30d={c.gmv30d} retainer={c.retainer} />
@@ -236,7 +236,7 @@ export default async function BrandCreatorsPage({ searchParams }: PageProps) {
                       {c.primaryHandle && (
                         <Link
                           href={`/brand-dashboard/creators/${c.primaryHandle}?period=${period}`}
-                          className="text-gray-300 hover:text-gray-600 inline-flex"
+                          className="text-muted-foreground hover:text-muted-foreground inline-flex"
                           aria-label="Open creator"
                         >
                           <ChevronRight className="h-4 w-4" />
@@ -252,7 +252,7 @@ export default async function BrandCreatorsPage({ searchParams }: PageProps) {
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-border/50 text-xs text-gray-500">
+          <div className="flex items-center justify-between px-4 py-3 border-t border-border/50 text-xs text-muted-foreground">
             <span>
               {startIdx + 1}–{Math.min(startIdx + PAGE_SIZE, sorted.length)} of {sorted.length}
             </span>
@@ -260,13 +260,13 @@ export default async function BrandCreatorsPage({ searchParams }: PageProps) {
               {safePage > 1 ? (
                 <Link
                   href={buildHref({ page: safePage - 1 })}
-                  className="inline-flex items-center gap-0.5 px-2 py-1 rounded-md hover:bg-muted/30 text-gray-700"
+                  className="inline-flex items-center gap-0.5 px-2 py-1 rounded-md hover:bg-muted/30 text-foreground"
                 >
                   <ChevronLeft className="h-3.5 w-3.5" />
                   Prev
                 </Link>
               ) : (
-                <span className="inline-flex items-center gap-0.5 px-2 py-1 text-gray-300">
+                <span className="inline-flex items-center gap-0.5 px-2 py-1 text-muted-foreground">
                   <ChevronLeft className="h-3.5 w-3.5" />
                   Prev
                 </span>
@@ -277,13 +277,13 @@ export default async function BrandCreatorsPage({ searchParams }: PageProps) {
               {safePage < totalPages ? (
                 <Link
                   href={buildHref({ page: safePage + 1 })}
-                  className="inline-flex items-center gap-0.5 px-2 py-1 rounded-md hover:bg-muted/30 text-gray-700"
+                  className="inline-flex items-center gap-0.5 px-2 py-1 rounded-md hover:bg-muted/30 text-foreground"
                 >
                   Next
                   <ChevronRight className="h-3.5 w-3.5" />
                 </Link>
               ) : (
-                <span className="inline-flex items-center gap-0.5 px-2 py-1 text-gray-300">
+                <span className="inline-flex items-center gap-0.5 px-2 py-1 text-muted-foreground">
                   Next
                   <ChevronRight className="h-3.5 w-3.5" />
                 </span>
@@ -319,10 +319,10 @@ function sortValue(
 
 function RoiCell({ gmv30d, retainer }: { gmv30d: number; retainer: number }) {
   if (!retainer || retainer <= 0) {
-    return <span className="text-xs text-gray-300">—</span>;
+    return <span className="text-xs text-muted-foreground">—</span>;
   }
   const roi = gmv30d / retainer;
-  let cls = 'bg-gray-100 text-gray-600';
+  let cls = 'bg-muted text-muted-foreground';
   if (roi >= 5) cls = 'bg-emerald-50 text-emerald-700';
   else if (roi >= 2) cls = 'bg-amber-50 text-amber-700';
   else cls = 'bg-rose-50 text-rose-700';
@@ -346,12 +346,12 @@ function SearchBox({
   return (
     <form className="relative" method="GET">
       <input type="hidden" name="period" value={period} />
-      <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+      <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
       <input
         name="q"
         defaultValue={initialQuery}
         placeholder="Search creators…"
-        className="bg-white border border-border rounded-lg pl-9 pr-3 py-2 text-sm shadow-sm w-full sm:w-56 focus:outline-none focus:border-gray-300 transition-colors"
+        className="bg-card border border-border rounded-lg pl-9 pr-3 py-2 text-sm shadow-sm w-full sm:w-56 focus:outline-none focus:border-border transition-colors"
       />
     </form>
   );

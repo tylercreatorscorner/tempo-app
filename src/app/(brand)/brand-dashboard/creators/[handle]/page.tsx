@@ -54,7 +54,7 @@ export default async function BrandCreatorDetailPage({ params, searchParams }: P
       {/* Back link */}
       <Link
         href="/brand-dashboard"
-        className="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-900 transition-colors"
+        className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
       >
         <ArrowLeft className="h-3.5 w-3.5" />
         Back to overview
@@ -65,20 +65,20 @@ export default async function BrandCreatorDetailPage({ params, searchParams }: P
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 px-5 pt-5 pb-4">
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold text-gray-900">
+              <h1 className="text-xl font-bold text-foreground">
                 @{detail.primaryHandle}
               </h1>
               <a
                 href={`https://www.tiktok.com/@${detail.primaryHandle}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-gray-400 hover:text-gray-700 transition-colors"
+                className="text-muted-foreground hover:text-foreground transition-colors"
                 aria-label="Open on TikTok"
               >
                 <ExternalLink className="h-4 w-4" />
               </a>
             </div>
-            <p className="text-xs text-gray-500 mt-0.5">
+            <p className="text-xs text-muted-foreground mt-0.5">
               {detail.realName ?? 'Managed creator'} · {detail.periodLabel}
             </p>
           </div>
@@ -143,7 +143,7 @@ export default async function BrandCreatorDetailPage({ params, searchParams }: P
           }
         />
         {detail.videos.length === 0 ? (
-          <div className="px-4 py-12 text-center text-sm text-gray-400">
+          <div className="px-4 py-12 text-center text-sm text-muted-foreground">
             No posts from this creator in this period.
           </div>
         ) : (
@@ -160,22 +160,22 @@ export default async function BrandCreatorDetailPage({ params, searchParams }: P
                 className="flex items-center gap-3 px-4 py-3 hover:bg-muted/30 transition-colors"
               >
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate" title={v.title}>
+                  <p className="text-sm font-medium text-foreground truncate" title={v.title}>
                     {v.title}
                   </p>
                   {v.postDate && (
-                    <p className="text-xs text-gray-500 mt-0.5">{fmtDate(v.postDate)}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{fmtDate(v.postDate)}</p>
                   )}
                 </div>
                 <div className="text-right shrink-0">
                   <p className="text-sm font-semibold tabular-nums" style={{ color: accent }}>
                     {fmtCurrency(v.gmv)}
                   </p>
-                  <p className="text-xs text-gray-500 tabular-nums">
+                  <p className="text-xs text-muted-foreground tabular-nums">
                     {fmtNumber(v.orders)} orders
                   </p>
                 </div>
-                <ExternalLink className="h-4 w-4 text-gray-300 shrink-0" />
+                <ExternalLink className="h-4 w-4 text-muted-foreground shrink-0" />
               </a>
             ))}
           </div>
@@ -191,24 +191,24 @@ export default async function BrandCreatorDetailPage({ params, searchParams }: P
           <dl className="divide-y divide-border/40">
             {detail.retainer > 0 && (
               <div className="flex items-center justify-between px-4 py-3">
-                <dt className="text-xs text-gray-500">Monthly retainer</dt>
-                <dd className="text-sm font-medium text-gray-900 tabular-nums">
+                <dt className="text-xs text-muted-foreground">Monthly retainer</dt>
+                <dd className="text-sm font-medium text-foreground tabular-nums">
                   {fmtCurrency(detail.retainer)}
                 </dd>
               </div>
             )}
             {detail.monthlyPostRequirement != null && (
               <div className="flex items-center justify-between px-4 py-3">
-                <dt className="text-xs text-gray-500">Posts per month required</dt>
-                <dd className="text-sm font-medium text-gray-900 tabular-nums">
+                <dt className="text-xs text-muted-foreground">Posts per month required</dt>
+                <dd className="text-sm font-medium text-foreground tabular-nums">
                   {detail.monthlyPostRequirement}
                 </dd>
               </div>
             )}
             {detail.handles.length > 1 && (
               <div className="flex items-start justify-between px-4 py-3 gap-3">
-                <dt className="text-xs text-gray-500">All TikTok accounts</dt>
-                <dd className="text-sm font-medium text-gray-900 text-right">
+                <dt className="text-xs text-muted-foreground">All TikTok accounts</dt>
+                <dd className="text-sm font-medium text-foreground text-right">
                   {detail.handles.map((h) => `@${h}`).join(', ')}
                 </dd>
               </div>
@@ -233,8 +233,8 @@ function Card({ children }: { children: React.ReactNode }) {
 function CardHeader({ title, subtitle }: { title: string; subtitle?: string }) {
   return (
     <div className="px-4 pt-4 pb-3 border-b border-border/50">
-      <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
-      {subtitle && <p className="text-xs text-gray-500 mt-0.5">{subtitle}</p>}
+      <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+      {subtitle && <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>}
     </div>
   );
 }
@@ -253,12 +253,12 @@ function CreatorStat({
   primary?: boolean;
 }) {
   return (
-    <div className="px-5 py-4 sm:border-r border-gray-50 last:border-r-0">
-      <p className="text-[11px] font-medium text-gray-500 uppercase tracking-wider">
+    <div className="px-5 py-4 sm:border-r border-border last:border-r-0">
+      <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
         {label}
       </p>
       <p
-        className={`mt-1 font-bold text-gray-900 tabular-nums ${primary ? 'text-2xl sm:text-3xl' : 'text-xl'}`}
+        className={`mt-1 font-bold text-foreground tabular-nums ${primary ? 'text-2xl sm:text-3xl' : 'text-xl'}`}
         style={primary ? { color: accent } : undefined}
       >
         {value}
@@ -270,10 +270,10 @@ function CreatorStat({
 
 function ChangeBadge({ changePct }: { changePct: number | null | undefined }) {
   if (changePct == null) {
-    return <p className="text-xs text-gray-400 mt-1">vs prior period</p>;
+    return <p className="text-xs text-muted-foreground mt-1">vs prior period</p>;
   }
   if (changePct === 0) {
-    return <p className="text-xs text-gray-400 mt-1">Flat vs prior</p>;
+    return <p className="text-xs text-muted-foreground mt-1">Flat vs prior</p>;
   }
   const positive = changePct > 0;
   const Icon = positive ? TrendingUp : TrendingDown;
