@@ -316,7 +316,7 @@ export async function getBrandPortalDashboard(
     return { data: out, error: null };
   };
 
-  const [statsCur, statsPrev, videoRows, stats30d, brandTotals, settingsRow, mtdRow, engagementRows] = await Promise.all([
+  const [statsCur, statsPrev, videoRows, stats30d, brandTotals, settingsRow, mtdRow, engCur, engPrior] = await Promise.all([
     fetchAllByHandles(allHandles, (batch) => supabase
       .from('daily_creator_stats')
       .select('tiktok_username, gmv, orders, videos, report_date')
@@ -375,16 +375,27 @@ export async function getBrandPortalDashboard(
         p_end_date: fmt(endDate),
       });
     })(),
-    // Engagement metrics — videos table by managed creator handles.
-    // Pull a wide window so we can compute both current and prior period totals.
-    fetchAllByHandles(allHandles, (batch) => supabase
-      .from('videos')
-      .select('video_id, post_date, impressions, likes, comments')
-      .in('brand', dataSlugs)
-      .gte('post_date', priorStartStr)
-      .lte('post_date', endStr)
-      .in('creator_name', batch)
-      .order('id', { ascending: true })),
+    // Engagement — from video_performance via RPC, NOT from `videos`.
+    //
+    // `videos.impressions/likes/comments` stopped being populated when TikTok
+    // merged the Video List export into Video Data around 2026-07-13; that
+    // content now lands in video_performance (migration 088). Reading the old
+    // columns made this panel decay to literal zero — Lemme's portal showed
+    // "VIEWS 0 · LIKES 0 · -100% vs prior" against 199,908 real views. See
+    // migration 143 for the full post-mortem and the aggregation rule
+    // (MAX per video-day, then SUM; never SUM rows).
+    supabase.rpc('get_brand_portal_engagement', {
+      p_brand_slugs: dataSlugs,
+      p_handles: allHandles,
+      p_start: startStr,
+      p_end: endStr,
+    }),
+    supabase.rpc('get_brand_portal_engagement', {
+      p_brand_slugs: dataSlugs,
+      p_handles: allHandles,
+      p_start: priorStartStr,
+      p_end: priorEndStr,
+    }),
   ]);
 
   // ── 3. Aggregate per-managed-creator stats
@@ -508,39 +519,28 @@ export async function getBrandPortalDashboard(
   }
 
   // ── Engagement aggregates (current vs prior period) ──
-  type EngRow = {
-    video_id: string;
-    post_date: string | null;
-    impressions: number | null;
-    likes: number | null;
-    comments: number | null;
-  };
-  const engRows = (engagementRows.data ?? []) as EngRow[];
-  let curImpressions = 0,
-    curLikes = 0,
-    curComments = 0,
-    curPosts = 0;
-  let priorImpressions = 0,
-    priorLikes = 0,
-    priorComments = 0,
-    priorPostsCount = 0;
-  for (const r of engRows) {
-    if (!r.post_date) continue;
-    const imp = Number(r.impressions ?? 0);
-    const lk = Number(r.likes ?? 0);
-    const cm = Number(r.comments ?? 0);
-    if (r.post_date >= startStr && r.post_date <= endStr) {
-      curImpressions += imp;
-      curLikes += lk;
-      curComments += cm;
-      curPosts += 1;
-    } else if (r.post_date >= priorStartStr && r.post_date <= priorEndStr) {
-      priorImpressions += imp;
-      priorLikes += lk;
-      priorComments += cm;
-      priorPostsCount += 1;
-    }
+  //
+  // A FAILED read is not zero engagement. Throwing here is deliberate: this
+  // panel already shipped one silent zero to a client, and a second one would
+  // be indistinguishable from "your posts got no views". The caller renders the
+  // whole page or an error; it never renders a confident 0.
+  for (const [label, res] of [
+    ['get_brand_portal_engagement (current)', engCur],
+    ['get_brand_portal_engagement (prior)', engPrior],
+  ] as const) {
+    if (res.error) throw new Error(`${label} failed: ${res.error.message}`);
   }
+  type EngAgg = { posts: number; views: number; likes: number; comments: number };
+  const cur = ((engCur.data as unknown as EngAgg[] | null) ?? [])[0];
+  const prev = ((engPrior.data as unknown as EngAgg[] | null) ?? [])[0];
+
+  const curImpressions = Number(cur?.views ?? 0);
+  const curLikes = Number(cur?.likes ?? 0);
+  const curComments = Number(cur?.comments ?? 0);
+  const curPosts = Number(cur?.posts ?? 0);
+  const priorImpressions = Number(prev?.views ?? 0);
+  const priorLikes = Number(prev?.likes ?? 0);
+  const priorComments = Number(prev?.comments ?? 0);
   const engagement = {
     posts: curPosts,
     impressions: curImpressions,
@@ -555,15 +555,23 @@ export async function getBrandPortalDashboard(
         : 0,
     impressionsChangePct: pctChange(curImpressions, priorImpressions),
   };
-  // Per-video engagement lookup (for the Videos page enrichment, separate task)
-  const engagementByVideoId = new Map<string, { impressions: number; likes: number; comments: number }>();
-  for (const r of engRows) {
-    engagementByVideoId.set(r.video_id, {
-      impressions: Number(r.impressions ?? 0),
-      likes: Number(r.likes ?? 0),
-      comments: Number(r.comments ?? 0),
-    });
-  }
+  // ⚠️ KNOWN GAP — per-video engagement on the Videos page.
+  //
+  // This used to build a video_id -> {impressions, likes, comments} lookup from
+  // the same dead `videos` columns as the aggregate above, so those per-post
+  // numbers have ALREADY been rendering as zero for months. Removing the dead
+  // source does not change what a client sees; it just stops pretending there
+  // is a source.
+  //
+  // Fixing it properly needs a per-video sibling of
+  // get_brand_portal_engagement (same MAX-per-video-day rule, grouped by
+  // video_id instead of totalled). Deliberately not bundled into this fix so
+  // the three live falsehoods ship on their own. Until then these columns are
+  // zero, which is the remaining silent zero on this surface.
+  const engagementByVideoId = new Map<
+    string,
+    { impressions: number; likes: number; comments: number }
+  >();
 
   // Managed vs organic split — total brand sales minus managed contribution.
   const brandTotalRow = (brandTotals.data ?? [])[0] as any;
@@ -581,9 +589,18 @@ export async function getBrandPortalDashboard(
     managedPctOfGmv: brandWideGmv > 0 ? (totalGmv / brandWideGmv) * 100 : 0,
   };
 
-  // Videos — pre-aggregated by the brand_portal_videos RPC. Already
-  // sorted by period_gmv DESC. No cap — the page paginates client-side.
-  // Enriched with engagement totals from the videos table where matched.
+  // Videos — pre-aggregated by the brand_portal_videos RPC. No cap: the page
+  // paginates client-side.
+  //
+  // ⚠️ This block used to say the RPC returns rows "already sorted by
+  // period_gmv DESC". It does not. brand_portal_videos (migration 044) has no
+  // ORDER BY at all, so Postgres hands back grouped/hash order, which is
+  // arbitrary. The Overview page trusted that comment and rendered
+  // videos.slice(0, 5) under the heading "Highest-grossing posts in this
+  // period", so a client was shown five effectively random posts — in Lemme's
+  // case four $0 posts from 2024 and one belonging to a DIFFERENT brand.
+  // Sort here rather than in the RPC so every consumer of this module gets the
+  // ordering, and so the guarantee lives next to the code that depends on it.
   const videos: BrandRosterVideo[] = ((videoRows.data ?? []) as any[]).map((r) => {
     const eng = engagementByVideoId.get(r.video_id);
     return {
@@ -602,7 +619,14 @@ export async function getBrandPortalDashboard(
       likes: eng?.likes ?? 0,
       comments: eng?.comments ?? 0,
     };
-  });
+  })
+    // Highest-grossing first, then most recent, so ties among $0 posts are at
+    // least deterministic instead of whatever order the planner produced.
+    .sort(
+      (a, b) =>
+        b.periodGmv - a.periodGmv ||
+        (b.postDate?.getTime() ?? 0) - (a.postDate?.getTime() ?? 0),
+    );
 
   // ── 4. Build the final creator rows
   const creators: BrandRosterCreator[] = roster

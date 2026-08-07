@@ -50,6 +50,8 @@ export default async function BrandOverview({ searchParams }: PageProps) {
   const accent = ctx.activeBrand.color || '#FF4D8D';
   const dailyGmvSparkline = data.dailyPerformance.map((d) => d.gmv);
   const dailyPostsSparkline = data.dailyPerformance.map((d) => d.posts);
+  // Posts that actually earned in the selected window. See the Top posts card.
+  const earnedInPeriod = data.videos.filter((v) => v.periodGmv > 0);
 
   return (
     <div className="space-y-6 max-w-[1400px] mx-auto">
@@ -207,7 +209,16 @@ export default async function BrandOverview({ searchParams }: PageProps) {
           </div>
         </Card>
 
-        {/* Top posts (compact) — sorted by period GMV desc by the RPC */}
+        {/* Top posts (compact). Ordering is guaranteed by brand-portal-overview,
+            NOT by the RPC — see the note there.
+
+            earnedInPeriod, not data.videos: a post with $0 in the window is not
+            a "highest-grossing post", and showing one says something false to a
+            client. It also keeps cross-brand duplicate rows off this surface —
+            99.3% of video_ids that appear under more than one brand carry $0 on
+            the duplicate side, which is how a Kitsch post reached Lemme's
+            Overview. That duplication is a data-layer problem this filter only
+            hides; it is not fixed here. */}
         <Card>
           <CardHeaderWithLink
             title="Top posts"
@@ -216,10 +227,10 @@ export default async function BrandOverview({ searchParams }: PageProps) {
             linkLabel="View all"
           />
           <div className="divide-y divide-border/40">
-            {data.videos.length === 0 ? (
-              <EmptyRow text="No posts in this period." />
+            {earnedInPeriod.length === 0 ? (
+              <EmptyRow text="No posts earned in this period." />
             ) : (
-              data.videos.slice(0, TOP_VIDEOS_PREVIEW).map((v) => (
+              earnedInPeriod.slice(0, TOP_VIDEOS_PREVIEW).map((v) => (
                 <a
                   key={v.videoId}
                   // resolveWatchUrl, not `v.url ?? …`: v.url comes from
