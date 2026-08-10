@@ -513,6 +513,14 @@ function InvoicePdfDoc({ data }: { data: InvoicePdfData }) {
                 </View>
               </>
             )}
+            {/* Each payee's invoice carries the FULL brand GMV, not a slice, so
+                a client holding both could add the sales columns and see twice
+                the GMV that exists. Commission DOES add up across them; the
+                basis does not. */}
+            <Text style={s.verify}>
+              Sales shown are {data.brandName}&apos;s total for {fmtPeriod(data.periodMonth)} and are the basis this
+              invoice&apos;s rate is applied to. They are not additive across the invoices you receive for this period.
+            </Text>
             {data.shareUrl && (
               <Text style={s.verify}>Full creator-by-creator breakdown: {data.shareUrl}</Text>
             )}

@@ -386,6 +386,17 @@ export function ShareView({ token, invoice, todayIso }: Props) {
                 </tbody>
               </table>
             </div>
+            {/* Each payee's invoice carries the FULL brand GMV, not a slice —
+                verified on catakor June, where both invoices show the same
+                $624,956.22 and differ only in commission. Clients know they
+                receive two invoices; without this line they could reasonably
+                add the sales columns together and see twice the GMV that
+                exists. The commission columns DO add up; the basis does not. */}
+            <p className="border-t border-[#e7e7f2] px-4 py-2.5 text-[11px] leading-relaxed text-[#8a8fb0]">
+              Sales shown are {invoice.brandName}&rsquo;s total for {formatPeriod(invoice.periodMonth)} and are the
+              basis this invoice&rsquo;s rate is applied to. They are not additive across the invoices you receive
+              for this period.
+            </p>
           </div>
         )}
 

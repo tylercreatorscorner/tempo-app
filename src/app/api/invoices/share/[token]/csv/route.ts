@@ -111,6 +111,17 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ token: str
     (showNonCreator ? invoiceCommission : commTotal).toFixed(2),
   ].map(csvCell).join(','));
 
+  // Each payee's invoice carries the FULL brand GMV, not a slice, so someone
+  // who downloads both months' files and sums the sales column gets twice the
+  // GMV that exists. Commission DOES add up across them; the basis does not.
+  // After a blank line, so a parser that stops at the first empty row still
+  // gets clean tabular data.
+  lines.push('');
+  lines.push(csvCell(
+    `Sales are the brand's total for ${invoice.period_month} and the basis this invoice's rate is applied to. ` +
+    `They are not additive across the invoices issued for this period.`,
+  ));
+
   const filename = `${invoice.invoice_number}_creators.csv`;
   // BOM so Excel opens UTF-8 handles correctly instead of mangling accents.
   const body = '﻿' + lines.join('\r\n') + '\r\n';
