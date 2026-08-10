@@ -9,7 +9,6 @@ import {
 } from '@/lib/data/brand-portal-overview';
 import { createAdminClient } from '@/lib/supabase/server';
 import { resolveWatchUrl } from '@/lib/utils/format';
-import { StatCard } from '@/components/dashboard/stat-card';
 import {
   getBrandBillingMonth,
   type BrandBillingMonth,
@@ -59,8 +58,6 @@ export default async function BrandOverview({ searchParams }: PageProps) {
   const billing = await getBrandBillingMonth(admin, ctx.activeBrand.slug);
 
   const accent = ctx.activeBrand.color || '#FF4D8D';
-  const dailyGmvSparkline = data.dailyPerformance.map((d) => d.gmv);
-  const dailyPostsSparkline = data.dailyPerformance.map((d) => d.posts);
   // Posts that actually earned in the selected window. See the Top posts card.
   const earnedInPeriod = data.videos.filter((v) => v.periodGmv > 0);
 
@@ -99,44 +96,21 @@ export default async function BrandOverview({ searchParams }: PageProps) {
       {/* Account-manager note (full-width when present — easier to read) */}
       {data.amNote && <AmNoteCard note={data.amNote} accent={accent} />}
 
-      {/* KPI grid — hero GMV + standard cards.
-          Three cards in a two-column grid left "Managed creators" stranded on
-          its own row with dead space beside it. The hero spans both columns at
-          md instead, so the row reads GMV / then Posts + Creators paired, and
-          collapses back to a clean three-across at lg. Spanning the HERO is
-          the right one to widen: it is the headline number, and giving it the
-          full width at the cramped breakpoint states that hierarchy rather
-          than merely filling a hole. */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <StatCard
-          className="md:col-span-2 lg:col-span-1"
-          label="GMV"
-          value={fmtCurrency(data.totalGmv)}
-          trend={data.gmvChangePct ?? undefined}
-          trendLabel="vs prior period"
-          hero
-          accentColor={accent}
-          sparklineData={dailyGmvSparkline}
-        />
-        <StatCard
-          label="Posts"
-          value={fmtNumber(data.totalPosts)}
-          trend={data.postsChangePct ?? undefined}
-          trendLabel="vs prior period"
-          accentColor={accent}
-          sparklineData={dailyPostsSparkline}
-        />
-        <StatCard
-          label="Managed creators"
-          value={fmtNumber(data.managedCount)}
-          subValue={
-            data.monthlyRetainerTotal > 0
-              ? `${fmtCurrency(data.monthlyRetainerTotal)}/mo retainer`
-              : 'Currently active'
-          }
-          accentColor={accent}
-        />
-      </div>
+      {/* ── The answer line ───────────────────────────────────────────────
+          A brand's first question is "what did you actually do for me", and
+          the page used to make them assemble it from three cards and a split
+          panel. Say it. */}
+      {data.split.totalGmv > 0 && (
+        <AnswerLine split={data.split} changePct={data.gmvChangePct} accent={accent} />
+      )}
+
+      {/* ── Metric rail ───────────────────────────────────────────────────
+          Replaces three oversized KPI cards AND the separate engagement
+          strip. Same figures, a quarter of the vertical space, and directly
+          comparable because they finally share a baseline. Views and
+          engagement belong beside GMV, not in their own section a scroll
+          away — a brand reads them as one story. */}
+      <MetricRail data={data} />
 
       {/* Monthly goal progress + roster-vs-organic split, side-by-side */}
       {(data.goalProgress || data.split.totalGmv > 0) && (
@@ -148,11 +122,6 @@ export default async function BrandOverview({ searchParams }: PageProps) {
             <ManagedSplitPanel split={data.split} accent={accent} />
           )}
         </div>
-      )}
-
-      {/* Engagement strip — videos posted in this period */}
-      {data.engagement.posts > 0 && (
-        <EngagementStrip engagement={data.engagement} accent={accent} />
       )}
 
       {/* Highlights — "what changed" callouts */}
@@ -598,119 +567,6 @@ function HighlightItem({
   );
 }
 
-// ── Engagement strip ──
-
-function EngagementStrip({
-  engagement,
-  accent,
-}: {
-  engagement: BrandPortalDashboard['engagement'];
-  accent: string;
-}) {
-  return (
-    <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
-      <div className="px-4 pt-4 pb-3 border-b border-border/50 flex items-end justify-between gap-2">
-        <div>
-          <h3 className="text-sm font-semibold text-foreground">Reach &amp; engagement</h3>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            From {fmtNumber(engagement.posts)} post{engagement.posts === 1 ? '' : 's'} your managed creators published this period
-          </p>
-        </div>
-      </div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-border/40">
-        <EngagementStat
-          icon={Eye}
-          label="Views"
-          value={fmtCompact(engagement.impressions)}
-          changePct={engagement.impressionsChangePct}
-          accent={accent}
-        />
-        <EngagementStat
-          icon={Heart}
-          label="Likes"
-          value={fmtCompact(engagement.likes)}
-          accent={accent}
-        />
-        <EngagementStat
-          icon={MessageSquare}
-          label="Comments"
-          value={fmtCompact(engagement.comments)}
-          accent={accent}
-        />
-        <EngagementStat
-          icon={Activity}
-          label="Engagement"
-          value={`${engagement.engagementRate.toFixed(1)}%`}
-          changePctPoints={
-            engagement.priorEngagementRate > 0
-              ? engagement.engagementRate - engagement.priorEngagementRate
-              : undefined
-          }
-          subtitle={
-            engagement.priorEngagementRate > 0
-              ? `Prior: ${engagement.priorEngagementRate.toFixed(1)}%`
-              : 'Likes + comments per view'
-          }
-          accent={accent}
-        />
-      </div>
-    </div>
-  );
-}
-
-function EngagementStat({
-  icon: Icon,
-  label,
-  value,
-  changePct,
-  changePctPoints,
-  subtitle,
-  accent,
-}: {
-  icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>;
-  label: string;
-  value: string;
-  /** % change (e.g. 12 means +12%). Used for absolute counts like views. */
-  changePct?: number | null;
-  /** Raw percentage-point change (e.g. +0.2 for 1.7→1.9%). Used for rate metrics. */
-  changePctPoints?: number;
-  subtitle?: string;
-  accent: string;
-}) {
-  return (
-    <div className="px-4 py-3.5">
-      <div className="flex items-center gap-1.5 mb-1.5">
-        <Icon className="h-3.5 w-3.5" style={{ color: readableOn(accent) }} />
-        <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-          {label}
-        </p>
-      </div>
-      <p className="text-lg font-bold text-foreground tabular-nums">{value}</p>
-      {changePct != null && Math.abs(changePct) >= 0.1 ? (
-        <p
-          className={`text-[11px] mt-0.5 font-medium tabular-nums ${
-            changePct > 0 ? 'text-emerald-600' : 'text-rose-600'
-          }`}
-        >
-          {changePct > 0 ? '+' : ''}
-          {changePct.toFixed(0)}% vs prior
-        </p>
-      ) : changePctPoints != null && Math.abs(changePctPoints) >= 0.05 ? (
-        <p
-          className={`text-[11px] mt-0.5 font-medium tabular-nums ${
-            changePctPoints > 0 ? 'text-emerald-600' : 'text-rose-600'
-          }`}
-        >
-          {changePctPoints > 0 ? '+' : ''}
-          {changePctPoints.toFixed(1)}pp vs prior
-        </p>
-      ) : subtitle ? (
-        <p className="text-[11px] mt-0.5 text-muted-foreground tabular-nums">{subtitle}</p>
-      ) : null}
-    </div>
-  );
-}
-
 // ── Managed vs organic split ──
 
 function ManagedSplitPanel({
@@ -929,6 +785,109 @@ function BillingBand({ billing }: { billing: BrandBillingMonth | null }) {
             ' Invoices for this month recorded slightly different GMV totals; the most complete figure is shown.'}
         </p>
       </Card>
+    </div>
+  );
+}
+
+// ── Answer line + metric rail ──
+//
+// These two replace what used to be three oversized KPI cards, a separate
+// engagement strip, and no statement of the point at all.
+
+/** Signed change, in semantic colour. Deliberately NOT the brand accent:
+ *  good-vs-bad is a different job from brand identity, and painting both in
+ *  one colour makes neither readable. */
+function Delta({ pct }: { pct: number | null | undefined }) {
+  if (pct == null || !Number.isFinite(pct)) return null;
+  const up = pct >= 0;
+  return (
+    <span className={`text-xs font-semibold tabular-nums ${up ? 'text-emerald-600' : 'text-red-600'}`}>
+      {up ? '▲' : '▼'} {Math.abs(pct).toFixed(0)}%
+    </span>
+  );
+}
+
+function AnswerLine({
+  split, changePct, accent,
+}: { split: BrandPortalDashboard['split']; changePct: number | null; accent: string }) {
+  return (
+    <div className="rounded-2xl border border-border bg-card shadow-sm px-5 py-4 flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+      <p className="text-[17px] leading-snug text-foreground text-pretty">
+        Your managed roster drove{' '}
+        <b className="font-bold tabular-nums">{fmtCurrency(split.managedGmv)}</b> of{' '}
+        <b className="font-bold tabular-nums">{fmtCurrency(split.totalGmv)}</b> in TikTok Shop sales
+        this period —{' '}
+        {/* The one figure that carries the brand's colour, because it is the
+            one figure that is about them. readableOn keeps it legible: raw
+            brand colours fail AA as text on every brand we have. */}
+        <b className="font-bold tabular-nums" style={{ color: readableOn(accent) }}>
+          {split.managedPctOfGmv.toFixed(1)}%
+        </b>
+        .
+      </p>
+      <Delta pct={changePct} />
+    </div>
+  );
+}
+
+function MetricRail({ data }: { data: BrandPortalDashboard }) {
+  const eng = data.engagement;
+  const cells: Array<{ label: string; value: string; foot?: React.ReactNode }> = [
+    {
+      label: 'Roster GMV',
+      value: fmtCurrency(data.totalGmv),
+      foot: <Delta pct={data.gmvChangePct} />,
+    },
+    {
+      // "Posts with sales" and "posts published" are DIFFERENT measures from
+      // different tables, and the old page called both of them "posts" — which
+      // is how a client ends up distrusting the whole page. Name them apart.
+      label: 'Posts with sales',
+      value: fmtNumber(data.totalPosts),
+      foot: <Delta pct={data.postsChangePct} />,
+    },
+    {
+      label: 'Creators live',
+      value: fmtNumber(data.managedCount),
+      foot: data.monthlyRetainerTotal > 0
+        ? <span className="text-[11.5px] text-muted-foreground">{fmtCurrency(data.monthlyRetainerTotal)}/mo retainer</span>
+        : undefined,
+    },
+    ...(eng.posts > 0
+      ? [
+          {
+            label: 'Views',
+            value: fmtNumber(eng.impressions),
+            foot: <Delta pct={eng.impressionsChangePct} />,
+          },
+          {
+            label: 'Engagement',
+            value: `${eng.engagementRate.toFixed(2)}%`,
+            foot: (
+              <span className="text-[11.5px] text-muted-foreground tabular-nums">
+                {fmtNumber(eng.likes)} likes · {fmtNumber(eng.posts)} posted
+              </span>
+            ),
+          },
+        ]
+      : []),
+  ];
+
+  return (
+    // Dividers are drawn by each CELL, not by `gap-px` over a `bg-border`
+    // container. Five cells into a 2- or 3-column grid always leaves an empty
+    // slot, and the gap trick paints that slot solid border-grey — a stray
+    // block at every breakpoint except lg. Per-cell borders leave the empty
+    // slot as plain card, and `overflow-hidden` clips the outermost ones
+    // against the container's own border.
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
+      {cells.map((c) => (
+        <div key={c.label} className="border-r border-b border-border px-4 py-3.5 min-w-0">
+          <p className="text-[10.5px] font-semibold uppercase tracking-[0.075em] text-muted-foreground">{c.label}</p>
+          <p className="mt-1 text-[22px] font-bold tracking-tight tabular-nums text-foreground leading-tight">{c.value}</p>
+          {c.foot && <div className="mt-1 flex items-center gap-1.5">{c.foot}</div>}
+        </div>
+      ))}
     </div>
   );
 }
