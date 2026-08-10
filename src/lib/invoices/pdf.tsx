@@ -229,7 +229,7 @@ const PAD_Y = 42;
 
 const s = StyleSheet.create({
   page: {
-    paddingTop: 34, paddingBottom: 18, paddingHorizontal: PAD_X,
+    paddingTop: 30, paddingBottom: 14, paddingHorizontal: PAD_X,
     fontSize: 10, color: COLORS.ink, fontFamily: 'Inter',
     backgroundColor: COLORS.white, lineHeight: 1.4,
   },
@@ -257,7 +257,7 @@ const s = StyleSheet.create({
   // printed straight through "$706,493.86". Stating the line box per size fixes
   // it. If you add a Text here, give it a lineHeight.
   thesis: {
-    marginTop: 18, borderRadius: 10, paddingVertical: 15, paddingHorizontal: 18,
+    marginTop: 14, borderRadius: 10, paddingVertical: 12, paddingHorizontal: 16,
     backgroundColor: COLORS.primary,
     flexDirection: 'row', justifyContent: 'space-between',
   },
@@ -268,12 +268,12 @@ const s = StyleSheet.create({
   tAmt: { fontSize: 27, lineHeight: 1.15, color: COLORS.white, fontWeight: 700, marginTop: 5 },
 
   // Meta
-  meta: { flexDirection: 'row', marginTop: 20, gap: 18 },
+  meta: { flexDirection: 'row', marginTop: 14, gap: 18 },
   metaCell: { flex: 1 },
   k: { fontSize: 7.5, lineHeight: 1.25, color: COLORS.muted, letterSpacing: 0.9, textTransform: 'uppercase', fontWeight: 700 },
   v: { fontSize: 10.5, lineHeight: 1.25, marginTop: 3 },
 
-  rule: { height: 1, backgroundColor: COLORS.hair, marginVertical: 16 },
+  rule: { height: 1, backgroundColor: COLORS.hair, marginVertical: 10 },
 
   // Parties
   parties: { flexDirection: 'row', gap: 18 },
@@ -295,14 +295,19 @@ const s = StyleSheet.create({
   amt: { fontSize: 11, lineHeight: 1.25 },
 
   // Contributors
-  contribRow: { flexDirection: 'row', paddingVertical: 4.5 },
+  contribRow: { flexDirection: 'row', paddingVertical: 3.5 },
   contribRule: { height: 1, backgroundColor: COLORS.wash },
   restRule: { height: 1, backgroundColor: COLORS.hair, marginTop: 3 },
   contribName: { flex: 3, fontSize: 9.5, lineHeight: 1.25 },
   contribNum: { flex: 1, fontSize: 9.5, lineHeight: 1.25, textAlign: 'right' },
   restText: { flex: 3, fontSize: 9.5, lineHeight: 1.25, color: COLORS.muted },
   restNum: { flex: 1, fontSize: 9.5, lineHeight: 1.25, textAlign: 'right', color: COLORS.muted },
-  verify: { fontSize: 8.5, lineHeight: 1.25, color: COLORS.muted, marginTop: 6 , marginBottom: 4 },
+  // paddingBottom is SLACK, not decoration: this block measures one line
+  // short, so whatever sits last in it gets overlapped by the section below.
+  // The padding absorbs the error instead of the text doing it.
+  contribBlock: { marginTop: 12, paddingBottom: 16 },
+  verifyWrap: { marginTop: 6, marginBottom: 2 },
+  verify: { fontSize: 8.5, lineHeight: 1.25, color: COLORS.muted },
 
   // Bottom.
   //
@@ -315,9 +320,9 @@ const s = StyleSheet.create({
   // line that @react-pdf measures as one, so this block would otherwise be
   // laid on top of it — the URL tail printed straight through the HOW TO PAY
   // box. 22pt clears a full mis-measured line at this size.
-  bottom: { marginTop: 22 },
+  bottom: { marginTop: 14 },
   payRow: { flexDirection: 'row', gap: 18, alignItems: 'flex-end' },
-  pay: { flex: 1.35, backgroundColor: COLORS.wash, borderRadius: 8, padding: 13 },
+  pay: { flex: 1.35, backgroundColor: COLORS.wash, borderRadius: 8, padding: 10 },
   payText: { fontSize: 9.5, lineHeight: 1.25, color: COLORS.body, marginTop: 4 },
   totals: { flex: 1 },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3 },
@@ -499,7 +504,7 @@ function InvoicePdfDoc({ data }: { data: InvoicePdfData }) {
         ))}
 
         {named.length > 0 && (
-          <View style={{ marginTop: 16 }}>
+          <View style={s.contribBlock}>
             <View style={{ flexDirection: 'row', marginBottom: 5 }}>
               <Text style={[s.th, s.colDesc]}>Top contributors · affiliate sales</Text>
               <Text style={[s.th, s.colNum]}>Sales</Text>
@@ -545,12 +550,29 @@ function InvoicePdfDoc({ data }: { data: InvoicePdfData }) {
                 basis does not.
                 ⚠️ Keep this to ONE rendered line. Measured: at three lines this
                 note alone pushed the document onto a second page. */}
-            <Text style={s.verify}>
-              Sales are {data.brandName}&apos;s {fmtPeriod(data.periodMonth)} total — the basis for this rate, not additive across invoices.
-            </Text>
-            {data.shareUrl && (
-              <Text style={s.verify}>Full breakdown: {data.shareUrl}</Text>
-            )}
+            {/* Wrapped in a View ON PURPOSE. As bare Text siblings these were
+                mis-measured and the HOW TO PAY box below printed straight over
+                the URL. Padding the following block's margin only hid it; a
+                View gets measured properly, so the fix survives spacing
+                changes. */}
+            <View style={s.verifyWrap}>
+              <Text style={s.verify}>
+                Sales are {data.brandName}&apos;s {fmtPeriod(data.periodMonth)} total — the basis for this rate, not additive across invoices.
+              </Text>
+              {/* ⚠️ Deliberately NOT the full share URL.
+                  The token makes it ~70 characters, which wraps in this column
+                  and gets mis-measured, so the HOW TO PAY box below printed
+                  straight over its tail. Widening margins and wrapping it in a
+                  View both failed; the only reliable fix is a line that cannot
+                  wrap. The client reaches the breakdown through the same link
+                  this PDF was delivered with, and that page has the full table
+                  plus a CSV export. */}
+              {data.shareUrl && (
+                <Text style={s.verify}>
+                  Creator-by-creator breakdown and CSV export: see your invoice link.
+                </Text>
+              )}
+            </View>
           </View>
         )}
 
