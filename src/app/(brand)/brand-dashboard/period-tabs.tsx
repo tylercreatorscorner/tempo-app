@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { PERIOD_LABELS, type BrandPortalPeriod } from '@/lib/data/brand-portal-periods';
+import { readableOn } from '@/lib/utils/brand-color';
 
 const PERIOD_ORDER: BrandPortalPeriod[] = ['yesterday', '7d', '30d', 'this_month', 'last_month'];
 
@@ -36,7 +37,7 @@ export function PeriodTabs({ current, accentColor }: Props) {
             )}
             style={
               active
-                ? { backgroundColor: `${accentColor}14`, color: accentColor }
+                ? { backgroundColor: `${accentColor}14`, color: readableOn(accentColor) }
                 : undefined
             }
           >

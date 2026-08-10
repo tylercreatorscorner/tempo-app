@@ -9,6 +9,7 @@ import { resolveWatchUrl } from '@/lib/utils/format';
 import { GmvComparisonChart } from '@/components/charts/gmv-comparison-chart';
 import { PeriodTabs } from '../../period-tabs';
 import type { BrandPortalPeriod } from '@/lib/data/brand-portal-overview';
+import { readableOn } from '@/lib/utils/brand-color';
 
 export const dynamic = 'force-dynamic';
 
@@ -168,7 +169,7 @@ export default async function BrandCreatorDetailPage({ params, searchParams }: P
                   )}
                 </div>
                 <div className="text-right shrink-0">
-                  <p className="text-sm font-semibold tabular-nums" style={{ color: accent }}>
+                  <p className="text-sm font-semibold tabular-nums" style={{ color: readableOn(accent) }}>
                     {fmtCurrency(v.gmv)}
                   </p>
                   <p className="text-xs text-muted-foreground tabular-nums">
@@ -259,7 +260,7 @@ function CreatorStat({
       </p>
       <p
         className={`mt-1 font-bold text-foreground tabular-nums ${primary ? 'text-2xl sm:text-3xl' : 'text-xl'}`}
-        style={primary ? { color: accent } : undefined}
+        style={primary ? { color: readableOn(accent) } : undefined}
       >
         {value}
       </p>

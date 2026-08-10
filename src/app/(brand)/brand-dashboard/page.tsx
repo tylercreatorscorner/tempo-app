@@ -16,6 +16,7 @@ import {
 } from '@/lib/data/brand-portal-billing';
 import { GmvComparisonChart } from '@/components/charts/gmv-comparison-chart';
 import { PeriodTabs } from './period-tabs';
+import { readableOn } from '@/lib/utils/brand-color';
 
 export const dynamic = 'force-dynamic';
 
@@ -207,7 +208,7 @@ export default async function BrandOverview({ searchParams }: PageProps) {
                   <div className="flex-1 min-w-0">
                     <p
                       className="text-sm font-medium truncate"
-                      style={{ color: accent }}
+                      style={{ color: readableOn(accent) }}
                       title={c.realName ?? undefined}
                     >
                       @{c.primaryHandle}
@@ -276,7 +277,7 @@ export default async function BrandOverview({ searchParams }: PageProps) {
                   </div>
                   <p
                     className="text-sm font-semibold tabular-nums shrink-0"
-                    style={{ color: accent }}
+                    style={{ color: readableOn(accent) }}
                   >
                     {fmtCurrency(v.periodGmv)}
                   </p>
@@ -320,7 +321,7 @@ function AmNoteCard({
             className="h-7 w-7 rounded-lg flex items-center justify-center"
             style={{ backgroundColor: `${accent}18` }}
           >
-            <MessageCircle className="h-3.5 w-3.5" style={{ color: accent }} />
+            <MessageCircle className="h-3.5 w-3.5" style={{ color: readableOn(accent) }} />
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
@@ -370,7 +371,7 @@ function GoalProgressCard({
               className="h-7 w-7 rounded-lg flex items-center justify-center"
               style={{ backgroundColor: `${accent}18` }}
             >
-              <Target className="h-3.5 w-3.5" style={{ color: accent }} />
+              <Target className="h-3.5 w-3.5" style={{ color: readableOn(accent) }} />
             </div>
             <div>
               <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
@@ -398,7 +399,7 @@ function GoalProgressCard({
             </p>
             <p
               className="text-sm font-semibold tabular-nums"
-              style={{ color: accent }}
+              style={{ color: readableOn(accent) }}
             >
               {goal.pctOfGoal.toFixed(0)}%
             </p>
@@ -464,7 +465,7 @@ function HighlightsCard({
   return (
     <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
       <div className="px-4 pt-4 pb-3 border-b border-border/50 flex items-center gap-2">
-        <Sparkles className="h-4 w-4" style={{ color: accent }} />
+        <Sparkles className="h-4 w-4" style={{ color: readableOn(accent) }} />
         <h3 className="text-sm font-semibold text-foreground">Highlights this period</h3>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-border/40">
@@ -545,7 +546,7 @@ function HighlightItem({
           className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-colors"
           style={{ backgroundColor: `${accent}18` }}
         >
-          <Icon className="h-5 w-5" style={{ color: accent }} />
+          <Icon className="h-5 w-5" style={{ color: readableOn(accent) }} />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-2 mb-0.5">
@@ -555,7 +556,7 @@ function HighlightItem({
             {pill && (
               <span
                 className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md tabular-nums"
-                style={{ backgroundColor: `${accent}14`, color: accent }}
+                style={{ backgroundColor: `${accent}14`, color: readableOn(accent) }}
               >
                 {pill}
               </span>
@@ -671,7 +672,7 @@ function EngagementStat({
   return (
     <div className="px-4 py-3.5">
       <div className="flex items-center gap-1.5 mb-1.5">
-        <Icon className="h-3.5 w-3.5" style={{ color: accent }} />
+        <Icon className="h-3.5 w-3.5" style={{ color: readableOn(accent) }} />
         <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
           {label}
         </p>

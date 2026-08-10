@@ -11,6 +11,7 @@ import { getBrandRegistry, slugToUuid } from '@/lib/data/brand-registry';
 import { resolveWatchUrl } from '@/lib/utils/format';
 import { PeriodTabs } from '../period-tabs';
 import { SortableHeader, type SortDir } from '../sortable-header';
+import { readableOn } from '@/lib/utils/brand-color';
 
 export const dynamic = 'force-dynamic';
 
@@ -245,7 +246,7 @@ export default async function BrandVideosPage({ searchParams }: PageProps) {
                           </p>
                         </td>
                         <td className="px-3 py-2.5 hidden sm:table-cell">
-                          <span className="text-sm" style={{ color: accent }}>
+                          <span className="text-sm" style={{ color: readableOn(accent) }}>
                             @{v.creatorHandle}
                           </span>
                         </td>

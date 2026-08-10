@@ -8,6 +8,7 @@ import {
 import { createAdminClient } from '@/lib/supabase/server';
 import { PeriodTabs } from '../period-tabs';
 import { SortableHeader, type SortDir } from '../sortable-header';
+import { readableOn } from '@/lib/utils/brand-color';
 
 export const dynamic = 'force-dynamic';
 
@@ -203,7 +204,7 @@ export default async function BrandCreatorsPage({ searchParams }: PageProps) {
                         <Link
                           href={`/brand-dashboard/creators/${c.primaryHandle}?period=${period}`}
                           className="inline-flex items-center gap-1.5 font-medium hover:underline"
-                          style={{ color: accent }}
+                          style={{ color: readableOn(accent) }}
                           title={c.realName ?? undefined}
                         >
                           @{c.primaryHandle}
