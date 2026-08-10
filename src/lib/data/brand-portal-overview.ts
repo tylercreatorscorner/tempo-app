@@ -316,7 +316,7 @@ export async function getBrandPortalDashboard(
     return { data: out, error: null };
   };
 
-  const [statsCur, statsPrev, videoRows, stats30d, brandTotals, settingsRow, mtdRow, engCur, engPrior] = await Promise.all([
+  const [statsCur, statsPrev, videoRows, stats30d, brandTotals, settingsRow, mtdRow, engCur, engPrior, engByVideo] = await Promise.all([
     fetchAllByHandles(allHandles, (batch) => supabase
       .from('daily_creator_stats')
       .select('tiktok_username, gmv, orders, videos, report_date')
@@ -395,6 +395,16 @@ export async function getBrandPortalDashboard(
       p_handles: allHandles,
       p_start: priorStartStr,
       p_end: priorEndStr,
+    }),
+    // Per-video engagement for the Videos page. Filtered on report_date
+    // (engagement EARNED in the window) rather than post_date, because that
+    // page is period-scoped and its GMV column is period GMV. Migration 146
+    // explains why this deliberately differs from the aggregate above.
+    supabase.rpc('get_brand_portal_video_engagement', {
+      p_brand_slugs: dataSlugs,
+      p_handles: allHandles,
+      p_start: startStr,
+      p_end: endStr,
     }),
   ]);
 
@@ -555,23 +565,31 @@ export async function getBrandPortalDashboard(
         : 0,
     impressionsChangePct: pctChange(curImpressions, priorImpressions),
   };
-  // ⚠️ KNOWN GAP — per-video engagement on the Videos page.
+  // Per-video engagement for the Videos page, from video_performance via
+  // migration 146. This used to read the dead `videos.impressions/likes/
+  // comments` columns and had been rendering ZERO for months — the same root
+  // cause as the aggregate panel, fixed one pass later.
   //
-  // This used to build a video_id -> {impressions, likes, comments} lookup from
-  // the same dead `videos` columns as the aggregate above, so those per-post
-  // numbers have ALREADY been rendering as zero for months. Removing the dead
-  // source does not change what a client sees; it just stops pretending there
-  // is a source.
-  //
-  // Fixing it properly needs a per-video sibling of
-  // get_brand_portal_engagement (same MAX-per-video-day rule, grouped by
-  // video_id instead of totalled). Deliberately not bundled into this fix so
-  // the three live falsehoods ship on their own. Until then these columns are
-  // zero, which is the remaining silent zero on this surface.
+  // A failed read throws rather than resolving to an empty map: an empty map
+  // silently renders every video at 0 views, which is indistinguishable from
+  // the bug this replaces.
+  if (engByVideo.error) {
+    throw new Error(`get_brand_portal_video_engagement failed: ${engByVideo.error.message}`);
+  }
+  type VideoEngRow = { video_id: string; views: number; likes: number; comments: number };
   const engagementByVideoId = new Map<
     string,
     { impressions: number; likes: number; comments: number }
   >();
+  for (const r of ((engByVideo.data as unknown as VideoEngRow[] | null) ?? [])) {
+    engagementByVideoId.set(r.video_id, {
+      // `impressions` is the field name the UI already consumes; the source is
+      // video_performance.views. Renaming it is a separate change.
+      impressions: Number(r.views ?? 0),
+      likes: Number(r.likes ?? 0),
+      comments: Number(r.comments ?? 0),
+    });
+  }
 
   // Managed vs organic split — total brand sales minus managed contribution.
   const brandTotalRow = (brandTotals.data ?? [])[0] as any;
