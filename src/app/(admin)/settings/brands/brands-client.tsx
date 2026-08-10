@@ -27,6 +27,7 @@ interface BrandRow {
   slug: string;
   name: string;
   color: string | null;
+  logo_url: string | null;
   is_archived: boolean;
   is_umbrella: boolean;
   created_at: string;
@@ -82,6 +83,52 @@ export function BrandsSettingsClient() {
       invalidateBrandList();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Archive failed');
+    } finally {
+      setBusyId(null);
+    }
+  }, []);
+
+  /**
+   * Upload or clear a brand logo.
+   *
+   * The chip in the Brand column is the control: clicking it opens a file
+   * picker, and a logo that is already set gets a small remove affordance.
+   * There is no separate "logo" column, because a logo IS the brand's
+   * identity in that cell — the coloured dot it replaces was standing in for
+   * one all along.
+   */
+  const uploadLogo = useCallback(async (brand: BrandRow, file: File) => {
+    setBusyId(brand.id);
+    setError(null);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetch(`/api/brands/${brand.id}/logo`, { method: 'POST', body: fd });
+      const j = await res.json();
+      // Surface the server's sentence verbatim: it names the actual limit or
+      // format rather than saying "upload failed".
+      if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
+      setBrands((prev) => prev.map((b) => (b.id === brand.id ? { ...b, logo_url: j.logo_url } : b)));
+      invalidateBrandList();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not upload that logo');
+    } finally {
+      setBusyId(null);
+    }
+  }, []);
+
+  const removeLogo = useCallback(async (brand: BrandRow) => {
+    if (!confirm(`Remove ${brand.name}'s logo? Its colour will be used instead.`)) return;
+    setBusyId(brand.id);
+    setError(null);
+    try {
+      const res = await fetch(`/api/brands/${brand.id}/logo`, { method: 'DELETE' });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
+      setBrands((prev) => prev.map((b) => (b.id === brand.id ? { ...b, logo_url: null } : b)));
+      invalidateBrandList();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not remove that logo');
     } finally {
       setBusyId(null);
     }
@@ -185,6 +232,8 @@ export function BrandsSettingsClient() {
             onMenuToggle={(id) => setMenuOpenId((prev) => (prev === id ? null : id))}
             onArchive={(b) => setArchived(b, true)}
             onUnarchive={(b) => setArchived(b, false)}
+            onUploadLogo={uploadLogo}
+            onRemoveLogo={removeLogo}
           />
 
           {archived.length > 0 && (
@@ -208,6 +257,8 @@ export function BrandsSettingsClient() {
                     onMenuToggle={(id) => setMenuOpenId((prev) => (prev === id ? null : id))}
                     onArchive={(b) => setArchived(b, true)}
                     onUnarchive={(b) => setArchived(b, false)}
+            onUploadLogo={uploadLogo}
+            onRemoveLogo={removeLogo}
                   />
                 </div>
               )}
@@ -268,7 +319,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 
 function BrandTable({
   brands, heading, archived = false, busyId, menuOpenId,
-  onRowClick, onMenuToggle, onArchive, onUnarchive,
+  onRowClick, onMenuToggle, onArchive, onUnarchive, onUploadLogo, onRemoveLogo,
 }: {
   brands: BrandRow[];
   heading: string;
@@ -279,6 +330,8 @@ function BrandTable({
   onMenuToggle: (id: string) => void;
   onArchive: (b: BrandRow) => void;
   onUnarchive: (b: BrandRow) => void;
+  onUploadLogo: (b: BrandRow, file: File) => void;
+  onRemoveLogo: (b: BrandRow) => void;
 }) {
   if (brands.length === 0) return null;
   return (
@@ -318,10 +371,48 @@ function BrandTable({
                 >
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2.5">
-                      <span
-                        className="h-3 w-3 rounded-full flex-shrink-0"
-                        style={{ backgroundColor: b.color || 'var(--border)' }}
-                      />
+                      {/* Logo chip doubles as the upload control. stopPropagation
+                          throughout: the row itself opens the brand editor, and
+                          picking a file must not also do that. */}
+                      <label
+                        onClick={(e) => e.stopPropagation()}
+                        title={b.logo_url ? `Replace ${b.name}'s logo` : `Upload a logo for ${b.name}`}
+                        className="group relative h-8 w-8 flex-shrink-0 rounded-lg overflow-hidden border border-border cursor-pointer grid place-items-center"
+                        style={b.logo_url ? undefined : { backgroundColor: b.color || 'var(--border)' }}
+                      >
+                        {b.logo_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={b.logo_url} alt="" className="h-full w-full object-contain bg-card" />
+                        ) : (
+                          <span className="text-[10px] font-bold text-white">
+                            {b.name.replace(/[^A-Za-z0-9]/g, '').slice(0, 2).toUpperCase()}
+                          </span>
+                        )}
+                        <span className="absolute inset-0 bg-black/55 opacity-0 group-hover:opacity-100 transition-opacity grid place-items-center text-[9px] font-bold text-white uppercase tracking-wide">
+                          {b.logo_url ? 'Change' : 'Add'}
+                        </span>
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp"
+                          className="hidden"
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            e.target.value = '';
+                            if (f) onUploadLogo(b, f);
+                          }}
+                        />
+                      </label>
+                      {b.logo_url && (
+                        <button
+                          type="button"
+                          title="Remove logo"
+                          onClick={(e) => { e.stopPropagation(); onRemoveLogo(b); }}
+                          className="text-[10px] font-semibold text-muted-foreground hover:text-red-500 transition-colors"
+                        >
+                          Remove
+                        </button>
+                      )}
                       <div className="min-w-0">
                         <p className="font-bold text-[var(--foreground)]">{b.name}</p>
                         <p className="text-[10px] font-mono text-muted-foreground">{b.slug}</p>
