@@ -60,9 +60,15 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ token: str
     const comm = Number(r?.commission ?? 0);
     gmvTotal += gmv;
     commTotal += comm;
-    const handle = String(r?.name ?? '');
+    // BARE handle, no leading '@'. The @ is decorative, and prepending it
+    // meant every single row tripped the formula guard below and shipped with
+    // a leading apostrophe — invisible in Excel, but visible in Google Sheets
+    // and any text editor. Defending against a character we were adding
+    // ourselves made the file worse for every reader. Bare handles are also
+    // what you want in a spreadsheet: sortable, and joinable against exports.
+    const handle = String(r?.name ?? '').replace(/^@+/, '');
     lines.push([
-      csvCell(handle.startsWith('@') ? handle : `@${handle}`),
+      csvCell(handle),
       // Bare numbers, not currency strings: this file exists to be summed.
       csvCell(gmv.toFixed(2)),
       csvCell(Number(r?.rate ?? 0).toFixed(2)),
