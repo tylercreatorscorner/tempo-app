@@ -24,7 +24,10 @@ const TOP_VIDEOS_PREVIEW = 8;
 
 // Shared between each pane's header row and its body rows — that is the only
 // thing keeping the two aligned, so they must stay one constant.
-const CREATOR_COLS = 'grid grid-cols-[1.25rem_1fr_4.5rem_5rem_1rem] gap-x-3';
+// The 5rem posts column is measured, not guessed: "POSTS WITH" renders at
+// 74.2px in the header's 10.5px/0.075em uppercase, so 4.5rem (72px) broke it
+// onto three lines by two pixels. 80px holds it at two.
+const CREATOR_COLS = 'grid grid-cols-[1.25rem_1fr_5rem_5rem_1rem] gap-x-3';
 const VIDEO_COLS = 'grid grid-cols-[1fr_3.5rem_5rem_1rem] gap-x-3';
 
 interface PageProps {
