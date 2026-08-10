@@ -20,12 +20,15 @@ import { randomBytes } from 'node:crypto';
 import { requireAdmin } from '@/lib/auth/require-admin';
 import { createAdminClient } from '@/lib/supabase/server';
 import { renderInvoicePdf, invoiceRowToPdfData } from '@/lib/invoices/pdf';
+import { checkInvoiceReadiness, readinessError } from '@/lib/invoices/readiness';
 import { formatPeriod } from '@/lib/utils/format';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
 interface PostBody {
+  /** Waive the readiness gate. The operator has seen what is missing. */
+  force?: boolean;
   cc?: unknown;
   message?: unknown;
 }
@@ -140,6 +143,16 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   if (invoice.status === 'void') {
     return NextResponse.json({ error: "Can't email a voided invoice" }, { status: 400 });
+  }
+
+  // Same readiness gate as /send, from the same definition, so the two paths
+  // cannot disagree about what "ready" means. The recipient check above
+  // already covers one of its cases; this catches the rest — chiefly an
+  // invoice emailed with no payment instructions, which is what actually
+  // happened to all 4 sent invoices. `force: true` waives it.
+  const readiness = checkInvoiceReadiness(invoice);
+  if (!readiness.ready && body?.force !== true) {
+    return NextResponse.json(readinessError(readiness), { status: 422 });
   }
 
   // Lazy-generate share token if missing

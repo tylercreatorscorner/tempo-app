@@ -10,6 +10,7 @@
  * counts as sending, so the lifecycle columns finally mean what they say.
  */
 import { NextRequest, NextResponse } from 'next/server';
+import { checkInvoiceReadiness, readinessError } from '@/lib/invoices/readiness';
 import { randomBytes } from 'node:crypto';
 import { guardInvoiceAction } from '@/lib/finance/invoice-guard';
 
@@ -35,6 +36,23 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   if (invoice.status === 'void') {
     return NextResponse.json({ error: "Can't send a voided invoice" }, { status: 400 });
+  }
+
+  // Readiness gate. All 4 invoices ever sent went out with no recipient and no
+  // payment instructions, so the send button was the wrong place to be silent.
+  // `force: true` waives it — the operator may have a reason, but they have to
+  // have seen the list first. Shared with /email via checkInvoiceReadiness so
+  // the two paths cannot drift.
+  let force = false;
+  try {
+    const body = await req.json();
+    force = body?.force === true;
+  } catch {
+    // No body is the normal case for this endpoint.
+  }
+  const readiness = checkInvoiceReadiness(invoice);
+  if (!readiness.ready && !force) {
+    return NextResponse.json(readinessError(readiness), { status: 422 });
   }
 
   const nowIso = new Date().toISOString();

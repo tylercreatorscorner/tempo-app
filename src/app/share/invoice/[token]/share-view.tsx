@@ -297,6 +297,59 @@ export function ShareView({ token, invoice, todayIso }: Props) {
           </div>
         )}
 
+        {/* Creator breakdown.
+            The invoice PDF used to print every creator and stopped — that was
+            11 of 12 pages on a one-line bill. It now names the top few and
+            points here, so this page is where the detail actually lives. If
+            this section is ever removed, fix the PDF's pointer too or the
+            client is sent to a dead end. */}
+        {creatorCount > 0 && (
+          <div className="mt-3.5 overflow-hidden rounded-xl border border-[#e7e7f2] bg-white">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#e7e7f2] px-4 py-3">
+              <div>
+                <div className="text-[9.5px] font-extrabold uppercase tracking-[0.12em] text-[#8a8fb0]">Creator breakdown</div>
+                <div className="mt-0.5 text-xs text-[#6b7093]">
+                  {creatorCount} creator{creatorCount === 1 ? '' : 's'} · supporting detail for the commission line
+                </div>
+              </div>
+              <a
+                href={`/api/invoices/share/${token}/csv`}
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-[#e7e7f2] px-3 py-1.5 text-[11.5px] font-bold text-[#33375c] transition-colors hover:bg-[#f7f6fc]"
+              >
+                <Download className="h-3.5 w-3.5" />
+                Download CSV
+              </a>
+            </div>
+            <div className="max-h-[420px] overflow-y-auto">
+              <table className="w-full border-collapse">
+                <thead className="sticky top-0 bg-white">
+                  <tr className="text-[9.5px] font-extrabold uppercase tracking-[0.12em] text-[#8a8fb0]">
+                    <th className="px-4 py-2 text-left font-extrabold">Creator</th>
+                    <th className="px-4 py-2 text-right font-extrabold">Sales</th>
+                    <th className="px-4 py-2 text-right font-extrabold">Rate</th>
+                    <th className="px-4 py-2 text-right font-extrabold">Commission</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...invoice.creators]
+                    .filter((c) => c && c.name)
+                    .sort((a, b) => Number(b.gmv ?? 0) - Number(a.gmv ?? 0))
+                    .map((c, i) => (
+                      <tr key={`${c.name}-${i}`} className="border-t border-[#f0eff8]">
+                        <td className="px-4 py-2 text-xs text-[#33375c]">
+                          {String(c.name).startsWith('@') ? c.name : `@${c.name}`}
+                        </td>
+                        <td className="px-4 py-2 text-right text-xs tabular-nums text-[#33375c]">{formatCurrencyExact(Number(c.gmv ?? 0))}</td>
+                        <td className="px-4 py-2 text-right text-xs tabular-nums text-[#6b7093]">{Number(c.rate ?? 0).toFixed(2)}%</td>
+                        <td className="px-4 py-2 text-right text-xs tabular-nums text-[#33375c]">{formatCurrencyExact(Number(c.commission ?? 0))}</td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
         {/* Footer */}
         <div className="mt-6 flex flex-wrap justify-between gap-3.5 border-t border-[#e7e7f2] pt-4 text-[11.5px] text-[#8a8fb0]">
           <span>Questions: reply to the email this link arrived in</span>
