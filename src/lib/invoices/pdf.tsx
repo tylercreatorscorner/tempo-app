@@ -317,11 +317,25 @@ const s = StyleSheet.create({
   },
 
   // Footer
+  //
+  // ⚠️ DO NOT restore `position: 'absolute'` here. This element is also
+  // `fixed`, and the combination of fixed + absolute is what crashed every
+  // multi-page invoice PDF:
+  //
+  //     Error: unsupported number: -8.264141345021879e+21
+  //
+  // thrown from clipBorderTop deep inside @react-pdf, which reads like a data
+  // problem and is not one. Bisected on TEMPO-2026-07-001 (catakor, 235
+  // creators): 196 creator rows rendered, 197 failed, and the same constant
+  // garbage coordinate appeared every time. Removing EITHER `fixed` or
+  // `position: 'absolute'` fixes it; removing this footer's border does not,
+  // and neither does dropping `totalPages` from the render callback.
+  //
+  // `fixed` is the one worth keeping, so a five-page invoice carries its
+  // number and page count on every sheet. marginTop:'auto' pins it to the
+  // bottom of the page flow instead.
   footer: {
-    position: 'absolute',
-    bottom: 28,
-    left: PAGE_PADDING_X,
-    right: PAGE_PADDING_X,
+    marginTop: 'auto',
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
