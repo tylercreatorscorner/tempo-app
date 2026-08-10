@@ -157,7 +157,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   // Resolve brand display name + render PDF
   const { data: brandRow } = await supabase
     .from('brands_v2')
-    .select('name')
+    .select('name, color')
     .eq('slug', invoice.brand)
     .maybeSingle();
   const brandName = brandRow?.name ?? invoice.brand;
@@ -165,7 +165,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   // Shared row→PDF mapper — the attachment must be byte-identical to the
   // download endpoints. The old hand-rolled mapping here dropped billFrom, so
   // emailed PDFs fell back to the hardcoded business name.
-  const pdfData = invoiceRowToPdfData(invoice, brandName);
+  const pdfData = invoiceRowToPdfData(invoice, { name: brandName, color: brandRow?.color });
   const pdfBuffer = await renderInvoicePdf(pdfData);
 
   // Build sender-friendly subject + body

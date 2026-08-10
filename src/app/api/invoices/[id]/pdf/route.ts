@@ -35,13 +35,13 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   // Resolve brand display name
   const { data: brandRow } = await supabase
     .from('brands_v2')
-    .select('name')
+    .select('name, color')
     .eq('slug', invoice.brand)
     .maybeSingle();
 
   // Shared row→PDF mapper (also used by the share download and the email
   // attachment) so every PDF renders from identical data.
-  const data = invoiceRowToPdfData(invoice, brandRow?.name ?? invoice.brand);
+  const data = invoiceRowToPdfData(invoice, { name: brandRow?.name ?? invoice.brand, color: brandRow?.color });
 
   const pdfBuffer = await renderInvoicePdf(data);
 
