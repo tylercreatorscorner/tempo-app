@@ -16,7 +16,7 @@ import {
 } from '@/lib/data/brand-portal-billing';
 import { GmvComparisonChart } from '@/components/charts/gmv-comparison-chart';
 import { PeriodTabs } from './period-tabs';
-import { readableOn } from '@/lib/utils/brand-color';
+import { readableOn, tintOver, onColor } from '@/lib/utils/brand-color';
 
 export const dynamic = 'force-dynamic';
 
@@ -78,8 +78,8 @@ export default async function BrandOverview({ searchParams }: PageProps) {
             />
           ) : (
             <div
-              className="h-10 w-10 rounded-xl flex items-center justify-center text-white text-base font-bold flex-shrink-0"
-              style={{ backgroundColor: accent }}
+              className="h-10 w-10 rounded-xl flex items-center justify-center text-base font-bold flex-shrink-0"
+              style={{ backgroundColor: accent, color: onColor(accent) }}
             >
               {data.brandName.slice(0, 2).toUpperCase()}
             </div>
@@ -564,7 +564,7 @@ function HighlightItem({
             {pill && (
               <span
                 className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md tabular-nums"
-                style={{ backgroundColor: `${accent}14`, color: readableOn(accent) }}
+                style={{ backgroundColor: `${accent}14`, color: readableOn(accent, tintOver(accent, "14")) }}
               >
                 {pill}
               </span>
@@ -807,7 +807,7 @@ function SplitRow({
           </span>
         </p>
       </div>
-      <span className="text-xs font-semibold tabular-nums" style={{ color: muted ? 'var(--muted-foreground)' : color }}>
+      <span className="text-xs font-semibold tabular-nums" style={{ color: muted ? 'var(--muted-foreground)' : readableOn(color) }}>
         {pct.toFixed(1)}%
       </span>
     </div>

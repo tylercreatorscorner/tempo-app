@@ -2,6 +2,7 @@ import { Mail, User, Image as ImageIcon, Users as UsersIcon, ExternalLink, Lock 
 import { requireBrandPortalContext } from '@/lib/data/brand-portal';
 import { createAdminClient } from '@/lib/supabase/server';
 import { EditableName } from './editable-name';
+import { onColor } from '@/lib/utils/brand-color';
 
 export const dynamic = 'force-dynamic';
 
@@ -102,8 +103,8 @@ export default async function BrandSettingsPage() {
       >
         <div className="px-5 py-4 flex items-center gap-4">
           <div
-            className="h-14 w-14 rounded-xl flex items-center justify-center text-white text-base font-bold overflow-hidden flex-shrink-0"
-            style={{ backgroundColor: accent }}
+            className="h-14 w-14 rounded-xl flex items-center justify-center text-base font-bold overflow-hidden flex-shrink-0"
+            style={{ backgroundColor: accent, color: onColor(accent) }}
           >
             {ctx.activeBrand.logo_url ? (
               // eslint-disable-next-line @next/next/no-img-element

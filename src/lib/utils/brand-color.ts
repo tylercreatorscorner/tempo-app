@@ -69,6 +69,45 @@ export function contrastRatio(a: string, b: string): number {
  * Default target is 4.5, WCAG AA for body text. Pass 3 for text at 18pt+ or
  * for icon glyphs, which AA treats as large.
  */
+/**
+ * The colour an `${accent}14`-style tint actually resolves to on screen.
+ *
+ * Several chips paint the accent at 8-10% over a card and then put the accent
+ * ON that tint. Deriving the readable variant against plain white is wrong
+ * there — measured live, #927200 on Lemme's yellow tint came out at 2.90:1
+ * even though it clears 4.5:1 on white. Blend first, then darken against the
+ * real background.
+ *
+ * `alpha` is the two-hex-digit suffix used in the style (e.g. '14' = 8%).
+ */
+export function tintOver(color: string, alpha: string, background = '#FFFFFF'): string {
+  const c = parseHex(color);
+  const b = parseHex(background);
+  const a = parseInt(alpha, 16) / 255;
+  if (!c || !b || !Number.isFinite(a)) return background;
+  return toHex({
+    r: c.r * a + b.r * (1 - a),
+    g: c.g * a + b.g * (1 - a),
+    b: c.b * a + b.b * (1 - a),
+  });
+}
+
+/**
+ * Black or white, whichever is legible ON `background`.
+ *
+ * Brand avatars painted the initials in white over the brand colour, which is
+ * fine for a navy brand and unreadable for a yellow one — Lemme's chip was
+ * white on #FFC700 at 1.56:1. Picking per brand instead of hardcoding white
+ * costs nothing and fixes every light brand at once.
+ */
+export function onColor(background: string | null | undefined): string {
+  if (!background) return '#FFFFFF';
+  const dark = '#16142E'; // Pulse ink, so the fallback still looks designed
+  return contrastRatio(dark, background) >= contrastRatio('#FFFFFF', background)
+    ? dark
+    : '#FFFFFF';
+}
+
 export function readableOn(color: string | null | undefined, background = '#FFFFFF', target = 4.5): string {
   if (!color) return 'currentColor';
   const rgb = parseHex(color);
