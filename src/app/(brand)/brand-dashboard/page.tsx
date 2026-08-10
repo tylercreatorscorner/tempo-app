@@ -1,6 +1,6 @@
 import { Suspense } from 'react';
 import Link from 'next/link';
-import { ChevronRight, ExternalLink, MessageCircle, Target, TrendingUp, TrendingDown, Eye, Heart, MessageSquare, Activity, Sparkles, Calendar, Flame } from 'lucide-react';
+import { ChevronRight, ExternalLink, MessageCircle, Target, TrendingUp, TrendingDown, Sparkles, Calendar, Flame } from 'lucide-react';
 import { requireBrandPortalContext } from '@/lib/data/brand-portal';
 import {
   getBrandPortalDashboard,
@@ -112,16 +112,46 @@ export default async function BrandOverview({ searchParams }: PageProps) {
           away — a brand reads them as one story. */}
       <MetricRail data={data} />
 
-      {/* Monthly goal progress + roster-vs-organic split, side-by-side */}
-      {(data.goalProgress || data.split.totalGmv > 0) && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {data.goalProgress && (
-            <GoalProgressCard goal={data.goalProgress} accent={accent} />
+      {/* ── Monthly goal ──────────────────────────────────────────────────
+          A slim band, not the half-width card this was. The card carried one
+          bar and one sentence in the vertical space of six metric cells, and
+          it sat between the reader and the chart. */}
+      {data.goalProgress && <GoalBand goal={data.goalProgress} accent={accent} />}
+
+      {/* ── Trend, with the split attached ────────────────────────────────
+          The chart used to sit four sections down, below the goal card, the
+          split panel and the highlights. It is the thing a brand scrolls
+          looking for, so it comes first.
+
+          The roster-vs-organic split rides in the footer instead of getting
+          its own half-width card. As a card it restated the answer line at
+          the top of the page in a second visual language; as a footer it
+          does the one job the answer line can't — the organic side, with its
+          post counts, against the same trend the chart just drew. */}
+      {(data.dailyPerformance.length > 1 || data.split.totalGmv > 0) && (
+        <Card>
+          <CardHeader title="Daily GMV" subtitle={`Compared to ${priorLabel(period)}`} />
+          {data.dailyPerformance.length > 1 && (
+            <div className="px-2 pb-2">
+              <Suspense fallback={<div className="h-[280px]" />}>
+                <GmvComparisonChart
+                  current={data.dailyPerformance.map((d) => ({
+                    date: d.date.toISOString().split('T')[0],
+                    gmv: d.gmv,
+                  }))}
+                  prior={data.priorPoints.map((p) => ({
+                    priorDate: p.priorDate.toISOString().split('T')[0],
+                    gmv: p.gmv,
+                  }))}
+                  color={accent}
+                />
+              </Suspense>
+            </div>
           )}
           {data.split.totalGmv > 0 && (
-            <ManagedSplitPanel split={data.split} accent={accent} />
+            <ShareBar split={data.split} accent={accent} />
           )}
-        </div>
+        </Card>
       )}
 
       {/* Highlights — "what changed" callouts */}
@@ -129,28 +159,6 @@ export default async function BrandOverview({ searchParams }: PageProps) {
         data.highlights.topCreator ||
         data.highlights.topViralPost) && (
         <HighlightsCard highlights={data.highlights} accent={accent} period={period} />
-      )}
-
-      {/* Daily GMV chart */}
-      {data.dailyPerformance.length > 1 && (
-        <Card>
-          <CardHeader title="Daily GMV" subtitle={`Compared to ${priorLabel(period)}`} />
-          <div className="px-2 pb-2">
-            <Suspense fallback={<div className="h-[280px]" />}>
-              <GmvComparisonChart
-                current={data.dailyPerformance.map((d) => ({
-                  date: d.date.toISOString().split('T')[0],
-                  gmv: d.gmv,
-                }))}
-                prior={data.priorPoints.map((p) => ({
-                  priorDate: p.priorDate.toISOString().split('T')[0],
-                  gmv: p.gmv,
-                }))}
-                color={accent}
-              />
-            </Suspense>
-          </div>
-        </Card>
       )}
 
       {/* ── Billing · monthly basis ────────────────────────────────────────
@@ -326,8 +334,18 @@ function AmNoteCard({
 }
 
 // ── Goal progress ──
+//
+// One row: what the month has done, the bar, and where it lands. This was a
+// half-width card six metric-cells tall carrying exactly those three facts,
+// sitting above the chart.
+//
+// It is MONTH-grain while everything around it answers to the period tabs, so
+// the label says "Month to date" and names the day count out loud. Under the
+// no-estimates rule the projection is honest arithmetic on exact inputs —
+// MTD ÷ days elapsed × days in month — and it is labelled "on pace for",
+// never presented as a figure the brand has earned.
 
-function GoalProgressCard({
+function GoalBand({
   goal,
   accent,
 }: {
@@ -335,94 +353,51 @@ function GoalProgressCard({
   accent: string;
 }) {
   const onPace = goal.projectedPctOfGoal >= 100;
-  const crushing = goal.projectedPctOfGoal >= 120;
   const pacingDelta = goal.projectedPctOfGoal - 100;
   const clampedPct = Math.min(100, goal.pctOfGoal);
 
   return (
-    <div className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
-      <div className="p-5 sm:p-6 space-y-4">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2.5">
-            <div
-              className="h-7 w-7 rounded-lg flex items-center justify-center"
-              style={{ backgroundColor: `${accent}18` }}
-            >
-              <Target className="h-3.5 w-3.5" style={{ color: readableOn(accent) }} />
-            </div>
-            <div>
-              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                Monthly GMV goal
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Day {goal.daysElapsed} of {goal.daysInMonth}
-              </p>
-            </div>
-          </div>
-          {crushing && (
-            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-bold tabular-nums">
-              🎯 Crushing it
-            </span>
-          )}
-        </div>
-
-        <div>
-          <div className="flex items-baseline justify-between gap-3 mb-2">
-            <p className="text-2xl font-bold text-foreground tabular-nums">
-              {fmtCurrency(goal.mtdGmv)}
-              <span className="text-sm font-medium text-muted-foreground ml-1.5">
-                / {fmtCurrency(goal.monthlyGoal)}
-              </span>
-            </p>
-            <p
-              className="text-sm font-semibold tabular-nums"
-              style={{ color: readableOn(accent) }}
-            >
-              {goal.pctOfGoal.toFixed(0)}%
-            </p>
-          </div>
-          <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
-            <div
-              className="h-full rounded-full transition-all"
-              style={{ width: `${clampedPct}%`, backgroundColor: accent }}
-            />
-          </div>
-        </div>
-
-        {/* Pacing callout — celebratory pill when massively over-pacing,
-            or muted text when modestly over/under. */}
-        {crushing ? (
-          <div className="flex items-center gap-2 rounded-xl bg-emerald-50/80 px-3 py-2.5">
-            <TrendingUp className="h-4 w-4 text-emerald-600 flex-shrink-0" />
-            <p className="text-xs text-emerald-800">
-              On pace for{' '}
-              <span className="font-bold tabular-nums">
-                {fmtCurrency(goal.projectedEomGmv)}
-              </span>{' '}
-              EOM —{' '}
-              <span className="font-bold tabular-nums">+{pacingDelta.toFixed(0)}%</span>{' '}
-              over goal
-            </p>
-          </div>
-        ) : (
+    <div className="rounded-2xl border border-border bg-card shadow-sm px-4 py-3.5">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <div className="flex items-center gap-2.5 min-w-0">
           <div
-            className={`flex items-center gap-1.5 text-xs ${
-              onPace ? 'text-emerald-600' : 'text-amber-600'
-            }`}
+            className="h-7 w-7 rounded-lg flex items-center justify-center flex-shrink-0"
+            style={{ backgroundColor: `${accent}18` }}
           >
-            {onPace ? (
-              <TrendingUp className="h-3.5 w-3.5" />
-            ) : (
-              <TrendingDown className="h-3.5 w-3.5" />
-            )}
-            <span>
-              {onPace ? 'On pace for' : 'Pacing toward'}{' '}
-              <span className="font-semibold">{fmtCurrency(goal.projectedEomGmv)}</span>{' '}
-              EOM ({onPace ? '+' : ''}
-              {pacingDelta.toFixed(0)}% {onPace ? 'over' : 'under'} goal)
-            </span>
+            <Target className="h-3.5 w-3.5" style={{ color: readableOn(accent, tintOver(accent, '18')) }} />
           </div>
-        )}
+          <p className="text-sm text-foreground">
+            <span className="text-muted-foreground">Month to date</span>{' '}
+            <b className="font-bold tabular-nums">{fmtCurrency(goal.mtdGmv)}</b>
+            <span className="text-muted-foreground tabular-nums">
+              {' '}of {fmtCurrency(goal.monthlyGoal)} goal
+            </span>{' '}
+            <b className="font-bold tabular-nums" style={{ color: readableOn(accent) }}>
+              {goal.pctOfGoal.toFixed(0)}%
+            </b>
+          </p>
+        </div>
+
+        <div className="order-last w-full sm:order-none sm:flex-1 sm:w-auto sm:min-w-[140px] h-2 rounded-full bg-muted overflow-hidden">
+          <div
+            className="h-full rounded-full transition-all"
+            style={{ width: `${clampedPct}%`, backgroundColor: accent }}
+          />
+        </div>
+
+        <div
+          className={`flex items-center gap-1.5 text-xs flex-shrink-0 ${
+            onPace ? 'text-emerald-700' : 'text-amber-700'
+          }`}
+        >
+          {onPace ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
+          <span className="tabular-nums">
+            Day {goal.daysElapsed}/{goal.daysInMonth} · on pace for{' '}
+            <span className="font-semibold">{fmtCurrency(goal.projectedEomGmv)}</span> (
+            {onPace ? '+' : ''}
+            {pacingDelta.toFixed(0)}%)
+          </span>
+        </div>
       </div>
     </div>
   );
@@ -568,8 +543,13 @@ function HighlightItem({
 }
 
 // ── Managed vs organic split ──
+//
+// Rides in the Daily GMV card's footer. It used to be a half-width card with
+// its own heading and sub-heading restating what the answer line already says
+// in a sentence; what it uniquely knows is the ORGANIC side, so that is what
+// survives — the bar, both figures, both post counts, one strip.
 
-function ManagedSplitPanel({
+function ShareBar({
   split,
   accent,
 }: {
@@ -579,93 +559,52 @@ function ManagedSplitPanel({
   const managedPct = split.managedPctOfGmv;
   const organicPct = Math.max(0, 100 - managedPct);
   return (
-    <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
-      <div className="px-4 pt-4 pb-3 border-b border-border/50 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-1">
-        <div>
-          <h3 className="text-sm font-semibold text-foreground">
-            Your roster vs total brand sales
-          </h3>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            How much of your brand&apos;s TikTok Shop GMV your managed creators drove this period
-          </p>
-        </div>
-        <p className="text-xs text-muted-foreground tabular-nums">
-          Total: <span className="font-semibold text-foreground">{fmtCurrency(split.totalGmv)}</span>
-        </p>
-      </div>
-
-      <div className="px-4 pt-4 pb-5 space-y-4">
-        {/* Stacked bar */}
+    <div className="border-t border-border px-4 py-3.5 space-y-2.5">
+      <div className="h-2.5 w-full rounded-full overflow-hidden bg-muted">
         <div
-          className="h-3 w-full rounded-full overflow-hidden flex"
-          style={{ backgroundColor: 'var(--muted)' }}
-        >
-          <div
-            className="h-full transition-all"
-            style={{
-              width: `${managedPct}%`,
-              backgroundColor: accent,
-            }}
-            title={`Your managed creators: ${managedPct.toFixed(1)}%`}
-          />
-        </div>
-
-        {/* Legend rows */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <SplitRow
-            label="Your managed creators"
-            value={split.managedGmv}
-            posts={split.managedPosts}
-            pct={managedPct}
-            color={accent}
-          />
-          <SplitRow
-            label="Other creators (organic)"
-            value={split.organicGmv}
-            posts={split.organicPosts}
-            pct={organicPct}
-            color="var(--muted-foreground)"
-            muted
-          />
-        </div>
+          className="h-full transition-all"
+          style={{ width: `${managedPct}%`, backgroundColor: accent }}
+          title={`Your managed creators: ${managedPct.toFixed(1)}%`}
+        />
+      </div>
+      <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1.5">
+        <SplitLegend
+          label="Your roster"
+          value={split.managedGmv}
+          posts={split.managedPosts}
+          pct={managedPct}
+          dot={accent}
+        />
+        <SplitLegend
+          label="Other creators"
+          value={split.organicGmv}
+          posts={split.organicPosts}
+          pct={organicPct}
+          dot="var(--muted-foreground)"
+        />
+        <p className="text-xs text-muted-foreground tabular-nums ml-auto">
+          Brand total{' '}
+          <span className="font-semibold text-foreground">{fmtCurrency(split.totalGmv)}</span>
+        </p>
       </div>
     </div>
   );
 }
 
-function SplitRow({
-  label,
-  value,
-  posts,
-  pct,
-  color,
-  muted = false,
-}: {
-  label: string;
-  value: number;
-  posts: number;
-  pct: number;
-  color: string;
-  muted?: boolean;
-}) {
+function SplitLegend({
+  label, value, posts, pct, dot,
+}: { label: string; value: number; posts: number; pct: number; dot: string }) {
   return (
-    <div className="flex items-center gap-2.5">
+    <div className="flex items-baseline gap-2 min-w-0">
       <span
-        className="inline-block h-2.5 w-2.5 rounded-full flex-shrink-0"
-        style={{ backgroundColor: color }}
+        className="inline-block h-2.5 w-2.5 rounded-full flex-shrink-0 translate-y-px"
+        style={{ backgroundColor: dot }}
       />
-      <div className="flex-1 min-w-0">
-        <p className={`text-xs ${muted ? 'text-muted-foreground' : 'text-muted-foreground'}`}>{label}</p>
-        <p className="text-sm font-semibold text-foreground tabular-nums">
-          {fmtCurrency(value)}
-          <span className="ml-1.5 text-xs font-normal text-muted-foreground">
-            · {fmtNumber(posts)} post{posts === 1 ? '' : 's'}
-          </span>
-        </p>
-      </div>
-      <span className="text-xs font-semibold tabular-nums" style={{ color: muted ? 'var(--muted-foreground)' : readableOn(color) }}>
-        {pct.toFixed(1)}%
-      </span>
+      <p className="text-xs text-muted-foreground">
+        {label}{' '}
+        <span className="font-semibold text-foreground tabular-nums">{fmtCurrency(value)}</span>
+        <span className="tabular-nums"> · {pct.toFixed(1)}% · {fmtNumber(posts)} post{posts === 1 ? '' : 's'}</span>
+      </p>
     </div>
   );
 }
@@ -857,7 +796,9 @@ function MetricRail({ data }: { data: BrandPortalDashboard }) {
       ? [
           {
             label: 'Views',
-            value: fmtNumber(eng.impressions),
+            // Compact, not fmtNumber: "2,562,728" is nine characters in a cell
+            // sized for "$95.9k", and it wraps at the 2-column breakpoint.
+            value: fmtCompact(eng.impressions),
             foot: <Delta pct={eng.impressionsChangePct} />,
           },
           {
@@ -865,7 +806,7 @@ function MetricRail({ data }: { data: BrandPortalDashboard }) {
             value: `${eng.engagementRate.toFixed(2)}%`,
             foot: (
               <span className="text-[11.5px] text-muted-foreground tabular-nums">
-                {fmtNumber(eng.likes)} likes · {fmtNumber(eng.posts)} posted
+                {fmtCompact(eng.likes)} likes · {fmtNumber(eng.posts)} posted
               </span>
             ),
           },
