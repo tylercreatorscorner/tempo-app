@@ -56,10 +56,16 @@ const FALLBACK_BILL_FROM = {
   address: '',
 };
 
-/** How many creators are named before the rest are aggregated. Six fits the
- *  page and is enough for a reviewer to recognise the roster; the remainder
- *  line carries the exact balance so the section still foots. */
-const NAMED_CONTRIBUTORS = 6;
+/**
+ * How many creators are named before the rest are aggregated.
+ *
+ * ⚠️ FIVE, and it is a page-fit constraint, not a taste one. At six the
+ * document tipped onto a second page that carried nothing but the footer.
+ * The whole point of the rebuild is that an invoice is one page, so if you
+ * raise this, re-render a long invoice and check /Count is still 1. The same
+ * budget is why the basis note below has to stay a single rendered line.
+ */
+const NAMED_CONTRIBUTORS = 5;
 
 // ── Pulse palette (matches globals.css and public/logo/tempo-icon.svg) ──
 const COLORS = {
@@ -223,7 +229,7 @@ const PAD_Y = 42;
 
 const s = StyleSheet.create({
   page: {
-    paddingTop: PAD_Y, paddingBottom: 20, paddingHorizontal: PAD_X,
+    paddingTop: 34, paddingBottom: 18, paddingHorizontal: PAD_X,
     fontSize: 10, color: COLORS.ink, fontFamily: 'Inter',
     backgroundColor: COLORS.white, lineHeight: 1.4,
   },
@@ -231,11 +237,11 @@ const s = StyleSheet.create({
   // Masthead
   top: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   logoWrap: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  logoText: { fontSize: 20, fontWeight: 800, letterSpacing: -0.9, color: COLORS.ink },
-  tagline: { fontSize: 8, color: COLORS.muted, marginTop: 4 },
+  logoText: { fontSize: 20, lineHeight: 1.25, fontWeight: 800, letterSpacing: -0.9, color: COLORS.ink },
+  tagline: { fontSize: 8, lineHeight: 1.25, color: COLORS.muted, marginTop: 4 },
   invNoWrap: { alignItems: 'flex-end' },
-  invNoLabel: { fontSize: 8, color: COLORS.muted, letterSpacing: 0.6, textTransform: 'uppercase', fontWeight: 600 },
-  invNo: { fontSize: 12.5, fontWeight: 700, marginTop: 2 },
+  invNoLabel: { fontSize: 8, lineHeight: 1.25, color: COLORS.muted, letterSpacing: 0.6, textTransform: 'uppercase', fontWeight: 600 },
+  invNo: { fontSize: 12.5, lineHeight: 1.25, fontWeight: 700, marginTop: 2 },
 
   // The thesis panel: what the fee bought, beside what is owed.
   //
@@ -245,22 +251,27 @@ const s = StyleSheet.create({
   // points. A hardcoded box that silently stops matching its container is a
   // worse defect than a flat fill, so this stays solid until there is a reason
   // it is not.
+  // ⚠️ EXPLICIT lineHeight on every Text in here, and NO alignItems on the row.
+  // The page sets lineHeight 1.4 globally; at 24pt and 30pt @react-pdf laid the
+  // following sibling on top of the number, so "208 creators · July 2026"
+  // printed straight through "$706,493.86". Stating the line box per size fixes
+  // it. If you add a Text here, give it a lineHeight.
   thesis: {
-    marginTop: 20, borderRadius: 10, paddingVertical: 18, paddingHorizontal: 20,
+    marginTop: 18, borderRadius: 10, paddingVertical: 15, paddingHorizontal: 18,
     backgroundColor: COLORS.primary,
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end',
+    flexDirection: 'row', justifyContent: 'space-between',
   },
-  tLabel: { fontSize: 7.5, color: COLORS.white, opacity: 0.78, letterSpacing: 1, textTransform: 'uppercase', fontWeight: 700 },
-  tBig: { fontSize: 24, color: COLORS.white, fontWeight: 700, marginTop: 4 },
-  tSub: { fontSize: 9, color: COLORS.white, opacity: 0.85, marginTop: 4 },
+  tLabel: { fontSize: 7.5, lineHeight: 1.2, color: COLORS.white, opacity: 0.78, letterSpacing: 1, textTransform: 'uppercase', fontWeight: 700 },
+  tBig: { fontSize: 23, lineHeight: 1.15, color: COLORS.white, fontWeight: 700, marginTop: 5 },
+  tSub: { fontSize: 8.5, lineHeight: 1.3, color: COLORS.white, opacity: 0.85, marginTop: 4 },
   tRight: { alignItems: 'flex-end' },
-  tAmt: { fontSize: 30, color: COLORS.white, fontWeight: 700, marginTop: 4 },
+  tAmt: { fontSize: 27, lineHeight: 1.15, color: COLORS.white, fontWeight: 700, marginTop: 5 },
 
   // Meta
   meta: { flexDirection: 'row', marginTop: 20, gap: 18 },
   metaCell: { flex: 1 },
-  k: { fontSize: 7.5, color: COLORS.muted, letterSpacing: 0.9, textTransform: 'uppercase', fontWeight: 700 },
-  v: { fontSize: 10.5, marginTop: 3 },
+  k: { fontSize: 7.5, lineHeight: 1.25, color: COLORS.muted, letterSpacing: 0.9, textTransform: 'uppercase', fontWeight: 700 },
+  v: { fontSize: 10.5, lineHeight: 1.25, marginTop: 3 },
 
   rule: { height: 1, backgroundColor: COLORS.hair, marginVertical: 16 },
 
@@ -269,54 +280,64 @@ const s = StyleSheet.create({
   party: { flex: 1 },
   partyRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 4 },
   chip: { width: 20, height: 20, borderRadius: 5, alignItems: 'center', justifyContent: 'center' },
-  chipText: { fontSize: 8.5, color: COLORS.white, fontWeight: 700 },
-  partyName: { fontSize: 11.5, fontWeight: 700 },
-  partyLine: { fontSize: 9.5, color: COLORS.body, marginTop: 1 },
+  chipText: { fontSize: 8.5, lineHeight: 1.25, color: COLORS.white, fontWeight: 700 },
+  partyName: { fontSize: 11.5, lineHeight: 1.25, fontWeight: 700 },
+  partyLine: { fontSize: 9.5, lineHeight: 1.25, color: COLORS.body, marginTop: 1 },
 
   // Line items
-  th: { fontSize: 7.5, color: COLORS.muted, letterSpacing: 0.9, textTransform: 'uppercase', fontWeight: 700 },
+  th: { fontSize: 7.5, lineHeight: 1.25, color: COLORS.muted, letterSpacing: 0.9, textTransform: 'uppercase', fontWeight: 700 },
   lineRow: { flexDirection: 'row', paddingVertical: 11, alignItems: 'flex-start' },
   lineRule: { height: 1, backgroundColor: COLORS.hair },
-  itemTitle: { fontSize: 11, fontWeight: 700 },
-  itemSub: { fontSize: 9, color: COLORS.muted, marginTop: 2 },
+  itemTitle: { fontSize: 11, lineHeight: 1.25, fontWeight: 700 },
+  itemSub: { fontSize: 9, lineHeight: 1.25, color: COLORS.muted, marginTop: 2 },
   colDesc: { flex: 3 },
   colNum: { flex: 1, textAlign: 'right' },
-  amt: { fontSize: 11 },
+  amt: { fontSize: 11, lineHeight: 1.25 },
 
   // Contributors
   contribRow: { flexDirection: 'row', paddingVertical: 4.5 },
   contribRule: { height: 1, backgroundColor: COLORS.wash },
   restRule: { height: 1, backgroundColor: COLORS.hair, marginTop: 3 },
-  contribName: { flex: 3, fontSize: 9.5 },
-  contribNum: { flex: 1, fontSize: 9.5, textAlign: 'right' },
-  restText: { flex: 3, fontSize: 9.5, color: COLORS.muted },
-  restNum: { flex: 1, fontSize: 9.5, textAlign: 'right', color: COLORS.muted },
-  verify: { fontSize: 8.5, color: COLORS.muted, marginTop: 7 },
+  contribName: { flex: 3, fontSize: 9.5, lineHeight: 1.25 },
+  contribNum: { flex: 1, fontSize: 9.5, lineHeight: 1.25, textAlign: 'right' },
+  restText: { flex: 3, fontSize: 9.5, lineHeight: 1.25, color: COLORS.muted },
+  restNum: { flex: 1, fontSize: 9.5, lineHeight: 1.25, textAlign: 'right', color: COLORS.muted },
+  verify: { fontSize: 8.5, lineHeight: 1.25, color: COLORS.muted, marginTop: 6 , marginBottom: 4 },
 
-  // Bottom
-  bottom: { marginTop: 'auto' },
+  // Bottom.
+  //
+  // ⚠️ NOT marginTop:'auto'. That pushes this block to the bottom of the PAGE
+  // rather than after the content, and @react-pdf then let it overlap the
+  // preceding text — the Subtotal row printed straight through the
+  // "Full creator-by-creator breakdown: …" line — while also spilling a blank
+  // second page. Plain flow keeps it under the contributors where it belongs.
+  // Generous top margin ON PURPOSE. The share URL above wraps to a second
+  // line that @react-pdf measures as one, so this block would otherwise be
+  // laid on top of it — the URL tail printed straight through the HOW TO PAY
+  // box. 22pt clears a full mis-measured line at this size.
+  bottom: { marginTop: 22 },
   payRow: { flexDirection: 'row', gap: 18, alignItems: 'flex-end' },
   pay: { flex: 1.35, backgroundColor: COLORS.wash, borderRadius: 8, padding: 13 },
-  payText: { fontSize: 9.5, color: COLORS.body, marginTop: 4 },
+  payText: { fontSize: 9.5, lineHeight: 1.25, color: COLORS.body, marginTop: 4 },
   totals: { flex: 1 },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3 },
-  totalLabel: { fontSize: 10.5, color: COLORS.body },
-  totalValue: { fontSize: 10.5 },
+  totalLabel: { fontSize: 10.5, lineHeight: 1.25, color: COLORS.body },
+  totalValue: { fontSize: 10.5, lineHeight: 1.25 },
   grandRule: { height: 2, backgroundColor: COLORS.ink, marginTop: 6 },
   grandRow: { flexDirection: 'row', justifyContent: 'space-between', paddingTop: 8 },
-  grandLabel: { fontSize: 14, fontWeight: 700 },
-  grandValue: { fontSize: 15, fontWeight: 700 },
-  grandHint: { fontSize: 8.5, color: COLORS.muted, marginTop: 3 },
+  grandLabel: { fontSize: 14, lineHeight: 1.25, fontWeight: 700 },
+  grandValue: { fontSize: 15, lineHeight: 1.25, fontWeight: 700 },
+  grandHint: { fontSize: 8.5, lineHeight: 1.25, color: COLORS.muted, marginTop: 3 },
 
   notes: { marginTop: 14, backgroundColor: COLORS.wash, borderRadius: 8, padding: 12 },
-  notesText: { fontSize: 9.5, color: COLORS.body, marginTop: 3 },
+  notesText: { fontSize: 9.5, lineHeight: 1.25, color: COLORS.body, marginTop: 3 },
 
   // ⚠️ NOT position:'absolute'. See the header note — fixed + absolute is what
   // crashed every multi-page invoice.
-  footerWrap: { marginTop: 14 },
+  footerWrap: { marginTop: 10 },
   footerRule: { height: 1, backgroundColor: COLORS.hair },
   footer: { flexDirection: 'row', justifyContent: 'space-between', paddingTop: 9 },
-  footerText: { fontSize: 8, color: COLORS.muted },
+  footerText: { fontSize: 8, lineHeight: 1.25, color: COLORS.muted },
 });
 
 // ── Logo ─────────────────────────────────────────────────────────────
@@ -445,7 +466,12 @@ function InvoicePdfDoc({ data }: { data: InvoicePdfData }) {
               </View>
               <Text style={s.partyName}>{data.brandName}</Text>
             </View>
-            {data.billTo.name && <Text style={s.partyLine}>{data.billTo.name}</Text>}
+            {/* Only when it adds something. bill_to_name is frequently just the
+                brand name again, which rendered "LeeFar" directly under
+                "LeeFar". */}
+            {data.billTo.name && data.billTo.name.trim().toLowerCase() !== data.brandName.trim().toLowerCase() && (
+              <Text style={s.partyLine}>{data.billTo.name}</Text>
+            )}
             {data.billTo.email && <Text style={s.partyLine}>{data.billTo.email}</Text>}
             {data.billTo.address && data.billTo.address.split('\n').filter(Boolean).map((l, i) => (
               <Text key={i} style={s.partyLine}>{l}</Text>
@@ -516,13 +542,14 @@ function InvoicePdfDoc({ data }: { data: InvoicePdfData }) {
             {/* Each payee's invoice carries the FULL brand GMV, not a slice, so
                 a client holding both could add the sales columns and see twice
                 the GMV that exists. Commission DOES add up across them; the
-                basis does not. */}
+                basis does not.
+                ⚠️ Keep this to ONE rendered line. Measured: at three lines this
+                note alone pushed the document onto a second page. */}
             <Text style={s.verify}>
-              Sales shown are {data.brandName}&apos;s total for {fmtPeriod(data.periodMonth)} and are the basis this
-              invoice&apos;s rate is applied to. They are not additive across the invoices you receive for this period.
+              Sales are {data.brandName}&apos;s {fmtPeriod(data.periodMonth)} total — the basis for this rate, not additive across invoices.
             </Text>
             {data.shareUrl && (
-              <Text style={s.verify}>Full creator-by-creator breakdown: {data.shareUrl}</Text>
+              <Text style={s.verify}>Full breakdown: {data.shareUrl}</Text>
             )}
           </View>
         )}
@@ -552,12 +579,17 @@ function InvoicePdfDoc({ data }: { data: InvoicePdfData }) {
             </View>
           </View>
 
-          {data.notes && (
-            <View style={s.notes}>
-              <Text style={s.k}>Notes</Text>
-              <Text style={s.notesText}>{data.notes}</Text>
-            </View>
-          )}
+          {/* ⚠️ invoices.notes is NOT rendered, deliberately.
+              The field was intended for client-facing terms (net terms, PO
+              numbers) but that is not what it holds. Measured 2026-08-10: 2 of
+              30 invoices have notes, BOTH are internal reconciliation trails,
+              and BOTH are on sent/paid invoices. TEMPO-2026-06-002 printed
+              "Pre-update snapshot: commission=8944.32 … (Google Sheet 1sCF3iW…)"
+              to Cata-Kor, complete with the sheet id.
+              It also caused the layout bug that surfaced this: the Notes header
+              sat at the bottom of page 1 with its body orphaned onto page 2.
+              If client-visible notes are wanted, add a separate field for them
+              rather than re-enabling this one. */}
 
           <View style={s.footerWrap}>
             <View style={s.footerRule} />

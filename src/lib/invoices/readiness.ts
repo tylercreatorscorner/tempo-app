@@ -28,7 +28,17 @@ export interface InvoiceReadiness {
   missing: string[];
 }
 
-const blank = (v: string | null | undefined) => !v || !v.trim();
+/**
+ * Empty, or a placeholder standing in for empty.
+ *
+ * LeeFar's July invoice carried payment_instructions of literally "na", which
+ * an emptiness check happily accepted and the PDF then printed under
+ * "HOW TO PAY". A filler value is the same defect as a missing one from the
+ * client's side of the page.
+ */
+const PLACEHOLDERS = new Set(['na', 'n/a', 'none', 'tbd', 'tba', '-', '--', '.', 'x', 'xx', '?']);
+const blank = (v: string | null | undefined) =>
+  !v || !v.trim() || PLACEHOLDERS.has(v.trim().toLowerCase());
 
 export function checkInvoiceReadiness(inv: InvoiceReadinessInput): InvoiceReadiness {
   const missing: string[] = [];

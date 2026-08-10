@@ -290,12 +290,13 @@ export function ShareView({ token, invoice, todayIso }: Props) {
         {/* Operator notes (net terms, PO numbers) — also on the PDF, kept here
             so the web view and the export never disagree on client-visible
             content. Quiet by design; the mockup's personal note is shareNote. */}
-        {invoice.notes && (
-          <div className="mt-3.5 rounded-xl border border-[#e7e7f2] bg-white px-4 py-3">
-            <div className="mb-1 text-[9.5px] font-extrabold uppercase tracking-[0.12em] text-[#8a8fb0]">Notes</div>
-            <p className="whitespace-pre-line text-xs leading-relaxed text-[#33375c]">{invoice.notes}</p>
-          </div>
-        )}
+        {/* ⚠️ invoices.notes is NOT rendered here either, and for the same
+            reason as the PDF: the field's only real-world use is internal.
+            Measured 2026-08-10 — 2 of 30 invoices carry notes, both are
+            reconciliation trails, both sit on sent/paid invoices, and one
+            published a Google Sheet id to Cata-Kor. The two client surfaces
+            must agree, so if this is ever re-enabled, re-enable it in
+            lib/invoices/pdf.tsx in the same change. */}
 
         {/* Creator breakdown.
             The invoice PDF used to print every creator and stopped — that was
