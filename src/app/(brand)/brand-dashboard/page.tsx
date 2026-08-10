@@ -99,9 +99,17 @@ export default async function BrandOverview({ searchParams }: PageProps) {
       {/* Account-manager note (full-width when present — easier to read) */}
       {data.amNote && <AmNoteCard note={data.amNote} accent={accent} />}
 
-      {/* KPI grid — hero GMV + standard cards */}
+      {/* KPI grid — hero GMV + standard cards.
+          Three cards in a two-column grid left "Managed creators" stranded on
+          its own row with dead space beside it. The hero spans both columns at
+          md instead, so the row reads GMV / then Posts + Creators paired, and
+          collapses back to a clean three-across at lg. Spanning the HERO is
+          the right one to widen: it is the headline number, and giving it the
+          full width at the cramped breakpoint states that hierarchy rather
+          than merely filling a hole. */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <StatCard
+          className="md:col-span-2 lg:col-span-1"
           label="GMV"
           value={fmtCurrency(data.totalGmv)}
           trend={data.gmvChangePct ?? undefined}
