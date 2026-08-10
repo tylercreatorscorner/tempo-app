@@ -19,8 +19,13 @@ import { readableOn, tintOver, onColor } from '@/lib/utils/brand-color';
 
 export const dynamic = 'force-dynamic';
 
-const TOP_CREATORS_PREVIEW = 5;
-const TOP_VIDEOS_PREVIEW = 5;
+const TOP_CREATORS_PREVIEW = 8;
+const TOP_VIDEOS_PREVIEW = 8;
+
+// Shared between each pane's header row and its body rows — that is the only
+// thing keeping the two aligned, so they must stay one constant.
+const CREATOR_COLS = 'grid grid-cols-[1.25rem_1fr_3rem_5rem_1rem] gap-x-3';
+const VIDEO_COLS = 'grid grid-cols-[1fr_3.5rem_5rem_1rem] gap-x-3';
 
 interface PageProps {
   searchParams: Promise<{ period?: string }>;
@@ -169,9 +174,19 @@ export default async function BrandOverview({ searchParams }: PageProps) {
           week, which is exactly the misreading that would force an estimate. */}
       <BillingBand billing={billing} />
 
-      {/* Snapshot panes: top creators + recent videos side by side */}
+      {/* ── Detail panes ──────────────────────────────────────────────────
+          Table-first, not stacked two-line rows. The old shape spent one line
+          per row on a subtitle ("3 posts · Real Name") and still couldn't put
+          two rows' numbers in the same column, so nothing was comparable down
+          the list — which is the whole point of a ranking. Columns instead:
+          eight rows now fit in the height five used to take.
+
+          The counted columns are real reads, not decoration. Posts comes off
+          videos.video_id and views off get_brand_portal_video_engagement
+          (migration 146) — the per-video figures that were printing as zeros
+          on this portal until this week. */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Top creators (compact) */}
+        {/* Top creators */}
         <Card>
           <CardHeaderWithLink
             title="Top creators"
@@ -179,41 +194,48 @@ export default async function BrandOverview({ searchParams }: PageProps) {
             href={`/brand-dashboard/creators?period=${period}`}
             linkLabel="View all"
           />
-          <div className="divide-y divide-border/40">
-            {data.creators.length === 0 ? (
-              <EmptyRow text="No managed creators yet." />
-            ) : (
-              data.creators.slice(0, TOP_CREATORS_PREVIEW).map((c, i) => (
-                <Link
-                  key={c.managedId}
-                  href={`/brand-dashboard/creators/${c.primaryHandle}?period=${period}`}
-                  className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/30 transition-colors"
-                >
-                  <span className="text-xs text-muted-foreground w-5 tabular-nums">{i + 1}</span>
-                  <div className="flex-1 min-w-0">
-                    <p
-                      className="text-sm font-medium truncate"
-                      style={{ color: readableOn(accent) }}
-                      title={c.realName ?? undefined}
-                    >
-                      @{c.primaryHandle}
-                    </p>
-                    <p className="text-xs text-muted-foreground truncate">
-                      {c.posts} post{c.posts === 1 ? '' : 's'}
-                      {c.realName ? ` · ${c.realName}` : ''}
-                    </p>
-                  </div>
-                  <p className="text-sm font-semibold tabular-nums text-foreground">
-                    {fmtCurrency(c.gmv)}
-                  </p>
-                  <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-                </Link>
-              ))
-            )}
-          </div>
+          {data.creators.length === 0 ? (
+            <EmptyRow text="No managed creators yet." />
+          ) : (
+            <>
+              <div className={`${CREATOR_COLS} px-4 py-1.5 border-b border-border bg-muted/40 text-[10.5px] font-semibold uppercase tracking-[0.075em] text-muted-foreground`}>
+                <span />
+                <span>Creator</span>
+                <span className="text-right">Posts</span>
+                <span className="text-right">GMV</span>
+                <span />
+              </div>
+              <div className="divide-y divide-border/40">
+                {data.creators.slice(0, TOP_CREATORS_PREVIEW).map((c, i) => (
+                  <Link
+                    key={c.managedId}
+                    href={`/brand-dashboard/creators/${c.primaryHandle}?period=${period}`}
+                    className={`${CREATOR_COLS} items-baseline px-4 py-2 hover:bg-muted/30 transition-colors`}
+                  >
+                    <span className="text-xs text-muted-foreground tabular-nums">{i + 1}</span>
+                    <span className="min-w-0 truncate text-sm" title={c.realName ?? undefined}>
+                      <span className="font-medium" style={{ color: readableOn(accent) }}>
+                        @{c.primaryHandle}
+                      </span>
+                      {c.realName && (
+                        <span className="text-muted-foreground text-xs"> · {c.realName}</span>
+                      )}
+                    </span>
+                    <span className="text-right text-sm tabular-nums text-muted-foreground">
+                      {fmtNumber(c.posts)}
+                    </span>
+                    <span className="text-right text-sm font-semibold tabular-nums text-foreground">
+                      {fmtCurrency(c.gmv)}
+                    </span>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground self-center" />
+                  </Link>
+                ))}
+              </div>
+            </>
+          )}
         </Card>
 
-        {/* Top posts (compact). Ordering is guaranteed by brand-portal-overview,
+        {/* Top posts. Ordering is guaranteed by brand-portal-overview,
             NOT by the RPC — see the note there.
 
             earnedInPeriod, not data.videos: a post with $0 in the window is not
@@ -230,47 +252,54 @@ export default async function BrandOverview({ searchParams }: PageProps) {
             href={`/brand-dashboard/videos?period=${period}`}
             linkLabel="View all"
           />
-          <div className="divide-y divide-border/40">
-            {earnedInPeriod.length === 0 ? (
-              <EmptyRow text="No posts earned in this period." />
-            ) : (
-              earnedInPeriod.slice(0, TOP_VIDEOS_PREVIEW).map((v) => (
-                <a
-                  key={v.videoId}
-                  // resolveWatchUrl, not `v.url ?? …`: v.url comes from
-                  // daily_video_product_stats.video_url, which is an expiring
-                  // signed CDN MEDIA link on 98% of rows — a plain ?? lets the
-                  // dead link win over the permanent derived permalink.
-                  href={resolveWatchUrl(v.url, v.creatorHandle, v.videoId) ?? undefined}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/30 transition-colors"
-                >
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate" title={v.title}>
-                      {v.title}
-                    </p>
-                    <p className="text-xs text-muted-foreground truncate">
-                      @{v.creatorHandle}
-                      {v.postDate && (
-                        <>
-                          <span className="mx-1.5 text-muted-foreground">·</span>
-                          {fmtDate(v.postDate)}
-                        </>
-                      )}
-                    </p>
-                  </div>
-                  <p
-                    className="text-sm font-semibold tabular-nums shrink-0"
-                    style={{ color: readableOn(accent) }}
+          {earnedInPeriod.length === 0 ? (
+            <EmptyRow text="No posts earned in this period." />
+          ) : (
+            <>
+              <div className={`${VIDEO_COLS} px-4 py-1.5 border-b border-border bg-muted/40 text-[10.5px] font-semibold uppercase tracking-[0.075em] text-muted-foreground`}>
+                <span>Post</span>
+                <span className="text-right">Views</span>
+                <span className="text-right">GMV</span>
+                <span />
+              </div>
+              <div className="divide-y divide-border/40">
+                {earnedInPeriod.slice(0, TOP_VIDEOS_PREVIEW).map((v) => (
+                  <a
+                    key={v.videoId}
+                    // resolveWatchUrl, not `v.url ?? …`: v.url comes from
+                    // daily_video_product_stats.video_url, which is an expiring
+                    // signed CDN MEDIA link on 98% of rows — a plain ?? lets the
+                    // dead link win over the permanent derived permalink.
+                    href={resolveWatchUrl(v.url, v.creatorHandle, v.videoId) ?? undefined}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`${VIDEO_COLS} items-baseline px-4 py-2 hover:bg-muted/30 transition-colors`}
                   >
-                    {fmtCurrency(v.periodGmv)}
-                  </p>
-                  <ExternalLink className="h-4 w-4 text-muted-foreground shrink-0" />
-                </a>
-              ))
-            )}
-          </div>
+                    <span className="min-w-0 truncate text-sm" title={v.title}>
+                      <span className="font-medium text-foreground">{v.title}</span>
+                      <span className="text-muted-foreground text-xs">
+                        {' '}· @{v.creatorHandle}
+                        {v.postDate && ` · ${fmtDate(v.postDate)}`}
+                      </span>
+                    </span>
+                    {/* An em dash, not 0. A zero here would read as "nobody
+                        watched it" when the truth is that the export carried no
+                        engagement row for that video-day. */}
+                    <span className="text-right text-sm tabular-nums text-muted-foreground">
+                      {v.impressions > 0 ? fmtCompact(v.impressions) : '—'}
+                    </span>
+                    <span
+                      className="text-right text-sm font-semibold tabular-nums"
+                      style={{ color: readableOn(accent) }}
+                    >
+                      {fmtCurrency(v.periodGmv)}
+                    </span>
+                    <ExternalLink className="h-4 w-4 text-muted-foreground self-center" />
+                  </a>
+                ))}
+              </div>
+            </>
+          )}
         </Card>
       </div>
     </div>
