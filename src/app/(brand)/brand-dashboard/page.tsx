@@ -24,7 +24,7 @@ const TOP_VIDEOS_PREVIEW = 8;
 
 // Shared between each pane's header row and its body rows — that is the only
 // thing keeping the two aligned, so they must stay one constant.
-const CREATOR_COLS = 'grid grid-cols-[1.25rem_1fr_3rem_5rem_1rem] gap-x-3';
+const CREATOR_COLS = 'grid grid-cols-[1.25rem_1fr_4.5rem_5rem_1rem] gap-x-3';
 const VIDEO_COLS = 'grid grid-cols-[1fr_3.5rem_5rem_1rem] gap-x-3';
 
 interface PageProps {
@@ -201,7 +201,12 @@ export default async function BrandOverview({ searchParams }: PageProps) {
               <div className={`${CREATOR_COLS} px-4 py-1.5 border-b border-border bg-muted/40 text-[10.5px] font-semibold uppercase tracking-[0.075em] text-muted-foreground`}>
                 <span />
                 <span>Creator</span>
-                <span className="text-right">Posts</span>
+                {/* Same field the rail calls "Posts with sales", so it carries
+                    the same name here. Seen live, two of Lemme's top eight show
+                    0 against real GMV — earned by posts published before the
+                    window — and a column headed just "Posts" makes that read as
+                    a bug instead of the truth. */}
+                <span className="text-right leading-tight">Posts with sales</span>
                 <span className="text-right">GMV</span>
                 <span />
               </div>
@@ -231,6 +236,10 @@ export default async function BrandOverview({ searchParams }: PageProps) {
                   </Link>
                 ))}
               </div>
+              <p className="px-4 py-2 border-t border-border bg-muted/30 text-[11px] text-muted-foreground">
+                A creator can show 0 posts with sales and still have GMV — those
+                sales came from posts published before this period.
+              </p>
             </>
           )}
         </Card>
