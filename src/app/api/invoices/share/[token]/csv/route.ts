@@ -40,7 +40,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ token: str
   const supabase = await createAdminClient();
   const { data: invoice, error } = await supabase
     .from('invoices')
-    .select('invoice_number, brand, period_month, creator_breakdown')
+    .select('invoice_number, brand, period_month, creator_breakdown, commission, marketing_gmv')
     .eq('public_token', token)
     .maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -75,9 +75,41 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ token: str
       csvCell(comm.toFixed(2)),
     ].join(','));
   }
-  // A total row so the reader can check it against the invoice without
-  // re-adding 200 rows by hand.
-  lines.push(['Total', gmvTotal.toFixed(2), '', commTotal.toFixed(2)].map(csvCell).join(','));
+  // ── Reconcile to the invoice ─────────────────────────────────────────────
+  //
+  // The creator breakdown covers AFFILIATE sales only. Marketing GMV is
+  // brand-level spend and is not attributable to any individual creator, so
+  // its commission can never appear as a creator row — which meant the rows
+  // summed to less than the commission being charged and looked like an error.
+  // On TEMPO-2026-07-001: rows totalled $2,363.19 against a $2,452.69
+  // commission, and the $89.50 difference is exactly marketing GMV.
+  //
+  // Stated as the DELTA from the invoice's own commission, never by
+  // re-deriving a rate. That way it foots by construction and cannot drift
+  // from what was actually billed.
+  const invoiceCommission = Number(invoice.commission ?? 0);
+  const marketingGmv = Number(invoice.marketing_gmv ?? 0);
+  const nonCreator = Number((invoiceCommission - commTotal).toFixed(2));
+  const showNonCreator = Math.abs(nonCreator) >= 0.01;
+
+  if (showNonCreator) {
+    lines.push([
+      'Marketing GMV commission (not creator-attributable)',
+      marketingGmv.toFixed(2),
+      '',
+      nonCreator.toFixed(2),
+    ].map(csvCell).join(','));
+  }
+
+  // Totals foot against the invoice the client is holding, not against the
+  // rows above it. Both columns move together with the reconciliation row so
+  // the sheet is internally consistent either way.
+  lines.push([
+    'Total',
+    (gmvTotal + (showNonCreator ? marketingGmv : 0)).toFixed(2),
+    '',
+    (showNonCreator ? invoiceCommission : commTotal).toFixed(2),
+  ].map(csvCell).join(','));
 
   const filename = `${invoice.invoice_number}_creators.csv`;
   // BOM so Excel opens UTF-8 handles correctly instead of mangling accents.

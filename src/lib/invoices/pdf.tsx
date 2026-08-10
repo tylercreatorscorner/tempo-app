@@ -475,7 +475,7 @@ function InvoicePdfDoc({ data }: { data: InvoicePdfData }) {
         {named.length > 0 && (
           <View style={{ marginTop: 16 }}>
             <View style={{ flexDirection: 'row', marginBottom: 5 }}>
-              <Text style={[s.th, s.colDesc]}>Top contributors</Text>
+              <Text style={[s.th, s.colDesc]}>Top contributors · affiliate sales</Text>
               <Text style={[s.th, s.colNum]}>Sales</Text>
               <Text style={[s.th, s.colNum]}>Commission</Text>
             </View>
@@ -496,6 +496,20 @@ function InvoicePdfDoc({ data }: { data: InvoicePdfData }) {
                   <Text style={s.restText}>+{restCount} more creator{restCount === 1 ? '' : 's'}</Text>
                   <Text style={s.restNum}>{fmtCurrency(allGmv - namedGmv)}</Text>
                   <Text style={s.restNum}>{fmtCurrency(allComm - namedComm)}</Text>
+                </View>
+              </>
+            )}
+            {/* Marketing GMV is brand-level and cannot be attributed to a
+                creator, so these rows cover AFFILIATE only and sum to less
+                than the commission charged. Stated as the delta from the
+                invoice's own commission so it foots by construction. */}
+            {Math.abs(data.commission - allComm) >= 0.01 && (
+              <>
+                <View style={s.restRule} />
+                <View style={s.contribRow}>
+                  <Text style={s.restText}>Marketing GMV commission</Text>
+                  <Text style={s.restNum}>{fmtCurrency(data.marketingGmv)}</Text>
+                  <Text style={s.restNum}>{fmtCurrency(data.commission - allComm)}</Text>
                 </View>
               </>
             )}

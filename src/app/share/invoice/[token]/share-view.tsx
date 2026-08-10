@@ -309,7 +309,7 @@ export function ShareView({ token, invoice, todayIso }: Props) {
               <div>
                 <div className="text-[9.5px] font-extrabold uppercase tracking-[0.12em] text-[#8a8fb0]">Creator breakdown</div>
                 <div className="mt-0.5 text-xs text-[#6b7093]">
-                  {creatorCount} creator{creatorCount === 1 ? '' : 's'} · supporting detail for the commission line
+                  {creatorCount} creator{creatorCount === 1 ? '' : 's'} · affiliate sales only
                 </div>
               </div>
               <a
@@ -344,6 +344,45 @@ export function ShareView({ token, invoice, todayIso }: Props) {
                         <td className="px-4 py-2 text-right text-xs tabular-nums text-[#33375c]">{formatCurrencyExact(Number(c.commission ?? 0))}</td>
                       </tr>
                     ))}
+                  {/* Reconciliation.
+                      These rows cover AFFILIATE sales only — marketing GMV is
+                      brand-level and cannot be attributed to a creator, so the
+                      rows sum to less than the commission being charged and
+                      look wrong. Stated as the delta from the invoice's own
+                      commission so it foots by construction rather than by
+                      re-deriving a rate. */}
+                  {(() => {
+                    const rowsComm = invoice.creators
+                      .filter((c) => c && c.name)
+                      .reduce((n, c) => n + Number(c.commission ?? 0), 0);
+                    const nonCreator = Number((invoice.commission - rowsComm).toFixed(2));
+                    if (Math.abs(nonCreator) < 0.01) return null;
+                    return (
+                      <tr className="border-t border-[#e7e7f2] bg-[#faf9fe]">
+                        <td className="px-4 py-2 text-xs text-[#6b7093]">
+                          Marketing GMV commission
+                          <span className="block text-[10.5px] text-[#8a8fb0]">Not attributable to a single creator</span>
+                        </td>
+                        <td className="px-4 py-2 text-right text-xs tabular-nums text-[#6b7093]">
+                          {formatCurrencyExact(invoice.marketingGmv)}
+                        </td>
+                        <td className="px-4 py-2" />
+                        <td className="px-4 py-2 text-right text-xs tabular-nums text-[#6b7093]">
+                          {formatCurrencyExact(nonCreator)}
+                        </td>
+                      </tr>
+                    );
+                  })()}
+                  <tr className="border-t-2 border-[#d8d6ea]">
+                    <td className="px-4 py-2 text-xs font-extrabold text-[#171a33]">Total</td>
+                    <td className="px-4 py-2 text-right text-xs font-extrabold tabular-nums text-[#171a33]">
+                      {formatCurrencyExact(invoice.affiliateGmv + invoice.marketingGmv)}
+                    </td>
+                    <td className="px-4 py-2" />
+                    <td className="px-4 py-2 text-right text-xs font-extrabold tabular-nums text-[#171a33]">
+                      {formatCurrencyExact(invoice.commission)}
+                    </td>
+                  </tr>
                 </tbody>
               </table>
             </div>
