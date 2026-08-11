@@ -5,10 +5,23 @@ import { SpeedInsights } from '@vercel/speed-insights/next';
 import { Providers } from '@/components/providers';
 import './globals.css';
 
+// Variable font, not five static cuts.
+//
+// Google publishes Inter as a variable font and serves the same files either
+// way, so pinning five static weights bought nothing and broke the build on
+// 2026-08-10: Google rotated the Inter v20 file hashes (UcCB3… → UcC73…),
+// Vercel restored a build cache holding the old CSS, and every @font-face src
+// 404'd — seven module-not-found errors and two failed production deploys
+// that had nothing to do with the commits in them. Omitting `weight` takes the
+// single variable file, which covers 100–900 including the 500/600 this UI
+// leans on.
+//
+// The underlying fragility is unchanged: next/font/google is a build-time
+// network dependency on fonts.gstatic.com. Self-hosting the woff2 via
+// next/font/local is the real fix and needs the files committed.
 const inter = Inter({
   variable: '--font-inter',
   subsets: ['latin'],
-  weight: ['400', '500', '600', '700', '800'],
 });
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://app.tempoapp.ai';
