@@ -1,9 +1,25 @@
 'use client';
 
 import dynamic from 'next/dynamic';
+import { useTheme } from 'next-themes';
+import { readableOn } from '@/lib/utils/brand-color';
 import type { ApexOptions } from 'apexcharts';
 
 const ApexChart = dynamic(() => import('react-apexcharts'), { ssr: false });
+
+/**
+ * One grey used to do two jobs and only cleared the bar for one of them.
+ *
+ * #8A8FB2 measures 3.16:1 on a light card: fine for the prior-period LINE and
+ * the crosshair, which are graphics and need 3:1, and a fail for the legend,
+ * axis and tooltip TEXT, which need 4.5:1. Measured on the live brand portal,
+ * that is exactly where 'Prior period' and 'Current period' were sitting.
+ *
+ * So: keep the stroke, and take the text ink from the --muted-foreground pair
+ * (5.14:1 light, 7.18:1 dark). ApexCharts wants literal colours, not var().
+ */
+const GRID_STROKE = '#8A8FB2';
+const INK = { light: '#6D6A8B', dark: '#A0A4CC' };
 
 interface CurrentPoint {
   date: string;
@@ -87,6 +103,17 @@ export function GmvComparisonChart({
   color = '#6D5EFC',
   height = 320,
 }: Props) {
+  // Before the early return — hooks cannot sit behind a conditional.
+  const { resolvedTheme } = useTheme();
+  const ink = resolvedTheme === 'dark' ? INK.dark : INK.light;
+  // The tooltip body is hardcoded white in BOTH themes (see its markup), so
+  // everything inside it measures against white and must use the light ink —
+  // `ink` would be #A0A4CC at 2.42:1 there whenever the page is dark.
+  const tipInk = INK.light;
+  // ...and the value is painted in the brand's own colour, which fails AA on
+  // white for 22 of the 29 brands in the roster.
+  const tipAccent = readableOn(color);
+
   if (!current || current.length === 0) return null;
 
   const categories = current.map((d) => fmtShortDate(d.date));
@@ -123,7 +150,7 @@ export function GmvComparisonChart({
       fontFamily: 'inherit',
       background: 'transparent',
     },
-    colors: hasPrior ? ['#8A8FB2', color] : [color],
+    colors: hasPrior ? [GRID_STROKE, color] : [color],
     stroke: {
       curve: 'smooth',
       width: hasPrior ? [2, 3] : 3,
@@ -138,7 +165,7 @@ export function GmvComparisonChart({
           horizontalAlign: 'right',
           fontSize: '11px',
           fontFamily: 'inherit',
-          labels: { colors: '#8A8FB2' },
+          labels: { colors: ink },
           markers: { size: 6, strokeWidth: 0 } as any,
           itemMargin: { horizontal: 10 },
         }
@@ -147,18 +174,18 @@ export function GmvComparisonChart({
       type: 'category',
       categories,
       labels: {
-        style: { colors: '#8A8FB2', fontSize: '11px', fontFamily: 'inherit' },
+        style: { colors: ink, fontSize: '11px', fontFamily: 'inherit' },
         rotate: 0,
         hideOverlappingLabels: true,
       },
       axisBorder: { show: false },
       axisTicks: { show: false },
-      crosshairs: { show: true, stroke: { color: '#8A8FB2', width: 1, dashArray: 4 } },
+      crosshairs: { show: true, stroke: { color: GRID_STROKE, width: 1, dashArray: 4 } },
       tooltip: { enabled: false },
     },
     yaxis: {
       labels: {
-        style: { colors: '#8A8FB2', fontSize: '11px', fontFamily: 'inherit' },
+        style: { colors: ink, fontSize: '11px', fontFamily: 'inherit' },
         formatter: fmtY,
       },
       forceNiceScale: true,
@@ -183,22 +210,22 @@ export function GmvComparisonChart({
           `$${v.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
         const fmtCell = (v: number | null) =>
           v == null
-            ? '<span style="color:#D1D5DB">no data</span>'
+            ? '<span style="color:${tipInk}">no data</span>'
             : fmtMoney(v);
         const rows: string[] = [];
         if (priorIso && hasPrior) {
           rows.push(`
             <div style="display:flex;align-items:center;gap:8px;padding:6px 12px">
-              <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#8A8FB2"></span>
-              <span style="color:#8A8FB2;font-size:11px">${fmtLongDate(priorIso)}</span>
-              <span style="margin-left:auto;font-weight:600;color:#8A8FB2">${fmtCell(priorVal)}</span>
+              <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${GRID_STROKE}"></span>
+              <span style="color:${tipInk};font-size:11px">${fmtLongDate(priorIso)}</span>
+              <span style="margin-left:auto;font-weight:600;color:${tipInk}">${fmtCell(priorVal)}</span>
             </div>`);
         }
         rows.push(`
           <div style="display:flex;align-items:center;gap:8px;padding:6px 12px">
             <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${color}"></span>
-            <span style="color:#8A8FB2;font-size:11px;font-weight:500">${fmtLongDate(curIso)}</span>
-            <span style="margin-left:auto;font-weight:600;color:${color}">${fmtCell(curVal)}</span>
+            <span style="color:${tipInk};font-size:11px;font-weight:500">${fmtLongDate(curIso)}</span>
+            <span style="margin-left:auto;font-weight:600;color:${tipAccent}">${fmtCell(curVal)}</span>
           </div>`);
         return `<div style="background:white;border:1px solid var(--muted);border-radius:10px;box-shadow:0 8px 16px -4px rgba(0,0,0,0.08);min-width:240px;padding:4px 0">${rows.join('')}</div>`;
       },
