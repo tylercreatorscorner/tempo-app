@@ -71,10 +71,13 @@ export default async function BrandSettingsPage() {
         >
           <div className="px-5 py-4 flex items-center gap-3">
             <div
-              className="h-10 w-10 rounded-full flex items-center justify-center text-white text-sm font-bold"
-              style={{
-                background: `linear-gradient(135deg, ${accent}, var(--pulse-accent-2))`,
-              }}
+              // Solid accent + onColor, matching the brand chip on the
+              // Overview header. The gradient here ran `accent → var(--pulse-accent-2)`
+              // under hardcoded white text: white on Lemme #FFC700 is 1.56:1,
+              // failing in BOTH themes, and the second stop flipped light in
+              // dark on top of that. One legible treatment for every brand.
+              className="h-10 w-10 rounded-full flex items-center justify-center text-sm font-bold"
+              style={{ backgroundColor: accent, color: onColor(accent) }}
             >
               {(accountManager.name ?? accountManager.email)[0]?.toUpperCase()}
             </div>
@@ -249,8 +252,8 @@ function TeammateRow({
   return (
     <div className="flex items-center gap-3 px-5 py-3">
       <div
-        className="h-8 w-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
-        style={{ background: `linear-gradient(135deg, ${accent}, var(--pulse-accent-2))` }}
+        className="h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+        style={{ backgroundColor: accent, color: onColor(accent) }}
       >
         {(name ?? email)[0]?.toUpperCase()}
       </div>
