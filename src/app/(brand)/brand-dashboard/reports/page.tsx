@@ -25,16 +25,23 @@ export default async function BrandReportsPage() {
           This panel carries its OWN dark gradient in BOTH themes, so everything
           inside it stays white-on-dark and must NOT be migrated to semantic
           tokens: bg-card/10 here would be a dark chip on a dark gradient the
-          moment the app is in dark mode. The gradient itself is now the Pulse
-          pair (--primary → --pulse-accent-2), matching the avatar in
-          brand-shell; it used to be the pre-Pulse navy #1A1B3A/#2D1B69, which
-          made this the one surface in the portal from an older brand era. */}
-      <div className="bg-gradient-to-br from-[var(--primary)] via-[var(--pulse-accent-2)] to-[var(--primary)] rounded-2xl p-6 sm:p-8 text-white relative overflow-hidden">
+          moment the app is in dark mode.
+
+          The stops are the Pulse pair as LITERALS, not var(--primary) /
+          var(--pulse-accent-2). Those tokens flip with the theme — in dark they
+          become #5AA6FF and #B06BFF — which turned this into a pale blue-violet
+          band carrying white/70 body copy at 1.94:1, measured on the live page
+          the first time dark mode was reachable here. A panel that is
+          deliberately dark in both themes cannot be built from tokens that are
+          deliberately light in one of them. */}
+      <div className="bg-gradient-to-br from-[#4B45FF] via-[#9A37EF] to-[#4B45FF] rounded-2xl p-6 sm:p-8 text-white relative overflow-hidden">
         <div
           className="absolute top-0 right-0 w-64 h-64 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4"
           style={{ backgroundColor: `${accent}30` }}
         />
-        <div className="absolute bottom-0 left-0 w-40 h-40 bg-[var(--pulse-accent-2)]/20 rounded-full blur-3xl translate-y-1/2 -translate-x-1/4" />
+        {/* Literal for the same reason as the gradient above: this blur sits
+            INSIDE a panel that is dark in both themes. */}
+        <div className="absolute bottom-0 left-0 w-40 h-40 bg-[#9A37EF]/20 rounded-full blur-3xl translate-y-1/2 -translate-x-1/4" />
         <div className="relative z-10 flex items-start gap-4">
           <div className="h-10 w-10 rounded-xl bg-white/10 backdrop-blur flex items-center justify-center flex-shrink-0">
             <Mail className="h-5 w-5 text-white/80" />

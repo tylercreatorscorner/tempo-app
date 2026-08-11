@@ -449,7 +449,13 @@ function BrandHeader({
             onClick={() => setMenuOpen(!menuOpen)}
             className="flex items-center gap-2 px-1.5 py-1.5 rounded-lg hover:bg-muted transition-colors"
           >
-            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-[var(--primary)] to-[var(--pulse-accent-2)] flex items-center justify-center text-white text-xs font-bold shadow-sm">
+            {/* Literal Pulse pair, not var(--primary)/var(--pulse-accent-2):
+                those flip to #5AA6FF/#B06BFF in dark and the white initials
+                land at roughly 2.4:1 on them. The avatar is meant to be a deep
+                indigo chip in both themes. The admin header (header.tsx) still
+                carries the token version and has the same problem — not
+                changed here because it is a different surface. */}
+            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-[#4B45FF] to-[#9A37EF] flex items-center justify-center text-white text-xs font-bold shadow-sm">
               {initials}
             </div>
             {userName && (
