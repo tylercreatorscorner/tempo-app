@@ -11,7 +11,6 @@ import { getBrandRegistry, slugToUuid } from '@/lib/data/brand-registry';
 import { resolveWatchUrl } from '@/lib/utils/format';
 import { PeriodTabs } from '../period-tabs';
 import { SortableHeader, type SortDir } from '../sortable-header';
-import { readableOn } from '@/lib/utils/brand-color';
 
 export const dynamic = 'force-dynamic';
 
@@ -246,7 +245,7 @@ export default async function BrandVideosPage({ searchParams }: PageProps) {
                           </p>
                         </td>
                         <td className="px-3 py-2.5 hidden sm:table-cell">
-                          <span className="text-sm" style={{ color: readableOn(accent) }}>
+                          <span className="text-sm" style={{ color: 'var(--brand-ink)' }}>
                             @{v.creatorHandle}
                           </span>
                         </td>
@@ -366,7 +365,7 @@ function ChangePill({ curr, prior }: { curr: number; prior: number }) {
   const pct = changePctOf(curr, prior);
   if (pct === null) {
     return (
-      <span className="inline-flex items-center gap-0.5 text-[11px] font-semibold text-emerald-600">
+      <span className="inline-flex items-center gap-0.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
         <TrendingUp className="h-3 w-3" />
         New
       </span>
@@ -385,7 +384,7 @@ function ChangePill({ curr, prior }: { curr: number; prior: number }) {
   return (
     <span
       className={`inline-flex items-center gap-0.5 text-[11px] font-semibold ${
-        positive ? 'text-emerald-600' : 'text-rose-600'
+        positive ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
       }`}
     >
       <Icon className="h-3 w-3" />

@@ -9,7 +9,6 @@ import { resolveWatchUrl } from '@/lib/utils/format';
 import { GmvComparisonChart } from '@/components/charts/gmv-comparison-chart';
 import { PeriodTabs } from '../../period-tabs';
 import type { BrandPortalPeriod } from '@/lib/data/brand-portal-overview';
-import { readableOn } from '@/lib/utils/brand-color';
 
 export const dynamic = 'force-dynamic';
 
@@ -169,7 +168,7 @@ export default async function BrandCreatorDetailPage({ params, searchParams }: P
                   )}
                 </div>
                 <div className="text-right shrink-0">
-                  <p className="text-sm font-semibold tabular-nums" style={{ color: readableOn(accent) }}>
+                  <p className="text-sm font-semibold tabular-nums" style={{ color: 'var(--brand-ink)' }}>
                     {fmtCurrency(v.gmv)}
                   </p>
                   <p className="text-xs text-muted-foreground tabular-nums">
@@ -260,7 +259,7 @@ function CreatorStat({
       </p>
       <p
         className={`mt-1 font-bold text-foreground tabular-nums ${primary ? 'text-2xl sm:text-3xl' : 'text-xl'}`}
-        style={primary ? { color: readableOn(accent) } : undefined}
+        style={primary ? { color: 'var(--brand-ink)' } : undefined}
       >
         {value}
       </p>
@@ -281,7 +280,7 @@ function ChangeBadge({ changePct }: { changePct: number | null | undefined }) {
   return (
     <p
       className={`text-xs mt-1 flex items-center gap-1 ${
-        positive ? 'text-emerald-600' : 'text-rose-600'
+        positive ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
       }`}
     >
       <Icon className="h-3 w-3" />

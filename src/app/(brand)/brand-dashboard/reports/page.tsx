@@ -1,7 +1,6 @@
 import { Mail, Sparkles } from 'lucide-react';
 import { requireBrandPortalContext } from '@/lib/data/brand-portal';
 import { ReportBuilder } from './report-builder';
-import { readableOn } from '@/lib/utils/brand-color';
 
 export const dynamic = 'force-dynamic';
 
@@ -65,7 +64,7 @@ export default async function BrandReportsPage() {
           className="h-9 w-9 rounded-lg flex items-center justify-center flex-shrink-0"
           style={{ backgroundColor: `${accent}1A` }}
         >
-          <Sparkles className="h-4 w-4" style={{ color: readableOn(accent) }} />
+          <Sparkles className="h-4 w-4" style={{ color: 'var(--brand-ink)' }} />
         </div>
         <div>
           <p className="text-sm font-semibold text-foreground">Need a custom report?</p>

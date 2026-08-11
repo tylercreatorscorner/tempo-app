@@ -28,8 +28,8 @@ export function NoBrandAccess({ email }: Props) {
       </div>
 
       <div className="rounded-xl border border-border bg-card shadow-sm p-8 max-w-md w-full text-center">
-        <div className="h-12 w-12 mx-auto rounded-full bg-amber-50 flex items-center justify-center mb-4">
-          <ShieldOff className="h-6 w-6 text-amber-600" />
+        <div className="h-12 w-12 mx-auto rounded-full bg-amber-50 dark:bg-amber-500/15 flex items-center justify-center mb-4">
+          <ShieldOff className="h-6 w-6 text-amber-700 dark:text-amber-400" />
         </div>
         <h1 className="text-lg font-semibold text-foreground">
           No brand assigned to your account

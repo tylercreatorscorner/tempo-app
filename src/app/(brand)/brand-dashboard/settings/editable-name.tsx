@@ -88,7 +88,7 @@ export function EditableName({ initialName }: Props) {
           type="button"
           onClick={save}
           disabled={pending}
-          className="p-1.5 rounded-md text-emerald-600 hover:bg-emerald-50 transition-colors disabled:opacity-50"
+          className="p-1.5 rounded-md text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/15 transition-colors disabled:opacity-50"
           aria-label="Save"
         >
           {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
@@ -104,7 +104,7 @@ export function EditableName({ initialName }: Props) {
         </button>
       </dd>
       {err && (
-        <p className="absolute mt-12 text-xs text-rose-600 bg-rose-50 px-2 py-1 rounded-md shadow-sm">
+        <p className="absolute mt-12 text-xs text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/15 px-2 py-1 rounded-md shadow-sm">
           {err}
         </p>
       )}

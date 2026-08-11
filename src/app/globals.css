@@ -511,3 +511,28 @@ html.dark { color-scheme: dark; }
   }
   .animate-tempo-glow { animation: none; }
 }
+/* ── Brand-portal accent ink ──────────────────────────────────────────────
+   The brand portal paints one thing in the client's own brand colour, and a
+   brand colour is picked to look like the brand, not to be legible. Measured
+   across the roster: 22 of 29 fail WCAG AA as text on the light card, and a
+   DIFFERENT 13 fail on the dark one. Whether the fix is to darken or to
+   lighten depends on the theme, so there is no single correct hex.
+
+   These pages render on the SERVER, which cannot know the theme — it is a
+   class applied to <html> in the browser. BrandShell therefore emits both
+   answers (see brandInkVars) and this picks between them.
+
+   Use var(--brand-ink) for brand-coloured TEXT and ICONS. Use --brand-ink-14
+   / --brand-ink-18 when that text sits on an `${accent}14` / `${accent}18`
+   chip, which is a different background and measures differently. Raw accent
+   stays correct for fills, bars and dots — nobody reads those. */
+.brand-scope {
+  --brand-ink: var(--brand-ink-l);
+  --brand-ink-14: var(--brand-ink-14-l);
+  --brand-ink-18: var(--brand-ink-18-l);
+}
+.dark .brand-scope {
+  --brand-ink: var(--brand-ink-d);
+  --brand-ink-14: var(--brand-ink-14-d);
+  --brand-ink-18: var(--brand-ink-18-d);
+}

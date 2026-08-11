@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { Users, Video, Download, FileSpreadsheet } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PERIOD_LABELS, type BrandPortalPeriod } from '@/lib/data/brand-portal-periods';
-import { readableOn, tintOver } from '@/lib/utils/brand-color';
 
 type ReportType = 'roster' | 'videos';
 
@@ -107,7 +106,7 @@ export function ReportBuilder({ accentColor }: Props) {
                   )}
                   style={
                     active
-                      ? { backgroundColor: `${accentColor}14`, color: readableOn(accentColor, tintOver(accentColor, "14")) }
+                      ? { backgroundColor: `${accentColor}14`, color: 'var(--brand-ink-14)' }
                       : undefined
                   }
                 >

@@ -19,6 +19,8 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TempoLogo } from '@/components/ui/tempo-logo';
+import { ThemeToggle } from '@/components/ui/theme-toggle';
+import { readableOn, tintOver } from '@/lib/utils/brand-color';
 import { createClient } from '@/lib/supabase/client';
 import type { BrandPortalBrand, BrandPortalContext } from '@/lib/data/brand-portal';
 import { setActiveBrand } from '@/app/actions/brand-switch';
@@ -44,6 +46,47 @@ interface BrandShellProps {
   children: React.ReactNode;
 }
 
+/**
+ * The two card colours the brand portal ever paints text on, from globals.css.
+ * Kept as literals on purpose: `readableOn` needs a real hex to measure, and
+ * `var(--card)` is a string the maths cannot see.
+ */
+const CARD_LIGHT = '#FFFFFF';
+const CARD_DARK = '#17182F';
+
+/**
+ * Brand accent, resolved for BOTH themes up front.
+ *
+ * A brand accent is chosen to look like the brand, not to be legible, and
+ * whether it needs darkening or lightening depends on the theme — measured,
+ * 22 of 29 brand colours fail WCAG AA as text on the light card and a
+ * DIFFERENT 13 fail on the dark one (Kalshi #3949AB at 2.25:1, Neurogum
+ * #8E24AA at 2.47:1). So there is no single correct hex.
+ *
+ * The theme is a class on <html>, applied in the browser; these pages render
+ * on the server, which cannot know it. So both answers are emitted as custom
+ * properties here and CSS picks (see `.brand-scope` in globals.css). Any
+ * brand-coloured TEXT or ICON must use var(--brand-ink) — never the raw
+ * accent, and never a server-side readableOn() call, which can only be right
+ * in one theme.
+ *
+ * Fills, bars, dots and chip backgrounds keep the raw accent: they are not
+ * read, so AA does not apply.
+ */
+function brandInkVars(accent: string): React.CSSProperties {
+  return {
+    '--brand-ink-l': readableOn(accent, CARD_LIGHT),
+    '--brand-ink-d': readableOn(accent, CARD_DARK),
+    // Text sitting ON an `${accent}14` / `${accent}18` chip. Blend first, then
+    // measure: deriving against the plain card puts Lemme's ink at 2.90:1 on
+    // its own yellow tint even though it clears 4.5:1 on white.
+    '--brand-ink-14-l': readableOn(accent, tintOver(accent, '14', CARD_LIGHT)),
+    '--brand-ink-14-d': readableOn(accent, tintOver(accent, '14', CARD_DARK)),
+    '--brand-ink-18-l': readableOn(accent, tintOver(accent, '18', CARD_LIGHT)),
+    '--brand-ink-18-d': readableOn(accent, tintOver(accent, '18', CARD_DARK)),
+  } as React.CSSProperties;
+}
+
 export function BrandShell({ context, children }: BrandShellProps) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const { activeBrand, user } = context;
@@ -54,7 +97,10 @@ export function BrandShell({ context, children }: BrandShellProps) {
   // mouse-wheel scrolling only works when the cursor is over <main>, which
   // is unintuitive (every other website scrolls regardless of cursor position).
   return (
-    <div className="flex min-h-screen" style={{ backgroundColor: 'var(--background)' }}>
+    <div
+      className="brand-scope flex min-h-screen"
+      style={{ backgroundColor: 'var(--background)', ...brandInkVars(activeBrand.color || '#4B45FF') }}
+    >
       <BrandSidebar
         className="hidden lg:flex sticky top-0 h-screen"
         accentColor={accentColor}
@@ -388,6 +434,12 @@ function BrandHeader({
       </div>
 
       <div className="flex items-center gap-1">
+        {/* Same component the admin and creator shells use, so the three
+            surfaces can't drift. It was missing here, which is the only
+            reason dark mode was unreachable for a client. */}
+        <ThemeToggle size="sm" />
+        <div className="w-px h-6 bg-border mx-1.5" />
+
         <div className="relative" ref={menuRef}>
           <button
             onClick={() => setMenuOpen(!menuOpen)}

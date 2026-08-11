@@ -111,14 +111,25 @@ export function onColor(background: string | null | undefined): string {
 export function readableOn(color: string | null | undefined, background = '#FFFFFF', target = 4.5): string {
   if (!color) return 'currentColor';
   const rgb = parseHex(color);
+  const bg = parseHex(background);
   if (!rgb) return color;
   if (contrastRatio(color, background) >= target) return color;
 
+  // Walk AWAY from the background, not unconditionally toward black. Darkening
+  // is right on a white card and exactly backwards on a dark one: measured
+  // against the Pulse dark card (#17182F), 13 of 29 brand colours already fail
+  // as text there — Kalshi #3949AB at 2.25:1, Neurogum #8E24AA at 2.47:1 — and
+  // darkening them further walks them into the background. Those brands are
+  // why dark mode could not simply be switched on for the brand portal.
+  const towardWhite = bg ? luminance(bg) < 0.5 : false;
+
   // 40 steps of 2.5% is enough to take even #FFFF00 past AA on white while
-  // keeping the walk cheap; bail out at black rather than looping forever.
+  // keeping the walk cheap; bail out at the endpoint rather than looping.
   let cur = { ...rgb };
   for (let i = 0; i < 40; i++) {
-    cur = { r: cur.r * 0.975, g: cur.g * 0.975, b: cur.b * 0.975 };
+    cur = towardWhite
+      ? { r: cur.r + (255 - cur.r) * 0.1, g: cur.g + (255 - cur.g) * 0.1, b: cur.b + (255 - cur.b) * 0.1 }
+      : { r: cur.r * 0.975, g: cur.g * 0.975, b: cur.b * 0.975 };
     if (contrastRatio(toHex(cur), background) >= target) return toHex(cur);
   }
   return toHex(cur);

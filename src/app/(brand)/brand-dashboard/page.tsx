@@ -15,7 +15,7 @@ import {
 } from '@/lib/data/brand-portal-billing';
 import { GmvComparisonChart } from '@/components/charts/gmv-comparison-chart';
 import { PeriodTabs } from './period-tabs';
-import { readableOn, tintOver, onColor } from '@/lib/utils/brand-color';
+import { onColor } from '@/lib/utils/brand-color';
 
 export const dynamic = 'force-dynamic';
 
@@ -222,7 +222,7 @@ export default async function BrandOverview({ searchParams }: PageProps) {
                   >
                     <span className="text-xs text-muted-foreground tabular-nums">{i + 1}</span>
                     <span className="min-w-0 truncate text-sm" title={c.realName ?? undefined}>
-                      <span className="font-medium" style={{ color: readableOn(accent) }}>
+                      <span className="font-medium" style={{ color: 'var(--brand-ink)' }}>
                         @{c.primaryHandle}
                       </span>
                       {c.realName && (
@@ -302,7 +302,7 @@ export default async function BrandOverview({ searchParams }: PageProps) {
                     </span>
                     <span
                       className="text-right text-sm font-semibold tabular-nums"
-                      style={{ color: readableOn(accent) }}
+                      style={{ color: 'var(--brand-ink)' }}
                     >
                       {fmtCurrency(v.periodGmv)}
                     </span>
@@ -347,7 +347,7 @@ function AmNoteCard({
             className="h-7 w-7 rounded-lg flex items-center justify-center"
             style={{ backgroundColor: `${accent}18` }}
           >
-            <MessageCircle className="h-3.5 w-3.5" style={{ color: readableOn(accent) }} />
+            <MessageCircle className="h-3.5 w-3.5" style={{ color: 'var(--brand-ink)' }} />
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
@@ -405,7 +405,7 @@ function GoalBand({
             className="h-7 w-7 rounded-lg flex items-center justify-center flex-shrink-0"
             style={{ backgroundColor: `${accent}18` }}
           >
-            <Target className="h-3.5 w-3.5" style={{ color: readableOn(accent, tintOver(accent, '18')) }} />
+            <Target className="h-3.5 w-3.5" style={{ color: 'var(--brand-ink-18)' }} />
           </div>
           <p className="text-sm text-foreground">
             <span className="text-muted-foreground">Month to date</span>{' '}
@@ -413,7 +413,7 @@ function GoalBand({
             <span className="text-muted-foreground tabular-nums">
               {' '}of {fmtCurrency(goal.monthlyGoal)} goal
             </span>{' '}
-            <b className="font-bold tabular-nums" style={{ color: readableOn(accent) }}>
+            <b className="font-bold tabular-nums" style={{ color: 'var(--brand-ink)' }}>
               {goal.pctOfGoal.toFixed(0)}%
             </b>
           </p>
@@ -428,7 +428,7 @@ function GoalBand({
 
         <div
           className={`flex items-center gap-1.5 text-xs flex-shrink-0 ${
-            onPace ? 'text-emerald-700' : 'text-amber-700'
+            onPace ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-400'
           }`}
         >
           {onPace ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
@@ -458,7 +458,7 @@ function HighlightsCard({
   return (
     <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
       <div className="px-4 pt-4 pb-3 border-b border-border/50 flex items-center gap-2">
-        <Sparkles className="h-4 w-4" style={{ color: readableOn(accent) }} />
+        <Sparkles className="h-4 w-4" style={{ color: 'var(--brand-ink)' }} />
         <h3 className="text-sm font-semibold text-foreground">Highlights this period</h3>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-border/40">
@@ -539,7 +539,7 @@ function HighlightItem({
           className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-colors"
           style={{ backgroundColor: `${accent}18` }}
         >
-          <Icon className="h-5 w-5" style={{ color: readableOn(accent) }} />
+          <Icon className="h-5 w-5" style={{ color: 'var(--brand-ink)' }} />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-2 mb-0.5">
@@ -549,7 +549,7 @@ function HighlightItem({
             {pill && (
               <span
                 className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md tabular-nums"
-                style={{ backgroundColor: `${accent}14`, color: readableOn(accent, tintOver(accent, "14")) }}
+                style={{ backgroundColor: `${accent}14`, color: 'var(--brand-ink-14)' }}
               >
                 {pill}
               </span>
@@ -781,7 +781,7 @@ function Delta({ pct }: { pct: number | null | undefined }) {
   if (pct == null || !Number.isFinite(pct)) return null;
   const up = pct >= 0;
   return (
-    <span className={`text-xs font-semibold tabular-nums ${up ? 'text-emerald-600' : 'text-red-600'}`}>
+    <span className={`text-xs font-semibold tabular-nums ${up ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
       {up ? '▲' : '▼'} {Math.abs(pct).toFixed(0)}%
     </span>
   );
@@ -800,7 +800,7 @@ function AnswerLine({
         {/* The one figure that carries the brand's colour, because it is the
             one figure that is about them. readableOn keeps it legible: raw
             brand colours fail AA as text on every brand we have. */}
-        <b className="font-bold tabular-nums" style={{ color: readableOn(accent) }}>
+        <b className="font-bold tabular-nums" style={{ color: 'var(--brand-ink)' }}>
           {split.managedPctOfGmv.toFixed(1)}%
         </b>
         .

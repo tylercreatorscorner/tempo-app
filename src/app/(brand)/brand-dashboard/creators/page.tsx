@@ -8,7 +8,6 @@ import {
 import { createAdminClient } from '@/lib/supabase/server';
 import { PeriodTabs } from '../period-tabs';
 import { SortableHeader, type SortDir } from '../sortable-header';
-import { readableOn } from '@/lib/utils/brand-color';
 
 export const dynamic = 'force-dynamic';
 
@@ -204,7 +203,7 @@ export default async function BrandCreatorsPage({ searchParams }: PageProps) {
                         <Link
                           href={`/brand-dashboard/creators/${c.primaryHandle}?period=${period}`}
                           className="inline-flex items-center gap-1.5 font-medium hover:underline"
-                          style={{ color: readableOn(accent) }}
+                          style={{ color: 'var(--brand-ink)' }}
                           title={c.realName ?? undefined}
                         >
                           @{c.primaryHandle}
@@ -324,9 +323,9 @@ function RoiCell({ gmv30d, retainer }: { gmv30d: number; retainer: number }) {
   }
   const roi = gmv30d / retainer;
   let cls = 'bg-muted text-muted-foreground';
-  if (roi >= 5) cls = 'bg-emerald-50 text-emerald-700';
-  else if (roi >= 2) cls = 'bg-amber-50 text-amber-700';
-  else cls = 'bg-rose-50 text-rose-700';
+  if (roi >= 5) cls = 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400';
+  else if (roi >= 2) cls = 'bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400';
+  else cls = 'bg-rose-50 dark:bg-rose-500/15 text-rose-700 dark:text-rose-400';
   return (
     <span
       className={`inline-block px-2 py-0.5 text-[11px] rounded-full font-semibold tabular-nums ${cls}`}
