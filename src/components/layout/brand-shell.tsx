@@ -202,9 +202,13 @@ function BrandSidebar({
                   ? 'font-medium'
                   : 'text-muted-foreground hover:text-foreground hover:bg-muted',
               )}
+              // Label and icon read var(--brand-ink-14), not the raw accent:
+              // this is text sitting on an 8% accent chip, and the raw colour
+              // fails AA there for most brands in one theme or the other.
+              // The 4px rail below IS the raw accent — it is a fill.
               style={
                 active
-                  ? { backgroundColor: `${accentColor}14`, color: accentColor }
+                  ? { backgroundColor: `${accentColor}14`, color: 'var(--brand-ink-14)' }
                   : undefined
               }
             >
@@ -215,7 +219,7 @@ function BrandSidebar({
                     ? ''
                     : 'text-muted-foreground group-hover:text-muted-foreground',
                 )}
-                style={active ? { color: accentColor } : undefined}
+                style={active ? { color: 'var(--brand-ink-14)' } : undefined}
               />
               {item.label}
               {active && (
