@@ -35,25 +35,35 @@ export default async function BrandReportsPage() {
           deliberately dark in both themes cannot be built from tokens that are
           deliberately light in one of them. */}
       <div className="bg-gradient-to-br from-[#4B45FF] via-[#9A37EF] to-[#4B45FF] rounded-2xl p-6 sm:p-8 text-white relative overflow-hidden">
+        {/* 18, not 30. The brand accent blurs the panel LIGHTER, and the
+            lightest accents in the roster (Lemme #FFC700, Cata-Kor #00C853)
+            at 19% over the #9A37EF stop take white text down to 4.41:1 — just
+            under AA. At 9% the worst case across every brand accent is
+            4.77:1. */}
         <div
           className="absolute top-0 right-0 w-64 h-64 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4"
-          style={{ backgroundColor: `${accent}30` }}
+          style={{ backgroundColor: `${accent}18` }}
         />
         {/* Literal for the same reason as the gradient above: this blur sits
             INSIDE a panel that is dark in both themes. */}
         <div className="absolute bottom-0 left-0 w-40 h-40 bg-[#9A37EF]/20 rounded-full blur-3xl translate-y-1/2 -translate-x-1/4" />
+        {/* Every piece of text here is FULL white, not white/70. Measured on
+            the pinned stops: white/70 is 3.21:1 on #9A37EF and 3.65:1 on
+            #4B45FF — this copy has been failing AA the whole time, in light
+            mode too. The pill loses its bg-white/15 tint for the same reason
+            (white on that tint is 3.99:1) and takes a border instead. */}
         <div className="relative z-10 flex items-start gap-4">
           <div className="h-10 w-10 rounded-xl bg-white/10 backdrop-blur flex items-center justify-center flex-shrink-0">
-            <Mail className="h-5 w-5 text-white/80" />
+            <Mail className="h-5 w-5 text-white" />
           </div>
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-1">
               <h2 className="text-base font-semibold">Recurring reports</h2>
-              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-white/15 text-white/70 uppercase tracking-wider">
+              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md border border-white/40 text-white uppercase tracking-wider">
                 Coming soon
               </span>
             </div>
-            <p className="text-sm text-white/70 max-w-md">
+            <p className="text-sm text-white max-w-md">
               Get your roster and posts log emailed automatically every Monday or
               the 1st of the month. We&apos;re building it now — ping your
               account manager if you want early access.
