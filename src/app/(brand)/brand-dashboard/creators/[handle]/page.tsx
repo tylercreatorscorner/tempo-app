@@ -49,6 +49,10 @@ export default async function BrandCreatorDetailPage({ params, searchParams }: P
 
   const accent = ctx.activeBrand.color || '#FF4D8D';
   const brandName = ctx.activeBrand.display_name || ctx.activeBrand.name;
+  // Posts that actually took money in the window, out of everything that was
+  // live. Both halves are stated so neither number can be mistaken for the
+  // other — the whole bug on this page was two post counts wearing one name.
+  const earning = detail.videos.filter((v) => v.gmv > 0).length;
 
   return (
     <div className="space-y-6 max-w-[1200px] mx-auto">
@@ -95,9 +99,9 @@ export default async function BrandCreatorDetailPage({ params, searchParams }: P
             primary
           />
           {/* "Published", not "Posts". This counts posts that went UP in the
-              window; the card below counts posts that EARNED in it, which for
-              @slavicnursingbabe over Aug 1-7 is 3 against 45. Both are true
-              and the page used to call them the same thing. */}
+              window; the card below counts posts that were ACTIVE in it,
+              which for @slavicnursingbabe over Aug 1-7 is 3 against 45. Both
+              are true and the page used to call them the same thing. */}
           <CreatorStat
             label="Posts published"
             value={fmtNumber(detail.totalPosts)}
@@ -152,17 +156,19 @@ export default async function BrandCreatorDetailPage({ params, searchParams }: P
 
       {/* Videos by this creator */}
       <Card>
-        {/* "Earning in this period", not "in this period". These are posts
-            that recorded sales activity in the window, which includes ones
-            published months earlier and still selling — 45 here against 3
-            published. Under the old heading the two numbers on this page
-            flatly contradicted each other. */}
+        {/* "Active", not "in this period" and not "earning" either.
+            brand_portal_videos returns every post with a stats row in the
+            window — mostly published months earlier, and most of them at $0.
+            Under the old heading this card's count contradicted the Posts
+            KPI above it (45 against 3); under "earning" it would have
+            contradicted its own rows, which open with $0. So: say active,
+            and split the count. */}
         <CardHeader
-          title="Posts earning in this period"
+          title="Posts active in this period"
           subtitle={
             detail.videos.length === 0
-              ? 'No posts earned in this period'
-              : `${detail.videos.length} post${detail.videos.length === 1 ? '' : 's'}, including ones published earlier`
+              ? 'No posts active in this period'
+              : `${fmtNumber(earning)} of ${fmtNumber(detail.videos.length)} earned in this window; the rest were live but made no sales`
           }
         />
         {detail.videos.length === 0 ? (

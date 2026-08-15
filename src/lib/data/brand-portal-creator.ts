@@ -127,7 +127,7 @@ export async function getBrandCreatorDetail(
     real_name: string | null;
     retainer: number | string | null;
     monthly_post_requirement: number | null;
-    current_tier: string | null;
+    current_tier: string | null;
   } & { [K in (typeof ACCOUNT_COLS)[number]]: string | null };
 
   const rows = (matches ?? []) as unknown as ManagedRow[];
@@ -275,9 +275,16 @@ export async function getBrandCreatorDetail(
     return { priorDate, gmv };
   });
 
-  // Videos
-  // Videos are pre-aggregated by the brand_portal_videos RPC.
-  // Sorted by period_gmv DESC. Show period GMV (matches the page concept).
+  // Videos, pre-aggregated by the brand_portal_videos RPC.
+  //
+  // ⚠️ The comment here used to claim the RPC returns rows "sorted by
+  // period_gmv DESC". It does not — migration 044 has no ORDER BY at all, so
+  // Postgres hands back grouped order and the page was opening on a wall of
+  // $0 posts from two months earlier. Same wrong claim was found and fixed in
+  // brand-portal-overview; it was still live here.
+  //
+  // Highest period GMV first, then most recent, so ties among the $0s land in
+  // a stable, sensible order rather than an arbitrary one.
   const videos = ((videoRows.data ?? []) as any[]).map((r) => ({
     videoId: r.video_id,
     title: r.video_title || '(untitled)',
@@ -285,7 +292,7 @@ export async function getBrandCreatorDetail(
     postDate: r.post_date ? new Date(r.post_date) : null,
     gmv: Number(r.period_gmv ?? 0),
     orders: Number(r.period_orders ?? 0),
-  }));
+  })).sort((a, b) => b.gmv - a.gmv || (b.postDate?.getTime() ?? 0) - (a.postDate?.getTime() ?? 0));
 
   const periodLabel = `${startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${actualEndDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, ${actualEndDate.getUTCFullYear()}`;
 
