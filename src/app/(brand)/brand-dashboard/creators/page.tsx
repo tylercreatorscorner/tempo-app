@@ -158,8 +158,11 @@ export default async function BrandCreatorsPage({ searchParams }: PageProps) {
                   buildHref={(c, d) => buildHref({ sort: c, dir: d })}
                   align="right"
                 />
+                {/* Published in the window, same field the Overview rail and
+                    table use. A 0 here beside real GMV is honest: nothing went
+                    up, and older posts kept selling. */}
                 <SortableHeader
-                  label="Posts"
+                  label="Posts published"
                   column="posts"
                   activeColumn={sortColumn}
                   activeDir={sortDir}

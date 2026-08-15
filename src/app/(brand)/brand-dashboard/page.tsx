@@ -24,9 +24,10 @@ const TOP_VIDEOS_PREVIEW = 8;
 
 // Shared between each pane's header row and its body rows — that is the only
 // thing keeping the two aligned, so they must stay one constant.
-// The 5rem posts column is measured, not guessed: "POSTS WITH" renders at
-// 74.2px in the header's 10.5px/0.075em uppercase, so 4.5rem (72px) broke it
-// onto three lines by two pixels. 80px holds it at two.
+// The 5rem posts column is measured, not guessed: the header wraps to two
+// lines at 80px and broke to three at 72px when it read "POSTS WITH SALES"
+// ("POSTS WITH" renders 74.2px in 10.5px/0.075em uppercase). Re-measure on
+// the live page if the label changes again.
 const CREATOR_COLS = 'grid grid-cols-[1.25rem_1fr_5rem_5rem_1rem] gap-x-3';
 const VIDEO_COLS = 'grid grid-cols-[1fr_3.5rem_5rem_1rem] gap-x-3';
 
@@ -204,12 +205,14 @@ export default async function BrandOverview({ searchParams }: PageProps) {
               <div className={`${CREATOR_COLS} px-4 py-1.5 border-b border-border bg-muted/40 text-[10.5px] font-semibold uppercase tracking-[0.075em] text-muted-foreground`}>
                 <span />
                 <span>Creator</span>
-                {/* Same field the rail calls "Posts with sales", so it carries
-                    the same name here. Seen live, two of Lemme's top eight show
-                    0 against real GMV — earned by posts published before the
-                    window — and a column headed just "Posts" makes that read as
-                    a bug instead of the truth. */}
-                <span className="text-right leading-tight">Posts with sales</span>
+                {/* PUBLISHED, and the rail says the same. Verified against the
+                    fact table: daily_creator_stats.videos is a per-day count of
+                    posts that went UP that day, and it matches
+                    count(distinct video_id) by post_date exactly (3 for
+                    @slavicnursingbabe over Aug 1-7). Two of Lemme's top eight
+                    show 0 here against real GMV, which is the honest answer —
+                    they published nothing and older posts kept selling. */}
+                <span className="text-right leading-tight">Posts published</span>
                 <span className="text-right">GMV</span>
                 <span />
               </div>
@@ -240,8 +243,8 @@ export default async function BrandOverview({ searchParams }: PageProps) {
                 ))}
               </div>
               <p className="px-4 py-2 border-t border-border bg-muted/30 text-[11px] text-muted-foreground">
-                A creator can show 0 posts with sales and still have GMV — those
-                sales came from posts published before this period.
+                A creator can publish nothing in a period and still have GMV —
+                those sales came from posts published earlier.
               </p>
             </>
           )}
@@ -819,10 +822,11 @@ function MetricRail({ data }: { data: BrandPortalDashboard }) {
       foot: <Delta pct={data.gmvChangePct} />,
     },
     {
-      // "Posts with sales" and "posts published" are DIFFERENT measures from
-      // different tables, and the old page called both of them "posts" — which
-      // is how a client ends up distrusting the whole page. Name them apart.
-      label: 'Posts with sales',
+      // Posts PUBLISHED in the window, not posts that sold in it. Those are
+      // different measures off different tables and this page shows both —
+      // see the creator detail page, where 3 published sat next to 45 earning
+      // under headings that both just said "posts".
+      label: 'Posts published',
       value: fmtNumber(data.totalPosts),
       foot: <Delta pct={data.postsChangePct} />,
     },

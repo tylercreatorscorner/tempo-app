@@ -18,7 +18,19 @@ export interface BrandCreatorDetail {
   retainer: number;
   monthlyPostRequirement: number | null;
   currentTier: string | null;
-  lifetimeGmv: number;
+
+  /**
+   * All-time GMV this creator has driven FOR THIS BRAND, and the first day we
+   * have a record of. `null` when there are no rows at all — the caller must
+   * render an em dash, never $0.
+   *
+   * Replaces managed_creators.lifetime_gmv, which is 0 on all 2,090 rows and
+   * was printing "Lifetime GMV $0" to clients beside real period figures.
+   * `since` exists because the record does not reach back indefinitely, so a
+   * bare "lifetime" would overstate what we actually know.
+   */
+  brandLifetimeGmv: number | null;
+  brandLifetimeSince: Date | null;
 
   startDate: Date;
   endDate: Date;
@@ -27,6 +39,13 @@ export interface BrandCreatorDetail {
 
   totalGmv: number;
   totalOrders: number;
+
+  /**
+   * Posts PUBLISHED in the window — daily_creator_stats.videos is a per-day
+   * count of posts that went up that day, verified against
+   * daily_video_product_stats.post_date (both give 3 for @slavicnursingbabe
+   * over Aug 1-7). Deliberately NOT the same as `videos.length` below.
+   */
   totalPosts: number;
 
   priorTotalGmv: number;
@@ -38,6 +57,14 @@ export interface BrandCreatorDetail {
   /** Parallel-indexed to dailyPerformance. `gmv` is null for prior days with no data. */
   priorPoints: { priorDate: Date; gmv: number | null }[];
 
+  /**
+   * Posts that were EARNING in the window, which is a different question from
+   * `totalPosts` and a much larger number: brand_portal_videos keys off a
+   * daily_video_product_stats row in the window, so a post published months
+   * ago that is still selling is in here. @slavicnursingbabe over Aug 1-7 is
+   * 3 published against 45 earning. Label them apart on any surface that
+   * shows both, or the page contradicts itself.
+   */
   videos: {
     videoId: string;
     title: string;
@@ -89,7 +116,7 @@ export async function getBrandCreatorDetail(
   const { data: matches } = await supabase
     .from('managed_creators')
     .select(
-      `id, real_name, retainer, monthly_post_requirement, current_tier, lifetime_gmv, ${accountSelect}`,
+      `id, real_name, retainer, monthly_post_requirement, current_tier, ${accountSelect}`,
     )
     .eq('brand', brandSlug)
     .or(orFilter)
@@ -100,8 +127,7 @@ export async function getBrandCreatorDetail(
     real_name: string | null;
     retainer: number | string | null;
     monthly_post_requirement: number | null;
-    current_tier: string | null;
-    lifetime_gmv: number | string | null;
+    current_tier: string | null;
   } & { [K in (typeof ACCOUNT_COLS)[number]]: string | null };
 
   const rows = (matches ?? []) as unknown as ManagedRow[];
@@ -171,7 +197,7 @@ export async function getBrandCreatorDetail(
   const priorEndStr = fmt(priorEnd);
 
   // 3. Pull per-handle stats + videos in parallel
-  const [statsCur, statsPrev, videoRows] = await Promise.all([
+  const [statsCur, statsPrev, videoRows, lifetimeRow] = await Promise.all([
     supabase
       .from('daily_creator_stats')
       .select('gmv, orders, videos, report_date')
@@ -196,6 +222,13 @@ export async function getBrandCreatorDetail(
       p_end_date: endStr,
       p_prior_start: priorStartStr,
       p_prior_end: priorEndStr,
+    }),
+    // All-time, brand-scoped. SUMmed in the database (mig 147) rather than
+    // pulled and added here: this read has no date bound, and an unbounded
+    // .select() is exactly the shape that silently truncates at 1,000 rows.
+    supabase.rpc('get_brand_creator_lifetime_gmv', {
+      p_brand_ids: brandIds,
+      p_handles: handles,
     }),
   ]);
 
@@ -267,7 +300,17 @@ export async function getBrandCreatorDetail(
     retainer: Number(owner.retainer ?? 0),
     monthlyPostRequirement: owner.monthly_post_requirement,
     currentTier: owner.current_tier,
-    lifetimeGmv: Number(owner.lifetime_gmv ?? 0),
+    ...(() => {
+      // No row, or no first_day, means we hold no record for this creator on
+      // this brand. That is not "$0 earned" — render an em dash, per the rule
+      // that a money read we cannot make never becomes a zero.
+      const row = (lifetimeRow.data as any[] | null)?.[0];
+      const since = row?.first_day ? new Date(`${row.first_day}T12:00:00Z`) : null;
+      return {
+        brandLifetimeGmv: since ? Number(row.lifetime_gmv ?? 0) : null,
+        brandLifetimeSince: since,
+      };
+    })(),
 
     startDate,
     endDate: actualEndDate,

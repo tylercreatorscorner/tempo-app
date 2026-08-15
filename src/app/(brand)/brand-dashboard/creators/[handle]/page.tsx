@@ -48,6 +48,7 @@ export default async function BrandCreatorDetailPage({ params, searchParams }: P
   if (!detail) notFound();
 
   const accent = ctx.activeBrand.color || '#FF4D8D';
+  const brandName = ctx.activeBrand.display_name || ctx.activeBrand.name;
 
   return (
     <div className="space-y-6 max-w-[1200px] mx-auto">
@@ -93,15 +94,32 @@ export default async function BrandCreatorDetailPage({ params, searchParams }: P
             accent={accent}
             primary
           />
+          {/* "Published", not "Posts". This counts posts that went UP in the
+              window; the card below counts posts that EARNED in it, which for
+              @slavicnursingbabe over Aug 1-7 is 3 against 45. Both are true
+              and the page used to call them the same thing. */}
           <CreatorStat
-            label="Posts"
+            label="Posts published"
             value={fmtNumber(detail.totalPosts)}
             changePct={detail.postsChangePct}
             accent={accent}
           />
+          {/* Was "Lifetime GMV" off managed_creators.lifetime_gmv — a column
+              that is 0 on all 2,090 rows, so this read "$0" beside a real
+              period figure for every creator of every brand. Now summed from
+              the fact table (mig 147), brand-scoped, and dated: the record
+              starts when we started collecting, so an unqualified "lifetime"
+              would claim history we do not have. */}
           <CreatorStat
-            label="Lifetime GMV"
-            value={fmtCurrency(detail.lifetimeGmv)}
+            label={`GMV with ${brandName}`}
+            value={
+              detail.brandLifetimeGmv == null ? '—' : fmtCurrency(detail.brandLifetimeGmv)
+            }
+            note={
+              detail.brandLifetimeSince
+                ? `Since ${fmtMonthYear(detail.brandLifetimeSince)}`
+                : 'No recorded activity'
+            }
             accent={accent}
           />
           <CreatorStat
@@ -134,12 +152,17 @@ export default async function BrandCreatorDetailPage({ params, searchParams }: P
 
       {/* Videos by this creator */}
       <Card>
+        {/* "Earning in this period", not "in this period". These are posts
+            that recorded sales activity in the window, which includes ones
+            published months earlier and still selling — 45 here against 3
+            published. Under the old heading the two numbers on this page
+            flatly contradicted each other. */}
         <CardHeader
-          title="Posts in this period"
+          title="Posts earning in this period"
           subtitle={
             detail.videos.length === 0
-              ? 'No posts in this period'
-              : `${detail.videos.length} post${detail.videos.length === 1 ? '' : 's'}`
+              ? 'No posts earned in this period'
+              : `${detail.videos.length} post${detail.videos.length === 1 ? '' : 's'}, including ones published earlier`
           }
         />
         {detail.videos.length === 0 ? (
@@ -245,12 +268,15 @@ function CreatorStat({
   changePct,
   accent,
   primary = false,
+  note,
 }: {
   label: string;
   value: string;
   changePct?: number | null;
   accent: string;
   primary?: boolean;
+  /** Small print under the value — used to date-qualify the all-time figure. */
+  note?: string;
 }) {
   return (
     <div className="px-5 py-4 sm:border-r border-border last:border-r-0">
@@ -264,6 +290,7 @@ function CreatorStat({
         {value}
       </p>
       {changePct !== undefined ? <ChangeBadge changePct={changePct} /> : null}
+      {note && <p className="text-xs text-muted-foreground mt-1">{note}</p>}
     </div>
   );
 }
@@ -300,6 +327,12 @@ function fmtCurrency(n: number): string {
 
 function fmtNumber(n: number): string {
   return n.toLocaleString('en-US');
+}
+
+/** 'Jun 2026' — month grain, because the day we started collecting is an
+ *  artefact of our ingest, not a fact about the creator. */
+function fmtMonthYear(d: Date): string {
+  return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' });
 }
 
 function fmtDate(d: Date): string {
