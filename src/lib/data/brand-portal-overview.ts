@@ -235,7 +235,7 @@ export async function getBrandPortalDashboard(
   const { data: managedRows } = await supabase
     .from('managed_creators')
     .select(
-      `id, real_name, retainer, monthly_post_requirement, current_tier, lifetime_gmv, ${accountSelect}`,
+      `id, real_name, retainer, monthly_post_requirement, current_tier, ${accountSelect}`,
     )
     .eq('brand', brandSlug)
     .eq('employment_status', 'active')
@@ -246,8 +246,7 @@ export async function getBrandPortalDashboard(
     real_name: string | null;
     retainer: number | string | null;
     monthly_post_requirement: number | null;
-    current_tier: string | null;
-    lifetime_gmv: number | string | null;
+    current_tier: string | null;
   } & { [K in (typeof ACCOUNT_COLS)[number]]: string | null };
 
   const roster = ((managedRows ?? []) as unknown as ManagedRow[]).map((r) => {
@@ -261,8 +260,7 @@ export async function getBrandPortalDashboard(
       realName: r.real_name,
       retainer: Number(r.retainer ?? 0),
       monthlyPostRequirement: r.monthly_post_requirement,
-      currentTier: r.current_tier,
-      lifetimeGmv: Number(r.lifetime_gmv ?? 0),
+      currentTier: r.current_tier,
       handles,
     };
   });
@@ -316,7 +314,7 @@ export async function getBrandPortalDashboard(
     return { data: out, error: null };
   };
 
-  const [statsCur, statsPrev, videoRows, stats30d, brandTotals, settingsRow, mtdRow, engCur, engPrior, engByVideo] = await Promise.all([
+  const [statsCur, statsPrev, videoRows, stats30d, brandTotals, settingsRow, mtdRow, engCur, engPrior, engByVideo, lifetimeRows] = await Promise.all([
     fetchAllByHandles(allHandles, (batch) => supabase
       .from('daily_creator_stats')
       .select('tiktok_username, gmv, orders, videos, report_date')
@@ -406,9 +404,24 @@ export async function getBrandPortalDashboard(
       p_start: startStr,
       p_end: endStr,
     }),
+    // All-time GMV per handle for this brand (mig 148) — see where it is
+    // consumed below for why the dead column it replaces had to go.
+    supabase.rpc('get_brand_roster_lifetime_gmv', { p_brand_ids: brandIds }),
   ]);
 
   // ── 3. Aggregate per-managed-creator stats
+  // All-time GMV per managed creator, brand-scoped (mig 148). Was
+  // managed_creators.lifetime_gmv, a column that is 0 on all 2,090 rows —
+  // which is what the roster CSV's "Lifetime GMV" column has been exporting
+  // to clients. Summed in the database: the read has no date bound, and an
+  // unbounded .select() truncates at 1,000 rows.
+  const lifetimeByManaged = new Map<number, number>();
+  for (const r of (lifetimeRows.data ?? []) as any[]) {
+    const id = handleToManaged.get(normHandle(r.handle));
+    if (id == null) continue;
+    lifetimeByManaged.set(id, (lifetimeByManaged.get(id) ?? 0) + Number(r.lifetime_gmv ?? 0));
+  }
+
   // Trailing-30d GMV per managed creator (for ROI column)
   const gmv30dByManaged = new Map<number, number>();
   for (const r of (stats30d.data ?? []) as any[]) {
@@ -658,7 +671,7 @@ export async function getBrandPortalDashboard(
         retainer: r.retainer,
         monthlyPostRequirement: r.monthlyPostRequirement,
         currentTier: r.currentTier,
-        lifetimeGmv: r.lifetimeGmv,
+        lifetimeGmv: lifetimeByManaged.get(r.managedId) ?? 0,
         gmv30d: gmv30dByManaged.get(r.managedId) ?? 0,
         gmv: stats.gmv,
         orders: stats.orders,
