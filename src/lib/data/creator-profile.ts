@@ -848,3 +848,191 @@ export async function getCreatorLatestReportDate(
   return (data?.report_date as string) ?? null;
 }
 
+
+// ── Creator profile rebuild (2026-08) ────────────────────────────────────────
+//
+// Everything below is for the admin creator profile rebuilt for the CONTENT
+// COACH. The page it replaces answered "how much money" five different ways
+// and could not answer the two questions a coach actually has: are they
+// posting where we pay them to, and is the content working.
+
+/**
+ * Every managed contract this creator holds, primary first.
+ *
+ * The roster stores one row per creator PER BRAND, so a creator routinely has
+ * several: Taliaa is on both `leefar` and `leefar_nutrition`, Macy Kaye on
+ * `bondie` and `lemme` under two spellings of her name. The page this replaces
+ * called getManagedCreatorInfo, which returned `rows[0]` and silently dropped
+ * the rest — so a creator's retainer, their post requirement and their ROI
+ * were all quietly those of ONE arbitrary brand.
+ *
+ * Primary = largest retainer, because that is the contract the agency is most
+ * accountable for and the one a coach's call is about. The others are returned
+ * so the page can summarise them rather than pretend they do not exist.
+ */
+export interface CreatorContract {
+  managedId: number;
+  brand: string;
+  retainer: number;
+  monthlyPostRequirement: number;
+  notes: string | null;
+  status: string | null;
+  retainerStartDate: string | null;
+}
+
+export async function getCreatorContracts(creatorId: string): Promise<{
+  primary: CreatorContract | null;
+  others: CreatorContract[];
+  totalRetainer: number;
+}> {
+  const handles = await getHandles(creatorId);
+  if (handles.length === 0) return { primary: null, others: [], totalRetainer: 0 };
+
+  const rows = await getManagedRowsForHandles(handles);
+  const contracts: CreatorContract[] = rows.map((r) => ({
+    managedId: r.id,
+    brand: r.brand,
+    retainer: Number(r.retainer) || 0,
+    monthlyPostRequirement: Number(r.monthly_post_requirement) || 0,
+    notes: r.notes,
+    status: r.status ?? r.employment_status ?? null,
+    retainerStartDate: r.retainer_start_date,
+  }));
+
+  // Retainer desc, then brand for a stable order among $0 affiliate-only rows —
+  // roughly 63% of the roster carries no retainer at all.
+  contracts.sort((a, b) => b.retainer - a.retainer || a.brand.localeCompare(b.brand));
+
+  return {
+    primary: contracts[0] ?? null,
+    others: contracts.slice(1),
+    totalRetainer: contracts.reduce((sum, c) => sum + c.retainer, 0),
+  };
+}
+
+/**
+ * Views / likes / comments over the period (migration 151).
+ *
+ * `posts` here counts videos that were ACTIVE in the window — anything with a
+ * video_performance row — which for Akiek over 30 days is 827 against 81
+ * published. Do NOT show it as a post count; the published figure comes from
+ * daily_creator_stats. It is returned only so a caller can tell "no engagement
+ * rows at all" (render an em dash) apart from "genuinely zero views".
+ */
+export async function getCreatorEngagement(
+  creatorId: string,
+  startDate: string,
+  endDate: string,
+): Promise<{ activePosts: number; views: number; likes: number; comments: number } | null> {
+  const handles = await getHandles(creatorId);
+  if (handles.length === 0) return null;
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc('get_creator_engagement', {
+    p_handles: handles.map((h) => h.trim().toLowerCase()),
+    p_start: startDate,
+    p_end: endDate,
+  });
+  if (error) return null;
+
+  const row = (data as any[] | null)?.[0];
+  if (!row || Number(row.posts ?? 0) === 0) return null;
+  return {
+    activePosts: Number(row.posts ?? 0),
+    views: Number(row.views ?? 0),
+    likes: Number(row.likes ?? 0),
+    comments: Number(row.comments ?? 0),
+  };
+}
+
+/**
+ * Top content by VIEWS (migration 151), not by GMV.
+ *
+ * A coach opens this looking for the hook that landed, and the two orderings
+ * disagree often enough to matter: Akiek's most-viewed post did 7.6M views for
+ * $32k, while a post with 987k views did $39k. Ranking by GMV would bury the
+ * thing worth talking about.
+ */
+export async function getCreatorTopContent(
+  creatorId: string,
+  startDate: string,
+  endDate: string,
+  limit = 8,
+): Promise<{
+  videoId: string;
+  title: string;
+  brand: string | null;
+  postDate: string | null;
+  views: number;
+  likes: number;
+  gmv: number;
+}[]> {
+  const handles = await getHandles(creatorId);
+  if (handles.length === 0) return [];
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc('get_creator_top_content', {
+    p_handles: handles.map((h) => h.trim().toLowerCase()),
+    p_start: startDate,
+    p_end: endDate,
+    p_limit: limit,
+  });
+  if (error) return [];
+
+  return ((data ?? []) as any[]).map((r) => ({
+    videoId: r.video_id as string,
+    title: (r.video_title as string) || '(untitled)',
+    brand: (r.brand_slug as string) ?? null,
+    postDate: (r.post_date as string) ?? null,
+    views: Number(r.views ?? 0),
+    likes: Number(r.likes ?? 0),
+    gmv: Number(r.gmv ?? 0),
+  }));
+}
+
+/**
+ * Posts PUBLISHED this month, optionally scoped to one brand.
+ *
+ * ⚠️ Replaces getPostsThisMonth for anything compared against a post
+ * requirement. That function counts DISTINCT video_id where `report_date` is
+ * in the month — i.e. every video that was ACTIVE, including posts published
+ * months ago that are still selling. Measured for Akiek on Dr. Dent, August
+ * 2026: getPostsThisMonth returns **268**; the creator published **21**.
+ * Against a 30-post requirement the RetainerTracker has therefore been
+ * reporting 893% of quota for a creator sitting at 70%.
+ *
+ * Counting on `post_date` gives 21, and SUM(daily_creator_stats.videos) over
+ * the same window independently gives 21 — two sources, same answer.
+ *
+ * getPostsThisMonth is left in place because "active this month" is a real
+ * measure that other callers may want; it is simply the wrong one for quota.
+ */
+export async function getPostsPublishedThisMonth(
+  creatorId: string | number,
+  brand?: string
+): Promise<number> {
+  const reg = await getBrandRegistry();
+  const handles = await getHandles(String(creatorId));
+  if (handles.length === 0) return 0;
+
+  const now = new Date();
+  const startOfMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+  const lastDay = String(new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()).padStart(2, '0');
+  const endOfMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${lastDay}`;
+
+  const rows = await paginated(
+    'daily_video_product_stats',
+    'video_id',
+    [
+      { column: 'tiktok_username', op: 'in', value: handles },
+      // post_date, not report_date — that single column is the whole bug.
+      { column: 'post_date', op: 'gte', value: startOfMonth },
+      { column: 'post_date', op: 'lte', value: `${endOfMonth}T23:59:59` },
+      ...brandFilters(reg, brand),
+    ]
+  );
+
+  const ids = new Set<string>();
+  for (const r of rows) if (r.video_id) ids.add(r.video_id as string);
+  return ids.size;
+}
