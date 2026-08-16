@@ -246,7 +246,7 @@ export async function getBrandPortalDashboard(
     real_name: string | null;
     retainer: number | string | null;
     monthly_post_requirement: number | null;
-    current_tier: string | null;
+    current_tier: string | null;
   } & { [K in (typeof ACCOUNT_COLS)[number]]: string | null };
 
   const roster = ((managedRows ?? []) as unknown as ManagedRow[]).map((r) => {
@@ -260,7 +260,7 @@ export async function getBrandPortalDashboard(
       realName: r.real_name,
       retainer: Number(r.retainer ?? 0),
       monthlyPostRequirement: r.monthly_post_requirement,
-      currentTier: r.current_tier,
+      currentTier: r.current_tier,
       handles,
     };
   });
@@ -406,7 +406,10 @@ export async function getBrandPortalDashboard(
     }),
     // All-time GMV per handle for this brand (mig 148) — see where it is
     // consumed below for why the dead column it replaces had to go.
-    supabase.rpc('get_brand_roster_lifetime_gmv', { p_brand_ids: brandIds }),
+    supabase.rpc('get_brand_roster_lifetime_gmv', {
+      p_brand_ids: brandIds,
+      p_handles: allHandles,
+    }),
   ]);
 
   // ── 3. Aggregate per-managed-creator stats

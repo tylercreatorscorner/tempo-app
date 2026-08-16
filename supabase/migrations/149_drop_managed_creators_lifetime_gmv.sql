@@ -1,0 +1,35 @@
+-- 149_drop_managed_creators_lifetime_gmv.sql
+--
+-- Drop managed_creators.lifetime_gmv.
+--
+-- ── Why it is safe ──────────────────────────────────────────────────────────
+--
+-- The column has never been written. Checked immediately before dropping:
+-- 2,090 rows, 0 of them non-zero, 0 dependent objects. It was introduced by
+-- migration 010 with `NUMERIC DEFAULT 0` and nothing has ever updated it.
+--
+-- No data is lost, because there was never any. What WAS lost was trust: the
+-- brand portal printed it as "Lifetime GMV $0" on every creator of every
+-- brand, and the roster CSV that clients download from the Reports page
+-- exported 0.00 down that column on every export ever taken. Both now read
+-- real all-time sums from daily_creator_stats — get_brand_creator_lifetime_gmv
+-- (mig 147) at creator grain, get_brand_roster_lifetime_gmv (mig 148) at
+-- roster grain.
+--
+-- ── Ordering ────────────────────────────────────────────────────────────────
+--
+-- This migration must land AFTER the deploy that stopped selecting the column
+-- (b5740c0). PostgREST resolves `.select('…, lifetime_gmv, …')` against the
+-- live schema, so dropping first would 400 the entire brand Overview until
+-- the deploy caught up.
+--
+-- ── What goes with it ───────────────────────────────────────────────────────
+--
+-- idx_managed_creators_lifetime_gmv, a btree on (brand, lifetime_gmv DESC),
+-- is dropped implicitly. It indexed 2,090 zeros.
+--
+-- Three other tables still have a lifetime_gmv of their own — creator_brands,
+-- creator_triage, and the yerba_archive copy of managed_creators. They are
+-- deliberately untouched; this migration is only about the dead one.
+
+alter table public.managed_creators drop column lifetime_gmv;
