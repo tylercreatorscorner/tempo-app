@@ -87,6 +87,15 @@ const BRAND_MAP: Record<string, string> = {
   'leefar us':           'leefar_us',
   'leefar_us':           'leefar_us',
   'leefarus':            'leefar_us',
+  // LeeFar Nutrition US (store 4, added 2026-08). These three MUST exist:
+  // extractBrand tries the longest token slice first, but 'leefar nutrition us'
+  // is only reached as a 3-token candidate. A file named
+  // "LeeFar_Nutrition_US.xlsx" falls through to the 2-token candidate
+  // 'leefar nutrition' and would silently load a whole store's GMV under
+  // LeeFar Nutrition Co.
+  'leefar nutrition us':  'leefar_nutrition_us',
+  'leefar_nutrition_us':  'leefar_nutrition_us',
+  'leefarnutritionus':    'leefar_nutrition_us',
   'leefar':              'leefar_nutrition',
   'lemme':               'lemme',
   'toplux':              'toplux',

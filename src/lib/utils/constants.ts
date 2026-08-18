@@ -32,7 +32,7 @@ export type ActiveBrand = (typeof ACTIVE_BRANDS)[number];
  * Currently unreferenced: its only consumer was api/tiktok/sync, deleted with
  * the never-executed API module. Kept as the gate for the ingestion phase.
  */
-export const DATA_ENABLED_BRANDS = ['jiyu', 'catakor', 'physicians_choice', 'leefar_nutrition', 'leefar_supplements', 'leefar_us', 'lemme'] as const;
+export const DATA_ENABLED_BRANDS = ['jiyu', 'catakor', 'physicians_choice', 'leefar_nutrition', 'leefar_supplements', 'leefar_us', 'leefar_nutrition_us', 'lemme'] as const;
 
 /** App name */
 export const APP_NAME = 'Tempo';
