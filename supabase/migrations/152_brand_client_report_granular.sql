@@ -183,5 +183,11 @@ $function$;
 -- PUBLIC. Revoke explicitly, then grant only what should call it.
 revoke all on function public.get_brand_client_report_granular(text[], text[], date, date)
   from public, anon, authenticated;
+-- authenticated AND service_role, anon REVOKED — the same posture as
+-- get_brand_report_extras. buildClientReportSnapshot runs on the COOKIE
+-- client as the signed-in admin, so a service_role-only grant made this
+-- permission-denied; the caller treats failure as non-fatal, so the
+-- block silently never reached a single snapshot. A grant that is too
+-- tight fails as quietly here as one that is too loose fails loudly.
 grant execute on function public.get_brand_client_report_granular(text[], text[], date, date)
-  to service_role;
+  to authenticated, service_role;
