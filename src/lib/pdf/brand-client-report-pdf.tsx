@@ -228,7 +228,7 @@ const styles = StyleSheet.create({
   // "unsupported number" garbage geometry in the invoice PDF, and lbRow is the
   // variant already proven to paginate cleanly in this document.
   gRow:           { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, borderBottomWidth: 0.5, borderBottomColor: COLORS.ruleSoft },
-  gHead:          { flexDirection: 'row', alignItems: 'center', paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: COLORS.rule },
+  gHead:          { flexDirection: 'row', alignItems: 'center', paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: COLORS.rule, backgroundColor: '#FFFFFF' },
   gHeadCell:      { fontSize: 6.5, fontFamily: 'Inter', fontWeight: 700, color: COLORS.muted, letterSpacing: 0.6 },
   gCell:          { fontSize: 8, fontFamily: 'Inter', color: COLORS.ink, lineHeight: 1.4 },
   gCellMuted:     { fontSize: 8, fontFamily: 'Inter', color: COLORS.muted, lineHeight: 1.4 },
@@ -578,82 +578,94 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
           })}
         </View>
 
-        {/* Roster composition + investment. Mirrors the web report's
-            InvestmentStrip. "Affiliate-only" is stated because 142 signed
-            creators overstates the commitment on both sides — only some carry
-            a retainer, and the rest have no post obligation at all. */}
-        {gran && (
-          <View style={styles.section}>
-            <Text style={styles.sectionEyebrow}>THE ROSTER WE RUN</Text>
-            <View style={styles.gStatRow}>
-              <View style={styles.gStat}>
-                <Text style={styles.gStatLabel}>SIGNED CREATORS</Text>
-                <Text style={styles.gStatValue}>{fmtNumber(gran.roster.signed)}</Text>
-              </View>
-              <View style={styles.gStat}>
-                <Text style={styles.gStatLabel}>ON RETAINER</Text>
-                <Text style={styles.gStatValue}>{fmtNumber(gran.roster.onRetainer)}</Text>
-              </View>
-              <View style={styles.gStat}>
-                <Text style={styles.gStatLabel}>AFFILIATE-ONLY</Text>
-                <Text style={styles.gStatValue}>{fmtNumber(gran.roster.affiliateOnly)}</Text>
-                <Text style={styles.gStatNote}>commission, no post requirement</Text>
-              </View>
-              {gran.roster.monthlyRetainerBudget > 0 && (
+      </Page>
+
+      {/* ── PAGE 2a: The roster we run + where the sales came from ────
+          Its OWN page, not appended to the agency page. Measured on the first
+          render: the six-stat grid split across a page break and page 4 opened
+          with "$48,450 monthly commitment 193 1,117" — values orphaned from
+          the labels left behind on page 3. A block whose labels and numbers
+          can separate is worse than no block. */}
+      {gran && (
+        <Page size="LETTER" style={styles.page}>
+          <PageHead brandName={data.brandName} periodLabel={data.periodLabel} />
+          {/* Roster composition + investment. Mirrors the web report's
+              InvestmentStrip. "Affiliate-only" is stated because 142 signed
+              creators overstates the commitment on both sides — only some carry
+              a retainer, and the rest have no post obligation at all. */}
+          {gran && (
+            <View style={styles.section}>
+              <Text style={styles.sectionEyebrow}>THE ROSTER WE RUN</Text>
+              <View style={styles.gStatRow}>
                 <View style={styles.gStat}>
-                  <Text style={styles.gStatLabel}>RETAINER BUDGET</Text>
-                  <Text style={styles.gStatValue}>{fmtCurrency(gran.roster.monthlyRetainerBudget)}</Text>
-                  <Text style={styles.gStatNote}>monthly commitment</Text>
+                  <Text style={styles.gStatLabel}>SIGNED CREATORS</Text>
+                  <Text style={styles.gStatValue}>{fmtNumber(gran.roster.signed)}</Text>
                 </View>
-              )}
-              <View style={styles.gStat}>
-                <Text style={styles.gStatLabel}>POSTS PUBLISHED</Text>
-                <Text style={styles.gStatValue}>{fmtNumber(gran.videoCounts.postsPublished)}</Text>
-              </View>
-              <View style={styles.gStat}>
-                <Text style={styles.gStatLabel}>VIDEOS EARNING</Text>
-                <Text style={styles.gStatValue}>{fmtNumber(gran.videoCounts.videosEarning)}</Text>
-                <Text style={styles.gStatNote}>including earlier posts</Text>
+                <View style={styles.gStat}>
+                  <Text style={styles.gStatLabel}>ON RETAINER</Text>
+                  <Text style={styles.gStatValue}>{fmtNumber(gran.roster.onRetainer)}</Text>
+                </View>
+                <View style={styles.gStat}>
+                  <Text style={styles.gStatLabel}>AFFILIATE-ONLY</Text>
+                  <Text style={styles.gStatValue}>{fmtNumber(gran.roster.affiliateOnly)}</Text>
+                  <Text style={styles.gStatNote}>commission, no post requirement</Text>
+                </View>
+                {gran.roster.monthlyRetainerBudget > 0 && (
+                  <View style={styles.gStat}>
+                    <Text style={styles.gStatLabel}>RETAINER BUDGET</Text>
+                    <Text style={styles.gStatValue}>{fmtCurrency(gran.roster.monthlyRetainerBudget)}</Text>
+                    <Text style={styles.gStatNote}>monthly commitment</Text>
+                  </View>
+                )}
+                <View style={styles.gStat}>
+                  <Text style={styles.gStatLabel}>POSTS PUBLISHED</Text>
+                  <Text style={styles.gStatValue}>{fmtNumber(gran.videoCounts.postsPublished)}</Text>
+                </View>
+                <View style={styles.gStat}>
+                  <Text style={styles.gStatLabel}>VIDEOS EARNING</Text>
+                  <Text style={styles.gStatValue}>{fmtNumber(gran.videoCounts.videosEarning)}</Text>
+                  <Text style={styles.gStatNote}>including earlier posts</Text>
+                </View>
               </View>
             </View>
-          </View>
-        )}
+          )}
 
-        {/* Video vintage. Grouped by the month each video was POSTED, counting
-            only sales made in this period — the same cut as the web report. */}
-        {gran && vintageRows.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionEyebrow}>WHERE THIS PERIOD&apos;S SALES CAME FROM</Text>
-            <Text style={styles.sectionTitle}>
-              {fmtCurrency(gran.newVideo.gmv30d)} came from videos posted in the last 30 days
-            </Text>
-            {vintageRows.map((v) => (
-              <View key={v.label} style={styles.gBarRow} wrap={false}>
-                <Text style={styles.gBarLabel}>{v.label}</Text>
-                <View style={styles.gBarTrack}>
-                  <View
-                    style={[
-                      styles.gBarFill,
-                      {
-                        width: `${Math.max(2, (v.gmv / vintageMax) * 100)}%`,
-                        backgroundColor: v.isOlder ? COLORS.rule : COLORS.pinkDeep,
-                      },
-                    ]}
-                  />
+          {/* Video vintage. Grouped by the month each video was POSTED, counting
+              only sales made in this period — the same cut as the web report. */}
+          {gran && vintageRows.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionEyebrow}>WHERE THIS PERIOD&apos;S SALES CAME FROM</Text>
+              <Text style={styles.sectionTitle}>
+                {fmtCurrency(gran.newVideo.gmv30d)} came from videos posted in the last 30 days
+              </Text>
+              {vintageRows.map((v) => (
+                <View key={v.label} style={styles.gBarRow} wrap={false}>
+                  <Text style={styles.gBarLabel}>{v.label}</Text>
+                  <View style={styles.gBarTrack}>
+                    <View
+                      style={[
+                        styles.gBarFill,
+                        {
+                          width: `${Math.max(2, (v.gmv / vintageMax) * 100)}%`,
+                          backgroundColor: v.isOlder ? COLORS.rule : COLORS.pinkDeep,
+                        },
+                      ]}
+                    />
+                  </View>
+                  <Text style={styles.gBarVal}>{fmtCurrency(v.gmv)}</Text>
+                  <Text style={styles.gBarMeta}>{fmtNumber(v.videos)} videos</Text>
                 </View>
-                <Text style={styles.gBarVal}>{fmtCurrency(v.gmv)}</Text>
-                <Text style={styles.gBarMeta}>{fmtNumber(v.videos)} videos</Text>
-              </View>
-            ))}
-            <Text style={[styles.gStatNote, { marginTop: 6 }]}>
-              Content earns for roughly 90 days, so the previous month is usually the peak.
-              {gran.newVideo.unknownPostDateGmv > 0
-                ? ` ${fmtCurrency(gran.newVideo.unknownPostDateGmv)} came from videos with no recorded post date and sits in neither group.`
-                : ''}
-            </Text>
-          </View>
-        )}
-      </Page>
+              ))}
+              <Text style={[styles.gStatNote, { marginTop: 6 }]}>
+                Content earns for roughly 90 days, so the previous month is usually the peak.
+                {gran.newVideo.unknownPostDateGmv > 0
+                  ? ` ${fmtCurrency(gran.newVideo.unknownPostDateGmv)} came from videos with no recorded post date and sits in neither group.`
+                  : ''}
+              </Text>
+            </View>
+          )}
+        </Page>
+      )}
 
       {/* ── PAGE 2b: Every creator, in full ───────────────────────────── */}
       {gran && gran.creators.length > 0 && (
@@ -668,7 +680,7 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
               {fmtNumber(gran.roster.affiliateOnly)} are affiliate-only: they take commission and carry
               no post requirement, so no target is shown for them.
             </Text>
-            <View style={styles.gHead} wrap={false}>
+            <View style={styles.gHead} wrap={false} fixed>
               <Text style={[styles.gHeadCell, { flex: 2.4 }]}>CREATOR</Text>
               <Text style={[styles.gHeadCell, { flex: 1.9 }]}>AGREEMENT</Text>
               <Text style={[styles.gHeadCell, { flex: 0.8, textAlign: 'right' }]}>POSTS</Text>
