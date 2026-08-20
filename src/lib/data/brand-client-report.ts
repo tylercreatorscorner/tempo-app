@@ -404,51 +404,45 @@ export async function getBrandClientReportData(
   // without this section since it shipped, and a granular query that errors
   // must degrade to the report we already had rather than 500 the page a
   // client is opening.
-  const { data: granularRaw, error: granularErr } = await supabase.rpc(
-    'get_brand_client_report_granular',
-    {
+  // granular and counts are independent of each other and of `extras`, so they
+  // run CONCURRENTLY. Sequentially they cost granular + counts; in parallel
+  // they cost max(granular, counts). Measured on kitsch, the heaviest brand:
+  // 0.5s + 4.8s sequential becomes 4.8s. That mattered — /api/client-reports/
+  // preview 504'd at 60s on 2026-08-20 with this chain running end to end.
+  const [granularRes, countsRes] = await Promise.all([
+    supabase.rpc('get_brand_client_report_granular', {
       p_data_slugs: brandSlugs,
       p_roster_slugs: rosterSlugs,
       p_start: formatDate(startDate),
       p_end: formatDate(endDate),
-    },
-  );
-  const granular = granularErr ? undefined : (granularRaw as BrandClientReportData['granular']);
-
-  /**
-   * Corrected counts (migration 153). These OVERRIDE four figures that
-   * get_brand_client_report_agg derives at the wrong grain:
-   *
-   *   signed creators   counted TikTok ACCOUNTS, not people. Lemme: 218 shown
-   *                     for 142 people holding 220 handles — a 54% overstatement
-   *                     of roster size, with the activation rate divided by it.
-   *
-   *   posts published   came from SUM(creator_performance.videos), a creator-grain
-   *                     rollup that undercounts AND does so unevenly. Lemme,
-   *                     week of 2026-08-02: the rollup gave 159 this week and 112
-   *                     prior (▲42%); two independent video-level sources both
-   *                     give 194 and 259 (▼25%). The client was told posting was
-   *                     up 42% in a week it fell 25% — the error inverted the
-   *                     trend, it did not merely shrink it.
-   *
-   * Prior-window values come back too so the deltas move on the same basis.
-   * Correcting only the current side would have manufactured a jump.
-   *
-   * Non-fatal, like the granular block: a failure here leaves the previous
-   * (wrong but rendering) numbers rather than 500ing a client's page.
-   */
-  const { data: countsRaw, error: countsErr } = await supabase.rpc(
-    'get_brand_client_report_counts',
-    {
+    }),
+    supabase.rpc('get_brand_client_report_counts', {
       p_data_slugs: brandSlugs,
       p_roster_slugs: rosterSlugs,
       p_start: formatDate(startDate),
       p_end: formatDate(endDate),
       p_prior_start: formatDate(priorStart),
       p_prior_end: formatDate(priorEnd),
-    },
-  );
-  const counts = countsErr ? null : (countsRaw as {
+    }),
+  ]);
+
+  const granular = granularRes.error
+    ? undefined
+    : (granularRes.data as BrandClientReportData['granular']);
+
+  /**
+   * Corrected counts (migration 153). These OVERRIDE four figures that
+   * get_brand_client_report_agg derives at the wrong grain:
+   *
+   *   signed creators   counted TikTok ACCOUNTS, not people (218 for 142).
+   *   posts published   came from SUM(creator_performance.videos), which
+   *                     undercounts UNEVENLY and inverted a trend: 159/112
+   *                     (up 42%) against a true 194/259 (down 25%).
+   *
+   * Prior-window values come back too so the deltas move on the same basis.
+   * Non-fatal: a failure leaves the previous numbers rather than 500ing a page.
+   */
+  const counts = countsRes.error ? null : (countsRes.data as {
     signedPeople: number; activePeople: number; activePeoplePrior: number;
     newlyActivePeople: number; rosterPosts: number; rosterPostsPrior: number;
     storePosts: number; storePostsPrior: number;

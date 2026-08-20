@@ -15,8 +15,15 @@ import { getWorkspaceScope, isBrandInScope } from '@/lib/auth/workspace-scope';
 import { buildClientReportSnapshot, parseReportPeriod } from '@/lib/data/client-reports';
 
 export const runtime = 'nodejs';
-// Snapshot build = mig-096 agg (~2-9s) + mig-098 extras (~2-4s), sequential.
-export const maxDuration = 60;
+// Snapshot build, measured on kitsch (the heaviest brand) 2026-08-20:
+//     get_brand_client_report_agg      6.1s
+//     get_brand_report_extras         18.6s   <- dominates, and predates this
+//     counts + granular (concurrent)   4.8s
+// ~30s warm, and slower cold. The old comment here budgeted 60s against
+// "extras ~2-4s", which stopped being true long before the granular pass;
+// preview 504'd at exactly 60s. 180s is headroom over the measured worst
+// case, not a target — if a build ever approaches it, fix the query.
+export const maxDuration = 180;
 
 function appBaseUrl(req: NextRequest): string {
   const env = process.env.NEXT_PUBLIC_APP_URL;
