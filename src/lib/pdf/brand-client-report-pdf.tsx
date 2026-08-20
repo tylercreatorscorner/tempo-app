@@ -223,6 +223,27 @@ const styles = StyleSheet.create({
   peakBadge:       { fontSize: 7, color: '#fff', fontFamily: 'Inter', fontWeight: 700, backgroundColor: COLORS.pink, paddingHorizontal: 5, paddingVertical: 1, borderRadius: 3, marginLeft: 6 },
 
   // ── Leaderboard rows
+  // Granular block (mig 152). Row style deliberately COPIES lbRow rather than
+  // inventing one: a repeating row with a border is the shape that produced
+  // "unsupported number" garbage geometry in the invoice PDF, and lbRow is the
+  // variant already proven to paginate cleanly in this document.
+  gRow:           { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, borderBottomWidth: 0.5, borderBottomColor: COLORS.ruleSoft },
+  gHead:          { flexDirection: 'row', alignItems: 'center', paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: COLORS.rule },
+  gHeadCell:      { fontSize: 6.5, fontFamily: 'Inter', fontWeight: 700, color: COLORS.muted, letterSpacing: 0.6 },
+  gCell:          { fontSize: 8, fontFamily: 'Inter', color: COLORS.ink, lineHeight: 1.4 },
+  gCellMuted:     { fontSize: 8, fontFamily: 'Inter', color: COLORS.muted, lineHeight: 1.4 },
+  gTag:           { fontSize: 6.5, fontFamily: 'Inter', fontWeight: 700, color: '#5B4BB8', lineHeight: 1.4 },
+  gStatRow:       { flexDirection: 'row', flexWrap: 'wrap', marginTop: 8 },
+  gStat:          { width: '33%', marginBottom: 8 },
+  gStatLabel:     { fontSize: 6.5, fontFamily: 'Inter', fontWeight: 700, color: COLORS.muted, letterSpacing: 0.6 },
+  gStatValue:     { fontSize: 13, fontFamily: 'Inter', fontWeight: 700, color: COLORS.ink, marginTop: 2 },
+  gStatNote:      { fontSize: 6.5, fontFamily: 'Inter', color: COLORS.muted, marginTop: 1, lineHeight: 1.35 },
+  gBarRow:        { flexDirection: 'row', alignItems: 'center', marginBottom: 5 },
+  gBarLabel:      { width: 52, fontSize: 8, fontFamily: 'Inter', fontWeight: 700, color: COLORS.ink },
+  gBarTrack:      { flex: 1, height: 12, borderRadius: 3, backgroundColor: COLORS.bg },
+  gBarFill:       { height: 12, borderRadius: 3 },
+  gBarVal:        { width: 62, textAlign: 'right', fontSize: 8, fontFamily: 'Inter', fontWeight: 700, color: COLORS.ink },
+  gBarMeta:       { width: 56, textAlign: 'right', fontSize: 7, fontFamily: 'Inter', color: COLORS.muted },
   lbRow:          { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 0.5, borderBottomColor: COLORS.ruleSoft },
   lbRowTop:       { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, marginBottom: 4, borderRadius: 8, paddingHorizontal: 12, backgroundColor: COLORS.pinkSoft, borderWidth: 1, borderColor: '#F8C0DD' },
   lbRank:         { width: 22, fontSize: 10, color: COLORS.faint, fontFamily: 'Inter', fontWeight: 700 },
@@ -359,6 +380,19 @@ function DeltaPill({ pct }: { pct?: number | null }) {
 export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) {
   const goalPctOfTotal = (n: number) => data.totalGmv > 0 ? (n / data.totalGmv) * 100 : 0;
   const peakDow = data.dayOfWeek.reduce((m, d) => Math.max(m, d.gmv), 0);
+
+  // Granular block (mig 152). Absent on every snapshot frozen before it, so
+  // its presence gates the sections exactly as it does on the web report.
+  const gran = data.granular;
+  const vintageRows = gran
+    ? [
+        ...gran.vintage.map((v) => ({ label: v.label, videos: v.videos, gmv: v.gmv, isOlder: false })),
+        ...(gran.vintageOlder.videos > 0 || gran.vintageOlder.gmv > 0
+          ? [{ label: 'Earlier', videos: gran.vintageOlder.videos, gmv: gran.vintageOlder.gmv, isOlder: true }]
+          : []),
+      ]
+    : [];
+  const vintageMax = Math.max(...vintageRows.map((v) => v.gmv), 1);
 
   // ── Agency-page derivations, mirroring the web report exactly so the two
   // artifacts cannot disagree. Every one is guarded: these fields postdate
@@ -543,7 +577,126 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
             );
           })}
         </View>
+
+        {/* Roster composition + investment. Mirrors the web report's
+            InvestmentStrip. "Affiliate-only" is stated because 142 signed
+            creators overstates the commitment on both sides — only some carry
+            a retainer, and the rest have no post obligation at all. */}
+        {gran && (
+          <View style={styles.section}>
+            <Text style={styles.sectionEyebrow}>THE ROSTER WE RUN</Text>
+            <View style={styles.gStatRow}>
+              <View style={styles.gStat}>
+                <Text style={styles.gStatLabel}>SIGNED CREATORS</Text>
+                <Text style={styles.gStatValue}>{fmtNumber(gran.roster.signed)}</Text>
+              </View>
+              <View style={styles.gStat}>
+                <Text style={styles.gStatLabel}>ON RETAINER</Text>
+                <Text style={styles.gStatValue}>{fmtNumber(gran.roster.onRetainer)}</Text>
+              </View>
+              <View style={styles.gStat}>
+                <Text style={styles.gStatLabel}>AFFILIATE-ONLY</Text>
+                <Text style={styles.gStatValue}>{fmtNumber(gran.roster.affiliateOnly)}</Text>
+                <Text style={styles.gStatNote}>commission, no post requirement</Text>
+              </View>
+              {gran.roster.monthlyRetainerBudget > 0 && (
+                <View style={styles.gStat}>
+                  <Text style={styles.gStatLabel}>RETAINER BUDGET</Text>
+                  <Text style={styles.gStatValue}>{fmtCurrency(gran.roster.monthlyRetainerBudget)}</Text>
+                  <Text style={styles.gStatNote}>monthly commitment</Text>
+                </View>
+              )}
+              <View style={styles.gStat}>
+                <Text style={styles.gStatLabel}>POSTS PUBLISHED</Text>
+                <Text style={styles.gStatValue}>{fmtNumber(gran.videoCounts.postsPublished)}</Text>
+              </View>
+              <View style={styles.gStat}>
+                <Text style={styles.gStatLabel}>VIDEOS EARNING</Text>
+                <Text style={styles.gStatValue}>{fmtNumber(gran.videoCounts.videosEarning)}</Text>
+                <Text style={styles.gStatNote}>including earlier posts</Text>
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* Video vintage. Grouped by the month each video was POSTED, counting
+            only sales made in this period — the same cut as the web report. */}
+        {gran && vintageRows.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionEyebrow}>WHERE THIS PERIOD&apos;S SALES CAME FROM</Text>
+            <Text style={styles.sectionTitle}>
+              {fmtCurrency(gran.newVideo.gmv30d)} came from videos posted in the last 30 days
+            </Text>
+            {vintageRows.map((v) => (
+              <View key={v.label} style={styles.gBarRow} wrap={false}>
+                <Text style={styles.gBarLabel}>{v.label}</Text>
+                <View style={styles.gBarTrack}>
+                  <View
+                    style={[
+                      styles.gBarFill,
+                      {
+                        width: `${Math.max(2, (v.gmv / vintageMax) * 100)}%`,
+                        backgroundColor: v.isOlder ? COLORS.rule : COLORS.pinkDeep,
+                      },
+                    ]}
+                  />
+                </View>
+                <Text style={styles.gBarVal}>{fmtCurrency(v.gmv)}</Text>
+                <Text style={styles.gBarMeta}>{fmtNumber(v.videos)} videos</Text>
+              </View>
+            ))}
+            <Text style={[styles.gStatNote, { marginTop: 6 }]}>
+              Content earns for roughly 90 days, so the previous month is usually the peak.
+              {gran.newVideo.unknownPostDateGmv > 0
+                ? ` ${fmtCurrency(gran.newVideo.unknownPostDateGmv)} came from videos with no recorded post date and sits in neither group.`
+                : ''}
+            </Text>
+          </View>
+        )}
       </Page>
+
+      {/* ── PAGE 2b: Every creator, in full ───────────────────────────── */}
+      {gran && gran.creators.length > 0 && (
+        <Page size="LETTER" style={styles.page}>
+          <PageHead brandName={data.brandName} periodLabel={data.periodLabel} />
+          <View style={styles.section}>
+            <Text style={styles.sectionEyebrow}>EVERY CREATOR WE RUN FOR YOU</Text>
+            <Text style={styles.sectionTitle}>
+              All {fmtNumber(gran.creators.length)} signed creators
+            </Text>
+            <Text style={[styles.gStatNote, { marginBottom: 6 }]}>
+              {fmtNumber(gran.roster.affiliateOnly)} are affiliate-only: they take commission and carry
+              no post requirement, so no target is shown for them.
+            </Text>
+            <View style={styles.gHead} wrap={false}>
+              <Text style={[styles.gHeadCell, { flex: 2.4 }]}>CREATOR</Text>
+              <Text style={[styles.gHeadCell, { flex: 1.9 }]}>AGREEMENT</Text>
+              <Text style={[styles.gHeadCell, { flex: 0.8, textAlign: 'right' }]}>POSTS</Text>
+              <Text style={[styles.gHeadCell, { flex: 1.0, textAlign: 'right' }]}>EARNING</Text>
+              <Text style={[styles.gHeadCell, { flex: 0.9, textAlign: 'right' }]}>ORDERS</Text>
+              <Text style={[styles.gHeadCell, { flex: 1.2, textAlign: 'right' }]}>GMV</Text>
+            </View>
+            {gran.creators.map((c, i) => (
+              <View key={(c.handle ?? c.name) + i} style={styles.gRow} wrap={false}>
+                <Text style={[styles.gCell, { flex: 2.4 }]}>
+                  @{(c.handle ?? c.name).replace(/^@+/, '')}
+                </Text>
+                <Text style={[c.isAffiliate ? styles.gTag : styles.gCellMuted, { flex: 1.9 }]}>
+                  {c.isAffiliate
+                    ? 'Affiliate-only'
+                    : c.quota != null
+                      ? `Retainer · ${fmtNumber(c.postsPublished)}/${fmtNumber(c.quota)} posts`
+                      : 'Retainer'}
+                </Text>
+                <Text style={[styles.gCellMuted, { flex: 0.8, textAlign: 'right' }]}>{fmtNumber(c.postsPublished)}</Text>
+                <Text style={[styles.gCellMuted, { flex: 1.0, textAlign: 'right' }]}>{fmtNumber(c.videosEarning)}</Text>
+                <Text style={[styles.gCellMuted, { flex: 0.9, textAlign: 'right' }]}>{fmtNumber(c.orders)}</Text>
+                <Text style={[styles.gCell, { flex: 1.2, textAlign: 'right', fontWeight: 700 }]}>{fmtCurrency(c.gmv)}</Text>
+              </View>
+            ))}
+          </View>
+        </Page>
+      )}
 
       {/* ── PAGE 3: Store context — exec summary, highlights, GMV hero ── */}
       <Page size="LETTER" style={styles.page}>

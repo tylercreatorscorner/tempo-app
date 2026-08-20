@@ -194,6 +194,217 @@ function HoverBars({
 }
 
 /** Roster table. Every handle opens that creator's TikTok profile. */
+/**
+ * Roster composition + what the brand is committing to it.
+ *
+ * ⚠️ "142 signed creators" alone overstates the commitment on both sides: only
+ * 57 are on a retainer, and the other 85 are AFFILIATE-ONLY — they take
+ * commission and carry no post obligation at all. Saying so is not a caveat,
+ * it is the difference between a number the brand can act on and one it can't.
+ *
+ * The retainer figure is MONTHLY and labelled as such. It is never divided
+ * across the report window; a weekly slice of a monthly commitment is an
+ * estimate, and this report does not make those.
+ */
+function InvestmentStrip({ g }: { g: NonNullable<BrandClientReportData['granular']> }) {
+  const budget = finite(g.roster.monthlyRetainerBudget);
+  return (
+    <div className="mt-3 rounded-[14px] border border-[#e7e7f2] bg-white px-5 py-4">
+      <div className="flex flex-wrap items-baseline gap-x-7 gap-y-2.5">
+        <MiniStat label="Signed creators" value={num(g.roster.signed)} />
+        <MiniStat label="On retainer" value={num(g.roster.onRetainer)} />
+        <MiniStat
+          label="Affiliate-only"
+          value={num(g.roster.affiliateOnly)}
+          note="commission, no post requirement"
+        />
+        {budget !== null && budget > 0 && (
+          <MiniStat label="Retainer budget" value={`${money(budget)}/mo`} note="monthly commitment" />
+        )}
+        <MiniStat label="Posts published" value={num(g.videoCounts.postsPublished)} />
+        <MiniStat
+          label="Videos earning"
+          value={num(g.videoCounts.videosEarning)}
+          note="including earlier posts"
+        />
+      </div>
+    </div>
+  );
+}
+
+function MiniStat({ label, value, note }: { label: string; value: string; note?: string }) {
+  return (
+    <div className="min-w-0">
+      <div className="text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">{label}</div>
+      <div className="mt-0.5 text-[17px] font-extrabold tabular-nums leading-none text-[#171a33]">{value}</div>
+      {note && <div className="mt-1 text-[11px] leading-tight text-[#8a8fb0]">{note}</div>}
+    </div>
+  );
+}
+
+/**
+ * Where the period's sales actually came from, by the month each video was
+ * POSTED.
+ *
+ * Measured on Lemme (week of 2026-08-04): July's posts carried 45.6% of the
+ * week while August's carried 26.5%. A "new video GMV" headline scoped to the
+ * report window alone would have reported 3.1% and been read as the roster
+ * doing nothing, when the truth is that content earns for roughly 90 days and
+ * the previous month is usually the peak.
+ */
+function VintageSection({
+  g,
+  word,
+}: {
+  g: NonNullable<BrandClientReportData['granular']>;
+  word: string;
+}) {
+  const total = finite(g.newVideo.totalGmv) ?? 0;
+  const gmv30 = finite(g.newVideo.gmv30d) ?? 0;
+  const pct30 = total > 0 ? (gmv30 / total) * 100 : null;
+  const unknown = finite(g.newVideo.unknownPostDateGmv) ?? 0;
+  const rows = [
+    ...g.vintage.map((v) => ({ label: v.label, videos: v.videos, gmv: v.gmv, isOlder: false })),
+    ...(g.vintageOlder.videos > 0 || g.vintageOlder.gmv > 0
+      ? [{ label: 'Earlier', videos: g.vintageOlder.videos, gmv: g.vintageOlder.gmv, isOlder: true }]
+      : []),
+  ];
+  const max = Math.max(...rows.map((r) => r.gmv), 1);
+
+  return (
+    <div className="rounded-[14px] border border-[#e7e7f2] bg-white px-5 py-5">
+      <h2 className="text-[20px] font-extrabold leading-snug tracking-tight text-[#171a33]">
+        {money(gmv30)} of this {word}&rsquo;s roster sales came from videos posted in the last 30 days
+      </h2>
+      <p className="mt-1.5 max-w-[68ch] text-[14.5px] leading-[1.65] text-[#33375c]">
+        {pct30 !== null ? (
+          <>
+            That is <b className="text-[#171a33]">{pct30.toFixed(1)}% of roster GMV</b> from{' '}
+            <b className="text-[#171a33]">{num(g.newVideo.videos30d)} recent posts</b>. The rest comes from
+            content published earlier that is still selling — which is why posting consistently compounds.
+          </>
+        ) : (
+          <>No roster sales in this {word}, so there is no split to show.</>
+        )}
+      </p>
+
+      <div className="mt-5 space-y-2.5">
+        {rows.map((r) => (
+          <div key={r.label} className="flex items-center gap-3">
+            <div className="w-[74px] shrink-0 text-[12px] font-bold text-[#33375c]">{r.label}</div>
+            <div className="h-[22px] flex-1 overflow-hidden rounded-[5px] bg-[#f4f3fa]">
+              <div
+                className="h-full rounded-[5px]"
+                style={{
+                  width: `${Math.max(1.5, (r.gmv / max) * 100)}%`,
+                  background: r.isOlder
+                    ? 'linear-gradient(90deg,#c9c8dd,#b3b7d4)'
+                    : 'linear-gradient(90deg,#5b5ee8,#a855f7)',
+                }}
+              />
+            </div>
+            <div className="w-[96px] shrink-0 text-right text-[13px] font-extrabold tabular-nums text-[#171a33]">
+              {money(r.gmv)}
+            </div>
+            <div className="w-[86px] shrink-0 text-right text-[12px] tabular-nums text-[#8a8fb0]">
+              {num(r.videos)} videos
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <p className="mt-4 text-[11.5px] leading-[1.6] text-[#8a8fb0]">
+        Grouped by the month each video was posted, counting only sales made during this {word}.
+        {unknown > 0 && (
+          <> {money(unknown)} came from videos with no recorded post date and sits in neither group.</>
+        )}
+      </p>
+    </div>
+  );
+}
+
+/**
+ * Every signed creator, including those who did nothing this period.
+ *
+ * ⚠️ `quota` is null for affiliate-only creators and renders as an em dash.
+ * All 85 of Lemme's affiliate-only rows carry a non-zero
+ * monthly_post_requirement in the database, and it is phantom — they never
+ * agreed to one. Rendering it would tell the brand that 85 of its creators
+ * missed a target that does not exist.
+ */
+function FullRosterTable({ g }: { g: NonNullable<BrandClientReportData['granular']> }) {
+  const rows = g.creators;
+  const active = rows.filter((c) => c.gmv > 0 || c.postsPublished > 0).length;
+
+  return (
+    <div className="overflow-hidden rounded-[14px] border border-[#e7e7f2] bg-white">
+      <div className="border-b border-[#eeedf5] px-4 py-3">
+        <p className="text-[13px] leading-[1.6] text-[#33375c]">
+          All <b className="text-[#171a33]">{num(rows.length)}</b> signed creators ·{' '}
+          <b className="text-[#171a33]">{num(active)}</b> posted or sold this period ·{' '}
+          <b className="text-[#171a33]">{num(g.roster.affiliateOnly)}</b> are affiliate-only, meaning
+          commission with no post requirement.
+        </p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[640px] border-collapse text-[13px]">
+          <thead>
+            <tr className="border-b border-[#eeedf5]">
+              <th className="px-4 py-2.5 text-left text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">Creator</th>
+              <th className="px-4 py-2.5 text-left text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">Agreement</th>
+              <th className="px-4 py-2.5 text-right text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">Posts</th>
+              <th className="px-4 py-2.5 text-right text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">Videos earning</th>
+              <th className="px-4 py-2.5 text-right text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">Orders</th>
+              <th className="px-4 py-2.5 text-right text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">GMV</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((c, i) => {
+              const h = c.handle ? handleOf(c.handle) : handleOf(c.name);
+              const quiet = c.gmv === 0 && c.postsPublished === 0;
+              return (
+                <tr key={i} className={`border-b border-[#f2f1f8] last:border-b-0 ${quiet ? 'opacity-55' : ''}`}>
+                  <td className="px-4 py-2.5">
+                    <a
+                      href={`https://www.tiktok.com/@${h}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-semibold text-[#4b45ff] underline decoration-[#4b45ff]/30 underline-offset-2 hover:decoration-[#4b45ff]"
+                    >
+                      @{h}
+                    </a>
+                  </td>
+                  <td className="px-4 py-2.5 text-[12px] text-[#33375c]">
+                    {c.isAffiliate ? (
+                      <span className="rounded-[5px] bg-[#f0eefb] px-1.5 py-0.5 font-semibold text-[#5b4bb8]">
+                        Affiliate-only
+                      </span>
+                    ) : (
+                      <>
+                        Retainer
+                        {/* Quota only where one was actually agreed. */}
+                        {c.quota != null && (
+                          <span className="ml-1.5 tabular-nums text-[#8a8fb0]">
+                            {num(c.postsPublished)}/{num(c.quota)} posts
+                          </span>
+                        )}
+                      </>
+                    )}
+                  </td>
+                  <td className="px-4 py-2.5 text-right tabular-nums text-[#33375c]">{num(c.postsPublished)}</td>
+                  <td className="px-4 py-2.5 text-right tabular-nums text-[#33375c]">{num(c.videosEarning)}</td>
+                  <td className="px-4 py-2.5 text-right tabular-nums text-[#33375c]">{num(c.orders)}</td>
+                  <td className="px-4 py-2.5 text-right font-extrabold tabular-nums text-[#171a33]">{money(c.gmv)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function RosterTable({
   rows,
   totalGmv,
@@ -281,6 +492,10 @@ export function ReportView({
   const frozen = new Date(s.generatedAt);
   const cc = r.creatorsCorner;
   const hasRoster = cc.signedCreatorCount > 0;
+  // Absent on every snapshot frozen before migration 152. Its presence IS the
+  // gate for the granular sections — an older report renders exactly as it
+  // always did rather than showing empty tables or NaN.
+  const gran = r.granular;
 
   // Fields added after older reports were frozen. priorVideos / videoChangePct
   // simply are not there and cannot be recovered, so they render as absent.
@@ -398,6 +613,8 @@ export function ReportView({
               </div>
             </div>
 
+            {gran && <InvestmentStrip g={gran} />}
+
             {divergence && (
               <div className="mt-3 rounded-[12px] bg-[#fbf1dc] px-4 py-3.5 text-[13.5px] leading-[1.65] text-[#8a5a08]">
                 <b>We were down this {word} while the store was up.</b> Roster GMV fell{' '}
@@ -478,6 +695,14 @@ export function ReportView({
           </>
         )}
 
+        {/* ── 4b. Video vintage: which posts are carrying the period ── */}
+        {gran && gran.vintage.length > 0 && (
+          <>
+            <SectionLine>Where this {word}&rsquo;s sales came from</SectionLine>
+            <VintageSection g={gran} word={word} />
+          </>
+        )}
+
         {/* ── 5. Efficiency: signed vs the rest of the shop ──────── */}
         {hasRoster && cc.organicAov > 0 && cc.managedAov > 0 && (
           <>
@@ -540,6 +765,14 @@ export function ReportView({
               />
               <Mini label="First-time active" value={num(cc.newlyActivatedCount)} pct={null} />
             </div>
+          </>
+        )}
+
+        {/* ── 6b. Every creator, in full ─────────────────────────── */}
+        {gran && gran.creators.length > 0 && (
+          <>
+            <SectionLine>Every creator we run for you</SectionLine>
+            <FullRosterTable g={gran} />
           </>
         )}
 

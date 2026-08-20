@@ -115,6 +115,54 @@ export interface BrandClientReportData {
   topVideos: { title: string; creator: string; gmv: number; orders: number; videoUrl: string | null }[];
   topProducts: { name: string; gmv: number; orders: number; pctOfTotal: number }[];
 
+  /**
+   * Granular block (migration 152). OPTIONAL on purpose: every already-frozen
+   * client_reports.snapshot predates it, so the renderer must treat absence as
+   * "this section does not exist for this report" rather than let undefined
+   * flow into arithmetic. See the finite() note in report-view.tsx.
+   */
+  granular?: {
+    /** Roster composition. `affiliateOnly` creators take commission with NO
+     *  post commitment — they are not creators who missed a quota. */
+    roster: {
+      signed: number;
+      onRetainer: number;
+      affiliateOnly: number;
+      /** CONTRACTED monthly sum. Month-grain; never apportioned to the window. */
+      monthlyRetainerBudget: number;
+    };
+    /** postsPublished counts on post_date; videosEarning counts what was live
+     *  in the window. They differ by an order of magnitude — never merge them. */
+    videoCounts: { postsPublished: number; videosEarning: number };
+    /** 30 days, not the report window: on a 7-day window the same measure reads
+     *  3.1% against 51.7% at 30 days, because a video posted Thursday has had
+     *  two days to earn. */
+    newVideo: {
+      gmv30d: number;
+      videos30d: number;
+      totalGmv: number;
+      /** Belongs to neither bucket. Surfaced so the split may fail to add up
+       *  rather than quietly absorbing it into the catalog. */
+      unknownPostDateGmv: number;
+    };
+    /** Newest three post-months, newest first. */
+    vintage: { label: string; videos: number; gmv: number }[];
+    vintageOlder: { videos: number; gmv: number };
+    /** EVERY signed creator, including those at zero. `quota` is null for
+     *  affiliate-only and MUST render as absence, never 0. */
+    creators: {
+      name: string;
+      handle: string | null;
+      isAffiliate: boolean;
+      retainer: number;
+      quota: number | null;
+      postsPublished: number;
+      videosEarning: number;
+      gmv: number;
+      orders: number;
+    }[];
+  };
+
   // Per-product creator breakdown (top 5 products, top 3 creators each)
   productCreatorBreakdown: {
     productName: string;
@@ -352,6 +400,21 @@ export async function getBrandClientReportData(
 
   // ── Product -> Creator breakdown (top 5 products, top 3 creators each)
   const pcRows = (agg.product_creators ?? []) as Array<{ product: string; name: string; gmv: number }>;
+  // Granular block (mig 152). Failure is NOT fatal: the report has rendered
+  // without this section since it shipped, and a granular query that errors
+  // must degrade to the report we already had rather than 500 the page a
+  // client is opening.
+  const { data: granularRaw, error: granularErr } = await supabase.rpc(
+    'get_brand_client_report_granular',
+    {
+      p_data_slugs: brandSlugs,
+      p_roster_slugs: rosterSlugs,
+      p_start: formatDate(startDate),
+      p_end: formatDate(endDate),
+    },
+  );
+  const granular = granularErr ? undefined : (granularRaw as BrandClientReportData['granular']);
+
   const productCreatorBreakdown = topProductsRaw.slice(0, 5).map(p => ({
     productName: p.name,
     productGmv: p.gmv,
@@ -454,6 +517,7 @@ export async function getBrandClientReportData(
     topCreators,
     topVideos,
     topProducts,
+    granular,
     productCreatorBreakdown,
   };
 }
