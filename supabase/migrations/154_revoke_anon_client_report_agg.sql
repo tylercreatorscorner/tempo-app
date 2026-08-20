@@ -1,0 +1,66 @@
+-- 154_revoke_anon_client_report_agg.sql
+--
+-- Close anon EXECUTE on get_brand_client_report_agg.
+--
+-- ── What was exposed ────────────────────────────────────────────────────────
+--
+-- A SECURITY DEFINER function returning any brand's GMV, orders, commission,
+-- creator rankings and top videos, callable by anyone holding the publishable
+-- key — which is, by design, in the page source of every Tempo surface.
+--
+-- ── Why `revoke ... from anon` alone does nothing ───────────────────────────
+--
+-- EXECUTE defaults to PUBLIC, and anon INHERITS that. Running
+--     revoke execute on function ... from anon;
+-- left has_function_privilege('anon', ...) = true, because the privilege was
+-- never granted to anon in the first place. PUBLIC has to be named:
+--     revoke execute on function ... from public, anon;
+-- This is the third time this exact trap has cost something in this codebase
+-- (migration 100, the 2026-07 audit, and now here).
+--
+-- ── Verified safe before revoking ───────────────────────────────────────────
+--
+-- Every caller is transitive through getBrandClientReportData /
+-- buildClientReportSnapshot, reached only by four API routes:
+--     /api/client-reports            POST, auth-gated
+--     /api/client-reports/preview    auth-gated
+--     /api/brand-client-summary      auth-gated
+--     /api/brand-client-pdf          auth-gated
+-- None appears in PUBLIC_PATHS. The PUBLIC report surfaces — /r/[token] and
+-- /api/report-pdf/[token] — never call it: both read the frozen snapshot via
+-- createAdminClient (service_role). No cron route reaches it either, and cron
+-- runs on the admin client regardless.
+--
+-- Confirmed after the change, from outside the app with the live publishable
+-- key: the RPC returns 42501 "permission denied", while report generation,
+-- /r/[token] and the PDF export all still return 200.
+
+revoke execute on function public.get_brand_client_report_agg(text[], text[], date, date, date, date)
+  from public, anon;
+grant  execute on function public.get_brand_client_report_agg(text[], text[], date, date, date, date)
+  to authenticated, service_role;
+
+-- ⚠️ THIS FUNCTION WAS NOT ALONE. A sweep of every SECURITY DEFINER function
+-- in `public` found 63 more that anon can still execute:
+--
+--   7  MUTATING — rebuild_brand_daily_stats, refresh_brand_daily_stats,
+--      refresh_roster_creator_daily, refresh_roster_creator_daily_range,
+--      refresh_roster_creator_posts_range, refresh_roster_summaries,
+--      refresh_roster_universe_daily_range.
+--      An anonymous caller can trigger full rollup rebuilds on demand.
+--
+--  45  DATA — analytics_*, get_brand_summary, get_creator_rankings,
+--      get_affiliate_leaderboard, get_managed_posts*, whats/whos_cooking_agg,
+--      brand_total_period_gmv, get_video_*, get_upload_coverage, and more.
+--      Demonstrated live: get_brand_summary('lemme', …) returned
+--      total_gmv 413,557.86 / total_est_commission 111,474.30 to an
+--      unauthenticated request.
+--
+--  11  AUTH HELPERS — is_admin, get_user_role, get_tenant_id,
+--      auth_user_allowed_brands, handle_new_user, … These are called during
+--      RLS evaluation and probably MUST keep anon EXECUTE. Revoking them
+--      blindly would break login and every RLS-protected read.
+--
+-- The remaining 52 are deliberately left for a scoped pass with per-function
+-- caller checks, because that split is exactly what makes a mass revoke
+-- dangerous.
