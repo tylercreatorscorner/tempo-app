@@ -210,8 +210,14 @@ function InvestmentStrip({ g }: { g: NonNullable<BrandClientReportData['granular
   const budget = finite(g.roster.monthlyRetainerBudget);
   return (
     <div className="mt-3 rounded-[14px] border border-[#e7e7f2] bg-white px-5 py-4">
+      {/* ⚠️ NO "Signed creators" and NO "Posts published" here, deliberately.
+          Both already appear earlier in the report from a DIFFERENT source and
+          at a DIFFERENT grain, and showing a second value under the same name
+          is the exact defect this pass exists to remove. Seen live on Lemme:
+          the headline said 159 posts while this strip said 193, and Roster
+          coverage said 218 signed creators while this said 142. Only figures
+          that appear nowhere else belong in this strip. */}
       <div className="flex flex-wrap items-baseline gap-x-7 gap-y-2.5">
-        <MiniStat label="Signed creators" value={num(g.roster.signed)} />
         <MiniStat label="On retainer" value={num(g.roster.onRetainer)} />
         <MiniStat
           label="Affiliate-only"
@@ -221,7 +227,6 @@ function InvestmentStrip({ g }: { g: NonNullable<BrandClientReportData['granular
         {budget !== null && budget > 0 && (
           <MiniStat label="Retainer budget" value={`${money(budget)}/mo`} note="monthly commitment" />
         )}
-        <MiniStat label="Posts published" value={num(g.videoCounts.postsPublished)} />
         <MiniStat
           label="Videos earning"
           value={num(g.videoCounts.videosEarning)}

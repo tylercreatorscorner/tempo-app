@@ -598,10 +598,6 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
               <Text style={styles.sectionEyebrow}>THE ROSTER WE RUN</Text>
               <View style={styles.gStatRow}>
                 <View style={styles.gStat}>
-                  <Text style={styles.gStatLabel}>SIGNED CREATORS</Text>
-                  <Text style={styles.gStatValue}>{fmtNumber(gran.roster.signed)}</Text>
-                </View>
-                <View style={styles.gStat}>
                   <Text style={styles.gStatLabel}>ON RETAINER</Text>
                   <Text style={styles.gStatValue}>{fmtNumber(gran.roster.onRetainer)}</Text>
                 </View>
@@ -617,10 +613,6 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
                     <Text style={styles.gStatNote}>monthly commitment</Text>
                   </View>
                 )}
-                <View style={styles.gStat}>
-                  <Text style={styles.gStatLabel}>POSTS PUBLISHED</Text>
-                  <Text style={styles.gStatValue}>{fmtNumber(gran.videoCounts.postsPublished)}</Text>
-                </View>
                 <View style={styles.gStat}>
                   <Text style={styles.gStatLabel}>VIDEOS EARNING</Text>
                   <Text style={styles.gStatValue}>{fmtNumber(gran.videoCounts.videosEarning)}</Text>
