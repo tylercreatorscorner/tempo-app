@@ -65,12 +65,10 @@ as $function$
       and vp.video_id is not null and vp.video_id <> ''
       and vp.post_date is not null
       and (p_data_slugs is null or vp.brand = any(p_data_slugs))
-      -- report_date is indexed and post_date is NOT. Filtering post_date alone
-      -- took 5.6s against 0.5s for the sibling RPC. A video posted inside the
-      -- window necessarily has stats rows on or after its post date, so this
-      -- open-ended floor prunes the scan without dropping a single row the
-      -- post_date filter would have kept — verified identical output (194/259).
-      and vp.report_date >= least(p_prior_start, p_start)
+      -- ⚠️ SUPERSEDED by migration 155: this filter had an extra
+      --     and vp.report_date >= least(p_prior_start, p_start)
+      -- to prune the scan while post_date was unindexed. Migration 155 adds
+      -- idx_video_perf_brand_postdate and removes it. Do not reintroduce.
       and vp.post_date::date between least(p_prior_start, p_start) and greatest(p_prior_end, p_end)
     group by 1, 2, 3
   ),
