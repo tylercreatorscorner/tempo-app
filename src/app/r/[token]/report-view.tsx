@@ -337,75 +337,121 @@ function VintageSection({
  * agreed to one. Rendering it would tell the brand that 85 of its creators
  * missed a target that does not exist.
  */
+/**
+ * Every signed creator — the ones who did something, in full; the rest
+ * summarised and available behind a disclosure.
+ *
+ * Measured on Lemme for the week of 2026-08-02: 142 rows, of which 94 had no
+ * posts and no GMV, and the top 10 carried 98.8% of roster GMV. Printing 94
+ * blank rows does not make a report more transparent, it makes the 48 rows
+ * that matter harder to find. Nothing is hidden — the full list is one click
+ * away and the dormant count is stated, with its retainer split, because "24
+ * of them are on retainer" is the part a brand is entitled to know.
+ *
+ * ⚠️ `quota` is null for affiliate-only creators and renders as absence. All
+ * 85 of Lemme's affiliate-only rows carry a non-zero monthly_post_requirement
+ * in the database and it is phantom — they never agreed to one.
+ */
 function FullRosterTable({ g }: { g: NonNullable<BrandClientReportData['granular']> }) {
   const rows = g.creators;
-  const active = rows.filter((c) => c.gmv > 0 || c.postsPublished > 0).length;
+  const active = rows.filter((c) => c.gmv > 0 || c.postsPublished > 0);
+  const dormant = rows.filter((c) => c.gmv === 0 && c.postsPublished === 0);
+  const dormantRetained = dormant.filter((c) => !c.isAffiliate).length;
+  const dormantAffiliate = dormant.length - dormantRetained;
 
   return (
     <div className="overflow-hidden rounded-[14px] border border-[#e7e7f2] bg-white">
       <div className="border-b border-[#eeedf5] px-4 py-3">
         <p className="text-[13px] leading-[1.6] text-[#33375c]">
-          All <b className="text-[#171a33]">{num(rows.length)}</b> signed creators ·{' '}
-          <b className="text-[#171a33]">{num(active)}</b> posted or sold this period ·{' '}
-          <b className="text-[#171a33]">{num(g.roster.affiliateOnly)}</b> are affiliate-only, meaning
-          commission with no post requirement.
+          <b className="text-[#171a33]">{num(active.length)}</b> of{' '}
+          <b className="text-[#171a33]">{num(rows.length)}</b> signed creators posted or sold this
+          period. <b className="text-[#171a33]">{num(g.roster.affiliateOnly)}</b> of your roster are
+          affiliate-only — commission, with no post requirement.
         </p>
       </div>
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[640px] border-collapse text-[13px]">
-          <thead>
-            <tr className="border-b border-[#eeedf5]">
-              <th className="px-4 py-2.5 text-left text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">Creator</th>
-              <th className="px-4 py-2.5 text-left text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">Agreement</th>
-              <th className="px-4 py-2.5 text-right text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">Posts</th>
-              <th className="px-4 py-2.5 text-right text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">Videos earning</th>
-              <th className="px-4 py-2.5 text-right text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">Orders</th>
-              <th className="px-4 py-2.5 text-right text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">GMV</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((c, i) => {
-              const h = c.handle ? handleOf(c.handle) : handleOf(c.name);
-              const quiet = c.gmv === 0 && c.postsPublished === 0;
-              return (
-                <tr key={i} className={`border-b border-[#f2f1f8] last:border-b-0 ${quiet ? 'opacity-55' : ''}`}>
-                  <td className="px-4 py-2.5">
-                    <a
-                      href={`https://www.tiktok.com/@${h}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-semibold text-[#4b45ff] underline decoration-[#4b45ff]/30 underline-offset-2 hover:decoration-[#4b45ff]"
-                    >
-                      @{h}
-                    </a>
-                  </td>
-                  <td className="px-4 py-2.5 text-[12px] text-[#33375c]">
-                    {c.isAffiliate ? (
-                      <span className="rounded-[5px] bg-[#f0eefb] px-1.5 py-0.5 font-semibold text-[#5b4bb8]">
-                        Affiliate-only
-                      </span>
-                    ) : (
-                      <>
-                        Retainer
-                        {/* Quota only where one was actually agreed. */}
-                        {c.quota != null && (
-                          <span className="ml-1.5 tabular-nums text-[#8a8fb0]">
-                            {num(c.postsPublished)}/{num(c.quota)} posts
-                          </span>
-                        )}
-                      </>
-                    )}
-                  </td>
-                  <td className="px-4 py-2.5 text-right tabular-nums text-[#33375c]">{num(c.postsPublished)}</td>
-                  <td className="px-4 py-2.5 text-right tabular-nums text-[#33375c]">{num(c.videosEarning)}</td>
-                  <td className="px-4 py-2.5 text-right tabular-nums text-[#33375c]">{num(c.orders)}</td>
-                  <td className="px-4 py-2.5 text-right font-extrabold tabular-nums text-[#171a33]">{money(c.gmv)}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+
+      <CreatorRows rows={active} />
+
+      {dormant.length > 0 && (
+        <details className="group border-t border-[#eeedf5]">
+          <summary className="cursor-pointer list-none px-4 py-3 text-[12.5px] text-[#6b7093] hover:bg-[#fbfbfd]">
+            <span className="font-semibold text-[#4b45ff] underline decoration-[#4b45ff]/30 underline-offset-2">
+              Show the other {num(dormant.length)}
+            </span>{' '}
+            with no posts or sales this period
+            {dormantRetained > 0 && (
+              <>
+                {' '}&mdash; {num(dormantAffiliate)} affiliate-only, {num(dormantRetained)} on retainer
+              </>
+            )}
+          </summary>
+          <CreatorRows rows={dormant} muted />
+        </details>
+      )}
+    </div>
+  );
+}
+
+function CreatorRows({
+  rows,
+  muted = false,
+}: {
+  rows: NonNullable<BrandClientReportData['granular']>['creators'];
+  muted?: boolean;
+}) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[640px] border-collapse text-[13px]">
+        <thead>
+          <tr className="border-b border-[#eeedf5]">
+            <th className="px-4 py-2.5 text-left text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">Creator</th>
+            <th className="px-4 py-2.5 text-left text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">Agreement</th>
+            <th className="px-4 py-2.5 text-right text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">Posts</th>
+            <th className="px-4 py-2.5 text-right text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">Videos earning</th>
+            <th className="px-4 py-2.5 text-right text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">Orders</th>
+            <th className="px-4 py-2.5 text-right text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">GMV</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((c, i) => {
+            const h = c.handle ? handleOf(c.handle) : handleOf(c.name);
+            return (
+              <tr key={i} className={`border-b border-[#f2f1f8] last:border-b-0 ${muted ? 'opacity-70' : ''}`}>
+                <td className="px-4 py-2.5">
+                  <a
+                    href={`https://www.tiktok.com/@${h}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-semibold text-[#4b45ff] underline decoration-[#4b45ff]/30 underline-offset-2 hover:decoration-[#4b45ff]"
+                  >
+                    @{h}
+                  </a>
+                </td>
+                <td className="px-4 py-2.5 text-[12px] text-[#33375c]">
+                  {c.isAffiliate ? (
+                    <span className="rounded-[5px] bg-[#f0eefb] px-1.5 py-0.5 font-semibold text-[#5b4bb8]">
+                      Affiliate-only
+                    </span>
+                  ) : (
+                    <>
+                      Retainer
+                      {c.quota != null && (
+                        <span className="ml-1.5 tabular-nums text-[#8a8fb0]">
+                          {num(c.postsPublished)}/{num(c.quota)} posts
+                        </span>
+                      )}
+                    </>
+                  )}
+                </td>
+                <td className="px-4 py-2.5 text-right tabular-nums text-[#33375c]">{num(c.postsPublished)}</td>
+                <td className="px-4 py-2.5 text-right tabular-nums text-[#33375c]">{num(c.videosEarning)}</td>
+                <td className="px-4 py-2.5 text-right tabular-nums text-[#33375c]">{num(c.orders)}</td>
+                <td className="px-4 py-2.5 text-right font-extrabold tabular-nums text-[#171a33]">{money(c.gmv)}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }

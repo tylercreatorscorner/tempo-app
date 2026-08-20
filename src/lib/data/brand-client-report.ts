@@ -415,6 +415,45 @@ export async function getBrandClientReportData(
   );
   const granular = granularErr ? undefined : (granularRaw as BrandClientReportData['granular']);
 
+  /**
+   * Corrected counts (migration 153). These OVERRIDE four figures that
+   * get_brand_client_report_agg derives at the wrong grain:
+   *
+   *   signed creators   counted TikTok ACCOUNTS, not people. Lemme: 218 shown
+   *                     for 142 people holding 220 handles — a 54% overstatement
+   *                     of roster size, with the activation rate divided by it.
+   *
+   *   posts published   came from SUM(creator_performance.videos), a creator-grain
+   *                     rollup that undercounts AND does so unevenly. Lemme,
+   *                     week of 2026-08-02: the rollup gave 159 this week and 112
+   *                     prior (▲42%); two independent video-level sources both
+   *                     give 194 and 259 (▼25%). The client was told posting was
+   *                     up 42% in a week it fell 25% — the error inverted the
+   *                     trend, it did not merely shrink it.
+   *
+   * Prior-window values come back too so the deltas move on the same basis.
+   * Correcting only the current side would have manufactured a jump.
+   *
+   * Non-fatal, like the granular block: a failure here leaves the previous
+   * (wrong but rendering) numbers rather than 500ing a client's page.
+   */
+  const { data: countsRaw, error: countsErr } = await supabase.rpc(
+    'get_brand_client_report_counts',
+    {
+      p_data_slugs: brandSlugs,
+      p_roster_slugs: rosterSlugs,
+      p_start: formatDate(startDate),
+      p_end: formatDate(endDate),
+      p_prior_start: formatDate(priorStart),
+      p_prior_end: formatDate(priorEnd),
+    },
+  );
+  const counts = countsErr ? null : (countsRaw as {
+    signedPeople: number; activePeople: number; activePeoplePrior: number;
+    newlyActivePeople: number; rosterPosts: number; rosterPostsPrior: number;
+    storePosts: number; storePostsPrior: number;
+  } | null);
+
   const productCreatorBreakdown = topProductsRaw.slice(0, 5).map(p => ({
     productName: p.name,
     productGmv: p.gmv,
@@ -471,6 +510,26 @@ export async function getBrandClientReportData(
     topVideos: ccTopVideos,
   };
 
+  // Corrected grains (mig 153). Applied AFTER construction so the wrong values
+  // above stay visible in one place next to the right ones, rather than being
+  // silently swapped at each use site.
+  //
+  //   videos / priorVideos  video-grain distinct posts, not SUM(creator_performance.videos)
+  //   signedCreatorCount    PEOPLE, not TikTok accounts
+  //   activeCreatorCount    people who POSTED OR SOLD — the same definition the
+  //                         creator table prints as "N posted or sold this
+  //                         period", so the two cannot disagree
+  if (counts) {
+    creatorsCorner.videos = counts.rosterPosts;
+    creatorsCorner.priorVideos = counts.rosterPostsPrior;
+    creatorsCorner.videoChangePct = pctChange(counts.rosterPosts, counts.rosterPostsPrior);
+    creatorsCorner.signedCreatorCount = counts.signedPeople;
+    creatorsCorner.activeCreatorCount = counts.activePeople;
+    creatorsCorner.priorCreatorCount = counts.activePeoplePrior;
+    creatorsCorner.creatorChangePct = pctChange(counts.activePeople, counts.activePeoplePrior);
+    creatorsCorner.newlyActivatedCount = counts.newlyActivePeople;
+  }
+
   // ── Period label
   const periodLabel = `${startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, ${endDate.getFullYear()}`;
 
@@ -517,6 +576,15 @@ export async function getBrandClientReportData(
     topCreators,
     topVideos,
     topProducts,
+    // Corrected at the point of return so every consumer — page, PDF and the
+    // frozen snapshot — gets the same figure. See `counts` above.
+    ...(counts
+      ? {
+          totalVideos: counts.storePosts,
+          priorTotalVideos: counts.storePostsPrior,
+          videoChangePct: pctChange(counts.storePosts, counts.storePostsPrior),
+        }
+      : {}),
     granular,
     productCreatorBreakdown,
   };

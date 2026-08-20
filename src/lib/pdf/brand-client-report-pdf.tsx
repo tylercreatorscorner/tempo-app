@@ -393,6 +393,9 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
       ]
     : [];
   const vintageMax = Math.max(...vintageRows.map((v) => v.gmv), 1);
+  // Creators who posted or sold. The PDF is linear and cannot collapse a tail,
+  // so it carries the active set and says how many it left out.
+  const activeCreators = gran ? gran.creators.filter((c) => c.gmv > 0 || c.postsPublished > 0) : [];
 
   // ── Agency-page derivations, mirroring the web report exactly so the two
   // artifacts cannot disagree. Every one is guarded: these fields postdate
@@ -660,11 +663,11 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
       )}
 
       {/* ── PAGE 2b: Every creator, in full ───────────────────────────── */}
-      {gran && gran.creators.length > 0 && (
+      {gran && activeCreators.length > 0 && (
         <Page size="LETTER" style={styles.page}>
           <PageHead brandName={data.brandName} periodLabel={data.periodLabel} />
           <View style={styles.section}>
-            <Text style={styles.sectionEyebrow}>EVERY CREATOR WE RUN FOR YOU</Text>
+            <Text style={styles.sectionEyebrow}>THE CREATORS WHO DELIVERED</Text>
             <Text style={styles.sectionTitle}>
               All {fmtNumber(gran.creators.length)} signed creators
             </Text>
@@ -672,6 +675,17 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
               {fmtNumber(gran.roster.affiliateOnly)} are affiliate-only: they take commission and carry
               no post requirement, so no target is shown for them.
             </Text>
+            {/* The PDF lists only creators who posted or sold. On Lemme that is
+                48 of 142 and turns six pages of mostly-blank rows into two.
+                The count dropped is STATED — a silent truncation reads as
+                "this is everyone", and the web report carries the full list. */}
+            {activeCreators.length < gran.creators.length && (
+              <Text style={[styles.gStatNote, { marginBottom: 6 }]}>
+                Showing the {fmtNumber(activeCreators.length)} who posted or sold this period.
+                The remaining {fmtNumber(gran.creators.length - activeCreators.length)} had no
+                activity and are listed in full on the web version of this report.
+              </Text>
+            )}
             <View style={styles.gHead} wrap={false} fixed>
               <Text style={[styles.gHeadCell, { flex: 2.4 }]}>CREATOR</Text>
               <Text style={[styles.gHeadCell, { flex: 1.9 }]}>AGREEMENT</Text>
@@ -680,7 +694,7 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
               <Text style={[styles.gHeadCell, { flex: 0.9, textAlign: 'right' }]}>ORDERS</Text>
               <Text style={[styles.gHeadCell, { flex: 1.2, textAlign: 'right' }]}>GMV</Text>
             </View>
-            {gran.creators.map((c, i) => (
+            {activeCreators.map((c, i) => (
               <View key={(c.handle ?? c.name) + i} style={styles.gRow} wrap={false}>
                 <Text style={[styles.gCell, { flex: 2.4 }]}>
                   @{(c.handle ?? c.name).replace(/^@+/, '')}
