@@ -998,8 +998,8 @@ export async function getCreatorTopContent(
  * in the month — i.e. every video that was ACTIVE, including posts published
  * months ago that are still selling. Measured for Akiek on Dr. Dent, August
  * 2026: getPostsThisMonth returns **268**; the creator published **21**.
- * Against a 30-post requirement the RetainerTracker has therefore been
- * reporting 893% of quota for a creator sitting at 70%.
+ * Against a 30-post requirement the old retainer tracker (deleted in the
+ * 2026-08 profile rebuild) reported 893% of quota for a creator at 70%.
  *
  * Counting on `post_date` gives 21, and SUM(daily_creator_stats.videos) over
  * the same window independently gives 21 — two sources, same answer.

@@ -404,8 +404,8 @@ export async function getWhatsCookingData(
 ): Promise<WhatsCookingData> {
   // Service-role client: the cron schedule runner calls this with NO session
   // (cookie client = anon), and the admin/manager-only RPCs are being revoked
-  // from anon (mig 100). Authz lives in the callers — /api/discord-posts
-  // scope-guards the requester, /api/cron/run-schedules is secret-gated.
+  // from anon (mig 100). Authz lives in the callers: /api/drops scope-guards
+  // the requester, /api/cron/run-schedules is secret-gated.
   const supabase = await createAdminClient();
   const brandUuids = await getBrandUuids(supabase, brandFilter);
 
