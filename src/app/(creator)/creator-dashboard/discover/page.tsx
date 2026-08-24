@@ -20,7 +20,7 @@ export default async function InspirationPage({
   const profile = await loadCreatorPortalProfile(String(session.creatorId), brandCookie);
   if (!profile) redirect('/creator-login');
 
-  const { window, rangeLabel } = resolveCreatorRange(await searchParams);
+  const { window, rangeLabel } = await resolveCreatorRange(await searchParams);
 
   const [videos, myProducts] = await Promise.all([
     getInspirationVideos(profile.currentBrand, window, 48).catch(() => []),

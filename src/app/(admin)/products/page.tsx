@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { requireAdmin } from '@/lib/auth/require-admin';
 import { createClient } from '@/lib/supabase/server';
 import { resolveDateRange } from '@/lib/data/date-utils';
+import { getDataAnchorDate } from '@/lib/data/data-anchor';
 import { ProductsClient } from './products-client';
 
 export const dynamic = 'force-dynamic';
@@ -17,7 +18,6 @@ export default async function ProductsPage({ searchParams }: Props) {
   if (!profile) redirect('/dashboard');
 
   const params = await searchParams;
-  const { startDate, endDate } = resolveDateRange(params.range, params.start, params.end);
 
   // Brand list — respect tenant + RBAC like analytics page does
   const supabase = await createClient();
@@ -30,6 +30,15 @@ export default async function ProductsPage({ searchParams }: Props) {
 
   const selectedBrand = params.brand && brands.includes(params.brand) ? params.brand : null;
 
+  // Rolling presets end at the last day with data, not calendar yesterday.
+  // Scoped to what this page is showing, never per brand inside a total.
+  // See the note on resolveDateRange.
+  const dataThrough = await getDataAnchorDate(selectedBrand ? [selectedBrand] : brands);
+  const { startDate, endDate, lagDays, anchorDate } =
+    resolveDateRange(params.range, params.start, params.end, dataThrough);
+  // Non-null only when the window actually moved; see DateRangePicker.
+  const staleThrough = lagDays > 0 ? anchorDate : null;
+
   return (
     <div className="space-y-6">
       <ProductsClient
@@ -37,6 +46,7 @@ export default async function ProductsPage({ searchParams }: Props) {
         selectedBrand={selectedBrand}
         startDate={startDate}
         endDate={endDate}
+        staleThrough={staleThrough}
       />
     </div>
   );

@@ -29,7 +29,7 @@ export default async function MyBrandsPage({
   const profile = await loadCreatorPortalProfile(String(session.creatorId), brandCookie);
   if (!profile) redirect('/creator-login');
 
-  const { window, rangeLabel } = resolveCreatorRange(await searchParams);
+  const { window, rangeLabel } = await resolveCreatorRange(await searchParams);
 
   const [rows, standings, untapped] = await Promise.all([
     getAllBrandsBreakdown(profile.handles, profile.contracts, window),

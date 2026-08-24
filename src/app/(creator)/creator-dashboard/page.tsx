@@ -34,7 +34,7 @@ export default async function CreatorHomePage({
   if (!profile) redirect('/creator-login');
 
   // Same date system as the admin (presets + custom range), defaulting to 30 days.
-  const { window, rangeLabel } = resolveCreatorRange(await searchParams);
+  const { window, rangeLabel } = await resolveCreatorRange(await searchParams);
 
   const activeContracts = profile.contracts.filter(
     (c) => !profile.currentBrand || c.brandSlug === profile.currentBrand,

@@ -86,11 +86,12 @@ type SortDir = 'asc' | 'desc';
 interface ProductsClientProps {
   brands: string[];
   selectedBrand: string | null;
+  staleThrough?: string | null;
   startDate: string;
   endDate: string;
 }
 
-export function ProductsClient({ brands, selectedBrand, startDate, endDate }: ProductsClientProps) {
+export function ProductsClient({ brands, selectedBrand, startDate, endDate, staleThrough }: ProductsClientProps) {
   const brandMeta = useBrandMeta();
   const [data, setData] = useState<ProductsResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -217,7 +218,7 @@ export function ProductsClient({ brands, selectedBrand, startDate, endDate }: Pr
             . Click any row to see the creators driving it.
           </>
         }
-        actions={<DateRangePicker />}
+        actions={<DateRangePicker staleThrough={staleThrough} />}
       />
 
       {/* Brand pills */}

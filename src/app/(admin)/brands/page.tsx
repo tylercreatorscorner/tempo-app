@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { getBrandSummary } from '@/lib/data/rpc';
 import { resolveDateRange } from '@/lib/data/date-utils';
+import { getDataAnchorDate } from '@/lib/data/data-anchor';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
 import { DateRangePicker } from '@/components/dashboard/date-range-picker';
 import { DollarSign, ShoppingCart, Users, Package } from 'lucide-react';
@@ -16,7 +17,6 @@ interface Props {
 
 export default async function BrandsPage({ searchParams }: Props) {
   const params = await searchParams;
-  const { startDate, endDate } = resolveDateRange(params.range, params.start, params.end);
 
   // Load brands from database (tenant-scoped via RLS)
   const supabase = await createClient();
@@ -36,6 +36,15 @@ export default async function BrandsPage({ searchParams }: Props) {
     name: b.display_name || b.name,
     color: b.color || 'var(--muted-foreground)',
   }));
+
+  // Rolling presets end at the last day with data, not calendar yesterday.
+  // Scoped to what this page is showing, never per brand inside a total.
+  // See the note on resolveDateRange.
+  const dataThrough = await getDataAnchorDate(brands.map(b => b.slug));
+  const { startDate, endDate, lagDays, anchorDate } =
+    resolveDateRange(params.range, params.start, params.end, dataThrough);
+  // Non-null only when the window actually moved; see DateRangePicker.
+  const staleThrough = lagDays > 0 ? anchorDate : null;
 
   // Fetch summaries for each brand
   const summaries = await Promise.all(
@@ -73,7 +82,7 @@ export default async function BrandsPage({ searchParams }: Props) {
         <div className="flex items-center gap-3">
           <BrandsActions />
           <Suspense fallback={null}>
-            <DateRangePicker />
+            <DateRangePicker staleThrough={staleThrough} />
           </Suspense>
         </div>
       </div>

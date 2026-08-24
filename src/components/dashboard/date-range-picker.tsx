@@ -14,7 +14,25 @@ import { cn } from '@/lib/utils';
  * Pulse mockup's `.chip` selector (one small pill, not a wide button bar), and
  * is the shared date control across the admin cockpit.
  */
-export function DateRangePicker({ defaultPreset = 'last7' }: { defaultPreset?: DatePreset } = {}) {
+export function DateRangePicker({
+  defaultPreset = 'last7',
+  staleThrough = null,
+}: {
+  defaultPreset?: DatePreset;
+  /**
+   * Set ONLY when ingest is behind, to the last date that has data. When it is,
+   * rolling presets SHIFT to end there (see resolveDateRange), so the chip has
+   * to say so: a window that moved without telling anyone is the same defect as
+   * a window that never moved.
+   *
+   * ⚠️ Null when the data is current. The caller decides that, not this
+   * component — "is the data behind" depends on today in America/Chicago, and
+   * a `new Date()` here would answer it in the VIEWER's timezone and flicker
+   * across the date line. resolveDateRange returns lagDays and anchorDate for
+   * exactly this.
+   */
+  staleThrough?: string | null;
+} = {}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   // The shell's shared transition, not a local one: this push invalidates every
@@ -71,9 +89,14 @@ export function DateRangePicker({ defaultPreset = 'last7' }: { defaultPreset?: D
     const [y, m, d] = s.split('-');
     return `${parseInt(m)}/${parseInt(d)}/${y.slice(2)}`;
   };
-  const currentLabel = isCustom
+  const baseLabel = isCustom
     ? `${fmtCustom(customStart!)} to ${fmtCustom(customEnd!)}`
     : DATE_PRESETS.find((p) => p.value === current)?.label ?? 'Last 7 Days';
+  // A custom range is honoured exactly as typed and never shifted, so the
+  // "thru" note would be a lie there.
+  const currentLabel = staleThrough && !isCustom
+    ? `${baseLabel} · thru ${fmtCustom(staleThrough)}`
+    : baseLabel;
 
   return (
     <div className="relative" ref={rootRef}>

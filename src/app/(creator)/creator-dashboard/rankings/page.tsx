@@ -21,7 +21,7 @@ export default async function RankingsPage({
   const profile = await loadCreatorPortalProfile(String(session.creatorId), brandCookie);
   if (!profile) redirect('/creator-login');
 
-  const { window, rangeLabel } = resolveCreatorRange(await searchParams);
+  const { window, rangeLabel } = await resolveCreatorRange(await searchParams);
 
   // Rankings need SOME brand context; in All-Brands view fall back to the
   // creator's top-retainer brand (same rule as Home's standing band).

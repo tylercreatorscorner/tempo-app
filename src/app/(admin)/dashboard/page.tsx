@@ -6,6 +6,7 @@ import { format, subDays, differenceInDays } from 'date-fns';
 
 import { getAnalyticsBrandTotals, getAnalyticsLatestDataDate, getAnalyticsBrandDailySeries } from '@/lib/data/rpc';
 import { resolveDateRange } from '@/lib/data/date-utils';
+import { getDataAnchorDate } from '@/lib/data/data-anchor';
 import { fetchHandleDisplayMeta } from '@/lib/data/creator-aggregate';
 import { computeManagedGmv, buildManagedLookup } from '@/lib/data/managed-gmv';
 import { formatCurrency } from '@/lib/utils/format';
@@ -87,11 +88,6 @@ async function fetchViewerName(supabase: SB): Promise<string | null> {
 
 export default async function AdminDashboard({ searchParams }: Props) {
   const params = await searchParams;
-  // start/end are REQUIRED for range=custom — resolveDateRange falls back to
-  // last7 without them ('custom' isn't in DATE_PRESETS), which silently ignored
-  // the user's custom range.
-  const { startDate, endDate, preset } = resolveDateRange(params.range, params.start, params.end);
-
   // ── Tenant + brand context (parallel — these don't depend on each other) ──
   const supabase = await createClient();
   const [reg, activeTenantId, allowedBrands, scope] = await Promise.all([
@@ -146,6 +142,20 @@ export default async function AdminDashboard({ searchParams }: Props) {
   // scoped brands_v2 read above, so umbrella-scoped managers still resolve their
   // child stores. activeBrands is already tenant/allowed-scoped, so this stays safe.
   const BRAND_IDS = activeBrands.map(s => reg.bySlug.get(s)?.id).filter((id): id is string => Boolean(id));
+
+  // start/end are REQUIRED for range=custom — resolveDateRange falls back to
+  // last7 without them ('custom' isn't in DATE_PRESETS), which silently ignored
+  // the user's custom range.
+  // Rolling presets end at the last day with data, not calendar yesterday.
+  // Scoped to what this page is showing, never per brand inside a total.
+  // See the note on resolveDateRange.
+  // ⚠️ Resolved HERE rather than at the top of the function because the anchor
+  // needs activeBrands. Nothing above reads startDate/endDate.
+  const dataThrough = await getDataAnchorDate(activeBrands);
+  const { startDate, endDate, lagDays, anchorDate } =
+    resolveDateRange(params.range, params.start, params.end, dataThrough);
+  // Non-null only when the window actually moved; see DateRangePicker.
+  const staleThrough = lagDays > 0 ? anchorDate : null;
 
   // ── Per-brand stale-data alarm. The aggregate banner below can't catch one
   //    dead brand while others stay fresh — during the Jen incident six brands
@@ -545,7 +555,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <Suspense fallback={null}>
-              <DateRangePicker />
+              <DateRangePicker staleThrough={staleThrough} />
             </Suspense>
             {/* "Data through" live status chip — mirrors the mockup's tinted
                 `.chip.live`; green when fresh, amber when the data is stale. */}

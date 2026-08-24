@@ -117,10 +117,11 @@ function isReviewFilter(v: string | null): v is ReviewFilter {
 const fmtN = (n: number | null) => (n === null ? '—' : formatNumber(n));
 
 export function PostsClient({
-  brands, selectedBrand, startDate, endDate, managedOnly,
+  brands, selectedBrand, startDate, endDate, managedOnly, staleThrough,
 }: {
   brands: string[];
   selectedBrand: string | null;
+  staleThrough?: string | null;
   startDate: string;
   endDate: string;
   managedOnly: boolean;
@@ -400,7 +401,7 @@ export function PostsClient({
                 { value: 'posted', label: 'Posted in range' },
               ]}
             />
-            <DateRangePicker />
+            <DateRangePicker staleThrough={staleThrough} />
           </div>
         }
       />

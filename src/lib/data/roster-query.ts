@@ -15,6 +15,7 @@ import { getBrandRegistry, uuidToSlug, resolveUuids, expandSlugs } from '@/lib/d
 import { getAnalyticsBrandTotals } from '@/lib/data/rpc';
 import type { WorkspaceScope } from '@/lib/auth/workspace-scope';
 import { resolveDateRange } from '@/lib/data/date-utils';
+import { getDataAnchorDate } from '@/lib/data/data-anchor';
 import { computeManagedGmv, buildManagedLookup, sumManagedGmvForBrands, type ManagedGmvResult } from '@/lib/data/managed-gmv';
 
 /**
@@ -371,7 +372,12 @@ export async function runRosterQuery(
   let pEndDate: string | null = null;
   let periodDays = 30;
   if (rangeParam) {
-    const { startDate, endDate } = resolveDateRange(rangeParam, searchParams.get('start'), searchParams.get('end'));
+  // Rolling presets end at the last day with data, not calendar yesterday.
+  // Scoped to what this page is showing, never per brand inside a total.
+  // See the note on resolveDateRange.
+    const dataThrough = await getDataAnchorDate(brand ? [brand] : allowedSlugs);
+    const { startDate, endDate } =
+      resolveDateRange(rangeParam, searchParams.get('start'), searchParams.get('end'), dataThrough);
     pStartDate = startDate;
     pEndDate = endDate;
   } else {

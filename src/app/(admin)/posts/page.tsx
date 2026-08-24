@@ -3,6 +3,7 @@ import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 import { getAllowedBrandsForUser } from '@/lib/data/brands';
 import { createAdminClient } from '@/lib/supabase/server';
 import { resolveDateRange } from '@/lib/data/date-utils';
+import { getDataAnchorDate } from '@/lib/data/data-anchor';
 import { PostsClient } from './posts-client';
 
 export const dynamic = 'force-dynamic';
@@ -19,7 +20,6 @@ export default async function PostsPage({ searchParams }: Props) {
   const allowedBrands = await getAllowedBrandsForUser(); // null = all (owner/admin)
 
   const params = await searchParams;
-  const { startDate, endDate } = resolveDateRange(params.range, params.start, params.end);
 
   // Pull active brands dynamically so the filter pills stay in sync with
   // brands_v2 (no hardcoded list). Umbrella brands are excluded so their
@@ -37,6 +37,15 @@ export default async function PostsPage({ searchParams }: Props) {
     .filter((slug: string) => !allowedBrands || allowedBrands.includes(slug));
 
   const selectedBrand = params.brand && brands.includes(params.brand) ? params.brand : null;
+
+  // Rolling presets end at the last day with data, not calendar yesterday.
+  // Scoped to what this page is showing, never per brand inside a total.
+  // See the note on resolveDateRange.
+  const dataThrough = await getDataAnchorDate(selectedBrand ? [selectedBrand] : brands);
+  const { startDate, endDate, lagDays, anchorDate } =
+    resolveDateRange(params.range, params.start, params.end, dataThrough);
+  // Non-null only when the window actually moved; see DateRangePicker.
+  const staleThrough = lagDays > 0 ? anchorDate : null;
   // Default: ALL creators (owner's call, 2026-07-23 rebuild). ?managed=true
   // opts into the managed-only scope.
   const managedOnly = params.managed === 'true';
@@ -48,6 +57,7 @@ export default async function PostsPage({ searchParams }: Props) {
         selectedBrand={selectedBrand}
         startDate={startDate}
         endDate={endDate}
+        staleThrough={staleThrough}
         managedOnly={managedOnly}
       />
     </div>

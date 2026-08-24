@@ -31,6 +31,7 @@ import { Suspense } from 'react';
 import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
 import { resolveDateRange } from '@/lib/data/date-utils';
+import { getDataAnchorDate } from '@/lib/data/data-anchor';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
 import { getBrandRegistry, brandLabel, brandColor, activeBrandSlugs } from '@/lib/data/brand-registry';
 import { DateRangePicker } from '@/components/dashboard/date-range-picker';
@@ -112,8 +113,16 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
   const scope = await getWorkspaceScope();
   const canViewCost = scope?.canViewCreatorCost ?? false;
 
-  const { startDate, endDate } = resolveDateRange(sp.range, sp.start, sp.end);
   const selectedBrand = sp.brand || null;
+
+  // Rolling presets end at the last day with data, not calendar yesterday.
+  // Scoped to what this page is showing, never per brand inside a total.
+  // See the note on resolveDateRange.
+  const dataThrough = await getDataAnchorDate(
+    selectedBrand ? [selectedBrand] : (profile.brandsWithData.length ? profile.brandsWithData : null));
+  const { startDate, endDate, lagDays, anchorDate } = resolveDateRange(sp.range, sp.start, sp.end, dataThrough);
+  // Non-null only when the window actually moved; see DateRangePicker.
+  const staleThrough = lagDays > 0 ? anchorDate : null;
 
   const reg = await getBrandRegistry();
   const activeSlugs = new Set(activeBrandSlugs(reg));
@@ -336,7 +345,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
               </div>
             )}
             <Suspense fallback={null}>
-              <DateRangePicker />
+              <DateRangePicker staleThrough={staleThrough} />
             </Suspense>
           </div>
         </div>

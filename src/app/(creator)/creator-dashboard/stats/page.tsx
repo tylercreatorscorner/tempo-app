@@ -21,7 +21,7 @@ export default async function PerformancePage({
   const profile = await loadCreatorPortalProfile(String(session.creatorId), brandCookie);
   if (!profile) redirect('/creator-login');
 
-  const { window, rangeLabel } = resolveCreatorRange(await searchParams);
+  const { window, rangeLabel } = await resolveCreatorRange(await searchParams);
 
   const [summary, daily, topVideos] = await Promise.all([
     getCreatorSummary(profile.handles, profile.currentBrand, window).catch(() => null),

@@ -4,6 +4,7 @@ import { Suspense } from 'react';
 import { notFound } from 'next/navigation';
 import { getBrandSummary, getCreatorRankings, getProductSummary, getDailyTrend } from '@/lib/data/rpc';
 import { resolveDateRange } from '@/lib/data/date-utils';
+import { getDataAnchorDate } from '@/lib/data/data-anchor';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
 import { StatCard } from '@/components/dashboard/stat-card';
 import { GmvTrendChart } from '@/components/dashboard/gmv-trend-chart';
@@ -43,7 +44,13 @@ export default async function BrandDetailPage({ params, searchParams }: Props) {
   if (!brand) notFound();
 
   const sp = await searchParams;
-  const { startDate, endDate } = resolveDateRange(sp.range, sp.start, sp.end);
+  // Rolling presets end at the last day with data, not calendar yesterday.
+  // Scoped to what this page is showing, never per brand inside a total.
+  // See the note on resolveDateRange.
+  const dataThrough = await getDataAnchorDate([slug]);
+  const { startDate, endDate, lagDays, anchorDate } = resolveDateRange(sp.range, sp.start, sp.end, dataThrough);
+  // Non-null only when the window actually moved; see DateRangePicker.
+  const staleThrough = lagDays > 0 ? anchorDate : null;
   const color = brand.color ?? 'var(--muted-foreground)';
   const displayName = brand.display_name || brand.name || slug;
 
@@ -126,7 +133,7 @@ export default async function BrandDetailPage({ params, searchParams }: Props) {
           </div>
         </div>
         <Suspense fallback={null}>
-          <DateRangePicker />
+          <DateRangePicker staleThrough={staleThrough} />
         </Suspense>
       </div>
 

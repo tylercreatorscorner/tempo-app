@@ -5,6 +5,7 @@ import { getBrandRegistry, expandSlugs, brandLabel } from '@/lib/data/brand-regi
 import { createClient } from '@/lib/supabase/server';
 import { getActiveTenantId } from '@/lib/auth/platform-admin';
 import { resolveDateRange } from '@/lib/data/date-utils';
+import { getDataAnchorDate } from '@/lib/data/data-anchor';
 import { getAffiliateLeaderboard } from '@/lib/data/affiliate-leaderboard';
 import { DateRangePicker } from '@/components/dashboard/date-range-picker';
 import { AffiliateLeaderboard } from '@/components/affiliates/affiliate-leaderboard';
@@ -19,7 +20,6 @@ export const metadata = { title: 'Top Affiliates — Tempo' };
 
 export default async function AffiliatesPage({ searchParams }: Props) {
   const params = await searchParams;
-  const { startDate, endDate } = resolveDateRange(params.range, params.start, params.end);
 
   // Brand/workspace scope — mirrors the dashboard/retention pages (owner → all,
   // manager → their brands, ?brand= drill-in).
@@ -39,6 +39,15 @@ export default async function AffiliatesPage({ searchParams }: Props) {
   const brandFilter = params.brand && ALL_BRANDS.includes(params.brand) ? params.brand : null;
   const activeRosterBrands = brandFilter ? [brandFilter] : ALL_BRANDS;
   const activeBrands = activeRosterBrands.flatMap((b) => expandSlugs(reg, b)); // data-store slugs
+
+  // Rolling presets end at the last day with data, not calendar yesterday.
+  // Scoped to what this page is showing, never per brand inside a total.
+  // See the note on resolveDateRange.
+  const dataThrough = await getDataAnchorDate(activeBrands);
+  const { startDate, endDate, lagDays, anchorDate } =
+    resolveDateRange(params.range, params.start, params.end, dataThrough);
+  // Non-null only when the window actually moved; see DateRangePicker.
+  const staleThrough = lagDays > 0 ? anchorDate : null;
 
   const result = await getAffiliateLeaderboard(activeBrands, startDate, endDate, 100);
 
@@ -65,7 +74,7 @@ export default async function AffiliatesPage({ searchParams }: Props) {
         }
         actions={
           <Suspense fallback={null}>
-            <DateRangePicker />
+            <DateRangePicker staleThrough={staleThrough} />
           </Suspense>
         }
       />
