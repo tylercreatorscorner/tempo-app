@@ -31,6 +31,7 @@ import {
   getMilestoneData, formatMilestonesDiscord,
   type DropWindow,
 } from '@/lib/data/discord-posts';
+import { DROP_FORMATS, type DropFormatId } from '@/lib/data/drop-formats';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -103,9 +104,28 @@ export async function GET(request: NextRequest) {
 
   const reg = await getBrandRegistry();
   const brandName = brand === 'all' ? 'All Brands' : brandLabel(reg, brand);
+  const fmtDay = (iso: string) =>
+    new Date(iso + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   const rangeLabel = window
-    ? `${window.start} to ${window.end}`
+    ? `${fmtDay(window.start)} to ${fmtDay(window.end)}`
     : period === '30d' ? 'Last 30 days' : 'Last 7 days';
+
+  /**
+   * Card chrome from the shared catalogue. The formats that honour the picker
+   * are labelled with the SELECTED range; the three that run on their own
+   * window carry their own label and are flagged so the board can say so.
+   * Without that flag "Day 19 of 31" inside the Month to Date post reads as a
+   * date bug when the picker says Aug 1 to Aug 18, rather than as the format
+   * doing exactly what it is for.
+   */
+  const meta = (id: DropFormatId) => {
+    const f = DROP_FORMATS.find(x => x.id === id)!;
+    return {
+      id: f.id, label: f.label, what: f.what,
+      growthRanked: f.growthRanked, acceptsWindow: f.acceptsWindow,
+      windowLabel: f.acceptsWindow ? rangeLabel : f.ownWindowLabel!,
+    };
+  };
 
   // Each card settles on its own. Promise.allSettled, not all: one generator
   // failing must not blank the board.
@@ -113,10 +133,8 @@ export async function GET(request: NextRequest) {
     (async (): Promise<DropCard> => {
       const d = await getMoversData(brand, period, window);
       return {
-        id: 'movers', label: 'Biggest Movers',
-        what: 'Ranks by growth, not size. Surfaces climbers.',
-        growthRanked: true, acceptsWindow: true, windowLabel: rangeLabel,
-        text: d.movers.length ? formatMoversDiscord(d, brandName, period) : null,
+        ...meta('movers'),
+        text: d.movers.length ? formatMoversDiscord(d, brandName, period, window) : null,
         mentionMap: mapMentions(d.discordMap),
         qualified: `${d.eligibleCount} of ${d.poolCount} creators cleared the floor`,
         empty: d.movers.length === 0, error: null,
@@ -125,10 +143,8 @@ export async function GET(request: NextRequest) {
     (async (): Promise<DropCard> => {
       const d = await getRookieData(brand, period, window);
       return {
-        id: 'rookies', label: 'Rookies',
-        what: 'First-timers inside their opening weeks.',
-        growthRanked: true, acceptsWindow: true, windowLabel: rangeLabel,
-        text: d.rookies.length ? formatRookieDiscord(d, brandName, period) : null,
+        ...meta('rookies'),
+        text: d.rookies.length ? formatRookieDiscord(d, brandName, period, window) : null,
         mentionMap: mapMentions(d.discordMap),
         qualified: `${d.rookieCount} rookie${d.rookieCount === 1 ? '' : 's'} posted in this window`,
         empty: d.rookies.length === 0, error: null,
@@ -137,9 +153,7 @@ export async function GET(request: NextRequest) {
     (async (): Promise<DropCard> => {
       const d = await getMilestoneData(brand);
       return {
-        id: 'milestones', label: 'Milestones',
-        what: 'Creators crossing a lifetime GMV threshold.',
-        growthRanked: true, acceptsWindow: false, windowLabel: 'Last 14 days',
+        ...meta('milestones'),
         text: d.milestones.length ? formatMilestonesDiscord(d, brandName) : null,
         mentionMap: mapMentions(d.discordMap),
         qualified: null,
@@ -149,9 +163,7 @@ export async function GET(request: NextRequest) {
     (async (): Promise<DropCard> => {
       const d = await getMtdData(brand);
       return {
-        id: 'mtd', label: 'Month to Date',
-        what: 'Standings with rank movement since last month.',
-        growthRanked: true, acceptsWindow: false, windowLabel: 'This calendar month',
+        ...meta('mtd'),
         text: d.leaderboard.length ? formatMtdDiscord(d, brandName) : null,
         mentionMap: mapMentions(d.discordMap),
         qualified: `${d.creatorCount} creators so far this month`,
@@ -161,10 +173,8 @@ export async function GET(request: NextRequest) {
     (async (): Promise<DropCard> => {
       const d = await getWhatsCookingData(brand, period, window);
       return {
-        id: 'whats-cooking', label: "What's Cooking",
-        what: 'Top performing videos of the window.',
-        growthRanked: false, acceptsWindow: true, windowLabel: rangeLabel,
-        text: d.videoCount ? formatWhatsCookingDiscord(d, brandName, period) : null,
+        ...meta('whats-cooking'),
+        text: d.videoCount ? formatWhatsCookingDiscord(d, brandName, period, window) : null,
         mentionMap: mapMentions(d.discordMap),
         qualified: `${d.videoCount} videos, ${d.creatorCount} creators`,
         empty: d.videoCount === 0, error: null,
@@ -173,10 +183,8 @@ export async function GET(request: NextRequest) {
     (async (): Promise<DropCard> => {
       const d = await getWhosCookingData(brand, period, window);
       return {
-        id: 'whos-cooking', label: "Who's Cooking",
-        what: 'Top creators by GMV. The familiar board.',
-        growthRanked: false, acceptsWindow: true, windowLabel: rangeLabel,
-        text: d.creatorCount ? formatWhosCookingDiscord(d, brandName, period, 'highlights') : null,
+        ...meta('whos-cooking'),
+        text: d.creatorCount ? formatWhosCookingDiscord(d, brandName, period, 'highlights', window) : null,
         mentionMap: mapMentions(d.discordMap),
         qualified: `${d.creatorCount} creators, ${d.videoCount} videos`,
         empty: d.creatorCount === 0, error: null,
@@ -185,9 +193,7 @@ export async function GET(request: NextRequest) {
     (async (): Promise<DropCard> => {
       const d = await getDailyDropData(brand);
       return {
-        id: 'daily-drop', label: 'Daily Drop',
-        what: 'Yesterday at a glance.',
-        growthRanked: false, acceptsWindow: false, windowLabel: 'Yesterday only',
+        ...meta('daily-drop'),
         text: formatDailyDropDiscord(d, brandName),
         mentionMap: mapMentions(d.discordMap),
         qualified: null,
@@ -196,15 +202,9 @@ export async function GET(request: NextRequest) {
     })(),
   ]);
 
-  const META: { id: string; label: string; what: string; growthRanked: boolean; acceptsWindow: boolean; windowLabel: string }[] = [
-    { id: 'movers', label: 'Biggest Movers', what: 'Ranks by growth, not size. Surfaces climbers.', growthRanked: true, acceptsWindow: true, windowLabel: rangeLabel },
-    { id: 'rookies', label: 'Rookies', what: 'First-timers inside their opening weeks.', growthRanked: true, acceptsWindow: true, windowLabel: rangeLabel },
-    { id: 'milestones', label: 'Milestones', what: 'Creators crossing a lifetime GMV threshold.', growthRanked: true, acceptsWindow: false, windowLabel: 'Last 14 days' },
-    { id: 'mtd', label: 'Month to Date', what: 'Standings with rank movement since last month.', growthRanked: true, acceptsWindow: false, windowLabel: 'This calendar month' },
-    { id: 'whats-cooking', label: "What's Cooking", what: 'Top performing videos of the window.', growthRanked: false, acceptsWindow: true, windowLabel: rangeLabel },
-    { id: 'whos-cooking', label: "Who's Cooking", what: 'Top creators by GMV. The familiar board.', growthRanked: false, acceptsWindow: true, windowLabel: rangeLabel },
-    { id: 'daily-drop', label: 'Daily Drop', what: 'Yesterday at a glance.', growthRanked: false, acceptsWindow: false, windowLabel: 'Yesterday only' },
-  ];
+  // Recovered by INDEX for a rejected card, so this must stay in the same order
+  // as the array above. Both now come from DROP_FORMATS, which is the point.
+  const META = DROP_FORMATS.map(f => meta(f.id));
 
   const cards: DropCard[] = built.map((r, i) => {
     if (r.status === 'fulfilled') return r.value;

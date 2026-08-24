@@ -397,6 +397,67 @@ function windowToAnchor(w: DropWindow): { today: Date; periodDays: number } {
   return { today, periodDays };
 }
 
+/**
+ * Window copy for the four formats that accept a custom range.
+ *
+ * WARNING: `period` IS NOT THE WINDOW. Every one of these formatters used to
+ * rebuild its own date range from the preset alone:
+ *
+ *     const periodDays = period === '30d' ? 30 : 7;
+ *     periodStart.setDate(today.getDate() - periodDays);
+ *
+ * The route collapses a custom range onto the NEARER preset so the sub-tier
+ * thresholds inside the generators still branch sensibly
+ * (`days >= 20 ? '30d' : '7d'` in /api/drops), which means a custom Aug 1-18
+ * arrives here as '7d'. The data was correct for Aug 1-18 and the header said
+ * "WEEKLY, Aug 13 to Aug 20". Right numbers under a wrong date is worse than
+ * being visibly broken, because it is postable to Discord without anyone
+ * noticing.
+ *
+ * `endDate` is the generator's own last day of data, so it stays the anchor
+ * for the preset path and nothing about preset output changes.
+ */
+function dropWindowLabels(endDate: Date, period: '7d' | '30d', window?: DropWindow) {
+  const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+  if (window) {
+    const start = new Date(window.start + 'T12:00:00Z');
+    const end = new Date(window.end + 'T12:00:00Z');
+    const days = Math.max(1, Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1);
+    const range = `${fmt(start)} to ${fmt(end)}`;
+    return {
+      days,
+      isCustom: true,
+      /** Uppercase banner slot. */
+      headerLabel: range.toUpperCase(),
+      /** Sentence-case edition slot. */
+      editionLabel: range,
+      /** The dated range itself. */
+      rangeLabel: range,
+      totalLabel: `${days}-day total`,
+      /** Reads inside a sentence: "No creator produced <inPhrase>." */
+      inPhrase: `between ${fmt(start)} and ${fmt(end)}`,
+      comparisonLabel: `${range} vs the ${days} days before`,
+    };
+  }
+
+  const days = period === '30d' ? 30 : 7;
+  const start = new Date(endDate);
+  start.setDate(endDate.getDate() - (days - 1));
+  return {
+    days,
+    isCustom: false,
+    headerLabel: period === '30d' ? 'MONTHLY' : 'WEEKLY',
+    editionLabel: period === '30d' ? 'Monthly' : `Week of ${fmt(start)}`,
+    rangeLabel: `${fmt(start)} to ${fmt(endDate)}`,
+    totalLabel: period === '30d' ? '30-day total' : 'Week total',
+    inPhrase: period === '30d' ? 'in the last 30 days' : 'in the last 7 days',
+    comparisonLabel: period === '30d'
+      ? 'last 30 days vs the 30 before'
+      : 'last 7 days vs the 7 before',
+  };
+}
+
 export async function getWhatsCookingData(
   brandFilter: string,
   period: '7d' | '30d',
@@ -1334,9 +1395,15 @@ function getMention(handle: string, discordId: string | null, discordName: strin
  * movers show 0 videos against four figures of GMV, which reads as a bug to
  * anyone looking at it.
  */
-export function formatMoversDiscord(data: MoversData, brandName: string, period: '7d' | '30d'): string {
-  const label = period === '30d' ? 'THIS MONTH' : 'THIS WEEK';
-  const windowLabel = period === '30d' ? 'last 30 days vs the 30 before' : 'last 7 days vs the 7 before';
+export function formatMoversDiscord(
+  data: MoversData,
+  brandName: string,
+  period: '7d' | '30d',
+  window?: DropWindow
+): string {
+  const w = dropWindowLabels(data.endDate, period, window);
+  const label = w.isCustom ? w.headerLabel : period === '30d' ? 'THIS MONTH' : 'THIS WEEK';
+  const windowLabel = w.comparisonLabel;
   const L: string[] = [];
 
   L.push(`# 📈 BIGGEST MOVERS — ${brandName.toUpperCase()} · ${label}`);
@@ -1438,23 +1505,28 @@ export function formatMtdDiscord(data: MtdData, brandName: string): string {
  * their first 6 days is a better story than one doing $1,400 in 29 — and the
  * raw number alone hides that.
  */
-export function formatRookieDiscord(data: RookieData, brandName: string, period: '7d' | '30d'): string {
+export function formatRookieDiscord(
+  data: RookieData,
+  brandName: string,
+  period: '7d' | '30d',
+  window?: DropWindow
+): string {
   const L: string[] = [];
-  const windowLabel = period === '30d' ? 'last 30 days' : 'last 7 days';
+  const w = dropWindowLabels(data.endDate, period, window);
 
   L.push(`# 🌱 ROOKIE WATCH — ${brandName.toUpperCase()}`);
   L.push(`_First-timers. Everyone here posted their very first sale within the last ${data.maxAgeDays} days._`);
   L.push('');
 
   if (data.rookies.length === 0) {
-    L.push(`No new creators produced in the ${windowLabel}. Worth asking why the top of the funnel is quiet.`);
+    L.push(`No new creators produced ${w.inPhrase}. Worth asking why the top of the funnel is quiet.`);
     return L.join('\n');
   }
 
   data.rookies.forEach((r, i) => {
     const mention = getMention(r.handle, r.discord_id, r.discord_name);
     const day = r.daysSinceFirst <= 0 ? 'day 1' : `day ${r.daysSinceFirst}`;
-    L.push(`**${i + 1}.** ${mention} — **${formatCurrency(r.gmv)}** in the ${windowLabel}  ·  ${day}`);
+    L.push(`**${i + 1}.** ${mention} — **${formatCurrency(r.gmv)}** ${w.inPhrase}  ·  ${day}`);
   });
 
   L.push('');
@@ -1508,15 +1580,10 @@ export function formatMilestonesDiscord(data: MilestoneData, brandName: string):
 export function formatWhatsCookingDiscord(
   data: WhatsCookingData,
   brandName: string,
-  period: '7d' | '30d'
+  period: '7d' | '30d',
+  window?: DropWindow
 ): string {
-  const today = data.endDate;
-  const periodDays = period === '30d' ? 30 : 7;
-  const periodStart = new Date(today);
-  periodStart.setDate(today.getDate() - periodDays);
-
-  const headerLabel = period === '30d' ? 'MONTHLY' : 'WEEKLY';
-  const rangeLabel = `${periodStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${today.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+  const { headerLabel, rangeLabel } = dropWindowLabels(data.endDate, period, window);
 
   const formatVideo = (v: VideoEntry, i: number) => {
     const handle = v.tiktok_username.replace('@', '');
@@ -1587,17 +1654,9 @@ function deltaMarker(
   return '(new)';
 }
 
-function whosCookingLabels(data: WhosCookingData, period: '7d' | '30d') {
-  const end = data.endDate;
-  const periodDays = period === '30d' ? 30 : 7;
-  const start = new Date(end);
-  start.setDate(end.getDate() - (periodDays - 1));
-  const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  return {
-    rangeLabel: `${fmt(start)} – ${fmt(end)}`,
-    editionLabel: period === '30d' ? 'Monthly' : `Week of ${fmt(start)}`,
-    totalLabel: period === '30d' ? '30-day total' : 'Week total',
-  };
+function whosCookingLabels(data: WhosCookingData, period: '7d' | '30d', window?: DropWindow) {
+  const { rangeLabel, editionLabel, totalLabel } = dropWindowLabels(data.endDate, period, window);
+  return { rangeLabel, editionLabel, totalLabel };
 }
 
 /** Plain-text handle for Slack posts (no Discord mention markup). */
@@ -1615,9 +1674,10 @@ export function formatWhosCookingDiscord(
   data: WhosCookingData,
   brandName: string,
   period: '7d' | '30d',
-  format: WhosCookingFormat = 'highlights'
+  format: WhosCookingFormat = 'highlights',
+  window?: DropWindow
 ): string {
-  const { rangeLabel, editionLabel, totalLabel } = whosCookingLabels(data, period);
+  const { rangeLabel, editionLabel, totalLabel } = whosCookingLabels(data, period, window);
 
   const boardLine = (c: WhosCookingEntry, i: number) => {
     const handle = c.tiktok_username.replace('@', '');
@@ -1673,9 +1733,10 @@ export function formatWhosCookingSlack(
   data: WhosCookingData,
   brandName: string,
   period: '7d' | '30d',
-  format: WhosCookingFormat = 'highlights'
+  format: WhosCookingFormat = 'highlights',
+  window?: DropWindow
 ): string {
-  const { rangeLabel, editionLabel, totalLabel } = whosCookingLabels(data, period);
+  const { rangeLabel, editionLabel, totalLabel } = whosCookingLabels(data, period, window);
 
   const boardLine = (c: WhosCookingEntry, i: number) => {
     const marker = deltaMarker(i + 1, c, data.priorRanksAvailable);

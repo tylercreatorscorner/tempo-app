@@ -20,7 +20,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertCircle, Check, Clipboard, Loader2, RotateCw, Sparkles } from 'lucide-react';
+import { AlertCircle, Check, Clipboard, Loader2, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
@@ -32,6 +32,7 @@ import { Badge } from '@/components/ui/badge';
 import { SegmentedControl } from '@/components/ui/segmented';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
+import { DROP_FORMATS } from '@/lib/data/drop-formats';
 import { useBrandSelect, BrandListWarning } from '../reporting/use-report-brands';
 import { renderDiscordMarkdown } from '../reporting/message-preview';
 
@@ -185,7 +186,17 @@ export default function DropsPage() {
         <EmptyState
           icon={<Sparkles className="h-8 w-8" />}
           title="Nothing built yet"
-          description="Pick a brand and a window, then build the board. Every format runs at once."
+          description="Pick a brand and a window, then build the board. All seven formats run at once."
+          action={
+            <ul className="grid gap-x-8 gap-y-1.5 text-left sm:grid-cols-2">
+              {DROP_FORMATS.map(f => (
+                <li key={f.id} className="flex items-baseline gap-2 text-xs">
+                  <span className="font-semibold text-foreground">{f.label}</span>
+                  <span className="text-muted-foreground">{f.what}</span>
+                </li>
+              ))}
+            </ul>
+          }
         />
       )}
 
@@ -241,6 +252,9 @@ function DropTile({ card, brand }: { card: DropCard; brand: string }) {
         </div>
         <p className="text-xs text-muted-foreground">{card.what}</p>
         <p className="text-[11px] text-muted-foreground">
+          {!card.acceptsWindow && (
+            <span className="font-semibold text-foreground">Own window: </span>
+          )}
           {card.windowLabel}
           {card.qualified && <> · {card.qualified}</>}
         </p>
