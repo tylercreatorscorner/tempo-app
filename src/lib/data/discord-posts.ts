@@ -1659,11 +1659,6 @@ function whosCookingLabels(data: WhosCookingData, period: '7d' | '30d', window?:
   return { rangeLabel, editionLabel, totalLabel };
 }
 
-/** Plain-text handle for Slack posts (no Discord mention markup). */
-function slackHandle(handle: string): string {
-  return `@${(handle || '').replace('@', '')}`;
-}
-
 function whosCookingMention(data: WhosCookingData, handle: string): string {
   const clean = (handle || '').replace('@', '');
   const d = data.discordMap.get(clean.toLowerCase());
@@ -1723,62 +1718,6 @@ export function formatWhosCookingDiscord(
   if (data.soClose) {
     text += `\n**__⚡ SO CLOSE__**\n`;
     text += `> ${whosCookingMention(data, data.soClose.handle)} is **${formatCurrency(data.soClose.gap)}** from the top 10. One post.\n`;
-  }
-
-  text += footer();
-  return text;
-}
-
-export function formatWhosCookingSlack(
-  data: WhosCookingData,
-  brandName: string,
-  period: '7d' | '30d',
-  format: WhosCookingFormat = 'highlights',
-  window?: DropWindow
-): string {
-  const { rangeLabel, editionLabel, totalLabel } = whosCookingLabels(data, period, window);
-
-  const boardLine = (c: WhosCookingEntry, i: number) => {
-    const marker = deltaMarker(i + 1, c, data.priorRanksAvailable);
-    return `> ${i + 1}. ${slackHandle(c.tiktok_username)} · *${formatCurrency(c.gmv)}*${marker ? `  ${marker}` : ''}\n`;
-  };
-
-  const footer = () => {
-    const countPart = data.creatorCount > 0 ? ` across *${data.creatorCount}* creators` : '';
-    return `\n💰 ${totalLabel}: *${formatCurrency(data.totalGmv)}*${countPart}\n`
-      + `🏆 See where you rank: ${PORTAL_RANKINGS_URL}`;
-  };
-
-  if (format === 'classic') {
-    let text = `👨‍🍳 *WHO'S COOKING · THE BOARD* · ${brandName} · ${editionLabel}\n`;
-    text += `_Top 10 by GMV · ${rangeLabel}_\n\n`;
-    if (data.leaderboard.length === 0) {
-      text += `> No creator activity in this window.\n`;
-    } else {
-      data.leaderboard.slice(0, 10).forEach((c, i) => { text += boardLine(c, i); });
-    }
-    text += footer();
-    return text;
-  }
-
-  let text = `👨‍🍳 *WHO'S COOKING* · ${brandName} · ${editionLabel}\n`;
-  text += `_The highlight reel · ${rangeLabel}_\n\n`;
-
-  text += `*👑 TOP 5*\n`;
-  if (data.leaderboard.length === 0) {
-    text += `> No creator activity in this window.\n`;
-  } else {
-    data.leaderboard.slice(0, 5).forEach((c, i) => { text += boardLine(c, i); });
-  }
-
-  if (data.rookie) {
-    text += `\n*🌱 ROOKIE OF THE WEEK*\n`;
-    text += `> ${slackHandle(data.rookie.handle)} earned *${formatCurrency(data.rookie.gmv)}* in their first 3 weeks\n`;
-  }
-
-  if (data.soClose) {
-    text += `\n*⚡ SO CLOSE*\n`;
-    text += `> ${slackHandle(data.soClose.handle)} is *${formatCurrency(data.soClose.gap)}* from the top 10. One post.\n`;
   }
 
   text += footer();
@@ -1996,101 +1935,6 @@ export function formatDailyDropDiscord(data: DailyDropData, brandName: string): 
   }
 
   msg += `🏆 See where you rank: <${PORTAL_RANKINGS_URL}>\n`;
-  msg += `Let's get it today. 🔥`;
-
-  return msg;
-}
-
-export function formatDailyDropSlack(data: DailyDropData, brandName: string): string {
-  const yesterdayDate = new Date(data.yesterdayDate);
-  const dateFull = yesterdayDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-  const dodChange = dailyDropDodChange(data);
-  const mention = (handle: string) => slackHandle(handle);
-  const bold = (s: string) => `*${s}*`;
-
-  let msg = `📈 *DAILY DROP · ${brandName} · ${dateFull}*\n\n`;
-  msg += `💰 YESTERDAY'S GMV: *${formatCurrency(data.yesterdayGmv)}*${dodChange}\n`;
-
-  const goal = dailyDropGoalNumbers(data);
-  if (goal) {
-    const pacingNote = goal.onPace
-      ? `📈 On pace to hit *${formatCurrency(goal.projectedTotal)}* by month end`
-      : `⚡ Need *${formatCurrency(goal.neededPerDay)}/day* to hit goal`;
-    const goalScope = data.goalBrandCount > 1
-      ? ` (across ${data.goalBrandCount} brands with goals set)`
-      : '';
-    msg += `📊 ${goal.monthName} GOAL: *${formatCurrency(goal.monthlyGoal)}*${goalScope}\n`;
-    msg += `🔥 PROGRESS: ${goal.progressBar} *${goal.progressPercent}%* (${formatCurrency(goal.mtdGmv)})\n`;
-    msg += `${pacingNote}\n`;
-  }
-  msg += `\n`;
-
-  msg += `*👑 TOP 3 CREATORS (Yesterday)*\n`;
-  if (data.topCreators.length === 0) {
-    msg += `> No creator data available\n`;
-  } else {
-    data.topCreators.slice(0, 3).forEach((c, i) => {
-      msg += `> ${i + 1}. ${mention(c.tiktok_username || '')} · *${formatCurrency(c.gmv)}*\n`;
-    });
-  }
-
-  if (data.extras?.climber) {
-    msg += `\n*🚀 BIGGEST CLIMBER*\n`;
-    msg += dailyDropClimberLine(data.extras.climber, mention, bold) + '\n';
-  }
-  msg += `\n`;
-
-  const videoAsOfStr = data.videoAsOf.toISOString().slice(0, 10);
-  const yesterdayStr2 = yesterdayDate.toISOString().slice(0, 10);
-  const videoStaleLabel = videoAsOfStr !== yesterdayStr2
-    ? ` (as of ${data.videoAsOf.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})`
-    : '';
-  msg += `*🎬 TOP 5 VIDEOS (Yesterday)*${videoStaleLabel}\n`;
-  if (data.topVideos.length === 0) {
-    msg += `> No video data available\n`;
-  } else {
-    data.topVideos.slice(0, 5).forEach((v, i) => {
-      const handle = (v.tiktok_username || '').replace('@', '');
-      const url = v.video_url || getTikTokUrl(v.tiktok_username, v.video_id);
-      // Slack link syntax: <url|label>
-      const who = url ? `<${url}|@${handle}>` : `@${handle}`;
-      msg += `> ${i + 1}. ${who} · *${formatCurrency(v.gmv)}*\n`;
-    });
-  }
-  msg += `\n`;
-
-  const productAsOfStr = data.productAsOf.toISOString().slice(0, 10);
-  const productStaleLabel = productAsOfStr !== yesterdayStr2
-    ? ` (as of ${data.productAsOf.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})`
-    : '';
-  msg += `*📦 TOP 5 PRODUCTS (Yesterday)*${productStaleLabel}\n`;
-  if (data.topProducts.length === 0) {
-    msg += `> No product data available\n`;
-  } else {
-    data.topProducts.slice(0, 5).forEach((p, i) => {
-      msg += `> ${i + 1}. ${p.name} · *${formatCurrency(p.gmv)}*\n`;
-    });
-  }
-  msg += `\n`;
-
-  msg += `*👀 ONE TO WATCH*\n`;
-  if (data.oneToWatch) {
-    const handle = (data.oneToWatch.tiktok_username || '').replace('@', '');
-    const url = data.oneToWatch.video_url
-      || getTikTokUrl(data.oneToWatch.tiktok_username, data.oneToWatch.video_id);
-    msg += `> @${handle} · ${url || 'Link unavailable'}\n`;
-    msg += `> Posted ${data.oneToWatch.hoursAgo} hours ago. Already at *${formatCurrency(data.oneToWatch.gmv)}* and climbing.\n`;
-  } else {
-    msg += `> No trending videos to highlight today.\n`;
-  }
-
-  const milestones = dailyDropMilestoneLines(data.extras, mention, bold);
-  if (milestones.length > 0) {
-    msg += `\n*🎉 MILESTONES*\n`;
-    msg += milestones.join('\n') + '\n';
-  }
-
-  msg += `\n🏆 See where you rank: ${PORTAL_RANKINGS_URL}\n`;
   msg += `Let's get it today. 🔥`;
 
   return msg;
