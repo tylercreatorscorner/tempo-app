@@ -91,6 +91,18 @@ export interface ManagedLookup {
   /** Every distinct normalized managed handle — the SQL pre-filter's argument.
    *  ~1,290 today vs 285k distinct handles in creator_performance. */
   handles: string[];
+  /**
+   * `${handle}|||${store}` -> the date they left the roster, for pairs whose
+   * roster rows are ALL archived. Absent means still on the roster.
+   *
+   * ⚠️ This is what makes managed GMV stable over time. The old rule dropped
+   * archived creators outright, evaluated as of NOW, so a past month's managed
+   * GMV shrank every time someone was archived afterwards: June read
+   * $2,628,009.51 against a true $2,707,865.53 on 2026-08-24, $79,856 erased
+   * purely because those people later left. Membership belongs to the DAY the
+   * GMV was earned, never to today.
+   */
+  archivedOn: Map<string, string>;
 }
 
 export async function buildManagedLookup(
@@ -116,20 +128,25 @@ export async function buildManagedLookup(
   const storeSlugs = activeRows.map((b) => b.slug);
   const labelByStore = new Map(activeRows.map((b) => [b.slug, b.name] as const));
 
-  if (storeSlugs.length === 0) return { storeSlugs, labelByStore, managedLookup: new Set(), handles: [] };
+  if (storeSlugs.length === 0) return { storeSlugs, labelByStore, managedLookup: new Set(), handles: [], archivedOn: new Map() };
 
   type ManagedRowLite = {
     brand: string | null;
     creator_id: string | null;
+    archived_at: string | null;
     account_1: string | null; account_2: string | null; account_3: string | null;
     account_4: string | null; account_5: string | null;
   };
   // Paged past the 1000-row cap so no managed creator is silently dropped.
+  //
+  // ⚠️ Archived creators are FETCHED, not filtered out. `.is('archived_at',
+  // null)` here was a now-based filter applied to historical windows, so
+  // archiving someone rewrote every past month they had ever earned in. They
+  // are kept and bounded by a per-(handle, store) cutoff instead.
   const managedRows = await fetchAllRows<ManagedRowLite>(() =>
     supabase
       .from('managed_creators')
-      .select('brand, creator_id, account_1, account_2, account_3, account_4, account_5')
-      .is('archived_at', null)
+      .select('brand, creator_id, archived_at, account_1, account_2, account_3, account_4, account_5')
       .order('id', { ascending: true }), 'managed-gmv');
 
   // Canonical handles per creator_id from tiktok_accounts, with the legacy
@@ -170,6 +187,11 @@ export async function buildManagedLookup(
   // so an umbrella-managed creator counts toward every store it drives GMV on.
   const managedLookup = new Set<string>();
   const allHandles = new Set<string>();
+  // A pair is OPEN when any roster row for it is unarchived. Only when every
+  // row is archived does a cutoff apply, and then it is the LATEST of them, so
+  // a creator who left and was re-signed is not cut at the first departure.
+  const openPairs = new Set<string>();
+  const archivedOn = new Map<string, string>();
   for (const m of managedRows) {
     if (!m.brand) continue;
     const dataBrands = expandSlugs(reg, m.brand);
@@ -180,13 +202,25 @@ export async function buildManagedLookup(
         : [m.account_1, m.account_2, m.account_3, m.account_4, m.account_5]
             .map(normalizeHandle)
             .filter(Boolean);
+    const leftOn = m.archived_at ? m.archived_at.slice(0, 10) : null;
     for (const handle of handles) {
       allHandles.add(handle);
-      for (const dataBrand of dataBrands) managedLookup.add(`${handle}|||${dataBrand}`);
+      for (const dataBrand of dataBrands) {
+        const key = `${handle}|||${dataBrand}`;
+        managedLookup.add(key);
+        if (leftOn === null) {
+          openPairs.add(key);
+        } else {
+          const prev = archivedOn.get(key);
+          if (!prev || leftOn > prev) archivedOn.set(key, leftOn);
+        }
+      }
     }
   }
+  // An open row anywhere wins: still on the roster, so no cutoff at all.
+  for (const key of openPairs) archivedOn.delete(key);
 
-  return { storeSlugs, labelByStore, managedLookup, handles: Array.from(allHandles) };
+  return { storeSlugs, labelByStore, managedLookup, handles: Array.from(allHandles), archivedOn };
 }
 
 /**
@@ -211,7 +245,7 @@ export async function computeManagedGmv(
   lookupArg?: ManagedLookup,
 ): Promise<ManagedGmvResult> {
   const supabase = await createAdminClient();
-  const { storeSlugs, labelByStore, managedLookup, handles } =
+  const { storeSlugs, labelByStore, managedLookup, handles, archivedOn } =
     lookupArg ?? (await buildManagedLookup(brandFilterSlugs, regArg));
 
   const empty: ManagedGmvResult = {
@@ -244,11 +278,30 @@ export async function computeManagedGmv(
   // expansion and the account_1..5 fallback. Porting that rule into SQL would
   // create a second definition of managed — exactly what this module exists to
   // prevent. Verified per brand against the old 28-call path: ties to the penny.
+  // Cutoffs travel as three positionally-aligned arrays. They are a PRE-FILTER
+  // like p_handles: the authority on "managed" stays the (handle|||store) check
+  // below, which carries the umbrella expansion and the account fallback.
+  const cutHandles: string[] = [];
+  const cutBrands: string[] = [];
+  const cutDates: string[] = [];
+  for (const [key, day] of archivedOn) {
+    const sep = key.indexOf('|||');
+    const h = key.slice(0, sep);
+    const b = key.slice(sep + 3);
+    if (!storeSlugs.includes(b)) continue;
+    cutHandles.push(h);
+    cutBrands.push(b);
+    cutDates.push(day);
+  }
+
   const { data: perfRaw, error: perfErr } = await supabase.rpc('get_managed_creator_brand_gmv', {
     p_start_date: startDate,
     p_end_date: endDate,
     p_brands: storeSlugs,
     p_handles: handles,
+    p_cut_handles: cutHandles,
+    p_cut_brands: cutBrands,
+    p_cut_dates: cutDates,
   });
   // THROW, don't swallow. A failed read here silently drops GMV and renders a
   // smaller-but-plausible total — an invisible wrong number on the metric the
