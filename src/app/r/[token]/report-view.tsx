@@ -428,7 +428,11 @@ function CreatorRows({
                   </a>
                 </td>
                 <td className="px-4 py-2.5 text-[12px] text-[#33375c]">
-                  {c.isAffiliate ? (
+                  {c.departed ? (
+                    <span className="rounded-[5px] bg-[#f2f3f7] px-1.5 py-0.5 font-semibold text-[#6b7191]">
+                      Left this period
+                    </span>
+                  ) : c.isAffiliate ? (
                     <span className="rounded-[5px] bg-[#f0eefb] px-1.5 py-0.5 font-semibold text-[#5b4bb8]">
                       Affiliate-only
                     </span>

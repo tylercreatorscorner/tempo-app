@@ -700,11 +700,13 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
                   @{(c.handle ?? c.name).replace(/^@+/, '')}
                 </Text>
                 <Text style={[c.isAffiliate ? styles.gTag : styles.gCellMuted, { flex: 1.9 }]}>
-                  {c.isAffiliate
-                    ? 'Affiliate-only'
-                    : c.quota != null
-                      ? `Retainer · ${fmtNumber(c.postsPublished)}/${fmtNumber(c.quota)} posts`
-                      : 'Retainer'}
+                  {c.departed
+                    ? 'Left this period'
+                    : c.isAffiliate
+                      ? 'Affiliate-only'
+                      : c.quota != null
+                        ? `Retainer · ${fmtNumber(c.postsPublished)}/${fmtNumber(c.quota)} posts`
+                        : 'Retainer'}
                 </Text>
                 <Text style={[styles.gCellMuted, { flex: 0.8, textAlign: 'right' }]}>{fmtNumber(c.postsPublished)}</Text>
                 <Text style={[styles.gCellMuted, { flex: 1.0, textAlign: 'right' }]}>{fmtNumber(c.videosEarning)}</Text>

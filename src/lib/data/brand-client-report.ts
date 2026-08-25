@@ -156,6 +156,10 @@ export interface BrandClientReportData {
       isAffiliate: boolean;
       retainer: number;
       quota: number | null;
+      /** Left the roster DURING the window. Their GMV is real and is kept, but
+       *  retainer and quota read 0/null because they are no longer a standing
+       *  cost. Optional: snapshots frozen before migration 157 lack it. */
+      departed?: boolean;
       postsPublished: number;
       videosEarning: number;
       gmv: number;
@@ -344,13 +348,6 @@ export async function getBrandClientReportData(
   const priorActiveCreators = num(pt.active_creators);
   const priorTotalVideos = num(pt.videos);
 
-  const managedGmv = num(m.gmv);
-  const managedOrders = num(m.orders);
-  const managedCreatorCount = num(m.creators);
-  const organicGmv = num(o.gmv);
-  const organicOrders = num(o.orders);
-  const organicCreatorCount = num(o.creators);
-  const managedPct = totalGmv > 0 ? (managedGmv / totalGmv) * 100 : 0;
 
   // ── Daily performance + day-of-week (derived from the SQL daily series)
   const dailyArray = ((agg.daily ?? []) as Array<{ d: string; gmv: number; orders: number; creators: number }>)
@@ -409,7 +406,7 @@ export async function getBrandClientReportData(
   // they cost max(granular, counts). Measured on kitsch, the heaviest brand:
   // 0.5s + 4.8s sequential becomes 4.8s. That mattered — /api/client-reports/
   // preview 504'd at 60s on 2026-08-20 with this chain running end to end.
-  const [granularRes, countsRes] = await Promise.all([
+  const [granularRes, countsRes, splitRes] = await Promise.all([
     supabase.rpc('get_brand_client_report_granular', {
       p_data_slugs: brandSlugs,
       p_roster_slugs: rosterSlugs,
@@ -424,11 +421,65 @@ export async function getBrandClientReportData(
       p_prior_start: formatDate(priorStart),
       p_prior_end: formatDate(priorEnd),
     }),
+    supabase.rpc('get_brand_client_report_managed_split', {
+      p_data_slugs: brandSlugs,
+      p_roster_slugs: rosterSlugs,
+      p_start: formatDate(startDate),
+      p_end: formatDate(endDate),
+      p_prior_start: formatDate(priorStart),
+      p_prior_end: formatDate(priorEnd),
+    }),
   ]);
 
   const granular = granularRes.error
     ? undefined
     : (granularRes.data as BrandClientReportData['granular']);
+
+  /**
+   * Time-aware managed/organic split (migration 157). OVERRIDES the managed and
+   * organic blocks from get_brand_client_report_agg, whose `mh` CTE is a flat
+   * handle set off managed_brand_handles with NO archived filter — so a creator
+   * who left the roster a year ago still counted as managed, forever.
+   *
+   * Measured on Keeps 2026-08-15..21: the report said roster GMV $2,493.50 and
+   * the dashboard said $1,920.81 on the same total ($7,026.34). Neither rule
+   * was right. The report counted everyone who had EVER been on the roster; the
+   * dashboard counted only who is on it TODAY, which retroactively rewrites
+   * history every time someone is archived.
+   *
+   * The split evaluates membership on each ROW's date, so 2026-08-01..21 across
+   * every brand moves from $1,535,917.70 (report) / $1,513,873.87 (dashboard)
+   * to $1,516,147.26.
+   *
+   * Non-fatal by the same rule as `counts`: a failure leaves the agg's numbers
+   * rather than 500ing a page a client is opening.
+   */
+  const split = splitRes.error ? null : (splitRes.data as {
+    managed: { gmv: number; orders: number; commission: number; creators: number };
+    organic: { gmv: number; orders: number; creators: number };
+    managed_prior: { gmv: number; orders: number; creators: number };
+  } | null);
+  if (splitRes.error) {
+    console.error('[brand-client-report] managed split failed, falling back to agg:', splitRes.error.message);
+  }
+
+  // Managed and organic BOTH come from the split, or BOTH from the agg. Taking
+  // one from each would break the identity managed + organic = total, which is
+  // the only cheap check a reader has that the split is honest.
+  const sm = split?.managed;
+  const so = split?.organic;
+  const sp = split?.managed_prior;
+  const managedGmv          = sm ? num(sm.gmv)      : num(m.gmv);
+  const managedOrders       = sm ? num(sm.orders)   : num(m.orders);
+  const managedCreatorCount = sm ? num(sm.creators) : num(m.creators);
+  const managedCommission   = sm ? num(sm.commission) : num(m.commission);
+  const organicGmv          = so ? num(so.gmv)      : num(o.gmv);
+  const organicOrders       = so ? num(so.orders)   : num(o.orders);
+  const organicCreatorCount = so ? num(so.creators) : num(o.creators);
+  const priorManagedGmv      = sp ? num(sp.gmv)      : num(mp.gmv);
+  const priorManagedOrders   = sp ? num(sp.orders)   : num(mp.orders);
+  const priorManagedCreators = sp ? num(sp.creators) : num(mp.creators);
+  const managedPct = totalGmv > 0 ? (managedGmv / totalGmv) * 100 : 0;
 
   /**
    * Corrected counts (migration 153). These OVERRIDE four figures that
@@ -471,7 +522,7 @@ export async function getBrandClientReportData(
     : null;
 
   // ── Creators Corner (managed) contribution detail
-  const ccCommission = num(m.commission);
+  const ccCommission = managedCommission;
   const ccTopCreators = ((agg.managed_top_creators ?? []) as AggLeaderCreator[]).map(c => ({
     name: c.name, gmv: num(c.gmv), orders: num(c.orders), videos: num(c.videos),
     pctOfManaged: managedGmv > 0 ? (num(c.gmv) / managedGmv) * 100 : 0,
@@ -485,14 +536,14 @@ export async function getBrandClientReportData(
     videos: num(m.videos),
     commission: ccCommission > 0 ? ccCommission : managedGmv * 0.20,
     pctOfStoreGmv: managedPct,
-    priorGmv: num(mp.gmv),
-    priorOrders: num(mp.orders),
-    priorCreatorCount: num(mp.creators),
+    priorGmv: priorManagedGmv,
+    priorOrders: priorManagedOrders,
+    priorCreatorCount: priorManagedCreators,
     priorVideos: num(mp.videos),
-    gmvChangePct: pctChange(managedGmv, num(mp.gmv)),
-    orderChangePct: pctChange(managedOrders, num(mp.orders)),
+    gmvChangePct: pctChange(managedGmv, priorManagedGmv),
+    orderChangePct: pctChange(managedOrders, priorManagedOrders),
     videoChangePct: pctChange(num(m.videos), num(mp.videos)),
-    creatorChangePct: pctChange(managedCreatorCount, num(mp.creators)),
+    creatorChangePct: pctChange(managedCreatorCount, priorManagedCreators),
     managedAov: managedOrders > 0 ? managedGmv / managedOrders : 0,
     organicAov: organicOrders > 0 ? organicGmv / organicOrders : 0,
     managedGmvPerCreator: managedCreatorCount > 0 ? managedGmv / managedCreatorCount : 0,
