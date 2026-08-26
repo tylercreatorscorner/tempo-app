@@ -1,0 +1,53 @@
+-- 160_cron_collision_nightly_rollups.sql
+--
+-- Both nightly rollup jobs were scheduled on a minute their own 20-minute
+-- counterpart also fires, so they collided every single night.
+--
+-- ── The collision ───────────────────────────────────────────────────────────
+--
+--     refresh-roster-summaries          */20 * * * *   -> :00 :20 :40
+--     refresh-roster-summaries-nightly    20 4 * * *   -> 04:20   COLLIDES
+--
+--     refresh-brand-daily-stats       5,25,45 * * * *  -> :05 :25 :45
+--     refresh-brand-daily-stats-nightly  25 4 * * *    -> 04:25   COLLIDES
+--
+-- Both refresh functions are DELETE-then-INSERT over a date range. Run two of
+-- them concurrently over overlapping ranges and the first transaction commits
+-- its rows, then the second's INSERT hits rows it never deleted itself:
+--
+--     ERROR: duplicate key value violates unique constraint
+--            "roster_creator_daily_pkey"
+--     DETAIL: Key (handle, brand_slug, stat_date)=
+--            (________lainez1, physicians_choice, 2026-08-16) already exists.
+--
+-- Measured from cron.job_run_details on 2026-08-26, trailing 8 days:
+--
+--     refresh-roster-summaries-nightly     0 succeeded, 8 failed  (every night)
+--     refresh-brand-daily-stats-nightly    0 succeeded, 7 failed  (every night)
+--
+-- The nightly roster job had NEVER completed in the observed window. The wider
+-- 40-day pass simply never happened, which is a large part of why backfilled
+-- days were still missing from the rollups — see
+-- [[project_daily_creator_stats_inflated]] for the sibling case.
+--
+-- Moved each nightly to a minute its frequent counterpart never uses. No
+-- function changes; the fix is entirely in the schedule.
+--
+-- ── ⚠️ SEPARATE, STILL OPEN: the 20-minute roster job times out ─────────────
+--
+-- refresh-roster-summaries fails on statement timeout at exactly 120.0s
+-- (the database default statement_timeout, which pg_cron inherits) on a large
+-- share of runs — 28 of 72 on 2026-08-25, 25 of 72 on 08-24, and never zero on
+-- any of the 8 days examined. It dies inside
+-- refresh_roster_creator_posts_range, whose INSERT unions `videos` and
+-- `video_performance` over the range.
+--
+-- That is a capacity problem, not a scheduling one, and it is NOT fixed here.
+-- Widening the nightly window would make it worse. It needs either an index
+-- that makes the posts union cheap, a narrower default, or the range split
+-- into chunks inside the function. Do not simply raise the timeout: a rollup
+-- that takes longer than its own 20-minute interval will start overlapping
+-- ITSELF, which reproduces exactly the duplicate-key collision fixed above.
+
+select cron.alter_job(job_id => 4, schedule => '12 4 * * *');  -- brand-daily-stats-nightly, was 25
+select cron.alter_job(job_id => 2, schedule => '8 4 * * *');   -- roster-summaries-nightly,  was 20
