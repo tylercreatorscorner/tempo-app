@@ -38,6 +38,7 @@ interface ClientReportRow {
   createdBy: string | null;
   viewedAt: string | null;
   revokedAt: string | null;
+  refreshedAt: string | null;
 }
 
 interface ReportLogRow {
@@ -151,6 +152,31 @@ export function SentFeed({ refreshKey }: { refreshKey: number }) {
     }
   };
 
+  /**
+   * Rebuild an existing report's numbers IN PLACE, keeping its token.
+   *
+   * Generate mints a NEW link every time, so the link already sent to a client
+   * keeps its original frozen numbers forever — which is what "it didn't
+   * regenerate" actually was. Refresh is the action that updates THAT link.
+   */
+  const [refreshingId, setRefreshingId] = useState<string | null>(null);
+  const handleRefresh = async (r: ClientReportRow) => {
+    setRefreshingId(r.id);
+    setActionError(null);
+    try {
+      const res = await fetch(`/api/client-reports/${r.id}/refresh`, { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      // load() takes a cancellation predicate; this call is not racing a
+      // component unmount the way the mount effect is, so it never cancels.
+      await load(() => false);
+    } catch (err) {
+      setActionError(`Couldn't refresh that report: ${err instanceof Error ? err.message : 'request failed'}`);
+    } finally {
+      setRefreshingId(null);
+    }
+  };
+
   const handleRevokeConfirmed = async () => {
     if (!confirmRevoke) return;
     setRevoking(true);
@@ -251,6 +277,8 @@ export function SentFeed({ refreshKey }: { refreshKey: number }) {
                       copied={copiedId === item.id}
                       onCopyLink={copyLink}
                       onRevoke={setConfirmRevoke}
+                      onRefresh={handleRefresh}
+                      refreshing={refreshingId === item.id}
                     />
                   ))}
                 </TBody>
@@ -282,7 +310,7 @@ function feedBrandLabel(item: FeedItem, label: (slug: string) => string): string
 
 // ── Row ─────────────────────────────────────────────────────────────
 function FeedRow({
-  item, brandLabel, brandColor, copied, onCopyLink, onRevoke,
+  item, brandLabel, brandColor, copied, onCopyLink, onRevoke, onRefresh, refreshing,
 }: {
   item: FeedItem;
   brandLabel: string;
@@ -290,6 +318,8 @@ function FeedRow({
   copied: boolean;
   onCopyLink: (r: ClientReportRow) => void;
   onRevoke: (r: ClientReportRow) => void;
+  onRefresh: (r: ClientReportRow) => void;
+  refreshing: boolean;
 }) {
   return (
     <TR className="hover:bg-muted/60">
@@ -334,6 +364,18 @@ function FeedRow({
               {copied ? <Check className="h-3.5 w-3.5" /> : <Clipboard className="h-3.5 w-3.5" />}
               {copied ? 'Copied' : 'Copy link'}
             </button>
+            {!item.revokedAt && (
+              <button
+                type="button"
+                onClick={() => onRefresh(item)}
+                disabled={refreshing}
+                title="Rebuild this report's numbers, keeping the same link"
+                className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-60"
+              >
+                <RotateCw className={cn('h-3.5 w-3.5', refreshing && 'animate-spin')} />
+                {refreshing ? 'Refreshing' : 'Refresh'}
+              </button>
+            )}
             {!item.revokedAt && (
               <button
                 type="button"
