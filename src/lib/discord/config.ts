@@ -53,16 +53,9 @@ const GUILD_MAP: Record<string, GuildConfig> = {
     channels: {},
     permissions: { alerts: 'admin' },
   },
-  // Toplux Nutrition Discord server
-  '1452562452733759531': {
-    brandSlug: 'toplux',
-    displayName: 'Toplux',
-    color: '#FF9800',
-    allowedChannels: [],
-    adminRoles: [],
-    channels: {},
-    permissions: { alerts: 'admin' },
-  },
+  // Toplux Nutrition Discord server — brand removed from the system
+  // 2026-08-26 (migration 161). Guild mapping dropped so the bot resolves no
+  // brand there rather than one that does not exist.
   // Cata-Kor Discord server
   '1166776019655602236': {
     brandSlug: 'catakor',

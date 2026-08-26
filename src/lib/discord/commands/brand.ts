@@ -18,7 +18,6 @@ const command: TempoCommand = {
           { name: 'JiYu', value: 'jiyu' },
           { name: 'Catakor', value: 'catakor' },
           { name: "Physician's Choice", value: 'physicians_choice' },
-          { name: 'Toplux', value: 'toplux' },
         ),
     ),
 

@@ -98,7 +98,10 @@ const BRAND_MAP: Record<string, string> = {
   'leefarnutritionus':    'leefar_nutrition_us',
   'leefar':              'leefar_nutrition',
   'lemme':               'lemme',
-  'toplux':              'toplux',
+  // 'toplux' removed 2026-08-26 — the brand was deleted from the system
+  // entirely (see migration 161 / schema toplux_archive). Leaving the mapping
+  // would let a stray file route to a slug with no brands_v2 row and quietly
+  // recreate orphan rows.
   'cosrx':               'cosrx',
 };
 

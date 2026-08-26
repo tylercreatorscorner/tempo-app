@@ -1,0 +1,81 @@
+-- 161_archive_brands_and_remove_toplux.sql
+--
+-- Two operations, applied to production 2026-08-26.
+--
+-- ── 1. Archived nine brands Creator's Corner no longer works with ───────────
+--
+--     earth_breeze, taily, deos, evil_goods, goli, kalshi,
+--     microingredients, nathan_and_sons, rosabella
+--
+-- Neurogum was archived in the same pass and then UN-archived on request; it
+-- stays active.
+--
+-- Seven of the nine were empty registry rows — no performance data, no roster,
+-- no reports ever generated. earth_breeze was live: last upload 2026-08-23,
+-- $378,040 lifetime GMV, $269,584 in the trailing 60 days, 0 active roster.
+--
+-- ⚠️ Archiving is not cosmetic. `is_archived = false` is the filter behind
+-- every brand picker AND behind buildManagedLookup, so an archived brand's GMV
+-- leaves agency-wide totals for HISTORICAL windows too, not just going
+-- forward. Archiving earth_breeze removes $269,584 of trailing-60-day GMV from
+-- the Dashboard. That is the intended outcome for an ex-client, but it means
+-- an agency total can shrink for a reason that is not performance.
+--
+-- It also removes the brand from /upload, which is how the uploads stop.
+--
+-- ── 2. Toplux REMOVED ENTIRELY ─────────────────────────────────────────────
+--
+-- A hard delete, following the yerba_magic precedent (2026-07-03): copy every
+-- row to a parallel schema first, then delete as a separate verifiable step.
+-- 358 rows now live in schema `toplux_archive` across 22 tables.
+--
+-- Toplux carried NO performance data, NO invoices, NO earnings_ledger rows and
+-- NO client_reports — roster and configuration only, so nothing financial was
+-- destroyed. It did carry 49 active managed_creators holding $33,400/month of
+-- recorded retainers against a brand archived long ago.
+--
+-- ⚠️ THE LESSON: a brand-column survey is NOT the footprint. Counting every
+-- public table with a brand / brand_slug / brand_id column found 19 tables.
+-- The first delete attempt then failed on
+--
+--     discord_match_queue_matched_creator_id_fkey
+--
+-- because rows reach a brand INDIRECTLY through managed_creators.id. Following
+-- the foreign keys found four more tables — creator_triage (39 rows),
+-- creator_data_flags (28), discord_match_queue (4), roster_audit_log (1).
+--
+-- Nine of those dependents are ON DELETE CASCADE. Had the delete run without
+-- them archived, 68 rows would have been destroyed SILENTLY with no record.
+-- The failure was the safety net working: the whole DO block is one
+-- transaction, so nothing was deleted and nothing had to be undone.
+--
+-- Deletion order is therefore: creator-id dependents, then brand-scoped rows,
+-- then uuid-scoped rows, then brands_v2 LAST — the eleven remaining NO ACTION
+-- foreign keys on brands_v2 mean a missed table fails loudly instead of
+-- leaving a dangling reference.
+--
+-- Verified after: 0 rows under every toplux identifier, 0 orphaned triage or
+-- flag rows, 358 rows preserved in toplux_archive, 20 active brands.
+--
+-- To restore: the archive schema holds full row copies. Restoring
+-- managed_creators would need id sequences checked, since ids were not
+-- reserved.
+
+update public.brands_v2
+set is_archived = true
+where slug in ('earth_breeze','taily','deos','evil_goods',
+               'goli','kalshi','microingredients','nathan_and_sons','rosabella');
+
+-- Toplux removal was executed as a scripted DO block against production rather
+-- than replayed here: it deletes by looking up live managed_creators ids, so
+-- re-running it after the fact is a no-op at best and misleading at worst.
+-- The authoritative record of what was removed is schema `toplux_archive`.
+--
+--   deleted: discord_match_queue 4, creator_triage 39, creator_data_flags 28,
+--            roster_audit_log 1, creator_accounts 50, creator_applications 76,
+--            managed_creators 49, activity_log 10, pipeline_runs 2,
+--            brand_compensation 2, brand_payment_config 1, brand_sessions 1,
+--            system_alerts 1, brand_settings 1, brand_app_settings 1,
+--            product_commission_rates 1, application_funnels 1, campaigns 1,
+--            tiktok_accounts 48, creator_brands 39, brand_discord_config 1,
+--            brands_v2 1
