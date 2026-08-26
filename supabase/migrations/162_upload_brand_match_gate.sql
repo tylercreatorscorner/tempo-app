@@ -1,0 +1,61 @@
+-- 162_upload_brand_match_gate.sql
+--
+-- See check_upload_brand_match() in the database for the full rationale; this
+-- file is the repo record of migration + the Aug 22 data repair.
+--
+-- ── The gate ───────────────────────────────────────────────────────────────
+--
+-- 2026-08-25: the KITSCH creator export was uploaded under KEEPS. The same
+-- session's product file (8 rows) and video file (637 rows) were correctly
+-- Keeps-sized, so only the creator slot got the wrong file. Keeps 08-22 then
+-- read $47,577 across 28,869 creators against a true ~$948 across ~270, and
+-- the roster board showed "+1439%". The same session put m3's file under
+-- neurogum ($14,020 against a true ~$4,197).
+--
+-- Nothing rejected it because nothing ever asked whether the creators in the
+-- file had any connection to the brand.
+--
+-- Threshold measured, not guessed. Share of a day's creators previously seen
+-- for that brand, 2026-08-20..23:
+--     legitimate uploads    87.8% .. 91.0%   (lowest: keeps 08-23)
+--     the keeps incident     0.7%
+-- The gate rejects below 25%, which is 63 points under the lowest legitimate
+-- file. Verified against the real payloads: the incident scores 0.9% for keeps
+-- and 100% for kitsch (so the error names the right file), a genuine Keeps
+-- upload scores 100%, and a brand with no history is exempt entirely.
+--
+-- ⚠️ First chunk only, and only when the brand has >= 200 known creators and
+-- the file >= 100. A brand's first upload legitimately has 0% overlap.
+-- ⚠️ The check failing must never block a legitimate upload — it is wrapped so
+-- an error logs and allows.
+--
+-- ── The repair (executed against production, not replayable) ────────────────
+--
+-- Bad rows archived to incident_archive.cp_20260822_crossbrand and
+-- .dcs_20260822_crossbrand (38,195 rows, $61,597.38) then deleted, and
+-- creator_performance rebuilt for keeps + neurogum 2026-08-22 from each
+-- brand's OWN correctly-uploaded video_performance, tagged
+-- data_source = 'rebuilt_from_video_performance_20260826'.
+--
+-- Verified against the seven prior days first: for keeps this reproduces gmv,
+-- orders, est_commission and items_sold EXACTLY, the only gap being
+-- product_card_gmv, which video data cannot contain by construction.
+--
+--     keeps    2026-08-22   $47,577.00 -> $947.72    (matches dvps exactly)
+--     neurogum 2026-08-22   $14,020.38 -> $4,197.23  (matches dvps exactly)
+--
+-- daily_creator_stats was deleted by hand FIRST: its trigger fires on
+-- INSERT/UPDATE only and cannot mirror a delete, so the stale rows would have
+-- survived the rebuild. Re-inserting into creator_performance then repopulated
+-- it automatically via trg_sync_creator_performance.
+--
+-- ⚠️ neurogum's rebuild is ~4-5% low: it carries real non-video GMV daily
+-- (product card / live) that video_performance cannot see. keeps has
+-- essentially none. Re-uploading neurogum's correct creator file for 08-22
+-- would close that gap; nothing else will.
+--
+-- Roster rollups were also stale for 2026-08-23 — roster_creator_daily held
+-- 543 post-only rows with $0 GMV and roster_universe_daily had no 08-23 at all,
+-- because refresh_roster_summaries times out on a large share of runs (see
+-- [[project_rollup_cron_health]]). Repaired by range: keeps last-7-days now
+-- reads $11,805.44, matching the affiliate centre.

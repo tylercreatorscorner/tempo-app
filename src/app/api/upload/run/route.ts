@@ -334,6 +334,67 @@ export async function POST(request: NextRequest) {
     });
   }
 
+  // ── BRAND-MATCH GATE ──────────────────────────────────────────────────────
+  //
+  // Does this creator file actually belong to this brand?
+  //
+  // 2026-08-25: the KITSCH creator export was uploaded under KEEPS. The same
+  // session's product file (8 rows) and video file (637 rows) were correctly
+  // Keeps-sized — only the creator slot got the wrong file. Keeps 08-22 then
+  // read $47,577 across 28,869 creators against a true ~$948 across ~270, and
+  // the roster board showed "+1439%". Nothing rejected it because nothing ever
+  // asked whether those creators had any connection to the brand.
+  //
+  // Threshold measured, not guessed. Share of a day's creators previously seen
+  // for that brand over 2026-08-20..23:
+  //     legitimate uploads   87.8% .. 91.0%
+  //     the keeps incident    0.7%
+  // 25% sits 63 points below the lowest legitimate file. A false block costs a
+  // confused upload; a false pass costs wrong numbers in front of a client.
+  //
+  // ⚠️ Runs on the FIRST chunk only. Chunks are ~5,000 rows of the same file,
+  // so re-checking each one would be 6 identical verdicts and 6 scans.
+  // ⚠️ Skipped unless the brand has real history — a brand's first upload
+  // legitimately has 0% overlap and must never be blocked.
+  if (table === 'creator_performance' && isFirstChunk) {
+    try {
+      const handles = Array.from(new Set(
+        (uploadRecords as Array<{ creator_name?: unknown }>)
+          .map((r) => (typeof r.creator_name === 'string' ? r.creator_name : ''))
+          .filter(Boolean),
+      ));
+      if (handles.length >= 100) {
+        const { data: mm } = await admin.rpc('check_upload_brand_match', {
+          p_brand: brand,
+          p_handles: handles,
+        });
+        const m = mm as {
+          incoming: number; matched: number; matchPct: number;
+          brandKnownCreators: number; bestOtherBrand: string | null; bestOtherMatchPct: number;
+        } | null;
+        if (m && m.brandKnownCreators >= 200 && m.matchPct < 25) {
+          const culprit = m.bestOtherBrand && m.bestOtherMatchPct >= 50
+            ? ` ${m.bestOtherMatchPct}% of them belong to "${m.bestOtherBrand}" — that is probably the file you meant to pick.`
+            : '';
+          return NextResponse.json({
+            error:
+              `This file does not look like ${brand}. Only ${m.matchPct}% of its ` +
+              `${m.incoming.toLocaleString()} creators have ever appeared for ${brand}, ` +
+              `which normally runs above 87%.${culprit} Nothing was saved.`,
+            brandMismatch: {
+              brand, matchPct: m.matchPct, incoming: m.incoming,
+              bestOtherBrand: m.bestOtherBrand, bestOtherMatchPct: m.bestOtherMatchPct,
+            },
+          }, { status: 409 });
+        }
+      }
+    } catch (e) {
+      // A gate that cannot run must not block a legitimate upload — the check
+      // is a guard rail, not a dependency. Log and continue.
+      console.error('[upload] brand-match check failed, allowing upload:', e);
+    }
+  }
+
   // ── Single RPC call — does delete (if overwrite) + bulk insert atomically
   //    inside a transaction with SET LOCAL statement_timeout = '60s' and an
   //    advisory lock on (brand, report_date) to serialize concurrent uploads.
