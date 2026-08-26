@@ -686,30 +686,40 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
                 activity and are listed in full on the web version of this report.
               </Text>
             )}
+            {/* Flex values sum to 8.8 and mirror the row below EXACTLY. A header
+                whose flex differs from its rows misaligns silently in @react-pdf
+                — there is no layout error, the columns just drift. */}
             <View style={styles.gHead} wrap={false} fixed>
-              <Text style={[styles.gHeadCell, { flex: 2.4 }]}>CREATOR</Text>
-              <Text style={[styles.gHeadCell, { flex: 1.9 }]}>AGREEMENT</Text>
-              <Text style={[styles.gHeadCell, { flex: 0.8, textAlign: 'right' }]}>POSTS</Text>
-              <Text style={[styles.gHeadCell, { flex: 1.0, textAlign: 'right' }]}>EARNING</Text>
+              <Text style={[styles.gHeadCell, { flex: 1.7 }]}>CREATOR</Text>
+              <Text style={[styles.gHeadCell, { flex: 1.7 }]}>TIKTOK</Text>
+              <Text style={[styles.gHeadCell, { flex: 1.3 }]}>AGREEMENT</Text>
+              <Text style={[styles.gHeadCell, { flex: 1.1, textAlign: 'right' }]}>AGREED</Text>
+              <Text style={[styles.gHeadCell, { flex: 0.9, textAlign: 'right' }]}>POSTS</Text>
               <Text style={[styles.gHeadCell, { flex: 0.9, textAlign: 'right' }]}>ORDERS</Text>
               <Text style={[styles.gHeadCell, { flex: 1.2, textAlign: 'right' }]}>GMV</Text>
             </View>
             {activeCreators.map((c, i) => (
               <View key={(c.handle ?? c.name) + i} style={styles.gRow} wrap={false}>
-                <Text style={[styles.gCell, { flex: 2.4 }]}>
+                <Text style={[styles.gCell, { flex: 1.7 }]}>
+                  {c.realName?.trim() ? c.realName : `@${(c.handle ?? c.name).replace(/^@+/, '')}`}
+                </Text>
+                <Text style={[styles.gCellMuted, { flex: 1.7 }]}>
                   @{(c.handle ?? c.name).replace(/^@+/, '')}
+                  {(c.handleCount ?? 0) > 1 ? ` +${(c.handleCount ?? 1) - 1}` : ''}
                 </Text>
-                <Text style={[c.isAffiliate ? styles.gTag : styles.gCellMuted, { flex: 1.9 }]}>
-                  {c.departed
-                    ? 'Left this period'
-                    : c.isAffiliate
-                      ? 'Affiliate-only'
-                      : c.quota != null
-                        ? `Retainer · ${fmtNumber(c.postsPublished)}/${fmtNumber(c.quota)} posts`
-                        : 'Retainer'}
+                <Text style={[c.isAffiliate ? styles.gTag : styles.gCellMuted, { flex: 1.3 }]}>
+                  {c.departed ? 'Left this period' : c.isAffiliate ? 'Affiliate-only' : 'Retainer'}
                 </Text>
-                <Text style={[styles.gCellMuted, { flex: 0.8, textAlign: 'right' }]}>{fmtNumber(c.postsPublished)}</Text>
-                <Text style={[styles.gCellMuted, { flex: 1.0, textAlign: 'right' }]}>{fmtNumber(c.videosEarning)}</Text>
+                {/* Em dash, not $0: there is no agreed amount for affiliate-only,
+                    and a zero would read as a negotiated figure. */}
+                <Text style={[styles.gCellMuted, { flex: 1.1, textAlign: 'right' }]}>
+                  {!c.departed && !c.isAffiliate && c.retainer > 0 ? `${fmtCurrency(c.retainer)}/mo` : '\u2014'}
+                </Text>
+                <Text style={[styles.gCellMuted, { flex: 0.9, textAlign: 'right' }]}>
+                  {c.quota != null
+                    ? `${fmtNumber(c.postsPublished)} / ${fmtNumber(c.quota)}`
+                    : fmtNumber(c.postsPublished)}
+                </Text>
                 <Text style={[styles.gCellMuted, { flex: 0.9, textAlign: 'right' }]}>{fmtNumber(c.orders)}</Text>
                 <Text style={[styles.gCell, { flex: 1.2, textAlign: 'right', fontWeight: 700 }]}>{fmtCurrency(c.gmv)}</Text>
               </View>

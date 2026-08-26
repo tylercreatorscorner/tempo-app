@@ -152,7 +152,18 @@ export interface BrandClientReportData {
      *  affiliate-only and MUST render as absence, never 0. */
     creators: {
       name: string;
+      /** Raw real_name. NULL for 147 active creators (9%), so the UI falls
+       *  back to the handle rather than rendering an empty identity cell. */
+      realName?: string | null;
+      /** The handle that EARNED the most in the window, not account_1.
+       *  account_1 is column order, not meaning: it showed Lissandro as
+       *  @tipsdesandro on JiYu, a handle that has never had a sale there,
+       *  while @tumejorsalud97 earned $13,238. */
       handle: string | null;
+      /** Every known handle, account_ columns UNION tiktok_accounts. */
+      handles?: string[];
+      /** 37% of active creators hold more than one. */
+      handleCount?: number;
       isAffiliate: boolean;
       retainer: number;
       quota: number | null;

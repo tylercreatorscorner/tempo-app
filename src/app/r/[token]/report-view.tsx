@@ -405,9 +405,10 @@ function CreatorRows({
         <thead>
           <tr className="border-b border-[#eeedf5]">
             <th className="px-4 py-2.5 text-left text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">Creator</th>
+            <th className="px-4 py-2.5 text-left text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">TikTok</th>
             <th className="px-4 py-2.5 text-left text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">Agreement</th>
+            <th className="px-4 py-2.5 text-right text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">Agreed amount</th>
             <th className="px-4 py-2.5 text-right text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">Posts</th>
-            <th className="px-4 py-2.5 text-right text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">Videos earning</th>
             <th className="px-4 py-2.5 text-right text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">Orders</th>
             <th className="px-4 py-2.5 text-right text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">GMV</th>
           </tr>
@@ -417,6 +418,11 @@ function CreatorRows({
             const h = c.handle ? handleOf(c.handle) : handleOf(c.name);
             return (
               <tr key={i} className={`border-b border-[#f2f1f8] last:border-b-0 ${muted ? 'opacity-70' : ''}`}>
+                {/* Identity: the person's name, falling back to the handle
+                    for the 9% who have no real_name — never an empty cell. */}
+                <td className="px-4 py-2.5 font-semibold text-[#171a33]">
+                  {c.realName?.trim() ? c.realName : <span className="text-[#6b7191]">@{h}</span>}
+                </td>
                 <td className="px-4 py-2.5">
                   <a
                     href={`https://www.tiktok.com/@${h}`}
@@ -426,7 +432,17 @@ function CreatorRows({
                   >
                     @{h}
                   </a>
+                  {(c.handleCount ?? 0) > 1 && (
+                    <span
+                      className="ml-1.5 cursor-help text-[11px] text-[#8a8fb0]"
+                      title={(c.handles ?? []).map((x) => `@${x}`).join('\n')}
+                    >
+                      +{(c.handleCount ?? 1) - 1}
+                    </span>
+                  )}
                 </td>
+                {/* Agreement is the TYPE only. The money moved to its own
+                    column so a retainer figure is never mistaken for earnings. */}
                 <td className="px-4 py-2.5 text-[12px] text-[#33375c]">
                   {c.departed ? (
                     <span className="rounded-[5px] bg-[#f2f3f7] px-1.5 py-0.5 font-semibold text-[#6b7191]">
@@ -437,18 +453,21 @@ function CreatorRows({
                       Affiliate-only
                     </span>
                   ) : (
-                    <>
-                      Retainer
-                      {c.quota != null && (
-                        <span className="ml-1.5 tabular-nums text-[#8a8fb0]">
-                          {num(c.postsPublished)}/{num(c.quota)} posts
-                        </span>
-                      )}
-                    </>
+                    <span className="font-semibold">Retainer</span>
                   )}
                 </td>
-                <td className="px-4 py-2.5 text-right tabular-nums text-[#33375c]">{num(c.postsPublished)}</td>
-                <td className="px-4 py-2.5 text-right tabular-nums text-[#33375c]">{num(c.videosEarning)}</td>
+                {/* Blank for affiliate-only: there is no agreed amount, and a
+                    $0 would read as "we agreed zero" rather than "n/a". */}
+                <td className="px-4 py-2.5 text-right tabular-nums text-[#33375c]">
+                  {!c.departed && !c.isAffiliate && c.retainer > 0
+                    ? <>{money(c.retainer)}<span className="text-[#8a8fb0]">/mo</span></>
+                    : <span className="text-[#b9bcd0]">&mdash;</span>}
+                </td>
+                {/* Quota tracking lives here now, next to the number it judges. */}
+                <td className="px-4 py-2.5 text-right tabular-nums text-[#33375c]">
+                  {num(c.postsPublished)}
+                  {c.quota != null && <span className="text-[#8a8fb0]"> / {num(c.quota)}</span>}
+                </td>
                 <td className="px-4 py-2.5 text-right tabular-nums text-[#33375c]">{num(c.orders)}</td>
                 <td className="px-4 py-2.5 text-right font-extrabold tabular-nums text-[#171a33]">{money(c.gmv)}</td>
               </tr>
