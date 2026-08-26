@@ -1,0 +1,99 @@
+-- 164_data_repairs_and_roster_cron.sql
+--
+-- Applied to production 2026-08-26.
+--
+-- ══ 1. leefar_us 2026-06-18: a 7-day export loaded as one day ══════════════
+--
+-- Read $345,922.28 across 3,592 creators against neighbours of ~$46-52k across
+-- ~900. NOT a wrong-brand file: the gate scored it 100% match to leefar_us. It
+-- was leefar_us's own data at the wrong GRANULARITY.
+--
+-- Identified the window by subtraction. Only a 7-day window starting 06-12
+-- leaves a plausible daily remainder; every other candidate gives a negative or
+-- an absurd value:
+--
+--     window from 06-11 (8d) -> implied 06-18 =   $4,215.70
+--     window from 06-12 (7d) -> implied 06-18 =  $51,675.23   <- plausible
+--     window from 06-13 (6d) -> implied 06-18 = $102,259.38
+--
+-- Cross-checked independently: daily_video_product_stats says $37,174.02 for
+-- that day and leefar_us runs 1.25-1.45x dvps that week, implying $46k-$54k.
+--
+-- Rebuilt PER CREATOR by subtraction — each creator's cumulative row minus
+-- their intact 06-12..06-17 dailies. Pure arithmetic on exact inputs, nothing
+-- apportioned. ZERO of the 3,592 remainders is negative, which is what
+-- confirms the window: a wrong window produces negatives everywhere.
+-- Result: $51,711.37 across 315 creators, tagged
+-- data_source = 'rebuilt_by_subtraction_20260826'.
+--
+-- ══ 2. daily_creator_stats resynced to creator_performance ═════════════════
+--
+-- 23 brand-days disagreed, $3,108,016 of phantom GMV. Root cause is structural:
+-- trg_sync_creator_performance fires on INSERT/UPDATE only, so the mirror can
+-- NEVER process a delete. Re-upload a day and the source is replaced while the
+-- mirror keeps the union of every version ever uploaded.
+--
+-- Two different failures, fixed differently:
+--
+--   20 days DCS STALE      mirror held versions the source no longer has
+--                          (catakor 3/2-3/7, jiyu 2/24 + 3/3-3/9,
+--                           physicians_choice 3/2-3/7, kitsch 7/27)
+--                          -> deleted and re-inserted from creator_performance
+--
+--   3 days CP MISSING      source lost the day entirely; the mirror is the only
+--                          surviving copy (catakor 6/15 $52,830,
+--                          m3 6/27 $45,092, peach_slices 1/8 $24,937)
+--                          -> restored creator_performance FROM the mirror
+--
+-- Do not reflexively treat the mirror as wrong. On those 3 days it held the
+-- only copy, and deleting it would have destroyed real data. m3 6/27 is why the
+-- M3 June client report read $491,963 against the dashboard's $537,055 — the
+-- report was UNDERSTATING, and it now reads $537,055.35 on both.
+--
+-- Verified after: 2,680 brand-days, 0 disagreements, both totals
+-- $85,018,241.62.
+--
+-- ══ 3. Roster rollup cron: timing out a third of the time ══════════════════
+--
+-- refresh_roster_summaries failed on statement timeout for 28 of 72 runs on
+-- 2026-08-25, and never zero on any of eight days. While it failed, /roster
+-- silently lost a day: on 2026-08-23 roster_creator_daily held 543 post-only
+-- rows with $0 GMV against a true $375,474.70.
+--
+-- Cause: refresh_roster_creator_posts_range filters video_performance on
+-- post_date ALONE. The only index was idx_video_perf_brand_postdate, which
+-- leads with BRAND and cannot serve it — parallel seq scan of a 7.7GB table,
+-- ~4GB read to return 290k rows.
+--
+--     new index idx_video_perf_postdate  61MB, partial, built CONCURRENTLY
+--     refresh_roster_summaries(14)       TIMEOUT at 120s  ->  111.5s
+--     refresh_roster_summaries(3)                         ->    9.6s
+--
+-- 111.5s against a 120s ceiling is not a fix, it is a coin flip. The frequent
+-- job drops to 3 days (9.6s, a 12x margin); the nightly keeps 40 days via
+-- refresh_roster_summaries_nightly, which sets statement_timeout to 20min.
+--
+-- That longer timeout is safe ONLY for the nightly. Raising it on the
+-- 20-minute job would let a run outlive its own interval and overlap ITSELF,
+-- reproducing the duplicate-key collision fixed in migration 160.
+--
+-- Cost: a backfill 4-40 days old now waits for 04:08 rather than 20 minutes.
+-- Right trade for a job that was failing outright a third of the time.
+--
+-- ══ 4. Client report: creators with no handle ══════════════════════════════
+--
+-- 191 active roster rows have a real name but NO handle in any source — 153
+-- from a single 2025-11-29 bulk import, the rest added in the last two days and
+-- not yet filled in. They are real signed creators (one carries a $1,800
+-- retainer), so they stay in the table and in the signed count. But the TikTok
+-- column now renders an em dash instead of linking to a profile that does not
+-- exist.
+--
+-- NOT a code fix: those 191 need handles entered.
+
+create index concurrently if not exists idx_video_perf_postdate
+  on public.video_performance (post_date)
+  where post_date is not null;
+
+select cron.alter_job(job_id => 1, command => 'select public.refresh_roster_summaries(3)');
+select cron.alter_job(job_id => 2, command => 'select public.refresh_roster_summaries_nightly(40)');

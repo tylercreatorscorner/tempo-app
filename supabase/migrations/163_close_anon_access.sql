@@ -1,0 +1,97 @@
+-- 163_close_anon_access.sql
+--
+-- Applied to production 2026-08-26. Three layers, smallest blast radius last.
+--
+-- ══ 1. anon EXECUTE on SECURITY DEFINER functions: 63 -> 13 ═════════════════
+--
+-- 63 SECURITY DEFINER functions were executable by anon — the role the
+-- PUBLISHABLE key maps to, which is in the page source of every Tempo surface
+-- by design. Demonstrated live in the 2026-07 audit: get_brand_summary('lemme')
+-- returned total_gmv 413,557.86 and total_est_commission 111,474.30 to an
+-- unauthenticated request. Seven of them MUTATE — an anonymous caller could
+-- trigger full rollup rebuilds on demand.
+--
+-- ⚠️ `revoke ... from anon` alone does NOTHING. EXECUTE defaults to PUBLIC and
+-- anon inherits it, so has_function_privilege('anon', ...) stays true. PUBLIC
+-- must be named. Fourth time this trap has cost something here (migration 100,
+-- the 2026-07 audit, migration 154, and this one).
+--
+-- ⚠️ And revoking PUBLIC removes `authenticated` too where PUBLIC was the only
+-- grant — so every function was re-granted to authenticated + service_role in
+-- the same step.
+--
+-- 13 KEEP anon, because they are referenced inside RLS policy expressions:
+-- get_tenant_id (37 policies), get_user_role (36), is_team_member (28),
+-- is_admin (17), get_my_discord_id (12), is_platform_admin (11),
+-- is_team_member_direct (10), auth_user_allowed_brands (5),
+-- auth_user_allowed_brand_uuids (5), brand_user_brand (4), get_discord_id (3),
+-- plus handle_new_user and is_admin_direct. RLS evaluates as the CALLING role:
+-- revoke EXECUTE and the policy does not return false, the query ERRORS. That
+-- breaks login and every RLS-protected read.
+--
+-- ══ 2. 🚨 anon could DESTROY the database ══════════════════════════════════
+--
+-- Found while doing (1), and far more serious than it. anon held INSERT,
+-- UPDATE, DELETE and TRUNCATE on essentially every table in `public`:
+--
+--     video_performance          7,950 MB   RLS OFF
+--     daily_video_product_stats  6,262 MB   RLS on
+--     creator_performance        3,505 MB   RLS OFF
+--     daily_creator_stats        2,292 MB   RLS on
+--     roster_creator_daily       2,134 MB   RLS OFF
+--     client_reports               768 kB   RLS on
+--
+-- ⚠️ RLS DOES NOT PROTECT AGAINST THIS. TRUNCATE is a table-level operation and
+-- is never filtered by row security, so the RLS-enabled tables were destroyable
+-- too. Revoked on every table, plus ALTER DEFAULT PRIVILEGES so new tables do
+-- not inherit it.
+--
+-- ══ 3. anon SELECT on tables with NO row protection ════════════════════════
+--
+-- 30 tables had relrowsecurity = FALSE while anon held SELECT — unfiltered
+-- reads of ~15.5GB of GMV, creator and roster data. Several carry 6-8 policies
+-- that are completely INERT while row security is off, which is exactly the
+-- kind of thing that reads as "secured" in a review and is not.
+--
+-- ⚠️ Scoped to RLS-OFF tables only. The auth tables the browser genuinely
+-- touches before login — user_profiles, tenants, platform_admins — all have RLS
+-- ENABLED and were left alone, so signup and login are untouched. A blanket
+-- schema-wide SELECT revoke would have risked them.
+--
+-- ── Verified before revoking ───────────────────────────────────────────────
+--
+-- No browser-side code calls .rpc() at all (checked every 'use client' file).
+-- The only client-side .from() reads are those RLS-protected auth tables.
+-- Server reads use the cookie client (authenticated); every write path — upload
+-- RPCs, cron rollups, report snapshots — uses the admin client (service_role).
+-- The public /r/[token] report and the client-facing brand portal both use
+-- createAdminClient, so neither depends on anon.
+--
+-- ── Verified after ─────────────────────────────────────────────────────────
+--
+--     unprotected tables readable by anon      0   (was 30)
+--     tables anon can write or truncate        0   (was ~122)
+--     anon EXECUTE on SECURITY DEFINER fns    13   (was 63, all RLS helpers)
+--     authenticated reads creator_performance  yes
+--     service_role writes both fact tables     yes
+--     anon still reads user_profiles/tenants   yes  (RLS-protected, login OK)
+--
+-- ── ⚠️ STILL OPEN ──────────────────────────────────────────────────────────
+--
+-- RLS is OFF on creator_performance, video_performance, product_performance and
+-- the roster rollups, and their 8-12 policies each remain inert. Access is now
+-- closed by GRANT rather than by RLS. Enabling RLS is the proper fix but is a
+-- real change: RLS evaluates per scanned row, and brand-wide fact reads are
+-- exactly the queries that would suffer (see [[project_content_overhaul]] —
+-- this is why those reads are SECURITY DEFINER RPCs in the first place). It
+-- needs its own pass with measurement, not a same-breath toggle.
+
+-- The three DO blocks were applied as migrations
+--   revoke_anon_security_definer_functions
+--   revoke_anon_write_privileges
+--   revoke_anon_select_unprotected_tables
+-- and are reproduced here for the repo record. They are idempotent: each loops
+-- over what anon can currently do, so re-running is a no-op once closed.
+
+alter default privileges in schema public
+  revoke insert, update, delete, truncate on tables from anon;

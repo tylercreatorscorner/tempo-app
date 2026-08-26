@@ -423,7 +423,13 @@ function CreatorRows({
                 <td className="px-4 py-2.5 font-semibold text-[#171a33]">
                   {c.realName?.trim() ? c.realName : <span className="text-[#6b7191]">@{h}</span>}
                 </td>
+                {/* 191 active roster rows have a real name but NO handle in
+                    any source — mostly a 2025-11-29 bulk import that never
+                    captured them. They are real signed creators, so they stay
+                    in the table, but linking @TheirName would point at a
+                    profile that does not exist. */}
                 <td className="px-4 py-2.5">
+                  {c.handle ? (
                   <a
                     href={`https://www.tiktok.com/@${h}`}
                     target="_blank"
@@ -432,6 +438,9 @@ function CreatorRows({
                   >
                     @{h}
                   </a>
+                  ) : (
+                    <span className="text-[#b9bcd0]">&mdash;</span>
+                  )}
                   {(c.handleCount ?? 0) > 1 && (
                     <span
                       className="ml-1.5 cursor-help text-[11px] text-[#8a8fb0]"

@@ -703,9 +703,12 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
                 <Text style={[styles.gCell, { flex: 1.7 }]}>
                   {c.realName?.trim() ? c.realName : `@${(c.handle ?? c.name).replace(/^@+/, '')}`}
                 </Text>
+                {/* Em dash, not @Name: a creator with no handle in any source
+                    would otherwise render a TikTok handle that does not exist. */}
                 <Text style={[styles.gCellMuted, { flex: 1.7 }]}>
-                  @{(c.handle ?? c.name).replace(/^@+/, '')}
-                  {(c.handleCount ?? 0) > 1 ? ` +${(c.handleCount ?? 1) - 1}` : ''}
+                  {c.handle
+                    ? `@${c.handle.replace(/^@+/, '')}${(c.handleCount ?? 0) > 1 ? ` +${(c.handleCount ?? 1) - 1}` : ''}`
+                    : '\u2014'}
                 </Text>
                 <Text style={[c.isAffiliate ? styles.gTag : styles.gCellMuted, { flex: 1.3 }]}>
                   {c.departed ? 'Left this period' : c.isAffiliate ? 'Affiliate-only' : 'Retainer'}
