@@ -1,0 +1,62 @@
+-- 159_nightly_full_rebuild_brand_daily_stats.sql
+--
+-- The nightly job rebuilds the WHOLE brand_daily_stats table instead of only
+-- its trailing 40 days.
+--
+-- ── The gap this closes ─────────────────────────────────────────────────────
+--
+-- Two jobs maintain brand_daily_stats:
+--
+--     5,25,45 * * * *   refresh_brand_daily_stats(14)   -- 72x/day, fresh tail
+--     25 4 * * *        refresh_brand_daily_stats(40)   -- nightly
+--
+-- refresh_brand_daily_stats(N) does
+--     DELETE FROM brand_daily_stats WHERE report_date >= CURRENT_DATE - N
+-- then re-inserts from daily_creator_stats over the same range. So rows older
+-- than 40 days were never touched by anything.
+--
+-- ⚠️ That is NOT a corruption risk — the cron never rewrites history. It is a
+-- COVERAGE gap. Any upload BACKFILLED for dates older than 40 days landed in
+-- daily_creator_stats and never reached the cache, so the Dashboard silently
+-- understated that brand until somebody remembered to rebuild by hand.
+--
+-- Found 2026-08-25, both from real backfills:
+--     peach_slices          61 days  2026-04-01..05-31   $828,490.29 missing
+--     leefar_nutrition_us    9 days  2026-07-01..07-09   $251,680.82 missing
+--
+-- peach_slices is the one that had been archived and was unarchived once Jen
+-- uploaded its history, which is exactly the shape of backfill that this blind
+-- spot swallows. It will happen again; a scheduled full rebuild means it stops
+-- needing anyone to notice.
+--
+-- ── Why this is safe ────────────────────────────────────────────────────────
+--
+-- rebuild_brand_daily_stats() is a single-transaction DELETE + INSERT
+-- recomputed entirely from daily_creator_stats, so it is atomic (readers keep
+-- seeing the previous rows until it commits), idempotent, and re-runnable.
+--
+-- Measured 2026-08-25 on 2,662 rows:
+--     rebuild_brand_daily_stats()      6.8s
+--     refresh_brand_daily_stats(40)    2.8s
+-- Four extra seconds at 4:25am.
+--
+-- The 20-minute job stays on refresh_brand_daily_stats(14). It runs 72 times a
+-- day and only ever needs the fresh tail; making THAT one a full rebuild would
+-- be 72 full-table rewrites a day for no benefit.
+--
+-- ── ⚠️ What this does NOT fix ───────────────────────────────────────────────
+--
+-- brand_daily_stats mirrors daily_creator_stats exactly, so a rebuild faithfully
+-- re-copies whatever the source holds. 20 (brand, day) pairs in the SOURCE hold
+-- what look like PERIOD totals written into DAILY rows — $3,108,188 inflated,
+-- mostly 2026-02-24..03-07. Verified on catakor 2026-03-03: daily_creator_stats
+-- $301,243.06, cache $301,243.06, creator_performance $31,494.54.
+--
+-- That is a separate data repair and is deliberately untouched here. It has not
+-- recurred: zero inflated brand-days in July or August, last occurrence
+-- 2026-06-27. See [[project_daily_creator_stats_inflated]].
+
+select cron.alter_job(
+  job_id  => 4,   -- refresh-brand-daily-stats-nightly
+  command => 'select public.rebuild_brand_daily_stats()'
+);
