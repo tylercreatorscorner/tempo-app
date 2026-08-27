@@ -199,6 +199,17 @@ export interface BrandClientReportData {
       affiliateOnly: number;
       /** CONTRACTED monthly sum. Month-grain; never apportioned to the window. */
       monthlyRetainerBudget: number;
+      /**
+       * Whether every retained creator's figure is backed by a retainer_history
+       * record covering this window (migration 172).
+       *
+       * FALSE means the window predates the history and the earliest observed
+       * value was carried backwards. Before this existed the report carried
+       * TODAY's retainer back over any historical window with no indication at
+       * all — a July report showed August's numbers. Absent on snapshots frozen
+       * before 172, where it must read as "unknown", not "verified".
+       */
+      retainerHistoryExact?: boolean;
     };
     /** postsPublished counts on post_date; videosEarning counts what was live
      *  in the window. They differ by an order of magnitude — never merge them. */

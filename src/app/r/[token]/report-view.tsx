@@ -456,7 +456,18 @@ function InvestmentStrip({ g }: { g: NonNullable<BrandClientReportData['granular
           note="commission, no post requirement"
         />
         {budget !== null && budget > 0 && (
-          <MiniStat label="Retainer budget" value={`${money(budget)}/mo`} note="monthly commitment" />
+          <MiniStat
+            label="Retainer budget"
+            value={`${money(budget)}/mo`}
+            /* Only claim "as agreed for this period" when a record actually
+               covers it. Otherwise this is the current agreement carried back,
+               and saying so is the difference between a figure and a guess. */
+            note={
+              g.roster.retainerHistoryExact === false
+                ? 'current agreement'
+                : 'monthly commitment'
+            }
+          />
         )}
         <MiniStat
           label="Videos earning"
