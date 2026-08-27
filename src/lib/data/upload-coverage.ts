@@ -328,9 +328,47 @@ export interface CellFacts {
    * cannot mask an outage the way a data-derived anchor would.
    */
   peerReady?: boolean;
+  /**
+   * VIDEO CELLS ONLY. What share of this brand-day's video GMV actually landed,
+   * measured as video_performance.gmv over creator_performance.video_gmv — two
+   * independent TikTok exports of the same fact.
+   *
+   * This is the only detector here that does not look at row counts, and it
+   * exists because catakor 2026-07-27 proved row counts cannot see this class:
+   * 7,817 rows against a normal 7,788-9,957 and 2,233 creators against a normal
+   * ~2,200, so every count-based rule called it green — while only 88 of its
+   * videos carried GMV against 176-271 on neighbouring days, totalling $2,653
+   * against the $13,078 its own creator file reported. A partial capture with a
+   * full-looking row count.
+   *
+   * null when the day is not judgeable: a non-video cell, a day before
+   * video_gmv was populated (~2026-07-24), or a day too small to judge. Absent
+   * means the check did not run, never that it passed.
+   */
+  videoGmvPct?: number | null;
   /** Injected for testability; defaults to now. */
   now?: Date;
 }
+
+/**
+ * Floor for the video GMV cross-check, as a percentage of what the creator file
+ * says the day earned.
+ *
+ * MEASURED over 549 brand-days, 2026-07-24..08-26, every day with >$500 of
+ * creator-file video GMV:
+ *
+ *     within 0.5% of exact   542 of 549   (98.7%)
+ *     1st percentile          99.3%
+ *     median                 100.0%
+ *     max                    102.2%
+ *     below 90%                2 days  <- catakor 07-27 (20.3%), jiyu 08-22 (0%)
+ *
+ * Nothing legitimate sits between 20.3% and 99.3%. 90 separates the two real
+ * failures from 547 healthy days with the entire gap to spare, which is the
+ * standard this file holds itself to: the tuning that produced zero false
+ * positives, not the tuning that caught the most cells.
+ */
+const VIDEO_GMV_FLOOR_PCT = 90;
 
 const fmt = (n: number) => n.toLocaleString('en-US');
 
@@ -514,13 +552,38 @@ export function classifyCell(f: CellFacts): CellState {
     );
   }
 
+  // (d) The money cross-check. Unlike (a)-(c) this ignores row counts entirely
+  //     and compares two independent exports of the same fact, so it catches
+  //     the file that arrived the right SIZE and the wrong AMOUNT. Confirmed
+  //     unconditionally: it is not an outlier argument that a later day could
+  //     overturn, it is one export contradicting another on a day both have
+  //     already reported.
+  let gmvShortfall = false;
+  if (
+    f.videoGmvPct !== null &&
+    f.videoGmvPct !== undefined &&
+    Number.isFinite(f.videoGmvPct) &&
+    f.videoGmvPct < VIDEO_GMV_FLOOR_PCT
+  ) {
+    gmvShortfall = true;
+    reasons.push(
+      f.videoGmvPct <= 0
+        ? `No video GMV landed for this day, but this brand's creator file reports video sales for it. ` +
+          `The video file is missing even though rows are present.`
+        : `Only ${Math.round(f.videoGmvPct)}% of this day's video GMV landed — the creator file and the ` +
+          `video file are two separate exports of the same sales, and they agree to the cent on a healthy ` +
+          `day. The row count looks normal, so this is a partial capture rather than a missing file.`,
+    );
+  }
+
   if (reasons.length > 0) {
     return {
       status: 'partial',
       rows,
       expectedRows,
       reason: reasons.join(' '),
-      confirmed: collapseConfirmed,
+      // A GMV shortfall needs no confirmation from later days; a collapse does.
+      confirmed: gmvShortfall ? true : collapseConfirmed,
       ...(run ? { runStatus: run.status, source: run.source } : {}),
     };
   }

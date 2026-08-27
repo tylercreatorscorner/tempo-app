@@ -137,7 +137,7 @@ export async function GET(request: NextRequest) {
   // Four reads, all small: the matrix is O(brands x days x tables) and the other
   // three are O(brands x tables) or smaller. None of them is a fact-table scan
   // from this process's point of view.
-  const [matrixRes, boundsRes, layoutRes] = await Promise.all([
+  const [matrixRes, boundsRes, layoutRes, videoGmvRes] = await Promise.all([
     admin.rpc('get_upload_coverage_matrix', {
       p_brands: allSlugs,
       p_start: startDate,
@@ -147,6 +147,15 @@ export async function GET(request: NextRequest) {
     }),
     admin.rpc('get_upload_coverage_bounds', { p_brands: allSlugs }),
     admin.rpc('get_upload_export_layout', { p_brands: allSlugs }),
+    // The money cross-check for video cells. IN PARALLEL deliberately: it costs
+    // ~8s on a 30-day all-brands window because it touches both fact tables, so
+    // running it in sequence would add that to every page load instead of
+    // hiding it behind the matrix read.
+    admin.rpc('get_video_gmv_coverage', {
+      p_brands: allSlugs,
+      p_start: startDate,
+      p_end: endDate,
+    }),
   ]);
 
   // A failed money-adjacent read must surface, not render as an empty grid.
@@ -192,6 +201,28 @@ export async function GET(request: NextRequest) {
   }
 
   // ── Index ─────────────────────────────────────────────────────────────────
+  /**
+   * brand|date -> percentage of this day's video GMV that actually landed.
+   *
+   * ⚠️ NON-FATAL BY DESIGN, and it must stay that way. This detector is an
+   * enhancement to a page whose job is to tell the truth about coverage; if its
+   * read fails, every video cell must fall back to the row-count verdicts it had
+   * before, NOT render as broken. An absent entry means "not judged", never
+   * "passed" — classifyCell treats undefined as the check not having run.
+   */
+  const videoGmvPct = new Map<string, number>();
+  if (videoGmvRes.error) {
+    console.error('[coverage] video GMV cross-check failed, falling back to row counts only:',
+      videoGmvRes.error.message);
+  } else {
+    for (const r of (videoGmvRes.data ?? []) as Array<{
+      brand_slug: string; report_date: string; pct_of_expected: number | string | null;
+    }>) {
+      const pct = typeof r.pct_of_expected === 'number' ? r.pct_of_expected : Number(r.pct_of_expected);
+      if (Number.isFinite(pct)) videoGmvPct.set(`${r.brand_slug}|${String(r.report_date)}`, pct);
+    }
+  }
+
   const counts = new Map<string, CoverageMatrixRow>();
   let oldestRollupRefresh: number | null = null;
   for (const r of matrixRows) {
@@ -306,6 +337,13 @@ export async function GET(request: NextRequest) {
           firstDate: bounds.get(`${b.slug}|${t.table}`)?.first_date ?? null,
           judgeThrough,
           peerReady: peerReadyKeys.has(`${t.table}|${date}`),
+          // Video cells only: the cross-check compares video_performance
+          // against creator_performance, so it says nothing about the creator
+          // or product files.
+          videoGmvPct:
+            t.table === 'video_performance'
+              ? videoGmvPct.get(`${b.slug}|${date}`) ?? null
+              : null,
           now,
         });
       }
