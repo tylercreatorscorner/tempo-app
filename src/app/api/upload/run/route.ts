@@ -356,7 +356,19 @@ export async function POST(request: NextRequest) {
   // so re-checking each one would be 6 identical verdicts and 6 scans.
   // ⚠️ Skipped unless the brand has real history — a brand's first upload
   // legitimately has 0% overlap and must never be blocked.
-  if (table === 'creator_performance' && isFirstChunk) {
+  //
+  // 2026-08-27: the SAME failure hit the VIDEO slot, which this gate did not
+  // cover. On 2026-08-22 three brands' video files were loaded into the wrong
+  // brands: catakor's slot received leefar_us (all 13,535 rows byte-identical
+  // to leefar_us's own, GMV and orders), and jiyu's slot received catakor's
+  // (63.7% creator overlap with catakor against 12.7% with jiyu). catakor
+  // showed 5,525 creators that day against ~2,180 on its neighbours. It went
+  // unnoticed because creator_performance was correct, so store GMV still
+  // reconciled — only the per-video numbers were wrong.
+  //
+  // video_performance carries creator_name too, so the identical check
+  // applies. Gating only the creator slot was the gap.
+  if ((table === 'creator_performance' || table === 'video_performance') && isFirstChunk) {
     try {
       const handles = Array.from(new Set(
         (uploadRecords as Array<{ creator_name?: unknown }>)
@@ -372,15 +384,59 @@ export async function POST(request: NextRequest) {
           incoming: number; matched: number; matchPct: number;
           brandKnownCreators: number; bestOtherBrand: string | null; bestOtherMatchPct: number;
         } | null;
-        if (m && m.brandKnownCreators >= 200 && m.matchPct < 25) {
+        /**
+         * TWO rules, because the absolute threshold alone is not enough.
+         *
+         * The 2026-08-22 video incident produced one file that the absolute
+         * rule catches and one it does not:
+         *
+         *   leefar_us file into catakor   22.5% match  -> caught by rule 1
+         *   catakor file into jiyu        41.6% match  -> PASSES rule 1
+         *
+         * The second file still had a glaring tell: it matched catakor at
+         * 98.7%, more than twice as well as the jiyu slot it was loaded into.
+         * "This file belongs to someone else" is a stronger signal than "this
+         * file is a poor fit", because brands share creators and a legitimate
+         * file can score lower than you would expect.
+         *
+         * Measured on legitimate video files (2026-08-20..22):
+         *
+         *   brand              own match   best other   ratio
+         *   kitsch                 99.6%       68.0%     0.68
+         *   jiyu                   99.4%       61.0%     0.61
+         *   lemme                  99.0%       56.9%     0.57
+         *   catakor                98.7%       50.7%     0.51
+         *   leefar_us              99.1%       47.7%     0.48
+         *
+         *   the two bad files      22.5%       99.1%     4.40
+         *                          41.6%       98.7%     2.37
+         *
+         * Legitimate files top out at 0.68; the contaminated ones start at
+         * 2.37. The 1.2 ratio with an 80% floor sits in that gap with room on
+         * both sides, and a legitimate file would have to match a rival brand
+         * better than its own to trip it.
+         */
+        const ruleAbsolute = !!m && m.brandKnownCreators >= 200 && m.matchPct < 25;
+        const ruleBelongsElsewhere =
+          !!m &&
+          m.brandKnownCreators >= 200 &&
+          !!m.bestOtherBrand &&
+          m.bestOtherMatchPct >= 80 &&
+          m.bestOtherMatchPct > m.matchPct * 1.2;
+
+        if (m && (ruleAbsolute || ruleBelongsElsewhere)) {
           const culprit = m.bestOtherBrand && m.bestOtherMatchPct >= 50
             ? ` ${m.bestOtherMatchPct}% of them belong to "${m.bestOtherBrand}" — that is probably the file you meant to pick.`
             : '';
-          return NextResponse.json({
-            error:
-              `This file does not look like ${brand}. Only ${m.matchPct}% of its ` +
+          const lead = ruleBelongsElsewhere && !ruleAbsolute
+            ? `This file looks like it belongs to "${m.bestOtherBrand}", not ${brand}. ` +
+              `${m.bestOtherMatchPct}% of its ${m.incoming.toLocaleString()} creators have appeared for ` +
+              `"${m.bestOtherBrand}" against only ${m.matchPct}% for ${brand}.`
+            : `This file does not look like ${brand}. Only ${m.matchPct}% of its ` +
               `${m.incoming.toLocaleString()} creators have ever appeared for ${brand}, ` +
-              `which normally runs above 87%.${culprit} Nothing was saved.`,
+              `which normally runs above 87%.${culprit}`;
+          return NextResponse.json({
+            error: `${lead} Nothing was saved.`,
             brandMismatch: {
               brand, matchPct: m.matchPct, incoming: m.incoming,
               bestOtherBrand: m.bestOtherBrand, bestOtherMatchPct: m.bestOtherMatchPct,
