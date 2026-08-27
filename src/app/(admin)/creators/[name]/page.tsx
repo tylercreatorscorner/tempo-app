@@ -36,6 +36,7 @@ import { formatCurrency, formatNumber } from '@/lib/utils/format';
 import { getBrandRegistry, brandLabel, brandColor, activeBrandSlugs } from '@/lib/data/brand-registry';
 import { DateRangePicker } from '@/components/dashboard/date-range-picker';
 import { CreatorEditButton } from '@/components/creators/creator-edit-panel';
+import { CreatorChangeHistory } from '@/components/creators/creator-change-history';
 import { BrandFilter } from '@/components/creators/brand-filter';
 import { VideoTitleButton } from '@/components/video/video-title-button';
 import { classifyCreator, getStatusInfo } from '@/lib/data/creator-status';
@@ -54,6 +55,7 @@ import {
   getCreatorEngagement,
   getCreatorTopContent,
   getCreatorLatestReportDate,
+  getCreatorChangeHistory,
 } from '@/lib/data/creator-profile';
 import { SetBreadcrumb } from '@/components/layout/breadcrumb-context';
 import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
@@ -179,6 +181,14 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
   const contractGmv = contractBrand
     ? (effort.find((b) => b.brand === contractBrand)?.gmv ?? 0)
     : 0;
+  // Change history spans every roster row this creator holds — one per brand —
+  // so the timeline is the person's, not one contract's. Retainer gating is
+  // applied in the data layer, not here.
+  const changeHistory = await getCreatorChangeHistory(
+    [contracts.primary, ...contracts.others].filter(Boolean).map((c) => c!.managedId),
+    canViewCost,
+  );
+
   const contractRoi = contracts.primary && contracts.primary.retainer > 0
     ? contractGmv / contracts.primary.retainer
     : null;
@@ -648,6 +658,13 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
           <span className="text-muted-foreground"> orders</span>
         </span>
       </div>
+
+      {/* ── Change history ───────────────────────────────────────────────── */}
+      <CreatorChangeHistory
+        entries={changeHistory}
+        brandLabelFor={(slug) => (slug ? brandLabel(reg, slug) : null)}
+        multiBrand={contracts.others.length > 0}
+      />
     </div>
   );
 }

@@ -911,6 +911,101 @@ export async function getCreatorContracts(creatorId: string): Promise<{
 }
 
 /**
+ * Change history for a creator's roster rows (migrations 171/172).
+ *
+ * ⚠️ SOURCE IS roster_audit_log ONLY, deliberately. retainer_history carries
+ * the same retainer moves, but it exists to answer "what was it on date D" for
+ * the client report — it is a lookup table, not a feed. Rendering both would
+ * show every retainer change twice.
+ *
+ * ⚠️ RETAINER IS GATED. The profile's standing rule is that retainer dollars
+ * stay behind canViewCreatorCost and a gated figure renders as absence, never
+ * as $0. So for a finance-blind viewer the retainer field is stripped from the
+ * entry, and an entry left with nothing else to show is dropped entirely —
+ * "something changed, we won't say what" still leaks that a retainer moved.
+ *
+ * A creator can hold several managed_creators rows (one per brand), so the
+ * timeline spans all of them and each entry carries its own brand.
+ */
+export interface CreatorChangeEntry {
+  id: number;
+  managedId: number;
+  brand: string | null;
+  action: 'create' | 'update' | 'archive' | 'unarchive' | 'delete' | string;
+  changedAt: string;
+  /** Null when the write did not identify a user. Never invented. */
+  changedBy: string | null;
+  /** Per-field old -> new, already gated and label-ready. */
+  fields: { field: string; from: unknown; to: unknown }[];
+}
+
+export async function getCreatorChangeHistory(
+  managedIds: number[],
+  canViewCost: boolean,
+  limit = 40,
+): Promise<CreatorChangeEntry[]> {
+  if (managedIds.length === 0) return [];
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from('roster_audit_log')
+    .select('id, managed_creator_id, action, changed_fields, old_values, new_values, changed_by, changed_at')
+    .in('managed_creator_id', managedIds)
+    .order('changed_at', { ascending: false })
+    .order('id', { ascending: false })
+    .limit(limit * 2); // headroom: gating can drop entries below the limit
+
+  // History is a supporting panel, not the page. A failed read renders an
+  // empty timeline rather than 500ing a profile a coach is trying to use.
+  if (error || !data) {
+    if (error) console.error('[creator-profile] change history read failed:', error.message);
+    return [];
+  }
+
+  // brand lives on the roster row, not the log; one small lookup covers every
+  // entry regardless of how many brands the creator is on.
+  const { data: rows } = await supabase
+    .from('managed_creators')
+    .select('id, brand')
+    .in('id', managedIds);
+  const brandById = new Map<number, string | null>((rows ?? []).map((r) => [r.id as number, r.brand as string | null]));
+
+  const out: CreatorChangeEntry[] = [];
+  for (const r of data as Array<{
+    id: number; managed_creator_id: number; action: string;
+    changed_fields: string[] | null;
+    old_values: Record<string, unknown> | null;
+    new_values: Record<string, unknown> | null;
+    changed_by: string | null; changed_at: string;
+  }>) {
+    // `create` and `delete` carry a whole-row snapshot rather than a diff.
+    // Listing 50 columns as "changes" would bury every real edit, so they are
+    // shown as the event itself with no field list.
+    const names = Array.isArray(r.changed_fields) ? r.changed_fields : [];
+
+    const visible = names.filter((f) => (f === 'retainer' ? canViewCost : true));
+    // Nothing left to show, and it was not a whole-row event -> drop it.
+    if (visible.length === 0 && names.length > 0) continue;
+
+    out.push({
+      id: r.id,
+      managedId: r.managed_creator_id,
+      brand: brandById.get(r.managed_creator_id) ?? null,
+      action: r.action,
+      changedAt: r.changed_at,
+      changedBy: r.changed_by,
+      fields: visible.map((f) => ({
+        field: f,
+        from: r.old_values?.[f] ?? null,
+        to: r.new_values?.[f] ?? null,
+      })),
+    });
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+/**
  * Views / likes / comments over the period (migration 151).
  *
  * `posts` here counts videos that were ACTIVE in the window — anything with a
