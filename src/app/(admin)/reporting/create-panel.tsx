@@ -290,7 +290,8 @@ function HeadlineLine({ periodLabel, headline }: { periodLabel: string; headline
       <div className="mt-1 text-sm text-foreground">
         <strong>{isNum(headline.gmv) ? formatCurrency(headline.gmv) : '—'}</strong> GMV
         <span className="text-muted-foreground"> · </span>
-        <strong>{isNum(headline.activeCreators) ? headline.activeCreators.toLocaleString('en-US') : '—'}</strong> active creators
+        <strong>{isNum(headline.activeCreators) ? headline.activeCreators.toLocaleString('en-US') : '—'}</strong>{' '}
+        creators made sales
         <span className="text-muted-foreground"> · </span>
         <strong>{isNum(headline.managedPct) ? `${Math.round(headline.managedPct)}%` : '—'}</strong> managed
       </div>

@@ -116,6 +116,75 @@ export interface BrandClientReportData {
   topProducts: { name: string; gmv: number; orders: number; pctOfTotal: number }[];
 
   /**
+   * Activity at PERSON grain, split into its two honest halves (migration 165).
+   *
+   * ACTIVE WAS ONE NUMBER AND IT MEANT NEITHER THING. `activeCreators` and the
+   * split's `creators` count handles PRESENT in the TikTok export, which emits
+   * a row per creator per day whether or not they sold — jiyu 2026-08 printed
+   * 40,954 store creators against 4,216 who posted and 930 who sold.
+   *
+   * rosterPosted is the agency's work. rosterSold includes creators earning off
+   * content posted months ago: 20 jiyu creators sold without posting once.
+   * rosterPosted + rosterSoldNotPosted == the legacy activePeople, which is the
+   * check that the split loses nothing.
+   *
+   * OPTIONAL: every snapshot frozen before migration 165 lacks it.
+   */
+  activity?: {
+    rosterPosted: number;
+    rosterPostedPrior: number;
+    rosterSold: number;
+    rosterSoldNotPosted: number;
+    /** Roster rows archived DURING the window. Person grain. */
+    rosterDeparted: number;
+    storeCreatorsPosted: number;
+    storeCreatorsSold: number;
+  };
+
+  /**
+   * Video / live / product-card GMV (migration 165). Computed inside the split
+   * RPC on the same time-aware membership rule as the managed GMV, so the three
+   * SUM to the total exactly rather than approximately — jiyu roster
+   * 151,994.87 + 9,322.14 + 463.99 = 161,781.00.
+   *
+   * live_gmv and live_streams have been populated all along and have never
+   * appeared in the report. There is NO per-stream table: lives exist only as
+   * creator-daily aggregates, so a "top live" with a title is not possible —
+   * only top creators BY live GMV.
+   */
+  channels?: {
+    rosterVideoGmv: number; rosterLiveGmv: number;
+    rosterCardGmv: number;  rosterLiveStreams: number;
+    storeVideoGmv: number;  storeLiveGmv: number;
+    storeCardGmv: number;   storeLiveStreams: number;
+  };
+
+  /**
+   * Who on the roster actually goes live. By HANDLE, because the split RPC
+   * collapses roster membership to handle grain on purpose.
+   *
+   * Deliberately NOT a column on the creator table: jiyu's roster ran 87
+   * streams across 259 signed creators, so the column would be ~97% zeros —
+   * and the list says what the total hides, that one handle produced 92.5% of
+   * the live GMV.
+   */
+  topLive?: { handle: string; liveGmv: number; lives: number }[];
+
+  /**
+   * Retainer roster vs affiliate-only, derived from `granular.creators` with no
+   * extra query. Affiliate-only creators carry NO retainer and no post
+   * commitment, so this is the honest read on what the retained roster returns.
+   */
+  agreementSplit?: {
+    retainerGmv: number; affiliateGmv: number;
+    retainerCreators: number; affiliateCreators: number;
+    /** Managed GMV the granular creator list does not carry (departed
+     *  mid-window, or a handle it could not map). Surfaced so the split may
+     *  visibly fail to add up rather than quietly absorbing it into a bucket. */
+    unattributedGmv: number;
+  };
+
+  /**
    * Granular block (migration 152). OPTIONAL on purpose: every already-frozen
    * client_reports.snapshot predates it, so the renderer must treat absence as
    * "this section does not exist for this report" rather than let undefined
@@ -469,6 +538,14 @@ export async function getBrandClientReportData(
     managed: { gmv: number; orders: number; commission: number; creators: number };
     organic: { gmv: number; orders: number; creators: number };
     managed_prior: { gmv: number; orders: number; creators: number };
+    /** Migration 165. Absent on snapshots frozen before it. */
+    channels?: {
+      rosterVideoGmv: number; rosterLiveGmv: number;
+      rosterCardGmv: number;  rosterLiveStreams: number;
+      storeVideoGmv: number;  storeLiveGmv: number;
+      storeCardGmv: number;   storeLiveStreams: number;
+    };
+    top_live?: { handle: string; liveGmv: number; lives: number }[];
   } | null);
   if (splitRes.error) {
     console.error('[brand-client-report] managed split failed, falling back to agg:', splitRes.error.message);
@@ -508,6 +585,12 @@ export async function getBrandClientReportData(
     signedPeople: number; activePeople: number; activePeoplePrior: number;
     newlyActivePeople: number; rosterPosts: number; rosterPostsPrior: number;
     storePosts: number; storePostsPrior: number;
+    // Migration 165. Optional at the type level would be a lie — the function
+    // always returns them now — but a FROZEN snapshot replays an older shape,
+    // so every read below goes through num() and tolerates undefined.
+    rosterPosted?: number; rosterPostedPrior?: number; rosterSold?: number;
+    rosterSoldNotPosted?: number; rosterDeparted?: number;
+    storeCreatorsPosted?: number; storeCreatorsSold?: number;
   } | null);
 
   const productCreatorBreakdown = topProductsRaw.slice(0, 5).map(p => ({
@@ -586,6 +669,70 @@ export async function getBrandClientReportData(
     creatorsCorner.newlyActivatedCount = counts.newlyActivePeople;
   }
 
+  /**
+   * Activity, POSTED and SOLD kept apart (migration 165).
+   *
+   * Built only when the RPC actually returned the new keys. A frozen snapshot
+   * replaying an older shape yields undefined, and the renderer must show the
+   * section as absent rather than print zeros — "0 creators posted" is a
+   * factual claim and it would be false.
+   */
+  const activity = counts && counts.rosterPosted !== undefined
+    ? {
+        rosterPosted:        num(counts.rosterPosted),
+        rosterPostedPrior:   num(counts.rosterPostedPrior),
+        rosterSold:          num(counts.rosterSold),
+        rosterSoldNotPosted: num(counts.rosterSoldNotPosted),
+        rosterDeparted:      num(counts.rosterDeparted),
+        storeCreatorsPosted: num(counts.storeCreatorsPosted),
+        storeCreatorsSold:   num(counts.storeCreatorsSold),
+      }
+    : undefined;
+
+  const ch = split?.channels;
+  const channels = ch
+    ? {
+        rosterVideoGmv: num(ch.rosterVideoGmv), rosterLiveGmv: num(ch.rosterLiveGmv),
+        rosterCardGmv:  num(ch.rosterCardGmv),  rosterLiveStreams: num(ch.rosterLiveStreams),
+        storeVideoGmv:  num(ch.storeVideoGmv),  storeLiveGmv:  num(ch.storeLiveGmv),
+        storeCardGmv:   num(ch.storeCardGmv),   storeLiveStreams:  num(ch.storeLiveStreams),
+      }
+    : undefined;
+
+  const topLive = Array.isArray(split?.top_live) && split.top_live.length > 0
+    ? split.top_live.map((l) => ({
+        handle: String(l.handle ?? ''),
+        liveGmv: num(l.liveGmv),
+        lives: num(l.lives),
+      }))
+    : undefined;
+
+  /**
+   * Retainer vs affiliate-only. No extra query: `granular.creators` already
+   * carries isAffiliate and gmv for EVERY signed creator, at zero included.
+   *
+   * Creator counts here are "how many EARNED", not how many are signed —
+   * granular.roster.onRetainer / affiliateOnly hold the signed totals.
+   */
+  const agreementSplit = granular
+    ? (() => {
+        let retainerGmv = 0, affiliateGmv = 0, retainerCreators = 0, affiliateCreators = 0;
+        for (const c of granular.creators) {
+          if (c.isAffiliate) {
+            affiliateGmv += num(c.gmv);
+            if (num(c.gmv) > 0) affiliateCreators++;
+          } else {
+            retainerGmv += num(c.gmv);
+            if (num(c.gmv) > 0) retainerCreators++;
+          }
+        }
+        return {
+          retainerGmv, affiliateGmv, retainerCreators, affiliateCreators,
+          unattributedGmv: managedGmv - retainerGmv - affiliateGmv,
+        };
+      })()
+    : undefined;
+
   // ── Period label
   const periodLabel = `${startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, ${endDate.getFullYear()}`;
 
@@ -642,6 +789,10 @@ export async function getBrandClientReportData(
         }
       : {}),
     granular,
+    activity,
+    channels,
+    topLive,
+    agreementSplit,
     productCreatorBreakdown,
   };
 }
@@ -669,7 +820,9 @@ export function buildBrandClientSlackMessage(data: BrandClientReportData): strin
   lines.push('');
   lines.push(`*${money(data.totalGmv)} GMV*${deltaTag(data.gmvChangePct, data.periodLengthDays)}`);
   lines.push(
-    `• ${data.totalVideos} posts · ${data.activeCreators} creators · ` +
+    // "creators" here is creators who SOLD (mig 166 filters the count to
+    // gmv > 0). Posting counts live on the report itself.
+    `• ${data.totalVideos} posts · ${data.activeCreators} creators sold · ` +
     `${data.totalOrders.toLocaleString('en-US')} orders · ${money(data.avgOrderValue)} AOV`,
   );
   lines.push('');

@@ -253,6 +253,13 @@ const styles = StyleSheet.create({
   lbGmv:          { fontSize: 12, color: COLORS.pink, fontFamily: 'Inter', fontWeight: 700, textAlign: 'right' },
   lbGmvBox:       { width: 100, alignItems: 'flex-end' },
   lbPct:          { fontSize: 7, color: COLORS.muted, marginTop: 2, textAlign: 'right' },
+  vsRow:    { flexDirection: 'row', alignItems: 'center', marginTop: 7 },
+  vsLabel:  { width: 84, fontSize: 8.5, fontFamily: 'Inter', fontWeight: 700, color: COLORS.ink },
+  vsTrack:  { flex: 1, height: 7, backgroundColor: COLORS.rule, borderRadius: 4, overflow: 'hidden' },
+  vsFill:   { height: 7, backgroundColor: COLORS.pink, borderRadius: 4 },
+  vsOurs:   { width: 62, textAlign: 'right', fontSize: 8.5, fontFamily: 'Inter', fontWeight: 700, color: COLORS.ink },
+  vsTheirs: { width: 66, textAlign: 'right', fontSize: 7.5, fontFamily: 'Inter', fontWeight: 400, color: COLORS.muted },
+  vsPct:    { width: 40, textAlign: 'right', fontSize: 10, fontFamily: 'Inter', fontWeight: 800, color: COLORS.pinkDeep },
   lbBarTrack:     { height: 3, backgroundColor: COLORS.rule, borderRadius: 2, marginTop: 6, overflow: 'hidden' },
   lbBarFill:      { height: 3, backgroundColor: COLORS.pink, borderRadius: 2 },
 
@@ -413,6 +420,84 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
   const topShare = topManaged && cc.gmv > 0 ? (topManaged.gmv / cc.gmv) * 100 : 0;
   const concentrated = topShare >= 40;
 
+  /**
+   * ⚠️ ONE SOURCE for every roster-creator count, identical to report-view.
+   *
+   * cc.activeCreatorCount collapses POSTED and SOLD into one word, and the
+   * creator list below is counted on a different roster rule (on the roster
+   * DURING the window, versus on it today) — which had the PDF printing two
+   * different totals for "signed creators" pages apart. When the creator list
+   * is present every count is derived from it.
+   */
+  const act = data.activity;
+  const rosterAct = gran
+    ? {
+        signed: gran.creators.length,
+        posted: gran.creators.filter((c) => c.postsPublished > 0).length,
+        sold: gran.creators.filter((c) => c.gmv > 0).length,
+        soldNotPosted: gran.creators.filter((c) => c.gmv > 0 && c.postsPublished === 0).length,
+        departed: gran.creators.filter((c) => c.departed === true).length,
+      }
+    : act
+      ? {
+          signed: cc.signedCreatorCount,
+          posted: act.rosterPosted,
+          sold: act.rosterSold,
+          soldNotPosted: act.rosterSoldNotPosted,
+          departed: act.rosterDeparted,
+        }
+      : null;
+
+  /**
+   * ⚠️ data.activeCreators and data.managed/organic.creatorCount are
+   * count(distinct handle) over the TikTok export with NO gmv filter, so they
+   * count every creator who APPEARS in the file. On jiyu 2026-08 that read
+   * 40,954 store creators and 247 roster creators, against 4,216 who posted
+   * and 930 who sold — and it also poisoned every ratio built on it (GMV per
+   * creator read $10.43; new-vs-returning divided by it).
+   *
+   * storeSold is the honest denominator: creators who actually earned. Where
+   * it is unavailable (a snapshot frozen before migration 165) the figure is
+   * OMITTED rather than printed wrong.
+   */
+  const storeSold = data.activity ? data.activity.storeCreatorsSold : null;
+  const storePosted = data.activity ? data.activity.storeCreatorsPosted : null;
+
+  const ch = data.channels;
+  const chTotal = ch ? ch.rosterVideoGmv + ch.rosterLiveGmv + ch.rosterCardGmv : 0;
+  const agree = data.agreementSplit;
+  const agreeTotal = agree ? agree.retainerGmv + agree.affiliateGmv : 0;
+
+  /** Our share of the whole shop, on definitions that are stated. */
+  const vsShop =
+    act && rosterAct
+      ? [
+          { label: 'GMV', ours: fmtCurrency(cc.gmv), theirs: fmtCurrency(data.totalGmv), pct: cc.pctOfStoreGmv },
+          {
+            label: 'Creators posting',
+            ours: fmtNumber(rosterAct.posted),
+            theirs: fmtNumber(act.storeCreatorsPosted),
+            pct: act.storeCreatorsPosted > 0 ? (rosterAct.posted / act.storeCreatorsPosted) * 100 : 0,
+          },
+          {
+            label: 'Posts published',
+            ours: fmtNumber(cc.videos),
+            theirs: fmtNumber(data.totalVideos),
+            pct: data.totalVideos > 0 ? (cc.videos / data.totalVideos) * 100 : 0,
+          },
+          ...(ch && ch.storeLiveGmv > 0
+            ? [
+                {
+                  label: 'Live GMV',
+                  ours: fmtCurrency(ch.rosterLiveGmv),
+                  theirs: fmtCurrency(ch.storeLiveGmv),
+                  pct: (ch.rosterLiveGmv / ch.storeLiveGmv) * 100,
+                },
+              ]
+            : []),
+        ]
+      : [];
+
   return (
     <Document
       title={`${data.brandName} — Weekly Report (${data.periodLabel})`}
@@ -464,7 +549,7 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
               <Text style={[styles.splitLabel, { color: COLORS.muted }]}>POSTS PUBLISHED</Text>
               <Text style={[styles.splitGmv, { color: COLORS.ink }]}>{fmtNumber(data.creatorsCorner.videos)}</Text>
               <Text style={styles.splitMeta}>
-                by {fmtNumber(data.creatorsCorner.activeCreatorCount)} active signed creators
+                by {fmtNumber(rosterAct ? rosterAct.posted : cc.activeCreatorCount)} signed creators who posted
               </Text>
               <View style={{ marginTop: 4, flexDirection: 'row', alignItems: 'center' }}>
                 <Text style={[styles.splitMeta, { marginRight: 6 }]}>vs prior period</Text>
@@ -482,9 +567,11 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
               We were down this period while the store was up. Roster GMV fell{' '}
               {fmtPct(Math.abs(data.creatorsCorner.gmvChangePct!), 1)} against a store that grew{' '}
               {fmtPct(data.gmvChangePct!, 1)}.
-              {data.creatorsCorner.priorCreatorCount === data.creatorsCorner.activeCreatorCount
-                ? ` The same ${fmtNumber(data.creatorsCorner.activeCreatorCount)} creators were active in both periods, so this is output per creator, not roster size.`
-                : ` Active creators went from ${fmtNumber(data.creatorsCorner.priorCreatorCount)} to ${fmtNumber(data.creatorsCorner.activeCreatorCount)}.`}
+              {rosterAct
+                ? ` ${fmtNumber(rosterAct.posted)} creators posted and ${fmtNumber(rosterAct.sold)} made sales, so this is output per creator rather than roster size.`
+                : data.creatorsCorner.priorCreatorCount === data.creatorsCorner.activeCreatorCount
+                  ? ` The same ${fmtNumber(data.creatorsCorner.activeCreatorCount)} creators were active in both periods, so this is output per creator, not roster size.`
+                  : ` Active creators went from ${fmtNumber(data.creatorsCorner.priorCreatorCount)} to ${fmtNumber(data.creatorsCorner.activeCreatorCount)}.`}
             </Text>
           </View>
         )}
@@ -502,60 +589,113 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
         <View style={styles.section}>
           <Text style={styles.sectionEyebrow}>ROSTER ACTIVATION</Text>
           <Text style={styles.sectionTitle}>Signed Creators At Work</Text>
-          <Text style={styles.splitMeta}>
-            {fmtNumber(data.creatorsCorner.activeCreatorCount)} of {fmtNumber(data.creatorsCorner.signedCreatorCount)} signed creators were active this period
-            {data.creatorsCorner.signedCreatorCount > 0
-              ? ` · ${fmtPct((data.creatorsCorner.activeCreatorCount / data.creatorsCorner.signedCreatorCount) * 100, 1)} activation`
-              : ''}
-            {data.creatorsCorner.newlyActivatedCount > 0
-              ? ` · ${fmtNumber(data.creatorsCorner.newlyActivatedCount)} newly activated`
-              : ''}
-          </Text>
+          {rosterAct ? (
+            <>
+              <Text style={styles.splitMeta}>
+                {fmtNumber(rosterAct.posted)} of {fmtNumber(rosterAct.signed)} signed creators posted this
+                period
+                {rosterAct.signed > 0
+                  ? ` · ${fmtPct((rosterAct.posted / rosterAct.signed) * 100, 1)} activation`
+                  : ''}
+                {' · '}
+                {fmtNumber(rosterAct.sold)} made sales
+                {cc.newlyActivatedCount > 0 ? ` · ${fmtNumber(cc.newlyActivatedCount)} newly activated` : ''}
+                {rosterAct.departed > 0 ? ` · ${fmtNumber(rosterAct.departed)} left the roster` : ''}
+              </Text>
+              {/* Activation is measured on POSTING. Creators still earning from
+                  older content are revenue, not work done this period. */}
+              <Text style={[styles.splitMeta, { marginTop: 3 }]}>
+                {rosterAct.soldNotPosted > 0
+                  ? `${fmtNumber(rosterAct.soldNotPosted)} of those sales came from creators who did not post this period, earning from content published earlier.`
+                  : 'Every creator who made sales this period also posted.'}
+              </Text>
+            </>
+          ) : (
+            <Text style={styles.splitMeta}>
+              {fmtNumber(data.creatorsCorner.activeCreatorCount)} of {fmtNumber(data.creatorsCorner.signedCreatorCount)} signed creators were active this period
+              {data.creatorsCorner.signedCreatorCount > 0
+                ? ` · ${fmtPct((data.creatorsCorner.activeCreatorCount / data.creatorsCorner.signedCreatorCount) * 100, 1)} activation`
+                : ''}
+              {data.creatorsCorner.newlyActivatedCount > 0
+                ? ` · ${fmtNumber(data.creatorsCorner.newlyActivatedCount)} newly activated`
+                : ''}
+            </Text>
+          )}
         </View>
 
-        {/* Efficiency vs organic */}
-        <View style={styles.section}>
-          <Text style={styles.sectionEyebrow}>EFFICIENCY</Text>
-          <Text style={styles.sectionTitle}>Managed vs Organic, Per Creator</Text>
-          <View style={styles.splitRow} wrap={false}>
-            <View style={styles.splitLeftCard}>
-              <Text style={[styles.splitLabel, { color: COLORS.pinkDeep }]}>MANAGED CREATORS</Text>
-              <Text style={[styles.splitGmv, { color: COLORS.pinkDeep, fontSize: 14 }]}>{fmtCurrency(data.creatorsCorner.managedGmvPerCreator)} / creator</Text>
-              <Text style={styles.splitMeta}>{fmtCurrency(data.creatorsCorner.managedAov)} avg order value</Text>
-            </View>
-            <View style={styles.splitRightCard}>
-              <Text style={[styles.splitLabel, { color: COLORS.muted }]}>ORGANIC / AFFILIATE</Text>
-              <Text style={[styles.splitGmv, { color: COLORS.ink, fontSize: 14 }]}>{fmtCurrency(data.creatorsCorner.organicGmvPerCreator)} / creator</Text>
-              <Text style={styles.splitMeta}>{fmtCurrency(data.creatorsCorner.organicAov)} avg order value</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Top managed creators */}
-        <View style={styles.section}>
-          <Text style={styles.sectionEyebrow}>LEADERBOARD</Text>
-          <Text style={styles.sectionTitle}>Top Creators Corner Creators</Text>
-          {data.creatorsCorner.topCreators.length === 0 ? (
-            <Text style={[styles.lbMeta, { marginTop: 10 }]}>No signed-creator activity in this period.</Text>
-          ) : data.creatorsCorner.topCreators.map((c, i) => {
-            const isTop3 = i < 3;
-            return (
-              <View key={c.name + i} style={isTop3 ? styles.lbRowTop : styles.lbRow} wrap={false}>
-                <Text style={styles.lbRank}>{medal(i) || `${i + 1}.`}</Text>
-                <View style={styles.lbBody}>
-                  <Text style={styles.lbName}>@{c.name.replace('@','')} <Text style={[styles.lbMeta, { color: COLORS.muted, fontFamily: 'Inter' }]}>· {fmtNumber(c.videos)} videos</Text></Text>
-                  <View style={styles.lbBarTrack}>
-                    <View style={[styles.lbBarFill, { width: `${Math.min(100, c.pctOfManaged)}%` }]} />
-                  </View>
+        {/* ⚠️ REPLACES "Managed vs Organic, Per Creator". That block compared
+            AOV and GMV-per-creator against everyone else; across seven brands
+            the AOV gap was $1-6 and on catakor the roster read WORSE ($43.44
+            against $44.09). Share-of-shop makes the same argument honestly. */}
+        {vsShop.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionEyebrow}>EFFICIENCY</Text>
+            <Text style={styles.sectionTitle}>Creators Corner vs your whole shop</Text>
+            {vsShop.map((row) => (
+              <View key={row.label} style={styles.vsRow} wrap={false}>
+                <Text style={styles.vsLabel}>{row.label}</Text>
+                <View style={styles.vsTrack}>
+                  <View style={[styles.vsFill, { width: `${Math.max(0.8, Math.min(100, row.pct))}%` }]} />
                 </View>
-                <View style={styles.lbGmvBox}>
-                  <Text style={styles.lbGmv}>{fmtCurrency(c.gmv)}</Text>
-                  <Text style={styles.lbPct}>{fmtPct(c.pctOfManaged, 1)} of managed</Text>
-                </View>
+                <Text style={styles.vsOurs}>{row.ours}</Text>
+                <Text style={styles.vsTheirs}>of {row.theirs}</Text>
+                <Text style={styles.vsPct}>{fmtPct(row.pct, 1)}</Text>
               </View>
-            );
-          })}
-        </View>
+            ))}
+            <Text style={[styles.splitMeta, { marginTop: 4 }]}>
+              Each figure is ours against your whole TikTok Shop, including creators we do not manage.
+            </Text>
+          </View>
+        )}
+
+        {/* Where the roster's GMV came from. The channel split is computed on
+            the same membership rule as the roster GMV above, so the three add
+            to that total exactly. */}
+        {(agreeTotal > 0 || chTotal > 0) && (
+          <View style={styles.section}>
+            <Text style={styles.sectionEyebrow}>WHERE OUR GMV CAME FROM</Text>
+            <View style={styles.splitRow} wrap={false}>
+              {agree && agreeTotal > 0 && (
+                <View style={styles.splitLeftCard}>
+                  <Text style={[styles.splitLabel, { color: COLORS.pinkDeep }]}>RETAINER VS AFFILIATE-ONLY</Text>
+                  <Text style={[styles.splitGmv, { color: COLORS.pinkDeep, fontSize: 14 }]}>
+                    {fmtCurrency(agree.retainerGmv)} retainer
+                  </Text>
+                  <Text style={styles.splitMeta}>
+                    {fmtCurrency(agree.affiliateGmv)} from affiliate-only creators, who carry no retainer and
+                    no post requirement
+                  </Text>
+                </View>
+              )}
+              {ch && chTotal > 0 && (
+                <View style={styles.splitRightCard}>
+                  <Text style={[styles.splitLabel, { color: COLORS.muted }]}>VIDEO / LIVE / CARD</Text>
+                  <Text style={[styles.splitGmv, { color: COLORS.ink, fontSize: 14 }]}>
+                    {fmtCurrency(ch.rosterVideoGmv)} video
+                  </Text>
+                  <Text style={styles.splitMeta}>
+                    {fmtCurrency(ch.rosterLiveGmv)} live across {fmtNumber(ch.rosterLiveStreams)} stream
+                    {ch.rosterLiveStreams === 1 ? '' : 's'} · {fmtCurrency(ch.rosterCardGmv)} product card
+                  </Text>
+                </View>
+              )}
+            </View>
+            {ch && chTotal > 0 && (
+              <Text style={[styles.splitMeta, { marginTop: 4 }]}>
+                The three add to {fmtCurrency(chTotal)}
+                {Math.abs(chTotal - cc.gmv) < 1 ? ', exactly the roster total above' : ''}.
+                {data.topLive && data.topLive.length > 0
+                  ? ` Live selling is led by @${data.topLive[0].handle} with ${fmtCurrency(data.topLive[0].liveGmv)} across ${fmtNumber(data.topLive[0].lives)} stream${data.topLive[0].lives === 1 ? '' : 's'}.`
+                  : ''}
+              </Text>
+            )}
+          </View>
+        )}
+
+        {/* ⚠️ CUT: "Top Creators Corner Creators". It was the first rows of
+            "Every creator we run for you", rendered a second time with
+            different columns — the same duplication removed from the web
+            report. The full table carries it. */}
 
         {/* Top managed videos */}
         <View style={styles.section}>
@@ -563,7 +703,7 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
           <Text style={styles.sectionTitle}>Top Videos From Your Signed Creators</Text>
           {data.creatorsCorner.topVideos.length === 0 ? (
             <Text style={[styles.lbMeta, { marginTop: 10 }]}>No signed-creator videos with sales in this period.</Text>
-          ) : data.creatorsCorner.topVideos.map((v, i) => {
+          ) : data.creatorsCorner.topVideos.slice(0, 5).map((v, i) => {
             const isTop3 = i < 3;
             const titleClipped = v.title.length > 56 ? v.title.slice(0, 56) + '...' : v.title;
             return (
@@ -629,7 +769,7 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
               only sales made in this period — the same cut as the web report. */}
           {gran && vintageRows.length > 0 && (
             <View style={styles.section}>
-              <Text style={styles.sectionEyebrow}>WHERE THIS PERIOD&apos;S SALES CAME FROM</Text>
+              <Text style={styles.sectionEyebrow}>WHERE OUR SALES CAME FROM</Text>
               <Text style={styles.sectionTitle}>
                 {fmtCurrency(gran.newVideo.gmv30d)} came from videos posted in the last 30 days
               </Text>
@@ -742,8 +882,15 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
           <Text style={styles.summaryBody}>
             This period, <Text style={styles.highlightPink}>{data.brandName}</Text> generated{' '}
             <Text style={styles.highlightPos}>{fmtCurrency(data.totalGmv)}</Text> in GMV from{' '}
-            <Text style={styles.highlightInk}>{fmtNumber(data.totalOrders)}</Text> orders across{' '}
-            <Text style={styles.highlightInk}>{fmtNumber(data.activeCreators)}</Text> active creators.
+            <Text style={styles.highlightInk}>{fmtNumber(data.totalOrders)}</Text> orders
+            {storeSold !== null ? (
+              <Text>
+                {' '}across <Text style={styles.highlightInk}>{fmtNumber(storeSold)}</Text> creators who made
+                sales.
+              </Text>
+            ) : (
+              <Text>.</Text>
+            )}
             {data.gmvChangePct !== null && (
               <Text>
                 {' '}This represents a{' '}
@@ -820,11 +967,13 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
               <Text style={styles.kpiValue}>{fmtNumber(data.totalOrders)}</Text>
               <DeltaPill pct={data.orderChangePct} />
             </View>
-            <View style={styles.kpiCard}>
-              <Text style={styles.kpiLabel}>ACTIVE CREATORS</Text>
-              <Text style={styles.kpiValue}>{fmtNumber(data.activeCreators)}</Text>
-              <DeltaPill pct={data.creatorChangePct} />
-            </View>
+            {storePosted !== null && (
+              <View style={styles.kpiCard}>
+                <Text style={styles.kpiLabel}>CREATORS POSTING</Text>
+                <Text style={styles.kpiValue}>{fmtNumber(storePosted)}</Text>
+                <Text style={styles.splitMeta}>{fmtNumber(storeSold ?? 0)} made sales</Text>
+              </View>
+            )}
             <View style={styles.kpiCard}>
               <Text style={styles.kpiLabel}>VIDEOS POSTED</Text>
               <Text style={styles.kpiValue}>{fmtNumber(data.totalVideos)}</Text>
@@ -838,10 +987,18 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
               <Text style={styles.kpiLabel}>AVG ORDER VALUE</Text>
               <Text style={[styles.kpiValue, { fontSize: 16 }]}>{fmtCurrency(data.avgOrderValue, 2)}</Text>
             </View>
-            <View style={[styles.kpiCard, { backgroundColor: COLORS.bgCard }]}>
-              <Text style={styles.kpiLabel}>AVG GMV / CREATOR</Text>
-              <Text style={[styles.kpiValue, { fontSize: 16 }]}>{fmtCurrency(data.avgGmvPerCreator)}</Text>
-            </View>
+            {/* ⚠️ NOT data.avgGmvPerCreator: it divides by activeCreators,
+                the export-row count, and printed $5 on jiyu against a true
+                $258. Recomputed on creators who actually sold, and omitted
+                entirely when that denominator is unavailable. */}
+            {storeSold !== null && storeSold > 0 && (
+              <View style={[styles.kpiCard, { backgroundColor: COLORS.bgCard }]}>
+                <Text style={styles.kpiLabel}>AVG GMV / SELLING CREATOR</Text>
+                <Text style={[styles.kpiValue, { fontSize: 16 }]}>
+                  {fmtCurrency(data.totalGmv / storeSold)}
+                </Text>
+              </View>
+            )}
             <View style={[styles.kpiCard, { backgroundColor: COLORS.bgCard }]}>
               <Text style={styles.kpiLabel}>EST. COMMISSION</Text>
               <Text style={[styles.kpiValue, { fontSize: 16 }]}>{fmtCurrency(data.estCommission)}</Text>
@@ -857,13 +1014,13 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
             <View style={styles.splitLeftCard}>
               <Text style={[styles.splitLabel, { color: COLORS.pinkDeep }]}>MANAGED CREATORS</Text>
               <Text style={[styles.splitGmv, { color: COLORS.pinkDeep }]}>{fmtCurrency(data.managed.gmv)}</Text>
-              <Text style={styles.splitMeta}>{fmtNumber(data.managed.creatorCount)} creators · {fmtNumber(data.managed.orders)} orders</Text>
+              <Text style={styles.splitMeta}>{fmtNumber(data.managed.orders)} orders</Text>
             </View>
             <Donut pct={data.managedPct} />
             <View style={styles.splitRightCard}>
               <Text style={[styles.splitLabel, { color: COLORS.muted }]}>ORGANIC / AFFILIATE</Text>
               <Text style={[styles.splitGmv, { color: COLORS.ink }]}>{fmtCurrency(data.organic.gmv)}</Text>
-              <Text style={styles.splitMeta}>{fmtNumber(data.organic.creatorCount)} creators · {fmtNumber(data.organic.orders)} orders</Text>
+              <Text style={styles.splitMeta}>{fmtNumber(data.organic.orders)} orders</Text>
             </View>
           </View>
           <View style={styles.splitBar}>
@@ -883,14 +1040,24 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
             <View style={styles.nvrCardNew}>
               <Text style={[styles.nvrLabel, { color: COLORS.positive }]}>NEW THIS PERIOD</Text>
               <Text style={[styles.nvrCount, { color: COLORS.positive }]}>{fmtNumber(data.newCreators.count)}</Text>
-              <Text style={styles.nvrPctRow}>creators ({Math.round(data.activeCreators > 0 ? (data.newCreators.count / data.activeCreators) * 100 : 0)}%)</Text>
+              <Text style={styles.nvrPctRow}>
+                creators
+                {storeSold !== null && storeSold > 0
+                  ? ` (${Math.round((data.newCreators.count / storeSold) * 100)}% of those who sold)`
+                  : ''}
+              </Text>
               <Text style={[styles.nvrGmv, { color: COLORS.positive }]}>{fmtCurrency(data.newCreators.gmv)}</Text>
               <Text style={styles.nvrSub}>GMV from new creators</Text>
             </View>
             <View style={styles.nvrCardRet}>
               <Text style={[styles.nvrLabel, { color: COLORS.blue }]}>RETURNING</Text>
               <Text style={[styles.nvrCount, { color: COLORS.blue }]}>{fmtNumber(data.returningCreators.count)}</Text>
-              <Text style={styles.nvrPctRow}>creators ({Math.round(data.activeCreators > 0 ? (data.returningCreators.count / data.activeCreators) * 100 : 0)}%)</Text>
+              <Text style={styles.nvrPctRow}>
+                creators
+                {storeSold !== null && storeSold > 0
+                  ? ` (${Math.round((data.returningCreators.count / storeSold) * 100)}% of those who sold)`
+                  : ''}
+              </Text>
               <Text style={[styles.nvrGmv, { color: COLORS.blue }]}>{fmtCurrency(data.returningCreators.gmv)}</Text>
               <Text style={styles.nvrSub}>GMV from returning creators</Text>
             </View>

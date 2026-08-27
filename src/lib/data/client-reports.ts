@@ -115,8 +115,19 @@ export async function buildClientReportSnapshot(
   pStart.setDate(pStart.getDate() - (report.periodLengthDays - 1));
 
   const dataSlugs = brandSlug && brandSlug !== 'all' ? expandSlugs(reg, brandSlug) : null;
-  const videoIds = report.topVideos
-    .slice(0, 3)
+  /**
+   * View counts for the videos the report ACTUALLY shows.
+   *
+   * This used to take the first 3 of report.topVideos, which was wrong twice
+   * over: the content section prefers the ROSTER leaderboard (cc.topVideos)
+   * and falls back to the store one, and it now renders 5 rather than 3. The
+   * mismatch meant a roster video could render with no view count while views
+   * had been fetched for a store video that was never displayed.
+   */
+  const shownVideos =
+    report.creatorsCorner.topVideos.length > 0 ? report.creatorsCorner.topVideos : report.topVideos;
+  const videoIds = shownVideos
+    .slice(0, 5)
     .map((v) => extractTikTokVideoId(v.videoUrl))
     .filter((id): id is string => id !== null);
 

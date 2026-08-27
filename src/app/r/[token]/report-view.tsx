@@ -117,12 +117,24 @@ function HeroStat({ label, value, pct, abs }: { label: string; value: string; pc
 }
 
 /** Smaller stat, used for store context. */
-function Mini({ label, value, pct }: { label: string; value: string; pct?: number | null }) {
+function Mini({
+  label,
+  value,
+  pct,
+  note,
+}: {
+  label: string;
+  value: string;
+  pct?: number | null;
+  /** Hangs our share under a store-wide figure, so the comparison sits in the
+   *  same tile rather than in a separate section the reader has to hold. */
+  note?: React.ReactNode;
+}) {
   return (
     <div className="rounded-[12px] border border-[#e7e7f2] bg-white px-3.5 py-3">
       <div className="text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">{label}</div>
       <div className="mt-0.5 text-[18px] font-extrabold tabular-nums text-[#171a33]">{value}</div>
-      <Delta pct={pct} />
+      {note ? <div className="mt-1 text-[11px] leading-tight text-[#8a8fb0]">{note}</div> : <Delta pct={pct} />}
     </div>
   );
 }
@@ -206,6 +218,196 @@ function HoverBars({
  * across the report window; a weekly slice of a monthly commitment is an
  * estimate, and this report does not make those.
  */
+/**
+ * What the agency did against what the whole shop did.
+ *
+ * REPLACES "Signed creators vs the rest of your shop", which argued the same
+ * point with an AOV gap of $1-6 that ran BACKWARDS on some brands (catakor:
+ * roster $43.44 against everyone else at $44.09). Measured on jiyu 2026-08 this
+ * says it properly: 2.1% of the creators and 9.5% of the posts produced 37.9%
+ * of the GMV.
+ *
+ * Every row is a share of a store-wide denominator printed right beside it, so
+ * the reader never has to take the percentage on trust.
+ */
+function VsShop({
+  rows,
+}: {
+  rows: { label: string; ours: string; theirs: string; pct: number; live?: boolean }[];
+}) {
+  return (
+    <div className="overflow-hidden rounded-[14px] border border-[#e7e7f2] bg-white">
+      {rows.map((r, i) => (
+        <div
+          key={r.label}
+          className={`grid grid-cols-1 items-center gap-2 px-4 py-3.5 sm:grid-cols-[140px_1fr_78px] sm:gap-4 ${
+            i > 0 ? 'border-t border-[#f2f1f8]' : ''
+          }`}
+        >
+          <div className="text-[13px] font-bold text-[#171a33]">{r.label}</div>
+          <div className="relative h-[26px] overflow-hidden rounded-[6px] bg-[#f2f1f8]">
+            <div
+              className="absolute inset-y-0 left-0 rounded-[6px]"
+              style={{
+                width: `${Math.max(0.6, Math.min(100, r.pct))}%`,
+                background: r.live ? '#c74f9e' : '#4b45ff',
+              }}
+            />
+            <div className="absolute inset-0 flex items-center justify-between px-2.5 text-[11.5px] font-bold tabular-nums">
+              {/* Under ~18% the fill is too narrow to seat text on, so the value
+                  sits off it rather than being clipped against the bar edge. */}
+              <span className={r.pct >= 18 ? 'text-white' : 'text-[#33375c]'}>{r.ours}</span>
+              <span className="text-[#33375c]">{r.theirs}</span>
+            </div>
+          </div>
+          <div
+            className="text-[19px] font-extrabold tabular-nums sm:text-right"
+            style={{ color: r.live ? '#c74f9e' : '#4b45ff' }}
+          >
+            {r.pct.toFixed(1)}%
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** One labelled proportional bar. */
+function SplitBar({ parts }: { parts: { label: string; value: string; pct: number; color: string }[] }) {
+  return (
+    <>
+      <div className="mt-3 flex h-[11px] overflow-hidden rounded-[6px] bg-[#f2f1f8]">
+        {parts.map((p) => (
+          <span key={p.label} style={{ width: `${p.pct}%`, background: p.color }} />
+        ))}
+      </div>
+      <div className="mt-2.5 flex flex-wrap gap-x-3.5 gap-y-1.5 text-[12px] text-[#33375c]">
+        {parts.map((p) => (
+          <span key={p.label} className="flex items-center gap-1.5">
+            <i className="h-[9px] w-[9px] flex-none rounded-[3px]" style={{ background: p.color }} />
+            {p.label} <b className="tabular-nums text-[#171a33]">{p.value}</b>
+          </span>
+        ))}
+      </div>
+    </>
+  );
+}
+
+/**
+ * Where the roster's GMV came from, two ways: by what you pay for, and by the
+ * surface it sold on.
+ *
+ * The channel split is computed inside the same RPC and on the same time-aware
+ * membership rule as the roster GMV above it, so video + live + card equals
+ * that total EXACTLY. If it ever stops adding up, the copy says so rather than
+ * letting the difference vanish into a bucket.
+ */
+function SourceSplit({
+  agreement,
+  channels,
+  topLive,
+  rosterGmv,
+  storeLiveGmv,
+}: {
+  agreement: BrandClientReportData['agreementSplit'];
+  channels: BrandClientReportData['channels'];
+  topLive: BrandClientReportData['topLive'];
+  rosterGmv: number;
+  storeLiveGmv: number;
+}) {
+  const agTotal = agreement ? agreement.retainerGmv + agreement.affiliateGmv : 0;
+  const chTotal = channels ? channels.rosterVideoGmv + channels.rosterLiveGmv + channels.rosterCardGmv : 0;
+  const share = (v: number, total: number) => (total > 0 ? (v / total) * 100 : 0);
+  const liveShareOfShop = channels && storeLiveGmv > 0 ? (channels.rosterLiveGmv / storeLiveGmv) * 100 : null;
+
+  if (agTotal <= 0 && chTotal <= 0) return null;
+
+  return (
+    <div className="mt-3 grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+      {agreement && agTotal > 0 && (
+        <div className="rounded-[14px] border border-[#e7e7f2] bg-white px-4 py-3.5">
+          <div className="text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">
+            Retainer roster vs affiliate-only
+          </div>
+          <SplitBar
+            parts={[
+              { label: 'Retainer', value: money(agreement.retainerGmv), pct: share(agreement.retainerGmv, agTotal), color: '#4b45ff' },
+              { label: 'Affiliate-only', value: money(agreement.affiliateGmv), pct: share(agreement.affiliateGmv, agTotal), color: '#9a95e8' },
+            ]}
+          />
+          <p className="mt-2.5 text-[12.5px] leading-[1.6] text-[#33375c]">
+            {agreement.affiliateGmv > agreement.retainerGmv ? (
+              <>
+                Your affiliate-only creators, who carry no retainer and no post requirement, out-earned
+                the creators you pay for this period.
+              </>
+            ) : (
+              <>
+                The creators you pay a retainer produced the larger share, from{' '}
+                {num(agreement.retainerCreators)} who earned against {num(agreement.affiliateCreators)}{' '}
+                affiliate-only.
+              </>
+            )}
+          </p>
+          {/* Never absorbed into a bucket: if the creator list cannot account
+              for all of the roster's GMV, the gap is stated. */}
+          {Math.abs(agreement.unattributedGmv) >= 1 && (
+            <p className="mt-1.5 text-[11px] leading-tight text-[#8a8fb0]">
+              {money(Math.abs(agreement.unattributedGmv))} is not attributed to a current roster row, from
+              creators who left part-way through the period.
+            </p>
+          )}
+        </div>
+      )}
+
+      {channels && chTotal > 0 && (
+        <div className="rounded-[14px] border border-[#e7e7f2] bg-white px-4 py-3.5">
+          <div className="text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">
+            Video vs live vs product card
+          </div>
+          <SplitBar
+            parts={[
+              { label: 'Video', value: money(channels.rosterVideoGmv), pct: share(channels.rosterVideoGmv, chTotal), color: '#4b45ff' },
+              { label: 'Live', value: money(channels.rosterLiveGmv), pct: share(channels.rosterLiveGmv, chTotal), color: '#c74f9e' },
+              { label: 'Card', value: money(channels.rosterCardGmv), pct: share(channels.rosterCardGmv, chTotal), color: '#c7c9de' },
+            ]}
+          />
+          <p className="mt-2.5 text-[12.5px] leading-[1.6] text-[#33375c]">
+            {num(channels.rosterLiveStreams)} live stream{channels.rosterLiveStreams === 1 ? '' : 's'} from your
+            roster
+            {liveShareOfShop !== null && liveShareOfShop > 0 && (
+              <>
+                , earning <b className="text-[#171a33]">{liveShareOfShop.toFixed(1)}%</b> of all the live GMV on
+                your shop
+              </>
+            )}
+            . The three add to {money(chTotal)}
+            {Math.abs(chTotal - rosterGmv) < 1 ? ' exactly' : ''}.
+          </p>
+        </div>
+      )}
+
+      {topLive && topLive.length > 0 && (
+        <div className="rounded-[14px] border border-[#e7e7f2] bg-white px-4 py-3.5 sm:col-span-2">
+          <div className="text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">
+            Who goes live for you
+          </div>
+          <div className="mt-2.5 flex flex-wrap gap-x-6 gap-y-2.5">
+            {topLive.map((l) => (
+              <div key={l.handle} className="min-w-0">
+                <div className="truncate text-[13px] font-bold text-[#171a33]">@{l.handle}</div>
+                <div className="text-[11.5px] tabular-nums text-[#8a8fb0]">
+                  {money(l.liveGmv)} &middot; {num(l.lives)} live{l.lives === 1 ? '' : 's'}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function InvestmentStrip({ g }: { g: NonNullable<BrandClientReportData['granular']> }) {
   const budget = finite(g.roster.monthlyRetainerBudget);
   return (
@@ -275,6 +477,11 @@ function VintageSection({
       : []),
   ];
   const max = Math.max(...rows.map((r) => r.gmv), 1);
+  // The share carried by content posted before the three months listed. Stated
+  // as a number because it is usually the most persuasive figure in the report
+  // and it was previously left for the reader to infer from bar lengths.
+  const olderPct =
+    total > 0 && g.vintageOlder.gmv > 0 ? (g.vintageOlder.gmv / total) * 100 : null;
 
   return (
     <div className="rounded-[14px] border border-[#e7e7f2] bg-white px-5 py-5">
@@ -285,8 +492,22 @@ function VintageSection({
         {pct30 !== null ? (
           <>
             That is <b className="text-[#171a33]">{pct30.toFixed(1)}% of roster GMV</b> from{' '}
-            <b className="text-[#171a33]">{num(g.newVideo.videos30d)} recent posts</b>. The rest comes from
-            content published earlier that is still selling — which is why posting consistently compounds.
+            <b className="text-[#171a33]">{num(g.newVideo.videos30d)} recent posts</b>.
+            {olderPct !== null && olderPct >= 15 ? (
+              <>
+                {' '}
+                Another <b className="text-[#171a33]">{olderPct.toFixed(1)}%</b> &mdash;{' '}
+                <b className="text-[#171a33]">{money(g.vintageOlder.gmv)}</b> &mdash; came from posts older
+                than the three months below and is still selling. That back catalogue is what the work
+                compounds into.
+              </>
+            ) : (
+              <>
+                {' '}
+                The rest comes from content published earlier that is still selling &mdash; which is why
+                posting consistently compounds.
+              </>
+            )}
           </>
         ) : (
           <>No roster sales in this {word}, so there is no split to show.</>
@@ -329,15 +550,6 @@ function VintageSection({
 }
 
 /**
- * Every signed creator, including those who did nothing this period.
- *
- * ⚠️ `quota` is null for affiliate-only creators and renders as an em dash.
- * All 85 of Lemme's affiliate-only rows carry a non-zero
- * monthly_post_requirement in the database, and it is phantom — they never
- * agreed to one. Rendering it would tell the brand that 85 of its creators
- * missed a target that does not exist.
- */
-/**
  * Every signed creator — the ones who did something, in full; the rest
  * summarised and available behind a disclosure.
  *
@@ -362,11 +574,13 @@ function FullRosterTable({ g }: { g: NonNullable<BrandClientReportData['granular
   return (
     <div className="overflow-hidden rounded-[14px] border border-[#e7e7f2] bg-white">
       <div className="border-b border-[#eeedf5] px-4 py-3">
+        {/* Deliberately does NOT restate posted / sold / signed: those are the
+            tiles immediately above, derived from THIS array, and printing them
+            twice is how the page ended up with 259 next to 293. */}
         <p className="text-[13px] leading-[1.6] text-[#33375c]">
-          <b className="text-[#171a33]">{num(active.length)}</b> of{' '}
-          <b className="text-[#171a33]">{num(rows.length)}</b> signed creators posted or sold this
-          period. <b className="text-[#171a33]">{num(g.roster.affiliateOnly)}</b> of your roster are
-          affiliate-only — commission, with no post requirement.
+          Every creator we run for you, sorted by what they earned this period.{' '}
+          <b className="text-[#171a33]">{num(g.roster.affiliateOnly)}</b> of your roster are
+          affiliate-only &mdash; commission, with no post requirement, so they carry no posting target.
         </p>
       </div>
 
@@ -488,70 +702,6 @@ function CreatorRows({
   );
 }
 
-function RosterTable({
-  rows,
-  totalGmv,
-  periodLabel,
-}: {
-  rows: { name: string; gmv: number; orders: number; videos: number }[];
-  totalGmv: number;
-  periodLabel: string;
-}) {
-  return (
-    <div className="overflow-hidden rounded-[14px] border border-[#e7e7f2] bg-white">
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[520px] border-collapse text-[13px]">
-          <thead>
-            <tr className="border-b border-[#eeedf5]">
-              <th className="px-4 py-2.5 text-left text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">Creator</th>
-              <th className="px-4 py-2.5 text-right text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">GMV</th>
-              <th className="px-4 py-2.5 text-right text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">Orders</th>
-              <th className="px-4 py-2.5 text-right text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">Posts</th>
-              <th className="w-[132px] px-4 py-2.5 text-left text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">Share</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((c, i) => {
-              const share = totalGmv > 0 ? (c.gmv / totalGmv) * 100 : 0;
-              const h = handleOf(c.name);
-              return (
-                <tr key={i} className="border-b border-[#f2f1f8] last:border-b-0">
-                  <td className="px-4 py-2.5">
-                    <a
-                      href={`https://www.tiktok.com/@${h}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-semibold text-[#4b45ff] underline decoration-[#4b45ff]/30 underline-offset-2 hover:decoration-[#4b45ff]"
-                    >
-                      @{h}
-                    </a>
-                    <span aria-hidden="true" className="ml-0.5 text-[10px] text-[#8a8fb0]">↗</span>
-                  </td>
-                  <td className="px-4 py-2.5 text-right font-extrabold tabular-nums text-[#171a33]">{money(c.gmv)}</td>
-                  <td className="px-4 py-2.5 text-right tabular-nums text-[#33375c]">{num(c.orders)}</td>
-                  <td className="px-4 py-2.5 text-right tabular-nums text-[#33375c]">{num(c.videos)}</td>
-                  <td className="px-4 py-2.5">
-                    <span className="block h-1.5 overflow-hidden rounded-full bg-[#efeef7]">
-                      <span
-                        className="block h-full rounded-full"
-                        style={{ width: `${Math.max(2, share)}%`, background: 'linear-gradient(90deg,#5b5ee8,#a855f7)' }}
-                      />
-                    </span>
-                    <span className="mt-1 block text-[10.5px] tabular-nums text-[#8a8fb0]">{share.toFixed(1)}%</span>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-      <div className="border-t border-[#eeedf5] px-4 py-2 text-[10.5px] text-[#8a8fb0]">
-        {periodLabel}. Handles open the creator&rsquo;s TikTok profile. 0 posts means they sold from earlier content.
-      </div>
-    </div>
-  );
-}
-
 // ── The page ───────────────────────────────────────────────────────
 
 export function ReportView({
@@ -590,6 +740,105 @@ export function ReportView({
   const creatorPct =
     finite(cc.creatorChangePct) ?? (priorCreators !== null ? pctChange(cc.activeCreatorCount, priorCreators) : undefined);
 
+  /**
+   * ACTIVE IS NOT ONE NUMBER (migration 165).
+   *
+   * `cc.activeCreatorCount` is posted OR sold, and it hid two different facts
+   * behind one word. A creator who sold this period without posting once is
+   * earning off content from months ago; counting them as active overstates
+   * the work we did. Activation is measured on POSTING; sales sit beside it.
+   *
+   * `act` is undefined on every snapshot frozen before 165 — those reports keep
+   * rendering the single number they were built with, because inventing a
+   * split we never computed would be worse than the ambiguity.
+   */
+  const act = r.activity;
+
+  /**
+   * ⚠️ ONE SOURCE for every roster-creator count on this page.
+   *
+   * The page was printing two different numbers for the same fact, five
+   * sections apart. Live on JiYu (week of 2026-08-17):
+   *
+   *     Roster coverage   "Signed creators 259"   "Active this period 78"
+   *     Creator table     "77 of 293 signed creators posted or sold"
+   *
+   * Both were defensible and that is exactly the problem. get_..._counts
+   * counts people on the roster TODAY (employment_status active AND not
+   * archived); the granular creator list counts people who were on it DURING
+   * the window, which is the right rule for a period report and the one used
+   * for membership everywhere else.
+   *
+   * So when the creator list is present, every roster count is derived FROM
+   * that list. The tiles and the table then cannot disagree, because they are
+   * the same array.
+   */
+  const rosterAct = gran
+    ? {
+        signed: gran.creators.length,
+        posted: gran.creators.filter((c) => c.postsPublished > 0).length,
+        sold: gran.creators.filter((c) => c.gmv > 0).length,
+        soldNotPosted: gran.creators.filter((c) => c.gmv > 0 && c.postsPublished === 0).length,
+        departed: gran.creators.filter((c) => c.departed === true).length,
+        /** Whether a period-over-period delta may be drawn on `posted`. The
+         *  creator list is single-window, so there is no prior figure on the
+         *  same basis — and a delta computed across two definitions is worse
+         *  than no delta. */
+        canCompare: false,
+      }
+    : act
+      ? {
+          signed: cc.signedCreatorCount,
+          posted: act.rosterPosted,
+          sold: act.rosterSold,
+          soldNotPosted: act.rosterSoldNotPosted,
+          departed: act.rosterDeparted,
+          canCompare: act.rosterPostedPrior > 0,
+        }
+      : null;
+
+  const postedPct =
+    rosterAct && rosterAct.canCompare && act && act.rosterPostedPrior > 0
+      ? pctChange(rosterAct.posted, act.rosterPostedPrior)
+      : undefined;
+
+  // Share of the whole shop, on the same two definitions. `r.activeCreators`
+  // is NOT used: it counts handles present in the TikTok export, which read
+  // 40,954 on jiyu against 4,216 who posted.
+  const vsShopRows = act && rosterAct
+    ? [
+        {
+          label: 'GMV',
+          ours: money(cc.gmv),
+          theirs: `${money(r.totalGmv)} shop`,
+          pct: cc.pctOfStoreGmv,
+        },
+        {
+          label: 'Creators posting',
+          ours: num(rosterAct.posted),
+          theirs: `${num(act.storeCreatorsPosted)} shop`,
+          pct: act.storeCreatorsPosted > 0 ? (rosterAct.posted / act.storeCreatorsPosted) * 100 : 0,
+        },
+        {
+          label: 'Posts published',
+          ours: num(cc.videos),
+          theirs: `${num(r.totalVideos)} shop`,
+          pct: r.totalVideos > 0 ? (cc.videos / r.totalVideos) * 100 : 0,
+        },
+        ...(r.channels && r.channels.storeLiveGmv > 0
+          ? [
+              {
+                label: 'Live GMV',
+                ours: money(r.channels.rosterLiveGmv),
+                theirs: `${money(r.channels.storeLiveGmv)} shop`,
+                pct: (r.channels.rosterLiveGmv / r.channels.storeLiveGmv) * 100,
+                live: true,
+              },
+            ]
+          : []),
+      ]
+    : [];
+
   const viewsDelta = s.views !== null && s.priorViews !== null ? pctChange(s.views, s.priorViews) : null;
 
   // The honest case: our roster fell while the store rose. Stating it plainly
@@ -620,7 +869,8 @@ export function ReportView({
     return i % 5 === 0 || i === daily.length - 1 ? fmtDay(d.date) : '';
   });
 
-  const watchVideos = (cc.topVideos.length > 0 ? cc.topVideos : r.topVideos).slice(0, 3).map((v) => {
+  // 5, not 3: the RPC has always returned five and the report showed three.
+  const watchVideos = (cc.topVideos.length > 0 ? cc.topVideos : r.topVideos).slice(0, 5).map((v) => {
     const id = extractTikTokVideoId(v.videoUrl);
     const views = id !== null ? s.videoViews[id] : undefined;
     return { ...v, videoId: id, viewsLabel: views !== undefined ? compactCount(views) : null };
@@ -667,8 +917,17 @@ export function ReportView({
               </h2>
               <p className="mt-1.5 max-w-[68ch] text-[14.5px] leading-[1.65] text-[#33375c]">
                 That is <b className="text-[#171a33]">{cc.pctOfStoreGmv.toFixed(1)}% of {brandName}&rsquo;s total store GMV</b>,
-                from <b className="text-[#171a33]">{num(cc.activeCreatorCount)} active signed creators</b> who published{' '}
-                <b className="text-[#171a33]">{num(cc.videos)} posts</b>
+                from{' '}
+                <b className="text-[#171a33]">
+                  {num(rosterAct ? rosterAct.posted : cc.activeCreatorCount)} signed creators
+                </b>{' '}
+                who published <b className="text-[#171a33]">{num(cc.videos)} posts</b>
+                {rosterAct && rosterAct.sold > 0 && (
+                  <>
+                    {' '}
+                    &mdash; and <b className="text-[#171a33]">{num(rosterAct.sold)}</b> of your roster made sales
+                  </>
+                )}
                 {cc.newlyActivatedCount > 0 && (
                   <>, including {cc.newlyActivatedCount} who activated for the first time</>
                 )}
@@ -683,9 +942,9 @@ export function ReportView({
                 />
                 <HeroStat label="Share of store" value={`${cc.pctOfStoreGmv.toFixed(1)}%`} />
                 <HeroStat
-                  label="Creators active"
-                  value={num(cc.activeCreatorCount)}
-                  pct={creatorPct}
+                  label={rosterAct ? 'Creators who posted' : 'Creators active'}
+                  value={num(rosterAct ? rosterAct.posted : cc.activeCreatorCount)}
+                  pct={rosterAct ? postedPct : creatorPct}
                 />
                 <HeroStat
                   label="Posts published"
@@ -720,7 +979,34 @@ export function ReportView({
           </>
         )}
 
-        {/* ── 2. Account lead notes ──────────────────────────────── */}
+        {/* ── 1b. What we did against what the whole shop did. ───── */}
+        {hasRoster && vsShopRows.length > 0 && (
+          <>
+            <SectionLine>{AGENCY} vs your whole shop</SectionLine>
+            <VsShop rows={vsShopRows} />
+            <div className="mt-2 text-[10.5px] leading-relaxed text-[#8a8fb0]">
+              Every bar is our share of a shop-wide total, shown beside it. &ldquo;Shop&rdquo; is all of{' '}
+              {brandName}&rsquo;s TikTok Shop activity, including creators we do not manage.
+            </div>
+          </>
+        )}
+
+        {/* ── 1c. Where the roster's GMV came from. ──────────────── */}
+        {hasRoster && (r.agreementSplit || r.channels) && (
+          <>
+            <SectionLine>Where our GMV came from</SectionLine>
+            <SourceSplit
+              agreement={r.agreementSplit}
+              channels={r.channels}
+              topLive={r.topLive}
+              rosterGmv={cc.gmv}
+              storeLiveGmv={r.channels?.storeLiveGmv ?? 0}
+            />
+          </>
+        )}
+
+        {/* ── 2. Account lead notes. MOVED: these used to sit between
+               the headline and its evidence, splitting the argument. ─── */}
         {notes && (
           <>
             <SectionLine>From your account lead</SectionLine>
@@ -742,19 +1028,88 @@ export function ReportView({
           </>
         )}
 
-        {/* ── 3. The creators we run ─────────────────────────────── */}
-        {hasRoster && cc.topCreators.length > 0 && (
+        {/* ⚠️ CUT: "The creators we run for you" (top 5). It was literally
+               the first five rows of "Every creator we run for you" below,
+               rendered a second time with different columns. The full table
+               now carries the whole story, adjacent to roster coverage. ─── */}
+
+        {/* ── 3. Roster coverage, now adjacent to the table it describes. ── */}
+        {hasRoster && (
           <>
-            <SectionLine>The creators we run for you</SectionLine>
-            <RosterTable
-              rows={cc.topCreators}
-              totalGmv={cc.gmv}
-              periodLabel={`Top ${cc.topCreators.length} of ${num(cc.activeCreatorCount)} active signed creators`}
-            />
+            <SectionLine>Roster coverage</SectionLine>
+            {rosterAct ? (
+              <>
+                <div className="grid grid-cols-2 gap-3.5 md:grid-cols-4">
+                  <Mini
+                    label="Signed"
+                    value={num(rosterAct.signed)}
+                    note={
+                      gran
+                        ? `${num(gran.roster.onRetainer)} on retainer, ${num(gran.roster.affiliateOnly)} affiliate-only`
+                        : undefined
+                    }
+                  />
+                  <Mini
+                    label="Posted"
+                    value={num(rosterAct.posted)}
+                    note={
+                      rosterAct.signed > 0
+                        ? `${((rosterAct.posted / rosterAct.signed) * 100).toFixed(1)}% of signed`
+                        : undefined
+                    }
+                  />
+                  <Mini
+                    label="Made sales"
+                    value={num(rosterAct.sold)}
+                    note={
+                      rosterAct.soldNotPosted > 0
+                        ? `${num(rosterAct.soldNotPosted)} sold without posting`
+                        : undefined
+                    }
+                  />
+                  <Mini
+                    label="Left the roster"
+                    value={num(rosterAct.departed)}
+                    note={rosterAct.departed === 0 ? 'nobody left this period' : 'archived this period'}
+                  />
+                </div>
+                {/* Activation is measured on POSTING, deliberately. A creator
+                    still earning from content posted months ago is revenue, but
+                    it is not work done this period, and merging the two is what
+                    let one number stand for both. */}
+                <div className="mt-2 text-[10.5px] leading-relaxed text-[#8a8fb0]">
+                  Posted counts creators who published at least once this period. Made sales counts
+                  creators who earned, which includes earnings from posts made earlier.
+                  {cc.newlyActivatedCount > 0 && (
+                    <> {num(cc.newlyActivatedCount)} became active for the first time.</>
+                  )}
+                </div>
+              </>
+            ) : (
+              /* Snapshots frozen before migration 165 carry only the combined
+                 figure. They keep rendering what they were built with. */
+              <div className="grid grid-cols-2 gap-3.5 md:grid-cols-4">
+                <Mini label="Signed creators" value={num(cc.signedCreatorCount)} />
+                <Mini label="Active this period" value={num(cc.activeCreatorCount)} />
+                <Mini
+                  label="Activation rate"
+                  value={`${cc.signedCreatorCount > 0 ? ((cc.activeCreatorCount / cc.signedCreatorCount) * 100).toFixed(1) : '0'}%`}
+                />
+                <Mini label="First-time active" value={num(cc.newlyActivatedCount)} />
+              </div>
+            )}
           </>
         )}
 
-        {/* ── 4. Content ─────────────────────────────────────────── */}
+        {/* ── 3b. Every creator, in full. ─────────────────────────── */}
+        {gran && gran.creators.length > 0 && (
+          <>
+            <SectionLine>Every creator we run for you</SectionLine>
+            <FullRosterTable g={gran} />
+          </>
+        )}
+
+        {/* ── 4. What they made. ─────────────────────────────────── */}
         {watchVideos.length > 0 && (
           <>
             <SectionLine>Content that sold</SectionLine>
@@ -781,83 +1136,17 @@ export function ReportView({
         {/* ── 4b. Video vintage: which posts are carrying the period ── */}
         {gran && gran.vintage.length > 0 && (
           <>
-            <SectionLine>Where this {word}&rsquo;s sales came from</SectionLine>
+            <SectionLine>Where our sales came from</SectionLine>
             <VintageSection g={gran} word={word} />
           </>
         )}
 
-        {/* ── 5. Efficiency: signed vs the rest of the shop ──────── */}
-        {hasRoster && cc.organicAov > 0 && cc.managedAov > 0 && (
-          <>
-            <SectionLine>Signed creators vs the rest of your shop</SectionLine>
-            <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
-              <div className="rounded-[14px] border border-[#e7e7f2] bg-white px-4 py-3.5">
-                <div className="text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">
-                  Average order value
-                </div>
-                <div className="mt-2 flex items-baseline gap-3">
-                  <div>
-                    <div className="text-[21px] font-extrabold tabular-nums text-[#171a33]">{money(cc.managedAov)}</div>
-                    <div className="text-[11px] font-bold text-[#4b45ff]">Signed roster</div>
-                  </div>
-                  <div className="text-[#c7c9de]">vs</div>
-                  <div>
-                    <div className="text-[21px] font-extrabold tabular-nums text-[#8a8fb0]">{money(cc.organicAov)}</div>
-                    <div className="text-[11px] font-bold text-[#8a8fb0]">Everyone else</div>
-                  </div>
-                </div>
-              </div>
-              <div className="rounded-[14px] border border-[#e7e7f2] bg-white px-4 py-3.5">
-                <div className="text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">
-                  GMV per active creator
-                </div>
-                <div className="mt-2 flex items-baseline gap-3">
-                  <div>
-                    <div className="text-[21px] font-extrabold tabular-nums text-[#171a33]">
-                      {compactMoney(cc.managedGmvPerCreator)}
-                    </div>
-                    <div className="text-[11px] font-bold text-[#4b45ff]">Signed roster</div>
-                  </div>
-                  <div className="text-[#c7c9de]">vs</div>
-                  <div>
-                    <div className="text-[21px] font-extrabold tabular-nums text-[#8a8fb0]">
-                      {compactMoney(cc.organicGmvPerCreator)}
-                    </div>
-                    <div className="text-[11px] font-bold text-[#8a8fb0]">Everyone else</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="mt-2 text-[10.5px] text-[#8a8fb0]">
-              &ldquo;Everyone else&rdquo; is every other creator selling your products on TikTok Shop, whom we do not manage.
-            </div>
-          </>
-        )}
-
-        {/* ── 6. Roster coverage ─────────────────────────────────── */}
-        {hasRoster && (
-          <>
-            <SectionLine>Roster coverage</SectionLine>
-            <div className="grid grid-cols-2 gap-3.5 md:grid-cols-4">
-              <Mini label="Signed creators" value={num(cc.signedCreatorCount)} pct={null} />
-              <Mini label="Active this period" value={num(cc.activeCreatorCount)} pct={null} />
-              <Mini
-                label="Activation rate"
-                value={`${cc.signedCreatorCount > 0 ? ((cc.activeCreatorCount / cc.signedCreatorCount) * 100).toFixed(1) : '0'}%`}
-                pct={null}
-              />
-              <Mini label="First-time active" value={num(cc.newlyActivatedCount)} pct={null} />
-            </div>
-          </>
-        )}
-
-        {/* ── 6b. Every creator, in full ─────────────────────────── */}
-        {gran && gran.creators.length > 0 && (
-          <>
-            <SectionLine>Every creator we run for you</SectionLine>
-            <FullRosterTable g={gran} />
-          </>
-        )}
+        {/* ⚠️ CUT: "Signed creators vs the rest of your shop". It compared
+               AOV and GMV-per-creator against everyone else, and measured
+               across seven brands the AOV gap was $1-6 — on catakor the
+               roster read WORSE ($43.44 against $44.09). The agency-vs-shop
+               block in Act 1 makes the same argument honestly, with shares
+               of a denominator that is printed beside it. ─────────────── */}
 
         {/* ── 7. Store context, secondary ────────────────────────── */}
         <SectionLine>Your store overall</SectionLine>
@@ -865,12 +1154,42 @@ export function ReportView({
           Context for the numbers above. This is all of {brandName}&rsquo;s TikTok Shop activity, not only the
           creators we run.
         </p>
-        <div className={`grid grid-cols-2 gap-3.5 ${s.views !== null ? 'md:grid-cols-5' : 'md:grid-cols-4'}`}>
-          <Mini label="Store GMV" value={money(r.totalGmv)} pct={r.gmvChangePct} />
+        {/* Literal class strings: Tailwind scans source text, so an
+            interpolated `md:grid-cols-${n}` would never be generated. */}
+        <div
+          className={`grid grid-cols-2 gap-3.5 ${
+            ['md:grid-cols-3', 'md:grid-cols-4', 'md:grid-cols-5'][
+              (s.views !== null ? 1 : 0) + (act ? 1 : 0)
+            ]
+          }`}
+        >
+          <Mini
+            label="Store GMV"
+            value={money(r.totalGmv)}
+            pct={r.gmvChangePct}
+            note={hasRoster ? `${cc.pctOfStoreGmv.toFixed(1)}% of it is ours` : undefined}
+          />
           {s.views !== null && <Mini label="Views" value={compactCount(s.views)} pct={viewsDelta} />}
           <Mini label="Orders" value={num(r.totalOrders)} pct={r.orderChangePct} />
-          <Mini label="Videos posted" value={num(r.totalVideos)} pct={r.videoChangePct} />
-          <Mini label="Active creators" value={num(r.activeCreators)} pct={r.creatorChangePct} />
+          <Mini
+            label="Videos posted"
+            value={num(r.totalVideos)}
+            pct={r.videoChangePct}
+            note={hasRoster ? `${num(cc.videos)} are ours` : undefined}
+          />
+          {/* ⚠️ NOT r.activeCreators. That is count(distinct handle) over the
+              TikTok export with no gmv filter, so it counts every creator who
+              appears in the file at all — 40,954 on jiyu 2026-08 against 4,216
+              who posted and 930 who sold. Migration 165 added the two real
+              counts; where they are absent the tile is omitted rather than
+              printed wrong. */}
+          {act && (
+            <Mini
+              label="Creators posting"
+              value={num(act.storeCreatorsPosted)}
+              note={`${num(rosterAct ? rosterAct.posted : act.rosterPosted)} are ours`}
+            />
+          )}
         </div>
 
         {daily.length > 0 && (
