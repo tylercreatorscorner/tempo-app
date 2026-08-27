@@ -53,6 +53,18 @@ export async function PATCH(
   for (const key of ALLOWED) {
     if (key in body) updates[key] = body[key] ?? null;
   }
+  // Who is making this change. trg_log_managed_creator_change reads
+  // updated_by off the row, so an edit that does not stamp it is recorded
+  // against whoever edited last — updated_by PERSISTS.
+  //
+  // Deliberately set AFTER the ALLOWED loop and not listed in it: the actor is
+  // established server-side from the session and must never be spoofable from
+  // the request body.
+  //
+  // scope.email is the real user even during "view as": middleware blocks
+  // POST/PUT/PATCH/DELETE on /api/* while the platform_active_manager cookie is
+  // set, so an impersonated session cannot reach this line.
+  updates.updated_by = scope.email;
   // A finance-blind user must not set retainers. Drop the field (don't 403 the
   // whole edit): the roster serves them retainer: null, so their edit form
   // would otherwise round-trip a destructive $0 over the real figure on save.
@@ -211,7 +223,7 @@ export async function DELETE(
 
   const { data, error } = await supabase
     .from('managed_creators')
-    .update({ archived_at: new Date().toISOString() })
+    .update({ archived_at: new Date().toISOString(), updated_by: scope.email })
     .eq('id', id)
     .eq('tenant_id', tenantId)
     .select('id, real_name')

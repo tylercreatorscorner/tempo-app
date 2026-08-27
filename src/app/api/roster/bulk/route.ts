@@ -315,6 +315,10 @@ export async function POST(request: NextRequest) {
       employment_status: 'active',
       tenant_id: tenantId,
       creator_id: handleToCreator.get(r.key)!,
+      // Bulk add mirrors single-add, and that includes the actor: without it a
+      // 500-row import lands in the change log attributed to nobody.
+      created_by: scope.email,
+      updated_by: scope.email,
       // Lowercased, and account_2..5 actually populated — these columns have
       // existed since the legacy schema and nothing could fill them until now.
       account_1: r.allKeys[0] ?? r.key,
@@ -370,6 +374,7 @@ export async function POST(request: NextRequest) {
             employment_status: 'active',
             retainer: t.row.retainer,
             monthly_post_requirement: t.row.mpr,
+            updated_by: scope.email,
           })
           .eq('id', t.rowId);
         if (error) failed.push({ handle: t.row.handle, error: error.message });

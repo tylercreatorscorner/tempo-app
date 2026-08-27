@@ -151,6 +151,10 @@ export async function POST(request: NextRequest) {
           ...(notes != null ? { notes } : {}),
           ...(productAssignments.length ? { product_assignments: productAssignments } : {}),
           updated_at: new Date().toISOString(),
+          // Re-adding an archived creator un-archives IN PLACE, so the change
+          // log records this as `unarchive` rather than `create`. Stamp the
+          // actor or it inherits whoever archived them.
+          updated_by: scope.email,
         })
         .eq('id', rows[0].id as number)
         .select()
@@ -169,6 +173,8 @@ export async function POST(request: NextRequest) {
         brand: brand || null,
         real_name: real_name || null,
         retainer: retainer || 0,
+        created_by: scope.email,
+        updated_by: scope.email,
         discord_name: discord_name || null,
         notes: notes || null,
         monthly_post_requirement: monthly_post_requirement || 30,

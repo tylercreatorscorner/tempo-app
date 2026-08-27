@@ -42,7 +42,14 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
 
   const { error: linkErr } = await supabase
     .from('managed_creators')
-    .update({ discord_id: entry.discord_user_id, discord_avatar: entry.discord_avatar_url })
+    // Machine write. Labelled explicitly so the change log does not
+    // attribute a Discord link to whoever last edited the creator by hand —
+    // updated_by persists on the row.
+    .update({
+      discord_id: entry.discord_user_id,
+      discord_avatar: entry.discord_avatar_url,
+      updated_by: 'discord-scan',
+    })
     .eq('id', entry.matched_creator_id);
 
   if (linkErr) {
