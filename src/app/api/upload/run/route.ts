@@ -449,6 +449,64 @@ export async function POST(request: NextRequest) {
       // is a guard rail, not a dependency. Log and continue.
       console.error('[upload] brand-match check failed, allowing upload:', e);
     }
+
+    /**
+     * THIRD RULE: is this file a COPY of another brand's file for the same day?
+     *
+     * Both rules above ask WHOSE creators these are, and neither can see the
+     * 2026-08-09 incident: dr_dent's creator file was loaded into serene_herbs
+     * as well, all 16,834 rows byte-identical, and BOTH rules scored 100%
+     * because the two brands share their creator pool almost entirely.
+     * serene_herbs' real day was overwritten, its store GMV read $54,490
+     * against a typical $17,308, and a weekly client report went out 22%
+     * overstated.
+     *
+     * What gives it away is that the NUMBERS are identical. Two brands can
+     * share a creator; they cannot share that creator's exact daily revenue.
+     *
+     * Replayed: the bad file scores 100% against dr_dent. Three legitimate
+     * uploads (catakor 08-21, jiyu 08-21, serene_herbs 08-10) score 0%. There
+     * is no middle ground to tune around.
+     *
+     * ⚠️ creator_performance only — it compares against that table, so running
+     * it for a video upload would be comparing two different things.
+     * ⚠️ Symmetric by nature: it cannot tell the original from the copy, only
+     * that a duplicate exists. Whichever file is uploaded SECOND is refused,
+     * which is the right way round.
+     */
+    if (table === 'creator_performance') {
+      try {
+        const rows = (uploadRecords as Array<{ creator_name?: unknown; gmv?: unknown; report_date?: unknown }>)
+          .filter((r) => typeof r.creator_name === 'string' && Number(r.gmv) > 0);
+        const reportDate = rows.find((r) => typeof r.report_date === 'string')?.report_date as string | undefined;
+        if (reportDate && rows.length >= 20) {
+          const { data: dd } = await admin.rpc('check_upload_duplicate_of_other_brand', {
+            p_brand: brand,
+            p_date: reportDate,
+            p_handles: rows.map((r) => r.creator_name as string),
+            p_gmvs: rows.map((r) => Number(r.gmv)),
+          });
+          const d = dd as {
+            sampled: number; bestOtherBrand: string | null; exactRows: number; exactMatchPct: number;
+          } | null;
+          if (d && d.bestOtherBrand && d.sampled >= 20 && d.exactMatchPct >= 90) {
+            return NextResponse.json({
+              error:
+                `This file has already been uploaded under "${d.bestOtherBrand}" for ${reportDate}. ` +
+                `${d.exactMatchPct}% of its ${d.sampled.toLocaleString()} earning creators have exactly ` +
+                `the same GMV there, to the cent, which does not happen between two real brands. ` +
+                `Loading it here would overwrite ${brand}'s own day. Nothing was saved.`,
+              duplicateOfBrand: {
+                brand, otherBrand: d.bestOtherBrand, date: reportDate,
+                exactMatchPct: d.exactMatchPct, sampled: d.sampled,
+              },
+            }, { status: 409 });
+          }
+        }
+      } catch (e) {
+        console.error('[upload] duplicate-file check failed, allowing upload:', e);
+      }
+    }
   }
 
   // ── Single RPC call — does delete (if overwrite) + bulk insert atomically
