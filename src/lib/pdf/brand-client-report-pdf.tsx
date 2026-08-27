@@ -242,8 +242,11 @@ const styles = StyleSheet.create({
   gBarLabel:      { width: 52, fontSize: 8, fontFamily: 'Inter', fontWeight: 700, color: COLORS.ink },
   gBarTrack:      { flex: 1, height: 12, borderRadius: 3, backgroundColor: COLORS.bg },
   gBarFill:       { height: 12, borderRadius: 3 },
-  gBarVal:        { width: 62, textAlign: 'right', fontSize: 8, fontFamily: 'Inter', fontWeight: 700, color: COLORS.ink },
-  gBarMeta:       { width: 56, textAlign: 'right', fontSize: 7, fontFamily: 'Inter', color: COLORS.muted },
+  // Widened after adding the share to gBarMeta: at 62/56 the value and the
+  // percentage collided ("$5,9795.1%") and "941 videos" wrapped onto a second
+  // line. paddingLeft guarantees a gap even when both run to full width.
+  gBarVal:        { width: 66, textAlign: 'right', fontSize: 8, fontFamily: 'Inter', fontWeight: 700, color: COLORS.ink },
+  gBarMeta:       { width: 92, paddingLeft: 6, textAlign: 'right', fontSize: 7, fontFamily: 'Inter', color: COLORS.muted },
   lbRow:          { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 0.5, borderBottomColor: COLORS.ruleSoft },
   lbRowTop:       { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, marginBottom: 4, borderRadius: 8, paddingHorizontal: 12, backgroundColor: COLORS.pinkSoft, borderWidth: 1, borderColor: '#F8C0DD' },
   lbRank:         { width: 22, fontSize: 10, color: COLORS.faint, fontFamily: 'Inter', fontWeight: 700 },
@@ -253,13 +256,11 @@ const styles = StyleSheet.create({
   lbGmv:          { fontSize: 12, color: COLORS.pink, fontFamily: 'Inter', fontWeight: 700, textAlign: 'right' },
   lbGmvBox:       { width: 100, alignItems: 'flex-end' },
   lbPct:          { fontSize: 7, color: COLORS.muted, marginTop: 2, textAlign: 'right' },
-  vsRow:    { flexDirection: 'row', alignItems: 'center', marginTop: 7 },
-  vsLabel:  { width: 84, fontSize: 8.5, fontFamily: 'Inter', fontWeight: 700, color: COLORS.ink },
-  vsTrack:  { flex: 1, height: 7, backgroundColor: COLORS.rule, borderRadius: 4, overflow: 'hidden' },
-  vsFill:   { height: 7, backgroundColor: COLORS.pink, borderRadius: 4 },
-  vsOurs:   { width: 62, textAlign: 'right', fontSize: 8.5, fontFamily: 'Inter', fontWeight: 700, color: COLORS.ink },
-  vsTheirs: { width: 66, textAlign: 'right', fontSize: 7.5, fontFamily: 'Inter', fontWeight: 400, color: COLORS.muted },
-  vsPct:    { width: 40, textAlign: 'right', fontSize: 10, fontFamily: 'Inter', fontWeight: 800, color: COLORS.pinkDeep },
+  vsRow:    { flexDirection: 'row', alignItems: 'baseline', marginTop: 6 },
+  vsLabel:  { flex: 1, fontSize: 9, fontFamily: 'Inter', fontWeight: 700, color: COLORS.ink },
+  vsPct:    { width: 52, textAlign: 'right', fontSize: 12, fontFamily: 'Inter', fontWeight: 800, color: COLORS.pinkDeep },
+  vsOurs:   { width: 74, textAlign: 'right', fontSize: 9, fontFamily: 'Inter', fontWeight: 700, color: COLORS.ink },
+  vsTheirs: { width: 82, textAlign: 'right', fontSize: 8, fontFamily: 'Inter', fontWeight: 400, color: COLORS.muted },
   lbBarTrack:     { height: 3, backgroundColor: COLORS.rule, borderRadius: 2, marginTop: 6, overflow: 'hidden' },
   lbBarFill:      { height: 3, backgroundColor: COLORS.pink, borderRadius: 2 },
 
@@ -400,6 +401,9 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
       ]
     : [];
   const vintageMax = Math.max(...vintageRows.map((v) => v.gmv), 1);
+  // Denominator for the share printed on each row: the roster's video GMV,
+  // which is what these buckets partition.
+  const vintageTotal = gran ? (Number(gran.newVideo.totalGmv) || 0) : 0;
   // Creators who posted or sold. The PDF is linear and cannot collapse a tail,
   // so it carries the active set and says how many it left out.
   const activeCreators = gran ? gran.creators.filter((c) => c.gmv > 0 || c.postsPublished > 0) : [];
@@ -467,6 +471,26 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
   const chTotal = ch ? ch.rosterVideoGmv + ch.rosterLiveGmv + ch.rosterCardGmv : 0;
   const agree = data.agreementSplit;
   const agreeTotal = agree ? agree.retainerGmv + agree.affiliateGmv : 0;
+
+  const vsShopRaw = {
+    gmvPct: act && rosterAct ? cc.pctOfStoreGmv : null,
+    creatorPct:
+      act && rosterAct && act.storeCreatorsPosted > 0
+        ? (rosterAct.posted / act.storeCreatorsPosted) * 100
+        : null,
+  };
+
+  /**
+   * How much more of the sales we produce than our share of creators would
+   * imply. Only meaningful when the input share is genuinely small and the
+   * output share genuinely larger — below 1.5x it is not a story, and a
+   * near-zero denominator makes the multiple explode.
+   */
+  const leverage = (() => {
+    const g = vsShopRaw.gmvPct;
+    const c = vsShopRaw.creatorPct;
+    return c !== null && g !== null && c >= 0.05 && g / c >= 1.5 ? g / c : null;
+  })();
 
   /** Our share of the whole shop, on definitions that are stated. */
   const vsShop =
@@ -631,15 +655,27 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
           <View style={styles.section}>
             <Text style={styles.sectionEyebrow}>EFFICIENCY</Text>
             <Text style={styles.sectionTitle}>Creators Corner vs your whole shop</Text>
+            {/* ⚠️ NOT a bar per metric. Four bars at wildly different scales
+                made the strongest fact — a 2-3% sliver of creators producing
+                most of the sales — render as the SHORTEST bar on the page,
+                which argues against us. The gap between a small input and a
+                large output is the point, and a bar shows each metric alone,
+                never the gap. */}
+            {leverage !== null && vsShopRaw.creatorPct !== null && vsShopRaw.gmvPct !== null && (
+              <Text style={[styles.summaryBody, { marginTop: 2, marginBottom: 6 }]}>
+                We are <Text style={styles.highlightPink}>{fmtPct(vsShopRaw.creatorPct, 1)}</Text> of the
+                creators posting on your shop, and we produced{' '}
+                <Text style={styles.highlightPink}>{fmtPct(vsShopRaw.gmvPct, 1)}</Text> of its sales —{' '}
+                <Text style={styles.highlightInk}>{leverage.toFixed(1)}x</Text> the sales share you would
+                expect from our share of creators.
+              </Text>
+            )}
             {vsShop.map((row) => (
               <View key={row.label} style={styles.vsRow} wrap={false}>
                 <Text style={styles.vsLabel}>{row.label}</Text>
-                <View style={styles.vsTrack}>
-                  <View style={[styles.vsFill, { width: `${Math.max(0.8, Math.min(100, row.pct))}%` }]} />
-                </View>
+                <Text style={styles.vsPct}>{fmtPct(row.pct, 1)}</Text>
                 <Text style={styles.vsOurs}>{row.ours}</Text>
                 <Text style={styles.vsTheirs}>of {row.theirs}</Text>
-                <Text style={styles.vsPct}>{fmtPct(row.pct, 1)}</Text>
               </View>
             ))}
             <Text style={[styles.splitMeta, { marginTop: 4 }]}>
@@ -788,7 +824,10 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
                     />
                   </View>
                   <Text style={styles.gBarVal}>{fmtCurrency(v.gmv)}</Text>
-                  <Text style={styles.gBarMeta}>{fmtNumber(v.videos)} videos</Text>
+                  <Text style={styles.gBarMeta}>
+                    {vintageTotal > 0 ? `${fmtPct((v.gmv / vintageTotal) * 100, 1)} · ` : ''}
+                    {fmtNumber(v.videos)} videos
+                  </Text>
                 </View>
               ))}
               <Text style={[styles.gStatNote, { marginTop: 6 }]}>
@@ -851,7 +890,7 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
                     : '\u2014'}
                 </Text>
                 <Text style={[c.isAffiliate ? styles.gTag : styles.gCellMuted, { flex: 1.3 }]}>
-                  {c.departed ? 'Left this period' : c.isAffiliate ? 'Affiliate-only' : 'Retainer'}
+                  {c.departed ? 'Left' : c.isAffiliate ? 'Affiliate' : 'Retainer'}
                 </Text>
                 {/* Em dash, not $0: there is no agreed amount for affiliate-only,
                     and a zero would read as a negotiated figure. */}

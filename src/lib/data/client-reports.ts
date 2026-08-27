@@ -12,6 +12,7 @@
  * (creator_performance / video_performance) — see mig 098's header for why
  * the trend does NOT read daily_creator_stats.
  */
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
 import { getBrandRegistry, expandSlugs, brandLabel } from '@/lib/data/brand-registry';
 import {
@@ -101,12 +102,20 @@ export function reviveReportDates(r: BrandClientReportData): BrandClientReportDa
 export async function buildClientReportSnapshot(
   brandSlug: string,
   period: ClientReportPeriod,
+  /**
+   * Optional pre-built Supabase client, matching getBrandClientReportData's
+   * own escape hatch. The routes leave this unset and get the cookie client;
+   * an out-of-request caller (a backfill that rebuilds already-issued
+   * snapshots) passes the admin client, because next/headers is unavailable
+   * outside a request and every RPC here is SECURITY DEFINER either way.
+   */
+  clientOverride?: SupabaseClient,
 ): Promise<SnapshotBuild> {
-  const supabase = await createClient();
+  const supabase = clientOverride ?? (await createClient());
   const reg = await getBrandRegistry();
   const brandName = brandSlug === 'all' ? 'All Brands' : brandLabel(reg, brandSlug);
 
-  const report = await getBrandClientReportData(brandSlug, brandName, period);
+  const report = await getBrandClientReportData(brandSlug, brandName, period, clientOverride);
 
   // Mirror the fetcher's prior-window math (it doesn't return prior dates).
   const pEnd = new Date(report.startDate);

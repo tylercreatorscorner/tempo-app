@@ -21,7 +21,6 @@
  */
 import type { BrandClientReportData } from '@/lib/data/brand-client-report';
 import { extractTikTokVideoId, type ClientReportSnapshot } from '@/lib/data/client-reports';
-import { WatchCard } from './watch-card';
 
 const AGENCY = 'Creators Corner';
 
@@ -223,52 +222,78 @@ function HoverBars({
  *
  * REPLACES "Signed creators vs the rest of your shop", which argued the same
  * point with an AOV gap of $1-6 that ran BACKWARDS on some brands (catakor:
- * roster $43.44 against everyone else at $44.09). Measured on jiyu 2026-08 this
- * says it properly: 2.1% of the creators and 9.5% of the posts produced 37.9%
- * of the GMV.
+ * roster $43.44 against everyone else at $44.09).
  *
- * Every row is a share of a store-wide denominator printed right beside it, so
- * the reader never has to take the percentage on trust.
+ * ⚠️ NOT a bar chart. Four bars at wildly different scales made the strongest
+ * fact — that a 2% sliver of creators produces 38% of the sales — render as
+ * the SHORTEST bar on the page, which argues against us. The whole point is
+ * the gap between a small input and a large output, and a bar per metric
+ * shows each metric in isolation, never the gap.
+ *
+ * So: the leverage is computed and stated in words, then each metric is a
+ * card carrying its own share with the denominator printed under it. Nothing
+ * is left for the reader to infer from a length.
  */
 function VsShop({
   rows,
+  brandName,
 }: {
   rows: { label: string; ours: string; theirs: string; pct: number; live?: boolean }[];
+  brandName: string;
 }) {
+  const gmvRow = rows.find((r) => r.label === 'GMV');
+  const creatorRow = rows.find((r) => r.label === 'Creators posting');
+  // Leverage only means something when the input share is genuinely small and
+  // the output share genuinely larger. Below 1.5x it is not a story, and at a
+  // near-zero denominator the multiple explodes into nonsense.
+  const leverage =
+    gmvRow && creatorRow && creatorRow.pct >= 0.05 && gmvRow.pct / creatorRow.pct >= 1.5
+      ? gmvRow.pct / creatorRow.pct
+      : null;
+
   return (
-    <div className="overflow-hidden rounded-[14px] border border-[#e7e7f2] bg-white">
-      {rows.map((r, i) => (
-        <div
-          key={r.label}
-          className={`grid grid-cols-1 items-center gap-2 px-4 py-3.5 sm:grid-cols-[140px_1fr_78px] sm:gap-4 ${
-            i > 0 ? 'border-t border-[#f2f1f8]' : ''
-          }`}
-        >
-          <div className="text-[13px] font-bold text-[#171a33]">{r.label}</div>
-          <div className="relative h-[26px] overflow-hidden rounded-[6px] bg-[#f2f1f8]">
+    <>
+      {leverage !== null && gmvRow && creatorRow && (
+        <div className="rounded-[14px] border border-[#e7e7f2] border-l-[3px] border-l-[#4b45ff] bg-white px-5 py-4">
+          <p className="max-w-[70ch] text-[15px] font-semibold leading-[1.6] text-[#33375c]">
+            We are <b className="text-[#4b45ff]">{creatorRow.pct.toFixed(1)}%</b> of the creators posting
+            on your shop, and we produced <b className="text-[#4b45ff]">{gmvRow.pct.toFixed(1)}%</b> of its
+            sales &mdash; <b className="text-[#171a33]">{leverage.toFixed(1)}&times;</b> the sales share you
+            would expect from our share of creators.
+          </p>
+        </div>
+      )}
+
+      <div className={`mt-3 grid grid-cols-2 gap-3.5 ${rows.length >= 4 ? 'md:grid-cols-4' : 'md:grid-cols-3'}`}>
+        {rows.map((r) => (
+          <div
+            key={r.label}
+            className="rounded-[14px] border border-[#e7e7f2] bg-white px-4 py-3.5"
+            style={r.live ? { borderColor: '#f0cfe4' } : undefined}
+          >
+            <div className="text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">
+              {r.label}
+            </div>
             <div
-              className="absolute inset-y-0 left-0 rounded-[6px]"
-              style={{
-                width: `${Math.max(0.6, Math.min(100, r.pct))}%`,
-                background: r.live ? '#c74f9e' : '#4b45ff',
-              }}
-            />
-            <div className="absolute inset-0 flex items-center justify-between px-2.5 text-[11.5px] font-bold tabular-nums">
-              {/* Under ~18% the fill is too narrow to seat text on, so the value
-                  sits off it rather than being clipped against the bar edge. */}
-              <span className={r.pct >= 18 ? 'text-white' : 'text-[#33375c]'}>{r.ours}</span>
-              <span className="text-[#33375c]">{r.theirs}</span>
+              className="mt-1 text-[26px] font-extrabold leading-none tabular-nums"
+              style={{ color: r.live ? '#c74f9e' : '#4b45ff' }}
+            >
+              {r.pct.toFixed(1)}%
+            </div>
+            {/* The denominator is printed, so the percentage is checkable. */}
+            <div className="mt-2 text-[12.5px] leading-snug text-[#33375c]">
+              <b className="tabular-nums text-[#171a33]">{r.ours}</b>
+              <span className="text-[#8a8fb0]"> of {r.theirs}</span>
             </div>
           </div>
-          <div
-            className="text-[19px] font-extrabold tabular-nums sm:text-right"
-            style={{ color: r.live ? '#c74f9e' : '#4b45ff' }}
-          >
-            {r.pct.toFixed(1)}%
-          </div>
-        </div>
-      ))}
-    </div>
+        ))}
+      </div>
+      <div className="mt-2 text-[10.5px] leading-relaxed text-[#8a8fb0]">
+        Each card is our share of a shop-wide total, with that total shown beneath it. &ldquo;Your
+        shop&rdquo; is all of {brandName}&rsquo;s TikTok Shop activity, including creators we do not
+        manage.
+      </div>
+    </>
   );
 }
 
@@ -351,10 +376,14 @@ function SourceSplit({
           </p>
           {/* Never absorbed into a bucket: if the creator list cannot account
               for all of the roster's GMV, the gap is stated. */}
+          {/* Do NOT assert a single cause here. The gap is roster GMV the
+              current creator list cannot account for: creators who left during
+              the period AND accounts not mapped to a person. On catakor it is
+              14% of the total, far too large to explain away with a guess. */}
           {Math.abs(agreement.unattributedGmv) >= 1 && (
             <p className="mt-1.5 text-[11px] leading-tight text-[#8a8fb0]">
-              {money(Math.abs(agreement.unattributedGmv))} is not attributed to a current roster row, from
-              creators who left part-way through the period.
+              {money(Math.abs(agreement.unattributedGmv))} is not attributed to a row below, from creators
+              who left during the period or accounts not yet linked to a creator.
             </p>
           )}
         </div>
@@ -476,7 +505,6 @@ function VintageSection({
       ? [{ label: 'Earlier', videos: g.vintageOlder.videos, gmv: g.vintageOlder.gmv, isOlder: true }]
       : []),
   ];
-  const max = Math.max(...rows.map((r) => r.gmv), 1);
   // The share carried by content posted before the three months listed. Stated
   // as a number because it is usually the most persuasive figure in the report
   // and it was previously left for the reader to infer from bar lengths.
@@ -514,29 +542,30 @@ function VintageSection({
         )}
       </p>
 
-      <div className="mt-5 space-y-2.5">
-        {rows.map((r) => (
-          <div key={r.label} className="flex items-center gap-3">
-            <div className="w-[74px] shrink-0 text-[12px] font-bold text-[#33375c]">{r.label}</div>
-            <div className="h-[22px] flex-1 overflow-hidden rounded-[5px] bg-[#f4f3fa]">
-              <div
-                className="h-full rounded-[5px]"
-                style={{
-                  width: `${Math.max(1.5, (r.gmv / max) * 100)}%`,
-                  background: r.isOlder
-                    ? 'linear-gradient(90deg,#c9c8dd,#b3b7d4)'
-                    : 'linear-gradient(90deg,#5b5ee8,#a855f7)',
-                }}
-              />
+      {/* Cards, not bars. Each month is a share of one total, and the point
+          is the share — which a card states and a bar length only implies. */}
+      <div className="mt-5 grid grid-cols-2 gap-3.5 md:grid-cols-4">
+        {rows.map((r) => {
+          const share = total > 0 ? (r.gmv / total) * 100 : null;
+          return (
+            <div
+              key={r.label}
+              className="rounded-[12px] border bg-white px-3.5 py-3"
+              style={{ borderColor: r.isOlder ? '#4b45ff' : '#e7e7f2' }}
+            >
+              <div className="text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">
+                {r.isOlder ? 'Earlier posts' : r.label}
+              </div>
+              <div className="mt-0.5 text-[19px] font-extrabold tabular-nums text-[#171a33]">
+                {money(r.gmv)}
+              </div>
+              <div className="mt-1 text-[11.5px] tabular-nums text-[#8a8fb0]">
+                {share !== null ? `${share.toFixed(1)}%` : '—'}
+                {r.videos > 0 && <> &middot; {num(r.videos)} videos</>}
+              </div>
             </div>
-            <div className="w-[96px] shrink-0 text-right text-[13px] font-extrabold tabular-nums text-[#171a33]">
-              {money(r.gmv)}
-            </div>
-            <div className="w-[86px] shrink-0 text-right text-[12px] tabular-nums text-[#8a8fb0]">
-              {num(r.videos)} videos
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <p className="mt-4 text-[11.5px] leading-[1.6] text-[#8a8fb0]">
@@ -606,6 +635,105 @@ function FullRosterTable({ g }: { g: NonNullable<BrandClientReportData['granular
   );
 }
 
+/**
+ * The roster's best-selling posts.
+ *
+ * Was three thumbnail cards with inline playback. A list carries five rows in
+ * less vertical space, puts orders and views on the same line as the GMV they
+ * produced, and is scannable — a card grid makes you read each card to compare
+ * any two. The title links out to the post itself.
+ *
+ * ⚠️ There is deliberately NO "type" column. Lives are recorded at
+ * creator-day grain (live_gmv / live_streams on creator_performance) and there
+ * is no per-stream row anywhere, so every row here is necessarily a video and
+ * the column would read "Video" all the way down. Live selling has its own
+ * block, under "Where our GMV came from".
+ */
+function TopPosts({
+  rows,
+}: {
+  rows: { title: string; creator: string; gmv: number; orders: number; videoUrl: string | null; viewsLabel: string | null }[];
+}) {
+  return (
+    <>
+      <div className="overflow-x-auto rounded-[14px] border border-[#e7e7f2] bg-white">
+        <table className="w-full min-w-[620px] border-collapse text-[13px]">
+          <thead>
+            <tr className="border-b border-[#eeedf5]">
+              <th className={TH_L}>Post</th>
+              <th className={`${TH_L} whitespace-nowrap`}>Creator</th>
+              <th className={`${TH_R} whitespace-nowrap`}>Views</th>
+              <th className={`${TH_R} whitespace-nowrap`}>Orders</th>
+              <th className={`${TH_R} whitespace-nowrap`}>GMV</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((v, i) => {
+              const handle = v.creator ? handleOf(v.creator) : '';
+              return (
+                <tr key={i} className="border-b border-[#f2f1f8] last:border-b-0">
+                  <td className="max-w-[300px] px-4 py-2.5">
+                    <div className="truncate font-semibold text-[#171a33]" title={v.title}>
+                      {v.videoUrl ? (
+                        <a
+                          href={v.videoUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[#4b45ff] underline decoration-[#4b45ff]/30 underline-offset-2 hover:decoration-[#4b45ff]"
+                        >
+                          {v.title}
+                        </a>
+                      ) : (
+                        v.title
+                      )}
+                    </div>
+                  </td>
+                  <td className="max-w-[170px] px-4 py-2.5">
+                    <div className="truncate">
+                      {handle ? (
+                        <a
+                          href={`https://www.tiktok.com/@${handle}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-semibold text-[#4b45ff] underline decoration-[#4b45ff]/30 underline-offset-2 hover:decoration-[#4b45ff]"
+                        >
+                          @{handle}
+                        </a>
+                      ) : (
+                        <span className="text-[#b9bcd0]">&mdash;</span>
+                      )}
+                    </div>
+                  </td>
+                  {/* Views come from a separate lookup and are genuinely
+                      absent for some posts — an em dash, never a 0. */}
+                  <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-[#33375c]">
+                    {v.viewsLabel ?? <span className="text-[#b9bcd0]">&mdash;</span>}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-[#33375c]">
+                    {num(v.orders)}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-2.5 text-right font-extrabold tabular-nums text-[#171a33]">
+                    {money(v.gmv)}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div className="mt-2 text-[10.5px] text-[#8a8fb0]">
+        Titles link to the post on TikTok. Figures are frozen at preparation and do not shift after
+        sending.
+      </div>
+    </>
+  );
+}
+
+const TH_L =
+  'px-4 py-2.5 text-left text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]';
+const TH_R =
+  'px-4 py-2.5 text-right text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]';
+
 function CreatorRows({
   rows,
   muted = false,
@@ -617,82 +745,120 @@ function CreatorRows({
     <div className="overflow-x-auto">
       <table className="w-full min-w-[640px] border-collapse text-[13px]">
         <thead>
+          {/* Every column but the two identity ones is nowrap. "19 / 30" was
+              breaking across two lines, and a wrapped number reads as two
+              numbers. The identity columns truncate instead: a long name gets
+              an ellipsis rather than pushing the numeric columns around. */}
           <tr className="border-b border-[#eeedf5]">
-            <th className="px-4 py-2.5 text-left text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">Creator</th>
-            <th className="px-4 py-2.5 text-left text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">TikTok</th>
-            <th className="px-4 py-2.5 text-left text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">Agreement</th>
-            <th className="px-4 py-2.5 text-right text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">Agreed amount</th>
-            <th className="px-4 py-2.5 text-right text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">Posts</th>
-            <th className="px-4 py-2.5 text-right text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">Orders</th>
-            <th className="px-4 py-2.5 text-right text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">GMV</th>
+            <th className={TH_L}>Creator</th>
+            <th className={TH_L}>TikTok</th>
+            <th className={`${TH_L} whitespace-nowrap`}>Agreement</th>
+            <th className={`${TH_R} whitespace-nowrap`}>Agreed</th>
+            <th className={`${TH_R} whitespace-nowrap`}>Posts</th>
+            <th className={`${TH_R} whitespace-nowrap`}>Orders</th>
+            <th className={`${TH_R} whitespace-nowrap`}>GMV</th>
           </tr>
         </thead>
         <tbody>
           {rows.map((c, i) => {
             const h = c.handle ? handleOf(c.handle) : handleOf(c.name);
+            // Every OTHER known handle for this person. Deduped against the
+            // primary because the account_ columns and tiktok_accounts often
+            // both carry it.
+            const extras = (c.handles ?? [])
+              .map((x) => handleOf(x))
+              .filter((x) => x && x !== h);
             return (
               <tr key={i} className={`border-b border-[#f2f1f8] last:border-b-0 ${muted ? 'opacity-70' : ''}`}>
                 {/* Identity: the person's name, falling back to the handle
                     for the 9% who have no real_name — never an empty cell. */}
-                <td className="px-4 py-2.5 font-semibold text-[#171a33]">
-                  {c.realName?.trim() ? c.realName : <span className="text-[#6b7191]">@{h}</span>}
+                <td className="max-w-[190px] truncate px-4 py-2.5 font-semibold text-[#171a33]">
+                  {c.realName?.trim() ? (
+                    <span title={c.realName}>{c.realName}</span>
+                  ) : (
+                    <span className="text-[#6b7191]" title={`@${h}`}>@{h}</span>
+                  )}
                 </td>
                 {/* 191 active roster rows have a real name but NO handle in
                     any source — mostly a 2025-11-29 bulk import that never
                     captured them. They are real signed creators, so they stay
                     in the table, but linking @TheirName would point at a
                     profile that does not exist. */}
-                <td className="px-4 py-2.5">
-                  {c.handle ? (
-                  <a
-                    href={`https://www.tiktok.com/@${h}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="font-semibold text-[#4b45ff] underline decoration-[#4b45ff]/30 underline-offset-2 hover:decoration-[#4b45ff]"
-                  >
-                    @{h}
-                  </a>
-                  ) : (
-                    <span className="text-[#b9bcd0]">&mdash;</span>
-                  )}
-                  {(c.handleCount ?? 0) > 1 && (
-                    <span
-                      className="ml-1.5 cursor-help text-[11px] text-[#8a8fb0]"
-                      title={(c.handles ?? []).map((x) => `@${x}`).join('\n')}
-                    >
-                      +{(c.handleCount ?? 1) - 1}
-                    </span>
+                <td className="max-w-[210px] px-4 py-2.5 align-top">
+                  <div className="truncate">
+                    {c.handle ? (
+                      <a
+                        href={`https://www.tiktok.com/@${h}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-semibold text-[#4b45ff] underline decoration-[#4b45ff]/30 underline-offset-2 hover:decoration-[#4b45ff]"
+                      >
+                        @{h}
+                      </a>
+                    ) : (
+                      <span className="text-[#b9bcd0]">&mdash;</span>
+                    )}
+                  </div>
+                  {/* The extras were a title="" tooltip, which cannot be
+                      clicked. A hover popover is not an option either: the
+                      table sits in an overflow-x-auto wrapper, which clips
+                      absolutely-positioned children. <details> expands in
+                      flow, is keyboard reachable, and every handle is a real
+                      link to the profile. */}
+                  {extras.length > 0 && (
+                    <details className="group mt-0.5">
+                      <summary className="inline-flex cursor-pointer list-none items-center gap-0.5 text-[11px] font-semibold text-[#8a8fb0] hover:text-[#4b45ff]">
+                        +{extras.length} more
+                        <span className="transition-transform group-open:rotate-90">&rsaquo;</span>
+                      </summary>
+                      <div className="mt-1 flex flex-col gap-0.5">
+                        {extras.map((x) => (
+                          <a
+                            key={x}
+                            href={`https://www.tiktok.com/@${x}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="truncate text-[12px] font-semibold text-[#4b45ff] underline decoration-[#4b45ff]/30 underline-offset-2 hover:decoration-[#4b45ff]"
+                          >
+                            @{x}
+                          </a>
+                        ))}
+                      </div>
+                    </details>
                   )}
                 </td>
                 {/* Agreement is the TYPE only. The money moved to its own
                     column so a retainer figure is never mistaken for earnings. */}
-                <td className="px-4 py-2.5 text-[12px] text-[#33375c]">
+                <td className="whitespace-nowrap px-4 py-2.5 text-[12px] text-[#33375c]">
                   {c.departed ? (
-                    <span className="rounded-[5px] bg-[#f2f3f7] px-1.5 py-0.5 font-semibold text-[#6b7191]">
-                      Left this period
+                    <span className="whitespace-nowrap rounded-[5px] bg-[#f2f3f7] px-1.5 py-0.5 font-semibold text-[#6b7191]">
+                      Left
                     </span>
                   ) : c.isAffiliate ? (
-                    <span className="rounded-[5px] bg-[#f0eefb] px-1.5 py-0.5 font-semibold text-[#5b4bb8]">
-                      Affiliate-only
+                    /* "Affiliate-only" wrapped, dropping "only" to its own
+                        line. The meaning (commission, no post requirement) is
+                        already stated above the table, so the tag is short. */
+                    <span className="whitespace-nowrap rounded-[5px] bg-[#f0eefb] px-1.5 py-0.5 font-semibold text-[#5b4bb8]">
+                      Affiliate
                     </span>
                   ) : (
-                    <span className="font-semibold">Retainer</span>
+                    <span className="whitespace-nowrap font-semibold">Retainer</span>
                   )}
                 </td>
                 {/* Blank for affiliate-only: there is no agreed amount, and a
                     $0 would read as "we agreed zero" rather than "n/a". */}
-                <td className="px-4 py-2.5 text-right tabular-nums text-[#33375c]">
+                <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-[#33375c]">
                   {!c.departed && !c.isAffiliate && c.retainer > 0
                     ? <>{money(c.retainer)}<span className="text-[#8a8fb0]">/mo</span></>
                     : <span className="text-[#b9bcd0]">&mdash;</span>}
                 </td>
                 {/* Quota tracking lives here now, next to the number it judges. */}
-                <td className="px-4 py-2.5 text-right tabular-nums text-[#33375c]">
+                <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-[#33375c]">
                   {num(c.postsPublished)}
-                  {c.quota != null && <span className="text-[#8a8fb0]"> / {num(c.quota)}</span>}
+                  {c.quota != null && <span className="text-[#8a8fb0]">&nbsp;/&nbsp;{num(c.quota)}</span>}
                 </td>
-                <td className="px-4 py-2.5 text-right tabular-nums text-[#33375c]">{num(c.orders)}</td>
-                <td className="px-4 py-2.5 text-right font-extrabold tabular-nums text-[#171a33]">{money(c.gmv)}</td>
+                <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-[#33375c]">{num(c.orders)}</td>
+                <td className="whitespace-nowrap px-4 py-2.5 text-right font-extrabold tabular-nums text-[#171a33]">{money(c.gmv)}</td>
               </tr>
             );
           })}
@@ -810,19 +976,19 @@ export function ReportView({
         {
           label: 'GMV',
           ours: money(cc.gmv),
-          theirs: `${money(r.totalGmv)} shop`,
+          theirs: money(r.totalGmv),
           pct: cc.pctOfStoreGmv,
         },
         {
           label: 'Creators posting',
           ours: num(rosterAct.posted),
-          theirs: `${num(act.storeCreatorsPosted)} shop`,
+          theirs: num(act.storeCreatorsPosted),
           pct: act.storeCreatorsPosted > 0 ? (rosterAct.posted / act.storeCreatorsPosted) * 100 : 0,
         },
         {
           label: 'Posts published',
           ours: num(cc.videos),
-          theirs: `${num(r.totalVideos)} shop`,
+          theirs: num(r.totalVideos),
           pct: r.totalVideos > 0 ? (cc.videos / r.totalVideos) * 100 : 0,
         },
         ...(r.channels && r.channels.storeLiveGmv > 0
@@ -830,7 +996,7 @@ export function ReportView({
               {
                 label: 'Live GMV',
                 ours: money(r.channels.rosterLiveGmv),
-                theirs: `${money(r.channels.storeLiveGmv)} shop`,
+                theirs: money(r.channels.storeLiveGmv),
                 pct: (r.channels.rosterLiveGmv / r.channels.storeLiveGmv) * 100,
                 live: true,
               },
@@ -983,11 +1149,7 @@ export function ReportView({
         {hasRoster && vsShopRows.length > 0 && (
           <>
             <SectionLine>{AGENCY} vs your whole shop</SectionLine>
-            <VsShop rows={vsShopRows} />
-            <div className="mt-2 text-[10.5px] leading-relaxed text-[#8a8fb0]">
-              Every bar is our share of a shop-wide total, shown beside it. &ldquo;Shop&rdquo; is all of{' '}
-              {brandName}&rsquo;s TikTok Shop activity, including creators we do not manage.
-            </div>
+            <VsShop rows={vsShopRows} brandName={brandName} />
           </>
         )}
 
@@ -1113,23 +1275,7 @@ export function ReportView({
         {watchVideos.length > 0 && (
           <>
             <SectionLine>Content that sold</SectionLine>
-            <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-3">
-              {watchVideos.map((v, i) => (
-                <WatchCard
-                  key={i}
-                  index={i}
-                  videoUrl={v.videoUrl}
-                  videoId={v.videoId}
-                  title={v.title}
-                  creator={v.creator}
-                  gmv={v.gmv}
-                  viewsLabel={v.viewsLabel}
-                />
-              ))}
-            </div>
-            <div className="mt-2 text-[10.5px] text-[#8a8fb0]">
-              Tap to play inline. Figures are frozen at preparation and do not shift after sending.
-            </div>
+            <TopPosts rows={watchVideos} />
           </>
         )}
 
