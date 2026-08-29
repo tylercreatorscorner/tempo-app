@@ -48,7 +48,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
 
   const { data: row, error: fetchErr } = await supabase
     .from('client_reports')
-    .select('id, token, brand_slug, period_start, period_end, revoked_at')
+    .select('id, token, brand_slug, period_start, period_end, revoked_at, report_type')
     .eq('id', id)
     .maybeSingle();
   if (fetchErr) return NextResponse.json({ error: fetchErr.message }, { status: 500 });
@@ -66,10 +66,15 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
   }
 
   try {
-    const build = await buildClientReportSnapshot(row.brand_slug, {
-      start: row.period_start as string,
-      end: row.period_end as string,
-    });
+    // ⚠️ The TYPE comes from the stored row too, for the same reason the period
+    // does: refresh means "this link, recomputed". Rebuilding a weekly report
+    // as a performance one would silently drop its movers block.
+    const build = await buildClientReportSnapshot(
+      row.brand_slug,
+      { start: row.period_start as string, end: row.period_end as string },
+      undefined,
+      (row.report_type as 'performance' | 'weekly' | 'monthly' | null) ?? 'performance',
+    );
 
     const { error } = await supabase
       .from('client_reports')

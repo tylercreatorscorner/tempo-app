@@ -41,6 +41,9 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ token: str
     const docElement = BrandClientReportPDF({
       data,
       reportType: (row.report_type as 'performance' | 'weekly' | 'monthly' | null) ?? 'performance',
+      // movers live on the SNAPSHOT, not on report data — they are period
+      // comparison rather than period content — so they are passed separately.
+      movers: snapshot.movers ?? null,
     });
     const pdf = await renderToBuffer(docElement);
 

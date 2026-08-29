@@ -30,6 +30,23 @@ export interface ClientReportSnapshot {
   views: number | null;                    // windowed views (null = no engagement data ingested)
   priorViews: number | null;
   videoViews: Record<string, number>;      // video_id → windowed views, for the watch cards
+  /**
+   * Per-creator movement between this window and the one before it. Present
+   * ONLY on weekly reports — it costs a second scan of creator_performance
+   * across both windows and no other template shows it.
+   *
+   * ⚠️ gained and lost are kept APART. A net change is the residue of two
+   * opposing forces, and one percentage against it hides their size: jiyu's
+   * week was $6,169 gained against $9,098 lost, netting -$2,930.
+   */
+  movers?: {
+    gained: number;
+    lost: number;
+    netChange: number;
+    started: number;
+    stopped: number;
+    list: { handle: string; name: string | null; cur: number; prior: number; change: number; movement: string }[];
+  } | null;
   weekly: { weekEnd: string; gmv: number }[];  // 12 buckets, oldest → newest, anchored to period end
   lifetime: {
     gmv: number;
@@ -110,6 +127,13 @@ export async function buildClientReportSnapshot(
    * outside a request and every RPC here is SECURITY DEFINER either way.
    */
   clientOverride?: SupabaseClient,
+  /**
+   * Which template this snapshot is for. Only affects what EXTRA data is
+   * fetched — the report body is identical — so a snapshot built as
+   * 'performance' and rendered as 'weekly' simply has no movers block, which
+   * the view treats as absence rather than zero.
+   */
+  reportType: 'performance' | 'weekly' | 'monthly' = 'performance',
 ): Promise<SnapshotBuild> {
   const supabase = clientOverride ?? (await createClient());
   const reg = await getBrandRegistry();
@@ -124,6 +148,15 @@ export async function buildClientReportSnapshot(
   pStart.setDate(pStart.getDate() - (report.periodLengthDays - 1));
 
   const dataSlugs = brandSlug && brandSlug !== 'all' ? expandSlugs(reg, brandSlug) : null;
+  // Roster grain differs from data grain: managed_creators rows live at the
+  // umbrella slug, so a store-slug run must include its parent or the managed
+  // set comes back empty. Mirrors getBrandClientReportData.
+  const rosterSlugs = (() => {
+    if (!brandSlug || brandSlug === 'all') return null;
+    const row = reg.bySlug.get(brandSlug);
+    const parent = row?.parent_brand_id ? reg.byId.get(row.parent_brand_id)?.slug : undefined;
+    return parent ? [brandSlug, parent] : [brandSlug];
+  })();
   /**
    * View counts for the videos the report ACTUALLY shows.
    *
@@ -216,6 +249,49 @@ export async function buildClientReportSnapshot(
     gmv: num(w.gmv),
   }));
 
+  /**
+   * Movement, for the week-over-week template only.
+   *
+   * Non-fatal by the same rule as everything else here: a failed read leaves
+   * the report without its movers section rather than 500ing a page a client
+   * is opening. Absent means "not fetched", never "nobody moved".
+   */
+  let movers: ClientReportSnapshot['movers'] = null;
+  if (reportType === 'weekly') {
+    const { data: mv, error: mvErr } = await supabase.rpc('get_brand_client_report_movers', {
+      p_data_slugs: dataSlugs,
+      p_roster_slugs: rosterSlugs,
+      p_start: fmtDate(report.startDate),
+      p_end: fmtDate(report.endDate),
+      p_prior_start: fmtDate(pStart),
+      p_prior_end: fmtDate(pEnd),
+      p_limit: 8,
+    });
+    if (mvErr) {
+      console.error('[client-reports] movers read failed:', mvErr.message);
+    } else if (mv) {
+      const m = mv as Record<string, unknown>;
+      movers = {
+        gained: num(m.gained),
+        lost: num(m.lost),
+        netChange: num(m.netChange),
+        started: num(m.started),
+        stopped: num(m.stopped),
+        list: (Array.isArray(m.movers) ? m.movers : []).map((x) => {
+          const r2 = x as Record<string, unknown>;
+          return {
+            handle: String(r2.handle ?? ''),
+            name: r2.name ? String(r2.name) : null,
+            cur: num(r2.cur),
+            prior: num(r2.prior),
+            change: num(r2.change),
+            movement: String(r2.movement ?? 'changed'),
+          };
+        }),
+      };
+    }
+  }
+
   const life = extras.lifetime ?? {};
   const snapshot: ClientReportSnapshot = {
     v: 1,
@@ -226,6 +302,7 @@ export async function buildClientReportSnapshot(
       extras.prior_views === null || extras.prior_views === undefined ? null : num(extras.prior_views),
     videoViews,
     weekly,
+    movers,
     lifetime: {
       gmv: num(life.gmv),
       bestWeek: life.best_week === null || life.best_week === undefined ? null : num(life.best_week),

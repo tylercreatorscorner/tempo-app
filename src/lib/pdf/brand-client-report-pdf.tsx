@@ -388,14 +388,23 @@ function DeltaPill({ pct }: { pct?: number | null }) {
 export function BrandClientReportPDF({
   data,
   reportType = 'performance',
+  movers = null,
 }: {
   data: BrandClientReportData;
   /** Which template. The PDF must carry the same sections as the web view for
    *  the same link, or a client reading the attachment sees a different report
    *  from the one they were sent. */
   reportType?: 'performance' | 'weekly' | 'monthly';
+  /** Period comparison, not period content, so it arrives beside `data`
+   *  rather than inside it. Null on every template except weekly. */
+  movers?: {
+    gained: number; lost: number; netChange: number;
+    started: number; stopped: number;
+    list: { handle: string; name: string | null; cur: number; prior: number; change: number; movement: string }[];
+  } | null;
 }) {
   const isMonthly = reportType === 'monthly';
+  const isWeekly = reportType === 'weekly';
   const goalPctOfTotal = (n: number) => data.totalGmv > 0 ? (n / data.totalGmv) * 100 : 0;
   const peakDow = data.dayOfWeek.reduce((m, d) => Math.max(m, d.gmv), 0);
 
@@ -685,6 +694,48 @@ export function BrandClientReportPDF({
             </Text>
           )}
         </View>
+
+        {/* ── Week over week: what moved ───────────────────────────────── */}
+        {/* ⚠️ GROSS UP AND GROSS DOWN, never "N creators explain X%". A net
+            figure is the residue of two opposing forces and one percentage
+            against it hides their size — jiyu's week was $6,169 gained against
+            $9,098 lost for a net -$2,930. And a creator who went from nothing
+            to something is NEW, not "up ∞%". */}
+        {isWeekly && movers && movers.list.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionEyebrow}>WHAT MOVED</Text>
+            <Text style={styles.sectionTitle}>
+              {fmtCurrency(Math.abs(movers.gained))} added, {fmtCurrency(Math.abs(movers.lost))} given
+              back
+            </Text>
+            <Text style={styles.splitMeta}>
+              A net {movers.netChange >= 0 ? 'gain' : 'fall'} of{' '}
+              {fmtCurrency(Math.abs(movers.netChange))} on the period before
+              {movers.started > 0 ? ` · ${fmtNumber(movers.started)} sold for the first time` : ''}
+              {movers.stopped > 0 ? ` · ${fmtNumber(movers.stopped)} who sold before did not` : ''}
+            </Text>
+            {movers.list.map((c) => (
+              <View key={c.handle} style={styles.vsRow} wrap={false}>
+                <Text style={styles.vsLabel}>
+                  {c.name && c.name.trim() ? c.name : `@${c.handle.replace('@', '')}`}
+                </Text>
+                <Text style={styles.vsPct}>
+                  {c.movement === 'new'
+                    ? 'NEW'
+                    : c.movement === 'stopped'
+                      ? 'STOPPED'
+                      : `${c.change >= 0 ? '+' : '-'}${fmtCurrency(Math.abs(c.change))}`}
+                </Text>
+                <Text style={styles.vsOurs}>{c.prior > 0 ? fmtCurrency(c.prior) : '—'}</Text>
+                <Text style={styles.vsTheirs}>to {c.cur > 0 ? fmtCurrency(c.cur) : '—'}</Text>
+              </View>
+            ))}
+            <Text style={[styles.splitMeta, { marginTop: 4 }]}>
+              The {fmtNumber(movers.list.length)} largest movements by dollar change. Every signed
+              creator who sold in either period is counted in the totals above.
+            </Text>
+          </View>
+        )}
 
         {/* ── Month in review: what was committed against what landed ──── */}
         {isMonthly && contracted.length > 0 && (

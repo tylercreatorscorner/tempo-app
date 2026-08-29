@@ -107,14 +107,16 @@ export async function POST(req: NextRequest) {
    * Absent means the standing report, which is what every existing link is.
    */
   const REPORT_TYPES = ['performance', 'weekly', 'monthly'] as const;
-  const reportType =
+  const reportType: (typeof REPORT_TYPES)[number] =
     typeof body.reportType === 'string' &&
     (REPORT_TYPES as readonly string[]).includes(body.reportType)
-      ? body.reportType
+      ? (body.reportType as (typeof REPORT_TYPES)[number])
       : 'performance';
 
   try {
-    const build = await buildClientReportSnapshot(brand, period);
+    // reportType reaches the builder so a weekly report gets its movers block.
+    // Nothing else about the snapshot differs by type.
+    const build = await buildClientReportSnapshot(brand, period, undefined, reportType);
 
     // created_by is internal outbox attribution only — never shown to clients.
     const session = await createClient();

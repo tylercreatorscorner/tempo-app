@@ -1022,6 +1022,133 @@ function NetNewSplit({ n }: { n: NonNullable<NonNullable<BrandClientReportData['
   );
 }
 
+/**
+ * What moved, week over week.
+ *
+ * The standing report can say "roster GMV down 5.7%". It cannot say WHY,
+ * because every prior-window figure it holds is an aggregate. This is the
+ * per-creator movement behind that delta.
+ *
+ * ⚠️ GROSS UP AND GROSS DOWN ARE SHOWN SEPARATELY, never collapsed into "N
+ * creators explain X% of the change". A net figure is the residue of two
+ * opposing forces and one percentage against it hides their size: jiyu's week
+ * was $6,169 gained against $9,098 lost, netting -$2,930. Reporting "95%
+ * explained" would have been true and useless.
+ *
+ * ⚠️ A creator who went from nothing to something is NEW, not "up ∞%". The
+ * percentage of zero does not exist and inventing one is how a report starts
+ * lying at the edges.
+ */
+function Movers({
+  m,
+  word,
+}: {
+  m: NonNullable<ClientReportSnapshot['movers']>;
+  word: string;
+}) {
+  if (m.list.length === 0) return null;
+  const up = m.netChange >= 0;
+  return (
+    <>
+      <div className="rounded-[14px] border border-[#e7e7f2] border-l-[3px] border-l-[#4b45ff] bg-white px-5 py-4">
+        <p className="max-w-[70ch] text-[15px] font-semibold leading-[1.6] text-[#33375c]">
+          Creators added <b className="text-[#0d9f6e]">{money(Math.abs(m.gained))}</b> against{' '}
+          <b className="text-[#cf3a6e]">{money(Math.abs(m.lost))}</b> given back, for a net{' '}
+          <b className="text-[#171a33]">
+            {up ? 'gain' : 'fall'} of {money(Math.abs(m.netChange))}
+          </b>{' '}
+          on the {word} before.
+        </p>
+        {(m.started > 0 || m.stopped > 0) && (
+          <p className="mt-1.5 text-[12.5px] leading-[1.6] text-[#8a8fb0]">
+            {m.started > 0 && (
+              <>
+                <b className="text-[#171a33]">{num(m.started)}</b> creator
+                {m.started === 1 ? '' : 's'} sold for the first time this {word}
+              </>
+            )}
+            {m.started > 0 && m.stopped > 0 && ' · '}
+            {m.stopped > 0 && (
+              <>
+                <b className="text-[#171a33]">{num(m.stopped)}</b> who sold last {word} did not this
+                one
+              </>
+            )}
+            .
+          </p>
+        )}
+      </div>
+
+      <div className="mt-3 overflow-x-auto rounded-[14px] border border-[#e7e7f2] bg-white">
+        <table className="w-full min-w-[520px] border-collapse text-[13px]">
+          <thead>
+            <tr className="border-b border-[#eeedf5]">
+              <th className={TH_L}>Creator</th>
+              <th className={`${TH_R} whitespace-nowrap`}>Last {word}</th>
+              <th className={`${TH_R} whitespace-nowrap`}>This {word}</th>
+              <th className={`${TH_R} whitespace-nowrap`}>Change</th>
+            </tr>
+          </thead>
+          <tbody>
+            {m.list.map((c) => {
+              const h = handleOf(c.handle);
+              return (
+                <tr key={c.handle} className="border-b border-[#f2f1f8] last:border-b-0">
+                  <td className="max-w-[220px] px-4 py-2.5">
+                    <div className="truncate font-semibold text-[#171a33]">
+                      {c.name?.trim() ? c.name : `@${h}`}
+                    </div>
+                    {c.name?.trim() && (
+                      <a
+                        href={`https://www.tiktok.com/@${h}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="truncate text-[11.5px] font-semibold text-[#4b45ff] underline decoration-[#4b45ff]/30 underline-offset-2"
+                      >
+                        @{h}
+                      </a>
+                    )}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-[#33375c]">
+                    {c.prior > 0 ? money(c.prior) : <span className="text-[#b9bcd0]">&mdash;</span>}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-[#33375c]">
+                    {c.cur > 0 ? money(c.cur) : <span className="text-[#b9bcd0]">&mdash;</span>}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-2.5 text-right">
+                    {c.movement === 'new' ? (
+                      <span className="rounded-[5px] bg-[#e7f7f0] px-1.5 py-0.5 text-[11px] font-bold text-[#0d9f6e]">
+                        NEW
+                      </span>
+                    ) : c.movement === 'stopped' ? (
+                      <span className="rounded-[5px] bg-[#fbeef1] px-1.5 py-0.5 text-[11px] font-bold text-[#cf3a6e]">
+                        STOPPED
+                      </span>
+                    ) : (
+                      <span
+                        className={`font-extrabold tabular-nums ${
+                          c.change >= 0 ? 'text-[#0d9f6e]' : 'text-[#cf3a6e]'
+                        }`}
+                      >
+                        {c.change >= 0 ? '+' : '\u2212'}
+                        {money(Math.abs(c.change))}
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div className="mt-2 text-[10.5px] text-[#8a8fb0]">
+        The {num(m.list.length)} largest movements by dollar change. Every signed creator who sold in
+        either {word} is counted in the totals above.
+      </div>
+    </>
+  );
+}
+
 /** Which template renders a link. Stored on client_reports.report_type. */
 export type ReportType = 'performance' | 'weekly' | 'monthly';
 
@@ -1052,6 +1179,7 @@ export function ReportView({
    * the rest of the report alone.
    */
   const isMonthly = reportType === 'monthly';
+  const isWeekly = reportType === 'weekly';
   const word = periodWord(r.periodLengthDays);
   const reportKind =
     word === 'week' ? 'Weekly Performance Report' : word === 'month' ? 'Monthly Performance Report' : 'Performance Report';
@@ -1309,6 +1437,15 @@ export function ReportView({
                 broadening it is an active priority for this account.
               </div>
             )}
+          </>
+        )}
+
+        {/* ── 1a-weekly. What moved. On a comparison report the CHANGE is
+               the subject, so it leads rather than trailing the tables. ─── */}
+        {isWeekly && s.movers && (
+          <>
+            <SectionLine>What moved this {word}</SectionLine>
+            <Movers m={s.movers} word={word} />
           </>
         )}
 
