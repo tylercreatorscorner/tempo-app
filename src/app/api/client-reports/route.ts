@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
   const scope = await getWorkspaceScope();
   if (!scope) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  let body: { brand?: string; period?: unknown; notes?: string };
+  let body: { brand?: string; period?: unknown; notes?: string; reportType?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -99,6 +99,19 @@ export async function POST(req: NextRequest) {
   const period = parseReportPeriod(body.period);
   if (!period) return NextResponse.json({ error: 'Invalid period' }, { status: 400 });
   const notes = typeof body.notes === 'string' ? body.notes.slice(0, 2000).trim() : '';
+
+  /**
+   * Which template the link renders. Validated against the same three values
+   * the DB check constraint allows, so an unknown string is rejected here
+   * rather than surfacing as a constraint violation the operator cannot read.
+   * Absent means the standing report, which is what every existing link is.
+   */
+  const REPORT_TYPES = ['performance', 'weekly', 'monthly'] as const;
+  const reportType =
+    typeof body.reportType === 'string' &&
+    (REPORT_TYPES as readonly string[]).includes(body.reportType)
+      ? body.reportType
+      : 'performance';
 
   try {
     const build = await buildClientReportSnapshot(brand, period);
@@ -120,6 +133,7 @@ export async function POST(req: NextRequest) {
         snapshot: build.snapshot,
         notes: notes || null,
         created_by: createdBy,
+        report_type: reportType,
       })
       .select('id, token')
       .single();

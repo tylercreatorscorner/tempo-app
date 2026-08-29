@@ -73,6 +73,19 @@ export function CreatePanel({
 // ── Client report — prepare, edit notes, create link ────────────────
 type PeriodPreset = '7d' | '30d' | 'custom';
 
+/**
+ * Which template the link renders. THREE, not one report with a window:
+ *
+ *   performance  the standing report — what happened, absolute
+ *   weekly       week over week — the CHANGE is the subject
+ *   monthly      month in review — contracted posts against delivered,
+ *                net-new GMV, budget against actual
+ *
+ * monthly is not "comparison over 30 days": its content is accountability
+ * WITHIN the month, not movement between months.
+ */
+type ReportKind = 'performance' | 'weekly' | 'monthly';
+
 interface PreviewData {
   periodLabel: string;
   headline: { gmv: number; activeCreators: number; managedPct: number };
@@ -87,6 +100,7 @@ function ClientReportForm({ onSent, lockedBrand }: { onSent: () => void; lockedB
   const brand = lockedBrand ?? pickedBrand;
 
   const [preset, setPreset] = useState<PeriodPreset>('7d');
+  const [reportKind, setReportKind] = useState<ReportKind>('performance');
   const [startDate, setStartDate] = useState(() => new Date(Date.now() - 6 * 86_400_000).toISOString().slice(0, 10));
   const [endDate, setEndDate] = useState(() => new Date().toISOString().slice(0, 10));
   const today = new Date().toISOString().slice(0, 10);
@@ -168,7 +182,7 @@ function ClientReportForm({ onSent, lockedBrand }: { onSent: () => void; lockedB
       const res = await fetch('/api/client-reports', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ brand, period: periodPayload, notes }),
+        body: JSON.stringify({ brand, period: periodPayload, notes, reportType: reportKind }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
@@ -195,6 +209,36 @@ function ClientReportForm({ onSent, lockedBrand }: { onSent: () => void; lockedB
           <BrandListWarning show={brandsError} />
         </div>
       )}
+
+      <div>
+        <Label>Report</Label>
+        <SegmentedControl<ReportKind>
+          ariaLabel="Report type"
+          size="sm"
+          className={SEG_FULL}
+          options={[
+            { value: 'performance', label: 'Performance' },
+            { value: 'weekly', label: 'Week' },
+            { value: 'monthly', label: 'Monthly' },
+          ]}
+          value={reportKind}
+          onValueChange={(v) => {
+            setReportKind(v);
+            // The window follows the report the operator picked, because a
+            // month-in-review measured over 7 days compares delivery against a
+            // MONTHLY post target and reads as failure. They can still override
+            // it below; this only stops the wrong default.
+            if (v === 'weekly') setPreset('7d');
+            if (v === 'monthly') setPreset('30d');
+          }}
+        />
+        {reportKind === 'monthly' && preset !== 'custom' && (
+          <p className="mt-1.5 text-[11px] leading-snug text-muted-foreground">
+            Post targets are monthly, so a part-month reads short against them. For a true month in
+            review, pick Custom and set the first and last day of the month.
+          </p>
+        )}
+      </div>
 
       <div>
         <Label>Reporting period</Label>

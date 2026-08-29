@@ -9,7 +9,7 @@
  */
 import { createAdminClient } from '@/lib/supabase/server';
 import { reviveReportDates, type ClientReportSnapshot } from '@/lib/data/client-reports';
-import { ReportView } from './report-view';
+import { ReportView, type ReportType } from './report-view';
 import { ViewBeacon } from './view-beacon';
 
 export const dynamic = 'force-dynamic';
@@ -57,7 +57,7 @@ export default async function ClientReportPage({ params, searchParams }: Props) 
   const supabase = await createAdminClient();
   const { data: row } = await supabase
     .from('client_reports')
-    .select('id, brand_name, period_label, snapshot, notes, created_at, viewed_at, revoked_at')
+    .select('id, brand_name, period_label, snapshot, notes, created_at, viewed_at, revoked_at, report_type')
     .eq('token', token)
     .maybeSingle();
 
@@ -82,6 +82,10 @@ export default async function ClientReportPage({ params, searchParams }: Props) 
         notes={row.notes}
         brandName={row.brand_name}
         periodLabel={row.period_label}
+        /* Reports issued before report_type existed default to 'performance'
+           at the column level, so this is only ever null on a row read through
+           an older client. Treat absence as the standing report. */
+        reportType={(row.report_type as ReportType | null) ?? 'performance'}
       />
     </>
   );

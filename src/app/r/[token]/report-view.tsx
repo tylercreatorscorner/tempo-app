@@ -879,6 +879,152 @@ function CreatorRows({
   );
 }
 
+/**
+ * What was committed against what was delivered.
+ *
+ * The month-in-review question is not "how did we do" but "what did my money
+ * buy", and this is the answer: contracted posts against posts actually
+ * published, per creator and in total.
+ *
+ * ⚠️ RETAINED CREATORS ONLY. Affiliate-only creators carry NO post commitment —
+ * roughly 63% of the roster — and counting them here would invent a shortfall
+ * against a target nobody agreed to. That is the same phantom
+ * monthly_post_requirement that once had the roster reporting 85 Lemme creators
+ * as missing a quota they never had.
+ *
+ * ⚠️ ACTUAL SPEND RENDERS AS ABSENCE. Creator payouts run on a spreadsheet
+ * outside Tempo, and the invoice figure is CC's management fee plus commission,
+ * not creator cost. Deriving "actual" from "contracted minus underdelivery"
+ * would be an apportionment rule dressed as a measurement, so until the payout
+ * data lands this says so plainly rather than showing a number.
+ */
+function MonthlyDelivery({
+  g,
+  budget,
+  actualSpend,
+  start,
+  end,
+}: {
+  g: NonNullable<BrandClientReportData['granular']>;
+  budget: number | null;
+  /** Null until payouts are ingested. NEVER derived. */
+  actualSpend: number | null;
+  start: Date;
+  end: Date;
+}) {
+  const contracted = g.creators.filter((c) => !c.isAffiliate && !c.departed && (c.quota ?? 0) > 0);
+  if (contracted.length === 0) return null;
+
+  const owed = contracted.reduce((s, c) => s + (c.quota ?? 0), 0);
+  const delivered = contracted.reduce((s, c) => s + c.postsPublished, 0);
+  const met = contracted.filter((c) => c.postsPublished >= (c.quota ?? 0)).length;
+  const short = contracted.length - met;
+  const pct = owed > 0 ? (delivered / owed) * 100 : null;
+
+  /**
+   * ⚠️ THE QUOTA IS MONTHLY. Measuring a PART of a month against it makes every
+   * creator look short: jiyu 01-26 August read 830 of 1,731 (48%) purely
+   * because four days had not happened yet.
+   *
+   * The window is NOT pro-rated — inventing a partial target would be the same
+   * apportionment this report refuses everywhere else. Instead the shortfall is
+   * stated as what it is, and an incomplete month says so, so 48% is never read
+   * as failure.
+   */
+  const lastOfMonth = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth() + 1, 0));
+  const wholeMonth =
+    start.getUTCDate() === 1 &&
+    end.getUTCDate() === lastOfMonth.getUTCDate() &&
+    start.getUTCMonth() === end.getUTCMonth();
+  const daysCovered = Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1;
+  const daysInMonth = lastOfMonth.getUTCDate();
+
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-3.5 md:grid-cols-4">
+        <Mini
+          label="Posts contracted"
+          value={num(owed)}
+          note={`across ${num(contracted.length)} creator${contracted.length === 1 ? '' : 's'}`}
+        />
+        <Mini
+          label="Posts delivered"
+          value={num(delivered)}
+          note={pct !== null ? `${pct.toFixed(0)}% of contracted` : undefined}
+        />
+        <Mini
+          label="Met their commitment"
+          value={num(met)}
+          note={short > 0 ? `${num(short)} fell short` : 'everyone delivered'}
+        />
+        <Mini
+          label="Retainer committed"
+          value={budget !== null && budget > 0 ? `${money(budget)}/mo` : '—'}
+          note={
+            actualSpend !== null
+              ? `${money(actualSpend)} actually paid`
+              : 'actual spend not yet tracked'
+          }
+        />
+      </div>
+      {!wholeMonth && (
+        <div className="mt-2 rounded-[12px] bg-[#fbf1dc] px-4 py-3 text-[12.5px] leading-[1.6] text-[#8a5a08]">
+          <b>This period covers {num(daysCovered)} of {num(daysInMonth)} days.</b> The post targets above
+          are monthly, so a part-month will always read short against them. Delivery is only comparable
+          to the commitment over a complete month.
+        </div>
+      )}
+      <div className="mt-2 text-[10.5px] leading-relaxed text-[#8a8fb0]">
+        Counts only creators on a retainer with an agreed monthly post target. Affiliate-only creators
+        take commission and carry no post commitment, so they are not measured against one.
+      </div>
+    </>
+  );
+}
+
+/**
+ * How much of the month's revenue is content Creator's Corner started.
+ *
+ * Some brands worked with a creator before CC did and credit CC only with
+ * revenue from content posted after the relationship began.
+ *
+ * ⚠️ ADDITIVE. The roster total above is unchanged and still counts everything;
+ * this splits it. netNew + preCc === the roster total, and the copy says which
+ * is which rather than leaving the reader to assume the smaller number is a
+ * correction.
+ */
+function NetNewSplit({ n }: { n: NonNullable<NonNullable<BrandClientReportData['granular']>['netNew']> }) {
+  const total = n.totalGmv;
+  if (total <= 0) return null;
+  const pct = (n.netNewGmv / total) * 100;
+  return (
+    <div className="rounded-[14px] border border-[#e7e7f2] bg-white px-5 py-4">
+      <div className="text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">
+        Content we started vs content that predates us
+      </div>
+      <SplitBar
+        parts={[
+          { label: 'Posted since we started', value: money(n.netNewGmv), pct, color: '#4b45ff' },
+          {
+            label: 'Posted before we started',
+            value: money(n.preCcGmv),
+            pct: 100 - pct,
+            color: '#c7c9de',
+          },
+        ]}
+      />
+      <p className="mt-2.5 max-w-[70ch] text-[12.5px] leading-[1.6] text-[#33375c]">
+        <b className="text-[#171a33]">{pct.toFixed(1)}%</b> of your roster&rsquo;s revenue this month came
+        from videos published after we began working with each creator. The rest is their earlier
+        content, still selling.
+      </p>
+    </div>
+  );
+}
+
+/** Which template renders a link. Stored on client_reports.report_type. */
+export type ReportType = 'performance' | 'weekly' | 'monthly';
+
 // ── The page ───────────────────────────────────────────────────────
 
 export function ReportView({
@@ -888,6 +1034,7 @@ export function ReportView({
   notes,
   brandName,
   periodLabel,
+  reportType = 'performance',
 }: {
   token: string;
   report: BrandClientReportData;
@@ -895,7 +1042,16 @@ export function ReportView({
   notes: string | null;
   brandName: string;
   periodLabel: string;
+  reportType?: ReportType;
 }) {
+  /**
+   * MONTH IN REVIEW is a different question from the standing report, not the
+   * same one over 30 days: "what did my money buy" rather than "how did we
+   * do". So it ADDS two sections — what was committed against what was
+   * delivered, and how much of the revenue is content we started — and leaves
+   * the rest of the report alone.
+   */
+  const isMonthly = reportType === 'monthly';
   const word = periodWord(r.periodLengthDays);
   const reportKind =
     word === 'week' ? 'Weekly Performance Report' : word === 'month' ? 'Monthly Performance Report' : 'Performance Report';
@@ -1175,6 +1331,11 @@ export function ReportView({
               rosterGmv={cc.gmv}
               storeLiveGmv={r.channels?.storeLiveGmv ?? 0}
             />
+            {isMonthly && gran?.netNew && (
+              <div className="mt-3.5">
+                <NetNewSplit n={gran.netNew} />
+              </div>
+            )}
           </>
         )}
 
@@ -1205,6 +1366,21 @@ export function ReportView({
                the first five rows of "Every creator we run for you" below,
                rendered a second time with different columns. The full table
                now carries the whole story, adjacent to roster coverage. ─── */}
+
+        {/* ── 2b. Month in review: committed against delivered. ────── */}
+        {isMonthly && gran && (
+          <>
+            <SectionLine>What you committed, what we delivered</SectionLine>
+            <MonthlyDelivery
+              g={gran}
+              budget={finite(gran.roster.monthlyRetainerBudget)}
+              /* Not tracked yet — see MonthlyDelivery. Never derived. */
+              actualSpend={null}
+              start={r.startDate}
+              end={r.endDate}
+            />
+          </>
+        )}
 
         {/* ── 3. Roster coverage, now adjacent to the table it describes. ── */}
         {hasRoster && (
