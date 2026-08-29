@@ -225,6 +225,22 @@ export interface BrandClientReportData {
        *  rather than quietly absorbing it into the catalog. */
       unknownPostDateGmv: number;
     };
+    /**
+     * Net-new GMV: revenue from videos POSTED on or after each creator's
+     * cc_start_date (migration 173). Some brands worked with a creator before
+     * CC did and credit CC only with content posted after the relationship
+     * began.
+     *
+     * ⚠️ ADDITIVE, never a replacement. `gmv` stays the full figure
+     * everywhere; this sits beside it as a second lens. netNewGmv + preCcGmv
+     * === totalGmv, which is the cheap check that it has not been swapped in
+     * somewhere by accident.
+     *
+     * ⚠️ Counts by POST date, not EARNING date. A creator's pre-CC back
+     * catalogue keeps earning and that revenue is real — it just is not
+     * something CC started.
+     */
+    netNew?: { netNewGmv: number; preCcGmv: number; totalGmv: number };
     /** Newest three post-months, newest first. */
     vintage: { label: string; videos: number; gmv: number }[];
     vintageOlder: { videos: number; gmv: number };
@@ -255,6 +271,16 @@ export interface BrandClientReportData {
       videosEarning: number;
       gmv: number;
       orders: number;
+      /** Of this creator's GMV, what came from content posted IN the window —
+       *  their new work, as opposed to their back catalogue still selling. */
+      windowPostGmv?: number;
+      /** Of this creator's GMV, what came from content posted on or after
+       *  their cc_start_date. gmv - netNewGmv is their pre-CC catalogue. */
+      netNewGmv?: number;
+      /** When CC started with this creator FOR THIS BRAND. Backfilled from
+       *  added_at; the 2025-11-25 bulk-import cohort is approximate and errs
+       *  toward UNDERSTATING net-new. */
+      ccStartDate?: string | null;
     }[];
   };
 
