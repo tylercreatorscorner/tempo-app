@@ -385,7 +385,17 @@ function DeltaPill({ pct }: { pct?: number | null }) {
 
 // ── Main Document ──────────────────────────────────────────────────
 
-export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) {
+export function BrandClientReportPDF({
+  data,
+  reportType = 'performance',
+}: {
+  data: BrandClientReportData;
+  /** Which template. The PDF must carry the same sections as the web view for
+   *  the same link, or a client reading the attachment sees a different report
+   *  from the one they were sent. */
+  reportType?: 'performance' | 'weekly' | 'monthly';
+}) {
+  const isMonthly = reportType === 'monthly';
   const goalPctOfTotal = (n: number) => data.totalGmv > 0 ? (n / data.totalGmv) * 100 : 0;
   const peakDow = data.dayOfWeek.reduce((m, d) => Math.max(m, d.gmv), 0);
 
@@ -464,6 +474,35 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
    * it is unavailable (a snapshot frozen before migration 165) the figure is
    * OMITTED rather than printed wrong.
    */
+  /**
+   * Month in review: contracted posts against delivered.
+   *
+   * ⚠️ RETAINED CREATORS ONLY. Affiliate-only creators carry no post
+   * commitment (~63% of the roster) and counting them would invent a shortfall
+   * against a target nobody agreed to.
+   *
+   * ⚠️ The quota is MONTHLY, so a PART month reads short against it no matter
+   * what — jiyu 01-26 August showed 830 of 1,731 (48%) largely because four
+   * days had not happened. The window is NOT pro-rated (that would be the same
+   * apportionment this report refuses everywhere else); an incomplete month
+   * says so instead.
+   */
+  const contracted = gran
+    ? gran.creators.filter((c) => !c.isAffiliate && !c.departed && (c.quota ?? 0) > 0)
+    : [];
+  const postsOwed = contracted.reduce((s, c) => s + (c.quota ?? 0), 0);
+  const postsDelivered = contracted.reduce((s, c) => s + c.postsPublished, 0);
+  const metQuota = contracted.filter((c) => c.postsPublished >= (c.quota ?? 0)).length;
+  const lastOfMonth = new Date(
+    Date.UTC(data.endDate.getUTCFullYear(), data.endDate.getUTCMonth() + 1, 0),
+  );
+  const wholeMonth =
+    data.startDate.getUTCDate() === 1 &&
+    data.endDate.getUTCDate() === lastOfMonth.getUTCDate() &&
+    data.startDate.getUTCMonth() === data.endDate.getUTCMonth();
+  const daysCovered =
+    Math.round((data.endDate.getTime() - data.startDate.getTime()) / 86_400_000) + 1;
+
   const storeSold = data.activity ? data.activity.storeCreatorsSold : null;
   const storePosted = data.activity ? data.activity.storeCreatorsPosted : null;
 
@@ -646,6 +685,55 @@ export function BrandClientReportPDF({ data }: { data: BrandClientReportData }) 
             </Text>
           )}
         </View>
+
+        {/* ── Month in review: what was committed against what landed ──── */}
+        {isMonthly && contracted.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionEyebrow}>WHAT YOU COMMITTED, WHAT WE DELIVERED</Text>
+            <Text style={styles.sectionTitle}>
+              {fmtNumber(postsDelivered)} of {fmtNumber(postsOwed)} contracted posts
+              {postsOwed > 0 ? ` · ${fmtPct((postsDelivered / postsOwed) * 100, 0)}` : ''}
+            </Text>
+            <Text style={styles.splitMeta}>
+              {fmtNumber(metQuota)} of {fmtNumber(contracted.length)} creators met their commitment
+              {contracted.length - metQuota > 0
+                ? ` · ${fmtNumber(contracted.length - metQuota)} fell short`
+                : ''}
+              {gran && gran.roster.monthlyRetainerBudget > 0
+                ? ` · ${fmtCurrency(gran.roster.monthlyRetainerBudget)}/mo committed`
+                : ''}
+              {' · actual spend not yet tracked'}
+            </Text>
+            {!wholeMonth && (
+              <View style={styles.calloutWarn}>
+                <Text style={styles.calloutWarnText}>
+                  This period covers {fmtNumber(daysCovered)} of {fmtNumber(lastOfMonth.getUTCDate())}{' '}
+                  days. The post targets above are monthly, so a part-month will always read short
+                  against them. Delivery is only comparable to the commitment over a complete month.
+                </Text>
+              </View>
+            )}
+            <Text style={[styles.splitMeta, { marginTop: 4 }]}>
+              Counts only creators on a retainer with an agreed monthly post target. Affiliate-only
+              creators take commission and carry no post commitment.
+            </Text>
+          </View>
+        )}
+
+        {/* ── Month in review: content we started vs content that predates us ─ */}
+        {isMonthly && gran?.netNew && gran.netNew.totalGmv > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionEyebrow}>CONTENT WE STARTED</Text>
+            <Text style={styles.sectionTitle}>
+              {fmtCurrency(gran.netNew.netNewGmv)} from videos posted since we began
+            </Text>
+            <Text style={styles.splitMeta}>
+              {fmtPct((gran.netNew.netNewGmv / gran.netNew.totalGmv) * 100, 1)} of your roster&apos;s
+              revenue this period · {fmtCurrency(gran.netNew.preCcGmv)} came from content posted before
+              we started with each creator, still selling.
+            </Text>
+          </View>
+        )}
 
         {/* ⚠️ REPLACES "Managed vs Organic, Per Creator". That block compared
             AOV and GMV-per-creator against everyone else; across seven brands

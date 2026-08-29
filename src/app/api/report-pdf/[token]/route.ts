@@ -25,7 +25,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ token: str
   const supabase = await createAdminClient();
   const { data: row, error } = await supabase
     .from('client_reports')
-    .select('brand_name, period_end, snapshot, revoked_at')
+    .select('brand_name, period_end, snapshot, revoked_at, report_type')
     .eq('token', token)
     .maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -35,7 +35,13 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ token: str
   try {
     const snapshot = row.snapshot as ClientReportSnapshot;
     const data = reviveReportDates(snapshot.report);
-    const docElement = BrandClientReportPDF({ data });
+    // The PDF must carry the same sections as the web view for the same link.
+    // report_type lives on the ROW, not in the frozen snapshot, so an older
+    // report renders as 'performance' — which is exactly what it is.
+    const docElement = BrandClientReportPDF({
+      data,
+      reportType: (row.report_type as 'performance' | 'weekly' | 'monthly' | null) ?? 'performance',
+    });
     const pdf = await renderToBuffer(docElement);
 
     const safeBrand = String(row.brand_name)
