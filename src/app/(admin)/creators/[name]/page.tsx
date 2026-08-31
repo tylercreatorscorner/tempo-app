@@ -141,8 +141,11 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
       getCreatorBrandBreakdown(creatorId, startDate, endDate),
       getCreatorVideos(creatorId, startDate, endDate, 20, selectedBrand ?? undefined),
       getCreatorLifetimeStats(creatorId),
-      getCreatorEngagement(creatorId, startDate, endDate),
-      getCreatorTopContent(creatorId, startDate, endDate, 8),
+      // Both take the brand for the same reason the three calls above do. They
+      // used to ignore it, so on a creator working several brands these two
+      // cells of the metric rail stayed identical while the rest moved.
+      getCreatorEngagement(creatorId, startDate, endDate, selectedBrand ?? undefined),
+      getCreatorTopContent(creatorId, startDate, endDate, 8, selectedBrand ?? undefined),
       getCreatorLatestReportDate(creatorId),
       // Scoped to the CONTRACT brand: the requirement is a promise to one
       // brand, so counting posts made for a different one would forgive a

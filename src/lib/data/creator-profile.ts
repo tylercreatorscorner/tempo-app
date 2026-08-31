@@ -1018,15 +1018,21 @@ export async function getCreatorEngagement(
   creatorId: string,
   startDate: string,
   endDate: string,
+  /** Scopes to one brand, umbrella-expanded. Omit for every brand.
+   *  Without this the figure was identical under every brand selection, which
+   *  is what made a multi-brand creator's profile look mirrored. */
+  brand?: string,
 ): Promise<{ activePosts: number; views: number; likes: number; comments: number } | null> {
   const handles = await getHandles(creatorId);
   if (handles.length === 0) return null;
 
+  const reg = await getBrandRegistry();
   const supabase = await createClient();
   const { data, error } = await supabase.rpc('get_creator_engagement', {
     p_handles: handles.map((h) => h.trim().toLowerCase()),
     p_start: startDate,
     p_end: endDate,
+    p_brand_slugs: brand ? expandSlugs(reg, brand) : null,
   });
   if (error) return null;
 
@@ -1053,6 +1059,8 @@ export async function getCreatorTopContent(
   startDate: string,
   endDate: string,
   limit = 8,
+  /** Scopes to one brand, umbrella-expanded. Omit for every brand. */
+  brand?: string,
 ): Promise<{
   videoId: string;
   title: string;
@@ -1065,12 +1073,14 @@ export async function getCreatorTopContent(
   const handles = await getHandles(creatorId);
   if (handles.length === 0) return [];
 
+  const reg = await getBrandRegistry();
   const supabase = await createClient();
   const { data, error } = await supabase.rpc('get_creator_top_content', {
     p_handles: handles.map((h) => h.trim().toLowerCase()),
     p_start: startDate,
     p_end: endDate,
     p_limit: limit,
+    p_brand_slugs: brand ? expandSlugs(reg, brand) : null,
   });
   if (error) return [];
 
