@@ -13,6 +13,14 @@ interface CreatorData {
   status: string | null;
   notes: string | null;
   accounts: { tiktok_username: string; is_primary: boolean }[];
+  /**
+   * The brand that role and status apply to. Those live in creator_brands, one
+   * row per creator per brand, so an edit without a brand used to overwrite
+   * every brand at once. Null when the creator holds no contract, in which case
+   * the per-brand fields are hidden rather than shown editing nothing.
+   */
+  brandId: string | null;
+  brandLabel: string | null;
 }
 
 const ROLES = ['Incubator', 'Creatives', 'Retainer', 'Ambassador'];
@@ -38,6 +46,10 @@ export function CreatorEditButton({ creator }: { creator: CreatorData }) {
 function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => void }) {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
+  // A failed save used to do nothing at all: `if (res.ok)` with no else, so the
+  // panel just sat there. Now that a per-brand edit can be REJECTED for a
+  // missing brand, silence would read as "saved".
+  const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({
     real_name: creator.real_name,
     email: creator.email ?? '',
@@ -54,15 +66,26 @@ function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => 
 
   const handleSave = async () => {
     setSaving(true);
+    setError(null);
     try {
+      // Role and status live on creator_brands, one row per brand, so the brand
+      // travels with them. Without it the server rejects the write rather than
+      // applying it to every brand the creator works.
+      const payload: Record<string, unknown> = { ...form };
+      if (creator.brandId) payload.brand_id = creator.brandId;
+      else { delete payload.role; delete payload.status; }
+
       const res = await fetch(`/api/creators/${creator.id}/update`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       });
       if (res.ok) {
         router.refresh();
         onClose();
+      } else {
+        const j = await res.json().catch(() => ({}));
+        setError((j as { error?: string }).error || `Save failed (${res.status}).`);
       }
     } finally {
       setSaving(false);
@@ -124,6 +147,22 @@ function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => 
             <Field label="Email" value={form.email} onChange={(v) => setForm({ ...form, email: v })} type="email" />
             <Field label="Phone" value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} type="tel" />
 
+            {/* Role and status are PER BRAND. Naming the brand is the whole
+                point: without it these were written to every brand at once. */}
+            {creator.brandId ? (
+              <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
+                Role and status apply to{' '}
+                <b className="text-foreground">{creator.brandLabel ?? 'this brand'}</b> only. Name,
+                email, phone and notes are shared across all of this creator&rsquo;s brands.
+              </p>
+            ) : (
+              <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
+                This creator holds no brand contract, so role and status cannot be set here.
+              </p>
+            )}
+
+            {creator.brandId && (
+            <>
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">Role</label>
               <select
@@ -163,9 +202,13 @@ function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => 
                 ))}
               </select>
             </div>
+            </>
+            )}
 
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Notes</label>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+                Notes <span className="font-normal">(shared across all brands)</span>
+              </label>
               <textarea
                 value={form.notes}
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
@@ -174,6 +217,12 @@ function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => 
               />
             </div>
           </div>
+
+          {error && (
+            <div className="rounded-xl bg-rose-500/10 px-3 py-2 text-sm text-rose-600 dark:text-rose-400">
+              {error}
+            </div>
+          )}
 
           <button
             onClick={handleSave}

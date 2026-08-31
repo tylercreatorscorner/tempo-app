@@ -14,9 +14,23 @@ export async function POST(
 
   const body = await request.json();
 
-  // Fields that go to creators_v2
+  // Fields that go to creators_v2. These belong to the PERSON and are shared
+  // across every brand they work, which is correct: one human, one phone number.
   const creatorFields = ['real_name', 'email', 'phone', 'notes'];
-  // Fields that go to creator_brands
+  /**
+   * Fields that go to creator_brands, which holds ONE ROW PER CREATOR PER BRAND.
+   *
+   * ⚠️ These are per-brand by definition: a creator can be on a retainer for one
+   * brand and affiliate-only on another. Writing them without a brand filter
+   * overwrites every brand the creator works with a single value.
+   *
+   * That is exactly what this route used to do. The update was filtered on
+   * creator_id and tenant_id only, and the brand narrowing existed solely as a
+   * MANAGER permission check (`if (scopedBrandIds)`), so an admin, who has no
+   * brandScope, silently wrote to all of them. Reported by the VA as edits
+   * "mirrored across all of the creator's brands"; 34 multi-brand creators carry
+   * the signature of it (every brand row written in the same instant).
+   */
   const brandFields = ['role', 'status', 'retainer', 'monthly_post_requirement', 'retainer_start_date'];
 
   const creatorUpdates: Record<string, unknown> = {};
@@ -37,6 +51,21 @@ export async function POST(
 
   if (Object.keys(creatorUpdates).length === 0 && Object.keys(brandUpdates).length === 0) {
     return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
+  }
+
+  /**
+   * A per-brand edit must name its brand. Fails LOUD rather than defaulting to
+   * "all of them": silently widening the blast radius of a save is the bug this
+   * replaces, and a caller that forgot the brand wants an error, not a
+   * portfolio-wide overwrite.
+   */
+  const targetBrandId: string | null =
+    typeof body.brand_id === 'string' && body.brand_id.trim() ? body.brand_id.trim() : null;
+  if (Object.keys(brandUpdates).length > 0 && !targetBrandId) {
+    return NextResponse.json(
+      { error: 'brand_id is required when changing role, status or retainer, because those are set per brand.' },
+      { status: 400 },
+    );
   }
 
   const supabase = await createAdminClient();
@@ -80,14 +109,21 @@ export async function POST(
   }
 
   if (Object.keys(brandUpdates).length > 0) {
-    let cbQuery = supabase
+    // A manager may only touch their own brands, so the named brand has to be
+    // one of them. Checked before the write rather than relying on the filter
+    // to quietly match nothing.
+    if (scopedBrandIds && !scopedBrandIds.includes(targetBrandId!)) {
+      return NextResponse.json(
+        { error: 'Forbidden: that brand is not in your scope' }, { status: 403 });
+    }
+
+    const { error } = await supabase
       .from('creator_brands')
       .update(brandUpdates)
       .eq('creator_id', creatorId)
-      .eq('tenant_id', scope.tenantId);
-    // Managers may only alter the relationship rows for their own brands.
-    if (scopedBrandIds) cbQuery = cbQuery.in('brand_id', scopedBrandIds);
-    const { error } = await cbQuery;
+      .eq('tenant_id', scope.tenantId)
+      // THE FIX: one brand, never all of them.
+      .eq('brand_id', targetBrandId!);
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }

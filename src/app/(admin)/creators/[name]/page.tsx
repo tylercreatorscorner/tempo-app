@@ -33,7 +33,7 @@ import Link from 'next/link';
 import { resolveDateRange } from '@/lib/data/date-utils';
 import { getDataAnchorDate } from '@/lib/data/data-anchor';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
-import { getBrandRegistry, brandLabel, brandColor, activeBrandSlugs } from '@/lib/data/brand-registry';
+import { getBrandRegistry, brandLabel, brandColor, activeBrandSlugs, slugToUuid } from '@/lib/data/brand-registry';
 import { DateRangePicker } from '@/components/dashboard/date-range-picker';
 import { CreatorEditButton } from '@/components/creators/creator-edit-panel';
 import { CreatorChangeHistory } from '@/components/creators/creator-change-history';
@@ -133,6 +133,13 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
 
   const contracts = await getCreatorContracts(creatorId);
   const contractBrand = contracts.primary?.brand ?? null;
+
+  // Which brand an edit to role/status applies to. The filtered brand if one is
+  // chosen, else the contract brand the panel's values were read from. Null
+  // when the creator holds no contract, and the panel then hides those fields
+  // rather than showing them editing nothing.
+  const editBrandSlug = selectedBrand ?? contractBrand;
+  const editBrandId = editBrandSlug ? (slugToUuid(reg, editBrandSlug) ?? null) : null;
 
   const [summary, accountBreakdown, brandBreakdown, videos, lifetimeStats, engagement, topContent, latestReportDate, contractPosts] =
     await Promise.all([
@@ -278,6 +285,16 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                       tiktok_username: a.tiktok_username,
                       is_primary: a.is_primary,
                     })),
+                    /*
+                     * Role and status live on creator_brands, ONE ROW PER BRAND,
+                     * so the edit has to name which brand it means. Without this
+                     * the save was applied to every brand the creator works.
+                     *
+                     * The brand the user is looking at wins; otherwise the
+                     * contract brand, which is what the panel is populated from.
+                     */
+                    brandId: editBrandId,
+                    brandLabel: editBrandSlug ? brandLabel(reg, editBrandSlug) : null,
                   }}
                 />
                 <a
