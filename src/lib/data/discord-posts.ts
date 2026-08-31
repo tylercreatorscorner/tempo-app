@@ -1443,7 +1443,8 @@ export function formatMoversDiscord(
     const pct = Math.round(m.growthPct);
     L.push(
       `${badge} ${mention} — **+${pct.toLocaleString()}%**  ` +
-      `(${formatCurrency(m.priorGmv)} → **${formatCurrency(m.gmv)}**, +${formatCurrency(m.delta)})`,
+      `(${formatCurrency(m.priorGmv)} → **${formatCurrency(m.gmv)}**, +${formatCurrency(m.delta)})` +
+      profileLink(m.tiktok_username),
     );
   });
 
@@ -1548,7 +1549,10 @@ export function formatRookieDiscord(
   data.rookies.forEach((r, i) => {
     const mention = getMention(r.handle, r.discord_id, r.discord_name);
     const day = r.daysSinceFirst <= 0 ? 'day 1' : `day ${r.daysSinceFirst}`;
-    L.push(`**${i + 1}.** ${mention} — **${formatCurrency(r.gmv)}** ${w.inPhrase}  ·  ${day}`);
+    L.push(
+      `**${i + 1}.** ${mention} — **${formatCurrency(r.gmv)}** ${w.inPhrase}  ·  ${day}` +
+      profileLink(r.handle),
+    );
   });
 
   L.push('');
