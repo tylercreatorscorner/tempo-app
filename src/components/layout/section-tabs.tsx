@@ -25,6 +25,14 @@ const SECTIONS: { key: string; tabs: Tab[] }[] = [
     { label: 'Contests', href: '/contests' },
     { label: 'Drops', href: '/drops' },
   ] },
+  // Reporting splits client-facing from internal. They share a nav section and
+  // nothing else: separate tables, separate routes, and the internal one never
+  // touches the public /r/[token] renderer. Keeping them adjacent is the point,
+  // because the Monday question is whether both are current.
+  { key: 'reporting', tabs: [
+    { label: 'Clients', href: '/reporting' },
+    { label: 'Weekly report', href: '/reporting/weekly' },
+  ] },
   // Content is just Posts (Reporting graduated to its own sidebar destination
   // 2026-07-23); a single tab renders no bar, which is the point.
   // Comms (/messages) deliberately has NO section here — the hub owns its own
