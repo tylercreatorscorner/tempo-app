@@ -1595,7 +1595,10 @@ export function formatMilestonesDiscord(data: MilestoneData, brandName: string):
 
   for (const m of data.milestones) {
     const mention = getMention(m.handle, m.discord_id, m.discord_name);
-    L.push(`${badge(m.threshold)} ${mention} just crossed **${formatCurrency(m.threshold)}** with ${m.brandSlug}`);
+    L.push(
+      `${badge(m.threshold)} ${mention} just crossed **${formatCurrency(m.threshold)}** with ${m.brandSlug}` +
+      profileLink(m.handle),
+    );
   }
 
   L.push('');
