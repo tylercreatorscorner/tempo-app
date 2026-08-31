@@ -1384,6 +1384,27 @@ function getMention(handle: string, discordId: string | null, discordName: strin
 }
 
 /**
+ * A creator's TikTok profile, as a link that survives being PASTED BY A HUMAN.
+ *
+ * ⚠️ Markdown masked links (`[text](url)`) are deliberately NOT used. Discord
+ * only renders those for bot and webhook messages; pasted from a person's own
+ * account they show as literal `[@handle](https://...)`. The drops board is
+ * copy-only (the bot has been down since March), so every post here is
+ * hand-pasted by Tyler. A bare URL is the only form that linkifies for everyone.
+ *
+ * ⚠️ Wrapped in angle brackets to SUPPRESS the embed preview. Without them a
+ * ten-creator leaderboard would drag ten TikTok preview cards in behind it and
+ * bury the post.
+ *
+ * Returns '' for a missing handle so callers can concatenate unconditionally.
+ */
+function profileLink(handle: string | null | undefined): string {
+  const h = (handle ?? '').replace(/^@/, '').trim();
+  if (!h) return '';
+  return ` <https://www.tiktok.com/@${h}>`;
+}
+
+/**
  * BIGGEST MOVERS — the growth board.
  *
  * Deliberately shows prior -> current alongside the percentage. A bare "+674%"
@@ -1487,7 +1508,8 @@ export function formatMtdDiscord(data: MtdData, brandName: string): string {
     } else if (c.rankDelta != null && c.rankDelta <= -3) {
       move = c.prevRank > 99 ? '' : `  ▼${Math.abs(c.rankDelta)}`;
     }
-    L.push(`${badge} ${mention} — **${formatCurrency(c.gmv)}**${move}`);
+    // The profile link goes last so the money stays scannable down the left.
+    L.push(`${badge} ${mention} — **${formatCurrency(c.gmv)}**${move}${profileLink(c.tiktok_username)}`);
   });
 
   L.push('');

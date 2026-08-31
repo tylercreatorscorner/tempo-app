@@ -145,6 +145,12 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
   // them off the profile showed a value from a different table (and a
   // non-existent column), so the field never reflected what was saved.
   const editRelationship = await getCreatorBrandRelationship(creatorId, editBrandId);
+  // Per-brand notes come off the managed_creators contract for the same brand
+  // the panel is editing, so what is shown is what will be written.
+  const editBrandNotes =
+    (editBrandSlug
+      ? [contracts.primary, ...contracts.others].find((c) => c?.brand === editBrandSlug)?.notes
+      : null) ?? null;
 
   const [summary, accountBreakdown, brandBreakdown, videos, lifetimeStats, engagement, topContent, latestReportDate, contractPosts] =
     await Promise.all([
@@ -300,6 +306,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                      */
                     brandId: editBrandId,
                     brandLabel: editBrandSlug ? brandLabel(reg, editBrandSlug) : null,
+                    brandNotes: editBrandNotes,
                   }}
                 />
                 <a

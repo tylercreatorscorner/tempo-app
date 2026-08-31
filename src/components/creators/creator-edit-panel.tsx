@@ -21,6 +21,14 @@ interface CreatorData {
    */
   brandId: string | null;
   brandLabel: string | null;
+  /**
+   * Notes for THIS brand, from the managed_creators contract row. Separate from
+   * `notes`, which is the person-level note shared across every brand. Both are
+   * real and both are in use: 1,082 contract rows carry per-brand notes and 209
+   * creators already have different notes on different brands, while 610
+   * creators have a person-level note.
+   */
+  brandNotes: string | null;
 }
 
 const ROLES = ['Incubator', 'Creatives', 'Retainer', 'Ambassador'];
@@ -57,6 +65,7 @@ function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => 
     role: creator.role ?? '',
     status: creator.status ?? '',
     notes: creator.notes ?? '',
+    brand_notes: creator.brandNotes ?? '',
   });
 
   // Account management
@@ -73,7 +82,9 @@ function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => 
       // applying it to every brand the creator works.
       const payload: Record<string, unknown> = { ...form };
       if (creator.brandId) payload.brand_id = creator.brandId;
-      else { delete payload.role; delete payload.status; }
+      // No brand in context means nothing per-brand can be saved: drop those
+      // rather than let the server guess which brand was meant.
+      else { delete payload.role; delete payload.status; delete payload.brand_notes; }
 
       const res = await fetch(`/api/creators/${creator.id}/update`, {
         method: 'POST',
@@ -151,9 +162,9 @@ function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => 
                 point: without it these were written to every brand at once. */}
             {creator.brandId ? (
               <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
-                Role and status apply to{' '}
+                Role, status and the brand notes below apply to{' '}
                 <b className="text-foreground">{creator.brandLabel ?? 'this brand'}</b> only. Name,
-                email, phone and notes are shared across all of this creator&rsquo;s brands.
+                email, phone and general notes are shared across all of this creator&rsquo;s brands.
               </p>
             ) : (
               <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
@@ -205,9 +216,27 @@ function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => 
             </>
             )}
 
+            {creator.brandId && (
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+                  Notes for{' '}
+                  <span className="text-foreground font-semibold">
+                    {creator.brandLabel ?? 'this brand'}
+                  </span>
+                </label>
+                <textarea
+                  value={form.brand_notes}
+                  onChange={(e) => setForm({ ...form, brand_notes: e.target.value })}
+                  rows={3}
+                  placeholder="Only shown against this brand."
+                  className="w-full px-3 py-2 text-sm border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/15 focus:border-primary/20 resize-none"
+                />
+              </div>
+            )}
+
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-                Notes <span className="font-normal">(shared across all brands)</span>
+                General notes <span className="font-normal">(shared across all brands)</span>
               </label>
               <textarea
                 value={form.notes}
