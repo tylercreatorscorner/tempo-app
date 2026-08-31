@@ -119,7 +119,9 @@ export async function POST(
 
     const { error } = await supabase
       .from('creator_brands')
-      .update(brandUpdates)
+      // Stamped so creator_brand_audit_log records WHO, not just what. Added
+      // last so it cannot be what makes brandUpdates non-empty above.
+      .update({ ...brandUpdates, updated_by: scope.email })
       .eq('creator_id', creatorId)
       .eq('tenant_id', scope.tenantId)
       // THE FIX: one brand, never all of them.

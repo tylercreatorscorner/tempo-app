@@ -262,6 +262,9 @@ export async function POST(request: NextRequest) {
           status: 'active',
           retainer: retainer || 0,
           monthly_post_requirement: monthly_post_requirement || 30,
+          // So creator_brand_audit_log attributes the row to a person rather
+          // than inheriting whoever last touched this creator.
+          updated_by: scope.email,
         }, { onConflict: 'creator_id,brand_id', ignoreDuplicates: true });
     }
   }
