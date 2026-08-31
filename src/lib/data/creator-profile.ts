@@ -365,6 +365,19 @@ export async function getCreatorProfile(creatorId: string | number): Promise<Cre
     id: creator.id,
     real_name: resolvedName,
     brand: primaryBrand,
+    /**
+     * ⚠️ creators_v2 has NO `role` or `status` column, so both of these read
+     * undefined and always have. Role therefore renders empty no matter what is
+     * stored, which is why editing it looked like it never saved: the edit panel
+     * WRITES role/status to creator_brands (per brand) and READ them from here
+     * (per person, and non-existent). 616 creator_brands rows hold real roles
+     * that never surfaced.
+     *
+     * Kept only as the whole-person fallback for surfaces that want "any
+     * status". Anything editing a per-brand value must use
+     * getCreatorBrandRelationship() so read and write agree on one table AND one
+     * brand.
+     */
     role: (creator.role as string | null) ?? null,
     status: (creator.status as string | null) ?? primary?.employment_status ?? null,
     email: creator.email ?? null,
@@ -855,6 +868,41 @@ export async function getCreatorLatestReportDate(
 // COACH. The page it replaces answered "how much money" five different ways
 // and could not answer the two questions a coach actually has: are they
 // posting where we pay them to, and is the content working.
+
+/**
+ * Role and status for ONE creator on ONE brand, read from the same table and
+ * row the edit panel writes to.
+ *
+ * This exists because read and write had drifted onto different tables at
+ * different grains: the panel saved to creator_brands (one row per creator per
+ * brand) and displayed from creators_v2 (one row per person, and without the
+ * columns at all). The result was an edit that appeared to do nothing and,
+ * before the write was scoped, silently applied to every brand.
+ *
+ * Returns nulls for a creator with no relationship row on that brand, which the
+ * panel renders as "no contract" rather than as empty editable fields.
+ */
+export async function getCreatorBrandRelationship(
+  creatorId: string,
+  brandId: string | null,
+): Promise<{ role: string | null; status: string | null }> {
+  if (!brandId) return { role: null, status: null };
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('creator_brands')
+    .select('role, status')
+    .eq('creator_id', creatorId)
+    .eq('brand_id', brandId)
+    .maybeSingle();
+  if (error) {
+    console.error('[creator-profile] brand relationship read failed:', error.message);
+    return { role: null, status: null };
+  }
+  return {
+    role: (data?.role as string | null) ?? null,
+    status: (data?.status as string | null) ?? null,
+  };
+}
 
 /**
  * Every managed contract this creator holds, primary first.

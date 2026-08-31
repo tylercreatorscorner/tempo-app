@@ -44,6 +44,7 @@ import { ArrowLeft, Mail, Phone, ExternalLink, UserX, AlertTriangle, TrendingUp,
 import { cn } from '@/lib/utils';
 import {
   getCreatorProfile,
+  getCreatorBrandRelationship,
   getCreatorIdByHandle,
   getCreatorSummary,
   getCreatorAccountBreakdown,
@@ -140,6 +141,10 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
   // rather than showing them editing nothing.
   const editBrandSlug = selectedBrand ?? contractBrand;
   const editBrandId = editBrandSlug ? (slugToUuid(reg, editBrandSlug) ?? null) : null;
+  // Read role/status from the SAME table and row the panel writes to. Reading
+  // them off the profile showed a value from a different table (and a
+  // non-existent column), so the field never reflected what was saved.
+  const editRelationship = await getCreatorBrandRelationship(creatorId, editBrandId);
 
   const [summary, accountBreakdown, brandBreakdown, videos, lifetimeStats, engagement, topContent, latestReportDate, contractPosts] =
     await Promise.all([
@@ -278,8 +283,8 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                     real_name: profile.real_name,
                     email: profile.email,
                     phone: profile.phone,
-                    role: profile.role,
-                    status: profile.status,
+                    role: editRelationship.role,
+                    status: editRelationship.status,
                     notes: profile.notes,
                     accounts: profile.accounts.map((a) => ({
                       tiktok_username: a.tiktok_username,
