@@ -73,9 +73,22 @@ export function DateRangePicker({
     params.delete('start');
     params.delete('end');
     setMenuOpen(false);
-    // ⚠️ MUST be an absolute path. `router.push(`?${params}`)` silently does
-    // NOT navigate in Next 16 (verified on production: the handler fires, throws
-    // nothing, and the URL never changes), which left this control inert.
+    // Absolute path, built from usePathname(), rather than a bare `?${params}`.
+    //
+    // ⚠️ UNRESOLVED, do not read the git history as settled. In the in-app
+    // browser this control does not navigate: the onClick fires, throws nothing,
+    // and history.pushState is never called. Switching to an absolute path did
+    // NOT change that, which argues the query-only form was not the cause.
+    //
+    // That same browser showed a half-hydrated page (two <main> elements, orphan
+    // <table> nodes in <body>, unresolved S:0/S:1/S:2 stream holders), so the
+    // fault may be the browser rather than the app. NEEDS A TEST IN REAL CHROME
+    // before anyone concludes either way. The absolute path is kept because it
+    // is the more correct form regardless.
+    //
+    // What IS proven: loading the page with ?brand=<slug> by hand filters
+    // correctly (Views 1.8M -> 69.9k for akwellness1 on Forchics), so the page
+    // and the data are fine either way.
     const qs = params.toString();
     startNav(() => router.push(qs ? `${pathname}?${qs}` : pathname));
   }
@@ -87,9 +100,22 @@ export function DateRangePicker({
     params.set('end', end);
     setPickerOpen(false);
     setMenuOpen(false);
-    // ⚠️ MUST be an absolute path. `router.push(`?${params}`)` silently does
-    // NOT navigate in Next 16 (verified on production: the handler fires, throws
-    // nothing, and the URL never changes), which left this control inert.
+    // Absolute path, built from usePathname(), rather than a bare `?${params}`.
+    //
+    // ⚠️ UNRESOLVED, do not read the git history as settled. In the in-app
+    // browser this control does not navigate: the onClick fires, throws nothing,
+    // and history.pushState is never called. Switching to an absolute path did
+    // NOT change that, which argues the query-only form was not the cause.
+    //
+    // That same browser showed a half-hydrated page (two <main> elements, orphan
+    // <table> nodes in <body>, unresolved S:0/S:1/S:2 stream holders), so the
+    // fault may be the browser rather than the app. NEEDS A TEST IN REAL CHROME
+    // before anyone concludes either way. The absolute path is kept because it
+    // is the more correct form regardless.
+    //
+    // What IS proven: loading the page with ?brand=<slug> by hand filters
+    // correctly (Views 1.8M -> 69.9k for akwellness1 on Forchics), so the page
+    // and the data are fine either way.
     const qs = params.toString();
     startNav(() => router.push(qs ? `${pathname}?${qs}` : pathname));
   }
