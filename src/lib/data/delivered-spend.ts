@@ -1,35 +1,53 @@
 /**
- * Estimated creator spend, pro-rated by delivery.
+ * Creator spend, pro-rated by delivery.
  *
  * CC pays a retainer against an agreed monthly post count and pro-rates it when
  * a creator delivers short. This computes that:
  *
- *     spend = SUM over retained creators of  retainer x min(delivered / agreed, 1)
+ *     earned = SUM over retained creators of  retainer x min(delivered / agreed, 1)
  *
  * ⚠️ IT IS AN ESTIMATE, AND THE UI MUST SAY SO. Real payouts run on a
  * spreadsheet outside Tempo, and the invoice figure is CC's management fee plus
  * commission, not creator cost. This is what the delivery data implies was
  * owed, not a record of money that moved.
  *
- * ── Three things that make it wrong if ignored ──────────────────────────────
+ * ── The window decides what the number MEANS ────────────────────────────────
  *
- * 1. ⚠️ ONLY VALID OVER A FULL CALENDAR MONTH. The agreed post count is
- *    MONTHLY; delivered posts are counted over the report window. Measure a
- *    part-month against a monthly target and every creator reads short, so the
- *    estimate collapses. Measured on Dr. Dent, August:
- *        full month  $25,160 (46.8% of budget)
- *        26 days     $23,460 (43.6%)
- *        14 days     $13,337 (24.8%)
- *        7  days     $ 8,413 (15.7%)
- *    Same month, same roster, same real spend. The error is always in the same
- *    direction: it UNDERSTATES what CC paid. So this returns null for anything
- *    that is not a whole calendar month, and the caller renders absence.
+ * The agreed post count is MONTHLY. Delivered posts are counted over the report
+ * window. That mismatch is why the window has to be classified before the sum
+ * means anything, and why there are exactly two readings:
  *
- * 2. ⚠️ CAPPED AT 100% PER CREATOR. Overdelivery does not earn more than the
+ *   FULL MONTH  → an estimate of what CC owes for the month. Everyone has had
+ *                 their whole month to deliver, so a shortfall is a shortfall.
+ *
+ *   MONTH TO DATE → what posts ALREADY PUBLISHED have earned so far. The same
+ *                 arithmetic, and still exact, but it is NOT a spend figure:
+ *                 days remain, and creators can still earn the rest. Measured
+ *                 on Dr. Dent, August:
+ *                     31 days  $25,160    14 days  $13,337
+ *                     26 days  $23,460     7 days  $ 8,413
+ *                 Same month, same roster, same eventual spend. Present any of
+ *                 the short ones as "spent" and it understates badly; present
+ *                 them as "earned so far, N of M days elapsed" and each one is
+ *                 simply true on the day it was taken.
+ *
+ *   ANYTHING ELSE → null. A window that does not start on the 1st, or that
+ *                 crosses a month boundary, has no honest reading against a
+ *                 monthly target at all. The caller renders absence.
+ *
+ * ⚠️ NEVER PRO-RATE THE TARGET OR THE RETAINER TO THE ELAPSED DAYS. Scaling
+ * either one by days/daysInMonth assumes an even posting cadence nobody agreed
+ * to, and turns a measurement into an apportionment. Days elapsed is reported
+ * as a plain fact beside the figure so the reader can judge it; it never enters
+ * the maths. For the same reason nothing here projects a month-end total.
+ *
+ * ── Two more things that make it wrong if ignored ───────────────────────────
+ *
+ * 1. ⚠️ CAPPED AT 100% PER CREATOR. Overdelivery does not earn more than the
  *    retainer, so 46 posts against 30 counts as 30. Uncapped, Dr. Dent August
- *    came out $20,530 against $17,110 on the same inputs.
+ *    came out $28,847 against $24,800.
  *
- * 3. ⚠️ GATED ON A REAL RETAINER. Affiliate-only creators carry a phantom
+ * 2. ⚠️ GATED ON A REAL RETAINER. Affiliate-only creators carry a phantom
  *    monthly_post_requirement (the roster-add route defaults it to 30) while
  *    being paid nothing. Counting them would invent a shortfall against a
  *    target nobody agreed to, for people on no retainer at all.
@@ -37,8 +55,8 @@
  * ⚠️ And the denominator is soft: 490 of 555 retained creators sit on the
  * default 30, which is what the add route writes when nobody supplies a figure,
  * NOT a negotiated commitment. Confirmed with the Director 2026-08-31.
- * defaultQuotaShare is returned so the UI can say how much of the estimate
- * leans on that default rather than presenting the gap as measured fact.
+ * defaultQuotaShare is returned so the UI can say how much of the figure leans
+ * on that default rather than presenting the gap as measured fact.
  */
 
 /** What /api/roster writes when no post requirement is supplied. */
@@ -52,33 +70,74 @@ export interface DeliveredSpendCreator {
   postsPublished: number;
 }
 
+/**
+ * How the report window sits against the calendar month the quota is written
+ * in. `other` is not a degenerate case to paper over: it is a window the
+ * monthly target cannot be read against.
+ */
+export type SpendWindow =
+  | { kind: 'month'; daysInMonth: number }
+  | { kind: 'mtd'; daysElapsed: number; daysInMonth: number }
+  | { kind: 'other' };
+
+/**
+ * Classify a window. It must start on the 1st and stay inside one month: a
+ * partial window offset from the month start (say the 10th to the 31st) has no
+ * relationship to a monthly count at all.
+ */
+export function classifySpendWindow(start: Date, end: Date): SpendWindow {
+  if (end.getTime() < start.getTime()) return { kind: 'other' };
+  const sameMonth =
+    start.getUTCFullYear() === end.getUTCFullYear() &&
+    start.getUTCMonth() === end.getUTCMonth();
+  if (!sameMonth || start.getUTCDate() !== 1) return { kind: 'other' };
+
+  const daysInMonth = new Date(
+    Date.UTC(end.getUTCFullYear(), end.getUTCMonth() + 1, 0),
+  ).getUTCDate();
+  const daysElapsed = end.getUTCDate();
+  return daysElapsed >= daysInMonth
+    ? { kind: 'month', daysInMonth }
+    : { kind: 'mtd', daysElapsed, daysInMonth };
+}
+
 export interface DeliveredSpend {
-  /** Sum of retainers for the creators counted. */
+  /** Sum of retainers for the creators counted. Never pro-rated. */
   budget: number;
-  /** Delivery-weighted spend, each creator capped at their own retainer. */
-  estimated: number;
+  /**
+   * Delivery-weighted, each creator capped at their own retainer. Over a full
+   * month this estimates what CC owes; month to date it is what published
+   * posts have earned so far, with days still to run.
+   */
+  earned: number;
   /** 0-100, or null when there is no budget to divide by. */
   pctOfBudget: number | null;
   creators: number;
-  /** How many delivered their full agreed count (or more). */
+  /** How many have delivered their full MONTHLY count (or more) already. */
   fullyDelivered: number;
   /**
    * Share of `budget` (0-100) belonging to creators whose agreed post count is
    * the system default rather than a negotiated number. High means the gap
-   * between budget and estimate is largely measured against an assumption.
+   * between committed and earned is largely measured against an assumption.
    */
   defaultQuotaShare: number | null;
+  /**
+   * Null over a complete month. Set month to date, and the UI MUST show it:
+   * without the day count the same figure reads as a shortfall rather than as
+   * progress through a month that is still running.
+   */
+  partial: { daysElapsed: number; daysInMonth: number } | null;
 }
 
 /**
- * Returns null when the window is not a whole calendar month, which the caller
- * must render as absence rather than zero. See note 1 above.
+ * Returns null for any window the monthly target cannot be read against, which
+ * the caller must render as absence rather than zero.
  */
 export function estimateDeliveredSpend(
   creators: DeliveredSpendCreator[],
-  wholeMonth: boolean,
+  window: SpendWindow,
 ): DeliveredSpend | null {
-  if (!wholeMonth) return null;
+  if (window.kind === 'other') return null;
 
   // A real retainer AND a real target. Either missing means there is nothing
   // to pro-rate, not a shortfall.
@@ -88,7 +147,7 @@ export function estimateDeliveredSpend(
   if (counted.length === 0) return null;
 
   let budget = 0;
-  let estimated = 0;
+  let earned = 0;
   let defaultQuotaBudget = 0;
   let fullyDelivered = 0;
 
@@ -96,28 +155,33 @@ export function estimateDeliveredSpend(
     const quota = c.quota as number;
     budget += c.retainer;
     if (quota === DEFAULT_POST_QUOTA) defaultQuotaBudget += c.retainer;
-    // Capped: overdelivery does not pay more than the retainer.
+    // Capped: overdelivery does not pay more than the retainer. The quota is
+    // the FULL monthly count even month to date, never scaled to days run.
     const share = Math.min(c.postsPublished / quota, 1);
-    estimated += c.retainer * share;
+    earned += c.retainer * share;
     if (c.postsPublished >= quota) fullyDelivered += 1;
   }
 
   return {
     budget,
-    estimated,
-    pctOfBudget: budget > 0 ? (estimated / budget) * 100 : null,
+    earned,
+    pctOfBudget: budget > 0 ? (earned / budget) * 100 : null,
     creators: counted.length,
     fullyDelivered,
     defaultQuotaShare: budget > 0 ? (defaultQuotaBudget / budget) * 100 : null,
+    partial:
+      window.kind === 'mtd'
+        ? { daysElapsed: window.daysElapsed, daysInMonth: window.daysInMonth }
+        : null,
   };
 }
 
 /**
- * What makes the delivered-spend estimate soft, said out loud.
+ * What makes the figure soft, said out loud.
  *
- * Both causes understate nothing and overstate nothing on their own; they
- * widen the band around the figure. A client reading a gap between committed
- * and estimated must not read it as money that went unspent.
+ * Both causes widen the band around the number rather than pushing it one way.
+ * A client reading a gap between committed and earned must not read it as
+ * money that went unspent.
  */
 export function spendCaveats(defaultQuotaShare: number | null, retainerExact: boolean): string[] {
   const out: string[] = [];
@@ -132,4 +196,3 @@ export function spendCaveats(defaultQuotaShare: number | null, retainerExact: bo
   }
   return out;
 }
-

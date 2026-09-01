@@ -27,7 +27,11 @@
 import { Document, Page, Text, View, StyleSheet, Font, Svg, Circle, Path } from '@react-pdf/renderer';
 import path from 'node:path';
 import type { BrandClientReportData } from '@/lib/data/brand-client-report';
-import { estimateDeliveredSpend, spendCaveats } from '@/lib/data/delivered-spend';
+import {
+  classifySpendWindow,
+  estimateDeliveredSpend,
+  spendCaveats,
+} from '@/lib/data/delivered-spend';
 
 // ── Font registration (Inter, matching the invoices PDF + dashboard) ──
 // Built-in Helvetica has no glyphs for emoji/symbols and looks off next to
@@ -509,14 +513,13 @@ export function BrandClientReportPDF({
   const lastOfMonth = new Date(
     Date.UTC(data.endDate.getUTCFullYear(), data.endDate.getUTCMonth() + 1, 0),
   );
-  const wholeMonth =
-    data.startDate.getUTCDate() === 1 &&
-    data.endDate.getUTCDate() === lastOfMonth.getUTCDate() &&
-    data.startDate.getUTCMonth() === data.endDate.getUTCMonth();
+  const spendWindow = classifySpendWindow(data.startDate, data.endDate);
+  const wholeMonth = spendWindow.kind === 'month';
   const daysCovered =
     Math.round((data.endDate.getTime() - data.startDate.getTime()) / 86_400_000) + 1;
-  // Null on any window that is not a whole calendar month, by design.
-  const spend = gran ? estimateDeliveredSpend(gran.creators, wholeMonth) : null;
+  // Null unless the window starts on the 1st and stays inside one month.
+  const spend = gran ? estimateDeliveredSpend(gran.creators, spendWindow) : null;
+  const mtd = spend?.partial ?? null;
   const spendNotes =
     spend && gran
       ? spendCaveats(spend.defaultQuotaShare, gran.roster.retainerHistoryExact !== false)
@@ -765,27 +768,6 @@ export function BrandClientReportPDF({
                 : ''}
               {' · committed before delivery'}
             </Text>
-            {spend && (
-              <View style={styles.spendBox}>
-                <Text style={styles.spendLead}>
-                  Estimated creator spend {fmtCurrency(spend.estimated)} of the{' '}
-                  {fmtCurrency(spend.budget)} committed
-                  {spend.pctOfBudget !== null ? `, or ${fmtPct(spend.pctOfBudget, 0)}` : ''}, once
-                  each creator&rsquo;s retainer is scaled by what they actually published.
-                </Text>
-                <Text style={styles.spendMeta}>
-                  {fmtNumber(spend.fullyDelivered)} of {fmtNumber(spend.creators)} retained creators
-                  delivered their full agreed count and are counted at 100%; nobody is counted above
-                  it, so overdelivery does not raise the figure.
-                </Text>
-                {spendNotes.length > 0 && (
-                  <Text style={styles.spendMeta}>
-                    An estimate, not a payment record: {spendNotes.join('; ')}. Treat the gap as an
-                    indication of delivery, not as money unspent.
-                  </Text>
-                )}
-              </View>
-            )}
             {!wholeMonth && (
               <View style={styles.calloutWarn}>
                 <Text style={styles.calloutWarnText}>
@@ -793,6 +775,35 @@ export function BrandClientReportPDF({
                   days. The post targets above are monthly, so a part-month will always read short
                   against them. Delivery is only comparable to the commitment over a complete month.
                 </Text>
+              </View>
+            )}
+            {spend && (
+              <View style={styles.spendBox}>
+                <Text style={styles.spendLead}>
+                  {mtd ? 'Creator spend earned so far' : 'Estimated creator spend'}{' '}
+                  {fmtCurrency(spend.earned)} of the {fmtCurrency(spend.budget)} committed
+                  {spend.pctOfBudget !== null ? `, or ${fmtPct(spend.pctOfBudget, 0)}` : ''}, once
+                  each creator&rsquo;s retainer is scaled by what they actually published.
+                </Text>
+                {mtd && (
+                  <Text style={styles.spendMeta}>
+                    This is what posts already published have earned, not a forecast and not a final
+                    figure. The remaining {fmtNumber(mtd.daysInMonth - mtd.daysElapsed)} days of the
+                    month are still open for the rest to be earned.
+                  </Text>
+                )}
+                <Text style={styles.spendMeta}>
+                  {fmtNumber(spend.fullyDelivered)} of {fmtNumber(spend.creators)} retained creators
+                  {mtd ? ' have already delivered' : ' delivered'} their full monthly count and are
+                  counted at 100%; nobody is counted above it, so overdelivery does not raise the
+                  figure.
+                </Text>
+                {spendNotes.length > 0 && (
+                  <Text style={styles.spendMeta}>
+                    An estimate, not a payment record: {spendNotes.join('; ')}. Treat the gap as an
+                    indication of delivery, not as money unspent.
+                  </Text>
+                )}
               </View>
             )}
             <Text style={[styles.splitMeta, { marginTop: 4 }]}>
