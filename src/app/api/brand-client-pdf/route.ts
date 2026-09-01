@@ -50,7 +50,14 @@ export async function GET(request: NextRequest) {
   try {
     const data = await getBrandClientReportData(brand, brandName, period);
     // Call as function — renderToBuffer needs a ReactElement<DocumentProps>, not a wrapper
-    const docElement = BrandClientReportPDF({ data });
+    // Which template to render. The frozen-token route reads this from the
+    // client_reports row; here it is a query param so an admin can pull a
+    // monthly or weekly PDF live without first freezing a shareable link.
+    const rt = searchParams.get('reportType');
+    const docElement = BrandClientReportPDF({
+      data,
+      reportType: rt === 'monthly' || rt === 'weekly' ? rt : 'performance',
+    });
     const pdf = await renderToBuffer(docElement);
 
     const safeBrand = brandName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');

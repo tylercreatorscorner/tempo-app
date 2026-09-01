@@ -20,6 +20,7 @@
  * receive — print-adjacent, paper white.
  */
 import type { BrandClientReportData } from '@/lib/data/brand-client-report';
+import { estimateDeliveredSpend, spendCaveats } from '@/lib/data/delivered-spend';
 import { extractTikTokVideoId, type ClientReportSnapshot } from '@/lib/data/client-reports';
 
 const AGENCY = 'Creators Corner';
@@ -894,9 +895,13 @@ function CreatorRows({
  *
  * ⚠️ ACTUAL SPEND RENDERS AS ABSENCE. Creator payouts run on a spreadsheet
  * outside Tempo, and the invoice figure is CC's management fee plus commission,
- * not creator cost. Deriving "actual" from "contracted minus underdelivery"
- * would be an apportionment rule dressed as a measurement, so until the payout
- * data lands this says so plainly rather than showing a number.
+ * not creator cost.
+ *
+ * ESTIMATED spend IS now shown, because CC's actual payment rule is
+ * retainer x (delivered / agreed) capped at 100%, which is arithmetic on known
+ * inputs rather than an apportionment invented to fill a gap. See
+ * lib/data/delivered-spend.ts for the three conditions that make it valid, and
+ * note it is rendered ONLY over a whole calendar month.
  */
 function MonthlyDelivery({
   g,
@@ -918,6 +923,11 @@ function MonthlyDelivery({
   const owed = contracted.reduce((s, c) => s + (c.quota ?? 0), 0);
   const delivered = contracted.reduce((s, c) => s + c.postsPublished, 0);
   const met = contracted.filter((c) => c.postsPublished >= (c.quota ?? 0)).length;
+  // Null on any window that is not a whole calendar month; see the module note.
+  const spend = estimateDeliveredSpend(g.creators, wholeMonthFor(start, end));
+  const caveats = spend
+    ? spendCaveats(spend.defaultQuotaShare, g.roster.retainerHistoryExact !== false)
+    : [];
   const short = contracted.length - met;
   const pct = owed > 0 ? (delivered / owed) * 100 : null;
 
@@ -932,10 +942,7 @@ function MonthlyDelivery({
    * as failure.
    */
   const lastOfMonth = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth() + 1, 0));
-  const wholeMonth =
-    start.getUTCDate() === 1 &&
-    end.getUTCDate() === lastOfMonth.getUTCDate() &&
-    start.getUTCMonth() === end.getUTCMonth();
+  const wholeMonth = wholeMonthFor(start, end);
   const daysCovered = Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1;
   const daysInMonth = lastOfMonth.getUTCDate();
 
@@ -963,10 +970,36 @@ function MonthlyDelivery({
           note={
             actualSpend !== null
               ? `${money(actualSpend)} actually paid`
-              : 'actual spend not yet tracked'
+              : 'committed before delivery'
           }
         />
       </div>
+      {spend && (
+        <div className="mt-3.5 rounded-[14px] border border-[#e7e7f2] bg-white px-5 py-4">
+          <div className="text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">
+            Estimated creator spend
+          </div>
+          <p className="mt-1.5 max-w-[70ch] text-[15px] font-semibold leading-[1.6] text-[#33375c]">
+            <b className="text-[#171a33]">{money(spend.estimated)}</b> of the{' '}
+            {money(spend.budget)} committed
+            {spend.pctOfBudget !== null && (
+              <>, or <b className="text-[#171a33]">{spend.pctOfBudget.toFixed(0)}%</b></>
+            )}
+            , once each creator&rsquo;s retainer is scaled by what they actually published.
+          </p>
+          <p className="mt-1.5 max-w-[70ch] text-[12.5px] leading-[1.6] text-[#8a8fb0]">
+            {num(spend.fullyDelivered)} of {num(spend.creators)} retained creators delivered their
+            full agreed count and are counted at 100%; nobody is counted above it, so overdelivery
+            does not raise the figure.
+          </p>
+          {caveats.length > 0 && (
+            <p className="mt-2 rounded-[10px] bg-[#f6f6fb] px-3 py-2 text-[11.5px] leading-[1.6] text-[#8a8fb0]">
+              An estimate, not a payment record: {caveats.join('; ')}. Treat the gap as an
+              indication of delivery, not as money unspent.
+            </p>
+          )}
+        </div>
+      )}
       {!wholeMonth && (
         <div className="mt-2 rounded-[12px] bg-[#fbf1dc] px-4 py-3 text-[12.5px] leading-[1.6] text-[#8a5a08]">
           <b>This period covers {num(daysCovered)} of {num(daysInMonth)} days.</b> The post targets above
@@ -1146,6 +1179,19 @@ function Movers({
         either {word} is counted in the totals above.
       </div>
     </>
+  );
+}
+
+/**
+ * Is the window exactly one calendar month? The delivered-spend estimate and
+ * the part-month warning both hang off this, so they cannot disagree.
+ */
+function wholeMonthFor(start: Date, end: Date): boolean {
+  const lastOfMonth = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth() + 1, 0));
+  return (
+    start.getUTCDate() === 1 &&
+    end.getUTCDate() === lastOfMonth.getUTCDate() &&
+    start.getUTCMonth() === end.getUTCMonth()
   );
 }
 

@@ -27,6 +27,7 @@
 import { Document, Page, Text, View, StyleSheet, Font, Svg, Circle, Path } from '@react-pdf/renderer';
 import path from 'node:path';
 import type { BrandClientReportData } from '@/lib/data/brand-client-report';
+import { estimateDeliveredSpend, spendCaveats } from '@/lib/data/delivered-spend';
 
 // ── Font registration (Inter, matching the invoices PDF + dashboard) ──
 // Built-in Helvetica has no glyphs for emoji/symbols and looks off next to
@@ -172,6 +173,9 @@ const styles = StyleSheet.create({
 
   // ── Honesty callouts, mirroring the web report's amber notes
   calloutWarn:     { marginTop: 10, backgroundColor: '#FBF1DC', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 9 },
+  spendBox:        { marginTop: 10, backgroundColor: '#F6F6FB', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10 },
+  spendLead:       { fontSize: 10, lineHeight: 1.5, color: COLORS.ink, fontFamily: 'Inter', fontWeight: 600 },
+  spendMeta:       { fontSize: 8, lineHeight: 1.5, color: COLORS.muted, marginTop: 5 },
   calloutWarnText: { fontSize: 9, lineHeight: 1.55, color: '#8A5A08', fontFamily: 'Inter', fontWeight: 600 },
 
   // ── Managed vs Organic
@@ -511,6 +515,12 @@ export function BrandClientReportPDF({
     data.startDate.getUTCMonth() === data.endDate.getUTCMonth();
   const daysCovered =
     Math.round((data.endDate.getTime() - data.startDate.getTime()) / 86_400_000) + 1;
+  // Null on any window that is not a whole calendar month, by design.
+  const spend = gran ? estimateDeliveredSpend(gran.creators, wholeMonth) : null;
+  const spendNotes =
+    spend && gran
+      ? spendCaveats(spend.defaultQuotaShare, gran.roster.retainerHistoryExact !== false)
+      : [];
 
   const storeSold = data.activity ? data.activity.storeCreatorsSold : null;
   const storePosted = data.activity ? data.activity.storeCreatorsPosted : null;
@@ -753,8 +763,29 @@ export function BrandClientReportPDF({
               {gran && gran.roster.monthlyRetainerBudget > 0
                 ? ` · ${fmtCurrency(gran.roster.monthlyRetainerBudget)}/mo committed`
                 : ''}
-              {' · actual spend not yet tracked'}
+              {' · committed before delivery'}
             </Text>
+            {spend && (
+              <View style={styles.spendBox}>
+                <Text style={styles.spendLead}>
+                  Estimated creator spend {fmtCurrency(spend.estimated)} of the{' '}
+                  {fmtCurrency(spend.budget)} committed
+                  {spend.pctOfBudget !== null ? `, or ${fmtPct(spend.pctOfBudget, 0)}` : ''}, once
+                  each creator&rsquo;s retainer is scaled by what they actually published.
+                </Text>
+                <Text style={styles.spendMeta}>
+                  {fmtNumber(spend.fullyDelivered)} of {fmtNumber(spend.creators)} retained creators
+                  delivered their full agreed count and are counted at 100%; nobody is counted above
+                  it, so overdelivery does not raise the figure.
+                </Text>
+                {spendNotes.length > 0 && (
+                  <Text style={styles.spendMeta}>
+                    An estimate, not a payment record: {spendNotes.join('; ')}. Treat the gap as an
+                    indication of delivery, not as money unspent.
+                  </Text>
+                )}
+              </View>
+            )}
             {!wholeMonth && (
               <View style={styles.calloutWarn}>
                 <Text style={styles.calloutWarnText}>
