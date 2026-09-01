@@ -103,6 +103,20 @@ const BRAND_MAP: Record<string, string> = {
   // would let a stray file route to a slug with no brands_v2 row and quietly
   // recreate orphan rows.
   'cosrx':               'cosrx',
+  // Caramela Beauty and Lumineux, onboarded 2026-08-31.
+  //
+  // ⚠️ The two-token forms are MANDATORY, for the same reason spelled out
+  // above for LeeFar Nutrition US: extractBrand tries the longest token slice
+  // first, so 'Caramela_Beauty_Creator_Data.xlsx' is only matched by a
+  // 'caramela beauty' entry. Without it the file would fall through to the
+  // one-token 'caramela'. That is survivable here only because 'caramela' maps
+  // to the same slug; if a second Caramela store is ever added, this is exactly
+  // where a whole store's GMV would silently land under the wrong brand.
+  'caramela beauty':     'caramela_beauty',
+  'caramela_beauty':     'caramela_beauty',
+  'caramelabeauty':      'caramela_beauty',
+  'caramela':            'caramela_beauty',
+  'lumineux':            'lumineux',
 };
 
 /**
