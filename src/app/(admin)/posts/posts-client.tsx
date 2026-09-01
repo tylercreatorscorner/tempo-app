@@ -27,7 +27,7 @@ import {
   Download, Eye, Loader2, Search, ExternalLink,
   AlertTriangle, MessageSquare, Star, Play,
 } from 'lucide-react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useBrandMeta } from '@/hooks/use-brand-meta';
 import { useInView } from '@/hooks/use-in-view';
@@ -127,6 +127,7 @@ export function PostsClient({
   managedOnly: boolean;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const brandMeta = useBrandMeta();
 
@@ -296,21 +297,33 @@ export function PostsClient({
     const params = new URLSearchParams(searchParams.toString());
     if (next === 'managed') params.set('managed', 'true');
     else params.delete('managed');
-    router.push(`?${params.toString()}`);
+    // ⚠️ MUST be an absolute path. `router.push(`?${params}`)` silently does
+    // NOT navigate in Next 16 (verified on production: the handler fires, throws
+    // nothing, and the URL never changes), which left this control inert.
+    const qs = params.toString();
+    router.push(qs ? `${pathname}?${qs}` : pathname);
   }
 
   function setBasis(next: 'earned' | 'posted') {
     const params = new URLSearchParams(searchParams.toString());
     if (next === 'posted') params.set('basis', 'posted');
     else params.delete('basis');
-    router.push(`?${params.toString()}`);
+    // ⚠️ MUST be an absolute path. `router.push(`?${params}`)` silently does
+    // NOT navigate in Next 16 (verified on production: the handler fires, throws
+    // nothing, and the URL never changes), which left this control inert.
+    const qs = params.toString();
+    router.push(qs ? `${pathname}?${qs}` : pathname);
   }
 
   function setBrand(slug: string) {
     const params = new URLSearchParams(searchParams.toString());
     if (slug === 'all') params.delete('brand');
     else params.set('brand', slug);
-    router.push(`?${params.toString()}`);
+    // ⚠️ MUST be an absolute path. `router.push(`?${params}`)` silently does
+    // NOT navigate in Next 16 (verified on production: the handler fires, throws
+    // nothing, and the URL never changes), which left this control inert.
+    const qs = params.toString();
+    router.push(qs ? `${pathname}?${qs}` : pathname);
   }
 
   function downloadCsv() {

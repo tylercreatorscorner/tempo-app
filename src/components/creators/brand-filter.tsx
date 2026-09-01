@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useBrandMeta } from '@/hooks/use-brand-meta';
 import { cn } from '@/lib/utils';
 
@@ -19,6 +19,7 @@ interface BrandFilterProps {
 
 export function BrandFilter({ brands, brandsWithData, selectedBrand, collapseNoData = false }: BrandFilterProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const brandMeta = useBrandMeta();
   const [showAll, setShowAll] = useState(false);
@@ -30,7 +31,11 @@ export function BrandFilter({ brands, brandsWithData, selectedBrand, collapseNoD
     } else {
       params.delete('brand');
     }
-    router.push(`?${params.toString()}`);
+    // ⚠️ MUST be an absolute path. `router.push(`?${params}`)` silently does
+    // NOT navigate in Next 16 (verified on production: the handler fires, throws
+    // nothing, and the URL never changes), which left this control inert.
+    const qs = params.toString();
+    router.push(qs ? `${pathname}?${qs}` : pathname);
   };
 
   // Until data arrives, brandsWithData is empty — don't collapse the whole

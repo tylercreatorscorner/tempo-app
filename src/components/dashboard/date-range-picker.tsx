@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Calendar, ChevronDown, Check } from 'lucide-react';
 import { DATE_PRESETS, type DatePreset } from '@/lib/data/date-utils';
 import { CustomRangePopover } from './custom-range-popover';
@@ -34,6 +34,7 @@ export function DateRangePicker({
   staleThrough?: string | null;
 } = {}) {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   // The shell's shared transition, not a local one: this push invalidates every
   // number on the page, so the pending affordance belongs over the CONTENT. A
@@ -72,7 +73,11 @@ export function DateRangePicker({
     params.delete('start');
     params.delete('end');
     setMenuOpen(false);
-    startNav(() => router.push(`?${params.toString()}`));
+    // ⚠️ MUST be an absolute path. `router.push(`?${params}`)` silently does
+    // NOT navigate in Next 16 (verified on production: the handler fires, throws
+    // nothing, and the URL never changes), which left this control inert.
+    const qs = params.toString();
+    startNav(() => router.push(qs ? `${pathname}?${qs}` : pathname));
   }
 
   function applyCustom(start: string, end: string) {
@@ -82,7 +87,11 @@ export function DateRangePicker({
     params.set('end', end);
     setPickerOpen(false);
     setMenuOpen(false);
-    startNav(() => router.push(`?${params.toString()}`));
+    // ⚠️ MUST be an absolute path. `router.push(`?${params}`)` silently does
+    // NOT navigate in Next 16 (verified on production: the handler fires, throws
+    // nothing, and the URL never changes), which left this control inert.
+    const qs = params.toString();
+    startNav(() => router.push(qs ? `${pathname}?${qs}` : pathname));
   }
 
   const fmtCustom = (s: string) => {
