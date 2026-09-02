@@ -415,14 +415,23 @@ export function draftClientReportNotes(s: ClientReportSnapshot): string {
     const topFall = falls[0];
     const topRise = rises[0];
 
-    if (topFall && grossDown > 0 && Math.abs(topFall.change) / grossDown >= 0.5) {
+    /**
+     * ⚠️ THE BRANCH MUST FOLLOW THE DIRECTION OF THE PERIOD. M3 drafted as
+     * "Most of the gain is one creator" on a week that was DOWN 16%, because
+     * one creator happened to carry the small amount that DID rise. True, and
+     * a bizarre thing to lead with when the headline is a fall.
+     */
+    const rosterFell = cc.gmvChangePct !== null && Number.isFinite(cc.gmvChangePct) && cc.gmvChangePct < 0;
+    const rosterRose = cc.gmvChangePct !== null && Number.isFinite(cc.gmvChangePct) && cc.gmvChangePct > 0;
+
+    if (rosterFell && topFall && grossDown > 0 && Math.abs(topFall.change) / grossDown >= 0.5) {
       parts.push(
         `Most of the drop is one creator: ${handle(topFall.handle)} came off ` +
           `${money(Math.abs(topFall.change))} of the ${money(grossDown)} that fell` +
           (grossUp > 0 ? `, while ${money(grossUp)} was added across everyone else` : '') +
           '.',
       );
-    } else if (topRise && grossUp > 0 && topRise.change / grossUp >= 0.5) {
+    } else if (rosterRose && topRise && grossUp > 0 && topRise.change / grossUp >= 0.5) {
       parts.push(
         `Most of the gain is one creator: ${handle(topRise.handle)} added ` +
           `${money(topRise.change)} of the ${money(grossUp)} gained.`,
