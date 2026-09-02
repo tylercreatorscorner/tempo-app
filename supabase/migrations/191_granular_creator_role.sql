@@ -1,0 +1,21 @@
+-- Add the creator's level to the client report's creator breakdown.
+--
+-- Requested by a brand contact 2026-09-02: "breakdown of retainers (handle,
+-- what their retainer and deliverables are, and level of creator)".
+--
+-- ⚠️ NOT current_tier. That column reads 'bronze' for all 1,947 active rows, a
+-- default nobody ever changed, so showing it would tell every client that every
+-- creator is the same level. `role` carries the real taxonomy (Incubator,
+-- Creatives, Closer, Active).
+--
+-- ⚠️ role is PER BRAND, because managed_creators is per brand. The same person
+-- can be an Incubator for one brand and a Closer for another, which is correct.
+--
+-- ⚠️ COVERAGE IS POOR AND THE RENDERER GATES ON IT: 49% of active rows have no
+-- role, including every retained creator on dr_dent, bondie and m3. The RPC
+-- returns roster.roleCoverage (share of RETAINED creators carrying one) and the
+-- report shows the column only at >= 50%. A column of 62 dashes on a client's
+-- report is worse than no column.
+--
+-- The function body is otherwise unchanged from migration 173; see the applied
+-- migration for the full definition.

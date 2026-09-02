@@ -580,6 +580,13 @@ export function BrandClientReportPDF({
    * retainer stays the full monthly retainer, and the days elapsed are printed
    * beside them as a fact. Nothing projects a month-end total.
    */
+  /**
+   * Show the level column only where enough of the roster carries one. role is
+   * empty for 49% of the roster and for EVERY retained creator on some brands;
+   * a column of dashes reads as broken data on a client's report.
+   */
+  const showLevel = (gran?.roster?.roleCoverage ?? 0) >= 50;
+
   const mtdPass = data.monthToDate;
   const mtdContracted = mtdPass
     ? mtdPass.granular.creators.filter((c) => !c.isAffiliate && !c.departed && (c.quota ?? 0) > 0)
@@ -1243,6 +1250,7 @@ export function BrandClientReportPDF({
               <Text style={[styles.gHeadCell, { flex: 1.7 }]}>CREATOR</Text>
               <Text style={[styles.gHeadCell, { flex: 1.7 }]}>TIKTOK</Text>
               <Text style={[styles.gHeadCell, { flex: 1.3 }]}>AGREEMENT</Text>
+              {showLevel && <Text style={[styles.gHeadCell, { flex: 1.1 }]}>LEVEL</Text>}
               <Text style={[styles.gHeadCell, { flex: 1.1, textAlign: 'right' }]}>AGREED</Text>
               <Text style={[styles.gHeadCell, { flex: 0.9, textAlign: 'right' }]}>
                 {wholeMonth ? 'POSTS' : 'POSTS THIS PERIOD'}
@@ -1265,6 +1273,11 @@ export function BrandClientReportPDF({
                 <Text style={[c.isAffiliate ? styles.gTag : styles.gCellMuted, { flex: 1.3 }]}>
                   {c.departed ? 'Left' : c.isAffiliate ? 'Affiliate' : 'Retainer'}
                 </Text>
+                {showLevel && (
+                  <Text style={[styles.gCellMuted, { flex: 1.1 }]}>
+                    {c.role?.trim() ? c.role : '\u2014'}
+                  </Text>
+                )}
                 {/* Em dash, not $0: there is no agreed amount for affiliate-only,
                     and a zero would read as a negotiated figure. */}
                 <Text style={[styles.gCellMuted, { flex: 1.1, textAlign: 'right' }]}>

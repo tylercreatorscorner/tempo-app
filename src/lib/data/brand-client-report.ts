@@ -262,6 +262,13 @@ export interface BrandClientReportData {
        * before 172, where it must read as "unknown", not "verified".
        */
       retainerHistoryExact?: boolean;
+      /**
+       * Share of RETAINED creators (0-100) carrying a level. ⚠️ The renderer
+       * gates the column on this: role is empty for 49% of the roster and for
+       * EVERY retained creator on some brands, and a column of dashes on a
+       * client's report is worse than no column. Absent on older snapshots.
+       */
+      roleCoverage?: number;
     };
     /** postsPublished counts on post_date; videosEarning counts what was live
      *  in the window. They differ by an order of magnitude — never merge them. */
@@ -313,6 +320,12 @@ export interface BrandClientReportData {
       /** 37% of active creators hold more than one. */
       handleCount?: number;
       isAffiliate: boolean;
+      /**
+       * CC's level for this creator ON THIS BRAND (Incubator, Creatives,
+       * Closer, Active). Per brand because managed_creators is per brand.
+       * ⚠️ NOT current_tier, which reads 'bronze' for all 1,947 active rows.
+       */
+      role?: string | null;
       retainer: number;
       quota: number | null;
       /** Left the roster DURING the window. Their GMV is real and is kept, but

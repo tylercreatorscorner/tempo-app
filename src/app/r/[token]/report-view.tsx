@@ -721,6 +721,12 @@ function FullRosterTable({
   /** For the CSV export, which is public by this same opaque token. */
   token: string;
 }) {
+  /**
+   * Show the level column only where enough of the roster actually carries
+   * one. Below half and the column is mostly dashes, which reads as missing
+   * data on a page whose whole point is that the numbers are trustworthy.
+   */
+  const showLevel = (g.roster.roleCoverage ?? 0) >= 50;
   const rows = g.creators;
   const active = rows.filter((c) => c.gmv > 0 || c.postsPublished > 0);
   const dormant = rows.filter((c) => c.gmv === 0 && c.postsPublished === 0);
@@ -749,7 +755,7 @@ function FullRosterTable({
         </a>
       </div>
 
-      <CreatorRows rows={active} judgeQuota={judgeQuota} />
+      <CreatorRows rows={active} judgeQuota={judgeQuota} showLevel={showLevel} />
 
       {dormant.length > 0 && (
         <details className="group border-t border-[#eeedf5]">
@@ -764,7 +770,7 @@ function FullRosterTable({
               </>
             )}
           </summary>
-          <CreatorRows rows={dormant} judgeQuota={judgeQuota} muted />
+          <CreatorRows rows={dormant} judgeQuota={judgeQuota} showLevel={showLevel} muted />
         </details>
       )}
     </div>
@@ -1056,11 +1062,14 @@ const TH_R =
 function CreatorRows({
   rows,
   judgeQuota,
+  showLevel,
   muted = false,
 }: {
   rows: NonNullable<BrandClientReportData['granular']>['creators'];
   /** Only show the monthly target beside a count covering that month. */
   judgeQuota: boolean;
+  /** Only where enough of the roster carries a level. */
+  showLevel: boolean;
   muted?: boolean;
 }) {
   return (
@@ -1076,6 +1085,7 @@ function CreatorRows({
             <th className={TH_L}>TikTok</th>
             <th className={`${TH_L} whitespace-nowrap`}>Agreement</th>
             <th className={`${TH_R} whitespace-nowrap`}>Agreed</th>
+            {showLevel && <th className={`${TH_L} whitespace-nowrap`}>Level</th>}
             <th className={`${TH_R} whitespace-nowrap`}>{judgeQuota ? 'Posts' : 'Posts this period'}</th>
             <th className={`${TH_R} whitespace-nowrap`}>Orders</th>
             <th className={`${TH_R} whitespace-nowrap`}>GMV</th>
@@ -1174,6 +1184,11 @@ function CreatorRows({
                     ? <>{money(c.retainer)}<span className="text-[#8a8fb0]">/mo</span></>
                     : <span className="text-[#b9bcd0]">&mdash;</span>}
                 </td>
+                {showLevel && (
+                  <td className="whitespace-nowrap px-4 py-2.5 text-[#6b7093]">
+                    {c.role?.trim() ? c.role : <span className="text-[#b9bcd0]">&mdash;</span>}
+                  </td>
+                )}
                 {/* Quota tracking lives here, next to the number it judges,
                     but ONLY when the window it judges is the month the quota
                     was written for. Over a week, "0 / 30" is not a shortfall,

@@ -77,6 +77,10 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ token: str
     'Creator',
     'TikTok handles',
     'Agreement',
+    // Unlike the report, the CSV carries this ALWAYS. A blank cell in a
+    // spreadsheet is ordinary; a column of dashes on a client-facing page is
+    // not, which is why the rendered table gates on coverage and this does not.
+    'Level',
     'Monthly retainer',
     ...(windowIsMonth ? ['Posts published', 'Monthly post target'] : ['Posts this period']),
     'Videos earning',
@@ -95,6 +99,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ token: str
       c.realName?.trim() ? c.realName : c.name,
       handles,
       c.departed ? 'Left during period' : c.isAffiliate ? 'Affiliate' : 'Retainer',
+      c.role?.trim() ? c.role : '',
       // Blank, never 0: affiliate-only creators have no agreed amount, and a
       // zero would read as a negotiated figure.
       !c.departed && !c.isAffiliate && c.retainer > 0 ? c.retainer.toFixed(2) : '',
