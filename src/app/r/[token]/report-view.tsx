@@ -109,13 +109,46 @@ function Delta({ pct, suffix, abs }: { pct?: number | null; suffix?: string; abs
   );
 }
 
+/**
+ * Change in a figure that is ITSELF a percentage, in percentage POINTS.
+ *
+ * ⚠️ Never render a relative % change on a share. Dr. Dent's share of shop went
+ * 14.4% -> 12.6%; that is 1.8 POINTS, but 12.5% relative. Printing "down 12.5%"
+ * beside a value reading "12.6%" invites the reader to subtract them.
+ */
+function PointsDelta({ points }: { points: number | null }) {
+  if (points === null) return <div className="mt-0.5 text-[11px] text-[#b3b7d4]">&mdash;</div>;
+  if (Math.abs(points) < 0.05) {
+    return <div className="mt-0.5 text-[11px] font-bold text-[#8a8fb0]">no change</div>;
+  }
+  const up = points >= 0;
+  return (
+    <div className={`mt-0.5 text-[11px] font-bold tabular-nums ${up ? 'text-[#0d9f6e]' : 'text-[#cf3a6e]'}`}>
+      {up ? '▲' : '▼'} {Math.abs(points).toFixed(1)} pts
+    </div>
+  );
+}
+
 /** Big stat, used in the agency band. */
-function HeroStat({ label, value, pct, abs }: { label: string; value: string; pct?: number | null; abs?: string | null }) {
+function HeroStat({
+  label,
+  value,
+  pct,
+  abs,
+  points,
+}: {
+  label: string;
+  value: string;
+  pct?: number | null;
+  abs?: string | null;
+  /** For values that are themselves a percentage. Wins over `pct`. */
+  points?: number | null;
+}) {
   return (
     <div>
       <div className="text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">{label}</div>
       <div className="mt-0.5 text-[25px] font-extrabold leading-tight tabular-nums text-[#171a33]">{value}</div>
-      <Delta pct={pct} abs={abs} />
+      {points !== undefined ? <PointsDelta points={points} /> : <Delta pct={pct} abs={abs} />}
     </div>
   );
 }
@@ -161,10 +194,13 @@ function HoverBars({
   title,
   bars,
   labels,
+  peakNoun = 'day',
 }: {
   title: string;
   bars: { value: number; orders?: number; isPeak: boolean; caption: string }[];
   labels: string[];
+  /** What one bar IS. The 12-week chart was calling its peak "best day". */
+  peakNoun?: string;
 }) {
   const max = Math.max(1, ...bars.map((b) => b.value));
   return (
@@ -182,7 +218,7 @@ function HoverBars({
               className="pointer-events-none absolute bottom-[calc(100%+8px)] left-1/2 z-10 -translate-x-1/2 translate-y-1 whitespace-nowrap rounded-[9px] bg-[#171a33] px-2.5 py-2 text-[11.5px] leading-[1.45] text-white opacity-0 shadow-[0_8px_22px_-8px_rgba(0,0,0,.5)] transition-all duration-150 group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100"
             >
               <b className="tabular-nums">{money(b.value)}</b>
-              {b.isPeak && <span className="text-white/70"> · best day</span>}
+              {b.isPeak && <span className="text-white/70"> · best {peakNoun}</span>}
               <br />
               <span className="tabular-nums text-white/70">
                 {b.orders !== undefined ? `${num(b.orders)} orders · ` : ''}{b.caption}
@@ -417,6 +453,15 @@ function SourceSplit({
             )}
             . The three add to {money(chTotal)}
             {Math.abs(chTotal - rosterGmv) < 1 ? ' exactly' : ''}.
+            {/* A zero next to a non-zero stream count reads as a failure. It is
+                not: live sells in the room, and these creators are contracted
+                for video. Saying so is better than leaving the client to guess. */}
+            {channels.rosterLiveStreams > 0 && channels.rosterLiveGmv === 0 && (
+              <>
+                {' '}Those streams sold nothing directly. Your roster is contracted for video, and
+                live is used for reach rather than as a sales channel here.
+              </>
+            )}
           </p>
         </div>
       )}
@@ -586,8 +631,13 @@ function VintageSection({
 
       <p className="mt-4 text-[11.5px] leading-[1.6] text-[#8a8fb0]">
         Grouped by the month each video was posted, counting only sales made during this {word}.
+        {/* It is NOT in "neither": get_brand_client_report_granular puts null
+            post_date into vintageOlder (`posted_month is null or ...`), which is
+            why the buckets already sum to video GMV exactly. The old wording
+            claimed money was missing from a total it was actually in. */}
         {unknown > 0 && (
-          <> {money(unknown)} came from videos with no recorded post date and sits in neither group.</>
+          <> {money(unknown)} came from videos with no recorded post date and is counted in the
+          oldest group.</>
         )}
       </p>
     </div>
@@ -612,10 +662,13 @@ function VintageSection({
 function FullRosterTable({
   g,
   judgeQuota,
+  token,
 }: {
   g: NonNullable<BrandClientReportData['granular']>;
   /** Whether the window is the month the monthly quota was written for. */
   judgeQuota: boolean;
+  /** For the CSV export, which is public by this same opaque token. */
+  token: string;
 }) {
   const rows = g.creators;
   const active = rows.filter((c) => c.gmv > 0 || c.postsPublished > 0);
@@ -634,6 +687,15 @@ function FullRosterTable({
           <b className="text-[#171a33]">{num(g.roster.affiliateOnly)}</b> of your roster are
           affiliate-only &mdash; commission, with no post requirement, so they carry no posting target.
         </p>
+        {/* Downloads the FULL list, including the dormant rows folded behind
+            the disclosure below. Hiding them is a density decision, not a
+            privacy one, and a spreadsheet missing its tail is worse than none. */}
+        <a
+          href={`/api/report-csv/${token}`}
+          className="mt-2.5 inline-flex items-center gap-1.5 rounded-[9px] border border-[#e7e7f2] bg-[#fbfbfd] px-3 py-1.5 text-[12px] font-bold text-[#4b45ff] transition-colors hover:bg-[#f2f1fb]"
+        >
+          &#8595; Download all {num(rows.length)} as CSV
+        </a>
       </div>
 
       <CreatorRows rows={active} judgeQuota={judgeQuota} />
@@ -673,7 +735,13 @@ function FullRosterTable({
  * days would invent a cadence nobody agreed to, and nothing here projects a
  * month-end total.
  */
-function MonthToDate({ mtd }: { mtd: NonNullable<BrandClientReportData['monthToDate']> }) {
+function MonthToDate({
+  mtd,
+  signings,
+}: {
+  mtd: NonNullable<BrandClientReportData['monthToDate']>;
+  signings?: BrandClientReportData['signings'];
+}) {
   const g = mtd.granular;
   const contracted = g.creators.filter((c) => !c.isAffiliate && !c.departed && (c.quota ?? 0) > 0);
   if (contracted.length === 0) return null;
@@ -714,6 +782,37 @@ function MonthToDate({ mtd }: { mtd: NonNullable<BrandClientReportData['monthToD
         commitment.
         {!complete && ' The month is still running, so the rest have days left to reach theirs.'}
       </p>
+
+      {/* New signings. MONTH grain on purpose: Dr. Dent's August signings
+          landed on 8 separate days (2, 7, 1, 2, 1, 7, 41, 2), so a weekly count
+          reads zero most weeks and makes a live pipeline look dead.
+          🚨 Suppressed in a brand's FIRST month, where the whole opening roster
+          shares one cc_start_date and would read as a recruiting spree. */}
+      {signings && !signings.isFirstMonth && (
+        <div className="mt-3 border-t border-[#eeedf5] pt-3">
+          <div className="text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">
+            New creators signed
+          </div>
+          <p className="mt-1.5 max-w-[70ch] text-[15px] font-semibold leading-[1.6] text-[#33375c]">
+            <b className="text-[#171a33]">{num(signings.signed)}</b> new creator
+            {signings.signed === 1 ? '' : 's'} joined your roster in {signings.monthLabel}
+            {signings.signedRetained > 0 && (
+              <>
+                , <b className="text-[#171a33]">{num(signings.signedRetained)}</b> of them on a
+                retainer
+              </>
+            )}
+            .
+            {signings.priorComparable && (
+              <> That compares with {num(signings.signedPrior)} in {signings.priorMonthLabel}.</>
+            )}
+          </p>
+          <p className="mt-1.5 max-w-[70ch] text-[12.5px] leading-[1.6] text-[#8a8fb0]">
+            Counted by the date each creator signed with us for your brand, including any who have
+            since left, so this figure does not change after the fact.
+          </p>
+        </div>
+      )}
 
       {spend && (
         <div className="mt-3 border-t border-[#eeedf5] pt-3">
@@ -1422,10 +1521,33 @@ export function ReportView({
         }
       : null;
 
+  /**
+   * The creator list is single-window, so `canCompare` is false whenever the
+   * granular block drives the tile. But the ACTIVITY block carries a prior on
+   * its own definition, and when the two definitions agree on the CURRENT
+   * period they are measuring the same thing, so the prior is safe to use.
+   * When they disagree, show nothing rather than a delta across definitions.
+   */
+  const postedDefinitionsAgree =
+    !!rosterAct && !!act && act.rosterPosted === rosterAct.posted;
   const postedPct =
-    rosterAct && rosterAct.canCompare && act && act.rosterPostedPrior > 0
+    rosterAct && act && act.rosterPostedPrior > 0 && (rosterAct.canCompare || postedDefinitionsAgree)
       ? pctChange(rosterAct.posted, act.rosterPostedPrior)
       : undefined;
+
+  /**
+   * Share of the shop, in percentage POINTS, from figures the snapshot already
+   * carries. This tile showed a bare "—" and so hid the direction entirely:
+   * Dr. Dent's week of 2026-08-23 fell 14.4% -> 12.6% while the page said only
+   * "12.6%". A brand's core question is whether the agency is gaining or losing
+   * ground on their shop, and the answer was being withheld by omission.
+   */
+  const priorStoreGmv = finite(r.priorTotalGmv);
+  const priorShare =
+    priorGmv !== null && priorStoreGmv !== null && priorStoreGmv > 0
+      ? (priorGmv / priorStoreGmv) * 100
+      : null;
+  const sharePoints = priorShare !== null ? cc.pctOfStoreGmv - priorShare : null;
 
   // Share of the whole shop, on the same two definitions. `r.activeCreators`
   // is NOT used: it counts handles present in the TikTok export, which read
@@ -1468,12 +1590,24 @@ export function ReportView({
 
   // The honest case: our roster fell while the store rose. Stating it plainly
   // is the point — a report that only ever looks good stops being read.
+  /**
+   * "We fell while the shop did not."
+   *
+   * ⚠️ WAS GATED ON THE STORE RISING MORE THAN 2%, which is the wrong test and
+   * stayed silent in the exact week it was written for: Dr. Dent 2026-08-23,
+   * roster -11.7% against a store at +1.0%. The client sees that gap whether or
+   * not the report mentions it, and a report that only volunteers good news
+   * stops being read.
+   *
+   * Keyed on lost SHARE instead, which is the thing that actually happened, and
+   * is what the tile above now prints.
+   */
   const divergence =
     hasRoster &&
     cc.gmvChangePct !== null &&
-    r.gmvChangePct !== null &&
     cc.gmvChangePct < -2 &&
-    r.gmvChangePct > 2;
+    sharePoints !== null &&
+    sharePoints < -0.5;
 
   // Concentration: how much of the roster's GMV came from its top creator.
   const topManaged = cc.topCreators[0] ?? null;
@@ -1565,7 +1699,11 @@ export function ReportView({
                   pct={cc.gmvChangePct}
                   abs={priorGmv !== null ? money(Math.abs(cc.gmv - priorGmv)) : null}
                 />
-                <HeroStat label="Share of store" value={`${cc.pctOfStoreGmv.toFixed(1)}%`} />
+                <HeroStat
+                  label="Share of store"
+                  value={`${cc.pctOfStoreGmv.toFixed(1)}%`}
+                  points={sharePoints}
+                />
                 <HeroStat
                   label={rosterAct ? 'Creators who posted' : 'Creators active'}
                   value={num(rosterAct ? rosterAct.posted : cc.activeCreatorCount)}
@@ -1584,8 +1722,18 @@ export function ReportView({
 
             {divergence && (
               <div className="mt-3 rounded-[12px] bg-[#fbf1dc] px-4 py-3.5 text-[13.5px] leading-[1.65] text-[#8a5a08]">
-                <b>We were down this {word} while the store was up.</b> Roster GMV fell{' '}
-                {Math.abs(cc.gmvChangePct!).toFixed(1)}% against a store that grew {r.gmvChangePct!.toFixed(1)}%.
+                <b>We lost ground on your shop this {word}.</b> Roster GMV fell{' '}
+                {Math.abs(cc.gmvChangePct!).toFixed(1)}%
+                {finite(r.gmvChangePct) !== null && (
+                  <>
+                    {' '}against a store that{' '}
+                    {r.gmvChangePct! >= 0
+                      ? `grew ${r.gmvChangePct!.toFixed(1)}%`
+                      : `fell only ${Math.abs(r.gmvChangePct!).toFixed(1)}%`}
+                  </>
+                )}
+                , taking our share from {(cc.pctOfStoreGmv - sharePoints!).toFixed(1)}% to{' '}
+                {cc.pctOfStoreGmv.toFixed(1)}%.
                 {cc.priorCreatorCount === cc.activeCreatorCount
                   ? ` The same ${num(cc.activeCreatorCount)} creators were active in both periods, so this is output per creator, not roster size.`
                   : ` Active creators went from ${num(cc.priorCreatorCount)} to ${num(cc.activeCreatorCount)}.`}
@@ -1755,12 +1903,12 @@ export function ReportView({
         {gran && gran.creators.length > 0 && (
           <>
             <SectionLine>Every creator we run for you</SectionLine>
-            <FullRosterTable g={gran} judgeQuota={windowIsMonth} />
+            <FullRosterTable g={gran} judgeQuota={windowIsMonth} token={token} />
             {/* Sits directly under the table whose posts column it explains.
                 Absent on a monthly report, where the table already carries the
                 comparison, and on snapshots frozen before this shipped. */}
             {!windowIsMonth && r.monthToDate && (
-              <MonthToDate mtd={r.monthToDate} />
+              <MonthToDate mtd={r.monthToDate} signings={r.signings} />
             )}
           </>
         )}
@@ -1843,6 +1991,7 @@ export function ReportView({
                 caption: fmtDay(d.date),
               }))}
               labels={dailyLabels}
+              peakNoun="day"
             />
           </div>
         )}
@@ -1859,6 +2008,7 @@ export function ReportView({
               labels={weekly.map((w, i) =>
                 i === 0 || i === weekly.length - 1 ? fmtDay(new Date(w.weekEnd + 'T12:00:00Z')) : '',
               )}
+              peakNoun="week"
             />
             {priorWasSpike && (
               <div className="mt-2 text-[10.5px] text-[#8a8fb0]">

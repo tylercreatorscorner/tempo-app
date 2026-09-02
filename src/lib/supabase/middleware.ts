@@ -50,6 +50,9 @@ const PUBLIC_PATHS = [
   // /api/client-reports/* admin routes stay behind the auth guard.
   '/r/',
   '/api/report-pdf/',
+  // Creator-table CSV. Same opaque-token gate and the same frozen snapshot as
+  // the PDF, so it can expose nothing the link itself does not already show.
+  '/api/report-csv/',
   '/api/report-viewed/',
   '/api/invoice-viewed/',
 ];

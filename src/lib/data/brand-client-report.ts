@@ -176,6 +176,32 @@ export interface BrandClientReportData {
    * Absent when the report window IS already a whole calendar month (the month
    * pass would be identical), and when the RPC fails, which is non-fatal.
    */
+  /**
+   * New creators signed, at CALENDAR MONTH grain (migration 189).
+   *
+   * 🚨 `isFirstMonth` marks the brand's opening bulk load, where the whole
+   * starting roster shares one cc_start_date (Dr. Dent: 85 on 2026-06-25).
+   * The renderer MUST suppress the figure then rather than claim a month of
+   * recruiting that never happened.
+   *
+   * 🚨 `priorComparable` is false when the prior month IS that bulk load, or
+   * predates the relationship. Comparing against it invents a collapse.
+   *
+   * Counts include creators who have since left, so a past month's number
+   * cannot shrink as people are archived.
+   *
+   * OPTIONAL: absent on snapshots frozen before this shipped, and on failure.
+   */
+  signings?: {
+    monthLabel: string;
+    priorMonthLabel: string;
+    signed: number;
+    signedRetained: number;
+    signedPrior: number;
+    isFirstMonth: boolean;
+    priorComparable: boolean;
+  };
+
   monthToDate?: {
     /** First day of the month, and the last day counted. */
     start: Date;
@@ -568,7 +594,7 @@ export async function getBrandClientReportData(
     endDate.getUTCDate() === daysInMonth;
   const wantMonthToDate = !windowIsWholeMonth;
 
-  const [granularRes, countsRes, splitRes, mtdRes] = await Promise.all([
+  const [granularRes, countsRes, splitRes, mtdRes, signingsRes] = await Promise.all([
     supabase.rpc('get_brand_client_report_granular', {
       p_data_slugs: brandSlugs,
       p_roster_slugs: rosterSlugs,
@@ -599,6 +625,11 @@ export async function getBrandClientReportData(
           p_end: formatDate(endDate),
         })
       : Promise.resolve({ data: null, error: null }),
+    // Small table (1,935 rows), so this is cheap next to the granular passes.
+    supabase.rpc('get_brand_report_signings', {
+      p_roster_slugs: rosterSlugs,
+      p_end: formatDate(endDate),
+    }),
   ]);
 
   const granular = granularRes.error
@@ -713,9 +744,30 @@ export async function getBrandClientReportData(
   const managedTopRaw = ((agg.managed_top_creators ?? []) as AggLeaderCreator[]).map(c => ({
     name: c.name, gmv: num(c.gmv), orders: num(c.orders), videos: num(c.videos),
   }));
-  const topCreator = managedTopRaw[0]
-    ? { name: managedTopRaw[0].name, gmv: managedTopRaw[0].gmv, orders: managedTopRaw[0].orders, videos: managedTopRaw[0].videos }
-    : null;
+  /**
+   * ⚠️ PREFER THE GRANULAR LIST, because that is the list the report's creator
+   * table renders and the drafted note sits directly above it.
+   *
+   * The two disagree by channel, not by error: managed_top_creators sums
+   * creator_performance (video + live + card) while granular sums the
+   * video/product table. Dr. Dent's leader for 2026-08-23 is $17,224.75 the
+   * first way and $17,188.39 the second, the $36.36 gap being her product-card
+   * GMV. Both are right; only one is on the page under the note.
+   *
+   * Falls back to the aggregate list when granular is absent, which is every
+   * report predating migration 152.
+   */
+  const granTop = granular?.creators?.find(c => c.gmv > 0) ?? null;
+  const topCreator = granTop
+    ? {
+        name: granTop.handle ?? granTop.name,
+        gmv: granTop.gmv,
+        orders: granTop.orders,
+        videos: granTop.postsPublished,
+      }
+    : managedTopRaw[0]
+      ? { name: managedTopRaw[0].name, gmv: managedTopRaw[0].gmv, orders: managedTopRaw[0].orders, videos: managedTopRaw[0].videos }
+      : null;
   const topVideo = topVideos[0] ?? null;
   const peakDay = dailyPerformance.find(d => d.isPeak);
   const bestDay = peakDay
@@ -897,6 +949,10 @@ export async function getBrandClientReportData(
         }
       : {}),
     granular,
+    signings:
+      !signingsRes.error && signingsRes.data
+        ? (signingsRes.data as BrandClientReportData['signings'])
+        : undefined,
     /**
      * Absent when the window already IS a whole month, when the RPC failed, or
      * when the month has produced nothing. Every consumer must treat it as

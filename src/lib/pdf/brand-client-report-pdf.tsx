@@ -445,7 +445,18 @@ export function BrandClientReportPDF({
 
   const ccGmvPct = finite(cc.gmvChangePct);
   const storeGmvPct = finite(data.gmvChangePct);
-  const divergence = ccGmvPct !== null && storeGmvPct !== null && ccGmvPct < -2 && storeGmvPct > 2;
+  /**
+   * ⚠️ WAS `storeGmvPct > 2`, which stayed silent in the exact week it was
+   * written for: Dr. Dent 2026-08-23, roster -11.7% against a store at +1.0%.
+   * Keyed on lost SHARE instead, which is what actually happened.
+   */
+  const priorStoreGmvForShare = Number.isFinite(data.priorTotalGmv) ? data.priorTotalGmv : null;
+  const priorShare =
+    Number.isFinite(cc.priorGmv) && priorStoreGmvForShare && priorStoreGmvForShare > 0
+      ? (cc.priorGmv / priorStoreGmvForShare) * 100
+      : null;
+  const sharePoints = priorShare !== null ? cc.pctOfStoreGmv - priorShare : null;
+  const divergence = ccGmvPct !== null && ccGmvPct < -2 && sharePoints !== null && sharePoints < -0.5;
 
   const topManaged = cc.topCreators[0] ?? null;
   const topShare = topManaged && cc.gmv > 0 ? (topManaged.gmv / cc.gmv) * 100 : 0;
@@ -573,6 +584,27 @@ export function BrandClientReportPDF({
             ? ' The month is still running, so the rest have days left to reach theirs.'
             : ''}
         </Text>
+        {/* MONTH grain, and suppressed in a brand's first month where the
+            whole opening roster shares one cc_start_date. */}
+        {data.signings && !data.signings.isFirstMonth && (
+          <Text style={[styles.spendLead, { marginTop: 8 }]}>
+            {fmtNumber(data.signings.signed)} new creator
+            {data.signings.signed === 1 ? '' : 's'} joined your roster in {data.signings.monthLabel}
+            {data.signings.signedRetained > 0
+              ? `, ${fmtNumber(data.signings.signedRetained)} of them on a retainer`
+              : ''}
+            .
+            {data.signings.priorComparable
+              ? ` That compares with ${fmtNumber(data.signings.signedPrior)} in ${data.signings.priorMonthLabel}.`
+              : ''}
+          </Text>
+        )}
+        {data.signings && !data.signings.isFirstMonth && (
+          <Text style={styles.spendMeta}>
+            Counted by the date each creator signed with us for your brand, including any who have
+            since left, so this figure does not change after the fact.
+          </Text>
+        )}
         {mtdSpend && (
           <Text style={[styles.spendLead, { marginTop: 8 }]}>
             {mtdComplete ? 'Estimated creator spend' : 'Creator spend earned so far'}{' '}
@@ -721,9 +753,15 @@ export function BrandClientReportPDF({
         {divergence && (
           <View style={styles.calloutWarn}>
             <Text style={styles.calloutWarnText}>
-              We were down this period while the store was up. Roster GMV fell{' '}
-              {fmtPct(Math.abs(data.creatorsCorner.gmvChangePct!), 1)} against a store that grew{' '}
-              {fmtPct(data.gmvChangePct!, 1)}.
+              We lost ground on your shop this period. Roster GMV fell{' '}
+              {fmtPct(Math.abs(data.creatorsCorner.gmvChangePct!), 1)}
+              {storeGmvPct !== null
+                ? storeGmvPct >= 0
+                  ? ` against a store that grew ${fmtPct(storeGmvPct, 1)}`
+                  : ` against a store that fell only ${fmtPct(Math.abs(storeGmvPct), 1)}`
+                : ''}
+              , taking our share from {fmtPct(cc.pctOfStoreGmv - sharePoints!, 1)} to{' '}
+              {fmtPct(cc.pctOfStoreGmv, 1)}.
               {rosterAct
                 ? ` ${fmtNumber(rosterAct.posted)} creators posted and ${fmtNumber(rosterAct.sold)} made sales, so this is output per creator rather than roster size.`
                 : data.creatorsCorner.priorCreatorCount === data.creatorsCorner.activeCreatorCount
@@ -964,7 +1002,11 @@ export function BrandClientReportPDF({
                   </Text>
                   <Text style={styles.splitMeta}>
                     {fmtCurrency(ch.rosterLiveGmv)} live across {fmtNumber(ch.rosterLiveStreams)} stream
-                    {ch.rosterLiveStreams === 1 ? '' : 's'} · {fmtCurrency(ch.rosterCardGmv)} product card
+                    {ch.rosterLiveStreams === 1 ? '' : 's'}
+                    {ch.rosterLiveStreams > 0 && ch.rosterLiveGmv === 0
+                      ? ' (used for reach, not as a sales channel)'
+                      : ''}{' '}
+                    · {fmtCurrency(ch.rosterCardGmv)} product card
                   </Text>
                 </View>
               )}
@@ -1086,7 +1128,9 @@ export function BrandClientReportPDF({
               <Text style={[styles.gStatNote, { marginTop: 6 }]}>
                 Content earns for roughly 90 days, so the previous month is usually the peak.
                 {gran.newVideo.unknownPostDateGmv > 0
-                  ? ` ${fmtCurrency(gran.newVideo.unknownPostDateGmv)} came from videos with no recorded post date and sits in neither group.`
+                  // Null post_date lands in vintageOlder, which is why the
+                  // buckets already sum to video GMV exactly.
+                  ? ` ${fmtCurrency(gran.newVideo.unknownPostDateGmv)} came from videos with no recorded post date and is counted in the oldest group.`
                   : ''}
               </Text>
             </View>
