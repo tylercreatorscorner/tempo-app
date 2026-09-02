@@ -358,50 +358,99 @@ function periodWord(days: number): string {
 
 export function draftClientReportNotes(s: ClientReportSnapshot): string {
   const r = s.report;
+  const cc = r.creatorsCorner;
   const word = periodWord(r.periodLengthDays);
   const parts: string[] = [];
 
-  if (r.gmvChangePct === null) {
-    parts.push(`${r.brandName} put up ${money(r.totalGmv)} this ${word} - the first tracked ${word} of GMV.`);
-  } else if (r.gmvChangePct >= 0) {
-    parts.push(
-      `${r.brandName} finished the ${word} at ${money(r.totalGmv)}, up ${Math.round(r.gmvChangePct)}% on the prior ${word}.`,
-    );
-  } else {
-    let line = `${r.brandName} finished the ${word} at ${money(r.totalGmv)}, down ${Math.round(Math.abs(r.gmvChangePct))}% from the prior ${word}`;
-    // Context guard: if the comparison week was the strongest in the trend
-    // window, say so — a lone "down X%" against a viral spike reads worse
-    // than reality. WEEKLY reports only: the trend buckets are 7-day slices
-    // anchored to the period end, so for 30d/custom reports bucket len-2 sits
-    // INSIDE the current period and the clause would misattribute the spike
-    // to the comparison window.
-    if (word === 'week' && s.weekly.length >= 3) {
-      const priorBucket = s.weekly[s.weekly.length - 2];
-      const maxGmv = Math.max(...s.weekly.map((w) => w.gmv));
-      if (priorBucket && priorBucket.gmv === maxGmv) {
-        line += ' - coming off the strongest week in the last 12, so the comparison is steep';
+  const pct = (n: number) => `${Math.round(Math.abs(n))}%`;
+  const handle = (h: string) => (h.startsWith('@') ? h : '@' + h);
+
+  // ── 1. What WE did, against what the shop did. ──────────────────────
+  // The comparison IS the sentence. A roster figure on its own tells a brand
+  // nothing about whether the agency helped.
+  if (cc.gmv > 0) {
+    let line = `Our signed creators drove ${money(cc.gmv)} this ${word}`;
+    if (cc.gmvChangePct !== null && Number.isFinite(cc.gmvChangePct)) {
+      line += `, ${cc.gmvChangePct >= 0 ? 'up' : 'down'} ${pct(cc.gmvChangePct)}`;
+    }
+    if (r.gmvChangePct !== null && Number.isFinite(r.gmvChangePct)) {
+      line += `, against a shop that ${r.gmvChangePct >= 0 ? 'grew' : 'fell'} ${pct(r.gmvChangePct)}`;
+    }
+    parts.push(line + '.');
+  }
+
+  // ── 2. Did we gain or lose ground? ──────────────────────────────────
+  // Share is the only figure that answers "is the agency working", and the
+  // old draft never mentioned it.
+  const priorShare =
+    Number.isFinite(cc.priorGmv) && Number.isFinite(r.priorTotalGmv) && r.priorTotalGmv > 0
+      ? (cc.priorGmv / r.priorTotalGmv) * 100
+      : null;
+  if (Number.isFinite(cc.pctOfStoreGmv)) {
+    if (priorShare === null) {
+      parts.push(`That is ${cc.pctOfStoreGmv.toFixed(1)}% of your total shop sales.`);
+    } else {
+      const pts = cc.pctOfStoreGmv - priorShare;
+      if (Math.abs(pts) < 0.3) {
+        parts.push(`That holds our share of your shop at ${cc.pctOfStoreGmv.toFixed(1)}%.`);
+      } else {
+        parts.push(
+          `That ${pts > 0 ? 'moved' : 'took'} our share of your shop ${pts > 0 ? 'up' : 'down'} ` +
+            `from ${priorShare.toFixed(1)}% to ${cc.pctOfStoreGmv.toFixed(1)}%.`,
+        );
       }
     }
-    parts.push(line + '.');
   }
 
-  if (r.topCreator) {
-    parts.push(
-      `${r.topCreator.name.startsWith('@') ? r.topCreator.name : '@' + r.topCreator.name} led the roster with ${money(r.topCreator.gmv)} across ${r.topCreator.videos} posts.`,
-    );
-  }
+  // ── 3. WHY it moved, when one creator genuinely explains it. ────────
+  // 🚨 Against GROSS DOWN / GROSS UP, never against the net. Dividing by the
+  // net hides the movement on the other side, which is the whole reason the
+  // report shows the two halves separately.
+  const mv = s.movers;
+  if (mv && Array.isArray(mv.list) && mv.list.length > 0) {
+    const grossDown = Math.abs(mv.lost);
+    const grossUp = mv.gained;
+    const falls = mv.list.filter((m) => m.change < 0).sort((a, b) => a.change - b.change);
+    const rises = mv.list.filter((m) => m.change > 0).sort((a, b) => b.change - a.change);
+    const topFall = falls[0];
+    const topRise = rises[0];
 
-  const cc = r.creatorsCorner;
-  if (cc.gmv > 0) {
-    let line = `Our signed creators delivered ${money(cc.gmv)} - ${Math.round(cc.pctOfStoreGmv)}% of store GMV`;
-    if (cc.newlyActivatedCount > 0) {
-      line += ` - with ${cc.newlyActivatedCount} creator${cc.newlyActivatedCount === 1 ? '' : 's'} newly activated`;
+    if (topFall && grossDown > 0 && Math.abs(topFall.change) / grossDown >= 0.5) {
+      parts.push(
+        `Most of the drop is one creator: ${handle(topFall.handle)} came off ` +
+          `${money(Math.abs(topFall.change))} of the ${money(grossDown)} that fell` +
+          (grossUp > 0 ? `, while ${money(grossUp)} was added across everyone else` : '') +
+          '.',
+      );
+    } else if (topRise && grossUp > 0 && topRise.change / grossUp >= 0.5) {
+      parts.push(
+        `Most of the gain is one creator: ${handle(topRise.handle)} added ` +
+          `${money(topRise.change)} of the ${money(grossUp)} gained.`,
+      );
+    } else if (grossUp > 0 && grossDown > 0) {
+      // No single cause. Say that plainly rather than inventing one.
+      parts.push(
+        `It was spread rather than driven by any one creator: ${money(grossUp)} came on ` +
+          `and ${money(grossDown)} came off across the roster.`,
+      );
     }
-    parts.push(line + '.');
   }
 
-  if (r.bestDay) {
-    parts.push(`${r.bestDay.weekday} was the strongest day at ${money(r.bestDay.gmv)}.`);
+  // ── 4. One forward-facing signal, and only one. ─────────────────────
+  // Output leads revenue, so a posting change is the most useful last line.
+  const vPct = cc.videoChangePct;
+  if (vPct !== null && Number.isFinite(vPct) && Math.abs(vPct) >= 10 && cc.videos > 0) {
+    parts.push(
+      `Posts were ${vPct >= 0 ? 'up' : 'down'} ${pct(vPct)} at ${cc.videos.toLocaleString('en-US')}` +
+        (vPct >= 0
+          ? ', which usually shows up in sales over the following weeks rather than immediately.'
+          : ', which is the first thing we are correcting.'),
+    );
+  } else if (cc.newlyActivatedCount > 0) {
+    parts.push(
+      `${cc.newlyActivatedCount} creator${cc.newlyActivatedCount === 1 ? '' : 's'} made their ` +
+        `first sale for you this ${word}.`,
+    );
   }
 
   return parts.join(' ');

@@ -820,28 +820,49 @@ function MonthToDate({
   const silentRetainer = silent.reduce((s, c) => s + c.retainer, 0);
   const complete = mtd.daysElapsed >= mtd.daysInMonth;
 
+  const postPct = owed > 0 ? (delivered / owed) * 100 : null;
+
   return (
     <div className="mt-3.5 rounded-[14px] border border-[#e7e7f2] bg-white px-5 py-4">
       <div className="text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">
         {complete ? `All of ${monthName}` : `${monthName} so far`}
       </div>
-      <p className="mt-1.5 max-w-[70ch] text-[15px] font-semibold leading-[1.6] text-[#33375c]">
+      <p className="mt-1 max-w-[70ch] text-[12.5px] leading-[1.6] text-[#8a8fb0]">
         Post targets and retainers are monthly, so they are measured here over the month rather
-        than the week above.{' '}
-        <b className="text-[#171a33]">
-          {num(delivered)} of {num(owed)} contracted posts
-        </b>
-        {owed > 0 && <> ({((delivered / owed) * 100).toFixed(0)}%)</>}, with{' '}
-        <b className="text-[#171a33]">
-          {num(mtd.daysElapsed)} of {num(mtd.daysInMonth)} days
-        </b>{' '}
-        elapsed.
+        than the period above.
       </p>
-      <p className="mt-1.5 max-w-[70ch] text-[12.5px] leading-[1.6] text-[#8a8fb0]">
-        {num(met)} of {num(contracted.length)} retained creators have already met their full monthly
-        commitment.
-        {!complete && ' The month is still running, so the rest have days left to reach theirs.'}
-      </p>
+
+      {/* Tiles, not paragraphs. Every other section on this page leads with
+          numbers you can scan; this one shipped as four stacked blocks of
+          prose and read as a wall. */}
+      <div className="mt-3 grid grid-cols-2 gap-3.5 md:grid-cols-4">
+        <Mini
+          label="Days elapsed"
+          value={`${num(mtd.daysElapsed)} of ${num(mtd.daysInMonth)}`}
+          note={complete ? 'complete month' : 'month still running'}
+        />
+        <Mini
+          label="Contracted posts"
+          value={`${num(delivered)} of ${num(owed)}`}
+          note={postPct !== null ? `${postPct.toFixed(0)}% delivered` : undefined}
+        />
+        <Mini
+          label="Met their commitment"
+          value={`${num(met)} of ${num(contracted.length)}`}
+          note="retained creators, full monthly count"
+        />
+        {spend && (
+          <Mini
+            label={complete ? 'Estimated spend' : 'Earned so far'}
+            value={money(spend.earned)}
+            note={
+              spend.pctOfBudget !== null
+                ? `${spend.pctOfBudget.toFixed(0)}% of ${money(spend.budget)}`
+                : undefined
+            }
+          />
+        )}
+      </div>
 
       {/* 🚨 THE ACTION ITEMS. Without this a brand has to hand-scan 154 rows
           to find the creators worth a conversation, so nobody does, and the
@@ -913,21 +934,12 @@ function MonthToDate({
       )}
 
       {spend && (
-        <div className="mt-3 border-t border-[#eeedf5] pt-3">
-          <div className="text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">
-            {complete ? 'Estimated creator spend' : 'Creator spend earned so far'}
-          </div>
-          <p className="mt-1.5 max-w-[70ch] text-[15px] font-semibold leading-[1.6] text-[#33375c]">
-            <b className="text-[#171a33]">{money(spend.earned)}</b> of the {money(spend.budget)}{' '}
-            committed
-            {spend.pctOfBudget !== null && (
-              <>, or <b className="text-[#171a33]">{spend.pctOfBudget.toFixed(0)}%</b></>
-            )}
-            , once each creator&rsquo;s retainer is scaled by what they actually published.
-          </p>
-          <p className="mt-1.5 max-w-[70ch] text-[12.5px] leading-[1.6] text-[#8a8fb0]">
-            A creator who delivers their full count earns their full retainer; one who delivers
-            half earns half. Nobody is counted above 100%, so overdelivery does not raise it.
+        <div className="mt-3.5 border-t border-[#eeedf5] pt-3">
+          <p className="max-w-[70ch] text-[12.5px] leading-[1.6] text-[#8a8fb0]">
+            <b className="text-[#33375c]">How the spend figure works.</b> Each creator&rsquo;s
+            retainer is scaled by what they actually published: deliver the full count and it earns
+            in full, deliver half and it earns half. Nobody is counted above 100%, so overdelivery
+            does not raise it.
             {!complete && ' This is what published posts have earned, not a forecast.'}
           </p>
           {caveats.length > 0 && (
