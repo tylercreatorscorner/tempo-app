@@ -643,8 +643,25 @@ export async function getBrandClientReportData(
   }));
 
   // ── Highlight cards
-  const topCreator = topCreatorsRaw[0]
-    ? { name: topCreatorsRaw[0].name, gmv: topCreatorsRaw[0].gmv, orders: topCreatorsRaw[0].orders, videos: topCreatorsRaw[0].videos }
+  /**
+   * 🚨 THIS MUST COME FROM THE MANAGED LIST, NOT THE STORE LIST.
+   *
+   * The drafted note renders it as "@x led THE ROSTER with $y", so sourcing it
+   * from `top_creators` (every creator on the shop, managed or not) credits CC
+   * with an unmanaged creator's work. Dr. Dent, week of 2026-08-23: the note
+   * named @wealth.with.laura at $27,977, who is not on the roster at all, while
+   * the creator table directly beneath it correctly topped out at @akwellness1
+   * on $17,188. It read as CC either inflating its contribution or not knowing
+   * its own roster.
+   *
+   * `managed_top_creators` is the same shape, already filtered on is_managed by
+   * get_brand_client_report_agg, and is what the report's own leaderboard uses.
+   */
+  const managedTopRaw = ((agg.managed_top_creators ?? []) as AggLeaderCreator[]).map(c => ({
+    name: c.name, gmv: num(c.gmv), orders: num(c.orders), videos: num(c.videos),
+  }));
+  const topCreator = managedTopRaw[0]
+    ? { name: managedTopRaw[0].name, gmv: managedTopRaw[0].gmv, orders: managedTopRaw[0].orders, videos: managedTopRaw[0].videos }
     : null;
   const topVideo = topVideos[0] ?? null;
   const peakDay = dailyPerformance.find(d => d.isPeak);
@@ -654,9 +671,10 @@ export async function getBrandClientReportData(
 
   // ── Creators Corner (managed) contribution detail
   const ccCommission = managedCommission;
-  const ccTopCreators = ((agg.managed_top_creators ?? []) as AggLeaderCreator[]).map(c => ({
-    name: c.name, gmv: num(c.gmv), orders: num(c.orders), videos: num(c.videos),
-    pctOfManaged: managedGmv > 0 ? (num(c.gmv) / managedGmv) * 100 : 0,
+  // Same source as topCreator above, with the share added.
+  const ccTopCreators = managedTopRaw.map(c => ({
+    ...c,
+    pctOfManaged: managedGmv > 0 ? (c.gmv / managedGmv) * 100 : 0,
   }));
   const ccTopVideos = ((agg.managed_top_videos ?? []) as AggLeaderVideo[]).map(mapVideo);
 
