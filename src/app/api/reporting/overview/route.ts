@@ -15,6 +15,7 @@ import { NextResponse } from 'next/server';
 import { getWorkspaceScope, isBrandInScope } from '@/lib/auth/workspace-scope';
 import { createAdminClient } from '@/lib/supabase/server';
 import { getBrandRegistry, expandSlugs, brandLabel, brandColor } from '@/lib/data/brand-registry';
+import { buildShareMessage } from '@/lib/data/client-reports';
 
 export const runtime = 'nodejs';
 
@@ -44,6 +45,16 @@ export interface ReportingBrandRow {
     revokedAt: string | null;
     url: string | null;
     token: string;
+    /**
+     * The paste-ready client message, built SERVER SIDE so there is exactly
+     * one definition of it. Assembled from the report's own stored notes and
+     * plan, so what the operator sends and what the client reads on the page
+     * cannot disagree.
+     *
+     * Null when the report carries no notes and no plan: an empty message is
+     * worse than no button.
+     */
+    shareMessage: string | null;
   } | null;
   reportCount: number;
 }
@@ -82,7 +93,7 @@ export async function GET() {
     supabase.rpc('get_reporting_coverage', { p_days: COVERAGE_DAYS }),
     supabase
       .from('client_reports')
-      .select('id, token, brand_slug, period_label, created_at, viewed_at, revoked_at')
+      .select('id, token, brand_slug, period_label, created_at, viewed_at, revoked_at, notes, plan')
       .order('created_at', { ascending: false }),
   ]);
 
@@ -142,6 +153,14 @@ export async function GET() {
 
       const brandReports = reportsBySlug.get(b.slug) ?? [];
       const latest = brandReports[0] ?? null;
+      /**
+       * ⚠️ The message comes from the most recent LIVE report, which is not
+       * always `latest`. `latest` deliberately includes revoked reports so the
+       * row can show a "Revoked" badge, but a message whose link 404s would be
+       * pasted to a client before anyone noticed, and a brand whose newest
+       * report happens to be revoked still has a good one to send.
+       */
+      const shareable = brandReports.find((x) => !x.revoked_at) ?? null;
 
       return {
         slug: b.slug,
@@ -164,6 +183,15 @@ export async function GET() {
               periodLabel: latest.period_label,
               viewedAt: latest.viewed_at,
               revokedAt: latest.revoked_at,
+              shareMessage: shareable
+                ? buildShareMessage(
+                    brandLabel(reg, b.slug),
+                    shareable.period_label,
+                    shareable.notes,
+                    shareable.plan,
+                    `${origin}/r/${shareable.token}`,
+                  )
+                : null,
               // Relative when no canonical origin is configured — the link is
               // opened from inside the app, so it resolves either way.
               url: `${origin}/r/${latest.token}`,

@@ -455,3 +455,45 @@ export function draftClientReportNotes(s: ClientReportSnapshot): string {
 
   return parts.join(' ');
 }
+
+/**
+ * The paste-ready client message for a report that already exists.
+ *
+ * 🚨 WHY THIS EXISTS. The drafted message was only ever visible in the create
+ * panel's textarea. Once the link was made there was no way to see it again
+ * without opening the report and reading the page, so it could not be sent
+ * later, re-sent, or checked before sending. The outbox could copy the LINK
+ * and nothing else.
+ *
+ * ⚠️ Built from the report's OWN stored notes and plan rather than re-drafted,
+ * so the message an operator pastes and the page the client opens cannot say
+ * different things.
+ *
+ * Returns null when there is neither notes nor plan: an empty message is worse
+ * than no button.
+ */
+export function buildShareMessage(
+  brandName: string,
+  periodLabel: string | null,
+  notes: string | null,
+  plan: string | null,
+  url: string,
+): string | null {
+  const n = notes?.trim();
+  const p = plan?.trim();
+  if (!n && !p) return null;
+
+  /**
+   * ⚠️ An ABSOLUTE url or none at all. This string is pasted into Slack, where
+   * a relative "/r/abc" is not a link, it is text. NEXT_PUBLIC_SITE_URL is the
+   * source; when it is unset the line is omitted rather than pasted broken.
+   */
+  const absolute = /^https?:\/\//i.test(url) ? url : null;
+
+  const parts: string[] = [];
+  parts.push(periodLabel ? `${brandName} — ${periodLabel}` : brandName);
+  if (n) parts.push(n);
+  if (p) parts.push(`What we're doing next: ${p}`);
+  if (absolute) parts.push(`Full report: ${absolute}`);
+  return parts.join('\n\n');
+}
