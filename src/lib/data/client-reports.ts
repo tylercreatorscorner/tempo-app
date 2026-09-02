@@ -260,14 +260,22 @@ export async function buildClientReportSnapshot(
   }));
 
   /**
-   * Movement, for the week-over-week template only.
+   * Movement between the two periods.
+   *
+   * ⚠️ WAS FETCHED FOR THE WEEKLY TEMPLATE ONLY, which silently disabled the
+   * driver sentence ("most of the fall is one creator") on every other report.
+   * Every report of CC's is report_type 'performance', so the single most
+   * important explanatory line on the page never rendered for a real client.
+   * The weekly-only thing is the "What moved" SECTION, not the data.
+   *
+   * Costs 2.5s on kitsch, the heaviest brand, measured 2026-09-02.
    *
    * Non-fatal by the same rule as everything else here: a failed read leaves
    * the report without its movers section rather than 500ing a page a client
    * is opening. Absent means "not fetched", never "nobody moved".
    */
   let movers: ClientReportSnapshot['movers'] = null;
-  if (reportType === 'weekly') {
+  {
     const { data: mv, error: mvErr } = await supabase.rpc('get_brand_client_report_movers', {
       p_data_slugs: dataSlugs,
       p_roster_slugs: rosterSlugs,
