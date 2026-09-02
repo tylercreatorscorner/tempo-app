@@ -110,6 +110,57 @@ function Delta({ pct, suffix, abs }: { pct?: number | null; suffix?: string; abs
 }
 
 /**
+ * WHY the headline moved, in one sentence.
+ *
+ * 🚨 THE REPORT HAD NO "WHY" ANYWHERE. It said roster GMV fell 11.7% and that
+ * we lost share, and left the reader to conclude we had a bad week. On Dr.
+ * Dent 2026-08-23 the truth was the opposite: ONE creator's prior-week viral
+ * post not repeating was $5,869 of the $9,609 that came off, while $3,508 was
+ * added elsewhere and posts rose 50%. A brand reading alone could not get
+ * there from the numbers on the page.
+ *
+ * 🚨 EXPRESSED AGAINST GROSS DOWN, NEVER AGAINST NET. "One creator explains
+ * 96% of the decline" divides by the NET (-$6,101) and so hides the $3,508
+ * that grew. The gross halves are reported separately for exactly this reason
+ * and the driver sentence must not undo that.
+ *
+ * Returns null unless one creator genuinely dominates, because a sentence that
+ * fires on every report stops being read.
+ */
+function moveDriver(movers: NonNullable<ClientReportSnapshot['movers']> | null | undefined) {
+  if (!movers || !Array.isArray(movers.list) || movers.list.length === 0) return null;
+  const down = movers.list.filter((m) => m.change < 0).sort((a, b) => a.change - b.change);
+  const up = movers.list.filter((m) => m.change > 0).sort((a, b) => b.change - a.change);
+  const grossDown = Math.abs(finite(movers.lost) ?? 0);
+  const grossUp = finite(movers.gained) ?? 0;
+
+  // The single biggest faller, and only when it carries most of the fall.
+  const top = down[0];
+  if (top && grossDown > 0 && Math.abs(top.change) / grossDown >= 0.5) {
+    return {
+      kind: 'fall' as const,
+      handle: top.handle,
+      amount: Math.abs(top.change),
+      share: (Math.abs(top.change) / grossDown) * 100,
+      grossDown,
+      grossUp,
+    };
+  }
+  const topUp = up[0];
+  if (topUp && grossUp > 0 && topUp.change / grossUp >= 0.5) {
+    return {
+      kind: 'rise' as const,
+      handle: topUp.handle,
+      amount: topUp.change,
+      share: (topUp.change / grossUp) * 100,
+      grossDown,
+      grossUp,
+    };
+  }
+  return null;
+}
+
+/**
  * Change in a figure that is ITSELF a percentage, in percentage POINTS.
  *
  * ⚠️ Never render a relative % change on a share. Dr. Dent's share of shop went
@@ -758,6 +809,15 @@ function MonthToDate({
     ? spendCaveats(spend.defaultQuotaShare, g.roster.retainerHistoryExact !== false)
     : [];
   const monthName = mtd.end.toLocaleDateString('en-US', { month: 'long', timeZone: 'UTC' });
+  /**
+   * Retained creators who published NOTHING this month. Not "sold nothing":
+   * selling depends on the algorithm, publishing is the thing they agreed to
+   * and the thing CC can actually chase.
+   */
+  const silent = contracted
+    .filter((c) => c.postsPublished === 0)
+    .sort((a, b) => b.retainer - a.retainer);
+  const silentRetainer = silent.reduce((s, c) => s + c.retainer, 0);
   const complete = mtd.daysElapsed >= mtd.daysInMonth;
 
   return (
@@ -782,6 +842,44 @@ function MonthToDate({
         commitment.
         {!complete && ' The month is still running, so the rest have days left to reach theirs.'}
       </p>
+
+      {/* 🚨 THE ACTION ITEMS. Without this a brand has to hand-scan 154 rows
+          to find the creators worth a conversation, so nobody does, and the
+          report stays a thing to read rather than a thing to act on.
+          MONTH grain, because a retainer is monthly: judging it over a week is
+          the unit mismatch this whole section exists to correct. */}
+      {silent.length > 0 && (
+        <div className="mt-3 border-t border-[#eeedf5] pt-3">
+          <div className="text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">
+            Worth a conversation
+          </div>
+          <p className="mt-1.5 max-w-[70ch] text-[15px] font-semibold leading-[1.6] text-[#33375c]">
+            <b className="text-[#171a33]">{num(silent.length)}</b> of your{' '}
+            {num(contracted.length)} retained creators have published nothing at all in{' '}
+            {monthName}
+            {silentRetainer > 0 && (
+              <>
+                , carrying <b className="text-[#171a33]">{money(silentRetainer)}/mo</b> of committed
+                retainer between them
+              </>
+            )}
+            .
+          </p>
+          <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[12.5px] leading-[1.6] text-[#6b7093]">
+            {silent.slice(0, 8).map((c) => (
+              <li key={c.handle ?? c.name} className="tabular-nums">
+                @{(c.handle ?? c.name).replace(/^@+/, '')}
+                {c.retainer > 0 && <span className="text-[#8a8fb0]"> {money(c.retainer)}/mo</span>}
+              </li>
+            ))}
+            {silent.length > 8 && <li className="text-[#8a8fb0]">and {num(silent.length - 8)} more</li>}
+          </ul>
+          <p className="mt-2 text-[11.5px] leading-[1.6] text-[#8a8fb0]">
+            These are the ones we are chasing. Their retainer is only earned against posts
+            delivered, so an empty month costs you less than the committed figure suggests.
+          </p>
+        </div>
+      )}
 
       {/* New signings. MONTH grain on purpose: Dr. Dent's August signings
           landed on 8 separate days (2, 7, 1, 2, 1, 7, 41, 2), so a weekly count
@@ -1418,6 +1516,7 @@ export function ReportView({
   report: r,
   snapshot: s,
   notes,
+  plan,
   brandName,
   periodLabel,
   reportType = 'performance',
@@ -1426,6 +1525,8 @@ export function ReportView({
   report: BrandClientReportData;
   snapshot: ClientReportSnapshot;
   notes: string | null;
+  /** Forward commitment, hand-written. Absent renders nothing. */
+  plan: string | null;
   brandName: string;
   periodLabel: string;
   reportType?: ReportType;
@@ -1572,7 +1673,11 @@ export function ReportView({
           theirs: num(r.totalVideos),
           pct: r.totalVideos > 0 ? (cc.videos / r.totalVideos) * 100 : 0,
         },
-        ...(r.channels && r.channels.storeLiveGmv > 0
+        // ⚠️ Gated on MATERIALITY, not existence. Dr. Dent's whole shop did
+        // $919 of live GMV in a $367,178 week; a card reading "0.0% of $919"
+        // earns its space on no page. 1% of store GMV is the bar.
+        ...(r.channels && r.channels.storeLiveGmv > 0 && r.totalGmv > 0
+        && r.channels.storeLiveGmv / r.totalGmv >= 0.01
           ? [
               {
                 label: 'Live GMV',
@@ -1602,6 +1707,8 @@ export function ReportView({
    * Keyed on lost SHARE instead, which is the thing that actually happened, and
    * is what the tile above now prints.
    */
+  const driver = moveDriver(s.movers);
+
   const divergence =
     hasRoster &&
     cc.gmvChangePct !== null &&
@@ -1612,7 +1719,12 @@ export function ReportView({
   // Concentration: how much of the roster's GMV came from its top creator.
   const topManaged = cc.topCreators[0] ?? null;
   const topShare = topManaged && cc.gmv > 0 ? (topManaged.gmv / cc.gmv) * 100 : 0;
-  const concentrated = topShare >= 40;
+  /**
+   * ⚠️ WAS 40%, which missed Dr. Dent's 37.3% by under three points and so
+   * hid the largest single risk on the account. Concentration is a risk long
+   * before one creator is nearly half the book.
+   */
+  const concentrated = topShare >= 30;
 
   const weekly = s.weekly;
   const weeklyMax = Math.max(1, ...weekly.map((w) => w.gmv));
@@ -1720,6 +1832,41 @@ export function ReportView({
 
             {gran && <InvestmentStrip g={gran} />}
 
+            {/* The WHY, before any warning about the WHAT. */}
+            {driver && (
+              <div className="mt-3 rounded-[12px] border border-[#e7e7f2] bg-white px-4 py-3.5 text-[13.5px] leading-[1.65] text-[#33375c]">
+                {driver.kind === 'fall' ? (
+                  <>
+                    <b className="text-[#171a33]">
+                      Most of the fall is one creator, not the roster.
+                    </b>{' '}
+                    @{driver.handle.replace(/^@+/, '')} came off {money(driver.amount)}, which is{' '}
+                    {driver.share.toFixed(0)}% of the {money(driver.grossDown)} that dropped this{' '}
+                    {word}
+                    {driver.grossUp > 0 && (
+                      <>
+                        , while {money(driver.grossUp)} was added across other creators
+                      </>
+                    )}
+                    . A single post that runs hot one {word} and cools the next moves the total
+                    more than the rest of the roster does.
+                  </>
+                ) : (
+                  <>
+                    <b className="text-[#171a33]">Most of the gain is one creator.</b>{' '}
+                    @{driver.handle.replace(/^@+/, '')} added {money(driver.amount)}, which is{' '}
+                    {driver.share.toFixed(0)}% of the {money(driver.grossUp)} gained this {word}
+                    {driver.grossDown > 0 && (
+                      <>
+                        , against {money(driver.grossDown)} that came off elsewhere
+                      </>
+                    )}
+                    .
+                  </>
+                )}
+              </div>
+            )}
+
             {divergence && (
               <div className="mt-3 rounded-[12px] bg-[#fbf1dc] px-4 py-3.5 text-[13.5px] leading-[1.65] text-[#8a5a08]">
                 <b>We lost ground on your shop this {word}.</b> Roster GMV fell{' '}
@@ -1790,7 +1937,10 @@ export function ReportView({
 
         {/* ── 2. Account lead notes. MOVED: these used to sit between
                the headline and its evidence, splitting the argument. ─── */}
-        {notes && (
+        {/* Either half is enough: a report can carry a forward plan with no
+            retrospective commentary, and gating on notes alone would silently
+            drop it. */}
+        {(notes?.trim() || plan?.trim()) && (
           <>
             <SectionLine>From your account lead</SectionLine>
             <div className="rounded-[14px] border border-[#e3e0f5] border-l-[3px] border-l-[#5b5ee8] bg-white px-[18px] py-[15px]">
@@ -1806,7 +1956,25 @@ export function ReportView({
                   <div className="text-[10.5px] text-[#8a8fb0]">{AGENCY}</div>
                 </div>
               </div>
-              <p className="whitespace-pre-line text-[13.5px] leading-[1.65] text-[#33375c]">{notes}</p>
+              {notes?.trim() && (
+                <p className="whitespace-pre-line text-[13.5px] leading-[1.65] text-[#33375c]">{notes}</p>
+              )}
+              {/* 🚨 THE ONLY FORWARD-LOOKING THING ON THE PAGE. Everything else
+                  is retrospective, which is why a brand could read the whole
+                  report and still not know what happens next. Kept in its own
+                  column (mig 190) rather than merged into notes, so a
+                  commitment made this {word} is still identifiable next {word}
+                  and can actually be checked. */}
+              {plan?.trim() && (
+                <div className="mt-3.5 border-t border-[#eeedf5] pt-3.5">
+                  <div className="text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">
+                    What we are doing next
+                  </div>
+                  <p className="mt-1.5 whitespace-pre-line text-[13.5px] leading-[1.65] text-[#33375c]">
+                    {plan}
+                  </p>
+                </div>
+              )}
             </div>
           </>
         )}
@@ -1899,17 +2067,13 @@ export function ReportView({
           </>
         )}
 
-        {/* ── 3b. Every creator, in full. ─────────────────────────── */}
-        {gran && gran.creators.length > 0 && (
+        {/* ── 3b. The month. Monthly commitments judged over the month,
+            promoted ABOVE the roster table: this is the accountability the
+            reader came for, and it used to sit underneath ~55 rows of names. */}
+        {!windowIsMonth && r.monthToDate && (
           <>
-            <SectionLine>Every creator we run for you</SectionLine>
-            <FullRosterTable g={gran} judgeQuota={windowIsMonth} token={token} />
-            {/* Sits directly under the table whose posts column it explains.
-                Absent on a monthly report, where the table already carries the
-                comparison, and on snapshots frozen before this shipped. */}
-            {!windowIsMonth && r.monthToDate && (
-              <MonthToDate mtd={r.monthToDate} signings={r.signings} />
-            )}
+            <SectionLine>The month so far</SectionLine>
+            <MonthToDate mtd={r.monthToDate} signings={r.signings} />
           </>
         )}
 
@@ -1936,6 +2100,17 @@ export function ReportView({
                block in Act 1 makes the same argument honestly, with shares
                of a denominator that is printed beside it. ─────────────── */}
 
+        {/* ── 6b. Every creator, in full. REFERENCE, not narrative.
+            Deliberately after the story: it is a lookup table, and in the
+            middle of the page it buried everything below it. The CSV does the
+            heavy lifting for anyone who wants all of them. */}
+        {gran && gran.creators.length > 0 && (
+          <>
+            <SectionLine>Every creator we run for you</SectionLine>
+            <FullRosterTable g={gran} judgeQuota={windowIsMonth} token={token} />
+          </>
+        )}
+
         {/* ── 7. Store context, secondary ────────────────────────── */}
         <SectionLine>Your store overall</SectionLine>
         <p className="mb-3 max-w-[68ch] text-[13.5px] leading-[1.65] text-[#33375c]">
@@ -1955,7 +2130,9 @@ export function ReportView({
             label="Store GMV"
             value={money(r.totalGmv)}
             pct={r.gmvChangePct}
-            note={hasRoster ? `${cc.pctOfStoreGmv.toFixed(1)}% of it is ours` : undefined}
+            /* Share of store is stated twice already: the hero rail (with its
+               change) and the vs-shop card. A third is noise. */
+            note={undefined}
           />
           {s.views !== null && <Mini label="Views" value={compactCount(s.views)} pct={viewsDelta} />}
           <Mini label="Orders" value={num(r.totalOrders)} pct={r.orderChangePct} />

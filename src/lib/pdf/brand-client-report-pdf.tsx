@@ -395,10 +395,22 @@ function DeltaPill({ pct }: { pct?: number | null }) {
 
 export function BrandClientReportPDF({
   data,
+  notes = null,
+  plan = null,
   reportType = 'performance',
   movers = null,
 }: {
   data: BrandClientReportData;
+  /**
+   * Account-lead commentary and the forward commitment.
+   *
+   * ⚠️ THE PDF NEVER CARRIED EITHER, which broke the rule that the attachment
+   * and the link tell the same story: a client downloading the PDF lost the
+   * only human voice in the report. Both are optional, and absent renders
+   * nothing rather than an empty heading.
+   */
+  notes?: string | null;
+  plan?: string | null;
   /** Which template. The PDF must carry the same sections as the web view for
    *  the same link, or a client reading the attachment sees a different report
    *  from the one they were sent. */
@@ -450,6 +462,24 @@ export function BrandClientReportPDF({
    * written for: Dr. Dent 2026-08-23, roster -11.7% against a store at +1.0%.
    * Keyed on lost SHARE instead, which is what actually happened.
    */
+  /**
+   * WHY the headline moved. 🚨 Expressed against GROSS DOWN, never net: "one
+   * creator explains 96% of the decline" divides by the net and hides the
+   * growth on the other side. Only fires when one creator truly dominates.
+   */
+  const moverList = movers && Array.isArray(movers.list) ? movers.list : [];
+  const grossDown = movers ? Math.abs(movers.lost) : 0;
+  const grossUp = movers ? movers.gained : 0;
+  const topFall = [...moverList].filter((m) => m.change < 0).sort((a, b) => a.change - b.change)[0];
+  const driver =
+    topFall && grossDown > 0 && Math.abs(topFall.change) / grossDown >= 0.5
+      ? {
+          handle: topFall.handle,
+          amount: Math.abs(topFall.change),
+          share: (Math.abs(topFall.change) / grossDown) * 100,
+        }
+      : null;
+
   const priorStoreGmvForShare = Number.isFinite(data.priorTotalGmv) ? data.priorTotalGmv : null;
   const priorShare =
     Number.isFinite(cc.priorGmv) && priorStoreGmvForShare && priorStoreGmvForShare > 0
@@ -460,7 +490,9 @@ export function BrandClientReportPDF({
 
   const topManaged = cc.topCreators[0] ?? null;
   const topShare = topManaged && cc.gmv > 0 ? (topManaged.gmv / cc.gmv) * 100 : 0;
-  const concentrated = topShare >= 40;
+  // ⚠️ WAS 40%, which missed Dr. Dent's 37.3% and so hid the single largest
+  // risk on the account. Concentration is a risk well before half the book.
+  const concentrated = topShare >= 30;
 
   /**
    * ⚠️ ONE SOURCE for every roster-creator count, identical to report-view.
@@ -566,6 +598,12 @@ export function BrandClientReportPDF({
   const mtdMonth = mtdPass
     ? mtdPass.end.toLocaleDateString('en-US', { month: 'long', timeZone: 'UTC' })
     : '';
+  // Published NOTHING. Not "sold nothing": selling depends on the algorithm,
+  // publishing is what they agreed to and what CC can chase.
+  const mtdSilent = mtdContracted
+    .filter((c) => c.postsPublished === 0)
+    .sort((a, b) => b.retainer - a.retainer);
+  const mtdSilentRetainer = mtdSilent.reduce((s, c) => s + c.retainer, 0);
 
   const mtdBlock =
     mtdPass && mtdContracted.length > 0 ? (
@@ -584,6 +622,23 @@ export function BrandClientReportPDF({
             ? ' The month is still running, so the rest have days left to reach theirs.'
             : ''}
         </Text>
+        {/* 🚨 THE ACTION ITEMS. Without these a brand hand-scans the roster
+            table to find who is worth a conversation, so nobody does. MONTH
+            grain, because a retainer is monthly. */}
+        {mtdSilent.length > 0 && (
+          <Text style={[styles.spendLead, { marginTop: 8 }]}>
+            {fmtNumber(mtdSilent.length)} of {fmtNumber(mtdContracted.length)} retained creators have
+            published nothing at all in {mtdMonth}
+            {mtdSilentRetainer > 0
+              ? `, carrying ${fmtCurrency(mtdSilentRetainer)}/mo of committed retainer between them`
+              : ''}
+            : {mtdSilent.slice(0, 6).map((c) => `@${(c.handle ?? c.name).replace(/^@+/, '')}`).join(', ')}
+            {mtdSilent.length > 6 ? ` and ${fmtNumber(mtdSilent.length - 6)} more` : ''}. Their
+            retainer is only earned against posts delivered, so an empty month costs you less than
+            the committed figure suggests.
+          </Text>
+        )}
+
         {/* MONTH grain, and suppressed in a brand's first month where the
             whole opening roster shares one cc_start_date. */}
         {data.signings && !data.signings.isFirstMonth && (
@@ -674,7 +729,10 @@ export function BrandClientReportPDF({
             theirs: fmtNumber(data.totalVideos),
             pct: data.totalVideos > 0 ? (cc.videos / data.totalVideos) * 100 : 0,
           },
-          ...(ch && ch.storeLiveGmv > 0
+          // ⚠️ Materiality, not existence: a card reading "0.0% of $919" in a
+          // $367,178 week earns its space on no page.
+          ...(ch && ch.storeLiveGmv > 0 && data.totalGmv > 0
+          && ch.storeLiveGmv / data.totalGmv >= 0.01
             ? [
                 {
                   label: 'Live GMV',
@@ -747,6 +805,22 @@ export function BrandClientReportPDF({
             </View>
           </View>
         </View>
+
+        {/* The WHY, ahead of any warning about the WHAT. The report used to
+            state a fall and never explain it, leaving the reader to assume a
+            bad period when the cause was one post not repeating. */}
+        {driver && (
+          <View style={styles.spendBox}>
+            <Text style={styles.spendLead}>
+              Most of the fall is one creator, not the roster. @
+              {driver.handle.replace('@', '')} came off {fmtCurrency(driver.amount)}, which is{' '}
+              {fmtPct(driver.share, 0)} of the {fmtCurrency(grossDown)} that dropped this period
+              {grossUp > 0 ? `, while ${fmtCurrency(grossUp)} was added across other creators` : ''}.
+              A single post that runs hot one period and cools the next moves the total more than
+              the rest of the roster does.
+            </Text>
+          </View>
+        )}
 
         {/* The two honesty callouts the web report carries. A PDF that only
             ever reads well is a PDF nobody trusts. */}
@@ -1217,6 +1291,29 @@ export function BrandClientReportPDF({
       {/* ── PAGE 3: Store context — exec summary, highlights, GMV hero ── */}
       <Page size="LETTER" style={styles.page}>
         <PageHead brandName={data.brandName} periodLabel={data.periodLabel} />
+
+        {/* 🚨 ACCOUNT-LEAD VOICE. The PDF carried none of this, so a client
+            who downloaded the attachment lost the only human commentary in the
+            report and got numbers alone. The forward plan is the ONLY
+            non-retrospective thing in either format. */}
+        {(notes?.trim() || plan?.trim()) && (
+          <View style={styles.spendBox} wrap={false}>
+            {notes?.trim() ? (
+              <>
+                <Text style={styles.spendLead}>Notes from your account lead</Text>
+                <Text style={[styles.spendMeta, { fontSize: 9 }]}>{notes.trim()}</Text>
+              </>
+            ) : null}
+            {plan?.trim() ? (
+              <>
+                <Text style={[styles.spendLead, { marginTop: notes?.trim() ? 8 : 0 }]}>
+                  What we are doing next
+                </Text>
+                <Text style={[styles.spendMeta, { fontSize: 9 }]}>{plan.trim()}</Text>
+              </>
+            ) : null}
+          </View>
+        )}
 
         {/* Executive Summary */}
         <View style={styles.summaryCard} wrap={false}>

@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
   const scope = await getWorkspaceScope();
   if (!scope) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  let body: { brand?: string; period?: unknown; notes?: string; reportType?: unknown };
+  let body: { brand?: string; period?: unknown; notes?: string; plan?: string; reportType?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -99,6 +99,8 @@ export async function POST(req: NextRequest) {
   const period = parseReportPeriod(body.period);
   if (!period) return NextResponse.json({ error: 'Invalid period' }, { status: 400 });
   const notes = typeof body.notes === 'string' ? body.notes.slice(0, 2000).trim() : '';
+  // Forward commitment, distinct from notes. See migration 190.
+  const plan = typeof body.plan === 'string' ? body.plan.slice(0, 2000).trim() : '';
 
   /**
    * Which template the link renders. Validated against the same three values
@@ -134,6 +136,7 @@ export async function POST(req: NextRequest) {
         period_label: build.periodLabel,
         snapshot: build.snapshot,
         notes: notes || null,
+        plan: plan || null,
         created_by: createdBy,
         report_type: reportType,
       })

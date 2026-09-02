@@ -25,7 +25,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ token: str
   const supabase = await createAdminClient();
   const { data: row, error } = await supabase
     .from('client_reports')
-    .select('brand_name, period_end, snapshot, revoked_at, report_type')
+    .select('brand_name, period_end, snapshot, notes, plan, revoked_at, report_type')
     .eq('token', token)
     .maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -40,6 +40,9 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ token: str
     // report renders as 'performance' — which is exactly what it is.
     const docElement = BrandClientReportPDF({
       data,
+      // The attachment must carry the same human voice as the link.
+      notes: row.notes as string | null,
+      plan: row.plan as string | null,
       reportType: (row.report_type as 'performance' | 'weekly' | 'monthly' | null) ?? 'performance',
       // movers live on the SNAPSHOT, not on report data — they are period
       // comparison rather than period content — so they are passed separately.

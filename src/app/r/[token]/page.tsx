@@ -57,7 +57,7 @@ export default async function ClientReportPage({ params, searchParams }: Props) 
   const supabase = await createAdminClient();
   const { data: row } = await supabase
     .from('client_reports')
-    .select('id, brand_name, period_label, snapshot, notes, created_at, viewed_at, revoked_at, report_type')
+    .select('id, brand_name, period_label, snapshot, notes, plan, created_at, viewed_at, revoked_at, report_type')
     .eq('token', token)
     .maybeSingle();
 
@@ -80,6 +80,7 @@ export default async function ClientReportPage({ params, searchParams }: Props) 
         report={report}
         snapshot={snapshot}
         notes={row.notes}
+        plan={row.plan}
         brandName={row.brand_name}
         periodLabel={row.period_label}
         /* Reports issued before report_type existed default to 'performance'
