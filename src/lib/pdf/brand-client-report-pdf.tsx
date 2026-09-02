@@ -525,6 +525,78 @@ export function BrandClientReportPDF({
       ? spendCaveats(spend.defaultQuotaShare, gran.roster.retainerHistoryExact !== false)
       : [];
 
+
+  /**
+   * Monthly commitments, judged over the month, inside a report about a week.
+   *
+   * 🚨 The units did not match. Post targets and retainers are MONTHLY; a
+   * weekly report measured them over 7 days, so Dr. Dent's week of 2026-08-23
+   * showed 15 retained creators at "0 / 30" and read as an idle roster.
+   *
+   * ⚠️ NOTHING HERE IS PRO-RATED. The target stays the full monthly count, the
+   * retainer stays the full monthly retainer, and the days elapsed are printed
+   * beside them as a fact. Nothing projects a month-end total.
+   */
+  const mtdPass = data.monthToDate;
+  const mtdContracted = mtdPass
+    ? mtdPass.granular.creators.filter((c) => !c.isAffiliate && !c.departed && (c.quota ?? 0) > 0)
+    : [];
+  const mtdSpend = mtdPass
+    ? estimateDeliveredSpend(mtdPass.granular.creators, classifySpendWindow(mtdPass.start, mtdPass.end))
+    : null;
+  const mtdNotes =
+    mtdSpend && mtdPass
+      ? spendCaveats(mtdSpend.defaultQuotaShare, mtdPass.granular.roster.retainerHistoryExact !== false)
+      : [];
+  const mtdComplete = mtdPass ? mtdPass.daysElapsed >= mtdPass.daysInMonth : false;
+  const mtdOwed = mtdContracted.reduce((s, c) => s + (c.quota ?? 0), 0);
+  const mtdDelivered = mtdContracted.reduce((s, c) => s + c.postsPublished, 0);
+  const mtdMet = mtdContracted.filter((c) => c.postsPublished >= (c.quota ?? 0)).length;
+  const mtdMonth = mtdPass
+    ? mtdPass.end.toLocaleDateString('en-US', { month: 'long', timeZone: 'UTC' })
+    : '';
+
+  const mtdBlock =
+    mtdPass && mtdContracted.length > 0 ? (
+      <View style={styles.spendBox}>
+        <Text style={styles.spendLead}>
+          {mtdComplete ? `All of ${mtdMonth}` : `${mtdMonth} so far`}: post targets and retainers
+          are monthly, so they are measured over the month rather than the period above.{' '}
+          {fmtNumber(mtdDelivered)} of {fmtNumber(mtdOwed)} contracted posts
+          {mtdOwed > 0 ? ` (${fmtPct((mtdDelivered / mtdOwed) * 100, 0)})` : ''}, with{' '}
+          {fmtNumber(mtdPass.daysElapsed)} of {fmtNumber(mtdPass.daysInMonth)} days elapsed.
+        </Text>
+        <Text style={styles.spendMeta}>
+          {fmtNumber(mtdMet)} of {fmtNumber(mtdContracted.length)} retained creators have already
+          met their full monthly commitment.
+          {!mtdComplete
+            ? ' The month is still running, so the rest have days left to reach theirs.'
+            : ''}
+        </Text>
+        {mtdSpend && (
+          <Text style={[styles.spendLead, { marginTop: 8 }]}>
+            {mtdComplete ? 'Estimated creator spend' : 'Creator spend earned so far'}{' '}
+            {fmtCurrency(mtdSpend.earned)} of the {fmtCurrency(mtdSpend.budget)} committed
+            {mtdSpend.pctOfBudget !== null ? `, or ${fmtPct(mtdSpend.pctOfBudget, 0)}` : ''}, once
+            each creator&rsquo;s retainer is scaled by what they actually published.
+          </Text>
+        )}
+        {mtdSpend && (
+          <Text style={styles.spendMeta}>
+            A creator who delivers their full count earns their full retainer; one who delivers
+            half earns half. Nobody is counted above 100%, so overdelivery does not raise it.
+            {!mtdComplete ? ' This is what published posts have earned, not a forecast.' : ''}
+          </Text>
+        )}
+        {mtdNotes.length > 0 && (
+          <Text style={styles.spendMeta}>
+            An estimate, not a payment record: {mtdNotes.join('; ')}. Treat the gap as an
+            indication of delivery, not as money unspent.
+          </Text>
+        )}
+      </View>
+    ) : null;
+
   const storeSold = data.activity ? data.activity.storeCreatorsSold : null;
   const storePosted = data.activity ? data.activity.storeCreatorsPosted : null;
 
@@ -1054,7 +1126,9 @@ export function BrandClientReportPDF({
               <Text style={[styles.gHeadCell, { flex: 1.7 }]}>TIKTOK</Text>
               <Text style={[styles.gHeadCell, { flex: 1.3 }]}>AGREEMENT</Text>
               <Text style={[styles.gHeadCell, { flex: 1.1, textAlign: 'right' }]}>AGREED</Text>
-              <Text style={[styles.gHeadCell, { flex: 0.9, textAlign: 'right' }]}>POSTS</Text>
+              <Text style={[styles.gHeadCell, { flex: 0.9, textAlign: 'right' }]}>
+                {wholeMonth ? 'POSTS' : 'POSTS THIS PERIOD'}
+              </Text>
               <Text style={[styles.gHeadCell, { flex: 0.9, textAlign: 'right' }]}>ORDERS</Text>
               <Text style={[styles.gHeadCell, { flex: 1.2, textAlign: 'right' }]}>GMV</Text>
             </View>
@@ -1078,8 +1152,10 @@ export function BrandClientReportPDF({
                 <Text style={[styles.gCellMuted, { flex: 1.1, textAlign: 'right' }]}>
                   {!c.departed && !c.isAffiliate && c.retainer > 0 ? `${fmtCurrency(c.retainer)}/mo` : '\u2014'}
                 </Text>
+                {/* The monthly target belongs beside a monthly count only.
+                    Over a week "0 / 30" is a unit mismatch, not a shortfall. */}
                 <Text style={[styles.gCellMuted, { flex: 0.9, textAlign: 'right' }]}>
-                  {c.quota != null
+                  {wholeMonth && c.quota != null
                     ? `${fmtNumber(c.postsPublished)} / ${fmtNumber(c.quota)}`
                     : fmtNumber(c.postsPublished)}
                 </Text>
@@ -1088,6 +1164,9 @@ export function BrandClientReportPDF({
               </View>
             ))}
           </View>
+          {/* Monthly commitments judged over the month, under the table whose
+              posts column would otherwise be judged over a week. */}
+          {!wholeMonth && mtdBlock}
         </Page>
       )}
 

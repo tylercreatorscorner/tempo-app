@@ -106,6 +106,16 @@ export function reviveReportDates(r: BrandClientReportData): BrandClientReportDa
     endDate: new Date(r.endDate),
     bestDay: r.bestDay ? { ...r.bestDay, date: new Date(r.bestDay.date) } : null,
     dailyPerformance: r.dailyPerformance.map((d) => ({ ...d, date: new Date(d.date) })),
+    // ⚠️ Optional: absent on every snapshot frozen before month-to-date shipped,
+    // and on any window that already IS a whole month. Reviving it
+    // unconditionally would turn undefined into { start: Invalid Date }.
+    monthToDate: r.monthToDate
+      ? {
+          ...r.monthToDate,
+          start: new Date(r.monthToDate.start),
+          end: new Date(r.monthToDate.end),
+        }
+      : undefined,
   };
 }
 

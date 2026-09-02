@@ -609,7 +609,14 @@ function VintageSection({
  * 85 of Lemme's affiliate-only rows carry a non-zero monthly_post_requirement
  * in the database and it is phantom — they never agreed to one.
  */
-function FullRosterTable({ g }: { g: NonNullable<BrandClientReportData['granular']> }) {
+function FullRosterTable({
+  g,
+  judgeQuota,
+}: {
+  g: NonNullable<BrandClientReportData['granular']>;
+  /** Whether the window is the month the monthly quota was written for. */
+  judgeQuota: boolean;
+}) {
   const rows = g.creators;
   const active = rows.filter((c) => c.gmv > 0 || c.postsPublished > 0);
   const dormant = rows.filter((c) => c.gmv === 0 && c.postsPublished === 0);
@@ -629,7 +636,7 @@ function FullRosterTable({ g }: { g: NonNullable<BrandClientReportData['granular
         </p>
       </div>
 
-      <CreatorRows rows={active} />
+      <CreatorRows rows={active} judgeQuota={judgeQuota} />
 
       {dormant.length > 0 && (
         <details className="group border-t border-[#eeedf5]">
@@ -644,8 +651,95 @@ function FullRosterTable({ g }: { g: NonNullable<BrandClientReportData['granular
               </>
             )}
           </summary>
-          <CreatorRows rows={dormant} muted />
+          <CreatorRows rows={dormant} judgeQuota={judgeQuota} muted />
         </details>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Monthly commitments, judged over the month, inside a report about a week.
+ *
+ * 🚨 THIS SECTION EXISTS BECAUSE THE UNITS DID NOT MATCH. Post targets and
+ * retainers are monthly; a weekly report measured them over 7 days, so Dr.
+ * Dent's week of 2026-08-23 showed 15 retained creators at "0 / 30" and read
+ * as an idle roster. Nothing was wrong with the counts, only with what they
+ * were divided by.
+ *
+ * ⚠️ NOTHING HERE IS PRO-RATED. The target stays the full monthly count and
+ * the retainer stays the full monthly retainer; the days elapsed are printed
+ * beside them as a fact the reader can weigh. Scaling either to the elapsed
+ * days would invent a cadence nobody agreed to, and nothing here projects a
+ * month-end total.
+ */
+function MonthToDate({ mtd }: { mtd: NonNullable<BrandClientReportData['monthToDate']> }) {
+  const g = mtd.granular;
+  const contracted = g.creators.filter((c) => !c.isAffiliate && !c.departed && (c.quota ?? 0) > 0);
+  if (contracted.length === 0) return null;
+
+  const owed = contracted.reduce((s, c) => s + (c.quota ?? 0), 0);
+  const delivered = contracted.reduce((s, c) => s + c.postsPublished, 0);
+  const met = contracted.filter((c) => c.postsPublished >= (c.quota ?? 0)).length;
+
+  // The window is month-to-date BY CONSTRUCTION here, so classify it rather
+  // than assuming: a report whose end date lands on the last of the month
+  // makes this a complete month, and the wording has to follow.
+  const spend = estimateDeliveredSpend(g.creators, classifySpendWindow(mtd.start, mtd.end));
+  const caveats = spend
+    ? spendCaveats(spend.defaultQuotaShare, g.roster.retainerHistoryExact !== false)
+    : [];
+  const monthName = mtd.end.toLocaleDateString('en-US', { month: 'long', timeZone: 'UTC' });
+  const complete = mtd.daysElapsed >= mtd.daysInMonth;
+
+  return (
+    <div className="mt-3.5 rounded-[14px] border border-[#e7e7f2] bg-white px-5 py-4">
+      <div className="text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">
+        {complete ? `All of ${monthName}` : `${monthName} so far`}
+      </div>
+      <p className="mt-1.5 max-w-[70ch] text-[15px] font-semibold leading-[1.6] text-[#33375c]">
+        Post targets and retainers are monthly, so they are measured here over the month rather
+        than the week above.{' '}
+        <b className="text-[#171a33]">
+          {num(delivered)} of {num(owed)} contracted posts
+        </b>
+        {owed > 0 && <> ({((delivered / owed) * 100).toFixed(0)}%)</>}, with{' '}
+        <b className="text-[#171a33]">
+          {num(mtd.daysElapsed)} of {num(mtd.daysInMonth)} days
+        </b>{' '}
+        elapsed.
+      </p>
+      <p className="mt-1.5 max-w-[70ch] text-[12.5px] leading-[1.6] text-[#8a8fb0]">
+        {num(met)} of {num(contracted.length)} retained creators have already met their full monthly
+        commitment.
+        {!complete && ' The month is still running, so the rest have days left to reach theirs.'}
+      </p>
+
+      {spend && (
+        <div className="mt-3 border-t border-[#eeedf5] pt-3">
+          <div className="text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">
+            {complete ? 'Estimated creator spend' : 'Creator spend earned so far'}
+          </div>
+          <p className="mt-1.5 max-w-[70ch] text-[15px] font-semibold leading-[1.6] text-[#33375c]">
+            <b className="text-[#171a33]">{money(spend.earned)}</b> of the {money(spend.budget)}{' '}
+            committed
+            {spend.pctOfBudget !== null && (
+              <>, or <b className="text-[#171a33]">{spend.pctOfBudget.toFixed(0)}%</b></>
+            )}
+            , once each creator&rsquo;s retainer is scaled by what they actually published.
+          </p>
+          <p className="mt-1.5 max-w-[70ch] text-[12.5px] leading-[1.6] text-[#8a8fb0]">
+            A creator who delivers their full count earns their full retainer; one who delivers
+            half earns half. Nobody is counted above 100%, so overdelivery does not raise it.
+            {!complete && ' This is what published posts have earned, not a forecast.'}
+          </p>
+          {caveats.length > 0 && (
+            <p className="mt-2 rounded-[10px] bg-[#f6f6fb] px-3 py-2 text-[11.5px] leading-[1.6] text-[#8a8fb0]">
+              An estimate, not a payment record: {caveats.join('; ')}. Treat the gap as an
+              indication of delivery, not as money unspent.
+            </p>
+          )}
+        </div>
       )}
     </div>
   );
@@ -752,9 +846,12 @@ const TH_R =
 
 function CreatorRows({
   rows,
+  judgeQuota,
   muted = false,
 }: {
   rows: NonNullable<BrandClientReportData['granular']>['creators'];
+  /** Only show the monthly target beside a count covering that month. */
+  judgeQuota: boolean;
   muted?: boolean;
 }) {
   return (
@@ -770,7 +867,7 @@ function CreatorRows({
             <th className={TH_L}>TikTok</th>
             <th className={`${TH_L} whitespace-nowrap`}>Agreement</th>
             <th className={`${TH_R} whitespace-nowrap`}>Agreed</th>
-            <th className={`${TH_R} whitespace-nowrap`}>Posts</th>
+            <th className={`${TH_R} whitespace-nowrap`}>{judgeQuota ? 'Posts' : 'Posts this period'}</th>
             <th className={`${TH_R} whitespace-nowrap`}>Orders</th>
             <th className={`${TH_R} whitespace-nowrap`}>GMV</th>
           </tr>
@@ -868,10 +965,17 @@ function CreatorRows({
                     ? <>{money(c.retainer)}<span className="text-[#8a8fb0]">/mo</span></>
                     : <span className="text-[#b9bcd0]">&mdash;</span>}
                 </td>
-                {/* Quota tracking lives here now, next to the number it judges. */}
+                {/* Quota tracking lives here, next to the number it judges,
+                    but ONLY when the window it judges is the month the quota
+                    was written for. Over a week, "0 / 30" is not a shortfall,
+                    it is a unit mismatch: 15 of Dr. Dent's retained creators
+                    printed it for 2026-08-23 and the roster read as idle. The
+                    month-to-date block carries the comparison instead. */}
                 <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-[#33375c]">
                   {num(c.postsPublished)}
-                  {c.quota != null && <span className="text-[#8a8fb0]">&nbsp;/&nbsp;{num(c.quota)}</span>}
+                  {judgeQuota && c.quota != null && (
+                    <span className="text-[#8a8fb0]">&nbsp;/&nbsp;{num(c.quota)}</span>
+                  )}
                 </td>
                 <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-[#33375c]">{num(c.orders)}</td>
                 <td className="whitespace-nowrap px-4 py-2.5 text-right font-extrabold tabular-nums text-[#171a33]">{money(c.gmv)}</td>
@@ -1246,6 +1350,10 @@ export function ReportView({
   // gate for the granular sections — an older report renders exactly as it
   // always did rather than showing empty tables or NaN.
   const gran = r.granular;
+  // Whether the report window IS the month the monthly quota was written for.
+  // Drives both the creator table's denominator and whether the month-to-date
+  // block is needed at all.
+  const windowIsMonth = classifySpendWindow(r.startDate, r.endDate).kind === 'month';
 
   // Fields added after older reports were frozen. priorVideos / videoChangePct
   // simply are not there and cannot be recovered, so they render as absent.
@@ -1647,7 +1755,13 @@ export function ReportView({
         {gran && gran.creators.length > 0 && (
           <>
             <SectionLine>Every creator we run for you</SectionLine>
-            <FullRosterTable g={gran} />
+            <FullRosterTable g={gran} judgeQuota={windowIsMonth} />
+            {/* Sits directly under the table whose posts column it explains.
+                Absent on a monthly report, where the table already carries the
+                comparison, and on snapshots frozen before this shipped. */}
+            {!windowIsMonth && r.monthToDate && (
+              <MonthToDate mtd={r.monthToDate} />
+            )}
           </>
         )}
 

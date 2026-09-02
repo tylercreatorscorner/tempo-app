@@ -160,6 +160,32 @@ export interface BrandClientReportData {
   };
 
   /**
+   * The SAME granular shape, over the calendar month containing the window's
+   * end date, from the 1st through that end date.
+   *
+   * 🚨 WHY A SECOND PASS EXISTS. Post targets and retainers are MONTHLY. A
+   * weekly report judged them over 7 days, so 15 of Dr. Dent's retained
+   * creators printed "0 / 30" for the week of 2026-08-23 and the roster read as
+   * idle when it was simply a week into a month. The commitment has to be
+   * measured over the period it was written for.
+   *
+   * ⚠️ NOT pro-rated, ever. The target stays the full monthly count and the
+   * days elapsed are reported beside it as a fact. Scaling 30 posts down to
+   * "7 for this week" would invent a cadence nobody agreed to.
+   *
+   * Absent when the report window IS already a whole calendar month (the month
+   * pass would be identical), and when the RPC fails, which is non-fatal.
+   */
+  monthToDate?: {
+    /** First day of the month, and the last day counted. */
+    start: Date;
+    end: Date;
+    daysElapsed: number;
+    daysInMonth: number;
+    granular: NonNullable<BrandClientReportData['granular']>;
+  };
+
+  /**
    * Who on the roster actually goes live. By HANDLE, because the split RPC
    * collapses roster membership to handle grain on purpose.
    *
@@ -523,7 +549,26 @@ export async function getBrandClientReportData(
   // they cost max(granular, counts). Measured on kitsch, the heaviest brand:
   // 0.5s + 4.8s sequential becomes 4.8s. That mattered — /api/client-reports/
   // preview 504'd at 60s on 2026-08-20 with this chain running end to end.
-  const [granularRes, countsRes, splitRes] = await Promise.all([
+  //
+  // The month-to-date pass rides in the SAME Promise.all rather than after it.
+  // Measured on kitsch (heaviest brand) 2026-09-02: a full-month granular pass
+  // is 6.4s, which is under the 4.8s..6.4s the other two already cost, so
+  // concurrently it is close to free. Sequentially it would have added 6.4s to
+  // a route that has already 504'd once.
+  const monthStart = new Date(Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), 1));
+  const daysInMonth = new Date(
+    Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth() + 1, 0),
+  ).getUTCDate();
+  // Skip when the window already IS the month: the second pass would be a
+  // duplicate of the first.
+  const windowIsWholeMonth =
+    startDate.getUTCDate() === 1 &&
+    startDate.getUTCMonth() === endDate.getUTCMonth() &&
+    startDate.getUTCFullYear() === endDate.getUTCFullYear() &&
+    endDate.getUTCDate() === daysInMonth;
+  const wantMonthToDate = !windowIsWholeMonth;
+
+  const [granularRes, countsRes, splitRes, mtdRes] = await Promise.all([
     supabase.rpc('get_brand_client_report_granular', {
       p_data_slugs: brandSlugs,
       p_roster_slugs: rosterSlugs,
@@ -546,6 +591,14 @@ export async function getBrandClientReportData(
       p_prior_start: formatDate(priorStart),
       p_prior_end: formatDate(priorEnd),
     }),
+    wantMonthToDate
+      ? supabase.rpc('get_brand_client_report_granular', {
+          p_data_slugs: brandSlugs,
+          p_roster_slugs: rosterSlugs,
+          p_start: formatDate(monthStart),
+          p_end: formatDate(endDate),
+        })
+      : Promise.resolve({ data: null, error: null }),
   ]);
 
   const granular = granularRes.error
@@ -844,6 +897,21 @@ export async function getBrandClientReportData(
         }
       : {}),
     granular,
+    /**
+     * Absent when the window already IS a whole month, when the RPC failed, or
+     * when the month has produced nothing. Every consumer must treat it as
+     * optional: frozen snapshots taken before this shipped will not have it.
+     */
+    monthToDate:
+      !mtdRes.error && mtdRes.data
+        ? {
+            start: monthStart,
+            end: endDate,
+            daysElapsed: endDate.getUTCDate(),
+            daysInMonth,
+            granular: mtdRes.data as NonNullable<BrandClientReportData['granular']>,
+          }
+        : undefined,
     activity,
     channels,
     topLive,
