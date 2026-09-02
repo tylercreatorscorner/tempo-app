@@ -74,17 +74,34 @@ export function CreatePanel({
 type PeriodPreset = '7d' | '30d' | 'custom';
 
 /**
- * Which template the link renders. THREE, not one report with a window:
+ * Which template the link renders.
  *
- *   performance  the standing report — what happened, absolute
- *   weekly       week over week — the CHANGE is the subject
- *   monthly      month in review — contracted posts against delivered,
- *                net-new GMV, budget against actual
+ *   weekly    everything below, PLUS "What moved this period": the creators
+ *             who gained and lost, named.
+ *   monthly   everything below, PLUS contracted posts against delivered, and
+ *             the net-new GMV split.
  *
- * monthly is not "comparison over 30 days": its content is accountability
+ * Everything else is identical across types: the headline, the driver
+ * sentence, the month-to-date block, signings, worth-a-conversation, the
+ * roster table and its CSV, vintage, and store context.
+ *
+ * 🚨 'performance' IS RETIRED FROM THIS PICKER. It is a strict SUBSET of both
+ * of the others: it adds nothing and omits the movers section, so there was
+ * never a reason to choose it. Every report CC has sent was 'performance',
+ * which means every weekly send went out without the movement section.
+ *
+ * ⚠️ NOT removed from the type, the API, or the DB constraint. Every report
+ * issued before the templates existed is stored as 'performance' and must keep
+ * rendering; the API still accepts it, and an absent reportType still defaults
+ * to it. This is a change to what an operator can CHOOSE, nothing else.
+ *
+ * ⚠️ monthly is not "comparison over 30 days": its content is accountability
  * WITHIN the month, not movement between months.
  */
 type ReportKind = 'performance' | 'weekly' | 'monthly';
+
+/** What an operator may pick for a NEW report. See the note above. */
+type SelectableKind = Exclude<ReportKind, 'performance'>;
 
 interface PreviewData {
   periodLabel: string;
@@ -100,7 +117,8 @@ function ClientReportForm({ onSent, lockedBrand }: { onSent: () => void; lockedB
   const brand = lockedBrand ?? pickedBrand;
 
   const [preset, setPreset] = useState<PeriodPreset>('7d');
-  const [reportKind, setReportKind] = useState<ReportKind>('performance');
+  // Weekly is the common send and is never worse than the retired default.
+  const [reportKind, setReportKind] = useState<SelectableKind>('weekly');
   const [startDate, setStartDate] = useState(() => new Date(Date.now() - 6 * 86_400_000).toISOString().slice(0, 10));
   const [endDate, setEndDate] = useState(() => new Date().toISOString().slice(0, 10));
   const today = new Date().toISOString().slice(0, 10);
@@ -212,14 +230,13 @@ function ClientReportForm({ onSent, lockedBrand }: { onSent: () => void; lockedB
 
       <div>
         <Label>Report</Label>
-        <SegmentedControl<ReportKind>
+        <SegmentedControl<SelectableKind>
           ariaLabel="Report type"
           size="sm"
           className={SEG_FULL}
           options={[
-            { value: 'performance', label: 'Performance' },
-            { value: 'weekly', label: 'Week' },
-            { value: 'monthly', label: 'Monthly' },
+            { value: 'weekly', label: 'Week in review' },
+            { value: 'monthly', label: 'Month in review' },
           ]}
           value={reportKind}
           onValueChange={(v) => {
@@ -232,6 +249,13 @@ function ClientReportForm({ onSent, lockedBrand }: { onSent: () => void; lockedB
             if (v === 'monthly') setPreset('30d');
           }}
         />
+        {/* Say what the choice actually buys, because the two differ by one
+            section each and nothing in the label conveys that. */}
+        <p className="mt-1.5 text-[11px] leading-snug text-muted-foreground">
+          {reportKind === 'weekly'
+            ? 'Adds “What moved this period”: the creators who gained and lost, named. Everything else is the same in both.'
+            : 'Adds contracted posts against delivered, and the net-new GMV split. Everything else is the same in both.'}
+        </p>
         {reportKind === 'monthly' && preset !== 'custom' && (
           <p className="mt-1.5 text-[11px] leading-snug text-muted-foreground">
             Post targets are monthly, so a part-month reads short against them. For a true month in
