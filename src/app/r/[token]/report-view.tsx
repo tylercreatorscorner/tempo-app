@@ -612,7 +612,9 @@ function VintageSection({
   const pct30 = total > 0 ? (gmv30 / total) * 100 : null;
   const unknown = finite(g.newVideo.unknownPostDateGmv) ?? 0;
   const rows = [
-    ...g.vintage.map((v) => ({ label: v.label, videos: v.videos, gmv: v.gmv, isOlder: false })),
+    // ⚠️ Skip zero-GMV months. An August report was listing "SEP 2026 $0 ·
+    // 3 videos": a bucket outside the window, contributing nothing.
+    ...g.vintage.filter((v) => v.gmv > 0).map((v) => ({ label: v.label, videos: v.videos, gmv: v.gmv, isOlder: false })),
     ...(g.vintageOlder.videos > 0 || g.vintageOlder.gmv > 0
       ? [{ label: 'Earlier', videos: g.vintageOlder.videos, gmv: g.vintageOlder.gmv, isOlder: true }]
       : []),
@@ -622,31 +624,39 @@ function VintageSection({
   // and it was previously left for the reader to infer from bar lengths.
   const olderPct =
     total > 0 && g.vintageOlder.gmv > 0 ? (g.vintageOlder.gmv / total) * 100 : null;
+  /** Share of roster revenue from content published since CC started. */
+  const nn = g.netNew;
+  const netNewPct =
+    nn && finite(nn.totalGmv) && nn.totalGmv > 0 ? (nn.netNewGmv / nn.totalGmv) * 100 : null;
 
   return (
     <div className="rounded-[14px] border border-[#e7e7f2] bg-white px-5 py-5">
       <h2 className="text-[20px] font-extrabold leading-snug tracking-tight text-[#171a33]">
-        {money(gmv30)} of this {word}&rsquo;s roster sales came from videos posted in the last 30 days
+        Every month of posting keeps earning
       </h2>
       <p className="mt-1.5 max-w-[68ch] text-[14.5px] leading-[1.65] text-[#33375c]">
-        {pct30 !== null ? (
+        {total > 0 ? (
           <>
-            That is <b className="text-[#171a33]">{pct30.toFixed(1)}% of roster GMV</b> from{' '}
-            <b className="text-[#171a33]">{num(g.newVideo.videos30d)} recent posts</b>.
+            {/* The net-new share used to be its own section further up the page.
+                It answers "is this OUR work" and belongs beside the months that
+                answer "when was it made", not in a separate place where the two
+                read as competing claims. */}
+            {netNewPct !== null && (
+              <>
+                <b className="text-[#171a33]">{netNewPct.toFixed(1)}%</b> of your roster&rsquo;s revenue
+                this {word} came from videos published after we started with each creator; the rest is
+                their earlier content, still selling.{' '}
+              </>
+            )}
             {olderPct !== null && olderPct >= 15 ? (
               <>
-                {' '}
-                Another <b className="text-[#171a33]">{olderPct.toFixed(1)}%</b> &mdash;{' '}
-                <b className="text-[#171a33]">{money(g.vintageOlder.gmv)}</b> &mdash; came from posts older
-                than the three months below and is still selling. That back catalogue is what the work
+                And it keeps earning long after it goes up:{' '}
+                <b className="text-[#171a33]">{olderPct.toFixed(1)}%</b> of this {word}&rsquo;s sales
+                came from posts older than the months below. That back catalogue is what the work
                 compounds into.
               </>
             ) : (
-              <>
-                {' '}
-                The rest comes from content published earlier that is still selling &mdash; which is why
-                posting consistently compounds.
-              </>
+              <>Content published earlier is still selling, which is why posting consistently compounds.</>
             )}
           </>
         ) : (
@@ -859,7 +869,7 @@ function MonthToDate({
         />
         {spend && (
           <Mini
-            label={complete ? 'Estimated spend' : 'Earned so far'}
+            label={complete ? 'Retainer spend' : 'Retainer earned'}
             value={money(spend.earned)}
             note={
               spend.pctOfBudget !== null
@@ -1322,7 +1332,7 @@ function MonthlyDelivery({
       {spend && (
         <div className="mt-3.5 rounded-[14px] border border-[#e7e7f2] bg-white px-5 py-4">
           <div className="text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">
-            {mtd ? 'Creator spend earned so far' : 'Estimated creator spend'}
+            {mtd ? 'Retainer earned so far' : 'Estimated retainer spend'}
           </div>
           <p className="mt-1.5 max-w-[70ch] text-[15px] font-semibold leading-[1.6] text-[#33375c]">
             <b className="text-[#171a33]">{money(spend.earned)}</b> of the{' '}
@@ -1734,6 +1744,43 @@ export function ReportView({
    * Keyed on lost SHARE instead, which is the thing that actually happened, and
    * is what the tile above now prints.
    */
+  /**
+   * Return on retainer: roster GMV over the retainer those creators actually
+   * earned this month.
+   *
+   * 🚨 THE REPORT NEVER ANSWERED THE FIRST QUESTION A CLIENT ASKS. It stated
+   * what the roster produced at the top and what the retainer earned twelve
+   * sections later, and left the division to the reader.
+   *
+   * ⚠️ WHOLE CALENDAR MONTHS ONLY, and for the same reason the spend figure is:
+   * a retainer is monthly, so dividing a week of GMV by a month of retainer, or
+   * by a part-month's earned figure, is a ratio of two different periods.
+   *
+   * ⚠️ Retainer only. Affiliate commission is not held in Tempo, so this is
+   * return on the RETAINER spend, which is what the label says.
+   */
+  const monthSpend = windowIsMonth && gran
+    ? estimateDeliveredSpend(gran.creators, classifySpendWindow(r.startDate, r.endDate))
+    : null;
+  const retainerReturn =
+    monthSpend && monthSpend.earned > 0 && cc.gmv > 0 ? cc.gmv / monthSpend.earned : null;
+
+  /**
+   * 🚨 "17.0% of signed" WAS THE WRONG DENOMINATOR AND IT UNDERSOLD THE WORK.
+   * It measured 75 posters against all 440 signed creators, 389 of whom are
+   * affiliate-only and carry no posting obligation. Among the 51 RETAINED
+   * creators, 37 posted — 73%, not 17%. Count only the people who agreed to
+   * post, the same rule the delivery and spend sections already use.
+   */
+  const retainedPosted = gran
+    ? (() => {
+        const retained = gran.creators.filter((c) => !c.isAffiliate && !c.departed && c.retainer > 0);
+        return retained.length > 0
+          ? { posted: retained.filter((c) => c.postsPublished > 0).length, total: retained.length }
+          : null;
+      })()
+    : null;
+
   const driver = moveDriver(s.movers);
 
   const divergence =
@@ -1857,6 +1904,17 @@ export function ReportView({
               </div>
             </div>
 
+            {/* The answer to "what did I get for my money", next to the
+                figure it is derived from rather than twelve sections away. */}
+            {retainerReturn !== null && monthSpend && (
+              <p className="mt-3 max-w-[70ch] text-[14.5px] leading-[1.65] text-[#33375c]">
+                Against <b className="text-[#171a33]">{money(monthSpend.earned)}</b> of retainer
+                earned this month, that is{' '}
+                <b className="text-[#171a33]">{retainerReturn.toFixed(1)}x</b> back on what the
+                retained creators were paid.
+              </p>
+            )}
+
             {gran && <InvestmentStrip g={gran} />}
 
             {/* The WHY, before any warning about the WHAT. */}
@@ -1954,11 +2012,13 @@ export function ReportView({
               rosterGmv={cc.gmv}
               storeLiveGmv={r.channels?.storeLiveGmv ?? 0}
             />
-            {isMonthly && gran?.netNew && (
-              <div className="mt-3.5">
-                <NetNewSplit n={gran.netNew} />
-              </div>
-            )}
+            {/* ⚠️ The net-new split USED to render here as its own block. It
+                answers "is this our work" while the vintage section answers
+                "when was it made", and side by side the two read as competing
+                claims about the same thing (89.4% "since we started" against
+                58.6% "older than three months"). Its number now opens the
+                vintage section instead, so there is ONE place the client reads
+                about where the revenue came from. */}
           </>
         )}
 
@@ -2047,7 +2107,9 @@ export function ReportView({
                     value={num(rosterAct.posted)}
                     note={
                       rosterAct.signed > 0
-                        ? `${((rosterAct.posted / rosterAct.signed) * 100).toFixed(1)}% of signed`
+                        ? retainedPosted !== null
+                          ? `${retainedPosted.posted} of ${retainedPosted.total} retained creators`
+                          : `${((rosterAct.posted / rosterAct.signed) * 100).toFixed(1)}% of signed`
                         : undefined
                     }
                   />

@@ -431,9 +431,24 @@ export function BrandClientReportPDF({
   // Granular block (mig 152). Absent on every snapshot frozen before it, so
   // its presence gates the sections exactly as it does on the web report.
   const gran = data.granular;
+  /**
+   * 🚨 Activation was measured against ALL signed creators, 389 of whom are
+   * affiliate-only and owe no posts. That printed "17.0%" for a roster whose
+   * RETAINED creators were at 73%. Count only the people who agreed to post.
+   */
+  const retainedPosted = (() => {
+    if (!gran) return null;
+    const retained = gran.creators.filter((c) => !c.isAffiliate && !c.departed && c.retainer > 0);
+    return retained.length > 0
+      ? { posted: retained.filter((c) => c.postsPublished > 0).length, total: retained.length }
+      : null;
+  })();
+
   const vintageRows = gran
     ? [
-        ...gran.vintage.map((v) => ({ label: v.label, videos: v.videos, gmv: v.gmv, isOlder: false })),
+        // Skip zero-GMV months: an August report was listing "Sep 2026 $0".
+        ...gran.vintage.filter((v) => v.gmv > 0)
+          .map((v) => ({ label: v.label, videos: v.videos, gmv: v.gmv, isOlder: false })),
         ...(gran.vintageOlder.videos > 0 || gran.vintageOlder.gmv > 0
           ? [{ label: 'Earlier', videos: gran.vintageOlder.videos, gmv: gran.vintageOlder.gmv, isOlder: true }]
           : []),
@@ -669,7 +684,7 @@ export function BrandClientReportPDF({
         )}
         {mtdSpend && (
           <Text style={[styles.spendLead, { marginTop: 8 }]}>
-            {mtdComplete ? 'Estimated creator spend' : 'Creator spend earned so far'}{' '}
+            {mtdComplete ? 'Estimated retainer spend' : 'Retainer earned so far'}{' '}
             {fmtCurrency(mtdSpend.earned)} of the {fmtCurrency(mtdSpend.budget)} committed
             {mtdSpend.pctOfBudget !== null ? `, or ${fmtPct(mtdSpend.pctOfBudget, 0)}` : ''}, once
             each creator&rsquo;s retainer is scaled by what they actually published.
@@ -868,10 +883,12 @@ export function BrandClientReportPDF({
           {rosterAct ? (
             <>
               <Text style={styles.splitMeta}>
-                {fmtNumber(rosterAct.posted)} of {fmtNumber(rosterAct.signed)} signed creators posted this
+                {retainedPosted
+                  ? `${fmtNumber(retainedPosted.posted)} of ${fmtNumber(retainedPosted.total)} retained creators posted this`
+                  : `${fmtNumber(rosterAct.posted)} of ${fmtNumber(rosterAct.signed)} signed creators posted this`}
                 period
                 {rosterAct.signed > 0
-                  ? ` · ${fmtPct((rosterAct.posted / rosterAct.signed) * 100, 1)} activation`
+                  ? ` · ${fmtPct(((retainedPosted ? retainedPosted.posted / retainedPosted.total : rosterAct.posted / rosterAct.signed)) * 100, 1)} activation`
                   : ''}
                 {' · '}
                 {fmtNumber(rosterAct.sold)} made sales
@@ -971,7 +988,7 @@ export function BrandClientReportPDF({
             {spend && (
               <View style={styles.spendBox}>
                 <Text style={styles.spendLead}>
-                  {mtd ? 'Creator spend earned so far' : 'Estimated creator spend'}{' '}
+                  {mtd ? 'Retainer earned so far' : 'Estimated retainer spend'}{' '}
                   {fmtCurrency(spend.earned)} of the {fmtCurrency(spend.budget)} committed
                   {spend.pctOfBudget !== null ? `, or ${fmtPct(spend.pctOfBudget, 0)}` : ''}, once
                   each creator&rsquo;s retainer is scaled by what they actually published.
@@ -1004,20 +1021,11 @@ export function BrandClientReportPDF({
           </View>
         )}
 
-        {/* ── Month in review: content we started vs content that predates us ─ */}
-        {isMonthly && gran?.netNew && gran.netNew.totalGmv > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionEyebrow}>CONTENT WE STARTED</Text>
-            <Text style={styles.sectionTitle}>
-              {fmtCurrency(gran.netNew.netNewGmv)} from videos posted since we began
-            </Text>
-            <Text style={styles.splitMeta}>
-              {fmtPct((gran.netNew.netNewGmv / gran.netNew.totalGmv) * 100, 1)} of your roster&apos;s
-              revenue this period · {fmtCurrency(gran.netNew.preCcGmv)} came from content posted before
-              we started with each creator, still selling.
-            </Text>
-          </View>
-        )}
+        {/* ⚠️ The net-new section used to sit here. It answers "is this our
+            work" while the vintage section answers "when was it made", and read
+            back to back the two land as competing claims about one thing. Its
+            figure now opens the vintage section, so the client reads about
+            where the revenue came from in ONE place. */}
 
         {/* ⚠️ REPLACES "Managed vs Organic, Per Creator". That block compared
             AOV and GMV-per-creator against everyone else; across seven brands
@@ -1182,9 +1190,14 @@ export function BrandClientReportPDF({
           {gran && vintageRows.length > 0 && (
             <View style={styles.section}>
               <Text style={styles.sectionEyebrow}>WHERE OUR SALES CAME FROM</Text>
-              <Text style={styles.sectionTitle}>
-                {fmtCurrency(gran.newVideo.gmv30d)} came from videos posted in the last 30 days
-              </Text>
+              <Text style={styles.sectionTitle}>Every month of posting keeps earning</Text>
+              {gran.netNew && gran.netNew.totalGmv > 0 && (
+                <Text style={styles.splitMeta}>
+                  {fmtPct((gran.netNew.netNewGmv / gran.netNew.totalGmv) * 100, 1)} of your
+                  roster&apos;s revenue this period came from videos published after we started with
+                  each creator; the rest is their earlier content, still selling.
+                </Text>
+              )}
               {vintageRows.map((v) => (
                 <View key={v.label} style={styles.gBarRow} wrap={false}>
                   <Text style={styles.gBarLabel}>{v.label}</Text>
