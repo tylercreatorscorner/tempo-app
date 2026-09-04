@@ -47,7 +47,18 @@ export interface ClientReportSnapshot {
     stopped: number;
     list: { handle: string; name: string | null; cur: number; prior: number; change: number; movement: string }[];
   } | null;
-  weekly: { weekEnd: string; gmv: number }[];  // 12 buckets, oldest → newest, anchored to period end
+  /**
+   * 12 buckets, oldest to newest, anchored to the period end.
+   *
+   * rosterGmv is OUR half of the same bar, on the same seven days, under the
+   * same time-aware membership rule as the headline (migration 193). The chart
+   * used to plot the store alone, so a client saw their shop's trajectory and
+   * only two point-in-time numbers for us.
+   *
+   * OPTIONAL: snapshots frozen before migration 193 have the store figure and
+   * no roster half, and render exactly as they did.
+   */
+  weekly: { weekEnd: string; gmv: number; rosterGmv?: number }[];
   lifetime: {
     gmv: number;
     bestWeek: number | null;
@@ -254,10 +265,49 @@ export async function buildClientReportSnapshot(
     if (row.video_id) videoViews[row.video_id] = num(row.views);
   }
 
-  const weekly = ((extras.weekly ?? []) as Array<{ week_end: string; gmv: number }>).map((w) => ({
-    weekEnd: String(w.week_end),
-    gmv: num(w.gmv),
-  }));
+  /**
+   * Our share of each of those twelve weeks.
+   *
+   * Keyed on week_end and MERGED rather than replacing the store series: the
+   * store figures come from brand_lifetime_daily and these from
+   * creator_performance. Those two agree to the cent on every brand with any
+   * history (checked over this exact 84-day span, zero exceptions), but the
+   * bar a reader sees should still be the number the rest of the report is
+   * built on, so the store half keeps its existing source and only the roster
+   * half is new.
+   *
+   * Non-fatal, like every other enrichment here: a failed read leaves the
+   * chart as the store-only chart it has always been rather than 500ing a page
+   * a client is opening.
+   */
+  const rosterWeekly = new Map<string, number>();
+  {
+    const { data: rw, error: rwErr } = await supabase.rpc('get_brand_roster_weekly', {
+      p_data_slugs: dataSlugs,
+      p_roster_slugs: rosterSlugs,
+      p_through: fmtDate(report.endDate),
+    });
+    if (rwErr) {
+      console.error('[client-reports] roster weekly read failed:', rwErr.message);
+    } else {
+      for (const row of (Array.isArray(rw) ? rw : []) as Array<{ week_end: string; roster_gmv: number }>) {
+        if (row?.week_end) rosterWeekly.set(String(row.week_end), num(row.roster_gmv));
+      }
+    }
+  }
+
+  const weekly = ((extras.weekly ?? []) as Array<{ week_end: string; gmv: number }>).map((w) => {
+    const key = String(w.week_end);
+    const roster = rosterWeekly.get(key);
+    return {
+      weekEnd: key,
+      gmv: num(w.gmv),
+      // ⚠️ A roster half must never exceed the bar containing it. The two
+      // sources agree today; clamping means a future divergence renders a full
+      // bar rather than a segment overflowing its own container.
+      ...(roster === undefined ? {} : { rosterGmv: Math.min(roster, num(w.gmv)) }),
+    };
+  });
 
   /**
    * Movement between the two periods.

@@ -254,12 +254,20 @@ function HoverBars({
   bars,
   labels,
   peakNoun = 'day',
+  subLabel,
 }: {
   title: string;
-  bars: { value: number; orders?: number; isPeak: boolean; caption: string }[];
+  /**
+   * `sub` is a portion OF `value`, not a second series beside it: it is drawn
+   * inside the same bar, so the bar's height still reads as the store total
+   * and the filled part reads as our share of it.
+   */
+  bars: { value: number; sub?: number; orders?: number; isPeak: boolean; caption: string }[];
   labels: string[];
   /** What one bar IS. The 12-week chart was calling its peak "best day". */
   peakNoun?: string;
+  /** What the filled portion means. Required reading wherever `sub` is set. */
+  subLabel?: string;
 }) {
   const max = Math.max(1, ...bars.map((b) => b.value));
   return (
@@ -279,17 +287,43 @@ function HoverBars({
               <b className="tabular-nums">{money(b.value)}</b>
               {b.isPeak && <span className="text-white/70"> · best {peakNoun}</span>}
               <br />
+              {b.sub !== undefined && (
+                <>
+                  <span className="tabular-nums">
+                    {money(b.sub)} ours
+                    {b.value > 0 && <span className="text-white/70"> · {((b.sub / b.value) * 100).toFixed(0)}%</span>}
+                  </span>
+                  <br />
+                </>
+              )}
               <span className="tabular-nums text-white/70">
                 {b.orders !== undefined ? `${num(b.orders)} orders · ` : ''}{b.caption}
               </span>
             </div>
+            {/* A split bar reserves the accent for OUR portion, so the peak
+                gradient would compete with the only distinction that matters
+                here. On an unsplit chart the peak keeps its highlight. */}
             <div
-              className="rounded-t-[5px] transition-[filter] group-hover:brightness-110"
+              className="flex flex-col justify-end overflow-hidden rounded-t-[5px] transition-[filter] group-hover:brightness-110"
               style={{
                 height: `${Math.max(3, (b.value / max) * 100)}%`,
-                background: b.isPeak ? 'linear-gradient(180deg,#5b5ee8,#8b5cf6)' : '#dedcf2',
+                background:
+                  b.sub !== undefined
+                    ? '#e6e4f4'
+                    : b.isPeak
+                      ? 'linear-gradient(180deg,#5b5ee8,#8b5cf6)'
+                      : '#dedcf2',
               }}
-            />
+            >
+              {b.sub !== undefined && b.value > 0 && (
+                <div
+                  style={{
+                    height: `${Math.min(100, (b.sub / b.value) * 100)}%`,
+                    background: 'linear-gradient(180deg,#5b5ee8,#8b5cf6)',
+                  }}
+                />
+              )}
+            </div>
           </div>
         ))}
       </div>
@@ -300,6 +334,21 @@ function HoverBars({
           </span>
         ))}
       </div>
+      {subLabel && (
+        <div className="mt-2 flex items-center gap-3 border-t border-[#f0eff7] pt-2 text-[10px] text-[#8a8fb0]">
+          <span className="flex items-center gap-1.5">
+            <span
+              className="h-2.5 w-2.5 rounded-[3px]"
+              style={{ background: 'linear-gradient(180deg,#5b5ee8,#8b5cf6)' }}
+            />
+            {subLabel}
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-[3px] bg-[#e6e4f4]" />
+            everyone else
+          </span>
+        </div>
+      )}
     </div>
   );
 }
@@ -1676,6 +1725,47 @@ export function ReportView({
     weekly[weekly.length - 2].gmv === weeklyMax &&
     weekly[weekly.length - 2].gmv > weekly[weekly.length - 1].gmv * 1.5;
 
+  /**
+   * Whether the trend chart can show our half at all.
+   *
+   * ⚠️ EVERY bucket has to carry the roster figure, not most of them. A
+   * partially split chart would draw some weeks as store-only bars and read as
+   * "we did nothing those weeks" — the exact misreading a chart is supposed to
+   * prevent. All twelve or none.
+   */
+  const weeklySplit = weekly.length >= 3 && weekly.every((w) => w.rosterGmv !== undefined);
+
+  /**
+   * The sentence under the chart: where our share started and where it ended.
+   *
+   * ⚠️ Only weeks the store actually sold in. A dead week divides by zero, and
+   * a near-dead one produces a share that swings on a handful of dollars.
+   *
+   * "Climbing in most weeks" is a claim about the SHAPE, so it is gated on the
+   * shape: it needs a genuine rise and a majority of the steps going the same
+   * way. Without that the sentence states the two endpoints and stops, because
+   * a share that ended higher after falling for two months is not a climb.
+   */
+  const weeklyShare = (() => {
+    if (!weeklySplit) return null;
+    const pts = weekly
+      .filter((w) => w.gmv > 0 && w.rosterGmv !== undefined)
+      .map((w) => ({ week: w.weekEnd, pct: ((w.rosterGmv as number) / w.gmv) * 100 }));
+    if (pts.length < 4) return null;
+    const first = pts[0];
+    const last = pts[pts.length - 1];
+    let up = 0;
+    for (let i = 1; i < pts.length; i++) if (pts[i].pct > pts[i - 1].pct) up++;
+    const steps = pts.length - 1;
+    return {
+      first: first.pct,
+      firstWeek: first.week,
+      last: last.pct,
+      lastWeek: last.week,
+      monotonic: last.pct - first.pct >= 5 && up / steps >= 0.6,
+    };
+  })();
+
   const daily = r.dailyPerformance;
   const dailyLabels = daily.map((d, i) => {
     if (daily.length <= 10) return d.weekday.slice(0, 3);
@@ -2153,12 +2243,27 @@ export function ReportView({
           </div>
         )}
 
+        {/* ── 12-week trend, with OUR half drawn inside each bar ──────────
+               🚨 THE ONE QUESTION THE REPORT ASKED THE READER TO TAKE ON TRUST.
+               Both charts were store-level, so a client could see their shop's
+               trajectory and only two point-in-time numbers for us — Cata-Kor
+               August read "59.6% -> 68.0%" with nothing between the endpoints.
+               A share can climb steadily, spike once, or recover from a dip,
+               and those are three different accounts of whether this is
+               working. Migration 193 supplies the roster half on the same
+               seven-day buckets under the same membership rule as the
+               headline, so the segment and the number above it cannot
+               disagree.
+
+               ⚠️ Absent on snapshots frozen before migration 193, which render
+               as the store-only chart they always were. ─── */}
         {weekly.length >= 3 && (
           <div className="mt-3.5">
             <HoverBars
-              title="12-week store GMV trend"
+              title={weeklySplit ? '12-week GMV trend, ours inside the store' : '12-week store GMV trend'}
               bars={weekly.map((w) => ({
                 value: w.gmv,
+                sub: w.rosterGmv,
                 isPeak: w.gmv === weeklyMax,
                 caption: `week ending ${fmtDay(new Date(w.weekEnd + 'T12:00:00Z'))}`,
               }))}
@@ -2166,7 +2271,20 @@ export function ReportView({
                 i === 0 || i === weekly.length - 1 ? fmtDay(new Date(w.weekEnd + 'T12:00:00Z')) : '',
               )}
               peakNoun="week"
+              subLabel={weeklySplit ? 'creators we run' : undefined}
             />
+            {weeklyShare && (
+              <div className="mt-2 text-[11.5px] leading-[1.6] text-[#5c6183]">
+                Our share of the store went from{' '}
+                <b className="text-[#171a33]">{weeklyShare.first.toFixed(0)}%</b> in the week ending{' '}
+                {fmtDay(new Date(weeklyShare.firstWeek + 'T12:00:00Z'))} to{' '}
+                <b className="text-[#171a33]">{weeklyShare.last.toFixed(0)}%</b> in the week ending{' '}
+                {fmtDay(new Date(weeklyShare.lastWeek + 'T12:00:00Z'))}
+                {weeklyShare.monotonic
+                  ? ', climbing in most weeks along the way rather than on any single one.'
+                  : '.'}
+              </div>
+            )}
             {priorWasSpike && (
               <div className="mt-2 text-[10.5px] text-[#8a8fb0]">
                 Last week was the strongest in this 12-week window, so the comparison above is a steep one.

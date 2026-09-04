@@ -44,9 +44,11 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ token: str
       notes: row.notes as string | null,
       plan: row.plan as string | null,
       reportType: (row.report_type as 'performance' | 'weekly' | 'monthly' | null) ?? 'performance',
-      // movers live on the SNAPSHOT, not on report data — they are period
-      // comparison rather than period content — so they are passed separately.
+      // movers and the twelve-week trend live on the SNAPSHOT, not on report
+      // data — both are period COMPARISON rather than period content — so they
+      // are passed separately.
       movers: snapshot.movers ?? null,
+      weekly: snapshot.weekly ?? [],
     });
     const pdf = await renderToBuffer(docElement);
 

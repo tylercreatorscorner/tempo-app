@@ -218,6 +218,22 @@ const styles = StyleSheet.create({
   dowGmv:        { fontSize: 7, color: COLORS.muted, marginBottom: 3 },
   dowGmvPeak:    { fontSize: 7, color: COLORS.pink, marginBottom: 3, fontFamily: 'Inter', fontWeight: 700 },
 
+  // ── 12-week trend, our half drawn INSIDE the store bar
+  //
+  // ⚠️ The track is the store total and the fill is ours, so the two are one
+  // stacked bar rather than two series side by side. justifyContent flex-end
+  // puts the fill at the BASE of the bar; @react-pdf has no bottom-anchored
+  // absolute positioning that survives pagination.
+  trendRow:      { flexDirection: 'row', alignItems: 'flex-end', height: 92, marginTop: 10 },
+  trendItem:     { flex: 1, alignItems: 'center', marginHorizontal: 1.5 },
+  trendTrack:    { width: '78%', backgroundColor: '#e6e4f4', borderTopLeftRadius: 2, borderTopRightRadius: 2, justifyContent: 'flex-end', overflow: 'hidden' },
+  trendFill:     { width: '100%', backgroundColor: COLORS.blue },
+  trendLabel:    { fontSize: 6.5, color: COLORS.muted, marginTop: 4, fontFamily: 'Inter', fontWeight: 700 },
+  trendLegend:   { flexDirection: 'row', marginTop: 8 },
+  trendKey:      { flexDirection: 'row', alignItems: 'center', marginRight: 14 },
+  trendSwatch:   { width: 7, height: 7, borderRadius: 2, marginRight: 4 },
+  trendKeyText:  { fontSize: 7, color: COLORS.muted, fontFamily: 'Inter', fontWeight: 700 },
+
   // ── Daily perf table
   table:           { borderWidth: 1, borderColor: COLORS.rule, borderRadius: 8, marginTop: 12, overflow: 'hidden' },
   tableHeader:     { flexDirection: 'row', backgroundColor: COLORS.bgCard, paddingVertical: 8, paddingHorizontal: 10, borderBottomWidth: 1, borderBottomColor: COLORS.rule },
@@ -310,6 +326,13 @@ function fmtCurrencyShort(n: number): string {
   return fmtCurrency(n);
 }
 function fmtNumber(n: number): string { return Math.round(n || 0).toLocaleString(); }
+/** A yyyy-mm-dd week end as "Aug 31". Noon UTC so a negative offset cannot
+ *  walk the date back a day. */
+function fmtWeekEnd(iso: string): string {
+  return new Date(iso + 'T12:00:00Z').toLocaleDateString('en-US', {
+    month: 'short', day: 'numeric', timeZone: 'UTC',
+  });
+}
 function fmtPct(n: number, decimals = 0): string { return (n || 0).toFixed(decimals) + '%'; }
 function medal(rank: number): string {
   // Ranks render as "1." "2." "3." via the `medal(i) || \`${i+1}.\`` callers.
@@ -321,10 +344,32 @@ function medal(rank: number): string {
 
 // ── Components ─────────────────────────────────────────────────────
 
-function PageHead({ brandName, periodLabel }: { brandName: string; periodLabel: string }) {
+/**
+ * The running head on every page.
+ *
+ * 🚨 IT SAID "WEEKLY REPORT" ON EVERY PAGE OF EVERY PDF, hardcoded. A
+ * month-in-review attachment carried "CATA-KOR · WEEKLY REPORT" across all 18
+ * pages beside a period label reading Aug 1 – Aug 31 — the header and the
+ * dates on the same line contradicting each other, on the artifact a client
+ * downloads and keeps.
+ *
+ * ⚠️ `fixed` repeats this View on every page, so the label has to travel as a
+ * prop rather than be derived per page.
+ */
+function PageHead({
+  brandName,
+  periodLabel,
+  kind = 'weekly',
+}: {
+  brandName: string;
+  periodLabel: string;
+  kind?: 'performance' | 'weekly' | 'monthly';
+}) {
+  const label =
+    kind === 'monthly' ? 'MONTH IN REVIEW' : kind === 'weekly' ? 'WEEKLY REPORT' : 'PERFORMANCE REPORT';
   return (
     <View style={styles.pageHead} fixed>
-      <Text style={styles.pageHeadBrand}>{brandName.toUpperCase()} · WEEKLY REPORT</Text>
+      <Text style={styles.pageHeadBrand}>{brandName.toUpperCase()} · {label}</Text>
       <Text style={styles.pageHeadPeriod}>{periodLabel}</Text>
     </View>
   );
@@ -398,6 +443,7 @@ export function BrandClientReportPDF({
   notes = null,
   plan = null,
   reportType = 'performance',
+  weekly = [],
   movers = null,
 }: {
   data: BrandClientReportData;
@@ -415,6 +461,20 @@ export function BrandClientReportPDF({
    *  the same link, or a client reading the attachment sees a different report
    *  from the one they were sent. */
   reportType?: 'performance' | 'weekly' | 'monthly';
+  /**
+   * The 12-week trend, with our half of each week.
+   *
+   * 🚨 THE PDF CARRIED NO TREND AT ALL, so a client who downloaded the
+   * attachment got this period's numbers and no trajectory whatsoever — the
+   * one thing that answers "is this working". Lives on the SNAPSHOT beside
+   * `data` for the same reason movers do: it spans twelve weeks, not this
+   * report's window.
+   *
+   * ⚠️ rosterGmv is absent on snapshots frozen before migration 193, and the
+   * chart is skipped entirely rather than drawn store-only — a bar with no
+   * fill would read as a week we produced nothing.
+   */
+  weekly?: { weekEnd: string; gmv: number; rosterGmv?: number }[];
   /** Period comparison, not period content, so it arrives beside `data`
    *  rather than inside it. Null on every template except weekly. */
   movers?: {
@@ -427,6 +487,14 @@ export function BrandClientReportPDF({
   const isWeekly = reportType === 'weekly';
   const goalPctOfTotal = (n: number) => data.totalGmv > 0 ? (n / data.totalGmv) * 100 : 0;
   const peakDow = data.dayOfWeek.reduce((m, d) => Math.max(m, d.gmv), 0);
+
+  /**
+   * ⚠️ ALL TWELVE buckets or none. A partially split chart draws some weeks as
+   * empty tracks, which reads as "we produced nothing that week" — precisely
+   * the misreading the chart exists to prevent.
+   */
+  const trend = weekly.length >= 3 && weekly.every(w => w.rosterGmv !== undefined) ? weekly : null;
+  const trendMax = trend ? Math.max(1, ...trend.map(w => w.gmv)) : 1;
 
   // Granular block (mig 152). Absent on every snapshot frozen before it, so
   // its presence gates the sections exactly as it does on the web report.
@@ -793,7 +861,7 @@ export function BrandClientReportPDF({
 
       {/* ───────── PAGE 2: What we delivered. The agency leads. ───────── */}
       <Page size="LETTER" style={styles.page}>
-        <PageHead brandName={data.brandName} periodLabel={data.periodLabel} />
+        <PageHead brandName={data.brandName} periodLabel={data.periodLabel} kind={reportType} />
 
         {/* Contribution headline + trend. Mirrors the web report's opening
             claim so the two artifacts cannot tell different stories. */}
@@ -1178,7 +1246,7 @@ export function BrandClientReportPDF({
           can separate is worse than no block. */}
       {gran && (
         <Page size="LETTER" style={styles.page}>
-          <PageHead brandName={data.brandName} periodLabel={data.periodLabel} />
+          <PageHead brandName={data.brandName} periodLabel={data.periodLabel} kind={reportType} />
           {/* Roster composition + investment. Mirrors the web report's
               InvestmentStrip. "Affiliate-only" is stated because 142 signed
               creators overstates the commitment on both sides — only some carry
@@ -1262,7 +1330,7 @@ export function BrandClientReportPDF({
       {/* ── PAGE 2b: Every creator, in full ───────────────────────────── */}
       {gran && activeCreators.length > 0 && (
         <Page size="LETTER" style={styles.page}>
-          <PageHead brandName={data.brandName} periodLabel={data.periodLabel} />
+          <PageHead brandName={data.brandName} periodLabel={data.periodLabel} kind={reportType} />
           <View style={styles.section}>
             <Text style={styles.sectionEyebrow}>THE CREATORS WHO DELIVERED</Text>
             <Text style={styles.sectionTitle}>
@@ -1343,7 +1411,7 @@ export function BrandClientReportPDF({
 
       {/* ── PAGE 3: Store context — exec summary, highlights, GMV hero ── */}
       <Page size="LETTER" style={styles.page}>
-        <PageHead brandName={data.brandName} periodLabel={data.periodLabel} />
+        <PageHead brandName={data.brandName} periodLabel={data.periodLabel} kind={reportType} />
 
         {/* Executive Summary */}
         <View style={styles.summaryCard} wrap={false}>
@@ -1425,7 +1493,7 @@ export function BrandClientReportPDF({
 
       {/* ── PAGE 4: Store context — key metrics, managed split, new vs returning ── */}
       <Page size="LETTER" style={styles.page}>
-        <PageHead brandName={data.brandName} periodLabel={data.periodLabel} />
+        <PageHead brandName={data.brandName} periodLabel={data.periodLabel} kind={reportType} />
 
         {/* Primary KPIs row */}
         <View style={styles.section}>
@@ -1537,7 +1605,44 @@ export function BrandClientReportPDF({
 
       {/* ── PAGE 5: Store context — day-of-week + daily performance ── */}
       <Page size="LETTER" style={styles.page}>
-        <PageHead brandName={data.brandName} periodLabel={data.periodLabel} />
+        <PageHead brandName={data.brandName} periodLabel={data.periodLabel} kind={reportType} />
+
+        {/* ⚠️ wrap={false} on the row, NOT on the section: a repeating row
+            carrying a border is the @react-pdf layout fault that only fires
+            once a document paginates. This row has no border and never
+            repeats. */}
+        {trend && (
+          <View style={styles.section}>
+            <Text style={styles.sectionEyebrow}>TWELVE-WEEK TREND</Text>
+            <Text style={styles.sectionTitle}>Our share of the store, week by week</Text>
+            <View style={styles.trendRow} wrap={false}>
+              {trend.map(w => {
+                const h = Math.max(2, (w.gmv / trendMax) * 78);
+                const fill = w.gmv > 0 ? Math.min(h, ((w.rosterGmv as number) / w.gmv) * h) : 0;
+                return (
+                  <View key={w.weekEnd} style={styles.trendItem}>
+                    <View style={[styles.trendTrack, { height: h }]}>
+                      <View style={[styles.trendFill, { height: fill }]} />
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+            <View style={styles.trendLegend}>
+              <View style={styles.trendKey}>
+                <View style={[styles.trendSwatch, { backgroundColor: COLORS.blue }]} />
+                <Text style={styles.trendKeyText}>CREATORS WE RUN</Text>
+              </View>
+              <View style={styles.trendKey}>
+                <View style={[styles.trendSwatch, { backgroundColor: '#e6e4f4' }]} />
+                <Text style={styles.trendKeyText}>EVERYONE ELSE</Text>
+              </View>
+              <Text style={styles.trendKeyText}>
+                {fmtWeekEnd(trend[0].weekEnd)} &ndash; {fmtWeekEnd(trend[trend.length - 1].weekEnd)}
+              </Text>
+            </View>
+          </View>
+        )}
 
         <View style={styles.section}>
           <Text style={styles.sectionEyebrow}>WEEKLY RHYTHM</Text>
@@ -1588,7 +1693,7 @@ export function BrandClientReportPDF({
 
       {/* ───────────── PAGE 5: Top Creators leaderboard ───────────── */}
       <Page size="LETTER" style={styles.page}>
-        <PageHead brandName={data.brandName} periodLabel={data.periodLabel} />
+        <PageHead brandName={data.brandName} periodLabel={data.periodLabel} kind={reportType} />
         <View style={styles.section}>
           <Text style={styles.sectionEyebrow}>LEADERBOARD</Text>
           <Text style={styles.sectionTitle}>Top Performing Creators</Text>
@@ -1617,7 +1722,7 @@ export function BrandClientReportPDF({
 
       {/* ───────────── PAGE 5: Top Videos leaderboard ───────────── */}
       <Page size="LETTER" style={styles.page}>
-        <PageHead brandName={data.brandName} periodLabel={data.periodLabel} />
+        <PageHead brandName={data.brandName} periodLabel={data.periodLabel} kind={reportType} />
         <View style={styles.section}>
           <Text style={styles.sectionEyebrow}>CONTENT</Text>
           <Text style={styles.sectionTitle}>Top Performing Videos</Text>
@@ -1645,7 +1750,7 @@ export function BrandClientReportPDF({
 
       {/* ───────────── PAGE 6: Top Products leaderboard ───────────── */}
       <Page size="LETTER" style={styles.page}>
-        <PageHead brandName={data.brandName} periodLabel={data.periodLabel} />
+        <PageHead brandName={data.brandName} periodLabel={data.periodLabel} kind={reportType} />
         <View style={styles.section}>
           <Text style={styles.sectionEyebrow}>CATALOG</Text>
           <Text style={styles.sectionTitle}>Top Selling Products</Text>
@@ -1674,7 +1779,7 @@ export function BrandClientReportPDF({
       {/* ───────────── PAGE 7+: Product → Creator Breakdown ───────────── */}
       {data.productCreatorBreakdown.length > 0 && (
         <Page size="LETTER" style={styles.page}>
-          <PageHead brandName={data.brandName} periodLabel={data.periodLabel} />
+          <PageHead brandName={data.brandName} periodLabel={data.periodLabel} kind={reportType} />
           <View style={styles.section}>
             <Text style={styles.sectionEyebrow}>DEEP DIVE</Text>
             <Text style={styles.sectionTitle}>Product Breakdown by Creator</Text>
