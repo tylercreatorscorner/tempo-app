@@ -303,6 +303,28 @@ export interface BrandClientReportData {
     /** Newest three post-months, newest first. */
     vintage: { label: string; videos: number; gmv: number }[];
     vintageOlder: { videos: number; gmv: number };
+    /**
+     * The same video GMV bucketed by AGE rather than calendar month
+     * (migration 194), measured back from the window END so a frozen report
+     * gives the same answer forever.
+     *
+     * ⚠️ VIDEO GMV ONLY. Live and product-card GMV have no post date and are
+     * never apportioned across these buckets, so the five sum to
+     * newVideo.totalGmv, NOT to managed GMV. The renderer states the remainder
+     * on its own line.
+     *
+     * OPTIONAL: absent on every snapshot frozen before migration 194, which
+     * falls back to the calendar-month rendering.
+     */
+    vintageAge?: {
+      d0_30:    { videos: number; gmv: number };
+      d30_60:   { videos: number; gmv: number };
+      d60_90:   { videos: number; gmv: number };
+      d90_plus: { videos: number; gmv: number };
+      /** Videos with no recorded post date. Belongs to no age bucket and is
+       *  shown as its own line rather than folded into the oldest one. */
+      unknown:  { videos: number; gmv: number };
+    };
     /** EVERY signed creator, including those at zero. `quota` is null for
      *  affiliate-only and MUST render as absence, never 0. */
     creators: {

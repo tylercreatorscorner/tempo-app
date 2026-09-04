@@ -535,16 +535,37 @@ export function BrandClientReportPDF({
       : null;
   })();
 
-  const vintageRows = gran
-    ? [
-        // Skip zero-GMV months: an August report was listing "Sep 2026 $0".
-        ...gran.vintage.filter((v) => v.gmv > 0)
-          .map((v) => ({ label: v.label, videos: v.videos, gmv: v.gmv, isOlder: false })),
-        ...(gran.vintageOlder.videos > 0 || gran.vintageOlder.gmv > 0
-          ? [{ label: 'Earlier', videos: gran.vintageOlder.videos, gmv: gran.vintageOlder.gmv, isOlder: true }]
-          : []),
-      ]
-    : [];
+  /**
+   * How long a post keeps earning, by AGE (migration 194).
+   *
+   * 🚨 CALENDAR MONTHS ANSWERED THE WRONG QUESTION AND STOPPED EARLY. Three
+   * months, then one unnamed "Earlier" bucket that was 58.6% of Cata-Kor's
+   * period: the largest figure in the section, saying nothing. A month is also
+   * not an age, so on any non-month window the newest bucket was a partial
+   * month labelled as a whole one.
+   *
+   * ⚠️ Falls back to the calendar rendering on snapshots frozen before 194.
+   * `isOlder` shades the 90+ and no-date rows, which is the closest the PDF's
+   * flat bars get to the web report's sequential ramp.
+   */
+  const vintageRows = !gran
+    ? []
+    : gran.vintageAge
+      ? [
+          { label: 'Last 30d',  videos: gran.vintageAge.d0_30.videos,    gmv: Number(gran.vintageAge.d0_30.gmv)    || 0, isOlder: false },
+          { label: '30-60d',    videos: gran.vintageAge.d30_60.videos,   gmv: Number(gran.vintageAge.d30_60.gmv)   || 0, isOlder: false },
+          { label: '60-90d',    videos: gran.vintageAge.d60_90.videos,   gmv: Number(gran.vintageAge.d60_90.gmv)   || 0, isOlder: false },
+          { label: '90d+',      videos: gran.vintageAge.d90_plus.videos, gmv: Number(gran.vintageAge.d90_plus.gmv) || 0, isOlder: true },
+          { label: 'No date',   videos: gran.vintageAge.unknown.videos,  gmv: Number(gran.vintageAge.unknown.gmv)  || 0, isOlder: true },
+        ].filter((v) => v.gmv > 0)
+      : [
+          // Skip zero-GMV months: an August report was listing "Sep 2026 $0".
+          ...gran.vintage.filter((v) => v.gmv > 0)
+            .map((v) => ({ label: v.label, videos: v.videos, gmv: v.gmv, isOlder: false })),
+          ...(gran.vintageOlder.videos > 0 || gran.vintageOlder.gmv > 0
+            ? [{ label: 'Earlier', videos: gran.vintageOlder.videos, gmv: gran.vintageOlder.gmv, isOlder: true }]
+            : []),
+        ];
   const vintageMax = Math.max(...vintageRows.map((v) => v.gmv), 1);
   // Denominator for the share printed on each row: the roster's video GMV,
   // which is what these buckets partition.
@@ -1313,15 +1334,17 @@ export function BrandClientReportPDF({
               only sales made in this period — the same cut as the web report. */}
           {gran && vintageRows.length > 0 && (
             <View style={styles.section}>
-              <Text style={styles.sectionEyebrow}>WHERE OUR SALES CAME FROM</Text>
-              <Text style={styles.sectionTitle}>Every month of posting keeps earning</Text>
-              {gran.netNew && gran.netNew.totalGmv > 0 && (
-                <Text style={styles.splitMeta}>
-                  {fmtPct((gran.netNew.netNewGmv / gran.netNew.totalGmv) * 100, 1)} of your
-                  roster&apos;s revenue this period came from videos published after we started with
-                  each creator; the rest is their earlier content, still selling.
-                </Text>
-              )}
+              <Text style={styles.sectionEyebrow}>
+                {gran.vintageAge ? 'HOW LONG A POST KEEPS EARNING' : 'WHERE OUR SALES CAME FROM'}
+              </Text>
+              <Text style={styles.sectionTitle}>
+                {gran.vintageAge
+                  ? 'Video sales by the age of the post'
+                  : 'Every month of posting keeps earning'}
+              </Text>
+              {/* ⚠️ The net-new line came out with the calendar buckets. It
+                  answered "is this our work" beside buckets answering "how old
+                  is it", and read as a competing claim about one thing. */}
               {vintageRows.map((v) => (
                 <View key={v.label} style={styles.gBarRow} wrap={false}>
                   <Text style={styles.gBarLabel}>{v.label}</Text>
@@ -1343,13 +1366,19 @@ export function BrandClientReportPDF({
                   </Text>
                 </View>
               ))}
+              {/* ⚠️ VIDEO GMV ONLY, and the remainder is NAMED. Live and
+                  product-card GMV carry no post date and are never apportioned
+                  across these buckets, so the rows sum to video GMV and not to
+                  the roster GMV in the headline. Without this line the two
+                  differ on the same document with no explanation. */}
               <Text style={[styles.gStatNote, { marginTop: 6 }]}>
-                Content earns for roughly 90 days, so the previous month is usually the peak.
-                {gran.newVideo.unknownPostDateGmv > 0
-                  // Null post_date lands in vintageOlder, which is why the
-                  // buckets already sum to video GMV exactly.
-                  ? ` ${fmtCurrency(gran.newVideo.unknownPostDateGmv)} came from videos with no recorded post date and is counted in the oldest group.`
-                  : ''}
+                {gran.vintageAge
+                  ? `Video only. A further ${fmtCurrency(Math.max(0, cc.gmv - vintageTotal))} of your roster's sales came through live streams and product cards, which carry no post date and are not split by age here.`
+                  : `Content earns for roughly 90 days, so the previous month is usually the peak.${
+                      gran.newVideo.unknownPostDateGmv > 0
+                        ? ` ${fmtCurrency(gran.newVideo.unknownPostDateGmv)} came from videos with no recorded post date and is counted in the oldest group.`
+                        : ''
+                    }`}
               </Text>
             </View>
           )}

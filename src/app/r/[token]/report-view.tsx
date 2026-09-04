@@ -595,10 +595,52 @@ function SourceSplit({
   );
 }
 
-function InvestmentStrip({ g }: { g: NonNullable<BrandClientReportData['granular']> }) {
+/**
+ * The return on retainer, and the roster facts that produce it.
+ *
+ * 🚨 THE MOST PERSUASIVE NUMBER IN THE REPORT WAS A SENTENCE IN BODY TEXT.
+ * "that is 13.0x back on what the retained creators were paid" sat as a
+ * paragraph ABOVE four equal-weight KPI tiles, so the tiles read as the
+ * important part and the answer to "what did my money buy" read as a caption.
+ * The multiple is now the figure and the four roster facts are the supporting
+ * row, which is the actual hierarchy.
+ *
+ * ⚠️ WHOLE CALENDAR MONTHS ONLY, because a retainer is monthly. On any other
+ * window `ret` is null and this renders as the plain strip it used to be
+ * rather than dividing a week of GMV by a month of retainer.
+ *
+ * ⚠️ The denominator is retainer EARNED, not committed, so a month where
+ * little was delivered produces a HIGHER multiple. That is arithmetically
+ * right and the delivery section states the same period's delivery rate a few
+ * screens down, so the two can be read together.
+ */
+function InvestmentStrip({
+  g,
+  ret,
+  spend,
+}: {
+  g: NonNullable<BrandClientReportData['granular']>;
+  /** Roster GMV over retainer earned. Null on any non-month window. */
+  ret: number | null;
+  /** The earned figure the multiple divides by. */
+  spend: number | null;
+}) {
   const budget = finite(g.roster.monthlyRetainerBudget);
   return (
-    <div className="mt-3 rounded-[14px] border border-[#e7e7f2] bg-white px-5 py-4">
+    <div className="mt-3 overflow-hidden rounded-[14px] border border-[#e7e7f2] bg-white">
+      {ret !== null && spend !== null && (
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 border-b border-[#eeedf5] bg-[#fafaff] px-5 py-3.5">
+          <span className="text-[30px] font-extrabold leading-none tracking-tight text-[#4b45ff]">
+            {ret.toFixed(1)}x
+          </span>
+          <span className="max-w-[52ch] text-[13.5px] leading-[1.5] text-[#33375c]">
+            back on retainer. Your roster produced{' '}
+            <b className="text-[#171a33]">{money(spend * ret)}</b> against{' '}
+            <b className="text-[#171a33]">{money(spend)}</b> of retainer earned this month.
+          </span>
+        </div>
+      )}
+      <div className="px-5 py-4">
       {/* ⚠️ NO "Signed creators" and NO "Posts published" here, deliberately.
           Both already appear earlier in the report from a DIFFERENT source and
           at a DIFFERENT grain, and showing a second value under the same name
@@ -633,6 +675,7 @@ function InvestmentStrip({ g }: { g: NonNullable<BrandClientReportData['granular
           note="including earlier posts"
         />
       </div>
+      </div>
     </div>
   );
 }
@@ -657,107 +700,222 @@ function MiniStat({ label, value, note }: { label: string; value: string; note?:
  * doing nothing, when the truth is that content earns for roughly 90 days and
  * the previous month is usually the peak.
  */
+/**
+ * How long a post keeps earning.
+ *
+ * 🚨 REPLACES "Where our sales came from", which answered the wrong question
+ * and stopped early. It bucketed by CALENDAR MONTH and showed three, so an
+ * August report read "AUG / JUL / EARLIER POSTS" and a brand could not tell
+ * whether "earlier" meant three months or eighteen. On Cata-Kor that unnamed
+ * bucket was 58.6% of the period: the largest figure in the section, and it
+ * said nothing. A calendar month is also not an age, so on any window that is
+ * not a whole month the newest bucket is a partial month labelled as a whole
+ * one.
+ *
+ * Age answers what a brand deciding whether to keep paying actually asks.
+ *
+ * ⚠️ THE RAMP IS SEQUENTIAL, NOT CATEGORICAL. Newest is the strongest indigo
+ * and each older bucket steps lighter, so the colour encodes age rather than
+ * merely distinguishing four arbitrary things. A four-colour rainbow here
+ * would carry no information at all.
+ *
+ * ⚠️ VIDEO GMV ONLY, said in the section rather than in a footnote. Live and
+ * product-card GMV carry no post date and are never apportioned across the
+ * buckets, so the segments sum to VIDEO GMV and not to roster GMV. The
+ * remainder gets its own line, so the two figures are allowed to differ
+ * visibly instead of quietly disagreeing.
+ */
 function VintageSection({
   g,
-  word,
+  rosterGmv,
 }: {
   g: NonNullable<BrandClientReportData['granular']>;
-  word: string;
+  /** Roster GMV for the window, so the non-video remainder can be named. */
+  rosterGmv: number;
 }) {
+  const age = g.vintageAge;
+  const videoTotal = finite(g.newVideo.totalGmv) ?? 0;
+
+  // ⚠️ Absent on every snapshot frozen before migration 194. Those keep the
+  // calendar-month rendering rather than showing an empty section.
+  if (!age || videoTotal <= 0) return <LegacyVintageSection g={g} />;
+
+  const buckets = [
+    { key: 'd0_30', label: 'Last 30 days', b: age.d0_30, color: '#4b45ff' },
+    { key: 'd30_60', label: '30 to 60 days', b: age.d30_60, color: '#7c6cf5' },
+    { key: 'd60_90', label: '60 to 90 days', b: age.d60_90, color: '#a99bf3' },
+    { key: 'd90_plus', label: '90+ days', b: age.d90_plus, color: '#d6d0f4' },
+    { key: 'unknown', label: 'No post date', b: age.unknown, color: '#e9e7f2' },
+  ]
+    .map((x) => ({ ...x, gmv: finite(x.b.gmv) ?? 0, videos: finite(x.b.videos) ?? 0 }))
+    .filter((x) => x.gmv > 0);
+
+  const shown = buckets.reduce((s, x) => s + x.gmv, 0);
+  if (shown <= 0) return <LegacyVintageSection g={g} />;
+
+  const pct = (n: number) => (n / shown) * 100;
+  const fresh = buckets.find((x) => x.key === 'd0_30');
+  const old90 = buckets.find((x) => x.key === 'd90_plus');
+  // Live + product card. Named rather than hidden: the donut totals video GMV
+  // and the headline states roster GMV, and a reader who subtracts is owed the
+  // answer.
+  const nonVideo = Math.max(0, rosterGmv - videoTotal);
+
+  // Cumulative offsets for the donut. pathLength 100 makes every length a
+  // percentage directly, so no circumference arithmetic can drift.
+  let acc = 0;
+  const arcs = buckets.map((x) => {
+    const p = pct(x.gmv);
+    const arc = { ...x, p, offset: -acc };
+    acc += p;
+    return arc;
+  });
+
+  return (
+    <div className="rounded-[14px] border border-[#e7e7f2] bg-white px-5 py-5">
+      {/* The SectionLine above already says "How long a post keeps earning";
+          repeating it here wasted the one line that can state the finding. */}
+      <h2 className="text-[20px] font-extrabold leading-snug tracking-tight text-[#171a33]">
+        Video sales by the age of the post
+      </h2>
+      <p className="mt-1.5 max-w-[68ch] text-[14.5px] leading-[1.65] text-[#33375c]">
+        {fresh && (
+          <>
+            <b className="text-[#171a33]">{money(fresh.gmv)}</b> came from videos posted in the last
+            30 days, {pct(fresh.gmv).toFixed(0)}% of your roster&rsquo;s video sales.{' '}
+          </>
+        )}
+        {old90 && (
+          <>
+            Another <b className="text-[#171a33]">{money(old90.gmv)}</b> came from posts more than 90
+            days old, which is work already paid for that is still selling.
+          </>
+        )}
+      </p>
+
+      <div className="mt-4 flex flex-col items-center gap-6 sm:flex-row">
+        <svg
+          viewBox="0 0 120 120"
+          className="h-[132px] w-[132px] shrink-0"
+          role="img"
+          aria-label="Roster video GMV by the age of the post that earned it"
+        >
+          <g transform="rotate(-90 60 60)">
+            {arcs.map((a) => (
+              <circle
+                key={a.key}
+                cx="60"
+                cy="60"
+                r="46"
+                fill="none"
+                stroke={a.color}
+                strokeWidth="17"
+                pathLength={100}
+                strokeDasharray={`${a.p} ${100 - a.p}`}
+                strokeDashoffset={a.offset}
+              />
+            ))}
+          </g>
+          <text
+            x="60"
+            y="55"
+            textAnchor="middle"
+            className="fill-[#171a33] text-[15px] font-extrabold tabular-nums"
+          >
+            {compactMoney(videoTotal)}
+          </text>
+          <text
+            x="60"
+            y="69"
+            textAnchor="middle"
+            className="fill-[#8a8fb0] text-[8px] font-bold uppercase tracking-[0.09em]"
+          >
+            video GMV
+          </text>
+        </svg>
+
+        <div className="w-full min-w-0 flex-1">
+          {buckets.map((x) => (
+            <div
+              key={x.key}
+              className="flex items-center gap-2.5 border-b border-[#f2f1f8] py-1.5 last:border-b-0"
+            >
+              <span
+                className="h-2.5 w-2.5 shrink-0 rounded-[3px]"
+                style={{ backgroundColor: x.color }}
+              />
+              <span className="min-w-0 flex-1 truncate text-[13.5px] text-[#33375c]">{x.label}</span>
+              <span className="shrink-0 text-[12px] tabular-nums text-[#8a8fb0]">
+                {num(x.videos)} video{x.videos === 1 ? '' : 's'}
+              </span>
+              <span className="w-[52px] shrink-0 text-right text-[12.5px] font-bold tabular-nums text-[#5c6183]">
+                {pct(x.gmv).toFixed(1)}%
+              </span>
+              <span className="w-[78px] shrink-0 text-right text-[13.5px] font-bold tabular-nums text-[#171a33]">
+                {money(x.gmv)}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* The reconciliation. Without it the donut total and the headline differ
+          by the live and card figures with no explanation anywhere on the page. */}
+      {nonVideo > 0 && (
+        <p className="mt-3.5 border-t border-[#f2f1f8] pt-3 text-[12.5px] leading-[1.6] text-[#8a8fb0]">
+          Video only. A further <b className="text-[#5c6183]">{money(nonVideo)}</b> of your
+          roster&rsquo;s sales came through live streams and product cards, which carry no post date
+          and are not split by age here.
+        </p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The calendar-month rendering, kept ONLY for snapshots frozen before
+ * migration 194 added age buckets. Not a design choice any more: see the note
+ * on VintageSection for why age replaced it.
+ */
+function LegacyVintageSection({ g }: { g: NonNullable<BrandClientReportData['granular']> }) {
   const total = finite(g.newVideo.totalGmv) ?? 0;
-  const gmv30 = finite(g.newVideo.gmv30d) ?? 0;
-  const pct30 = total > 0 ? (gmv30 / total) * 100 : null;
-  const unknown = finite(g.newVideo.unknownPostDateGmv) ?? 0;
   const rows = [
-    // ⚠️ Skip zero-GMV months. An August report was listing "SEP 2026 $0 ·
-    // 3 videos": a bucket outside the window, contributing nothing.
-    ...g.vintage.filter((v) => v.gmv > 0).map((v) => ({ label: v.label, videos: v.videos, gmv: v.gmv, isOlder: false })),
-    ...(g.vintageOlder.videos > 0 || g.vintageOlder.gmv > 0
-      ? [{ label: 'Earlier', videos: g.vintageOlder.videos, gmv: g.vintageOlder.gmv, isOlder: true }]
+    // Skip zero-GMV months: an August report was listing "SEP 2026 $0, 3 videos".
+    ...g.vintage
+      .filter((v) => v.gmv > 0)
+      .map((v) => ({ label: v.label, videos: v.videos, gmv: v.gmv })),
+    ...(g.vintageOlder.gmv > 0
+      ? [{ label: 'Earlier', videos: g.vintageOlder.videos, gmv: g.vintageOlder.gmv }]
       : []),
   ];
-  // The share carried by content posted before the three months listed. Stated
-  // as a number because it is usually the most persuasive figure in the report
-  // and it was previously left for the reader to infer from bar lengths.
-  const olderPct =
-    total > 0 && g.vintageOlder.gmv > 0 ? (g.vintageOlder.gmv / total) * 100 : null;
-  /** Share of roster revenue from content published since CC started. */
-  const nn = g.netNew;
-  const netNewPct =
-    nn && finite(nn.totalGmv) && nn.totalGmv > 0 ? (nn.netNewGmv / nn.totalGmv) * 100 : null;
+  if (total <= 0 || rows.length === 0) return null;
 
   return (
     <div className="rounded-[14px] border border-[#e7e7f2] bg-white px-5 py-5">
       <h2 className="text-[20px] font-extrabold leading-snug tracking-tight text-[#171a33]">
         Every month of posting keeps earning
       </h2>
-      <p className="mt-1.5 max-w-[68ch] text-[14.5px] leading-[1.65] text-[#33375c]">
-        {total > 0 ? (
-          <>
-            {/* The net-new share used to be its own section further up the page.
-                It answers "is this OUR work" and belongs beside the months that
-                answer "when was it made", not in a separate place where the two
-                read as competing claims. */}
-            {netNewPct !== null && (
-              <>
-                <b className="text-[#171a33]">{netNewPct.toFixed(1)}%</b> of your roster&rsquo;s revenue
-                this {word} came from videos published after we started with each creator; the rest is
-                their earlier content, still selling.{' '}
-              </>
-            )}
-            {olderPct !== null && olderPct >= 15 ? (
-              <>
-                And it keeps earning long after it goes up:{' '}
-                <b className="text-[#171a33]">{olderPct.toFixed(1)}%</b> of this {word}&rsquo;s sales
-                came from posts older than the months below. That back catalogue is what the work
-                compounds into.
-              </>
-            ) : (
-              <>Content published earlier is still selling, which is why posting consistently compounds.</>
-            )}
-          </>
-        ) : (
-          <>No roster sales in this {word}, so there is no split to show.</>
-        )}
-      </p>
-
-      {/* Cards, not bars. Each month is a share of one total, and the point
-          is the share — which a card states and a bar length only implies. */}
-      <div className="mt-5 grid grid-cols-2 gap-3.5 md:grid-cols-4">
-        {rows.map((r) => {
-          const share = total > 0 ? (r.gmv / total) * 100 : null;
-          return (
-            <div
-              key={r.label}
-              className="rounded-[12px] border bg-white px-3.5 py-3"
-              style={{ borderColor: r.isOlder ? '#4b45ff' : '#e7e7f2' }}
-            >
-              <div className="text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">
-                {r.isOlder ? 'Earlier posts' : r.label}
-              </div>
-              <div className="mt-0.5 text-[19px] font-extrabold tabular-nums text-[#171a33]">
-                {money(r.gmv)}
-              </div>
-              <div className="mt-1 text-[11.5px] tabular-nums text-[#8a8fb0]">
-                {share !== null ? `${share.toFixed(1)}%` : '—'}
-                {r.videos > 0 && <> &middot; {num(r.videos)} videos</>}
-              </div>
-            </div>
-          );
-        })}
+      <div className="mt-3.5">
+        {rows.map((r2) => (
+          <div
+            key={r2.label}
+            className="flex items-center gap-2.5 border-b border-[#f2f1f8] py-1.5 last:border-b-0"
+          >
+            <span className="min-w-0 flex-1 truncate text-[13.5px] uppercase text-[#33375c]">
+              {r2.label}
+            </span>
+            <span className="shrink-0 text-[12px] tabular-nums text-[#8a8fb0]">
+              {num(r2.videos)} videos
+            </span>
+            <span className="w-[52px] shrink-0 text-right text-[12.5px] font-bold tabular-nums text-[#5c6183]">
+              {((r2.gmv / total) * 100).toFixed(1)}%
+            </span>
+            <span className="w-[78px] shrink-0 text-right text-[13.5px] font-bold tabular-nums text-[#171a33]">
+              {money(r2.gmv)}
+            </span>
+          </div>
+        ))}
       </div>
-
-      <p className="mt-4 text-[11.5px] leading-[1.6] text-[#8a8fb0]">
-        Grouped by the month each video was posted, counting only sales made during this {word}.
-        {/* It is NOT in "neither": get_brand_client_report_granular puts null
-            post_date into vintageOlder (`posted_month is null or ...`), which is
-            why the buckets already sum to video GMV exactly. The old wording
-            claimed money was missing from a total it was actually in. */}
-        {unknown > 0 && (
-          <> {money(unknown)} came from videos with no recorded post date and is counted in the
-          oldest group.</>
-        )}
-      </p>
     </div>
   );
 }
@@ -1903,18 +2061,15 @@ export function ReportView({
               </div>
             </div>
 
-            {/* The answer to "what did I get for my money", next to the
-                figure it is derived from rather than twelve sections away. */}
-            {retainerReturn !== null && monthSpend && (
-              <p className="mt-3 max-w-[70ch] text-[14.5px] leading-[1.65] text-[#33375c]">
-                Against <b className="text-[#171a33]">{money(monthSpend.earned)}</b> of retainer
-                earned this month, that is{' '}
-                <b className="text-[#171a33]">{retainerReturn.toFixed(1)}x</b> back on what the
-                retained creators were paid.
-              </p>
+            {/* The answer to "what did I get for my money" leads the block it
+                is derived from, rather than trailing it as a caption. */}
+            {gran && (
+              <InvestmentStrip
+                g={gran}
+                ret={retainerReturn}
+                spend={monthSpend ? monthSpend.earned : null}
+              />
             )}
-
-            {gran && <InvestmentStrip g={gran} />}
 
             {/* The WHY, before any warning about the WHAT. */}
             {driver && (
@@ -2217,8 +2372,8 @@ export function ReportView({
         {/* ── 4b. Video vintage: which posts are carrying the period ── */}
         {gran && gran.vintage.length > 0 && (
           <>
-            <SectionLine>Where our sales came from</SectionLine>
-            <VintageSection g={gran} word={word} />
+            <SectionLine>How long a post keeps earning</SectionLine>
+            <VintageSection g={gran} rosterGmv={cc.gmv} />
           </>
         )}
 
