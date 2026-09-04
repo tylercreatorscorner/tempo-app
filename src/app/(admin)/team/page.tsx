@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 import { TeamManagement } from '@/components/team/team-management';
+import { PageHeader } from '@/components/ui/page-header';
 
 export const metadata = { title: 'Team — Tempo' };
 
@@ -17,9 +18,16 @@ export default async function TeamPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
+  /**
+   * ⚠️ is_archived travels with the brand so the access picker can hide
+   * archived brands from NEW grants while still showing one a user already
+   * holds. Offering an archived brand invites granting access to something
+   * nobody can reach; hiding an existing grant would make a live permission
+   * invisible, which is worse.
+   */
   const { data: brands } = await supabase
     .from('brands_v2')
-    .select('id, name, slug, display_name, color')
+    .select('id, name, slug, display_name, color, is_archived')
     .order('name');
 
   const { data: members } = await supabase
@@ -34,13 +42,37 @@ export default async function TeamPage() {
     .select('user_id, brand_id')
     .eq('tenant_id', scope.tenantId);
 
-  // Real invite status: a member who has never signed in is still "pending".
-  // status on user_profiles is stamped 'active' at invite time, so it can't tell.
+  /**
+   * Real invite status: a member who has never signed in is still "pending".
+   * status on user_profiles is stamped 'active' at invite time, so it can't tell.
+   *
+   * 🚨 THIS READ WAS TRUNCATED AND IT ACCUSED PEOPLE OF NOT SHOWING UP.
+   * listUsers({ perPage: 200 }) returns ONE page, and the tenant has 262 auth
+   * users (22 staff plus 191 creators plus brand contacts). Everyone past the
+   * first page was absent from this set and therefore rendered "pending" no
+   * matter how often they had signed in — the page reported 7 unaccepted
+   * invites when the true number was 1, and one of the six false positives was
+   * the OWNER, reading the page while signed in as that account.
+   *
+   * ⚠⚠ A LARGER perPage IS NOT THE FIX, it is the same bug with more headroom.
+   * Page until a short page comes back. The cap is there so a runaway cannot
+   * hang the request; if it is ever hit the count is understated rather than
+   * wrong in a way that blames someone, and staff ids are created before
+   * creators so they land on the early pages.
+   */
   const admin = await createAdminClient();
-  const { data: authList } = await admin.auth.admin.listUsers({ perPage: 200 });
-  const signedIn = new Set(
-    (authList?.users ?? []).filter((u) => u.last_sign_in_at).map((u) => u.id),
-  );
+  const signedIn = new Set<string>();
+  const PER_PAGE = 1000;
+  for (let page = 1; page <= 10; page++) {
+    const { data: authList, error } = await admin.auth.admin.listUsers({ page, perPage: PER_PAGE });
+    if (error) {
+      console.error('[team] listUsers page', page, 'failed:', error.message);
+      break;
+    }
+    const batch = authList?.users ?? [];
+    for (const u of batch) if (u.last_sign_in_at) signedIn.add(u.id);
+    if (batch.length < PER_PAGE) break;
+  }
 
   const users = (members ?? []).map((m) => ({
     ...m,
@@ -50,12 +82,11 @@ export default async function TeamPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[var(--foreground)]">Team</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Invite teammates and manage their roles, brand access, and finance visibility.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Access"
+        title="Team"
+        subtitle="Who can sign in, what they can reach, and who can see money."
+      />
       <TeamManagement
         users={users}
         brands={brands ?? []}
