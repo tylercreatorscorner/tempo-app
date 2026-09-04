@@ -17,7 +17,7 @@
  * a silently-empty success state.
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, Clipboard, Link2, Loader2, Wand2 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils/format';
 import { Card } from '@/components/ui/card';
@@ -111,6 +111,50 @@ interface PreviewData {
 
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 
+interface MonthChoice {
+  /** yyyy-MM, the value carried in state. */
+  key: string;
+  label: string;
+  start: string;
+  end: string;
+  /** True for the month still running, whose end is capped at today. */
+  partial: boolean;
+}
+
+/**
+ * The months a month-in-review report can cover, newest first.
+ *
+ * 🚨 A CALENDAR MONTH, NOT A ROLLING 30 DAYS. "Last 30d" ends today and starts
+ * 29 days earlier, which straddles two months; the monthly report compares
+ * delivery against a MONTHLY post target, so anything but a real month reads
+ * as failure. That mismatch is why the panel used to carry a note telling the
+ * operator to build the dates by hand.
+ *
+ * The current month is offered but marked partial: it is a legitimate thing to
+ * send mid-month (the report says "August so far" and states the days elapsed),
+ * it is just not the finished article.
+ */
+function monthChoices(now: Date, count = 6): MonthChoice[] {
+  const today = now.toISOString().slice(0, 10);
+  const out: MonthChoice[] = [];
+  for (let i = 0; i < count; i++) {
+    const first = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
+    const last = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 0));
+    const startStr = first.toISOString().slice(0, 10);
+    const lastStr = last.toISOString().slice(0, 10);
+    // The running month stops at today; a future end date has no data behind it.
+    const partial = lastStr > today;
+    out.push({
+      key: startStr.slice(0, 7),
+      label: first.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' }),
+      start: startStr,
+      end: partial ? today : lastStr,
+      partial,
+    });
+  }
+  return out;
+}
+
 function ClientReportForm({ onSent, lockedBrand }: { onSent: () => void; lockedBrand?: string }) {
   const { brand: pickedBrand, setBrand, options: brandOptions, error: brandsError } =
     useBrandSelect({ collapseUmbrella: true, initial: lockedBrand });
@@ -119,10 +163,22 @@ function ClientReportForm({ onSent, lockedBrand }: { onSent: () => void; lockedB
   const [preset, setPreset] = useState<PeriodPreset>('7d');
   // Weekly is the common send and is never worse than the retired default.
   const [reportKind, setReportKind] = useState<SelectableKind>('weekly');
+  // The months a monthly report can cover. Computed once per mount; the panel
+  // is not open long enough for the month to turn over underneath it.
+  const months = useMemo(() => monthChoices(new Date()), []);
+  // Defaults to the most recently COMPLETED month, which is what a month in
+  // review usually means. Falls back to the running month in the first days of
+  // a new month before any complete one exists in the list.
+  const [monthKey, setMonthKey] = useState<string>(
+    () => (months.find((m) => !m.partial) ?? months[0]).key,
+  );
+  const month = months.find((m) => m.key === monthKey) ?? months[0];
   const [startDate, setStartDate] = useState(() => new Date(Date.now() - 6 * 86_400_000).toISOString().slice(0, 10));
   const [endDate, setEndDate] = useState(() => new Date().toISOString().slice(0, 10));
   const today = new Date().toISOString().slice(0, 10);
-  const rangeValid = preset !== 'custom' || startDate <= endDate;
+  // A month is always a valid range by construction; only the custom inputs
+  // can be put the wrong way round.
+  const rangeValid = reportKind === 'monthly' || preset !== 'custom' || startDate <= endDate;
 
   const [preview, setPreview] = useState<PreviewData | null>(null);
   const [notes, setNotes] = useState('');
@@ -150,7 +206,17 @@ function ClientReportForm({ onSent, lockedBrand }: { onSent: () => void; lockedB
   }, [brand, preset, startDate, endDate]);
 
   // '7d' | '30d' go up as-is; a custom range goes up as { start, end }.
-  const periodPayload = preset === 'custom' ? { start: startDate, end: endDate } : preset;
+  /**
+   * ⚠️ A monthly report ALWAYS sends explicit dates. The 7d/30d presets are
+   * rolling windows ending today, and "last 30 days" is not a calendar month,
+   * which is the whole reason the month picker exists.
+   */
+  const periodPayload =
+    reportKind === 'monthly'
+      ? { start: month.start, end: month.end }
+      : preset === 'custom'
+        ? { start: startDate, end: endDate }
+        : preset;
 
   const prepare = async () => {
     const seq = prepareSeq.current;
@@ -241,12 +307,10 @@ function ClientReportForm({ onSent, lockedBrand }: { onSent: () => void; lockedB
           value={reportKind}
           onValueChange={(v) => {
             setReportKind(v);
-            // The window follows the report the operator picked, because a
-            // month-in-review measured over 7 days compares delivery against a
-            // MONTHLY post target and reads as failure. They can still override
-            // it below; this only stops the wrong default.
+            // Weekly gets the 7-day window back if the operator had wandered
+            // off it. Monthly needs no preset at all: it picks a MONTH below
+            // and always sends explicit first/last dates.
             if (v === 'weekly') setPreset('7d');
-            if (v === 'monthly') setPreset('30d');
           }}
         />
         {/* Say what the choice actually buys, because the two differ by one
@@ -256,16 +320,36 @@ function ClientReportForm({ onSent, lockedBrand }: { onSent: () => void; lockedB
             ? 'Adds “What moved this period”: the creators who gained and lost, named. Everything else is the same in both.'
             : 'Adds contracted posts against delivered, and the net-new GMV split. Everything else is the same in both.'}
         </p>
-        {reportKind === 'monthly' && preset !== 'custom' && (
-          <p className="mt-1.5 text-[11px] leading-snug text-muted-foreground">
-            Post targets are monthly, so a part-month reads short against them. For a true month in
-            review, pick Custom and set the first and last day of the month.
-          </p>
-        )}
+
       </div>
 
       <div>
-        <Label>Reporting period</Label>
+        <Label>{reportKind === 'monthly' ? 'Month' : 'Reporting period'}</Label>
+        {/* 🚨 A monthly report picks a MONTH, not a rolling window. Post
+            targets and retainers are monthly, so measuring them over 7 or 30
+            rolling days compares delivery against a target the window does not
+            cover and reads as failure. */}
+        {reportKind === 'monthly' ? (
+          <>
+            <select
+              aria-label="Month"
+              className="mt-1 h-9 w-full rounded-lg border border-border bg-background px-2.5 text-sm text-foreground"
+              value={monthKey}
+              onChange={(e) => setMonthKey(e.target.value)}
+            >
+              {months.map((m) => (
+                <option key={m.key} value={m.key}>
+                  {m.label}{m.partial ? ' (so far)' : ''}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1.5 text-[11px] leading-snug text-muted-foreground">
+              {month.partial
+                ? `${month.start} to ${month.end}, the month so far. The report says so and states the days elapsed; post targets are not pro-rated.`
+                : `${month.start} to ${month.end}, a complete month.`}
+            </p>
+          </>
+        ) : (
         <SegmentedControl<PeriodPreset>
           ariaLabel="Reporting period"
           size="sm"
@@ -278,7 +362,8 @@ function ClientReportForm({ onSent, lockedBrand }: { onSent: () => void; lockedB
           value={preset}
           onValueChange={setPreset}
         />
-        {preset === 'custom' && (
+        )}
+        {reportKind !== 'monthly' && preset === 'custom' && (
           <div className="mt-2 grid grid-cols-2 gap-2">
             <Input
               type="date" value={startDate} max={endDate} aria-label="Start date"
