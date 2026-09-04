@@ -876,6 +876,33 @@ export function BrandClientReportPDF({
           </View>
         )}
 
+        {/* 🚨 ACCOUNT-LEAD VOICE, on PAGE 1 directly under the headline.
+            It used to sit on page 3 behind the store-context material, so the
+            evidence argued for two whole pages before anyone said what it
+            meant. Mirrors the web report, where the same block sits under the
+            same number. The forward plan travels with the notes because a
+            client reads "how did it go" and "what happens next" as one
+            thought, and it is the ONLY non-retrospective thing in either
+            format. */}
+        {(notes?.trim() || plan?.trim()) && (
+          <View style={styles.spendBox} wrap={false}>
+            {notes?.trim() ? (
+              <>
+                <Text style={styles.spendLead}>Notes from your account lead</Text>
+                <Text style={[styles.spendMeta, { fontSize: 9 }]}>{notes.trim()}</Text>
+              </>
+            ) : null}
+            {plan?.trim() ? (
+              <>
+                <Text style={[styles.spendLead, { marginTop: notes?.trim() ? 8 : 0 }]}>
+                  What we are doing next
+                </Text>
+                <Text style={[styles.spendMeta, { fontSize: 9 }]}>{plan.trim()}</Text>
+              </>
+            ) : null}
+          </View>
+        )}
+
         {/* Roster activation */}
         <View style={styles.section}>
           <Text style={styles.sectionEyebrow}>ROSTER ACTIVATION</Text>
@@ -1317,29 +1344,6 @@ export function BrandClientReportPDF({
       {/* ── PAGE 3: Store context — exec summary, highlights, GMV hero ── */}
       <Page size="LETTER" style={styles.page}>
         <PageHead brandName={data.brandName} periodLabel={data.periodLabel} />
-
-        {/* 🚨 ACCOUNT-LEAD VOICE. The PDF carried none of this, so a client
-            who downloaded the attachment lost the only human commentary in the
-            report and got numbers alone. The forward plan is the ONLY
-            non-retrospective thing in either format. */}
-        {(notes?.trim() || plan?.trim()) && (
-          <View style={styles.spendBox} wrap={false}>
-            {notes?.trim() ? (
-              <>
-                <Text style={styles.spendLead}>Notes from your account lead</Text>
-                <Text style={[styles.spendMeta, { fontSize: 9 }]}>{notes.trim()}</Text>
-              </>
-            ) : null}
-            {plan?.trim() ? (
-              <>
-                <Text style={[styles.spendLead, { marginTop: notes?.trim() ? 8 : 0 }]}>
-                  What we are doing next
-                </Text>
-                <Text style={[styles.spendMeta, { fontSize: 9 }]}>{plan.trim()}</Text>
-              </>
-            ) : null}
-          </View>
-        )}
 
         {/* Executive Summary */}
         <View style={styles.summaryCard} wrap={false}>

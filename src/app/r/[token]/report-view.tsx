@@ -1984,46 +1984,13 @@ export function ReportView({
           </>
         )}
 
-        {/* ── 1a-weekly. What moved. On a comparison report the CHANGE is
-               the subject, so it leads rather than trailing the tables. ─── */}
-        {isWeekly && s.movers && (
-          <>
-            <SectionLine>What moved this {word}</SectionLine>
-            <Movers m={s.movers} word={word} />
-          </>
-        )}
-
-        {/* ── 1b. What we did against what the whole shop did. ───── */}
-        {hasRoster && vsShopRows.length > 0 && (
-          <>
-            <SectionLine>{AGENCY} vs your whole shop</SectionLine>
-            <VsShop rows={vsShopRows} brandName={brandName} />
-          </>
-        )}
-
-        {/* ── 1c. Where the roster's GMV came from. ──────────────── */}
-        {hasRoster && (r.agreementSplit || r.channels) && (
-          <>
-            <SectionLine>Where our GMV came from</SectionLine>
-            <SourceSplit
-              agreement={r.agreementSplit}
-              channels={r.channels}
-              topLive={r.topLive}
-              rosterGmv={cc.gmv}
-              storeLiveGmv={r.channels?.storeLiveGmv ?? 0}
-            />
-            {/* ⚠️ The net-new split USED to render here as its own block. It
-                answers "is this our work" while the vintage section answers
-                "when was it made", and side by side the two read as competing
-                claims about the same thing (89.4% "since we started" against
-                58.6% "older than three months"). Its number now opens the
-                vintage section instead, so there is ONE place the client reads
-                about where the revenue came from. */}
-          </>
-        )}
-
-        {/* ── 2. Account lead notes. MOVED: these used to sit between
-               the headline and its evidence, splitting the argument. ─── */}
+        {/* ── 1a. The account lead's voice, directly under the number.
+               Five sections used to stand between the headline and any human
+               framing of it, so the evidence argued before anyone said what it
+               meant. A report should read: here is the number, here is what we
+               think about it, now here is why. The forward plan travels with
+               the notes because a client reads "how did it go" and "what
+               happens next" as one thought. ─── */}
         {/* Either half is enough: a report can carry a forward plan with no
             retrospective commentary, and gating on notes alone would silently
             drop it. */}
@@ -2063,6 +2030,44 @@ export function ReportView({
                 </div>
               )}
             </div>
+          </>
+        )}
+
+        {/* ── 1a-weekly. What moved. On a comparison report the CHANGE is
+               the subject, so it leads rather than trailing the tables. ─── */}
+        {isWeekly && s.movers && (
+          <>
+            <SectionLine>What moved this {word}</SectionLine>
+            <Movers m={s.movers} word={word} />
+          </>
+        )}
+
+        {/* ── 1b. What we did against what the whole shop did. ───── */}
+        {hasRoster && vsShopRows.length > 0 && (
+          <>
+            <SectionLine>{AGENCY} vs your whole shop</SectionLine>
+            <VsShop rows={vsShopRows} brandName={brandName} />
+          </>
+        )}
+
+        {/* ── 1c. Where the roster's GMV came from. ──────────────── */}
+        {hasRoster && (r.agreementSplit || r.channels) && (
+          <>
+            <SectionLine>Where our GMV came from</SectionLine>
+            <SourceSplit
+              agreement={r.agreementSplit}
+              channels={r.channels}
+              topLive={r.topLive}
+              rosterGmv={cc.gmv}
+              storeLiveGmv={r.channels?.storeLiveGmv ?? 0}
+            />
+            {/* ⚠️ The net-new split USED to render here as its own block. It
+                answers "is this our work" while the vintage section answers
+                "when was it made", and side by side the two read as competing
+                claims about the same thing (89.4% "since we started" against
+                58.6% "older than three months"). Its number now opens the
+                vintage section instead, so there is ONE place the client reads
+                about where the revenue came from. */}
           </>
         )}
 
