@@ -1,0 +1,36 @@
+-- Agency-side portfolio reporting: agency_reports + get_agency_portfolio +
+-- get_agency_coverage_gaps. Applied live; see the applied migrations for the
+-- full bodies (same convention as 191 and 194).
+--
+-- ── Why a separate artifact ─────────────────────────────────────────────────
+--
+-- A client report is persuasive by design: it leads with contribution because
+-- the reader is deciding whether to keep paying. Leadership needs the
+-- opposite, so this leads with MOVEMENT, names the accounts going backwards
+-- first, and puts concentration on the page instead of leaving it inferred.
+--
+-- ⚠️ SAME MEMBERSHIP RULE, COPIED. The handle union (account_1..10 UNION
+-- tiktok_accounts) and the per-day archived_at test are verbatim from the
+-- client path, so a client's figure here and on their own report are the same
+-- number. Verified against an independent query: 2,122 signed, $603,200/mo
+-- committed, to the dollar.
+--
+-- 🚨 COMMITTED RETAINER, NOT EARNED, AND THE PAGE SAYS SO. Client reports
+-- divide by retainer EARNED (delivery-weighted per creator). Computing that
+-- portfolio-wide means joining daily_video_product_stats across every client
+-- for a month, which TIMED OUT. The cheap substitute, roster_creator_posts,
+-- counts a different population: 11,515 posts for Cata-Kor in August against
+-- the 1,258 its own report states. Rather than put two different return
+-- multiples in front of the same people, the agency view reports what the
+-- agency is committed to monthly, which is exact.
+--
+-- ⚠️ get_agency_coverage_gaps exists because A PORTFOLIO TOTAL SILENTLY
+-- ABSORBS A MISSING DAY. Serene Herbs has no Aug 9, so August is short by that
+-- Sunday and nothing would say so. Gaps are found at BUILD time and frozen
+-- into the snapshot, so a report carries the caveats that were true when it
+-- was made.
+--
+-- ⚠️ agency_reports has RLS on and every grant revoked from anon and
+-- authenticated: the page is served by the service role through an opaque
+-- token, exactly like client_reports. Token default is the same
+-- encode(gen_random_bytes(12),'hex') so a route cannot mint a guessable one.

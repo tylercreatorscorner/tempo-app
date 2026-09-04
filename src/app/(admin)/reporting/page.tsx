@@ -31,6 +31,7 @@ import { BrandTable } from './brand-table';
 import { CreatePanel } from './create-panel';
 import { SentFeed } from './sent-feed';
 import { FreshnessBanner } from './freshness-banner';
+import { AgencyPanel } from './agency-panel';
 
 export default function ReportingPage() {
   // Bumped when something is sent, so the table and feed both refetch.
@@ -88,6 +89,9 @@ export default function ReportingPage() {
 
         <div className={cn('space-y-8 xl:col-start-1 xl:row-start-1', !target && 'xl:col-span-2')}>
           <BrandTable refreshKey={refreshKey} onGenerate={openFor} />
+          {/* Agency-side, deliberately BELOW the client table: the client work
+              is the daily job and this is monthly. */}
+          <AgencyPanel />
           <SentFeed refreshKey={refreshKey} />
         </div>
       </div>
