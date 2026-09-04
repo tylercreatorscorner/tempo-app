@@ -133,6 +133,25 @@ export interface DeliveredSpend {
  * Returns null for any window the monthly target cannot be read against, which
  * the caller must render as absence rather than zero.
  */
+/**
+ * One creator's share of their retainer, or null when they are not measured.
+ *
+ * 🚨 THE TOTAL AND THE PER-ROW FIGURE MUST COME FROM THE SAME FUNCTION. The
+ * report states an earned total and now prints a per-creator column beside it;
+ * if the two were computed separately, a client adding the column would get a
+ * different number from the headline, which is the fastest way to lose an
+ * argument about money. estimateDeliveredSpend calls this for every creator it
+ * counts, so the column sums to the total by construction.
+ *
+ * Null means "not measured": affiliate-only, departed, no retainer, or no
+ * agreed target. That is NOT a zero, and must render as absence.
+ */
+export function creatorEarnedShare(c: DeliveredSpendCreator): number | null {
+  if (c.isAffiliate || c.departed || c.retainer <= 0 || (c.quota ?? 0) <= 0) return null;
+  // Capped: overdelivery does not pay more than the retainer.
+  return c.retainer * Math.min(c.postsPublished / (c.quota as number), 1);
+}
+
 export function estimateDeliveredSpend(
   creators: DeliveredSpendCreator[],
   window: SpendWindow,
@@ -157,8 +176,9 @@ export function estimateDeliveredSpend(
     if (quota === DEFAULT_POST_QUOTA) defaultQuotaBudget += c.retainer;
     // Capped: overdelivery does not pay more than the retainer. The quota is
     // the FULL monthly count even month to date, never scaled to days run.
-    const share = Math.min(c.postsPublished / quota, 1);
-    earned += c.retainer * share;
+    // ⚠️ Via the shared helper, so the per-creator column in the report and
+    // this total cannot drift apart.
+    earned += creatorEarnedShare(c) ?? 0;
     if (c.postsPublished >= quota) fullyDelivered += 1;
   }
 

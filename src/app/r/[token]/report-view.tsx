@@ -980,7 +980,16 @@ function FullRosterTable({
         </a>
       </div>
 
-      <PaginatedCreatorRows rows={active} judgeQuota={judgeQuota} showLevel={showLevel} />
+      {/* ⚠️ showEarned rides judgeQuota deliberately: both mean "this
+              window IS the month the monthly commitment was written for".
+              Deriving an earned figure from a week of posts against a monthly
+              target would be a unit mismatch presented as money. */}
+      <PaginatedCreatorRows
+        rows={active}
+        judgeQuota={judgeQuota}
+        showLevel={showLevel}
+        showEarned={judgeQuota}
+      />
 
       {dormant.length > 0 && (
         <details className="group border-t border-[#eeedf5]">
@@ -995,7 +1004,13 @@ function FullRosterTable({
               </>
             )}
           </summary>
-          <PaginatedCreatorRows rows={dormant} judgeQuota={judgeQuota} showLevel={showLevel} muted />
+          <PaginatedCreatorRows
+            rows={dormant}
+            judgeQuota={judgeQuota}
+            showLevel={showLevel}
+            showEarned={judgeQuota}
+            muted
+          />
         </details>
       )}
     </div>
@@ -1413,6 +1428,19 @@ function MonthlyDelivery({
                 {num(mtd.daysInMonth - mtd.daysElapsed)} days of the month
               </b>{' '}
               are still open for the rest to be earned.
+            </p>
+          )}
+          {/* 🚨 THE GAP WAS UNTRACEABLE AND IT IS THE FIRST THING A BRAND ASKS.
+              "$48,100 of the $62,150 committed" invites "so where did the other
+              $14,050 go", and the answer was 50 rows of mental arithmetic across
+              11 pages of table. Name the shortfall, then point at the column
+              that now shows it per creator. */}
+          {spend.budget - spend.earned > 1 && (
+            <p className="mt-1.5 max-w-[70ch] text-[12.5px] leading-[1.6] text-[#8a8fb0]">
+              The <b className="text-[#33375c]">{money(spend.budget - spend.earned)}</b> difference is
+              posting that did not happen, not money withheld. Every creator&rsquo;s share is in the{' '}
+              <b className="text-[#33375c]">Earned</b> column of the roster table below, beside the
+              posts that produced it.
             </p>
           )}
           <p className="mt-1.5 max-w-[70ch] text-[12.5px] leading-[1.6] text-[#8a8fb0]">

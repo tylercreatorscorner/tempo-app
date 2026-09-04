@@ -39,12 +39,20 @@ export interface ReportingBrandRow {
     daysBehind: number | null;
   };
   lastReport: {
+    /** Needed to refresh, revoke or edit the report from the row. The table
+     *  had only the token, which addresses the PUBLIC page and none of the
+     *  admin routes. */
+    id: string;
     createdAt: string;
     periodLabel: string | null;
     viewedAt: string | null;
     revokedAt: string | null;
     url: string | null;
     token: string;
+    /** The report's own copy, so the row can edit it without a second fetch.
+     *  Both may be null; empty and absent mean the same thing here. */
+    notes: string | null;
+    plan: string | null;
     /**
      * The paste-ready client message, built SERVER SIDE so there is exactly
      * one definition of it. Assembled from the report's own stored notes and
@@ -179,6 +187,7 @@ export async function GET() {
         },
         lastReport: latest
           ? {
+              id: latest.id,
               createdAt: latest.created_at,
               periodLabel: latest.period_label,
               viewedAt: latest.viewed_at,
@@ -196,6 +205,8 @@ export async function GET() {
               // opened from inside the app, so it resolves either way.
               url: `${origin}/r/${latest.token}`,
               token: latest.token,
+              notes: (latest.notes as string | null) ?? null,
+              plan: (latest.plan as string | null) ?? null,
             }
           : null,
         reportCount: brandReports.length,

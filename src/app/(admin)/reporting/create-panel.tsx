@@ -182,6 +182,18 @@ function ClientReportForm({ onSent, lockedBrand }: { onSent: () => void; lockedB
 
   const [preview, setPreview] = useState<PreviewData | null>(null);
   const [notes, setNotes] = useState('');
+  /**
+   * 🚨 THE PLAN COULD NEVER BE SET. client_reports.plan has existed since
+   * migration 190, the API accepts it, and both the web report and the PDF
+   * render it, but no UI anywhere sent it, so the only forward-looking section
+   * of a client report was unreachable. Reports that had one got it written in
+   * by hand against the database.
+   *
+   * ⚠️ Not drafted for you, on purpose. Notes describe a period that already
+   * happened and can be generated from it; a commitment about next month
+   * cannot, and a machine-written one would be a promise nobody made.
+   */
+  const [plan, setPlan] = useState('');
   const [previewLoading, setPreviewLoading] = useState(false);
   const [creating, setCreating] = useState(false);
   const [created, setCreated] = useState<{ url: string } | null>(null);
@@ -266,7 +278,7 @@ function ClientReportForm({ onSent, lockedBrand }: { onSent: () => void; lockedB
       const res = await fetch('/api/client-reports', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ brand, period: periodPayload, notes, reportType: reportKind }),
+        body: JSON.stringify({ brand, period: periodPayload, notes, plan, reportType: reportKind }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
@@ -400,6 +412,25 @@ function ClientReportForm({ onSent, lockedBrand }: { onSent: () => void; lockedB
               maxLength={2000}
               value={notes}
               onChange={e => setNotes(e.target.value)}
+            />
+          </div>
+
+          {/* Optional, and empty renders nothing on the report rather than an
+              empty heading. A monthly with no plan is the report's only
+              non-retrospective section missing, which is worth the field. */}
+          <div>
+            <div className="flex items-baseline justify-between gap-2">
+              <Label htmlFor="cr-plan" className="mb-0">What happens next</Label>
+              <span className="text-[10.5px] text-muted-foreground">optional, your words</span>
+            </div>
+            <Textarea
+              id="cr-plan"
+              className="mt-1.5"
+              rows={3}
+              maxLength={2000}
+              placeholder="What you are committing to for the coming period."
+              value={plan}
+              onChange={e => setPlan(e.target.value)}
             />
           </div>
 

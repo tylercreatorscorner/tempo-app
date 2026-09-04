@@ -20,6 +20,7 @@
  */
 import { useState } from 'react';
 import type { BrandClientReportData } from '@/lib/data/brand-client-report';
+import { creatorEarnedShare } from '@/lib/data/delivered-spend';
 
 function money(n: number): string {
   return '$' + Math.round(n).toLocaleString('en-US');
@@ -42,6 +43,7 @@ function CreatorRows({
   rows,
   judgeQuota,
   showLevel,
+  showEarned = false,
   muted = false,
 }: {
   rows: NonNullable<BrandClientReportData['granular']>['creators'];
@@ -50,6 +52,21 @@ function CreatorRows({
   /** Only where enough of the roster carries a level. */
   showLevel: boolean;
   muted?: boolean;
+  /**
+   * Show what each retained creator's posting actually earned of their
+   * retainer.
+   *
+   * 🚨 WITHOUT THIS THE HEADLINE FIGURE WAS UNTRACEABLE. The report states
+   * "$48,100 of the $62,150 committed" and a brand's first question is where
+   * the other $14,050 went. Every input was on the page (retainer, posts,
+   * target) but the arithmetic was not, so answering meant doing 50 rows of
+   * mental multiplication across 11 pages of table.
+   *
+   * ⚠️ Only on a window the quota was written for. Over a week the posts count
+   * is not comparable to a monthly target, so an "earned" figure derived from
+   * it would be a unit mismatch presented as money.
+   */
+  showEarned?: boolean;
 }) {
   return (
     <div className="overflow-x-auto">
@@ -66,6 +83,7 @@ function CreatorRows({
             <th className={`${TH_R} whitespace-nowrap`}>Agreed</th>
             {showLevel && <th className={`${TH_L} whitespace-nowrap`}>Level</th>}
             <th className={`${TH_R} whitespace-nowrap`}>{judgeQuota ? 'Posts' : 'Posts this period'}</th>
+            {showEarned && <th className={`${TH_R} whitespace-nowrap`}>Earned</th>}
             <th className={`${TH_R} whitespace-nowrap`}>Orders</th>
             <th className={`${TH_R} whitespace-nowrap`}>GMV</th>
           </tr>
@@ -180,6 +198,31 @@ function CreatorRows({
                     <span className="text-[#8a8fb0]">&nbsp;/&nbsp;{num(c.quota)}</span>
                   )}
                 </td>
+                {/* ⚠️ From the SAME function that produces the total, so a
+                    client adding this column cannot arrive at a different
+                    number from the headline. Null is "not measured"
+                    (affiliate-only, departed, no retainer, no agreed target)
+                    and renders as absence, never as $0. */}
+                {showEarned && (() => {
+                  const earned = creatorEarnedShare(c);
+                  const short = earned !== null && c.retainer - earned > 0.5;
+                  return (
+                    <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums">
+                      {earned === null ? (
+                        <span className="text-[#b9bcd0]">&mdash;</span>
+                      ) : (
+                        <>
+                          <span className="font-semibold text-[#33375c]">{money(earned)}</span>
+                          {short && (
+                            <span className="block text-[10.5px] leading-tight text-[#b0870f]">
+                              {money(c.retainer - earned)} short
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </td>
+                  );
+                })()}
                 <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-[#33375c]">{num(c.orders)}</td>
                 <td className="whitespace-nowrap px-4 py-2.5 text-right font-extrabold tabular-nums text-[#171a33]">{money(c.gmv)}</td>
               </tr>
@@ -204,11 +247,13 @@ export function PaginatedCreatorRows({
   rows,
   judgeQuota,
   showLevel,
+  showEarned = false,
   muted = false,
 }: {
   rows: NonNullable<BrandClientReportData['granular']>['creators'];
   judgeQuota: boolean;
   showLevel: boolean;
+  showEarned?: boolean;
   muted?: boolean;
 }) {
   const [page, setPage] = useState(0);
@@ -220,7 +265,13 @@ export function PaginatedCreatorRows({
 
   return (
     <>
-      <CreatorRows rows={slice} judgeQuota={judgeQuota} showLevel={showLevel} muted={muted} />
+      <CreatorRows
+        rows={slice}
+        judgeQuota={judgeQuota}
+        showLevel={showLevel}
+        showEarned={showEarned}
+        muted={muted}
+      />
       {pages > 1 && (
         <div className="flex items-center justify-between gap-3 border-t border-[#eeedf5] px-4 py-2.5">
           <span className="text-[12px] tabular-nums text-[#8a8fb0]">

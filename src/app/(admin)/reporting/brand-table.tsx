@@ -23,6 +23,7 @@ import { TableCard, Table, THead, TBody, TR, TH, TD } from '@/components/ui/tabl
 import { TableLoadBar } from '@/components/ui/table-load-bar';
 import { TableSkeleton } from '@/components/ui/page-skeletons';
 import { EmptyState } from '@/components/ui/empty-state';
+import { ReportActions } from './report-actions';
 
 export interface ReportingBrandRow {
   slug: string;
@@ -39,12 +40,15 @@ export interface ReportingBrandRow {
     daysBehind: number | null;
   };
   lastReport: {
+    id: string;
     createdAt: string;
     periodLabel: string | null;
     viewedAt: string | null;
     revokedAt: string | null;
     url: string | null;
     token: string;
+    notes: string | null;
+    plan: string | null;
     /** Paste-ready client message, built server side from this report's own
      *  notes and plan so it cannot disagree with the page. */
     shareMessage: string | null;
@@ -197,7 +201,7 @@ export function BrandTable({
                 </THead>
                 <TBody>
                   {rows.map(r => (
-                    <BrandRows key={r.slug} row={r} onGenerate={onGenerate} />
+                    <BrandRows key={r.slug} row={r} onGenerate={onGenerate} onChanged={() => setNonce((n) => n + 1)} />
                   ))}
                 </TBody>
               </Table>
@@ -210,8 +214,14 @@ export function BrandTable({
 }
 
 function BrandRows({
-  row, onGenerate,
-}: { row: ReportingBrandRow; onGenerate: (slug: string, name: string) => void }) {
+  row, onGenerate, onChanged,
+}: {
+  row: ReportingBrandRow;
+  onGenerate: (slug: string, name: string) => void;
+  /** Reload the table after an edit, refresh or revoke: all three change
+   *  something this row displays. */
+  onChanged: () => void;
+}) {
   const reportable = isReportable(row);
   const c = row.coverage;
   const since = row.lastReport ? daysAgo(row.lastReport.createdAt) : null;
@@ -254,6 +264,22 @@ function BrandRows({
           <div className="flex items-center justify-end gap-1">
             {row.lastReport?.shareMessage && (
               <CopyMessage text={row.lastReport.shareMessage} />
+            )}
+            {/* Only on a link that still resolves. A revoked report renders a
+                notice instead of the page, so editing its copy or rebuilding
+                its figures changes nothing anyone can read. */}
+            {row.lastReport && !row.lastReport.revokedAt && (
+              <ReportActions
+                target={{
+                  id: row.lastReport.id,
+                  brandName: row.name,
+                  periodLabel: row.lastReport.periodLabel,
+                  notes: row.lastReport.notes,
+                  plan: row.lastReport.plan,
+                  viewedAt: row.lastReport.viewedAt,
+                }}
+                onDone={onChanged}
+              />
             )}
             {row.lastReport?.url && (
               <a
