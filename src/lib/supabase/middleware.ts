@@ -50,6 +50,15 @@ const PUBLIC_PATHS = [
   // /api/client-reports/* admin routes stay behind the auth guard.
   '/r/',
   '/api/report-pdf/',
+  // Agency portfolio report. Same opaque-token gate as /r/. The trailing slash
+  // matters even more here: '/a' alone would match /admin, /api and /auth.
+  //
+  // ⚠️ THE PAGE 307'd TO LOGIN UNTIL THIS EXISTED, which is silent from the
+  // caller's side: the route returned a redirect, not an error, so the link
+  // looked broken rather than unauthorised. /api/agency-reports is NOT here on
+  // purpose — minting a report stays behind the auth guard, only reading one
+  // by token is public.
+  '/a/',
   // Creator-table CSV. Same opaque-token gate and the same frozen snapshot as
   // the PDF, so it can expose nothing the link itself does not already show.
   '/api/report-csv/',
