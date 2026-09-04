@@ -1562,6 +1562,25 @@ export function ReportView({
       : null;
 
   /**
+   * The Signed tile's composition, counted off the SAME array as the tile.
+   *
+   * ⚠️ gran.roster is a separate aggregate over roster_current and comes in
+   * one lower, because the two disagree about a creator who left mid-period.
+   * Neither is wrong on its own; putting them on one card is.
+   */
+  const rosterSplit = gran
+    ? (() => {
+        const onRetainer = gran.creators.filter((c) => !c.isAffiliate).length;
+        const affiliateOnly = gran.creators.filter((c) => c.isAffiliate).length;
+        // Split the departures by agreement rather than assuming which side
+        // they came from — the reconciling clause below names one or the other.
+        const leftRetained = gran.creators.filter((c) => c.departed === true && !c.isAffiliate).length;
+        const leftAffiliate = gran.creators.filter((c) => c.departed === true && c.isAffiliate).length;
+        return { onRetainer, affiliateOnly, leftRetained, leftAffiliate };
+      })()
+    : null;
+
+  /**
    * The creator list is single-window, so `canCompare` is false whenever the
    * granular block drives the tile. But the ACTIVITY block carries a prior on
    * its own definition, and when the two definitions agree on the CURRENT
@@ -2077,9 +2096,27 @@ export function ReportView({
                   <Mini
                     label="Signed"
                     value={num(rosterAct.signed)}
+                    /**
+                     * 🚨 THE SPLIT DID NOT ADD UP TO THE NUMBER ABOVE IT. The tile
+                     * reads gran.creators.length (440 on Cata-Kor) and the note
+                     * read gran.roster, a DIFFERENT source that counts 439 —
+                     * "440 signed / 50 on retainer, 389 affiliate-only" on one
+                     * card, which is the client's first reason to distrust
+                     * every other number on the page.
+                     *
+                     * Both halves now count the same array, and departures
+                     * are named on the side they left from. That is also what
+                     * reconciles this card with "ON RETAINER 50" higher up the
+                     * page: 51 on retainer, 1 since left, 50 today. Dropping
+                     * the departed creator is what broke the arithmetic; hiding
+                     * them again would just move the contradiction.
+                     */
                     note={
-                      gran
-                        ? `${num(gran.roster.onRetainer)} on retainer, ${num(gran.roster.affiliateOnly)} affiliate-only`
+                      rosterSplit
+                        ? `${num(rosterSplit.onRetainer)} on retainer`
+                          + (rosterSplit.leftRetained > 0 ? ` (${num(rosterSplit.leftRetained)} since left)` : '')
+                          + `, ${num(rosterSplit.affiliateOnly)} affiliate-only`
+                          + (rosterSplit.leftAffiliate > 0 ? ` (${num(rosterSplit.leftAffiliate)} since left)` : '')
                         : undefined
                     }
                   />

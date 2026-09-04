@@ -24,11 +24,29 @@ export async function generateMetadata({ params }: Props) {
   const supabase = await createAdminClient();
   const { data } = await supabase
     .from('client_reports')
-    .select('brand_name, period_label, revoked_at')
+    .select('brand_name, period_label, revoked_at, report_type')
     .eq('token', token)
     .maybeSingle();
+  /**
+   * ⚠️ THE TITLE SAID "Performance Report" WHATEVER THE REPORT WAS. This is
+   * the browser tab, the bookmark, and the unfurl card in Slack or an email
+   * — so a month-in-review arrived in a client's inbox labelled as something
+   * else, next to a period label reading the whole month. Same defect the PDF
+   * running head had.
+   *
+   * The period label is part of the title because an unfurl shows it alone:
+   * "Cata-Kor — Month in Review · Aug 1 – Aug 31, 2026" identifies WHICH
+   * report was sent, which matters when a client has several links.
+   */
+  const kind =
+    data?.report_type === 'monthly' ? 'Month in Review'
+      : data?.report_type === 'weekly' ? 'Weekly Report'
+        : 'Performance Report';
   return {
-    title: data && !data.revoked_at ? `${data.brand_name} — Performance Report` : 'Report — Tempo',
+    title:
+      data && !data.revoked_at
+        ? `${data.brand_name} — ${kind}${data.period_label ? ` · ${data.period_label}` : ''}`
+        : 'Report — Tempo',
     robots: { index: false, follow: false },
   };
 }
