@@ -75,11 +75,34 @@ export default async function ClientReportPage({ params, searchParams }: Props) 
   const supabase = await createAdminClient();
   const { data: row } = await supabase
     .from('client_reports')
-    .select('id, brand_name, period_label, snapshot, notes, plan, created_at, viewed_at, revoked_at, report_type')
+    .select('id, brand_slug, brand_name, period_label, snapshot, notes, plan, created_at, viewed_at, revoked_at, report_type')
     .eq('token', token)
     .maybeSingle();
 
   if (!row || row.revoked_at) return <GonePage />;
+
+  /**
+   * The client's own mark, read LIVE rather than from the frozen snapshot.
+   *
+   * ⚠️ Deliberately not frozen: a logo is branding, not a figure. Freezing it
+   * would leave every already-sent link permanently unbranded, and a brand that
+   * changed its mark would keep showing the old one on reports nobody had
+   * opened yet. Reading it here means the live links pick it up with no
+   * regeneration.
+   *
+   * Non-fatal by the same rule as everything else on this page: a failed read
+   * renders the wordmark alone rather than 500ing a page a client is opening.
+   */
+  let logoUrl: string | null = null;
+  if (row.brand_slug && row.brand_slug !== 'all') {
+    const { data: brandRow, error: brandErr } = await supabase
+      .from('brands_v2')
+      .select('logo_url')
+      .eq('slug', row.brand_slug)
+      .maybeSingle();
+    if (brandErr) console.error('[report] brand logo read failed:', brandErr.message);
+    else logoUrl = (brandRow?.logo_url as string | null) ?? null;
+  }
 
   // viewed_at is stamped by the client-side ViewBeacon, NOT here: pasting the
   // link into Slack/iMessage makes the platform's unfurl bot GET this page
@@ -105,6 +128,7 @@ export default async function ClientReportPage({ params, searchParams }: Props) 
            at the column level, so this is only ever null on a row read through
            an older client. Treat absence as the standing report. */
         reportType={(row.report_type as ReportType | null) ?? 'performance'}
+        logoUrl={logoUrl}
       />
     </>
   );

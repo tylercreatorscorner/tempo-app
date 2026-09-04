@@ -12,6 +12,7 @@ import { renderToBuffer } from '@react-pdf/renderer';
 import { createAdminClient } from '@/lib/supabase/server';
 import { BrandClientReportPDF } from '@/lib/pdf/brand-client-report-pdf';
 import { reviveReportDates, type ClientReportSnapshot } from '@/lib/data/client-reports';
+import { brandLogoDataUri } from '@/lib/brand-logo';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -25,7 +26,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ token: str
   const supabase = await createAdminClient();
   const { data: row, error } = await supabase
     .from('client_reports')
-    .select('brand_name, period_end, snapshot, notes, plan, revoked_at, report_type')
+    .select('brand_slug, brand_name, period_end, snapshot, notes, plan, revoked_at, report_type')
     .eq('token', token)
     .maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -38,6 +39,19 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ token: str
     // The PDF must carry the same sections as the web view for the same link.
     // report_type lives on the ROW, not in the frozen snapshot, so an older
     // report renders as 'performance' — which is exactly what it is.
+    // Live from brands_v2 for the same reason the web report reads it live:
+    // a logo is branding, not a frozen figure, so already-sent links pick it
+    // up without regeneration.
+    let logoUrl: string | null = null;
+    if (row.brand_slug && row.brand_slug !== 'all') {
+      const { data: brandRow } = await supabase
+        .from('brands_v2')
+        .select('logo_url')
+        .eq('slug', row.brand_slug)
+        .maybeSingle();
+      logoUrl = (brandRow?.logo_url as string | null) ?? null;
+    }
+
     const docElement = BrandClientReportPDF({
       data,
       // The attachment must carry the same human voice as the link.
@@ -49,6 +63,13 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ token: str
       // are passed separately.
       movers: snapshot.movers ?? null,
       weekly: snapshot.weekly ?? [],
+      /**
+       * ⚠️ MUST be a converted data URI, never the stored URL. @react-pdf
+       * renders NOTHING for a webp and still returns a valid PDF, and six of
+       * the fourteen stored logos are webp. brandLogoDataUri also returns null
+       * on any failure, which renders the cover exactly as it did before.
+       */
+      logo: await brandLogoDataUri(logoUrl),
     });
     const pdf = await renderToBuffer(docElement);
 

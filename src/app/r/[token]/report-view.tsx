@@ -1459,6 +1459,7 @@ export function ReportView({
   brandName,
   periodLabel,
   reportType = 'performance',
+  logoUrl = null,
 }: {
   token: string;
   report: BrandClientReportData;
@@ -1469,6 +1470,9 @@ export function ReportView({
   brandName: string;
   periodLabel: string;
   reportType?: ReportType;
+  /** Live from brands_v2, NOT the snapshot. See the masthead note. Null when
+   *  the brand has no logo, which renders the wordmark alone. */
+  logoUrl?: string | null;
 }) {
   /**
    * MONTH IN REVIEW is a different question from the standing report, not the
@@ -1810,6 +1814,23 @@ export function ReportView({
         style={{ background: 'linear-gradient(135deg,#141633 0%,#3b2f7d 55%,#8a2f80 100%)' }}
       >
         <div className="mx-auto flex max-w-[1000px] flex-wrap items-end justify-between gap-4">
+          <div className="flex items-end gap-4">
+            {/* ⚠️ The logo is read LIVE from brands_v2, not from the frozen
+                snapshot, and that is deliberate: it is branding, not a figure.
+                Freezing it would leave every already-sent link permanently
+                unbranded, and a brand that changes its mark would keep showing
+                the old one on reports it has not opened yet. The 59 live links
+                pick this up with no regeneration.
+
+                A white tile behind it because most marks are dark artwork with
+                a transparent ground, which is invisible on the masthead
+                gradient. object-contain so a wide logo is never cropped. */}
+            {logoUrl && (
+              <span className="grid h-[54px] w-[54px] shrink-0 place-items-center overflow-hidden rounded-[12px] bg-white p-1.5 shadow-[0_2px_10px_rgba(0,0,0,0.18)]">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={logoUrl} alt="" className="h-full w-full object-contain" />
+              </span>
+            )}
           <div>
             <div className="text-[10.5px] font-extrabold uppercase tracking-[0.2em] text-white/65">
               {AGENCY} &middot; {reportKind}
@@ -1818,6 +1839,7 @@ export function ReportView({
             <div className="text-[13.5px] text-white/80">
               {periodLabel} &middot; prepared {fmtDay(frozen)}
             </div>
+          </div>
           </div>
           <a
             href={`/api/report-pdf/${token}`}

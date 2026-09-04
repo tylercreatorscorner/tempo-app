@@ -24,7 +24,7 @@
  * Uses Tempo's brand colors (pink #E91E8C primary, dark #1A1B3A ink) instead
  * of the old dash's green palette. Green is reserved for positive deltas.
  */
-import { Document, Page, Text, View, StyleSheet, Font, Svg, Circle, Path } from '@react-pdf/renderer';
+import { Document, Page, Text, View, StyleSheet, Font, Svg, Circle, Path, Image } from '@react-pdf/renderer';
 import path from 'node:path';
 import type { BrandClientReportData } from '@/lib/data/brand-client-report';
 import {
@@ -142,6 +142,15 @@ const styles = StyleSheet.create({
   highlightNeg:   { color: COLORS.negative, fontFamily: 'Inter', fontWeight: 700 },
   highlightPink:  { color: COLORS.pink, fontFamily: 'Inter', fontWeight: 700 },
   highlightInk:   { color: COLORS.ink, fontFamily: 'Inter', fontWeight: 700 },
+
+  // ── Client mark
+  //
+  // ⚠️ objectFit contain, never cover: a wide wordmark cropped to a square is
+  // worse branding than no branding. The white tile is load-bearing too, since
+  // most marks are dark artwork on a transparent ground and the cover is dark.
+  coverLogoTile: { width: 62, height: 62, borderRadius: 14, backgroundColor: '#ffffff', padding: 7, marginBottom: 16 },
+  coverLogo:     { width: '100%', height: '100%', objectFit: 'contain' },
+  headLogo:      { width: 13, height: 13, objectFit: 'contain', marginRight: 5 },
 
   // ── Highlight 3-card row
   highlightRow:  { flexDirection: 'row', gap: 10, marginTop: 14 },
@@ -444,6 +453,7 @@ export function BrandClientReportPDF({
   plan = null,
   reportType = 'performance',
   weekly = [],
+  logo = null,
   movers = null,
 }: {
   data: BrandClientReportData;
@@ -475,6 +485,19 @@ export function BrandClientReportPDF({
    * fill would read as a week we produced nothing.
    */
   weekly?: { weekEnd: string; gmv: number; rosterGmv?: number }[];
+  /**
+   * The brand's logo as a PNG or JPEG **data URI**, from brandLogoDataUri().
+   *
+   * 🚨 A REMOTE URL IS NOT ACCEPTABLE HERE and neither is a webp.
+   * @react-pdf does not throw on a format it cannot read, it draws NOTHING and
+   * returns a valid PDF: six of the fourteen stored logos are webp, including
+   * Cata-Kor, Dr. Dent, JiYu and M3, so passing stored URLs through would have
+   * silently unbranded the biggest accounts while appearing to work. The
+   * helper converts and this prop only ever carries an embeddable image.
+   *
+   * Undefined renders the wordmark alone, which is the pre-logo cover.
+   */
+  logo?: string | null;
   /** Period comparison, not period content, so it arrives beside `data`
    *  rather than inside it. Null on every template except weekly. */
   movers?: {
@@ -845,6 +868,12 @@ export function BrandClientReportPDF({
       <Page size="LETTER" style={styles.coverPage}>
         <View style={styles.coverCard} wrap={false}>
           <View style={styles.coverAccentBar} />
+          {logo && (
+            <View style={styles.coverLogoTile}>
+              {/* eslint-disable-next-line jsx-a11y/alt-text */}
+              <Image style={styles.coverLogo} src={logo} />
+            </View>
+          )}
           <Text style={styles.coverEyebrow}>PREPARED BY</Text>
           <Text style={styles.coverWordmark}>TEMPO</Text>
           <View style={styles.coverDivider} />

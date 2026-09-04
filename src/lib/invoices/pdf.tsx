@@ -25,7 +25,8 @@
  *     produces the same garbage geometry, with borderTop and borderBottom
  *     alike, and wrap={false} does not save it. Use a 1pt View as a rule.
  */
-import { Document, Page, Text, View, StyleSheet, Font, Svg, Circle, Rect, LinearGradient, Stop, Defs, renderToBuffer } from '@react-pdf/renderer';
+import { Document, Page, Text, View, StyleSheet, Font, Svg, Circle, Rect, LinearGradient, Stop, Defs, Image, renderToBuffer } from '@react-pdf/renderer';
+import { brandLogoDataUri } from '@/lib/brand-logo';
 import path from 'node:path';
 import React from 'react';
 import { buildDisplayLineItems } from '@/lib/finance/invoice-math';
@@ -93,6 +94,21 @@ export interface InvoicePdfData {
   brandName: string;
   /** brands_v2.color. Used for the brand chip. Falls back to the Pulse primary. */
   brandColor?: string | null;
+  /**
+   * The brand's logo as a PNG or JPEG **data URI**, from brandLogoDataUri().
+   *
+   * 🚨 NOT brands_v2.logo_url. @react-pdf renders NOTHING for a webp and
+   * still returns a valid PDF, and six of the fourteen stored logos are webp,
+   * so passing the stored URL through would silently unbrand the biggest
+   * accounts while appearing to work.
+   *
+   * Null keeps the coloured initials chip, which is why that chip stays: four
+   * active brands still have no logo at all.
+   */
+  brandLogo?: string | null;
+  /** brands_v2.logo_url, unconverted. renderInvoicePdf turns this into
+   *  `brandLogo`; nothing else should read it. */
+  brandLogoUrl?: string | null;
   periodMonth: string;
   generatedAt: string;
   dueDate: string | null;
@@ -147,6 +163,9 @@ export interface InvoiceDbRow {
 export interface InvoiceBrandMeta {
   name: string;
   color?: string | null;
+  /** brands_v2.logo_url. Callers that select it get a branded invoice; those
+   *  that do not keep the initials chip, which is why it is optional. */
+  logo_url?: string | null;
 }
 
 /**
@@ -171,6 +190,7 @@ export function invoiceRowToPdfData(
     brandSlug: invoice.brand,
     brandName: meta.name,
     brandColor: meta.color ?? null,
+    brandLogoUrl: meta.logo_url ?? null,
     periodMonth: invoice.period_month,
     generatedAt: invoice.generated_at,
     dueDate: invoice.due_date,
@@ -280,6 +300,12 @@ const s = StyleSheet.create({
   party: { flex: 1 },
   partyRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 4 },
   chip: { width: 20, height: 20, borderRadius: 5, alignItems: 'center', justifyContent: 'center' },
+  // Same 20px footprint as the initials chip so the row does not shift between
+  // a brand that has a logo and one that does not. contain, never cover: a
+  // cropped wordmark is worse branding than none.
+  logoChip:    { width: 20, height: 20, borderRadius: 5, backgroundColor: '#ffffff', padding: 1.5,
+                 borderWidth: 0.5, borderColor: COLORS.hair },
+  logoChipImg: { width: '100%', height: '100%', objectFit: 'contain' },
   chipText: { fontSize: 8.5, lineHeight: 1.25, color: COLORS.white, fontWeight: 700 },
   partyName: { fontSize: 11.5, lineHeight: 1.25, fontWeight: 700 },
   partyLine: { fontSize: 9.5, lineHeight: 1.25, color: COLORS.body, marginTop: 1 },
@@ -462,13 +488,21 @@ function InvoicePdfDoc({ data }: { data: InvoicePdfData }) {
           <View style={s.party}>
             <Text style={s.k}>Bill to</Text>
             <View style={s.partyRow}>
-              {/* Brand chip. brands_v2.logo_url is not used yet: no brand has one,
-                  and @react-pdf throws on an unreachable image, which would
-                  reintroduce exactly the class of render crash we just fixed.
-                  Wire it once logos are stored and served from our own bucket. */}
-              <View style={[s.chip, { backgroundColor: chipColor }]}>
-                <Text style={s.chipText}>{initials(data.brandName)}</Text>
-              </View>
+              {/* The client's own mark where their initials used to be.
+                  ⚠️ The initials chip is NOT dead code: four active brands have
+                  no logo uploaded, and brandLogoDataUri returns null on any
+                  fetch or decode failure, so this is the standing fallback
+                  rather than a legacy path. */}
+              {data.brandLogo ? (
+                <View style={s.logoChip}>
+                  {/* eslint-disable-next-line jsx-a11y/alt-text */}
+                  <Image style={s.logoChipImg} src={data.brandLogo} />
+                </View>
+              ) : (
+                <View style={[s.chip, { backgroundColor: chipColor }]}>
+                  <Text style={s.chipText}>{initials(data.brandName)}</Text>
+                </View>
+              )}
               <Text style={s.partyName}>{data.brandName}</Text>
             </View>
             {/* Only when it adds something. bill_to_name is frequently just the
@@ -627,6 +661,17 @@ function InvoicePdfDoc({ data }: { data: InvoicePdfData }) {
   );
 }
 
+/**
+ * Renders the invoice, resolving the brand logo here rather than at every call
+ * site.
+ *
+ * ⚠️ DELIBERATELY the single choke point: there are several callers (the
+ * download route, the email attachment, the share page) and a logo wired into
+ * only some of them is how one client gets a branded invoice and another does
+ * not for the same month. A caller that has already resolved the logo can pass
+ * `brandLogo` and this leaves it alone.
+ */
 export async function renderInvoicePdf(data: InvoicePdfData): Promise<Buffer> {
-  return renderToBuffer(<InvoicePdfDoc data={data} />);
+  const brandLogo = data.brandLogo ?? (await brandLogoDataUri(data.brandLogoUrl));
+  return renderToBuffer(<InvoicePdfDoc data={{ ...data, brandLogo }} />);
 }
