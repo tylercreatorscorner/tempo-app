@@ -30,7 +30,7 @@ import { DateRangePicker } from '@/components/dashboard/date-range-picker';
 import { BrandPerformance, type BrandRowData } from '@/components/dashboard/brand-performance';
 import { TopCreators } from '@/components/dashboard/top-creators';
 import { TopVideos } from '@/components/dashboard/top-videos';
-import { StaleDataBanner, StaleBrandsBanner, type StaleBrand } from '@/components/dashboard/stale-data-banner';
+import { StaleDataBanner } from '@/components/dashboard/stale-data-banner';
 import { DashboardOnboarding } from '@/components/dashboard/dashboard-onboarding';
 
 interface Props {
@@ -157,36 +157,13 @@ export default async function AdminDashboard({ searchParams }: Props) {
   // Non-null only when the window actually moved; see DateRangePicker.
   const staleThrough = lagDays > 0 ? anchorDate : null;
 
-  // ── Per-brand stale-data alarm. The aggregate banner below can't catch one
-  //    dead brand while others stay fresh — during the Jen incident six brands
-  //    silently stopped receiving uploads for 13 days and nothing fired. Flags
-  //    ACTIVE brands whose rollup (the same one the money below reads) is >3
-  //    days behind. Brands with no data EVER are excluded (not-yet-onboarded is
-  //    not a regression); archive dead brands in brands_v2 to silence them.
-  // Day counts anchor on YESTERDAY (TikTok exports lag one day, so yesterday
-  // is the newest data that can exist) — the SAME anchor as the upload page's
-  // freshness rail, so the two surfaces never disagree on "N days behind".
-  const STALE_AFTER_DAYS = 2; // >2 days behind expectation = alarm (same sensitivity as before)
-  let staleBrands: StaleBrand[] = [];
-  try {
-    const { data: fresh } = await supabase.rpc('brand_data_freshness', { p_brand_ids: BRAND_IDS });
-    const yesterdayMs =
-      Date.parse(new Date().toISOString().slice(0, 10) + 'T00:00:00Z') - 86400000;
-    staleBrands = ((fresh as { brand_id: string; last_date: string | null }[] | null) ?? [])
-      .filter((r) => r.last_date != null)
-      .map((r) => {
-        const row = reg.rows.find((b) => b.id === r.brand_id);
-        return {
-          label: row ? (row.display_name || row.name || row.slug) : 'unknown brand',
-          lastDate: r.last_date,
-          staleDays: Math.floor((yesterdayMs - Date.parse(r.last_date + 'T00:00:00Z')) / 86400000),
-        };
-      })
-      .filter((s) => s.staleDays > STALE_AFTER_DAYS)
-      .sort((a, b) => b.staleDays - a.staleDays);
-  } catch {
-    // The alarm is best-effort — never block the dashboard on it.
-  }
+  // ⚠️ The per-brand stale-data banner used to sit here, with a
+  //    brand_data_freshness RPC feeding it. Removed at the Director's request:
+  //    it fired on every load and had become wallpaper. Data freshness is still
+  //    surfaced where it is actionable — the Data Pipeline page's coverage
+  //    ledger and the reporting table's per-row coverage — which is the place
+  //    you go to actually fix it. The RPC and StaleBrandsBanner remain, unused
+  //    by this page, if it should ever come back.
 
   // ── Period bookkeeping ──────────────────────────────────────────────────
   const periodLength    = differenceInDays(new Date(endDate), new Date(startDate)) + 1;
@@ -539,10 +516,6 @@ export default async function AdminDashboard({ searchParams }: Props) {
 
   return (
     <div className="space-y-6">
-      {/* Per-brand stale-data alarm — names each active brand whose data
-          stopped, so one dead brand can't hide behind the fresh ones. */}
-      <StaleBrandsBanner stale={staleBrands} />
-
       {/* Stale-data warning — shows when the freshest data point is >3 days old */}
       {isStale && latestDate && daysStale != null && (
         <StaleDataBanner latestDate={latestDate} daysStale={daysStale} />
