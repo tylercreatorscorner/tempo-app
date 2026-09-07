@@ -4,6 +4,7 @@ import { AdminShell } from '@/components/layout/admin-shell';
 import { TenantSwitcherServer } from '@/components/layout/tenant-switcher-server';
 import { ViewAsBannerServer } from '@/components/layout/view-as-banner-server';
 import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
+import { can, SCREENS } from '@/lib/auth/permissions';
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   // Impersonation-aware finance visibility for the sidebar: when "viewing as" a
@@ -12,6 +13,17 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // real logged-in user, not the "view as" target.
   const scope = await getWorkspaceScope();
   const isAdmin = scope?.role === 'owner' || scope?.role === 'admin';
+  /**
+   * What the nav is allowed to offer, straight from the matrix.
+   *
+   * ⚠️ HIDING A TAB IS NOT ACCESS CONTROL and never was: the route still
+   * answers. Every section now has a layout guard that enforces server-side.
+   * This exists so the nav and the guard agree, rather than offering a
+   * destination that bounces you straight back.
+   */
+  const navPerms = scope
+    ? Object.fromEntries(SCREENS.map((s) => [s, can(scope, s, 'read')]))
+    : {};
   // Fail CLOSED on finance. getWorkspaceScope returns null precisely when the
   // user can't be identified as a Workspace user (no profile, no tenant, a
   // portal role, an unknown role, or a failed profile read) — and `?? true`
@@ -29,6 +41,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       viewAsBanner={<Suspense><ViewAsBannerServer /></Suspense>}
       canViewFinance={canViewFinance}
       isAdmin={isAdmin}
+      navPerms={navPerms}
       defaultCollapsed={collapsed}
     >
       {children}

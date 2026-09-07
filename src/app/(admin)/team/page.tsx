@@ -5,6 +5,7 @@ import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 import { TeamManagement } from '@/components/team/team-management';
 import { PageHeader } from '@/components/ui/page-header';
+import { RolesMatrix } from '@/components/team/roles-matrix';
 
 export const metadata = { title: 'Team — Tempo' };
 
@@ -87,6 +88,10 @@ export default async function TeamPage() {
         title="Team"
         subtitle="Who can sign in, what they can reach, and who can see money."
       />
+      {/* Roles and the access matrix, below the members list: you look up who
+          someone is before you look up what their role can do. */}
+      <RolesMatrix />
+
       <TeamManagement
         users={users}
         brands={brands ?? []}

@@ -61,7 +61,15 @@ const SECTIONS: { key: string; tabs: Tab[] }[] = [
   ] },
 ];
 
-export function SectionTabs({ isAdmin = false }: { isAdmin?: boolean }) {
+export function SectionTabs({
+  isAdmin = false,
+  navPerms,
+}: {
+  isAdmin?: boolean;
+  /** Matrix read-permissions by screen. Undefined = unresolved: keep the old
+   *  rules rather than blanking the tab bar on a failed lookup. */
+  navPerms?: Record<string, boolean>;
+}) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const brand = searchParams.get('brand');
@@ -80,7 +88,19 @@ export function SectionTabs({ isAdmin = false }: { isAdmin?: boolean }) {
   }
   if (!current) return null;
 
-  const tabs = current.tabs.filter((t) => !t.admin || isAdmin);
+  // ⚠️ AND-ed with the old admin rule, never instead of it. The href maps to a
+  // matrix screen by its first path segment, which is how the section layouts
+  // are laid out too, so the tab bar and the guard cannot disagree.
+  const screenFor = (href: string) => {
+    const seg = href.split('?')[0].split('/').filter(Boolean);
+    if (seg[0] === 'workflows') return seg[1];
+    if (seg[0] === 'products') return 'products';
+    if (seg[0] === 'reporting') return 'reporting';
+    return seg[0];
+  };
+  const tabs = current.tabs.filter(
+    (t) => (!t.admin || isAdmin) && (!navPerms || navPerms[screenFor(t.href)] !== false),
+  );
   if (tabs.length <= 1) return null;
 
   const withBrand = (href: string) => (brand ? `${href}?brand=${brand}` : href);

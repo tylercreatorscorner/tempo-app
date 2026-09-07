@@ -10,6 +10,8 @@ interface MobileNavProps {
   onClose: () => void;
   isAdmin?: boolean;
   canViewFinance?: boolean;
+  /** Passed straight through: the drawer renders the same Sidebar. */
+  navPerms?: Record<string, boolean>;
 }
 
 /**
@@ -18,7 +20,7 @@ interface MobileNavProps {
  * from the left (-translate-x-full → 0), and taps/pointer events pass through
  * when closed. Escape closes it.
  */
-export function MobileNav({ open, onClose, isAdmin = false, canViewFinance = true }: MobileNavProps) {
+export function MobileNav({ open, onClose, isAdmin = false, canViewFinance = true, navPerms }: MobileNavProps) {
   useEffect(() => {
     if (!open) return;
     function onKey(e: KeyboardEvent) {
@@ -52,7 +54,7 @@ export function MobileNav({ open, onClose, isAdmin = false, canViewFinance = tru
         >
           <X className="h-4 w-4 text-muted-foreground" />
         </button>
-        <Sidebar isAdmin={isAdmin} canViewFinance={canViewFinance} />
+        <Sidebar isAdmin={isAdmin} canViewFinance={canViewFinance} navPerms={navPerms} />
       </div>
     </div>
   );

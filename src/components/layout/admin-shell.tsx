@@ -25,12 +25,21 @@ interface AdminShellProps {
   canViewFinance?: boolean;
   /** Impersonation-aware owner/admin flag — gates the header's User Management entry. */
   isAdmin?: boolean;
+  /**
+   * Which screens this person may open, from the permission matrix.
+   *
+   * ⚠️ Presentation only. The section layouts enforce server-side; this stops
+   * the nav offering a destination that would bounce them straight back.
+   * Absent (undefined) means "not resolved", and every item stays visible
+   * rather than a failed lookup blanking someone's whole nav.
+   */
+  navPerms?: Record<string, boolean>;
   /** Initial collapsed state, read from the `sidebar_collapsed` cookie server-side
    *  so the first paint matches (no expand→collapse flash on load). */
   defaultCollapsed?: boolean;
 }
 
-export function AdminShell({ children, tenantSwitcher, viewAsBanner, canViewFinance = true, isAdmin = false, defaultCollapsed = false }: AdminShellProps) {
+export function AdminShell({ children, tenantSwitcher, viewAsBanner, canViewFinance = true, isAdmin = false, navPerms, defaultCollapsed = false }: AdminShellProps) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
   const { tenant, userName, userEmail } = useTenant();
@@ -54,8 +63,8 @@ export function AdminShell({ children, tenantSwitcher, viewAsBanner, canViewFina
           while hovering the sidebar). Sidebar is now `sticky top-0 h-screen`
           internally so it stays pinned while the document scrolls. */}
       <div className="flex min-h-screen" style={{ backgroundColor: 'var(--background)' }}>
-        <Sidebar className="hidden lg:flex" isAdmin={isAdmin} canViewFinance={canViewFinance} collapsed={collapsed} onToggleCollapse={toggleCollapse} />
-        <MobileNav open={mobileNavOpen} onClose={() => setMobileNavOpen(false)} isAdmin={isAdmin} canViewFinance={canViewFinance} />
+        <Sidebar className="hidden lg:flex" isAdmin={isAdmin} canViewFinance={canViewFinance} navPerms={navPerms} collapsed={collapsed} onToggleCollapse={toggleCollapse} />
+        <MobileNav open={mobileNavOpen} onClose={() => setMobileNavOpen(false)} isAdmin={isAdmin} canViewFinance={canViewFinance} navPerms={navPerms} />
 
         <div className="flex-1 flex flex-col min-w-0">
           <Header
@@ -66,7 +75,7 @@ export function AdminShell({ children, tenantSwitcher, viewAsBanner, canViewFina
             tenantSwitcher={tenantSwitcher}
             isAdmin={isAdmin}
           />
-          <SectionTabs isAdmin={isAdmin} />
+          <SectionTabs isAdmin={isAdmin} navPerms={navPerms} />
           <main className="flex-1 animate-fade-in">
             <div className="px-3 sm:px-4 md:px-6 pt-3 sm:pt-4 space-y-3">
               {viewAsBanner}

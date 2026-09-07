@@ -1,0 +1,21 @@
+-- Permissions as data: roles + role_permissions + user_profiles.role_id.
+-- Applied live; see the applied migration for the full body and seed.
+--
+-- 🚨 SEEDED TO CHANGE NOTHING. The five existing roles are inserted as LOCKED
+-- defaults whose rows reproduce today's access exactly, verified across all
+-- 100 role x screen combinations with zero disagreements. On the day this
+-- ships nobody's access moves; that is what makes every later diff readable.
+--
+-- ⚠️ TWO AXES, KEPT SEPARATE. This is the CAPABILITY axis: what may they do.
+-- The REACH axis (which brands) stays in user_brand_access and the scope
+-- resolver, already working across 81 call sites and deliberately untouched.
+-- Folding reach in here would mean a row per screen PER BRAND and an unusable
+-- matrix at 16 clients.
+--
+-- ⚠️ Defaults are read-only in the UI and the API refuses to PATCH or DELETE
+-- them. A default is the thing every custom role was copied FROM; editing one
+-- in place silently rewrites what 'Manager' means for everyone holding it.
+--
+-- ⚠️ role_id sits ALONGSIDE user_profiles.role rather than replacing it. The
+-- text column is still the decision for the old predicates; can() reads the
+-- matrix. Both must agree until the old checks are removed.

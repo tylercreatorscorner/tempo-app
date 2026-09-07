@@ -10,6 +10,8 @@ import { BrandSwitcher } from '@/components/layout/brand-switcher';
 
 interface Dest {
   href: string;
+  /** Matrix screen this destination opens. Absent = always shown. */
+  screen?: string;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   /** Path prefixes that light this destination up (its section's pages). */
@@ -33,15 +35,15 @@ interface Dest {
 // With Settings gone, "Setup" was a section header over a single row, so
 // Products folds into the one list. It stays adminOnly, so managers see four.
 const PRIMARY: Dest[] = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, match: ['/dashboard'] },
-  { href: '/roster',    label: 'Creators',  icon: Users,           match: ['/roster', '/retention', '/affiliates', '/segments', '/contests', '/creators'] },
-  { href: '/posts',     label: 'Content',   icon: PlaySquare,      match: ['/posts'] },
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, match: ['/dashboard'], screen: 'dashboard' },
+  { href: '/roster',    label: 'Creators',  icon: Users,           match: ['/roster', '/retention', '/affiliates', '/segments', '/contests', '/creators'], screen: 'roster' },
+  { href: '/posts',     label: 'Content',   icon: PlaySquare,      match: ['/posts'], screen: 'posts' },
   // Reporting is a generator console, not a content view — owner's call
   // (2026-07-23): its own destination, out of the Content tabs.
-  { href: '/reporting', label: 'Reporting', icon: FileBarChart,    match: ['/reporting'] },
-  { href: '/messages',  label: 'Comms',     icon: MessagesSquare,  match: ['/messages'] },
-  { href: '/earnings',  label: 'Finance',   icon: Wallet,          match: ['/earnings', '/ytd', '/invoicing', '/payments'], financeGated: true },
-  { href: '/products/catalog', label: 'Products', icon: Boxes,     match: ['/products'], adminOnly: true },
+  { href: '/reporting', label: 'Reporting', icon: FileBarChart,    match: ['/reporting'], screen: 'reporting' },
+  { href: '/messages',  label: 'Comms',     icon: MessagesSquare,  match: ['/messages'], screen: 'messages' },
+  { href: '/earnings',  label: 'Finance',   icon: Wallet,          match: ['/earnings', '/ytd', '/invoicing', '/payments'], financeGated: true, screen: 'earnings' },
+  { href: '/products/catalog', label: 'Products', icon: Boxes,     match: ['/products'], adminOnly: true, screen: 'products' },
 ];
 
 /**
@@ -80,6 +82,9 @@ interface SidebarProps {
   isAdmin?: boolean;
   /** Finance visibility (impersonation-aware) — gates the Finance destination. */
   canViewFinance?: boolean;
+  /** Matrix read-permissions by screen. Undefined = unresolved, show everything
+   *  the old rules allow rather than blanking the nav on a failed lookup. */
+  navPerms?: Record<string, boolean>;
   /** Collapsed to an icon-only rail (desktop). */
   collapsed?: boolean;
   /** When provided, renders the collapse/expand toggle (desktop sidebar only —
@@ -87,14 +92,19 @@ interface SidebarProps {
   onToggleCollapse?: () => void;
 }
 
-export function Sidebar({ className, isAdmin = false, canViewFinance = true, collapsed = false, onToggleCollapse }: SidebarProps) {
+export function Sidebar({ className, isAdmin = false, canViewFinance = true, navPerms, collapsed = false, onToggleCollapse }: SidebarProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const brand = searchParams.get('brand');
 
   const withBrand = (href: string) => (brand ? `${href}?brand=${brand}` : href);
   const isActive = (d: Dest) => d.match.some((m) => pathname === m || pathname.startsWith(m + '/'));
-  const visible = (d: Dest) => (!d.adminOnly || isAdmin) && (!d.financeGated || canViewFinance);
+  // ⚠️ AND-ed with the old rules, never instead of them: the matrix can hide a
+  // destination the old rules allowed, but cannot reveal one they denied.
+  const visible = (d: Dest) =>
+    (!d.adminOnly || isAdmin) &&
+    (!d.financeGated || canViewFinance) &&
+    (!navPerms || !d.screen || navPerms[d.screen] !== false);
 
   const renderItem = (d: Dest) => {
     const active = isActive(d);

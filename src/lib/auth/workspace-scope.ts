@@ -63,6 +63,17 @@ export interface WorkspaceScope {
    * brandScope, so this exposes nothing cross-brand.
    */
   canViewCreatorCost: boolean;
+  /**
+   * What this person may DO, resolved once per request from role_permissions.
+   *
+   * ⚠️ The CAPABILITY axis only. `brandScope` below is the REACH axis and the
+   * two are not interchangeable: a route usually needs can() for the verb AND
+   * isBrandInScope() for the noun.
+   *
+   * ⚠️ Absent means "could not be resolved", and can() reads that as NO. It is
+   * never an empty-set-means-allow-everything.
+   */
+  permissions?: Set<string>;
   brandScope: BrandScope;
   /** Set when a platform admin is "viewing as" this member (read-only preview). */
   impersonating?: { userId: string; name: string | null };
@@ -71,7 +82,56 @@ export interface WorkspaceScope {
 type ProfileRow = {
   user_id: string; email: string | null; name: string | null;
   role: string | null; tenant_id: string | null; can_view_finance: boolean | null;
+  /** Set by the RBAC migration; null on a profile created before it. */
+  role_id?: string | null;
 };
+
+/**
+ * The permission rows for a role, as a `screen:level` set.
+ *
+ * 🚨 RETURNS UNDEFINED ON ANY FAILURE, never an empty set. can() treats
+ * undefined as "no" and an empty set as "no", so both are safe — but keeping
+ * them distinct means a genuine zero-permission role and a failed read are not
+ * the same thing in a log.
+ *
+ * ⚠️ FALLS BACK TO THE ROLE KEY when role_id is null, which is every profile
+ * created before the migration and any created by a code path that has not been
+ * converted yet. Without this a live user would lose all access the moment this
+ * shipped.
+ */
+async function loadPermissions(
+  admin: Awaited<ReturnType<typeof createAdminClient>>,
+  tenantId: string,
+  roleId: string | null | undefined,
+  roleKey: string,
+): Promise<Set<string> | undefined> {
+  try {
+    let id = roleId ?? null;
+    if (!id) {
+      const { data: r } = await admin
+        .from('roles')
+        .select('id')
+        .eq('tenant_id', tenantId)
+        .eq('key', roleKey)
+        .maybeSingle();
+      id = (r?.id as string | undefined) ?? null;
+    }
+    if (!id) return undefined;
+
+    const { data, error } = await admin
+      .from('role_permissions')
+      .select('screen, level')
+      .eq('role_id', id);
+    if (error) {
+      console.error('[workspace-scope] permission read failed:', error.message);
+      return undefined;
+    }
+    return new Set((data ?? []).map((r) => `${r.screen}:${r.level}`));
+  } catch (e) {
+    console.error('[workspace-scope] permission read threw:', (e as Error).message);
+    return undefined;
+  }
+}
 
 /** Builds a WorkspaceScope from a user_profiles row (the shared role→scope logic
  *  used for both the caller and an impersonated member). Returns null for
@@ -100,6 +160,8 @@ async function scopeFromProfile(
   // that creator is being paid. Brand/brand_contact/creator roles never reach
   // here — scopeFromProfile returns null for them above.
   const canViewCreatorCost = true;
+  const permissions = await loadPermissions(admin, profile.tenant_id, profile.role_id, role);
+
   const base = {
     userId: profile.user_id,
     email: profile.email ?? emailFallback ?? '',
@@ -108,6 +170,7 @@ async function scopeFromProfile(
     role,
     canViewFinance,
     canViewCreatorCost,
+    permissions,
   };
 
   if (FULL_TENANT_ROLES.has(role)) {
@@ -170,7 +233,7 @@ export const getWorkspaceScope = cache(async (): Promise<WorkspaceScope | null> 
   if (impersonatedId && impersonatedId !== user.id) {
     const { data: target } = await admin
       .from('user_profiles')
-      .select('user_id, email, name, role, tenant_id, can_view_finance')
+      .select('user_id, email, name, role, tenant_id, can_view_finance, role_id')
       .eq('user_id', impersonatedId)
       .maybeSingle();
     // Only ever impersonate a brand-scoped member (manager/coach) — never resolve
@@ -191,7 +254,7 @@ export const getWorkspaceScope = cache(async (): Promise<WorkspaceScope | null> 
     // can_view_finance MUST be selected here (as on the impersonation path above),
     // else scopeFromProfile reads `undefined ?? true` and grants finance to every
     // finance-blocked manager (audit #5).
-    .select('user_id, email, name, role, tenant_id, can_view_finance')
+    .select('user_id, email, name, role, tenant_id, can_view_finance, role_id')
     .eq('user_id', user.id)
     .maybeSingle();
 
