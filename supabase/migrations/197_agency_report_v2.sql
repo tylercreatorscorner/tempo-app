@@ -1,0 +1,42 @@
+-- Agency report v2: get_agency_trend + get_agency_roster_quality.
+-- Applied live; see the applied migrations for the full bodies (same
+-- convention as 191, 194, 195).
+--
+-- 🚨 v1 LED WITH A BLENDED SHARE THAT CANNOT BE TRENDED. "22.1% of client
+-- stores" mixes whichever clients exist that month: 2 in Oct 2025 at 71.5%,
+-- 15 in Aug 2026 at 22.2%. Most of that fall is signing larger clients where
+-- the agency runs a smaller slice. get_agency_trend returns PER-CLIENT monthly
+-- rows so the caller can build a SAME-STORE series (clients present in every
+-- month of the window). Verified: Mar..Aug same-store share 44.5 / 31.9 /
+-- 31.5 / 26.7 / 24.7 / 26.6 on 4 clients, matching an independent query.
+--
+-- ⚠️ Membership rule and umbrella expansion are copied verbatim from
+-- get_agency_portfolio so a month here and on the portfolio report agree.
+--
+-- get_agency_roster_quality counts active roster rows with no TikTok handle in
+-- account_1..10 or tiktok_accounts. They count as signed but can never be
+-- credited with GMV: 185 portfolio-wide at time of writing, 138 of them
+-- Cata-Kor. The report states them beside the signed total.
+--
+-- Both SECURITY DEFINER with EXECUTE revoked from PUBLIC by name, since
+-- revoking from anon alone is a no-op.
+--
+-- ⚠️ SPEED (agency_report_speed, applied live): both the trend and
+-- get_agency_portfolio scanned every daily creator_performance row, and 95%
+-- of them are $0 EXPORT PRESENCE (9,646,945 rows Mar..Aug, 480,839 with
+-- GMV). They were regexp-normalised and sorted to disk for nothing, since a
+-- zero adds nothing to either sum. `gmv <> 0` took the trend 56s -> 2.9s and
+-- the portfolio 48s -> 3.8s. Verified identical to the old bodies: trend 57
+-- rows, 0 differences either way; portfolio jsonb equal for Aug 2026 and Oct
+-- 2025. The portfolio keeps an indexed EXISTS for brand PRESENCE, because it
+-- inner-joins brands to GMV and an all-$0 brand would otherwise vanish rather
+-- than read $0. The trend needs no such guard: buildTrend already requires
+-- store > 0 before counting a client present.
+--
+-- 🚨 EXECUTE WAS GRANTED TO authenticated (agency_rpcs_service_role_only,
+-- applied live). authenticated is every creator and brand contact, and these
+-- are SECURITY DEFINER over ALL clients, so any signed-in account could read
+-- the whole portfolio's GMV. The report reads them through the service-role
+-- client only, so get_agency_trend, get_agency_portfolio,
+-- get_agency_roster_quality and get_agency_coverage_gaps are now
+-- service_role only. Verified: a report still builds after the revoke.
