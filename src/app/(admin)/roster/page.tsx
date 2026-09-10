@@ -742,7 +742,10 @@ function CreatorPanel({
           handles: cleanHandles,
           product_assignments: productTags,
           retainer: form.retainer !== '' ? parseFloat(form.retainer) : 0,
-          monthly_post_requirement: parseInt(form.monthly_post_requirement) || 30,
+          // 0 is a real target (affiliate-only); only a blank box defaults to 30.
+          monthly_post_requirement: Number.isFinite(parseInt(form.monthly_post_requirement))
+            ? parseInt(form.monthly_post_requirement)
+            : 30,
         }),
       });
       const json = await res.json();
@@ -1039,7 +1042,7 @@ function CreatorPanel({
                 </div>
                 <div className="rounded-xl bg-muted p-3">
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Posts/Mo</p>
-                  <p className="text-base font-bold text-[var(--foreground)]">{creator.monthly_post_requirement || 30}</p>
+                  <p className="text-base font-bold text-[var(--foreground)]">{creator.monthly_post_requirement ?? 30}</p>
                 </div>
               </div>
 
@@ -1199,11 +1202,24 @@ function AddCreatorModal({ prefill, onClose, onSuccess }: AddCreatorModalProps) 
           handles: cleanHandles,
           product_assignments: productTags,
           retainer: form.retainer ? parseFloat(form.retainer) : 0,
-          monthly_post_requirement: parseInt(form.monthly_post_requirement) || 30,
+          // 0 is a real target (affiliate-only); only a blank box defaults to 30.
+          monthly_post_requirement: Number.isFinite(parseInt(form.monthly_post_requirement))
+            ? parseInt(form.monthly_post_requirement)
+            : 30,
         }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Failed to add creator');
+      // ⚠️ Already on this brand's roster: the route keeps their existing row
+      // and IGNORES the retainer and posts sent here (terms change through
+      // Edit, which is change-logged). This used to close as if it had saved,
+      // so new terms entered here silently never landed.
+      if (json.deduped === 'active') {
+        setError(
+          `${form.real_name || cleanHandles[0] || 'This creator'} is already on this brand's roster, so nothing was changed. Open them on the roster and use Edit to change their retainer or posts.`,
+        );
+        return;
+      }
       onSuccess();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
