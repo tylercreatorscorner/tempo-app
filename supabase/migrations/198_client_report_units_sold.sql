@@ -1,0 +1,22 @@
+-- Units sold on the weekly/monthly client reports.
+-- Applied live as client_report_units_sold; see the applied migration for the
+-- full DO block (same convention as 191, 194, 195, 197).
+--
+-- Adds `items` (SUM(creator_performance.items_sold)) as additive jsonb keys:
+--   get_brand_client_report_agg            totals, prior_totals, managed,
+--                                          organic, managed_prior
+--   get_brand_client_report_managed_split  managed, managed_prior
+--
+-- ⚠️ PATCHED IN PLACE ON THE LIVE BODIES with COUNTED replacements (the block
+-- raises unless each pattern occurs exactly the expected number of times), so
+-- nothing else in either 200-line function could drift in a retype.
+--
+-- Source check: items_sold is populated on every creator_performance row with
+-- GMV (Aug 2026: 0 rows with GMV and no units) and reconciles with
+-- product_performance within ~0.1% on most brands. Cata-Kor reads 8% low, and
+-- its ORDERS are 8% low by the same measure, so that is coverage, not a
+-- definition difference. Verified on Forchics Aug 2026: agg 16,714 / prior
+-- 16,504 equal the raw sums; roster 8,421.
+--
+-- Old snapshots do not carry the field; the web tile and PDF card are omitted
+-- when it is absent, never printed as 0.

@@ -1707,6 +1707,8 @@ export function ReportView({
    * split we never computed would be worse than the ambiguity.
    */
   const act = r.activity;
+  // Units sold arrived 2026-09; older frozen snapshots omit the tile.
+  const hasUnits = typeof r.totalItems === 'number';
 
   /**
    * ⚠️ ONE SOURCE for every roster-creator count on this page.
@@ -2433,8 +2435,8 @@ export function ReportView({
             interpolated `md:grid-cols-${n}` would never be generated. */}
         <div
           className={`grid grid-cols-2 gap-3.5 ${
-            ['md:grid-cols-3', 'md:grid-cols-4', 'md:grid-cols-5'][
-              (s.views !== null ? 1 : 0) + (act ? 1 : 0)
+            ['md:grid-cols-3', 'md:grid-cols-4', 'md:grid-cols-5', 'md:grid-cols-6'][
+              (s.views !== null ? 1 : 0) + (act ? 1 : 0) + (hasUnits ? 1 : 0)
             ]
           }`}
         >
@@ -2448,6 +2450,17 @@ export function ReportView({
           />
           {s.views !== null && <Mini label="Views" value={compactCount(s.views)} pct={viewsDelta} />}
           <Mini label="Orders" value={num(r.totalOrders)} pct={r.orderChangePct} />
+          {/* Units, not orders: one order can carry several units. Absent on
+              snapshots frozen before 2026-09, where the tile is omitted
+              rather than printed as 0. */}
+          {hasUnits && (
+            <Mini
+              label="Units sold"
+              value={num(r.totalItems!)}
+              pct={r.itemChangePct ?? null}
+              note={hasRoster && typeof cc.items === 'number' ? `${num(cc.items)} are ours` : undefined}
+            />
+          )}
           <Mini
             label="Videos posted"
             value={num(r.totalVideos)}

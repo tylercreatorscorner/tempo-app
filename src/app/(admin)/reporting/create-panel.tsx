@@ -78,8 +78,10 @@ type PeriodPreset = '7d' | '30d' | 'custom';
  *
  *   weekly    everything below, PLUS "What moved this period": the creators
  *             who gained and lost, named.
- *   monthly   everything below, PLUS contracted posts against delivered, and
- *             the net-new GMV split.
+ *   monthly   everything below, PLUS contracted posts against delivered.
+ *             (The net-new GMV split was removed from the report at Tyler's
+ *             request, 2026-09: we are credited with all roster revenue, so
+ *             splitting it by post date read as a caveat on our own number.)
  *
  * Everything else is identical across types: the headline, the driver
  * sentence, the month-to-date block, signings, worth-a-conversation, the
@@ -330,7 +332,7 @@ function ClientReportForm({ onSent, lockedBrand }: { onSent: () => void; lockedB
         <p className="mt-1.5 text-[11px] leading-snug text-muted-foreground">
           {reportKind === 'weekly'
             ? 'Adds “What moved this period”: the creators who gained and lost, named. Everything else is the same in both.'
-            : 'Adds contracted posts against delivered, and the net-new GMV split. Everything else is the same in both.'}
+            : 'Adds contracted posts against delivered. Everything else is the same in both.'}
         </p>
 
       </div>

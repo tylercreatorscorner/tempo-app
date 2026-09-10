@@ -365,6 +365,13 @@ function medal(rank: number): string {
  * ⚠️ `fixed` repeats this View on every page, so the label has to travel as a
  * prop rather than be derived per page.
  */
+/** Report type as it reads in the PDF file's own title and subject. */
+const REPORT_KIND_LABEL: Record<'performance' | 'weekly' | 'monthly', string> = {
+  performance: 'Performance report',
+  weekly: 'Weekly report',
+  monthly: 'Monthly report',
+};
+
 function PageHead({
   brandName,
   periodLabel,
@@ -597,15 +604,29 @@ export function BrandClientReportPDF({
   const moverList = movers && Array.isArray(movers.list) ? movers.list : [];
   const grossDown = movers ? Math.abs(movers.lost) : 0;
   const grossUp = movers ? movers.gained : 0;
+  /**
+   * ⚠️ SAME RULE AS report-view's moveDriver. This used to check falls only,
+   * so a period carried by one creator's gain was explained on the link and
+   * silent in the PDF: the same report telling two stories.
+   */
   const topFall = [...moverList].filter((m) => m.change < 0).sort((a, b) => a.change - b.change)[0];
+  const topRise = [...moverList].filter((m) => m.change > 0).sort((a, b) => b.change - a.change)[0];
   const driver =
     topFall && grossDown > 0 && Math.abs(topFall.change) / grossDown >= 0.5
       ? {
+          kind: 'fall' as const,
           handle: topFall.handle,
           amount: Math.abs(topFall.change),
           share: (Math.abs(topFall.change) / grossDown) * 100,
         }
-      : null;
+      : topRise && grossUp > 0 && topRise.change / grossUp >= 0.5
+        ? {
+            kind: 'rise' as const,
+            handle: topRise.handle,
+            amount: topRise.change,
+            share: (topRise.change / grossUp) * 100,
+          }
+        : null;
 
   const priorStoreGmvForShare = Number.isFinite(data.priorTotalGmv) ? data.priorTotalGmv : null;
   const priorShare =
@@ -619,7 +640,13 @@ export function BrandClientReportPDF({
   const topShare = topManaged && cc.gmv > 0 ? (topManaged.gmv / cc.gmv) * 100 : 0;
   // ⚠️ WAS 40%, which missed Dr. Dent's 37.3% and so hid the single largest
   // risk on the account. Concentration is a risk well before half the book.
-  const concentrated = topShare >= 30;
+  // ⚠️ SAME RULE AS report-view: top creator at 30%, OR the top three at 50%
+  // with 8+ earners. The PDF checked the top creator only, so Cata-Kor (top
+  // one 23.4%, top three 48.3%) could warn on the link and not in the PDF.
+  const earners = cc.topCreators.filter((c) => c.gmv > 0);
+  const top3 = cc.topCreators.slice(0, 3);
+  const top3Share = cc.gmv > 0 ? (top3.reduce((s, c) => s + c.gmv, 0) / cc.gmv) * 100 : 0;
+  const concentrated = topShare >= 30 || (earners.length >= 8 && top3Share >= 50);
 
   /**
    * ⚠️ ONE SOURCE for every roster-creator count, identical to report-view.
@@ -881,9 +908,12 @@ export function BrandClientReportPDF({
 
   return (
     <Document
-      title={`${data.brandName} — Weekly Report (${data.periodLabel})`}
+      /* ⚠️ WAS HARDCODED "Weekly Report" / "Weekly performance report", so
+         every monthly PDF announced itself as weekly in the file's title bar
+         and in search. It follows the report type now. */
+      title={`${data.brandName} · ${REPORT_KIND_LABEL[reportType]} (${data.periodLabel})`}
       author="Tempo"
-      subject="Weekly performance report"
+      subject={`${REPORT_KIND_LABEL[reportType]} for ${data.brandName}`}
     >
       {/* ───────────── PAGE 1: Cover ───────────── */}
       <Page size="LETTER" style={styles.coverPage}>
@@ -951,14 +981,23 @@ export function BrandClientReportPDF({
             bad period when the cause was one post not repeating. */}
         {driver && (
           <View style={styles.spendBox}>
-            <Text style={styles.spendLead}>
-              Most of the fall is one creator, not the roster. @
-              {driver.handle.replace('@', '')} came off {fmtCurrency(driver.amount)}, which is{' '}
-              {fmtPct(driver.share, 0)} of the {fmtCurrency(grossDown)} that dropped this period
-              {grossUp > 0 ? `, while ${fmtCurrency(grossUp)} was added across other creators` : ''}.
-              A single post that runs hot one period and cools the next moves the total more than
-              the rest of the roster does.
-            </Text>
+            {driver.kind === 'fall' ? (
+              <Text style={styles.spendLead}>
+                Most of the fall is one creator, not the roster. @
+                {driver.handle.replace('@', '')} came off {fmtCurrency(driver.amount)}, which is{' '}
+                {fmtPct(driver.share, 0)} of the {fmtCurrency(grossDown)} that dropped this period
+                {grossUp > 0 ? `, while ${fmtCurrency(grossUp)} was added across other creators` : ''}.
+                A single post that runs hot one period and cools the next moves the total more than
+                the rest of the roster does.
+              </Text>
+            ) : (
+              <Text style={styles.spendLead}>
+                Most of the gain is one creator. @{driver.handle.replace('@', '')} added{' '}
+                {fmtCurrency(driver.amount)}, which is {fmtPct(driver.share, 0)} of the{' '}
+                {fmtCurrency(grossUp)} gained this period
+                {grossDown > 0 ? `, against ${fmtCurrency(grossDown)} that came off elsewhere` : ''}.
+              </Text>
+            )}
           </View>
         )}
 
@@ -987,7 +1026,11 @@ export function BrandClientReportPDF({
         {concentrated && topManaged && (
           <View style={styles.calloutWarn}>
             <Text style={styles.calloutWarnText}>
-              @{topManaged.name.replace('@', '')} produced {fmtPct(topShare, 1)} of roster GMV this period.
+              {topShare >= 30
+                ? `@${topManaged.name.replace('@', '')} produced ${fmtPct(topShare, 1)} of roster GMV this period${
+                    top3.length === 3 ? `, and your top three creators ${fmtPct(top3Share, 0)} between them` : ''
+                  }.`
+                : `Your top three creators produced ${fmtPct(top3Share, 1)} of roster GMV this period, led by @${topManaged.name.replace('@', '')} at ${fmtPct(topShare, 1)}.`}{' '}
               Concentration at that level is the main risk to period-to-period stability, and broadening
               it is an active priority for this account.
             </Text>
@@ -1563,6 +1606,18 @@ export function BrandClientReportPDF({
               <Text style={styles.kpiValue}>{fmtNumber(data.totalOrders)}</Text>
               <DeltaPill pct={data.orderChangePct} />
             </View>
+            {/* Units sold, same source rows as orders. Absent on snapshots
+                frozen before 2026-09: omitted, never printed as 0. */}
+            {typeof data.totalItems === 'number' && (
+              <View style={styles.kpiCard}>
+                <Text style={styles.kpiLabel}>UNITS SOLD</Text>
+                <Text style={styles.kpiValue}>{fmtNumber(data.totalItems)}</Text>
+                <DeltaPill pct={data.itemChangePct ?? null} />
+                {typeof data.creatorsCorner.items === 'number' && (
+                  <Text style={styles.splitMeta}>{fmtNumber(data.creatorsCorner.items)} by our creators</Text>
+                )}
+              </View>
+            )}
             {storePosted !== null && (
               <View style={styles.kpiCard}>
                 <Text style={styles.kpiLabel}>CREATORS POSTING</Text>

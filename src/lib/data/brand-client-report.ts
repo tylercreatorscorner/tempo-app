@@ -41,6 +41,12 @@ export interface BrandClientReportData {
   // Headline numbers
   totalGmv: number;
   totalOrders: number;
+  /**
+   * Units sold: SUM(creator_performance.items_sold), the same rows orders come
+   * from. Optional because snapshots frozen before 2026-09 do not carry it;
+   * render nothing rather than 0 when it is absent.
+   */
+  totalItems?: number;
   totalVideos: number;
   activeCreators: number;
   avgOrderValue: number;
@@ -50,10 +56,12 @@ export interface BrandClientReportData {
   // WoW (or MoM) comparisons
   priorTotalGmv: number;
   priorTotalOrders: number;
+  priorTotalItems?: number;
   priorActiveCreators: number;
   priorTotalVideos: number;
   gmvChangePct: number | null;       // null when prior was 0
   orderChangePct: number | null;
+  itemChangePct?: number | null;
   creatorChangePct: number | null;
   videoChangePct: number | null;
 
@@ -73,6 +81,10 @@ export interface BrandClientReportData {
     // Contribution + trend
     gmv: number;
     orders: number;
+    /** Units the roster sold, same membership rule as gmv. Optional: absent
+     *  on snapshots frozen before 2026-09. */
+    items?: number;
+    priorItems?: number;
     creatorCount: number;        // signed creators active this period
     videos: number;
     commission: number;          // estimated, managed subset
@@ -539,6 +551,7 @@ export async function getBrandClientReportData(
 
   const totalGmv = num(t.gmv);
   const totalOrders = num(t.orders);
+  const totalItems = num(t.items);
   const totalVideos = num(t.videos);
   const activeCreators = num(t.active_creators);
   const totalCommission = num(t.commission);
@@ -549,6 +562,7 @@ export async function getBrandClientReportData(
 
   const priorTotalGmv = num(pt.gmv);
   const priorTotalOrders = num(pt.orders);
+  const priorTotalItems = num(pt.items);
   const priorActiveCreators = num(pt.active_creators);
   const priorTotalVideos = num(pt.videos);
 
@@ -691,9 +705,10 @@ export async function getBrandClientReportData(
    * rather than 500ing a page a client is opening.
    */
   const split = splitRes.error ? null : (splitRes.data as {
-    managed: { gmv: number; orders: number; commission: number; creators: number };
-    organic: { gmv: number; orders: number; creators: number };
-    managed_prior: { gmv: number; orders: number; creators: number };
+    /** `items` = units sold (migration client_report_units_sold). */
+    managed: { gmv: number; orders: number; commission: number; creators: number; items?: number };
+    organic: { gmv: number; orders: number; creators: number; items?: number };
+    managed_prior: { gmv: number; orders: number; creators: number; items?: number };
     /** Migration 165. Absent on snapshots frozen before it. */
     channels?: {
       rosterVideoGmv: number; rosterLiveGmv: number;
@@ -723,6 +738,9 @@ export async function getBrandClientReportData(
   const priorManagedGmv      = sp ? num(sp.gmv)      : num(mp.gmv);
   const priorManagedOrders   = sp ? num(sp.orders)   : num(mp.orders);
   const priorManagedCreators = sp ? num(sp.creators) : num(mp.creators);
+  // Units follow the same both-or-neither rule as the figures above.
+  const managedItems         = sm ? num(sm.items)    : num(m.items);
+  const priorManagedItems    = sp ? num(sp.items)    : num(mp.items);
   const managedPct = totalGmv > 0 ? (managedGmv / totalGmv) * 100 : 0;
 
   /**
@@ -821,6 +839,8 @@ export async function getBrandClientReportData(
   const creatorsCorner = {
     gmv: managedGmv,
     orders: managedOrders,
+    items: managedItems,
+    priorItems: priorManagedItems,
     creatorCount: managedCreatorCount,
     videos: num(m.videos),
     commission: ccCommission > 0 ? ccCommission : managedGmv * 0.20,
@@ -941,6 +961,7 @@ export async function getBrandClientReportData(
 
     totalGmv,
     totalOrders,
+    totalItems,
     totalVideos,
     activeCreators,
     avgOrderValue,
@@ -949,10 +970,12 @@ export async function getBrandClientReportData(
 
     priorTotalGmv,
     priorTotalOrders,
+    priorTotalItems,
     priorActiveCreators,
     priorTotalVideos,
     gmvChangePct: pctChange(totalGmv, priorTotalGmv),
     orderChangePct: pctChange(totalOrders, priorTotalOrders),
+    itemChangePct: pctChange(totalItems, priorTotalItems),
     creatorChangePct: pctChange(activeCreators, priorActiveCreators),
     videoChangePct: pctChange(totalVideos, priorTotalVideos),
 
