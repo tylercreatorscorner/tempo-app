@@ -109,18 +109,14 @@ export async function getBrandCreatorDetail(
   const brandIds = resolveUuids(reg, brandSlug, brandUuid) ?? [];
 
   // 1. Find the managed_creators row that owns this handle on this brand.
-  // Each row has up to 10 handles; we OR-match across all account_N columns.
+  //
+  // ⚠️ SAME HANDLE SOURCES AS THE OVERVIEW: account_1..10 AND tiktok_accounts.
+  // Matching the account columns alone meant a creator whose handle lives only
+  // on a linked TikTok account (most of Neurogum's roster GMV) was counted on
+  // the overview and then came up empty on the click through to their page.
   const accountSelect = ACCOUNT_COLS.join(', ');
+  const rowSelect = `id, real_name, retainer, monthly_post_requirement, current_tier, archived_at, creator_id, ${accountSelect}`;
   const orFilter = ACCOUNT_COLS.map((c) => `${c}.ilike.%${targetHandle}%`).join(',');
-
-  const { data: matches } = await supabase
-    .from('managed_creators')
-    .select(
-      `id, real_name, retainer, monthly_post_requirement, current_tier, ${accountSelect}`,
-    )
-    .eq('brand', brandSlug)
-    .or(orFilter)
-    .limit(5);
 
   type ManagedRow = {
     id: number;
@@ -128,20 +124,89 @@ export async function getBrandCreatorDetail(
     retainer: number | string | null;
     monthly_post_requirement: number | null;
     current_tier: string | null;
+    archived_at: string | null;
+    creator_id: string | null;
   } & { [K in (typeof ACCOUNT_COLS)[number]]: string | null };
+  type LinkedRow = { creator_id: string | null; tiktok_username: string | null };
 
-  const rows = (matches ?? []) as unknown as ManagedRow[];
-  // Pick the first row whose handles include our target exactly
-  const owner = rows.find((r) =>
-    ACCOUNT_COLS.some((col) => normHandle(r[col]) === targetHandle),
-  );
-  if (!owner) return null;
+  const [byAccount, byLinked] = await Promise.all([
+    supabase.from('managed_creators').select(rowSelect).eq('brand', brandSlug).or(orFilter).limit(50),
+    supabase
+      .from('tiktok_accounts')
+      .select('creator_id, tiktok_username')
+      .ilike('tiktok_username', `%${targetHandle}%`)
+      .limit(50),
+  ]);
+  if (byAccount.error) throw new Error(`[brand-portal] managed_creators read failed: ${byAccount.error.message}`);
+  if (byLinked.error) throw new Error(`[brand-portal] tiktok_accounts read failed: ${byLinked.error.message}`);
 
-  const handles: string[] = [];
-  for (const col of ACCOUNT_COLS) {
-    const h = normHandle(owner[col]);
-    if (h) handles.push(h);
+  const linkedIds = [
+    ...new Set(
+      ((byLinked.data ?? []) as LinkedRow[])
+        .filter((t) => t.creator_id && normHandle(t.tiktok_username) === targetHandle)
+        .map((t) => t.creator_id as string),
+    ),
+  ];
+  let byCreator: ManagedRow[] = [];
+  if (linkedIds.length > 0) {
+    const { data, error } = await supabase
+      .from('managed_creators')
+      .select(rowSelect)
+      .eq('brand', brandSlug)
+      .in('creator_id', linkedIds);
+    if (error) throw new Error(`[brand-portal] managed_creators read failed: ${error.message}`);
+    byCreator = (data ?? []) as unknown as ManagedRow[];
   }
+  const candidates = [
+    ...new Map(
+      [...((byAccount.data ?? []) as unknown as ManagedRow[]), ...byCreator].map((r) => [r.id, r] as const),
+    ).values(),
+  ].sort((a, b) => a.id - b.id);
+
+  // Linked handles for every candidate, so each row's full handle set is known.
+  const candidateCreatorIds = [...new Set(candidates.map((r) => r.creator_id).filter((v): v is string => !!v))];
+  const linkedByCreator = new Map<string, string[]>();
+  if (candidateCreatorIds.length > 0) {
+    const { data, error } = await supabase
+      .from('tiktok_accounts')
+      .select('creator_id, tiktok_username')
+      .in('creator_id', candidateCreatorIds);
+    if (error) throw new Error(`[brand-portal] tiktok_accounts read failed: ${error.message}`);
+    for (const t of (data ?? []) as LinkedRow[]) {
+      const h = normHandle(t.tiktok_username);
+      if (!t.creator_id || !h) continue;
+      const list = linkedByCreator.get(t.creator_id) ?? [];
+      if (!list.includes(h)) list.push(h);
+      linkedByCreator.set(t.creator_id, list);
+    }
+  }
+  const handlesOf = (r: ManagedRow): string[] => {
+    const hs: string[] = [];
+    for (const col of ACCOUNT_COLS) {
+      const h = normHandle(r[col]);
+      if (h && !hs.includes(h)) hs.push(h);
+    }
+    for (const h of (r.creator_id ? linkedByCreator.get(r.creator_id) ?? [] : [])) {
+      if (!hs.includes(h)) hs.push(h);
+    }
+    return hs;
+  };
+
+  // Every row on this brand that carries the handle exactly. An unarchived one
+  // owns the page; otherwise the first (by id), as on the overview.
+  const ownerRows = candidates.filter((r) => handlesOf(r).includes(targetHandle));
+  const owner = ownerRows.find((r) => r.archived_at === null) ?? ownerRows[0];
+  if (!owner) return null;
+  const handles = handlesOf(owner);
+
+  // Roster membership by DAY, the client report's rule: counted while any of
+  // their rows is unarchived, otherwise only on days before the latest
+  // archive date.
+  const everActive = ownerRows.some((r) => r.archived_at === null);
+  const leftOn = everActive
+    ? null
+    : ownerRows.map((r) => (r.archived_at ?? '').slice(0, 10)).filter(Boolean).sort().at(-1) ?? null;
+  const onRoster = (date: string): boolean => everActive || (leftOn !== null && leftOn > date);
 
   // 2. Resolve period window
   const { data: anchorRow } = await supabase
@@ -232,12 +297,19 @@ export async function getBrandCreatorDetail(
     }),
   ]);
 
+  // A failed read is not zero sales. These were never checked, so a failure
+  // rendered a creator's page at $0 (or a partial total) with no error.
+  if (statsCur.error) throw new Error(`[brand-portal] creator stats read failed: ${statsCur.error.message}`);
+  if (statsPrev.error) throw new Error(`[brand-portal] creator prior stats read failed: ${statsPrev.error.message}`);
+
   // Aggregate current period
   let totalGmv = 0;
   let totalOrders = 0;
   let totalPosts = 0;
   const dailyMap = new Map<string, { gmv: number; posts: number }>();
   for (const r of (statsCur.data ?? []) as any[]) {
+    // Only their roster days, matching the overview and the client report.
+    if (!onRoster(r.report_date as string)) continue;
     const gmv = Number(r.gmv ?? 0);
     const orders = Number(r.orders ?? 0);
     const posts = Number(r.videos ?? 0);
@@ -259,6 +331,7 @@ export async function getBrandCreatorDetail(
   let priorTotalPosts = 0;
   const priorByDate = new Map<string, number>();
   for (const r of (statsPrev.data ?? []) as any[]) {
+    if (!onRoster(r.report_date as string)) continue;
     const gmv = Number(r.gmv ?? 0);
     priorTotalGmv += gmv;
     priorTotalPosts += Number(r.videos ?? 0);

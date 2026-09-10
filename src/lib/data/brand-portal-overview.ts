@@ -36,6 +36,12 @@ export interface BrandRosterCreator {
   posts: number;
   /** Rolling 30-day GMV — used for ROI calc regardless of selected period. */
   gmv30d: number;
+  /**
+   * Set when this creator has since left the roster (YYYY-MM-DD). Such a
+   * creator is listed only when they earned in the period, so the table still
+   * sums to the headline: their roster days count, the days after do not.
+   */
+  leftOn?: string | null;
 }
 
 export interface BrandRosterVideo {
@@ -231,15 +237,27 @@ export async function getBrandPortalDashboard(
   }
 
   // ── 1. Managed roster (legacy table — source of truth)
+  //
+  // 🚨 SAME MEMBERSHIP RULE AS THE CLIENT REPORT the same brand receives
+  // (get_brand_client_report_managed_split, mig 165). The portal used to run
+  // its own: handles from account_1..10 only, and "on the roster" meant
+  // employment_status = 'active'. Against the August 2026 reports:
+  //   Neurogum          -$62,938 (-27%), share 39.0% vs 53.6%
+  //   Physicians Choice -$37,140 (-11%)
+  //     both: handles that live only in tiktok_accounts were never read
+  //   JiYu              +$17,654 (+8%)
+  //     creators archived off the roster but still marked 'active' kept
+  //     counting (Peach Slices had 31 of those; its roster read 152, not 121)
+  // Now: handles = account_1..10 UNION tiktok_accounts, and a handle's GMV
+  // counts on a day only if it was on the roster THAT day (any unarchived
+  // row, or archived after that day). Verified against the reports to the
+  // cent on 14 of 15 brands; Dr. Dent is +$485.60 because
+  // daily_creator_stats itself holds more than creator_performance there.
+  //
+  // ⚠️ Reads THROW. A swallowed error here used to render an empty dashboard,
+  // which a client cannot tell apart from a month with no sales.
   const accountSelect = ACCOUNT_COLS.join(', ');
-  const { data: managedRows } = await supabase
-    .from('managed_creators')
-    .select(
-      `id, real_name, retainer, monthly_post_requirement, current_tier, ${accountSelect}`,
-    )
-    .eq('brand', brandSlug)
-    .eq('employment_status', 'active')
-    .range(0, 9999);
+  const PAGE = 1000;
 
   type ManagedRow = {
     id: number;
@@ -247,33 +265,131 @@ export async function getBrandPortalDashboard(
     retainer: number | string | null;
     monthly_post_requirement: number | null;
     current_tier: string | null;
+    archived_at: string | null;
+    creator_id: string | null;
   } & { [K in (typeof ACCOUNT_COLS)[number]]: string | null };
 
-  const roster = ((managedRows ?? []) as unknown as ManagedRow[]).map((r) => {
-    const handles: string[] = [];
+  // Every roster row for the brand, archived ones included: someone who left
+  // mid-period still earned for us on the days before they left. Paged,
+  // because .range(0, 9999) does not lift PostgREST's 1,000-row cap.
+  const managedRows: ManagedRow[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase
+      .from('managed_creators')
+      .select(
+        `id, real_name, retainer, monthly_post_requirement, current_tier, archived_at, creator_id, ${accountSelect}`,
+      )
+      .eq('brand', brandSlug)
+      .order('id', { ascending: true })
+      .range(from, from + PAGE - 1);
+    if (error) throw new Error(`[brand-portal] managed_creators read failed: ${error.message}`);
+    const page = (data ?? []) as unknown as ManagedRow[];
+    managedRows.push(...page);
+    if (page.length < PAGE) break;
+  }
+
+  // Linked TikTok accounts. Chunked (a long .in() overflows the URL) and paged.
+  const creatorIds = [...new Set(managedRows.map((r) => r.creator_id).filter((v): v is string => !!v))];
+  const taHandlesByCreator = new Map<string, string[]>();
+  {
+    const CHUNK = 200;
+    const batches: string[][] = [];
+    for (let i = 0; i < creatorIds.length; i += CHUNK) batches.push(creatorIds.slice(i, i + CHUNK));
+    await Promise.all(batches.map(async (batch) => {
+      for (let from = 0; ; from += PAGE) {
+        const { data, error } = await supabase
+          .from('tiktok_accounts')
+          .select('id, creator_id, tiktok_username')
+          .in('creator_id', batch)
+          .order('id', { ascending: true })
+          .range(from, from + PAGE - 1);
+        if (error) throw new Error(`[brand-portal] tiktok_accounts read failed: ${error.message}`);
+        const page = (data ?? []) as Array<{ creator_id: string; tiktok_username: string | null }>;
+        for (const t of page) {
+          const h = normHandle(t.tiktok_username);
+          if (!h) continue;
+          const list = taHandlesByCreator.get(t.creator_id) ?? [];
+          if (!list.includes(h)) list.push(h);
+          taHandlesByCreator.set(t.creator_id, list);
+        }
+        if (page.length < PAGE) break;
+      }
+    }));
+  }
+
+  const dayOf = (ts: string | null): string | null => (ts ? ts.slice(0, 10) : null);
+
+  // Per-handle membership, at the grain the report uses (handle within this
+  // brand). A handle is open while ANY of its rows is unarchived; otherwise it
+  // left on the LATEST archive date, so a re-signed creator is not cut at
+  // their first departure.
+  type Membership = { everActive: boolean; archivedOn: string | null; owner: number; ownerActive: boolean };
+  const membership = new Map<string, Membership>();
+  const handlesByManaged = new Map<number, string[]>();
+  for (const r of managedRows) {
+    const hs: string[] = [];
     for (const col of ACCOUNT_COLS) {
       const h = normHandle(r[col]);
-      if (h) handles.push(h);
+      if (h && !hs.includes(h)) hs.push(h);
     }
-    return {
-      managedId: r.id,
-      realName: r.real_name,
-      retainer: Number(r.retainer ?? 0),
-      monthlyPostRequirement: r.monthly_post_requirement,
-      currentTier: r.current_tier,
-      handles,
-    };
-  });
-
-  // Map every handle back to a single managed row (in handle-ownership order:
-  // a handle listed for multiple creators belongs to the FIRST one we see).
-  const handleToManaged = new Map<string, number>();
-  for (const r of roster) {
-    for (const h of r.handles) {
-      if (!handleToManaged.has(h)) handleToManaged.set(h, r.managedId);
+    for (const h of (r.creator_id ? taHandlesByCreator.get(r.creator_id) ?? [] : [])) {
+      if (!hs.includes(h)) hs.push(h);
+    }
+    handlesByManaged.set(r.id, hs);
+    const active = r.archived_at === null;
+    const left = dayOf(r.archived_at);
+    for (const h of hs) {
+      const m = membership.get(h);
+      if (!m) {
+        membership.set(h, { everActive: active, archivedOn: left, owner: r.id, ownerActive: active });
+        continue;
+      }
+      if (active) m.everActive = true;
+      if (left && (!m.archivedOn || left > m.archivedOn)) m.archivedOn = left;
+      // A handle belongs to one row: an unarchived row beats an archived one,
+      // otherwise the first seen keeps it (id order, so it is stable).
+      if (active && !m.ownerActive) {
+        m.owner = r.id;
+        m.ownerActive = true;
+      }
     }
   }
-  const allHandles = [...handleToManaged.keys()];
+
+  /** Was this handle on the roster on this day? The report's exact test. */
+  const isMember = (handle: string, date: string): boolean => {
+    const m = membership.get(handle);
+    if (!m) return false;
+    return m.everActive || (m.archivedOn !== null && m.archivedOn > date);
+  };
+
+  const toEntry = (r: ManagedRow) => ({
+    managedId: r.id,
+    realName: r.real_name,
+    retainer: Number(r.retainer ?? 0),
+    monthlyPostRequirement: r.monthly_post_requirement,
+    currentTier: r.current_tier,
+    handles: handlesByManaged.get(r.id) ?? [],
+    leftOn: dayOf(r.archived_at),
+  });
+  // The roster TODAY (counts, retainer total, the creator list), on the
+  // archive date rather than employment_status, which lags it.
+  const roster = managedRows.filter((r) => r.archived_at === null).map(toEntry);
+  // People who have since left: listed only if they earned in the period.
+  const departed = managedRows.filter((r) => r.archived_at !== null).map(toEntry);
+
+  const handleToManaged = new Map<string, number>();
+  for (const [h, m] of membership) handleToManaged.set(h, m.owner);
+
+  // Handles that were on the roster at any point in the widest window read
+  // below (the prior period or the trailing 30 days, whichever starts first).
+  // Rows are then tested day by day with isMember.
+  const earliestRead = [
+    fmt(priorStart),
+    fmt(new Date(endDate.getTime() - 29 * 86_400_000)),
+  ].sort()[0];
+  const allHandles = [...membership.entries()]
+    .filter(([, m]) => m.everActive || (m.archivedOn !== null && m.archivedOn > earliestRead))
+    .map(([h]) => h);
 
   if (allHandles.length === 0) {
     return emptyDashboard(brandSlug, brandName, startDate, actualEndDate, periodLengthDays);
@@ -302,15 +418,22 @@ export async function getBrandPortalDashboard(
   ): Promise<{ data: T[]; error: null }> => {
     const PAGE = 1000;
     const out: T[] = [];
-    for (const batch of chunkArr(handles, HANDLE_CHUNK)) {
+    // Chunks are independent sums, so they run together; pages within a chunk
+    // stay sequential.
+    //
+    // 🚨 A FAILED PAGE THROWS. It used to log and `break`, keeping the rows
+    // read so far and dropping the rest: under load, JiYu's August came back
+    // as $23,934 against a true $222,435, with nothing on the page to say so.
+    // A client must see an error, never a smaller plausible number.
+    await Promise.all(chunkArr(handles, HANDLE_CHUNK).map(async (batch) => {
       for (let from = 0; ; from += PAGE) {
         const { data, error } = await build(batch).range(from, from + PAGE - 1);
-        if (error) { console.error('[brand-portal] paged fetch failed:', error.message); break; }
+        if (error) throw new Error(`[brand-portal] paged fetch failed: ${error.message}`);
         if (!data || data.length === 0) break;
         out.push(...data);
         if (data.length < PAGE) break;
       }
-    }
+    }));
     return { data: out, error: null };
   };
 
@@ -344,7 +467,8 @@ export async function getBrandPortalDashboard(
     // Trailing 30-day GMV per handle (for ROI column on creator roster).
     fetchAllByHandles(allHandles, (batch) => supabase
       .from('daily_creator_stats')
-      .select('tiktok_username, gmv')
+      // report_date so each row can take the day-level membership test.
+      .select('tiktok_username, gmv, report_date')
       .in('brand_id', brandIds)
       .gte('report_date', trailing30StartStr)
       .lte('report_date', trailing30EndStr)
@@ -427,10 +551,13 @@ export async function getBrandPortalDashboard(
 
   // Trailing-30d GMV per managed creator (for ROI column)
   const gmv30dByManaged = new Map<number, number>();
+  // Every stats loop below applies isMember per ROW: a creator who left
+  // mid-window contributes their roster days and no more, exactly as the
+  // client report counts them.
   for (const r of (stats30d.data ?? []) as any[]) {
     const handle = normHandle(r.tiktok_username);
     const id = handleToManaged.get(handle);
-    if (id == null) continue;
+    if (id == null || !isMember(handle, r.report_date as string)) continue;
     gmv30dByManaged.set(id, (gmv30dByManaged.get(id) ?? 0) + Number(r.gmv ?? 0));
   }
 
@@ -439,7 +566,7 @@ export async function getBrandPortalDashboard(
   for (const r of (statsCur.data ?? []) as any[]) {
     const handle = normHandle(r.tiktok_username);
     const id = handleToManaged.get(handle);
-    if (id == null) continue;
+    if (id == null || !isMember(handle, r.report_date as string)) continue;
     if (!perManaged.has(id)) perManaged.set(id, { gmv: 0, orders: 0, posts: 0 });
     const p = perManaged.get(id)!;
     p.gmv += Number(r.gmv ?? 0);
@@ -467,7 +594,7 @@ export async function getBrandPortalDashboard(
   const priorByDate = new Map<string, number>();
   for (const r of (statsPrev.data ?? []) as any[]) {
     const handle = normHandle(r.tiktok_username);
-    if (!handleToManaged.has(handle)) continue;
+    if (!handleToManaged.has(handle) || !isMember(handle, r.report_date as string)) continue;
     const gmv = Number(r.gmv ?? 0);
     priorTotalGmv += gmv;
     priorTotalPosts += Number(r.videos ?? 0);
@@ -663,7 +790,13 @@ export async function getBrandPortalDashboard(
     );
 
   // ── 4. Build the final creator rows
-  const creators: BrandRosterCreator[] = roster
+  // Today's roster, plus anyone who has since left but earned in the period,
+  // so the table sums to the headline. A departed row carries leftOn.
+  const listed = [
+    ...roster,
+    ...departed.filter((r) => (perManaged.get(r.managedId)?.gmv ?? 0) !== 0),
+  ];
+  const creators: BrandRosterCreator[] = listed
     .map((r) => {
       const stats = perManaged.get(r.managedId) ?? { gmv: 0, orders: 0, posts: 0 };
       return {
@@ -679,6 +812,7 @@ export async function getBrandPortalDashboard(
         gmv: stats.gmv,
         orders: stats.orders,
         posts: stats.posts,
+        leftOn: r.leftOn,
       };
     })
     .sort((a, b) => b.gmv - a.gmv);

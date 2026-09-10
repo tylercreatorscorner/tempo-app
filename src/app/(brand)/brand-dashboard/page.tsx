@@ -231,6 +231,16 @@ export default async function BrandOverview({ searchParams }: PageProps) {
                       {c.realName && (
                         <span className="text-muted-foreground text-xs"> · {c.realName}</span>
                       )}
+                      {c.leftOn && (
+                        <span className="text-muted-foreground text-xs">
+                          {' '}· left{' '}
+                          {new Date(`${c.leftOn}T12:00:00Z`).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            timeZone: 'UTC',
+                          })}
+                        </span>
+                      )}
                     </span>
                     <span className="text-right text-sm tabular-nums text-muted-foreground">
                       {fmtNumber(c.posts)}

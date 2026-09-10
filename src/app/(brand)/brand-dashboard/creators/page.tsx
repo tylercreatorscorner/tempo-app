@@ -219,6 +219,18 @@ export default async function BrandCreatorsPage({ searchParams }: PageProps) {
                       {c.realName && c.primaryHandle && (
                         <span className="ml-2 text-xs text-muted-foreground">{c.realName}</span>
                       )}
+                      {/* Listed because they earned in the period before leaving;
+                          their days after leaving are not counted. */}
+                      {c.leftOn && (
+                        <span className="ml-2 text-xs text-muted-foreground">
+                          · left{' '}
+                          {new Date(`${c.leftOn}T12:00:00Z`).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            timeZone: 'UTC',
+                          })}
+                        </span>
+                      )}
                     </td>
                     <td className="text-right px-3 py-2.5 tabular-nums font-medium">
                       {fmtCurrency(c.gmv)}
