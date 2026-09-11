@@ -80,13 +80,23 @@ export interface AgencyTrendPoint {
   month: string;
   /** "Mar" */
   label: string;
-  /** Clients with any store GMV that month. Stated so composition is visible. */
+  /**
+   * Clients whose roster sold something that month. Stated so composition is
+   * visible. Same rule as totals.clients: a store we have not sold in is not
+   * yet a client's (Lumineux, signed but not started, made August read "15").
+   */
   clients: number;
   rosterGmv: number;
   storeGmv: number;
   /** Same two figures over the SAME-STORE set only. */
   sameStoreRoster: number;
   sameStoreStore: number;
+}
+
+export interface AgencyTrendClient {
+  slug: string;
+  /** One entry per month of the window, in order; zeros where absent. */
+  months: Array<{ month: string; rosterGmv: number; storeGmv: number }>;
 }
 
 export interface AgencySnapshot {
@@ -112,8 +122,15 @@ export interface AgencySnapshot {
     noHandle?: number;
   };
   brands: AgencyBrandRow[];
-  /** v2. Six months ending with this period, plus which clients are same-store. */
-  trend?: { points: AgencyTrendPoint[]; sameStore: string[] };
+  /**
+   * v2. Six months ending with this period, plus which clients are same-store.
+   * gaps: client-months inside the window with no data at all, in words, so a
+   * hole in the uploads is never drawn as a lost client (Peach Slices had no
+   * June 2026 upload and the chart showed 10 clients falling to 9).
+   * byClient: the same-store clients month by month, so the line can be
+   * decomposed into who moved it.
+   */
+  trend?: { points: AgencyTrendPoint[]; sameStore: string[]; gaps?: string[]; byClient?: AgencyTrendClient[] };
   /**
    * Anything that would make a figure misleading if read without it. Built at
    * BUILD time, so a frozen report carries the caveats that were true then.
@@ -161,7 +178,10 @@ async function findGaps(supabase: Admin, start: string, end: string): Promise<st
  * Non-fatal: a failed read leaves the report without its trend, never without
  * the rest of the page.
  */
-async function buildTrend(supabase: Admin, end: Date): Promise<AgencySnapshot['trend']> {
+async function buildTrend(
+  supabase: Admin,
+  end: Date,
+): Promise<(NonNullable<AgencySnapshot['trend']> & { gapSlugs: Array<{ slug: string; month: string }> }) | undefined> {
   const y = end.getUTCFullYear();
   const m = end.getUTCMonth();
   const months: { key: string; label: string }[] = [];
@@ -189,9 +209,17 @@ async function buildTrend(supabase: Admin, end: Date): Promise<AgencySnapshot['t
     }),
   );
 
+  // A client is present in a month when our roster sold something in it,
+  // the same rule the totals use.
   const present = new Map<string, Set<string>>();
+  // Any data at all, for the gap check below.
+  const hasData = new Map<string, Set<string>>();
   for (const r of rows) {
-    if (r.store <= 0) continue;
+    if (r.store > 0) {
+      if (!hasData.has(r.slug)) hasData.set(r.slug, new Set());
+      hasData.get(r.slug)!.add(r.month);
+    }
+    if (r.roster <= 0) continue;
     if (!present.has(r.slug)) present.set(r.slug, new Set());
     present.get(r.slug)!.add(r.month);
   }
@@ -200,21 +228,49 @@ async function buildTrend(supabase: Admin, end: Date): Promise<AgencySnapshot['t
     .map(([slug]) => slug);
   const same = new Set(sameStore);
 
+  /**
+   * 🚨 A MISSING UPLOAD LOOKS LIKE A LOST CLIENT. A client with data before
+   * and after a month, and none in it, has a hole in the uploads, not a month
+   * off. Named here so the chart cannot show it as a drop in clients and GMV.
+   */
+  const gapSlugs: Array<{ slug: string; month: string }> = [];
+  for (const [slug, ms] of hasData) {
+    const idx = months.map((mo, i) => (ms.has(mo.key) ? i : -1)).filter((i) => i >= 0);
+    if (idx.length < 2) continue;
+    for (let i = idx[0]; i <= idx[idx.length - 1]; i++) {
+      if (!ms.has(months[i].key)) gapSlugs.push({ slug, month: months[i].key });
+    }
+  }
+
   const points: AgencyTrendPoint[] = months.map((mo) => {
     const inMonth = rows.filter((r) => r.month === mo.key);
     const ss = inMonth.filter((r) => same.has(r.slug));
     return {
       month: mo.key,
       label: mo.label,
-      clients: inMonth.filter((r) => r.store > 0).length,
+      clients: inMonth.filter((r) => r.roster > 0).length,
       rosterGmv: inMonth.reduce((a, r) => a + r.roster, 0),
-      storeGmv: inMonth.reduce((a, r) => a + r.store, 0),
+      storeGmv: inMonth.filter((r) => r.roster > 0).reduce((a, r) => a + r.store, 0),
       sameStoreRoster: ss.reduce((a, r) => a + r.roster, 0),
       sameStoreStore: ss.reduce((a, r) => a + r.store, 0),
     };
   });
 
-  return { points, sameStore };
+  const byClient: AgencyTrendClient[] = sameStore.map((slug) => ({
+    slug,
+    months: months.map((mo) => {
+      const r = rows.find((x) => x.slug === slug && x.month === mo.key);
+      return { month: mo.key, rosterGmv: r ? r.roster : 0, storeGmv: r ? r.store : 0 };
+    }),
+  }));
+
+  return { points, sameStore, byClient, gapSlugs };
+}
+
+/** "June 2026" from "2026-06". */
+function monthKeyLabel(key: string): string {
+  const [y, m] = key.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
 }
 
 /**
@@ -268,7 +324,7 @@ export async function buildAgencySnapshot(start: string, end: string): Promise<A
   const priorEnd = new Date(s.getTime() - 86_400_000);
   const priorStart = new Date(priorEnd.getTime() - (days - 1) * 86_400_000);
 
-  const [portfolio, reg, caveats, trend, invoices, quality] = await Promise.all([
+  const [portfolio, reg, gapCaveats, trendRaw, invoices, quality] = await Promise.all([
     supabase.rpc('get_agency_portfolio', {
       p_start: start,
       p_end: end,
@@ -325,6 +381,18 @@ export async function buildAgencySnapshot(start: string, end: string): Promise<A
 
   const t = raw.totals ?? {};
   const inReport = brands.filter((b) => b.rosterGmv > 0 || b.committedRetainer > 0);
+
+  // Trend gaps in words, with the client's name, on the chart and in the
+  // caveats list both: the chart is where the hole misleads, the list is where
+  // a reader looks for every gap.
+  const nameOf = (slug: string) => brands.find((b) => b.slug === slug)?.name ?? slug;
+  const trendGaps = (trendRaw?.gapSlugs ?? []).map(
+    (g) => `${nameOf(g.slug)} has no data for ${monthKeyLabel(g.month)}, so that month is short by that client on the six-month chart`,
+  );
+  const trend: AgencySnapshot['trend'] = trendRaw
+    ? { points: trendRaw.points, sameStore: trendRaw.sameStore, byClient: trendRaw.byClient, gaps: trendGaps }
+    : undefined;
+  const caveats = [...gapCaveats, ...trendGaps];
 
   return {
     v: 2,

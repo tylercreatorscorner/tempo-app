@@ -22,6 +22,11 @@
  */
 import type { AgencySnapshot, AgencyBrandRow, AgencyTrendPoint } from '@/lib/data/agency-report';
 
+/** "+1.9 pts" for a change in a percentage. Never a relative %, see below. */
+function pts(n: number): string {
+  return (n >= 0 ? '+' : '') + n.toFixed(1) + ' pts';
+}
+
 const AGENCY = 'Creators Corner';
 
 function money(n: number): string {
@@ -116,10 +121,15 @@ function watchReasons(b: AgencyBrandRow): string[] {
   const from = b.priorSharePct;
   const to = b.sharePct;
   if (v?.tone === 'bad' && from !== null && from !== undefined && to !== null) {
-    const grew = b.storeMomPct !== null && b.storeMomPct !== undefined && b.storeMomPct > 0;
+    // ⚠️ Every share row carries BOTH directions. This used to say "while its
+    // store grew" only when true, and the intro copied that clause as the rule,
+    // so three of six rows read as failing the list's own criterion.
+    const store = b.storeMomPct;
+    const ours = b.momPct;
+    const dir = (n: number) => `${n >= 0 ? 'grew' : 'fell'} ${Math.abs(n).toFixed(1)}%`;
     out.push(
-      grew
-        ? `Share fell from ${pct(from)} to ${pct(to)} while its store grew ${b.storeMomPct!.toFixed(1)}%`
+      store !== null && store !== undefined && ours !== null
+        ? `Share fell from ${pct(from)} to ${pct(to)}: its store ${dir(store)}, we ${dir(ours)}`
         : `Share fell from ${pct(from)} to ${pct(to)}`,
     );
   }
@@ -136,6 +146,12 @@ export function AgencyView({ snapshot: s }: { snapshot: AgencySnapshot }) {
 
   const earners = s.brands.filter((b) => b.rosterGmv > 0);
   const ranked = [...earners].sort((a, b) => b.rosterGmv - a.rosterGmv);
+  // ⚠️ A client that went to $0 this period is still a client this period:
+  // its loss belongs in "came off" and its row belongs in the table. Only
+  // earners were counted before, so a churned client would have vanished and
+  // the halves would no longer have added back to the headline change.
+  const active = s.brands.filter((b) => b.rosterGmv > 0 || b.priorRosterGmv > 0);
+  const rankedAll = [...active].sort((a, b) => b.rosterGmv - a.rosterGmv);
   const top1 = ranked[0];
   const top3 = ranked.slice(0, 3);
   const top3Share = t.rosterGmv > 0 ? (top3.reduce((x, b) => x + b.rosterGmv, 0) / t.rosterGmv) * 100 : 0;
@@ -143,7 +159,7 @@ export function AgencyView({ snapshot: s }: { snapshot: AgencySnapshot }) {
 
   // A brand with no prior is new money, counted at full value, so the two
   // halves add back to the headline change exactly.
-  const moved = earners.map((b) => ({
+  const moved = active.map((b) => ({
     ...b,
     swing: b.priorRosterGmv > 0 ? b.rosterGmv - b.priorRosterGmv : b.rosterGmv,
     isNew: b.priorRosterGmv <= 0,
@@ -152,15 +168,35 @@ export function AgencyView({ snapshot: s }: { snapshot: AgencySnapshot }) {
   const lost = moved.filter((b) => b.swing < 0).reduce((x, b) => x + b.swing, 0);
   const upCount = moved.filter((b) => b.swing > 0).length;
   const downCount = moved.filter((b) => b.swing < 0).length;
+  // New money is stated on its own: "came on across 9 accounts" read as nine
+  // existing accounts growing when one of them did not exist last period.
+  const newOnes = moved.filter((b) => b.isNew && b.swing > 0);
+  const newMoney = newOnes.reduce((x, b) => x + b.swing, 0);
+  const gainedExisting = gained - newMoney;
+  const upExisting = upCount - newOnes.length;
 
-  // v2: worst RELATIVE share movement first, so a small account losing a
-  // third of its position leads rather than hiding under a large account's
-  // bigger point move. New clients sort last: nothing to judge them against.
-  const byShare = [...moved].sort((a, b) => {
-    const av = relShare(a) ?? Number.POSITIVE_INFINITY;
-    const bv = relShare(b) ?? Number.POSITIVE_INFINITY;
-    return av - bv;
-  });
+  /**
+   * Like-for-like: only the clients that existed in both periods. The blended
+   * pair leans on new clients, and the readers who tried to strip them out by
+   * hand got the store side wrong because the page gave them no way to do it.
+   * Stated beside the blended figures, never instead of them.
+   */
+  const lfl = s.brands.filter((b) => b.priorRosterGmv > 0);
+  const lflPrior = lfl.reduce((x, b) => x + b.priorRosterGmv, 0);
+  const lflStorePrior = lfl.reduce((x, b) => x + b.priorStoreGmv, 0);
+  const lflOursPct = newOnes.length > 0 && lflPrior > 0
+    ? ((lfl.reduce((x, b) => x + b.rosterGmv, 0) - lflPrior) / lflPrior) * 100 : null;
+  const lflStorePct = newOnes.length > 0 && lflStorePrior > 0
+    ? ((lfl.reduce((x, b) => x + b.storeGmv, 0) - lflStorePrior) / lflStorePrior) * 100 : null;
+
+  // v2: grouped by verdict (lost, held, gained, new), largest dollar move
+  // first inside each group. The relative-share sort this replaces put a
+  // $1,635 loss at the top of a table whose lead said "dollars".
+  const groupOf = (b: (typeof moved)[number]) => {
+    const v = b.isNew ? null : verdict(b);
+    return v === null ? 3 : v.tone === 'bad' ? 0 : v.tone === 'flat' ? 1 : 2;
+  };
+  const byShare = [...moved].sort((a, b) => groupOf(a) - groupOf(b) || Math.abs(b.swing) - Math.abs(a.swing));
 
   const perDollar = t.committedRetainer > 0 ? t.rosterGmv / t.committedRetainer : null;
 
@@ -170,12 +206,21 @@ export function AgencyView({ snapshot: s }: { snapshot: AgencySnapshot }) {
         .filter((x) => x.reasons.length > 0)
         .sort((a, z) => z.b.committedRetainer - a.b.committedRetainer)
     : [];
+  // The largest dollar decline that did NOT qualify. A share-filtered list can
+  // never surface a client whose whole store is sinking under us (Physicians
+  // Choice: largest commitment, -$97,956, held share), so it is named here.
+  const watchSet = new Set(watch.map((w) => w.b.slug));
+  const alsoWatching = isV2
+    ? [...moved].filter((b) => b.swing < 0 && !watchSet.has(b.slug)).sort((a, b) => a.swing - b.swing)[0] ?? null
+    : null;
 
   const trend = s.trend;
   const tFirst = trend?.points[0];
   const tLast = trend?.points[trend.points.length - 1];
   const ssFirst = tFirst && tFirst.sameStoreStore > 0 ? (tFirst.sameStoreRoster / tFirst.sameStoreStore) * 100 : null;
   const ssLast = tLast && tLast.sameStoreStore > 0 ? (tLast.sameStoreRoster / tLast.sameStoreStore) * 100 : null;
+  const tPrev = trend && trend.points.length > 1 ? trend.points[trend.points.length - 2] : undefined;
+  const ssPrev = tPrev && tPrev.sameStoreStore > 0 ? (tPrev.sameStoreRoster / tPrev.sameStoreStore) * 100 : null;
   const ssGmvChange =
     tFirst && tLast && tFirst.sameStoreRoster > 0
       ? ((tLast.sameStoreRoster - tFirst.sameStoreRoster) / tFirst.sameStoreRoster) * 100
@@ -200,7 +245,7 @@ export function AgencyView({ snapshot: s }: { snapshot: AgencySnapshot }) {
           </div>
           <h1 className="mb-0.5 mt-2 text-[28px] font-extrabold tracking-tight">{s.periodLabel}</h1>
           <div className="text-[13.5px] text-white/80">
-            {t.clients} client{t.clients === 1 ? '' : 's'} &middot; against {s.priorLabel} &middot; prepared{' '}
+            Internal &middot; {t.clients} client{t.clients === 1 ? '' : 's'} &middot; against {s.priorLabel} &middot; prepared{' '}
             {new Date(s.generatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
           </div>
         </div>
@@ -235,11 +280,18 @@ export function AgencyView({ snapshot: s }: { snapshot: AgencySnapshot }) {
                 <b className="text-[#171a33]">{pct(ssLast)}</b> in {tLast.label}
                 {ssGmvChange !== null && ssStoreChange !== null && (
                   <>
-                    , with our GMV there <b className="text-[#171a33]">{signed(ssGmvChange, 0)}</b> against their stores{' '}
-                    <b className="text-[#171a33]">{signed(ssStoreChange, 0)}</b>
+                    , with our GMV there <b className="text-[#171a33]">{signed(ssGmvChange, 0)}</b> since {tFirst.label}{' '}
+                    against their stores <b className="text-[#171a33]">{signed(ssStoreChange, 0)}</b> over the same six months
                   </>
                 )}
                 .
+                {lflOursPct !== null && lflStorePct !== null && (
+                  <>
+                    {' '}Excluding {newOnes.map((b) => b.name).join(' and ')}, new this period, our GMV is{' '}
+                    <b className="text-[#171a33]">{signed(lflOursPct)}</b> on {s.priorLabel} against client stores at{' '}
+                    <b className="text-[#171a33]">{signed(lflStorePct)}</b> on the same clients.
+                  </>
+                )}
               </>
             ) : (
               priorShare !== null && (
@@ -258,7 +310,10 @@ export function AgencyView({ snapshot: s }: { snapshot: AgencySnapshot }) {
               <Stat
                 label="Same-store share"
                 value={pct(ssLast)}
-                note={`${trend.sameStore.length} clients held all six months`}
+                note={
+                  (ssPrev !== null ? `${pts(ssLast - ssPrev)} on ${s.priorLabel.split(' ')[0]}. ` : '') +
+                  `${trend.sameStore.length} clients held all six months; blended share is ${pct(share)}`
+                }
               />
             ) : (
               <Stat
@@ -317,6 +372,49 @@ export function AgencyView({ snapshot: s }: { snapshot: AgencySnapshot }) {
                     ' A small base, so read the direction of the line more than its level.'}
                 </p>
               )}
+              {/* Who moved the line. Four clients is few enough that the
+                  answer to "which of them" fits in four rows. */}
+              {trend.byClient && trend.byClient.length > 0 && (
+                <div className="mt-3 overflow-x-auto">
+                  <table className="w-full min-w-[560px] border-collapse text-[12.5px]">
+                    <thead>
+                      <tr className="border-b border-[#eeedf5]">
+                        <th className={TH_L}>Same-store share by client</th>
+                        {trend.points.map((p) => (
+                          <th key={p.month} className={TH_R}>{p.label}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {trend.byClient.map((c) => {
+                        const b = s.brands.find((x) => x.slug === c.slug);
+                        return (
+                          <tr key={c.slug} className="border-b border-[#f2f1f8] last:border-b-0">
+                            <td className="px-4 py-2">
+                              <span className="flex items-center gap-2">
+                                <span className="h-2.5 w-2.5 shrink-0 rounded-[3px]" style={{ backgroundColor: b?.color || '#c7c9de' }} />
+                                <span className="font-semibold text-[#171a33]">{b?.name ?? c.slug}</span>
+                              </span>
+                            </td>
+                            {c.months.map((m) => (
+                              <td key={m.month} className="px-4 py-2 text-right tabular-nums text-[#33375c]">
+                                {m.storeGmv > 0 ? pct((m.rosterGmv / m.storeGmv) * 100) : NONE}
+                              </td>
+                            ))}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {trend.gaps && trend.gaps.length > 0 && (
+                <ul className="mt-2.5 space-y-1">
+                  {trend.gaps.map((g) => (
+                    <li key={g} className="text-[11.5px] leading-[1.6] text-[#8a5a08]">{g}</li>
+                  ))}
+                </ul>
+              )}
             </div>
           </>
         )}
@@ -333,8 +431,7 @@ export function AgencyView({ snapshot: s }: { snapshot: AgencySnapshot }) {
               ) : (
                 <>
                   <p className="mb-2 max-w-[72ch] text-[13.5px] leading-[1.6] text-[#5c6183]">
-                    Clients returning under 1.0x on committed retainer, or losing share while their own store grew.
-                    Largest commitment first.
+                    Clients under 1.0x on committed retainer, or that lost ground on share. Largest commitment first.
                   </p>
                   {watch.map(({ b, reasons }) => (
                     <div key={b.slug} className="flex flex-wrap items-start gap-x-3 gap-y-1 border-b border-[#f2f1f8] py-2.5 last:border-b-0">
@@ -349,6 +446,15 @@ export function AgencyView({ snapshot: s }: { snapshot: AgencySnapshot }) {
                       </span>
                     </div>
                   ))}
+                  {alsoWatching && (
+                    <p className="mt-2.5 text-[12.5px] leading-[1.6] text-[#5c6183]">
+                      Also watching: <b className="text-[#171a33]">{alsoWatching.name}</b>, the largest dollar decline not on
+                      this list at <b className="text-[#171a33]">&minus;{money(Math.abs(alsoWatching.swing))}</b> on {s.priorLabel}
+                      {alsoWatching.momPct !== null && ` (${signed(alsoWatching.momPct)})`}
+                      {(() => { const v = verdict(alsoWatching); return v ? `, ${v.label.toLowerCase()}` : ''; })()}
+                      {!alsoWatching.invoiced && ', not yet invoiced'}.
+                    </p>
+                  )}
                 </>
               )}
             </div>
@@ -359,9 +465,14 @@ export function AgencyView({ snapshot: s }: { snapshot: AgencySnapshot }) {
         <SectionLine>What moved</SectionLine>
         <div className="rounded-[14px] border border-[#e7e7f2] bg-white px-5 py-5">
           <p className="max-w-[72ch] text-[14.5px] leading-[1.65] text-[#33375c]">
-            <b className="text-[#171a33]">{money(gained)}</b> came on across {upCount} account{upCount === 1 ? '' : 's'} and{' '}
-            <b className="text-[#171a33]">{money(Math.abs(lost))}</b> came off across {downCount}.
-            {isV2 && ' Dollars show where revenue moved; our share before and after shows whether we moved with the client or against it, which is the part we control.'}
+            <b className="text-[#171a33]">{money(gainedExisting)}</b> came on across {upExisting} account{upExisting === 1 ? '' : 's'}
+            {newOnes.length > 0 && (
+              <>
+                , plus <b className="text-[#171a33]">{money(newMoney)}</b> from {newOnes.length} new client{newOnes.length === 1 ? '' : 's'}
+              </>
+            )}
+            , and <b className="text-[#171a33]">{money(Math.abs(lost))}</b> came off across {downCount}.
+            {isV2 && ' Dollars show where GMV moved; our share before and after shows whether we moved with the client or against it, which is the part we control. Grouped by verdict, largest dollar move first.'}
           </p>
 
           <div className="mt-4 overflow-x-auto">
@@ -369,11 +480,11 @@ export function AgencyView({ snapshot: s }: { snapshot: AgencySnapshot }) {
               <thead>
                 <tr className="border-b border-[#eeedf5]">
                   <th className={TH_L}>Client</th>
-                  <th className={TH_R}>Our GMV change</th>
-                  <th className={TH_R}>Ours</th>
-                  {isV2 && <th className={TH_R}>Their store</th>}
+                  <th className={TH_R}>Our GMV, $</th>
+                  <th className={TH_R}>Our GMV, %</th>
+                  {isV2 && <th className={TH_R}>Their store, %</th>}
                   {isV2 && <th className={TH_R}>Share</th>}
-                  {isV2 && <th className={TH_L}>Read</th>}
+                  {isV2 && <th className={TH_L}>Verdict</th>}
                 </tr>
               </thead>
               <tbody>
@@ -419,8 +530,7 @@ export function AgencyView({ snapshot: s }: { snapshot: AgencySnapshot }) {
           </div>
           {isV2 && (
             <p className="mt-2.5 text-[11.5px] leading-[1.6] text-[#8a8fb0]">
-              Sorted by the relative change in our share, worst first. Under one point and under 15% of the
-              share either way reads as held.
+              Under one point and under 15% of the share either way reads as held.
             </p>
           )}
         </div>
@@ -449,7 +559,7 @@ export function AgencyView({ snapshot: s }: { snapshot: AgencySnapshot }) {
             {top3.map((b) => (
               <span key={b.slug} className="flex items-center gap-1.5 text-[12px] text-[#5c6183]">
                 <span className="h-2.5 w-2.5 rounded-[3px]" style={{ backgroundColor: b.color || '#c7c9de' }} />
-                {b.name} {pct((b.rosterGmv / t.rosterGmv) * 100, 0)}
+                {b.name} {pct((b.rosterGmv / t.rosterGmv) * 100)}
               </span>
             ))}
             <span className="text-[12px] text-[#8a8fb0]">and {ranked.length - top3.length} more</span>
@@ -466,15 +576,15 @@ export function AgencyView({ snapshot: s }: { snapshot: AgencySnapshot }) {
                 <th className={TH_R}>Our GMV</th>
                 <th className={TH_R}>vs {s.priorLabel.split(' ')[0]}</th>
                 <th className={TH_R}>Our share</th>
-                <th className={TH_R}>Retained</th>
+                <th className={TH_R}>On retainer / signed</th>
                 <th className={TH_R}>Committed/mo</th>
                 {isV2 && <th className={TH_R}>GMV per $1</th>}
                 {isV2 && <th className={TH_R}>Invoiced</th>}
               </tr>
             </thead>
             <tbody>
-              {ranked.map((b) => (
-                <tr key={b.slug} className="border-b border-[#eeedf5] last:border-b-0">
+              {rankedAll.map((b) => (
+                <tr key={b.slug} className="border-b border-[#eeedf5]">
                   <td className="px-4 py-2.5">
                     <span className="flex items-center gap-2">
                       <span className="h-2.5 w-2.5 shrink-0 rounded-[3px]" style={{ backgroundColor: b.color || '#c7c9de' }} />
@@ -496,7 +606,7 @@ export function AgencyView({ snapshot: s }: { snapshot: AgencySnapshot }) {
                     <td className="whitespace-nowrap px-4 py-2.5 text-right">
                       {b.returnX === null || b.returnX === undefined ? NONE : (
                         <span className={`font-bold tabular-nums ${b.returnX < 1 ? 'text-[#c0392b]' : 'text-[#171a33]'}`}>
-                          {b.returnX.toFixed(1)}x
+                          {b.returnX.toFixed(2)}x
                         </span>
                       )}
                     </td>
@@ -508,12 +618,34 @@ export function AgencyView({ snapshot: s }: { snapshot: AgencySnapshot }) {
                   )}
                 </tr>
               ))}
+              {/* Totals, so the reader does not have to prove the page reconciles. */}
+              <tr className="bg-[#fcfcff]">
+                <td className="px-4 py-2.5 text-[12px] font-extrabold uppercase tracking-[0.08em] text-[#5c6183]">All clients</td>
+                <td className="whitespace-nowrap px-4 py-2.5 text-right font-extrabold tabular-nums text-[#171a33]">{money(t.rosterGmv)}</td>
+                <td className="whitespace-nowrap px-4 py-2.5 text-right"><Delta v={rosterMom} /></td>
+                <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-[#33375c]">{t.storeGmv > 0 ? pct(share) : NONE}</td>
+                <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-[#33375c]">
+                  {num(t.retained)}<span className="text-[#8a8fb0]">&nbsp;/&nbsp;{num(t.signed)}</span>
+                </td>
+                <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-[#33375c]">{money(t.committedRetainer)}</td>
+                {isV2 && (
+                  <td className="whitespace-nowrap px-4 py-2.5 text-right font-bold tabular-nums text-[#171a33]">
+                    {perDollar !== null ? perDollar.toFixed(2) + 'x' : NONE}
+                  </td>
+                )}
+                {isV2 && (
+                  <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-[#33375c]">
+                    {t.invoiced ? money(t.invoiced) : NONE}
+                  </td>
+                )}
+              </tr>
             </tbody>
           </table>
         </div>
         <p className="mt-2 text-[11.5px] leading-[1.6] text-[#8a8fb0]">
-          Retained / signed counts creators on the roster today, not at the end of the period.
-          {isV2 && ' GMV per $1 divides our GMV by the full committed monthly retainer; under 1.0x is marked red.'}
+          On retainer / signed counts creators on the roster today, not at the end of the period.
+          {isV2 &&
+            ` GMV per $1 divides ${s.periodLabel} GMV by the full monthly retainer of everyone on the roster as of ${new Date(s.generatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}; under 1.0x is marked red.`}
         </p>
 
         {/* ── 7. Invoiced ─────────────────────────────────────────── */}
@@ -526,8 +658,9 @@ export function AgencyView({ snapshot: s }: { snapshot: AgencySnapshot }) {
               ) : (
                 <>
                   <p className="max-w-[72ch] text-[14.5px] leading-[1.65] text-[#33375c]">
-                    <b className="text-[#171a33]">{money(t.invoiced)}</b> invoiced across {t.invoiceCount} invoice
-                    {t.invoiceCount === 1 ? '' : 's'} to <b className="text-[#171a33]">{t.invoicedClients} of {t.clients}</b> clients.
+                    <b className="text-[#171a33]">{t.invoicedClients} of {t.clients}</b> clients invoiced so far:{' '}
+                    <b className="text-[#171a33]">{money(t.invoiced)}</b> across {t.invoiceCount} invoice
+                    {t.invoiceCount === 1 ? '' : 's'}.
                   </p>
                   {/* ⚠️ Stated every time: a partial month looks like a complete
                       one unless the page says it is partial. */}
@@ -552,7 +685,7 @@ export function AgencyView({ snapshot: s }: { snapshot: AgencySnapshot }) {
             />
             <Stat label="On a retainer" value={num(t.retained)} note={t.signed > 0 ? `${pct((t.retained / t.signed) * 100, 0)} of signed` : undefined} />
             <Stat label="Committed" value={money(t.committedRetainer) + '/mo'} />
-            {perDollar !== null && <Stat label="GMV per $1 committed" value={perDollar.toFixed(1) + 'x'} />}
+            {perDollar !== null && <Stat label="GMV per $1 committed" value={perDollar.toFixed(2) + 'x'} />}
           </div>
           <p className="mt-3.5 max-w-[72ch] border-t border-[#f2f1f8] pt-3 text-[12px] leading-[1.6] text-[#8a8fb0]">
             Committed is the full monthly retainer for everyone on the roster today. The client reports divide by
@@ -560,7 +693,7 @@ export function AgencyView({ snapshot: s }: { snapshot: AgencySnapshot }) {
             actually published, so the multiple on a client&rsquo;s own report is higher than the one here. Both are
             correct; they answer different questions.
             {isV2 && t.noHandle
-              ? ` ${num(t.noHandle)} signed creators carry no TikTok handle anywhere, so they can never be credited with GMV and they lower every per-creator figure.`
+              ? ` ${num(t.noHandle)} signed creators carry no TikTok handle anywhere, so they can never be credited with GMV.`
               : ''}
           </p>
         </div>
@@ -580,7 +713,8 @@ export function AgencyView({ snapshot: s }: { snapshot: AgencySnapshot }) {
           Internal. Prepared for {AGENCY} leadership. Every figure is frozen as of{' '}
           {new Date(s.generatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} and will not
           change. GMV is measured on the same roster-membership rule as the individual client reports, so a
-          client&rsquo;s figure here and on their own report are the same number.
+          client&rsquo;s GMV here and on their own report is the same number; the retainer multiple differs because
+          their report divides by retainer earned.
         </p>
       </div>
     </div>

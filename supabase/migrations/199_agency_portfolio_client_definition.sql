@@ -1,0 +1,21 @@
+-- Agency report: one definition of "client" in the totals.
+-- Applied live as agency_portfolio_client_definition (same convention as
+-- 191, 194, 195, 197, 198: the live body is the source; this file documents it).
+--
+-- 🚨 THE PAGE SAID 14 CLIENTS AND 15 CLIENTS ON ONE SCREEN. totals.clients
+-- counted brands where our roster sold something (14). The six-month trend
+-- counted brands with any store GMV (15). The fifteenth was Lumineux: a new
+-- client that has not started, with a store of $71,616 in August, zero signed
+-- creators and $0 of ours. Its store was also inside "client store GMV", so
+-- the blended store change read -6.0% when the 14 real clients moved -6.5%.
+--
+-- Now: a store counts as a client's only in a period our roster sold in it.
+--   totals.storeGmv      = sum(store_gmv)       filter (where roster_gmv > 0)
+--   totals.priorStoreGmv = sum(prior_store_gmv) filter (where prior_roster_gmv > 0)
+-- The brands array is still returned in full so the page decides what to show
+-- (it renders clients with GMV in either period). buildTrend applies the same
+-- rule in TypeScript, so the chart's client counts and the masthead agree.
+--
+-- ⚠️ A churned client (prior > 0, current = 0) stays in the prior store total
+-- and leaves the current one, which is what "clients we served that period"
+-- means. The same-store line is where composition is held constant.
