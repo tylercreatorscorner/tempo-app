@@ -1,5 +1,5 @@
 /**
- * /a/[token] — the agency's own portfolio report.
+ * /a/[token]: the agency's own portfolio report.
  *
  * Deliberately parallel to /r/[token] rather than folded into it: the audience,
  * the questions and the grain are all different, and merging them would mean a
@@ -31,8 +31,8 @@ export async function generateMetadata({ params }: Props) {
   return {
     title:
       data && !data.revoked_at
-        ? `Creators Corner — Agency Performance · ${data.period_label}`
-        : 'Report — Tempo',
+        ? `Creators Corner · Agency Performance · ${data.period_label}`
+        : 'Report · Tempo',
     robots: { index: false, follow: false },
   };
 }
