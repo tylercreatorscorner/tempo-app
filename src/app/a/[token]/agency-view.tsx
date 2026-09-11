@@ -93,12 +93,11 @@ function verdict(b: AgencyBrandRow): { label: string; tone: 'good' | 'bad' | 'fl
   return { label: 'Held share', tone: 'flat' };
 }
 
-function Chip({ tone, children }: { tone: 'good' | 'bad' | 'flat' | 'warn'; children: React.ReactNode }) {
+function Chip({ tone, children }: { tone: 'good' | 'bad' | 'flat'; children: React.ReactNode }) {
   const cls =
     tone === 'good' ? 'bg-[#e6f5ef] text-[#0b7a55]'
       : tone === 'bad' ? 'bg-[#fbeceb] text-[#b3261e]'
-        : tone === 'warn' ? 'bg-[#fdf3e1] text-[#8a5a08]'
-          : 'bg-[#f1f1f6] text-[#5c6183]';
+        : 'bg-[#f1f1f6] text-[#5c6183]';
   return (
     <span className={`inline-flex whitespace-nowrap rounded-[6px] px-2 py-0.5 text-[11.5px] font-semibold ${cls}`}>
       {children}
@@ -109,31 +108,43 @@ function Chip({ tone, children }: { tone: 'good' | 'bad' | 'flat' | 'warn'; chil
 /**
  * Why a client is on the watchlist. Exact arithmetic on figures already on the
  * page; nothing estimated, nothing weighted.
+ *
+ * Structured rather than sentences so every row renders in ONE shape: a bold
+ * lead figure, the commitment, then the detail. The sentence version put three
+ * small red multiples (a $15k shortfall between them) in bold and LeeFar's
+ * $369k loss in plain text with no dollar figure at all.
  */
-function watchReasons(b: AgencyBrandRow): string[] {
-  const out: string[] = [];
-  if (b.returnX !== null && b.returnX !== undefined && b.returnX < 1) {
-    out.push(
-      `Returns ${b.returnX.toFixed(2)}x: ${money(b.committedRetainer)}/mo committed for ${money(b.rosterGmv)} of GMV`,
-    );
-  }
+interface WatchRow {
+  b: AgencyBrandRow;
+  returns: { x: number; gmv: number; committed: number } | null;
+  share: { from: number; to: number; store: number | null; ours: number | null } | null;
+}
+function watchRow(b: AgencyBrandRow): WatchRow | null {
+  const returns =
+    b.returnX !== null && b.returnX !== undefined && b.returnX < 1
+      ? { x: b.returnX, gmv: b.rosterGmv, committed: b.committedRetainer }
+      : null;
   const v = verdict(b);
-  const from = b.priorSharePct;
-  const to = b.sharePct;
-  if (v?.tone === 'bad' && from !== null && from !== undefined && to !== null) {
-    // ⚠️ Every share row carries BOTH directions. This used to say "while its
-    // store grew" only when true, and the intro copied that clause as the rule,
-    // so three of six rows read as failing the list's own criterion.
-    const store = b.storeMomPct;
-    const ours = b.momPct;
-    const dir = (n: number) => `${n >= 0 ? 'grew' : 'fell'} ${Math.abs(n).toFixed(1)}%`;
-    out.push(
-      store !== null && store !== undefined && ours !== null
-        ? `Share fell from ${pct(from)} to ${pct(to)}: its store ${dir(store)}, we ${dir(ours)}`
-        : `Share fell from ${pct(from)} to ${pct(to)}`,
-    );
-  }
-  return out;
+  const share =
+    v?.tone === 'bad' && b.priorSharePct !== null && b.priorSharePct !== undefined && b.sharePct !== null
+      ? {
+          from: b.priorSharePct,
+          to: b.sharePct,
+          // ⚠️ BOTH directions on every share row. This used to say "while its
+          // store grew" only when true, and the intro copied that clause as
+          // the rule, so three of six rows read as failing the list's own
+          // criterion.
+          store: b.storeMomPct ?? null,
+          ours: b.momPct,
+        }
+      : null;
+  if (!returns && !share) return null;
+  return { b, returns, share };
+}
+
+/** "grew 36.5%" or "fell 30.0%". */
+function dir(n: number): string {
+  return `${n >= 0 ? 'grew' : 'fell'} ${Math.abs(n).toFixed(1)}%`;
 }
 
 export function AgencyView({ snapshot: s }: { snapshot: AgencySnapshot }) {
@@ -159,11 +170,17 @@ export function AgencyView({ snapshot: s }: { snapshot: AgencySnapshot }) {
 
   // A brand with no prior is new money, counted at full value, so the two
   // halves add back to the headline change exactly.
+  // ⚠️ Swings are rounded to the dollar HERE, once, so the halves in the
+  // lead sum to the rows as printed. Summing cents and rounding at the end
+  // printed $460,291 + $67,510 - $611,800 = -$83,999 against a -$83,998
+  // change, and the audit had promised the page ties to the dollar.
   const moved = active.map((b) => ({
     ...b,
-    swing: b.priorRosterGmv > 0 ? b.rosterGmv - b.priorRosterGmv : b.rosterGmv,
+    swing: Math.round(b.priorRosterGmv > 0 ? b.rosterGmv - b.priorRosterGmv : b.rosterGmv),
     isNew: b.priorRosterGmv <= 0,
   }));
+  // The Every client total, likewise: the sum of the rounded rows above it.
+  const rosterGmvPrinted = active.reduce((x, b) => x + Math.round(b.rosterGmv), 0);
   const gained = moved.filter((b) => b.swing > 0).reduce((x, b) => x + b.swing, 0);
   const lost = moved.filter((b) => b.swing < 0).reduce((x, b) => x + b.swing, 0);
   const upCount = moved.filter((b) => b.swing > 0).length;
@@ -200,10 +217,10 @@ export function AgencyView({ snapshot: s }: { snapshot: AgencySnapshot }) {
 
   const perDollar = t.committedRetainer > 0 ? t.rosterGmv / t.committedRetainer : null;
 
-  const watch = isV2
+  const watch: WatchRow[] = isV2
     ? s.brands
-        .map((b) => ({ b, reasons: watchReasons(b) }))
-        .filter((x) => x.reasons.length > 0)
+        .map(watchRow)
+        .filter((x): x is WatchRow => x !== null)
         .sort((a, z) => z.b.committedRetainer - a.b.committedRetainer)
     : [];
   // The largest dollar decline that did NOT qualify. A share-filtered list can
@@ -233,508 +250,596 @@ export function AgencyView({ snapshot: s }: { snapshot: AgencySnapshot }) {
     ? trend.sameStore.map((slug) => s.brands.find((b) => b.slug === slug)?.name ?? slug)
     : [];
 
+  /**
+   * The chart's reading, in words, so the band with the most space on the
+   * page does not make the reader assemble the sentence themselves. Exact
+   * arithmetic on the points; "n months running" is only said when every
+   * month since the peak was lower than the one before.
+   */
+  const reading = (() => {
+    if (!trend || trend.points.length < 2) return null;
+    const p = trend.points;
+    let peak = 0;
+    for (let i = 1; i < p.length; i++) if (p[i].rosterGmv > p[peak].rosterGmv) peak = i;
+    const last = p.length - 1;
+    if (peak === last) {
+      return `Our GMV reached ${compact(p[last].rosterGmv)} in ${p[last].label}, the highest of the six months, with ${p[last].clients} clients.`;
+    }
+    let running = true;
+    for (let i = peak + 1; i <= last; i++) if (p[i].rosterGmv >= p[i - 1].rosterGmv) running = false;
+    const n = last - peak;
+    const words = ['', 'one', 'two', 'three', 'four', 'five'];
+    const tail = !running
+      ? `is ${compact(p[last].rosterGmv)} in ${p[last].label}`
+      : n === 1
+        ? `fell to ${compact(p[last].rosterGmv)} in ${p[last].label}`
+        : `has fallen ${words[n] ?? String(n)} months running to ${compact(p[last].rosterGmv)}`;
+    return `Our GMV peaked at ${compact(p[peak].rosterGmv)} in ${p[peak].label} and ${tail} while the client count went from ${p[peak].clients} to ${p[last].clients}.`;
+  })();
+
+  // Same-store clients month by month, for the strip under the chart.
+  const clientRows = trend?.byClient
+    ? trend.byClient.map((c) => {
+        const b = s.brands.find((x) => x.slug === c.slug);
+        return {
+          name: b?.name ?? c.slug,
+          color: b?.color || '#c7c9de',
+          shares: c.months.map((m) => (m.storeGmv > 0 ? (m.rosterGmv / m.storeGmv) * 100 : null)),
+        };
+      })
+    : [];
+  const preparedOn = new Date(s.generatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  /** The Known gaps sentence for a client, if any, so its name can carry it. */
+  const gapFor = (name: string) => s.caveats.find((c) => c.startsWith(name + ' ')) ?? null;
+  const priorMonth = s.priorLabel.split(' ')[0];
+
   return (
     <div className="min-h-screen bg-[#fbfbfd] pb-12 text-[#171a33]">
       <div
-        className="px-5 pb-7 pt-8 text-white sm:px-11"
+        className="px-5 pb-7 pt-8 text-white sm:px-10"
         style={{ background: 'linear-gradient(135deg,#141633 0%,#3b2f7d 55%,#8a2f80 100%)' }}
       >
-        <div className="mx-auto max-w-[1000px]">
+        <div className="mx-auto max-w-[1240px]">
           <div className="text-[10.5px] font-extrabold uppercase tracking-[0.2em] text-white/65">
             {AGENCY} &middot; Agency performance
           </div>
           <h1 className="mb-0.5 mt-2 text-[28px] font-extrabold tracking-tight">{s.periodLabel}</h1>
           <div className="text-[13.5px] text-white/80">
             Internal &middot; {t.clients} client{t.clients === 1 ? '' : 's'} &middot; against {s.priorLabel} &middot; prepared{' '}
-            {new Date(s.generatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+            {preparedOn}
           </div>
         </div>
       </div>
 
-      <div className="mx-auto max-w-[1000px] px-5 sm:px-11">
-        {/* ── 1. The answer ───────────────────────────────────────── */}
+      {/* Six bands on a 12-column grid, each one a left-to-right pairing.
+          Bands 3 and 4 pair from 1200px: that is where the 8-of-12 lane
+          (739px) first holds both tables without scrolling, and what would
+          scroll off is the newest month and the Invoiced column, the two
+          things the pairing exists to put beside their commentary. Below
+          1200px they stack and the tables take the full width. */}
+      <div className="mx-auto max-w-[1240px] px-5 sm:px-10">
+        {/* ── Band 1: the answer beside the four numbers behind it ── */}
         <div className="mt-6 rounded-[14px] border border-[#e7e7f2] bg-white px-5 py-5">
-          <h2 className="text-[21px] font-extrabold leading-snug tracking-tight">
-            Our creators produced {compact(t.rosterGmv)} across {t.clients} client stores
-          </h2>
-          <p className="mt-1.5 max-w-[72ch] text-[14.5px] leading-[1.65] text-[#33375c]">
-            {rosterMom !== null && (
-              <>
-                That is <b className="text-[#171a33]">{signed(rosterMom)}</b> on {s.priorLabel}
-                {storeMom !== null && (
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 lg:items-start">
+            <div className="lg:col-span-7">
+              <h2 className="text-[21px] font-extrabold leading-snug tracking-tight">
+                Our creators produced {compact(t.rosterGmv)} across {t.clients} client stores
+              </h2>
+              <p className="mt-1.5 max-w-[72ch] text-[14.5px] leading-[1.65] text-[#33375c]">
+                {rosterMom !== null && (
                   <>
-                    , while the client stores themselves moved <b className="text-[#171a33]">{signed(storeMom)}</b>
+                    That is <b className="text-[#171a33]">{signed(rosterMom)}</b> on {s.priorLabel}
+                    {storeMom !== null && (
+                      <>
+                        , while the client stores themselves moved <b className="text-[#171a33]">{signed(storeMom)}</b>
+                      </>
+                    )}
+                    .{' '}
                   </>
                 )}
-                .{' '}
-              </>
-            )}
-            {/* 🚨 v1 closed this paragraph with "we took a larger share of a
-                smaller market". True for one month, and it read as a win in the
-                middle of a six-month same-store decline. The comparable series
-                is named here instead. */}
-            {isV2 && ssFirst !== null && ssLast !== null && tFirst && tLast && trend ? (
-              <>
-                In the <b className="text-[#171a33]">{trend.sameStore.length}</b> clients we have held for all six
-                months, our share went from <b className="text-[#171a33]">{pct(ssFirst)}</b> in {tFirst.label} to{' '}
-                <b className="text-[#171a33]">{pct(ssLast)}</b> in {tLast.label}
-                {ssGmvChange !== null && ssStoreChange !== null && (
+                {/* 🚨 v1 closed this paragraph with "we took a larger share of a
+                    smaller market". True for one month, and it read as a win in
+                    the middle of a six-month same-store decline. The comparable
+                    series is named here instead, with every delta's base. */}
+                {isV2 && ssFirst !== null && ssLast !== null && tFirst && tLast && trend ? (
                   <>
-                    , with our GMV there <b className="text-[#171a33]">{signed(ssGmvChange, 0)}</b> since {tFirst.label}{' '}
-                    against their stores <b className="text-[#171a33]">{signed(ssStoreChange, 0)}</b> over the same six months
+                    In the <b className="text-[#171a33]">{trend.sameStore.length}</b> clients we have held for all six
+                    months, our share went from <b className="text-[#171a33]">{pct(ssFirst)}</b> in {tFirst.label} to{' '}
+                    <b className="text-[#171a33]">{pct(ssLast)}</b> in {tLast.label}
+                    {ssGmvChange !== null && ssStoreChange !== null && (
+                      <>
+                        , with our GMV there <b className="text-[#171a33]">{signed(ssGmvChange, 0)}</b> since {tFirst.label}{' '}
+                        against their stores <b className="text-[#171a33]">{signed(ssStoreChange, 0)}</b> over the same six months
+                      </>
+                    )}
+                    .
+                    {lflOursPct !== null && lflStorePct !== null && (
+                      <>
+                        {' '}Excluding {newOnes.map((b) => b.name).join(' and ')}, new this period, our GMV is{' '}
+                        <b className="text-[#171a33]">{signed(lflOursPct)}</b> on {s.priorLabel} against client stores at{' '}
+                        <b className="text-[#171a33]">{signed(lflStorePct)}</b> on the same clients.
+                      </>
+                    )}
                   </>
+                ) : (
+                  priorShare !== null && (
+                    <>
+                      Our share of all client stores was <b className="text-[#171a33]">{pct(share)}</b>, against{' '}
+                      {pct(priorShare)} in {s.priorLabel}.
+                    </>
+                  )
                 )}
-                .
-                {lflOursPct !== null && lflStorePct !== null && (
-                  <>
-                    {' '}Excluding {newOnes.map((b) => b.name).join(' and ')}, new this period, our GMV is{' '}
-                    <b className="text-[#171a33]">{signed(lflOursPct)}</b> on {s.priorLabel} against client stores at{' '}
-                    <b className="text-[#171a33]">{signed(lflStorePct)}</b> on the same clients.
-                  </>
+              </p>
+            </div>
+            {/* Split at lg, not md: at 768px a 5-of-12 lane gives each tile
+                77px of content and "$602,950" needs 100. Below lg the four
+                tiles run across the full card as they did before. */}
+            <div className="border-t border-[#eeedf5] pt-5 lg:col-span-5 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
+              <div className="grid grid-cols-2 gap-3.5 md:grid-cols-4 lg:grid-cols-2">
+                <Stat label="Our GMV" value={compact(t.rosterGmv)} delta={rosterMom} />
+                <Stat label="Client store GMV" value={compact(t.storeGmv)} delta={storeMom} />
+                {isV2 && ssLast !== null && trend ? (
+                  <Stat
+                    label="Same-store share"
+                    value={pct(ssLast)}
+                    note={
+                      (ssPrev !== null ? `${pts(ssLast - ssPrev)} on ${priorMonth}. ` : '') +
+                      `${trend.sameStore.length} clients held all six months; blended share is ${pct(share)}`
+                    }
+                  />
+                ) : (
+                  <Stat
+                    label="Share of stores"
+                    value={pct(share)}
+                    note={priorShare !== null ? `${pct(priorShare)} in ${s.priorLabel}` : undefined}
+                  />
                 )}
-              </>
-            ) : (
-              priorShare !== null && (
-                <>
-                  Our share of all client stores was <b className="text-[#171a33]">{pct(share)}</b>, against{' '}
-                  {pct(priorShare)} in {s.priorLabel}.
-                </>
-              )
-            )}
-          </p>
-
-          <div className="mt-4 grid grid-cols-2 gap-3.5 md:grid-cols-4">
-            <Stat label="Our GMV" value={compact(t.rosterGmv)} delta={rosterMom} />
-            <Stat label="Client store GMV" value={compact(t.storeGmv)} delta={storeMom} />
-            {isV2 && ssLast !== null && trend ? (
-              <Stat
-                label="Same-store share"
-                value={pct(ssLast)}
-                note={
-                  (ssPrev !== null ? `${pts(ssLast - ssPrev)} on ${s.priorLabel.split(' ')[0]}. ` : '') +
-                  `${trend.sameStore.length} clients held all six months; blended share is ${pct(share)}`
-                }
-              />
-            ) : (
-              <Stat
-                label="Share of stores"
-                value={pct(share)}
-                note={priorShare !== null ? `${pct(priorShare)} in ${s.priorLabel}` : undefined}
-              />
-            )}
-            <Stat label="Retainer committed" value={money(t.committedRetainer) + '/mo'} note={`${num(t.retained)} creators`} />
+                {/* The return sits with the cost on the first screen. Every
+                    reader did this division at the top and found 4.3x at the
+                    bottom of the page. */}
+                <Stat
+                  label="Retainer committed"
+                  value={money(t.committedRetainer)} suffix="/mo"
+                  note={`${num(t.retained)} creators` + (perDollar !== null ? ` · ${perDollar.toFixed(2)}x GMV per $1` : '')}
+                />
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* ── 2. Six months ───────────────────────────────────────── */}
+        {/* ── Band 2: the reading beside the chart with its numbers under each bar ── */}
         {isV2 && trend && trend.points.length > 1 && (
           <>
             <SectionLine>Six months</SectionLine>
             <div className="rounded-[14px] border border-[#e7e7f2] bg-white px-5 py-5">
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 lg:items-start">
+                <div className="lg:col-span-4">
+                  {reading && (
+                    <p className="text-[14.5px] leading-[1.65] text-[#33375c]">{reading}</p>
+                  )}
+                  <p className="mt-3 text-[12.5px] leading-[1.6] text-[#5c6183]">
+                    Bars are our GMV across every client that month. The line is our share of the stores we have held
+                    for all six months, which is the comparable one: the number of clients changes month to month, so
+                    a blended share mostly measures who we signed.
+                  </p>
+                  {ssNames.length > 0 && (
+                    <p className="mt-3 text-[11.5px] leading-[1.6] text-[#8a8fb0]">
+                      Same-store clients: {ssNames.join(', ')}.
+                      {trend.sameStore.length < 5 &&
+                        ' A small base, so read the direction of the line more than its level.'}
+                    </p>
+                  )}
+                  {trend.gaps && trend.gaps.length > 0 && (
+                    <ul className="mt-3 space-y-1 rounded-[10px] border border-[#f0dcb0] bg-[#fdf7ea] px-3 py-2">
+                      {trend.gaps.map((g) => (
+                        <li key={g} className="text-[11.5px] leading-[1.6] text-[#8a5a08]">{g}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                <div className="border-t border-[#eeedf5] pt-5 lg:col-span-8 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
+                  <TrendChart
+                    points={trend.points}
+                    hasSameStore={trend.sameStore.length > 0}
+                    clientRows={clientRows}
+                    gapMonths={new Set(trend.gapMonths ?? [])}
+                  />
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* ── Band 3: the watchlist beside the table it is drawn from ── */}
+        <div className={isV2 ? 'mt-8 grid grid-cols-1 gap-6 min-[1200px]:grid-cols-12 min-[1200px]:items-start' : 'mt-8'}>
+          {isV2 && (
+            <div className="min-[1200px]:sticky min-[1200px]:top-4 min-[1200px]:col-span-4">
+              <SectionLine>Watchlist</SectionLine>
+              <div className="rounded-[14px] border border-[#e7e7f2] bg-white px-5 py-4">
+                {watch.length === 0 ? (
+                  <p className="text-[14px] text-[#5c6183]">
+                    No client returns under 1.0x on committed retainer, and none lost ground on share.
+                  </p>
+                ) : (
+                  <>
+                    <p className="mb-1 text-[13.5px] leading-[1.6] text-[#5c6183]">
+                      Clients under 1.0x on committed retainer, or that lost ground on share. Largest commitment first.
+                    </p>
+                    {watch.map(({ b, returns, share: sh }) => {
+                      const swing = b.priorRosterGmv > 0 ? b.rosterGmv - b.priorRosterGmv : null;
+                      return (
+                        <div key={b.slug} className="border-b border-[#f2f1f8] py-2.5 last:border-b-0">
+                          <div className="flex items-baseline justify-between gap-3">
+                            <span className="flex min-w-0 items-center gap-2">
+                              <span className="h-2.5 w-2.5 shrink-0 rounded-[3px]" style={{ backgroundColor: b.color || '#c7c9de' }} />
+                              <span className="text-[14px] font-semibold text-[#171a33]">{b.name}</span>
+                            </span>
+                            {b.committedRetainer > 0 && (
+                              <span className="shrink-0 text-[11.5px] tabular-nums text-[#8a8fb0]">{money(b.committedRetainer)}/mo</span>
+                            )}
+                          </div>
+                          {/* One lead figure per row, in the same style on every
+                              row: the multiple when the client is under 1.0x,
+                              otherwise the dollar change. */}
+                          {/* Sign and colour from the value: a client can lose
+                              ground on share while its dollars rose. */}
+                          <div className={`mt-0.5 text-[14px] font-extrabold tabular-nums ${returns || (swing !== null && swing < 0) ? 'text-[#c0392b]' : 'text-[#0b8a5f]'}`}>
+                            {returns
+                              ? `Returns ${returns.x.toFixed(2)}x`
+                              : swing !== null
+                                ? `${swing >= 0 ? '+' : '\u2212'}${money(Math.abs(swing))} on ${priorMonth}`
+                                : ''}
+                          </div>
+                          {returns && (
+                            <div className="text-[12px] leading-[1.5] text-[#5c6183]">
+                              {money(returns.gmv)} of GMV
+                              {b.momPct !== null && `, ${signed(b.momPct)} on ${priorMonth}`}
+                            </div>
+                          )}
+                          {sh && (
+                            <div className="text-[12px] leading-[1.5] text-[#5c6183]">
+                              Share fell from <b className="text-[#33375c]">{pct(sh.from)}</b> to{' '}
+                              <b className="text-[#33375c]">{pct(sh.to)}</b>
+                              {sh.store !== null && sh.ours !== null && `: its store ${dir(sh.store)}, we ${dir(sh.ours)}`}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </>
+                )}
+                {alsoWatching && (
+                      <p className="mt-2.5 border-t border-[#f2f1f8] pt-2.5 text-[12px] leading-[1.6] text-[#5c6183]">
+                        Also watching: <b className="text-[#171a33]">{alsoWatching.name}</b>, the largest dollar decline not
+                        on this list at <b className="text-[#171a33]">&minus;{money(Math.abs(alsoWatching.swing))}</b> on{' '}
+                        {priorMonth}
+                        {alsoWatching.momPct !== null && ` (${signed(alsoWatching.momPct)})`}
+                        {(() => { const v = verdict(alsoWatching); return v ? `, ${v.label.toLowerCase()}` : ''; })()}
+                        {!alsoWatching.invoiced && ', not yet invoiced'}.
+                      </p>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div className={isV2 ? 'min-[1200px]:col-span-8' : ''}>
+            <SectionLine>What moved</SectionLine>
+            <div className="rounded-[14px] border border-[#e7e7f2] bg-white px-5 py-5">
               <p className="max-w-[72ch] text-[14.5px] leading-[1.65] text-[#33375c]">
-                Bars are our GMV across every client that month. The line is our share of the stores we have held
-                for all six months, which is the comparable one: the number of clients changes month to month, so a
-                blended share mostly measures who we signed.
+                <b className="text-[#171a33]">{money(gainedExisting)}</b> came on across {upExisting} account{upExisting === 1 ? '' : 's'}
+                {newOnes.length > 0 && (
+                  <>
+                    , plus <b className="text-[#171a33]">{money(newMoney)}</b> from {newOnes.length} new client{newOnes.length === 1 ? '' : 's'}
+                  </>
+                )}
+                , and <b className="text-[#171a33]">{money(Math.abs(lost))}</b> came off across {downCount}.
+                {isV2 && ' Dollars show where GMV moved; our share before and after shows whether we moved with the client or against it, which is the part we control. Grouped by verdict, largest dollar move first.'}
               </p>
-              <TrendChart points={trend.points} hasSameStore={trend.sameStore.length > 0} />
+
               <div className="mt-4 overflow-x-auto">
-                <table className="w-full min-w-[560px] border-collapse text-[12.5px]">
+                <table className="w-full min-w-[640px] border-collapse text-[13px]">
                   <thead>
                     <tr className="border-b border-[#eeedf5]">
-                      <th className={TH_L}>Month</th>
-                      <th className={TH_R}>Our GMV</th>
-                      <th className={TH_R}>Clients</th>
-                      <th className={TH_R}>Blended share</th>
-                      <th className={TH_R}>Same-store share</th>
+                      <th className={TH_L}>Client</th>
+                      <th className={TH_R}>Our GMV, $</th>
+                      <th className={TH_R}>Our GMV, %</th>
+                      {isV2 && <th className={TH_R}>Their store, %</th>}
+                      {isV2 && <th className={TH_R}>Share</th>}
+                      {isV2 && <th className={TH_L}>Verdict</th>}
                     </tr>
                   </thead>
                   <tbody>
-                    {trend.points.map((p) => (
-                      <tr key={p.month} className="border-b border-[#f2f1f8] last:border-b-0">
-                        <td className="px-4 py-2 text-[#33375c]">{p.label}</td>
-                        <td className="px-4 py-2 text-right font-bold tabular-nums text-[#171a33]">{money(p.rosterGmv)}</td>
-                        <td className="px-4 py-2 text-right tabular-nums text-[#5c6183]">{p.clients}</td>
-                        <td className="px-4 py-2 text-right tabular-nums text-[#8a8fb0]">
-                          {p.storeGmv > 0 ? pct((p.rosterGmv / p.storeGmv) * 100) : NONE}
-                        </td>
-                        <td className="px-4 py-2 text-right font-semibold tabular-nums text-[#4b45ff]">
-                          {p.sameStoreStore > 0 ? pct((p.sameStoreRoster / p.sameStoreStore) * 100) : NONE}
-                        </td>
-                      </tr>
-                    ))}
+                    {(isV2 ? byShare : [...moved].sort((a, b) => a.swing - b.swing)).map((b, i, arr) => {
+                      const v = verdict(b);
+                      // A heavier rule where the verdict changes group, so the
+                      // four groups read without counting chips.
+                      const next = arr[i + 1];
+                      const groupEnds = isV2 && next !== undefined && groupOf(next) !== groupOf(b);
+                      return (
+                        <tr key={b.slug} className={groupEnds ? 'border-b-2 border-[#e7e7f2]' : 'border-b border-[#f2f1f8] last:border-b-0'}>
+                          <td className="px-3 py-2.5">
+                            <span className="flex items-center gap-2">
+                              <span className="h-2.5 w-2.5 shrink-0 rounded-[3px]" style={{ backgroundColor: b.color || '#c7c9de' }} />
+                              <ClientName name={b.name} gap={gapFor(b.name)} />
+                            </span>
+                          </td>
+                          <td className={`whitespace-nowrap px-3 py-2.5 text-right font-bold tabular-nums ${b.swing >= 0 ? 'text-[#0b8a5f]' : 'text-[#c0392b]'}`}>
+                            {b.swing >= 0 ? '+' : '\u2212'}{money(Math.abs(b.swing))}
+                          </td>
+                          <td className="whitespace-nowrap px-3 py-2.5 text-right"><Delta v={b.isNew ? null : b.momPct} /></td>
+                          {isV2 && (
+                            <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-[#5c6183]">
+                              {b.storeMomPct === null || b.storeMomPct === undefined ? NONE : signed(b.storeMomPct)}
+                            </td>
+                          )}
+                          {isV2 && (
+                            <td className="whitespace-nowrap px-3 py-2.5 text-right font-semibold tabular-nums text-[#171a33]">
+                              {/* Before and after, not a points delta: the level
+                                  is what makes a move readable, and 2.5% to 1.6%
+                                  says what "-0.9 pts" hides. */}
+                              {b.priorSharePct === null || b.priorSharePct === undefined || b.sharePct === null || b.isNew
+                                ? NONE
+                                : `${pct(b.priorSharePct)} \u2192 ${pct(b.sharePct)}`}
+                            </td>
+                          )}
+                          {isV2 && (
+                            <td className="whitespace-nowrap px-3 py-2.5">
+                              {v ? <Chip tone={v.tone}>{v.label}</Chip> : <Chip tone="flat">New this month</Chip>}
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
-              {ssNames.length > 0 && (
+              {isV2 && (
                 <p className="mt-2.5 text-[11.5px] leading-[1.6] text-[#8a8fb0]">
-                  Same-store clients: {ssNames.join(', ')}.
-                  {trend.sameStore.length < 5 &&
-                    ' A small base, so read the direction of the line more than its level.'}
+                  Under one point and under 15% of the share either way reads as held.
                 </p>
               )}
-              {/* Who moved the line. Four clients is few enough that the
-                  answer to "which of them" fits in four rows. */}
-              {trend.byClient && trend.byClient.length > 0 && (
-                <div className="mt-3 overflow-x-auto">
-                  <table className="w-full min-w-[560px] border-collapse text-[12.5px]">
-                    <thead>
-                      <tr className="border-b border-[#eeedf5]">
-                        <th className={TH_L}>Same-store share by client</th>
-                        {trend.points.map((p) => (
-                          <th key={p.month} className={TH_R}>{p.label}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {trend.byClient.map((c) => {
-                        const b = s.brands.find((x) => x.slug === c.slug);
-                        return (
-                          <tr key={c.slug} className="border-b border-[#f2f1f8] last:border-b-0">
-                            <td className="px-4 py-2">
-                              <span className="flex items-center gap-2">
-                                <span className="h-2.5 w-2.5 shrink-0 rounded-[3px]" style={{ backgroundColor: b?.color || '#c7c9de' }} />
-                                <span className="font-semibold text-[#171a33]">{b?.name ?? c.slug}</span>
-                              </span>
-                            </td>
-                            {c.months.map((m) => (
-                              <td key={m.month} className="px-4 py-2 text-right tabular-nums text-[#33375c]">
-                                {m.storeGmv > 0 ? pct((m.rosterGmv / m.storeGmv) * 100) : NONE}
-                              </td>
-                            ))}
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-              {trend.gaps && trend.gaps.length > 0 && (
-                <ul className="mt-2.5 space-y-1">
-                  {trend.gaps.map((g) => (
-                    <li key={g} className="text-[11.5px] leading-[1.6] text-[#8a5a08]">{g}</li>
-                  ))}
-                </ul>
-              )}
             </div>
-          </>
-        )}
+          </div>
+        </div>
 
-        {/* ── 3. Watchlist ────────────────────────────────────────── */}
-        {isV2 && (
-          <>
-            <SectionLine>Watchlist</SectionLine>
-            <div className="rounded-[14px] border border-[#e7e7f2] bg-white px-5 py-4">
-              {watch.length === 0 ? (
-                <p className="text-[14px] text-[#5c6183]">
-                  No client returns under 1.0x on committed retainer, and none lost share while its store grew.
-                </p>
-              ) : (
-                <>
-                  <p className="mb-2 max-w-[72ch] text-[13.5px] leading-[1.6] text-[#5c6183]">
-                    Clients under 1.0x on committed retainer, or that lost ground on share. Largest commitment first.
-                  </p>
-                  {watch.map(({ b, reasons }) => (
-                    <div key={b.slug} className="flex flex-wrap items-start gap-x-3 gap-y-1 border-b border-[#f2f1f8] py-2.5 last:border-b-0">
-                      <span className="flex min-w-[150px] items-center gap-2">
-                        <span className="h-2.5 w-2.5 shrink-0 rounded-[3px]" style={{ backgroundColor: b.color || '#c7c9de' }} />
-                        <span className="text-[14px] font-semibold text-[#171a33]">{b.name}</span>
-                      </span>
-                      <span className="flex min-w-0 flex-1 flex-col gap-1">
-                        {reasons.map((r) => (
-                          <span key={r} className="text-[13px] leading-[1.5] text-[#33375c]">{r}</span>
-                        ))}
-                      </span>
-                    </div>
-                  ))}
-                  {alsoWatching && (
-                    <p className="mt-2.5 text-[12.5px] leading-[1.6] text-[#5c6183]">
-                      Also watching: <b className="text-[#171a33]">{alsoWatching.name}</b>, the largest dollar decline not on
-                      this list at <b className="text-[#171a33]">&minus;{money(Math.abs(alsoWatching.swing))}</b> on {s.priorLabel}
-                      {alsoWatching.momPct !== null && ` (${signed(alsoWatching.momPct)})`}
-                      {(() => { const v = verdict(alsoWatching); return v ? `, ${v.label.toLowerCase()}` : ''; })()}
-                      {!alsoWatching.invoiced && ', not yet invoiced'}.
-                    </p>
-                  )}
-                </>
-              )}
+        {/* ── Band 4: concentration and invoiced beside the GMV-ranked table ── */}
+        <div className="mt-8 grid grid-cols-1 gap-6 min-[1200px]:grid-cols-12 min-[1200px]:items-start">
+          <div className="min-[1200px]:sticky min-[1200px]:top-4 min-[1200px]:col-span-4">
+            <SectionLine>Concentration</SectionLine>
+            <div className="rounded-[14px] border border-[#e7e7f2] bg-white px-5 py-5">
+              <p className="text-[14.5px] leading-[1.65] text-[#33375c]">
+                {top1 && (
+                  <>
+                    <b className="text-[#171a33]">{top1.name}</b> alone is <b className="text-[#171a33]">{pct(top1Share)}</b> of
+                    everything our creators produced, and the top three are <b className="text-[#171a33]">{pct(top3Share)}</b> between them.
+                  </>
+                )}
+              </p>
+              <div className="mt-3.5 flex h-3 w-full overflow-hidden rounded-full bg-[#f0eff7]">
+                {ranked.map((b) => (
+                  <div
+                    key={b.slug}
+                    title={`${b.name} ${pct((b.rosterGmv / t.rosterGmv) * 100)}`}
+                    style={{ width: `${(b.rosterGmv / t.rosterGmv) * 100}%`, backgroundColor: b.color || '#c7c9de' }}
+                  />
+                ))}
+              </div>
+              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+                {top3.map((b) => (
+                  <span key={b.slug} className="flex items-center gap-1.5 text-[12px] text-[#5c6183]">
+                    <span className="h-2.5 w-2.5 rounded-[3px]" style={{ backgroundColor: b.color || '#c7c9de' }} />
+                    {b.name} {pct((b.rosterGmv / t.rosterGmv) * 100)}
+                  </span>
+                ))}
+                {ranked.length > top3.length && (
+                  <span className="text-[12px] text-[#8a8fb0]">and {ranked.length - top3.length} more</span>
+                )}
+              </div>
             </div>
-          </>
-        )}
 
-        {/* ── 4. What moved ───────────────────────────────────────── */}
-        <SectionLine>What moved</SectionLine>
-        <div className="rounded-[14px] border border-[#e7e7f2] bg-white px-5 py-5">
-          <p className="max-w-[72ch] text-[14.5px] leading-[1.65] text-[#33375c]">
-            <b className="text-[#171a33]">{money(gainedExisting)}</b> came on across {upExisting} account{upExisting === 1 ? '' : 's'}
-            {newOnes.length > 0 && (
+            {isV2 && t.invoiced !== undefined && (
               <>
-                , plus <b className="text-[#171a33]">{money(newMoney)}</b> from {newOnes.length} new client{newOnes.length === 1 ? '' : 's'}
+                <SectionLine>Invoiced</SectionLine>
+                <div className="rounded-[14px] border border-[#e7e7f2] bg-white px-5 py-4">
+                  {t.invoicedClients === 0 ? (
+                    <p className="text-[14px] text-[#5c6183]">No {s.periodLabel} invoices had been generated when this was prepared.</p>
+                  ) : (
+                    <>
+                      {/* Coverage first: the partial figure used to be the
+                          largest number on the page after the title, and two
+                          readers took it for August revenue. */}
+                      <div className="text-[19px] font-extrabold tabular-nums tracking-tight text-[#171a33]">
+                        {t.invoicedClients} of {t.clients} clients invoiced so far
+                      </div>
+                      <p className="mt-1 text-[14px] leading-[1.6] text-[#33375c]">
+                        <b className="text-[#171a33]">{money(t.invoiced)}</b> across {t.invoiceCount} invoice
+                        {t.invoiceCount === 1 ? '' : 's'}.
+                      </p>
+                      {/* ⚠️ Stated every time: a partial month looks like a
+                          complete one unless the page says it is partial. */}
+                      <p className="mt-1.5 text-[12px] leading-[1.6] text-[#8a8fb0]">
+                        Billed, not collected. Clients without an invoice are not in this figure, so it is not the
+                        month&rsquo;s revenue until every client has been invoiced.
+                      </p>
+                    </>
+                  )}
+                </div>
               </>
             )}
-            , and <b className="text-[#171a33]">{money(Math.abs(lost))}</b> came off across {downCount}.
-            {isV2 && ' Dollars show where GMV moved; our share before and after shows whether we moved with the client or against it, which is the part we control. Grouped by verdict, largest dollar move first.'}
-          </p>
+          </div>
 
-          <div className="mt-4 overflow-x-auto">
-            <table className="w-full min-w-[680px] border-collapse text-[13px]">
-              <thead>
-                <tr className="border-b border-[#eeedf5]">
-                  <th className={TH_L}>Client</th>
-                  <th className={TH_R}>Our GMV, $</th>
-                  <th className={TH_R}>Our GMV, %</th>
-                  {isV2 && <th className={TH_R}>Their store, %</th>}
-                  {isV2 && <th className={TH_R}>Share</th>}
-                  {isV2 && <th className={TH_L}>Verdict</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {(isV2 ? byShare : [...moved].sort((a, b) => a.swing - b.swing)).map((b) => {
-                  const v = verdict(b);
-                  return (
-                    <tr key={b.slug} className="border-b border-[#f2f1f8] last:border-b-0">
-                      <td className="px-4 py-2.5">
+          <div className="min-[1200px]:col-span-8">
+            <SectionLine>Every client</SectionLine>
+            <div className="overflow-x-auto rounded-[14px] border border-[#e7e7f2] bg-white">
+              <table className="w-full min-w-[720px] border-collapse text-[13px]">
+                <thead>
+                  <tr className="border-b border-[#eeedf5]">
+                    <th className={TH_L}>Client</th>
+                    <th className={TH_R}>Our GMV</th>
+                    <th className={TH_R}>vs {priorMonth}</th>
+                    <th className={TH_R}>Our share</th>
+                    <th className={TH_R}>On retainer / signed</th>
+                    <th className={TH_R}>Committed / mo</th>
+                    {isV2 && <th className={TH_R}>GMV per $1</th>}
+                    {isV2 && <th className={TH_R}>Invoiced</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rankedAll.map((b) => (
+                    <tr key={b.slug} className="border-b border-[#eeedf5]">
+                      <td className="px-3 py-2.5">
                         <span className="flex items-center gap-2">
                           <span className="h-2.5 w-2.5 shrink-0 rounded-[3px]" style={{ backgroundColor: b.color || '#c7c9de' }} />
-                          <span className="font-semibold text-[#171a33]">{b.name}</span>
+                          <ClientName name={b.name} gap={gapFor(b.name)} />
                         </span>
                       </td>
-                      <td className={`whitespace-nowrap px-4 py-2.5 text-right font-bold tabular-nums ${b.swing >= 0 ? 'text-[#0b8a5f]' : 'text-[#c0392b]'}`}>
-                        {b.swing >= 0 ? '+' : '−'}{money(Math.abs(b.swing))}
+                      <td className="whitespace-nowrap px-3 py-2.5 text-right font-extrabold tabular-nums text-[#171a33]">{money(b.rosterGmv)}</td>
+                      <td className="whitespace-nowrap px-3 py-2.5 text-right"><Delta v={b.momPct} /></td>
+                      <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-[#33375c]">
+                        {b.sharePct === null ? NONE : pct(b.sharePct)}
                       </td>
-                      <td className="whitespace-nowrap px-4 py-2.5 text-right"><Delta v={b.isNew ? null : b.momPct} /></td>
+                      <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-[#33375c]">
+                        {num(b.retained)}<span className="text-[#8a8fb0]">&nbsp;/&nbsp;{num(b.signed)}</span>
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-[#33375c]">
+                        {b.committedRetainer > 0 ? money(b.committedRetainer) : NONE}
+                      </td>
                       {isV2 && (
-                        <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-[#5c6183]">
-                          {b.storeMomPct === null || b.storeMomPct === undefined ? NONE : signed(b.storeMomPct)}
+                        <td className="whitespace-nowrap px-3 py-2.5 text-right">
+                          {b.returnX === null || b.returnX === undefined ? NONE : (
+                            <span className={`font-bold tabular-nums ${b.returnX < 1 ? 'text-[#c0392b]' : 'text-[#171a33]'}`}>
+                              {b.returnX.toFixed(2)}x
+                            </span>
+                          )}
                         </td>
                       )}
                       {isV2 && (
-                        <td className="whitespace-nowrap px-4 py-2.5 text-right font-semibold tabular-nums text-[#171a33]">
-                          {/* Before and after, not a points delta: the level is
-                              what makes a move readable, and 2.5% to 1.6% says
-                              what "-0.9 pts" hides. */}
-                          {b.priorSharePct === null || b.priorSharePct === undefined || b.sharePct === null || b.isNew
-                            ? NONE
-                            : `${pct(b.priorSharePct)} → ${pct(b.sharePct)}`}
-                        </td>
-                      )}
-                      {isV2 && (
-                        <td className="whitespace-nowrap px-4 py-2.5">
-                          {v ? <Chip tone={v.tone}>{v.label}</Chip> : <Chip tone="flat">New this month</Chip>}
+                        <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-[#33375c]">
+                          {b.invoiced ? money(b.invoiced) : <span className="text-[#b9bcd0]">not yet</span>}
                         </td>
                       )}
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-          {isV2 && (
-            <p className="mt-2.5 text-[11.5px] leading-[1.6] text-[#8a8fb0]">
-              Under one point and under 15% of the share either way reads as held.
-            </p>
-          )}
-        </div>
-
-        {/* ── 5. Concentration ────────────────────────────────────── */}
-        <SectionLine>Concentration</SectionLine>
-        <div className="rounded-[14px] border border-[#e7e7f2] bg-white px-5 py-5">
-          <p className="max-w-[72ch] text-[14.5px] leading-[1.65] text-[#33375c]">
-            {top1 && (
-              <>
-                <b className="text-[#171a33]">{top1.name}</b> alone is <b className="text-[#171a33]">{pct(top1Share)}</b> of
-                everything our creators produced, and the top three are <b className="text-[#171a33]">{pct(top3Share)}</b> between them.
-              </>
-            )}
-          </p>
-          <div className="mt-3.5 flex h-3 w-full overflow-hidden rounded-full bg-[#f0eff7]">
-            {ranked.map((b) => (
-              <div
-                key={b.slug}
-                title={`${b.name} ${pct((b.rosterGmv / t.rosterGmv) * 100)}`}
-                style={{ width: `${(b.rosterGmv / t.rosterGmv) * 100}%`, backgroundColor: b.color || '#c7c9de' }}
-              />
-            ))}
-          </div>
-          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
-            {top3.map((b) => (
-              <span key={b.slug} className="flex items-center gap-1.5 text-[12px] text-[#5c6183]">
-                <span className="h-2.5 w-2.5 rounded-[3px]" style={{ backgroundColor: b.color || '#c7c9de' }} />
-                {b.name} {pct((b.rosterGmv / t.rosterGmv) * 100)}
-              </span>
-            ))}
-            <span className="text-[12px] text-[#8a8fb0]">and {ranked.length - top3.length} more</span>
-          </div>
-        </div>
-
-        {/* ── 6. Every client ─────────────────────────────────────── */}
-        <SectionLine>Every client</SectionLine>
-        <div className="overflow-x-auto rounded-[14px] border border-[#e7e7f2] bg-white">
-          <table className="w-full min-w-[860px] border-collapse text-[13px]">
-            <thead>
-              <tr className="border-b border-[#eeedf5]">
-                <th className={TH_L}>Client</th>
-                <th className={TH_R}>Our GMV</th>
-                <th className={TH_R}>vs {s.priorLabel.split(' ')[0]}</th>
-                <th className={TH_R}>Our share</th>
-                <th className={TH_R}>On retainer / signed</th>
-                <th className={TH_R}>Committed/mo</th>
-                {isV2 && <th className={TH_R}>GMV per $1</th>}
-                {isV2 && <th className={TH_R}>Invoiced</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {rankedAll.map((b) => (
-                <tr key={b.slug} className="border-b border-[#eeedf5]">
-                  <td className="px-4 py-2.5">
-                    <span className="flex items-center gap-2">
-                      <span className="h-2.5 w-2.5 shrink-0 rounded-[3px]" style={{ backgroundColor: b.color || '#c7c9de' }} />
-                      <span className="font-semibold text-[#171a33]">{b.name}</span>
-                    </span>
-                  </td>
-                  <td className="whitespace-nowrap px-4 py-2.5 text-right font-extrabold tabular-nums text-[#171a33]">{money(b.rosterGmv)}</td>
-                  <td className="whitespace-nowrap px-4 py-2.5 text-right"><Delta v={b.momPct} /></td>
-                  <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-[#33375c]">
-                    {b.sharePct === null ? NONE : pct(b.sharePct)}
-                  </td>
-                  <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-[#33375c]">
-                    {num(b.retained)}<span className="text-[#8a8fb0]">&nbsp;/&nbsp;{num(b.signed)}</span>
-                  </td>
-                  <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-[#33375c]">
-                    {b.committedRetainer > 0 ? money(b.committedRetainer) : NONE}
-                  </td>
-                  {isV2 && (
-                    <td className="whitespace-nowrap px-4 py-2.5 text-right">
-                      {b.returnX === null || b.returnX === undefined ? NONE : (
-                        <span className={`font-bold tabular-nums ${b.returnX < 1 ? 'text-[#c0392b]' : 'text-[#171a33]'}`}>
-                          {b.returnX.toFixed(2)}x
-                        </span>
-                      )}
+                  ))}
+                  {/* Totals, so the reader does not have to prove the page reconciles. */}
+                  <tr className="bg-[#fcfcff]">
+                    <td className="px-3 py-2.5 text-[12px] font-extrabold uppercase tracking-[0.08em] text-[#5c6183]">All clients</td>
+                    <td className="whitespace-nowrap px-3 py-2.5 text-right font-extrabold tabular-nums text-[#171a33]">{money(rosterGmvPrinted)}</td>
+                    <td className="whitespace-nowrap px-3 py-2.5 text-right"><Delta v={rosterMom} /></td>
+                    <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-[#33375c]">{t.storeGmv > 0 ? pct(share) : NONE}</td>
+                    <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-[#33375c]">
+                      {num(t.retained)}<span className="text-[#8a8fb0]">&nbsp;/&nbsp;{num(t.signed)}</span>
                     </td>
-                  )}
-                  {isV2 && (
-                    <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-[#33375c]">
-                      {b.invoiced ? money(b.invoiced) : <span className="text-[#b9bcd0]">not yet</span>}
-                    </td>
-                  )}
-                </tr>
-              ))}
-              {/* Totals, so the reader does not have to prove the page reconciles. */}
-              <tr className="bg-[#fcfcff]">
-                <td className="px-4 py-2.5 text-[12px] font-extrabold uppercase tracking-[0.08em] text-[#5c6183]">All clients</td>
-                <td className="whitespace-nowrap px-4 py-2.5 text-right font-extrabold tabular-nums text-[#171a33]">{money(t.rosterGmv)}</td>
-                <td className="whitespace-nowrap px-4 py-2.5 text-right"><Delta v={rosterMom} /></td>
-                <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-[#33375c]">{t.storeGmv > 0 ? pct(share) : NONE}</td>
-                <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-[#33375c]">
-                  {num(t.retained)}<span className="text-[#8a8fb0]">&nbsp;/&nbsp;{num(t.signed)}</span>
-                </td>
-                <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-[#33375c]">{money(t.committedRetainer)}</td>
-                {isV2 && (
-                  <td className="whitespace-nowrap px-4 py-2.5 text-right font-bold tabular-nums text-[#171a33]">
-                    {perDollar !== null ? perDollar.toFixed(2) + 'x' : NONE}
-                  </td>
-                )}
-                {isV2 && (
-                  <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-[#33375c]">
-                    {t.invoiced ? money(t.invoiced) : NONE}
-                  </td>
-                )}
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <p className="mt-2 text-[11.5px] leading-[1.6] text-[#8a8fb0]">
-          On retainer / signed counts creators on the roster today, not at the end of the period.
-          {isV2 &&
-            ` GMV per $1 divides ${s.periodLabel} GMV by the full monthly retainer of everyone on the roster as of ${new Date(s.generatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}; under 1.0x is marked red.`}
-        </p>
-
-        {/* ── 7. Invoiced ─────────────────────────────────────────── */}
-        {isV2 && t.invoiced !== undefined && (
-          <>
-            <SectionLine>Invoiced</SectionLine>
-            <div className="rounded-[14px] border border-[#e7e7f2] bg-white px-5 py-4">
-              {t.invoicedClients === 0 ? (
-                <p className="text-[14px] text-[#5c6183]">No {s.periodLabel} invoices had been generated when this was prepared.</p>
-              ) : (
-                <>
-                  <p className="max-w-[72ch] text-[14.5px] leading-[1.65] text-[#33375c]">
-                    <b className="text-[#171a33]">{t.invoicedClients} of {t.clients}</b> clients invoiced so far:{' '}
-                    <b className="text-[#171a33]">{money(t.invoiced)}</b> across {t.invoiceCount} invoice
-                    {t.invoiceCount === 1 ? '' : 's'}.
-                  </p>
-                  {/* ⚠️ Stated every time: a partial month looks like a complete
-                      one unless the page says it is partial. */}
-                  <p className="mt-1.5 max-w-[72ch] text-[12.5px] leading-[1.6] text-[#8a8fb0]">
-                    Billed, not collected. Clients without an invoice are not in this figure, so it is not the
-                    month&rsquo;s revenue until every client has been invoiced.
-                  </p>
-                </>
-              )}
+                    <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-[#33375c]">{money(t.committedRetainer)}</td>
+                    {isV2 && (
+                      <td className="whitespace-nowrap px-3 py-2.5 text-right font-bold tabular-nums text-[#171a33]">
+                        {perDollar !== null ? perDollar.toFixed(2) + 'x' : NONE}
+                      </td>
+                    )}
+                    {isV2 && (
+                      <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-[#33375c]">
+                        {t.invoiced ? money(t.invoiced) : NONE}
+                      </td>
+                    )}
+                  </tr>
+                </tbody>
+              </table>
             </div>
-          </>
-        )}
+            <p className="mt-2 text-[11.5px] leading-[1.6] text-[#8a8fb0]">
+              On retainer / signed counts creators on the roster today, not at the end of the period.
+              {isV2 &&
+                ` GMV per $1 divides ${s.periodLabel} GMV by the full monthly retainer of everyone on the roster as of ${preparedOn}; under 1.0x is marked red.`}
+            </p>
+          </div>
+        </div>
 
-        {/* ── 8. Cost ─────────────────────────────────────────────── */}
+        {/* ── Band 5: what the roster costs, the figures beside their definition ── */}
+        <div className="mt-8" />
         <SectionLine>What the roster costs</SectionLine>
         <div className="rounded-[14px] border border-[#e7e7f2] bg-white px-5 py-5">
-          <div className="grid grid-cols-2 gap-3.5 md:grid-cols-4">
-            <Stat
-              label="Signed creators"
-              value={num(t.signed)}
-              note={isV2 && t.noHandle ? `${num(t.noHandle)} have no TikTok handle` : undefined}
-            />
-            <Stat label="On a retainer" value={num(t.retained)} note={t.signed > 0 ? `${pct((t.retained / t.signed) * 100, 0)} of signed` : undefined} />
-            <Stat label="Committed" value={money(t.committedRetainer) + '/mo'} />
-            {perDollar !== null && <Stat label="GMV per $1 committed" value={perDollar.toFixed(2) + 'x'} />}
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 lg:items-start">
+            <div className="lg:col-span-6">
+              <div className="grid grid-cols-2 gap-3.5 md:grid-cols-4 lg:grid-cols-2">
+                <Stat
+                  label="Signed creators"
+                  value={num(t.signed)}
+                  note={isV2 && t.noHandle ? `${num(t.noHandle)} have no TikTok handle` : undefined}
+                />
+                <Stat label="On a retainer" value={num(t.retained)} note={t.signed > 0 ? `${pct((t.retained / t.signed) * 100, 0)} of signed` : undefined} />
+                <Stat label="Committed" value={money(t.committedRetainer)} suffix="/mo" />
+                {perDollar !== null && <Stat label="GMV per $1 committed" value={perDollar.toFixed(2) + 'x'} />}
+              </div>
+            </div>
+            <div className="border-t border-[#eeedf5] pt-5 lg:col-span-6 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
+              <p className="text-[12.5px] leading-[1.65] text-[#8a8fb0]">
+                Committed is the full monthly retainer for everyone on the roster today. The client reports divide by
+                retainer <b className="text-[#5c6183]">earned</b>, which scales each creator&rsquo;s retainer by what they
+                actually published, so the multiple on a client&rsquo;s own report is higher than the one here. Both are
+                correct; they answer different questions.
+                {isV2 && t.noHandle
+                  ? ` ${num(t.noHandle)} signed creators carry no TikTok handle anywhere, so they can never be credited with GMV.`
+                  : ''}
+              </p>
+            </div>
           </div>
-          <p className="mt-3.5 max-w-[72ch] border-t border-[#f2f1f8] pt-3 text-[12px] leading-[1.6] text-[#8a8fb0]">
-            Committed is the full monthly retainer for everyone on the roster today. The client reports divide by
-            retainer <b className="text-[#5c6183]">earned</b>, which scales each creator&rsquo;s retainer by what they
-            actually published, so the multiple on a client&rsquo;s own report is higher than the one here. Both are
-            correct; they answer different questions.
-            {isV2 && t.noHandle
-              ? ` ${num(t.noHandle)} signed creators carry no TikTok handle anywhere, so they can never be credited with GMV.`
-              : ''}
-          </p>
         </div>
 
-        {s.caveats.length > 0 && (
-          <div className="mt-5 rounded-[12px] border border-[#f0dcb0] bg-[#fdf7ea] px-4 py-3">
-            <div className="text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a5a08]">Known gaps in this period</div>
-            <ul className="mt-1.5 space-y-1">
-              {s.caveats.map((c) => (
-                <li key={c} className="text-[12.5px] leading-[1.6] text-[#8a5a08]">{c}</li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        <p className="mt-6 text-[11.5px] leading-[1.7] text-[#8a8fb0]">
-          Internal. Prepared for {AGENCY} leadership. Every figure is frozen as of{' '}
-          {new Date(s.generatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} and will not
-          change. GMV is measured on the same roster-membership rule as the individual client reports, so a
-          client&rsquo;s GMV here and on their own report is the same number; the retainer multiple differs because
-          their report divides by retainer earned.
-        </p>
+        {/* ── Band 6: the fine print closes the page as a pair ── */}
+        <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-12 md:items-start">
+          {s.caveats.length > 0 && (
+            <div className="rounded-[12px] border border-[#f0dcb0] bg-[#fdf7ea] px-4 py-3 md:col-span-4">
+              <div className="text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a5a08]">Known gaps in this period</div>
+              <ul className="mt-1.5 space-y-1">
+                {s.caveats.map((c) => (
+                  <li key={c} className="text-[12.5px] leading-[1.6] text-[#8a5a08]">{c}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <p className={`text-[11.5px] leading-[1.7] text-[#8a8fb0] ${s.caveats.length > 0 ? 'md:col-span-8' : 'md:col-span-12'}`}>
+            Internal. Prepared for {AGENCY} leadership. Every figure is frozen as of {preparedOn} and will not change.
+            GMV is measured on the same roster-membership rule as the individual client reports, so a
+            client&rsquo;s GMV here and on their own report is the same number; the retainer multiple differs because
+            their report divides by retainer earned.
+          </p>
+        </div>
       </div>
     </div>
   );
 }
 
 /**
- * Bars for our GMV (all clients), a line for same-store share.
+ * Bars for our GMV (all clients), a line for same-store share, and the numbers
+ * in a table whose six month columns sit exactly under the six bars.
  *
- * ⚠️ TWO SCALES, BOTH LABELLED. GMV on the bars, share on the right axis.
- * Only the endpoints carry value labels; the table under the chart holds every
- * number, so labels never collide with bars of arbitrary height.
+ * ⚠️ TWO SCALES, BOTH LABELLED. GMV on every bar, share on the right axis and
+ * at both ends of the line. The bars had no scale at all and the May bar
+ * happened to touch the 60% gridline, which read as a 60% share; and only the
+ * August share was labelled, so the line said "recovering" while the text
+ * said "halved". The gridlines are dashed and faint so they read as the
+ * line's, not the bars'.
+ *
+ * The plot spans x = 200 to 940 of a 1000-wide viewBox; the table under it
+ * gives its label column 20% and each month 12.333%, so a bar and its column
+ * share a centre because both are percentages of the same wrapper width.
  */
-function TrendChart({ points, hasSameStore }: { points: AgencyTrendPoint[]; hasSameStore: boolean }) {
-  const W = 720;
-  const H = 230;
-  const padL = 10;
-  const padR = 48;
-  const padT = 22;
-  const padB = 42;
+function TrendChart({
+  points,
+  hasSameStore,
+  clientRows,
+  gapMonths,
+}: {
+  points: AgencyTrendPoint[];
+  hasSameStore: boolean;
+  clientRows: Array<{ name: string; color: string; shares: Array<number | null> }>;
+  /** Months (YYYY-MM) where a client has no data: marked on the column. */
+  gapMonths: Set<string>;
+}) {
+  const W = 1000;
+  const H = 340;
+  const padL = 200;
+  const padR = 60;
+  const padT = 34;
+  const padB = 52;
   const plotW = W - padL - padR;
   const plotH = H - padT - padB;
   const slot = plotW / points.length;
@@ -754,104 +859,229 @@ function TrendChart({ points, hasSameStore }: { points: AgencyTrendPoint[]; hasS
     .filter(Boolean)
     .join(' ');
   const lastI = points.length - 1;
+  const firstI = shares.findIndex((v) => v !== null);
   const lastShare = shares[lastI];
+  const firstShare = firstI >= 0 ? shares[firstI] : null;
+
+  const colStyle = { width: `${(100 - 20 - 6) / points.length}%` };
 
   return (
-    <div className="mt-4 overflow-x-auto">
-      <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full min-w-[520px]" role="img"
-           aria-label="Our GMV by month, with same-store share as a line">
-        {/* Gridlines at the share axis quarters. */}
-        {[0, 0.5, 1].map((f) => {
-          const y = padT + plotH * (1 - f);
-          return (
-            <g key={f}>
-              <line x1={padL} x2={W - padR} y1={y} y2={y} stroke="#eeedf5" strokeWidth={1} />
-              {hasSameStore && (
-                <text x={W - padR + 8} y={y + 4} fontSize={10.5} fill="#8a8fb0">
-                  {Math.round(shareMax * f)}%
-                </text>
-              )}
-            </g>
-          );
-        })}
+    <div className="overflow-x-auto">
+      {/* 640px: a month column is 12.333% of this, and "$2,665,029" in bold
+          needs 76px. Narrower than that the figures overflowed into the
+          next column. */}
+      <div className="min-w-[640px]">
+        <svg viewBox={`0 0 ${W} ${H}`} className="block h-auto w-full" role="img"
+             aria-label="Our GMV by month, with same-store share as a line">
+          {[0, 0.5, 1].map((f) => {
+            const y = padT + plotH * (1 - f);
+            return (
+              <g key={f}>
+                <line x1={padL} x2={W - padR} y1={y} y2={y} stroke="#eeedf5" strokeWidth={1.2} strokeDasharray="4 5" />
+                {hasSameStore && (
+                  <text x={W - padR + 10} y={y + 5} fontSize={15} fill="#8a8fb0">
+                    {Math.round(shareMax * f)}%
+                  </text>
+                )}
+              </g>
+            );
+          })}
 
-        {points.map((p, i) => {
-          const y = yGmv(p.rosterGmv);
-          const isLast = i === lastI;
-          return (
-            <g key={p.month}>
-              <rect
-                x={x(i) - barW / 2}
-                y={y}
-                width={barW}
-                height={Math.max(1, padT + plotH - y)}
-                rx={4}
-                fill={isLast ? '#b9b3f5' : '#dedcf5'}
-              >
-                <title>{`${p.label}: ${money(p.rosterGmv)} across ${p.clients} clients`}</title>
-              </rect>
-              {isLast && (
-                <text x={x(i)} y={y - 6} textAnchor="middle" fontSize={11} fontWeight={700} fill="#33375c">
+          {points.map((p, i) => {
+            const y = yGmv(p.rosterGmv);
+            const isLast = i === lastI;
+            const sh = shares[i];
+            // The bar's value sits above the bar, or above the line's point
+            // when that point is at the bar top (March: the 44.5% point was
+            // painting over "$2.67M").
+            const labelY = sh !== null && Math.abs(yShare(sh) - y) < 20 ? Math.min(y, yShare(sh)) - 12 : y - 8;
+            const gap = gapMonths.has(p.month);
+            return (
+              <g key={p.month}>
+                <rect
+                  x={x(i) - barW / 2}
+                  y={y}
+                  width={barW}
+                  height={Math.max(1, padT + plotH - y)}
+                  rx={5}
+                  fill={isLast ? '#b9b3f5' : '#dedcf5'}
+                >
+                  <title>{`${p.label}: ${money(p.rosterGmv)} across ${p.clients} clients`}</title>
+                </rect>
+                <text x={x(i)} y={labelY} textAnchor="middle" fontSize={16} fontWeight={700} fill="#33375c">
                   {compact(p.rosterGmv)}
                 </text>
-              )}
-              <text x={x(i)} y={H - padB + 17} textAnchor="middle" fontSize={11.5} fontWeight={600} fill="#5c6183">
-                {p.label}
-              </text>
-              <text x={x(i)} y={H - padB + 31} textAnchor="middle" fontSize={10} fill="#9aa0bf">
-                {p.clients} clients
-              </text>
-            </g>
-          );
-        })}
+                <text x={x(i)} y={H - padB + 21} textAnchor="middle" fontSize={17} fontWeight={600} fill={gap ? '#8a5a08' : '#5c6183'}>
+                  {p.label}{gap ? '*' : ''}
+                </text>
+                <text x={x(i)} y={H - padB + 40} textAnchor="middle" fontSize={14.5} fill={gap ? '#8a5a08' : '#9aa0bf'}>
+                  {p.clients} clients{gap ? ', 1 missing' : ''}
+                </text>
+              </g>
+            );
+          })}
 
-        {hasSameStore && linePts && (
-          <>
-            <polyline points={linePts} fill="none" stroke="#4b45ff" strokeWidth={2.5} strokeLinejoin="round" />
-            {shares.map((v, i) =>
-              v === null ? null : (
-                <circle key={i} cx={x(i)} cy={yShare(v)} r={i === lastI ? 5 : 3.5} fill="#4b45ff" stroke="#ffffff" strokeWidth={1.5} />
-              ),
-            )}
-            {lastShare !== null && lastShare !== undefined && (
-              <text x={x(lastI) - 9} y={yShare(lastShare) - 10} textAnchor="end" fontSize={11.5} fontWeight={700} fill="#4b45ff">
-                {pct(lastShare)}
-              </text>
-            )}
-          </>
-        )}
-      </svg>
-      <div className="mt-1 flex flex-wrap gap-x-5 gap-y-1 text-[11.5px] text-[#5c6183]">
-        <span className="flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-[3px] bg-[#dedcf5]" /> Our GMV, all clients
-        </span>
-        {hasSameStore && (
+          {hasSameStore && linePts && (
+            <>
+              <polyline points={linePts} fill="none" stroke="#4b45ff" strokeWidth={3.4} strokeLinejoin="round" strokeLinecap="round" />
+              {shares.map((v, i) =>
+                v === null ? null : (
+                  <circle key={i} cx={x(i)} cy={yShare(v)} r={i === lastI ? 7 : 5} fill="#4b45ff" stroke="#ffffff" strokeWidth={2} />
+                ),
+              )}
+              {/* The first point's label sits to its LEFT, in the empty gutter
+                  beside the label column, so it can never overprint the bar
+                  value above the point. The last point's label sits above and
+                  left of it, clear of the newest bar's value. */}
+              {firstShare !== null && firstShare !== undefined && firstI !== lastI && (
+                <text x={x(firstI) - barW / 2 - 8} y={yShare(firstShare) + 6} textAnchor="end" fontSize={17} fontWeight={700} fill="#4b45ff"
+                      stroke="#ffffff" strokeWidth={4} paintOrder="stroke" strokeLinejoin="round">
+                  {pct(firstShare)}
+                </text>
+              )}
+              {lastShare !== null && lastShare !== undefined && (
+                <text x={x(lastI) - 14} y={yShare(lastShare) - 14} textAnchor="end" fontSize={18} fontWeight={700} fill="#4b45ff"
+                      stroke="#ffffff" strokeWidth={4} paintOrder="stroke" strokeLinejoin="round">
+                  {pct(lastShare)}
+                </text>
+              )}
+            </>
+          )}
+        </svg>
+
+        <div className="mb-2.5 mt-1 flex flex-wrap gap-x-5 gap-y-1 pl-[20%] text-[11.5px] text-[#5c6183]">
           <span className="flex items-center gap-1.5">
-            <span className="h-[3px] w-4 rounded bg-[#4b45ff]" /> Same-store share (right axis)
+            <span className="h-2.5 w-2.5 rounded-[3px] bg-[#dedcf5]" /> Our GMV, all clients
           </span>
-        )}
+          {hasSameStore && (
+            <span className="flex items-center gap-1.5">
+              <span className="h-[3px] w-4 rounded bg-[#4b45ff]" /> Same-store share (right axis)
+            </span>
+          )}
+        </div>
+
+        {/* The chart's numbers, one column under each bar. Client counts are
+            already under the bars, so they are not repeated here. */}
+        <table className="w-full table-fixed border-collapse border-t border-[#eeedf5] text-[12.5px]">
+          <colgroup>
+            <col style={{ width: '20%' }} />
+            {points.map((p) => <col key={p.month} style={colStyle} />)}
+            <col style={{ width: '6%' }} />
+          </colgroup>
+          <thead>
+            <tr className="border-b border-[#eeedf5]">
+              <th className="px-2.5 py-2 text-left text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">Month</th>
+              {points.map((p) => (
+                <th key={p.month} className={`px-1 py-2 text-center text-[9.5px] font-extrabold uppercase tracking-[0.11em] ${gapMonths.has(p.month) ? 'text-[#8a5a08]' : 'text-[#8a8fb0]'}`}>
+                  {p.label}{gapMonths.has(p.month) ? '*' : ''}
+                </th>
+              ))}
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            <tr className="border-b border-[#f2f1f8]">
+              <th className="px-2.5 py-1.5 text-left text-[9.5px] font-extrabold uppercase leading-[1.3] tracking-[0.11em] text-[#8a8fb0]">Our GMV</th>
+              {points.map((p) => (
+                <td key={p.month} className="px-1 py-1.5 text-center font-bold tabular-nums text-[#171a33]">{money(p.rosterGmv)}</td>
+              ))}
+              <td />
+            </tr>
+            <tr className="border-b border-[#f2f1f8]">
+              <th className="px-2.5 py-1.5 text-left text-[9.5px] font-extrabold uppercase leading-[1.3] tracking-[0.11em] text-[#8a8fb0]">Blended share</th>
+              {points.map((p) => (
+                <td key={p.month} className="px-1 py-1.5 text-center tabular-nums text-[#8a8fb0]">
+                  {p.storeGmv > 0 ? pct((p.rosterGmv / p.storeGmv) * 100) : NONE}
+                </td>
+              ))}
+              <td />
+            </tr>
+            {hasSameStore && (
+              <tr className="border-b border-[#f2f1f8]">
+                <th className="px-2.5 py-1.5 text-left text-[9.5px] font-extrabold uppercase leading-[1.3] tracking-[0.11em] text-[#8a8fb0]">Same-store share</th>
+                {points.map((p) => (
+                  <td key={p.month} className="px-1 py-1.5 text-center font-semibold tabular-nums text-[#4b45ff]">
+                    {p.sameStoreStore > 0 ? pct((p.sameStoreRoster / p.sameStoreStore) * 100) : NONE}
+                  </td>
+                ))}
+                <td />
+              </tr>
+            )}
+            {/* Who moved the line: each same-store client's own share, so the
+                fall can be read as one account or all of them. */}
+            {clientRows.length > 0 && (
+              <tr className="border-b border-[#f2f1f8] bg-[#fcfcff]">
+                <th colSpan={points.length + 2} className="px-2.5 pb-1 pt-2.5 text-left text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">
+                  Same-store share by client
+                </th>
+              </tr>
+            )}
+            {clientRows.map((c, ci) => (
+              <tr key={c.name} className={ci === clientRows.length - 1 ? '' : 'border-b border-[#f2f1f8]'}>
+                <th className="px-2.5 py-1.5 text-left font-semibold leading-[1.25] text-[#33375c]">
+                  <span className="flex items-start gap-1.5">
+                    <span className="mt-1 h-2 w-2 shrink-0 rounded-[2px]" style={{ backgroundColor: c.color }} />
+                    <span className="text-[11.5px]">{c.name}</span>
+                  </span>
+                </th>
+                {c.shares.map((v, i) => (
+                  <td key={points[i]?.month ?? i} className="px-1 py-1.5 text-center tabular-nums text-[#5c6183]">
+                    {v === null ? NONE : pct(v)}
+                  </td>
+                ))}
+                <td />
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );
 }
 
-const TH_L = 'px-4 py-2.5 text-left text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]';
-const TH_R = 'px-4 py-2.5 text-right text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0] whitespace-nowrap';
+// Same horizontal padding as the cells, and headers may wrap: with nowrap the
+// header "ON RETAINER / SIGNED" alone set its column at 164px and pushed the
+// Every client table to 857px in a 763px lane, scrolling the Invoiced column
+// off beside the card that explains it.
+const TH_L = 'px-3 py-2.5 text-left text-[9.5px] font-extrabold uppercase leading-[1.3] tracking-[0.11em] text-[#8a8fb0]';
+const TH_R = 'px-3 py-2.5 text-right text-[9.5px] font-extrabold uppercase leading-[1.3] tracking-[0.11em] text-[#8a8fb0]';
+
+/**
+ * A client's name, carrying its Known gaps sentence when it has one, so a
+ * figure that is short a day is marked where it appears and not only two
+ * bands lower.
+ */
+function ClientName({ name, gap }: { name: string; gap: string | null }) {
+  return gap ? (
+    <span className="font-semibold text-[#171a33] underline decoration-[#d9b45c] decoration-dotted underline-offset-2" title={gap}>
+      {name}
+    </span>
+  ) : (
+    <span className="font-semibold text-[#171a33]">{name}</span>
+  );
+}
 
 function SectionLine({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mb-2.5 mt-8 flex items-center gap-3 text-[10px] font-extrabold uppercase tracking-[0.15em] text-[#8a8fb0]">
+    <div className="mb-2.5 mt-8 flex items-center gap-3 text-[10px] font-extrabold uppercase tracking-[0.15em] text-[#8a8fb0] first:mt-0">
       <span className="shrink-0">{children}</span>
       <span className="h-px flex-1 bg-[#e7e7f2]" />
     </div>
   );
 }
 
-function Stat({ label, value, note, delta }: { label: string; value: string; note?: string; delta?: number | null }) {
+function Stat({ label, value, suffix, note, delta }: { label: string; value: string; suffix?: string; note?: string; delta?: number | null }) {
   return (
     <div className="rounded-[12px] border border-[#e7e7f2] bg-[#fcfcff] px-3.5 py-3">
       <div className="text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">{label}</div>
-      <div className="mt-0.5 text-[19px] font-extrabold tabular-nums text-[#171a33]">{value}</div>
+      {/* 17px on a phone: "$594,900/mo" needs 125px at 19px and a two-up tile
+          on a 390px screen gives 117px. */}
+      <div className="mt-0.5 text-[17px] font-extrabold tabular-nums text-[#171a33] md:text-[19px]">
+        {value}
+        {/* "/mo" as a small suffix: at full size the whole string overflowed a
+            two-up tile on a phone. */}
+        {suffix && <span className="ml-0.5 text-[11.5px] font-semibold text-[#8a8fb0]">{suffix}</span>}
+      </div>
       {delta !== undefined ? (
         <div className="mt-1"><Delta v={delta} /></div>
       ) : note ? (

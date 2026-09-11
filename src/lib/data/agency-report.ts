@@ -130,7 +130,14 @@ export interface AgencySnapshot {
    * byClient: the same-store clients month by month, so the line can be
    * decomposed into who moved it.
    */
-  trend?: { points: AgencyTrendPoint[]; sameStore: string[]; gaps?: string[]; byClient?: AgencyTrendClient[] };
+  trend?: {
+    points: AgencyTrendPoint[];
+    sameStore: string[];
+    gaps?: string[];
+    /** YYYY-MM of every month named in gaps, so the chart can mark the column. */
+    gapMonths?: string[];
+    byClient?: AgencyTrendClient[];
+  };
   /**
    * Anything that would make a figure misleading if read without it. Built at
    * BUILD time, so a frozen report carries the caveats that were true then.
@@ -390,7 +397,13 @@ export async function buildAgencySnapshot(start: string, end: string): Promise<A
     (g) => `${nameOf(g.slug)} has no data for ${monthKeyLabel(g.month)}, so that month is short by that client on the six-month chart`,
   );
   const trend: AgencySnapshot['trend'] = trendRaw
-    ? { points: trendRaw.points, sameStore: trendRaw.sameStore, byClient: trendRaw.byClient, gaps: trendGaps }
+    ? {
+        points: trendRaw.points,
+        sameStore: trendRaw.sameStore,
+        byClient: trendRaw.byClient,
+        gaps: trendGaps,
+        gapMonths: [...new Set(trendRaw.gapSlugs.map((g) => g.month))],
+      }
     : undefined;
   const caveats = [...gapCaveats, ...trendGaps];
 

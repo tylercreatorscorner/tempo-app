@@ -33,6 +33,9 @@ export async function generateMetadata({ params }: Props) {
       data && !data.revoked_at
         ? `Creators Corner · Agency Performance · ${data.period_label}`
         : 'Report · Tempo',
+    // Not the marketing description the root layout carries: this is an
+    // internal, noindex page.
+    description: 'Internal agency report.',
     robots: { index: false, follow: false },
   };
 }

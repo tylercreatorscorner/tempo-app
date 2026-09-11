@@ -11,9 +11,9 @@ import './globals.css';
 // way, so pinning five static weights bought nothing and broke the build on
 // 2026-08-10: Google rotated the Inter v20 file hashes (UcCB3… → UcC73…),
 // Vercel restored a build cache holding the old CSS, and every @font-face src
-// 404'd — seven module-not-found errors and two failed production deploys
+// 404'd: seven module-not-found errors and two failed production deploys
 // that had nothing to do with the commits in them. Omitting `weight` takes the
-// single variable file, which covers 100–900 including the 500/600 this UI
+// single variable file, which covers 100 to 900 including the 500/600 this UI
 // leans on.
 //
 // The underlying fragility is unchanged: next/font/google is a build-time
@@ -33,7 +33,7 @@ export const metadata: Metadata = {
     template: '%s | Tempo',
   },
   description:
-    'Tempo is the creator management platform for TikTok Shop. GMV and commission per creator, post-level performance, retainers and invoicing — built for agencies running managed creator programs.',
+    'Tempo is the creator management platform for TikTok Shop. GMV and commission per creator, post-level performance, retainers and invoicing, built for agencies running managed creator programs.',
   keywords: [
     'TikTok Shop',
     'creator management',
@@ -53,13 +53,13 @@ export const metadata: Metadata = {
     siteName: 'Tempo',
     title: 'Tempo | Creator Management for TikTok Shop',
     description:
-      'GMV and commission per creator, post-level performance, retainers and invoicing — for agencies running managed creator programs.',
+      'GMV and commission per creator, post-level performance, retainers and invoicing, for agencies running managed creator programs.',
     images: [
       {
         url: '/api/og',
         width: 1200,
         height: 630,
-        alt: 'Tempo — Creator Management for TikTok Shop',
+        alt: 'Tempo: Creator Management for TikTok Shop',
       },
     ],
   },
@@ -67,7 +67,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'Tempo | Creator Management for TikTok Shop',
     description:
-      'GMV and commission per creator, post-level performance, retainers and invoicing — for agencies running managed creator programs.',
+      'GMV and commission per creator, post-level performance, retainers and invoicing, for agencies running managed creator programs.',
     images: ['/api/og'],
   },
   robots: {
