@@ -7,7 +7,11 @@
     "build": "next build",
     "start": "next start",
     "start:bot": "node --import tsx scripts/tempo-bot.ts",
-    "lint": "eslint"
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "test:stripe-webhook": "node scripts/test-stripe-webhook.mjs",
+    "test:ci": "npm run test:stripe-webhook && node --import tsx scripts/test-tiktok-signature.ts && node --import tsx scripts/test-tiktok-foundation.ts && node --import tsx scripts/test-bulk-parse.ts",
+    "lint:hardening": "eslint src/app/api/webhooks/stripe/route.ts scripts/test-stripe-webhook.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.95.1",
