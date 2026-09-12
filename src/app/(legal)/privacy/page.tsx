@@ -58,7 +58,6 @@ export default function PrivacyPage() {
         <ul className="list-disc pl-6 space-y-1.5 text-gray-700">
           <li>Your name, email address, and company name (provided during registration)</li>
           <li>Your role (brand or agency) and organization details</li>
-          <li>Billing information processed through Stripe (we do not store full payment card details)</li>
         </ul>
 
         <h3 className="text-base font-semibold text-gray-800 mt-4">TikTok Shop Data</h3>
@@ -85,9 +84,7 @@ export default function PrivacyPage() {
         <ul className="list-disc pl-6 space-y-1.5 text-gray-700">
           <li>Provide, maintain, and improve the Service</li>
           <li>Display your TikTok Shop analytics and performance dashboards</li>
-          <li>Determine your subscription tier based on your shop performance</li>
-          <li>Process payments and manage your subscription</li>
-          <li>Send you important updates about the Service, including billing notifications and feature announcements</li>
+          <li>Send you important updates about the Service, including feature announcements</li>
           <li>Respond to your support requests and communications</li>
           <li>Analyze usage patterns to improve the product experience</li>
           <li>Detect and prevent fraud, abuse, or security issues</li>
@@ -105,7 +102,7 @@ export default function PrivacyPage() {
         <ul className="list-disc pl-6 space-y-2 text-gray-700">
           <li>
             <strong>Service providers.</strong> We use trusted third-party services to operate the platform, including
-            Stripe (payment processing), Supabase (database and authentication), and Vercel (hosting and
+            Supabase (database and authentication) and Vercel (hosting and
             infrastructure). These providers only access the data they need to perform their services and are bound by
             their own privacy policies.
           </li>
@@ -185,8 +182,8 @@ export default function PrivacyPage() {
       <section id="retention" className="space-y-3">
         <h2 className="text-xl font-bold text-gray-900">7. Data Retention and Deletion</h2>
         <p className="text-gray-700 leading-relaxed">
-          We retain your data for as long as your account is active or as needed to provide the Service. If you cancel
-          your subscription, we retain your data for 30 days to allow you to reactivate or export your information.
+          We retain your data for as long as your account is active or as needed to provide the Service. If you close
+          your account, we retain your data for 30 days to allow you to reactivate or export your information.
           After that period, your data will be permanently deleted from our systems.
         </p>
         <p className="text-gray-700 leading-relaxed">

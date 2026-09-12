@@ -115,18 +115,17 @@ export default async function AdminDashboard({ searchParams }: Props) {
   // ── Empty-tenant onboarding ─────────────────────────────────────────────
   if (ALL_BRANDS.length === 0) {
     const { data: { user } } = await supabase.auth.getUser();
-    let tenantData: { tiktok_connected: boolean; stripe_subscription_id: string | null; creators_added: boolean; discord_connected: boolean } | null = null;
+    let tenantData: { tiktok_connected: boolean; creators_added: boolean; discord_connected: boolean } | null = null;
     if (user) {
       const { data: profile } = await supabase.from('user_profiles').select('tenant_id').eq('user_id', user.id).maybeSingle();
       if (profile?.tenant_id) {
-        const { data: t } = await supabase.from('tenants').select('tiktok_connected, stripe_subscription_id, creators_added, discord_connected').eq('id', profile.tenant_id).single();
+        const { data: t } = await supabase.from('tenants').select('tiktok_connected, creators_added, discord_connected').eq('id', profile.tenant_id).single();
         tenantData = t;
       }
     }
     return (
       <DashboardOnboarding
         tiktokConnected={tenantData?.tiktok_connected ?? false}
-        planActive={!!tenantData?.stripe_subscription_id}
         creatorsAdded={tenantData?.creators_added ?? false}
         discordConnected={tenantData?.discord_connected ?? false}
       />

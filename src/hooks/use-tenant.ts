@@ -13,8 +13,6 @@ interface TenantInfo {
   tiktok_connected: boolean;
   creators_added: boolean;
   discord_connected: boolean;
-  stripe_customer_id: string | null;
-  stripe_subscription_id: string | null;
 }
 
 interface TenantSnapshot {

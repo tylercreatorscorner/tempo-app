@@ -65,7 +65,6 @@ export function useOnboarding(): OnboardingStatus {
 
       // Check each step
       const tiktokConnected = tenant.tiktok_connected || false;
-      const planSelected = !!tenant.stripe_subscription_id;
       const creatorsAdded = tenant.creators_added || false;
       const discordConnected = tenant.discord_connected || false;
 
@@ -78,15 +77,6 @@ export function useOnboarding(): OnboardingStatus {
           complete: tiktokConnected,
           href: '/settings',
           icon: '🎵',
-        },
-        {
-          id: 'plan',
-          label: 'Choose your plan',
-          description: 'Select a plan to unlock your full dashboard',
-          required: true,
-          complete: planSelected,
-          href: '/settings',
-          icon: '💎',
         },
         {
           id: 'creators',

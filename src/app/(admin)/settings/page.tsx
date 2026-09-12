@@ -4,7 +4,6 @@ import { Suspense } from 'react';
 import { createClient } from '@/lib/supabase/server';
 import { User, Building2, Database, Bell, Key, Shield, Users } from 'lucide-react';
 import { TikTokConnect } from '@/components/onboarding/tiktok-connect';
-import { PlanSelector } from '@/components/onboarding/plan-selector';
 import { CreatorInvitesSection } from '@/components/settings/creator-invites-section';
 import { TeamMembersSection } from '@/components/settings/team-members-section';
 import { CompensationArrangementsSection } from '@/components/settings/compensation-arrangements-section';
@@ -13,7 +12,7 @@ import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 
 export default async function SettingsPage() {
   // Brand-scoped members (managers/coaches) get a minimal, scoped Settings
-  // (Profile only). The full agency config below (TikTok/billing/brand
+  // (Profile only). The full agency config below (TikTok/brand
   // mgmt/team/compensation/API) is owner/admin only — this page previously had
   // NO gate, so a manager hitting /settings directly would have seen all of it.
   const scope = await getWorkspaceScope();
@@ -64,7 +63,7 @@ export default async function SettingsPage() {
 
   // Load profile + tenant + brands dynamically
   let profile: { name: string; email: string; role: string; tenant_id: string } | null = null;
-  let tenant: { name: string; discord_connected: boolean; stripe_subscription_id: string | null; plan: string | null } | null = null;
+  let tenant: { name: string; discord_connected: boolean } | null = null;
   let brands: { id: string; name: string; slug: string; color: string | null; display_name: string | null }[] = [];
 
   if (user) {
@@ -78,7 +77,7 @@ export default async function SettingsPage() {
     if (p?.tenant_id) {
       const { data: t } = await supabase
         .from('tenants')
-        .select('name, discord_connected, stripe_subscription_id, plan')
+        .select('name, discord_connected')
         .eq('id', p.tenant_id)
         .single();
       tenant = t;
@@ -113,15 +112,6 @@ export default async function SettingsPage() {
       <Suspense>
         <TikTokConnect companyName={tenant?.name} />
       </Suspense>
-
-      {/* Plan Selection */}
-      <div className="rounded-xl border border-border bg-card overflow-hidden">
-        <div className="p-6">
-          <Suspense>
-            <PlanSelector currentPlan={tenant?.stripe_subscription_id ? (tenant.plan || 'brand') : undefined} />
-          </Suspense>
-        </div>
-      </div>
 
       {/* Profile */}
       <div className="rounded-xl border border-border bg-card overflow-hidden">

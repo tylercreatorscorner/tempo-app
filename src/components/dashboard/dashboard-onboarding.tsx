@@ -1,24 +1,21 @@
 interface Props {
   tiktokConnected: boolean;
-  planActive: boolean;
   creatorsAdded: boolean;
   discordConnected: boolean;
 }
 
 /**
  * Empty-state replacement for the dashboard when a tenant has no brands yet.
- * Walks new clients through the two required setup steps (TikTok Shop, plan)
- * plus two optional ones (creators, Discord).
+ * Walks new clients through TikTok Shop setup and optional creator/Discord setup.
  */
 export function DashboardOnboarding({
   tiktokConnected,
-  planActive,
   creatorsAdded,
   discordConnected,
 }: Props) {
-  const requiredDone = tiktokConnected && planActive;
-  const requiredCompleted = [tiktokConnected, planActive].filter(Boolean).length;
-  const progressPct = Math.round((requiredCompleted / 2) * 100);
+  const requiredDone = tiktokConnected;
+  const requiredCompleted = Number(tiktokConnected);
+  const progressPct = tiktokConnected ? 100 : 0;
 
   return (
     <div className="max-w-4xl mx-auto py-8 px-4 space-y-8">
@@ -40,12 +37,12 @@ export function DashboardOnboarding({
           </h1>
           <p className="text-lg text-white/70 max-w-xl">
             {requiredDone
-              ? 'Your plan is active! Connect your TikTok Shop to start syncing performance data.'
+              ? 'Your initial setup is complete. Visit Settings to finish connecting your shop and review your data sources.'
               : "Let's get your TikTok Shop data flowing. Complete the steps below to unlock your dashboard."}
           </p>
           <div className="mt-6 max-w-md">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium text-white/80">{requiredCompleted} of 2 required steps complete</span>
+              <span className="text-sm font-medium text-white/80">{requiredCompleted} of 1 required step complete</span>
               <span className="text-sm font-bold text-white">{progressPct}%</span>
             </div>
             <div className="h-2 rounded-full bg-card/10 overflow-hidden">
@@ -56,7 +53,7 @@ export function DashboardOnboarding({
       </div>
 
       {/* Required steps */}
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4">
         {/* Step 1: Connect TikTok */}
         {tiktokConnected ? (
           <DoneCard title="TikTok Shop Connected" subtitle="Your data is syncing automatically." />
@@ -80,28 +77,6 @@ export function DashboardOnboarding({
           </a>
         )}
 
-        {/* Step 2: Choose Plan */}
-        {planActive ? (
-          <DoneCard title="Plan Active" subtitle="Your subscription is active. Full access unlocked." />
-        ) : (
-          <a href="/settings" className="group rounded-2xl border-2 border-[var(--pulse-accent-2)]/30 bg-gradient-to-br from-[var(--pulse-accent-2)]/5 to-card p-6 hover:border-[var(--pulse-accent-2)]/60 hover:shadow-lg hover:shadow-[var(--pulse-accent-2)]/10 transition-all duration-300 block">
-            <div className="flex items-start gap-4">
-              <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-[var(--pulse-accent-2)] to-[var(--pulse-accent-2)]/80 flex items-center justify-center flex-shrink-0 shadow-lg shadow-[var(--pulse-accent-2)]/20">
-                <span className="text-2xl">💎</span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <h3 className="font-semibold text-foreground">Choose Your Plan</h3>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-[var(--pulse-accent-2)]/10 text-[var(--pulse-accent-2)]">Required</span>
-                </div>
-                <p className="text-sm text-muted-foreground">Subscribe to unlock your full analytics dashboard, creator rankings, and daily performance briefs.</p>
-              </div>
-            </div>
-            <div className="mt-5 w-full py-2.5 rounded-xl bg-gradient-to-r from-[var(--pulse-accent-2)] to-[var(--pulse-accent-2)]/90 text-white text-sm font-semibold text-center hover:opacity-90 transition-opacity shadow-md shadow-[var(--pulse-accent-2)]/20">
-              View Plans
-            </div>
-          </a>
-        )}
       </div>
 
       {/* Optional steps */}

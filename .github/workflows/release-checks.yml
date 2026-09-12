@@ -42,6 +42,5 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: https://ci-placeholder.invalid
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon-key
           SUPABASE_SERVICE_ROLE_KEY: ci-placeholder-service-role-key
-          STRIPE_SECRET_KEY: sk_test_ci_placeholder
           CREATOR_JWT_SECRET: ci-only-placeholder-key-never-for-deployment
       # This build validates compilation only. Never deploy these dummy-configured outputs.

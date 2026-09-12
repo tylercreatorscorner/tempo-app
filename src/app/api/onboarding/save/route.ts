@@ -29,10 +29,6 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       console.error('Onboarding save error:', error);
-      // If table doesn't exist yet, return success anyway (data is in Stripe metadata)
-      if (error.code === '42P01') {
-        return NextResponse.json({ ok: true, fallback: true });
-      }
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 

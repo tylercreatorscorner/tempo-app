@@ -14,7 +14,7 @@ import {
   AnalyticsMockup,
   CreatorPortalMockup,
 } from '@/components/landing/animated-mockups';
-import { PricingSection } from '@/components/landing/pricing-section';
+import { AccessSection } from '@/components/landing/access-section';
 import { AnimatedGridPattern } from '@/components/ui/animated-grid-pattern';
 import { BorderBeam } from '@/components/ui/border-beam';
 import { cn } from '@/lib/utils';
@@ -714,7 +714,7 @@ export default function Home() {
         <TheProblem />
         <Features />
         <ComparisonTable />
-        <PricingSection />
+        <AccessSection />
         <FaqSection />
         <CtaSection />
       </main>

@@ -251,39 +251,12 @@ export function ShareView({ token, invoice, todayIso }: Props) {
           </div>
         )}
 
-        {/* Payment row: instructions beside the Phase B pay-online preview.
-            Open invoices only — a paid or voided document must not solicit
-            payment. */}
-        {isOpenForPayment && (
-          <div className={`mt-4 grid grid-cols-1 gap-3.5 ${invoice.paymentInstructions ? 'md:grid-cols-[1.2fr_1fr]' : ''}`}>
-            {invoice.paymentInstructions && (
-              <div className="rounded-[14px] border border-[#e7e7f2] bg-white px-[18px] py-4">
-                <div className="mb-2 text-[9.5px] font-extrabold uppercase tracking-[0.12em] text-[#8a8fb0]">
-                  Pay by bank transfer
-                </div>
-                <pre className="whitespace-pre-wrap font-mono text-xs leading-[1.6] text-[#33375c]">{invoice.paymentInstructions}</pre>
-              </div>
-            )}
-            {/* Pay online ships dark until Stripe ACH (Phase B) is armed — this is
-                a non-interactive preview, exactly as mocked. */}
-            <div className="relative rounded-[14px] border border-dashed border-[#c9c6ea] bg-[#fbfaff] px-[18px] py-4">
-              <span className="absolute right-3 top-2.5 rounded-full border border-[#e3e0f5] bg-white px-2 py-0.5 text-[9px] font-extrabold tracking-[0.1em] text-[#8a8fb0]">
-                Coming soon
-              </span>
-              <div className="mb-2 text-[9.5px] font-extrabold uppercase tracking-[0.12em] text-[#8a8fb0]">
-                Or pay online
-              </div>
-              <span
-                className="mb-2 block cursor-default rounded-[11px] py-3 text-center text-sm font-extrabold text-white"
-                style={{ background: 'linear-gradient(135deg,#5b5ee8,#a855f7)' }}
-                aria-disabled="true"
-              >
-                Pay {formatCurrencyExact(invoice.totalAmount)} &middot; bank debit (ACH)
-              </span>
-              <div className="text-center text-[10.5px] text-[#8a8fb0]">
-                Secure ACH via Stripe &middot; fees capped at $5 &middot; marks the invoice paid automatically
-              </div>
+        {isOpenForPayment && invoice.paymentInstructions && (
+          <div className="mt-4 rounded-[14px] border border-[#e7e7f2] bg-white px-[18px] py-4">
+            <div className="mb-2 text-[9.5px] font-extrabold uppercase tracking-[0.12em] text-[#8a8fb0]">
+              Pay by bank transfer
             </div>
+            <pre className="whitespace-pre-wrap font-mono text-xs leading-[1.6] text-[#33375c]">{invoice.paymentInstructions}</pre>
           </div>
         )}
 

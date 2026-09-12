@@ -59,7 +59,7 @@ async function provisionTenant(user: { id: string; email?: string; user_metadata
 
     if (existing?.tenant_id) return; // Already provisioned
 
-    // Check if there's a profile by email (from Stripe webhook or onboarding)
+    // Check if there's a profile by email (from earlier onboarding)
     const { data: byEmail } = await admin
       .from('user_profiles')
       .select('id, tenant_id')

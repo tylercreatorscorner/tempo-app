@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
 
     if (tenant && currentBrands !== null && currentBrands >= (tenant.max_brands || 1)) {
       return NextResponse.json({
-        error: `Brand limit reached (${tenant.max_brands}). Upgrade your plan to add more brands.`,
+        error: `Brand limit reached (${tenant.max_brands}). Contact your workspace administrator to add more brands.`,
       }, { status: 403 });
     }
 
