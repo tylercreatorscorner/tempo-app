@@ -30,7 +30,12 @@ export interface CreatorTokenPayload {
   creatorId: number;
   email: string;
   jti?: string; // unique token id, used for magic-link/claim replay protection
-  purpose?: 'claim'; // present on claim-link tokens; absent on session tokens
+  purpose?: 'claim' | 'magic' | 'session';
+}
+
+// Select identity fields so link metadata cannot leak into a new session.
+function identity(payload: CreatorTokenPayload) {
+  return { creatorId: payload.creatorId, email: payload.email };
 }
 
 /**
@@ -44,7 +49,7 @@ export async function generateMagicToken(
 ): Promise<{ token: string; jti: string; expiresAt: Date }> {
   const jti = randomBytes(24).toString('base64url');
   const expiresAt = new Date(Date.now() + MAGIC_LINK_TTL_SECONDS * 1000);
-  const token = await new SignJWT({ ...payload, jti })
+  const token = await new SignJWT({ ...identity(payload), purpose: 'magic', jti })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setJti(jti)
@@ -65,7 +70,7 @@ export async function generateClaimToken(
 ): Promise<{ token: string; jti: string; expiresAt: Date }> {
   const jti = randomBytes(24).toString('base64url');
   const expiresAt = new Date(Date.now() + CLAIM_LINK_TTL_SECONDS * 1000);
-  const token = await new SignJWT({ ...payload, purpose: 'claim', jti })
+  const token = await new SignJWT({ ...identity(payload), purpose: 'claim', jti })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setJti(jti)
@@ -76,22 +81,44 @@ export async function generateClaimToken(
 
 /** Generate a session token (valid 30 days) */
 export async function generateSessionToken(payload: CreatorTokenPayload): Promise<string> {
-  return new SignJWT({ ...payload })
+  return new SignJWT({ ...identity(payload), purpose: 'session' })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime('30d')
     .sign(JWT_SECRET);
 }
 
-/** Verify any token */
-export async function verifyToken(token: string): Promise<CreatorTokenPayload | null> {
+/** Verify a token only for the consumer's intended purpose. */
+async function verifyPurpose(
+  token: string,
+  purpose: 'session' | 'magic' | 'claim',
+): Promise<CreatorTokenPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, JWT_SECRET);
+    const { payload } = await jwtVerify(token, JWT_SECRET, {
+      algorithms: ['HS256'], requiredClaims: ['iat', 'exp'],
+    });
+    if (typeof payload.iat !== 'number' || typeof payload.exp !== 'number'
+      || payload.exp <= payload.iat) return null;
+    // UUID creator IDs and empty emails are used by invitations and admin sessions.
+    if (!((typeof payload.creatorId === 'string' && payload.creatorId.trim().length > 0)
+      || (typeof payload.creatorId === 'number' && Number.isSafeInteger(payload.creatorId)))
+      || typeof payload.email !== 'string') return null;
+    const hasJti = Object.hasOwn(payload, 'jti');
+    if (purpose === 'session' ? hasJti
+      : (typeof payload.jti !== 'string' || payload.jti.length === 0)) return null;
+    // Legacy sessions had neither purpose nor JTI; legacy magic links had a JTI.
+    // Claims have always carried an explicit purpose. Never reinterpret a category.
+    if (payload.purpose !== purpose
+      && !(purpose !== 'claim' && !Object.hasOwn(payload, 'purpose'))) return null;
     return payload as unknown as CreatorTokenPayload;
   } catch {
     return null;
   }
 }
+
+export const verifySessionToken = (token: string) => verifyPurpose(token, 'session');
+export const verifyMagicToken = (token: string) => verifyPurpose(token, 'magic');
+export const verifyClaimToken = (token: string) => verifyPurpose(token, 'claim');
 
 /** Set the session cookie */
 export async function setCreatorSession(payload: CreatorTokenPayload): Promise<void> {
@@ -111,7 +138,7 @@ export async function getCreatorSession(): Promise<CreatorTokenPayload | null> {
   const cookieStore = await cookies();
   const token = cookieStore.get(COOKIE_NAME)?.value;
   if (!token) return null;
-  return verifyToken(token);
+  return verifySessionToken(token);
 }
 
 /** Clear session cookie */

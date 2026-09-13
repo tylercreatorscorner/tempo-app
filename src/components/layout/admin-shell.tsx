@@ -12,7 +12,6 @@ import { BrandProvider } from '@/hooks/use-global-brand';
 import { NavigationPendingProvider, NavigationPendingOverlay } from '@/components/layout/navigation-pending';
 import { SetupBanner } from '@/components/onboarding/setup-banner';
 import { DashboardGate } from '@/components/onboarding/dashboard-gate';
-import { FirstSyncToast } from '@/components/onboarding/first-sync-toast';
 import { BreadcrumbProvider } from '@/components/layout/breadcrumb-context';
 
 interface AdminShellProps {
@@ -95,7 +94,6 @@ export function AdminShell({ children, tenantSwitcher, viewAsBanner, canViewFina
         </div>
       </div>
       <VideoPlayerPanel />
-      <Suspense><FirstSyncToast /></Suspense>
     </VideoPanelProvider>
     </BreadcrumbProvider>
     </BrandProvider>

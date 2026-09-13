@@ -10,7 +10,7 @@
  * constraint and is rejected.
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyToken, setCreatorSession } from '@/lib/auth/creator-auth';
+import { verifyMagicToken, setCreatorSession } from '@/lib/auth/creator-auth';
 import { createAdminClient } from '@/lib/supabase/server';
 
 export const runtime = 'nodejs';
@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
   const token = request.nextUrl.searchParams.get('token');
   if (!token) return failureRedirect(request, 'missing_token');
 
-  const payload = await verifyToken(token);
+  const payload = await verifyMagicToken(token);
   if (!payload) return failureRedirect(request, 'invalid_token');
 
   // Magic-link tokens always carry a jti. Refuse to log in if it's missing —

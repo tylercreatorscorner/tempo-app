@@ -7,7 +7,12 @@
     "build": "next build",
     "start": "next start",
     "start:bot": "node --import tsx scripts/tempo-bot.ts",
-    "lint": "eslint"
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "test:ci": "npm run test:billing-disabled && npm run test:creator-auth && node --import tsx scripts/test-tiktok-signature.ts && node --import tsx scripts/test-tiktok-foundation.ts && node --import tsx scripts/test-bulk-parse.ts",
+    "lint:hardening": "eslint src/app/api/checkout/route.ts src/app/api/webhooks/stripe/route.ts scripts/test-billing-disabled.mjs src/lib/auth/creator-auth.ts src/lib/auth/creator-claim.ts src/app/api/auth/creator/verify/route.ts scripts/test-creator-token-purpose.mjs",
+    "test:creator-auth": "node scripts/test-creator-token-purpose.mjs",
+    "test:billing-disabled": "node scripts/test-billing-disabled.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.95.1",
@@ -15,7 +20,6 @@
     "@fontsource/inter": "^5.2.8",
     "@react-pdf/renderer": "^4.5.1",
     "@sentry/nextjs": "^10.51.0",
-    "@stripe/stripe-js": "^8.8.0",
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.96.0",
     "@vercel/analytics": "^2.0.1",
@@ -43,7 +47,6 @@
     "react-dom": "19.2.3",
     "schema-dts": "^2.0.0",
     "sharp": "^0.34.5",
-    "stripe": "^20.3.1",
     "tailwind-merge": "^3.4.1",
     "tsx": "^4.19.2",
     "xlsx": "^0.18.5",

@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 const sections = [
   { id: 'service-description', label: '1. Service Description' },
   { id: 'account-registration', label: '2. Account Registration and Eligibility' },
-  { id: 'subscription-billing', label: '3. Subscription and Billing' },
+  { id: 'subscription-billing', label: '3. Platform Access' },
   { id: 'acceptable-use', label: '4. Acceptable Use' },
   { id: 'data-privacy', label: '5. Data and Privacy' },
   { id: 'intellectual-property', label: '6. Intellectual Property' },
@@ -83,36 +83,11 @@ export default function TermsPage() {
 
       {/* 3 */}
       <section id="subscription-billing" className="space-y-3">
-        <h2 className="text-xl font-bold text-gray-900">3. Subscription and Billing</h2>
+        <h2 className="text-xl font-bold text-gray-900">3. Platform Access</h2>
         <p className="text-gray-700 leading-relaxed">
-          Tempo operates on a subscription basis with recurring billing through Stripe. When you subscribe, you
-          authorize us to charge your payment method on a recurring basis (monthly or annually, depending on the plan
-          you select) until you cancel.
+          Tempo does not currently offer self-service paid subscriptions or collect subscription payments.
+          If paid plans become available, pricing and billing terms will be presented before you choose to subscribe.
         </p>
-        <ul className="list-disc pl-6 space-y-2 text-gray-700">
-          <li>
-            <strong>Plan pricing</strong> is determined by your TikTok Shop monthly GMV for brand accounts, or by the
-            number of brands managed for agency accounts. Plans may be reviewed and adjusted quarterly based on your
-            actual usage.
-          </li>
-          <li>
-            <strong>Annual billing</strong> offers a discounted rate compared to monthly billing. Annual subscriptions
-            are billed upfront for the full year.
-          </li>
-          <li>
-            <strong>Cancellation.</strong> You may cancel your subscription at any time through your account settings or
-            by contacting us. Cancellation takes effect at the end of your current billing period. We do not provide
-            prorated refunds for partial billing periods.
-          </li>
-          <li>
-            <strong>Failed payments.</strong> If a payment fails, we may retry the charge and may suspend your access
-            until the payment issue is resolved.
-          </li>
-          <li>
-            <strong>Price changes.</strong> We reserve the right to change our pricing. We will give you at least 30
-            days notice before any price increase takes effect on your account.
-          </li>
-        </ul>
       </section>
 
       {/* 4 */}
@@ -167,8 +142,8 @@ export default function TermsPage() {
           works based on the Service without our prior written consent.
         </p>
         <p className="text-gray-700 leading-relaxed">
-          Your subscription grants you a limited, non-exclusive, non-transferable license to access and use the Service
-          for your internal business purposes during the term of your subscription.
+          Your account grants you a limited, non-exclusive, non-transferable license to access and use the Service
+          for your internal business purposes while your account is active.
         </p>
         <p className="text-gray-700 leading-relaxed">
           Any feedback, suggestions, or ideas you provide about the Service may be used by us without restriction or
@@ -204,7 +179,7 @@ export default function TermsPage() {
           <a href="mailto:support@tempoapp.ai" className="text-[#FF4D8D] hover:underline">support@tempoapp.ai</a>.
         </p>
         <p className="text-gray-700 leading-relaxed">
-          We may suspend or terminate your account if you violate these Terms, fail to pay your subscription fees, or
+          We may suspend or terminate your account if you violate these Terms, or
           if we are required to do so by law. We may also terminate your account with 30 days written notice for any
           reason.
         </p>
@@ -223,7 +198,7 @@ export default function TermsPage() {
           your acceptance of the updated Terms.
         </p>
         <p className="text-gray-700 leading-relaxed">
-          If you do not agree with the updated Terms, you may cancel your subscription and stop using the Service before
+          If you do not agree with the updated Terms, you may close your account and stop using the Service before
           the changes take effect.
         </p>
       </section>

@@ -1,0 +1,45 @@
+# Release checks
+
+Use Node 24, matching the current Vercel project runtime.
+
+```sh
+npm ci --ignore-scripts --no-audit --no-fund
+npm run typecheck
+npm run test:ci
+npm run lint:hardening
+```
+
+The release workflow also runs `npm run build` with dummy service configuration.
+That build verifies compilation and static generation. It is not an integration
+test, and its outputs must never be deployed. A real preview or production build
+must use that environment's configuration.
+
+`test:ci` runs billing-retirement, creator token-purpose, TikTok signing, token/storage foundation
+and roster bulk-parser fixtures. It deliberately excludes the live TikTok probe.
+Billing tests verify that retired endpoints cannot acquire service access and
+that onboarding no longer requires a subscription.
+
+Creator auth tests use real JWT signatures and production consumers with an
+in-memory cookie jar and redemption database substitute. They cover token purpose
+isolation, legacy sessions and magic links, claim preview and single-use redemption.
+They do not verify deployed database constraints or a browser login flow.
+
+`lint:hardening` covers the retired billing entry points, creator token boundaries
+and their regression tests.
+It is not a whole-repository lint gate. Existing lint debt must be resolved in
+separate changes before enabling a clean repository-wide gate.
+
+The workflow runs on pull requests, main/hardening branch pushes and manual
+dispatch. It has read-only repository permissions, pinned action commits and no
+deployment step or production secrets. Its status check is `Verify release`.
+After the first successful GitHub run, require this check through branch
+protection or a ruleset. Adding the workflow alone does not enforce merging rules.
+
+Preview validation must use a separate database and test delivery destinations.
+Stripe credentials and payment setup are not required. Verify isolation before
+exercising writes or external deliveries.
+Record the reviewed commit, preview deployment, checks and rollback target before
+promoting a production release. A passing compilation check alone is insufficient.
+
+Action configuration follows the official [checkout](https://github.com/actions/checkout)
+and [setup-node](https://github.com/actions/setup-node) documentation.
