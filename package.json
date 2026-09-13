@@ -9,15 +9,16 @@
     "start:bot": "node --import tsx scripts/tempo-bot.ts",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test:ci": "npm run test:creator-history && npm run test:team-targets && npm run test:creator-report-scope && npm run test:profile-writes && npm run test:schedule-access && npm run test:billing-disabled && npm run test:creator-auth && node --import tsx scripts/test-tiktok-signature.ts && node --import tsx scripts/test-tiktok-foundation.ts && node --import tsx scripts/test-bulk-parse.ts",
-    "lint:hardening": "eslint src/app/api/checkout/route.ts src/app/api/webhooks/stripe/route.ts scripts/test-billing-disabled.mjs src/lib/auth/creator-auth.ts src/lib/auth/creator-claim.ts src/app/api/auth/creator/verify/route.ts scripts/test-creator-token-purpose.mjs src/lib/auth/schedule-access.ts src/lib/auth/workspace-scope.ts src/app/api/schedules/route.ts \"src/app/api/schedules/[id]/route.ts\" src/app/api/cron/run-schedules/route.ts scripts/test-schedule-access.mjs scripts/test-profile-write-path.mjs src/lib/auth/creator-report-scope.ts scripts/test-creator-report-scope.mjs src/app/actions/users.ts scripts/test-team-profile-targets.mjs scripts/test-member-brand-transaction.mjs scripts/test-creator-video-history.mjs",
+    "test:ci": "npm run test:role-administration && npm run test:creator-history && npm run test:team-targets && npm run test:creator-report-scope && npm run test:profile-writes && npm run test:schedule-access && npm run test:billing-disabled && npm run test:creator-auth && node --import tsx scripts/test-tiktok-signature.ts && node --import tsx scripts/test-tiktok-foundation.ts && node --import tsx scripts/test-bulk-parse.ts",
+    "lint:hardening": "eslint src/app/api/checkout/route.ts src/app/api/webhooks/stripe/route.ts scripts/test-billing-disabled.mjs src/lib/auth/creator-auth.ts src/lib/auth/creator-claim.ts src/app/api/auth/creator/verify/route.ts scripts/test-creator-token-purpose.mjs src/lib/auth/schedule-access.ts src/lib/auth/workspace-scope.ts src/app/api/schedules/route.ts \"src/app/api/schedules/[id]/route.ts\" src/app/api/cron/run-schedules/route.ts scripts/test-schedule-access.mjs scripts/test-profile-write-path.mjs src/lib/auth/creator-report-scope.ts scripts/test-creator-report-scope.mjs src/app/actions/users.ts scripts/test-team-profile-targets.mjs scripts/test-member-brand-transaction.mjs scripts/test-creator-video-history.mjs src/app/api/roles/route.ts scripts/test-role-administration.mjs",
     "test:creator-auth": "node scripts/test-creator-token-purpose.mjs",
     "test:billing-disabled": "node scripts/test-billing-disabled.mjs",
     "test:schedule-access": "node scripts/test-schedule-access.mjs",
     "test:profile-writes": "node scripts/test-profile-write-path.mjs",
     "test:creator-report-scope": "node scripts/test-creator-report-scope.mjs",
     "test:team-targets": "node scripts/test-team-profile-targets.mjs && node scripts/test-member-brand-transaction.mjs",
-    "test:creator-history": "node scripts/test-creator-video-history.mjs"
+    "test:creator-history": "node scripts/test-creator-video-history.mjs",
+    "test:role-administration": "node scripts/test-role-administration.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.95.1",

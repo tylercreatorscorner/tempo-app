@@ -13,32 +13,47 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import { guardScreen } from '@/lib/auth/require-screen';
-import { SCREENS, type Screen, type Level } from '@/lib/auth/permissions';
+import { SCREENS, type Level } from '@/lib/auth/permissions';
 
 export const runtime = 'nodejs';
 
 const LEVELS: Level[] = ['read', 'write', 'configure'];
 const SCREEN_SET = new Set<string>(SCREENS);
 
+// Configurable capabilities may narrow role administration, never grant it to
+// non-administrators. View-as sessions remain read-only at this boundary too.
+async function guardRoleMutation() {
+  const scope = await guardScreen('team', 'configure');
+  if (scope instanceof NextResponse) return scope;
+  if (!scope.tenantId || scope.impersonating || !['owner', 'admin'].includes(scope.role)) {
+    return NextResponse.json({ error: 'Only workspace owners and admins can manage roles.' }, { status: 403 });
+  }
+  return scope;
+}
+
 export async function GET() {
   const scope = await guardScreen('team', 'read');
   if (scope instanceof NextResponse) return scope;
+  if (!scope.tenantId) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const supabase = await createAdminClient();
-  const [{ data: roles, error: rErr }, { data: perms }, { data: people }] = await Promise.all([
-    supabase.from('roles').select('id, key, name, description, is_default')
-      .eq('tenant_id', scope.tenantId).order('is_default', { ascending: false }).order('name'),
-    supabase.from('role_permissions').select('role_id, screen, level'),
+  const { data: roles, error: rErr } = await supabase.from('roles')
+    .select('id, key, name, description, is_default')
+    .eq('tenant_id', scope.tenantId).order('is_default', { ascending: false }).order('name');
+  if (rErr) return NextResponse.json({ error: rErr.message }, { status: 500 });
+  const roleIds = (roles ?? []).map(role => role.id);
+  if (!roleIds.length) return NextResponse.json({ roles: [] });
+  const [{ data: perms, error: pErr }, { data: people, error: uErr }] = await Promise.all([
+    supabase.from('role_permissions').select('role_id, screen, level').in('role_id', roleIds),
     supabase.from('user_profiles').select('role_id').eq('tenant_id', scope.tenantId).neq('role', 'creator'),
   ]);
-  if (rErr) return NextResponse.json({ error: rErr.message }, { status: 500 });
+  if (pErr || uErr) return NextResponse.json({ error: 'Could not load role access.' }, { status: 500 });
 
   const ids = new Set((roles ?? []).map((r) => r.id as string));
   const byRole = new Map<string, string[]>();
   for (const p of perms ?? []) {
     const id = p.role_id as string;
-    // Permissions for another tenant's roles are filtered here rather than in
-    // the query: role_permissions has no tenant column of its own.
+    // Defense in depth after the query's tenant-owned role-ID filter.
     if (!ids.has(id)) continue;
     if (!byRole.has(id)) byRole.set(id, []);
     byRole.get(id)!.push(`${p.screen}:${p.level}`);
@@ -62,7 +77,7 @@ export async function GET() {
 /** Duplicate an existing role. There is no blank-role path on purpose: a role
  *  starting from nothing is a role someone forgets to finish. */
 export async function POST(req: NextRequest) {
-  const scope = await guardScreen('team', 'configure');
+  const scope = await guardRoleMutation();
   if (scope instanceof NextResponse) return scope;
 
   const body = await req.json().catch(() => ({}));
@@ -98,7 +113,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  const scope = await guardScreen('team', 'configure');
+  const scope = await guardRoleMutation();
   if (scope instanceof NextResponse) return scope;
 
   const id = req.nextUrl.searchParams.get('id');
@@ -152,7 +167,7 @@ export async function PATCH(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const scope = await guardScreen('team', 'configure');
+  const scope = await guardRoleMutation();
   if (scope instanceof NextResponse) return scope;
 
   const id = req.nextUrl.searchParams.get('id');
@@ -168,8 +183,11 @@ export async function DELETE(req: NextRequest) {
 
   // ⚠️ Refuse rather than orphan. Clearing role_id on delete would drop those
   // people to no permissions at all, which reads as a bug rather than a choice.
-  const { count } = await supabase.from('user_profiles')
+  const { count, error: countError } = await supabase.from('user_profiles')
     .select('user_id', { count: 'exact', head: true }).eq('role_id', id);
+  if (countError || count === null) {
+    return NextResponse.json({ error: 'Could not verify role membership.' }, { status: 500 });
+  }
   if ((count ?? 0) > 0) {
     return NextResponse.json(
       { error: `${count} member${count === 1 ? '' : 's'} still hold this role. Move them first.` },
