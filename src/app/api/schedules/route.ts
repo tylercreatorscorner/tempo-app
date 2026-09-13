@@ -1,40 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient, createAdminClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/server';
 import { isValidFrequency, nextRunFromLabel } from '@/lib/data/schedule-frequency';
 import { detectWebhookKind } from '@/lib/messaging/webhook';
 
-async function requireUser() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
-  const admin = await createAdminClient();
-  const { data: profile } = await admin
-    .from('user_profiles')
-    .select('user_id, tenant_id, role')
-    .eq('user_id', user.id)
-    .maybeSingle();
-  return profile;
-}
+import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
+import { canAccessSchedule } from '@/lib/auth/schedule-access';
 
 // GET /api/schedules — list all schedules for the user's tenant
 export async function GET() {
-  const profile = await requireUser();
+  const profile = await getWorkspaceScope();
   if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const admin = await createAdminClient();
   const { data, error } = await admin
     .from('report_schedules')
     .select('*')
-    .eq('tenant_id', profile.tenant_id)
+    .eq('tenant_id', profile.tenantId)
     .order('created_at', { ascending: false });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ schedules: data ?? [] });
+  const visible = [];
+  for (const row of data ?? []) {
+    if (await canAccessSchedule(profile, row, 'read')) visible.push(row);
+  }
+  return NextResponse.json({ schedules: visible });
 }
 
 // POST /api/schedules — create a new schedule
 export async function POST(request: NextRequest) {
-  const profile = await requireUser();
+  const profile = await getWorkspaceScope();
   if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const body = await request.json();
@@ -61,14 +55,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Webhook URL must be a Discord or Slack incoming webhook' }, { status: 400 });
   }
 
+  if (!await canAccessSchedule(profile, { tenant_id: profile.tenantId, source, report_type, brand }, 'write')) {
+    return NextResponse.json({ error: 'Forbidden: select a permitted specific brand and report type' }, { status: 403 });
+  }
+
   const next = nextRunFromLabel(cron_label);
 
   const admin = await createAdminClient();
   const { data, error } = await admin
     .from('report_schedules')
     .insert({
-      tenant_id: profile.tenant_id,
-      created_by: profile.user_id,
+      tenant_id: profile.tenantId,
+      created_by: profile.userId,
       report_type,
       source,
       brand: brand || 'all',
