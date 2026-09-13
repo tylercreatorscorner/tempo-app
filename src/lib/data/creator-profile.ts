@@ -15,6 +15,7 @@
  * GMV follows the handle. Filtering by `brand` here filters to videos that sold
  * that brand's products — independent of which brand the creator is contracted to.
  */
+import { cache } from 'react';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { getCreatorReportBrands } from '@/lib/auth/creator-report-scope';
 import { getBrandRegistry, expandSlugs, type BrandRegistry } from '@/lib/data/brand-registry';
@@ -196,25 +197,35 @@ function brandSlugSet(reg: BrandRegistry, brand?: string): Set<string> | null {
 
 // --- Brand discovery (from product stats) ---
 
-/** Map each handle → distinct product-brands it has sold. */
-async function getBrandsByHandle(reg: BrandRegistry, handles: string[]): Promise<Map<string, string[]>> {
-  if (handles.length === 0) return new Map();
-  const rows = await paginated(
-    'daily_video_product_stats',
-    'tiktok_username, brand_id',
-    [{ column: 'tiktok_username', op: 'in', value: handles }]
-  );
+interface CreatorVideoHistory {
+  brands: { tiktok_username: string; brand_id: string }[];
+  total_videos: number;
+  first_active_date: string | null;
+}
+
+// Request-local only: identity discovery and lifetime stats share one aggregate.
+// The session client keeps the same row-level policies as the previous SELECTs.
+const getCreatorVideoHistory = cache(async (creatorId: string): Promise<CreatorVideoHistory> => {
+  const handles = await getHandles(creatorId);
+  if (!handles.length) return { brands: [], total_videos: 0, first_active_date: null };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc('get_creator_video_history', { p_handles: handles });
+  if (error) throw error;
+  if (!data) throw new Error('Creator history was unavailable.');
+  return data as CreatorVideoHistory;
+});
+
+/** Map each handle to the distinct product brands it has sold. */
+async function getBrandsByHandle(reg: BrandRegistry, creatorId: string): Promise<Map<string, string[]>> {
+  const { brands } = await getCreatorVideoHistory(creatorId);
   const map = new Map<string, Set<string>>();
-  for (const r of rows) {
-    const handle = r.tiktok_username as string;
-    const slug = uuidToSlug(reg, r.brand_id as string);
-    if (!handle || !slug) continue;
-    if (!map.has(handle)) map.set(handle, new Set());
-    map.get(handle)!.add(slug);
+  for (const row of brands) {
+    const slug = uuidToSlug(reg, row.brand_id);
+    if (!row.tiktok_username || !slug) continue;
+    if (!map.has(row.tiktok_username)) map.set(row.tiktok_username, new Set());
+    map.get(row.tiktok_username)!.add(slug);
   }
-  const out = new Map<string, string[]>();
-  for (const [h, s] of map) out.set(h, Array.from(s));
-  return out;
+  return new Map([...map].map(([handle, slugs]) => [handle, [...slugs]]));
 }
 
 // --- Managed contract resolution ---
@@ -317,7 +328,7 @@ export async function getCreatorProfile(creatorId: string | number): Promise<Cre
   // per-handle product-brand registrations in parallel.
   const [managedRows, brandsByHandle] = await Promise.all([
     getManagedRowsForHandles(handles),
-    getBrandsByHandle(reg, handles),
+    getBrandsByHandle(reg, id),
   ]);
 
   // Populate per-account brands
@@ -771,11 +782,9 @@ export async function getCreatorLifetimeStats(
 
   // Money all-time from creator_performance (RPC, wide date bounds); video COUNT
   // + first-active date from the video table.
-  const [perf, videoRows] = await Promise.all([
+  const [perf, history] = await Promise.all([
     perfByHandles(handles, '2000-01-01', '2999-12-31'),
-    paginated('daily_video_product_stats', 'video_id, report_date', [
-      { column: 'tiktok_username', op: 'in', value: handles },
-    ]),
+    getCreatorVideoHistory(String(creatorId)),
   ]);
 
   let gmv = 0, orders = 0, commission = 0;
@@ -785,13 +794,7 @@ export async function getCreatorLifetimeStats(
     commission += p.commission;
   }
 
-  const videoIds = new Set<string>();
-  let minDate: string | null = null;
-  for (const r of videoRows) {
-    if (r.video_id) videoIds.add(r.video_id as string);
-    const d = r.report_date as string;
-    if (d && (!minDate || d < minDate)) minDate = d;
-  }
+  const minDate = history.first_active_date;
 
   let monthsActive = 0;
   if (minDate) {
@@ -806,7 +809,7 @@ export async function getCreatorLifetimeStats(
   return {
     total_gmv: gmv,
     total_orders: orders,
-    total_videos: videoIds.size,
+    total_videos: Number(history.total_videos),
     total_commission: commission,
     first_active_date: minDate,
     months_active: monthsActive,

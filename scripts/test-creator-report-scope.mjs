@@ -15,7 +15,7 @@ const workspace={getWorkspaceScope:async()=>scope,isBrandInScope:(s,b)=>s.brandS
 const permissions=load('src/lib/auth/permissions.ts',{});
 const authorization=load('src/lib/auth/authorize-creator.ts',{'next/server':{NextResponse},'@/lib/supabase/server':supabase});
 const boundary=load('src/lib/auth/creator-report-scope.ts',{'@/lib/supabase/server':supabase,'./workspace-scope':workspace,'./authorize-creator':authorization,'./permissions':permissions});
-const reports=load('src/lib/data/creator-profile.ts',{'@/lib/supabase/server':supabase,'@/lib/auth/creator-report-scope':boundary,'@/lib/data/brand-registry':{},'@/lib/data/brand-registry-core':{}});
+const reports=load('src/lib/data/creator-profile.ts',{'react':{cache:fn=>fn},'@/lib/supabase/server':supabase,'@/lib/auth/creator-report-scope':boundary,'@/lib/data/brand-registry':{},'@/lib/data/brand-registry-core':{}});
 const slugs=async(creator='creator-a',brand)=>Array.from(await boundary.getCreatorReportBrands(creator,brand));
 assert.deepEqual(await slugs(),['alpha']);assert.deepEqual(await slugs('creator-a','alpha'),['alpha']);assert.deepEqual(await slugs('creator-a','beta'),[]);assert.deepEqual(await slugs('creator-b'),[]);assert.deepEqual(await slugs('creator-a','all'),[]);
 for(const denied of [null,{...original,permissions:new Set()},{...original,tenantId:'b'},{...original,brandScope:{kind:'scoped',brandIds:[],brandSlugs:[]}}]){scope=denied;assert.deepEqual(await slugs(),[]);}
