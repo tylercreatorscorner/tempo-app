@@ -19,7 +19,8 @@
  * partial failures clearly.
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@supabase/ssr';
+import { inviteWorkspaceMember } from '@/lib/auth/invite-workspace-member';
+import { assertNotImpersonating } from '@/lib/auth/platform-admin';
 import { requireAdmin } from '@/lib/auth/require-admin';
 import { createAdminClient } from '@/lib/supabase/server';
 
@@ -79,15 +80,8 @@ function stringOrNull(raw: unknown): string | null {
   return t === '' ? null : t;
 }
 
-function createAnonClient() {
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { getAll() { return []; }, setAll() {} } },
-  );
-}
-
 export async function POST(req: NextRequest) {
+  await assertNotImpersonating();
   const profile = await requireAdmin();
   if (!profile) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   if (!profile.tenant_id) {
@@ -234,61 +228,8 @@ export async function POST(req: NextRequest) {
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) continue;
 
     try {
-      let userId: string | null = null;
-      let alreadyExisted = false;
-
-      const { data: invited, error: inviteErr } = await admin.auth.admin.inviteUserByEmail(email, {
-        redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback`,
-      });
-
-      if (inviteErr) {
-        if (/already.*(registered|exists)/i.test(inviteErr.message)) {
-          alreadyExisted = true;
-          // Look up the existing user
-          const { data: list } = await admin.auth.admin.listUsers();
-          const existing = list?.users?.find((u) => u.email?.toLowerCase() === email.toLowerCase());
-          if (!existing) throw new Error('User exists but could not be located.');
-          userId = existing.id;
-
-          // Trigger magic link email
-          const anon = createAnonClient();
-          await anon.auth.signInWithOtp({
-            email,
-            options: { shouldCreateUser: false, emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback` },
-          });
-        } else {
-          throw new Error(inviteErr.message);
-        }
-      } else {
-        userId = invited.user.id;
-      }
-
-      if (!userId) throw new Error('Could not resolve user id.');
-
-      // Upsert profile as a brand contact in this tenant
-      const { error: profErr } = await admin.from('user_profiles').upsert({
-        user_id: userId,
-        email,
-        role: 'brand',
-        tenant_id: profile.tenant_id,
-        status: 'active',
-      }, { onConflict: 'user_id' });
-      if (profErr) throw new Error(`profile upsert: ${profErr.message}`);
-
-      // Scope to this brand only (don't blow away access they may already have to others)
-      const { data: existingAccess } = await admin
-        .from('user_brand_access')
-        .select('brand_id')
-        .eq('user_id', userId);
-      const has = (existingAccess ?? []).some((a) => a.brand_id === brand.id);
-      if (!has) {
-        const { error: accessErr } = await admin
-          .from('user_brand_access')
-          .insert({ user_id: userId, brand_id: brand.id, tenant_id: profile.tenant_id });
-        if (accessErr) throw new Error(`brand access: ${accessErr.message}`);
-      }
-
-      inviteResults.push({ email, status: alreadyExisted ? 'existing' : 'invited' });
+      const result = await inviteWorkspaceMember({email,role:'brand',canViewFinance:false,brandId:brand.id});
+      inviteResults.push({email,status:result.existed ? 'existing' : 'invited'});
     } catch (e) {
       inviteResults.push({
         email,
@@ -304,3 +245,4 @@ export async function POST(req: NextRequest) {
     contacts: inviteResults,
   }, { status: 201 });
 }
+
