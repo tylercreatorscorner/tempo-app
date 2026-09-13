@@ -1,5 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/server';
-import { generateClaimToken, verifyToken } from './creator-auth';
+import { generateClaimToken, verifyClaimToken } from './creator-auth';
 
 /**
  * Claim-link helpers for Discord-first creator onboarding.
@@ -54,7 +54,7 @@ export async function mintClaimLink(
 export async function peekClaimToken(
   token: string,
 ): Promise<{ creatorId: string; realName: string } | null> {
-  const payload = await verifyToken(token);
+  const payload = await verifyClaimToken(token);
   if (!payload || payload.purpose !== 'claim' || !payload.jti) return null;
 
   const supabase = await createAdminClient();
@@ -81,7 +81,7 @@ export async function peekClaimToken(
  * POST matches zero rows.
  */
 export async function consumeClaimToken(token: string): Promise<{ creatorId: string } | null> {
-  const payload = await verifyToken(token);
+  const payload = await verifyClaimToken(token);
   if (!payload || payload.purpose !== 'claim' || !payload.jti) return null;
 
   const supabase = await createAdminClient();

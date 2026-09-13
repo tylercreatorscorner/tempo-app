@@ -14,12 +14,18 @@ That build verifies compilation and static generation. It is not an integration
 test, and its outputs must never be deployed. A real preview or production build
 must use that environment's configuration.
 
-`test:ci` runs billing-retirement, TikTok signing, token/storage foundation
+`test:ci` runs billing-retirement, creator token-purpose, TikTok signing, token/storage foundation
 and roster bulk-parser fixtures. It deliberately excludes the live TikTok probe.
 Billing tests verify that retired endpoints cannot acquire service access and
 that onboarding no longer requires a subscription.
 
-`lint:hardening` covers the retired billing entry points and their regression test.
+Creator auth tests use real JWT signatures and production consumers with an
+in-memory cookie jar and redemption database substitute. They cover token purpose
+isolation, legacy sessions and magic links, claim preview and single-use redemption.
+They do not verify deployed database constraints or a browser login flow.
+
+`lint:hardening` covers the retired billing entry points, creator token boundaries
+and their regression tests.
 It is not a whole-repository lint gate. Existing lint debt must be resolved in
 separate changes before enabling a clean repository-wide gate.
 

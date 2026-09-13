@@ -9,8 +9,9 @@
     "start:bot": "node --import tsx scripts/tempo-bot.ts",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test:ci": "npm run test:billing-disabled && node --import tsx scripts/test-tiktok-signature.ts && node --import tsx scripts/test-tiktok-foundation.ts && node --import tsx scripts/test-bulk-parse.ts",
-    "lint:hardening": "eslint src/app/api/checkout/route.ts src/app/api/webhooks/stripe/route.ts scripts/test-billing-disabled.mjs",
+    "test:ci": "npm run test:billing-disabled && npm run test:creator-auth && node --import tsx scripts/test-tiktok-signature.ts && node --import tsx scripts/test-tiktok-foundation.ts && node --import tsx scripts/test-bulk-parse.ts",
+    "lint:hardening": "eslint src/app/api/checkout/route.ts src/app/api/webhooks/stripe/route.ts scripts/test-billing-disabled.mjs src/lib/auth/creator-auth.ts src/lib/auth/creator-claim.ts src/app/api/auth/creator/verify/route.ts scripts/test-creator-token-purpose.mjs",
+    "test:creator-auth": "node scripts/test-creator-token-purpose.mjs",
     "test:billing-disabled": "node scripts/test-billing-disabled.mjs"
   },
   "dependencies": {
