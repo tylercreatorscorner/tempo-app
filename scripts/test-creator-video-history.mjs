@@ -37,6 +37,9 @@ try {
   const migration = readdirSync('supabase/migrations').find(name => name.endsWith('_creator_video_history_aggregate.sql'));
   assert.ok(migration);
   await db.exec(readFileSync(`supabase/migrations/${migration}`, 'utf8'));
+  const compatibility = readdirSync('supabase/migrations').find(name => name.endsWith('_creator_history_policy_compatibility.sql'));
+  assert.ok(compatibility);
+  await db.exec(readFileSync(`supabase/migrations/${compatibility}`, 'utf8'));
   assert.equal((await db.query("SELECT prosecdef FROM pg_proc WHERE proname='get_creator_video_history'")).rows[0].prosecdef, false);
   await db.exec("SET ROLE authenticated; SET test.tenant = 'a'; SET test.user_role = 'owner';");
   const history = async handles => (await db.query('SELECT public.get_creator_video_history($1::text[]) AS result', [handles])).rows[0].result;

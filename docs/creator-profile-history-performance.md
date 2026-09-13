@@ -6,11 +6,11 @@ The new `get_creator_video_history(text[])` function returns one JSON result wit
 
 ## Access and rollout
 
-The function is `SECURITY INVOKER`, with an empty search path. It uses the signed-in session client and the table's existing SELECT permissions and row-level policies. It does not use an administrative client or bypass RLS. An additional predicate requires the current tenant and, for manager, coach, brand, and brand_contact accounts, an explicit matching user_brand_access assignment. Unknown roles see no rows. Owner, admin, and viewer retain their existing full-tenant scope.
+The function is `SECURITY INVOKER`, with a fixed pg_catalog, public, pg_temp search path for compatibility with existing RLS helpers. It uses the signed-in session client and the table's existing SELECT permissions and row-level policies. It does not use an administrative client or bypass RLS. An additional predicate requires the current tenant and, for manager, coach, brand, and brand_contact accounts, an explicit matching user_brand_access assignment. Unknown roles see no rows. Owner, admin, and viewer retain their existing full-tenant scope.
 
 The migration grants function execution to `authenticated` and `service_role`, and excludes `PUBLIC` and `anon`. Underlying table access remains required. It changes no business records, existing policies, tables, or indexes.
 
-Production application rollout requires this additive migration first. The user approved execution only for designated client/brand history. The explicit assignment predicate was added after discovering the existing brand_contact policy could be broader. Automatic approval review rejected the revised migration because owner/admin/viewer still retain full-tenant access. The function has not been applied. Obtain explicit approval for that existing full-tenant role exception, apply it, align the local migration filename with recorded remote history, and verify the live function before merging the application change. Rolling back the application can safely leave the unused function in place.
+Both additive migrations are applied and verified. The owner/admin/viewer workspace-wide exception was approved by the user after discussion of viewer access. No business records were modified. A live manager-context check returned 572 visible videos with zero unassigned brands; the owner check returned 819 videos. The security advisor reported no findings for this function, but existing unrelated findings remain. Rolling back the application can safely leave the unused function in place.
 
 ## Verification
 
@@ -21,4 +21,3 @@ Production application rollout requires this additive migration first. The user 
 - The request cache is simulated in the fixture; production React request isolation is not an integration test in this script.
 
 Read-only live query-plan measurements before implementation: the final history page returned 989 rows after scanning 16,989 rows in approximately 2.42 seconds. A single equivalent aggregate took approximately 2.61 seconds under the same authenticated RLS. This removes repeated pagination work; these database timings are not an end-to-end page latency claim. Live page verification remains pending deployment.
-
