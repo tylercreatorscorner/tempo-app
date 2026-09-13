@@ -74,8 +74,10 @@ export function RolesMatrix() {
       setRoles(list);
       setSelected((cur) => keep ?? cur ?? list[0]?.id ?? null);
       setError(null);
+      return true;
     } catch (e) {
       setError((e as Error).message);
+      return false;
     } finally {
       setLoading(false);
     }
@@ -129,9 +131,10 @@ export function RolesMatrix() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-      await load(role.id);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2500);
+      if (await load(role.id)) {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2500);
+      }
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -201,6 +204,7 @@ export function RolesMatrix() {
             <button
               key={r.id}
               type="button"
+              disabled={busy}
               onClick={() => setSelected(r.id)}
               className={cn(
                 'flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left transition-colors',

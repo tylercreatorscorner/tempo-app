@@ -74,128 +74,47 @@ export async function GET() {
   });
 }
 
-/** Duplicate an existing role. There is no blank-role path on purpose: a role
- *  starting from nothing is a role someone forgets to finish. */
-export async function POST(req: NextRequest) {
+/** One database transaction owns each role lifecycle mutation. */
+async function mutateRole(req: NextRequest, operation: 'clone' | 'replace' | 'delete') {
   const scope = await guardRoleMutation();
   if (scope instanceof NextResponse) return scope;
-
-  const body = await req.json().catch(() => ({}));
-  const fromId = typeof body.from === 'string' ? body.from : null;
-  const name = typeof body.name === 'string' ? body.name.trim().slice(0, 60) : '';
-  if (!fromId || !name) {
-    return NextResponse.json({ error: 'Send `from` (role id) and `name`.' }, { status: 400 });
+  const body: unknown = operation === 'delete' ? {} : await req.json().catch(() => null);
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return NextResponse.json({ error: 'Invalid role payload.' }, { status: 400 });
   }
-
+  const input = body as Record<string, unknown>;
+  const id = operation === 'clone' ? input.from : req.nextUrl.searchParams.get('id');
+  if (typeof id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+    return NextResponse.json({ error: 'Invalid role id.' }, { status: 400 });
+  }
+  if ((operation === 'clone' || 'name' in input) &&
+      (typeof input.name !== 'string' || !input.name.trim() || input.name.length > 60)) {
+    return NextResponse.json({ error: 'Role name must contain 1 to 60 characters.' }, { status: 400 });
+  }
+  if ('permissions' in input && (!Array.isArray(input.permissions) || input.permissions.some(raw => {
+    if (typeof raw !== 'string') return true;
+    const parts = raw.split(':');
+    return parts.length !== 2 || !SCREEN_SET.has(parts[0]) || !LEVELS.includes(parts[1] as Level);
+  }))) {
+    return NextResponse.json({ error: 'Invalid permission matrix.' }, { status: 400 });
+  }
+  if (operation === 'replace' && !('name' in input) && !('permissions' in input)) {
+    return NextResponse.json({ error: 'Send a name or permission matrix.' }, { status: 400 });
+  }
   const supabase = await createAdminClient();
-  const { data: src } = await supabase.from('roles')
-    .select('id, description').eq('id', fromId).eq('tenant_id', scope.tenantId).maybeSingle();
-  if (!src) return NextResponse.json({ error: 'Role not found' }, { status: 404 });
-
-  const key = name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40)
-    || `role_${Date.now()}`;
-
-  const { data: created, error } = await supabase.from('roles')
-    .insert({ tenant_id: scope.tenantId, key, name, description: src.description, is_default: false })
-    .select('id').single();
-  if (error || !created) {
-    return NextResponse.json({ error: error?.message ?? 'Could not create role' }, { status: 500 });
+  const { data, error } = await supabase.rpc('manage_workspace_role', {
+    p_actor_id: scope.userId, p_operation: operation, p_role_id: id,
+    p_name: typeof input.name === 'string' ? input.name.trim() : null,
+    p_permissions: Array.isArray(input.permissions) ? [...new Set(input.permissions)] : null,
+  });
+  if (error) {
+    const status = error.code === '42501' ? 403 : error.code === 'P0002' ? 404
+      : error.code === '23514' ? 409 : error.code === '22023' ? 400 : 500;
+    return NextResponse.json({ error: status === 500 ? 'Could not save role access. Please retry.' : error.message }, { status });
   }
-
-  const { data: srcPerms } = await supabase.from('role_permissions')
-    .select('screen, level').eq('role_id', fromId);
-  if (srcPerms?.length) {
-    await supabase.from('role_permissions').insert(
-      srcPerms.map((p) => ({ role_id: created.id, screen: p.screen, level: p.level })),
-    );
-  }
-  return NextResponse.json({ ok: true, id: created.id });
+  return NextResponse.json({ ok: true, ...(operation === 'clone' ? { id: data } : {}) });
 }
 
-export async function PATCH(req: NextRequest) {
-  const scope = await guardRoleMutation();
-  if (scope instanceof NextResponse) return scope;
-
-  const id = req.nextUrl.searchParams.get('id');
-  if (!id) return NextResponse.json({ error: 'Missing role id' }, { status: 400 });
-
-  const body = await req.json().catch(() => ({}));
-  const supabase = await createAdminClient();
-
-  const { data: role } = await supabase.from('roles')
-    .select('id, is_default').eq('id', id).eq('tenant_id', scope.tenantId).maybeSingle();
-  if (!role) return NextResponse.json({ error: 'Role not found' }, { status: 404 });
-  // 🚨 A default is the thing every other role was copied FROM. Editing one in
-  // place silently rewrites what 'Manager' means for everyone who holds it.
-  if (role.is_default) {
-    return NextResponse.json(
-      { error: 'Default roles are read-only. Duplicate it to make an editable copy.' },
-      { status: 409 },
-    );
-  }
-
-  if (typeof body.name === 'string' && body.name.trim()) {
-    await supabase.from('roles').update({ name: body.name.trim().slice(0, 60) }).eq('id', id);
-  }
-
-  if (Array.isArray(body.permissions)) {
-    /**
-     * ⚠️ VALIDATED AGAINST THE SCREEN LIST, not accepted as sent. An unknown
-     * screen would sit in the table forever, invisible in a UI that only draws
-     * known screens, and can() would never grant it — a permission nobody can
-     * see and nothing honours.
-     */
-    const rows: { role_id: string; screen: string; level: string }[] = [];
-    for (const raw of body.permissions as unknown[]) {
-      if (typeof raw !== 'string') continue;
-      const [screen, level] = raw.split(':');
-      if (!SCREEN_SET.has(screen)) continue;
-      if (!LEVELS.includes(level as Level)) continue;
-      rows.push({ role_id: id, screen, level });
-    }
-    // Replace wholesale: the client sends the full matrix, so a diff would only
-    // add a way for the two to drift.
-    const { error: delErr } = await supabase.from('role_permissions').delete().eq('role_id', id);
-    if (delErr) return NextResponse.json({ error: delErr.message }, { status: 500 });
-    if (rows.length) {
-      const { error: insErr } = await supabase.from('role_permissions').insert(rows);
-      if (insErr) return NextResponse.json({ error: insErr.message }, { status: 500 });
-    }
-  }
-
-  return NextResponse.json({ ok: true });
-}
-
-export async function DELETE(req: NextRequest) {
-  const scope = await guardRoleMutation();
-  if (scope instanceof NextResponse) return scope;
-
-  const id = req.nextUrl.searchParams.get('id');
-  if (!id) return NextResponse.json({ error: 'Missing role id' }, { status: 400 });
-
-  const supabase = await createAdminClient();
-  const { data: role } = await supabase.from('roles')
-    .select('id, is_default').eq('id', id).eq('tenant_id', scope.tenantId).maybeSingle();
-  if (!role) return NextResponse.json({ error: 'Role not found' }, { status: 404 });
-  if (role.is_default) {
-    return NextResponse.json({ error: 'Default roles cannot be deleted.' }, { status: 409 });
-  }
-
-  // ⚠️ Refuse rather than orphan. Clearing role_id on delete would drop those
-  // people to no permissions at all, which reads as a bug rather than a choice.
-  const { count, error: countError } = await supabase.from('user_profiles')
-    .select('user_id', { count: 'exact', head: true }).eq('role_id', id);
-  if (countError || count === null) {
-    return NextResponse.json({ error: 'Could not verify role membership.' }, { status: 500 });
-  }
-  if ((count ?? 0) > 0) {
-    return NextResponse.json(
-      { error: `${count} member${count === 1 ? '' : 's'} still hold this role. Move them first.` },
-      { status: 409 },
-    );
-  }
-
-  const { error } = await supabase.from('roles').delete().eq('id', id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ ok: true });
-}
+export const POST = (req: NextRequest) => mutateRole(req, 'clone');
+export const PATCH = (req: NextRequest) => mutateRole(req, 'replace');
+export const DELETE = (req: NextRequest) => mutateRole(req, 'delete');

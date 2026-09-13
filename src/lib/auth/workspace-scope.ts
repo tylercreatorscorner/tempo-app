@@ -106,16 +106,11 @@ async function loadPermissions(
   roleKey: string,
 ): Promise<Set<string> | undefined> {
   try {
-    let id = roleId ?? null;
-    if (!id) {
-      const { data: r } = await admin
-        .from('roles')
-        .select('id')
-        .eq('tenant_id', tenantId)
-        .eq('key', roleKey)
-        .maybeSingle();
-      id = (r?.id as string | undefined) ?? null;
-    }
+    const lookup = admin.from('roles').select('id').eq('tenant_id', tenantId);
+    const { data: resolved, error: roleError } = await
+      (roleId ? lookup.eq('id', roleId) : lookup.eq('key', roleKey)).maybeSingle();
+    if (roleError) return undefined;
+    const id = (resolved?.id as string | undefined) ?? null;
     if (!id) return undefined;
 
     const { data, error } = await admin
