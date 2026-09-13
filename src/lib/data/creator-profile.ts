@@ -15,7 +15,8 @@
  * GMV follows the handle. Filtering by `brand` here filters to videos that sold
  * that brand's products — independent of which brand the creator is contracted to.
  */
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
+import { getCreatorReportBrands } from '@/lib/auth/creator-report-scope';
 import { getBrandRegistry, expandSlugs, type BrandRegistry } from '@/lib/data/brand-registry';
 import { slugToUuid, uuidToSlug } from '@/lib/data/brand-registry-core';
 
@@ -1071,16 +1072,17 @@ export async function getCreatorEngagement(
    *  is what made a multi-brand creator's profile look mirrored. */
   brand?: string,
 ): Promise<{ activePosts: number; views: number; likes: number; comments: number } | null> {
+  const brandSlugs = await getCreatorReportBrands(creatorId, brand);
+  if (!brandSlugs.length) return null;
   const handles = await getHandles(creatorId);
   if (handles.length === 0) return null;
 
-  const reg = await getBrandRegistry();
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
   const { data, error } = await supabase.rpc('get_creator_engagement', {
     p_handles: handles.map((h) => h.trim().toLowerCase()),
     p_start: startDate,
     p_end: endDate,
-    p_brand_slugs: brand ? expandSlugs(reg, brand) : null,
+    p_brand_slugs: brandSlugs,
   });
   if (error) return null;
 
@@ -1118,17 +1120,18 @@ export async function getCreatorTopContent(
   likes: number;
   gmv: number;
 }[]> {
+  const brandSlugs = await getCreatorReportBrands(creatorId, brand);
+  if (!brandSlugs.length) return [];
   const handles = await getHandles(creatorId);
   if (handles.length === 0) return [];
 
-  const reg = await getBrandRegistry();
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
   const { data, error } = await supabase.rpc('get_creator_top_content', {
     p_handles: handles.map((h) => h.trim().toLowerCase()),
     p_start: startDate,
     p_end: endDate,
     p_limit: limit,
-    p_brand_slugs: brand ? expandSlugs(reg, brand) : null,
+    p_brand_slugs: brandSlugs,
   });
   if (error) return [];
 
