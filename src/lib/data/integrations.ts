@@ -14,6 +14,8 @@
  * components can import them without dragging in server deps.
  */
 import { createAdminClient } from '@/lib/supabase/server';
+import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
+import { can } from '@/lib/auth/permissions';
 import { TYPE_LABELS } from './integration-catalog';
 import type { IntegrationView } from './integration-catalog';
 // Re-export for ergonomic server-side use (one import path for everything).
@@ -48,22 +50,25 @@ interface BrandSessionRow {
 }
 
 export async function listIntegrations(): Promise<IntegrationView[]> {
+  const scope = await getWorkspaceScope();
+  if (!scope || !can(scope,'integrations','read')) return [];
   const supabase = await createAdminClient();
 
   const [brandsRes, integrationsRes, sessionsRes] = await Promise.all([
     supabase
       .from('brands_v2')
       .select('id, slug, name, display_name, discord_guild_id, tiktok_shop_id')
-      .eq('is_archived', false),
+      .eq('is_archived', false).eq('tenant_id',scope.tenantId),
     supabase
       .from('integrations')
-      .select('id, brand_id, type, display_name, config, status, last_used_at, last_error_message'),
+      .select('id, brand_id, type, display_name, config, status, last_used_at, last_error_message').eq('tenant_id',scope.tenantId),
     supabase
       .from('brand_sessions')
-      .select('brand_slug, status, last_successful_scrape, last_health_status'),
+      .select('brand_slug, status, last_successful_scrape, last_health_status').eq('tenant_id',scope.tenantId),
   ]);
 
-  const brands = (brandsRes.data ?? []) as BrandRow[];
+  if (brandsRes.error || integrationsRes.error || sessionsRes.error) throw new Error('Could not load integration access.');
+  const brands = ((brandsRes.data ?? []) as BrandRow[]).filter(b => scope.brandScope.kind === 'all' || scope.brandScope.brandIds.includes(b.id));
   const integrations = (integrationsRes.data ?? []) as IntegrationRow[];
   const sessions = (sessionsRes.data ?? []) as BrandSessionRow[];
 
@@ -74,6 +79,7 @@ export async function listIntegrations(): Promise<IntegrationView[]> {
 
   // 1. Managed integrations — anything Tyler has explicitly added.
   for (const i of integrations) {
+    if (scope.brandScope.kind === 'scoped' && (!i.brand_id || !scope.brandScope.brandIds.includes(i.brand_id))) continue;
     const brand = i.brand_id ? brandsById.get(i.brand_id) : null;
     out.push({
       id: i.id,

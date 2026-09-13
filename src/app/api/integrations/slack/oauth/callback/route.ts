@@ -14,6 +14,9 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'node:crypto';
+import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
+import { can } from '@/lib/auth/permissions';
+import { canReachJobBrand } from '@/lib/auth/background-access';
 import { createAdminClient } from '@/lib/supabase/server';
 import { exchangeSlackOAuthCode } from '@/lib/integrations/actions/slack';
 
@@ -40,13 +43,16 @@ function getStateSecret(): string {
 function verifyState(state: string): StatePayload | null {
   const secret = getStateSecret();
   if (!secret) return null;
-  const [data, sig] = state.split('.');
+  const pieces = state.split('.');
+  if (pieces.length !== 2) return null;
+  const [data, sig] = pieces;
   if (!data || !sig) return null;
   const expected = crypto.createHmac('sha256', secret).update(data).digest('base64url');
+  if (Buffer.byteLength(sig) !== Buffer.byteLength(expected)) return null;
   if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return null;
   try {
     const payload = JSON.parse(Buffer.from(data, 'base64url').toString('utf-8')) as StatePayload;
-    if (Date.now() - payload.issued_at > STATE_TTL_MS) return null;
+    if (!Number.isFinite(payload.issued_at) || payload.issued_at > Date.now() || Date.now() - payload.issued_at > STATE_TTL_MS) return null;
     return payload;
   } catch { return null; }
 }
@@ -75,6 +81,11 @@ export async function GET(req: NextRequest) {
   if (!verified) {
     return redirectTo(siteUrl, { connect_error: 'invalid_or_expired_state' });
   }
+
+  const scope = await getWorkspaceScope();
+  if (!scope || scope.impersonating || scope.userId !== verified.user_id || scope.tenantId !== verified.tenant_id
+      || !['owner','admin'].includes(scope.role) || !can(scope,'integrations','configure')
+      || !(await canReachJobBrand(scope,verified.brand_id))) return redirectTo(siteUrl,{connect_error:'access_changed'});
 
   const clientId = process.env.SLACK_CLIENT_ID;
   const clientSecret = process.env.SLACK_CLIENT_SECRET;

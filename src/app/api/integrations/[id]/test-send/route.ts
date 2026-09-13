@@ -13,7 +13,8 @@
  * logging, integration status updates).
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/auth/require-admin';
+import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
+import { can } from '@/lib/auth/permissions';
 import { dispatch } from '@/lib/automations/dispatch';
 
 export const runtime = 'nodejs';
@@ -32,8 +33,8 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const profile = await requireAdmin();
-  if (!profile) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const scope = await getWorkspaceScope();
+  if (!scope || scope.impersonating || !['owner','admin'].includes(scope.role) || !can(scope,'integrations','write')) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const { id } = await params;
   let body: PostBody;
@@ -59,9 +60,10 @@ export async function POST(
   }
 
   const result = await dispatch({
+    actorId: scope.userId,
     integrationId: id,
     steps: [{ action, params: actionParams }],
-    triggeredBy: `manual:${profile.user_id}`,
+    triggeredBy: `manual:${scope.userId}`,
   });
 
   const firstStep = result.stepResults[0];

@@ -1,3 +1,4 @@
+import { can } from '@/lib/auth/permissions';
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
@@ -14,7 +15,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const scope = await getWorkspaceScope();
-  if (!scope) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!scope || !can(scope,'messages','write') || scope.impersonating) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { id } = await params;
   const admin = await createAdminClient();

@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 import { createAdminClient } from '@/lib/supabase/server';
+import { can } from '@/lib/auth/permissions';
 import { dispatch } from '@/lib/automations/dispatch';
 
 export const runtime = 'nodejs';
@@ -20,7 +21,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const scope = await getWorkspaceScope();
-  if (!scope) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!scope || scope.impersonating || !can(scope,'automations','write')) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const { id } = await params;
   const supabase = await createAdminClient();
@@ -28,7 +29,7 @@ export async function POST(
   const { data: automation, error } = await supabase
     .from('automations')
     .select('id, steps, brand_id')
-    .eq('id', id)
+    .eq('id', id).eq('tenant_id',scope.tenantId)
     .maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!automation) return NextResponse.json({ error: 'Automation not found' }, { status: 404 });
@@ -56,6 +57,7 @@ export async function POST(
   }
 
   const result = await dispatch({
+    actorId: scope.userId,
     integrationId,
     automationId: id,
     triggeredBy: `manual:${scope.userId}`,

@@ -6,6 +6,8 @@
  * DELETE — hard delete (cascades to automation_runs via FK)
  */
 import { NextRequest, NextResponse } from 'next/server';
+import { can } from '@/lib/auth/permissions';
+import { canReachJobBrand } from '@/lib/auth/background-access';
 import { getWorkspaceScope, type WorkspaceScope } from '@/lib/auth/workspace-scope';
 import { createAdminClient } from '@/lib/supabase/server';
 
@@ -25,14 +27,9 @@ async function authorizeAutomation(
   id: string,
 ): Promise<{ brand_id: string | null } | NextResponse> {
   const { data: row } = await supabase
-    .from('automations').select('brand_id').eq('id', id).maybeSingle();
+    .from('automations').select('brand_id').eq('id', id).eq('tenant_id',scope.tenantId).maybeSingle();
   if (!row) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  if (
-    scope.brandScope.kind === 'scoped' &&
-    !(row.brand_id && scope.brandScope.brandIds.includes(row.brand_id))
-  ) {
-    return NextResponse.json({ error: 'Forbidden: not in your access' }, { status: 403 });
-  }
+  if (!(await canReachJobBrand(scope,row.brand_id))) return NextResponse.json({error:'Brand is not in your access.'},{status:403});
   return { brand_id: row.brand_id };
 }
 
@@ -41,7 +38,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const scope = await getWorkspaceScope();
-  if (!scope) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!scope || !can(scope,'automations','read')) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const { id } = await params;
   const supabase = await createAdminClient();
@@ -50,7 +47,7 @@ export async function GET(
   if (denied instanceof NextResponse) return denied;
 
   const [{ data: automation, error: aErr }, { data: runs }] = await Promise.all([
-    supabase.from('automations').select('*').eq('id', id).maybeSingle(),
+    supabase.from('automations').select('*').eq('id', id).eq('tenant_id',scope.tenantId).maybeSingle(),
     supabase
       .from('automation_runs')
       .select('id, started_at, finished_at, status, triggered_by, action, step_results, error_message')
@@ -70,13 +67,14 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const scope = await getWorkspaceScope();
-  if (!scope) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!scope || !can(scope,'automations','write') || scope.impersonating) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const { id } = await params;
   let body: Record<string, unknown>;
   try { body = await req.json(); }
   catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }); }
 
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return NextResponse.json({error:'Invalid payload'},{status:400});
   const updates: Record<string, unknown> = {};
   for (const k of ALLOWED) {
     if (k in body) updates[k] = body[k];
@@ -100,21 +98,13 @@ export async function PATCH(
 
   const denied = await authorizeAutomation(scope, supabase, id);
   if (denied instanceof NextResponse) return denied;
-  // A manager may not reassign an automation to a brand outside their access
-  // (or to global/null).
-  if (
-    scope.brandScope.kind === 'scoped' &&
-    'brand_id' in updates &&
-    !(typeof updates.brand_id === 'string' && scope.brandScope.brandIds.includes(updates.brand_id))
-  ) {
-    return NextResponse.json(
-      { error: 'Forbidden: target brand not in your access' }, { status: 403 });
-  }
+  if ('brand_id' in updates && !(await canReachJobBrand(scope,updates.brand_id))) return NextResponse.json({error:'Target brand is not in your access.'},{status:403});
+  updates.execution_user_id = scope.userId;
 
   const { data, error } = await supabase
     .from('automations')
     .update(updates)
-    .eq('id', id)
+    .eq('id', id).eq('tenant_id',scope.tenantId)
     .select()
     .single();
 
@@ -127,7 +117,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const scope = await getWorkspaceScope();
-  if (!scope) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!scope || !can(scope,'automations','write') || scope.impersonating) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const { id } = await params;
   const supabase = await createAdminClient();
@@ -135,7 +125,7 @@ export async function DELETE(
   const denied = await authorizeAutomation(scope, supabase, id);
   if (denied instanceof NextResponse) return denied;
 
-  const { error } = await supabase.from('automations').delete().eq('id', id);
+  const { error } = await supabase.from('automations').delete().eq('id', id).eq('tenant_id',scope.tenantId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }

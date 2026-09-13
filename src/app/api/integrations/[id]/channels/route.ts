@@ -11,7 +11,9 @@
  * in the integrations table yet.
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/auth/require-admin';
+import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
+import { can } from '@/lib/auth/permissions';
+import { canReachJobBrand, canUseDiscordGuild } from '@/lib/auth/background-access';
 import { createAdminClient } from '@/lib/supabase/server';
 import { resolveChannelPicker } from '@/lib/integrations/actions/registry';
 
@@ -28,8 +30,8 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const profile = await requireAdmin();
-  if (!profile) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const scope = await getWorkspaceScope();
+  if (!scope || !can(scope,'integrations','read') || !['owner','admin'].includes(scope.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const { id } = await params;
   const supabase = await createAdminClient();
@@ -43,19 +45,21 @@ export async function GET(
     const { data: brand } = await supabase
       .from('brands_v2')
       .select('discord_guild_id')
-      .eq('id', brandId)
+      .eq('id', brandId).eq('tenant_id',scope.tenantId)
       .maybeSingle();
     if (!brand?.discord_guild_id) {
       return NextResponse.json({ error: 'No Discord guild configured for this integration' }, { status: 400 });
     }
+    if (!(await canUseDiscordGuild(scope,brand.discord_guild_id,brandId))) return NextResponse.json({error:'Server is not in your access.'},{status:403});
     resolved = { type: 'discord', config: { guild_id: brand.discord_guild_id }, credentials: null };
   } else {
     const { data: row } = await supabase
       .from('integrations')
-      .select('type, config, credentials')
-      .eq('id', id)
+      .select('type, config, credentials, brand_id')
+      .eq('id', id).eq('tenant_id',scope.tenantId)
       .maybeSingle();
-    if (!row) return NextResponse.json({ error: 'Integration not found' }, { status: 404 });
+    if (!row || !(await canReachJobBrand(scope,row.brand_id))) return NextResponse.json({ error: 'Integration not found' }, { status: 404 });
+    if (row.type === 'discord' && !(await canUseDiscordGuild(scope,row.config?.guild_id,row.brand_id))) return NextResponse.json({error:'Server is not in your access.'},{status:403});
     resolved = {
       type: row.type,
       config: (row.config ?? {}) as Record<string, unknown>,

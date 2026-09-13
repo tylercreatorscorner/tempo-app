@@ -15,7 +15,9 @@
  *   NEXT_PUBLIC_SITE_URL  — your canonical site origin (https://app.tempoapp.ai)
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/auth/require-admin';
+import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
+import { can } from '@/lib/auth/permissions';
+import { canReachJobBrand } from '@/lib/auth/background-access';
 import crypto from 'node:crypto';
 
 export const runtime = 'nodejs';
@@ -50,9 +52,10 @@ function signState(payload: object): string {
 }
 
 export async function GET(req: NextRequest) {
-  const profile = await requireAdmin();
-  if (!profile) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const scope = await getWorkspaceScope();
+  if (!scope || scope.impersonating || !['owner','admin'].includes(scope.role) || !can(scope,'integrations','configure')) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
+  if (!getStateSecret()) return NextResponse.json({error:'OAuth is not configured.'},{status:503});
   const clientId = process.env.SLACK_CLIENT_ID;
   if (!clientId) {
     return NextResponse.json({ error: 'SLACK_CLIENT_ID is not configured. Add it to Vercel env vars.' }, { status: 500 });
@@ -63,11 +66,13 @@ export async function GET(req: NextRequest) {
 
   const brandId = req.nextUrl.searchParams.get('brand_id');
 
+  const targetBrand = brandId === 'workspace' || brandId === 'all' ? null : brandId;
+  if (!(await canReachJobBrand(scope,targetBrand))) return NextResponse.json({error:'Brand is not in your access.'},{status:403});
   const state = signState({
     nonce: crypto.randomBytes(16).toString('hex'),
-    brand_id: brandId === 'workspace' || brandId === 'all' ? null : brandId,
-    tenant_id: profile.tenant_id,
-    user_id: profile.user_id,
+    brand_id: targetBrand,
+    tenant_id: scope.tenantId,
+    user_id: scope.userId,
     issued_at: Date.now(),
   });
 

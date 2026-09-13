@@ -24,6 +24,7 @@ export const maxDuration = 60;
 
 interface AutomationRow {
   id: string;
+  execution_user_id: string | null;
   name: string;
   trigger_config: Record<string, unknown> | null;
   steps: Array<{ integration_id: string; action: string; params: Record<string, unknown> }> | null;
@@ -40,7 +41,7 @@ export async function GET(req: NextRequest) {
   const supabase = await createAdminClient();
   const { data: rows, error } = await supabase
     .from('automations')
-    .select('id, name, trigger_config, steps')
+    .select('id, name, trigger_config, steps, execution_user_id')
     .eq('trigger_type', 'cron')
     .eq('enabled', true);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -60,6 +61,7 @@ export async function GET(req: NextRequest) {
       continue;
     }
     const r = await dispatch({
+      actorId: a.execution_user_id ?? '',
       integrationId,
       automationId: a.id,
       triggeredBy: 'cron',

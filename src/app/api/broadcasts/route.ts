@@ -1,3 +1,4 @@
+import { can } from '@/lib/auth/permissions';
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
@@ -23,7 +24,7 @@ const INSERT_CHUNK = 500;
 // GET /api/broadcasts — newest-first history (limit 50) with per-status counts.
 export async function GET() {
   const scope = await getWorkspaceScope();
-  if (!scope) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!scope || !can(scope,'messages','read')) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const admin = await createAdminClient();
   const { data, error } = await admin
@@ -59,7 +60,7 @@ export async function GET() {
 // Body: { segmentId?, criteria?, channel, audienceLabel, body (1..2000), templateKey? }
 export async function POST(request: NextRequest) {
   const scope = await getWorkspaceScope();
-  if (!scope) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!scope || !can(scope,'messages','write') || scope.impersonating) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   let payload: {
     segmentId?: unknown; criteria?: unknown; channel?: unknown;
@@ -142,6 +143,7 @@ export async function POST(request: NextRequest) {
       body,
       status: 'enqueuing',
       created_by: scope.email,
+      execution_user_id: scope.userId,
       idempotency_key: idempotencyKey,
     })
     .select('id')
