@@ -8,6 +8,14 @@ const db = new PGlite();
 try {
   await db.exec(`
     CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role;
+    CREATE SCHEMA auth;
+    CREATE FUNCTION auth.uid() RETURNS text LANGUAGE sql AS $$ SELECT 'fixture-user'::text $$;
+    CREATE FUNCTION public.get_tenant_id() RETURNS text LANGUAGE sql AS $$ SELECT current_setting('test.tenant') $$;
+    CREATE FUNCTION public.get_user_role() RETURNS text LANGUAGE sql AS $$ SELECT current_setting('test.user_role') $$;
+    CREATE TABLE public.user_brand_access (user_id text, tenant_id text, brand_id text);
+    GRANT USAGE ON SCHEMA auth TO authenticated;
+    GRANT SELECT ON public.user_brand_access TO authenticated;
+    INSERT INTO public.user_brand_access VALUES ('fixture-user', 'a', 'alpha');
     CREATE TABLE public.daily_video_product_stats (
       tenant_id text, tiktok_username text, brand_id text, video_id text, report_date date
     );
@@ -30,7 +38,7 @@ try {
   assert.ok(migration);
   await db.exec(readFileSync(`supabase/migrations/${migration}`, 'utf8'));
   assert.equal((await db.query("SELECT prosecdef FROM pg_proc WHERE proname='get_creator_video_history'")).rows[0].prosecdef, false);
-  await db.exec("SET ROLE authenticated; SET test.tenant = 'a';");
+  await db.exec("SET ROLE authenticated; SET test.tenant = 'a'; SET test.user_role = 'owner';");
   const history = async handles => (await db.query('SELECT public.get_creator_video_history($1::text[]) AS result', [handles])).rows[0].result;
   const visible = (await db.query("SELECT tiktok_username, brand_id, video_id, report_date::text FROM public.daily_video_product_stats WHERE tiktok_username = ANY($1::text[])", [['first', 'second']])).rows;
   const expected = {
@@ -44,6 +52,19 @@ try {
   assert.equal(actual.total_videos, 1206);
   assert.deepEqual(await history([]), { brands: [], total_videos: 0, first_active_date: null });
   assert.deepEqual(await history(null), { brands: [], total_videos: 0, first_active_date: null });
+  for (const role of ['manager', 'coach', 'brand', 'brand_contact']) {
+    await db.exec(`SET test.user_role = '${role}';`);
+    const scoped = await history(['first', 'second']);
+    assert.equal(scoped.total_videos, 1205);
+    assert.deepEqual(scoped.brands, [{ tiktok_username: 'first', brand_id: 'alpha' }]);
+    assert.equal((await history(['second'])).total_videos, 0, 'An unassigned brand stays hidden even when the handle is known');
+    await db.exec("SET test.tenant = 'b';");
+    assert.equal((await history(['first'])).total_videos, 0, 'An assignment in another tenant grants nothing');
+    await db.exec("SET test.tenant = 'a';");
+  }
+  await db.exec("SET test.user_role = 'unknown';");
+  assert.equal((await history(['first'])).total_videos, 0);
+  await db.exec("SET test.user_role = 'owner';");
   await db.exec('RESET ROLE; SET ROLE anon;');
   await assert.rejects(history(['first']), /permission denied/);
   await db.exec("RESET ROLE; SET ROLE authenticated; SET test.tenant = 'a';");
