@@ -32,7 +32,7 @@ export const LANDING_CONTENT = {
   // ── Navbar ──────────────────────────────────────────────────
   nav: [
     { label: 'Features', href: '/features' },
-    { label: 'Pricing', href: '#pricing' },
+    { label: 'Get started', href: '#get-started' },
     { label: 'Compare', href: '#compare' },
     { label: 'Changelog', href: '/changelog' },
   ],
@@ -212,7 +212,7 @@ export const LANDING_CONTENT = {
     // Footer-style rows that mix text values — separated from the binary grid.
     summaryRows: [
       { label: 'Setup time',     values: ['~5 minutes',     'Already on',     '1–2 hours',  'Ongoing'] },
-      { label: 'Monthly cost',   values: ['$1,999 / mo',    'Free w/ Shop',   '$300+ / mo',     '$0 + your time'] },
+      { label: 'Monthly cost',   values: ['No subscription required', 'Free w/ Shop', '$300+ / mo', '$0 + your time'] },
     ],
   } as ComparisonContent,
 
@@ -307,7 +307,7 @@ export const LANDING_CONTENT = {
         label: 'Product',
         links: [
           { label: 'Features', href: '/features' },
-          { label: 'Pricing', href: '/#pricing' },
+          { label: 'Get started', href: '/#get-started' },
           { label: 'Compare', href: '/#compare' },
           { label: 'Changelog', href: '/changelog' },
         ],

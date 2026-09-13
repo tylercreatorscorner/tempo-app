@@ -668,17 +668,6 @@ function StructuredData() {
         applicationCategory: 'BusinessApplication',
         operatingSystem: 'Web',
         description: C.hero.subhead,
-        offers: {
-          '@type': 'Offer',
-          price: '1999',
-          priceCurrency: 'USD',
-          priceSpecification: {
-            '@type': 'UnitPriceSpecification',
-            price: '1999',
-            priceCurrency: 'USD',
-            unitText: 'MONTH',
-          },
-        },
       },
       {
         '@type': 'FAQPage',
