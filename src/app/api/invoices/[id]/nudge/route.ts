@@ -182,7 +182,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const { data: updated, error } = await supabase
     .from('invoices')
     .update(update)
-    .eq('id', id)
+    .eq('id', id).eq('brand', invoice.brand)
     .select()
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

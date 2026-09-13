@@ -1,3 +1,4 @@
+import { getFinanceAccess } from '@/lib/finance/access';
 /**
  * GET /api/earnings/ytd?year=YYYY
  *
@@ -16,12 +17,12 @@ export const runtime = 'nodejs';
 export const maxDuration = 60;
 
 export async function GET(req: NextRequest) {
+  const finance = await getFinanceAccess('earnings', 'read');
+  if (finance instanceof NextResponse) return finance;
   const scope = await getWorkspaceScope();
   if (!scope) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   if (!scope.canViewFinance) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  const brandFilterSlugs = scope.brandScope.kind === 'scoped'
-    ? scope.brandScope.brandSlugs
-    : null;
+  const brandFilterSlugs = finance.brandSlugs;
 
   const url = req.nextUrl;
   const now = new Date();
@@ -43,7 +44,7 @@ export async function GET(req: NextRequest) {
     monthList.push(`${year}-${String(m).padStart(2, '0')}`);
   }
 
-  const results = await Promise.all(monthList.map((m) => getEarnings(m, undefined, brandFilterSlugs)));
+  const results = await Promise.all(monthList.map((m) => getEarnings(m, undefined, brandFilterSlugs, finance.scope.tenantId)));
 
   // Per-month totals (compact form)
   const months = results.map((r: EarningsResult) => ({

@@ -84,7 +84,7 @@ export default async function InvoiceSharePage({ params, searchParams }: Props) 
     productRetainer: Number(invoice.product_retainer ?? 0),
     launchFee: Number(invoice.launch_fee ?? 0),
     totalAmount: Number(invoice.total_amount ?? 0),
-    notes: invoice.notes,
+    notes: null, // Internal reconciliation notes must never reach the public client.
     shareNote: invoice.share_note ?? null,
     paymentInstructions: invoice.payment_instructions,
     billTo: {

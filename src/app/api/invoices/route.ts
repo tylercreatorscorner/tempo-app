@@ -1,3 +1,4 @@
+import { getFinanceAccess } from '@/lib/finance/access';
 /**
  * /api/invoices
  *
@@ -13,10 +14,12 @@ export const runtime = 'nodejs';
 export const maxDuration = 30;
 
 export async function GET(req: NextRequest) {
+  const finance = await getFinanceAccess('invoicing', 'read');
+  if (finance instanceof NextResponse) return finance;
   const scope = await getWorkspaceScope();
   if (!scope) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   if (!scope.canViewFinance) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  const scopedSlugs = scope.brandScope.kind === 'scoped' ? scope.brandScope.brandSlugs : null;
+  const scopedSlugs = finance.brandSlugs;
 
   const supabase = await createAdminClient();
   const url = req.nextUrl;
@@ -30,7 +33,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden: brand not in your access' }, { status: 403 });
   }
 
-  let query = supabase.from('invoices').select('*').order('generated_at', { ascending: false });
+  let query = supabase.from('invoices').select('*').in('brand', finance.brandSlugs).order('generated_at', { ascending: false });
   if (status && status !== 'all') query = query.eq('status', status);
   if (brand && brand !== 'all') query = query.eq('brand', brand);
   else if (scopedSlugs) query = query.in('brand', scopedSlugs.length ? scopedSlugs : ['__none__']);
@@ -50,10 +53,12 @@ interface PostBody {
 }
 
 export async function POST(req: NextRequest) {
+  const finance = await getFinanceAccess('invoicing', 'write');
+  if (finance instanceof NextResponse) return finance;
   const scope = await getWorkspaceScope();
   if (!scope) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   if (!scope.canViewFinance) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  const scopedSlugs = scope.brandScope.kind === 'scoped' ? scope.brandScope.brandSlugs : null;
+  const scopedSlugs = finance.brandSlugs;
 
   let body: PostBody;
   try { body = await req.json(); } catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }); }
@@ -75,6 +80,7 @@ export async function POST(req: NextRequest) {
   // monthly run executes the exact same path. Responses map 1:1 to what this
   // route returned before the extraction.
   const result = await createInvoiceForBrand({
+    tenantId: finance.scope.tenantId,
     brand,
     month,
     teamMemberId: teamMemberIdFromBody,

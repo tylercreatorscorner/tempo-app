@@ -208,12 +208,16 @@ export async function resolveCompensationModel(
   reg: BrandRegistry,
   brandSlug: string,
   teamMemberId: string | null,
+  tenantId: string,
+  permittedSlugs: string[],
 ): Promise<CompensationModel> {
+  if (!tenantId || !permittedSlugs.includes(brandSlug)) throw new Error('Financial scope is required.');
   let payeeId = teamMemberId;
   if (!payeeId) {
     const { data: tmRow, error: tmErr } = await supabase
       .from('team_members')
       .select('id')
+      .eq('tenant_id', tenantId)
       .eq('is_archived', false)
       .order('created_at', { ascending: true })
       .limit(1)
@@ -224,6 +228,10 @@ export async function resolveCompensationModel(
   }
 
   const storeSlugs = expandSlugs(reg, brandSlug);
+  if (storeSlugs.some(slug => !permittedSlugs.includes(slug))) throw new Error('Brand unavailable.');
+  const { data: payee, error: payeeError } = await supabase.from('team_members')
+    .select('id').eq('id', payeeId).eq('tenant_id', tenantId).maybeSingle();
+  if (payeeError || !payee) throw new Error('Payee unavailable in this workspace.');
   // Umbrella invoices merge PER-STORE model-adjusted values — picking one
   // child's model to re-apply at the merged grain would mis-zero mixed
   // outcomes (same class as the computeInvoiceLineItems double-apply
@@ -233,6 +241,7 @@ export async function resolveCompensationModel(
     .from('brand_compensation')
     .select('brand, compensation_model')
     .eq('team_member_id', payeeId)
+    .eq('tenant_id', tenantId)
     .in('brand', storeSlugs);
   if (error) throw new Error(`[invoice-math] brand_compensation read failed: ${error.message}`);
 
