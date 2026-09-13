@@ -34,10 +34,12 @@ export async function inviteWorkspaceMember(input: {
   }
   const existed = !!account;
   if (!account) {
-    // Admin creation sends no mail and does not confirm ownership of the email.
-    // The recipient verifies ownership through the OTP requested after provisioning.
-    const { data, error } = await admin.auth.admin.createUser({email,email_confirm:false});
-    if (error || !data.user) throw new Error('Could not create account. Retry invitation.');
+    // Preserve the established new-account invite flow and email template.
+    // Auth refuses an already-registered email if signup races this lookup.
+    const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
+      redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback`,
+    });
+    if (error || !data.user) throw new Error('Could not invite account. Reload and retry invitation.');
     account = data.user;
   }
   if (account.id === actor.user_id) throw new Error('Cannot invite your own account.');
@@ -53,6 +55,7 @@ export async function inviteWorkspaceMember(input: {
     p_finance:input.role === 'coach' ? false : finance,p_brand_id:input.brandId ?? null,
   });
   if (profileError) throw new Error('Could not save invitation. Reload and try again.');
+  if (!existed) return {userId:account.id,existed};
   const anon = createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,{
     cookies:{getAll(){return [];},setAll(){}},
   });

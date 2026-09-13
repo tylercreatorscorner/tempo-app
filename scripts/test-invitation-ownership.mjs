@@ -55,8 +55,7 @@ function from(table){
 }
 const admin={from,auth:{admin:{
  listUsers:async({page=1,perPage=50}={})=>{events.push(`list:${page}`);return {data:{users:accounts.slice((page-1)*perPage,page*perPage)},error:listError?{message:'fixture lookup failure'}:null};},
- createUser:async options=>{events.push('create');assert.equal(options.email_confirm,false);if(createError)return {data:{user:null},error:{message:'fixture create failure'}};const user={id:newId,email:options.email};await db.query('INSERT INTO auth.users VALUES ($1,$2)',[user.id,user.email]);accounts.push(user);return {data:{user},error:null};},
- inviteUserByEmail:async()=>({data:{user:null},error:{message:'User already registered'}}),
+ inviteUserByEmail:async(email,options)=>{events.push('invite-mail');if(accounts.some(u=>u.email===email))return {data:{user:null},error:{message:'User already registered'}};if(createError)return {data:{user:null},error:{message:'fixture invite failure'}};assert.ok(options.redirectTo.endsWith('/auth/callback'));const user={id:newId,email};await db.query('INSERT INTO auth.users VALUES ($1,$2)',[user.id,user.email]);accounts.push(user);return {data:{user},error:null};},
 }},rpc:async(name,args)=>{events.push('rpc');if(beforeRpc)await beforeRpc();assert.equal(name,'provision_invited_member');try{await db.query('SELECT provision_invited_member($1,$2,$3,$4,$5,$6)',Object.values(args));return {error:null};}catch(error){return {error};}}};
 const deps={
  '@supabase/ssr':{createServerClient:()=>({auth:{signInWithOtp:async options=>{events.push('mail');assert.equal(options.options.shouldCreateUser,false);return {error:mailError?{message:'fixture mail failure'}:null};}}})},
@@ -81,7 +80,7 @@ for(const setup of [()=>{actor=null;},()=>{actor.role='manager';},()=>{actor.ten
 for(const role of ['owner','nonsense',null]){await reset();await assert.rejects(()=>invite('member@example.invalid',role));assert.equal(events.length,0);}
 await reset();await invite(' MEMBER@example.invalid ','coach');assert.equal((await profile(memberId)).role,'coach');assert.equal((await profile(memberId)).role_id,null);assert.equal((await profile(memberId)).can_view_finance,false);assert.ok(events.indexOf('rpc')<events.indexOf('mail'));
 await reset();accounts=[...Array.from({length:1000},(_,i)=>({id:id(100+i),email:`dummy${i}@example.invalid`})),accounts[1]];await invite();assert.ok(events.includes('list:2'));
-await reset();await invite('new@example.invalid','brand');assert.equal((await profile(newId)).tenant_id,tenantA);assert.ok(events.indexOf('create')<events.indexOf('rpc'));assert.ok(events.indexOf('rpc')<events.indexOf('mail'));
+await reset();await invite('new@example.invalid','brand');assert.equal((await profile(newId)).tenant_id,tenantA);assert.ok(events.indexOf('invite-mail')<events.indexOf('rpc'));assert.ok(!events.includes('mail'));
 await reset();beforeRpc=()=>db.query('UPDATE user_profiles SET tenant_id=$1 WHERE user_id=$2',[tenantB,memberId]);await assert.rejects(()=>invite());assert.equal((await profile(memberId)).tenant_id,tenantB);assert.ok(!events.includes('mail'));
 await reset();beforeRpc=()=>db.query("INSERT INTO user_profiles(user_id,email,tenant_id,role) VALUES ($1,'new@example.invalid',$2,'owner')",[newId,tenantB]);await assert.rejects(()=>invite('new@example.invalid'));assert.equal((await profile(newId)).tenant_id,tenantB);assert.ok(!events.includes('mail'));
 await reset();mailError=true;await assert.rejects(()=>invite(),/Access saved/);assert.equal((await profile(memberId)).role,'coach');
