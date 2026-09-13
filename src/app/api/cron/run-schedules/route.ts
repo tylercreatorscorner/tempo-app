@@ -25,7 +25,7 @@ import {
 } from '@/lib/data/discord-posts';
 import { getBrandRegistry, brandLabel, type BrandRegistry } from '@/lib/data/brand-registry';
 
-import { getWorkspaceScopeForUser } from '@/lib/auth/workspace-scope';
+import { getWorkspaceScopeForUser, type WorkspaceScope } from '@/lib/auth/workspace-scope';
 import { canAccessSchedule } from '@/lib/auth/schedule-access';
 
 interface ScheduleRow {
@@ -42,12 +42,12 @@ interface ScheduleRow {
   format: string | null;
 }
 
-async function generateForSchedule(s: ScheduleRow, reg: BrandRegistry): Promise<string> {
+async function generateForSchedule(s: ScheduleRow, reg: BrandRegistry, scope: WorkspaceScope): Promise<string> {
   const brandName = s.brand === 'all' ? 'All Brands' : brandLabel(reg, s.brand);
   const period = (s.period || '7d') as '7d' | '30d';
 
   if (s.source === 'reporting') {
-    return generateReport(s.report_type as ReportType, s.brand, period as ReportPeriod);
+    return generateReport(s.report_type as ReportType, s.brand, period as ReportPeriod, scope);
   }
   if (s.source === 'discord-posts') {
     switch (s.report_type) {
@@ -108,10 +108,10 @@ export async function GET(request: NextRequest) {
 
     try {
       const scope = s.created_by ? await getWorkspaceScopeForUser(s.created_by) : null;
-      if (!await canAccessSchedule(scope, s, 'write')) {
+      if (!scope || !await canAccessSchedule(scope, s, 'write')) {
         throw new Error('Schedule owner no longer has permission for this brand and report');
       }
-      const content = await generateForSchedule(s, reg);
+      const content = await generateForSchedule(s, reg, scope);
       const delivery = await deliverToWebhook(s.webhook_url, content);
       ok = delivery.ok;
       if (!delivery.ok) errorMsg = `${delivery.status}: ${delivery.error}`;

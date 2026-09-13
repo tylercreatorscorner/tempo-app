@@ -24,8 +24,10 @@ import {
   getAnalyticsCreatorRankings,
   type AnalyticsCreatorRanking,
 } from './rpc';
+import { getReportRegistry } from '@/lib/auth/report-access';
+import type { WorkspaceScope } from '@/lib/auth/workspace-scope';
 import { createClient } from '@/lib/supabase/server';
-import { getBrandRegistry, brandLabel, activeBrandSlugs, resolveUuids, expandSlugs, type BrandRegistry } from '@/lib/data/brand-registry';
+import { brandLabel, activeBrandSlugs, resolveUuids, expandSlugs, type BrandRegistry } from '@/lib/data/brand-registry';
 import { format } from 'date-fns';
 
 export type ReportType = 'performance-summary' | 'creator-activity' | 'brand-report';
@@ -208,8 +210,7 @@ function brandHeading(reg: BrandRegistry, brand: string): string {
 // 1. PERFORMANCE SUMMARY — internal "how are we doing" report
 // ────────────────────────────────────────────────────────────────────────────
 
-export async function generatePerformanceSummary(brand: string, period: ReportPeriod): Promise<string> {
-  const reg = await getBrandRegistry();
+async function generatePerformanceSummary(brand: string, period: ReportPeriod, reg: BrandRegistry): Promise<string> {
   const brands = brandsToQuery(reg, brand);
   if (brands.length === 0) return 'No brands available for this user.';
   const brandIds = brandIdsForSlugs(reg, brands);
@@ -442,7 +443,7 @@ async function getRosterCommitment(brands: string[]): Promise<{
     if (brands.length > 0) query = query.in('brand', brands);
     const { data, error } = await query;
     if (error) throw new Error(`[reports] managed_creators read failed: ${error.message}`);
-    for (const row of (data ?? []) as any[]) {
+    for (const row of (data ?? []) as Array<{ brand: string | null; retainer: number | string | null } & Partial<Record<(typeof cols)[number], string | null>>>) {
       const hasRetainer = (Number(row.retainer) || 0) > 0;
       const handles: string[] = [];
       for (const k of cols) {
@@ -513,8 +514,7 @@ async function getContractedPerf(
   return out;
 }
 
-export async function generateCreatorActivity(brand: string, period: ReportPeriod): Promise<string> {
-  const reg = await getBrandRegistry();
+async function generateCreatorActivity(brand: string, period: ReportPeriod, reg: BrandRegistry): Promise<string> {
   const brands = brandsToQuery(reg, brand);
   if (brands.length === 0) return 'No brands available for this user.';
   const brandIds = brandIdsForSlugs(reg, brands);
@@ -642,12 +642,11 @@ export async function generateCreatorActivity(brand: string, period: ReportPerio
 // 3. BRAND REPORT — client-facing professional summary
 // ────────────────────────────────────────────────────────────────────────────
 
-export async function generateBrandReport(brand: string, period: ReportPeriod): Promise<string> {
+async function generateBrandReport(brand: string, period: ReportPeriod, reg: BrandRegistry): Promise<string> {
   if (!brand || brand === 'all') {
     // Brand reports are always brand-scoped — pick first active brand if user picked "all"
     return 'Please select a specific brand for a brand report.';
   }
-  const reg = await getBrandRegistry();
   const brands = brandsToQuery(reg, brand);
   if (brands.length === 0) return 'Brand not available.';
   // May be a store-grain slug (leefar_nutrition etc.) - see brandsToQuery.
@@ -740,10 +739,11 @@ export async function generateBrandReport(brand: string, period: ReportPeriod): 
 // Dispatch
 // ────────────────────────────────────────────────────────────────────────────
 
-export async function generateReport(type: ReportType, brand: string, period: ReportPeriod): Promise<string> {
+export async function generateReport(type: ReportType, brand: string, period: ReportPeriod, scope: WorkspaceScope): Promise<string> {
+  const reg = await getReportRegistry(scope,brand,type);
   switch (type) {
-    case 'performance-summary': return generatePerformanceSummary(brand, period);
-    case 'creator-activity':    return generateCreatorActivity(brand, period);
-    case 'brand-report':        return generateBrandReport(brand, period);
+    case 'performance-summary': return generatePerformanceSummary(brand, period, reg);
+    case 'creator-activity':    return generateCreatorActivity(brand, period, reg);
+    case 'brand-report':        return generateBrandReport(brand, period, reg);
   }
 }

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 import { generateReport, type ReportType, type ReportPeriod } from '@/lib/data/reports';
+import { can } from '@/lib/auth/permissions';
+import { ReportAccessError } from '@/lib/auth/report-access';
 import { throttle } from '@/lib/rate-limit';
 
 const VALID_TYPES: ReportType[] = ['performance-summary', 'creator-activity', 'brand-report'];
@@ -8,7 +10,7 @@ const VALID_PERIODS: ReportPeriod[] = ['7d', '30d'];
 
 export async function GET(request: NextRequest) {
   const scope = await getWorkspaceScope();
-  if (!scope) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!scope || !can(scope,'reporting','read')) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   // Throttle: 1 generation per 3s per user. Reports are expensive; this stops
   // accidental click-spam from blocking the worker queue.
@@ -36,9 +38,10 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const text = await generateReport(type, brand, period);
+    const text = await generateReport(type, brand, period, scope);
     return NextResponse.json({ text });
   } catch (err: unknown) {
+    if (err instanceof ReportAccessError) return NextResponse.json({error:err.message},{status:403});
     const message = err instanceof Error ? err.message : 'Failed to generate report';
     console.error('[api/reporting]', message);
     return NextResponse.json({ error: message }, { status: 500 });
