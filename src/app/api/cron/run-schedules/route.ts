@@ -25,7 +25,11 @@ import {
 } from '@/lib/data/discord-posts';
 import { getBrandRegistry, brandLabel, type BrandRegistry } from '@/lib/data/brand-registry';
 
+import { getWorkspaceScopeForUser } from '@/lib/auth/workspace-scope';
+import { canAccessSchedule } from '@/lib/auth/schedule-access';
+
 interface ScheduleRow {
+  created_by: string | null;
   id: string;
   tenant_id: string;
   report_type: string;
@@ -103,6 +107,10 @@ export async function GET(request: NextRequest) {
     let errorMsg: string | undefined;
 
     try {
+      const scope = s.created_by ? await getWorkspaceScopeForUser(s.created_by) : null;
+      if (!await canAccessSchedule(scope, s, 'write')) {
+        throw new Error('Schedule owner no longer has permission for this brand and report');
+      }
       const content = await generateForSchedule(s, reg);
       const delivery = await deliverToWebhook(s.webhook_url, content);
       ok = delivery.ok;

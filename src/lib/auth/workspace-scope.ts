@@ -261,6 +261,16 @@ export const getWorkspaceScope = cache(async (): Promise<WorkspaceScope | null> 
   return scopeFromProfile(admin, profile as ProfileRow | null, user.email ?? undefined);
 });
 
+/** Server jobs resolve current authority without a browser or impersonation cookie. */
+export async function getWorkspaceScopeForUser(userId: string): Promise<WorkspaceScope | null> {
+  const admin = await createAdminClient();
+  const { data, error } = await admin.from('user_profiles')
+    .select('user_id, email, name, role, tenant_id, can_view_finance, role_id')
+    .eq('user_id', userId).maybeSingle();
+  if (error) return null;
+  return scopeFromProfile(admin, data as ProfileRow | null);
+}
+
 /**
  * True if the given brand (slug or uuid) is visible under this scope.
  * Use in single-brand routes/pages to reject out-of-scope brand params.

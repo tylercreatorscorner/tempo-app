@@ -1,29 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient, createAdminClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/server';
 import { isValidFrequency, nextRunFromLabel } from '@/lib/data/schedule-frequency';
 import { detectWebhookKind } from '@/lib/messaging/webhook';
 
-async function requireUser() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
-  const admin = await createAdminClient();
-  const { data: profile } = await admin
-    .from('user_profiles')
-    .select('user_id, tenant_id, role')
-    .eq('user_id', user.id)
-    .maybeSingle();
-  return profile;
-}
+import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
+import { canAccessSchedule } from '@/lib/auth/schedule-access';
 
 // PATCH /api/schedules/[id] — update fields on a schedule (tenant-scoped)
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const profile = await requireUser();
+  const profile = await getWorkspaceScope();
   if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const { id } = await params;
+  const lookup = await createAdminClient();
+  const { data: existing, error: lookupError } = await lookup.from('report_schedules')
+    .select('*').eq('id', id).eq('tenant_id', profile.tenantId).maybeSingle();
+  if (lookupError) return NextResponse.json({ error: 'Schedule lookup failed' }, { status: 500 });
+  if (!existing || !await canAccessSchedule(profile, existing, 'write')) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
 
   const body = await request.json();
   const allowed = [
@@ -37,6 +34,12 @@ export async function PATCH(
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
   }
+
+  if (!await canAccessSchedule(profile, { ...existing, ...updates }, 'write')) {
+    return NextResponse.json({ error: 'Forbidden: select a permitted specific brand and report type' }, { status: 403 });
+  }
+  // An authorized edit transfers execution responsibility to its actor.
+  updates.created_by = profile.userId;
 
   // Board format only applies to Who's Cooking rows; NULL means the default
   // 'highlights' board, so 'highlights' is normalized to NULL before storage.
@@ -52,7 +55,7 @@ export async function PATCH(
         .from('report_schedules')
         .select('report_type')
         .eq('id', id)
-        .eq('tenant_id', profile.tenant_id)
+        .eq('tenant_id', profile.tenantId)
         .maybeSingle();
       reportType = existing?.report_type;
     }
@@ -85,7 +88,7 @@ export async function PATCH(
       .from('report_schedules')
       .select('cron_label')
       .eq('id', id)
-      .eq('tenant_id', profile.tenant_id)
+      .eq('tenant_id', profile.tenantId)
       .maybeSingle();
     if (existing?.cron_label) {
       updates.next_run_at = nextRunFromLabel(existing.cron_label).toISOString();
@@ -97,7 +100,7 @@ export async function PATCH(
     .from('report_schedules')
     .update(updates)
     .eq('id', id)
-    .eq('tenant_id', profile.tenant_id)
+    .eq('tenant_id', profile.tenantId)
     .select()
     .single();
 
@@ -110,16 +113,23 @@ export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const profile = await requireUser();
+  const profile = await getWorkspaceScope();
   if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const { id } = await params;
+  const lookup = await createAdminClient();
+  const { data: existing, error: lookupError } = await lookup.from('report_schedules')
+    .select('*').eq('id', id).eq('tenant_id', profile.tenantId).maybeSingle();
+  if (lookupError) return NextResponse.json({ error: 'Schedule lookup failed' }, { status: 500 });
+  if (!existing || !await canAccessSchedule(profile, existing, 'write')) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
 
   const admin = await createAdminClient();
   const { error } = await admin
     .from('report_schedules')
     .delete()
     .eq('id', id)
-    .eq('tenant_id', profile.tenant_id);
+    .eq('tenant_id', profile.tenantId);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ success: true });
