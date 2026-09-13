@@ -75,7 +75,7 @@ export default async function ClientReportPage({ params, searchParams }: Props) 
   const supabase = await createAdminClient();
   const { data: row } = await supabase
     .from('client_reports')
-    .select('id, brand_slug, brand_name, period_label, snapshot, notes, plan, created_at, viewed_at, revoked_at, report_type')
+    .select('tenant_id, id, brand_slug, brand_name, period_label, snapshot, notes, plan, created_at, viewed_at, revoked_at, report_type')
     .eq('token', token)
     .maybeSingle();
 
@@ -94,11 +94,11 @@ export default async function ClientReportPage({ params, searchParams }: Props) 
    * renders the wordmark alone rather than 500ing a page a client is opening.
    */
   let logoUrl: string | null = null;
-  if (row.brand_slug && row.brand_slug !== 'all') {
+  if (row.tenant_id && row.brand_slug && row.brand_slug !== 'all') {
     const { data: brandRow, error: brandErr } = await supabase
       .from('brands_v2')
       .select('logo_url')
-      .eq('slug', row.brand_slug)
+      .eq('tenant_id', row.tenant_id).eq('slug', row.brand_slug)
       .maybeSingle();
     if (brandErr) console.error('[report] brand logo read failed:', brandErr.message);
     else logoUrl = (brandRow?.logo_url as string | null) ?? null;

@@ -1,0 +1,1142 @@
+[
+  {
+    "table_name": "brands_v2",
+    "column_name": "id",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "brands_v2",
+    "column_name": "tenant_id",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "brands_v2",
+    "column_name": "name",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "brands_v2",
+    "column_name": "slug",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "brands_v2",
+    "column_name": "display_name",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "brands_v2",
+    "column_name": "color",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "brands_v2",
+    "column_name": "logo_url",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "brands_v2",
+    "column_name": "tiktok_shop_id",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "brands_v2",
+    "column_name": "discord_guild_id",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "brands_v2",
+    "column_name": "created_at",
+    "udt_name": "timestamptz"
+  },
+  {
+    "table_name": "brands_v2",
+    "column_name": "updated_at",
+    "udt_name": "timestamptz"
+  },
+  {
+    "table_name": "brands_v2",
+    "column_name": "is_archived",
+    "udt_name": "bool"
+  },
+  {
+    "table_name": "brands_v2",
+    "column_name": "archived_at",
+    "udt_name": "timestamptz"
+  },
+  {
+    "table_name": "brands_v2",
+    "column_name": "is_umbrella",
+    "udt_name": "bool"
+  },
+  {
+    "table_name": "brands_v2",
+    "column_name": "parent_brand_id",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "brands_v2",
+    "column_name": "store_order",
+    "udt_name": "int2"
+  },
+  {
+    "table_name": "brands_v2",
+    "column_name": "monthly_gmv_goal",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "creator_performance",
+    "column_name": "id",
+    "udt_name": "int4"
+  },
+  {
+    "table_name": "creator_performance",
+    "column_name": "report_date",
+    "udt_name": "date"
+  },
+  {
+    "table_name": "creator_performance",
+    "column_name": "brand",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "creator_performance",
+    "column_name": "creator_name",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "creator_performance",
+    "column_name": "gmv",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "creator_performance",
+    "column_name": "refunds",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "creator_performance",
+    "column_name": "orders",
+    "udt_name": "int4"
+  },
+  {
+    "table_name": "creator_performance",
+    "column_name": "items_sold",
+    "udt_name": "int4"
+  },
+  {
+    "table_name": "creator_performance",
+    "column_name": "items_refunded",
+    "udt_name": "int4"
+  },
+  {
+    "table_name": "creator_performance",
+    "column_name": "aov",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "creator_performance",
+    "column_name": "avg_daily_products_with_sales",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "creator_performance",
+    "column_name": "videos",
+    "udt_name": "int4"
+  },
+  {
+    "table_name": "creator_performance",
+    "column_name": "live_streams",
+    "udt_name": "int4"
+  },
+  {
+    "table_name": "creator_performance",
+    "column_name": "est_commission",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "creator_performance",
+    "column_name": "samples_shipped",
+    "udt_name": "int4"
+  },
+  {
+    "table_name": "creator_performance",
+    "column_name": "est_flat_fee",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "creator_performance",
+    "column_name": "created_at",
+    "udt_name": "timestamptz"
+  },
+  {
+    "table_name": "creator_performance",
+    "column_name": "period_type",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "creator_performance",
+    "column_name": "week_start",
+    "udt_name": "date"
+  },
+  {
+    "table_name": "creator_performance",
+    "column_name": "week_end",
+    "udt_name": "date"
+  },
+  {
+    "table_name": "creator_performance",
+    "column_name": "managed_creator_id",
+    "udt_name": "int4"
+  },
+  {
+    "table_name": "creator_performance",
+    "column_name": "tenant_id",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "creator_performance",
+    "column_name": "data_source",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "creator_performance",
+    "column_name": "video_gmv",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "creator_performance",
+    "column_name": "live_gmv",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "creator_performance",
+    "column_name": "product_card_gmv",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "creator_performance",
+    "column_name": "ctor",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "creator_performance",
+    "column_name": "ctr",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "creator_performance",
+    "column_name": "total_sample_content",
+    "udt_name": "int4"
+  },
+  {
+    "table_name": "creator_performance",
+    "column_name": "products_added_to_showcase",
+    "udt_name": "int4"
+  },
+  {
+    "table_name": "creator_performance",
+    "column_name": "product_impressions",
+    "udt_name": "int8"
+  },
+  {
+    "table_name": "creator_performance",
+    "column_name": "video_views",
+    "udt_name": "int8"
+  },
+  {
+    "table_name": "creator_performance",
+    "column_name": "customers",
+    "udt_name": "int4"
+  },
+  {
+    "table_name": "creator_performance",
+    "column_name": "products_sold",
+    "udt_name": "int4"
+  },
+  {
+    "table_name": "daily_video_product_stats",
+    "column_name": "id",
+    "udt_name": "int8"
+  },
+  {
+    "table_name": "daily_video_product_stats",
+    "column_name": "report_date",
+    "udt_name": "date"
+  },
+  {
+    "table_name": "daily_video_product_stats",
+    "column_name": "brand_id",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "daily_video_product_stats",
+    "column_name": "tiktok_username",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "daily_video_product_stats",
+    "column_name": "video_id",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "daily_video_product_stats",
+    "column_name": "video_title",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "daily_video_product_stats",
+    "column_name": "video_url",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "daily_video_product_stats",
+    "column_name": "post_date",
+    "udt_name": "timestamptz"
+  },
+  {
+    "table_name": "daily_video_product_stats",
+    "column_name": "product_name",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "daily_video_product_stats",
+    "column_name": "product_id",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "daily_video_product_stats",
+    "column_name": "gmv",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "daily_video_product_stats",
+    "column_name": "orders",
+    "udt_name": "int4"
+  },
+  {
+    "table_name": "daily_video_product_stats",
+    "column_name": "items_sold",
+    "udt_name": "int4"
+  },
+  {
+    "table_name": "daily_video_product_stats",
+    "column_name": "items_refunded",
+    "udt_name": "int4"
+  },
+  {
+    "table_name": "daily_video_product_stats",
+    "column_name": "refunded_gmv",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "daily_video_product_stats",
+    "column_name": "est_commission",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "daily_video_product_stats",
+    "column_name": "est_flat_fee",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "daily_video_product_stats",
+    "column_name": "aov",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "daily_video_product_stats",
+    "column_name": "avg_gmv_per_customer",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "daily_video_product_stats",
+    "column_name": "data_source",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "daily_video_product_stats",
+    "column_name": "tenant_id",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "daily_video_product_stats",
+    "column_name": "created_at",
+    "udt_name": "timestamptz"
+  },
+  {
+    "table_name": "invoices",
+    "column_name": "id",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "invoices",
+    "column_name": "invoice_number",
+    "udt_name": "varchar"
+  },
+  {
+    "table_name": "invoices",
+    "column_name": "brand",
+    "udt_name": "varchar"
+  },
+  {
+    "table_name": "invoices",
+    "column_name": "period_month",
+    "udt_name": "varchar"
+  },
+  {
+    "table_name": "invoices",
+    "column_name": "affiliate_gmv",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "invoices",
+    "column_name": "marketing_gmv",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "invoices",
+    "column_name": "total_gmv",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "invoices",
+    "column_name": "commission",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "invoices",
+    "column_name": "retainer",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "invoices",
+    "column_name": "launch_fee",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "invoices",
+    "column_name": "total_amount",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "invoices",
+    "column_name": "status",
+    "udt_name": "varchar"
+  },
+  {
+    "table_name": "invoices",
+    "column_name": "generated_at",
+    "udt_name": "timestamptz"
+  },
+  {
+    "table_name": "invoices",
+    "column_name": "sent_at",
+    "udt_name": "timestamptz"
+  },
+  {
+    "table_name": "invoices",
+    "column_name": "paid_at",
+    "udt_name": "timestamptz"
+  },
+  {
+    "table_name": "invoices",
+    "column_name": "due_date",
+    "udt_name": "date"
+  },
+  {
+    "table_name": "invoices",
+    "column_name": "notes",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "invoices",
+    "column_name": "created_by",
+    "udt_name": "varchar"
+  },
+  {
+    "table_name": "invoices",
+    "column_name": "updated_at",
+    "udt_name": "timestamptz"
+  },
+  {
+    "table_name": "invoices",
+    "column_name": "product_retainer",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "invoices",
+    "column_name": "bill_to_name",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "invoices",
+    "column_name": "bill_to_email",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "invoices",
+    "column_name": "bill_to_address",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "invoices",
+    "column_name": "creator_breakdown",
+    "udt_name": "jsonb"
+  },
+  {
+    "table_name": "invoices",
+    "column_name": "payment_instructions",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "invoices",
+    "column_name": "public_token",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "invoices",
+    "column_name": "payment_method",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "invoices",
+    "column_name": "payment_reference",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "invoices",
+    "column_name": "amount_received",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "invoices",
+    "column_name": "payment_received_notes",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "invoices",
+    "column_name": "team_member_id",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "invoices",
+    "column_name": "bill_from_name",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "invoices",
+    "column_name": "bill_from_email",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "invoices",
+    "column_name": "bill_from_address",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "invoices",
+    "column_name": "viewed_at",
+    "udt_name": "timestamptz"
+  },
+  {
+    "table_name": "invoices",
+    "column_name": "last_nudged_at",
+    "udt_name": "timestamptz"
+  },
+  {
+    "table_name": "invoices",
+    "column_name": "nudge_count",
+    "udt_name": "int4"
+  },
+  {
+    "table_name": "invoices",
+    "column_name": "share_note",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "managed_creators",
+    "column_name": "id",
+    "udt_name": "int4"
+  },
+  {
+    "table_name": "managed_creators",
+    "column_name": "real_name",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "managed_creators",
+    "column_name": "discord_name",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "managed_creators",
+    "column_name": "brand",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "managed_creators",
+    "column_name": "role",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "managed_creators",
+    "column_name": "retainer",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "managed_creators",
+    "column_name": "account_1",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "managed_creators",
+    "column_name": "account_2",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "managed_creators",
+    "column_name": "account_3",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "managed_creators",
+    "column_name": "account_4",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "managed_creators",
+    "column_name": "account_5",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "managed_creators",
+    "column_name": "notes",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "managed_creators",
+    "column_name": "added_at",
+    "udt_name": "timestamptz"
+  },
+  {
+    "table_name": "managed_creators",
+    "column_name": "updated_at",
+    "udt_name": "timestamptz"
+  },
+  {
+    "table_name": "managed_creators",
+    "column_name": "email",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "managed_creators",
+    "column_name": "phone",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "managed_creators",
+    "column_name": "status",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "managed_creators",
+    "column_name": "last_contact_date",
+    "udt_name": "date"
+  },
+  {
+    "table_name": "managed_creators",
+    "column_name": "next_followup_date",
+    "udt_name": "date"
+  },
+  {
+    "table_name": "managed_creators",
+    "column_name": "tags",
+    "udt_name": "_text"
+  },
+  {
+    "table_name": "managed_creators",
+    "column_name": "discord_id",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "managed_creators",
+    "column_name": "application_id",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "managed_creators",
+    "column_name": "discord_avatar",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "managed_creators",
+    "column_name": "joined_at",
+    "udt_name": "timestamptz"
+  },
+  {
+    "table_name": "managed_creators",
+    "column_name": "discord_channel_id",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "managed_creators",
+    "column_name": "created_at",
+    "udt_name": "timestamptz"
+  },
+  {
+    "table_name": "managed_creators",
+    "column_name": "created_by",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "managed_creators",
+    "column_name": "updated_by",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "managed_creators",
+    "column_name": "employment_status",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "managed_creators",
+    "column_name": "status_changed_at",
+    "udt_name": "timestamptz"
+  },
+  {
+    "table_name": "managed_creators",
+    "column_name": "termination_reason",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "managed_creators",
+    "column_name": "product_assignments",
+    "udt_name": "_text"
+  },
+  {
+    "table_name": "managed_creators",
+    "column_name": "product_retainers",
+    "udt_name": "jsonb"
+  },
+  {
+    "table_name": "managed_creators",
+    "column_name": "discord_user_id",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "managed_creators",
+    "column_name": "monthly_post_requirement",
+    "udt_name": "int4"
+  },
+  {
+    "table_name": "managed_creators",
+    "column_name": "contract_length_days",
+    "udt_name": "int4"
+  },
+  {
+    "table_name": "managed_creators",
+    "column_name": "retainer_start_date",
+    "udt_name": "date"
+  },
+  {
+    "table_name": "managed_creators",
+    "column_name": "account_6",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "managed_creators",
+    "column_name": "account_7",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "managed_creators",
+    "column_name": "account_8",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "managed_creators",
+    "column_name": "account_9",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "managed_creators",
+    "column_name": "account_10",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "managed_creators",
+    "column_name": "applied_at",
+    "udt_name": "timestamptz"
+  },
+  {
+    "table_name": "managed_creators",
+    "column_name": "weeks_in_top_5",
+    "udt_name": "int4"
+  },
+  {
+    "table_name": "managed_creators",
+    "column_name": "weeks_in_top_10",
+    "udt_name": "int4"
+  },
+  {
+    "table_name": "managed_creators",
+    "column_name": "first_top_10_date",
+    "udt_name": "date"
+  },
+  {
+    "table_name": "managed_creators",
+    "column_name": "current_tier",
+    "udt_name": "varchar"
+  },
+  {
+    "table_name": "managed_creators",
+    "column_name": "tenant_id",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "managed_creators",
+    "column_name": "archived_at",
+    "udt_name": "timestamptz"
+  },
+  {
+    "table_name": "managed_creators",
+    "column_name": "creator_id",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "managed_creators",
+    "column_name": "cc_start_date",
+    "udt_name": "date"
+  },
+  {
+    "table_name": "tiktok_accounts",
+    "column_name": "id",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "tiktok_accounts",
+    "column_name": "creator_id",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "tiktok_accounts",
+    "column_name": "tenant_id",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "tiktok_accounts",
+    "column_name": "brand_id",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "tiktok_accounts",
+    "column_name": "tiktok_username",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "tiktok_accounts",
+    "column_name": "tiktok_user_id",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "tiktok_accounts",
+    "column_name": "is_primary",
+    "udt_name": "bool"
+  },
+  {
+    "table_name": "tiktok_accounts",
+    "column_name": "follower_count",
+    "udt_name": "int4"
+  },
+  {
+    "table_name": "tiktok_accounts",
+    "column_name": "verified",
+    "udt_name": "bool"
+  },
+  {
+    "table_name": "tiktok_accounts",
+    "column_name": "verified_at",
+    "udt_name": "timestamptz"
+  },
+  {
+    "table_name": "tiktok_accounts",
+    "column_name": "created_at",
+    "udt_name": "timestamptz"
+  },
+  {
+    "table_name": "tiktok_accounts",
+    "column_name": "updated_at",
+    "udt_name": "timestamptz"
+  },
+  {
+    "table_name": "video_performance",
+    "column_name": "id",
+    "udt_name": "int4"
+  },
+  {
+    "table_name": "video_performance",
+    "column_name": "report_date",
+    "udt_name": "date"
+  },
+  {
+    "table_name": "video_performance",
+    "column_name": "brand",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "video_performance",
+    "column_name": "video_id",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "video_performance",
+    "column_name": "video_title",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "video_performance",
+    "column_name": "video_link",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "video_performance",
+    "column_name": "creator_name",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "video_performance",
+    "column_name": "product_name",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "video_performance",
+    "column_name": "product_id",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "video_performance",
+    "column_name": "gmv",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "video_performance",
+    "column_name": "orders",
+    "udt_name": "int4"
+  },
+  {
+    "table_name": "video_performance",
+    "column_name": "aov",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "video_performance",
+    "column_name": "avg_gmv_per_customer",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "video_performance",
+    "column_name": "items_sold",
+    "udt_name": "int4"
+  },
+  {
+    "table_name": "video_performance",
+    "column_name": "refunds",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "video_performance",
+    "column_name": "items_refunded",
+    "udt_name": "int4"
+  },
+  {
+    "table_name": "video_performance",
+    "column_name": "est_commission",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "video_performance",
+    "column_name": "est_flat_fee",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "video_performance",
+    "column_name": "created_at",
+    "udt_name": "timestamptz"
+  },
+  {
+    "table_name": "video_performance",
+    "column_name": "period_type",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "video_performance",
+    "column_name": "week_start",
+    "udt_name": "date"
+  },
+  {
+    "table_name": "video_performance",
+    "column_name": "week_end",
+    "udt_name": "date"
+  },
+  {
+    "table_name": "video_performance",
+    "column_name": "updated_at",
+    "udt_name": "timestamptz"
+  },
+  {
+    "table_name": "video_performance",
+    "column_name": "post_date",
+    "udt_name": "date"
+  },
+  {
+    "table_name": "video_performance",
+    "column_name": "tenant_id",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "video_performance",
+    "column_name": "data_source",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "video_performance",
+    "column_name": "views",
+    "udt_name": "int8"
+  },
+  {
+    "table_name": "video_performance",
+    "column_name": "likes",
+    "udt_name": "int8"
+  },
+  {
+    "table_name": "video_performance",
+    "column_name": "comments",
+    "udt_name": "int8"
+  },
+  {
+    "table_name": "video_performance",
+    "column_name": "shares",
+    "udt_name": "int8"
+  },
+  {
+    "table_name": "video_performance",
+    "column_name": "product_impressions",
+    "udt_name": "int8"
+  },
+  {
+    "table_name": "video_performance",
+    "column_name": "product_clicks",
+    "udt_name": "int8"
+  },
+  {
+    "table_name": "video_performance",
+    "column_name": "completion_rate",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "video_performance",
+    "column_name": "ctr",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "video_performance",
+    "column_name": "engagement_rate",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "video_performance",
+    "column_name": "gpm",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "videos",
+    "column_name": "id",
+    "udt_name": "uuid"
+  },
+  {
+    "table_name": "videos",
+    "column_name": "video_id",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "videos",
+    "column_name": "brand",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "videos",
+    "column_name": "creator_name",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "videos",
+    "column_name": "video_name",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "videos",
+    "column_name": "video_link",
+    "udt_name": "text"
+  },
+  {
+    "table_name": "videos",
+    "column_name": "post_date",
+    "udt_name": "date"
+  },
+  {
+    "table_name": "videos",
+    "column_name": "impressions",
+    "udt_name": "int4"
+  },
+  {
+    "table_name": "videos",
+    "column_name": "likes",
+    "udt_name": "int4"
+  },
+  {
+    "table_name": "videos",
+    "column_name": "comments",
+    "udt_name": "int4"
+  },
+  {
+    "table_name": "videos",
+    "column_name": "total_gmv",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "videos",
+    "column_name": "affiliate_gmv",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "videos",
+    "column_name": "items_sold",
+    "udt_name": "int4"
+  },
+  {
+    "table_name": "videos",
+    "column_name": "orders",
+    "udt_name": "int4"
+  },
+  {
+    "table_name": "videos",
+    "column_name": "est_commission",
+    "udt_name": "numeric"
+  },
+  {
+    "table_name": "videos",
+    "column_name": "created_at",
+    "udt_name": "timestamptz"
+  },
+  {
+    "table_name": "videos",
+    "column_name": "updated_at",
+    "udt_name": "timestamptz"
+  },
+  {
+    "table_name": "videos",
+    "column_name": "tenant_id",
+    "udt_name": "uuid"
+  }
+]

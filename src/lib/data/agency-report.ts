@@ -41,7 +41,7 @@
  * shown as not invoiced rather than as zero.
  */
 import { createAdminClient } from '@/lib/supabase/server';
-import { getBrandRegistry } from '@/lib/data/brand-registry';
+import type { ClientReportContext } from '@/lib/auth/client-report-access';
 import { brandColor } from '@/lib/data/brand-registry-core';
 
 export interface AgencyBrandRow {
@@ -164,8 +164,8 @@ type Admin = Awaited<ReturnType<typeof createAdminClient>>;
  * ⚠️ A portfolio total silently absorbs a missing day. Naming the client and
  * the day is the difference between a total and a total you can trust.
  */
-async function findGaps(supabase: Admin, start: string, end: string): Promise<string[]> {
-  const { data, error } = await supabase.rpc('get_agency_coverage_gaps', { p_start: start, p_end: end });
+async function findGaps(supabase: Admin, start: string, end: string, context: ClientReportContext): Promise<string[]> {
+  const { data, error } = await supabase.rpc('get_agency_coverage_gaps_workspace', { p_tenant_id: context.tenantId, p_start: start, p_end: end });
   if (error) {
     console.error('[agency-report] coverage gap read failed:', error.message);
     return [];
@@ -188,6 +188,7 @@ async function findGaps(supabase: Admin, start: string, end: string): Promise<st
 async function buildTrend(
   supabase: Admin,
   end: Date,
+  context: ClientReportContext,
 ): Promise<(NonNullable<AgencySnapshot['trend']> & { gapSlugs: Array<{ slug: string; month: string }> }) | undefined> {
   const y = end.getUTCFullYear();
   const m = end.getUTCMonth();
@@ -201,7 +202,7 @@ async function buildTrend(
   }
   const start = `${months[0].key}-01`;
 
-  const { data, error } = await supabase.rpc('get_agency_trend', { p_start: start, p_end: iso(end) });
+  const { data, error } = await supabase.rpc('get_agency_trend_workspace', { p_tenant_id: context.tenantId, p_start: start, p_end: iso(end) });
   if (error) {
     console.error('[agency-report] trend read failed:', error.message);
     return undefined;
@@ -286,11 +287,16 @@ function monthKeyLabel(key: string): string {
  * ⚠️ Void or cancelled invoices are excluded: they were issued and withdrawn,
  * and counting them would bill a client twice on paper.
  */
-async function loadInvoices(supabase: Admin, start: string): Promise<Map<string, { total: number; count: number }>> {
+async function loadInvoices(supabase: Admin, start: string, context: ClientReportContext): Promise<Map<string, { total: number; count: number }>> {
   const out = new Map<string, { total: number; count: number }>();
+  const slugs = context.registry.rows.map(b => b.slug);
+  if (!slugs.length) return out;
+  const matches = await supabase.from('brands_v2').select('tenant_id', { count: 'exact' }).in('slug', slugs);
+  if (matches.error || !matches.data || matches.data.length !== matches.count || matches.count !== slugs.length
+      || matches.data.some(b => b.tenant_id !== context.tenantId)) throw new Error('Invoice brand ownership is ambiguous.');
   const { data, error } = await supabase
     .from('invoices')
-    .select('brand, total_amount, status')
+    .select('brand, total_amount, status').in('brand', slugs)
     .like('period_month', `${start.slice(0, 7)}%`);
   if (error) {
     console.error('[agency-report] invoice read failed:', error.message);
@@ -307,9 +313,9 @@ async function loadInvoices(supabase: Admin, start: string): Promise<Map<string,
   return out;
 }
 
-async function loadRosterQuality(supabase: Admin): Promise<Map<string, number>> {
+async function loadRosterQuality(supabase: Admin, context: ClientReportContext): Promise<Map<string, number>> {
   const out = new Map<string, number>();
-  const { data, error } = await supabase.rpc('get_agency_roster_quality');
+  const { data, error } = await supabase.rpc('get_agency_roster_quality_workspace', { p_tenant_id: context.tenantId });
   if (error) {
     console.error('[agency-report] roster quality read failed:', error.message);
     return out;
@@ -320,7 +326,7 @@ async function loadRosterQuality(supabase: Admin): Promise<Map<string, number>> 
   return out;
 }
 
-export async function buildAgencySnapshot(start: string, end: string): Promise<AgencySnapshot> {
+export async function buildAgencySnapshot(start: string, end: string, context: ClientReportContext): Promise<AgencySnapshot> {
   const supabase = await createAdminClient();
 
   // Prior period is the SAME length ending the day before this one starts, so
@@ -332,17 +338,17 @@ export async function buildAgencySnapshot(start: string, end: string): Promise<A
   const priorStart = new Date(priorEnd.getTime() - (days - 1) * 86_400_000);
 
   const [portfolio, reg, gapCaveats, trendRaw, invoices, quality] = await Promise.all([
-    supabase.rpc('get_agency_portfolio', {
+    supabase.rpc('get_agency_portfolio_workspace', { p_tenant_id: context.tenantId,
       p_start: start,
       p_end: end,
       p_prior_start: iso(priorStart),
       p_prior_end: iso(priorEnd),
     }),
-    getBrandRegistry(),
-    findGaps(supabase, start, end),
-    buildTrend(supabase, e),
-    loadInvoices(supabase, start),
-    loadRosterQuality(supabase),
+    Promise.resolve(context.registry),
+    findGaps(supabase, start, end, context),
+    buildTrend(supabase, e, context),
+    loadInvoices(supabase, start, context),
+    loadRosterQuality(supabase, context),
   ]);
   if (portfolio.error) {
     throw new Error(`[agency-report] get_agency_portfolio failed: ${portfolio.error.message}`);

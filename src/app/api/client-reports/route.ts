@@ -1,3 +1,4 @@
+import { reportGuard, clientReportContext, ClientReportAccessError } from '@/lib/auth/client-report-access';
 /**
  * Client report share links — outbox list + creation.
  *
@@ -48,11 +49,14 @@ interface ReportRow {
 export async function GET(req: NextRequest) {
   const scope = await getWorkspaceScope();
   if (!scope) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const denied = reportGuard(scope, 'read');
+  if (denied) return denied;
 
   const supabase = await createAdminClient();
   const { data, error } = await supabase
     .from('client_reports')
     .select('id, token, brand_slug, brand_name, period_label, created_by, created_at, viewed_at, revoked_at, refreshed_at')
+    .eq('tenant_id', scope.tenantId)
     .order('created_at', { ascending: false })
     .limit(100);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -84,6 +88,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const scope = await getWorkspaceScope();
   if (!scope) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const denied = reportGuard(scope, 'write');
+  if (denied) return denied;
 
   let body: { brand?: string; period?: unknown; notes?: string; plan?: string; reportType?: unknown };
   try {
@@ -118,7 +124,7 @@ export async function POST(req: NextRequest) {
   try {
     // reportType reaches the builder so a weekly report gets its movers block.
     // Nothing else about the snapshot differs by type.
-    const build = await buildClientReportSnapshot(brand, period, undefined, reportType);
+    const build = await buildClientReportSnapshot(brand, period, await clientReportContext(scope, brand), undefined, reportType);
 
     // created_by is internal outbox attribution only — never shown to clients.
     const session = await createClient();
@@ -129,6 +135,7 @@ export async function POST(req: NextRequest) {
     const { data: row, error } = await supabase
       .from('client_reports')
       .insert({
+        tenant_id: scope.tenantId,
         brand_slug: brand,
         brand_name: build.brandName,
         period_start: build.periodStart,
@@ -155,6 +162,6 @@ export async function POST(req: NextRequest) {
   } catch (err: unknown) {
     console.error('[client-reports] create failed:', err);
     const message = err instanceof Error ? err.message : 'Failed to create report';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: message }, { status: err instanceof ClientReportAccessError ? 403 : 500 });
   }
 }

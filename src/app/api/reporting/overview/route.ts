@@ -1,3 +1,4 @@
+import { reportGuard, getClientReportRegistry } from '@/lib/auth/client-report-access';
 /**
  * Reporting overview — one row per client brand.
  *
@@ -14,7 +15,7 @@
 import { NextResponse } from 'next/server';
 import { getWorkspaceScope, isBrandInScope } from '@/lib/auth/workspace-scope';
 import { createAdminClient } from '@/lib/supabase/server';
-import { getBrandRegistry, expandSlugs, brandLabel, brandColor } from '@/lib/data/brand-registry';
+import { expandSlugs, brandLabel, brandColor } from '@/lib/data/brand-registry';
 import { buildShareMessage } from '@/lib/data/client-reports';
 
 export const runtime = 'nodejs';
@@ -95,13 +96,17 @@ export async function GET() {
   if (!scope) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const supabase = await createAdminClient();
-  const reg = await getBrandRegistry();
+  const denied = reportGuard(scope, 'read');
+  if (denied) return denied;
+  const reg = await getClientReportRegistry(scope);
+  const dataSlugs = [...new Set(reg.rows.filter(b => isBrandInScope(scope, b)).flatMap(b => expandSlugs(reg, b.slug)))];
 
   const [covRes, reportsRes] = await Promise.all([
-    supabase.rpc('get_reporting_coverage', { p_days: COVERAGE_DAYS }),
+    supabase.rpc('get_reporting_coverage_workspace', { p_tenant_id: scope.tenantId, p_brands: dataSlugs, p_days: COVERAGE_DAYS }),
     supabase
       .from('client_reports')
       .select('id, token, brand_slug, period_label, created_at, viewed_at, revoked_at, notes, plan')
+      .eq('tenant_id', scope.tenantId)
       .order('created_at', { ascending: false }),
   ]);
 

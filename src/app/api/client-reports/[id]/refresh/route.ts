@@ -1,3 +1,4 @@
+import { reportGuard, clientReportContext, ClientReportAccessError } from '@/lib/auth/client-report-access';
 /**
  * POST /api/client-reports/[id]/refresh — rebuild a report's numbers IN PLACE.
  *
@@ -42,6 +43,8 @@ export const maxDuration = 180;
 export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const scope = await getWorkspaceScope();
   if (!scope) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const denied = reportGuard(scope, 'write');
+  if (denied) return denied;
 
   const { id } = await ctx.params;
   const supabase = await createAdminClient();
@@ -49,7 +52,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
   const { data: row, error: fetchErr } = await supabase
     .from('client_reports')
     .select('id, token, brand_slug, period_start, period_end, revoked_at, report_type')
-    .eq('id', id)
+    .eq('id', id).eq('tenant_id', scope.tenantId)
     .maybeSingle();
   if (fetchErr) return NextResponse.json({ error: fetchErr.message }, { status: 500 });
   if (!row) return NextResponse.json({ error: 'Not found' }, { status: 404 });
@@ -72,6 +75,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
     const build = await buildClientReportSnapshot(
       row.brand_slug,
       { start: row.period_start as string, end: row.period_end as string },
+      await clientReportContext(scope, row.brand_slug),
       undefined,
       (row.report_type as 'performance' | 'weekly' | 'monthly' | null) ?? 'performance',
     );
@@ -87,7 +91,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
         brand_name: build.brandName,
         refreshed_at: new Date().toISOString(),
       })
-      .eq('id', id);
+      .eq('id', id).eq('tenant_id', scope.tenantId);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
     return NextResponse.json({
@@ -100,6 +104,6 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
   } catch (err: unknown) {
     console.error('[client-reports] refresh failed:', err);
     const message = err instanceof Error ? err.message : 'Failed to refresh the report';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: message }, { status: err instanceof ClientReportAccessError ? 403 : 500 });
   }
 }

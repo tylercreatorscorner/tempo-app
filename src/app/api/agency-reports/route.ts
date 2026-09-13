@@ -1,3 +1,4 @@
+import { reportGuard, clientReportContext } from '@/lib/auth/client-report-access';
 /**
  * POST /api/agency-reports — freeze a portfolio report and mint its link.
  *
@@ -21,7 +22,9 @@ const ISO = /^\d{4}-\d{2}-\d{2}$/;
 export async function POST(req: NextRequest) {
   const scope = await getWorkspaceScope();
   if (!scope) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (scope.role !== 'owner' && scope.role !== 'admin') {
+  const denied = reportGuard(scope, 'write');
+  if (denied) return denied;
+  if ((scope.role !== 'owner' && scope.role !== 'admin') || !scope.canViewFinance || scope.brandScope.kind !== 'all') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
@@ -39,7 +42,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const snapshot = await buildAgencySnapshot(start, end);
+    const snapshot = await buildAgencySnapshot(start, end, await clientReportContext(scope, 'all'));
 
     const session = await createClient();
     const { data: userData } = await session.auth.getUser();
@@ -48,6 +51,7 @@ export async function POST(req: NextRequest) {
     const { data: row, error } = await supabase
       .from('agency_reports')
       .insert({
+        tenant_id: scope.tenantId,
         period_start: start,
         period_end: end,
         period_label: snapshot.periodLabel,

@@ -1,3 +1,4 @@
+import type { ClientReportContext } from '@/lib/auth/client-report-access';
 /**
  * Brand Client Report — data fetcher.
  *
@@ -25,8 +26,8 @@
  * otherwise return empty windows.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { createClient } from '@/lib/supabase/server';
-import { getBrandRegistry, expandSlugs, type BrandRegistry } from '@/lib/data/brand-registry';
+import { createAdminClient } from '@/lib/supabase/server';
+import { expandSlugs, type BrandRegistry } from '@/lib/data/brand-registry';
 
 export type ReportPeriod = '7d' | '30d';
 
@@ -406,7 +407,7 @@ function formatDate(d: Date): string {
  * empty) returns null = no brand filter (every brand).
  */
 function getBrandDataSlugs(reg: BrandRegistry, brandFilter: string): string[] | null {
-  if (!brandFilter || brandFilter === 'all') return null;
+  if (!brandFilter || brandFilter === 'all') return reg.rows.map(b => b.slug);
   return expandSlugs(reg, brandFilter);
 }
 
@@ -422,7 +423,7 @@ function pctChange(curr: number, prior: number): number | null {
 // headline GMV is from one week and "Top Videos" is from another (or empty).
 // Using the oldest shared date guarantees every section reports on the
 // same window, even if it means the report is a few weeks behind real time.
-async function resolveSharedAnchor(supabase: SupabaseClient, brandSlugs: string[] | null): Promise<Date> {
+async function resolveSharedAnchor(supabase: SupabaseClient, brandSlugs: string[] | null, tenantId: string): Promise<Date> {
   // Anchor to the oldest of the latest dates across the creator- and
   // video-level source tables so every section reports on the same window.
   const tables: ('creator_performance' | 'video_performance')[] = [
@@ -431,7 +432,7 @@ async function resolveSharedAnchor(supabase: SupabaseClient, brandSlugs: string[
   ];
   const latests = await Promise.all(tables.map(async (t) => {
     let q = supabase.from(t).select('report_date')
-      .eq('period_type', 'daily')
+      .eq('tenant_id', tenantId).eq('period_type', 'daily')
       .order('report_date', { ascending: false }).limit(1);
     if (brandSlugs) q = q.in('brand', brandSlugs);
     const { data } = await q;
@@ -483,7 +484,8 @@ function num(v: unknown): number {
 export async function getBrandClientReportData(
   brandSlug: string,
   brandName: string,
-  period: ReportPeriod | { start: string; end: string } = '7d',
+  period: ReportPeriod | { start: string; end: string },
+  context: ClientReportContext,
   /**
    * Optional pre-built Supabase client. The brand portal passes the admin
    * client here - access is already validated at the layout level. The
@@ -491,14 +493,14 @@ export async function getBrandClientReportData(
    */
   clientOverride?: SupabaseClient,
 ): Promise<BrandClientReportData> {
-  const supabase = clientOverride ?? (await createClient());
-  const reg = await getBrandRegistry();
+  const supabase = clientOverride ?? (await createAdminClient());
+  const reg = context.registry;
   const brandSlugs = getBrandDataSlugs(reg, brandSlug);
 
   // Managed-roster grain: managed_creators rows live at the umbrella/roster
   // slug. For a store slug include its parent umbrella so store-grain runs
   // stop returning an empty managed set (the old exact-match did).
-  let rosterSlugs: string[] | null = null;
+  let rosterSlugs: string[] | null = reg.rows.map(b => b.slug);
   if (brandSlug && brandSlug !== 'all') {
     const row = reg.bySlug.get(brandSlug);
     const parentSlug = row?.parent_brand_id ? reg.byId.get(row.parent_brand_id)?.slug : undefined;
@@ -516,7 +518,7 @@ export async function getBrandClientReportData(
     periodDays = Math.max(1, Math.round((endDate.getTime() - startDate.getTime()) / 86_400_000) + 1);
   } else {
     periodDays = period === '30d' ? 30 : 7;
-    const today = await resolveSharedAnchor(supabase, brandSlugs);
+    const today = await resolveSharedAnchor(supabase, brandSlugs, context.tenantId);
     endDate = new Date(today);
     endDate.setDate(today.getDate() - 1);
     startDate = new Date(endDate);
@@ -530,7 +532,8 @@ export async function getBrandClientReportData(
   const priorStart = new Date(priorEnd);
   priorStart.setDate(priorEnd.getDate() - (periodDays - 1));
 
-  const { data: aggRaw, error: aggErr } = await supabase.rpc('get_brand_client_report_agg', {
+  const { data: aggRaw, error: aggErr } = await supabase.rpc('get_brand_client_report_agg_workspace', {
+      p_tenant_id: context.tenantId,
     p_data_slugs: brandSlugs,
     p_roster_slugs: rosterSlugs,
     p_start: formatDate(startDate),
@@ -644,13 +647,15 @@ export async function getBrandClientReportData(
   const wantMonthToDate = !windowIsWholeMonth;
 
   const [granularRes, countsRes, splitRes, mtdRes, signingsRes] = await Promise.all([
-    supabase.rpc('get_brand_client_report_granular', {
+    supabase.rpc('get_brand_client_report_granular_workspace', {
+      p_tenant_id: context.tenantId,
       p_data_slugs: brandSlugs,
       p_roster_slugs: rosterSlugs,
       p_start: formatDate(startDate),
       p_end: formatDate(endDate),
     }),
-    supabase.rpc('get_brand_client_report_counts', {
+    supabase.rpc('get_brand_client_report_counts_workspace', {
+      p_tenant_id: context.tenantId,
       p_data_slugs: brandSlugs,
       p_roster_slugs: rosterSlugs,
       p_start: formatDate(startDate),
@@ -658,7 +663,8 @@ export async function getBrandClientReportData(
       p_prior_start: formatDate(priorStart),
       p_prior_end: formatDate(priorEnd),
     }),
-    supabase.rpc('get_brand_client_report_managed_split', {
+    supabase.rpc('get_brand_client_report_managed_split_workspace', {
+      p_tenant_id: context.tenantId,
       p_data_slugs: brandSlugs,
       p_roster_slugs: rosterSlugs,
       p_start: formatDate(startDate),
@@ -667,7 +673,8 @@ export async function getBrandClientReportData(
       p_prior_end: formatDate(priorEnd),
     }),
     wantMonthToDate
-      ? supabase.rpc('get_brand_client_report_granular', {
+      ? supabase.rpc('get_brand_client_report_granular_workspace', {
+      p_tenant_id: context.tenantId,
           p_data_slugs: brandSlugs,
           p_roster_slugs: rosterSlugs,
           p_start: formatDate(monthStart),
@@ -675,7 +682,8 @@ export async function getBrandClientReportData(
         })
       : Promise.resolve({ data: null, error: null }),
     // Small table (1,935 rows), so this is cheap next to the granular passes.
-    supabase.rpc('get_brand_report_signings', {
+    supabase.rpc('get_brand_report_signings_workspace', {
+      p_tenant_id: context.tenantId,
       p_roster_slugs: rosterSlugs,
       p_end: formatDate(endDate),
     }),

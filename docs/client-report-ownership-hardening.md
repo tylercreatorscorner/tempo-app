@@ -1,0 +1,23 @@
+# Client report workspace ownership
+
+Outcome: fixed at the report management and generation boundaries. Deployment status is recorded in the release ledger.
+
+Previously, a full-scope workspace user could list foreign report tokens or edit, refresh and revoke foreign report IDs through service-role queries. Client and agency snapshot builders also used global registries and unscoped aggregate functions. The required invariant is that authenticated report management and every newly generated data component belong to the caller's workspace and authorized brand. Opaque public tokens continue to serve their frozen snapshots until revoked.
+
+The patch adds persisted tenant ownership to client_reports, agency_reports and report_log, tenant predicates to management reads/writes, reporting read/write and view-as guards, and an explicit verified context shared by report builders. Fourteen service-only, security-invoker SQL variants filter source relations by tenant before joins and aggregation. Their source CTEs are NOT MATERIALIZED so date and brand filters can still reach indexes. Named store reports retain parent-roster semantics; assigned umbrellas expand to their own stores. Public CSV/PDF/page readers keep frozen content, with stored-tenant filtering for the live logo lookup.
+
+Migration 20260913223906_report_workspace_ownership was applied. Read-only verification found all 111 client reports, nine agency reports and 38 activity entries owned after evidence-based backfill. Existing token, snapshot, notes, plan, viewed and revocation values are not rewritten. Ambiguous historical ownership stays null and is unavailable for authenticated management. All inspected source-fact/roster/handle tables had no null tenant ownership.
+
+Changed paths: src/lib/auth/client-report-access.ts; client-reports, brand-client-report and agency-report data modules; client-reports CRUD/preview/refresh/revoke APIs; agency-reports, report-log, reporting overview/freshness, brand-client summary/PDF APIs; public report PDF/page logo lookup; maintenance refresh script; the ownership migration and regression scripts. Baseline SQL/schema fixtures contain definitions only, not production rows or credentials.
+
+Validation in order:
+
+1. `git diff --check`, `npm run typecheck`: passed.
+2. `npm run test:report-workspace`: passed. PGlite executes the actual migration and all 14 calculations. Populated creator, video, granular roster and retainer fixtures match the original SQL results. Adding a second tenant with the same slug and large foreign values does not alter any first-tenant component. Actual route tests deny foreign IDs/tokens, missing capabilities and view-as mutations; preserve edits, notes and token through refresh; test assigned umbrella/store and sibling isolation. Actual public CSV/PDF/page functions read frozen data without regeneration, select the tenant's logo and deny revoked tokens.
+3. `npm run test:ci`: passed with subprocess execution enabled (the initial sandbox run reached esbuild and failed with EPERM). `npm run lint:hardening`: passed, with the existing unused reportType warning in the snapshot builder. Narrow tests/typecheck/lint were rerun after the final reviewer correction. Release CI additionally builds Next.js.
+
+The independent final reviewer found that requiring separate assignments for every related store/parent broke existing manager workflows. Confirmed against workspace-scope and corrected; umbrella-only and store-only fixtures now pass and unassigned siblings remain denied. No second review cycle was used.
+
+Live verification: catalog confirms inspected scoped functions deny anonymous/authenticated execution, allow service role and use security invoker. Security advisors report no new scoped-function finding; unrelated existing advisories remain. A large Lemme monthly aggregate exceeded the initial 25-second test budget; individual original and scoped calls both completed in later checks (tool wall times roughly 26–28 seconds, not controlled benchmarks). No live reports were created, refreshed or revoked for testing, and no messages or invitations were sent.
+
+Limits: the legacy lifetime cache lacks tenant ownership, so this builder reads tenant-scoped source facts instead. This can add generation time; existing public links do not regenerate and are unaffected. Agency invoice enrichment still uses legacy slug-keyed invoices and refuses ambiguous ownership. Older global RPCs remain for separate callers and are not covered by a platform-wide security claim. Role assignment UI, finance presets and broader performance work remain separate product work. No current account assignments changed.

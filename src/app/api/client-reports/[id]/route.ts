@@ -1,3 +1,4 @@
+import { reportGuard } from '@/lib/auth/client-report-access';
 /**
  * PATCH /api/client-reports/[id] — edit a live report's notes and forward plan.
  *
@@ -36,6 +37,8 @@ const MAX_LEN = 2000;
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const scope = await getWorkspaceScope();
   if (!scope) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const denied = reportGuard(scope, 'write');
+  if (denied) return denied;
 
   const { id } = await ctx.params;
   if (!id) return NextResponse.json({ error: 'Missing report id' }, { status: 400 });
@@ -81,7 +84,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const { data: row, error: fetchErr } = await supabase
     .from('client_reports')
     .select('id, brand_slug, revoked_at')
-    .eq('id', id)
+    .eq('id', id).eq('tenant_id', scope.tenantId)
     .maybeSingle();
   if (fetchErr) return NextResponse.json({ error: fetchErr.message }, { status: 500 });
   if (!row) return NextResponse.json({ error: 'Not found' }, { status: 404 });
@@ -98,7 +101,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     return NextResponse.json({ error: 'That link is revoked. Generate a new report instead.' }, { status: 409 });
   }
 
-  const { error } = await supabase.from('client_reports').update(patch).eq('id', id);
+  const { error } = await supabase.from('client_reports').update(patch).eq('id', id).eq('tenant_id', scope.tenantId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   return NextResponse.json({ ok: true, id, updated: Object.keys(patch) });

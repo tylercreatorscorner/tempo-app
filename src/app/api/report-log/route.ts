@@ -1,3 +1,4 @@
+import { reportGuard, clientReportContext } from '@/lib/auth/client-report-access';
 /**
  * report_log — creator-post entries in the outbox feed.
  *
@@ -28,11 +29,14 @@ interface LogRow {
 export async function GET() {
   const scope = await getWorkspaceScope();
   if (!scope) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const denied = reportGuard(scope, 'read');
+  if (denied) return denied;
 
   const supabase = await createAdminClient();
   const { data, error } = await supabase
     .from('report_log')
     .select('id, report_type, format, brand_slug, period_label, destination, created_by, created_at')
+    .eq('tenant_id', scope.tenantId)
     .order('created_at', { ascending: false })
     .limit(100);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -58,6 +62,8 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const scope = await getWorkspaceScope();
   if (!scope) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const denied = reportGuard(scope, 'write');
+  if (denied) return denied;
 
   let body: {
     reportType?: string;
@@ -83,6 +89,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
+  try { await clientReportContext(scope, brand); } catch { return NextResponse.json({ error: 'Forbidden' }, { status: 403 }); }
   const session = await createClient();
   const { data: userData } = await session.auth.getUser();
 
@@ -90,6 +97,7 @@ export async function POST(req: NextRequest) {
   const { data: row, error } = await supabase
     .from('report_log')
     .insert({
+        tenant_id: scope.tenantId,
       report_type: reportType,
       format: typeof body.format === 'string' && body.format ? body.format.slice(0, 40) : null,
       brand_slug: brand,
