@@ -4,6 +4,7 @@ import { createServerClient } from '@supabase/ssr';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { assertNotImpersonating } from '@/lib/auth/platform-admin';
 import { revalidatePath } from 'next/cache';
+import { inviteWorkspaceMember } from '@/lib/auth/invite-workspace-member';
 
 /**
  * Fresh anon-key Supabase client with no session attached. Used to trigger
@@ -41,61 +42,11 @@ async function editableMember(context: Awaited<ReturnType<typeof assertOwnerOrAd
 }
 
 export async function inviteUser(email: string, role: string, canViewFinance = true) {
-  const { admin, tenantId } = await assertOwnerOrAdmin();
-
-  // Coach is a hard finance no — enforce server-side regardless of what the
-  // client passed (the invite UI hides the toggle, but never trust that alone).
-  const finance = role === 'coach' ? false : canViewFinance;
-
-  // Try to invite a brand-new user first
-  const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
-    redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback`,
-  });
-
-  let userId: string | null = null;
-
-  if (error) {
-    const alreadyRegistered = /already.*registered|already.*exists/i.test(error.message);
-    if (!alreadyRegistered) throw new Error(error.message);
-
-    // User exists in auth.users — look them up and trigger a magic-link email.
-    // generateLink() only returns the URL; signInWithOtp() actually sends the email.
-    const { data: list } = await admin.auth.admin.listUsers();
-    const existing = list?.users?.find((u) => u.email?.toLowerCase() === email.toLowerCase());
-    if (!existing) throw new Error('User exists but could not be located.');
-    userId = existing.id;
-
-    const anon = createAnonClient();
-    const { error: otpError } = await anon.auth.signInWithOtp({
-      email,
-      options: {
-        shouldCreateUser: false,
-        emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback`,
-      },
-    });
-    if (otpError) throw new Error(`Found existing account but failed to send magic link: ${otpError.message}`);
-  } else {
-    userId = data.user.id;
-  }
-
-  if (!userId) throw new Error('Could not resolve user id.');
-
-  // Upsert profile (creates it for brand-new users, updates role/tenant for existing ones)
-  const { error: upsertError } = await admin.from('user_profiles').upsert({
-    user_id: userId,
-    email,
-    role,
-    tenant_id: tenantId,
-    status: 'active',
-    can_view_finance: finance,
-  }, { onConflict: 'user_id' });
-  if (upsertError) throw new Error(`Profile upsert failed: ${upsertError.message}`);
-
+  const result = await inviteWorkspaceMember({email,role,canViewFinance});
   revalidatePath('/settings');
   revalidatePath('/team');
-  return { userId };
+  return {userId:result.userId};
 }
-
 export async function updateUserRole(userId: string, role: string) {
   const context = await assertOwnerOrAdmin();
   if (!['admin', 'manager', 'coach', 'brand'].includes(role)) throw new Error('Unsupported team role.');
@@ -193,3 +144,4 @@ export async function updateBrandAccess(userId: string, brandIds: string[], tena
   revalidatePath('/settings');
   revalidatePath('/team');
 }
+
