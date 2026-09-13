@@ -1,3 +1,4 @@
+import { reportGuard, clientReportContext, ClientReportAccessError } from '@/lib/auth/client-report-access';
 /**
  * Brand Client Report — PDF download endpoint.
  *
@@ -13,7 +14,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { renderToBuffer } from '@react-pdf/renderer';
 import { getBrandClientReportData, type ReportPeriod } from '@/lib/data/brand-client-report';
 import { BrandClientReportPDF } from '@/lib/pdf/brand-client-report-pdf';
-import { getBrandRegistry, brandLabel } from '@/lib/data/brand-registry';
+import { brandLabel } from '@/lib/data/brand-registry';
 import { getWorkspaceScope, isBrandInScope } from '@/lib/auth/workspace-scope';
 
 export const runtime = 'nodejs';
@@ -42,13 +43,16 @@ export async function GET(request: NextRequest) {
       ? { start: startParam, end: endParam }
       : (searchParams.get('period') === '30d' ? '30d' : '7d');
   const customRange = typeof period === 'object';
-  const reg = await getBrandRegistry();
+  const denied = reportGuard(scope, 'read');
+  if (denied) return denied;
+  try {
+  const context = await clientReportContext(scope, brand);
+  const reg = context.registry;
   const brandName = brand === 'all'
     ? 'All Brands'
     : (searchParams.get('name') || brandLabel(reg, brand));
 
-  try {
-    const data = await getBrandClientReportData(brand, brandName, period);
+    const data = await getBrandClientReportData(brand, brandName, period, context);
     // Call as function — renderToBuffer needs a ReactElement<DocumentProps>, not a wrapper
     // Which template to render. The frozen-token route reads this from the
     // client_reports row; here it is a query param so an admin can pull a
@@ -76,6 +80,6 @@ export async function GET(request: NextRequest) {
   } catch (err: unknown) {
     console.error('Brand client PDF error:', err);
     const message = err instanceof Error ? err.message : 'Failed to generate PDF';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: message }, { status: err instanceof ClientReportAccessError ? 403 : 500 });
   }
 }

@@ -1,3 +1,4 @@
+import { reportGuard } from '@/lib/auth/client-report-access';
 /**
  * POST /api/client-reports/[id]/revoke — kill a share link.
  *
@@ -13,6 +14,8 @@ export const runtime = 'nodejs';
 export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const scope = await getWorkspaceScope();
   if (!scope) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const denied = reportGuard(scope, 'write');
+  if (denied) return denied;
 
   const { id } = await ctx.params;
   const supabase = await createAdminClient();
@@ -20,7 +23,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
   const { data: row, error: fetchErr } = await supabase
     .from('client_reports')
     .select('id, brand_slug, revoked_at')
-    .eq('id', id)
+    .eq('id', id).eq('tenant_id', scope.tenantId)
     .maybeSingle();
   if (fetchErr) return NextResponse.json({ error: fetchErr.message }, { status: 500 });
   if (!row) return NextResponse.json({ error: 'Not found' }, { status: 404 });
@@ -32,7 +35,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
     const { error } = await supabase
       .from('client_reports')
       .update({ revoked_at: new Date().toISOString() })
-      .eq('id', id);
+      .eq('id', id).eq('tenant_id', scope.tenantId);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   }
 

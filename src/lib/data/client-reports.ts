@@ -1,3 +1,4 @@
+import type { ClientReportContext } from '@/lib/auth/client-report-access';
 /**
  * Client report share links — snapshot creation + helpers.
  *
@@ -13,8 +14,8 @@
  * the trend does NOT read daily_creator_stats.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { createClient } from '@/lib/supabase/server';
-import { getBrandRegistry, expandSlugs, brandLabel } from '@/lib/data/brand-registry';
+import { createAdminClient } from '@/lib/supabase/server';
+import { expandSlugs, brandLabel } from '@/lib/data/brand-registry';
 import {
   getBrandClientReportData,
   type BrandClientReportData,
@@ -140,6 +141,7 @@ export function reviveReportDates(r: BrandClientReportData): BrandClientReportDa
 export async function buildClientReportSnapshot(
   brandSlug: string,
   period: ClientReportPeriod,
+  context: ClientReportContext,
   /**
    * Optional pre-built Supabase client, matching getBrandClientReportData's
    * own escape hatch. The routes leave this unset and get the cookie client;
@@ -156,11 +158,11 @@ export async function buildClientReportSnapshot(
    */
   reportType: 'performance' | 'weekly' | 'monthly' = 'performance',
 ): Promise<SnapshotBuild> {
-  const supabase = clientOverride ?? (await createClient());
-  const reg = await getBrandRegistry();
+  const supabase = clientOverride ?? (await createAdminClient());
+  const reg = context.registry;
   const brandName = brandSlug === 'all' ? 'All Brands' : brandLabel(reg, brandSlug);
 
-  const report = await getBrandClientReportData(brandSlug, brandName, period, clientOverride);
+  const report = await getBrandClientReportData(brandSlug, brandName, period, context, clientOverride);
 
   // Mirror the fetcher's prior-window math (it doesn't return prior dates).
   const pEnd = new Date(report.startDate);
@@ -168,12 +170,12 @@ export async function buildClientReportSnapshot(
   const pStart = new Date(pEnd);
   pStart.setDate(pStart.getDate() - (report.periodLengthDays - 1));
 
-  const dataSlugs = brandSlug && brandSlug !== 'all' ? expandSlugs(reg, brandSlug) : null;
+  const dataSlugs = brandSlug && brandSlug !== 'all' ? expandSlugs(reg, brandSlug) : reg.rows.map(b => b.slug);
   // Roster grain differs from data grain: managed_creators rows live at the
   // umbrella slug, so a store-slug run must include its parent or the managed
   // set comes back empty. Mirrors getBrandClientReportData.
   const rosterSlugs = (() => {
-    if (!brandSlug || brandSlug === 'all') return null;
+    if (!brandSlug || brandSlug === 'all') return reg.rows.map(b => b.slug);
     const row = reg.bySlug.get(brandSlug);
     const parent = row?.parent_brand_id ? reg.byId.get(row.parent_brand_id)?.slug : undefined;
     return parent ? [brandSlug, parent] : [brandSlug];
@@ -194,37 +196,10 @@ export async function buildClientReportSnapshot(
     .map((v) => extractTikTokVideoId(v.videoUrl))
     .filter((id): id is string => id !== null);
 
-  /**
-   * Lifetime figures come from the cache when it can honestly cover this
-   * window, and are computed live when it cannot.
-   *
-   * get_brand_report_extras costs ~12.4s for Lemme, and only ~600ms of that is
-   * windowed work — the rest is two CTEs rescanning the brand's ENTIRE history
-   * on every report, a cost that grows forever. brand_lifetime_daily (mig 156)
-   * holds that as a DAILY SERIES, so "lifetime as of p_end" stays exact for a
-   * historical window instead of silently becoming today's total.
-   *
-   * ⚠️ get_brand_lifetime returns NULL rather than guessing when its cache was
-   * computed through a date EARLIER than this report needs — which happens
-   * routinely right after an upload lands. That is the whole failsafe: we fall
-   * back to the original function and eat the 12s. Slower, never wrong.
-   *
-   * The cache is verified against source on every refresh with a ZERO
-   * tolerance (GMV is a deterministic sum), and every check is written to
-   * brand_lifetime_cache_audit. brand_daily_stats is the cautionary tale: same
-   * idea, no verification, and it is currently wrong by $1.2M on two brands
-   * while refreshing every 20 minutes.
-   */
-  const { data: lifetimeRaw } = await supabase.rpc('get_brand_lifetime', {
-    p_brands: dataSlugs,
-    p_through: fmtDate(report.endDate),
-  });
-  const cachedLifetime = lifetimeRaw as
-    | { gmv: number; first_date: string | null; videos: number;
-        weekly: Array<{ week_end: string; gmv: number }>; best_week: number | null }
-    | null;
-
+  // The old lifetime cache has no tenant ownership. Read scoped source facts
+  // until a tenant-aware cache can preserve the same historical-window contract.
   const extrasArgs = {
+    p_tenant_id: context.tenantId,
     p_data_slugs: dataSlugs,
     p_start: fmtDate(report.startDate),
     p_end: fmtDate(report.endDate),
@@ -233,32 +208,12 @@ export async function buildClientReportSnapshot(
     p_video_ids: videoIds.length > 0 ? videoIds : null,
   };
 
-  const { data: extrasRaw, error: extrasErr } = cachedLifetime
-    ? await supabase.rpc('get_brand_report_extras_windowed', extrasArgs)
-    : await supabase.rpc('get_brand_report_extras', extrasArgs);
+  const { data: extrasRaw, error: extrasErr } = await supabase.rpc('get_brand_report_extras_workspace', extrasArgs);
   if (extrasErr) {
     throw new Error(`[client-reports] get_brand_report_extras failed: ${extrasErr.message}`);
   }
   /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-  const extrasBase = (extrasRaw ?? {}) as Record<string, any>;
-
-  // Merge so everything downstream reads one shape regardless of which path
-  // produced it. Verified identical on Lemme: gmv 3,145,993.18, best week
-  // 469,620.95, first date 2026-04-24, 98,031 videos, and all 12 weekly
-  // buckets matching to the cent.
-  /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-  const extras: Record<string, any> = cachedLifetime
-    ? {
-        ...extrasBase,
-        weekly: cachedLifetime.weekly ?? [],
-        lifetime: {
-          gmv: cachedLifetime.gmv,
-          best_week: cachedLifetime.best_week,
-          first_date: cachedLifetime.first_date,
-        },
-        lifetime_videos: cachedLifetime.videos,
-      }
-    : extrasBase;
+  const extras = (extrasRaw ?? {}) as Record<string, any>;
 
   const videoViews: Record<string, number> = {};
   for (const row of (extras.video_views ?? []) as Array<{ video_id: string; views: number }>) {
@@ -282,7 +237,8 @@ export async function buildClientReportSnapshot(
    */
   const rosterWeekly = new Map<string, number>();
   {
-    const { data: rw, error: rwErr } = await supabase.rpc('get_brand_roster_weekly', {
+    const { data: rw, error: rwErr } = await supabase.rpc('get_brand_roster_weekly_workspace', {
+      p_tenant_id: context.tenantId,
       p_data_slugs: dataSlugs,
       p_roster_slugs: rosterSlugs,
       p_through: fmtDate(report.endDate),
@@ -326,7 +282,8 @@ export async function buildClientReportSnapshot(
    */
   let movers: ClientReportSnapshot['movers'] = null;
   {
-    const { data: mv, error: mvErr } = await supabase.rpc('get_brand_client_report_movers', {
+    const { data: mv, error: mvErr } = await supabase.rpc('get_brand_client_report_movers_workspace', {
+      p_tenant_id: context.tenantId,
       p_data_slugs: dataSlugs,
       p_roster_slugs: rosterSlugs,
       p_start: fmtDate(report.startDate),

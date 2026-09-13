@@ -1,0 +1,1293 @@
+-- Persist management ownership; frozen snapshots and bearer tokens remain unchanged.
+ALTER TABLE public.client_reports ADD COLUMN tenant_id uuid REFERENCES public.tenants(id);
+ALTER TABLE public.agency_reports ADD COLUMN tenant_id uuid REFERENCES public.tenants(id);
+ALTER TABLE public.report_log ADD COLUMN tenant_id uuid REFERENCES public.tenants(id);
+
+-- Named historical reports require agreement between their author and brand owner.
+UPDATE public.client_reports r SET tenant_id = u.tenant_id
+FROM public.user_profiles u
+WHERE lower(u.email) = lower(r.created_by) AND u.tenant_id IS NOT NULL
+AND (SELECT count(*) FROM public.user_profiles x WHERE lower(x.email)=lower(r.created_by)) = 1
+AND EXISTS (SELECT 1 FROM public.brands_v2 b WHERE b.slug=r.brand_slug AND b.tenant_id=u.tenant_id)
+AND (SELECT count(*) FROM public.brands_v2 b WHERE b.slug=r.brand_slug)=1;
+-- Activity attribution does not grant access to a frozen report payload.
+UPDATE public.report_log r SET tenant_id = u.tenant_id FROM public.user_profiles u
+WHERE lower(u.email)=lower(r.created_by) AND u.tenant_id IS NOT NULL
+AND (SELECT count(*) FROM public.user_profiles x WHERE lower(x.email)=lower(r.created_by))=1
+AND (r.brand_slug='all' OR EXISTS(SELECT 1 FROM public.brands_v2 b WHERE b.slug=r.brand_slug AND b.tenant_id=u.tenant_id));
+-- Legacy agency snapshots were global. Assign only when every snapshotted brand
+-- unambiguously belongs to the author's tenant; never rebuild their numbers.
+UPDATE public.agency_reports r SET tenant_id=u.tenant_id FROM public.user_profiles u
+WHERE lower(u.email)=lower(r.created_by) AND u.tenant_id IS NOT NULL
+AND (SELECT count(*) FROM public.user_profiles x WHERE lower(x.email)=lower(r.created_by))=1
+AND jsonb_typeof(r.snapshot->'brands')='array' AND jsonb_array_length(r.snapshot->'brands')>0
+AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(r.snapshot->'brands') b
+ WHERE NOT EXISTS (SELECT 1 FROM public.brands_v2 v WHERE v.slug=b->>'slug' AND v.tenant_id=u.tenant_id)
+ OR (SELECT count(*) FROM public.brands_v2 v WHERE v.slug=b->>'slug')<>1);
+CREATE INDEX client_reports_tenant_created_idx ON public.client_reports(tenant_id, created_at DESC);
+ALTER TABLE public.client_reports ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.client_reports FROM PUBLIC, anon, authenticated;
+CREATE INDEX agency_reports_tenant_created_idx ON public.agency_reports(tenant_id, created_at DESC);
+ALTER TABLE public.agency_reports ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.agency_reports FROM PUBLIC, anon, authenticated;
+CREATE INDEX report_log_tenant_created_idx ON public.report_log(tenant_id, created_at DESC);
+ALTER TABLE public.report_log ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.report_log FROM PUBLIC, anon, authenticated;
+DO $permissions$ DECLARE r record; BEGIN
+FOR r IN SELECT table_name,column_name FROM information_schema.columns WHERE table_schema='public' AND table_name IN ('client_reports','agency_reports','report_log') LOOP
+ EXECUTE format('REVOKE SELECT (%I), INSERT (%I), UPDATE (%I), REFERENCES (%I) ON public.%I FROM PUBLIC, anon, authenticated',r.column_name,r.column_name,r.column_name,r.column_name,r.table_name);
+END LOOP; END $permissions$;
+
+-- Scoped variants retain the existing calculations but restrict source relations
+-- before any joins, sums, leaderboards or window calculations. Service role only.
+CREATE OR REPLACE FUNCTION public.get_brand_client_report_agg_workspace(p_tenant_id uuid, p_data_slugs text[], p_roster_slugs text[], p_start date, p_end date, p_prior_start date, p_prior_end date)
+ RETURNS jsonb
+ LANGUAGE sql
+ STABLE SECURITY INVOKER
+ SET search_path TO 'public'
+ SET statement_timeout TO '60s'
+AS $function$
+WITH scoped_creator_performance AS NOT MATERIALIZED (SELECT * FROM public.creator_performance WHERE tenant_id = p_tenant_id),
+scoped_video_performance AS NOT MATERIALIZED (SELECT * FROM public.video_performance WHERE tenant_id = p_tenant_id),
+scoped_managed_creators AS NOT MATERIALIZED (SELECT * FROM public.managed_creators WHERE tenant_id = p_tenant_id),
+scoped_tiktok_accounts AS NOT MATERIALIZED (SELECT * FROM public.tiktok_accounts WHERE tenant_id = p_tenant_id),
+scoped_videos AS NOT MATERIALIZED (SELECT * FROM public.videos WHERE tenant_id = p_tenant_id),
+scoped_managed_brand_handles AS (SELECT DISTINCT mc.brand AS brand_slug, lower(btrim(regexp_replace(h.handle, '^@', ''))) AS handle FROM scoped_managed_creators mc CROSS JOIN LATERAL (VALUES (mc.account_1), (mc.account_2), (mc.account_3), (mc.account_4), (mc.account_5), (mc.account_6), (mc.account_7), (mc.account_8), (mc.account_9), (mc.account_10)) h(handle) WHERE h.handle IS NOT NULL AND btrim(h.handle) <> '' UNION SELECT DISTINCT mc.brand, lower(btrim(regexp_replace(t.tiktok_username, '^@', ''))) FROM scoped_managed_creators mc JOIN scoped_tiktok_accounts t ON t.creator_id=mc.creator_id WHERE t.tiktok_username IS NOT NULL AND btrim(t.tiktok_username) <> ''), mh AS MATERIALIZED (
+    SELECT DISTINCT mp.handle
+    FROM scoped_managed_brand_handles mp
+    WHERE p_roster_slugs IS NULL OR mp.brand_slug = ANY(p_roster_slugs)
+  ),
+  cur AS MATERIALIZED (
+    SELECT lower(btrim(regexp_replace(cp.creator_name, '^@', ''))) AS handle,
+           MAX(cp.creator_name) AS name,
+           SUM(cp.gmv)::numeric AS gmv,
+           SUM(cp.orders)::bigint AS orders, SUM(cp.items_sold)::bigint AS items,
+           SUM(cp.videos)::bigint AS videos,
+           SUM(cp.est_commission)::numeric AS commission
+    FROM scoped_creator_performance cp
+    WHERE cp.period_type = 'daily'
+      AND cp.report_date BETWEEN p_start AND p_end
+      AND (p_data_slugs IS NULL OR cp.brand = ANY(p_data_slugs))
+      AND cp.creator_name IS NOT NULL AND btrim(cp.creator_name) <> ''
+    GROUP BY 1
+  ),
+  cur_m AS MATERIALIZED (SELECT c.*, (c.handle IN (SELECT handle FROM mh)) AS is_managed FROM cur c),
+  prior AS MATERIALIZED (
+    SELECT lower(btrim(regexp_replace(cp.creator_name, '^@', ''))) AS handle,
+           SUM(cp.gmv)::numeric AS gmv,
+           SUM(cp.orders)::bigint AS orders, SUM(cp.items_sold)::bigint AS items,
+           SUM(cp.videos)::bigint AS videos
+    FROM scoped_creator_performance cp
+    WHERE cp.period_type = 'daily'
+      AND cp.report_date BETWEEN p_prior_start AND p_prior_end
+      AND (p_data_slugs IS NULL OR cp.brand = ANY(p_data_slugs))
+      AND cp.creator_name IS NOT NULL AND btrim(cp.creator_name) <> ''
+    GROUP BY 1
+  ),
+  prior_m AS MATERIALIZED (SELECT p.*, (p.handle IN (SELECT handle FROM mh)) AS is_managed FROM prior p),
+  nv AS MATERIALIZED (
+    SELECT COUNT(*) FILTER (WHERE p.handle IS NULL AND c.gmv > 0)::bigint                          AS new_count,
+           COALESCE(SUM(c.gmv) FILTER (WHERE p.handle IS NULL), 0)::numeric          AS new_gmv,
+           COUNT(*) FILTER (WHERE p.handle IS NOT NULL AND c.gmv > 0)::bigint                      AS returning_count,
+           COALESCE(SUM(c.gmv) FILTER (WHERE p.handle IS NOT NULL), 0)::numeric      AS returning_gmv,
+           COUNT(*) FILTER (WHERE c.is_managed AND p.handle IS NULL AND c.gmv > 0)::bigint         AS newly_activated
+    FROM cur_m c LEFT JOIN prior p USING (handle)
+  ),
+  daily AS (
+    SELECT cp.report_date AS d,
+           SUM(cp.gmv)::numeric AS gmv,
+           SUM(cp.orders)::bigint AS orders, SUM(cp.items_sold)::bigint AS items,
+           COUNT(DISTINCT lower(btrim(regexp_replace(cp.creator_name, '^@', '')))) FILTER (WHERE cp.gmv > 0)::bigint AS creators
+    FROM scoped_creator_performance cp
+    WHERE cp.period_type = 'daily'
+      AND cp.report_date BETWEEN p_start AND p_end
+      AND (p_data_slugs IS NULL OR cp.brand = ANY(p_data_slugs))
+    GROUP BY cp.report_date
+  ),
+  vp_dd AS MATERIALIZED (
+    SELECT DISTINCT ON (vp.video_id, vp.product_id, vp.report_date)
+           vp.video_id, vp.video_title, vp.creator_name, vp.product_name,
+           vp.gmv, vp.orders, vp.brand,
+           lower(btrim(regexp_replace(vp.creator_name, '^@', ''))) AS handle
+    FROM scoped_video_performance vp
+    WHERE vp.period_type = 'daily'
+      AND vp.report_date BETWEEN p_start AND p_end
+      AND (p_data_slugs IS NULL OR vp.brand = ANY(p_data_slugs))
+    ORDER BY vp.video_id, vp.product_id, vp.report_date, vp.gmv DESC
+  ),
+  vids AS MATERIALIZED (
+    SELECT v.video_id,
+           (array_agg(v.video_title ORDER BY v.gmv DESC))[1] AS title,
+           (array_agg(v.creator_name ORDER BY v.gmv DESC))[1] AS creator,
+           (array_agg(v.handle ORDER BY v.gmv DESC))[1] AS handle,
+           SUM(v.gmv)::numeric AS gmv, SUM(v.orders)::bigint AS orders,
+           ((array_agg(v.handle ORDER BY v.gmv DESC))[1] IN (SELECT handle FROM mh)) AS is_managed
+    FROM vp_dd v
+    WHERE v.video_id IS NOT NULL AND v.video_id <> ''
+    GROUP BY v.video_id
+    HAVING SUM(v.gmv) > 0
+  ),
+  vids_url AS MATERIALIZED (
+    SELECT vd.*,
+           COALESCE(
+             (SELECT vv.video_link FROM scoped_videos vv
+              WHERE vv.video_id = vd.video_id AND vv.video_link ILIKE '%tiktok.com%'
+              ORDER BY vv.post_date DESC NULLS LAST LIMIT 1),
+             'https://www.tiktok.com/@' || vd.handle || '/video/' || vd.video_id
+           ) AS url
+    FROM (
+      (SELECT * FROM vids ORDER BY gmv DESC LIMIT 10)
+      UNION
+      (SELECT * FROM vids WHERE is_managed ORDER BY gmv DESC LIMIT 5)
+    ) vd
+  ),
+  prods AS MATERIALIZED (
+    SELECT COALESCE(NULLIF(btrim(v.product_name), ''), 'Unknown Product') AS name,
+           SUM(v.gmv)::numeric AS gmv, SUM(v.orders)::bigint AS orders
+    FROM vp_dd v
+    GROUP BY 1
+  ),
+  top5_prods AS MATERIALIZED (SELECT name FROM prods ORDER BY gmv DESC LIMIT 5),
+  prod_creators AS MATERIALIZED (
+    SELECT pc.product, pc.name, pc.gmv FROM (
+      SELECT COALESCE(NULLIF(btrim(v.product_name), ''), 'Unknown Product') AS product,
+             (array_agg(v.creator_name ORDER BY v.gmv DESC))[1] AS name,
+             SUM(v.gmv)::numeric AS gmv,
+             row_number() OVER (
+               PARTITION BY COALESCE(NULLIF(btrim(v.product_name), ''), 'Unknown Product')
+               ORDER BY SUM(v.gmv) DESC
+             ) AS rn
+      FROM vp_dd v
+      WHERE v.handle <> ''
+        AND COALESCE(NULLIF(btrim(v.product_name), ''), 'Unknown Product') IN (SELECT name FROM top5_prods)
+      GROUP BY 1, v.handle
+    ) pc
+    WHERE pc.rn <= 3
+  )
+  SELECT jsonb_build_object(
+    'totals', (SELECT jsonb_build_object(
+        'gmv', COALESCE(SUM(gmv), 0), 'orders', COALESCE(SUM(orders), 0), 'items', COALESCE(SUM(items), 0),
+        'videos', COALESCE(SUM(videos), 0), 'commission', COALESCE(SUM(commission), 0),
+        'active_creators', COUNT(*) FILTER (WHERE gmv > 0)) FROM cur_m),
+    'prior_totals', (SELECT jsonb_build_object(
+        'gmv', COALESCE(SUM(gmv), 0), 'orders', COALESCE(SUM(orders), 0), 'items', COALESCE(SUM(items), 0),
+        'videos', COALESCE(SUM(videos), 0), 'active_creators', COUNT(*) FILTER (WHERE gmv > 0)) FROM prior_m),
+    'managed', (SELECT jsonb_build_object(
+        'gmv', COALESCE(SUM(gmv), 0), 'orders', COALESCE(SUM(orders), 0), 'items', COALESCE(SUM(items), 0),
+        'videos', COALESCE(SUM(videos), 0), 'commission', COALESCE(SUM(commission), 0),
+        'creators', COUNT(*) FILTER (WHERE gmv > 0)) FROM cur_m WHERE is_managed),
+    'organic', (SELECT jsonb_build_object(
+        'gmv', COALESCE(SUM(gmv), 0), 'orders', COALESCE(SUM(orders), 0), 'items', COALESCE(SUM(items), 0),
+        'creators', COUNT(*) FILTER (WHERE gmv > 0)) FROM cur_m WHERE NOT is_managed),
+    -- videos added here: the only change from mig 096.
+    'managed_prior', (SELECT jsonb_build_object(
+        'gmv', COALESCE(SUM(gmv), 0), 'orders', COALESCE(SUM(orders), 0), 'items', COALESCE(SUM(items), 0),
+        'videos', COALESCE(SUM(videos), 0),
+        'creators', COUNT(*) FILTER (WHERE gmv > 0)) FROM prior_m WHERE is_managed),
+    'new_vs_returning', (SELECT jsonb_build_object(
+        'new_count', nv.new_count, 'new_gmv', nv.new_gmv,
+        'returning_count', nv.returning_count, 'returning_gmv', nv.returning_gmv
+      ) FROM nv),
+    'newly_activated', (SELECT nv.newly_activated FROM nv),
+    'signed_creator_count', (SELECT COUNT(*) FROM mh),
+    'daily', (SELECT COALESCE(jsonb_agg(jsonb_build_object(
+        'd', d.d, 'gmv', d.gmv, 'orders', d.orders, 'creators', d.creators)
+        ORDER BY d.d), '[]'::jsonb) FROM daily d),
+    'top_creators', (SELECT COALESCE(jsonb_agg(t ORDER BY t.gmv DESC), '[]'::jsonb) FROM (
+        SELECT c.name, c.gmv, c.orders, c.videos FROM cur_m c ORDER BY c.gmv DESC LIMIT 10) t),
+    'managed_top_creators', (SELECT COALESCE(jsonb_agg(t ORDER BY t.gmv DESC), '[]'::jsonb) FROM (
+        SELECT c.name, c.gmv, c.orders, c.videos FROM cur_m c WHERE c.is_managed ORDER BY c.gmv DESC LIMIT 5) t),
+    'top_videos', (SELECT COALESCE(jsonb_agg(t ORDER BY t.gmv DESC), '[]'::jsonb) FROM (
+        SELECT vu.title, vu.creator, vu.gmv, vu.orders, vu.url FROM vids_url vu ORDER BY vu.gmv DESC LIMIT 10) t),
+    'managed_top_videos', (SELECT COALESCE(jsonb_agg(t ORDER BY t.gmv DESC), '[]'::jsonb) FROM (
+        SELECT vu.title, vu.creator, vu.gmv, vu.orders, vu.url FROM vids_url vu WHERE vu.is_managed ORDER BY vu.gmv DESC LIMIT 5) t),
+    'top_products', (SELECT COALESCE(jsonb_agg(t ORDER BY t.gmv DESC), '[]'::jsonb) FROM (
+        SELECT p.name, p.gmv, p.orders FROM prods p ORDER BY p.gmv DESC LIMIT 10) t),
+    'product_creators', (SELECT COALESCE(jsonb_agg(jsonb_build_object(
+        'product', pc.product, 'name', pc.name, 'gmv', pc.gmv)), '[]'::jsonb) FROM prod_creators pc)
+  );
+$function$;
+REVOKE ALL ON FUNCTION public.get_brand_client_report_agg_workspace(uuid, text[], text[], date, date, date, date) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.get_brand_client_report_agg_workspace(uuid, text[], text[], date, date, date, date) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.get_brand_client_report_counts_workspace(p_tenant_id uuid, p_data_slugs text[], p_roster_slugs text[], p_start date, p_end date, p_prior_start date, p_prior_end date)
+ RETURNS jsonb
+ LANGUAGE sql
+ STABLE SECURITY INVOKER
+ SET search_path TO 'public', 'pg_temp'
+ SET statement_timeout TO '60s'
+AS $function$
+WITH scoped_creator_performance AS NOT MATERIALIZED (SELECT * FROM public.creator_performance WHERE tenant_id = p_tenant_id),
+scoped_video_performance AS NOT MATERIALIZED (SELECT * FROM public.video_performance WHERE tenant_id = p_tenant_id),
+scoped_managed_creators AS NOT MATERIALIZED (SELECT * FROM public.managed_creators WHERE tenant_id = p_tenant_id),
+scoped_tiktok_accounts AS NOT MATERIALIZED (SELECT * FROM public.tiktok_accounts WHERE tenant_id = p_tenant_id), src as (
+    select mc.id, mc.archived_at, mc.employment_status,
+           lower(btrim(regexp_replace(h.handle, '^@', ''))) as handle
+    from scoped_managed_creators mc
+      cross join lateral (values
+        (mc.account_1), (mc.account_2), (mc.account_3), (mc.account_4), (mc.account_5),
+        (mc.account_6), (mc.account_7), (mc.account_8), (mc.account_9), (mc.account_10)
+      ) h(handle)
+    where (p_roster_slugs is null or mc.brand = any(p_roster_slugs))
+      and h.handle is not null and btrim(h.handle) <> ''
+    union all
+    select mc.id, mc.archived_at, mc.employment_status,
+           lower(btrim(regexp_replace(t.tiktok_username, '^@', '')))
+    from scoped_managed_creators mc
+    join scoped_tiktok_accounts t on t.creator_id = mc.creator_id
+    where (p_roster_slugs is null or mc.brand = any(p_roster_slugs))
+      and mc.creator_id is not null
+      and t.tiktok_username is not null and btrim(t.tiktok_username) <> ''
+  ),
+  mem as materialized (
+    select handle,
+           bool_or(archived_at is null) as ever_active,
+           max(archived_at)::date       as archived_on
+    from src group by 1
+  ),
+  posts as materialized (
+    select vp.video_id, vp.post_date::date as posted,
+           lower(btrim(regexp_replace(vp.creator_name, '^@', ''))) as handle
+    from scoped_video_performance vp
+    where vp.period_type = 'daily'
+      and vp.video_id is not null and vp.video_id <> ''
+      and vp.post_date is not null
+      and (p_data_slugs is null or vp.brand = any(p_data_slugs))
+      and vp.post_date::date between least(p_prior_start, p_start) and greatest(p_prior_end, p_end)
+    group by 1, 2, 3
+  ),
+  roster_posts as materialized (
+    select p.*
+    from posts p
+    join mem m on m.handle = p.handle
+    where m.ever_active or m.archived_on > p.posted
+  ),
+  ppl as materialized (
+    select distinct s.id, s.handle
+    from src s
+    where s.employment_status = 'active'
+      and s.archived_at is null
+  ),
+  cp_agg as materialized (
+    select lower(btrim(regexp_replace(cp.creator_name, '^@', ''))) as handle,
+           coalesce(sum(cp.gmv) filter (where cp.report_date between p_start and p_end), 0)             as cur_gmv,
+           coalesce(sum(cp.gmv) filter (where cp.report_date between p_prior_start and p_prior_end), 0) as pri_gmv
+    from scoped_creator_performance cp
+    where cp.period_type = 'daily'
+      and (p_data_slugs is null or cp.brand = any(p_data_slugs))
+      and cp.report_date between least(p_prior_start, p_start) and greatest(p_prior_end, p_end)
+      and cp.creator_name is not null and btrim(cp.creator_name) <> ''
+    group by 1
+  ),
+  post_agg as materialized (
+    select handle,
+           count(*) filter (where posted between p_start and p_end)             as cur_posts,
+           count(*) filter (where posted between p_prior_start and p_prior_end) as pri_posts
+    from roster_posts group by handle
+  ),
+  -- POSTED and SOLD are tracked separately. `active_cur` (posted OR sold) is
+  -- kept only so activePeople does not move under callers still reading it;
+  -- the report itself now prints the two halves.
+  act as materialized (
+    select p.id,
+           bool_or(coalesce(a.cur_gmv,0) > 0 or coalesce(pa.cur_posts,0) > 0) as active_cur,
+           bool_or(coalesce(a.pri_gmv,0) > 0 or coalesce(pa.pri_posts,0) > 0) as active_prior,
+           bool_or(coalesce(pa.cur_posts,0) > 0)                              as posted_cur,
+           bool_or(coalesce(pa.pri_posts,0) > 0)                              as posted_pri,
+           bool_or(coalesce(a.cur_gmv,0)   > 0)                               as sold_cur
+    from ppl p
+    left join cp_agg   a  on a.handle  = p.handle
+    left join post_agg pa on pa.handle = p.handle
+    group by p.id
+  ),
+  -- Roster rows archived DURING the window, person grain. A creator re-signed
+  -- under a second still-active row has not left.
+  departed as (
+    select count(*) as n
+    from (
+      select mc.id
+      from scoped_managed_creators mc
+      where (p_roster_slugs is null or mc.brand = any(p_roster_slugs))
+        and mc.archived_at is not null
+        and mc.archived_at::date between p_start and p_end
+      except
+      select mc2.id
+      from scoped_managed_creators mc2
+      where (p_roster_slugs is null or mc2.brand = any(p_roster_slugs))
+        and mc2.archived_at is null
+    ) d
+  )
+  select jsonb_build_object(
+    'signedPeople',      (select count(*) from act),
+    'activePeople',      (select count(*) from act where active_cur),
+    'activePeoplePrior', (select count(*) from act where active_prior),
+    'newlyActivePeople', (select count(*) from act where active_cur and not active_prior),
+    'rosterPosts',       (select count(*) from roster_posts where posted between p_start and p_end),
+    'rosterPostsPrior',  (select count(*) from roster_posts where posted between p_prior_start and p_prior_end),
+    'storePosts',        (select count(*) from posts where posted between p_start and p_end),
+    'storePostsPrior',   (select count(*) from posts where posted between p_prior_start and p_prior_end),
+    'rosterPosted',        (select count(*) from act where posted_cur),
+    'rosterPostedPrior',   (select count(*) from act where posted_pri),
+    'rosterSold',          (select count(*) from act where sold_cur),
+    'rosterSoldNotPosted', (select count(*) from act where sold_cur and not posted_cur),
+    'rosterDeparted',      (select n from departed),
+    'storeCreatorsPosted', (select count(distinct handle) from posts
+                             where posted between p_start and p_end),
+    'storeCreatorsSold',   (select count(*) from cp_agg where cur_gmv > 0)
+  );
+$function$;
+REVOKE ALL ON FUNCTION public.get_brand_client_report_counts_workspace(uuid, text[], text[], date, date, date, date) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.get_brand_client_report_counts_workspace(uuid, text[], text[], date, date, date, date) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.get_brand_client_report_granular_workspace(p_tenant_id uuid, p_data_slugs text[], p_roster_slugs text[], p_start date, p_end date)
+ RETURNS jsonb
+ LANGUAGE sql
+ STABLE SECURITY INVOKER
+ SET search_path TO 'public', 'pg_temp'
+ SET statement_timeout TO '60s'
+AS $function$
+WITH scoped_brands_v2 AS NOT MATERIALIZED (SELECT * FROM public.brands_v2 WHERE tenant_id = p_tenant_id),
+scoped_managed_creators AS NOT MATERIALIZED (SELECT * FROM public.managed_creators WHERE tenant_id = p_tenant_id),
+scoped_tiktok_accounts AS NOT MATERIALIZED (SELECT * FROM public.tiktok_accounts WHERE tenant_id = p_tenant_id),
+scoped_daily_video_product_stats AS NOT MATERIALIZED (SELECT * FROM public.daily_video_product_stats WHERE tenant_id = p_tenant_id), roster as (
+    select mc.id,
+           mc.creator_id,
+           nullif(trim(mc.real_name), '')                          as real_name,
+           coalesce(nullif(trim(mc.real_name), ''), mc.account_1)  as display_name,
+           nullif(trim(mc.role), '')                               as role,
+           coalesce(rasof.retainer, 0)::numeric                    as retainer,
+           coalesce(rasof.is_exact, true)                          as retainer_exact,
+           case when coalesce(rasof.retainer, 0) > 0
+                then nullif(mc.monthly_post_requirement, 0) end    as quota,
+           mc.archived_at::date                                    as archived_on,
+           mc.cc_start_date                                        as cc_start_date,
+           array_remove(array[
+             lower(trim(replace(mc.account_1 , '@',''))), lower(trim(replace(mc.account_2 , '@',''))),
+             lower(trim(replace(mc.account_3 , '@',''))), lower(trim(replace(mc.account_4 , '@',''))),
+             lower(trim(replace(mc.account_5 , '@',''))), lower(trim(replace(mc.account_6 , '@',''))),
+             lower(trim(replace(mc.account_7 , '@',''))), lower(trim(replace(mc.account_8 , '@',''))),
+             lower(trim(replace(mc.account_9 , '@',''))), lower(trim(replace(mc.account_10, '@','')))
+           ], null)                                                as col_handles
+    from scoped_managed_creators mc
+    left join lateral public.get_retainer_as_of(array[mc.id], p_end) rasof on true
+    where (p_roster_slugs is null or mc.brand = any(p_roster_slugs))
+      and mc.employment_status = 'active'
+      and (mc.archived_at is null or mc.archived_at::date > p_start)
+  ),
+  roster_current as (select * from roster where archived_on is null),
+  handle_src as (
+    select r.id, r.archived_on, r.creator_id, hh.handle
+    from roster r, unnest(r.col_handles) as hh(handle)
+    where hh.handle <> ''
+    union all
+    select r.id, r.archived_on, r.creator_id,
+           lower(btrim(regexp_replace(t.tiktok_username, '^@', '')))
+    from roster r
+    join scoped_tiktok_accounts t on t.creator_id = r.creator_id
+    where r.creator_id is not null
+      and t.tiktok_username is not null and btrim(t.tiktok_username) <> ''
+  ),
+  handles_by_creator as (
+    select id, array_agg(distinct handle order by handle) as handles
+    from handle_src group by id
+  ),
+  roster_handles as (
+    select distinct on (handle) handle, id, archived_on
+    from handle_src
+    order by handle, (archived_on is null) desc, (creator_id is not null) desc, id
+  ),
+  facts as (
+    select dv.video_id,
+           dv.post_date,
+           coalesce(dv.gmv, 0)::numeric   as gmv,
+           coalesce(dv.orders, 0)::bigint as orders,
+           rh.id                          as creator_id,
+           rh.handle                      as handle
+    from scoped_daily_video_product_stats dv
+    join scoped_brands_v2 b on b.id = dv.brand_id
+    left join roster_handles rh
+      on rh.handle = lower(trim(replace(dv.tiktok_username, '@','')))
+      and (rh.archived_on is null or dv.report_date < rh.archived_on)
+    where (p_data_slugs is null or b.slug = any(p_data_slugs))
+      and dv.report_date between p_start and p_end
+  ),
+  roster_facts as (select * from facts where creator_id is not null),
+  top_handle as (
+    select distinct on (creator_id) creator_id, handle
+    from (select creator_id, handle, sum(gmv) as gmv
+          from roster_facts group by 1,2) t
+    order by creator_id, gmv desc, handle
+  ),
+  per_creator as (
+    select f.creator_id,
+           count(distinct f.video_id) filter (where f.post_date::date between p_start and p_end) as posts_published,
+           count(distinct f.video_id)                                                            as videos_earning,
+           sum(f.gmv)                                                                            as gmv,
+           sum(f.orders)                                                                         as orders,
+           sum(f.gmv) filter (where f.post_date::date between p_start and p_end)                 as window_post_gmv,
+           sum(f.gmv) filter (where r.cc_start_date is null
+                                 or f.post_date::date >= r.cc_start_date)                        as net_new_gmv
+    from roster_facts f
+    join roster r on r.id = f.creator_id
+    group by f.creator_id
+  ),
+  vintage as (
+    select date_trunc('month', post_date)::date as posted_month,
+           count(distinct video_id)             as videos,
+           sum(gmv)                             as gmv
+    from roster_facts
+    group by 1
+  ),
+  /* Video GMV bucketed by AGE, not calendar month. Age is measured back from
+     the window END, never from today: a frozen report must give the same
+     answer forever. VIDEO GMV ONLY -- live and product-card GMV carry no post
+     date and are never apportioned across these buckets. */
+  vintage_age as (
+    select case
+             when post_date is null             then 'unknown'
+             when post_date::date >  p_end - 30 then 'd0_30'
+             when post_date::date >  p_end - 60 then 'd30_60'
+             when post_date::date >  p_end - 90 then 'd60_90'
+             else                                    'd90_plus'
+           end                      as bucket,
+           count(distinct video_id) as videos,
+           sum(gmv)                 as gmv
+    from roster_facts
+    group by 1
+  ),
+  top3 as (
+    select posted_month from vintage
+    where posted_month is not null
+    order by posted_month desc
+    limit 3
+  )
+
+  select jsonb_build_object(
+    'roster', (
+      select jsonb_build_object(
+        'signed',                count(*),
+        'onRetainer',            count(*) filter (where retainer > 0),
+        'affiliateOnly',         count(*) filter (where retainer = 0),
+        'monthlyRetainerBudget', coalesce(sum(retainer), 0),
+        'retainerHistoryExact',  coalesce(bool_and(retainer_exact) filter (where retainer > 0), true),
+        -- Share of RETAINED creators carrying a level, so the renderer can
+        -- decide whether the column is worth showing at all.
+        'roleCoverage',          case when count(*) filter (where retainer > 0) = 0 then 0
+                                      else round(100.0 * count(*) filter (where retainer > 0 and role is not null)
+                                                 / count(*) filter (where retainer > 0)) end
+      ) from roster_current
+    ),
+
+    'videoCounts', (
+      select jsonb_build_object(
+        'postsPublished', coalesce(count(distinct video_id) filter (where post_date::date between p_start and p_end), 0),
+        'videosEarning',  coalesce(count(distinct video_id), 0)
+      ) from roster_facts
+    ),
+
+    'newVideo', (
+      select jsonb_build_object(
+        'gmv30d',    coalesce(sum(gmv)                   filter (where post_date::date > p_end - 30), 0),
+        'videos30d', coalesce(count(distinct video_id)   filter (where post_date::date > p_end - 30), 0),
+        'totalGmv',  coalesce(sum(gmv), 0),
+        'unknownPostDateGmv', coalesce(sum(gmv) filter (where post_date is null), 0)
+      ) from roster_facts
+    ),
+
+    'vintage', coalesce((
+      select jsonb_agg(jsonb_build_object(
+               'label',  to_char(v.posted_month, 'Mon YYYY'),
+               'videos', v.videos,
+               'gmv',    v.gmv
+             ) order by v.posted_month desc)
+      from vintage v
+      where v.posted_month in (select posted_month from top3)
+    ), '[]'::jsonb),
+
+    'vintageOlder', (
+      select jsonb_build_object(
+        'videos', coalesce(sum(videos), 0),
+        'gmv',    coalesce(sum(gmv), 0)
+      )
+      from vintage
+      where posted_month is null
+         or posted_month < (select min(posted_month) from top3)
+    ),
+
+    'netNew', (
+      select jsonb_build_object(
+        'netNewGmv',  coalesce(sum(pc.net_new_gmv), 0),
+        'preCcGmv',   coalesce(sum(pc.gmv) - sum(pc.net_new_gmv), 0),
+        'totalGmv',   coalesce(sum(pc.gmv), 0)
+      ) from per_creator pc
+    ),
+
+    /* All five keys always, so the renderer never has to guess whether a
+       missing key means zero or means "not computed". */
+    'vintageAge', (
+      select jsonb_build_object(
+        'd0_30',    jsonb_build_object('videos', coalesce(sum(videos) filter (where bucket = 'd0_30'),    0), 'gmv', coalesce(sum(gmv) filter (where bucket = 'd0_30'),    0)),
+        'd30_60',   jsonb_build_object('videos', coalesce(sum(videos) filter (where bucket = 'd30_60'),   0), 'gmv', coalesce(sum(gmv) filter (where bucket = 'd30_60'),   0)),
+        'd60_90',   jsonb_build_object('videos', coalesce(sum(videos) filter (where bucket = 'd60_90'),   0), 'gmv', coalesce(sum(gmv) filter (where bucket = 'd60_90'),   0)),
+        'd90_plus', jsonb_build_object('videos', coalesce(sum(videos) filter (where bucket = 'd90_plus'), 0), 'gmv', coalesce(sum(gmv) filter (where bucket = 'd90_plus'), 0)),
+        'unknown',  jsonb_build_object('videos', coalesce(sum(videos) filter (where bucket = 'unknown'),  0), 'gmv', coalesce(sum(gmv) filter (where bucket = 'unknown'),  0))
+      )
+      from vintage_age
+    ),
+
+    'creators', coalesce((
+      select jsonb_agg(jsonb_build_object(
+               'name',           r.display_name,
+               'realName',       r.real_name,
+               'role',           r.role,
+               'handle',         coalesce(th.handle, hc.handles[1], r.col_handles[1]),
+               'handles',        coalesce(to_jsonb(hc.handles), '[]'::jsonb),
+               'handleCount',    coalesce(array_length(hc.handles, 1), 0),
+               'isAffiliate',    r.retainer = 0,
+               'retainer',       case when r.archived_on is null then r.retainer else 0 end,
+               'quota',          case when r.archived_on is null then r.quota end,
+               'departed',       r.archived_on is not null,
+               'postsPublished', coalesce(pc.posts_published, 0),
+               'videosEarning',  coalesce(pc.videos_earning, 0),
+               'gmv',            coalesce(pc.gmv, 0),
+               'windowPostGmv',  coalesce(pc.window_post_gmv, 0),
+               'netNewGmv',      coalesce(pc.net_new_gmv, 0),
+               'ccStartDate',    r.cc_start_date,
+               'orders',         coalesce(pc.orders, 0)
+             ) order by coalesce(pc.gmv, 0) desc, r.display_name)
+      from roster r
+      left join per_creator pc on pc.creator_id = r.id
+      left join top_handle  th on th.creator_id = r.id
+      left join handles_by_creator hc on hc.id = r.id
+    ), '[]'::jsonb)
+  );
+$function$;
+REVOKE ALL ON FUNCTION public.get_brand_client_report_granular_workspace(uuid, text[], text[], date, date) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.get_brand_client_report_granular_workspace(uuid, text[], text[], date, date) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.get_brand_client_report_managed_split_workspace(p_tenant_id uuid, p_data_slugs text[], p_roster_slugs text[], p_start date, p_end date, p_prior_start date, p_prior_end date)
+ RETURNS jsonb
+ LANGUAGE sql
+ STABLE SECURITY INVOKER
+ SET search_path TO 'public', 'pg_temp'
+ SET statement_timeout TO '60s'
+AS $function$
+WITH scoped_creator_performance AS NOT MATERIALIZED (SELECT * FROM public.creator_performance WHERE tenant_id = p_tenant_id),
+scoped_managed_creators AS NOT MATERIALIZED (SELECT * FROM public.managed_creators WHERE tenant_id = p_tenant_id),
+scoped_tiktok_accounts AS NOT MATERIALIZED (SELECT * FROM public.tiktok_accounts WHERE tenant_id = p_tenant_id), src as (
+    select mc.id, mc.archived_at,
+           lower(btrim(regexp_replace(h.handle, '^@', ''))) as handle
+    from scoped_managed_creators mc
+      cross join lateral (values
+        (mc.account_1), (mc.account_2), (mc.account_3), (mc.account_4), (mc.account_5),
+        (mc.account_6), (mc.account_7), (mc.account_8), (mc.account_9), (mc.account_10)
+      ) h(handle)
+    where (p_roster_slugs is null or mc.brand = any(p_roster_slugs))
+      and h.handle is not null and btrim(h.handle) <> ''
+    union all
+    select mc.id, mc.archived_at,
+           lower(btrim(regexp_replace(t.tiktok_username, '^@', '')))
+    from scoped_managed_creators mc
+    join scoped_tiktok_accounts t on t.creator_id = mc.creator_id
+    where (p_roster_slugs is null or mc.brand = any(p_roster_slugs))
+      and mc.creator_id is not null
+      and t.tiktok_username is not null and btrim(t.tiktok_username) <> ''
+  ),
+  mem as materialized (
+    select handle,
+           bool_or(archived_at is null) as ever_active,
+           max(archived_at)::date       as archived_on
+    from src group by 1
+  ),
+  per_handle as materialized (
+    select lower(btrim(regexp_replace(cp.creator_name, '^@', ''))) as handle,
+           (cp.report_date between p_start       and p_end)        as in_cur,
+           (cp.report_date between p_prior_start and p_prior_end)  as in_pri,
+           (m.handle is not null
+             and (m.ever_active or m.archived_on > cp.report_date)) as is_managed,
+           sum(cp.gmv)::numeric                           as gmv,
+           sum(coalesce(cp.items_sold, 0))::bigint as items, sum(cp.orders)::bigint                         as orders,
+           sum(cp.est_commission)::numeric                as commission,
+           sum(coalesce(cp.video_gmv, 0))::numeric        as video_gmv,
+           sum(coalesce(cp.live_gmv, 0))::numeric         as live_gmv,
+           sum(coalesce(cp.product_card_gmv, 0))::numeric as card_gmv,
+           sum(coalesce(cp.live_streams, 0))::bigint      as live_streams
+    from scoped_creator_performance cp
+    left join mem m
+      on m.handle = lower(btrim(regexp_replace(cp.creator_name, '^@', '')))
+    where cp.period_type = 'daily'
+      and (p_data_slugs is null or cp.brand = any(p_data_slugs))
+      and cp.report_date between least(p_start, p_prior_start) and greatest(p_end, p_prior_end)
+      and cp.creator_name is not null and btrim(cp.creator_name) <> ''
+    group by 1, 2, 3, 4
+  ),
+  agg as (
+    select
+      coalesce(sum(gmv)        filter (where in_cur and is_managed), 0)      as m_gmv,
+      coalesce(sum(orders)     filter (where in_cur and is_managed), 0)      as m_orders, coalesce(sum(items) filter (where in_cur and is_managed), 0) as m_items,
+      coalesce(sum(commission) filter (where in_cur and is_managed), 0)      as m_comm,
+      count(distinct handle)   filter (where in_cur and is_managed)          as m_creators,
+      coalesce(sum(gmv)        filter (where in_cur and not is_managed), 0)  as o_gmv,
+      coalesce(sum(orders)     filter (where in_cur and not is_managed), 0)  as o_orders,
+      count(distinct handle)   filter (where in_cur and not is_managed)      as o_creators,
+      coalesce(sum(gmv)        filter (where in_pri and is_managed), 0)      as p_gmv,
+      coalesce(sum(orders)     filter (where in_pri and is_managed), 0)      as p_orders, coalesce(sum(items) filter (where in_pri and is_managed), 0) as p_items,
+      count(distinct handle)   filter (where in_pri and is_managed)          as p_creators,
+      coalesce(sum(video_gmv)    filter (where in_cur and is_managed), 0)    as m_video,
+      coalesce(sum(live_gmv)     filter (where in_cur and is_managed), 0)    as m_live,
+      coalesce(sum(card_gmv)     filter (where in_cur and is_managed), 0)    as m_card,
+      coalesce(sum(live_streams) filter (where in_cur and is_managed), 0)    as m_streams,
+      coalesce(sum(video_gmv)    filter (where in_cur), 0)                   as s_video,
+      coalesce(sum(live_gmv)     filter (where in_cur), 0)                   as s_live,
+      coalesce(sum(card_gmv)     filter (where in_cur), 0)                   as s_card,
+      coalesce(sum(live_streams) filter (where in_cur), 0)                   as s_streams
+    from per_handle
+  ),
+  top_live as (
+    select coalesce(jsonb_agg(jsonb_build_object(
+             'handle', handle, 'liveGmv', live_gmv, 'lives', live_streams
+           ) order by live_gmv desc), '[]'::jsonb) as j
+    from (
+      select handle,
+             sum(live_gmv)     as live_gmv,
+             sum(live_streams) as live_streams
+      from per_handle
+      where in_cur and is_managed
+      group by handle
+      having sum(live_gmv) > 0
+      order by 2 desc
+      limit 6
+    ) t
+  )
+  select jsonb_build_object(
+    'managed', jsonb_build_object(
+      'gmv', m_gmv, 'orders', m_orders, 'items', m_items, 'commission', m_comm, 'creators', m_creators
+    ),
+    'organic', jsonb_build_object(
+      'gmv', o_gmv, 'orders', o_orders, 'creators', o_creators
+    ),
+    'managed_prior', jsonb_build_object(
+      'gmv', p_gmv, 'orders', p_orders, 'items', p_items, 'creators', p_creators
+    ),
+    'channels', jsonb_build_object(
+      'rosterVideoGmv', m_video, 'rosterLiveGmv', m_live,
+      'rosterCardGmv',  m_card,  'rosterLiveStreams', m_streams,
+      'storeVideoGmv',  s_video, 'storeLiveGmv',  s_live,
+      'storeCardGmv',   s_card,  'storeLiveStreams',  s_streams
+    ),
+    'top_live', (select j from top_live)
+  )
+  from agg;
+$function$;
+REVOKE ALL ON FUNCTION public.get_brand_client_report_managed_split_workspace(uuid, text[], text[], date, date, date, date) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.get_brand_client_report_managed_split_workspace(uuid, text[], text[], date, date, date, date) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.get_brand_client_report_movers_workspace(p_tenant_id uuid, p_data_slugs text[], p_roster_slugs text[], p_start date, p_end date, p_prior_start date, p_prior_end date, p_limit integer DEFAULT 8)
+ RETURNS jsonb
+ LANGUAGE sql
+ STABLE SECURITY INVOKER
+ SET search_path TO 'public', 'pg_temp'
+ SET statement_timeout TO '60s'
+AS $function$
+WITH scoped_creator_performance AS NOT MATERIALIZED (SELECT * FROM public.creator_performance WHERE tenant_id = p_tenant_id),
+scoped_managed_creators AS NOT MATERIALIZED (SELECT * FROM public.managed_creators WHERE tenant_id = p_tenant_id),
+scoped_tiktok_accounts AS NOT MATERIALIZED (SELECT * FROM public.tiktok_accounts WHERE tenant_id = p_tenant_id), src as (
+    select mc.id, mc.archived_at,
+           nullif(btrim(mc.real_name), '') as real_name,
+           lower(btrim(regexp_replace(h.handle, '^@', ''))) as handle
+    from scoped_managed_creators mc
+      cross join lateral (values
+        (mc.account_1), (mc.account_2), (mc.account_3), (mc.account_4), (mc.account_5),
+        (mc.account_6), (mc.account_7), (mc.account_8), (mc.account_9), (mc.account_10)
+      ) h(handle)
+    where (p_roster_slugs is null or mc.brand = any(p_roster_slugs))
+      and h.handle is not null and btrim(h.handle) <> ''
+    union all
+    select mc.id, mc.archived_at, nullif(btrim(mc.real_name), ''),
+           lower(btrim(regexp_replace(t.tiktok_username, '^@', '')))
+    from scoped_managed_creators mc
+    join scoped_tiktok_accounts t on t.creator_id = mc.creator_id
+    where (p_roster_slugs is null or mc.brand = any(p_roster_slugs))
+      and mc.creator_id is not null
+      and t.tiktok_username is not null and btrim(t.tiktok_username) <> ''
+  ),
+  mem as materialized (
+    select handle,
+           bool_or(archived_at is null) as ever_active,
+           max(archived_at)::date       as archived_on,
+           -- One name per handle so the lookup cannot multiply rows.
+           (array_agg(real_name) filter (where real_name is not null))[1] as real_name
+    from src group by 1
+  ),
+  per_handle as (
+    select lower(btrim(regexp_replace(cp.creator_name, '^@', ''))) as handle,
+           sum(cp.gmv) filter (where cp.report_date between p_start and p_end)::numeric             as cur,
+           sum(cp.gmv) filter (where cp.report_date between p_prior_start and p_prior_end)::numeric as pri
+    from scoped_creator_performance cp
+    join mem m
+      on m.handle = lower(btrim(regexp_replace(cp.creator_name, '^@', '')))
+     -- Membership on the ROW's date, not today.
+     and (m.ever_active or m.archived_on > cp.report_date)
+    where cp.period_type = 'daily'
+      and (p_data_slugs is null or cp.brand = any(p_data_slugs))
+      and cp.report_date between least(p_start, p_prior_start) and greatest(p_end, p_prior_end)
+      and cp.creator_name is not null and btrim(cp.creator_name) <> ''
+    group by 1
+  ),
+  moved as (
+    select ph.handle,
+           m.real_name,
+           coalesce(ph.cur, 0) as cur,
+           coalesce(ph.pri, 0) as pri,
+           coalesce(ph.cur, 0) - coalesce(ph.pri, 0) as change
+    from per_handle ph
+    left join mem m on m.handle = ph.handle
+    where coalesce(ph.cur, 0) > 0 or coalesce(ph.pri, 0) > 0
+  )
+  select jsonb_build_object(
+    -- The two forces, kept apart.
+    'gained',       coalesce((select sum(change) from moved where change > 0), 0),
+    'lost',         coalesce((select sum(change) from moved where change < 0), 0),
+    'netChange',    coalesce((select sum(change) from moved), 0),
+    'started',      (select count(*) from moved where pri = 0 and cur > 0),
+    'stopped',      (select count(*) from moved where cur = 0 and pri > 0),
+    'movers', coalesce((
+      select jsonb_agg(jsonb_build_object(
+               'handle', handle,
+               'name',   real_name,
+               'cur',    cur,
+               'prior',  pri,
+               'change', change,
+               -- 'new' and 'stopped' are facts about presence, not a % of zero.
+               'movement', case when pri = 0 and cur > 0 then 'new'
+                                when cur = 0 and pri > 0 then 'stopped'
+                                else 'changed' end
+             ) order by abs(change) desc)
+      from (select * from moved order by abs(change) desc limit greatest(coalesce(p_limit, 8), 1)) t
+    ), '[]'::jsonb)
+  );
+$function$;
+REVOKE ALL ON FUNCTION public.get_brand_client_report_movers_workspace(uuid, text[], text[], date, date, date, date, integer) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.get_brand_client_report_movers_workspace(uuid, text[], text[], date, date, date, date, integer) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.get_brand_report_extras_workspace(p_tenant_id uuid, p_data_slugs text[], p_start date, p_end date, p_prior_start date, p_prior_end date, p_video_ids text[] DEFAULT NULL::text[])
+ RETURNS jsonb
+ LANGUAGE sql
+ STABLE SECURITY INVOKER
+ SET search_path TO 'public'
+ SET statement_timeout TO '60s'
+AS $function$
+WITH scoped_creator_performance AS NOT MATERIALIZED (SELECT * FROM public.creator_performance WHERE tenant_id = p_tenant_id),
+scoped_video_performance AS NOT MATERIALIZED (SELECT * FROM public.video_performance WHERE tenant_id = p_tenant_id), vday AS MATERIALIZED (
+    -- One row per (video, day) across prior..current window.
+    SELECT vp.video_id, vp.report_date, MAX(vp.views)::bigint AS day_views
+    FROM scoped_video_performance vp
+    WHERE vp.period_type = 'daily'
+      AND vp.report_date BETWEEN LEAST(p_prior_start, p_start) AND p_end
+      AND (p_data_slugs IS NULL OR vp.brand = ANY(p_data_slugs))
+      AND vp.video_id IS NOT NULL AND vp.video_id <> ''
+    GROUP BY vp.video_id, vp.report_date
+  ),
+  views_agg AS (
+    SELECT SUM(day_views) FILTER (WHERE report_date BETWEEN p_start AND p_end)             AS cur_views,
+           SUM(day_views) FILTER (WHERE report_date BETWEEN p_prior_start AND p_prior_end) AS prior_views
+    FROM vday
+  ),
+  video_views AS (
+    SELECT video_id, SUM(day_views)::bigint AS views
+    FROM vday
+    WHERE p_video_ids IS NOT NULL AND video_id = ANY(p_video_ids)
+      AND report_date BETWEEN p_start AND p_end
+    GROUP BY video_id
+    HAVING SUM(day_views) IS NOT NULL
+  ),
+  -- Whole-history weekly GMV buckets anchored to p_end (bucket 0 = the 7 days
+  -- ending p_end). One scan yields the 12-week trend, lifetime GMV, best
+  -- week, and first earning date.
+  life_w AS MATERIALIZED (
+    SELECT ((p_end - cp.report_date) / 7)::int AS wk,
+           SUM(cp.gmv)::numeric AS gmv,
+           MIN(cp.report_date) FILTER (WHERE cp.gmv > 0) AS first_earn
+    FROM scoped_creator_performance cp
+    WHERE cp.period_type = 'daily'
+      AND cp.report_date <= p_end
+      AND (p_data_slugs IS NULL OR cp.brand = ANY(p_data_slugs))
+    GROUP BY 1
+  ),
+  life_videos AS (
+    SELECT COUNT(DISTINCT vp.video_id)::bigint AS videos
+    FROM scoped_video_performance vp
+    WHERE vp.period_type = 'daily'
+      AND vp.report_date <= p_end
+      AND (p_data_slugs IS NULL OR vp.brand = ANY(p_data_slugs))
+      AND vp.video_id IS NOT NULL AND vp.video_id <> ''
+  )
+  SELECT jsonb_build_object(
+    'views',       (SELECT cur_views FROM views_agg),
+    'prior_views', (SELECT prior_views FROM views_agg),
+    'video_views', COALESCE((SELECT jsonb_agg(jsonb_build_object('video_id', v.video_id, 'views', v.views)) FROM video_views v), '[]'::jsonb),
+    'weekly',      COALESCE((SELECT jsonb_agg(jsonb_build_object(
+                       'week_end', (p_end - w.wk * 7),
+                       'gmv', w.gmv) ORDER BY w.wk DESC)
+                     FROM life_w w WHERE w.wk BETWEEN 0 AND 11), '[]'::jsonb),
+    'lifetime',    (SELECT jsonb_build_object(
+                       'gmv', COALESCE(SUM(w.gmv), 0),
+                       'best_week', MAX(w.gmv),
+                       'first_date', MIN(w.first_earn))
+                     FROM life_w w),
+    'lifetime_videos', (SELECT videos FROM life_videos)
+  );
+$function$;
+REVOKE ALL ON FUNCTION public.get_brand_report_extras_workspace(uuid, text[], date, date, date, date, text[]) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.get_brand_report_extras_workspace(uuid, text[], date, date, date, date, text[]) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.get_brand_report_extras_windowed_workspace(p_tenant_id uuid, p_data_slugs text[], p_start date, p_end date, p_prior_start date, p_prior_end date, p_video_ids text[] DEFAULT NULL::text[])
+ RETURNS jsonb
+ LANGUAGE sql
+ STABLE SECURITY INVOKER
+ SET search_path TO 'public'
+ SET statement_timeout TO '60s'
+AS $function$
+WITH scoped_video_performance AS NOT MATERIALIZED (SELECT * FROM public.video_performance WHERE tenant_id = p_tenant_id), vday as materialized (
+    select vp.video_id, vp.report_date, max(vp.views)::bigint as day_views
+    from scoped_video_performance vp
+    where vp.period_type = 'daily'
+      and vp.report_date between least(p_prior_start, p_start) and p_end
+      and (p_data_slugs is null or vp.brand = any(p_data_slugs))
+      and vp.video_id is not null and vp.video_id <> ''
+    group by vp.video_id, vp.report_date
+  ),
+  views_agg as (
+    select sum(day_views) filter (where report_date between p_start and p_end)             as cur_views,
+           sum(day_views) filter (where report_date between p_prior_start and p_prior_end) as prior_views
+    from vday
+  ),
+  video_views as (
+    select video_id, sum(day_views)::bigint as views
+    from vday
+    where p_video_ids is not null and video_id = any(p_video_ids)
+      and report_date between p_start and p_end
+    group by video_id
+    having sum(day_views) is not null
+  )
+  select jsonb_build_object(
+    'views',       (select cur_views   from views_agg),
+    'prior_views', (select prior_views from views_agg),
+    'video_views', coalesce((select jsonb_agg(jsonb_build_object('video_id', v.video_id, 'views', v.views))
+                               from video_views v), '[]'::jsonb)
+  );
+$function$;
+REVOKE ALL ON FUNCTION public.get_brand_report_extras_windowed_workspace(uuid, text[], date, date, date, date, text[]) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.get_brand_report_extras_windowed_workspace(uuid, text[], date, date, date, date, text[]) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.get_brand_report_signings_workspace(p_tenant_id uuid, p_roster_slugs text[], p_end date)
+ RETURNS jsonb
+ LANGUAGE sql
+ STABLE SECURITY INVOKER
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
+WITH scoped_managed_creators AS NOT MATERIALIZED (SELECT * FROM public.managed_creators WHERE tenant_id = p_tenant_id), bounds as (
+    select date_trunc('month', p_end)::date                     as m_start,
+           (date_trunc('month', p_end) - interval '1 month')::date as p_start,
+           (date_trunc('month', p_end) - interval '1 day')::date   as p_end_of_prior
+  ),
+  scoped as (
+    select mc.cc_start_date, coalesce(mc.retainer, 0) as retainer
+    from scoped_managed_creators mc
+    where (p_roster_slugs is null or mc.brand = any(p_roster_slugs))
+      and mc.cc_start_date is not null
+  ),
+  first_month as (
+    select date_trunc('month', min(cc_start_date))::date as m from scoped
+  )
+  select jsonb_build_object(
+    'monthLabel',      to_char((select m_start from bounds), 'Mon YYYY'),
+    'priorMonthLabel', to_char((select p_start from bounds), 'Mon YYYY'),
+    'signed',          (select count(*) from scoped, bounds
+                          where cc_start_date >= m_start and cc_start_date <= p_end),
+    'signedRetained',  (select count(*) from scoped, bounds
+                          where cc_start_date >= m_start and cc_start_date <= p_end
+                            and retainer > 0),
+    'signedPrior',     (select count(*) from scoped, bounds
+                          where cc_start_date >= p_start and cc_start_date <= p_end_of_prior),
+    'isFirstMonth',    (select (select m from first_month) = (select m_start from bounds)),
+    'priorComparable', (select (select m from first_month) < (select p_start from bounds))
+  );
+$function$;
+REVOKE ALL ON FUNCTION public.get_brand_report_signings_workspace(uuid, text[], date) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.get_brand_report_signings_workspace(uuid, text[], date) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.get_brand_roster_weekly_workspace(p_tenant_id uuid, p_data_slugs text[], p_roster_slugs text[], p_through date)
+ RETURNS jsonb
+ LANGUAGE sql
+ STABLE SECURITY INVOKER
+ SET search_path TO 'public', 'pg_temp'
+ SET statement_timeout TO '60s'
+AS $function$
+WITH scoped_creator_performance AS NOT MATERIALIZED (SELECT * FROM public.creator_performance WHERE tenant_id = p_tenant_id),
+scoped_managed_creators AS NOT MATERIALIZED (SELECT * FROM public.managed_creators WHERE tenant_id = p_tenant_id),
+scoped_tiktok_accounts AS NOT MATERIALIZED (SELECT * FROM public.tiktok_accounts WHERE tenant_id = p_tenant_id), src as (
+    select mc.id, mc.archived_at,
+           lower(btrim(regexp_replace(h.handle, '^@', ''))) as handle
+    from scoped_managed_creators mc
+      cross join lateral (values
+        (mc.account_1), (mc.account_2), (mc.account_3), (mc.account_4), (mc.account_5),
+        (mc.account_6), (mc.account_7), (mc.account_8), (mc.account_9), (mc.account_10)
+      ) h(handle)
+    where (p_roster_slugs is null or mc.brand = any(p_roster_slugs))
+      and h.handle is not null and btrim(h.handle) <> ''
+    union all
+    select mc.id, mc.archived_at,
+           lower(btrim(regexp_replace(t.tiktok_username, '^@', '')))
+    from scoped_managed_creators mc
+    join scoped_tiktok_accounts t on t.creator_id = mc.creator_id
+    where (p_roster_slugs is null or mc.brand = any(p_roster_slugs))
+      and mc.creator_id is not null
+      and t.tiktok_username is not null and btrim(t.tiktok_username) <> ''
+  ),
+  mem as materialized (
+    select handle,
+           bool_or(archived_at is null) as ever_active,
+           max(archived_at)::date       as archived_on
+    from src group by 1
+  ),
+  per as materialized (
+    select ((p_through - cp.report_date) / 7)::int as wk,
+           (m.handle is not null
+             and (m.ever_active or m.archived_on > cp.report_date)) as is_managed,
+           sum(cp.gmv)::numeric as gmv
+    from scoped_creator_performance cp
+    left join mem m
+      on m.handle = lower(btrim(regexp_replace(cp.creator_name, '^@', '')))
+    where cp.period_type = 'daily'
+      and (p_data_slugs is null or cp.brand = any(p_data_slugs))
+      and cp.report_date between p_through - 83 and p_through
+      and cp.creator_name is not null and btrim(cp.creator_name) <> ''
+    group by 1, 2
+  ),
+  wk as (
+    select wk,
+           coalesce(sum(gmv) filter (where is_managed), 0)::numeric as roster_gmv,
+           coalesce(sum(gmv), 0)::numeric                           as store_gmv
+    from per
+    where wk between 0 and 11
+    group by 1
+  )
+  select coalesce(
+    jsonb_agg(jsonb_build_object(
+      'week_end',   (p_through - wk.wk * 7),
+      'roster_gmv', wk.roster_gmv,
+      'store_gmv',  wk.store_gmv
+    ) order by wk.wk desc), '[]'::jsonb)
+  from wk;
+$function$;
+REVOKE ALL ON FUNCTION public.get_brand_roster_weekly_workspace(uuid, text[], text[], date) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.get_brand_roster_weekly_workspace(uuid, text[], text[], date) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.get_agency_coverage_gaps_workspace(p_tenant_id uuid, p_start date, p_end date)
+ RETURNS TABLE(brand_name text, missing text)
+ LANGUAGE sql
+ STABLE SECURITY INVOKER
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
+WITH scoped_brands_v2 AS NOT MATERIALIZED (SELECT * FROM public.brands_v2 WHERE tenant_id = p_tenant_id),
+scoped_creator_performance AS NOT MATERIALIZED (SELECT * FROM public.creator_performance WHERE tenant_id = p_tenant_id), brand as (
+    select b.id, b.slug, b.name
+    from scoped_brands_v2 b
+    where coalesce(b.is_archived, false) = false and b.parent_brand_id is null
+  ),
+  map as (
+    select b.slug as roster_slug, b.slug as data_slug from brand b
+    union
+    select p.slug, c.slug from brand p join scoped_brands_v2 c on c.parent_brand_id = p.id
+  ),
+  present as (
+    select m.roster_slug, cp.report_date
+    from scoped_creator_performance cp
+    join map m on m.data_slug = cp.brand
+    where cp.period_type = 'daily' and cp.report_date between p_start and p_end
+    group by 1, 2
+  ),
+  -- Only brands that reported at least one day in the window.
+  active as (select distinct roster_slug from present),
+  days as (select generate_series(p_start, p_end, interval '1 day')::date d),
+  gaps as (
+    select a.roster_slug, d.d
+    from active a cross join days d
+    left join present p on p.roster_slug = a.roster_slug and p.report_date = d.d
+    where p.report_date is null
+  )
+  select b.name::text,
+         string_agg(to_char(g.d, 'Mon FMDD'), ', ' order by g.d)::text
+  from gaps g join brand b on b.slug = g.roster_slug
+  group by b.name
+  order by b.name;
+$function$;
+REVOKE ALL ON FUNCTION public.get_agency_coverage_gaps_workspace(uuid, date, date) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.get_agency_coverage_gaps_workspace(uuid, date, date) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.get_agency_roster_quality_workspace(p_tenant_id uuid)
+ RETURNS TABLE(brand text, active bigint, no_handle bigint)
+ LANGUAGE sql
+ STABLE SECURITY INVOKER
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
+WITH scoped_managed_creators AS NOT MATERIALIZED (SELECT * FROM public.managed_creators WHERE tenant_id = p_tenant_id),
+scoped_tiktok_accounts AS NOT MATERIALIZED (SELECT * FROM public.tiktok_accounts WHERE tenant_id = p_tenant_id)
+  select mc.brand,
+         count(*) as active,
+         count(*) filter (where
+           not exists (select 1 from (values (mc.account_1),(mc.account_2),(mc.account_3),(mc.account_4),(mc.account_5),
+                                            (mc.account_6),(mc.account_7),(mc.account_8),(mc.account_9),(mc.account_10)) v(x)
+                       where v.x is not null and btrim(v.x) <> '')
+           and not exists (select 1 from scoped_tiktok_accounts t
+                           where t.creator_id = mc.creator_id
+                             and t.tiktok_username is not null and btrim(t.tiktok_username) <> '')
+         ) as no_handle
+  from scoped_managed_creators mc
+  where mc.archived_at is null
+  group by mc.brand;
+$function$;
+REVOKE ALL ON FUNCTION public.get_agency_roster_quality_workspace(uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.get_agency_roster_quality_workspace(uuid) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.get_agency_portfolio_workspace(p_tenant_id uuid, p_start date, p_end date, p_prior_start date, p_prior_end date)
+ RETURNS jsonb
+ LANGUAGE sql
+ STABLE SECURITY INVOKER
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
+WITH scoped_brands_v2 AS NOT MATERIALIZED (SELECT * FROM public.brands_v2 WHERE tenant_id = p_tenant_id),
+scoped_creator_performance AS NOT MATERIALIZED (SELECT * FROM public.creator_performance WHERE tenant_id = p_tenant_id),
+scoped_managed_creators AS NOT MATERIALIZED (SELECT * FROM public.managed_creators WHERE tenant_id = p_tenant_id),
+scoped_tiktok_accounts AS NOT MATERIALIZED (SELECT * FROM public.tiktok_accounts WHERE tenant_id = p_tenant_id), brand as (
+    select b.id, b.slug, b.name
+    from scoped_brands_v2 b
+    where coalesce(b.is_archived, false) = false and b.parent_brand_id is null
+  ),
+  map as (
+    select b.slug as roster_slug, b.slug as data_slug from brand b
+    union
+    select p.slug, c.slug
+    from brand p join scoped_brands_v2 c on c.parent_brand_id = p.id
+  ),
+  src as (
+    select mc.brand, mc.archived_at,
+           lower(btrim(regexp_replace(h.handle, '^@', ''))) as handle
+    from scoped_managed_creators mc
+      cross join lateral (values
+        (mc.account_1), (mc.account_2), (mc.account_3), (mc.account_4), (mc.account_5),
+        (mc.account_6), (mc.account_7), (mc.account_8), (mc.account_9), (mc.account_10)
+      ) h(handle)
+    where h.handle is not null and btrim(h.handle) <> ''
+    union all
+    select mc.brand, mc.archived_at,
+           lower(btrim(regexp_replace(t.tiktok_username, '^@', '')))
+    from scoped_managed_creators mc
+    join scoped_tiktok_accounts t on t.creator_id = mc.creator_id
+    where mc.creator_id is not null
+      and t.tiktok_username is not null and btrim(t.tiktok_username) <> ''
+  ),
+  mem as materialized (
+    select brand, handle,
+           bool_or(archived_at is null) as ever_active,
+           max(archived_at)::date       as archived_on
+    from src group by 1, 2
+  ),
+  present as (
+    select distinct m.roster_slug
+    from map m
+    where exists (
+      select 1 from scoped_creator_performance cp
+      where cp.brand = m.data_slug and cp.period_type = 'daily'
+        and cp.report_date between least(p_start, p_prior_start) and greatest(p_end, p_prior_end)
+    )
+  ),
+  gsum as (
+    select m.roster_slug,
+      coalesce(sum(cp.gmv) filter (where cp.report_date between p_start and p_end), 0)             as store_cur,
+      coalesce(sum(cp.gmv) filter (where cp.report_date between p_prior_start and p_prior_end), 0) as store_pri,
+      coalesce(sum(cp.gmv) filter (where cp.report_date between p_start and p_end
+        and mm.handle is not null and (mm.ever_active or mm.archived_on > cp.report_date)), 0)     as roster_cur,
+      coalesce(sum(cp.gmv) filter (where cp.report_date between p_prior_start and p_prior_end
+        and mm.handle is not null and (mm.ever_active or mm.archived_on > cp.report_date)), 0)     as roster_pri
+    from scoped_creator_performance cp
+    join map m on m.data_slug = cp.brand
+    left join mem mm on mm.brand = m.roster_slug
+                    and mm.handle = lower(btrim(regexp_replace(cp.creator_name, '^@', '')))
+    where cp.period_type = 'daily'
+      and cp.gmv <> 0
+      and cp.report_date between least(p_start, p_prior_start) and greatest(p_end, p_prior_end)
+    group by 1
+  ),
+  gmv as (
+    select p.roster_slug,
+           coalesce(s.store_cur, 0) as store_cur, coalesce(s.store_pri, 0) as store_pri,
+           coalesce(s.roster_cur, 0) as roster_cur, coalesce(s.roster_pri, 0) as roster_pri
+    from present p left join gsum s on s.roster_slug = p.roster_slug
+  ),
+  cost as (
+    select mc.brand,
+           count(*)                                       as signed,
+           count(*) filter (where coalesce(mc.retainer,0) > 0) as retained,
+           coalesce(sum(coalesce(mc.retainer, 0)), 0)      as committed
+    from scoped_managed_creators mc
+    where mc.archived_at is null
+    group by 1
+  ),
+  rows as (
+    select b.slug, b.name,
+           round(g.store_cur, 2)  as store_gmv,
+           round(g.store_pri, 2)  as prior_store_gmv,
+           round(g.roster_cur, 2) as roster_gmv,
+           round(g.roster_pri, 2) as prior_roster_gmv,
+           coalesce(c.signed, 0)   as signed,
+           coalesce(c.retained, 0) as retained,
+           round(coalesce(c.committed, 0), 2) as committed_retainer
+    from brand b
+    join gmv g on g.roster_slug = b.slug
+    left join cost c on c.brand = b.slug
+  )
+  select jsonb_build_object(
+    'brands', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'slug',              r.slug,
+        'name',              r.name,
+        'storeGmv',          r.store_gmv,
+        'priorStoreGmv',     r.prior_store_gmv,
+        'rosterGmv',         r.roster_gmv,
+        'priorRosterGmv',    r.prior_roster_gmv,
+        'signed',            r.signed,
+        'retained',          r.retained,
+        'committedRetainer', r.committed_retainer
+      ) order by r.roster_gmv desc)
+      from rows r
+    ), '[]'::jsonb),
+    'totals', (
+      select jsonb_build_object(
+        'clients',           count(*) filter (where r.roster_gmv > 0),
+        -- A store counts as a client's only in a period we sold in it.
+        'storeGmv',          round(coalesce(sum(r.store_gmv)       filter (where r.roster_gmv > 0), 0), 2),
+        'priorStoreGmv',     round(coalesce(sum(r.prior_store_gmv) filter (where r.prior_roster_gmv > 0), 0), 2),
+        'rosterGmv',         round(sum(r.roster_gmv), 2),
+        'priorRosterGmv',    round(sum(r.prior_roster_gmv), 2),
+        'signed',            sum(r.signed),
+        'retained',          sum(r.retained),
+        'committedRetainer', round(sum(r.committed_retainer), 2)
+      ) from rows r
+    )
+  );
+$function$;
+REVOKE ALL ON FUNCTION public.get_agency_portfolio_workspace(uuid, date, date, date, date) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.get_agency_portfolio_workspace(uuid, date, date, date, date) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.get_agency_trend_workspace(p_tenant_id uuid, p_start date, p_end date)
+ RETURNS TABLE(roster_slug text, month date, store_gmv numeric, roster_gmv numeric)
+ LANGUAGE sql
+ STABLE SECURITY INVOKER
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
+WITH scoped_brands_v2 AS NOT MATERIALIZED (SELECT * FROM public.brands_v2 WHERE tenant_id = p_tenant_id),
+scoped_creator_performance AS NOT MATERIALIZED (SELECT * FROM public.creator_performance WHERE tenant_id = p_tenant_id),
+scoped_managed_creators AS NOT MATERIALIZED (SELECT * FROM public.managed_creators WHERE tenant_id = p_tenant_id),
+scoped_tiktok_accounts AS NOT MATERIALIZED (SELECT * FROM public.tiktok_accounts WHERE tenant_id = p_tenant_id), brand as (
+    select b.id, b.slug
+    from scoped_brands_v2 b
+    where coalesce(b.is_archived, false) = false and b.parent_brand_id is null
+  ),
+  map as (
+    select b.slug as roster_slug, b.slug as data_slug from brand b
+    union
+    select p.slug, c.slug from brand p join scoped_brands_v2 c on c.parent_brand_id = p.id
+  ),
+  src as (
+    select mc.brand, mc.archived_at,
+           lower(btrim(regexp_replace(h.handle, '^@', ''))) as handle
+    from scoped_managed_creators mc
+      cross join lateral (values
+        (mc.account_1), (mc.account_2), (mc.account_3), (mc.account_4), (mc.account_5),
+        (mc.account_6), (mc.account_7), (mc.account_8), (mc.account_9), (mc.account_10)
+      ) h(handle)
+    where h.handle is not null and btrim(h.handle) <> ''
+    union all
+    select mc.brand, mc.archived_at,
+           lower(btrim(regexp_replace(t.tiktok_username, '^@', '')))
+    from scoped_managed_creators mc
+    join scoped_tiktok_accounts t on t.creator_id = mc.creator_id
+    where mc.creator_id is not null
+      and t.tiktok_username is not null and btrim(t.tiktok_username) <> ''
+  ),
+  mem as materialized (
+    select brand, handle,
+           bool_or(archived_at is null) as ever_active,
+           max(archived_at)::date       as archived_on
+    from src group by 1, 2
+  )
+  select m.roster_slug,
+         date_trunc('month', cp.report_date)::date as month,
+         round(coalesce(sum(cp.gmv), 0), 2) as store_gmv,
+         round(coalesce(sum(cp.gmv) filter (where mm.handle is not null
+           and (mm.ever_active or mm.archived_on > cp.report_date)), 0), 2) as roster_gmv
+  from scoped_creator_performance cp
+  join map m on m.data_slug = cp.brand
+  left join mem mm on mm.brand = m.roster_slug
+                  and mm.handle = lower(btrim(regexp_replace(cp.creator_name, '^@', '')))
+  where cp.period_type = 'daily'
+    and cp.gmv <> 0
+    and cp.report_date between p_start and p_end
+  group by 1, 2;
+$function$;
+REVOKE ALL ON FUNCTION public.get_agency_trend_workspace(uuid, date, date) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.get_agency_trend_workspace(uuid, date, date) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.get_reporting_coverage_workspace(p_tenant_id uuid, p_brands text[], p_days integer DEFAULT 14)
+ RETURNS jsonb
+ LANGUAGE sql
+ STABLE SECURITY INVOKER
+ SET search_path TO 'public'
+ SET statement_timeout TO '30s'
+AS $function$
+WITH scoped_creator_performance AS NOT MATERIALIZED (SELECT * FROM public.creator_performance WHERE tenant_id = p_tenant_id AND brand = ANY(p_brands)), anchor as (
+    select max(report_date) as last_overall
+    from scoped_creator_performance where period_type = 'daily'
+  ),
+  win as (
+    select (select last_overall from anchor) as end_day,
+           (select last_overall from anchor) - (greatest(p_days, 1) - 1) as start_day
+  ),
+  per_brand as (
+    select cp.brand,
+           array_agg(distinct cp.report_date order by cp.report_date) as days,
+           max(cp.report_date) as last_day
+    from scoped_creator_performance cp, win w
+    where cp.period_type = 'daily'
+      and cp.report_date between w.start_day and w.end_day
+    group by cp.brand
+  ),
+  last_any as (
+    select cp.brand, max(cp.report_date) as last_day
+    from scoped_creator_performance cp
+    where cp.period_type = 'daily'
+    group by cp.brand
+  )
+  select jsonb_build_object(
+    'window_start', (select start_day from win),
+    'window_end',   (select end_day from win),
+    'days_expected', greatest(p_days, 1),
+    'brands', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'brand', la.brand,
+        -- Days inside the window. Empty array = the brand reported nothing in
+        -- it, which is different from the brand not existing.
+        'days', coalesce((select to_jsonb(pb.days) from per_brand pb where pb.brand = la.brand), '[]'::jsonb),
+        -- Latest day EVER, so a brand dark longer than the window still shows
+        -- how far behind it is instead of just reading empty.
+        'last_day', la.last_day
+      ) order by la.brand)
+      from last_any la
+    ), '[]'::jsonb)
+  );
+$function$;
+REVOKE ALL ON FUNCTION public.get_reporting_coverage_workspace(uuid, text[], integer) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.get_reporting_coverage_workspace(uuid, text[], integer) TO service_role;
+

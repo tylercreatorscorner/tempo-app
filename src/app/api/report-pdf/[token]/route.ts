@@ -26,7 +26,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ token: str
   const supabase = await createAdminClient();
   const { data: row, error } = await supabase
     .from('client_reports')
-    .select('brand_slug, brand_name, period_end, snapshot, notes, plan, revoked_at, report_type')
+    .select('tenant_id, brand_slug, brand_name, period_end, snapshot, notes, plan, revoked_at, report_type')
     .eq('token', token)
     .maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -43,11 +43,11 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ token: str
     // a logo is branding, not a frozen figure, so already-sent links pick it
     // up without regeneration.
     let logoUrl: string | null = null;
-    if (row.brand_slug && row.brand_slug !== 'all') {
+    if (row.tenant_id && row.brand_slug && row.brand_slug !== 'all') {
       const { data: brandRow } = await supabase
         .from('brands_v2')
         .select('logo_url')
-        .eq('slug', row.brand_slug)
+        .eq('tenant_id', row.tenant_id).eq('slug', row.brand_slug)
         .maybeSingle();
       logoUrl = (brandRow?.logo_url as string | null) ?? null;
     }

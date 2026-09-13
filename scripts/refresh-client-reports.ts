@@ -1,3 +1,5 @@
+import { getWorkspaceScopeForUser } from '@/lib/auth/workspace-scope';
+import { clientReportContext, reportGuard } from '@/lib/auth/client-report-access';
 /**
  * Rebuild already-issued client report snapshots IN PLACE.
  *
@@ -27,6 +29,8 @@ const TZ = 'America/Chicago';
 
 type Row = {
   id: string;
+  tenant_id: string | null;
+  created_by: string | null;
   token: string;
   brand_slug: string;
   brand_name: string;
@@ -73,7 +77,7 @@ async function main() {
 
   let q = supabase
     .from('client_reports')
-    .select('id, token, brand_slug, brand_name, period_start, period_end, period_label, notes, revoked_at, snapshot, created_at')
+    .select('tenant_id, created_by, id, token, brand_slug, brand_name, period_start, period_end, period_label, notes, revoked_at, snapshot, created_at')
     .order('created_at', { ascending: true });
   if (ids.length > 0) q = q.in('id', ids);
 
@@ -117,10 +121,15 @@ async function main() {
     const beforeCC = (before.creatorsCorner ?? {}) as Record<string, unknown>;
 
     try {
+      const author = await supabase.from('user_profiles').select('user_id').eq('tenant_id', r.tenant_id).eq('email', r.created_by).maybeSingle();
+      const scope = author.data ? await getWorkspaceScopeForUser(author.data.user_id) : null;
+      if (!scope || !r.tenant_id || scope.tenantId !== r.tenant_id || reportGuard(scope, 'write')) throw new Error('Original report author is no longer authorized.');
+      const context = await clientReportContext(scope, r.brand_slug);
       const t0 = Date.now();
       const build = await buildClientReportSnapshot(
         r.brand_slug,
         { start: r.period_start, end: r.period_end },
+        context,
         supabase,
       );
       const secs = ((Date.now() - t0) / 1000).toFixed(1);

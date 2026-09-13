@@ -1,3 +1,4 @@
+import { reportGuard, clientReportContext, ClientReportAccessError } from '@/lib/auth/client-report-access';
 /**
  * Brand Client Report — Slack summary endpoint.
  *
@@ -12,7 +13,7 @@ import {
   buildBrandClientSlackMessage,
   type ReportPeriod,
 } from '@/lib/data/brand-client-report';
-import { getBrandRegistry, brandLabel } from '@/lib/data/brand-registry';
+import { brandLabel } from '@/lib/data/brand-registry';
 import { getWorkspaceScope, isBrandInScope } from '@/lib/auth/workspace-scope';
 
 export const runtime = 'nodejs';
@@ -35,13 +36,16 @@ export async function GET(request: NextRequest) {
     isDate(startParam) && isDate(endParam)
       ? { start: startParam, end: endParam }
       : (searchParams.get('period') === '30d' ? '30d' : '7d');
-  const reg = await getBrandRegistry();
+  const denied = reportGuard(scope, 'read');
+  if (denied) return denied;
+  try {
+  const context = await clientReportContext(scope, brand);
+  const reg = context.registry;
   const brandName = brand === 'all'
     ? 'All Brands'
     : (searchParams.get('name') || brandLabel(reg, brand));
 
-  try {
-    const data = await getBrandClientReportData(brand, brandName, period);
+    const data = await getBrandClientReportData(brand, brandName, period, context);
     const text = buildBrandClientSlackMessage(data);
     return NextResponse.json(
       { text, periodLabel: data.periodLabel },
@@ -50,6 +54,6 @@ export async function GET(request: NextRequest) {
   } catch (err: unknown) {
     console.error('Brand client summary error:', err);
     const message = err instanceof Error ? err.message : 'Failed to build summary';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: message }, { status: err instanceof ClientReportAccessError ? 403 : 500 });
   }
 }

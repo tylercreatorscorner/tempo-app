@@ -1,3 +1,4 @@
+import { reportGuard, clientReportContext, ClientReportAccessError } from '@/lib/auth/client-report-access';
 /**
  * POST /api/client-reports/preview — the Create panel's "Prepare" step.
  *
@@ -27,6 +28,8 @@ export const maxDuration = 180;
 export async function POST(req: NextRequest) {
   const scope = await getWorkspaceScope();
   if (!scope) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const denied = reportGuard(scope, 'read');
+  if (denied) return denied;
 
   let body: { brand?: string; period?: unknown };
   try {
@@ -43,7 +46,7 @@ export async function POST(req: NextRequest) {
   if (!period) return NextResponse.json({ error: 'Invalid period' }, { status: 400 });
 
   try {
-    const build = await buildClientReportSnapshot(brand, period);
+    const build = await buildClientReportSnapshot(brand, period, await clientReportContext(scope, brand));
     const r = build.snapshot.report;
     return NextResponse.json({
       periodLabel: build.periodLabel,
@@ -57,6 +60,6 @@ export async function POST(req: NextRequest) {
   } catch (err: unknown) {
     console.error('[client-reports] preview failed:', err);
     const message = err instanceof Error ? err.message : 'Failed to prepare report';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: message }, { status: err instanceof ClientReportAccessError ? 403 : 500 });
   }
 }
