@@ -9,6 +9,8 @@
  * we add a new action type — the registry validates on dispatch.
  */
 import { NextRequest, NextResponse } from 'next/server';
+import { can } from '@/lib/auth/permissions';
+import { canReachJobBrand } from '@/lib/auth/background-access';
 import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 import { createAdminClient } from '@/lib/supabase/server';
 
@@ -32,7 +34,7 @@ const VALID_TRIGGERS = new Set(['cron', 'event', 'manual']);
 
 export async function GET(req: NextRequest) {
   const scope = await getWorkspaceScope();
-  if (!scope) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!scope || !can(scope,'automations','read')) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   const scopedBrandIds = scope.brandScope.kind === 'scoped' ? scope.brandScope.brandIds : null;
 
   const url = req.nextUrl;
@@ -48,7 +50,7 @@ export async function GET(req: NextRequest) {
   const supabase = await createAdminClient();
   let query = supabase
     .from('automations')
-    .select('*')
+    .select('*').eq('tenant_id',scope.tenantId)
     .order('updated_at', { ascending: false });
 
   if (brandId && brandId !== 'all') query = query.eq('brand_id', brandId);
@@ -65,22 +67,13 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const scope = await getWorkspaceScope();
-  if (!scope) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!scope || !can(scope,'automations','write') || scope.impersonating) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   let body: PostBody;
   try { body = await req.json(); }
   catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }); }
 
-  // Managers may only create automations targeting one of their brands —
-  // never a global (brand_id=null) or other-brand automation.
-  if (scope.brandScope.kind === 'scoped') {
-    if (!body.brand_id || !scope.brandScope.brandIds.includes(body.brand_id)) {
-      return NextResponse.json(
-        { error: 'Managers must target one of their own brands (no global automations)' },
-        { status: 403 },
-      );
-    }
-  }
+  if (!body || typeof body !== 'object' || !(await canReachJobBrand(scope,body.brand_id ?? null))) return NextResponse.json({error:'Brand is not in your access.'},{status:403});
 
   if (!body.name?.trim()) {
     return NextResponse.json({ error: 'name is required' }, { status: 400 });
@@ -102,6 +95,7 @@ export async function POST(req: NextRequest) {
     .from('automations')
     .insert({
       tenant_id: scope.tenantId,
+      execution_user_id: scope.userId,
       brand_id: body.brand_id ?? null,
       name: body.name.trim(),
       description: body.description ?? null,

@@ -10,6 +10,9 @@
  * step results land in the same run's step_results array.
  */
 import { createAdminClient } from '@/lib/supabase/server';
+import { getWorkspaceScopeForUser, type WorkspaceScope } from '@/lib/auth/workspace-scope';
+import { can } from '@/lib/auth/permissions';
+import { canReachJobBrand, canUseDiscordGuild } from '@/lib/auth/background-access';
 import type { ActionResult, IntegrationContext } from '@/lib/integrations/actions/registry';
 import { findAction } from '@/lib/integrations/actions/registry';
 
@@ -24,6 +27,7 @@ export interface DispatchStep {
 }
 
 export interface DispatchOptions {
+  actorId: string;
   /** Either an integration row id or `legacy:<type>:<brand_id>`. The legacy
    *  form is auto-promoted to a managed row before dispatching, mirroring
    *  the test-send route's behavior. */
@@ -50,10 +54,20 @@ export interface DispatchResult {
 }
 
 export async function dispatch(opts: DispatchOptions): Promise<DispatchResult> {
+  const failure = (error: string): DispatchResult => ({ runId:null, status:'failed', stepResults:[], errorMessage:error, integrationId:opts.integrationId });
+  const scope = opts.actorId ? await getWorkspaceScopeForUser(opts.actorId) : null;
+  if (!scope || !can(scope, 'integrations', 'write') || !Array.isArray(opts.steps) || !opts.steps.length) return failure('Integration execution is not permitted.');
   const supabase = await createAdminClient();
+  if (opts.automationId) {
+    if (!can(scope, 'automations', 'write')) return failure('Automation execution is not permitted.');
+    const { data: automation, error } = await supabase.from('automations')
+      .select('brand_id, execution_user_id, enabled').eq('id',opts.automationId).eq('tenant_id',scope.tenantId).maybeSingle();
+    if (error || !automation || !(await canReachJobBrand(scope, automation.brand_id))) return failure('Automation is not in your access.');
+    if (opts.triggeredBy === 'cron' && (!automation.enabled || automation.execution_user_id !== scope.userId)) return failure('Schedule execution owner is unavailable.');
+  }
 
   // Resolve integration — promote legacy ids on first use.
-  const resolved = await resolveIntegration(opts.integrationId);
+  const resolved = await resolveIntegration(opts.integrationId, scope);
   if (!resolved.ok) {
     return {
       runId: null,
@@ -182,20 +196,23 @@ interface ResolveErr {
   error: string;
 }
 
-async function resolveIntegration(id: string): Promise<ResolveOk | ResolveErr> {
+async function resolveIntegration(id: string, actor: WorkspaceScope): Promise<ResolveOk | ResolveErr> {
   const supabase = await createAdminClient();
 
   if (id.startsWith('legacy:')) {
-    const [, type, scope] = id.split(':');
+    const parts = id.split(':');
+    if (parts.length !== 3) return { ok:false, error:'Invalid integration ID' };
+    const [, type, scope] = parts;
 
     if (type === 'discord') {
       const { data: brand } = await supabase
         .from('brands_v2')
         .select('id, name, display_name, discord_guild_id, tenant_id')
-        .eq('id', scope)
+        .eq('id', scope).eq('tenant_id',actor.tenantId)
         .maybeSingle();
-      if (!brand) return { ok: false, error: 'Brand not found' };
+      if (!brand || !(await canReachJobBrand(actor, brand.id))) return { ok: false, error: 'Brand not found' };
       if (!brand.discord_guild_id) return { ok: false, error: 'Brand has no Discord guild configured' };
+      if (!(await canUseDiscordGuild(actor,brand.discord_guild_id,brand.id))) return { ok:false, error:'Discord server is not in your access.' };
 
       const { data: created, error: createErr } = await supabase
         .from('integrations')
@@ -238,15 +255,8 @@ async function resolveIntegration(id: string): Promise<ResolveOk | ResolveErr> {
         return { ok: false, error: 'ANTHROPIC_API_KEY env var is not set' };
       }
 
-      // Pick a tenant — for workspace-scoped legacy ids we don't carry one in
-      // the id itself, so we infer from existing rows.
-      const { data: anyRow } = await supabase
-        .from('integrations')
-        .select('tenant_id')
-        .not('tenant_id', 'is', null)
-        .limit(1)
-        .maybeSingle();
-      const tenantId = anyRow?.tenant_id ?? null;
+      if (actor.brandScope.kind !== 'all') return { ok:false, error:'Workspace integration is not in your access.' };
+      const tenantId = actor.tenantId;
 
       const configByType: Record<string, Record<string, unknown>> = {
         resend: { from_email: process.env.RESEND_FROM_EMAIL ?? null },
@@ -291,11 +301,12 @@ async function resolveIntegration(id: string): Promise<ResolveOk | ResolveErr> {
 
   const { data: row, error: loadErr } = await supabase
     .from('integrations')
-    .select('id, type, config, credentials')
-    .eq('id', id)
+    .select('id, type, config, credentials, brand_id')
+    .eq('id', id).eq('tenant_id',actor.tenantId)
     .maybeSingle();
   if (loadErr) return { ok: false, error: loadErr.message };
-  if (!row) return { ok: false, error: 'Integration not found' };
+  if (!row || !(await canReachJobBrand(actor,row.brand_id))) return { ok: false, error: 'Integration not found' };
+  if (row.type === 'discord' && !(await canUseDiscordGuild(actor,row.config?.guild_id,row.brand_id))) return { ok:false, error:'Discord server is not in your access.' };
   return {
     ok: true,
     promoted: false,

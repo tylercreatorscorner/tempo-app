@@ -37,6 +37,7 @@ interface ClaimedBroadcast {
   status: string;
   started_at: string | null;
   created_by: string | null;
+  execution_user_id: string | null;
 }
 
 export async function GET(request: NextRequest) {
@@ -92,7 +93,7 @@ export async function GET(request: NextRequest) {
     // 1. Oldest active broadcast (queued or mid-drain).
     const { data: bRows, error: bErr } = await admin
       .from('broadcasts')
-      .select('id, tenant_id, status, started_at, created_by')
+      .select('id, tenant_id, status, started_at, created_by, execution_user_id')
       .in('status', ['queued', 'sending'])
       .order('created_at', { ascending: true })
       .limit(1);
@@ -157,7 +158,7 @@ export async function GET(request: NextRequest) {
 
       const outcome = await sendToRecipient(recipient, {
         tenantId: broadcast.tenant_id,
-        sentBy: broadcast.created_by,
+        sentBy: broadcast.execution_user_id ?? broadcast.created_by,
       });
 
       // The outcome write MUST land: if it silently failed, the row would

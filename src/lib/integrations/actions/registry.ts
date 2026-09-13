@@ -112,6 +112,11 @@ const DISCORD_SEND_MESSAGE: ActionDef = {
   async handler(integration, params) {
     const channelId = String(params.channel_id ?? '').trim();
     const content = String(params.content ?? '').trim();
+    const guildId = typeof integration.config.guild_id === 'string' ? integration.config.guild_id : '';
+    const channels = await listDiscordChannels(guildId);
+    if (!channels.ok || !channels.channels?.some(channel => channel.id === channelId)) {
+      return { ok: false, error: 'Channel is not available in this integration\'s Discord server.' };
+    }
     const result = await sendDiscordMessage({ channelId, content });
     return result.ok
       ? { ok: true, externalId: result.messageId, summary: `Sent to ${channelId}` }

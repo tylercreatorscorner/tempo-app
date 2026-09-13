@@ -17,6 +17,9 @@
  * their log rows silently).
  */
 import { createAdminClient } from '@/lib/supabase/server';
+import { resolveJobActor } from '@/lib/auth/background-access';
+import { authorizeCreator } from '@/lib/auth/authorize-creator';
+import { can } from '@/lib/auth/permissions';
 
 export interface SendableRecipient {
   id: string;
@@ -49,6 +52,11 @@ export async function sendToRecipient(
   recipient: SendableRecipient,
   ctx: SendContext,
 ): Promise<SendOutcome> {
+  const scope = await resolveJobActor(ctx.sentBy, ctx.tenantId);
+  if (!scope || !can(scope, 'messages', 'write') || !recipient.creator_id
+      || await authorizeCreator(scope, recipient.creator_id)) {
+    return { status: 'blocked', error: 'Sender no longer has access to this creator.' };
+  }
   switch (recipient.channel) {
     case 'discord_dm':
       return sendDiscordDm(recipient, ctx);
@@ -77,13 +85,14 @@ async function sendDiscordDm(
   // (inbound-initiated relationship) → allowed; only an explicit opt-out that
   // landed after enqueue blocks the send.
   if (recipient.creator_id) {
-    const { data: optedOut } = await supabase
+    const { data: optedOut, error: consentError } = await supabase
       .from('creator_contacts')
       .select('id')
       .eq('creator_id', recipient.creator_id)
       .eq('channel', 'discord')
       .eq('consent_status', 'opted_out')
       .limit(1);
+    if (consentError) return { status: 'blocked', error: 'Could not verify current messaging consent.' };
     if (optedOut && optedOut.length > 0) {
       return { status: 'blocked', error: 'Creator opted out of Discord messages' };
     }
