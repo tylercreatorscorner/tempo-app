@@ -23,7 +23,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ token: str
 
   const { data: invoice, error } = await supabase
     .from('invoices')
-    .select('*')
+    .select('id, invoice_number, brand, period_month, generated_at, due_date, paid_at, status, affiliate_gmv, marketing_gmv, total_gmv, commission, retainer, product_retainer, launch_fee, total_amount, share_note, payment_instructions, bill_to_name, bill_to_email, bill_to_address, bill_from_name, bill_from_email, bill_from_address, creator_breakdown')
     .eq('public_token', token)
     .maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

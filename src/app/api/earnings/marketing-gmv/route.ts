@@ -1,3 +1,4 @@
+import { getFinanceAccess } from '@/lib/finance/access';
 /**
  * PATCH /api/earnings/marketing-gmv
  *
@@ -19,6 +20,8 @@ import { getBrandRegistry, expandSlugs } from '@/lib/data/brand-registry';
 export const runtime = 'nodejs';
 
 export async function PATCH(request: NextRequest) {
+  const finance = await getFinanceAccess('earnings', 'configure', true);
+  if (finance instanceof NextResponse) return finance;
   const profile = await requireAdmin();
   if (!profile) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
@@ -37,13 +40,16 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: 'amount must be a non-negative number' }, { status: 400 });
   }
 
+  if (!finance.brandSlugs.includes(brand)) return NextResponse.json({ error: 'Brand unavailable' }, { status: 403 });
   const admin = await createAdminClient();
   const reg = await getBrandRegistry();
 
   // Park the whole amount on the first store slug, zero the rest (the earnings
   // calc sums the stores back into the single umbrella figure).
   const now = new Date().toISOString();
-  const rows = expandSlugs(reg, brand).map((slug, i) => ({
+  const expanded = expandSlugs(reg, brand);
+  if (!expanded.length || expanded.some(slug => !finance.brandSlugs.includes(slug))) return NextResponse.json({ error: 'Brand unavailable' }, { status: 403 });
+  const rows = expanded.map((slug, i) => ({
     brand: slug,
     month,
     amount: i === 0 ? amount : 0,

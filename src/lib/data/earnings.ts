@@ -279,9 +279,11 @@ function mergeUmbrellaRow(
  */
 export async function getEarnings(
   month: string,
-  teamMemberId?: string,
-  brandFilterSlugs?: string[] | null,
+  teamMemberId: string | undefined,
+  brandFilterSlugs: string[],
+  tenantId: string,
 ): Promise<EarningsResult> {
+  if (!tenantId || !Array.isArray(brandFilterSlugs)) throw new Error('Financial scope is required.');
   // Validate month "YYYY-MM"
   if (!/^\d{4}-\d{2}$/.test(month)) {
     throw new Error(`Invalid month "${month}" — expected YYYY-MM`);
@@ -303,12 +305,18 @@ export async function getEarnings(
   if (!activeTeamMemberId) {
     const { data: tmRow } = await supabase
       .from('team_members')
-      .select('id')
+      .select('id').eq('tenant_id', tenantId)
       .eq('is_archived', false)
       .order('created_at', { ascending: true })
       .limit(1)
       .maybeSingle();
     activeTeamMemberId = tmRow?.id ?? null;
+  }
+
+  if (activeTeamMemberId) {
+    const { data: payee, error: payeeError } = await supabase.from('team_members')
+      .select('id').eq('id', activeTeamMemberId).eq('tenant_id', tenantId).maybeSingle();
+    if (payeeError || !payee) throw new Error('Payee is unavailable in this workspace.');
   }
 
   // ── Canonical managed GMV — computed by the SAME shared function the
@@ -349,7 +357,7 @@ export async function getEarnings(
       ? supabase
           .from('brand_compensation')
           .select('brand, retainer, commission_rate, revenue_share_rate, marketing_commission_rate, product_retainer_amount, product_retainer_name, launch_fee, launch_fee_name, launch_fee_ends, compensation_model')
-          .eq('team_member_id', activeTeamMemberId)
+          .eq('team_member_id', activeTeamMemberId).eq('tenant_id', tenantId)
           .in('brand', activeBrandSlugs)
       : Promise.resolve({ data: [] as Array<Record<string, unknown>> }),
     // Brand-level fields stay on brand_settings (bill_to_*, monthly_gmv_goal,
@@ -365,10 +373,11 @@ export async function getEarnings(
           .from('team_members')
           .select('id, name, email, address, payment_instructions')
           .eq('id', activeTeamMemberId)
+          .eq('tenant_id', tenantId)
           .maybeSingle()
       : Promise.resolve({ data: null }),
-    supabase.from('creator_commission_rates').select('creator_name, brand, rate'),
-    supabase.from('marketing_gmv').select('brand, amount').eq('month', month),
+    supabase.from('creator_commission_rates').select('creator_name, brand, rate').in('brand', activeBrandSlugs),
+    supabase.from('marketing_gmv').select('brand, amount').eq('month', month).in('brand', activeBrandSlugs),
   ]);
 
   // Merge per-payee compensation rows with brand-level info into a single
@@ -557,6 +566,9 @@ export async function getEarnings(
   const mergedStoreSlugs = new Set<string>();
   for (const umbrella of reg.rows) {
     if (!umbrella.is_umbrella) continue;
+    // A child-only assignment must not become an umbrella lookup key for
+    // invoice or ledger enrichment, which would expose sibling-store totals.
+    if (!brandFilterSlugs.includes(umbrella.slug)) continue;
     const childSlugs = new Set(
       (reg.childrenByParentId.get(umbrella.id) ?? []).map((s) => s.slug),
     );

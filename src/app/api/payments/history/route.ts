@@ -1,8 +1,11 @@
+import { getFinanceAccess } from '@/lib/finance/access';
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 
 export async function GET(request: NextRequest) {
+  const finance = await getFinanceAccess('payments', 'read');
+  if (finance instanceof NextResponse) return finance;
   try {
     const scope = await getWorkspaceScope();
     if (!scope) {
@@ -11,7 +14,7 @@ export async function GET(request: NextRequest) {
     if (!scope.canViewFinance) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
-    const scopedSlugs = scope.brandScope.kind === 'scoped' ? scope.brandScope.brandSlugs : null;
+    const scopedSlugs = finance.brandSlugs;
 
     const supabase = await createAdminClient();
     const brand = request.nextUrl.searchParams.get('brand') || 'all';
@@ -24,6 +27,7 @@ export async function GET(request: NextRequest) {
     let query = supabase
       .from('payment_audit_log')
       .select('*')
+      .in('brand', finance.brandSlugs)
       .order('created_at', { ascending: false })
       .limit(100);
 

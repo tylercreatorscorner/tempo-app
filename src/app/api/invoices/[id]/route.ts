@@ -1,3 +1,4 @@
+import { getFinanceAccess } from '@/lib/finance/access';
 /**
  * /api/invoices/[id]
  *
@@ -22,9 +23,10 @@ async function authorizeInvoice(
   scope: WorkspaceScope,
   supabase: Awaited<ReturnType<typeof createAdminClient>>,
   id: string,
+  brandSlugs: string[],
 ): Promise<NextResponse | null> {
   const { data: inv } = await supabase
-    .from('invoices').select('brand').eq('id', id).maybeSingle();
+    .from('invoices').select('brand').eq('id', id).in('brand', brandSlugs).maybeSingle();
   if (!inv) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   if (
     scope.brandScope.kind === 'scoped' &&
@@ -53,21 +55,25 @@ const STATUS_FIELD = 'status';
 const STATUSES = new Set(['pending', 'sent', 'paid', 'void']);
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const finance = await getFinanceAccess('invoicing', 'read');
+  if (finance instanceof NextResponse) return finance;
   const scope = await getWorkspaceScope();
   if (!scope) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   if (!scope.canViewFinance) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const { id } = await ctx.params;
   const supabase = await createAdminClient();
-  const denied = await authorizeInvoice(scope, supabase, id);
+  const denied = await authorizeInvoice(scope, supabase, id, finance.brandSlugs);
   if (denied) return denied;
-  const { data, error } = await supabase.from('invoices').select('*').eq('id', id).maybeSingle();
+  const { data, error } = await supabase.from('invoices').select('*').eq('id', id).in('brand', finance.brandSlugs).maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!data) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   return NextResponse.json({ invoice: data });
 }
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const finance = await getFinanceAccess('invoicing', 'write');
+  if (finance instanceof NextResponse) return finance;
   const scope = await getWorkspaceScope();
   if (!scope) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   if (!scope.canViewFinance) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
@@ -118,14 +124,14 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const lineItemsChanged = ['commission', 'retainer', 'product_retainer', 'launch_fee'].some((k) => k in update);
   const supabase = await createAdminClient();
 
-  const denied = await authorizeInvoice(scope, supabase, id);
+  const denied = await authorizeInvoice(scope, supabase, id, finance.brandSlugs);
   if (denied) return denied;
 
   if (lineItemsChanged) {
     const { data: current, error: curErr } = await supabase
       .from('invoices')
       .select('commission, retainer, product_retainer, launch_fee, brand, team_member_id')
-      .eq('id', id)
+      .eq('id', id).in('brand', finance.brandSlugs)
       .maybeSingle();
     if (curErr) return NextResponse.json({ error: curErr.message }, { status: 500 });
     if (current) {
@@ -141,6 +147,8 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
           reg,
           current.brand as string,
           (current.team_member_id as string | null) ?? null,
+          finance.scope.tenantId,
+          finance.brandSlugs,
         );
         // Persist the MODEL-ADJUSTED line items, not the raw edits — a stored
         // non-zero loser line would render on the PDF/share view while the
@@ -165,12 +173,14 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
   update.updated_at = new Date().toISOString();
 
-  const { data, error } = await supabase.from('invoices').update(update).eq('id', id).select().single();
+  const { data, error } = await supabase.from('invoices').update(update).eq('id', id).in('brand', finance.brandSlugs).select().single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ invoice: data });
 }
 
 export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const finance = await getFinanceAccess('invoicing', 'write');
+  if (finance instanceof NextResponse) return finance;
   const scope = await getWorkspaceScope();
   if (!scope) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   if (!scope.canViewFinance) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
@@ -178,16 +188,16 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
   const { id } = await ctx.params;
   const supabase = await createAdminClient();
 
-  const denied = await authorizeInvoice(scope, supabase, id);
+  const denied = await authorizeInvoice(scope, supabase, id, finance.brandSlugs);
   if (denied) return denied;
 
-  const { data: existing } = await supabase.from('invoices').select('status').eq('id', id).maybeSingle();
+  const { data: existing } = await supabase.from('invoices').select('status').eq('id', id).in('brand', finance.brandSlugs).maybeSingle();
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   if (existing.status !== 'pending') {
     return NextResponse.json({ error: `Can only delete pending invoices (this one is ${existing.status})` }, { status: 400 });
   }
 
-  const { error } = await supabase.from('invoices').delete().eq('id', id);
+  const { error } = await supabase.from('invoices').delete().eq('id', id).in('brand', finance.brandSlugs);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }

@@ -9,8 +9,9 @@
  * export HTTP handlers, so the helper can't live there).
  */
 import { NextResponse } from 'next/server';
-import { getWorkspaceScope, type WorkspaceScope } from '@/lib/auth/workspace-scope';
+import { type WorkspaceScope } from '@/lib/auth/workspace-scope';
 import { createAdminClient } from '@/lib/supabase/server';
+import { getFinanceAccess } from './access';
 
 export interface InvoiceGuardOk {
   ok: true;
@@ -26,16 +27,15 @@ export interface InvoiceGuardDenied {
 }
 
 export async function guardInvoiceAction(id: string): Promise<InvoiceGuardOk | InvoiceGuardDenied> {
-  const scope = await getWorkspaceScope();
-  if (!scope || !scope.canViewFinance) {
-    return { ok: false, response: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) };
-  }
+  const access = await getFinanceAccess('invoicing', 'write');
+  if (access instanceof NextResponse) return { ok: false, response: access };
+  const { scope, admin: supabase, brandSlugs } = access;
 
-  const supabase = await createAdminClient();
   const { data: invoice, error } = await supabase
     .from('invoices')
     .select('*')
     .eq('id', id)
+    .in('brand', brandSlugs)
     .maybeSingle();
   if (error) {
     return { ok: false, response: NextResponse.json({ error: error.message }, { status: 500 }) };

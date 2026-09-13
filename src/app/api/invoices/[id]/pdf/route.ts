@@ -1,3 +1,4 @@
+import { getFinanceAccess } from '@/lib/finance/access';
 /**
  * GET /api/invoices/[id]/pdf
  *
@@ -13,6 +14,8 @@ export const runtime = 'nodejs';
 export const maxDuration = 30;
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const finance = await getFinanceAccess('invoicing', 'read');
+  if (finance instanceof NextResponse) return finance;
   const scope = await getWorkspaceScope();
   if (!scope) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   if (!scope.canViewFinance) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
@@ -20,7 +23,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   const { id } = await ctx.params;
   const supabase = await createAdminClient();
 
-  const { data: invoice, error } = await supabase.from('invoices').select('*').eq('id', id).maybeSingle();
+  const { data: invoice, error } = await supabase.from('invoices').select('*').eq('id', id).in('brand', finance.brandSlugs).maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!invoice) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 

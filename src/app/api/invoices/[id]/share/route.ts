@@ -1,3 +1,4 @@
+import { getFinanceAccess } from '@/lib/finance/access';
 /**
  * POST /api/invoices/[id]/share
  *   - Lazily generates a public_token if one doesn't exist
@@ -27,6 +28,8 @@ function newToken(): string {
 }
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const finance = await getFinanceAccess('invoicing', 'write', true);
+  if (finance instanceof NextResponse) return finance;
   const profile = await requireAdmin();
   if (!profile) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
@@ -36,7 +39,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const { data: invoice, error: fetchErr } = await supabase
     .from('invoices')
     .select('id, public_token')
-    .eq('id', id)
+    .eq('id', id).in('brand', finance.brandSlugs)
     .maybeSingle();
   if (fetchErr) return NextResponse.json({ error: fetchErr.message }, { status: 500 });
   if (!invoice) return NextResponse.json({ error: 'Not found' }, { status: 404 });
@@ -47,7 +50,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const { error: updateErr } = await supabase
       .from('invoices')
       .update({ public_token: token, updated_at: new Date().toISOString() })
-      .eq('id', id);
+      .eq('id', id).in('brand', finance.brandSlugs);
     if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 });
   }
 
@@ -56,6 +59,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 }
 
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const finance = await getFinanceAccess('invoicing', 'write', true);
+  if (finance instanceof NextResponse) return finance;
   const profile = await requireAdmin();
   if (!profile) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
@@ -65,7 +70,7 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   const { error } = await supabase
     .from('invoices')
     .update({ public_token: null, updated_at: new Date().toISOString() })
-    .eq('id', id);
+    .eq('id', id).in('brand', finance.brandSlugs);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   return NextResponse.json({ ok: true });

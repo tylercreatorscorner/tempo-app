@@ -1,3 +1,4 @@
+import { getFinanceAccess } from '@/lib/finance/access';
 /**
  * POST /api/invoices/[id]/refresh
  *
@@ -25,6 +26,8 @@ export const runtime = 'nodejs';
 export const maxDuration = 30;
 
 export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const finance = await getFinanceAccess('invoicing', 'write', true);
+  if (finance instanceof NextResponse) return finance;
   const profile = await requireAdmin();
   if (!profile) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
@@ -34,7 +37,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
   const { data: invoice, error: fetchErr } = await supabase
     .from('invoices')
     .select('id, brand, period_month, status, team_member_id')
-    .eq('id', id)
+    .eq('id', id).in('brand', finance.brandSlugs)
     .maybeSingle();
 
   if (fetchErr) return NextResponse.json({ error: fetchErr.message }, { status: 500 });
@@ -52,7 +55,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
   // non-default payee's invoice silently rewrote its line items with someone
   // else's compensation arrangements. null (legacy pre-team_members invoices)
   // keeps the default-payee fallback, which is what generated them.
-  const earnings = await getEarnings(invoice.period_month, invoice.team_member_id ?? undefined);
+  const earnings = await getEarnings(invoice.period_month, invoice.team_member_id ?? undefined, finance.brandSlugs, finance.scope.tenantId);
   const row = earnings.brands.find((b) => b.brand === invoice.brand);
   if (!row) {
     return NextResponse.json(
@@ -80,7 +83,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
   const { data: updated, error: updateErr } = await supabase
     .from('invoices')
     .update(update)
-    .eq('id', id)
+    .eq('id', id).in('brand', finance.brandSlugs)
     .select()
     .single();
 

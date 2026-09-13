@@ -1,3 +1,4 @@
+import { getFinanceAccess } from '@/lib/finance/access';
 /**
  * PATCH /api/earnings/brand-settings
  *
@@ -69,6 +70,8 @@ const TEAM_MEMBER_STRING_OR_NULL = new Set(['payment_instructions']);
 const COMPENSATION_MODELS = new Set(['standard', 'revshare_max', 'commission_only', 'retainer_only']);
 
 export async function PATCH(request: NextRequest) {
+  const finance = await getFinanceAccess('earnings', 'configure', true);
+  if (finance instanceof NextResponse) return finance;
   const profile = await requireAdmin();
   if (!profile) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
@@ -123,6 +126,7 @@ export async function PATCH(request: NextRequest) {
     }
   }
 
+  if (!finance.brandSlugs.includes(brand)) return NextResponse.json({ error: 'Brand unavailable' }, { status: 403 });
   const admin = await createAdminClient();
 
   // Resolve which team member's arrangement we're editing
@@ -142,6 +146,10 @@ export async function PATCH(request: NextRequest) {
     }
   }
 
+  if (teamMemberId) {
+    const { data: payee, error } = await admin.from('team_members').select('id').eq('id', teamMemberId).eq('tenant_id', finance.scope.tenantId).eq('tenant_id', finance.scope.tenantId).maybeSingle();
+    if (error || !payee) return NextResponse.json({ error: 'Payee unavailable' }, { status: 403 });
+  }
   const errors: string[] = [];
 
   if (Object.keys(compensationUpdate).length > 0 && teamMemberId) {
@@ -154,6 +162,7 @@ export async function PATCH(request: NextRequest) {
     // value. Non-umbrella brands expand to themselves — one plain upsert.
     const reg = await getBrandRegistry();
     const storeSlugs = expandSlugs(reg, brand);
+    if (!storeSlugs.length || storeSlugs.some(slug => !finance.brandSlugs.includes(slug))) return NextResponse.json({ error: 'Brand unavailable' }, { status: 403 });
     const now = new Date().toISOString();
 
     if (storeSlugs.length <= 1) {
@@ -170,7 +179,7 @@ export async function PATCH(request: NextRequest) {
       const { data: currentRows, error: curErr } = await admin
         .from('brand_compensation')
         .select('brand, retainer, launch_fee, product_retainer_amount')
-        .eq('team_member_id', teamMemberId)
+        .eq('team_member_id', teamMemberId).eq('tenant_id', finance.scope.tenantId)
         .in('brand', storeSlugs);
       if (curErr) {
         errors.push(curErr.message);
@@ -236,7 +245,7 @@ export async function PATCH(request: NextRequest) {
   }
   if (Object.keys(teamMemberUpdate).length > 0 && teamMemberId) {
     teamMemberUpdate.updated_at = new Date().toISOString();
-    const { error } = await admin.from('team_members').update(teamMemberUpdate).eq('id', teamMemberId);
+    const { error } = await admin.from('team_members').update(teamMemberUpdate).eq('id', teamMemberId).eq('tenant_id', finance.scope.tenantId);
     if (error) errors.push(error.message);
   }
 

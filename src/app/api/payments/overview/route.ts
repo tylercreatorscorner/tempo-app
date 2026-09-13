@@ -1,3 +1,4 @@
+import { getFinanceAccess } from '@/lib/finance/access';
 /**
  * GET /api/payments/overview
  *
@@ -37,6 +38,8 @@ interface OpenInvoiceRow { id: string; total_amount: number | null; brand: strin
 interface PaidInvoiceRow { id: string; total_amount: number | null; brand: string | null; paid_at: string | null }
 
 export async function GET() {
+  const finance = await getFinanceAccess('payments', 'read');
+  if (finance instanceof NextResponse) return finance;
   try {
     const scope = await getWorkspaceScope();
     if (!scope) {
@@ -46,15 +49,13 @@ export async function GET() {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     // Managers: every figure is restricted to their brands. owner/admin: all.
-    const scopedSlugs = scope.brandScope.kind === 'scoped'
-      ? (scope.brandScope.brandSlugs.length ? scope.brandScope.brandSlugs : ['__none__'])
-      : null;
+    const scopedSlugs = finance.brandSlugs;
 
     const supabase = await createAdminClient();
     const reg = await getBrandRegistry();
     // managed_creators.brand is keyed at umbrella grain — same slug set the
     // dashboard's retainer sum uses.
-    const brandSlugs = scopedSlugs ?? activeBrandSlugs(reg);
+    const brandSlugs = activeBrandSlugs(reg).filter(slug => scopedSlugs.includes(slug));
 
     const now = new Date();
     const year = now.getUTCFullYear();

@@ -14,6 +14,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth/require-admin';
 import { createAdminClient } from '@/lib/supabase/server';
+import { getFinanceAccess } from '@/lib/finance/access';
 
 export const runtime = 'nodejs';
 
@@ -21,6 +22,8 @@ const STATUSES = new Set(['pending', 'sent', 'paid', 'void']);
 const MAX_IDS = 100;
 
 export async function POST(req: NextRequest) {
+  const finance = await getFinanceAccess('invoicing', 'write', true);
+  if (finance instanceof NextResponse) return finance;
   const profile = await requireAdmin();
   if (!profile) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
@@ -51,10 +54,18 @@ export async function POST(req: NextRequest) {
   if (status === 'paid') update.paid_at = new Date().toISOString();
 
   const supabase = await createAdminClient();
+  const uniqueIds = [...new Set(ids as string[])];
+  const { data: authorized, error: authError } = await supabase.from('invoices')
+    .select('id').in('id', uniqueIds).in('brand', finance.brandSlugs);
+  if (authError) return NextResponse.json({ error: 'Could not verify invoices.' }, { status: 503 });
+  if (authorized?.length !== uniqueIds.length) {
+    return NextResponse.json({ error: 'One or more invoices are unavailable.' }, { status: 403 });
+  }
   const { data, error } = await supabase
     .from('invoices')
     .update(update)
     .in('id', ids as string[])
+    .in('brand', finance.brandSlugs)
     .select();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

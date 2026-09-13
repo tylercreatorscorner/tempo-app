@@ -1,3 +1,4 @@
+import { getFinanceAccess } from '@/lib/finance/access';
 /**
  * /api/invoices/run — the monthly invoice run.
  *
@@ -45,10 +46,12 @@ export interface RunPlanZero {
 }
 
 export async function GET(req: NextRequest) {
+  const finance = await getFinanceAccess('invoicing', 'read');
+  if (finance instanceof NextResponse) return finance;
   const scope = await getWorkspaceScope();
   if (!scope) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   if (!scope.canViewFinance) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  const scopedSlugs = scope.brandScope.kind === 'scoped' ? scope.brandScope.brandSlugs : null;
+  const scopedSlugs = finance.brandSlugs;
 
   const month = req.nextUrl.searchParams.get('month');
   if (!month || !/^\d{4}-\d{2}$/.test(month)) {
@@ -56,7 +59,7 @@ export async function GET(req: NextRequest) {
   }
   const teamMemberId = req.nextUrl.searchParams.get('team_member_id') ?? undefined;
 
-  const earnings = await getEarnings(month, teamMemberId, scopedSlugs);
+  const earnings = await getEarnings(month, teamMemberId, scopedSlugs, finance.scope.tenantId);
   const payeeId = earnings.teamMember?.id ?? null;
   if (!payeeId) {
     return NextResponse.json({ error: 'No team member configured — add one in Settings → Team Members' }, { status: 400 });
@@ -115,10 +118,12 @@ interface RunPostBody {
 }
 
 export async function POST(req: NextRequest) {
+  const finance = await getFinanceAccess('invoicing', 'write');
+  if (finance instanceof NextResponse) return finance;
   const scope = await getWorkspaceScope();
   if (!scope) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   if (!scope.canViewFinance) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  const scopedSlugs = scope.brandScope.kind === 'scoped' ? scope.brandScope.brandSlugs : null;
+  const scopedSlugs = finance.brandSlugs;
 
   let body: RunPostBody;
   try { body = await req.json(); } catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }); }
@@ -145,7 +150,7 @@ export async function POST(req: NextRequest) {
 
   // ONE earnings computation for the whole run — every brand's invoice is cut
   // from the same month+payee result the plan showed.
-  const earnings = await getEarnings(month, teamMemberId, scopedSlugs);
+  const earnings = await getEarnings(month, teamMemberId, scopedSlugs, finance.scope.tenantId);
   if (!earnings.teamMember?.id) {
     return NextResponse.json({ error: 'No team member configured — add one in Settings → Team Members' }, { status: 400 });
   }
@@ -164,6 +169,8 @@ export async function POST(req: NextRequest) {
   // per month, so parallel inserts would collide on every attempt.
   for (const brand of brands) {
     const res = await createInvoiceForBrand({
+      tenantId: finance.scope.tenantId,
+      scopedSlugs,
       brand,
       month,
       earnings,

@@ -22,6 +22,7 @@ import { upsertEarningsLedger } from '@/lib/finance/earnings-ledger';
 import { DEFAULT_PAYMENT_INSTRUCTIONS } from '@/lib/invoices/defaults';
 
 export interface CreateInvoiceForBrandArgs {
+  tenantId: string;
   brand: string;
   /** YYYY-MM — validated by the caller. */
   month: string;
@@ -65,11 +66,15 @@ const MAX_NUMBER_ATTEMPTS = 5;
 export async function createInvoiceForBrand(args: CreateInvoiceForBrandArgs): Promise<CreateInvoiceOutcome> {
   const { brand, month, adminClient: supabase } = args;
 
+  if (!args.tenantId || !args.scopedSlugs?.includes(brand)) {
+    return { ok: false, status: 404, error: 'Brand is unavailable in this workspace.' };
+  }
+
   // Compute earnings for THIS team member's compensation arrangements unless
   // the caller already did (brand-scoped for managers so cross-brand earnings
   // can't leak in).
   const earnings = args.earnings
-    ?? await getEarnings(month, args.teamMemberId ?? undefined, args.scopedSlugs ?? null);
+    ?? await getEarnings(month, args.teamMemberId ?? undefined, args.scopedSlugs ?? [], args.tenantId);
   const teamMemberId = earnings.teamMember?.id ?? null;
   if (!teamMemberId) {
     return { ok: false, status: 400, error: 'No team member configured — add one in Settings → Team Members' };

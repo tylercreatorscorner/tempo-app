@@ -1,3 +1,4 @@
+import { getFinanceAccess } from '@/lib/finance/access';
 /**
  * GET /api/earnings?month=YYYY-MM
  *
@@ -44,6 +45,8 @@ export interface EarningsRowFrozen {
 const DRIFT_TOLERANCE_USD = 1;
 
 export async function GET(request: NextRequest) {
+  const finance = await getFinanceAccess('earnings', 'read');
+  if (finance instanceof NextResponse) return finance;
   const scope = await getWorkspaceScope();
   if (!scope) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   if (!scope.canViewFinance) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
@@ -55,12 +58,10 @@ export async function GET(request: NextRequest) {
   const teamMemberId = request.nextUrl.searchParams.get('team_member_id') ?? undefined;
 
   // Managers see only their brands' earnings; owner/admin see all.
-  const brandFilterSlugs = scope.brandScope.kind === 'scoped'
-    ? scope.brandScope.brandSlugs
-    : null;
+  const brandFilterSlugs = finance.brandSlugs;
 
   try {
-    const result = await getEarnings(month, teamMemberId, brandFilterSlugs);
+    const result = await getEarnings(month, teamMemberId, brandFilterSlugs, finance.scope.tenantId);
 
     // ── Invoice lifecycle + freeze enrichment ─────────────────────────
     const payeeId = result.teamMember?.id ?? null;

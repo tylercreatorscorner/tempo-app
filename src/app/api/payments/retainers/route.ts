@@ -1,3 +1,4 @@
+import { getFinanceAccess } from '@/lib/finance/access';
 /**
  * GET /api/payments/retainers?brand=<slug|all>
  *
@@ -52,10 +53,12 @@ export interface RetainerBookRow {
 }
 
 export async function GET(request: NextRequest) {
+  const finance = await getFinanceAccess('payments', 'read');
+  if (finance instanceof NextResponse) return finance;
   const scope = await getWorkspaceScope();
   if (!scope) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   if (!scope.canViewFinance) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  const scopedSlugs = scope.brandScope.kind === 'scoped' ? scope.brandScope.brandSlugs : null;
+  const scopedSlugs = finance.brandSlugs;
 
   try {
     const supabase = await createAdminClient();

@@ -1,3 +1,4 @@
+import { getFinanceAccess } from '@/lib/finance/access';
 /**
  * POST /api/invoices/[id]/email
  *
@@ -104,6 +105,8 @@ function escapeHtml(s: string): string {
 }
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const finance = await getFinanceAccess('invoicing', 'write', true);
+  if (finance instanceof NextResponse) return finance;
   const profile = await requireAdmin();
   if (!profile) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
@@ -128,7 +131,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const { data: invoice, error: fetchErr } = await supabase
     .from('invoices')
     .select('*')
-    .eq('id', id)
+    .eq('id', id).in('brand', finance.brandSlugs)
     .maybeSingle();
   if (fetchErr) return NextResponse.json({ error: fetchErr.message }, { status: 500 });
   if (!invoice) return NextResponse.json({ error: 'Not found' }, { status: 404 });
@@ -162,7 +165,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const { error: tokenErr } = await supabase
       .from('invoices')
       .update({ public_token: token, updated_at: new Date().toISOString() })
-      .eq('id', id);
+      .eq('id', id).in('brand', finance.brandSlugs);
     if (tokenErr) return NextResponse.json({ error: tokenErr.message }, { status: 500 });
   }
   const shareUrl = `${appBaseUrl(req)}/share/invoice/${token}`;
@@ -234,7 +237,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const { data: updated, error: updateErr } = await supabase
     .from('invoices')
     .update({ status: 'sent', sent_at: nowIso, updated_at: nowIso })
-    .eq('id', id)
+    .eq('id', id).in('brand', finance.brandSlugs)
     .select()
     .single();
   if (updateErr) {
