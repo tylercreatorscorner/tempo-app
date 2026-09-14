@@ -28,6 +28,7 @@ export const dynamic = 'force-dynamic';
  */
 
 import { Suspense } from 'react';
+import { CreatorMetricReadout as MetricRail } from '@/components/creators/performance/metric-readout';
 import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
 import { resolveDateRange } from '@/lib/data/date-utils';
@@ -782,35 +783,6 @@ function QuotaRow({
           {onPace ? 'on pace' : `${formatNumber(shortfall)} behind pace`}
         </span>
       </div>
-    </div>
-  );
-}
-
-function MetricRail({
-  cells,
-}: {
-  cells: { label: string; value: string; delta?: number | null; foot?: string }[];
-}) {
-  return (
-    // Per-cell borders, not `gap-px` over a `bg-border` container: six cells
-    // into a 2- or 3-column grid leaves empty slots, and the gap trick paints
-    // those solid grey.
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
-      {cells.map((c) => (
-        <div key={c.label} className="border-r border-b border-border px-4 py-3 min-w-0">
-          <p className="text-[10.5px] font-semibold uppercase tracking-[0.075em] text-muted-foreground">{c.label}</p>
-          <p className="mt-1 text-[21px] font-bold tracking-tight tabular-nums text-foreground leading-tight">{c.value}</p>
-          {c.delta != null && Number.isFinite(c.delta) && (
-            <p className={cn(
-              'mt-0.5 text-xs font-semibold tabular-nums',
-              c.delta >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600 dark:text-red-400',
-            )}>
-              {c.delta >= 0 ? '▲' : '▼'} {Math.abs(c.delta).toFixed(0)}%
-            </p>
-          )}
-          {c.foot && <p className="mt-0.5 text-[11px] text-muted-foreground truncate">{c.foot}</p>}
-        </div>
-      ))}
     </div>
   );
 }

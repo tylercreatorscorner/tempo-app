@@ -42,3 +42,6 @@ next-env.d.ts
 
 # Local scratch scripts
 audit.mjs
+
+# Isolated design preview build
+.design-preview/

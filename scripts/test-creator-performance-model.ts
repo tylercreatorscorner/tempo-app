@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import { nearestPeriod, normalizePoints, total } from '../src/components/creators/performance/model';
+const zero = normalizePoints([{ key: 'a', label: 'Jan', gmv: 0, posts: 0 }]);
+assert.equal(total(zero, 'gmv'), 0);
+assert.equal(total(zero, 'posts'), 0);
+assert.equal(total([], 'gmv'), null);
+const mixed = normalizePoints([{ key: 'a', label: 'Jan', gmv: 100, posts: 2 }, { key: 'b', label: 'Feb', gmv: Number.NaN, posts: 3 }]);
+assert.equal(total(mixed, 'gmv'), null, 'Incomplete totals must not silently become partial sums');
+assert.equal(total(mixed, 'posts'), 5, 'Missing GMV must not erase available post counts');
+assert.deepEqual(normalizePoints([{ key: 'a', label: 'Jan', gmv: -10, posts: 1.5 }])[0], { key: 'a', label: 'Jan', gmv: -10, posts: null });
+assert.throws(() => normalizePoints([...zero, ...zero]), /Duplicate/);
+assert.equal(nearestPeriod(-100, 8, 208, 4), 0);
+assert.equal(nearestPeriod(1000, 8, 208, 4), 3);
+assert.equal(nearestPeriod(109, 8, 208, 4), 2);
+assert.equal(nearestPeriod(100, 8, 208, 0), null);
+assert.equal(nearestPeriod(100, 8, 208, 1), 0);
+console.log('Creator performance model: zero, missing, refunds, invalid counts, duplicate periods, and pointer boundaries passed.');

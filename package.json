@@ -3,6 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "test:creator-performance": "node --import tsx scripts/test-creator-performance-model.ts",
+    "preview:creator-design": "node scripts/preview-creator-design.mjs",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
