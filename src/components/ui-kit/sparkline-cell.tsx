@@ -17,6 +17,8 @@ interface Props {
   color?: string;
   width?: number;
   height?: number;
+  /** Use separated posting marks while retaining the existing daily hover target. */
+  variant?: 'line' | 'bars';
   /** Formats a value for the tooltip (e.g. money, "N posts"). */
   format?: (v: number) => string;
 }
@@ -29,7 +31,7 @@ function fmtDay(iso?: string): string | null {
   return `${MONTHS[m - 1]} ${d}`;
 }
 
-export function SparklineCell({ data, days, color = 'var(--primary)', width = 88, height = 26, format }: Props) {
+export function SparklineCell({ data, days, color = 'var(--primary)', width = 88, height = 26, variant = 'line', format }: Props) {
   const series = (data ?? []).filter((v) => Number.isFinite(v));
   const [hover, setHover] = useState<{ i: number; x: number; y: number } | null>(null);
 
@@ -64,6 +66,10 @@ export function SparklineCell({ data, days, color = 'var(--primary)', width = 88
   return (
     <div className="relative" style={{ width, height }} onMouseMove={onMove} onMouseLeave={() => setHover(null)}>
       <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="group block overflow-visible" aria-hidden="true">
+        {variant === 'bars' ? series.map((value, i) => {
+          const barWidth = Math.min(4, width / series.length * .35);
+          return <rect key={i} x={Math.min(width - barWidth, Math.max(0, i * stepX - barWidth / 2))} y={yOf(value)} width={barWidth} height={height - yOf(value)} rx={1} fill={color} opacity={.65} />;
+        }) : <>
         <path d={area} fill={color} className="[fill-opacity:0.12] transition-[fill-opacity] duration-150 group-hover:[fill-opacity:0.2]" />
         <path
           d={line}
@@ -73,6 +79,7 @@ export function SparklineCell({ data, days, color = 'var(--primary)', width = 88
           strokeLinecap="round"
           className="[stroke-width:1.5] transition-[stroke-width] duration-150 group-hover:[stroke-width:2]"
         />
+        </>}
         {hi != null && (
           <g>
             <line x1={hi * stepX} y1={0} x2={hi * stepX} y2={height} stroke={color} strokeWidth={1} strokeOpacity={0.25} />
