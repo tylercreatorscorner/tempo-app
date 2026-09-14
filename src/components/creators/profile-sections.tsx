@@ -2,12 +2,14 @@
 
 import { useId, useRef, useState, type ReactNode } from 'react';
 import styles from './profile-workspace.module.css';
+import { useSmoothScroll } from '@/components/providers/lenis-provider';
 
 export function ProfileSections({ sections }: { sections: { id: string; label: string; content: ReactNode }[] }) {
   const [active, setActive] = useState(sections[0].id);
   const id = useId();
   const navigation = useRef<HTMLElement>(null);
   const anchor = useRef<HTMLDivElement>(null);
+  const scrollTo = useSmoothScroll();
   function activate(next: string) {
     if (next === active) return;
     setActive(next);
@@ -15,7 +17,7 @@ export function ProfileSections({ sections }: { sections: { id: string; label: s
     if (nav && nav.getBoundingClientRect().top < 58) {
       // A sticky element's viewport position is not its original document position.
       // Target the stationary anchor after the panel height has changed.
-      requestAnimationFrame(() => anchor.current?.scrollIntoView({ block: 'start', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' }));
+      requestAnimationFrame(() => { if (anchor.current) scrollTo(anchor.current, -56); });
     }
   }
   return <>
