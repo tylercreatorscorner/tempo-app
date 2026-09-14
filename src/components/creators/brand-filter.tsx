@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { useBrandMeta } from '@/hooks/use-brand-meta';
 import { cn } from '@/lib/utils';
 
@@ -18,37 +18,22 @@ interface BrandFilterProps {
 }
 
 export function BrandFilter({ brands, brandsWithData, selectedBrand, collapseNoData = false }: BrandFilterProps) {
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const brandMeta = useBrandMeta();
   const [showAll, setShowAll] = useState(false);
 
-  const handleSelect = (brand: string | null) => {
+  const brandHref = (brand: string | null) => {
     const params = new URLSearchParams(searchParams.toString());
     if (brand) {
       params.set('brand', brand);
     } else {
       params.delete('brand');
     }
-    // Absolute path, built from usePathname(), rather than a bare `?${params}`.
-    //
-    // ⚠️ UNRESOLVED, do not read the git history as settled. In the in-app
-    // browser this control does not navigate: the onClick fires, throws nothing,
-    // and history.pushState is never called. Switching to an absolute path did
-    // NOT change that, which argues the query-only form was not the cause.
-    //
-    // That same browser showed a half-hydrated page (two <main> elements, orphan
-    // <table> nodes in <body>, unresolved S:0/S:1/S:2 stream holders), so the
-    // fault may be the browser rather than the app. NEEDS A TEST IN REAL CHROME
-    // before anyone concludes either way. The absolute path is kept because it
-    // is the more correct form regardless.
-    //
-    // What IS proven: loading the page with ?brand=<slug> by hand filters
-    // correctly (Views 1.8M -> 69.9k for akwellness1 on Forchics), so the page
-    // and the data are fine either way.
+    // A real navigation link also works before hydration completes and supports
+    // opening another brand in a new tab. Preserve the current date window.
     const qs = params.toString();
-    router.push(qs ? `${pathname}?${qs}` : pathname);
+    return qs ? `${pathname}?${qs}` : pathname;
   };
 
   // Until data arrives, brandsWithData is empty — don't collapse the whole
@@ -62,8 +47,9 @@ export function BrandFilter({ brands, brandsWithData, selectedBrand, collapseNoD
 
   return (
     <div className="flex flex-wrap gap-2">
-      <button
-        onClick={() => handleSelect(null)}
+      <a
+        href={brandHref(null)}
+        aria-current={!selectedBrand ? 'page' : undefined}
         className={cn(
           'px-3 py-1.5 rounded-full text-xs font-medium transition-colors border',
           !selectedBrand
@@ -72,15 +58,16 @@ export function BrandFilter({ brands, brandsWithData, selectedBrand, collapseNoD
         )}
       >
         All Brands
-      </button>
+      </a>
       {visibleBrands.map((brand) => {
         const isActive = selectedBrand === brand;
         const hasData = brandsWithData.includes(brand);
         const color = brandMeta.color(brand);
         return (
-          <button
+          <a
             key={brand}
-            onClick={() => handleSelect(brand)}
+            href={brandHref(brand)}
+            aria-current={isActive ? 'page' : undefined}
             className={cn(
               'px-3 py-1.5 rounded-full text-xs font-medium transition-colors border',
               isActive
@@ -99,7 +86,7 @@ export function BrandFilter({ brands, brandsWithData, selectedBrand, collapseNoD
             {!hasData && !isActive && dataKnown && (
               <span className="ml-1 text-[10px] opacity-60">(no data)</span>
             )}
-          </button>
+          </a>
         );
       })}
       {hidden > 0 && (
