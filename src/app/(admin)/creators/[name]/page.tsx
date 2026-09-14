@@ -29,6 +29,7 @@ export const dynamic = 'force-dynamic';
 
 import { Suspense } from 'react';
 import { CreatorMetricReadout as MetricRail } from '@/components/creators/performance/metric-readout';
+import { ProfilePerformanceHistory } from '@/components/creators/performance/profile-history';
 import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
 import { resolveDateRange } from '@/lib/data/date-utils';
@@ -471,6 +472,10 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
       />
 
       {/* ── Where the effort goes ────────────────────────────────────────── */}
+      <Suspense fallback={<p role="status" className="p-6 text-sm text-muted-foreground">Loading performance history…</p>}>
+        <ProfilePerformanceHistory creatorId={creatorId} start={startDate} end={endDate}
+          brand={selectedBrand ?? undefined} label={selectedBrand ? brandLabel(reg, selectedBrand) : 'Authorized brands'} />
+      </Suspense>
       {effort.length > 0 && (
         <Card>
           <CardHeader

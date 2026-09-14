@@ -11,9 +11,12 @@ interface Props {
   scopeLabel: string;
   currency?: string;
   title?: string;
+  gmvLabel?: string;
+  postsLabel?: string;
+  sourceNote?: string;
 }
 
-export function CreatorPerformanceTimeline({ points, scopeLabel, currency = 'USD', title = 'Performance history' }: Props) {
+export function CreatorPerformanceTimeline({ points, scopeLabel, currency = 'USD', title = 'Performance history', gmvLabel = 'GMV', postsLabel = 'Posts published', sourceNote }: Props) {
   const rows = useMemo(() => normalizePoints(points), [points]);
   const [pinned, setPinned] = useState<string | null>(null);
   const [hover, setHover] = useState<string | null>(null);
@@ -58,7 +61,7 @@ export function CreatorPerformanceTimeline({ points, scopeLabel, currency = 'USD
   }
   return <section className={`${styles.theme} ${styles.panel}`} aria-label={title}>
     <h2 className={styles.heading}>{title}</h2>
-    <CreatorMetricReadout cells={[{ label: 'GMV', value: money(gmv) }, { label: 'Posts published', value: count(posts) }]} />
+    <CreatorMetricReadout cells={[{ label: gmvLabel, value: money(gmv) }, { label: postsLabel, value: count(posts) }]} />
     <div className={styles.scope}><span>{selectedScope}</span>{(point || pinned) && <button className={styles.reset} type="button" onClick={() => choose(null)}>Show period totals</button>}</div>
     {rows.length > 0 && <svg ref={host} className={styles.chart} viewBox={`0 0 ${width} 240`} role="img" aria-label={`GMV and published posts for ${scopeLabel}. Use the period selector for exact values.`}
       onPointerMove={event => { const bounds = event.currentTarget.getBoundingClientRect(); const i = nearestPeriod(event.clientX - bounds.left, left, right, rows.length); setHover(i === null ? null : rows[i].key); }}
@@ -74,10 +77,11 @@ export function CreatorPerformanceTimeline({ points, scopeLabel, currency = 'USD
       </g>)}
       <text x={right + 8} y={171}>Posts</text><text x={right + 8} y={186}>{maxPosts}</text><text x={right + 8} y={209}>0</text>
       {point && <><line className={styles.guide} x1={x(index)} x2={x(index)} y1={10} y2={211} />{point.gmv !== null && <circle className={styles.dot} cx={x(index)} cy={y(point.gmv)} r={5} />}</>}
-      {rows.length > 0 && <><text x={left} y={233}>{rows[0].label}</text>{rows.length > 1 && <text x={right} y={233} textAnchor="end">{rows[rows.length - 1].label}</text>}</>}
+      {rows.length > 0 && <><text x={left} y={233}>{rows[0].axisLabel ?? rows[0].label}</text>{rows.length > 1 && <text x={right} y={233} textAnchor="end">{rows[rows.length - 1].axisLabel ?? rows[rows.length - 1].label}</text>}</>}
     </svg>}
-    {rows.length === 0 ? <p className={styles.empty}>No performance history is available for this period.</p> : <div className={styles.controls}><label htmlFor={selectId}>Inspect period</label><select id={selectId} value={rows.some(row => row.key === pinned) ? pinned ?? '' : ''} onChange={event => choose(event.target.value || null)}><option value="">Period totals</option>{rows.map(row => <option value={row.key} key={row.key}>{row.label}</option>)}</select></div>}
+    {rows.length === 0 ? <p className={styles.empty}>No performance history is available for this period.</p> : <div className={styles.controls}><label htmlFor={selectId}>Inspect period</label><select id={selectId} value={rows.some(row => row.key === pinned) ? pinned ?? '' : ''} onChange={event => choose(event.target.value || null)}><option value="">Period totals</option>{rows.map(row => <option value={row.key} key={row.key}>{row.axisLabel ?? row.label}</option>)}</select></div>}
     <p className={styles.note}>GMV in {currency}. Gaps indicate unavailable data; published posts do not establish agreement fulfillment or punctuality.</p>
+    {sourceNote && <p className={styles.note}>{sourceNote}</p>}
     <span className={styles.srOnly} aria-live="polite">{announcement}</span>
   </section>;
 }

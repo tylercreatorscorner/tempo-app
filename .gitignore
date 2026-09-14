@@ -45,3 +45,4 @@ audit.mjs
 
 # Isolated design preview build
 .design-preview/
+supabase/.temp/

@@ -2,6 +2,7 @@ export interface PerformancePoint {
   /** Stable reporting-period key, supplied by the authorized server adapter. */
   key: string;
   label: string;
+  axisLabel?: string;
   gmv: number | null;
   posts: number | null;
 }
