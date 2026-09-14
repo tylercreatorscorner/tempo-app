@@ -11,6 +11,7 @@
  * request/response context, so no next/server here).
  */
 import { createAdminClient } from '@/lib/supabase/server';
+import { getRosterSummaryRetainer } from './roster-summary-retainer';
 import { getBrandRegistry, uuidToSlug, resolveUuids, expandSlugs } from '@/lib/data/brand-registry';
 import { getAnalyticsBrandTotals } from '@/lib/data/rpc';
 import type { WorkspaceScope } from '@/lib/auth/workspace-scope';
@@ -287,7 +288,7 @@ type HealthFilter = typeof HEALTH_FILTERS[number];
 export interface RosterQueryBody {
   data: EnrichedRow[];
   spark_days: string[];
-  summary?: { affiliate_gmv: number; affiliate_gmv_prev: number; managed_gmv_prev: number; managed_gmv_30d: number };
+  summary?: { affiliate_gmv: number; affiliate_gmv_prev: number; managed_gmv_prev: number; managed_gmv_30d: number; total_retainer: number | null };
   total: number;
   total_managed: number;
   page: number;
@@ -1145,7 +1146,7 @@ export async function runRosterQuery(
   // with GMV — but because it calls with page=1 it was also paying for this
   // block: 3x computeManagedGmv (~84 RPCs) + 2 analytics calls, every result
   // discarded. Defaults ON, so the roster client is unaffected.
-  let summary: { affiliate_gmv: number; affiliate_gmv_prev: number; managed_gmv_prev: number; managed_gmv_30d: number } | undefined;
+  let summary: { affiliate_gmv: number; affiliate_gmv_prev: number; managed_gmv_prev: number; managed_gmv_30d: number; total_retainer: number | null } | undefined;
   if (!exportAll && page === 1 && wantSummary) {
     const sEnd = pEndDate ?? new Date().toISOString().slice(0, 10);
     const sStart = pStartDate ?? (() => {
@@ -1194,7 +1195,7 @@ export async function runRosterQuery(
     // computeManagedGmv() the Earnings page uses, so the cards tie out exactly.
     // Affiliate GMV (brand-wide, all creators) stays on the analytics summaries.
     const kpiLookup = await buildManagedLookup(kpiStoreSlugs, reg);
-    const [affCur, affPrev, mgCur, mgPrev, mg30] = await Promise.all([
+    const [affCur, affPrev, mgCur, mgPrev, mg30, summaryRetainer] = await Promise.all([
       // getAnalyticsBrandTotals, not ...Summaries: this only needs total_gmv, and
       // the summaries RPC's unique_creators count made it slow enough to hit the
       // statement_timeout — which this .catch() then reported as $0 of GMV.
@@ -1216,6 +1217,8 @@ export async function runRosterQuery(
       computeManagedGmv(sStart, sEnd, kpiStoreSlugs, reg, kpiLookup),
       computeManagedGmv(pvStartStr, pvEndStr, kpiStoreSlugs, reg, kpiLookup),
       computeManagedGmv(roiStartStr, roiEndStr, kpiStoreSlugs, reg, kpiLookup),
+      // Store GMV cannot be divided by an unallocated umbrella agreement.
+      storeFilter ? Promise.resolve(null) : getRosterSummaryRetainer(scope, brand),
     ]);
     const sumTotalGmv = (rows: unknown) => ((rows as Array<{ total_gmv: number | string }> | null) ?? []).reduce((s, r) => s + (Number(r.total_gmv) || 0), 0);
     total_gmv_period = sumMg(mgCur);
@@ -1224,6 +1227,7 @@ export async function runRosterQuery(
       affiliate_gmv_prev: sumTotalGmv(affPrev),
       managed_gmv_prev: sumMg(mgPrev),
       managed_gmv_30d: sumMg(mg30),
+      total_retainer: summaryRetainer,
     };
   }
 
@@ -1260,3 +1264,4 @@ export async function runRosterQuery(
     },
   };
 }
+
