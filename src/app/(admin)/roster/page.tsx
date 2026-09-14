@@ -1,5 +1,6 @@
 'use client';
 import { CreatorPortrait } from '@/components/creators/creator-portrait';
+import { LatestRequest } from '@/lib/latest-request';
 
 import { useState, useEffect, useCallback, useRef, Suspense, Fragment } from 'react';
 import { createPortal } from 'react-dom';
@@ -1602,9 +1603,12 @@ function RosterContent() {
     return () => clearTimeout(t);
   }, [searchInput]);
 
+  const rosterRequest = useRef<LatestRequest | null>(null);
+  if (!rosterRequest.current) rosterRequest.current = new LatestRequest();
+
   const fetchRoster = useCallback(async () => {
     setLoading(true);
-    try {
+    await rosterRequest.current!.run(async (signal) => {
       const params = new URLSearchParams({
         page: String(page),
         limit: String(PAGE_SIZE),
@@ -1623,7 +1627,7 @@ function RosterContent() {
       if (segFilters?.max_gmv != null) params.set('max_gmv', String(segFilters.max_gmv));
       if (segFilters?.min_posts != null) params.set('min_posts', String(segFilters.min_posts));
 
-      const res = await fetch(`/api/roster?${params}`);
+      const res = await fetch(`/api/roster?${params}`, { signal });
       // res.json() succeeds on a 500/401/403 too (the body is {error}), so
       // WITHOUT this guard json.data is undefined → setRoster([]) → a confident
       // "No creators found" over $0 KPIs. Guard, then let catch handle it.
@@ -1631,38 +1635,44 @@ function RosterContent() {
         const j = await res.json().catch(() => ({}));
         throw new Error(j.error || `Roster load failed (${res.status})`);
       }
-      const json = await res.json();
-      setLoadError(false);
-      setHasLoadedOnce(true);
-      setRoster(json.data || []);
-      setSparkDays(json.spark_days || []);
-      setTotal(json.total || 0);
-      // Managed GMV + summary are computed page-1 only (period/brand-level, not
-      // page-level). Persist them across pagination instead of zeroing the cards.
-      if (json.total_gmv_period != null) setTotalGmvPeriod(json.total_gmv_period);
-      setTotalManaged(json.total_managed ?? 0);
-      // Health counts are over the FULL managed set (unaffected by the active
-      // health filter), so the triage chips always show totals.
-      setHealthCounts({
-        healthy: json.healthy_count ?? 0,
-        behind: json.behind_count ?? 0,
-        silent: json.silent_count ?? 0,
-        low_roi: json.low_roi_count ?? 0,
-        affiliate: json.affiliate_count ?? 0,
-      });
-      if (json.summary) setSummary(json.summary);
-    } catch (err) {
-      console.error('Failed to fetch roster:', err);
-      // Flag the error; leave the last-good rows/KPIs in place rather than
-      // zeroing them. The render shows an error banner (or an error state on a
-      // cold failure with no rows) — never a fake-empty roster.
-      setLoadError(true);
-    } finally {
-      setLoading(false);
-    }
+      return await res.json();
+    }, {
+      success: (json) => {
+        setLoadError(false);
+        setHasLoadedOnce(true);
+        setRoster(json.data || []);
+        setSparkDays(json.spark_days || []);
+        setTotal(json.total || 0);
+        // Managed GMV + summary are computed page-1 only (period/brand-level, not
+        // page-level). Persist them across pagination instead of zeroing the cards.
+        if (json.total_gmv_period != null) setTotalGmvPeriod(json.total_gmv_period);
+        setTotalManaged(json.total_managed ?? 0);
+        // Health counts are over the FULL managed set (unaffected by the active
+        // health filter), so the triage chips always show totals.
+        setHealthCounts({
+          healthy: json.healthy_count ?? 0,
+          behind: json.behind_count ?? 0,
+          silent: json.silent_count ?? 0,
+          low_roi: json.low_roi_count ?? 0,
+          affiliate: json.affiliate_count ?? 0,
+        });
+        if (json.summary) setSummary(json.summary);
+      },
+      error: (err) => {
+        console.error('Failed to fetch roster:', err);
+        // Flag the error; leave the last-good rows/KPIs in place rather than
+        // zeroing them. The render shows an error banner (or an error state on a
+        // cold failure with no rows) — never a fake-empty roster.
+        setLoadError(true);
+      },
+      settled: () => setLoading(false),
+    });
   }, [brand, view, search, productFilter, health, page, sortBy, sortDir, preset, customStart, customEnd, isCustomPeriod, segFilters]);
 
-  useEffect(() => { fetchRoster(); }, [fetchRoster]);
+  useEffect(() => {
+    void fetchRoster();
+    return () => rosterRequest.current?.cancel();
+  }, [fetchRoster]);
 
   // Export the current view (all matching rows, not just the page) to CSV/Excel.
   const [exporting, setExporting] = useState(false);
