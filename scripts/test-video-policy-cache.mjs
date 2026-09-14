@@ -78,7 +78,7 @@ async function outcomes() {
 }
 const metadata = () => db.query("select policyname,permissive,roles,cmd,with_check from pg_policies where tablename='daily_video_product_stats' order by policyname");
 const before=await outcomes(), metaBefore=(await metadata()).rows;
-const migration=readFileSync('supabase/migrations/20260914203600_video_policy_statement_cache.sql','utf8');
+const migration=readFileSync('supabase/migrations/20260914203808_video_policy_statement_cache.sql','utf8');
 await db.exec(migration);
 assert.deepEqual(await outcomes(),before,'Read and write decisions must be identical');
 assert.deepEqual((await metadata()).rows,metaBefore,'Policy reach and WITH CHECK must be preserved');
