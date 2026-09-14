@@ -1483,12 +1483,13 @@ function LevelBadge({ level }: { level?: number | null }) {
 // Discord profile picture next to the name (falls back to a colored initial).
 function CreatorAvatar({ creator }: { creator: Creator }) {
   const src = creator.discord_avatar;
+  const [failedSource, setFailedSource] = useState<string | null>(null);
   const label = (creator.real_name || creator.handles?.[0] || creator.account_1 || '?').trim();
   const initial = (label.charAt(0) || '?').toUpperCase();
-  if (src) {
+  if (src && failedSource !== src) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
-      <img src={src} alt="" referrerPolicy="no-referrer" className={rosterLayout.avatar} />
+      <img src={src} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setFailedSource(src)} className={rosterLayout.avatar} />
     );
   }
   return (
