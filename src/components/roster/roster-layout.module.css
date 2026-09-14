@@ -24,6 +24,8 @@
 .table td { padding: 18px 16px; font-variant-numeric: tabular-nums; }
 .person { display: flex; align-items: center; gap: 10px; min-width: 240px; max-width: 300px; }
 .person :global(.truncate) { white-space: normal; overflow-wrap: anywhere; overflow: visible; }
+.person > div { flex: 1; min-width: 0; }
+.person > div > div:first-child { flex-wrap: wrap; font-size: 15px; }
 .avatar { width: 48px; height: 48px; border-radius: 14px; object-fit: cover; flex-shrink: 0; background: color-mix(in srgb, var(--primary) 12%, var(--card)); color: var(--primary); display: flex; align-items: center; justify-content: center; font-weight: 600; }
 .signal { display: flex; flex-direction: column-reverse; align-items: flex-start; gap: 8px; min-width: 96px; }
 .signal > div:last-child { display: flex; flex-wrap: wrap; align-items: baseline; gap: 3px 7px; text-align: left; }
@@ -50,6 +52,8 @@
   .table td[data-label]::before { content: attr(data-label); display: block; color: var(--muted-foreground); font-size: 11px; margin-bottom: 6px; }
   .table td[data-label="Creator"] { grid-column: 1 / -1; }
   .table td[data-label="Creator"]::before { display: none; }
+  .table td[data-label="Brand"] { grid-column: 1 / -1; margin-top: -8px; }
+  .table td[data-label="Brand"]::before { display: none; }
   .table td:empty { display: none; }
   .person { max-width: none; min-width: 0; }
   .person .avatar { width: 54px; height: 54px; }

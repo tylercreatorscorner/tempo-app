@@ -2182,7 +2182,7 @@ function RosterContent() {
                         </div>
                       </td>
                       {showBrandColumn && (
-                        <td className="px-5 py-3.5">
+                        <td data-label="Brand" className="px-5 py-3.5">
                           {isGroup ? (
                             <Badge variant="accent">{c.brands?.length ?? 0} brands</Badge>
                           ) : c.brand ? (
