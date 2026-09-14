@@ -800,14 +800,14 @@ function CreatorPanel({
     <div className="fixed inset-0 z-50 flex justify-end" onClick={editing ? undefined : onClose}>
       <div className="absolute inset-0 bg-black/20 backdrop-blur-[2px]" onClick={editing ? undefined : onClose} />
       <div
-        className="relative w-full max-w-md bg-card shadow-2xl h-full overflow-y-auto flex flex-col"
+        className={rosterLayout.panel}
         style={{ animation: 'slideInRight 0.22s ease-out' }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="sticky top-0 bg-card border-b border-border px-6 py-4 flex items-center justify-between z-10">
           <div>
-            <h2 className="text-base font-bold text-[var(--foreground)]">{displayName}</h2>
+            <div className={rosterLayout.panelHeader}><CreatorAvatar creator={creator} /><h2>{displayName}</h2></div>
             {creator.brand && !editing && (
               <p className="text-xs text-muted-foreground mt-0.5">
                 {brandOptions.find(b => b.slug === creator.brand)?.name || brandMeta.label(creator.brand)}
@@ -1482,8 +1482,10 @@ function LevelBadge({ level }: { level?: number | null }) {
 
 // Discord profile picture next to the name (falls back to a colored initial).
 function CreatorAvatar({ creator }: { creator: Creator }) {
-  const src = creator.discord_avatar;
+  const original = creator.discord_avatar;
+  const repair = creator.creator_id ? `/api/creators/${creator.creator_id}/avatar` : null;
   const [failedSource, setFailedSource] = useState<string | null>(null);
+  const src = failedSource === null ? (original || repair) : failedSource === original ? repair : null;
   const label = (creator.real_name || creator.handles?.[0] || creator.account_1 || '?').trim();
   const initial = (label.charAt(0) || '?').toUpperCase();
   if (src && failedSource !== src) {
@@ -1820,7 +1822,7 @@ function RosterContent() {
             )}
           </span>
         }
-        subtitle="A reference for who's posting and whether they're worth the cost."
+        subtitle="Your creators, their performance, and the partnerships you are building."
         actions={
           <div className="flex items-center gap-2">
             <Button variant="outline" onClick={() => { setBulkInitialRows(null); setBulkOpen(true); }}>
@@ -1885,7 +1887,7 @@ function RosterContent() {
         />
         <StatCard
           className={rosterLayout.metric}
-          label="ROI · 30d"
+          label="GMV / retainer · 30d"
           value={kpiFailed ? '—' : totalRetainer == null ? '—' : roi > 0 ? `${roi.toFixed(1)}x` : 'N/A'}
           subValue={totalRetainer != null && totalRetainer > 0 ? `${fmt(managed30)} / ${fmt(totalRetainer)}/mo` : undefined}
 
@@ -2063,7 +2065,7 @@ function RosterContent() {
                   </th>
                   <th className="text-right px-5 py-3.5 font-bold text-muted-foreground text-[10.5px] uppercase tracking-[0.07em]">
                     <button onClick={() => toggleSort('roi_period')} className="inline-flex items-center gap-1.5 hover:text-foreground transition-colors">
-                      ROI <SortIcon col="roi_period" />
+                      GMV / fee <SortIcon col="roi_period" />
                     </button>
                   </th>
                   <th className="text-left px-5 py-3.5 font-bold text-muted-foreground text-[10.5px] uppercase tracking-[0.07em]">
@@ -2120,7 +2122,7 @@ function RosterContent() {
                           )}
                         </td>
                       )}
-                      <td className="px-5 py-3.5">
+                      <td data-label="Creator" className="px-5 py-3.5">
                         <div className={rosterLayout.person}>
                           {isGroup && (
                             <span className="text-muted-foreground flex-shrink-0" aria-hidden>
@@ -2199,9 +2201,9 @@ function RosterContent() {
                           )}
                         </td>
                       )}
-                      <td className="px-5 py-3.5">
+                      <td data-label="GMV" className="px-5 py-3.5">
                         <div className={rosterLayout.signal}>
-                          <SparklineCell data={c.spark} days={sparkDays} color="var(--primary)" width={112} height={30} format={fmt} />
+                          <SparklineCell data={c.spark} days={sparkDays} color="var(--primary)" width={96} height={30} format={fmt} />
                           <div className="text-right min-w-[72px]">
                             <div className="tabular-nums font-semibold text-[var(--foreground)]">
                               {(c.gmv_period || 0) > 0 ? fmt(c.gmv_period) : <span className="text-muted-foreground font-normal">—</span>}
@@ -2210,21 +2212,21 @@ function RosterContent() {
                           </div>
                         </div>
                       </td>
-                      <td className="px-5 py-3.5">
+                      <td data-label="Posts" className="px-5 py-3.5">
                         <div className={rosterLayout.signal}>
-                          <SparklineCell data={c.spark_posts} days={sparkDays} color="var(--pulse-pos)" variant="bars" width={112} height={30} format={(v) => `${v} post${v === 1 ? '' : 's'}`} />
+                          <SparklineCell data={c.spark_posts} days={sparkDays} color="var(--pulse-pos)" variant="bars" width={96} height={30} format={(v) => `${v} post${v === 1 ? '' : 's'}`} />
                           <div className="text-right min-w-[36px]">
                             <div className="tabular-nums text-foreground">{c.posts_period || 0}</div>
                             <DeltaBadge value={c.posts_delta} />
                           </div>
                         </div>
                       </td>
-                      <td className="px-5 py-3.5"><LastPostCell date={c.last_post_date} /></td>
-                      <td className="px-5 py-3.5 text-right font-semibold text-[var(--foreground)]">
+                      <td data-label="Last post" className="px-5 py-3.5"><LastPostCell date={c.last_post_date} /></td>
+                      <td data-label="Retainer" className="px-5 py-3.5 text-right font-semibold text-[var(--foreground)]">
                         {(c.retainer || 0) > 0 ? fmt(c.retainer!) : <span className="text-muted-foreground font-normal">—</span>}
                       </td>
-                      <td className="px-5 py-3.5 text-right"><RoiCell roi={c.roi_period} /></td>
-                      <td className="px-5 py-3.5"><JoinDateCell date={c.joined} /></td>
+                      <td data-label="GMV / fee" className="px-5 py-3.5 text-right"><RoiCell roi={c.roi_period} /></td>
+                      <td data-label="Joined" className="px-5 py-3.5"><JoinDateCell date={c.joined} /></td>
                       {showAddAction && (
                         <td className="px-5 py-3.5 text-right">
                           {!c.is_managed && (
@@ -2253,7 +2255,7 @@ function RosterContent() {
                           onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openChild(c, child); } }}
                         >
                           {showAddAction && <td />}
-                          <td className="px-5 py-2.5">
+                          <td data-label="Creator" className="px-5 py-2.5">
                             <div className="flex items-center gap-2 pl-8">
                               <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: child.brand ? brandMeta.color(child.brand) : 'var(--muted-foreground)' }} />
                               <span className="truncate text-sm font-medium text-muted-foreground">{childLabel}</span>
@@ -2261,7 +2263,7 @@ function RosterContent() {
                           </td>
                           {showBrandColumn && <td className="px-5 py-2.5" />}
                           {showManagedTag && <td className="px-5 py-2.5" />}
-                          <td className="px-5 py-2.5">
+                          <td data-label="GMV" className="px-5 py-2.5">
                             <div className={rosterLayout.signal}>
                               <div className="w-[88px] flex-shrink-0" aria-hidden />
                               <div className="text-right min-w-[72px]">
@@ -2271,7 +2273,7 @@ function RosterContent() {
                               </div>
                             </div>
                           </td>
-                          <td className="px-5 py-2.5">
+                          <td data-label="Posts" className="px-5 py-2.5">
                             <div className={rosterLayout.signal}>
                               <div className="w-[88px] flex-shrink-0" aria-hidden />
                               <div className="text-right min-w-[36px]">
@@ -2279,11 +2281,11 @@ function RosterContent() {
                               </div>
                             </div>
                           </td>
-                          <td className="px-5 py-2.5"><LastPostCell date={child.last_post_date} /></td>
-                          <td className="px-5 py-2.5 text-right font-semibold text-sm text-[var(--foreground)]">
+                          <td data-label="Last post" className="px-5 py-2.5"><LastPostCell date={child.last_post_date} /></td>
+                          <td data-label="Retainer" className="px-5 py-2.5 text-right font-semibold text-sm text-[var(--foreground)]">
                             {child.retainer != null && child.retainer > 0 ? fmt(child.retainer) : <span className="text-muted-foreground font-normal">—</span>}
                           </td>
-                          <td className="px-5 py-2.5 text-right"><RoiCell roi={child.roi_period} /></td>
+                          <td data-label="GMV / fee" className="px-5 py-2.5 text-right"><RoiCell roi={child.roi_period} /></td>
                           <td className="px-5 py-2.5" />
                           {showAddAction && <td className="px-5 py-2.5" />}
                         </tr>
