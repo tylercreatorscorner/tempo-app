@@ -115,7 +115,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
   if (!profile) notFound();
 
   // One handle may have a registration for several brands; show it once in identity.
-  const identityAccounts = [...new Map(profile.accounts.map(account => [
+  const identityAccounts = [...new Map(profile.accounts.filter(account => account.tiktok_username?.trim()).map(account => [
     account.tiktok_username.trim().toLowerCase(), account,
   ])).values()];
 
