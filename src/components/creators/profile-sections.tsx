@@ -7,15 +7,19 @@ export function ProfileSections({ sections }: { sections: { id: string; label: s
   const [active, setActive] = useState(sections[0].id);
   const id = useId();
   const navigation = useRef<HTMLElement>(null);
+  const anchor = useRef<HTMLDivElement>(null);
   function activate(next: string) {
     if (next === active) return;
     setActive(next);
     const nav = navigation.current;
     if (nav && nav.getBoundingClientRect().top < 58) {
-      nav.scrollIntoView({ block: 'start', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
+      // A sticky element's viewport position is not its original document position.
+      // Target the stationary anchor after the panel height has changed.
+      requestAnimationFrame(() => anchor.current?.scrollIntoView({ block: 'start', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' }));
     }
   }
   return <>
+    <div ref={anchor} className={styles.sectionAnchor} aria-hidden="true" />
     <nav ref={navigation} className={styles.tabs} aria-label="Creator profile sections" role="tablist">
       {sections.map((section, index) => <button type="button" role="tab" key={section.id} id={`${id}-${section.id}-tab`} aria-controls={`${id}-${section.id}-panel`} aria-selected={active === section.id} tabIndex={active === section.id ? 0 : -1} onClick={() => activate(section.id)} onKeyDown={event => {
         const nextIndex = event.key === 'ArrowRight' ? (index + 1) % sections.length : event.key === 'ArrowLeft' ? (index - 1 + sections.length) % sections.length : event.key === 'Home' ? 0 : event.key === 'End' ? sections.length - 1 : null;

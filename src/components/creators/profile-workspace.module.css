@@ -74,6 +74,7 @@
 .tabs button { transition:color 160ms ease, background-color 160ms ease, border-color 160ms ease; padding-inline:8px; }
 .tabs button:hover { color:var(--foreground); background:color-mix(in srgb, var(--primary) 5%, transparent); }
 .sectionStage { min-height:65vh; overflow-anchor:none; }
+.sectionAnchor { scroll-margin-top:56px; height:0; }
 .sectionPanel:not([hidden]) { animation:profile-enter 180ms ease-out both; }
 @keyframes profile-enter { from { opacity:.45; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
 @media(max-width:650px) { .brandSelector { width:100%; } .scope > div { width:100%; } .brandSelectorHint { display:none; } .tabs { gap:14px; } }
