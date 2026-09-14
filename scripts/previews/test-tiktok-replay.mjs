@@ -1,0 +1,48 @@
+// Full local Next.js routes + real preview Auth/PostgREST + historical TikTok transport.
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+import dotenv from 'dotenv';
+import {createClient} from '@supabase/supabase-js';
+import {createServerClient} from '@supabase/ssr';
+const env=dotenv.parse(fs.readFileSync('.env.local'));
+const state=JSON.parse(fs.readFileSync('.env.tiktok-replay-runtime.json','utf8'));
+assert.equal(env.NEXT_PUBLIC_SUPABASE_URL,'https://otwssgedcnxamcglqpnn.supabase.co');
+assert.equal(env.TIKTOK_APP_KEY,'replay-only-app');
+const admin=createClient(env.NEXT_PUBLIC_SUPABASE_URL,env.SUPABASE_SERVICE_ROLE_KEY,{auth:{persistSession:false}});
+const jar=new Map();
+const owner=createServerClient(env.NEXT_PUBLIC_SUPABASE_URL,env.NEXT_PUBLIC_SUPABASE_ANON_KEY,{cookies:{getAll:()=>[...jar].map(([name,value])=>({name,value})),setAll:rows=>rows.forEach(r=>jar.set(r.name,r.value))}});
+const signed=await owner.auth.signInWithPassword({email:state.email,password:state.password});
+assert.ok(!signed.error,'Test account sign-in failed');
+const headers={Cookie:[...jar].map(([k,v])=>`${k}=${v}`).join('; ')};
+const base='http://localhost:3110';
+const get=path=>fetch(base+path,{headers,redirect:'manual'});
+const route='/api/tiktok/samples?brand='+state.brandSlug;
+const cases=[];
+try {
+ const anon=await fetch(base+route,{redirect:'manual'});assert.ok([301,302,303,307,401,403].includes(anon.status));cases.push('anonymous denied');
+ const first=await get(route);assert.equal(first.status,200);assert.equal(first.headers.get('cache-control'),'private, no-store');
+ const page=await first.json();assert.equal(page.applications.length,20);assert.equal(page.applications[0].commissionRate,0.3);assert.ok(!('gmv' in page.applications[0]));
+ assert.equal(page.totalCount,9999);cases.push('historical sample page and 30% commission');
+ const next=await get(route+'&pageToken='+encodeURIComponent(page.nextPageToken));assert.equal(next.status,200);
+ const page2=await next.json();assert.equal(page2.applications.length,20);assert.notEqual(page.applications[0].id,page2.applications[0].id);cases.push('next captured page');
+ assert.equal((await get(route+'&status=PENDING')).status,502);cases.push('uncaptured filter fails visibly');
+ assert.equal((await get('/api/tiktok/samples?brand=bondie')).status,404);cases.push('other test workspace denied');
+ assert.equal((await get(route+'&applicationId=../bad')).status,400);cases.push('invalid application ID denied');
+ assert.equal((await get(route+'&applicationId='+page.applications[0].id+'&format=VIDEO')).status,502);cases.push('missing historical fulfillment fails visibly');
+ const privateRead=await owner.from('api_shadow_content_inventory').select('video_id').limit(1);assert.ok(privateRead.error);cases.push('direct authenticated inventory read denied');
+ const deniedRun=await fetch(base+'/api/cron/shadow-ingest?brand='+state.brandSlug+'&date=2026-07-24&limit=0',{redirect:'manual'});assert.ok([301,302,303,307,401,403].includes(deniedRun.status));cases.push('capture requires cron secret');
+ console.log('PASS authenticated sample pages, pagination, errors, tenant isolation and direct database denial. Starting historical capture...');
+ const capture=await fetch(base+'/api/cron/shadow-ingest?brand='+state.brandSlug+'&date=2026-07-24&limit=0',{headers:{Authorization:'Bearer '+env.CRON_SECRET}});
+ const run=await capture.json();
+ assert.equal(run.status,'failed');assert.equal(run.inventoryComplete,false);assert.equal(run.videosListed,400);assert.equal(run.productsFetched,12);assert.match(run.error,/Page limit/);
+ const inventory=await admin.from('api_shadow_content_inventory').select('video_id,seller_video_gmv,affiliate_video_gmv,creator_open_id,post_time_zone',{count:'exact'}).eq('run_id',run.runId);
+ assert.ok(!inventory.error);assert.equal(inventory.count,400);assert.ok(inventory.data.every(v=>v.affiliate_video_gmv===null&&v.post_time_zone===null));
+ const products=await admin.from('api_shadow_product_performance').select('affiliate_total_gmv,affiliate_video_gmv,affiliate_live_gmv,affiliate_items_sold,affiliate_orders').eq('run_id',run.runId);
+ assert.ok(!products.error);
+ const sum=key=>Math.round(products.data.reduce((n,r)=>n+Number(r[key]),0)*100)/100;
+ assert.equal(sum('affiliate_total_gmv'),22436.68);assert.equal(sum('affiliate_video_gmv'),20329.04);assert.equal(sum('affiliate_live_gmv'),1622.03);assert.equal(sum('affiliate_items_sold'),579);assert.equal(sum('affiliate_orders'),568);
+ cases.push('actual migration and importer preserve 400 captured videos; incomplete source rejected');cases.push('12 products reproduce Affiliate GMV 22436.68, video 20329.04, live 1622.03, 579 units, 568 product-order sum');
+ const report={testedAt:new Date().toISOString(),database:'otwssgedcnxamcglqpnn',app:base,mode:'historical replay, not live TikTok',run,cases,totals:{affiliate:sum('affiliate_total_gmv'),video:sum('affiliate_video_gmv'),live:sum('affiliate_live_gmv'),units:sum('affiliate_items_sold'),productOrderSum:sum('affiliate_orders')},limitations:['Video 202605 capture ends at 400 of 12539; no full inventory claim','Only first three saved sample pages included','No historical fulfillment response available','No fresh live TikTok authorization or rate-limit validation']};
+ fs.writeFileSync('.env.tiktok-replay-results.json',JSON.stringify(report,null,2));
+ console.log(JSON.stringify(report,null,2));
+} finally {await owner.auth.signOut({scope:'local'});}

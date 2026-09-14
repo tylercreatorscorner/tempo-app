@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+process.env.TIKTOK_REPLAY_TEST='1';
+process.env.NEXT_PUBLIC_SUPABASE_URL='https://otwssgedcnxamcglqpnn.supabase.co';
+process.env.TIKTOK_APP_KEY='replay-only-app';
+const {replayFetch}=await import('./tiktok-replay-preload.mjs');
+await assert.rejects(()=>replayFetch('https://elrsgxlyejlkzjcnhmak.supabase.co/rest/v1/brands_v2'),/blocked/);
+await assert.rejects(()=>replayFetch('https://auth.tiktok-shops.com/api/v2/token/refresh'),/blocked/);
+await assert.rejects(()=>replayFetch('https://open-api.tiktokglobalshop.com/affiliate_seller/202507/sample_applications/review',{method:'POST',body:'{}'}),/blocked/);
+const sample=await replayFetch('https://open-api.tiktokglobalshop.com/affiliate_seller/202508/sample_applications/search',{method:'POST',body:'{}'});
+assert.equal(sample.status,200);assert.equal((await sample.json()).data.sample_applications.length,20);
+const missing=await replayFetch('https://open-api.tiktokglobalshop.com/affiliate_seller/202409/sample_applications/123/fulfillments/search',{method:'POST',body:'{}'});
+assert.equal(missing.status,400);
+console.log('PASS replay transport blocks production database, TikTok token refresh and mutation; saved response and explicit missing capture verified.');

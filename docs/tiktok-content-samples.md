@@ -2,6 +2,8 @@
 
 Implemented September 14, 2026 on `feat/tiktok-content-samples`. This is a reviewable implementation, not a completed creator-GMV reconciliation or a production data migration.
 
+Testing update: the migration is now installed in the existing isolated Supabase preview, and the full local Tempo app has passed historical JiYu replay tests through real Auth/PostgREST. The replay preserves all 400 available v202605 video records (including zero-GMV/view records), correctly rejects the incomplete capture, and reproduces the complete 12-product affiliate totals. See [test environment and remaining limits](tiktok-test-environment.md). Production remains unchanged.
+
 ## Behavior
 
 - Every page of the 202605 shop video list is persisted to `api_shadow_content_inventory`, including zero and unknown GMV/views. Stable creator open IDs, raw timestamps and the raw video object are preserved.
