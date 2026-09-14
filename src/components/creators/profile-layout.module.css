@@ -1,0 +1,55 @@
+.page {
+  max-width: 1240px;
+  margin-inline: auto;
+  min-width: 0;
+  --profile-line: var(--border);
+}
+.hero {
+  padding: 28px;
+  background: var(--card);
+  border: 1px solid var(--profile-line);
+  border-radius: 18px;
+}
+.identityRow { display: flex; align-items: flex-start; gap: 28px; }
+.identity { display: flex; align-items: flex-start; gap: 16px; flex: 1; min-width: 0; }
+.name { font-size: 26px; font-weight: 600; letter-spacing: -.7px; line-height: 1.2; overflow-wrap: anywhere; }
+.details { display: flex; flex-direction: column; gap: 16px; align-items: flex-end; max-width: 330px; }
+.handles { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 12px; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.handles a { min-width: 0; overflow-wrap: anywhere; }
+.section { background: var(--card); border: 1px solid var(--profile-line); border-radius: 16px; overflow: hidden; min-width: 0; }
+.sectionHeader { padding: 22px 24px 16px; }
+.sectionHeader h3 { font-size: 16px; font-weight: 600; letter-spacing: -.2px; }
+.sectionHeader p { margin-top: 6px; font-size: 12px; line-height: 1.6; color: var(--muted-foreground); }
+.tableWrap { overflow-x: auto; }
+.table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+.table th { padding: 12px 24px; font-size: 11px; font-weight: 500; color: var(--muted-foreground); text-transform: none; letter-spacing: normal; }
+.table td { padding: 14px 24px; }
+.table thead tr { background: transparent; }
+.page a:focus-visible, .page button:focus-visible { outline: 2px solid var(--primary); outline-offset: 4px; }
+.summary { padding: 20px 24px; border-left: 3px solid var(--primary); background: var(--card); border-radius: 0 12px 12px 0; }
+.lifetime { padding: 20px 24px; border-top: 1px solid var(--profile-line); display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px 28px; }
+@media (max-width: 900px) {
+  .identityRow { flex-direction: column; gap: 22px; }
+  .details { max-width: none; width: 100%; flex-direction: row; justify-content: space-between; align-items: flex-start; border-top: 1px solid var(--profile-line); padding-top: 18px; }
+}
+@media (max-width: 600px) {
+  .hero { padding: 20px 18px; }
+  .identity { gap: 12px; width: 100%; }
+  .name { font-size: 22px; }
+  .identity button, .identity a[title] { min-height: 44px; padding-inline: 10px; }
+  .details { flex-direction: column; gap: 14px; }
+  .handles { gap: 8px; font-size: 12px; }
+  .handles a { min-height: 32px; align-items: center; }
+  .sectionHeader { padding: 20px 18px 12px; }
+  .tableWrap { overflow: visible; }
+  .table, .table tbody { display: block; width: 100%; }
+  .table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .table tbody tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; padding: 18px; border-top: 1px solid var(--profile-line); }
+  .table tbody td { display: block; min-width: 0; max-width: none; padding: 0; border: 0; text-align: left; overflow-wrap: anywhere; }
+  .table tbody td::before { content: attr(data-label); display: block; margin-bottom: 5px; color: var(--muted-foreground); font-size: 11px; font-weight: 400; }
+  .table tbody td:first-child { grid-column: 1 / -1; }
+  .table tbody td:first-child::before { display: none; }
+  .table tbody td:first-child > span, .table tbody td:first-child > button { white-space: normal; overflow: visible; text-overflow: clip; }
+  .table tbody td:first-child > button { min-height: 44px; }
+  .summary, .lifetime { padding: 18px; }
+}
