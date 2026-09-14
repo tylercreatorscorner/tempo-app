@@ -1,4 +1,5 @@
 'use client';
+import { CreatorPortrait } from '@/components/creators/creator-portrait';
 
 import { useState, useEffect, useCallback, useRef, Suspense, Fragment } from 'react';
 import { createPortal } from 'react-dom';
@@ -1482,25 +1483,8 @@ function LevelBadge({ level }: { level?: number | null }) {
 
 // Discord profile picture next to the name (falls back to a colored initial).
 function CreatorAvatar({ creator }: { creator: Creator }) {
-  const original = creator.discord_avatar;
-  const repair = creator.creator_id ? `/api/creators/${creator.creator_id}/avatar` : null;
-  const [failedSource, setFailedSource] = useState<string | null>(null);
-  const src = failedSource === null ? (original || repair) : failedSource === original ? repair : null;
-  const label = (creator.real_name || creator.handles?.[0] || creator.account_1 || '?').trim();
-  const initial = (label.charAt(0) || '?').toUpperCase();
-  if (src && failedSource !== src) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img src={src} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setFailedSource(src)} className={rosterLayout.avatar} />
-    );
-  }
-  return (
-    <span className={rosterLayout.avatar}>
-      {initial}
-    </span>
-  );
+  return <CreatorPortrait creatorId={creator.creator_id} source={creator.discord_avatar} name={creator.real_name || creator.handles?.[0] || creator.account_1 || '?'} className={rosterLayout.avatar} />;
 }
-
 function RosterContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
