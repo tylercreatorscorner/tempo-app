@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 
 interface BrandFilterProps {
   brands: string[];
+  appearance?: 'default' | 'creator';
   brandsWithData: string[];
   selectedBrand: string | null;
   /**
@@ -17,7 +18,7 @@ interface BrandFilterProps {
   collapseNoData?: boolean;
 }
 
-export function BrandFilter({ brands, brandsWithData, selectedBrand, collapseNoData = false }: BrandFilterProps) {
+export function BrandFilter({ brands, brandsWithData, selectedBrand, collapseNoData = false, appearance = 'default' }: BrandFilterProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const brandMeta = useBrandMeta();
@@ -70,18 +71,23 @@ export function BrandFilter({ brands, brandsWithData, selectedBrand, collapseNoD
             aria-current={isActive ? 'page' : undefined}
             className={cn(
               'px-3 py-1.5 rounded-full text-xs font-medium transition-colors border',
-              isActive
+              appearance === 'creator'
+                ? 'inline-flex min-h-9 items-center gap-2 text-foreground bg-card'
+                : isActive
                 ? 'text-white'
                 : hasData
                   ? 'bg-card hover:border-border'
                   : 'bg-card hover:border-border opacity-50'
             )}
             style={
-              isActive
+              appearance === 'creator'
+                ? { borderColor: isActive ? 'var(--primary)' : 'var(--border)', backgroundColor: isActive ? 'var(--secondary)' : 'var(--card)' }
+                : isActive
                 ? { backgroundColor: color, borderColor: color }
                 : { borderColor: `${color}40`, color }
             }
           >
+            {appearance === 'creator' && <span aria-hidden="true" className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: color }} />}
             {brandMeta.label(brand)}
             {!hasData && !isActive && dataKnown && (
               <span className="ml-1 text-[10px] opacity-60">(no data)</span>

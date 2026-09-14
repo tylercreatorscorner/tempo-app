@@ -404,7 +404,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
 
       {activeBrands.length > 1 && (
         <Suspense fallback={null}>
-          <BrandFilter brands={activeBrands} brandsWithData={activeBrandsWithData} selectedBrand={selectedBrand} />
+          <BrandFilter appearance="creator" brands={activeBrands} brandsWithData={activeBrandsWithData} selectedBrand={selectedBrand} />
         </Suspense>
       )}
 
