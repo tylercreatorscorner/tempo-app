@@ -34,6 +34,8 @@ jobs:
         run: npm run typecheck
       - name: Offline regression tests
         run: npm run test:ci
+      - name: TikTok content and sample regression tests
+        run: npm run test:tiktok-content-samples
       - name: Lint hardened entry points
         run: npm run lint:hardening
       - name: Verify production compilation with dummy configuration
