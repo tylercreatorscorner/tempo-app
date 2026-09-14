@@ -1,0 +1,39 @@
+.page { max-width: 1520px; margin-inline: auto; min-width: 0; }
+.page h1 { font-size: 30px; font-weight: 600; letter-spacing: -.9px; }
+.scope { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.metrics { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; }
+.metric { border: 0; border-left: 1px solid var(--border); border-radius: 0; background: transparent; box-shadow: none; padding: 18px; min-width: 0; }
+.metric:first-child { border-left: 0; padding-left: 0; }
+.metric > div:first-child p { font-size: 11px; font-weight: 500; text-transform: none; letter-spacing: 0; }
+.metric > p { font-size: 26px; font-weight: 600; letter-spacing: -.7px; overflow-wrap: anywhere; }
+.featured { background: color-mix(in srgb, var(--primary) 10%, var(--card)); border: 0; border-radius: 14px; }
+.featured > p { color: var(--primary); }
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 16px; border: 1px solid var(--border); border-radius: 14px; background: var(--card); }
+.tableCard { position: relative; border: 1px solid var(--border); border-radius: 16px; background: var(--card); overflow: hidden; }
+.table { width: 100%; font-size: 13px; border-collapse: collapse; }
+.table thead tr { background: var(--card); }
+.table th { padding: 14px 16px; font-size: 11px; font-weight: 500; text-transform: none; letter-spacing: 0; white-space: nowrap; }
+.table td { padding: 18px 16px; font-variant-numeric: tabular-nums; }
+.person { display: flex; align-items: center; gap: 12px; min-width: 210px; max-width: 280px; }
+.avatar { width: 48px; height: 48px; border-radius: 14px; object-fit: cover; flex-shrink: 0; background: color-mix(in srgb, var(--primary) 12%, var(--card)); color: var(--primary); display: flex; align-items: center; justify-content: center; font-weight: 600; }
+.signal { display: flex; flex-direction: column-reverse; align-items: flex-start; gap: 8px; min-width: 112px; }
+.signal > div:last-child { display: flex; align-items: baseline; gap: 7px; text-align: left; }
+.signal > div:last-child > div:first-child { font-size: 16px; font-weight: 600; }
+.pagination { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 16px; border-top: 1px solid var(--border); }
+@media (max-width: 1100px) {
+  .metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 14px; }
+  .metric { padding: 16px; }
+}
+@media (max-width: 600px) {
+  .page h1 { font-size: 26px; }
+  .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .metric > p { font-size: 23px; }
+  .metric:last-child { grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--border); padding-left: 0; }
+  .toolbar { padding: 12px; gap: 8px; }
+  .toolbar input, .toolbar select { font-size: 16px; }
+  .scope button, .toolbar button, .toolbar select, .pagination button { min-height: 44px; }
+  .table td { padding: 15px 12px; }
+  .table th { padding-inline: 12px; }
+  .person { min-width: 190px; }
+  .avatar { width: 42px; height: 42px; border-radius: 12px; }
+}

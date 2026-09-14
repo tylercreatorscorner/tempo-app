@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { SparklineCell } from '@/components/ui-kit/sparkline-cell';
 import { RosterSegmentControls } from '@/components/segments/roster-segment-controls';
+import rosterLayout from '@/components/roster/roster-layout.module.css';
 import { StatCard } from '@/components/dashboard/stat-card';
 import type { SegmentFilterCriteria } from '@/lib/data/segments';
 import {
@@ -1487,11 +1488,11 @@ function CreatorAvatar({ creator }: { creator: Creator }) {
   if (src) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
-      <img src={src} alt="" referrerPolicy="no-referrer" className="h-8 w-8 rounded-[9px] object-cover flex-shrink-0 bg-muted" />
+      <img src={src} alt="" referrerPolicy="no-referrer" className={rosterLayout.avatar} />
     );
   }
   return (
-    <span className="h-8 w-8 rounded-[9px] flex-shrink-0 bg-pulse-grad text-white flex items-center justify-center text-xs font-bold">
+    <span className={rosterLayout.avatar}>
       {initial}
     </span>
   );
@@ -1806,7 +1807,7 @@ function RosterContent() {
   const kpiFailed = loadError && !hasLoadedOnce;
 
   return (
-    <div className="space-y-5">
+    <div className={`${rosterLayout.page} space-y-5`}>
       {/* Header */}
       <PageHeader
         eyebrow="Creators"
@@ -1836,7 +1837,7 @@ function RosterContent() {
       {/* Scope bar — Brand + Period dropdowns, grouped left. These scope the KPIs
           and the table; the table-drill filters (View/Health/Product/…) live in
           the toolbar just above the table. */}
-      <div className="flex flex-wrap items-center gap-2">
+      <div className={rosterLayout.scope}>
         <BrandSelect value={brand} options={brandOptions} onChange={setBrand} />
         <PeriodSelector
           preset={preset}
@@ -1849,41 +1850,44 @@ function RosterContent() {
 
       {/* KPI strip — hero-led (Managed GMV: what this roster actually drove).
           Affiliate GMV is the whole-market context number, so it sits beside the
-          hero as a plain card rather than leading. Mirrors the dashboard, where
+          hero as a plain readout rather than leading. Mirrors the dashboard, where
           Managed GMV is the hero. */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className={rosterLayout.metrics}>
         <StatCard
+          className={rosterLayout.metric}
           label="Total Affiliate GMV"
           value={kpiFailed ? '—' : loading && !summary ? '…' : fmt(affiliateGmv)}
           trend={summary ? pctDelta(affiliateGmv, summary.affiliate_gmv_prev) : undefined}
           trendLabel={periodLabel}
-          accentColor="var(--primary)"
+
         />
         <StatCard
-          hero
+          className={`${rosterLayout.metric} ${rosterLayout.featured}`}
           label="Managed GMV"
           value={kpiFailed ? '—' : loading ? '…' : fmt(totalGmvPeriod)}
           trend={summary ? pctDelta(totalGmvPeriod, summary.managed_gmv_prev) : undefined}
           trendLabel={periodLabel}
         />
         <StatCard
+          className={rosterLayout.metric}
           label="Managed Share"
           value={kpiFailed ? '—' : affiliateGmv > 0 ? `${((totalGmvPeriod / affiliateGmv) * 100).toFixed(0)}%` : '—'}
           subValue={affiliateGmv > 0 ? `${fmt(totalGmvPeriod)} of ${fmt(affiliateGmv)}` : undefined}
-          accentColor="var(--pulse-pos)"
+
         />
         <StatCard
+          className={rosterLayout.metric}
           label="Total Retainers"
           value={kpiFailed ? '—' : loading ? '…' : totalRetainer == null ? '—' : fmt(totalRetainer)}
           subValue={totalRetainer != null ? 'per month' : undefined}
-          accentColor="#F59E0B"
+
         />
         <StatCard
-          className="col-span-2 lg:col-span-1"
+          className={rosterLayout.metric}
           label="ROI · 30d"
           value={kpiFailed ? '—' : totalRetainer == null ? '—' : roi > 0 ? `${roi.toFixed(1)}x` : 'N/A'}
           subValue={totalRetainer != null && totalRetainer > 0 ? `${fmt(managed30)} / ${fmt(totalRetainer)}/mo` : undefined}
-          accentColor="#0EA5E9"
+
         />
       </div>
 
@@ -1892,7 +1896,7 @@ function RosterContent() {
           Health replace the old segmented control + triage chip row; the Health
           menu keeps the per-bucket counts + colour dots the chips had), then
           Segments + export at the end. Wraps at narrow widths. */}
-      <div className="flex flex-wrap items-center gap-2">
+      <div className={rosterLayout.toolbar}>
         <div className="relative min-w-[220px] flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none z-10" />
           <Input
@@ -2004,7 +2008,7 @@ function RosterContent() {
           />
         )
       ) : (
-        <div className="relative rounded-xl bg-card border border-border shadow-[var(--pulse-elev-2)] overflow-hidden">
+        <div className={rosterLayout.tableCard}>
           {/* Indeterminate load bar — shows on first load AND every refetch
               (brand / period / sort / page change), even with rows on screen.
               Gated by showLoadBar (150ms delay) so fast loads don't flash it. */}
@@ -2013,7 +2017,7 @@ function RosterContent() {
               right edge. The edge fade announces the sideways scroll instead of
               leaving the page's headline metric silently hidden. */}
           <ScrollFade className={`transition-opacity duration-200 ${showLoadBar && roster.length > 0 ? 'opacity-60' : 'opacity-100'}`}>
-            <table className="w-full text-sm">
+            <table className={rosterLayout.table}>
               <thead>
                 <tr className="border-b border-border bg-secondary">
                   {showAddAction && (
@@ -2116,7 +2120,7 @@ function RosterContent() {
                         </td>
                       )}
                       <td className="px-5 py-3.5">
-                        <div className="flex items-center gap-2.5 max-w-[280px]">
+                        <div className={rosterLayout.person}>
                           {isGroup && (
                             <span className="text-muted-foreground flex-shrink-0" aria-hidden>
                               {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
@@ -2195,8 +2199,8 @@ function RosterContent() {
                         </td>
                       )}
                       <td className="px-5 py-3.5">
-                        <div className="flex items-center justify-start gap-2.5">
-                          <SparklineCell data={c.spark} days={sparkDays} color="#22C55E" format={fmt} />
+                        <div className={rosterLayout.signal}>
+                          <SparklineCell data={c.spark} days={sparkDays} color="var(--primary)" width={112} height={30} format={fmt} />
                           <div className="text-right min-w-[72px]">
                             <div className="tabular-nums font-semibold text-[var(--foreground)]">
                               {(c.gmv_period || 0) > 0 ? fmt(c.gmv_period) : <span className="text-muted-foreground font-normal">—</span>}
@@ -2206,8 +2210,8 @@ function RosterContent() {
                         </div>
                       </td>
                       <td className="px-5 py-3.5">
-                        <div className="flex items-center justify-start gap-2.5">
-                          <SparklineCell data={c.spark_posts} days={sparkDays} color="#22C55E" format={(v) => `${v} post${v === 1 ? '' : 's'}`} />
+                        <div className={rosterLayout.signal}>
+                          <SparklineCell data={c.spark_posts} days={sparkDays} color="var(--pulse-pos)" variant="bars" width={112} height={30} format={(v) => `${v} post${v === 1 ? '' : 's'}`} />
                           <div className="text-right min-w-[36px]">
                             <div className="tabular-nums text-foreground">{c.posts_period || 0}</div>
                             <DeltaBadge value={c.posts_delta} />
@@ -2257,7 +2261,7 @@ function RosterContent() {
                           {showBrandColumn && <td className="px-5 py-2.5" />}
                           {showManagedTag && <td className="px-5 py-2.5" />}
                           <td className="px-5 py-2.5">
-                            <div className="flex items-center justify-start gap-2.5">
+                            <div className={rosterLayout.signal}>
                               <div className="w-[88px] flex-shrink-0" aria-hidden />
                               <div className="text-right min-w-[72px]">
                                 <span className="tabular-nums font-semibold text-sm text-[var(--foreground)]">
@@ -2267,7 +2271,7 @@ function RosterContent() {
                             </div>
                           </td>
                           <td className="px-5 py-2.5">
-                            <div className="flex items-center justify-start gap-2.5">
+                            <div className={rosterLayout.signal}>
                               <div className="w-[88px] flex-shrink-0" aria-hidden />
                               <div className="text-right min-w-[36px]">
                                 <span className="tabular-nums text-sm text-muted-foreground">{child.posts_period || 0}</span>
@@ -2292,7 +2296,7 @@ function RosterContent() {
           </ScrollFade>
 
           {/* Pagination */}
-          <div className="flex items-center justify-between px-5 py-3.5 border-t border-border bg-secondary">
+          <div className={rosterLayout.pagination}>
             <p className="text-xs text-muted-foreground tabular-nums">{total.toLocaleString()} total · page {page} of {totalPages}</p>
             <div className="flex items-center gap-1.5">
               <button
