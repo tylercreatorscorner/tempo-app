@@ -28,6 +28,7 @@ export const dynamic = 'force-dynamic';
  */
 
 import { Suspense } from 'react';
+import layout from '@/components/creators/profile-layout.module.css';
 import { CreatorMetricReadout as MetricRail } from '@/components/creators/performance/metric-readout';
 import { ProfilePerformanceHistory } from '@/components/creators/performance/profile-history';
 import { redirect, notFound } from 'next/navigation';
@@ -113,6 +114,11 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
   const profile = await getCreatorProfile(creatorId);
   if (!profile) notFound();
 
+  // One handle may have a registration for several brands; show it once in identity.
+  const identityAccounts = [...new Map(profile.accounts.map(account => [
+    account.tiktok_username.trim().toLowerCase(), account,
+  ])).values()];
+
   // Creator COST, not agency finance — the manager of this creator pays it.
   // Named for what it is, so a real finance gate here cannot reuse it by accident.
   const scope = await getWorkspaceScope();
@@ -174,6 +180,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
     ]);
 
   const daysStale = latestReportDate
+    // eslint-disable-next-line react-hooks/purity -- Request-time clock in this force-dynamic Server Component.
     ? Math.floor((Date.now() - new Date(latestReportDate).getTime()) / (1000 * 60 * 60 * 24))
     : null;
   const isStale = daysStale != null && daysStale > 3;
@@ -233,7 +240,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
       : null;
 
   return (
-    <div className="space-y-5">
+    <div className={`${layout.page} space-y-5`}>
       <SetBreadcrumb label={profile.real_name} />
 
       {isStale && latestReportDate && (
@@ -255,14 +262,13 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
       )}
 
       {/* ── Identity + contract, one row ─────────────────────────────────── */}
-      <div className="rounded-2xl bg-card border border-border shadow-sm overflow-hidden">
-        <div className="h-1.5 w-full" style={{ background: `linear-gradient(90deg, ${accent}, ${accent}66)` }} />
-        <div className="px-5 py-4 flex flex-col lg:flex-row lg:items-start gap-4">
-          <div className="flex items-start gap-3.5 flex-1 min-w-0">
+      <div className={layout.hero}>
+        <div className={layout.identityRow}>
+          <div className={layout.identity}>
             <CreatorAvatar name={profile.real_name} color={accent} />
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-xl font-extrabold text-foreground leading-tight">{profile.real_name}</h1>
+                <h1 className={layout.name}>{profile.real_name}</h1>
                 {profile.status && (
                   <span className={cn(
                     'text-[11px] px-2 py-0.5 rounded-md font-semibold border capitalize',
@@ -322,8 +328,8 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                 </a>
               </div>
 
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5 text-xs">
-                {profile.accounts.slice(0, 4).map((a) => (
+              <div className={layout.handles}>
+                {identityAccounts.slice(0, 4).map((a) => (
                   <a
                     key={a.tiktok_username}
                     href={`https://tiktok.com/@${a.tiktok_username}`}
@@ -335,11 +341,11 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                     <ExternalLink className="h-2.5 w-2.5 opacity-60" />
                   </a>
                 ))}
-                {profile.accounts.length > 4 && (
-                  <span className="text-muted-foreground">+{profile.accounts.length - 4} more</span>
+                {identityAccounts.length > 4 && (
+                  <span className="text-muted-foreground">+{identityAccounts.length - 4} more</span>
                 )}
                 <span className="text-muted-foreground">
-                  {profile.accounts.length} account{profile.accounts.length === 1 ? '' : 's'} ·{' '}
+                  {identityAccounts.length} account{identityAccounts.length === 1 ? '' : 's'} ·{' '}
                   {activeBrands.length} brand{activeBrands.length === 1 ? '' : 's'}
                 </span>
                 {profile.email && (
@@ -359,9 +365,9 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
           {/* Contract — primary, with the rest summarised. The roster stores one
               row per creator PER BRAND, so a creator routinely holds several
               and the page this replaces silently showed only the first. */}
-          <div className="flex items-start gap-4 lg:flex-shrink-0">
+          <div className={layout.details}>
             {contracts.primary && (
-              <div className="lg:text-right">
+              <div className="text-left lg:text-right">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.075em] text-muted-foreground">
                   Contract
                 </p>
@@ -403,30 +409,22 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
 
       {/* ── The answer line ──────────────────────────────────────────────── */}
       {summary.total_videos > 0 && (
-        <div className="rounded-2xl border border-border bg-card shadow-sm px-5 py-4">
+        <div className={layout.summary}>
           <p className="text-[17px] leading-snug text-foreground text-pretty">
-            {profile.real_name.split(' ')[0]} published{' '}
-            <b className="font-bold tabular-nums">{formatNumber(summary.total_videos)}</b>{' '}
-            post{summary.total_videos === 1 ? '' : 's'} across{' '}
-            <b className="font-bold tabular-nums">{effort.filter((b) => b.videos > 0).length}</b>{' '}
-            brand{effort.filter((b) => b.videos > 0).length === 1 ? '' : 's'} this period
-            {contractBrand && (
-              <>
-                {' '}—{' '}
-                <b className="font-bold tabular-nums">
-                  {formatNumber(effort.find((b) => b.brand === contractBrand)?.videos ?? 0)}
-                </b>{' '}
-                of them to <b className="font-bold">{brandLabel(reg, contractBrand)}</b>, the brand on contract
-              </>
-            )}
-            .
+            {profile.real_name.split(' ')[0]} had{' '}
+            <b className="font-semibold tabular-nums">{formatNumber(summary.total_videos)}</b>{' '}
+            tracked video{summary.total_videos === 1 ? '' : 's'} with activity{' '}
+            {selectedBrand ? <>for <b className="font-semibold">{brandLabel(reg, selectedBrand)}</b></> : 'across the selected brands'} this period.
+            <span className="block text-xs text-muted-foreground mt-2 leading-relaxed">
+              Active videos can include older posts. New publications are shown separately in Recorded performance.
+            </span>
           </p>
         </div>
       )}
 
       {/* ── Coach band ───────────────────────────────────────────────────── */}
       {contracts.primary && contracts.primary.monthlyPostRequirement > 0 && (
-        <div className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
+        <div className={layout.section}>
           <QuotaRow
             posted={contractPosts}
             required={contracts.primary.monthlyPostRequirement}
@@ -436,19 +434,19 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
           {effortMismatch && (
             <div className="border-t border-border px-5 py-3.5">
               <p className="text-sm text-foreground">
-                <b className="text-red-700 dark:text-red-400">Effort is going where the return isn&apos;t.</b>{' '}
-                <b className="tabular-nums">{formatNumber(effortMismatch.worst.videos)}</b> posts to{' '}
+                <b className="text-red-700 dark:text-red-400">Sales per active video vary by brand.</b>{' '}
+                <b className="tabular-nums">{formatNumber(effortMismatch.worst.videos)}</b> active videos for{' '}
                 <b>{brandLabel(reg, effortMismatch.worst.brand)}</b> returned{' '}
                 <b className="tabular-nums">{formatCurrency(effortMismatch.worst.gmv)}</b> —{' '}
                 <b className="tabular-nums">
                   {formatCurrency(effortMismatch.worst.gmv / effortMismatch.worst.videos)}
                 </b>{' '}
-                a post. The <b className="tabular-nums">{formatNumber(effortMismatch.best.videos)}</b> to{' '}
+                per active video. The <b className="tabular-nums">{formatNumber(effortMismatch.best.videos)}</b> to{' '}
                 <b>{brandLabel(reg, effortMismatch.best.brand)}</b> returned{' '}
                 <b className="tabular-nums">
                   {formatCurrency(effortMismatch.best.gmv / effortMismatch.best.videos)}
                 </b>{' '}
-                a post.
+                per active video.
               </p>
             </div>
           )}
@@ -459,13 +457,13 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
       <MetricRail
         cells={[
           { label: 'GMV', value: formatCurrency(summary.total_gmv), delta: pct(summary.total_gmv, summary.prev_gmv) },
-          { label: 'Posts published', value: formatNumber(summary.total_videos), delta: pct(summary.total_videos, summary.prev_videos) },
+          { label: 'Active videos', value: formatNumber(summary.total_videos), delta: pct(summary.total_videos, summary.prev_videos) },
           { label: 'Views', value: engagement ? compact(engagement.views) : '—' },
           { label: 'Engagement', value: engagementRate != null ? `${engagementRate.toFixed(2)}%` : '—',
             foot: engagement ? `${compact(engagement.likes)} likes` : undefined },
-          { label: 'GMV / post', value: gmvPerPost != null ? formatCurrency(gmvPerPost) : '—' },
+          { label: 'GMV / active video', value: gmvPerPost != null ? formatCurrency(gmvPerPost) : '—' },
           contractRoi != null && canViewCost
-            ? { label: 'Contract ROI', value: `${contractRoi.toFixed(1)}×`,
+            ? { label: 'GMV / retainer', value: `${contractRoi.toFixed(1)}×`,
                 foot: `${brandLabel(reg, contractBrand!)} GMV / retainer` }
             : { label: 'Orders', value: formatNumber(summary.total_orders), delta: pct(summary.total_orders, summary.prev_orders) },
         ]}
@@ -479,17 +477,17 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
       {effort.length > 0 && (
         <Card>
           <CardHeader
-            title="Where the effort goes"
-            subtitle="Posts published and what they returned, by brand · selected period"
+            title="Performance by brand"
+            subtitle="Active tracked videos and recorded sales · selected period"
           />
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          <div className={layout.tableWrap}>
+            <table role="table" className={layout.table}>
               <thead>
                 <tr className="border-b border-border bg-muted/60">
                   <Th>Brand</Th>
-                  <Th right>Posts</Th>
+                  <Th right>Active videos</Th>
                   <Th right>GMV</Th>
-                  <Th right>GMV / post</Th>
+                  <Th right>GMV / active video</Th>
                   <Th right>Orders</Th>
                 </tr>
               </thead>
@@ -499,7 +497,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                   const isContract = b.brand === contractBrand;
                   return (
                     <tr key={b.brand} className="hover:bg-muted/60 transition-colors">
-                      <td className="px-5 py-2.5">
+                      <td data-label="Brand" className="px-5 py-2.5">
                         <span className="inline-flex items-center gap-2">
                           <span className="h-2.5 w-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: brandColor(reg, b.brand) }} />
                           <span className="font-medium text-foreground">{brandLabel(reg, b.brand)}</span>
@@ -510,15 +508,15 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                           )}
                         </span>
                       </td>
-                      <td className="px-5 py-2.5 text-right tabular-nums text-muted-foreground">{formatNumber(b.videos)}</td>
-                      <td className="px-5 py-2.5 text-right tabular-nums font-semibold text-foreground">{formatCurrency(b.gmv)}</td>
+                      <td data-label="Active videos" className="px-5 py-2.5 text-right tabular-nums text-muted-foreground">{formatNumber(b.videos)}</td>
+                      <td data-label="GMV" className="px-5 py-2.5 text-right tabular-nums font-semibold text-foreground">{formatCurrency(b.gmv)}</td>
                       {/* An em dash, not $0 — a brand with sales but no posts this
                           period earned them from posts published earlier, and a
                           per-post figure for zero posts is a division by zero. */}
-                      <td className="px-5 py-2.5 text-right tabular-nums font-semibold text-foreground">
+                      <td data-label="GMV / active video" className="px-5 py-2.5 text-right tabular-nums font-semibold text-foreground">
                         {perPost != null ? formatCurrency(perPost) : '—'}
                       </td>
-                      <td className="px-5 py-2.5 text-right tabular-nums text-muted-foreground">{formatNumber(b.orders)}</td>
+                      <td data-label="Orders" className="px-5 py-2.5 text-right tabular-nums text-muted-foreground">{formatNumber(b.orders)}</td>
                     </tr>
                   );
                 })}
@@ -526,7 +524,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
             </table>
           </div>
           <p className="px-5 py-2.5 border-t border-border bg-muted/30 text-[11px] text-muted-foreground">
-            A brand can show 0 posts and still have GMV — those sales came from posts published before this period.
+            Recorded GMV includes sales beyond the tracked-video dataset. Active-video counts do not measure new publications or agreement fulfillment.
           </p>
         </Card>
       )}
@@ -538,8 +536,8 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
             title="Content that worked"
             subtitle="Ranked by views, not GMV — the hook that landed is the thing worth repeating"
           />
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          <div className={layout.tableWrap}>
+            <table role="table" className={layout.table}>
               <thead>
                 <tr className="border-b border-border bg-muted/60">
                   <Th>Post</Th>
@@ -552,7 +550,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
               <tbody className="divide-y divide-border">
                 {topContent.map((v) => (
                   <tr key={v.videoId} className="hover:bg-muted/60 transition-colors">
-                    <td className="px-5 py-2.5 min-w-[220px] max-w-[420px]">
+                    <td data-label="Post" className="px-5 py-2.5 min-w-[220px] max-w-[420px]">
                       <span className="font-medium text-foreground truncate block" title={v.title}>{v.title}</span>
                       {v.postDate && (
                         <span className="text-[11px] text-muted-foreground">
@@ -560,7 +558,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                         </span>
                       )}
                     </td>
-                    <td className="px-5 py-2.5">
+                    <td data-label="Brand" className="px-5 py-2.5">
                       {v.brand ? (
                         <span
                           className="text-xs px-2 py-0.5 rounded-md font-medium"
@@ -572,9 +570,9 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                         <span className="text-muted-foreground text-xs">—</span>
                       )}
                     </td>
-                    <td className="px-5 py-2.5 text-right tabular-nums font-semibold text-foreground">{compact(v.views)}</td>
-                    <td className="px-5 py-2.5 text-right tabular-nums text-muted-foreground">{compact(v.likes)}</td>
-                    <td className="px-5 py-2.5 text-right tabular-nums text-muted-foreground">{formatCurrency(v.gmv)}</td>
+                    <td data-label="Views" className="px-5 py-2.5 text-right tabular-nums font-semibold text-foreground">{compact(v.views)}</td>
+                    <td data-label="Likes" className="px-5 py-2.5 text-right tabular-nums text-muted-foreground">{compact(v.likes)}</td>
+                    <td data-label="GMV" className="px-5 py-2.5 text-right tabular-nums text-muted-foreground">{formatCurrency(v.gmv)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -587,12 +585,12 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
       {accountBreakdown.length > 1 && (
         <Card>
           <CardHeader title="Accounts" subtitle="Performance by TikTok account · selected period" />
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          <div className={layout.tableWrap}>
+            <table role="table" className={layout.table}>
               <thead>
                 <tr className="border-b border-border bg-muted/60">
                   <Th>Account</Th>
-                  <Th right>Posts</Th>
+                  <Th right>Active videos</Th>
                   <Th right>GMV</Th>
                   <Th right>Orders</Th>
                 </tr>
@@ -600,7 +598,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
               <tbody className="divide-y divide-border">
                 {accountBreakdown.map((a) => (
                   <tr key={a.tiktok_username} className="hover:bg-muted/60 transition-colors">
-                    <td className="px-5 py-2.5">
+                    <td data-label="Account" className="px-5 py-2.5">
                       <a
                         href={`https://tiktok.com/@${a.tiktok_username}`}
                         target="_blank"
@@ -610,9 +608,9 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                         @{a.tiktok_username}
                       </a>
                     </td>
-                    <td className="px-5 py-2.5 text-right tabular-nums text-muted-foreground">{formatNumber(a.videos)}</td>
-                    <td className="px-5 py-2.5 text-right tabular-nums font-semibold text-foreground">{formatCurrency(a.gmv)}</td>
-                    <td className="px-5 py-2.5 text-right tabular-nums text-muted-foreground">{formatNumber(a.orders)}</td>
+                    <td data-label="Active videos" className="px-5 py-2.5 text-right tabular-nums text-muted-foreground">{formatNumber(a.videos)}</td>
+                    <td data-label="GMV" className="px-5 py-2.5 text-right tabular-nums font-semibold text-foreground">{formatCurrency(a.gmv)}</td>
+                    <td data-label="Orders" className="px-5 py-2.5 text-right tabular-nums text-muted-foreground">{formatNumber(a.orders)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -627,8 +625,8 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
             title="Top sellers"
             subtitle={`Highest-grossing posts${selectedBrand ? ` · ${brandLabel(reg, selectedBrand)}` : ''}${summary.total_videos > 20 ? ` · top 20 of ${formatNumber(summary.total_videos)}` : ''}`}
           />
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          <div className={layout.tableWrap}>
+            <table role="table" className={layout.table}>
               <thead>
                 <tr className="border-b border-border bg-muted/60">
                   <Th>Post</Th>
@@ -641,7 +639,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
               <tbody className="divide-y divide-border">
                 {videos.map((v) => (
                   <tr key={v.video_id} className="hover:bg-muted/60 transition-colors">
-                    <td className="px-5 py-2.5 min-w-[200px] max-w-[380px]">
+                    <td data-label="Post" className="px-5 py-2.5 min-w-[200px] max-w-[380px]">
                       <VideoTitleButton
                         videoData={{
                           video_id: v.video_id,
@@ -659,8 +657,8 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                         {v.video_title}
                       </VideoTitleButton>
                     </td>
-                    <td className="px-5 py-2.5 text-muted-foreground text-xs">@{v.creator_name}</td>
-                    <td className="px-5 py-2.5">
+                    <td data-label="Account" className="px-5 py-2.5 text-muted-foreground text-xs">@{v.creator_name}</td>
+                    <td data-label="Brand" className="px-5 py-2.5">
                       <span
                         className="text-xs px-2 py-0.5 rounded-md font-medium"
                         style={{ backgroundColor: `${brandColor(reg, v.brand)}18`, color: brandColor(reg, v.brand) }}
@@ -668,8 +666,8 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                         {brandLabel(reg, v.brand)}
                       </span>
                     </td>
-                    <td className="px-5 py-2.5 text-right tabular-nums font-semibold text-foreground">{formatCurrency(v.gmv)}</td>
-                    <td className="px-5 py-2.5 text-right tabular-nums text-muted-foreground">{formatNumber(v.orders)}</td>
+                    <td data-label="GMV" className="px-5 py-2.5 text-right tabular-nums font-semibold text-foreground">{formatCurrency(v.gmv)}</td>
+                    <td data-label="Orders" className="px-5 py-2.5 text-right tabular-nums text-muted-foreground">{formatNumber(v.orders)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -679,7 +677,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
       )}
 
       {/* ── Lifetime ─────────────────────────────────────────────────────── */}
-      <div className="rounded-2xl border border-border bg-card shadow-sm px-5 py-3.5 flex flex-wrap items-baseline gap-x-6 gap-y-2">
+      <div className={layout.lifetime}>
         <span className="text-[10px] font-semibold uppercase tracking-[0.075em] text-muted-foreground">
           All time
         </span>
@@ -689,7 +687,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
         </span>
         <span className="text-sm text-foreground">
           <b className="font-bold tabular-nums">{formatNumber(lifetimeStats.total_videos)}</b>
-          <span className="text-muted-foreground"> posts</span>
+          <span className="text-muted-foreground"> tracked videos</span>
         </span>
         <span className="text-sm text-foreground">
           <b className="font-bold tabular-nums">{formatNumber(lifetimeStats.total_orders)}</b>
@@ -731,7 +729,7 @@ function CreatorAvatar({ name, color }: { name: string; color: string }) {
     .join('');
   return (
     <div
-      className="h-12 w-12 rounded-xl flex items-center justify-center text-base font-extrabold text-white shadow-md flex-shrink-0"
+      className="h-12 w-12 rounded-2xl flex items-center justify-center text-base font-semibold text-white flex-shrink-0"
       style={{ background: `linear-gradient(135deg, ${color}dd, ${color}88)` }}
     >
       {initials || '?'}
@@ -763,7 +761,7 @@ function QuotaRow({
     <div className="flex flex-wrap items-center gap-x-5 gap-y-2.5 px-5 py-3.5">
       <div className="min-w-[150px]">
         <p className="text-[10px] font-semibold uppercase tracking-[0.075em] text-muted-foreground">
-          {brandName} posts
+          {brandName} posts · this month
         </p>
         <p className="text-lg font-extrabold text-foreground tabular-nums mt-0.5">
           {formatNumber(posted)}
@@ -793,12 +791,12 @@ function QuotaRow({
 }
 
 function Card({ children }: { children: React.ReactNode }) {
-  return <div className="rounded-2xl bg-card border border-border shadow-sm overflow-hidden">{children}</div>;
+  return <section className={layout.section}>{children}</section>;
 }
 
 function CardHeader({ title, subtitle }: { title: string; subtitle?: string }) {
   return (
-    <div className="px-5 py-3 border-b border-border">
+    <div className={layout.sectionHeader}>
       <h3 className="text-sm font-bold text-foreground">{title}</h3>
       {subtitle && <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>}
     </div>
@@ -807,7 +805,7 @@ function CardHeader({ title, subtitle }: { title: string; subtitle?: string }) {
 
 function Th({ children, right = false }: { children: React.ReactNode; right?: boolean }) {
   return (
-    <th className={cn(
+    <th scope="col" className={cn(
       'px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground',
       right ? 'text-right' : 'text-left',
     )}>
