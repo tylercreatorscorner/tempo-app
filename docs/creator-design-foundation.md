@@ -1,6 +1,6 @@
 # Creator design foundation
 
-The existing creator profile metric rail uses a shared, server-compatible component. Existing metric values, cost visibility checks, actions, and navigation are preserved. The profile now includes a separately streamed history component connected to a server-authorized adapter. Its additive database migration must be installed before the application release. Neither the migration nor the application changes have been deployed as part of this local implementation.
+The existing creator profile metric rail uses a shared, server-compatible component. Existing metric values, cost visibility checks, actions, and navigation are preserved. The profile now includes a separately streamed history component connected to a server-authorized adapter. Its additive database migration was installed on 2026-09-14. Application release status is tracked in `product-roadmap.md`.
 
 ## Design contract
 
@@ -23,7 +23,7 @@ Historical GMV reads `creator_performance` daily records through `get_creator_pe
 
 The adapter checks `getCreatorReportBrands` before any history read, normalizes and deduplicates authorized creator handles, and sends explicit tenant, brand, and date filters to a service-role-only SECURITY INVOKER function. SQL independently rejects ambiguous or foreign brand slugs because publication facts lack a tenant column. Responses contain at most 366 daily rows and must exactly cover the requested calendar. Requests have a 15-second deadline. Longer than 62 days displays monthly groups, with exact partial-month dates shown on selection; up to 366 days is supported.
 
-Read-only production verification on 2026-09-14: a creator/brand August GMV aggregate matched the existing profile RPC exactly. The final indexed GMV query over a full year used `idx_creator_perf_creator` and took 5.857ms database execution in that sample. This is not a full page load benchmark or a guarantee across tenants. The SQL migration was executed in PGlite with isolation, role grants, deduplication, and calendar fixtures; it has not been applied to the live database.
+Read-only production verification on 2026-09-14: a creator/brand August GMV aggregate matched the existing profile RPC exactly. The final indexed GMV query over a full year used `idx_creator_perf_creator` and took 5.857ms database execution in that sample. This is not a full page load benchmark or a guarantee across tenants. The SQL migration passed PGlite isolation, role grants, deduplication, and calendar fixtures, then was applied to the live database. Live inspection confirmed SECURITY INVOKER and service-role execution only, with anonymous and authenticated execution denied.
 
 Agreement history requires preserved effective terms, not the current retainer copied backward. Existing approximate history must remain distinguishable from exact historical records. Fixed-post packages and rolling monthly agreements need separate treatment. No agreement migration or new database query is included here.
 
@@ -35,4 +35,12 @@ Run `npm run test:creator-performance`, `npm run typecheck`, and targeted ESLint
 
 Run `npm run preview:creator-design`, then serve `.design-preview` on localhost. The build uses esbuild already installed through tsx; it adds no production dependency or public application route. Fixtures cover a full year, true zero activity, missing data, no history, one period, and large amounts. Generated output is ignored by Git.
 
-Before production rollout, verify the integrated profile with authenticated brand and agency accounts and cost visibility both enabled and denied. The isolated preview proves component rendering and interaction, not a complete live-profile release.
+## Integrated verification and follow-ups
+
+Local CI and hosted release verification passed for PR #154. The authenticated owner preview rendered the integrated chart, reconciled August GMV with the existing profile, and supported day selection and resetting totals with the regular cursor. A read-only manager preview without access to the selected brand hid the new history panel; owner context was restored afterward.
+
+Verification limits: the manager preview retains the owner's database session, so it does not prove all legacy profile queries obey a real manager's RLS. Brand-portal users do not use this workspace route. Current workspace roles all receive creator-cost visibility; a denied-cost fixture does not represent an existing signed-in workspace role. The isolated component was checked at 320px and 390px, but browser viewport overrides did not take effect on the integrated preview, so integrated mobile verification remains outstanding.
+
+The preview initially encountered a database statement timeout and loaded after a full reload. Existing profile reads still need latency investigation; a fast new history aggregate does not establish a fast whole page. The existing profile also labels active-video counts as published posts in several places. Preserve the new panel's explicit tracked-publication definition and reconcile the legacy labels before the broader profile redesign. Do not compare these counts as identical metrics.
+
+Supabase advisors still report pre-existing database warnings. The checks above establish the new function's boundary, not a clean repository-wide or database-wide security audit.

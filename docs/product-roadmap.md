@@ -4,7 +4,7 @@
 
 **Phase 1 — release verification in progress (2026-09-14).**
 
-The creator design foundation and scoped performance-history implementation are complete locally. Finish the database migration, signed-in preview checks, application release, and production verification before marking this phase complete.
+The creator design foundation and scoped performance-history implementation passed local and hosted CI. The database migration is installed and signed-in preview verification is underway. Finish application release and production verification before marking this phase complete. Verification evidence and limitations are recorded in `creator-design-foundation.md`.
 
 ## Agreed sequence
 
