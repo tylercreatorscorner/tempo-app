@@ -482,8 +482,8 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
           />
           <div className={layout.tableWrap}>
             <table role="table" className={layout.table}>
-              <thead>
-                <tr className="border-b border-border bg-muted/60">
+              <thead role="rowgroup">
+                <tr role="row" className="border-b border-border bg-muted/60">
                   <Th>Brand</Th>
                   <Th right>Active videos</Th>
                   <Th right>GMV</Th>
@@ -491,13 +491,13 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                   <Th right>Orders</Th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border">
+              <tbody role="rowgroup" className="divide-y divide-border">
                 {effort.map((b) => {
                   const perPost = b.videos > 0 ? b.gmv / b.videos : null;
                   const isContract = b.brand === contractBrand;
                   return (
-                    <tr key={b.brand} className="hover:bg-muted/60 transition-colors">
-                      <td data-label="Brand" className="px-5 py-2.5">
+                    <tr role="row" key={b.brand} className="hover:bg-muted/60 transition-colors">
+                      <td role="cell" data-label="Brand" className="px-5 py-2.5">
                         <span className="inline-flex items-center gap-2">
                           <span className="h-2.5 w-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: brandColor(reg, b.brand) }} />
                           <span className="font-medium text-foreground">{brandLabel(reg, b.brand)}</span>
@@ -508,15 +508,15 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                           )}
                         </span>
                       </td>
-                      <td data-label="Active videos" className="px-5 py-2.5 text-right tabular-nums text-muted-foreground">{formatNumber(b.videos)}</td>
-                      <td data-label="GMV" className="px-5 py-2.5 text-right tabular-nums font-semibold text-foreground">{formatCurrency(b.gmv)}</td>
+                      <td role="cell" data-label="Active videos" className="px-5 py-2.5 text-right tabular-nums text-muted-foreground">{formatNumber(b.videos)}</td>
+                      <td role="cell" data-label="GMV" className="px-5 py-2.5 text-right tabular-nums font-semibold text-foreground">{formatCurrency(b.gmv)}</td>
                       {/* An em dash, not $0 — a brand with sales but no posts this
                           period earned them from posts published earlier, and a
                           per-post figure for zero posts is a division by zero. */}
-                      <td data-label="GMV / active video" className="px-5 py-2.5 text-right tabular-nums font-semibold text-foreground">
+                      <td role="cell" data-label="GMV / active video" className="px-5 py-2.5 text-right tabular-nums font-semibold text-foreground">
                         {perPost != null ? formatCurrency(perPost) : '—'}
                       </td>
-                      <td data-label="Orders" className="px-5 py-2.5 text-right tabular-nums text-muted-foreground">{formatNumber(b.orders)}</td>
+                      <td role="cell" data-label="Orders" className="px-5 py-2.5 text-right tabular-nums text-muted-foreground">{formatNumber(b.orders)}</td>
                     </tr>
                   );
                 })}
@@ -538,8 +538,8 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
           />
           <div className={layout.tableWrap}>
             <table role="table" className={layout.table}>
-              <thead>
-                <tr className="border-b border-border bg-muted/60">
+              <thead role="rowgroup">
+                <tr role="row" className="border-b border-border bg-muted/60">
                   <Th>Post</Th>
                   <Th>Brand</Th>
                   <Th right>Views</Th>
@@ -547,10 +547,10 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                   <Th right>GMV</Th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border">
+              <tbody role="rowgroup" className="divide-y divide-border">
                 {topContent.map((v) => (
-                  <tr key={v.videoId} className="hover:bg-muted/60 transition-colors">
-                    <td data-label="Post" className="px-5 py-2.5 min-w-[220px] max-w-[420px]">
+                  <tr role="row" key={v.videoId} className="hover:bg-muted/60 transition-colors">
+                    <td role="cell" data-label="Post" className="px-5 py-2.5 min-w-[220px] max-w-[420px]">
                       <span className="font-medium text-foreground truncate block" title={v.title}>{v.title}</span>
                       {v.postDate && (
                         <span className="text-[11px] text-muted-foreground">
@@ -558,7 +558,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                         </span>
                       )}
                     </td>
-                    <td data-label="Brand" className="px-5 py-2.5">
+                    <td role="cell" data-label="Brand" className="px-5 py-2.5">
                       {v.brand ? (
                         <span
                           className="text-xs px-2 py-0.5 rounded-md font-medium"
@@ -570,9 +570,9 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                         <span className="text-muted-foreground text-xs">—</span>
                       )}
                     </td>
-                    <td data-label="Views" className="px-5 py-2.5 text-right tabular-nums font-semibold text-foreground">{compact(v.views)}</td>
-                    <td data-label="Likes" className="px-5 py-2.5 text-right tabular-nums text-muted-foreground">{compact(v.likes)}</td>
-                    <td data-label="GMV" className="px-5 py-2.5 text-right tabular-nums text-muted-foreground">{formatCurrency(v.gmv)}</td>
+                    <td role="cell" data-label="Views" className="px-5 py-2.5 text-right tabular-nums font-semibold text-foreground">{compact(v.views)}</td>
+                    <td role="cell" data-label="Likes" className="px-5 py-2.5 text-right tabular-nums text-muted-foreground">{compact(v.likes)}</td>
+                    <td role="cell" data-label="GMV" className="px-5 py-2.5 text-right tabular-nums text-muted-foreground">{formatCurrency(v.gmv)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -587,18 +587,18 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
           <CardHeader title="Accounts" subtitle="Performance by TikTok account · selected period" />
           <div className={layout.tableWrap}>
             <table role="table" className={layout.table}>
-              <thead>
-                <tr className="border-b border-border bg-muted/60">
+              <thead role="rowgroup">
+                <tr role="row" className="border-b border-border bg-muted/60">
                   <Th>Account</Th>
                   <Th right>Active videos</Th>
                   <Th right>GMV</Th>
                   <Th right>Orders</Th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border">
+              <tbody role="rowgroup" className="divide-y divide-border">
                 {accountBreakdown.map((a) => (
-                  <tr key={a.tiktok_username} className="hover:bg-muted/60 transition-colors">
-                    <td data-label="Account" className="px-5 py-2.5">
+                  <tr role="row" key={a.tiktok_username} className="hover:bg-muted/60 transition-colors">
+                    <td role="cell" data-label="Account" className="px-5 py-2.5">
                       <a
                         href={`https://tiktok.com/@${a.tiktok_username}`}
                         target="_blank"
@@ -608,9 +608,9 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                         @{a.tiktok_username}
                       </a>
                     </td>
-                    <td data-label="Active videos" className="px-5 py-2.5 text-right tabular-nums text-muted-foreground">{formatNumber(a.videos)}</td>
-                    <td data-label="GMV" className="px-5 py-2.5 text-right tabular-nums font-semibold text-foreground">{formatCurrency(a.gmv)}</td>
-                    <td data-label="Orders" className="px-5 py-2.5 text-right tabular-nums text-muted-foreground">{formatNumber(a.orders)}</td>
+                    <td role="cell" data-label="Active videos" className="px-5 py-2.5 text-right tabular-nums text-muted-foreground">{formatNumber(a.videos)}</td>
+                    <td role="cell" data-label="GMV" className="px-5 py-2.5 text-right tabular-nums font-semibold text-foreground">{formatCurrency(a.gmv)}</td>
+                    <td role="cell" data-label="Orders" className="px-5 py-2.5 text-right tabular-nums text-muted-foreground">{formatNumber(a.orders)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -627,8 +627,8 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
           />
           <div className={layout.tableWrap}>
             <table role="table" className={layout.table}>
-              <thead>
-                <tr className="border-b border-border bg-muted/60">
+              <thead role="rowgroup">
+                <tr role="row" className="border-b border-border bg-muted/60">
                   <Th>Post</Th>
                   <Th>Account</Th>
                   <Th>Brand</Th>
@@ -636,10 +636,10 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                   <Th right>Orders</Th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border">
+              <tbody role="rowgroup" className="divide-y divide-border">
                 {videos.map((v) => (
-                  <tr key={v.video_id} className="hover:bg-muted/60 transition-colors">
-                    <td data-label="Post" className="px-5 py-2.5 min-w-[200px] max-w-[380px]">
+                  <tr role="row" key={v.video_id} className="hover:bg-muted/60 transition-colors">
+                    <td role="cell" data-label="Post" className="px-5 py-2.5 min-w-[200px] max-w-[380px]">
                       <VideoTitleButton
                         videoData={{
                           video_id: v.video_id,
@@ -657,8 +657,8 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                         {v.video_title}
                       </VideoTitleButton>
                     </td>
-                    <td data-label="Account" className="px-5 py-2.5 text-muted-foreground text-xs">@{v.creator_name}</td>
-                    <td data-label="Brand" className="px-5 py-2.5">
+                    <td role="cell" data-label="Account" className="px-5 py-2.5 text-muted-foreground text-xs">@{v.creator_name}</td>
+                    <td role="cell" data-label="Brand" className="px-5 py-2.5">
                       <span
                         className="text-xs px-2 py-0.5 rounded-md font-medium"
                         style={{ backgroundColor: `${brandColor(reg, v.brand)}18`, color: brandColor(reg, v.brand) }}
@@ -666,8 +666,8 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
                         {brandLabel(reg, v.brand)}
                       </span>
                     </td>
-                    <td data-label="GMV" className="px-5 py-2.5 text-right tabular-nums font-semibold text-foreground">{formatCurrency(v.gmv)}</td>
-                    <td data-label="Orders" className="px-5 py-2.5 text-right tabular-nums text-muted-foreground">{formatNumber(v.orders)}</td>
+                    <td role="cell" data-label="GMV" className="px-5 py-2.5 text-right tabular-nums font-semibold text-foreground">{formatCurrency(v.gmv)}</td>
+                    <td role="cell" data-label="Orders" className="px-5 py-2.5 text-right tabular-nums text-muted-foreground">{formatNumber(v.orders)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -805,7 +805,7 @@ function CardHeader({ title, subtitle }: { title: string; subtitle?: string }) {
 
 function Th({ children, right = false }: { children: React.ReactNode; right?: boolean }) {
   return (
-    <th scope="col" className={cn(
+    <th role="columnheader" scope="col" className={cn(
       'px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground',
       right ? 'text-right' : 'text-left',
     )}>

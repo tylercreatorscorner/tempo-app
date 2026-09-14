@@ -36,6 +36,7 @@
   .hero { padding: 20px 18px; }
   .identity { gap: 12px; width: 100%; }
   .name { font-size: 22px; }
+  .identity button, .identity a[title] { min-height: 44px; padding-inline: 10px; }
   .details { flex-direction: column; gap: 14px; }
   .handles { gap: 8px; font-size: 12px; }
   .handles a { min-height: 32px; align-items: center; }
