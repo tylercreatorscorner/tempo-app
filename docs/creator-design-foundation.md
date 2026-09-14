@@ -37,7 +37,9 @@ Run `npm run preview:creator-design`, then serve `.design-preview` on localhost.
 
 ## Integrated verification and follow-ups
 
-Local CI and hosted release verification passed for PR #154. The authenticated owner preview rendered the integrated chart, reconciled August GMV with the existing profile, and supported day selection and resetting totals with the regular cursor. A read-only manager preview without access to the selected brand hid the new history panel; owner context was restored afterward.
+Local CI and hosted release verification passed for the initial PR #154 candidate. The authenticated owner preview rendered the integrated chart, reconciled August GMV with the existing profile, and supported day selection and resetting totals with the regular cursor. A June–August range grouped into months; selecting July displayed its exact date interval and values. A read-only manager preview without access to the selected brand hid the new history panel; owner context was restored afterward.
+
+Preview testing reproduced the previously documented brand-button navigation failure. Brand pills now use standard navigation links with `aria-current`, preserving the selected date window and allowing browser-native navigation before hydration. The final candidate must pass CI and a signed-in navigation check before release.
 
 Verification limits: the manager preview retains the owner's database session, so it does not prove all legacy profile queries obey a real manager's RLS. Brand-portal users do not use this workspace route. Current workspace roles all receive creator-cost visibility; a denied-cost fixture does not represent an existing signed-in workspace role. The isolated component was checked at 320px and 390px, but browser viewport overrides did not take effect on the integrated preview, so integrated mobile verification remains outstanding.
 
