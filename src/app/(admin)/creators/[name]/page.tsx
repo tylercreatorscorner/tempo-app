@@ -149,7 +149,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
     <div className={styles.metrics}>
       <div className={styles.metric}><span className={styles.eyebrow}>GMV · selected period</span><strong>{formatCurrency(summary.total_gmv)}</strong><p>{scopeHint}</p></div>
       <div className={styles.metric}><span className={styles.eyebrow}>Orders · selected period</span><strong>{formatNumber(summary.total_orders)}</strong><p>{formatNumber(summary.total_videos)} tracked videos with activity</p></div>
-      <div className={styles.metric}><span className={styles.eyebrow}>Current monthly commitment</span><strong>{canViewCost ? formatCurrency(monthlyCommitment) : '—'}</strong><p>{visibleContracts.length} recorded brand agreements{!canViewCost && ' · cost access restricted'}</p></div>
+      <div className={styles.metric}><span className={styles.eyebrow}>Current monthly commitment</span><strong>{canViewCost ? formatCurrency(monthlyCommitment) : '—'}</strong><p>{visibleContracts.length} recorded brand agreement{visibleContracts.length === 1 ? '' : 's'}{!canViewCost && ' · cost access restricted'}</p></div>
     </div>
     <ProfileSections sections={[
       {id:'performance',label:'Performance',content:performance},

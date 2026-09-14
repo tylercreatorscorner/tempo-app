@@ -13,7 +13,7 @@ export async function RelationshipHistory({ creatorId, brand, end, label }: { cr
   if (!rows.length) return <div className={styles.empty}>No recorded performance history for this relationship yet.</div>;
   const money = (n: number | null) => n === null ? 'Unavailable' : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n);
   return <div className={styles.stack}>
-    <CreatorPerformanceTimeline points={rows} title="The relationship over time" scopeLabel={`${label} · ${start}–${end}`} gmvLabel="Recorded GMV" postsLabel="Tracked publications" sourceNote="Monthly totals from recorded daily data. A month with missing days is unavailable, not zero. The current month runs through the displayed end date. Publications are not verified agreement deliveries." />
+    <CreatorPerformanceTimeline availablePeriodsOnly points={rows} title="The relationship over time" scopeLabel={`${label} · ${start}–${end}`} gmvLabel="GMV in available months" postsLabel="Publications in available months" sourceNote="Subtotals include only months with complete records for that metric. Months with missing days remain gaps, not zeros; GMV and publication coverage may differ. The current month ends on the displayed date. Publications are not verified agreement deliveries." />
     <section className={styles.section}>
       <div className={styles.sectionHead}><div><h2>Month by month</h2><p>Sales and posting activity across the last twelve months.</p></div><span className={styles.eyebrow}>{label}</span></div>
       <div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>Month</th><th>Recorded GMV</th><th>Published</th><th>Sales coverage</th></tr></thead><tbody>

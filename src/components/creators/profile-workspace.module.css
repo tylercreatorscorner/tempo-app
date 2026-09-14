@@ -13,6 +13,7 @@
 .scope { border-top: 1px solid var(--border); padding: 20px 0; display: flex; gap: 24px; justify-content: space-between; align-items: flex-start; }
 .eyebrow { font-size: 10px; letter-spacing: .09em; text-transform: uppercase; font-weight: 600; color: var(--muted-foreground); }
 .scope .eyebrow { display: block; margin-bottom: 10px; }
+.scope > div:last-child { flex-shrink: 0; min-width: 210px; }
 .metrics { display: grid; grid-template-columns: 1.3fr 1fr 1fr; border: 1px solid var(--border); background: var(--card); border-radius: 18px; overflow: hidden; margin: 6px 0 18px; }
 .metric { padding: 25px 28px; min-width: 0; border-left: 1px solid var(--border); }
 .metric:first-child { border-left: 0; background: color-mix(in srgb, var(--primary) 8%, var(--card)); }

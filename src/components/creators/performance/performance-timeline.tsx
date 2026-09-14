@@ -14,9 +14,11 @@ interface Props {
   gmvLabel?: string;
   postsLabel?: string;
   sourceNote?: string;
+  /** Explicit subtotal for known periods; missing buckets remain chart gaps. */
+  availablePeriodsOnly?: boolean;
 }
 
-export function CreatorPerformanceTimeline({ points, scopeLabel, currency = 'USD', title = 'Performance history', gmvLabel = 'GMV', postsLabel = 'Posts published', sourceNote }: Props) {
+export function CreatorPerformanceTimeline({ points, scopeLabel, currency = 'USD', title = 'Performance history', gmvLabel = 'GMV', postsLabel = 'Posts published', sourceNote, availablePeriodsOnly = false }: Props) {
   const rows = useMemo(() => normalizePoints(points), [points]);
   const [pinned, setPinned] = useState<string | null>(null);
   const [hover, setHover] = useState<string | null>(null);
@@ -39,9 +41,10 @@ export function CreatorPerformanceTimeline({ points, scopeLabel, currency = 'USD
   const point = rows[index];
   const money = (value: number | null) => value === null ? 'Unavailable' : new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0 }).format(value);
   const count = (value: number | null) => value === null ? 'Unavailable' : value.toLocaleString('en-US');
-  const selectedScope = point ? `${point.label} · Period detail` : `${scopeLabel} · Period totals`;
-  const gmv = point ? point.gmv : total(rows, 'gmv');
-  const posts = point ? point.posts : total(rows, 'posts');
+  const selectedScope = point ? `${point.label} · Period detail` : `${scopeLabel} · ${availablePeriodsOnly ? 'Available months only' : 'Period totals'}`;
+  const sum = (metric: 'gmv' | 'posts') => total(availablePeriodsOnly ? rows.filter(row => row[metric] !== null) : rows, metric);
+  const gmv = point ? point.gmv : sum('gmv');
+  const posts = point ? point.posts : sum('posts');
   const left = 8, right = Math.max(left + 1, width - 64), step = (right - left) / Math.max(1, rows.length);
   const x = (i: number) => left + step * (i + .5);
   const known = rows.flatMap(row => row.gmv === null ? [] : [row.gmv]);
