@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
-import { usePathname, useSearchParams } from 'next/navigation';
+import { useId, useState, useTransition } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useBrandMeta } from '@/hooks/use-brand-meta';
 import { cn } from '@/lib/utils';
+import styles from './profile-workspace.module.css';
 
 interface BrandFilterProps {
   brands: string[];
@@ -23,6 +24,9 @@ export function BrandFilter({ brands, brandsWithData, selectedBrand, collapseNoD
   const searchParams = useSearchParams();
   const brandMeta = useBrandMeta();
   const [showAll, setShowAll] = useState(false);
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const selectorId = useId();
 
   const brandHref = (brand: string | null) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -45,6 +49,21 @@ export function BrandFilter({ brands, brandsWithData, selectedBrand, collapseNoD
     ? brands.length - withData.length
     : 0;
   const visibleBrands = hidden > 0 ? withData : brands;
+
+  if (appearance === 'creator') return <div className={styles.brandSelector} aria-busy={pending}>
+    <span aria-hidden="true" className={styles.brandMark} style={{ backgroundColor: selectedBrand ? brandMeta.color(selectedBrand) : 'var(--primary)' }}>
+      {selectedBrand ? brandMeta.label(selectedBrand).slice(0, 1) : 'T'}
+    </span>
+    <label htmlFor={selectorId} className="sr-only">Brand relationship</label>
+    <select id={selectorId} value={selectedBrand ?? ''} disabled={pending} onChange={event => {
+      const href = brandHref(event.target.value || null);
+      startTransition(() => router.push(href, { scroll: false }));
+    }}>
+      <option value="">All authorized brands</option>
+      {brands.map(brand => <option key={brand} value={brand}>{brandMeta.label(brand)}</option>)}
+    </select>
+    <span className={styles.brandSelectorHint} role="status">{pending ? 'Updating…' : `${brands.length} brands`}</span>
+  </div>;
 
   return (
     <div className="flex flex-wrap gap-2">
@@ -71,23 +90,18 @@ export function BrandFilter({ brands, brandsWithData, selectedBrand, collapseNoD
             aria-current={isActive ? 'page' : undefined}
             className={cn(
               'px-3 py-1.5 rounded-full text-xs font-medium transition-colors border',
-              appearance === 'creator'
-                ? 'inline-flex min-h-9 items-center gap-2 text-foreground bg-card'
-                : isActive
+              isActive
                 ? 'text-white'
                 : hasData
                   ? 'bg-card hover:border-border'
                   : 'bg-card hover:border-border opacity-50'
             )}
             style={
-              appearance === 'creator'
-                ? { borderColor: isActive ? 'var(--primary)' : 'var(--border)', backgroundColor: isActive ? 'var(--secondary)' : 'var(--card)' }
-                : isActive
+              isActive
                 ? { backgroundColor: color, borderColor: color }
                 : { borderColor: `${color}40`, color }
             }
           >
-            {appearance === 'creator' && <span aria-hidden="true" className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: color }} />}
             {brandMeta.label(brand)}
             {!hasData && !isActive && dataKnown && (
               <span className="ml-1 text-[10px] opacity-60">(no data)</span>
