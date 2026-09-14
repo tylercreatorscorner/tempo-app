@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { Suspense } from 'react';
+import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { User, Building2, Database, Bell, Key, Shield, Users } from 'lucide-react';
 import { TikTokConnect } from '@/components/onboarding/tiktok-connect';
@@ -199,6 +200,12 @@ export default async function SettingsPage() {
               measured — the same class of lie as the tenants.tiktok_connected
               flag noted above. */}
           <TikTokShopSection />
+          {scope && !scope.impersonating && ['owner', 'admin'].includes(scope.role) && (
+            <Link href="/samples" className="block rounded-lg border border-border p-3 text-sm">
+              <span className="font-medium">Sample requests</span>
+              <span className="block text-muted-foreground">View requests, shipments, and creator fulfillment content</span>
+            </Link>
+          )}
           <div className="flex items-center justify-between p-3 rounded-lg border border-border/50">
             <div>
               <p className="font-medium text-sm">Discord</p>

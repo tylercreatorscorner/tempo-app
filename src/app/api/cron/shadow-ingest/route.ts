@@ -15,6 +15,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { runShadowIngest } from '@/lib/tiktok/shadow-ingest';
+import { validReportDate } from '@/lib/tiktok/ingest-core';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -31,16 +32,21 @@ export async function GET(request: NextRequest) {
   const brand = (url.searchParams.get('brand') ?? '').trim();
   const date = (url.searchParams.get('date') ?? '').trim();
   const limitRaw = Number(url.searchParams.get('limit') ?? '40');
+  const offset = Number(url.searchParams.get('offset') ?? '0');
 
   if (!brand) return NextResponse.json({ error: 'Missing brand' }, { status: 400 });
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+  if (!validReportDate(date)) {
     return NextResponse.json({ error: 'date must be YYYY-MM-DD' }, { status: 400 });
   }
   // Bounded so a typo cannot launch thousands of calls at someone else's rate
   // limiter — the failure that would actually cost this app its access.
-  const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(1, limitRaw), 500) : 40;
+  if (!Number.isInteger(limitRaw) || limitRaw < 0 || limitRaw > 500 ||
+      !Number.isInteger(offset) || offset < 0 || offset > 20000) {
+    return NextResponse.json({ error: 'limit must be 0–500 and offset 0–20000, whole numbers' }, { status: 400 });
+  }
+  const limit = limitRaw;
 
-  const result = await runShadowIngest(brand, date, limit);
+  const result = await runShadowIngest(brand, date, limit, offset);
   // 'partial' is a 200: the run completed and did what it was asked, it just
   // hit the cap. Only a genuine failure is a 500.
   return NextResponse.json(result, { status: result.status === 'failed' ? 500 : 200 });
