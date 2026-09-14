@@ -28,6 +28,7 @@ export const dynamic = 'force-dynamic';
  */
 
 import { Suspense } from 'react';
+import { CreatorPortrait } from '@/components/creators/creator-portrait';
 import layout from '@/components/creators/profile-layout.module.css';
 import { CreatorMetricReadout as MetricRail } from '@/components/creators/performance/metric-readout';
 import { ProfilePerformanceHistory } from '@/components/creators/performance/profile-history';
@@ -265,7 +266,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
       <div className={layout.hero}>
         <div className={layout.identityRow}>
           <div className={layout.identity}>
-            <CreatorAvatar name={profile.real_name} color={accent} />
+            <CreatorPortrait creatorId={creatorId} name={profile.real_name} className={layout.portrait} />
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className={layout.name}>{profile.real_name}</h1>
@@ -717,24 +718,6 @@ function compact(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
   return n.toLocaleString('en-US');
-}
-
-function CreatorAvatar({ name, color }: { name: string; color: string }) {
-  // Only words STARTING with an alphanumeric — skips emoji like 💎
-  const initials = name
-    .split(/\s+/)
-    .filter((w) => /^[A-Za-z0-9]/.test(w))
-    .slice(0, 2)
-    .map((w) => w[0].toUpperCase())
-    .join('');
-  return (
-    <div
-      className="h-12 w-12 rounded-2xl flex items-center justify-center text-base font-semibold text-white flex-shrink-0"
-      style={{ background: `linear-gradient(135deg, ${color}dd, ${color}88)` }}
-    >
-      {initials || '?'}
-    </div>
-  );
 }
 
 /**

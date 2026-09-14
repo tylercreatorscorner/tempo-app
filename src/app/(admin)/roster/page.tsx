@@ -1,4 +1,5 @@
 'use client';
+import { CreatorPortrait } from '@/components/creators/creator-portrait';
 
 import { useState, useEffect, useCallback, useRef, Suspense, Fragment } from 'react';
 import { createPortal } from 'react-dom';
@@ -1482,25 +1483,8 @@ function LevelBadge({ level }: { level?: number | null }) {
 
 // Discord profile picture next to the name (falls back to a colored initial).
 function CreatorAvatar({ creator }: { creator: Creator }) {
-  const original = creator.discord_avatar;
-  const repair = creator.creator_id ? `/api/creators/${creator.creator_id}/avatar` : null;
-  const [failedSource, setFailedSource] = useState<string | null>(null);
-  const src = failedSource === null ? (original || repair) : failedSource === original ? repair : null;
-  const label = (creator.real_name || creator.handles?.[0] || creator.account_1 || '?').trim();
-  const initial = (label.charAt(0) || '?').toUpperCase();
-  if (src && failedSource !== src) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img src={src} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setFailedSource(src)} className={rosterLayout.avatar} />
-    );
-  }
-  return (
-    <span className={rosterLayout.avatar}>
-      {initial}
-    </span>
-  );
+  return <CreatorPortrait creatorId={creator.creator_id} source={creator.discord_avatar} name={creator.real_name || creator.handles?.[0] || creator.account_1 || '?'} className={rosterLayout.avatar} />;
 }
-
 function RosterContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -1536,10 +1520,8 @@ function RosterContent() {
   const [segFilters, setSegFilters] = useState<{ name: string; min_gmv: number | null; max_gmv: number | null; min_posts: number | null } | null>(null);
   const [total, setTotal] = useState(0);
   const [totalGmvPeriod, setTotalGmvPeriod] = useState(0);
-  // Null = the API withheld it (finance-blind viewer) → the cards render "—".
-  const [totalRetainer, setTotalRetainer] = useState<number | null>(null);
   const [totalManaged, setTotalManaged] = useState(0);
-  const [summary, setSummary] = useState<{ affiliate_gmv: number; affiliate_gmv_prev: number; managed_gmv_prev: number; managed_gmv_30d: number } | null>(null);
+  const [summary, setSummary] = useState<{ affiliate_gmv: number; affiliate_gmv_prev: number; managed_gmv_prev: number; managed_gmv_30d: number; total_retainer: number | null } | null>(null);
   const [loading, setLoading] = useState(true);
   // A failed roster load must NOT read as "0 creators / $0". Track it and render
   // an error surface (or keep the last-good rows), never a confident fake-empty.
@@ -1658,8 +1640,6 @@ function RosterContent() {
       // Managed GMV + summary are computed page-1 only (period/brand-level, not
       // page-level). Persist them across pagination instead of zeroing the cards.
       if (json.total_gmv_period != null) setTotalGmvPeriod(json.total_gmv_period);
-      // null stays null (finance withheld → "—"), never coerced to a fake $0.
-      setTotalRetainer(json.total_retainer ?? null);
       setTotalManaged(json.total_managed ?? 0);
       // Health counts are over the FULL managed set (unaffected by the active
       // health filter), so the triage chips always show totals.
@@ -1803,6 +1783,8 @@ function RosterContent() {
   const pctDelta = (cur: number, prev: number): number | undefined => (prev > 0 ? ((cur - prev) / prev) * 100 : undefined);
   const affiliateGmv = summary?.affiliate_gmv ?? 0;
   const managed30 = summary?.managed_gmv_30d ?? 0;
+  // Keep the denominator in the same brand-level snapshot as managed GMV.
+  const totalRetainer = summary?.total_retainer ?? null;
   const roi = totalRetainer != null && totalRetainer > 0 ? managed30 / totalRetainer : 0;
   // Cold load failure: no successful load yet, so the 0-initialized KPIs are not
   // real numbers — show "—" instead of a fake $0. (A warm refetch failure keeps
