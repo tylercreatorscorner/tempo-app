@@ -174,7 +174,7 @@ function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => 
               </p>
             ) : (
               <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
-                This creator holds no brand contract, so role and status cannot be set here.
+                Select a brand on the profile to edit its role and status.
               </p>
             )}
 
@@ -242,9 +242,10 @@ function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => 
             className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-[var(--primary)] rounded-xl hover:bg-[var(--primary)] transition-colors disabled:opacity-50"
           >
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            Save Profile
+            Save profile details
           </button>
 
+          <p className="text-xs text-muted-foreground">Profile details save above. Account additions and removals below apply separately.</p>
           {/* TikTok Accounts.
 
               Unlike everything above, these are NOT per brand. A handle
@@ -254,7 +255,7 @@ function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => 
               through this table: removing one drops the creator out of capture
               rate on every brand at once. */}
           <div className="pt-4 border-t border-border">
-            <h3 className="text-sm font-bold text-[var(--foreground)]">TikTok Accounts</h3>
+            <h3 className="text-sm font-bold text-[var(--foreground)]">Linked TikTok accounts</h3>
             <p className="mt-1 mb-3 text-xs text-muted-foreground">
               Shared across all of this creator&rsquo;s brands, not just{' '}
               {creator.brandLabel ?? 'the selected one'}. Removing an account here removes it

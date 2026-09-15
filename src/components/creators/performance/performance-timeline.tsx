@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { ChoiceMenu } from '@/components/ui/choice-menu';
 import { CreatorMetricReadout } from './metric-readout';
 import { nearestPeriod, normalizePoints, total, type PerformancePoint } from './model';
 import styles from './performance.module.css';
@@ -26,7 +27,6 @@ export function CreatorPerformanceTimeline({ points, scopeLabel, currency = 'USD
   const [announcement, setAnnouncement] = useState('');
   const host = useRef<SVGSVGElement>(null);
   const gradient = useId();
-  const selectId = useId();
   useEffect(() => {
     const element = host.current;
     if (!element) return;
@@ -82,7 +82,7 @@ export function CreatorPerformanceTimeline({ points, scopeLabel, currency = 'USD
       {point && <><line className={styles.guide} x1={x(index)} x2={x(index)} y1={10} y2={211} />{point.gmv !== null && <circle className={styles.dot} cx={x(index)} cy={y(point.gmv)} r={5} />}</>}
       {rows.length > 0 && <><text x={left} y={233}>{rows[0].axisLabel ?? rows[0].label}</text>{rows.length > 1 && <text x={right} y={233} textAnchor="end">{rows[rows.length - 1].axisLabel ?? rows[rows.length - 1].label}</text>}</>}
     </svg>}
-    {rows.length === 0 ? <p className={styles.empty}>No performance history is available for this period.</p> : <div className={styles.controls}><label htmlFor={selectId}>Inspect period</label><select id={selectId} value={rows.some(row => row.key === pinned) ? pinned ?? '' : ''} onChange={event => choose(event.target.value || null)}><option value="">Period totals</option>{rows.map(row => <option value={row.key} key={row.key}>{row.axisLabel ?? row.label}</option>)}</select></div>}
+    {rows.length === 0 ? <p className={styles.empty}>No performance history is available for this period.</p> : <div className={styles.controls}><span>Inspect period</span><ChoiceMenu label="Inspect period" value={rows.some(row => row.key === pinned) ? pinned! : 'totals'} onChange={value=>choose(value==='totals'?null:value)} options={[{value:'totals',label:'Period totals'},...rows.map(row=>({value:row.key,label:row.axisLabel ?? row.label}))]} /></div>}
     <p className={styles.note}>GMV in {currency}. Gaps indicate unavailable data; published posts do not establish agreement fulfillment or punctuality.</p>
     {sourceNote && <details className={styles.note}><summary className="cursor-pointer">Data coverage & methodology</summary><p>{sourceNote}</p></details>}
     <span className={styles.srOnly} aria-live="polite">{announcement}</span>

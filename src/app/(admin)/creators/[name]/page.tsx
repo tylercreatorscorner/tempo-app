@@ -93,10 +93,11 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
   const priorities = <section className={styles.priorities} aria-label="Review priorities">
     <div><span className={styles.eyebrow}>Review priorities</span><h2>Where to focus next</h2><p>Observations from the selected period, with evidence to review.</p></div>
     <article><h3>{concentration !== null ? `${concentration}% of GMV from ${leadingVideos.length} leading videos` : 'Review the latest content evidence'}</h3><p>{concentration !== null ? 'Check which formats are still earning, and whether recent posts are adding new winners.' : 'Choose a period with recorded sales to identify the strongest videos.'}</p><ProfileSectionLink section="content">Review videos</ProfileSectionLink></article>
-    <article><h3>{currentContract?.retainerStartDate ? 'Review terms alongside results' : 'Agreement dates need confirmation'}</h3><p>Check recorded terms before a renewal decision. Current fees do not establish historical costs or profitability.</p><ProfileSectionLink section="agreements">Review agreement</ProfileSectionLink></article>
+    <article><h3>{!selectedBrand ? 'Choose a brand to review its terms' : currentContract?.retainerStartDate ? 'Review terms alongside results' : 'Agreement dates need confirmation'}</h3><p>Check recorded terms before a renewal decision. Current fees do not establish historical costs or profitability.</p><ProfileSectionLink section="agreements">Review agreement</ProfileSectionLink></article>
   </section>;
   const performance = <div className={styles.grid}>
     <div className={styles.stack}>
+      {priorities}
       <Suspense fallback={<div className={styles.empty} role="status">Loading selected-period performance…</div>}><ProfilePerformanceHistory creatorId={creatorId} start={startDate} end={endDate} brand={selectedBrand ?? undefined} label={label} /></Suspense>
       {topVideoPreview}
       {!selectedBrand && <section className={styles.section}>
@@ -173,10 +174,10 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
     <Suspense fallback={<div className={styles.empty}>Loading period metrics…</div>}><ProfileHeadlineMetrics creatorId={creatorId} start={startDate} end={endDate} brand={selectedBrand ?? undefined} label={label} summary={summary} /></Suspense>
     {selectedBrand && brands.length > 1 && <Link className={styles.compareLink} href={`?${new URLSearchParams({...sp,brand:'all'})}`}>Compare authorized brands &rarr;</Link>}
     <ProfileSections sections={[
-      {id:'performance',label:'Overview',content:<div className={styles.stack}>{performance}{priorities}</div>},
+      {id:'performance',label:'Overview',content:performance},
       {id:'history',label:'History',content:<Suspense fallback={<div className={styles.empty}>Loading relationship history…</div>}><RelationshipHistory creatorId={creatorId} brand={selectedBrand ?? undefined} end={historyEnd} label={label} /></Suspense>},
       {id:'agreements',label:'Agreements',content:agreements},
-      {id:'content',label:'Content & accounts',content:content},
+      {id:'content',label:'Content',content:content},
     ]} />
   </div>;
 }

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isSameDay, isAfter, isBefore, isSameMonth, parseISO, isValid } from 'date-fns';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
+import styles from './custom-range-popover.module.css';
 import { cn } from '@/lib/utils';
 
 interface Props {
@@ -97,7 +98,7 @@ export function CustomRangePopover({ initialStart, initialEnd, onApply, onClose,
     const cells: Array<Date | null> = [...Array(leadingBlanks).fill(null), ...days];
 
     return (
-      <div key={month.toISOString()} className="flex-1 min-w-[220px]">
+      <div key={month.toISOString()} className={styles.month}>
         <div className="text-center text-xs font-bold text-[var(--foreground)] mb-2">
           {format(month, 'MMMM yyyy')}
         </div>
@@ -117,11 +118,14 @@ export function CustomRangePopover({ initialStart, initialEnd, onApply, onClose,
             return (
               <button
                 key={day.toISOString()}
+                type="button"
+                aria-label={format(day, "MMMM d, yyyy")}
+                aria-pressed={!!(isStart || isEnd)}
                 disabled={disabled || !sameMo}
                 onClick={() => handleDayClick(day)}
                 onMouseEnter={() => setHover(day)}
                 className={cn(
-                  'h-7 w-full rounded-md text-xs font-medium transition-colors',
+                  'h-9 w-full rounded-md text-xs font-medium transition-colors',
                   disabled && 'text-muted-foreground cursor-not-allowed',
                   !disabled && !inSel && !isStart && !isEnd && 'text-foreground hover:bg-muted',
                   inSel && !isStart && !isEnd && 'bg-primary/10 text-[var(--primary)]',
@@ -140,11 +144,13 @@ export function CustomRangePopover({ initialStart, initialEnd, onApply, onClose,
   return (
     <div
       ref={ref}
-      className="absolute right-0 top-full mt-2 z-50 w-[480px] max-w-[calc(100vw-32px)] bg-card rounded-2xl border border-border shadow-xl p-4"
+      className={styles.popover}
+      role="dialog" aria-label="Custom reporting period" data-lenis-prevent
     >
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <button
+          type="button" aria-label="Previous month"
           onClick={() => setAnchor(subMonths(anchor, 1))}
           className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground transition-colors"
         >
@@ -163,6 +169,7 @@ export function CustomRangePopover({ initialStart, initialEnd, onApply, onClose,
         </div>
         <div className="flex items-center gap-1">
           <button
+            type="button" aria-label="Next month"
             onClick={() => setAnchor(addMonths(anchor, 1))}
             className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground transition-colors"
           >
@@ -179,7 +186,7 @@ export function CustomRangePopover({ initialStart, initialEnd, onApply, onClose,
       </div>
 
       {/* Two-month grid */}
-      <div className="flex gap-4">
+      <div className={styles.months}>
         {months.map(renderMonth)}
       </div>
 

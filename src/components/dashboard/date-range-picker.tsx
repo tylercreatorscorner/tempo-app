@@ -142,7 +142,7 @@ export function DateRangePicker({
         aria-haspopup="menu"
         aria-expanded={menuOpen}
         className={cn(
-          'inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3.5 py-1.5 text-xs font-semibold shadow-sm transition-colors',
+          'inline-flex items-center gap-1.5 min-h-10 rounded-xl border border-border bg-card px-3.5 py-2 text-xs font-medium transition-colors',
           'hover:border-[var(--primary)]/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40',
           // No opacity here: the shell's NavigationPendingOverlay already dims
           // the whole content region (this chip included), and stacking the two
