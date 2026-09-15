@@ -43,33 +43,29 @@ export interface TikTokErrorInit {
   code: number | null;
   message: string;
   requestId: string | null;
+  retryAfterMs?: number | null;
 }
 
 export class TikTokError extends Error {
   readonly status: number;
   readonly code: number | null;
   readonly requestId: string | null;
+  readonly retryAfterMs: number | null;
 
-  constructor({ status, code, message, requestId }: TikTokErrorInit) {
+  constructor({ status, code, message, requestId, retryAfterMs }: TikTokErrorInit) {
     super(message);
     this.name = new.target.name;
     this.status = status;
     this.code = code;
     this.requestId = requestId;
+    this.retryAfterMs = retryAfterMs ?? null;
   }
 }
 
 /** Token rejected or expired. The only error the onTokenExpired hook reacts to. */
 export class TikTokAuthError extends TikTokError {}
 
-export class TikTokRateLimitError extends TikTokError {
-  readonly retryAfterMs: number | null;
-
-  constructor(init: TikTokErrorInit & { retryAfterMs?: number | null }) {
-    super(init);
-    this.retryAfterMs = init.retryAfterMs ?? null;
-  }
-}
+export class TikTokRateLimitError extends TikTokError {}
 
 /** A 4xx that will fail the same way on retry (bad params, missing scope). */
 export class TikTokPermanentError extends TikTokError {}
@@ -119,6 +115,8 @@ export interface TikTokResult<T> {
 }
 
 export interface TikTokRequestOptions {
+  /** Let a durable caller own retries instead of sleeping inside this request. */
+  retry?: boolean;
   query?: Record<string, string | number | boolean | null | undefined>;
   body?: unknown;
   /**
@@ -190,7 +188,7 @@ export class TikTokClient {
     path: string,
     options: TikTokRequestOptions
   ): Promise<TikTokResult<T>> {
-    const retryAllowed = method === 'GET' || options.idempotent === true;
+    const retryAllowed = options.retry !== false && (method === 'GET' || options.idempotent === true);
     const bodyText = options.body === undefined ? undefined : JSON.stringify(options.body);
     let lastError: TikTokError | undefined;
 
@@ -349,6 +347,7 @@ export class TikTokClient {
         code: envelope.code,
         requestId,
         message: `${method} ${path} failed: code=${envelope.code} ${envelope.message}`,
+        retryAfterMs: parseRetryAfter(res.headers.get('retry-after')),
       };
       // Business errors are never retried here: which codes are retryable is
       // not verified against a live shop yet.
@@ -553,7 +552,9 @@ function looksLikeExpiredToken(message: string): boolean {
 function parseRetryAfter(header: string | null): number | null {
   if (!header) return null;
   const seconds = Number(header);
-  return Number.isFinite(seconds) && seconds >= 0 ? seconds * 1000 : null;
+  if (Number.isFinite(seconds)) return seconds >= 0 ? seconds * 1000 : null;
+  const date = Date.parse(header);
+  return Number.isFinite(date) ? Math.max(0, date - Date.now()) : null;
 }
 
 function backoffMs(attempt: number, lastError?: TikTokError): number {

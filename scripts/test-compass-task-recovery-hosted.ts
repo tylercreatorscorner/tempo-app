@@ -25,9 +25,16 @@ async function main() {
     if (winner.status !== 'fulfilled') throw new Error('No winning lease');
     await assert.rejects(patchCompassTask(db,initial,{status:'ingested'}),/no longer owns/);
     await patchCompassTask(db,winner.value,{status:'verified_dry_run'});
+    const held = await acquireCompassTask(db,scope,null,{rowId:initial.rowId});
+    await patchCompassTask(db,held,{status:'failed',retry_reason:'rate_limit',retry_not_before:new Date(Date.now()+3_600_000).toISOString(),upstream_code:36009037});
+    await assert.rejects(acquireCompassTask(db,scope,null,{rowId:initial.rowId}),/deferred/);
+    const moved = await db.from('tiktok_compass_tasks').update({retry_not_before:new Date(Date.now()-1000).toISOString()}).eq('id',initial.rowId);
+    assert.equal(moved.error,null);
+    const due = await acquireCompassTask(db,scope,null,{rowId:initial.rowId});
+    await patchCompassTask(db,due,{status:'verified_dry_run'});
     const {data,error} = await db.from('tiktok_compass_tasks').select('status,error,lease_token,lease_expires_at').eq('id',initial.rowId).single();
     assert.equal(error,null); assert.deepEqual(data,{status:'verified_dry_run',error:null,lease_token:null,lease_expires_at:null});
-    console.log('PASS hosted test: exclusive recovery, stale-worker refusal and lease release; no TikTok calls or fact-table writes');
+    console.log('PASS hosted test: exclusive recovery, stale-worker refusal, persisted retry hold and lease release; no TikTok calls or fact-table writes');
   } finally {
     // Only the uniquely named synthetic evidence row created by this test.
     const {error} = await db.from('tiktok_compass_tasks').delete().eq('brand_slug','jiyu-api-test').eq('task_id',taskId);

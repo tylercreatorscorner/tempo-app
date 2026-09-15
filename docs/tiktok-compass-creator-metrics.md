@@ -94,9 +94,30 @@ trigger, competing claims, expiry, all scope fields, stale updates and ingestion
 timeout-to-resume behavior. The resumed parser retains zero-sale creators and
 the existing partial writer remains the only fact-table write path.
 
+Compass list/download requests disable the SDK's internal retries so a long
+TikTok Retry-After cannot consume the worker's execution budget before the
+failure is recorded. Structured retry metadata survives transport and ingestion.
+Known task failures save retry_not_before, reason and safe upstream identifiers;
+an early resume is refused. Code 36009037 imposes at least one hour, longer
+Retry-After values win, and other transient reads/pending tasks wait one minute.
+HTTP-date Retry-After and business-error envelopes retain their delay too.
+
+These are per-task retry holds, not a shared app-wide quota clock. A failed
+create with no task ID is reported for inspection and must not be blindly
+recreated. Automatic dispatch still needs an app-wide hold and bounded retry
+attempts before it can be enabled. No retry is evidence of a fresh historical
+export; TikTok may serve the same cached task.
+
+`npm run test:tiktok-compass-retry` exercises throttled create/list/download
+responses with real local HTTP requests, including a client configured to
+retry by default. Hosted test recovery verifies the persisted hold and refusal
+before it expires, using only a synthetic task ledger row.
+
 Migrations `20260915025452_compass_creator_metrics_merge.sql` and
 `20260915053541_compass_task_recovery_context.sql` are applied to the test
-database only. Apply both before deploying this code to any other environment.
+database only. `20260915063729_compass_retry_timing.sql` adds the retry timing
+fields and is also test-only. Apply all three before deploying this code to
+any other environment.
 No production import or recurring synchronization has been enabled.
 
 This does not complete per-video or per-LIVE Affiliate Center GMV. The creator

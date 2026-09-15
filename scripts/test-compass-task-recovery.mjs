@@ -34,7 +34,7 @@ function from(table) {
   };
   const ident = key => { assert(/^[a-z_]+$/.test(key)); return '"'+key+'"'; };
   const projection = () => columns === '*' ? '*' : columns.split(',').map(key =>
-    ['updated_at','lease_expires_at','end_day'].includes(key) ? `${ident(key)}::text AS ${ident(key)}` : ident(key)).join(',');
+    ['updated_at','lease_expires_at','retry_not_before','end_day'].includes(key) ? `${ident(key)}::text AS ${ident(key)}` : ident(key)).join(',');
   async function execute() {
     const values = [];
     const param = value => { values.push(value); return '$'+values.length; };
@@ -62,7 +62,7 @@ const scope = { brandSlug:'test',reportDate:'2026-07-25',moduleType:'CREATOR',wi
   connectionId:randomUUID(),shopId:'7495653723838187639',apiVersion:'202603',pollApiVersion:'202603',paramsIn:'body',docType:'CREATOR' };
 try {
   await pg.exec('CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role;');
-  for (const name of ['122_tiktok_compass_tasks.sql','132_compass_tasks_task_id_non_partial.sql','131_compass_tasks_observed_columns.sql','20260915053541_compass_task_recovery_context.sql']) {
+  for (const name of ['122_tiktok_compass_tasks.sql','132_compass_tasks_task_id_non_partial.sql','131_compass_tasks_observed_columns.sql','20260915053541_compass_task_recovery_context.sql','20260915063729_compass_retry_timing.sql']) {
     await pg.exec(readFileSync('supabase/migrations/'+name,'utf8'));
   }
   await pg.exec(`CREATE TABLE ingestion_runs(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),source text,brand_slug text,target_table text,
@@ -99,7 +99,8 @@ try {
     fetchDailyExport: async (brand,date,module,options) => {
       calls++;
       if (!options.resumeTask) { creates++; await options.onTaskCreated('integration-task',{status:'RUNNING',moduleType:'CREATOR',docType:'CREATOR'});
-        return {ok:false,stage:'poll',taskId:'integration-task',format:null,message:'poll timeout'}; }
+        return {ok:false,stage:'poll',taskId:'integration-task',format:null,message:'rate limited',
+          retry:{reason:'rate_limit',notBefore:new Date(Date.now()+3_600_000).toISOString(),upstreamStatus:429,upstreamCode:36009037,requestId:'test-request'}}; }
       assert.equal(options.resumeTask.taskId,'integration-task');
       return {ok:true,taskId:'integration-task',bytes,format:{kind:'zip',byteLength:bytes.length},polls:1,warnings:[],
         echo:{status:'SUCCEEDED',fileName:'Transaction_Analysis_Creator_List_20260725-20260725'}};
@@ -115,6 +116,11 @@ try {
   const timeout = await ingest.ingestCompassBrandDay(input);
   assert.equal(timeout.ok,false); assert.equal(timeout.stage,'poll'); assert(timeout.taskRowId);
   assert.equal((await pg.query('SELECT status FROM ingestion_runs WHERE id=$1',[timeout.ingestionRunId])).rows[0].status,'failed');
+  const hold = (await pg.query('SELECT retry_reason,upstream_status,upstream_code FROM tiktok_compass_tasks WHERE id=$1',[timeout.taskRowId])).rows[0];
+  assert.deepEqual(hold,{retry_reason:'rate_limit',upstream_status:429,upstream_code:36009037});
+  const early = await ingest.ingestCompassBrandDay({...input,resumeTaskRowId:timeout.taskRowId});
+  assert.equal(early.ok,false); assert.match(early.message,/deferred/); assert.equal(calls,1);
+  await pg.query("UPDATE tiktok_compass_tasks SET retry_not_before=now()-interval '1 second' WHERE id=$1",[timeout.taskRowId]);
   const success = await ingest.ingestCompassBrandDay({...input,resumeTaskRowId:timeout.taskRowId});
   assert.equal(success.ok,true,success.message); assert.equal(success.rowsWritten,2); assert.equal(creates,1); assert.equal(calls,2);
   assert.equal(writes[0].p_records[1].gmv,0); assert(!('videos' in writes[0].p_records[1]));

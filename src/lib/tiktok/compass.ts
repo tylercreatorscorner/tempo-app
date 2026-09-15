@@ -40,6 +40,7 @@ import type { FileType } from '../upload/file-detection';
 import type { UploadTable } from '../upload/column-maps';
 import { scoreAllTypes, type TypeScore } from '../upload/type-sniff';
 import { isCompassCreatorReport } from './compass-creator-report';
+import { compassRetryInfo, pendingCompassRetry, type CompassRetryInfo } from './compass-retry';
 
 // ============================================================
 // Vocabulary and versions — all UNVERIFIED, all overridable
@@ -464,7 +465,7 @@ export async function listExportTasks(
   const path = compassPath(version, 'offline_tasks');
 
   const query = options.docType ? { doc_type: options.docType } : undefined;
-  const result = await client.get<unknown>(path, query);
+  const result = await client.request<unknown>('GET', path, { query, retry: false });
 
   const { items, dataKeys, found } = extractTaskList(result.data);
   const tasks: CompassTaskSummary[] = [];
@@ -513,7 +514,7 @@ export interface PollOptions extends ListTasksOptions {
 
 export type PollOutcome =
   | { state: 'succeeded'; task: CompassTaskSummary; polls: number; elapsedMs: number }
-  | { state: 'failed'; task: CompassTaskSummary | null; message: string; polls: number; elapsedMs: number }
+  | { state: 'failed'; task: CompassTaskSummary | null; message: string; polls: number; elapsedMs: number; retry?: CompassRetryInfo }
   | { state: 'timeout'; task: CompassTaskSummary | null; message: string; polls: number; elapsedMs: number };
 
 const defaultSleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
@@ -575,6 +576,7 @@ export async function pollTask(
         state: 'failed',
         task: lastSeen,
         message: `[compass] polling task ${taskId} failed: ${detail}${hint}`,
+        retry: compassRetryInfo(err, now()),
         polls,
         elapsedMs: now() - startedAt,
       };
@@ -828,7 +830,7 @@ export async function downloadTaskFile(
   const version = options.apiVersion ?? DEFAULT_COMPASS_API_VERSION;
   const path = compassPath(version, `offline_tasks/${encodeURIComponent(taskId)}/file`);
 
-  const result = await client.get<unknown>(path);
+  const result = await client.request<unknown>('GET', path, { retry: false });
   const data = asRecord(result.data);
   const file = asRecord(data?.file);
   const echo = readEcho(file ?? data);
@@ -1041,6 +1043,7 @@ export type FetchDailyExportResult =
       taskId: string | null;
       format: FormatVerdict | null;
       needsReauthorization?: boolean;
+      retry?: CompassRetryInfo;
     };
 
 /**
@@ -1101,6 +1104,7 @@ export async function fetchDailyExport(
       stage: 'create',
       message: `[compass] could not create the ${moduleType} task for ${brandSlug} ${reportDate}: ` +
         (err instanceof Error ? err.message : String(err)),
+      retry: compassRetryInfo(err),
       taskId: null,
       format: null,
     };
@@ -1138,7 +1142,8 @@ export async function fetchDailyExport(
   };
   const outcome = await pollTask(client, created.taskId, pollOptions);
   if (outcome.state !== 'succeeded') {
-    return { ok: false, stage: 'poll', message: outcome.message, taskId: created.taskId, format: null };
+    return { ok: false, stage: 'poll', message: outcome.message, taskId: created.taskId, format: null,
+      retry: outcome.state === 'timeout' ? pendingCompassRetry() : outcome.retry };
   }
 
   let download: DownloadOutcome;
@@ -1149,6 +1154,7 @@ export async function fetchDailyExport(
       ok: false,
       stage: 'download',
       message: `[compass] downloading task ${created.taskId} failed: ` + (err instanceof Error ? err.message : String(err)),
+      retry: compassRetryInfo(err),
       taskId: created.taskId,
       format: null,
     };

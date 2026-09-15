@@ -45,6 +45,11 @@ export async function acquireCompassTask(
     status: 'created',
     error: null,
     rows_written: null,
+    retry_not_before: null,
+    retry_reason: null,
+    upstream_status: null,
+    upstream_code: null,
+    upstream_request_id: null,
   };
   if ('newTaskId' in target) {
     if (!TASK_ID.test(target.newTaskId)) throw new Error('Invalid Compass task ID');
@@ -64,7 +69,7 @@ export async function acquireCompassTask(
     throw new Error('Invalid Compass ledger row ID');
   }
 
-  const lookup = db.from(TABLE).select('id,task_id,brand_slug,end_day,module_type,window_type,recovery_context,lease_expires_at,updated_at');
+  const lookup = db.from(TABLE).select('id,task_id,brand_slug,end_day,module_type,window_type,recovery_context,lease_expires_at,retry_not_before,updated_at');
   const { data: row, error } = await ('rowId' in target
     ? lookup.eq('id', target.rowId) : lookup.eq('task_id', target.newTaskId))
     .eq('brand_slug', scope.brandSlug).maybeSingle();
@@ -78,6 +83,9 @@ export async function acquireCompassTask(
   }
   if (row.lease_expires_at !== null && (!Number.isFinite(Date.parse(row.lease_expires_at)) || Date.parse(row.lease_expires_at) > now)) {
     throw new Error('Compass task is already being processed; retry after its lease expires');
+  }
+  if (row.retry_not_before !== null && (!Number.isFinite(Date.parse(row.retry_not_before)) || Date.parse(row.retry_not_before) > now)) {
+    throw new Error(`Compass task recovery is deferred until ${row.retry_not_before}`);
   }
   if (typeof row.updated_at !== 'string') throw new Error('Compass task lacks a revision for safe recovery');
   // Compare-and-set: simultaneous readers of an expired lease cannot both win.
