@@ -580,6 +580,37 @@ async function main(): Promise<void> {
   }
 
   // ── 9. a create that returns no id ─────────────────────────────────────────
+  console.log('recovery: resume a persisted task without creating another export');
+  await withServer(compassResponder({ statuses: ['RUNNING', 'SUCCEEDED'], fileBase64: CREATOR_WORKBOOK.toString('base64') }), async (client, server) => {
+    const timing = fakeTimekeeper(0);
+    const first = await fetchDailyExport('bondie', '2026-07-25', 'CREATOR', { client, poll: { maxPolls: 1, sleep: timing.sleep, now: timing.now } });
+    check('initial short invocation times out and retains the task ID', !first.ok && first.stage === 'poll' && first.taskId === TASK_ID);
+    const recovered = await fetchDailyExport('bondie', '2026-07-25', 'CREATOR', { client,
+      resumeTask: { taskId: TASK_ID, brandSlug: 'bondie', reportDate: '2026-07-25', moduleType: 'CREATOR', windowType: 'PAST_24H', planType: 'ALL' },
+      poll: { maxPolls: 1, sleep: timing.sleep, now: timing.now },
+    });
+    check('later invocation completes the same task', recovered.ok && recovered.taskId === first.taskId);
+    check('timeout recovery creates exactly one export overall', server.requests.filter(r => r.path.endsWith('/offline_task')).length === 1);
+  });
+  await withServer(compassResponder({ fileBase64: CREATOR_WORKBOOK.toString('base64') }), async (client, server) => {
+    const timing = fakeTimekeeper(0);
+    let creationCallbacks = 0;
+    const resumeTask = { taskId: TASK_ID, brandSlug: 'bondie', reportDate: '2026-07-25', moduleType: 'CREATOR' as const, windowType: 'PAST_24H' as const, planType: 'ALL' };
+    const out = await fetchDailyExport('bondie', '2026-07-25', 'CREATOR', {
+      client, resumeTask, poll: { sleep: timing.sleep, now: timing.now },
+      onTaskCreated: () => { creationCallbacks++; },
+    });
+    check('saved task resumes through download', out.ok && out.taskId === TASK_ID);
+    check('resume makes no create request', server.requests.every(r => !r.path.endsWith('/offline_task')));
+    check('resume does not reset the creation ledger', creationCallbacks === 0);
+    const before = server.requests.length;
+    for (const patch of [{ brandSlug: 'other' }, { reportDate: '2026-07-24' }, { moduleType: 'VIDEO' as const }, { windowType: 'PAST_7_DAYS' as const }, { planType: 'OPEN' }, { taskId: '../other-task' }]) {
+      const wrong = await fetchDailyExport('bondie', '2026-07-25', 'CREATOR', { client, resumeTask: { ...resumeTask, ...patch } });
+      check('mismatched or malformed saved task is refused', !wrong.ok && wrong.stage === 'create');
+    }
+    check('scope failures make no upstream calls', server.requests.length === before);
+  });
+
   console.log('lifecycle: a create with no task id fails with the key list');
   {
     await withServer(

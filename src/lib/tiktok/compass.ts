@@ -998,6 +998,16 @@ export function assertReportMatchesModule(
 // ============================================================
 
 export interface FetchDailyExportOptions extends CompassRequestOptions {
+  /** Resume a persisted, shop/day-scoped task after a polling timeout. Callers
+   * must obtain this from their task ledger, never an unscoped request body. */
+  resumeTask?: {
+    taskId: string;
+    brandSlug: string;
+    reportDate: string;
+    moduleType: CompassModuleType;
+    windowType: CompassWindowType;
+    planType: string;
+  };
   /** Pre-built client. When absent, ./connections is imported dynamically and
    *  asked for one — see the module header for why the import is not static. */
   client?: TikTokClient;
@@ -1046,6 +1056,14 @@ export async function fetchDailyExport(
   moduleType: CompassModuleType,
   options: FetchDailyExportOptions = {},
 ): Promise<FetchDailyExportResult> {
+  const resume = options.resumeTask;
+  if (resume && (!/^[A-Za-z0-9_-]{1,128}$/.test(resume.taskId)
+    || resume.brandSlug !== brandSlug || resume.reportDate !== reportDate
+    || resume.moduleType !== moduleType || resume.windowType !== (options.windowType ?? 'PAST_24H')
+    || resume.planType !== (options.planType ?? DEFAULT_PLAN_TYPE))) {
+    return { ok: false, stage: 'create', taskId: null, format: null,
+      message: '[compass] saved task does not match the requested brand, day, module, window and plan.' };
+  }
   let client = options.client;
 
   if (!client) {
@@ -1066,7 +1084,13 @@ export async function fetchDailyExport(
 
   let created: CreateTaskResult;
   try {
-    created = await createExportTask(
+    created = resume ? {
+      taskId: resume.taskId, requestId: null,
+      // A resumed task has no fresh create response. Let polling/download fill
+      // these fields rather than presenting request metadata as a TikTok echo.
+      echo: { moduleType: null, docType: null, windowType: null,
+        endDay: null, fileName: null, status: null },
+    } : await createExportTask(
       client,
       { moduleType, reportDate, windowType: options.windowType, planType: options.planType },
       options,
@@ -1082,7 +1106,7 @@ export async function fetchDailyExport(
     };
   }
 
-  await options.onTaskCreated?.(created.taskId, created.echo);
+  if (!resume) await options.onTaskCreated?.(created.taskId, created.echo);
 
   const warnings: string[] = [];
   // Read back what the API says this is. It is not a gate — the header sniff is

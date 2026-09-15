@@ -63,6 +63,15 @@ default date. The hosted test confirmed both fact tables.
 
 ## Rollout boundaries
 
+The transport layer can resume a persisted export after a polling timeout. It
+requires the same brand, date, module, window and plan, skips task creation and
+continues polling/downloading the saved task ID. The recovery test exercises an
+initial timeout followed by successful download with exactly one create request.
+Wrong scope and malformed task IDs are rejected without an upstream request.
+This is a transport primitive only: ingestion-ledger lookup and scheduled worker
+recovery are not wired yet. A caller must obtain the descriptor from its scoped
+ledger, never accept an arbitrary task ID from a request body.
+
 Migration `20260915025452_compass_creator_metrics_merge.sql` is applied to the
 test database only. Apply it before deploying this code to any other environment.
 No production import or recurring synchronization has been enabled.
