@@ -24,6 +24,9 @@ const data = {
   getPostsPublishedThisMonth:async(_,brand)=>{postingBrand=brand;return 3;},
 };
 const modules = {
+  '@/components/creators/coaching-brief':{CoachingBrief:nil},
+  '@/components/creators/profile-video-grid':{ProfileVideoGrid:nil},
+  '@/components/creators/performance/profile-headline-metrics':{ProfileHeadlineMetrics:({summary})=>React.createElement('span',null,'$'+summary.total_gmv)},
   '@/components/creators/brand-identity':{BrandIdentity:({label})=>React.createElement('span',null,label)},
   '@/components/video/video-cover':{VideoCover:nil},
   react:React, 'react/jsx-runtime':jsx, 'next/link':({children,...props})=>React.createElement('a',props,children),
@@ -54,6 +57,7 @@ runInNewContext(ts.transpileModule(readFileSync('src/app/(admin)/creators/[name]
 const render = async()=>renderToStaticMarkup(await exports.default({params:Promise.resolve({name:creatorId}),searchParams:Promise.resolve({brand:'beta'})}));
 let html=await render();
 assert.ok(html.includes('$4019'));
+assert.ok(!html.includes('Across authorized brands') && !html.includes('$999') && !html.includes('$7419'),'Selected brand view excludes cross-brand performance and terms');
 assert.equal(postingBrand,'beta','Posting count must follow selected agreement, not highest retainer');
 assert.equal(editProps.brandId,'beta-id','Editing stays anchored to the selected brand');
 assert.ok(html.includes('Not assessed') && html.includes('never projected backward'));

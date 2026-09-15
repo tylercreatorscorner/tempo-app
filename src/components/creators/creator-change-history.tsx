@@ -89,13 +89,17 @@ export function CreatorChangeHistory({
   entries,
   brandLabelFor,
   multiBrand,
+  agreementOnly = false,
 }: {
   entries: CreatorChangeEntry[];
+  agreementOnly?: boolean;
   /** Slug -> display name, resolved by the page (the registry is DB-driven). */
   brandLabelFor: (slug: string | null) => string | null;
   /** Only worth showing a brand chip when the creator is on more than one. */
   multiBrand: boolean;
 }) {
+  const terms = new Set(['retainer','monthly_post_requirement','contract_length_days','retainer_start_date','termination_reason','status','archived_at','product_retainers']);
+  entries = entries.map(entry => ({...entry, fields: entry.fields.filter(field => (!agreementOnly || terms.has(field.field)) && !(value(field.field,field.from)==='—' && value(field.field,field.to)==='—'))})).filter(entry => entry.fields.length > 0 || (!agreementOnly && entry.action !== 'update'));
   return (
     <div className="rounded-2xl border border-border bg-card shadow-sm">
       <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border px-5 py-3.5">

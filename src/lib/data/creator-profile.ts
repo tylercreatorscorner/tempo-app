@@ -80,6 +80,7 @@ export interface BrandBreakdownRow {
 }
 
 export interface CreatorVideo {
+  posted_date?: string | null;
   thumbnail_url?: string | null;
   video_id: string;
   video_title: string;
@@ -733,10 +734,22 @@ export async function getCreatorVideos(
       };
     });  if (!result.length) return result;
   // Only enrich video IDs already returned by the authorized performance query.
-  const db = await createAdminClient();
-  const { data: covers } = await db.from('video_thumbnails').select('video_id, thumbnail_url').in('video_id',result.map(video=>video.video_id)).abortSignal(AbortSignal.timeout(5000));
-  const coverMap = new Map((covers ?? []).map(row=>[String(row.video_id),row.thumbnail_url as string|null]));
-  return result.map(video=>({...video,thumbnail_url:coverMap.get(video.video_id) ?? null}));
+  try {
+    const db = await createAdminClient();
+    const ids = result.map(video=>video.video_id);
+    const [covers, catalog] = await Promise.all([
+      db.from('video_thumbnails').select('video_id, thumbnail_url').in('video_id',ids).abortSignal(AbortSignal.timeout(5000)),
+      db.from('video_catalog').select('video_id, posted_date').in('video_id',ids).abortSignal(AbortSignal.timeout(5000)),
+    ]);
+    const coverMap = new Map((covers.data ?? []).map(row=>[String(row.video_id),row.thumbnail_url as string|null]));
+    const dates = new Map<string,string>();
+    for (const row of catalog.data ?? []) {
+      const date=String(row.posted_date ?? '').slice(0,10);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(date)) dates.set(String(row.video_id),date);
+    }
+    return result.map(video=>({...video,thumbnail_url:coverMap.get(video.video_id) ?? null,posted_date:dates.get(video.video_id) ?? null}));
+  } catch { return result; } // Optional artwork/date enrichment never blocks performance.
+
 }
 
 /**

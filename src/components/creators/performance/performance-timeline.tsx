@@ -84,7 +84,7 @@ export function CreatorPerformanceTimeline({ points, scopeLabel, currency = 'USD
     </svg>}
     {rows.length === 0 ? <p className={styles.empty}>No performance history is available for this period.</p> : <div className={styles.controls}><label htmlFor={selectId}>Inspect period</label><select id={selectId} value={rows.some(row => row.key === pinned) ? pinned ?? '' : ''} onChange={event => choose(event.target.value || null)}><option value="">Period totals</option>{rows.map(row => <option value={row.key} key={row.key}>{row.axisLabel ?? row.label}</option>)}</select></div>}
     <p className={styles.note}>GMV in {currency}. Gaps indicate unavailable data; published posts do not establish agreement fulfillment or punctuality.</p>
-    {sourceNote && <p className={styles.note}>{sourceNote}</p>}
+    {sourceNote && <details className={styles.note}><summary className="cursor-pointer">Data coverage & methodology</summary><p>{sourceNote}</p></details>}
     <span className={styles.srOnly} aria-live="polite">{announcement}</span>
   </section>;
 }

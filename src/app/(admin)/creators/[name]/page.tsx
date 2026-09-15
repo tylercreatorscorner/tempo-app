@@ -12,6 +12,9 @@ import { RelationshipHistory } from '@/components/creators/relationship-history'
 import { ProfilePerformanceHistory } from '@/components/creators/performance/profile-history';
 import { BrandFilter } from '@/components/creators/brand-filter';
 import { DateRangePicker } from '@/components/dashboard/date-range-picker';
+import { ProfileVideoGrid } from '@/components/creators/profile-video-grid';
+import { CoachingBrief } from '@/components/creators/coaching-brief';
+import { ProfileHeadlineMetrics } from '@/components/creators/performance/profile-headline-metrics';
 import { BrandIdentity } from '@/components/creators/brand-identity';
 import { VideoCover } from '@/components/video/video-cover';
 import { VideoTitleButton } from '@/components/video/video-title-button';
@@ -19,7 +22,7 @@ import { SetBreadcrumb } from '@/components/layout/breadcrumb-context';
 import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 import { getDataAnchorDate } from '@/lib/data/data-anchor';
 import { resolveDateRange } from '@/lib/data/date-utils';
-import { getBrandRegistry, activeBrandSlugs, brandLabel, brandColor, slugToUuid } from '@/lib/data/brand-registry';
+import { getBrandRegistry, activeBrandSlugs, brandLabel, slugToUuid } from '@/lib/data/brand-registry';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
 import { getCreatorProfile, getCreatorIdByHandle, getCreatorContracts, getCreatorBrandRelationship,
   getCreatorSummary, getCreatorVideos, getCreatorBrandBreakdown, getCreatorLifetimeStats,
@@ -56,7 +59,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
   const accounts = [...new Map(profile.accounts.map(account => [account.tiktok_username.trim().toLowerCase(), account])).values()];
   const allContracts = [contracts.primary, ...contracts.others].filter((contract): contract is NonNullable<typeof contract> => !!contract);
   const visibleContracts = selectedBrand ? allContracts.filter(contract => contract.brand === selectedBrand) : allContracts;
-  const currentContract = selectedBrand ? visibleContracts[0] : contracts.primary;
+  const currentContract = selectedBrand ? visibleContracts[0] : null;
   const editBrand = selectedBrand ?? currentContract?.brand ?? null;
   const editBrandId = editBrand ? slugToUuid(reg, editBrand) ?? null : null;
   const dataThrough = await getDataAnchorDate(selectedBrand ? [selectedBrand] : brandsWithData.length ? brandsWithData : null);
@@ -65,15 +68,15 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
   const [summary, videos, brandRows, lifetime, changes, topContent, published, accountRows, relationship] = await Promise.all([
     getCreatorSummary(creatorId, startDate, endDate, selectedBrand ?? undefined),
     getCreatorVideos(creatorId, startDate, endDate, 12, selectedBrand ?? undefined),
-    getCreatorBrandBreakdown(creatorId, startDate, endDate),
-    getCreatorLifetimeStats(creatorId),
+    selectedBrand ? Promise.resolve([]) : getCreatorBrandBreakdown(creatorId, startDate, endDate),
+    selectedBrand ? Promise.resolve(null) : getCreatorLifetimeStats(creatorId),
     getCreatorChangeHistory(visibleContracts.map(contract => contract.managedId), canViewCost),
     getCreatorTopContent(creatorId, startDate, endDate, 6, selectedBrand ?? undefined),
     currentContract ? getPostsPublishedThisMonth(creatorId, currentContract.brand) : Promise.resolve(null),
     getCreatorAccountBreakdown(creatorId, startDate, endDate, selectedBrand ?? undefined),
     getCreatorBrandRelationship(creatorId, editBrandId),
   ]);
-  const monthlyCommitment = visibleContracts.reduce((sum, contract) => sum + contract.retainer, 0);
+
   const scopeHint = `${label} · ${startDate}–${endDate}`;
   const historyEnd = dataThrough ?? endDate;
   const empty = <div className={styles.empty}>No recorded activity in this period. Select another date range to explore earlier performance.</div>;
@@ -83,7 +86,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
   const concentration = summary.total_gmv > 0 && leadingGmv <= summary.total_gmv ? Math.round(leadingGmv / summary.total_gmv * 100) : null;
   const topVideoPreview = <section className={styles.section}>
     <div className={styles.sectionHead}><div><h2>Start with the content</h2><p>Leading videos by GMV · {scopeHint}</p></div><ProfileSectionLink section="content">All content</ProfileSectionLink></div>
-    {leadingVideos.length ? <div className={styles.reviewVideos}>{leadingVideos.map((video)=><article key={`${video.video_id}:${video.brand}`}><div className={styles.compactCover}><VideoCover video={{...video,date_range:`${startDate} – ${endDate}`}} stored={video.thumbnail_url} /></div><div><VideoTitleButton videoData={{...video,date_range:`${startDate} – ${endDate}`}} className="text-left text-sm font-medium hover:text-primary">{video.video_title || 'Review video'}</VideoTitleButton><p className="text-xs text-muted-foreground mt-1">{brandLabel(reg,video.brand)} · {formatNumber(video.orders)} orders</p></div><strong>{formatCurrency(video.gmv)}</strong></article>)}</div> : empty}
+    {leadingVideos.length ? <div className={styles.reviewVideos}>{leadingVideos.map((video)=><article key={`${video.video_id}:${video.brand}`}><div className={styles.compactCover}><VideoCover video={{...video,date_range:`${startDate} – ${endDate}`}} stored={video.thumbnail_url} /></div><div><VideoTitleButton videoData={{...video,date_range:`${startDate} – ${endDate}`}} className="text-left text-sm font-medium hover:text-primary">{video.video_title || 'Review video'}</VideoTitleButton><p className="text-xs text-muted-foreground mt-1">{brandLabel(reg,video.brand)} · {formatNumber(video.orders)} orders · {video.posted_date ? `Published ${video.posted_date}` : "Publication date unavailable"}</p></div><strong>{formatCurrency(video.gmv)}</strong></article>)}</div> : empty}
   </section>;
   const priorities = <section className={styles.priorities} aria-label="Review priorities">
     <div><span className={styles.eyebrow}>Review priorities</span><h2>Where to focus next</h2><p>Observations from the selected period, with evidence to review.</p></div>
@@ -92,10 +95,10 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
   </section>;
   const performance = <div className={styles.grid}>
     <div className={styles.stack}>
-      <Suspense fallback={<div className={styles.empty} role="status">Loading selected-period performance…</div>}><ProfilePerformanceHistory compare creatorId={creatorId} start={startDate} end={endDate} brand={selectedBrand ?? undefined} label={label} /></Suspense>
+      <Suspense fallback={<div className={styles.empty} role="status">Loading selected-period performance…</div>}><ProfilePerformanceHistory creatorId={creatorId} start={startDate} end={endDate} brand={selectedBrand ?? undefined} label={label} /></Suspense>
       {topVideoPreview}
-      <section className={styles.section}>
-        <div className={styles.sectionHead}><div><h2>Brand performance</h2><p>Brands you are authorized to manage · {startDate}–{endDate}</p></div></div>
+      {!selectedBrand && <section className={styles.section}>
+        <div className={styles.sectionHead}><div><h2>Authorized brand comparison</h2><p>Brands you are authorized to manage · {startDate}–{endDate}</p></div></div>
         <div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>Brand</th><th>GMV</th><th>Active videos</th>{canViewCost && <th>Current monthly fee</th>}</tr></thead><tbody>
           {brandRows.filter(row => activeSlugs.has(row.brand)).sort((a,b) => b.gmv-a.gmv).map(row => <tr key={row.brand}>
             <td data-label="Brand"><BrandIdentity brand={row.brand} label={brandLabel(reg,row.brand)} /></td>
@@ -103,15 +106,15 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
             {canViewCost && <td data-label="Current monthly fee">{allContracts.some(contract => contract.brand === row.brand) ? formatCurrency(allContracts.filter(contract => contract.brand === row.brand).reduce((sum,c) => sum+c.retainer,0)) : '—'}</td>}
           </tr>)}
         </tbody></table></div>
-      </section>
+      </section>}
     </div>
-    <aside className={styles.stack}>      <section className={styles.aside}><p className={styles.eyebrow}>Coaching context</p><h2>Keep the next conversation focused</h2><p>Review a leading video, capture specific feedback, and agree on the next experiment.</p>
+    <aside className={styles.stack}>      <section className={styles.aside}><p className={styles.eyebrow}>Coaching context</p><h2>Feedback & next experiment</h2><p>Discord feedback is creator-initiated in a shared channel. Submissions are not linked to this profile yet.</p>
         {selectedBrand && currentContract?.notes && <div className={styles.coachingNote}><span className={styles.eyebrow}>{label} notes</span><p className="whitespace-pre-wrap">{currentContract.notes}</p></div>}
         {profile.notes && <div className={styles.coachingNote}><span className={styles.eyebrow}>Shared creator notes</span><p className="whitespace-pre-wrap">{profile.notes}</p></div>}
-        {!profile.notes && !(selectedBrand && currentContract?.notes) && <p>No notes recorded in this view. Use Edit profile to capture context.</p>}
-        <p className={styles.capabilityNote}>Assigned coaching tasks, due dates and follow-up outcomes are not tracked here yet.</p>
+        {!profile.notes && !(selectedBrand && currentContract?.notes) && <p>No coaching notes recorded in this view.</p>}
+        <CoachingBrief creator={profile.real_name} brand={label} />
       </section>
-      <section className={styles.aside}><p className={styles.eyebrow}>Current relationship</p><h2>{currentContract ? brandLabel(reg,currentContract.brand) : label}</h2>
+      {selectedBrand && <><section className={styles.aside}><p className={styles.eyebrow}>Current relationship</p><h2>{currentContract ? brandLabel(reg,currentContract.brand) : label}</h2>
         <dl><div><dt>Agreement</dt><dd>{currentContract ? 'Current roster terms' : 'No terms recorded'}</dd></div>
           {canViewCost && <div><dt>Monthly fee</dt><dd>{currentContract ? formatCurrency(currentContract.retainer) : '—'}</dd></div>}
           <div><dt>Monthly posts</dt><dd>{currentContract?.monthlyPostRequirement || 'No target recorded'}</dd></div><div><dt>Start date</dt><dd>{currentContract?.retainerStartDate || 'Not recorded'}</dd></div>
@@ -124,30 +127,28 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
         <dl><div><dt>On-time delivery</dt><dd>Not assessed</dd></div><div><dt>Accepted deliverables</dt><dd>Not recorded</dd></div></dl>
         <p>Publication volume is visible in monthly history. It does not establish whether agreed deliverables were accepted or on time.</p>
       </section>
-      <section className={styles.aside}><p className={styles.eyebrow}>Across the relationship</p><div className="mt-3"><strong>{formatCurrency(lifetime.total_gmv)}</strong></div><p>Recorded lifetime GMV · authorized brands</p><dl><div><dt>Orders</dt><dd>{formatNumber(lifetime.total_orders)}</dd></div><div><dt>First activity</dt><dd>{lifetime.first_active_date || 'Not recorded'}</dd></div></dl></section>
+      </>}
+      {!selectedBrand && lifetime && <section className={styles.aside}><p className={styles.eyebrow}>Across authorized brands</p><div className="mt-3"><strong>{formatCurrency(lifetime.total_gmv)}</strong></div><p>Recorded lifetime GMV · authorized brands</p><dl><div><dt>Orders</dt><dd>{formatNumber(lifetime.total_orders)}</dd></div><div><dt>First activity</dt><dd>{lifetime.first_active_date || 'Not recorded'}</dd></div></dl></section>}
     </aside>
   </div>;
 
   const agreements = <div className={styles.stack}>
     <div className={styles.sectionHead}><div><h2>Agreements & terms</h2><p>Current commitments and the changes Tempo has recorded.</p></div><span className={styles.eyebrow}>{label}</span></div>
     <div className={styles.agreementGrid}>{visibleContracts.map(contract => <article key={contract.managedId} className={styles.agreement}>
-      <h3><span className={styles.brand}><i style={{background:brandColor(reg,contract.brand)}} />{brandLabel(reg,contract.brand)}</span></h3>
+      <h3><BrandIdentity brand={contract.brand} label={brandLabel(reg,contract.brand)} /></h3>
       {canViewCost && <strong>{formatCurrency(contract.retainer)}<span className="text-xs text-muted-foreground font-normal"> / month</span></strong>}
       <dl className={styles.terms}><div><dt>Recorded commitment</dt><dd>{contract.monthlyPostRequirement ? `${contract.monthlyPostRequirement} posts / month` : 'No target recorded'}</dd></div><div><dt>Status</dt><dd>{contract.status || 'Not recorded'}</dd></div><div><dt>Start date</dt><dd>{contract.retainerStartDate || 'Not recorded'}</dd></div><div><dt>Renewal / end date</dt><dd>Not recorded</dd></div></dl>
       {contract.notes && <p className="mt-6 text-xs leading-relaxed text-muted-foreground whitespace-pre-wrap">{contract.notes}</p>}
     </article>)}</div>
     {!visibleContracts.length && <div className={styles.empty}>No agreement terms are recorded for this brand.</div>}
-    <div className={styles.notice}>These cards show current roster terms. Historical fixed-post packages, rollover rules, commission terms and signed agreement dates are not yet stored as a complete agreement ledger. Recorded changes below preserve the available history; current fees are never projected backward.</div>
-    <section className={styles.section}><div className={styles.sectionHead}><div><h2>Agreement change history</h2><p>Recorded updates, with original before-and-after values.</p></div></div><div className="px-6 pb-6"><CreatorChangeHistory entries={changes} brandLabelFor={brand => brand ? brandLabel(reg,brand) : null} multiBrand={!selectedBrand} /></div></section>
+    <details className={styles.notice}><summary className="cursor-pointer font-medium">Agreement coverage & limitations</summary><p>These cards show current roster terms. Historical fixed-post packages, rollover rules, commission terms and signed agreement dates are not yet stored as a complete agreement ledger. Recorded changes below preserve the available history; current fees are never projected backward.</p></details>
+    <Suspense fallback={<div className={styles.empty}>Loading renewal evidence…</div>}><RelationshipHistory compact creatorId={creatorId} brand={selectedBrand ?? undefined} end={historyEnd} label={label} /></Suspense>
+    <section className={styles.section}><div className={styles.sectionHead}><div><h2>Recorded term changes</h2><p>Edit dates show when Tempo was updated, not necessarily when terms took effect.</p></div></div><div className="px-6 pb-6"><CreatorChangeHistory agreementOnly entries={changes} brandLabelFor={brand => brand ? brandLabel(reg,brand) : null} multiBrand={!selectedBrand} /></div></section>
   </div>;
 
   const content = <div className={styles.stack}>
     <div className={styles.sectionHead}><div><h2>Content driving revenue</h2><p>Top tracked videos by GMV · {scopeHint}</p></div></div>
-    {!videos.length ? empty : <div className={styles.videoGrid}>{videos.map((video,index) => <article className={styles.video} key={`${video.video_id}:${video.brand}`}>
-      <div className={styles.contentCover}><VideoCover video={{...video,date_range:`${startDate} – ${endDate}`}} stored={video.thumbnail_url} /></div><span className={styles.rank}>#{index+1} · {brandLabel(reg,video.brand)}</span>
-      <h3><VideoTitleButton videoData={{...video,date_range:`${startDate} – ${endDate}`}} className="text-left hover:text-primary">{video.video_title || 'View video'} <ExternalLink size={12} className="inline" /></VideoTitleButton></h3>
-      <footer><div><strong>{formatCurrency(video.gmv)}</strong>GMV</div><div>{formatNumber(video.orders)} orders<br />@{video.creator_name}</div></footer>
-    </article>)}</div>}
+    <ProfileVideoGrid videos={videos} start={startDate} end={endDate} labels={Object.fromEntries(brands.map(brand=>[brand,brandLabel(reg,brand)]))} />
     <section className={styles.section}><div className={styles.sectionHead}><div><h2>Content that earned attention</h2><p>Ranked by views to surface hooks worth studying.</p></div></div><div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>Video</th><th>Views</th><th>Likes</th><th>GMV</th></tr></thead><tbody>{topContent.map(video => <tr key={video.videoId}><td data-label="Video"><div className="flex items-start gap-3"><div className="w-12 shrink-0"><VideoCover video={{video_id:video.videoId,video_title:video.title || 'View video',creator_name:videos.find(row=>row.video_id===video.videoId)?.creator_name || accounts[0]?.tiktok_username || '',brand:video.brand || undefined,gmv:video.gmv}} stored={videos.find(row=>row.video_id===video.videoId)?.thumbnail_url} /></div><div><VideoTitleButton videoData={{video_id:video.videoId,video_title:video.title,creator_name:accounts[0]?.tiktok_username || profile.real_name,brand:video.brand || undefined,gmv:video.gmv}} className="text-left hover:text-primary">{video.title || 'View video'}</VideoTitleButton><small>{video.postDate || 'Publication date unavailable'}</small></div></div></td><td data-label="Views">{formatNumber(video.views)}</td><td data-label="Likes">{formatNumber(video.likes)}</td><td data-label="GMV">{formatCurrency(video.gmv)}</td></tr>)}</tbody></table></div></section>
     <section className={styles.section}><div className={styles.sectionHead}><div><h2>TikTok accounts</h2><p>Performance by linked handle in the selected period.</p></div></div><div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>Account</th><th>GMV</th><th>Orders</th><th>Active videos</th></tr></thead><tbody>{accountRows.map(account => <tr key={account.tiktok_username}><td data-label="Account">@{account.tiktok_username}</td><td data-label="GMV">{formatCurrency(account.gmv)}</td><td data-label="Orders">{formatNumber(account.orders)}</td><td data-label="Active videos">{formatNumber(account.videos)}</td></tr>)}</tbody></table></div></section>
   </div>;
@@ -165,14 +166,12 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
       <CreatorEditButton creator={{id:profile.id,real_name:profile.real_name,email:profile.email,phone:profile.phone,role:relationship.role,status:relationship.status,notes:profile.notes,accounts:profile.accounts.map(account=>({tiktok_username:account.tiktok_username,is_primary:account.is_primary})),brandId:editBrandId,brandLabel:editBrand ? brandLabel(reg,editBrand) : null,brandNotes:allContracts.find(contract=>contract.brand===editBrand)?.notes ?? null}} />
       <a href={`/api/admin/view-as-creator?creatorId=${profile.id}`} target="_blank" rel="noopener noreferrer"><ExternalLink size={13} /> Creator portal</a>
     </div></header>
-    <div className={styles.scope}><div><span className={styles.eyebrow}>Relationship scope</span><Suspense fallback={null}><BrandFilter appearance="creator" brands={brands} brandsWithData={brandsWithData} selectedBrand={selectedBrand} /></Suspense></div><div><span className={styles.eyebrow}>Reporting period</span><Suspense fallback={null}><DateRangePicker staleThrough={lagDays>0 ? anchorDate : null} /></Suspense></div></div>
-    <p className={styles.freshness}>Sales imported through {historyEnd} · Selected period: {startDate}–{endDate}</p><div className={styles.metrics}>
-      <div className={styles.metric}><span className={styles.eyebrow}>GMV · selected period</span><strong>{formatCurrency(summary.total_gmv)}</strong><p>{scopeHint}</p></div>
-      <div className={styles.metric}><span className={styles.eyebrow}>Orders · selected period</span><strong>{formatNumber(summary.total_orders)}</strong><p>{formatNumber(summary.total_videos)} tracked videos with activity</p></div>
-      <div className={styles.metric}><span className={styles.eyebrow}>Current monthly commitment</span><strong>{canViewCost ? formatCurrency(monthlyCommitment) : '—'}</strong><p>{visibleContracts.length} recorded brand agreement{visibleContracts.length === 1 ? '' : 's'}{!canViewCost && ' · cost access restricted'}</p></div>
-    </div>
+    <div className={styles.scope}><div><span className={styles.eyebrow}>Brand view</span><Suspense fallback={null}><BrandFilter appearance="creator" brands={brands} brandsWithData={brandsWithData} selectedBrand={selectedBrand} /></Suspense></div><div><span className={styles.eyebrow}>Reporting period</span><Suspense fallback={null}><DateRangePicker staleThrough={lagDays>0 ? anchorDate : null} /></Suspense></div></div>
+    <p className={styles.freshness}>Sales through {historyEnd} · {startDate}–{endDate}</p>
+    <Suspense fallback={<div className={styles.empty}>Loading period metrics…</div>}><ProfileHeadlineMetrics creatorId={creatorId} start={startDate} end={endDate} brand={selectedBrand ?? undefined} label={label} summary={summary} /></Suspense>
+    {selectedBrand && brands.length > 1 && <Link className={styles.compareLink} href={`?${new URLSearchParams({...sp,brand:'all'})}`}>Compare authorized brands &rarr;</Link>}
     <ProfileSections sections={[
-      {id:'performance',label:'Overview',content:<div className={styles.stack}>{priorities}{performance}</div>},
+      {id:'performance',label:'Overview',content:<div className={styles.stack}>{performance}{priorities}</div>},
       {id:'history',label:'History',content:<Suspense fallback={<div className={styles.empty}>Loading relationship history…</div>}><RelationshipHistory creatorId={creatorId} brand={selectedBrand ?? undefined} end={historyEnd} label={label} /></Suspense>},
       {id:'agreements',label:'Agreements',content:agreements},
       {id:'content',label:'Content & accounts',content:content},
