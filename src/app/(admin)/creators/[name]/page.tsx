@@ -65,7 +65,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
   const dataThrough = await getDataAnchorDate(selectedBrand ? [selectedBrand] : brandsWithData.length ? brandsWithData : null);
   const { startDate, endDate, lagDays, anchorDate } = resolveDateRange(sp.range, sp.start, sp.end, dataThrough);
   const label = selectedBrand ? brandLabel(reg, selectedBrand) : 'Authorized brands';
-  const [summary, videos, brandRows, lifetime, changes, topContent, published, accountRows, relationship] = await Promise.all([
+  const [summary, fetchedVideos, brandRows, lifetime, changes, topContent, published, accountRows, relationship] = await Promise.all([
     getCreatorSummary(creatorId, startDate, endDate, selectedBrand ?? undefined),
     getCreatorVideos(creatorId, startDate, endDate, 12, selectedBrand ?? undefined),
     selectedBrand ? Promise.resolve([]) : getCreatorBrandBreakdown(creatorId, startDate, endDate),
@@ -77,6 +77,8 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
     getCreatorBrandRelationship(creatorId, editBrandId),
   ]);
 
+  const contentDates = new Map(topContent.map(video=>[video.videoId,video.postDate]));
+  const videos = fetchedVideos.map(video=>({...video,posted_date:video.posted_date ?? contentDates.get(video.video_id) ?? null}));
   const scopeHint = `${label} · ${startDate}–${endDate}`;
   const historyEnd = dataThrough ?? endDate;
   const empty = <div className={styles.empty}>No recorded activity in this period. Select another date range to explore earlier performance.</div>;
@@ -112,7 +114,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
         {selectedBrand && currentContract?.notes && <div className={styles.coachingNote}><span className={styles.eyebrow}>{label} notes</span><p className="whitespace-pre-wrap">{currentContract.notes}</p></div>}
         {profile.notes && <div className={styles.coachingNote}><span className={styles.eyebrow}>Shared creator notes</span><p className="whitespace-pre-wrap">{profile.notes}</p></div>}
         {!profile.notes && !(selectedBrand && currentContract?.notes) && <p>No coaching notes recorded in this view.</p>}
-        <CoachingBrief creator={profile.real_name} brand={label} />
+        <CoachingBrief key={`${creatorId}:${selectedBrand ?? "all"}`} creator={profile.real_name} brand={label} />
       </section>
       {selectedBrand && <><section className={styles.aside}><p className={styles.eyebrow}>Current relationship</p><h2>{currentContract ? brandLabel(reg,currentContract.brand) : label}</h2>
         <dl><div><dt>Agreement</dt><dd>{currentContract ? 'Current roster terms' : 'No terms recorded'}</dd></div>
