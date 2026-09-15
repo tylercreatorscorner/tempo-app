@@ -1,9 +1,11 @@
 'use client';
 
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { ChevronsUpDown, Check, Search, LayoutGrid, X } from 'lucide-react';
+import { ChevronsUpDown, Check, Search, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
+import { BrandPortrait } from '@/components/creators/brand-portrait';
+import { useBrandMeta } from '@/hooks/use-brand-meta';
 import { useGlobalBrand } from '@/hooks/use-global-brand';
 
 interface BrandOption {
@@ -12,47 +14,9 @@ interface BrandOption {
   color: string | null;
 }
 
-/** 1–2 letter initials for a brand avatar (skips emoji / punctuation). */
-function initials(label: string): string {
-  const words = label.replace(/[^a-zA-Z0-9 ]/g, ' ').trim().split(/\s+/).filter(Boolean);
-  if (words.length === 0) return '?';
-  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
-  return (words[0][0] + words[1][0]).toUpperCase();
-}
-
-/** Pick a readable initials color for a brand-color background — dark on light
- * fills (Lemme yellow, light greens), white on dark. Relative-luminance test. */
-function readableText(hex: string): string {
-  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
-  if (!m) return '#ffffff';
-  const n = parseInt(m[1], 16);
-  const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return luminance > 0.62 ? 'var(--foreground)' : '#ffffff';
-}
-
-/** Brand avatar — colored rounded square with initials, or a grid tile for "All Brands". */
-function BrandAvatar({ color, label, size = 'md' }: { color: string | null; label: string; size?: 'sm' | 'md' }) {
-  const dim = size === 'sm' ? 'h-6 w-6 text-[9px] rounded-md' : 'h-7 w-7 text-[10px] rounded-lg';
-  if (!color) {
-    return (
-      <span className={cn(dim, 'flex items-center justify-center bg-gradient-to-br from-[var(--primary)] via-[#A855F7] to-[#3B82F6] text-white shadow-sm flex-shrink-0')}>
-        <LayoutGrid className={size === 'sm' ? 'h-3 w-3' : 'h-3.5 w-3.5'} />
-      </span>
-    );
-  }
-  return (
-    <span
-      className={cn(dim, 'flex items-center justify-center font-bold shadow-sm flex-shrink-0')}
-      style={{ backgroundColor: color, color: readableText(color) }}
-    >
-      {initials(label)}
-    </span>
-  );
-}
-
 export function BrandSwitcher() {
-  const { brand, setBrand, brandLabel, brandColor } = useGlobalBrand();
+  const { brand, setBrand, brandLabel } = useGlobalBrand();
+  const meta = useBrandMeta();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
@@ -279,7 +243,7 @@ export function BrandSwitcher() {
                         isHighlighted ? 'bg-muted/80' : 'bg-transparent',
                       )}
                     >
-                      <BrandAvatar color={opt.color} label={opt.label} />
+                      <BrandPortrait name={opt.label} source={meta.logo(opt.key)} />
                       <span className={cn('flex-1 text-left truncate', isActive ? 'font-semibold text-foreground' : 'text-foreground')}>
                         {opt.label}
                       </span>
@@ -316,7 +280,7 @@ export function BrandSwitcher() {
             : 'bg-card border-border hover:bg-muted hover:border-border',
         )}
       >
-        <BrandAvatar color={brand === 'all' ? null : brandColor} label={brandLabel} size="sm" />
+        <BrandPortrait name={brandLabel} source={meta.logo(brand)} size={26} />
         <div className="flex-1 min-w-0 text-left">
           <p className="text-[9px] uppercase tracking-wider text-muted-foreground leading-none mb-0.5">Brand</p>
           <p className="text-sm text-foreground truncate leading-none font-semibold">{brandLabel}</p>

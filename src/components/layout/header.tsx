@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Menu, ChevronRight, LogOut, Settings, Bell, Users } from 'lucide-react';
+import { Menu, ChevronRight, LogOut, Settings, Users } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { TempoLogo } from '@/components/ui/tempo-logo';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
@@ -152,11 +152,7 @@ export function Header({ onMenuClick, tenantName, userName, userEmail, tenantSwi
       <div className="flex items-center gap-1">
         {tenantSwitcher && <div className="hidden sm:block mr-2">{tenantSwitcher}</div>}
 
-        {/* Notifications */}
-        <button className="relative p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
-          <Bell className="h-[18px] w-[18px]" />
-          <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-[var(--primary)] ring-2 ring-card" />
-        </button>
+
 
         {/* Comms lives in the sidebar (its own destination) — the old
             /messages header shortcut is gone with the Comms-hub rebuild. */}

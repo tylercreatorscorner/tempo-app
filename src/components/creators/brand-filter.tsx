@@ -1,10 +1,11 @@
 'use client';
 
-import { useId, useState, useTransition } from 'react';
+import { useState, useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useBrandMeta } from '@/hooks/use-brand-meta';
 import { cn } from '@/lib/utils';
-import styles from './profile-workspace.module.css';
+import { ChoiceMenu } from '@/components/ui/choice-menu';
+import { BrandPortrait } from './brand-portrait';
 
 interface BrandFilterProps {
   brands: string[];
@@ -26,7 +27,7 @@ export function BrandFilter({ brands, brandsWithData, selectedBrand, collapseNoD
   const [showAll, setShowAll] = useState(false);
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const selectorId = useId();
+
 
   const brandHref = (brand: string | null) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -50,21 +51,12 @@ export function BrandFilter({ brands, brandsWithData, selectedBrand, collapseNoD
     : 0;
   const visibleBrands = hidden > 0 ? withData : brands;
 
-  if (appearance === 'creator') return <div className={styles.brandSelector} aria-busy={pending}>
-    <span aria-hidden="true" className={styles.brandMark} style={{ backgroundColor: selectedBrand ? brandMeta.color(selectedBrand) : 'var(--primary)' }}>
-      {selectedBrand ? brandMeta.label(selectedBrand).slice(0, 1) : 'T'}
-    </span>
-    <label htmlFor={selectorId} className="sr-only">Brand relationship</label>
-    <select id={selectorId} value={selectedBrand ?? ''} disabled={pending} onChange={event => {
-      const href = brandHref(event.target.value || null);
-      startTransition(() => router.push(href, { scroll: false }));
-    }}>
-      <option value="">All authorized brands</option>
-      {brands.map(brand => <option key={brand} value={brand}>{brandMeta.label(brand)}</option>)}
-    </select>
-    <span className={styles.brandSelectorHint} role="status">{pending ? 'Updating…' : `${brands.length} brands`}</span>
+  if (appearance === 'creator') return <div aria-busy={pending}>
+    <ChoiceMenu label="Brand relationship" value={selectedBrand ?? '__all'} disabled={pending}
+      options={[{value:'__all',label:'All authorized brands',description:`${brands.length} brand relationships`}, ...brands.map(brand => ({value:brand,label:brandMeta.label(brand),icon:<BrandPortrait name={brandMeta.label(brand)} source={brandMeta.logo(brand)} />}))]}
+      onChange={value => startTransition(()=>router.push(brandHref(value === '__all' ? null : value),{scroll:false}))} />
+    {pending && <span role="status" className="text-xs text-muted-foreground">Updating relationship…</span>}
   </div>;
-
   return (
     <div className="flex flex-wrap gap-2">
       <a

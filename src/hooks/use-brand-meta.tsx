@@ -25,6 +25,7 @@ const DEFAULT_COLOR = '#6B7280';
 interface MetaRow {
   name: string;
   color: string;
+  logo: string | null;
 }
 type MetaMap = Map<string, MetaRow>;
 
@@ -33,6 +34,7 @@ export interface BrandMeta {
   label: (slug: string | null | undefined) => string;
   /** Brand color hex for a slug; falls back to neutral gray. */
   color: (slug: string | null | undefined) => string;
+  logo: (slug: string) => string | null;
   loading: boolean;
 }
 
@@ -45,7 +47,7 @@ async function fetchMeta(): Promise<MetaMap> {
 
   inflight = (async () => {
     const supabase = createClient();
-    const { data, error } = await supabase.from('brands_v2').select('slug, name, display_name, color');
+    const { data, error } = await supabase.from('brands_v2').select('slug, name, display_name, color, logo_url');
     if (error) {
       console.error('useBrandMeta: failed to fetch brands_v2', error);
       return new Map<string, MetaRow>();
@@ -55,6 +57,7 @@ async function fetchMeta(): Promise<MetaMap> {
       map.set(b.slug, {
         name: b.display_name || b.name || b.slug,
         color: b.color || DEFAULT_COLOR,
+        logo: b.logo_url || null,
       });
     }
     cache = map;
@@ -106,6 +109,7 @@ export function useBrandMeta(): BrandMeta {
     () => ({
       label: (slug) => labelFrom(map, slug),
       color: (slug) => colorFrom(map, slug),
+      logo: (slug) => map?.get(slug)?.logo ?? null,
       loading,
     }),
     [map, loading],
