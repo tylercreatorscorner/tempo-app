@@ -1,6 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useId, useState } from 'react';
+import { Dialog, Tabs } from 'radix-ui';
+import { ChoiceMenu } from '@/components/ui/choice-menu';
+import styles from './creator-editor.module.css';
 import { Pencil, X, Save, Loader2, Plus, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
@@ -41,10 +44,10 @@ export function CreatorEditButton({ creator }: { creator: CreatorData }) {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="p-1.5 rounded-lg hover:bg-muted transition-colors"
+        className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-border bg-card hover:bg-secondary transition-colors text-xs font-medium"
         title="Edit Profile"
       >
-        <Pencil className="h-4 w-4 text-muted-foreground" />
+        <Pencil className="h-4 w-4 text-muted-foreground" /> Edit profile
       </button>
       {open && <EditPanel creator={creator} onClose={() => setOpen(false)} />}
     </>
@@ -53,6 +56,8 @@ export function CreatorEditButton({ creator }: { creator: CreatorData }) {
 
 function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => void }) {
   const router = useRouter();
+  const [section,setSection]=useState("details");
+  const [customRole,setCustomRole]=useState(Boolean(creator.role && !ROLES.includes(creator.role)));
   const [saving, setSaving] = useState(false);
   // A failed save used to do nothing at all: `if (res.ok)` with no else, so the
   // panel just sat there. Now that a per-brand edit can be REJECTED for a
@@ -69,7 +74,7 @@ function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => 
   });
 
   // Account management
-  const [accounts, setAccounts] = useState(creator.accounts.map((a) => a.tiktok_username));
+  const [accounts, setAccounts] = useState(() => Array.from(new Map(creator.accounts.map(a => [a.tiktok_username.trim().replace(/^@/, '').toLowerCase(), a.tiktok_username])).values()));
   const [newHandle, setNewHandle] = useState('');
   const [accountSaving, setAccountSaving] = useState(false);
   // Two-step confirm on removal. Not a browser confirm(): this is a rare,
@@ -145,19 +150,18 @@ function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => 
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
-      <div className="absolute inset-0 bg-black/20" onClick={onClose} />
-      <div className="relative w-full max-w-md bg-card shadow-xl overflow-y-auto animate-in slide-in-from-right">
+    <Dialog.Root open onOpenChange={open => { if (!open && !saving && !accountSaving) onClose(); }}><Dialog.Portal><Dialog.Overlay className={styles.overlay} /><Dialog.Content className={styles.panel} data-lenis-prevent>
         <div className="sticky top-0 bg-card border-b border-border px-6 py-4 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-[var(--foreground)]">Edit Profile</h2>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted">
+          <div><Dialog.Title className="text-xl font-semibold">Edit creator</Dialog.Title><Dialog.Description className="mt-1 text-xs text-muted-foreground">{creator.real_name} · Profile and brand relationship</Dialog.Description></div>
+          <button onClick={onClose} disabled={saving || accountSaving} aria-label="Close editor" className="p-2 rounded-lg hover:bg-muted">
             <X className="h-4 w-4 text-muted-foreground" />
           </button>
         </div>
 
-        <div className="p-6 space-y-5">
+        <Tabs.Root value={section} onValueChange={setSection}><Tabs.List className={styles.editorTabs} aria-label="Creator editor sections"><Tabs.Trigger value="details">Profile details</Tabs.Trigger><Tabs.Trigger value="accounts">Linked accounts <span>{accounts.length}</span></Tabs.Trigger></Tabs.List>
+        <div className={styles.body}><Tabs.Content value="details">
           {/* Profile Fields */}
-          <div className="space-y-4">
+          <div className={styles.fields}><h3 className={styles.groupTitle}>Creator details</h3>
             <Field label="Real Name" value={form.real_name} onChange={(v) => setForm({ ...form, real_name: v })} />
             <Field label="Email" value={form.email} onChange={(v) => setForm({ ...form, email: v })} type="email" />
             <Field label="Phone" value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} type="tel" />
@@ -172,7 +176,7 @@ function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => 
               </p>
             ) : (
               <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
-                This creator holds no brand contract, so role and status cannot be set here.
+                Select a brand on the profile to edit its role and status.
               </p>
             )}
 
@@ -180,25 +184,11 @@ function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => 
             <>
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">Role</label>
-              <select
-                value={ROLES.includes(form.role) ? form.role : '__custom'}
-                onChange={(e) => {
-                  if (e.target.value === '__custom') setForm({ ...form, role: '' });
-                  else setForm({ ...form, role: e.target.value });
-                }}
-                className="w-full px-3 py-2 text-sm border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/15 focus:border-primary/20"
-              >
-                <option value="">None</option>
-                {ROLES.map((r) => (
-                  <option key={r} value={r}>{r}</option>
-                ))}
-                <option value="__custom">Custom...</option>
-              </select>
-              {!ROLES.includes(form.role) && form.role !== '' && (
+              <ChoiceMenu label="Creator role" value={customRole ? '__custom' : form.role || '__none'} options={[{value:'__none',label:'None'},...ROLES.map(role=>({value:role,label:role})),{value:'__custom',label:'Custom role'}]} onChange={value=>{setCustomRole(value==='__custom');setForm({...form,role:value==='__none'||value==='__custom'?'':value});}} />              {customRole && (
                 <input
                   value={form.role}
                   onChange={(e) => setForm({ ...form, role: e.target.value })}
-                  placeholder="Custom role"
+                  placeholder="Custom role" aria-label="Custom role"
                   className="w-full mt-2 px-3 py-2 text-sm border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/15 focus:border-primary/20"
                 />
               )}
@@ -206,16 +196,7 @@ function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => 
 
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">Status</label>
-              <select
-                value={form.status}
-                onChange={(e) => setForm({ ...form, status: e.target.value })}
-                className="w-full px-3 py-2 text-sm border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/15 focus:border-primary/20"
-              >
-                <option value="">None</option>
-                {STATUSES.map((s) => (
-                  <option key={s} value={s.toLowerCase()}>{s}</option>
-                ))}
-              </select>
+              <ChoiceMenu label="Relationship status" value={form.status || '__none'} options={[{value:'__none',label:'None'},...STATUSES.map(status=>({value:status.toLowerCase(),label:status}))]} onChange={value=>setForm({...form,status:value==='__none'?'':value})} />
             </div>
             </>
             )}
@@ -229,7 +210,7 @@ function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => 
                   </span>
                 </label>
                 <textarea
-                  value={form.brand_notes}
+                  aria-label="Brand notes" value={form.brand_notes}
                   onChange={(e) => setForm({ ...form, brand_notes: e.target.value })}
                   rows={3}
                   placeholder="Only shown against this brand."
@@ -243,7 +224,7 @@ function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => 
                 General notes <span className="font-normal">(shared across all brands)</span>
               </label>
               <textarea
-                value={form.notes}
+                aria-label="General notes" value={form.notes}
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
                 rows={3}
                 className="w-full px-3 py-2 text-sm border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/15 focus:border-primary/20 resize-none"
@@ -257,15 +238,7 @@ function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => 
             </div>
           )}
 
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-[var(--primary)] rounded-xl hover:bg-[var(--primary)] transition-colors disabled:opacity-50"
-          >
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            Save Profile
-          </button>
-
+          </Tabs.Content><Tabs.Content value="accounts">
           {/* TikTok Accounts.
 
               Unlike everything above, these are NOT per brand. A handle
@@ -274,8 +247,8 @@ function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => 
               otherwise, and because managed-GMV membership resolves handles
               through this table: removing one drops the creator out of capture
               rate on every brand at once. */}
-          <div className="pt-4 border-t border-border">
-            <h3 className="text-sm font-bold text-[var(--foreground)]">TikTok Accounts</h3>
+          <div className={styles.accountSection}>
+            <h3 className="text-sm font-bold text-[var(--foreground)]">Linked TikTok accounts</h3>
             <p className="mt-1 mb-3 text-xs text-muted-foreground">
               Shared across all of this creator&rsquo;s brands, not just{' '}
               {creator.brandLabel ?? 'the selected one'}. Removing an account here removes it
@@ -283,7 +256,7 @@ function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => 
             </p>
             <div className="space-y-2">
               {accounts.map((handle) => (
-                <div key={handle} className="px-3 py-2 bg-muted rounded-xl">
+                <div key={handle} className="px-3 py-3 border border-border rounded-xl">
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-sm text-foreground truncate">@{handle}</span>
                     {confirmRemove === handle ? (
@@ -326,12 +299,12 @@ function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => 
               <input
                 value={newHandle}
                 onChange={(e) => setNewHandle(e.target.value)}
-                placeholder="@username"
+                placeholder="@username" aria-label="New TikTok handle"
                 onKeyDown={(e) => e.key === 'Enter' && addAccount()}
-                className="flex-1 px-3 py-2 text-sm border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/15 focus:border-primary/20"
+                className="min-w-0 flex-1 px-3 py-2 text-sm border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/15 focus:border-primary/20"
               />
               <button
-                onClick={addAccount}
+                onClick={addAccount} aria-label="Add TikTok account"
                 disabled={accountSaving || !newHandle.trim()}
                 className="px-3 py-2 text-sm font-medium text-[var(--primary)] border border-primary/15 rounded-xl hover:bg-primary/10 transition-colors disabled:opacity-50"
               >
@@ -339,9 +312,13 @@ function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => 
               </button>
             </div>
           </div>
-        </div>
-      </div>
-    </div>
+          </Tabs.Content></div>
+          <footer className={styles.footer}>
+            <p>{section==='details' ? 'Save applies to profile fields and selected-brand details.' : 'Account changes apply immediately across all brands.'}</p>
+            <button type="button" onClick={onClose} disabled={saving || accountSaving} className={styles.secondary}>{section==='details'?'Cancel':'Done'}</button>
+            {section==='details' && <button type="button" onClick={handleSave} disabled={saving || accountSaving} className={styles.primary}>{saving ? <Loader2 size={16} className="animate-spin"/> : <Save size={16}/>} Save changes</button>}
+          </footer></Tabs.Root>
+    </Dialog.Content></Dialog.Portal></Dialog.Root>
   );
 }
 
@@ -356,11 +333,12 @@ function Field({
   onChange: (v: string) => void;
   type?: string;
 }) {
+  const id=useId();
   return (
     <div>
-      <label className="block text-xs font-medium text-muted-foreground mb-1.5">{label}</label>
+      <label htmlFor={id} className="block text-xs font-medium text-muted-foreground mb-1.5">{label}</label>
       <input
-        type={type}
+        id={id} type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className="w-full px-3 py-2 text-sm border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/15 focus:border-primary/20"
@@ -368,3 +346,4 @@ function Field({
     </div>
   );
 }
+

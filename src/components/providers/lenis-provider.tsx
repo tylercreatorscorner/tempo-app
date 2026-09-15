@@ -1,9 +1,23 @@
 'use client';
 
-import { useEffect, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, type ReactNode } from 'react';
 import Lenis from 'lenis';
 
+const ScrollContext = createContext<(target: HTMLElement, offset: number) => void>((target, offset) => {
+  window.scrollTo({ top: target.getBoundingClientRect().top + window.scrollY + offset, behavior: 'instant' });
+});
+export const useSmoothScroll = () => useContext(ScrollContext);
+
 export function LenisProvider({ children }: { children: ReactNode }) {
+  const instance = useRef<Lenis | null>(null);
+  const scrollTo = useCallback((target: HTMLElement, offset: number) => {
+    if (instance.current) {
+      instance.current.resize();
+      instance.current.scrollTo(target, { offset, duration: 0.4 });
+    } else {
+      window.scrollTo({ top: target.getBoundingClientRect().top + window.scrollY + offset, behavior: 'instant' });
+    }
+  }, []);
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
@@ -33,6 +47,7 @@ export function LenisProvider({ children }: { children: ReactNode }) {
       },
     });
 
+    instance.current = lenis;
     let frame: number;
     function raf(time: number) {
       lenis.raf(time);
@@ -43,8 +58,9 @@ export function LenisProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelAnimationFrame(frame);
       lenis.destroy();
+      instance.current = null;
     };
   }, []);
 
-  return <>{children}</>;
+  return <ScrollContext.Provider value={scrollTo}>{children}</ScrollContext.Provider>;
 }

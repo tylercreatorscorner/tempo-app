@@ -5,6 +5,7 @@ import { X, ExternalLink } from 'lucide-react';
 import { useVideoPanel } from './video-panel-context';
 import { canonicalVideoUrl, formatCurrency, formatNumber } from '@/lib/utils/format';
 import { useBodyScrollLock } from '@/hooks/use-body-scroll-lock';
+import { BrandIdentity } from '@/components/creators/brand-identity';
 import { useBrandMeta } from '@/hooks/use-brand-meta';
 
 export function VideoPlayerPanel() {
@@ -31,7 +32,7 @@ export function VideoPlayerPanel() {
     <>
       {/* Backdrop */}
       <div
-        className={`fixed inset-0 z-50 bg-black/40 backdrop-blur-sm transition-opacity duration-300 ${
+        className={`fixed inset-0 z-50 bg-black/30 transition-opacity duration-300 ${
           isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
         }`}
         onClick={closeVideo}
@@ -58,6 +59,7 @@ export function VideoPlayerPanel() {
             {/* Video embed area */}
             <div className="bg-[#0a0a0a] flex items-center justify-center min-h-[520px] relative">
               <iframe
+                title={video.video_title || "TikTok video"}
                 src={`https://www.tiktok.com/embed/v2/${video.video_id}`}
                 className="w-full h-[520px] border-0"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -77,15 +79,7 @@ export function VideoPlayerPanel() {
 
               {/* Brand pill */}
               {video.brand && (
-                <span
-                  className="inline-block text-xs px-2.5 py-0.5 rounded-full font-medium"
-                  style={{
-                    backgroundColor: `${brandMeta.color(video.brand)}15`,
-                    color: brandMeta.color(video.brand),
-                  }}
-                >
-                  {brandMeta.label(video.brand)}
-                </span>
+                <BrandIdentity brand={video.brand} label={brandMeta.label(video.brand)} />
               )}
 
               {/* Product */}
@@ -96,27 +90,27 @@ export function VideoPlayerPanel() {
               {/* Stats grid */}
               <div className="grid grid-cols-2 gap-3 pt-2">
                 {video.gmv != null && (
-                  <div className="rounded-xl bg-muted px-3 py-2.5">
+                  <div className="rounded-xl border border-border bg-card px-4 py-3">
                     <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">GMV</p>
-                    <p className="text-sm font-bold text-[var(--foreground)] tabular-nums mt-0.5">{formatCurrency(video.gmv)}</p>
+                    <p className="text-lg font-semibold text-[var(--foreground)] tabular-nums mt-0.5">{formatCurrency(video.gmv)}</p>
                   </div>
                 )}
                 {video.orders != null && (
-                  <div className="rounded-xl bg-muted px-3 py-2.5">
+                  <div className="rounded-xl border border-border bg-card px-4 py-3">
                     <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Orders</p>
-                    <p className="text-sm font-bold text-[var(--foreground)] tabular-nums mt-0.5">{formatNumber(video.orders)}</p>
+                    <p className="text-lg font-semibold text-[var(--foreground)] tabular-nums mt-0.5">{formatNumber(video.orders)}</p>
                   </div>
                 )}
                 {video.items_sold != null && (
-                  <div className="rounded-xl bg-muted px-3 py-2.5">
+                  <div className="rounded-xl border border-border bg-card px-4 py-3">
                     <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Items Sold</p>
-                    <p className="text-sm font-bold text-[var(--foreground)] tabular-nums mt-0.5">{formatNumber(video.items_sold)}</p>
+                    <p className="text-lg font-semibold text-[var(--foreground)] tabular-nums mt-0.5">{formatNumber(video.items_sold)}</p>
                   </div>
                 )}
                 {video.days_selling != null && (
-                  <div className="rounded-xl bg-muted px-3 py-2.5">
+                  <div className="rounded-xl border border-border bg-card px-4 py-3">
                     <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Days Selling</p>
-                    <p className="text-sm font-bold text-[var(--foreground)] tabular-nums mt-0.5">{video.days_selling}</p>
+                    <p className="text-lg font-semibold text-[var(--foreground)] tabular-nums mt-0.5">{video.days_selling}</p>
                   </div>
                 )}
               </div>

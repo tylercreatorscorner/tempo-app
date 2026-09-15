@@ -1,4 +1,5 @@
 'use client';
+import { BrandIdentity } from '@/components/creators/brand-identity';
 import { CreatorPortrait } from '@/components/creators/creator-portrait';
 import { LatestRequest } from '@/lib/latest-request';
 
@@ -1066,15 +1067,10 @@ function CreatorPanel({
                     <div className="space-y-1.5">
                       {entries.map(([slug, gmv]) => {
                         const pct = total > 0 ? Math.round((gmv / total) * 100) : 0;
-                        const color = brandMeta.color(slug);
                         return (
                           <div key={slug} className="flex items-center gap-3 text-sm">
-                            <span
-                              className="h-2.5 w-2.5 rounded-full flex-shrink-0"
-                              style={{ backgroundColor: color }}
-                            />
                             <span className="text-foreground flex-1 truncate">
-                              {brandMeta.label(slug)}
+                              <BrandIdentity brand={slug} label={brandMeta.label(slug)} />
                             </span>
                             <span className="text-[var(--foreground)] font-semibold tabular-nums">{fmt(gmv)}</span>
                             <span className="text-xs text-muted-foreground w-9 text-right tabular-nums">{pct}%</span>
@@ -1144,7 +1140,7 @@ function CreatorPanel({
 
               {primaryHandle(creator) && (
                 <Link
-                  href={`/creators/${encodeURIComponent(primaryHandle(creator)!)}`}
+                  href={`/creators/${encodeURIComponent(primaryHandle(creator)!)}${creator.brand ? `?brand=${encodeURIComponent(creator.brand)}` : ''}`}
                   className="flex items-center justify-center gap-2 w-full mt-2 px-4 py-3 rounded-xl bg-[var(--primary)] text-primary-foreground text-sm font-semibold hover:brightness-[1.07] transition-colors"
                 >
                   <ExternalLink className="h-4 w-4" />
@@ -2178,9 +2174,7 @@ function RosterContent() {
                           {isGroup ? (
                             <Badge variant="accent">{c.brands?.length ?? 0} brands</Badge>
                           ) : c.brand ? (
-                            <Chip dotColor={brandMeta.color(c.brand)} className="max-w-[160px]">
-                              <span className="truncate">{brandOptions.find(b => b.slug === c.brand)?.name || brandMeta.label(c.brand) || c.brand.replace(/_/g, ' ')}</span>
-                            </Chip>
+                            <BrandIdentity brand={c.brand} label={brandOptions.find(b => b.slug === c.brand)?.name || brandMeta.label(c.brand)} />
                           ) : <span className="text-muted-foreground">—</span>}
                         </td>
                       )}
@@ -2249,8 +2243,7 @@ function RosterContent() {
                           {showAddAction && <td />}
                           <td data-label="Creator" className="px-5 py-2.5">
                             <div className="flex items-center gap-2 pl-8">
-                              <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: child.brand ? brandMeta.color(child.brand) : 'var(--muted-foreground)' }} />
-                              <span className="truncate text-sm font-medium text-muted-foreground">{childLabel}</span>
+                              <span className="truncate text-sm font-medium text-foreground"><BrandIdentity brand={child.brand || ''} label={childLabel} /></span>
                             </div>
                           </td>
                           {showBrandColumn && <td className="px-5 py-2.5" />}

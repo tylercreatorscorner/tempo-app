@@ -1,798 +1,183 @@
 export const dynamic = 'force-dynamic';
 
-/**
- * Admin creator profile — rebuilt 2026-08 for the CONTENT COACH.
- *
- * The page this replaces answered "how much money" five ways (GMV, orders,
- * items sold, videos, commission) and could not answer either question a coach
- * actually brings to a weekly call:
- *
- *   1. Are they posting where we pay them to post?
- *   2. Is the content working?
- *
- * Both are now the first two things on the page. Three rules held throughout:
- *
- * · Nothing here reads a dead table. creator_tags, creator_notes,
- *   creator_tasks, creator_status_history, video_reviews and contest_entrants
- *   are all 0 rows; creator_triage was last calculated 2026-02-12 and
- *   creator_outreach last written 2026-01-15. The old CRM tab and tag widget
- *   rendered those and have been removed rather than dressed up.
- *
- * · Posts PUBLISHED and posts ACTIVE are never given the same name. They
- *   differ by more than an order of magnitude (Akiek, Dr. Dent, August: 21
- *   published against 268 active) and conflating them is what made the old
- *   retainer tracker report 893% of a 30-post quota.
- *
- * · Retainer dollars stay behind canViewCreatorCost. A coach is finance-blind
- *   by design, and every gated figure renders as absence, never as $0.
- */
-
 import { Suspense } from 'react';
-import { CreatorPortrait } from '@/components/creators/creator-portrait';
-import layout from '@/components/creators/profile-layout.module.css';
-import { CreatorMetricReadout as MetricRail } from '@/components/creators/performance/metric-readout';
-import { ProfilePerformanceHistory } from '@/components/creators/performance/profile-history';
-import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
-import { resolveDateRange } from '@/lib/data/date-utils';
-import { getDataAnchorDate } from '@/lib/data/data-anchor';
-import { formatCurrency, formatNumber } from '@/lib/utils/format';
-import { getBrandRegistry, brandLabel, brandColor, activeBrandSlugs, slugToUuid } from '@/lib/data/brand-registry';
-import { DateRangePicker } from '@/components/dashboard/date-range-picker';
+import { notFound, redirect } from 'next/navigation';
+import { ArrowLeft, ExternalLink } from 'lucide-react';
+import { CreatorPortrait } from '@/components/creators/creator-portrait';
 import { CreatorEditButton } from '@/components/creators/creator-edit-panel';
 import { CreatorChangeHistory } from '@/components/creators/creator-change-history';
+import { ProfileSections, ProfileSectionLink } from '@/components/creators/profile-sections';
+import { RelationshipHistory } from '@/components/creators/relationship-history';
+import { ProfilePerformanceHistory } from '@/components/creators/performance/profile-history';
 import { BrandFilter } from '@/components/creators/brand-filter';
+import { DateRangePicker } from '@/components/dashboard/date-range-picker';
+import { ProfileVideoGrid } from '@/components/creators/profile-video-grid';
+import { CoachingBrief } from '@/components/creators/coaching-brief';
+import { ProfileHeadlineMetrics } from '@/components/creators/performance/profile-headline-metrics';
+import { BrandIdentity } from '@/components/creators/brand-identity';
+import { VideoCover } from '@/components/video/video-cover';
 import { VideoTitleButton } from '@/components/video/video-title-button';
-import { classifyCreator, getStatusInfo } from '@/lib/data/creator-status';
-import { ArrowLeft, Mail, Phone, ExternalLink, UserX, AlertTriangle, TrendingUp, TrendingDown } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import {
-  getCreatorProfile,
-  getCreatorBrandRelationship,
-  getCreatorIdByHandle,
-  getCreatorSummary,
-  getCreatorAccountBreakdown,
-  getCreatorBrandBreakdown,
-  getCreatorVideos,
-  getPostsPublishedThisMonth,
-  getCreatorLifetimeStats,
-  getCreatorContracts,
-  getCreatorEngagement,
-  getCreatorTopContent,
-  getCreatorLatestReportDate,
-  getCreatorChangeHistory,
-} from '@/lib/data/creator-profile';
 import { SetBreadcrumb } from '@/components/layout/breadcrumb-context';
 import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
+import { getDataAnchorDate } from '@/lib/data/data-anchor';
+import { resolveDateRange } from '@/lib/data/date-utils';
+import { getBrandRegistry, activeBrandSlugs, brandLabel, slugToUuid } from '@/lib/data/brand-registry';
+import { formatCurrency, formatNumber } from '@/lib/utils/format';
+import { getCreatorProfile, getCreatorIdByHandle, getCreatorContracts, getCreatorBrandRelationship,
+  getCreatorSummary, getCreatorVideos, getCreatorBrandBreakdown, getCreatorLifetimeStats,
+  getCreatorChangeHistory, getCreatorTopContent, getPostsPublishedThisMonth,
+  getCreatorAccountBreakdown } from '@/lib/data/creator-profile';
+import styles from '@/components/creators/profile-workspace.module.css';
 
 interface Props {
   params: Promise<{ name: string }>;
-  searchParams: Promise<{ range?: string; brand?: string; tab?: string; start?: string; end?: string }>;
+  searchParams: Promise<{ range?: string; brand?: string; start?: string; end?: string }>;
 }
 
 export default async function CreatorDetailPage({ params, searchParams }: Props) {
-  const { name } = await params;
+  const [{ name }, sp] = await Promise.all([params, searchParams]);
   const slug = decodeURIComponent(name);
-  const sp = await searchParams;
-
-  // Accept UUID or TikTok handle
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug);
-  let creatorId: string;
-
-  if (isUuid) {
-    creatorId = slug;
-  } else {
-    const id = await getCreatorIdByHandle(slug);
-    if (id) {
-      const qs = new URLSearchParams();
-      if (sp.range) qs.set('range', sp.range);
-      if (sp.brand) qs.set('brand', sp.brand);
-      const qsStr = qs.toString();
-      redirect(`/creators/${id}${qsStr ? `?${qsStr}` : ''}`);
-    }
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6 text-center px-4">
-        <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center">
-          <UserX className="h-8 w-8 text-muted-foreground" />
-        </div>
-        <div>
-          <h1 className="text-xl font-bold text-foreground mb-1">No full profile for @{slug}</h1>
-          <p className="text-sm text-muted-foreground max-w-sm">
-            This creator is on your managed roster but hasn&apos;t been linked to a full performance profile yet.
-            They&apos;ll appear here automatically once their TikTok data starts syncing.
-          </p>
-        </div>
-        <Link
-          href="/roster"
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[var(--primary)] text-primary-foreground text-sm font-semibold hover:brightness-[1.07] transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4" /> Back to Creators
-        </Link>
-      </div>
-    );
+  const creatorId = isUuid ? slug : await getCreatorIdByHandle(slug);
+  if (!creatorId) return <div className={styles.page}><Link href="/roster" className={styles.back}><ArrowLeft size={14} /> Back to creators</Link><div className={styles.empty}><h1>Profile not linked yet</h1><p>This roster entry needs a linked creator identity before performance history can be shown.</p></div></div>;
+  if (!isUuid) {
+    const query = new URLSearchParams();
+    for (const key of ['brand', 'range', 'start', 'end'] as const) if (sp[key]) query.set(key, sp[key]!);
+    redirect(`/creators/${creatorId}${query.size ? `?${query}` : ''}`);
   }
-
-  const profile = await getCreatorProfile(creatorId);
+  const [profile, scope, reg, contracts] = await Promise.all([
+    getCreatorProfile(creatorId), getWorkspaceScope(), getBrandRegistry(), getCreatorContracts(creatorId),
+  ]);
+  if (!scope) redirect('/login');
   if (!profile) notFound();
-
-  // One handle may have a registration for several brands; show it once in identity.
-  const identityAccounts = [...new Map(profile.accounts.filter(account => account.tiktok_username?.trim()).map(account => [
-    account.tiktok_username.trim().toLowerCase(), account,
-  ])).values()];
-
-  // Creator COST, not agency finance — the manager of this creator pays it.
-  // Named for what it is, so a real finance gate here cannot reuse it by accident.
-  const scope = await getWorkspaceScope();
-  const canViewCost = scope?.canViewCreatorCost ?? false;
-
-  const selectedBrand = sp.brand || null;
-
-  // Rolling presets end at the last day with data, not calendar yesterday.
-  // Scoped to what this page is showing, never per brand inside a total.
-  // See the note on resolveDateRange.
-  const dataThrough = await getDataAnchorDate(
-    selectedBrand ? [selectedBrand] : (profile.brandsWithData.length ? profile.brandsWithData : null));
-  const { startDate, endDate, lagDays, anchorDate } = resolveDateRange(sp.range, sp.start, sp.end, dataThrough);
-  // Non-null only when the window actually moved; see DateRangePicker.
-  const staleThrough = lagDays > 0 ? anchorDate : null;
-
-  const reg = await getBrandRegistry();
+  const canViewCost = scope.canViewCreatorCost;
+  const selectedBrand = sp.brand && sp.brand !== 'all' ? sp.brand : null;
   const activeSlugs = new Set(activeBrandSlugs(reg));
-  const activeBrands = profile.brands.filter((b) => activeSlugs.has(b));
-  const activeBrandsWithData = profile.brandsWithData.filter((b) => activeSlugs.has(b));
+  const brands = profile.brands.filter(brand => activeSlugs.has(brand));
+  const brandsWithData = profile.brandsWithData.filter(brand => activeSlugs.has(brand));
+  const accounts = [...new Map(profile.accounts.map(account => [account.tiktok_username.trim().toLowerCase(), account])).values()];
+  const allContracts = [contracts.primary, ...contracts.others].filter((contract): contract is NonNullable<typeof contract> => !!contract);
+  const visibleContracts = selectedBrand ? allContracts.filter(contract => contract.brand === selectedBrand) : allContracts;
+  const currentContract = selectedBrand ? visibleContracts[0] : null;
+  const editBrand = selectedBrand ?? currentContract?.brand ?? null;
+  const editBrandId = editBrand ? slugToUuid(reg, editBrand) ?? null : null;
+  const dataThrough = await getDataAnchorDate(selectedBrand ? [selectedBrand] : brandsWithData.length ? brandsWithData : null);
+  const { startDate, endDate, lagDays, anchorDate } = resolveDateRange(sp.range, sp.start, sp.end, dataThrough);
+  const label = selectedBrand ? brandLabel(reg, selectedBrand) : 'Authorized brands';
+  const [summary, fetchedVideos, brandRows, lifetime, changes, topContent, published, accountRows, relationship] = await Promise.all([
+    getCreatorSummary(creatorId, startDate, endDate, selectedBrand ?? undefined),
+    getCreatorVideos(creatorId, startDate, endDate, 12, selectedBrand ?? undefined),
+    selectedBrand ? Promise.resolve([]) : getCreatorBrandBreakdown(creatorId, startDate, endDate),
+    selectedBrand ? Promise.resolve(null) : getCreatorLifetimeStats(creatorId),
+    getCreatorChangeHistory(visibleContracts.map(contract => contract.managedId), canViewCost),
+    getCreatorTopContent(creatorId, startDate, endDate, 6, selectedBrand ?? undefined),
+    currentContract ? getPostsPublishedThisMonth(creatorId, currentContract.brand) : Promise.resolve(null),
+    getCreatorAccountBreakdown(creatorId, startDate, endDate, selectedBrand ?? undefined),
+    getCreatorBrandRelationship(creatorId, editBrandId),
+  ]);
 
-  const contracts = await getCreatorContracts(creatorId);
-  const contractBrand = contracts.primary?.brand ?? null;
+  const contentDates = new Map(topContent.map(video=>[video.videoId,video.postDate]));
+  const videos = fetchedVideos.map(video=>({...video,posted_date:video.posted_date ?? contentDates.get(video.video_id) ?? null}));
+  const scopeHint = `${label} · ${startDate}–${endDate}`;
+  const historyEnd = dataThrough ?? endDate;
+  const empty = <div className={styles.empty}>No recorded activity in this period. Select another date range to explore earlier performance.</div>;
 
-  // Which brand an edit to role/status applies to. The filtered brand if one is
-  // chosen, else the contract brand the panel's values were read from. Null
-  // when the creator holds no contract, and the panel then hides those fields
-  // rather than showing them editing nothing.
-  const editBrandSlug = selectedBrand ?? contractBrand;
-  const editBrandId = editBrandSlug ? (slugToUuid(reg, editBrandSlug) ?? null) : null;
-  // Read role/status from the SAME table and row the panel writes to. Reading
-  // them off the profile showed a value from a different table (and a
-  // non-existent column), so the field never reflected what was saved.
-  const editRelationship = await getCreatorBrandRelationship(creatorId, editBrandId);
-  // Per-brand notes come off the managed_creators contract for the same brand
-  // the panel is editing, so what is shown is what will be written.
-  const editBrandNotes =
-    (editBrandSlug
-      ? [contracts.primary, ...contracts.others].find((c) => c?.brand === editBrandSlug)?.notes
-      : null) ?? null;
-
-  const [summary, accountBreakdown, brandBreakdown, videos, lifetimeStats, engagement, topContent, latestReportDate, contractPosts] =
-    await Promise.all([
-      getCreatorSummary(creatorId, startDate, endDate, selectedBrand ?? undefined),
-      getCreatorAccountBreakdown(creatorId, startDate, endDate, selectedBrand ?? undefined),
-      getCreatorBrandBreakdown(creatorId, startDate, endDate),
-      getCreatorVideos(creatorId, startDate, endDate, 20, selectedBrand ?? undefined),
-      getCreatorLifetimeStats(creatorId),
-      // Both take the brand for the same reason the three calls above do. They
-      // used to ignore it, so on a creator working several brands these two
-      // cells of the metric rail stayed identical while the rest moved.
-      getCreatorEngagement(creatorId, startDate, endDate, selectedBrand ?? undefined),
-      getCreatorTopContent(creatorId, startDate, endDate, 8, selectedBrand ?? undefined),
-      getCreatorLatestReportDate(creatorId),
-      // Scoped to the CONTRACT brand: the requirement is a promise to one
-      // brand, so counting posts made for a different one would forgive a
-      // creator who is busy everywhere except where we pay them.
-      contractBrand ? getPostsPublishedThisMonth(creatorId, contractBrand) : Promise.resolve(0),
-    ]);
-
-  const daysStale = latestReportDate
-    // eslint-disable-next-line react-hooks/purity -- Request-time clock in this force-dynamic Server Component.
-    ? Math.floor((Date.now() - new Date(latestReportDate).getTime()) / (1000 * 60 * 60 * 24))
-    : null;
-  const isStale = daysStale != null && daysStale > 3;
-
-  const effort = brandBreakdown
-    .filter((b) => activeSlugs.has(b.brand))
-    .sort((a, b) => b.gmv - a.gmv);
-
-  // Classify off lifetime videos when the period is empty but the data is
-  // stale — otherwise an active creator reads as a "Ghost" because nobody has
-  // uploaded a CSV this week.
-  const videosForClassification = summary.total_videos > 0
-    ? summary.total_videos
-    : (isStale ? lifetimeStats.total_videos : summary.total_videos);
-  const perfStatusInfo = getStatusInfo(classifyCreator(videosForClassification));
-
-  const primaryBrandForColor = contractBrand ?? activeBrandsWithData[0] ?? activeBrands[0] ?? '';
-  const accent = brandColor(reg, primaryBrandForColor, '#4B45FF');
-
-  const engagementRate = engagement && engagement.views > 0
-    ? (engagement.likes / engagement.views) * 100
-    : null;
-  const gmvPerPost = summary.total_videos > 0 ? summary.total_gmv / summary.total_videos : null;
-
-  // Contract ROI is the CONTRACT brand's GMV against the contract retainer,
-  // never total GMV against it. Akiek works 13 brands; measuring all of them
-  // against one brand's retainer overstates that contract's return by 57%.
-  const contractGmv = contractBrand
-    ? (effort.find((b) => b.brand === contractBrand)?.gmv ?? 0)
-    : 0;
-  // Change history spans every roster row this creator holds — one per brand —
-  // so the timeline is the person's, not one contract's. Retainer gating is
-  // applied in the data layer, not here.
-  const changeHistory = await getCreatorChangeHistory(
-    [contracts.primary, ...contracts.others].filter(Boolean).map((c) => c!.managedId),
-    canViewCost,
-  );
-
-  const contractRoi = contracts.primary && contracts.primary.retainer > 0
-    ? contractGmv / contracts.primary.retainer
-    : null;
-
-  // The coaching insight: where the effort goes versus where it returns.
-  // Only worth stating when there IS a weak brand to name and a strong one to
-  // compare it to, so it stays a finding rather than furniture.
-  const withPosts = effort.filter((b) => b.videos > 0);
-  const best = withPosts.length > 1
-    ? withPosts.reduce((m, b) => (b.gmv / b.videos > m.gmv / m.videos ? b : m))
-    : null;
-  const worst = withPosts.length > 1
-    ? withPosts.reduce((m, b) => (b.gmv / b.videos < m.gmv / m.videos ? b : m))
-    : null;
-  const effortMismatch =
-    best && worst && best.brand !== worst.brand && worst.videos >= 3 &&
-    best.gmv / best.videos >= (worst.gmv / worst.videos) * 5
-      ? { best, worst }
-      : null;
-
-  return (
-    <div className={`${layout.page} space-y-5`}>
-      <SetBreadcrumb label={profile.real_name} />
-
-      {isStale && latestReportDate && (
-        <div className="rounded-2xl bg-amber-500/10 border border-amber-500/25 p-4 flex items-start gap-3">
-          <div className="h-9 w-9 rounded-xl bg-amber-500/15 flex items-center justify-center flex-shrink-0">
-            <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-foreground">
-              Performance data is {daysStale} days old
-            </p>
-            <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">
-              Last data point:{' '}
-              {new Date(latestReportDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}.
-              Period figures below may read low until a fresh upload lands. Lifetime figures are unaffected.
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* ── Identity + contract, one row ─────────────────────────────────── */}
-      <div className={layout.hero}>
-        <div className={layout.identityRow}>
-          <div className={layout.identity}>
-            <CreatorPortrait creatorId={creatorId} name={profile.real_name} className={layout.portrait} />
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className={layout.name}>{profile.real_name}</h1>
-                {profile.status && (
-                  <span className={cn(
-                    'text-[11px] px-2 py-0.5 rounded-md font-semibold border capitalize',
-                    {
-                      active:  'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/25',
-                      churned: 'bg-red-500/10 text-red-700 dark:text-red-400 border-red-500/25',
-                      paused:  'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/25',
-                    }[profile.status.toLowerCase()] ?? 'bg-muted text-muted-foreground border-border'
-                  )}>
-                    {profile.status}
-                  </span>
-                )}
-                <span
-                  className="text-[11px] px-2 py-0.5 rounded-md font-semibold border"
-                  style={{
-                    borderColor: `${perfStatusInfo.color}59`,
-                    color: perfStatusInfo.color,
-                    backgroundColor: `${perfStatusInfo.color}1F`,
-                  }}
-                >
-                  {perfStatusInfo.label}
-                </span>
-                <CreatorEditButton
-                  creator={{
-                    id: profile.id,
-                    real_name: profile.real_name,
-                    email: profile.email,
-                    phone: profile.phone,
-                    role: editRelationship.role,
-                    status: editRelationship.status,
-                    notes: profile.notes,
-                    accounts: profile.accounts.map((a) => ({
-                      tiktok_username: a.tiktok_username,
-                      is_primary: a.is_primary,
-                    })),
-                    /*
-                     * Role and status live on creator_brands, ONE ROW PER BRAND,
-                     * so the edit has to name which brand it means. Without this
-                     * the save was applied to every brand the creator works.
-                     *
-                     * The brand the user is looking at wins; otherwise the
-                     * contract brand, which is what the panel is populated from.
-                     */
-                    brandId: editBrandId,
-                    brandLabel: editBrandSlug ? brandLabel(reg, editBrandSlug) : null,
-                    brandNotes: editBrandNotes,
-                  }}
-                />
-                <a
-                  href={`/api/admin/view-as-creator?creatorId=${profile.id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title="Open this creator's portal (signed in as them) in a new tab"
-                  className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-2 py-0.5 text-[11px] font-semibold text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
-                >
-                  <ExternalLink className="h-3 w-3" /> Portal
-                </a>
-              </div>
-
-              <div className={layout.handles}>
-                {identityAccounts.slice(0, 4).map((a) => (
-                  <a
-                    key={a.tiktok_username}
-                    href={`https://tiktok.com/@${a.tiktok_username}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-[var(--primary)] hover:underline font-medium"
-                  >
-                    @{a.tiktok_username}
-                    <ExternalLink className="h-2.5 w-2.5 opacity-60" />
-                  </a>
-                ))}
-                {identityAccounts.length > 4 && (
-                  <span className="text-muted-foreground">+{identityAccounts.length - 4} more</span>
-                )}
-                <span className="text-muted-foreground">
-                  {identityAccounts.length} account{identityAccounts.length === 1 ? '' : 's'} ·{' '}
-                  {activeBrands.length} brand{activeBrands.length === 1 ? '' : 's'}
-                </span>
-                {profile.email && (
-                  <span className="flex items-center gap-1 text-muted-foreground">
-                    <Mail className="h-3 w-3" /> {profile.email}
-                  </span>
-                )}
-                {profile.phone && (
-                  <span className="flex items-center gap-1 text-muted-foreground">
-                    <Phone className="h-3 w-3" /> {profile.phone}
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Contract — primary, with the rest summarised. The roster stores one
-              row per creator PER BRAND, so a creator routinely holds several
-              and the page this replaces silently showed only the first. */}
-          <div className={layout.details}>
-            {contracts.primary && (
-              <div className="text-left lg:text-right">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.075em] text-muted-foreground">
-                  Contract
-                </p>
-                <p className="text-sm font-bold text-foreground mt-0.5">
-                  {brandLabel(reg, contracts.primary.brand)}
-                  {canViewCost && contracts.primary.retainer > 0 && (
-                    <span className="font-semibold tabular-nums"> · {formatCurrency(contracts.primary.retainer)}/mo</span>
-                  )}
-                </p>
-                <p className="text-[11px] text-muted-foreground tabular-nums">
-                  {contracts.primary.monthlyPostRequirement > 0
-                    ? `${contracts.primary.monthlyPostRequirement} posts/mo required`
-                    : 'No post requirement'}
-                  {contracts.others.length > 0 && (
-                    <>
-                      {' · '}
-                      <span title={contracts.others.map((c) => brandLabel(reg, c.brand)).join(', ')}>
-                        +{contracts.others.length} more contract{contracts.others.length === 1 ? '' : 's'}
-                        {canViewCost && contracts.totalRetainer > contracts.primary.retainer &&
-                          ` (${formatCurrency(contracts.totalRetainer)}/mo total)`}
-                      </span>
-                    </>
-                  )}
-                </p>
-              </div>
-            )}
-            <Suspense fallback={null}>
-              <DateRangePicker staleThrough={staleThrough} />
-            </Suspense>
-          </div>
-        </div>
-      </div>
-
-      {activeBrands.length > 1 && (
-        <Suspense fallback={null}>
-          <BrandFilter appearance="creator" brands={activeBrands} brandsWithData={activeBrandsWithData} selectedBrand={selectedBrand} />
-        </Suspense>
-      )}
-
-      {/* ── The answer line ──────────────────────────────────────────────── */}
-      {summary.total_videos > 0 && (
-        <div className={layout.summary}>
-          <p className="text-[17px] leading-snug text-foreground text-pretty">
-            {profile.real_name.split(' ')[0]} had{' '}
-            <b className="font-semibold tabular-nums">{formatNumber(summary.total_videos)}</b>{' '}
-            tracked video{summary.total_videos === 1 ? '' : 's'} with activity{' '}
-            {selectedBrand ? <>for <b className="font-semibold">{brandLabel(reg, selectedBrand)}</b></> : 'across the selected brands'} this period.
-            <span className="block text-xs text-muted-foreground mt-2 leading-relaxed">
-              Active videos can include older posts. New publications are shown separately in Recorded performance.
-            </span>
-          </p>
-        </div>
-      )}
-
-      {/* ── Coach band ───────────────────────────────────────────────────── */}
-      {contracts.primary && contracts.primary.monthlyPostRequirement > 0 && (
-        <div className={layout.section}>
-          <QuotaRow
-            posted={contractPosts}
-            required={contracts.primary.monthlyPostRequirement}
-            brandName={brandLabel(reg, contracts.primary.brand)}
-            accent={accent}
-          />
-          {effortMismatch && (
-            <div className="border-t border-border px-5 py-3.5">
-              <p className="text-sm text-foreground">
-                <b className="text-red-700 dark:text-red-400">Sales per active video vary by brand.</b>{' '}
-                <b className="tabular-nums">{formatNumber(effortMismatch.worst.videos)}</b> active videos for{' '}
-                <b>{brandLabel(reg, effortMismatch.worst.brand)}</b> returned{' '}
-                <b className="tabular-nums">{formatCurrency(effortMismatch.worst.gmv)}</b> —{' '}
-                <b className="tabular-nums">
-                  {formatCurrency(effortMismatch.worst.gmv / effortMismatch.worst.videos)}
-                </b>{' '}
-                per active video. The <b className="tabular-nums">{formatNumber(effortMismatch.best.videos)}</b> to{' '}
-                <b>{brandLabel(reg, effortMismatch.best.brand)}</b> returned{' '}
-                <b className="tabular-nums">
-                  {formatCurrency(effortMismatch.best.gmv / effortMismatch.best.videos)}
-                </b>{' '}
-                per active video.
-              </p>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── Metric rail ──────────────────────────────────────────────────── */}
-      <MetricRail
-        cells={[
-          { label: 'GMV', value: formatCurrency(summary.total_gmv), delta: pct(summary.total_gmv, summary.prev_gmv) },
-          { label: 'Active videos', value: formatNumber(summary.total_videos), delta: pct(summary.total_videos, summary.prev_videos) },
-          { label: 'Views', value: engagement ? compact(engagement.views) : '—' },
-          { label: 'Engagement', value: engagementRate != null ? `${engagementRate.toFixed(2)}%` : '—',
-            foot: engagement ? `${compact(engagement.likes)} likes` : undefined },
-          { label: 'GMV / active video', value: gmvPerPost != null ? formatCurrency(gmvPerPost) : '—' },
-          contractRoi != null && canViewCost
-            ? { label: 'GMV / retainer', value: `${contractRoi.toFixed(1)}×`,
-                foot: `${brandLabel(reg, contractBrand!)} GMV / retainer` }
-            : { label: 'Orders', value: formatNumber(summary.total_orders), delta: pct(summary.total_orders, summary.prev_orders) },
-        ]}
-      />
-
-      {/* ── Where the effort goes ────────────────────────────────────────── */}
-      <Suspense fallback={<p role="status" className="p-6 text-sm text-muted-foreground">Loading performance history…</p>}>
-        <ProfilePerformanceHistory creatorId={creatorId} start={startDate} end={endDate}
-          brand={selectedBrand ?? undefined} label={selectedBrand ? brandLabel(reg, selectedBrand) : 'Authorized brands'} />
-      </Suspense>
-      {effort.length > 0 && (
-        <Card>
-          <CardHeader
-            title="Performance by brand"
-            subtitle="Active tracked videos and recorded sales · selected period"
-          />
-          <div className={layout.tableWrap}>
-            <table role="table" className={layout.table}>
-              <thead role="rowgroup">
-                <tr role="row" className="border-b border-border bg-muted/60">
-                  <Th>Brand</Th>
-                  <Th right>Active videos</Th>
-                  <Th right>GMV</Th>
-                  <Th right>GMV / active video</Th>
-                  <Th right>Orders</Th>
-                </tr>
-              </thead>
-              <tbody role="rowgroup" className="divide-y divide-border">
-                {effort.map((b) => {
-                  const perPost = b.videos > 0 ? b.gmv / b.videos : null;
-                  const isContract = b.brand === contractBrand;
-                  return (
-                    <tr role="row" key={b.brand} className="hover:bg-muted/60 transition-colors">
-                      <td role="cell" data-label="Brand" className="px-5 py-2.5">
-                        <span className="inline-flex items-center gap-2">
-                          <span className="h-2.5 w-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: brandColor(reg, b.brand) }} />
-                          <span className="font-medium text-foreground">{brandLabel(reg, b.brand)}</span>
-                          {isContract && (
-                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-primary/15 text-[var(--primary)]">
-                              CONTRACT
-                            </span>
-                          )}
-                        </span>
-                      </td>
-                      <td role="cell" data-label="Active videos" className="px-5 py-2.5 text-right tabular-nums text-muted-foreground">{formatNumber(b.videos)}</td>
-                      <td role="cell" data-label="GMV" className="px-5 py-2.5 text-right tabular-nums font-semibold text-foreground">{formatCurrency(b.gmv)}</td>
-                      {/* An em dash, not $0 — a brand with sales but no posts this
-                          period earned them from posts published earlier, and a
-                          per-post figure for zero posts is a division by zero. */}
-                      <td role="cell" data-label="GMV / active video" className="px-5 py-2.5 text-right tabular-nums font-semibold text-foreground">
-                        {perPost != null ? formatCurrency(perPost) : '—'}
-                      </td>
-                      <td role="cell" data-label="Orders" className="px-5 py-2.5 text-right tabular-nums text-muted-foreground">{formatNumber(b.orders)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-          <p className="px-5 py-2.5 border-t border-border bg-muted/30 text-[11px] text-muted-foreground">
-            Recorded GMV includes sales beyond the tracked-video dataset. Active-video counts do not measure new publications or agreement fulfillment.
-          </p>
-        </Card>
-      )}
-
-      {/* ── Content that worked ──────────────────────────────────────────── */}
-      {topContent.length > 0 && (
-        <Card>
-          <CardHeader
-            title="Content that worked"
-            subtitle="Ranked by views, not GMV — the hook that landed is the thing worth repeating"
-          />
-          <div className={layout.tableWrap}>
-            <table role="table" className={layout.table}>
-              <thead role="rowgroup">
-                <tr role="row" className="border-b border-border bg-muted/60">
-                  <Th>Post</Th>
-                  <Th>Brand</Th>
-                  <Th right>Views</Th>
-                  <Th right>Likes</Th>
-                  <Th right>GMV</Th>
-                </tr>
-              </thead>
-              <tbody role="rowgroup" className="divide-y divide-border">
-                {topContent.map((v) => (
-                  <tr role="row" key={v.videoId} className="hover:bg-muted/60 transition-colors">
-                    <td role="cell" data-label="Post" className="px-5 py-2.5 min-w-[220px] max-w-[420px]">
-                      <span className="font-medium text-foreground truncate block" title={v.title}>{v.title}</span>
-                      {v.postDate && (
-                        <span className="text-[11px] text-muted-foreground">
-                          {new Date(v.postDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                        </span>
-                      )}
-                    </td>
-                    <td role="cell" data-label="Brand" className="px-5 py-2.5">
-                      {v.brand ? (
-                        <span
-                          className="text-xs px-2 py-0.5 rounded-md font-medium"
-                          style={{ backgroundColor: `${brandColor(reg, v.brand)}18`, color: brandColor(reg, v.brand) }}
-                        >
-                          {brandLabel(reg, v.brand)}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground text-xs">—</span>
-                      )}
-                    </td>
-                    <td role="cell" data-label="Views" className="px-5 py-2.5 text-right tabular-nums font-semibold text-foreground">{compact(v.views)}</td>
-                    <td role="cell" data-label="Likes" className="px-5 py-2.5 text-right tabular-nums text-muted-foreground">{compact(v.likes)}</td>
-                    <td role="cell" data-label="GMV" className="px-5 py-2.5 text-right tabular-nums text-muted-foreground">{formatCurrency(v.gmv)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      )}
-
-      {/* ── Accounts + top sellers ───────────────────────────────────────── */}
-      {accountBreakdown.length > 1 && (
-        <Card>
-          <CardHeader title="Accounts" subtitle="Performance by TikTok account · selected period" />
-          <div className={layout.tableWrap}>
-            <table role="table" className={layout.table}>
-              <thead role="rowgroup">
-                <tr role="row" className="border-b border-border bg-muted/60">
-                  <Th>Account</Th>
-                  <Th right>Active videos</Th>
-                  <Th right>GMV</Th>
-                  <Th right>Orders</Th>
-                </tr>
-              </thead>
-              <tbody role="rowgroup" className="divide-y divide-border">
-                {accountBreakdown.map((a) => (
-                  <tr role="row" key={a.tiktok_username} className="hover:bg-muted/60 transition-colors">
-                    <td role="cell" data-label="Account" className="px-5 py-2.5">
-                      <a
-                        href={`https://tiktok.com/@${a.tiktok_username}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-[var(--primary)] hover:underline font-medium"
-                      >
-                        @{a.tiktok_username}
-                      </a>
-                    </td>
-                    <td role="cell" data-label="Active videos" className="px-5 py-2.5 text-right tabular-nums text-muted-foreground">{formatNumber(a.videos)}</td>
-                    <td role="cell" data-label="GMV" className="px-5 py-2.5 text-right tabular-nums font-semibold text-foreground">{formatCurrency(a.gmv)}</td>
-                    <td role="cell" data-label="Orders" className="px-5 py-2.5 text-right tabular-nums text-muted-foreground">{formatNumber(a.orders)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      )}
-
-      {videos.length > 0 && (
-        <Card>
-          <CardHeader
-            title="Top sellers"
-            subtitle={`Highest-grossing posts${selectedBrand ? ` · ${brandLabel(reg, selectedBrand)}` : ''}${summary.total_videos > 20 ? ` · top 20 of ${formatNumber(summary.total_videos)}` : ''}`}
-          />
-          <div className={layout.tableWrap}>
-            <table role="table" className={layout.table}>
-              <thead role="rowgroup">
-                <tr role="row" className="border-b border-border bg-muted/60">
-                  <Th>Post</Th>
-                  <Th>Account</Th>
-                  <Th>Brand</Th>
-                  <Th right>GMV</Th>
-                  <Th right>Orders</Th>
-                </tr>
-              </thead>
-              <tbody role="rowgroup" className="divide-y divide-border">
-                {videos.map((v) => (
-                  <tr role="row" key={v.video_id} className="hover:bg-muted/60 transition-colors">
-                    <td role="cell" data-label="Post" className="px-5 py-2.5 min-w-[200px] max-w-[380px]">
-                      <VideoTitleButton
-                        videoData={{
-                          video_id: v.video_id,
-                          video_title: v.video_title,
-                          creator_name: v.creator_name,
-                          brand: v.brand,
-                          product_name: v.product_name,
-                          gmv: v.gmv,
-                          orders: v.orders,
-                          items_sold: v.items_sold,
-                          days_selling: v.days_selling,
-                        }}
-                        className="text-left font-medium text-foreground hover:text-[var(--primary)] hover:underline transition-colors truncate block w-full"
-                      >
-                        {v.video_title}
-                      </VideoTitleButton>
-                    </td>
-                    <td role="cell" data-label="Account" className="px-5 py-2.5 text-muted-foreground text-xs">@{v.creator_name}</td>
-                    <td role="cell" data-label="Brand" className="px-5 py-2.5">
-                      <span
-                        className="text-xs px-2 py-0.5 rounded-md font-medium"
-                        style={{ backgroundColor: `${brandColor(reg, v.brand)}18`, color: brandColor(reg, v.brand) }}
-                      >
-                        {brandLabel(reg, v.brand)}
-                      </span>
-                    </td>
-                    <td role="cell" data-label="GMV" className="px-5 py-2.5 text-right tabular-nums font-semibold text-foreground">{formatCurrency(v.gmv)}</td>
-                    <td role="cell" data-label="Orders" className="px-5 py-2.5 text-right tabular-nums text-muted-foreground">{formatNumber(v.orders)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      )}
-
-      {/* ── Lifetime ─────────────────────────────────────────────────────── */}
-      <div className={layout.lifetime}>
-        <span className="text-[10px] font-semibold uppercase tracking-[0.075em] text-muted-foreground">
-          All time
-        </span>
-        <span className="text-sm text-foreground">
-          <b className="font-bold tabular-nums">{formatCurrency(lifetimeStats.total_gmv)}</b>
-          <span className="text-muted-foreground"> GMV</span>
-        </span>
-        <span className="text-sm text-foreground">
-          <b className="font-bold tabular-nums">{formatNumber(lifetimeStats.total_videos)}</b>
-          <span className="text-muted-foreground"> tracked videos</span>
-        </span>
-        <span className="text-sm text-foreground">
-          <b className="font-bold tabular-nums">{formatNumber(lifetimeStats.total_orders)}</b>
-          <span className="text-muted-foreground"> orders</span>
-        </span>
-      </div>
-
-      {/* ── Change history ───────────────────────────────────────────────── */}
-      <CreatorChangeHistory
-        entries={changeHistory}
-        brandLabelFor={(slug) => (slug ? brandLabel(reg, slug) : null)}
-        multiBrand={contracts.others.length > 0}
-      />
+  const leadingVideos = videos.slice(0, 3);
+  const leadingGmv = leadingVideos.reduce((sum, video) => sum + video.gmv, 0);
+  const concentration = summary.total_gmv > 0 && leadingGmv <= summary.total_gmv ? Math.round(leadingGmv / summary.total_gmv * 100) : null;
+  const topVideoPreview = <section className={styles.section}>
+    <div className={styles.sectionHead}><div><h2>Start with the content</h2><p>Leading videos by GMV · {scopeHint}</p></div><ProfileSectionLink section="content">All content</ProfileSectionLink></div>
+    {leadingVideos.length ? <div className={styles.reviewVideos}>{leadingVideos.map((video)=><article key={`${video.video_id}:${video.brand}`}><div className={styles.compactCover}><VideoCover video={{...video,date_range:`${startDate} – ${endDate}`}} stored={video.thumbnail_url} /></div><div><VideoTitleButton videoData={{...video,date_range:`${startDate} – ${endDate}`}} className="text-left text-sm font-medium hover:text-primary">{video.video_title || 'Review video'}</VideoTitleButton><p className="text-xs text-muted-foreground mt-1">{brandLabel(reg,video.brand)} · {formatNumber(video.orders)} orders · {video.posted_date ? `Published ${video.posted_date}` : "Publication date unavailable"}</p></div><strong>{formatCurrency(video.gmv)}</strong></article>)}</div> : empty}
+  </section>;
+  const priorities = <section className={styles.priorities} aria-label="Review priorities">
+    <div><span className={styles.eyebrow}>Review priorities</span><h2>Where to focus next</h2><p>Observations from the selected period, with evidence to review.</p></div>
+    <article><h3>{concentration !== null ? `${concentration}% of GMV from ${leadingVideos.length} leading videos` : 'Review the latest content evidence'}</h3><p>{concentration !== null ? 'Check which formats are still earning, and whether recent posts are adding new winners.' : 'Choose a period with recorded sales to identify the strongest videos.'}</p><ProfileSectionLink section="content">Review videos</ProfileSectionLink></article>
+    <article><h3>{!selectedBrand ? 'Choose a brand to review its terms' : currentContract?.retainerStartDate ? 'Review terms alongside results' : 'Agreement dates need confirmation'}</h3><p>Check recorded terms before a renewal decision. Current fees do not establish historical costs or profitability.</p><ProfileSectionLink section="agreements">Review agreement</ProfileSectionLink></article>
+  </section>;
+  const performance = <div className={styles.grid}>
+    <div className={styles.stack}>
+      {priorities}
+      <Suspense fallback={<div className={styles.empty} role="status">Loading selected-period performance…</div>}><ProfilePerformanceHistory creatorId={creatorId} start={startDate} end={endDate} brand={selectedBrand ?? undefined} label={label} /></Suspense>
+      {topVideoPreview}
+      {!selectedBrand && <section className={styles.section}>
+        <div className={styles.sectionHead}><div><h2>Authorized brand comparison</h2><p>Brands you are authorized to manage · {startDate}–{endDate}</p></div></div>
+        <div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>Brand</th><th>GMV</th><th>Active videos</th>{canViewCost && <th>Current monthly fee</th>}</tr></thead><tbody>
+          {brandRows.filter(row => activeSlugs.has(row.brand)).sort((a,b) => b.gmv-a.gmv).map(row => <tr key={row.brand}>
+            <td data-label="Brand"><BrandIdentity brand={row.brand} label={brandLabel(reg,row.brand)} /></td>
+            <td data-label="GMV">{formatCurrency(row.gmv)}</td><td data-label="Active videos">{formatNumber(row.videos)}</td>
+            {canViewCost && <td data-label="Current monthly fee">{allContracts.some(contract => contract.brand === row.brand) ? formatCurrency(allContracts.filter(contract => contract.brand === row.brand).reduce((sum,c) => sum+c.retainer,0)) : '—'}</td>}
+          </tr>)}
+        </tbody></table></div>
+      </section>}
     </div>
-  );
-}
+    <aside className={styles.stack}>      <section className={styles.aside}><p className={styles.eyebrow}>Coaching context</p><h2>Feedback & next experiment</h2><p>Discord feedback is creator-initiated in a shared channel. Submissions are not linked to this profile yet.</p>
+        {selectedBrand && currentContract?.notes && <div className={styles.coachingNote}><span className={styles.eyebrow}>{label} notes</span><p className="whitespace-pre-wrap">{currentContract.notes}</p></div>}
+        {profile.notes && <div className={styles.coachingNote}><span className={styles.eyebrow}>Shared creator notes</span><p className="whitespace-pre-wrap">{profile.notes}</p></div>}
+        {!profile.notes && !(selectedBrand && currentContract?.notes) && <p>No coaching notes recorded in this view.</p>}
+        <CoachingBrief key={`${creatorId}:${selectedBrand ?? "all"}`} creator={profile.real_name} brand={label} />
+      </section>
+      {selectedBrand && <><section className={styles.aside}><p className={styles.eyebrow}>Current relationship</p><h2>{currentContract ? brandLabel(reg,currentContract.brand) : label}</h2>
+        <dl><div><dt>Agreement</dt><dd>{currentContract ? 'Current roster terms' : 'No terms recorded'}</dd></div>
+          {canViewCost && <div><dt>Monthly fee</dt><dd>{currentContract ? formatCurrency(currentContract.retainer) : '—'}</dd></div>}
+          <div><dt>Monthly posts</dt><dd>{currentContract?.monthlyPostRequirement || 'No target recorded'}</dd></div><div><dt>Start date</dt><dd>{currentContract?.retainerStartDate || 'Not recorded'}</dd></div>
+        </dl>
+      </section>
+      <section className={styles.aside}><p className={styles.eyebrow}>Posting reliability</p><h2>This month’s activity</h2>
+        {published !== null ? <><div className="mt-5"><strong>{published}</strong><span className="text-xs text-muted-foreground"> published{currentContract?.monthlyPostRequirement ? ` / ${currentContract.monthlyPostRequirement} target` : ''}</span></div>
+          {!!currentContract?.monthlyPostRequirement && <div className={styles.progress}><span style={{width:`${Math.min(100, published/currentContract.monthlyPostRequirement*100)}%`}} /></div>}
+          <p>{currentContract && brandLabel(reg,currentContract.brand)} · calendar month to date · checked {new Date().toISOString().slice(0,10)}. Sales history ends {historyEnd}.</p></> : <p>No brand-specific posting target available.</p>}
+        <dl><div><dt>On-time delivery</dt><dd>Not assessed</dd></div><div><dt>Accepted deliverables</dt><dd>Not recorded</dd></div></dl>
+        <p>Publication volume is visible in monthly history. It does not establish whether agreed deliverables were accepted or on time.</p>
+      </section>
+      </>}
+      {!selectedBrand && lifetime && <section className={styles.aside}><p className={styles.eyebrow}>Across authorized brands</p><div className="mt-3"><strong>{formatCurrency(lifetime.total_gmv)}</strong></div><p>Recorded lifetime GMV · authorized brands</p><dl><div><dt>Orders</dt><dd>{formatNumber(lifetime.total_orders)}</dd></div><div><dt>First activity</dt><dd>{lifetime.first_active_date || 'Not recorded'}</dd></div></dl></section>}
+    </aside>
+  </div>;
 
-// ── Subcomponents ────────────────────────────────────────────────────────────
+  const agreements = <div className={styles.stack}>
+    <div className={styles.sectionHead}><div><h2>Agreements & terms</h2><p>Current commitments and the changes Tempo has recorded.</p></div><span className={styles.eyebrow}>{label}</span></div>
+    <div className={styles.agreementGrid}>{visibleContracts.map(contract => <article key={contract.managedId} className={styles.agreement}>
+      <h3><BrandIdentity brand={contract.brand} label={brandLabel(reg,contract.brand)} /></h3>
+      {canViewCost && <strong>{formatCurrency(contract.retainer)}<span className="text-xs text-muted-foreground font-normal"> / month</span></strong>}
+      <dl className={styles.terms}><div><dt>Recorded commitment</dt><dd>{contract.monthlyPostRequirement ? `${contract.monthlyPostRequirement} posts / month` : 'No target recorded'}</dd></div><div><dt>Status</dt><dd>{contract.status || 'Not recorded'}</dd></div><div><dt>Start date</dt><dd>{contract.retainerStartDate || 'Not recorded'}</dd></div><div><dt>Renewal / end date</dt><dd>Not recorded</dd></div></dl>
+      {contract.notes && <p className="mt-6 text-xs leading-relaxed text-muted-foreground whitespace-pre-wrap">{contract.notes}</p>}
+    </article>)}</div>
+    {!visibleContracts.length && <div className={styles.empty}>No agreement terms are recorded for this brand.</div>}
+    <details className={styles.notice}><summary className="cursor-pointer font-medium">Agreement coverage & limitations</summary><p>These cards show current roster terms. Historical fixed-post packages, rollover rules, commission terms and signed agreement dates are not yet stored as a complete agreement ledger. Recorded changes below preserve the available history; current fees are never projected backward.</p></details>
+    <Suspense fallback={<div className={styles.empty}>Loading renewal evidence…</div>}><RelationshipHistory compact creatorId={creatorId} brand={selectedBrand ?? undefined} end={historyEnd} label={label} /></Suspense>
+    <section className={styles.section}><div className={styles.sectionHead}><div><h2>Recorded term changes</h2><p>Edit dates show when Tempo was updated, not necessarily when terms took effect.</p></div></div><div className="px-6 pb-6"><CreatorChangeHistory agreementOnly entries={changes} brandLabelFor={brand => brand ? brandLabel(reg,brand) : null} multiBrand={!selectedBrand} /></div></section>
+  </div>;
 
-function pct(current: number, previous: number): number | null {
-  if (previous === 0) return current > 0 ? 100 : null;
-  return ((current - previous) / previous) * 100;
-}
+  const content = <div className={styles.stack}>
+    <div className={styles.sectionHead}><div><h2>Content driving revenue</h2><p>Top tracked videos by GMV · {scopeHint}</p></div></div>
+    <ProfileVideoGrid videos={videos} start={startDate} end={endDate} labels={Object.fromEntries(brands.map(brand=>[brand,brandLabel(reg,brand)]))} />
+    <section className={styles.section}><div className={styles.sectionHead}><div><h2>Content that earned attention</h2><p>Ranked by views to surface hooks worth studying.</p></div></div><div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>Video</th><th>Views</th><th>Likes</th><th>GMV</th></tr></thead><tbody>{topContent.map(video => <tr key={video.videoId}><td data-label="Video"><div className="flex items-start gap-3"><div className="w-12 shrink-0"><VideoCover video={{video_id:video.videoId,video_title:video.title || 'View video',creator_name:videos.find(row=>row.video_id===video.videoId)?.creator_name || accounts[0]?.tiktok_username || '',brand:video.brand || undefined,gmv:video.gmv}} stored={videos.find(row=>row.video_id===video.videoId)?.thumbnail_url} /></div><div><VideoTitleButton videoData={{video_id:video.videoId,video_title:video.title,creator_name:accounts[0]?.tiktok_username || profile.real_name,brand:video.brand || undefined,gmv:video.gmv}} className="text-left hover:text-primary">{video.title || 'View video'}</VideoTitleButton><small>{video.postDate || 'Publication date unavailable'}</small></div></div></td><td data-label="Views">{formatNumber(video.views)}</td><td data-label="Likes">{formatNumber(video.likes)}</td><td data-label="GMV">{formatCurrency(video.gmv)}</td></tr>)}</tbody></table></div></section>
+    <section className={styles.section}><div className={styles.sectionHead}><div><h2>TikTok accounts</h2><p>Performance by linked handle in the selected period.</p></div></div><div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>Account</th><th>GMV</th><th>Orders</th><th>Active videos</th></tr></thead><tbody>{accountRows.map(account => <tr key={account.tiktok_username}><td data-label="Account">@{account.tiktok_username}</td><td data-label="GMV">{formatCurrency(account.gmv)}</td><td data-label="Orders">{formatNumber(account.orders)}</td><td data-label="Active videos">{formatNumber(account.videos)}</td></tr>)}</tbody></table></div></section>
+  </div>;
 
-/** Compact for reach figures: "14.2M" beats "14,245,670" in a metric cell. */
-function compact(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
-  return n.toLocaleString('en-US');
-}
-
-/**
- * Posts made against the requirement, with day-of-month pace.
- *
- * `posted` counts posts PUBLISHED to the contract brand this month. The page
- * this replaces fed the tracker posts ACTIVE this month, which for Akiek on
- * Dr. Dent was 268 against a 30-post requirement — 893% of quota for a creator
- * who had published 21.
- */
-function QuotaRow({
-  posted, required, brandName, accent,
-}: { posted: number; required: number; brandName: string; accent: string }) {
-  const now = new Date();
-  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-  const dayOfMonth = now.getDate();
-  // Straight-line expectation. Pure arithmetic on exact inputs — the elapsed
-  // fraction of a month times a number the contract states — not a projection.
-  const expectedByNow = (required * dayOfMonth) / daysInMonth;
-  const onPace = posted >= expectedByNow;
-  const shortfall = Math.max(0, Math.ceil(expectedByNow - posted));
-
-  return (
-    <div className="flex flex-wrap items-center gap-x-5 gap-y-2.5 px-5 py-3.5">
-      <div className="min-w-[150px]">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.075em] text-muted-foreground">
-          {brandName} posts · this month
-        </p>
-        <p className="text-lg font-extrabold text-foreground tabular-nums mt-0.5">
-          {formatNumber(posted)}
-          <span className="text-[13px] font-medium text-muted-foreground"> of {formatNumber(required)}</span>
-        </p>
+  return <div className={styles.page}>
+    <SetBreadcrumb label={profile.real_name} />
+    <Link href={selectedBrand ? `/roster?brand=${selectedBrand}` : '/roster'} className={styles.back}><ArrowLeft size={14} /> Creator roster</Link>
+    <header className={styles.hero}><div className={styles.identity}>
+      <CreatorPortrait creatorId={creatorId} name={profile.real_name} className={styles.portrait} />
+      <div className="min-w-0"><div className={styles.name}><h1>{profile.real_name}</h1>{profile.status && <span className={styles.status}>{profile.status}</span>}</div>
+        <div className={styles.handles}>{accounts.map(account => <a key={account.tiktok_username} href={`https://www.tiktok.com/@${account.tiktok_username}`} target="_blank" rel="noopener noreferrer">@{account.tiktok_username}<ExternalLink size={10} /></a>)}</div>
+        <div className={styles.handles}><span>{accounts.length} linked accounts</span><span>{brands.length} authorized brands</span>{profile.email && <span>{profile.email}</span>}</div>
       </div>
-      <div className="order-last w-full sm:order-none sm:flex-1 sm:w-auto sm:min-w-[140px] h-2 rounded-full bg-muted overflow-hidden">
-        <div
-          className="h-full rounded-full transition-all"
-          style={{ width: `${Math.min(100, (posted / Math.max(required, 1)) * 100)}%`, backgroundColor: accent }}
-        />
-      </div>
-      <div
-        className={cn(
-          'flex items-center gap-1.5 text-xs flex-shrink-0 font-medium',
-          onPace ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-400',
-        )}
-      >
-        {onPace ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
-        <span className="tabular-nums">
-          Day {dayOfMonth}/{daysInMonth} ·{' '}
-          {onPace ? 'on pace' : `${formatNumber(shortfall)} behind pace`}
-        </span>
-      </div>
-    </div>
-  );
-}
-
-function Card({ children }: { children: React.ReactNode }) {
-  return <section className={layout.section}>{children}</section>;
-}
-
-function CardHeader({ title, subtitle }: { title: string; subtitle?: string }) {
-  return (
-    <div className={layout.sectionHeader}>
-      <h3 className="text-sm font-bold text-foreground">{title}</h3>
-      {subtitle && <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>}
-    </div>
-  );
-}
-
-function Th({ children, right = false }: { children: React.ReactNode; right?: boolean }) {
-  return (
-    <th role="columnheader" scope="col" className={cn(
-      'px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground',
-      right ? 'text-right' : 'text-left',
-    )}>
-      {children}
-    </th>
-  );
+    </div><div className={styles.actions}>
+      <CreatorEditButton creator={{id:profile.id,real_name:profile.real_name,email:profile.email,phone:profile.phone,role:relationship.role,status:relationship.status,notes:profile.notes,accounts:profile.accounts.map(account=>({tiktok_username:account.tiktok_username,is_primary:account.is_primary})),brandId:editBrandId,brandLabel:editBrand ? brandLabel(reg,editBrand) : null,brandNotes:allContracts.find(contract=>contract.brand===editBrand)?.notes ?? null}} />
+      <a href={`/api/admin/view-as-creator?creatorId=${profile.id}`} target="_blank" rel="noopener noreferrer"><ExternalLink size={13} /> Creator portal</a>
+    </div></header>
+    <div className={styles.scope}><div><span className={styles.eyebrow}>Brand view</span><Suspense fallback={null}><BrandFilter appearance="creator" brands={brands} brandsWithData={brandsWithData} selectedBrand={selectedBrand} /></Suspense></div><div><span className={styles.eyebrow}>Reporting period</span><Suspense fallback={null}><DateRangePicker staleThrough={lagDays>0 ? anchorDate : null} /></Suspense></div></div>
+    <p className={styles.freshness}>Sales through {historyEnd} · {startDate}–{endDate}</p>
+    <Suspense fallback={<div className={styles.empty}>Loading period metrics…</div>}><ProfileHeadlineMetrics creatorId={creatorId} start={startDate} end={endDate} brand={selectedBrand ?? undefined} label={label} summary={summary} /></Suspense>
+    {selectedBrand && brands.length > 1 && <Link className={styles.compareLink} href={`?${new URLSearchParams({...sp,brand:'all'})}`}>Compare authorized brands &rarr;</Link>}
+    <ProfileSections sections={[
+      {id:'performance',label:'Overview',content:performance},
+      {id:'history',label:'History',content:<Suspense fallback={<div className={styles.empty}>Loading relationship history…</div>}><RelationshipHistory creatorId={creatorId} brand={selectedBrand ?? undefined} end={historyEnd} label={label} /></Suspense>},
+      {id:'agreements',label:'Agreements',content:agreements},
+      {id:'content',label:'Content',content:content},
+    ]} />
+  </div>;
 }
