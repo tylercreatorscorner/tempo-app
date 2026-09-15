@@ -53,7 +53,7 @@ export function BrandFilter({ brands, brandsWithData, selectedBrand, collapseNoD
 
   if (appearance === 'creator') return <div aria-busy={pending}>
     <ChoiceMenu label="Brand relationship" value={selectedBrand ?? '__all'} disabled={pending}
-      options={[{value:'__all',label:'All authorized brands',description:`${brands.length} brand relationships`}, ...brands.map(brand => ({value:brand,label:brandMeta.label(brand),icon:<BrandPortrait name={brandMeta.label(brand)} source={brandMeta.logo(brand)} />}))]}
+      options={[{value:'__all',label:'All authorized brands',description:`${brands.length} brand relationships`}, ...brands.map(brand => ({value:brand,label:brandMeta.label(brand),icon:<BrandPortrait name={brandMeta.label(brand)} source={brandMeta.logo(brand)} color={brandMeta.color(brand)} />}))]}
       onChange={value => startTransition(()=>router.push(brandHref(value === '__all' ? null : value),{scroll:false}))} />
     {pending && <span role="status" className="text-xs text-muted-foreground">Updating relationship…</span>}
   </div>;
@@ -120,3 +120,4 @@ export function BrandFilter({ brands, brandsWithData, selectedBrand, collapseNoD
     </div>
   );
 }
+

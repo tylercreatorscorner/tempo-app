@@ -79,3 +79,11 @@
 @keyframes profile-enter { from { opacity:.45; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
 @media(max-width:650px) { .brandSelector { width:100%; } .scope > div { width:100%; } .brandSelectorHint { display:none; } .tabs { gap:14px; } }
 @media(prefers-reduced-motion:reduce) { .sectionPanel:not([hidden]) { animation:none; } .tabs button,.brandSelector { transition:none; } }
+/* Neutral product surfaces; purple belongs to identity, interaction and charts.
+   This candidate is scoped to creator profiles, including their portal menus. */
+:global(body):has(.page.page) { --background:#fafafa; --foreground:#18181b; --card:#ffffff; --card-foreground:#18181b; --popover:#ffffff; --popover-foreground:#18181b; --primary:#753bd1; --primary-foreground:#ffffff; --secondary:#f1f1f3; --secondary-foreground:#27272a; --muted:#f4f4f5; --muted-foreground:#67676e; --border:#e4e4e7; --input:#dedee3; --accent:#f3edfc; --accent-foreground:#6930bd; --ring:#753bd1; --sidebar:#ffffff; --sidebar-foreground:#67676e; --sidebar-accent:#f3edfc; --sidebar-accent-foreground:#6930bd; --sidebar-border:#e4e4e7; }
+:global(html.dark body):has(.page.page) { --background:#101012; --foreground:#f4f4f5; --card:#19191c; --card-foreground:#f4f4f5; --popover:#19191c; --popover-foreground:#f4f4f5; --primary:#b794f4; --primary-foreground:#211331; --secondary:#252529; --secondary-foreground:#e4e4e7; --muted:#202023; --muted-foreground:#a5a5ae; --border:#303036; --input:#36363d; --accent:#2d233e; --accent-foreground:#c4a5fa; --ring:#b794f4; --sidebar:#19191c; --sidebar-foreground:#a5a5ae; --sidebar-accent:#2d233e; --sidebar-accent-foreground:#c4a5fa; --sidebar-border:#303036; }
+.metric:first-child { background:var(--card); }
+.metric:first-child strong { color:var(--foreground); }
+.portrait { outline-color:var(--border); }
+.status { background:var(--secondary); color:var(--foreground); }
