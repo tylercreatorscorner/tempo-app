@@ -30,6 +30,14 @@ and k_ushlee $601.28. The second day's workbook was also imported to the hosted
 test database through the same partial writer. Its SHA-256 is
 `42d7980655e1eff0f2522dfbba67d3082be05e9dbb0e8f4ec7f66b4c846c9465`.
 
+A broader UI check found 8,873 creator rows for July 25 with All selected,
+versus the workbook's 8,852 unique named rows. That 21-row coverage difference
+is unresolved. The 13 zero-GMV creators on the UI's last page are all present in
+the workbook, including homesweetcottage with one video and no sales. These
+checks do not establish that every UI creator is present. A fresh UI export
+completed, but no downloadable file artifact was returned through the browser
+tools, so full-file comparison remains pending.
+
 ## Implementation and safeguards
 
 - `/api/tiktok/compass/run` uses the existing admin authentication and explicit
