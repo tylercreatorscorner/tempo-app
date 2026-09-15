@@ -30,7 +30,7 @@ const modules = {
   '@/components/creators/creator-portrait':{CreatorPortrait:nil},
   '@/components/creators/creator-edit-panel':{CreatorEditButton:props=>{editProps=props.creator;return null;}},
   '@/components/creators/creator-change-history':{CreatorChangeHistory:nil},
-  '@/components/creators/profile-sections':{ProfileSections:({sections})=>React.createElement(React.Fragment,null,...sections.map(s=>s.content))},
+  '@/components/creators/profile-sections':{ProfileSectionLink:({children})=>React.createElement('button',null,children),ProfileSections:({sections})=>React.createElement(React.Fragment,null,...sections.map(s=>s.content))},
   '@/components/creators/relationship-history':{RelationshipHistory:nil},
   '@/components/creators/performance/profile-history':{ProfilePerformanceHistory:nil},
   '@/components/creators/brand-filter':{BrandFilter:nil},
@@ -59,3 +59,4 @@ canViewCreatorCost=false; html=await render();
 assert.ok(!html.includes('$4019') && !html.includes('$7419'),'No fees in server output for finance-blind users, including inactive sections');
 assert.ok(html.includes('$123'),'Performance remains visible independently of cost permission');
 console.log('PASS profile workspace: selected contract/posting/edit scope, server-side cost gating across sections, honest agreement and reliability states');
+

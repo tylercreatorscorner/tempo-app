@@ -7,7 +7,7 @@ import { ArrowLeft, ExternalLink } from 'lucide-react';
 import { CreatorPortrait } from '@/components/creators/creator-portrait';
 import { CreatorEditButton } from '@/components/creators/creator-edit-panel';
 import { CreatorChangeHistory } from '@/components/creators/creator-change-history';
-import { ProfileSections } from '@/components/creators/profile-sections';
+import { ProfileSections, ProfileSectionLink } from '@/components/creators/profile-sections';
 import { RelationshipHistory } from '@/components/creators/relationship-history';
 import { ProfilePerformanceHistory } from '@/components/creators/performance/profile-history';
 import { BrandFilter } from '@/components/creators/brand-filter';
@@ -76,9 +76,22 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
   const historyEnd = dataThrough ?? endDate;
   const empty = <div className={styles.empty}>No recorded activity in this period. Select another date range to explore earlier performance.</div>;
 
+  const leadingVideos = videos.slice(0, 3);
+  const leadingGmv = leadingVideos.reduce((sum, video) => sum + video.gmv, 0);
+  const concentration = summary.total_gmv > 0 && leadingGmv <= summary.total_gmv ? Math.round(leadingGmv / summary.total_gmv * 100) : null;
+  const topVideoPreview = <section className={styles.section}>
+    <div className={styles.sectionHead}><div><h2>Start with the content</h2><p>Leading videos by GMV · {scopeHint}</p></div><ProfileSectionLink section="content">All content</ProfileSectionLink></div>
+    {leadingVideos.length ? <div className={styles.reviewVideos}>{leadingVideos.map((video,index)=><article key={`${video.video_id}:${video.brand}`}><span className={styles.rank}>0{index+1}</span><div><VideoTitleButton videoData={{...video,date_range:`${startDate} – ${endDate}`}} className="text-left text-sm font-medium hover:text-primary">{video.video_title || 'Review video'}</VideoTitleButton><p className="text-xs text-muted-foreground mt-1">{brandLabel(reg,video.brand)} · {formatNumber(video.orders)} orders</p></div><strong>{formatCurrency(video.gmv)}</strong></article>)}</div> : empty}
+  </section>;
+  const priorities = <section className={styles.priorities} aria-label="Review priorities">
+    <div><span className={styles.eyebrow}>Review priorities</span><h2>Where to focus next</h2><p>Observations from the selected period, with evidence to review.</p></div>
+    <article><h3>{concentration !== null ? `${concentration}% of GMV from ${leadingVideos.length} leading videos` : 'Review the latest content evidence'}</h3><p>{concentration !== null ? 'Check which formats are still earning, and whether recent posts are adding new winners.' : 'Choose a period with recorded sales to identify the strongest videos.'}</p><ProfileSectionLink section="content">Review videos</ProfileSectionLink></article>
+    <article><h3>{currentContract?.retainerStartDate ? 'Review terms alongside results' : 'Agreement dates need confirmation'}</h3><p>Check recorded terms before a renewal decision. Current fees do not establish historical costs or profitability.</p><ProfileSectionLink section="agreements">Review agreement</ProfileSectionLink></article>
+  </section>;
   const performance = <div className={styles.grid}>
     <div className={styles.stack}>
-      <Suspense fallback={<div className={styles.empty} role="status">Loading twelve months of relationship history…</div>}><RelationshipHistory creatorId={creatorId} brand={selectedBrand ?? undefined} end={historyEnd} label={label} /></Suspense>
+      <Suspense fallback={<div className={styles.empty} role="status">Loading selected-period performance…</div>}><ProfilePerformanceHistory compare creatorId={creatorId} start={startDate} end={endDate} brand={selectedBrand ?? undefined} label={label} /></Suspense>
+      {topVideoPreview}
       <section className={styles.section}>
         <div className={styles.sectionHead}><div><h2>Brand performance</h2><p>Brands you are authorized to manage · {startDate}–{endDate}</p></div></div>
         <div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>Brand</th><th>GMV</th><th>Active videos</th>{canViewCost && <th>Current monthly fee</th>}</tr></thead><tbody>
@@ -90,7 +103,12 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
         </tbody></table></div>
       </section>
     </div>
-    <aside className={styles.stack}>
+    <aside className={styles.stack}>      <section className={styles.aside}><p className={styles.eyebrow}>Coaching context</p><h2>Keep the next conversation focused</h2><p>Review a leading video, capture specific feedback, and agree on the next experiment.</p>
+        {selectedBrand && currentContract?.notes && <div className={styles.coachingNote}><span className={styles.eyebrow}>{label} notes</span><p className="whitespace-pre-wrap">{currentContract.notes}</p></div>}
+        {profile.notes && <div className={styles.coachingNote}><span className={styles.eyebrow}>Shared creator notes</span><p className="whitespace-pre-wrap">{profile.notes}</p></div>}
+        {!profile.notes && !(selectedBrand && currentContract?.notes) && <p>No notes recorded in this view. Use Edit profile to capture context.</p>}
+        <p className={styles.capabilityNote}>Assigned coaching tasks, due dates and follow-up outcomes are not tracked here yet.</p>
+      </section>
       <section className={styles.aside}><p className={styles.eyebrow}>Current relationship</p><h2>{currentContract ? brandLabel(reg,currentContract.brand) : label}</h2>
         <dl><div><dt>Agreement</dt><dd>{currentContract ? 'Current roster terms' : 'No terms recorded'}</dd></div>
           {canViewCost && <div><dt>Monthly fee</dt><dd>{currentContract ? formatCurrency(currentContract.retainer) : '—'}</dd></div>}
@@ -100,7 +118,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
       <section className={styles.aside}><p className={styles.eyebrow}>Posting reliability</p><h2>This month’s activity</h2>
         {published !== null ? <><div className="mt-5"><strong>{published}</strong><span className="text-xs text-muted-foreground"> published{currentContract?.monthlyPostRequirement ? ` / ${currentContract.monthlyPostRequirement} target` : ''}</span></div>
           {!!currentContract?.monthlyPostRequirement && <div className={styles.progress}><span style={{width:`${Math.min(100, published/currentContract.monthlyPostRequirement*100)}%`}} /></div>}
-          <p>{currentContract && brandLabel(reg,currentContract.brand)} · calendar month to date</p></> : <p>No brand-specific posting target available.</p>}
+          <p>{currentContract && brandLabel(reg,currentContract.brand)} · calendar month to date · checked {new Date().toISOString().slice(0,10)}. Sales history ends {historyEnd}.</p></> : <p>No brand-specific posting target available.</p>}
         <dl><div><dt>On-time delivery</dt><dd>Not assessed</dd></div><div><dt>Accepted deliverables</dt><dd>Not recorded</dd></div></dl>
         <p>Publication volume is visible in monthly history. It does not establish whether agreed deliverables were accepted or on time.</p>
       </section>
@@ -146,14 +164,14 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
       <a href={`/api/admin/view-as-creator?creatorId=${profile.id}`} target="_blank" rel="noopener noreferrer"><ExternalLink size={13} /> Creator portal</a>
     </div></header>
     <div className={styles.scope}><div><span className={styles.eyebrow}>Relationship scope</span><Suspense fallback={null}><BrandFilter appearance="creator" brands={brands} brandsWithData={brandsWithData} selectedBrand={selectedBrand} /></Suspense></div><div><span className={styles.eyebrow}>Reporting period</span><Suspense fallback={null}><DateRangePicker staleThrough={lagDays>0 ? anchorDate : null} /></Suspense></div></div>
-    <div className={styles.metrics}>
+    <p className={styles.freshness}>Sales imported through {historyEnd} · Selected period: {startDate}–{endDate}</p><div className={styles.metrics}>
       <div className={styles.metric}><span className={styles.eyebrow}>GMV · selected period</span><strong>{formatCurrency(summary.total_gmv)}</strong><p>{scopeHint}</p></div>
       <div className={styles.metric}><span className={styles.eyebrow}>Orders · selected period</span><strong>{formatNumber(summary.total_orders)}</strong><p>{formatNumber(summary.total_videos)} tracked videos with activity</p></div>
       <div className={styles.metric}><span className={styles.eyebrow}>Current monthly commitment</span><strong>{canViewCost ? formatCurrency(monthlyCommitment) : '—'}</strong><p>{visibleContracts.length} recorded brand agreement{visibleContracts.length === 1 ? '' : 's'}{!canViewCost && ' · cost access restricted'}</p></div>
     </div>
     <ProfileSections sections={[
-      {id:'performance',label:'Performance',content:performance},
-      {id:'period',label:'Period detail',content:<Suspense fallback={<div className={styles.empty}>Loading daily performance…</div>}><ProfilePerformanceHistory creatorId={creatorId} start={startDate} end={endDate} brand={selectedBrand ?? undefined} label={label} /></Suspense>},
+      {id:'performance',label:'Overview',content:<div className={styles.stack}>{priorities}{performance}</div>},
+      {id:'history',label:'History',content:<Suspense fallback={<div className={styles.empty}>Loading relationship history…</div>}><RelationshipHistory creatorId={creatorId} brand={selectedBrand ?? undefined} end={historyEnd} label={label} /></Suspense>},
       {id:'agreements',label:'Agreements',content:agreements},
       {id:'content',label:'Content & accounts',content:content},
     ]} />
