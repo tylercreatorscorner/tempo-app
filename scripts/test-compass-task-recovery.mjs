@@ -55,14 +55,18 @@ function from(table) {
   return q;
 }
 const db = { from, rpc: async (name, args) => {
+  if (['claim_compass_recovery','finish_compass_recovery'].includes(name)) {
+    const result = await pg.query('SELECT public.'+name+'('+Object.keys(args).map((_,i)=>'$'+(i+1)).join(',')+') AS result',Object.values(args));
+    return {data:result.rows[0].result,error:null};
+  }
   assert.equal(name, 'merge_compass_creator_metrics'); writes.push(args);
   return { data:{upserted:args.p_records.length}, error:null };
 } };
-const scope = { brandSlug:'test',reportDate:'2026-07-25',moduleType:'CREATOR',windowType:'PAST_24H',planType:'ALL',
+const scope = { brandSlug:'jiyu-api-test',reportDate:'2026-07-25',moduleType:'CREATOR',windowType:'PAST_24H',planType:'ALL',
   connectionId:randomUUID(),shopId:'7495653723838187639',apiVersion:'202603',pollApiVersion:'202603',paramsIn:'body',docType:'CREATOR' };
 try {
   await pg.exec('CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role;');
-  for (const name of ['122_tiktok_compass_tasks.sql','132_compass_tasks_task_id_non_partial.sql','131_compass_tasks_observed_columns.sql','20260915053541_compass_task_recovery_context.sql','20260915063729_compass_retry_timing.sql']) {
+  for (const name of ['122_tiktok_compass_tasks.sql','132_compass_tasks_task_id_non_partial.sql','131_compass_tasks_observed_columns.sql','20260915053541_compass_task_recovery_context.sql','20260915063729_compass_retry_timing.sql','20260915073618_compass_recovery_queue.sql']) {
     await pg.exec(readFileSync('supabase/migrations/'+name,'utf8'));
   }
   await pg.exec(`CREATE TABLE ingestion_runs(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),source text,brand_slug text,target_table text,
@@ -132,4 +136,11 @@ try {
   const dry = await ingest.ingestCompassBrandDay({...input,dryRun:true,resumeTaskRowId:timeout.taskRowId});
   assert.equal(dry.ok,true); assert.equal(dry.ingestionRunId,null); assert.equal(writes.length,1);
   console.log('PASS ingestion timeout -> saved-row resume -> partial-field merge, zero sales, failure visibility and dry-run isolation');
+  const worker = load('src/lib/tiktok/compass-recovery-worker.ts',{'./compass-task-ledger':ledger});
+  await pg.query('INSERT INTO tiktok_compass_recovery_queue(task_row_id) VALUES($1)',[timeout.taskRowId]);
+  const dispatch = await worker.dispatchCompassRecovery(db,worker.COMPASS_TEST_PROJECT,ingest.ingestCompassBrandDay);
+  assert.equal(dispatch.state,'verified_dry_run'); assert.equal(dispatch.attempt,1);
+  assert.equal(writes.length,1,'Queued dry-run must not write creator facts');
+  assert.equal(creates,1,'Queue must only resume the existing task');
+  console.log('PASS queue -> scoped ingestion -> workbook validation -> dry-run completion without task creation or fact writes');
 } finally { await pg.close(); }

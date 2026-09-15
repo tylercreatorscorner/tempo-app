@@ -30,7 +30,8 @@
     "lint:reports": "eslint src/lib/auth/report-access.ts src/lib/data/reports.ts src/app/api/reporting/route.ts src/app/api/cron/run-schedules/route.ts scripts/test-report-access.mjs",
     "test:report-workspace": "node scripts/test-report-workspace-sql.mjs && node scripts/test-report-workspace-routes.mjs",
     "lint:report-workspace": "eslint src/lib/auth/client-report-access.ts src/lib/data/client-reports.ts src/lib/data/brand-client-report.ts src/lib/data/agency-report.ts \"src/app/api/client-reports/**/*.ts\" src/app/api/report-log/route.ts src/app/api/reporting/overview/route.ts src/app/api/reporting/freshness/route.ts src/app/api/agency-reports/route.ts src/app/api/brand-client-summary/route.ts src/app/api/brand-client-pdf/route.ts \"src/app/api/report-pdf/[token]/route.ts\" \"src/app/r/[token]/page.tsx\" scripts/test-report-workspace-sql.mjs scripts/test-report-workspace-routes.mjs",
-    "test:tiktok-compass-recovery": "node scripts/test-compass-task-recovery.mjs",
+    "test:tiktok-compass-recovery": "node scripts/test-compass-task-recovery.mjs && npm run test:tiktok-compass-worker",
+    "test:tiktok-compass-worker": "node scripts/test-compass-recovery-worker.mjs",
     "test:tiktok-compass-retry": "node --import tsx scripts/test-compass-retry.ts"
   },
   "dependencies": {

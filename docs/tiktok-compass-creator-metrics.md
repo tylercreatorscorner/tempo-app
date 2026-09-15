@@ -102,10 +102,9 @@ an early resume is refused. Code 36009037 imposes at least one hour, longer
 Retry-After values win, and other transient reads/pending tasks wait one minute.
 HTTP-date Retry-After and business-error envelopes retain their delay too.
 
-These are per-task retry holds, not a shared app-wide quota clock. A failed
+These ingestion holds are per task. A failed
 create with no task ID is reported for inspection and must not be blindly
-recreated. Automatic dispatch still needs an app-wide hold and bounded retry
-attempts before it can be enabled. No retry is evidence of a fresh historical
+recreated. No retry is evidence of a fresh historical
 export; TikTok may serve the same cached task.
 
 `npm run test:tiktok-compass-retry` exercises throttled create/list/download
@@ -119,6 +118,37 @@ database only. `20260915063729_compass_retry_timing.sql` adds the retry timing
 fields and is also test-only. Apply all three before deploying this code to
 any other environment.
 No production import or recurring synchronization has been enabled.
+
+### Test recovery dispatcher
+
+`compass-recovery-worker.ts` processes one explicitly queued, existing ledger
+UUID per invocation. It accepts only the test project configuration, JiYu test
+brand/shop, a completed day and the validated CREATOR202603 request shape. It
+always passes dryRun and a single-poll limit to the existing scoped ingester.
+The caller must construct both database and ingester from the test environment.
+There is no runtime route, cron, automatic enqueue or live write mode yet.
+
+Migration `20260915073618_compass_recovery_queue.sql` (test only) adds a durable
+queue and shared dispatcher gate. SQL serializes claims across dispatcher
+instances, preserves cooldowns, rejects stale completion tokens and counts
+crashed attempts. After three attempts a job becomes needs_review. Unknown
+errors and mismatched scope/results also require review. Status and last_outcome
+are queryable in the service-only queue; no dashboard or alert is wired yet.
+Functions use SECURITY INVOKER, fixed search_path, explicit browser-role revokes
+and RLS-on tables. The expected no-policy advisor notices reflect service-only use.
+
+The shared hold applies only to callers using this dispatcher/database. Other
+API clients and the manual run route must adopt it before it is an app-wide
+limiter. A throttle already saved by ingestion is also consulted on each claim,
+covering a crash before the dispatcher saves its outcome. This is recovery
+infrastructure, not proof of scheduled daily sync or historical freshness.
+
+`npm run test:tiktok-compass-worker` exercises actual SQL concurrency, cooldown,
+crashes, bounded attempts, role denial, invalid scope, result mismatch and failure
+visibility. The recovery suite connects the queue to the real ingester/parser
+with a fixture transport and verifies no new task or fact writes. The hosted
+worker test checks competing PostgREST claims and shared holds using only its
+unique disposable test rows; no TikTok call is made.
 
 This does not complete per-video or per-LIVE Affiliate Center GMV. The creator
 workbook contains neither individual content IDs nor individual content GMV.
