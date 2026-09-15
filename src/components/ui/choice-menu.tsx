@@ -17,7 +17,7 @@ export function ChoiceMenu({ label, value, options, onChange, disabled, placehol
     <Select.Portal><Select.Content className={styles.content} position="popper" sideOffset={8} collisionPadding={12} data-lenis-prevent>
       <Select.ScrollUpButton className={styles.scroll}>↑</Select.ScrollUpButton>
       <Select.Viewport className={styles.viewport}>
-        <div className={styles.heading}>{label}</div>
+        {!options.some(option => option.group) && <div className={styles.heading}>{label}</div>}
         {options.map((option, index) => <Select.Group key={option.value}>
           {option.group && option.group !== options[index - 1]?.group && <Select.Label className={styles.heading}>{option.group}</Select.Label>}
           <Select.Item value={option.value} className={styles.item}>
@@ -29,3 +29,4 @@ export function ChoiceMenu({ label, value, options, onChange, disabled, placehol
     </Select.Content></Select.Portal>
   </Select.Root>;
 }
+

@@ -73,7 +73,7 @@ function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => 
   });
 
   // Account management
-  const [accounts, setAccounts] = useState(creator.accounts.map((a) => a.tiktok_username));
+  const [accounts, setAccounts] = useState(() => Array.from(new Map(creator.accounts.map(a => [a.tiktok_username.trim().replace(/^@/, '').toLowerCase(), a.tiktok_username])).values()));
   const [newHandle, setNewHandle] = useState('');
   const [accountSaving, setAccountSaving] = useState(false);
   // Two-step confirm on removal. Not a browser confirm(): this is a rare,
@@ -347,3 +347,4 @@ function Field({
     </div>
   );
 }
+
