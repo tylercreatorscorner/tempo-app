@@ -24,6 +24,8 @@ const data = {
   getPostsPublishedThisMonth:async(_,brand)=>{postingBrand=brand;return 3;},
 };
 const modules = {
+  '@/components/creators/brand-identity':{BrandIdentity:({label})=>React.createElement('span',null,label)},
+  '@/components/video/video-cover':{VideoCover:nil},
   react:React, 'react/jsx-runtime':jsx, 'next/link':({children,...props})=>React.createElement('a',props,children),
   'next/navigation':{notFound:()=>{throw Error('404');},redirect:()=>{throw Error('redirect');}},
   'lucide-react':{ArrowLeft:nil,ExternalLink:nil},
@@ -59,4 +61,5 @@ canViewCreatorCost=false; html=await render();
 assert.ok(!html.includes('$4019') && !html.includes('$7419'),'No fees in server output for finance-blind users, including inactive sections');
 assert.ok(html.includes('$123'),'Performance remains visible independently of cost permission');
 console.log('PASS profile workspace: selected contract/posting/edit scope, server-side cost gating across sections, honest agreement and reliability states');
+
 

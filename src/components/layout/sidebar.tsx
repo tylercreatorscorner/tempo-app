@@ -131,7 +131,7 @@ export function Sidebar({ className, isAdmin = false, canViewFinance = true, nav
     <aside
       className={cn(
         'sticky top-0 flex h-screen flex-col overflow-hidden bg-card border-r border-border shrink-0 transition-[width] duration-200 ease-in-out',
-        collapsed ? 'w-[68px]' : 'w-64',
+        collapsed ? 'w-[68px]' : 'w-[208px]',
         className,
       )}
     >
@@ -174,3 +174,4 @@ export function Sidebar({ className, isAdmin = false, canViewFinance = true, nav
     </aside>
   );
 }
+

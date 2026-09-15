@@ -1,6 +1,7 @@
 import { getCreatorPerformanceHistory } from '@/lib/data/creator-performance-history';
 import { CreatorPerformanceTimeline } from './performance-timeline';
 import { total } from './model';
+import styles from '../profile-workspace.module.css';
 
 export async function ProfilePerformanceHistory({ creatorId, start, end, brand, label, compare = false }: {
   creatorId: string; start: string; end: string; brand?: string; label: string; compare?: boolean;
@@ -21,9 +22,12 @@ export async function ProfilePerformanceHistory({ creatorId, start, end, brand, 
   const currentGmv = total(history.points, 'gmv');
   const previousGmv = previous?.status === 'ready' ? total(previous.points, 'gmv') : null;
   const change = currentGmv !== null && previousGmv !== null && previousGmv > 0 ? (currentGmv - previousGmv) / previousGmv * 100 : null;
-  return <div>{canCompare && <p className="mb-3 text-xs text-muted-foreground" aria-label="Previous-period comparison">
-    {change !== null ? <><strong className="text-foreground">{change > 0 ? '+' : ''}{change.toFixed(1)}% GMV</strong> compared with {previousStart}–{previousEnd}.</> : previousGmv === 0 && currentGmv !== null ? <>Previous period recorded $0 GMV; a percentage comparison is not defined.</> : <>Comparison unavailable: one or both periods lack complete sales records.</>}
-  </p>}<CreatorPerformanceTimeline key={`${creatorId}:${brand ?? 'authorized'}:${start}:${end}`}
+  const delta = currentGmv !== null && previousGmv !== null ? currentGmv-previousGmv : null;
+  const money = (value:number) => new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0}).format(value);
+  return <div>{canCompare && <div className={styles.comparison} aria-label="Previous-period comparison">
+    <span>GMV change</span>
+    {delta !== null ? <><strong>{delta>0?'+':''}{money(delta)} {change !== null && `(${change>0?'+':''}${change.toFixed(1)}%)`}</strong><span>vs. {previousStart}–{previousEnd} · previous GMV {money(previousGmv!)}{previousGmv===0 && ' · percentage comparison is not defined for a zero baseline'}</span></> : <span>Comparison unavailable: one or both periods lack complete sales records.</span>}
+  </div>}<CreatorPerformanceTimeline key={`${creatorId}:${brand ?? 'authorized'}:${start}:${end}`}
     points={history.points} scopeLabel={`${label} · ${start}–${end}`}
     title="Recorded performance" gmvLabel="Recorded GMV" postsLabel="Tracked posts published"
     sourceNote="Based on imported daily sales and tracked publication records. Imports may be incomplete; missing days are not treated as zero. Multi-brand publications count each tracked video once. Publication tracking refreshes separately from sales." /></div>;

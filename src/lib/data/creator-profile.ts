@@ -80,6 +80,7 @@ export interface BrandBreakdownRow {
 }
 
 export interface CreatorVideo {
+  thumbnail_url?: string | null;
   video_id: string;
   video_title: string;
   creator_name: string;
@@ -709,7 +710,7 @@ export async function getCreatorVideos(
     if (pname) acc.productGmv.set(pname, (acc.productGmv.get(pname) ?? 0) + g);
   }
 
-  return Array.from(map.values())
+  const result = Array.from(map.values())
     .sort((a, b) => b.gmv - a.gmv)
     .slice(0, limit)
     .map((v) => {
@@ -730,7 +731,12 @@ export async function getCreatorVideos(
         items_sold: v.items_sold,
         days_selling: v.dates.size,
       };
-    });
+    });  if (!result.length) return result;
+  // Only enrich video IDs already returned by the authorized performance query.
+  const db = await createAdminClient();
+  const { data: covers } = await db.from('video_thumbnails').select('video_id, thumbnail_url').in('video_id',result.map(video=>video.video_id)).abortSignal(AbortSignal.timeout(5000));
+  const coverMap = new Map((covers ?? []).map(row=>[String(row.video_id),row.thumbnail_url as string|null]));
+  return result.map(video=>({...video,thumbnail_url:coverMap.get(video.video_id) ?? null}));
 }
 
 /**
@@ -1195,3 +1201,4 @@ export async function getPostsPublishedThisMonth(
   for (const r of rows) if (r.video_id) ids.add(r.video_id as string);
   return ids.size;
 }
+
