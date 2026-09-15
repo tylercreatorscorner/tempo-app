@@ -76,12 +76,27 @@ requires the same brand, date, module, window and plan, skips task creation and
 continues polling/downloading the saved task ID. The recovery test exercises an
 initial timeout followed by successful download with exactly one create request.
 Wrong scope and malformed task IDs are rejected without an upstream request.
-This is a transport primitive only: ingestion-ledger lookup and scheduled worker
-recovery are not wired yet. A caller must obtain the descriptor from its scoped
-ledger, never accept an arbitrary task ID from a request body.
+The admin run route accepts `resumeTaskRowId`, a ledger UUID returned by a prior
+run. It loads the task server-side and compares the active shop and connection,
+brand, date, module, window, plan, API version, parameter location and task-list
+filter. It never accepts an arbitrary upstream task ID for recovery. Legacy
+rows without recorded context are refused rather than assigned guessed settings.
 
-Migration `20260915025452_compass_creator_metrics_merge.sql` is applied to the
-test database only. Apply it before deploying this code to any other environment.
+New task IDs are durably recorded before polling; a ledger failure now stops the
+run. A 330-second lease exceeds the route's 300-second execution limit. A
+compare-and-set claim prevents two recoveries from winning, and an ownership
+token blocks stale workers from changing the task ledger. Finished runs release
+the lease. Explicit retries open a new ingestion run, preserving the original
+failure record. A scheduler and automatic retry dispatch are still not enabled.
+
+`npm run test:tiktok-compass-recovery` exercises the actual ledger SQL and touch
+trigger, competing claims, expiry, all scope fields, stale updates and ingestion
+timeout-to-resume behavior. The resumed parser retains zero-sale creators and
+the existing partial writer remains the only fact-table write path.
+
+Migrations `20260915025452_compass_creator_metrics_merge.sql` and
+`20260915053541_compass_task_recovery_context.sql` are applied to the test
+database only. Apply both before deploying this code to any other environment.
 No production import or recurring synchronization has been enabled.
 
 This does not complete per-video or per-LIVE Affiliate Center GMV. The creator

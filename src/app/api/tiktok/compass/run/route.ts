@@ -25,6 +25,7 @@ import { assertNotImpersonating } from '@/lib/auth/platform-admin';
 import { getBrandRegistry } from '@/lib/data/brand-registry';
 import { resolveExplicitBrandSlug } from '@/lib/tiktok/brand-resolution';
 import { ingestCompassBrandDay } from '@/lib/tiktok/compass-ingest';
+import { COMPASS_ROW_ID } from '@/lib/tiktok/compass-task-ledger';
 import {
   isCompassModuleType,
   isValidApiVersion,
@@ -67,6 +68,7 @@ export async function POST(request: Request) {
     windowType?: unknown;
     dryRun?: unknown;
     overwrite?: unknown;
+    resumeTaskRowId?: unknown;
     // Spike knobs — both are documented guesses in compass.ts, exposed here so
     // the first live probe can walk candidates without a redeploy.
     apiVersion?: unknown;
@@ -131,9 +133,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'paramsIn must be "body" or "query"' }, { status: 400 });
   }
 
+  if (body.resumeTaskRowId !== undefined && (typeof body.resumeTaskRowId !== 'string' || !COMPASS_ROW_ID.test(body.resumeTaskRowId))) {
+    return NextResponse.json({ error: 'resumeTaskRowId must be a Compass ledger row UUID' }, { status: 400 });
+  }
+
   try {
     const result = await ingestCompassBrandDay({
       brandSlug: resolved.brandSlug,
+      resumeTaskRowId: typeof body.resumeTaskRowId === 'string' ? body.resumeTaskRowId : undefined,
       reportDate,
       moduleType,
       windowType,
