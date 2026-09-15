@@ -3,14 +3,11 @@
  * xlsx files out of Seller Center for ~14 brands every single morning.
  *
  * ─────────────────────────────────────────────────────────────────────────────
- * NOTHING IN THIS FILE HAS EVER RUN AGAINST A REAL SHOP.
+ * CREATOR 202603 was verified against JiYu Affiliate Center on 2026-09-14.
  *
- * No merchant has authorized the app yet, so every endpoint path, version
- * string, parameter name, task status value and response key below is a READING
- * OF THE DOCS, not an observation. Worse, the docs never state what the
- * downloaded file actually is: the "it's XLSX" claim comes from a marketing
- * announcement, and the reference payload for the file field is the dummy
- * string "ssssssssssssssaaaaaaaaaaa".
+ * Seller authorization produced an XLSX with 11 creator columns. July 24 GMV,
+ * units and the top five creator totals match the Affiliate Center UI. Content
+ * counts differ and individual video/LIVE GMV is not present in that report.
  *
  * That is the whole design constraint. This module builds the LIFECYCLE, and
  * the decode step DETECTS what arrived instead of assuming it. A blob whose
@@ -42,6 +39,7 @@ import { TikTokPermanentError } from './client';
 import type { FileType } from '../upload/file-detection';
 import type { UploadTable } from '../upload/column-maps';
 import { scoreAllTypes, type TypeScore } from '../upload/type-sniff';
+import { isCompassCreatorReport } from './compass-creator-report';
 
 // ============================================================
 // Vocabulary and versions — all UNVERIFIED, all overridable
@@ -157,16 +155,16 @@ export function isCompassModuleType(value: unknown): value is CompassModuleType 
 // ============================================================
 
 /**
- * `end_day` is interpreted in the shop's market timezone. Every shop Tempo
- * touches is US, i.e. UTC-8/-7.
+ * Compass documents US `end_day` in fixed GMT-8, including during daylight
+ * saving time. This differs from America/Los_Angeles in summer.
  *
  * This is not pedantry: a naive UTC "yesterday" is WRONG for up to 8 hours
- * every night. At 2026-07-26 03:00 UTC it is still 2026-07-25 19:00 in Los
- * Angeles, so UTC-yesterday is 07-25 while market-yesterday is 07-24 — a cron
+ * every night. At 2026-07-26 03:00 UTC the report date is still 2026-07-25,
+ * so UTC-yesterday is 07-25 while market-yesterday is 07-24 — a cron
  * running at 03:00 UTC would request a day that has not finished yet, every
  * single night, and write a half day over a full one.
  */
-export const COMPASS_MARKET_TIME_ZONE = 'America/Los_Angeles';
+export const COMPASS_MARKET_TIME_ZONE = 'Etc/GMT+8';
 
 /** Today's calendar date in the shop's market, as YYYY-MM-DD. */
 export function marketToday(now: Date = new Date(), timeZone = COMPASS_MARKET_TIME_ZONE): string {
@@ -948,6 +946,11 @@ export function assertReportMatchesModule(
   const expected = scores.find((s) => s.table === expectedTable) ?? null;
   const others = scores.filter((s) => s.table !== expectedTable);
   const runnerUp = others.length > 0 ? others.reduce((m, s) => (s.ratio > m.ratio ? s : m)) : null;
+
+  if (moduleType === 'CREATOR' && isCompassCreatorReport(headerRow)) {
+    return { ok: true, expectedTable, expected, runnerUp, observedColumns,
+      message: 'Exact 11-column Compass creator report; partial metrics merge required.' };
+  }
 
   const pct = (s: TypeScore | null): string =>
     s ? `${s.table} ${s.matched}/${s.total} (${Math.round(s.ratio * 100)}%)` : 'n/a';
