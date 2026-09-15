@@ -62,3 +62,5 @@
   .toolbar input, .toolbar select { font-size: 16px; }
   .scope button, .toolbar button, .toolbar select, .pagination button { min-height: 44px; }
 }
+
+.featured{background:var(--card);border:1px solid var(--border)}.featured>p{color:var(--foreground)}.avatar{outline:1px solid var(--border);outline-offset:3px;background:var(--secondary);color:var(--foreground)}.scope button{min-height:44px;border-radius:12px}.toolbar button,.toolbar select,.toolbar input{border-radius:10px}.person{gap:14px}.panel h2{font-size:22px}.table td[data-label="Brand"]{min-width:150px}

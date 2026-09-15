@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { AccountMenu } from './account-menu';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Menu, ChevronRight, LogOut, Settings, Users } from 'lucide-react';
+import { Menu, ChevronRight } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { TempoLogo } from '@/components/ui/tempo-logo';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
@@ -70,8 +70,6 @@ function labelFromPath(pathname: string): string {
 export function Header({ onMenuClick, tenantName, userName, userEmail, tenantSwitcher, isAdmin }: HeaderProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
   const { label: overrideLabel } = useBreadcrumbOverride();
   const isCreatorDetail = pathname.startsWith('/creators/') && pathname !== '/creators';
   const isBrandDetail = pathname.startsWith('/brands/') && pathname !== '/brands';
@@ -89,16 +87,6 @@ export function Header({ onMenuClick, tenantName, userName, userEmail, tenantSwi
       : isBrandDetail
       ? decodeURIComponent(pathname.split('/brands/')[1] ?? '')
       : (BREADCRUMB_MAP[pathname] ?? labelFromPath(pathname)));
-
-  useEffect(() => {
-    if (!menuOpen) return;
-    function handler(e: MouseEvent) {
-      if (menuRef.current?.contains(e.target as Node)) return;
-      setMenuOpen(false);
-    }
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [menuOpen]);
 
   async function handleLogout() {
     const supabase = createClient();
@@ -163,55 +151,7 @@ export function Header({ onMenuClick, tenantName, userName, userEmail, tenantSwi
         {/* Divider */}
         <div className="w-px h-6 bg-secondary mx-1" />
 
-        {/* User avatar + dropdown */}
-        <div className="relative" ref={menuRef}>
-          <button
-            onClick={() => setMenuOpen(!menuOpen)}
-            className="flex items-center gap-2 px-1.5 py-1.5 rounded-lg hover:bg-muted transition-colors"
-          >
-            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-[var(--primary)] to-[var(--pulse-accent-2)] flex items-center justify-center text-white text-xs font-bold shadow-sm">
-              {initials}
-            </div>
-            {userName && (
-              <span className="hidden sm:block text-sm font-medium text-foreground max-w-[120px] truncate">
-                {userName}
-              </span>
-            )}
-          </button>
-
-          {menuOpen && (
-            <div className="absolute right-0 top-full mt-1.5 w-56 bg-card border border-border rounded-xl shadow-xl shadow-black/8 py-1.5 z-50">
-              <div className="px-4 py-3 border-b border-border">
-                <p className="text-sm font-semibold text-foreground truncate">{userName || 'User'}</p>
-                <p className="text-xs text-muted-foreground truncate mt-0.5">{userEmail}</p>
-              </div>
-              <div className="py-1">
-                {isAdmin && (
-                  <Link
-                    href="/team"
-                    onClick={() => setMenuOpen(false)}
-                    className="flex items-center gap-2.5 px-4 py-2 text-sm text-muted-foreground hover:bg-muted transition-colors"
-                  >
-                    <Users className="h-4 w-4" /> User Management
-                  </Link>
-                )}
-                <Link
-                  href="/settings"
-                  onClick={() => setMenuOpen(false)}
-                  className="flex items-center gap-2.5 px-4 py-2 text-sm text-muted-foreground hover:bg-muted transition-colors"
-                >
-                  <Settings className="h-4 w-4" /> Settings
-                </Link>
-                <button
-                  onClick={handleLogout}
-                  className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-red-500 hover:bg-red-500/10 transition-colors"
-                >
-                  <LogOut className="h-4 w-4" /> Sign out
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
+        <AccountMenu name={userName} email={userEmail} initials={initials} isAdmin={isAdmin} onLogout={handleLogout} />
       </div>
     </header>
   );

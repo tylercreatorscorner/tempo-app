@@ -1,4 +1,5 @@
 'use client';
+import { BrandIdentity } from '@/components/creators/brand-identity';
 import { CreatorPortrait } from '@/components/creators/creator-portrait';
 import { LatestRequest } from '@/lib/latest-request';
 
@@ -2178,9 +2179,7 @@ function RosterContent() {
                           {isGroup ? (
                             <Badge variant="accent">{c.brands?.length ?? 0} brands</Badge>
                           ) : c.brand ? (
-                            <Chip dotColor={brandMeta.color(c.brand)} className="max-w-[160px]">
-                              <span className="truncate">{brandOptions.find(b => b.slug === c.brand)?.name || brandMeta.label(c.brand) || c.brand.replace(/_/g, ' ')}</span>
-                            </Chip>
+                            <BrandIdentity brand={c.brand} label={brandOptions.find(b => b.slug === c.brand)?.name || brandMeta.label(c.brand)} />
                           ) : <span className="text-muted-foreground">—</span>}
                         </td>
                       )}

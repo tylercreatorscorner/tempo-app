@@ -1,7 +1,7 @@
 'use client';
 
 import { useId, useState } from 'react';
-import { Dialog } from 'radix-ui';
+import { Dialog, Tabs } from 'radix-ui';
 import { ChoiceMenu } from '@/components/ui/choice-menu';
 import styles from './creator-editor.module.css';
 import { Pencil, X, Save, Loader2, Plus, Trash2 } from 'lucide-react';
@@ -56,6 +56,7 @@ export function CreatorEditButton({ creator }: { creator: CreatorData }) {
 
 function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => void }) {
   const router = useRouter();
+  const [section,setSection]=useState("details");
   const [customRole,setCustomRole]=useState(Boolean(creator.role && !ROLES.includes(creator.role)));
   const [saving, setSaving] = useState(false);
   // A failed save used to do nothing at all: `if (res.ok)` with no else, so the
@@ -157,7 +158,8 @@ function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => 
           </button>
         </div>
 
-        <div className={styles.body}>
+        <Tabs.Root value={section} onValueChange={setSection}><Tabs.List className={styles.editorTabs} aria-label="Creator editor sections"><Tabs.Trigger value="details">Profile details</Tabs.Trigger><Tabs.Trigger value="accounts">Linked accounts <span>{accounts.length}</span></Tabs.Trigger></Tabs.List>
+        <div className={styles.body}><Tabs.Content value="details">
           {/* Profile Fields */}
           <div className={styles.fields}><h3 className={styles.groupTitle}>Creator details</h3>
             <Field label="Real Name" value={form.real_name} onChange={(v) => setForm({ ...form, real_name: v })} />
@@ -236,16 +238,7 @@ function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => 
             </div>
           )}
 
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-[var(--primary)] rounded-xl hover:bg-[var(--primary)] transition-colors disabled:opacity-50"
-          >
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            Save profile details
-          </button>
-
-          <p className="text-xs text-muted-foreground">Profile details save above. Account additions and removals below apply separately.</p>
+          </Tabs.Content><Tabs.Content value="accounts">
           {/* TikTok Accounts.
 
               Unlike everything above, these are NOT per brand. A handle
@@ -254,7 +247,7 @@ function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => 
               otherwise, and because managed-GMV membership resolves handles
               through this table: removing one drops the creator out of capture
               rate on every brand at once. */}
-          <div className="pt-4 border-t border-border">
+          <div className={styles.accountSection}>
             <h3 className="text-sm font-bold text-[var(--foreground)]">Linked TikTok accounts</h3>
             <p className="mt-1 mb-3 text-xs text-muted-foreground">
               Shared across all of this creator&rsquo;s brands, not just{' '}
@@ -263,7 +256,7 @@ function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => 
             </p>
             <div className="space-y-2">
               {accounts.map((handle) => (
-                <div key={handle} className="px-3 py-2 bg-muted rounded-xl">
+                <div key={handle} className="px-3 py-3 border border-border rounded-xl">
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-sm text-foreground truncate">@{handle}</span>
                     {confirmRemove === handle ? (
@@ -308,7 +301,7 @@ function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => 
                 onChange={(e) => setNewHandle(e.target.value)}
                 placeholder="@username" aria-label="New TikTok handle"
                 onKeyDown={(e) => e.key === 'Enter' && addAccount()}
-                className="flex-1 px-3 py-2 text-sm border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/15 focus:border-primary/20"
+                className="min-w-0 flex-1 px-3 py-2 text-sm border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/15 focus:border-primary/20"
               />
               <button
                 onClick={addAccount} aria-label="Add TikTok account"
@@ -319,7 +312,12 @@ function EditPanel({ creator, onClose }: { creator: CreatorData; onClose: () => 
               </button>
             </div>
           </div>
-        </div>
+          </Tabs.Content></div>
+          <footer className={styles.footer}>
+            <p>{section==='details' ? 'Save applies to profile fields and selected-brand details.' : 'Account changes apply immediately across all brands.'}</p>
+            <button type="button" onClick={onClose} disabled={saving || accountSaving} className={styles.secondary}>{section==='details'?'Cancel':'Done'}</button>
+            {section==='details' && <button type="button" onClick={handleSave} disabled={saving || accountSaving} className={styles.primary}>{saving ? <Loader2 size={16} className="animate-spin"/> : <Save size={16}/>} Save changes</button>}
+          </footer></Tabs.Root>
     </Dialog.Content></Dialog.Portal></Dialog.Root>
   );
 }
