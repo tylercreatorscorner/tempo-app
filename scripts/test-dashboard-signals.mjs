@@ -35,6 +35,7 @@ console.log('PASS dashboard trend: an empty brand does not suppress recorded tot
 
 // Exercise the privileged identity read with hostile requested slugs and scoped viewers.
 let adminCalls = [];
+let avatarCalls = [];
 let permitted = true;
 let scope = {brandScope:{kind:'scoped',brandSlugs:['a','b']}};
 let assignmentFailed = false;
@@ -58,10 +59,11 @@ runInNewContext(ts.transpileModule(readFileSync('src/lib/data/dashboard-managers
       createClient:async()=>({from:()=>queryResult('brands_v2',brandRows)}),
       createAdminClient:async()=>({from(table){adminCalls.push(table); return table==='brand_manager_assignments'
         ? queryResult(table,[{brand_id:'a-id',manager_user_id:'manager-a'},{brand_id:'outside-id',manager_user_id:'other-manager'}],assignmentFailed ? {message:'failed'}:null)
-        : queryResult(table,[{user_id:'manager-a',name:'Manager A',tenant_id:'tenant-a',discord_avatar:null},{user_id:'other-manager',name:'PRIVATE',tenant_id:'tenant-b',discord_avatar:null}]);}})
+        : queryResult(table,[{user_id:'manager-a',name:'Manager A',tenant_id:'tenant-a',discord_id:'123456789012345678',discord_avatar:null},{user_id:'other-manager',name:'PRIVATE',tenant_id:'tenant-b',discord_id:'999999999999999999',discord_avatar:null}]);}})
     };
     if(path.endsWith('/workspace-scope')) return {getWorkspaceScope:async()=>scope,isBrandInScope:(s,b)=>s.brandScope.kind==='all'||s.brandScope.brandSlugs.includes(b.slug)};
     if(path.endsWith('/platform-admin')) return {getActiveTenantId:async()=>null};
+    if(path.endsWith('/discord/avatars')) return {fetchDiscordAvatars:async ids=>{avatarCalls.push(...ids);return {'123456789012345678':'https://cdn.discordapp.com/avatars/123456789012345678/00000000000000000000000000000000.png'};}};
     if(path.endsWith('/permissions')) return {can:()=>permitted};
     throw Error(path);
   }
@@ -69,15 +71,19 @@ runInNewContext(ts.transpileModule(readFileSync('src/lib/data/dashboard-managers
 let managers=await managerExports.getDashboardManagers(['a','b','outside']);
 assert.equal(managers.length,2);
 assert.equal(managers[0].name,'Manager A');
+assert.deepEqual(avatarCalls,['123456789012345678']);
+assert.equal(managers[0].avatar.startsWith('https://cdn.discordapp.com/avatars/123456789012345678/'),true);
 assert.equal(managers[1].name,'Unassigned brands');
 assert.equal(JSON.stringify(managers).includes('PRIVATE'),false);
 assert.equal(managers.flatMap(m=>Array.from(m.brands)).sort().join(','),'a,b');
-adminCalls=[]; permitted=false;
+adminCalls=[]; avatarCalls=[]; permitted=false;
 assert.equal(await managerExports.getDashboardManagers(['a']),undefined);
 assert.equal(adminCalls.length,0);
+assert.equal(avatarCalls.length,0);
 permitted=true; scope={brandScope:{kind:'scoped',brandSlugs:[]}};
 assert.equal((await managerExports.getDashboardManagers(['outside'])).length,0);
 assert.equal(adminCalls.length,0);
+assert.equal(avatarCalls.length,0);
 scope={brandScope:{kind:'scoped',brandSlugs:['a']}}; assignmentFailed=true;
 assert.equal(await managerExports.getDashboardManagers(['a']),null);
 console.log('PASS manager portfolios: permission gate, explicit assignments, scoped identities, unassigned brands, fail-closed empty scope and read failures');
