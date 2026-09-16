@@ -20,7 +20,10 @@ import { StatCard } from '@/components/dashboard/stat-card';
 import { Greeting } from '@/components/dashboard/greeting';
 import { ManagedOrganicDonut } from '@/components/dashboard/managed-organic-donut';
 import { ManagedGmvChart } from '@/components/dashboard/managed-gmv-chart';
-import { RosterHealthSection, RosterHealthSkeleton } from '@/components/dashboard/roster-health-section';
+import { BrandFilter } from '@/components/creators/brand-filter';
+import { MorningReview } from '@/components/dashboard/morning-review';
+import { buildDashboardSignals } from '@/lib/data/dashboard-signals';
+import reviewStyles from '@/components/dashboard/morning-review.module.css';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -232,9 +235,9 @@ export default async function AdminDashboard({ searchParams }: Props) {
     // Per-brand daily GMV for the Brand Performance sparklines — ONE call for
     // every brand (~91 rows for a 13-brand week). Degrades to no sparkline
     // rather than failing the page; the row's numbers don't depend on it.
-    getAnalyticsBrandDailySeries(BRAND_IDS, startDate, endDate).catch((e) => {
-      console.error('[dashboard] analytics_brand_daily_series failed; sparklines omitted:', e);
-      return [];
+    getAnalyticsBrandDailySeries(BRAND_IDS, prevStartDate, endDate).catch((e) => {
+      console.error('[dashboard] analytics_brand_daily_series failed; signals and sparklines omitted:', e);
+      return null;
     }),
     computeManagedGmv(startDate, endDate, activeBrands, reg, managedLookup),
     computeManagedGmv(roiStart, roiEnd, activeBrands, reg, managedLookup),
@@ -276,45 +279,10 @@ export default async function AdminDashboard({ searchParams }: Props) {
   const managedHandles = Array.from(
     new Set(Array.from(mgPeriod.byStoreCreator.values()).flatMap((m) => Array.from(m.keys()))),
   );
-  const HCHUNK = 400;
-  const handleChunks: string[][] = [];
-  for (let i = 0; i < managedHandles.length; i += HCHUNK) handleChunks.push(managedHandles.slice(i, i + HCHUNK));
-  // Roster Health is Suspense-streamed (its own async section) so the heavy
-  // internal /api/roster call never blocks this render — see Row 3 below.
-  const [seriesChunks, handleMeta] = await Promise.all([
-    BRAND_IDS.length === 0 ? Promise.resolve([]) : Promise.all(handleChunks.map((slice) =>
-      supabase.rpc('get_creator_handle_gmv_series', {
-        handles: slice, brand_ids: BRAND_IDS, days_back: periodLength, p_start_date: startDate, p_end_date: endDate,
-      }))),
-    // Display names for exactly the handles we already have. Was 28 blocking
-    // get_creator_rankings (50 rows each) + 2 more queries inside
-    // aggregateCreatorsByRealName, ~99% of it discarded, to label ten rows.
-    fetchHandleDisplayMeta(managedHandles).catch((e) => {
-      // Degrade to raw handles rather than failing the page — but say so.
-      console.error('[dashboard] fetchHandleDisplayMeta failed; Top Creators will show raw handles:', e);
-      return new Map<string, { name: string; id: string }>();
-    }),
-  ]);
-  const managedByDay = new Map<string, number>();
-  for (const res of seriesChunks) {
-    for (const s of ((res as { data: { stat_date: string; gmv: string | number }[] | null }).data) ?? []) {
-      const day = String(s.stat_date).slice(0, 10);
-      managedByDay.set(day, (managedByDay.get(day) ?? 0) + (Number(s.gmv) || 0));
-    }
-  }
-  // Zero-fill every day in the range: the chart positions points by index, so
-  // dropping zero-GMV days would collapse multi-day gaps and distort the timeline.
-  const managedDaily: { date: string; gmv: number }[] = [];
-  const seriesEnd = new Date(`${endDate}T00:00:00Z`);
-  for (let d = new Date(`${startDate}T00:00:00Z`); d <= seriesEnd; d.setUTCDate(d.getUTCDate() + 1)) {
-    const day = d.toISOString().slice(0, 10);
-    managedDaily.push({ date: day, gmv: managedByDay.get(day) ?? 0 });
-  }
-  // NOTE: managedDaily comes from roster_creator_daily and over-attributes vs the
-  // canonical computeManagedGmv hero (a handle's GMV on non-managed brands is
-  // included). The chart shows only the trend SHAPE + delta (no headline total),
-  // so no divergent managed number is displayed — pending managed-GMV source
-  // unification (a strict-managed daily series).
+  const handleMeta = await fetchHandleDisplayMeta(managedHandles).catch((error) => {
+    console.error('[dashboard] fetchHandleDisplayMeta failed:', error);
+    return new Map<string, { name: string; id: string }>();
+  });
 
   // ── Top Videos — top-10 managed videos by GMV EARNED in the selected window
   //    (get_top_videos_by_window_gmv, migration 079). GMV is SUM(video_performance)
@@ -374,7 +342,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
   // Daily GMV per DATA slug, for the row sparklines. The RPC returns brand_id;
   // fold it to slug here so umbrella roster brands can sum their stores per day.
   const dailyBySlug = new Map<string, Map<string, number>>();
-  for (const p of brandDaily) {
+  for (const p of brandDaily ?? []) {
     const slug = reg.byId.get(p.brand_id)?.slug;
     if (!slug) continue;
     const m = dailyBySlug.get(slug) ?? new Map<string, number>();
@@ -424,7 +392,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
       managedGmv: managedGmvForBrand,
       prevGmv,
       prevManagedGmv: prevManagedForBrand,
-      trend: pctChange(currentGmv, prevGmv),
+      trend: brandSummaries === null || prevBrandSummaries === null ? undefined : pctChange(currentGmv, prevGmv),
       managedTrend: pctChange(managedGmvForBrand, prevManagedForBrand),
       // Finance-blind: null/undefined (absence → "—" in the table), never 0.
       retainer: canViewCost ? brandRetainer : null,
@@ -463,7 +431,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
     return acc;
   }, { gmv: 0, orders: 0 });
 
-  const gmvTrend     = pctChange(totals.gmv,    prevTotals.gmv);
+  const gmvTrend = totalsFailed || prevBrandSummaries === null ? undefined : pctChange(totals.gmv, prevTotals.gmv);
   const managedTrend = pctChange(managedGmv,    prevManagedGmv);
 
 
@@ -504,17 +472,30 @@ export default async function AdminDashboard({ searchParams }: Props) {
     // fabricated empty state on a freshness claim the user acts on.
     : dateFailed
       ? 'Data freshness unavailable'
-      : 'Awaiting first data sync';
+      : 'No recorded data in this period';
 
   // "No data for this brand" is only true if the fetch actually SUCCEEDED and
   // came back empty — otherwise it's a fetch failure wearing an empty state.
   const isEmptyBrand = !totalsFailed && brandFilter && totals.gmv === 0 && totals.orders === 0;
   // Brand Performance shows only brands with activity this period.
-  const activeBrandRows = rosterBrandStats.filter((b) => b.currentGmv > 0);
-  const showBrandPerf = !brandFilter && activeBrandRows.length > 1;
+  const activeBrandRows = rosterBrandStats;
+  const showBrandPerf = !totalsFailed && !brandFilter && activeBrandRows.length > 1;
+
+  const comparisonDays: string[] = [];
+  for (let d = new Date(`${prevStartDate}T00:00:00Z`); d <= new Date(`${prevEndDate}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + 1)) comparisonDays.push(d.toISOString().slice(0,10));
+  const signals = buildDashboardSignals(rosterBrandStats.map(row => {
+    const stores = expandSlugs(reg, row.slug);
+    return { ...row,
+      recordedDays: rangeDays.filter(day => stores.every(slug => dailyBySlug.get(slug)?.has(day))).length,
+      previousRecordedDays: comparisonDays.filter(day => stores.every(slug => dailyBySlug.get(slug)?.has(day))).length,
+    };
+  }), periodLength, brandSummaries !== null && prevBrandSummaries !== null && brandDaily !== null);
+  const comparisonRecorded = signals.available && !signals.attention.some(row => row.kind === 'coverage');
+  const totalDaily = rangeDays.map(date => ({ date, gmv: activeBrands.reduce((sum, slug) => sum + (dailyBySlug.get(slug)?.get(date) ?? 0), 0) }));
+  const dailyCoverage = brandDaily !== null && rangeDays.every(day => activeBrands.every(slug => dailyBySlug.get(slug)?.has(day)));
 
   return (
-    <div className="space-y-6">
+    <div className={`${reviewStyles.page} space-y-6`}>
       {/* Stale-data warning — shows when the freshest data point is >3 days old */}
       {isStale && latestDate && daysStale != null && (
         <StaleDataBanner latestDate={latestDate} daysStale={daysStale} />
@@ -522,7 +503,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
 
       {/* Header */}
       <PageHeader
-        eyebrow={brandFilter ? `${activeBrandName} · Today` : 'Portfolio · Today'}
+        eyebrow="Morning review"
         title={<Greeting name={userName} />}
         actions={
           <div className="flex flex-wrap items-center gap-2">
@@ -546,43 +527,49 @@ export default async function AdminDashboard({ searchParams }: Props) {
         }
       />
 
-      {/* KPI strip — 5 metrics, Managed GMV as the gradient hero (mockup).
-          Flat cards (no accent left-border) to match the mockup KPIs. */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-[14px] stagger-children">
+      <div className={reviewStyles.scope}>
+        <div><span className={reviewStyles.scopeLabel}>Brand scope · {brandFilter ? activeBrandName : `${ALL_BRANDS.length} authorized brands`}</span>
+          <BrandFilter appearance="creator" brands={ALL_BRANDS} brandsWithData={activeBrandRows.map(row => row.slug)} selectedBrand={brandFilter} />
+        </div>
+        <div className={reviewStyles.dates}><div>{startDate} – {endDate}</div><div>Compared with {prevStartDate} – {prevEndDate}</div></div>
+      </div>
+
+      <div className={reviewStyles.metrics}>
         <StatCard
           label="Total GMV"
           value={totalsFailed ? '—' : formatCurrency(totals.gmv)}
-          trend={totalsFailed ? undefined : gmvTrend}
-          trendLabel={totalsFailed ? 'temporarily unavailable' : 'vs prev'}
+          trend={comparisonRecorded ? gmvTrend : undefined}
+          trendLabel={totalsFailed ? 'temporarily unavailable' : !comparisonRecorded ? 'comparison unavailable — check recorded days' : `${totals.gmv - prevTotals.gmv >= 0 ? '+' : '−'}${formatCurrency(Math.abs(totals.gmv - prevTotals.gmv))} vs prior period`}
           info="Total affiliate GMV across all brands in the selected period. The trend compares it to the previous period of equal length."
         />
         <StatCard
-          hero
           label="Managed GMV"
           value={formatCurrency(managedGmv)}
-          trend={managedTrend}
-          trendLabel="vs prev"
+          trend={comparisonRecorded ? managedTrend : undefined}
+          trendLabel={comparisonRecorded ? "vs prior period" : "comparison unavailable — check recorded days"}
           info="GMV driven by your managed creators in the selected period. The trend compares it to the previous period of equal length."
         />
         <StatCard
           label="Managed Share"
           value={totals.gmv > 0 ? `${managedSharePct.toFixed(0)}%` : '—'}
-          subValue="of portfolio"
+          subValue="of selected scope"
           info="Managed GMV as a share of total GMV — how much of all affiliate GMV your managed creators drove."
         />
         <StatCard
-          label="ROI · 30d"
+          label="GMV / monthly retainer"
           value={!canViewCost ? '—' : roi > 0 ? `${roi.toFixed(1)}×` : 'N/A'}
-          subValue={canViewCost ? 'GMV / retainer' : undefined}
-          info="Trailing-30-day managed GMV divided by total monthly retainer. Always a fixed 30-day window, regardless of the selected range."
+          subValue={canViewCost ? `${roiStart} – ${roiEnd} GMV` : undefined}
+          info="Trailing-30-day managed GMV divided by current monthly retainer commitments. A revenue multiple, not profit ROI or historical actual spend. Excludes commissions and other costs; independent of the selected period."
         />
         <StatCard
-          label="Retainers /mo"
+          label="Current retainers / month"
           value={canViewCost ? formatCurrency(totalRetainerSpend) : '—'}
           subValue={canViewCost ? `across ${retainerBrandCount} brand${retainerBrandCount === 1 ? '' : 's'}` : undefined}
           info="Total monthly retainer you pay, summed across brands that carry one."
         />
       </div>
+
+      <MorningReview {...signals} labels={Object.fromEntries(activeRosterBrands.map(slug => [slug, brandLabel(reg, slug)]))} start={startDate} end={endDate} />
 
       {/* Empty-state for a brand-filtered view with no activity */}
       {isEmptyBrand && (
@@ -591,57 +578,23 @@ export default async function AdminDashboard({ searchParams }: Props) {
           title={`No data for ${activeBrandName} in this period`}
           description="Try a different date range, or check back once creators have activity in this period."
           action={
-            <a href="?range=last7" className={buttonVariants({ variant: 'outline' })}>
+            <a href={`?range=last7${brandFilter ? `&brand=${encodeURIComponent(brandFilter)}` : ''}`} className={buttonVariants({ variant: 'outline' })}>
               View Last 7 Days →
             </a>
           }
         />
       )}
 
-      {/* Row 2 — Managed GMV trend + Managed-vs-Organic split (mockup) */}
-      {/* Row 2 — Managed GMV trend + Managed-vs-Organic + Roster Health.
-          All three are fixed-height summary cards, so they sit on one 4-col row.
-          Roster Health used to live beside Brand Performance, but that table runs
-          to every brand in the portfolio (13 today) while this card is short —
-          the 2:1 grid left ~300px of dead space in the right column, and it grew
-          with every brand added. Up here all three heights agree. */}
       {!isEmptyBrand && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <div className="lg:col-span-2">
-            <ManagedGmvChart
-              data={managedDaily}
-              trend={managedTrend}
-              label={`${brandFilter ? `${activeBrandName} · ` : ''}Managed GMV · ${periodLength}d`}
-            />
+            {dailyCoverage ? <ManagedGmvChart data={totalDaily} trend={comparisonRecorded ? gmvTrend : undefined} label={`Total affiliate GMV · ${periodLength} days`} />
+              : <Card><CardHeader><CardTitle>Total affiliate GMV trend</CardTitle></CardHeader><CardContent><p className="text-sm text-muted-foreground py-10">The daily trend is unavailable or has days without recorded activity. Review data coverage before interpreting a continuous trend.</p></CardContent></Card>}
           </div>
-          <Card className="lg:col-span-1">
-            <CardHeader><CardTitle eyebrow>Managed vs Organic</CardTitle></CardHeader>
-            <CardContent>
-              {/* Organic is derived from total GMV — without it the split would
-                  read a flat "100% managed", so say nothing rather than lie. */}
-              {totalsFailed ? (
-                <p className="py-10 text-center text-sm text-muted-foreground">
-                  Split unavailable — total GMV couldn&apos;t be loaded.
-                </p>
-              ) : (
-                <ManagedOrganicDonut
-                  managed={managedGmv}
-                  organic={unmanagedGmv}
-                  prevManaged={prevManagedGmv}
-                  prevTotal={prevTotals.gmv}
-                />
-              )}
-            </CardContent>
-          </Card>
-          <div className="lg:col-span-1">
-            <Suspense fallback={<RosterHealthSkeleton />}>
-              {/* Brand-scoped only — NOT range-scoped. These five counts are all
-                  period-independent (roster size, a fixed 14d silent threshold,
-                  month-to-date pace), and feeding them the page's range made the
-                  card report 84 healthy on ?range=last7 vs 530 with no param. */}
-              <RosterHealthSection brand={brandFilter} />
-            </Suspense>
-          </div>
+          <Card><CardHeader><CardTitle>Managed share</CardTitle></CardHeader><CardContent>
+            {totalsFailed ? <p className="py-10 text-sm text-muted-foreground">Split unavailable — total GMV could not be loaded.</p>
+              : <ManagedOrganicDonut managed={managedGmv} organic={unmanagedGmv} prevManaged={comparisonRecorded ? prevManagedGmv : undefined} prevTotal={comparisonRecorded ? prevTotals.gmv : undefined} />}
+          </CardContent></Card>
         </div>
       )}
 
@@ -649,7 +602,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
           including those with $0 managed GMV: a brand you have no managed
           creators on is a coverage gap worth seeing, not noise to hide. */}
       {!isEmptyBrand && showBrandPerf && (
-        <BrandPerformance brands={activeBrandRows} range={params.range} start={params.start} end={params.end} periodLength={periodLength} />
+        <BrandPerformance brands={activeBrandRows.map(row => !signals.available || signals.attention.some(signal => signal.slug === row.slug && signal.kind === 'coverage') ? { ...row, trend: undefined, managedTrend: undefined, series: undefined } : row)} range={params.range} start={params.start} end={params.end} periodLength={periodLength} />
       )}
 
       {/* Row 4 — Top Creators + Top Videos leaderboards (managed, by GMV) */}

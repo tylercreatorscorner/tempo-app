@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { BrandIdentity } from '@/components/creators/brand-identity';
 import { formatCurrency } from '@/lib/utils/format';
 import { getBrandRegistry, brandLabel, brandColor } from '@/lib/data/brand-registry';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
@@ -125,8 +126,8 @@ export async function BrandPerformance({ brands, range, start, end, periodLength
         <HeadCell label="Managed"  tip="GMV from your managed creators for this brand, in the selected period." />
         <HeadCell label="Δ"        tip="Managed GMV vs the previous period — your own momentum on this brand, independent of how the brand is doing overall." />
         <HeadCell label="Mgd %"    tip="Managed GMV as a share of this brand's total GMV." />
-        <HeadCell label="Retainer" tip="What this brand pays you per month — the denominator of ROI." />
-        <HeadCell label="ROI"      tip="Trailing-30-day managed GMV divided by this brand's monthly retainer (a fixed 30-day window, independent of the period above)." />
+        <HeadCell label="Retainer" tip="Current monthly creator retainer commitments for this brand. Not historical payments or actual period spend." />
+        <HeadCell label="GMV / fee"      tip="Trailing-30-day managed GMV divided by this brand's monthly retainer (a fixed 30-day window, independent of the period above). Revenue multiple, not profit ROI; excludes commissions and other costs." />
       </div>
 
       <div className="divide-y divide-border">
@@ -143,9 +144,8 @@ export async function BrandPerformance({ brands, range, start, end, periodLength
             >
               {/* Brand — square color dot + name */}
               <span className="flex min-w-0 items-center gap-2.5">
-                <span className="h-2.5 w-2.5 flex-shrink-0 rounded-[3px]" style={{ backgroundColor: color }} />
                 <span className="truncate text-[13.5px] font-bold text-foreground transition-colors group-hover:text-[var(--primary)]">
-                  {name}
+                  <BrandIdentity brand={b.slug} label={name} />
                 </span>
               </span>
 
