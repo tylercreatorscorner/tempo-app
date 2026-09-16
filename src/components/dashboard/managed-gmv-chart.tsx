@@ -46,6 +46,7 @@ export function ManagedGmvChart({
   const pts = data;
   const values = pts.flatMap(d => d.gmv !== null && Number.isFinite(d.gmv) ? [d.gmv] : []);
   const n = pts.length;
+  const mostRecorded = Math.max(0, ...pts.map(point => point.recordedBrands ?? 0));
   const hasChart = n > 0 && values.length > 0;
 
   const max = Math.max(...values, 1);
@@ -145,8 +146,14 @@ export function ManagedGmvChart({
               ))}
               {segments.map((path, index) => <g key={index}>
                 <path d={path.area} fill={`url(#${gradientId})`} />
-                <path d={path.line} fill="none" stroke="var(--primary)" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+
               </g>)}
+              {pts.map((point, index) => {
+                const previous = pts[index - 1];
+                if (!previous || previous.gmv === null || point.gmv === null) return null;
+                const lowerCoverage = (previous.recordedBrands ?? mostRecorded) < mostRecorded || (point.recordedBrands ?? mostRecorded) < mostRecorded;
+                return <path key={point.date} d={`M${xPct(index - 1) * W / 100},${yOf(previous.gmv)} L${xPct(index) * W / 100},${yOf(point.gmv)}`} fill="none" stroke="var(--primary)" strokeWidth="2.5" strokeDasharray={lowerCoverage ? '4 5' : undefined} strokeLinecap="round" vectorEffect="non-scaling-stroke" />;
+              })}
               {pts.map((point, index) => point.gmv !== null && Number.isFinite(point.gmv) && <circle key={point.date} cx={xPct(index) * W / 100} cy={yOf(point.gmv)} r="2" fill="var(--primary)" />)}
             </svg>
             {/* HTML overlays — no aspect-ratio distortion */}

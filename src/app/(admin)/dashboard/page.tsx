@@ -594,7 +594,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
       {!isEmptyBrand && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <div className="lg:col-span-2">
-            {brandDaily !== null ? <ManagedGmvChart coverageNote={dailyCoverage ? undefined : `Recorded GMV · ${incompleteBrands.length} of ${activeRosterBrands.length} brands have missing days. Inspect a date for coverage; missing records are not zero sales.`} data={totalDaily} totalBrands={activeRosterBrands.length} trend={comparisonRecorded ? gmvTrend : undefined} label={`Total affiliate GMV · ${periodLength} days`} />
+            {brandDaily !== null ? <ManagedGmvChart coverageNote={dailyCoverage ? undefined : `Recorded GMV · ${incompleteBrands.length} of ${activeRosterBrands.length} brands have missing days. Inspect a date for coverage. Dashed segments mark lower coverage; missing records are not zero sales.`} data={totalDaily} totalBrands={activeRosterBrands.length} trend={comparisonRecorded ? gmvTrend : undefined} label={`Total affiliate GMV · ${periodLength} days`} />
               : <Card><CardHeader><CardTitle>Total affiliate GMV trend</CardTitle></CardHeader><CardContent><p className="text-sm text-muted-foreground py-10">The daily trend is unavailable or has days without recorded activity. Review data coverage before interpreting a continuous trend.</p></CardContent></Card>}
           </div>
           <Card><CardHeader><CardTitle>Managed share</CardTitle></CardHeader><CardContent>
