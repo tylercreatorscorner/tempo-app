@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type MouseEvent } from 'react';
+import { useId, useState, type PointerEvent } from 'react';
 import { formatCurrency } from '@/lib/utils/format';
 import { fmtCompactCurrency } from '@/components/charts/format';
 import { Card, CardHeader, CardContent } from '@/components/ui/card';
@@ -31,27 +31,42 @@ export function ManagedGmvChart({
   data,
   trend,
   label,
+  coverageNote,
 }: {
-  data: { date: string; gmv: number }[];
+  data: { date: string; gmv: number | null; recordedBrands?: number }[];
   trend?: number;
   label: string;
+  coverageNote?: string;
 }) {
   const [hi, setHi] = useState<number | null>(null);
   const isPos = trend !== undefined && trend >= 0;
-  const pts = data.filter((d) => Number.isFinite(d.gmv));
+  const gradientId = useId();
+  const pts = data;
+  const values = pts.flatMap(d => d.gmv !== null && Number.isFinite(d.gmv) ? [d.gmv] : []);
   const n = pts.length;
-  const hasChart = n > 1;
+  const hasChart = n > 0 && values.length > 0;
 
-  const max = Math.max(...pts.map((d) => d.gmv), 1);
-  const min = Math.min(...pts.map((d) => d.gmv), 0);
+  const max = Math.max(...values, 1);
+  const min = Math.min(...values, 0);
   const range = max - min || 1;
-  const xPct = (i: number) => (i / (n - 1)) * 100;
+  const xPct = (i: number) => (n > 1 ? i / (n - 1) : 0.5) * 100;
   const yOf = (v: number) => H - 6 - ((v - min) / range) * (H - 12);
   const yPct = (v: number) => (yOf(v) / H) * 100;
-  const line = pts.map((d, i) => `${i === 0 ? 'M' : 'L'}${((i / (n - 1)) * W).toFixed(1)},${yOf(d.gmv).toFixed(1)}`).join(' ');
-  const area = hasChart ? `${line} L${W},${H} L0,${H} Z` : '';
+  const segments: { line: string; area: string }[] = [];
+  let segment: { index: number; value: number }[] = [];
+  function flushSegment() {
+    if (!segment.length) return;
+    const line = segment.map((point, i) => `${i ? 'L' : 'M'}${xPct(point.index) * W / 100},${yOf(point.value)}`).join(' ');
+    segments.push({ line, area: `${line} L${xPct(segment[segment.length-1].index) * W / 100},${H} L${xPct(segment[0].index) * W / 100},${H} Z` });
+    segment = [];
+  }
+  pts.forEach((point, index) => {
+    if (point.gmv === null || !Number.isFinite(point.gmv)) flushSegment();
+    else segment.push({ index, value: point.gmv });
+  });
+  flushSegment();
 
-  function onMove(e: MouseEvent<HTMLDivElement>) {
+  function onMove(e: PointerEvent<HTMLDivElement>) {
     const rect = e.currentTarget.getBoundingClientRect();
     if (rect.width === 0) return;
     const rel = (e.clientX - rect.left) / rect.width;
@@ -77,6 +92,7 @@ export function ManagedGmvChart({
           </span>
         )}
       </CardHeader>
+      {coverageNote && <p className="px-6 pb-3 text-xs text-muted-foreground">{coverageNote}</p>}
       <CardContent className="flex flex-1 flex-col">
         {hasChart ? (
           <div className="flex flex-1 gap-1.5">
@@ -94,10 +110,18 @@ export function ManagedGmvChart({
             <div className="flex min-w-0 flex-1 flex-col">
               {/* min-h keeps the old floor; h-full lets the plot absorb the extra
                   height from the flex parent rather than leaving dead space below. */}
-              <div className="relative h-full min-h-[150px]" onMouseMove={onMove} onMouseLeave={() => setHi(null)}>
+              <div className="relative h-full min-h-[150px]" role="group" aria-label="GMV by day. Use left and right arrow keys to inspect dates." tabIndex={0}
+                onPointerMove={onMove} onPointerDown={onMove} onPointerLeave={() => setHi(null)}
+                onFocus={() => setHi(n - 1)} onBlur={() => setHi(null)}
+                onKeyDown={event => {
+                  if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+                    event.preventDefault();
+                    setHi(index => Math.max(0, Math.min(n - 1, (index ?? n - 1) + (event.key === 'ArrowLeft' ? -1 : 1))));
+                  }
+                }}>
                 <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="absolute inset-0 h-full w-full">
               <defs>
-                <linearGradient id="mgv-fill" x1="0" y1="0" x2="0" y2="1">
+                <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0" stopColor="var(--primary)" stopOpacity="0.28" />
                   <stop offset="1" stopColor="var(--primary)" stopOpacity="0" />
                 </linearGradient>
@@ -117,25 +141,20 @@ export function ManagedGmvChart({
                   vectorEffect="non-scaling-stroke"
                 />
               ))}
-              <path d={area} fill="url(#mgv-fill)" />
-              <path
-                d={line}
-                fill="none"
-                stroke="var(--primary)"
-                strokeWidth="2.5"
-                strokeLinejoin="round"
-                strokeLinecap="round"
-                vectorEffect="non-scaling-stroke"
-              />
+              {segments.map((path, index) => <g key={index}>
+                <path d={path.area} fill={`url(#${gradientId})`} />
+                <path d={path.line} fill="none" stroke="var(--primary)" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+              </g>)}
+              {pts.map((point, index) => point.gmv !== null && Number.isFinite(point.gmv) && <circle key={point.date} cx={xPct(index) * W / 100} cy={yOf(point.gmv)} r="2" fill="var(--primary)" />)}
             </svg>
             {/* HTML overlays — no aspect-ratio distortion */}
             {hd ? (
               <>
                 <div className="pointer-events-none absolute top-0 bottom-0 w-px bg-primary/30" style={{ left: `${xPct(hi!)}%` }} />
-                <div
+                {hd.gmv !== null && <div
                   className="pointer-events-none absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary ring-2 ring-card"
                   style={{ left: `${xPct(hi!)}%`, top: `${yPct(hd.gmv)}%` }}
-                />
+                />}
                 <div
                   className="pointer-events-none absolute top-1 -translate-x-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-[11px] font-medium text-background shadow-lg"
                   style={{ left: `${Math.min(92, Math.max(8, xPct(hi!)))}%` }}
@@ -143,17 +162,13 @@ export function ManagedGmvChart({
                   <span className="text-background/60">
                     {new Date(hd.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })} ·{' '}
                   </span>
-                  <span className="tabular-nums">{formatCurrency(hd.gmv)}</span>
+                  <span className="tabular-nums">{hd.gmv === null ? 'No recorded data' : formatCurrency(hd.gmv)}</span>
                 </div>
               </>
-            ) : (
-              <div
-                className="pointer-events-none absolute h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary"
-                style={{ left: '100%', top: `${yPct(pts[n - 1].gmv)}%` }}
-              />
-            )}
+            ) : null}
               </div>
 
+              <span className="sr-only" aria-live="polite">{hd ? `${fmtAxisDay(hd.date)}: ${hd.gmv === null ? "No recorded data" : formatCurrency(hd.gmv)}` : ""}</span>
               {/* X axis — first / middle / last day. Three ticks, not n: at 30d a
                   label per point is unreadable mush, and the hover tooltip already
                   names the exact day. */}

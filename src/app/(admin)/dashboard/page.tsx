@@ -22,6 +22,9 @@ import { ManagedOrganicDonut } from '@/components/dashboard/managed-organic-donu
 import { ManagedGmvChart } from '@/components/dashboard/managed-gmv-chart';
 import { BrandFilter } from '@/components/creators/brand-filter';
 import { MorningReview } from '@/components/dashboard/morning-review';
+import { buildDashboardTrend } from '@/lib/data/dashboard-trend';
+import { ManagerPortfolios } from '@/components/dashboard/manager-portfolios';
+import { getDashboardManagers } from '@/lib/data/dashboard-managers';
 import { buildDashboardSignals } from '@/lib/data/dashboard-signals';
 import reviewStyles from '@/components/dashboard/morning-review.module.css';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -138,6 +141,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
   // ── Resolve brand filter + expand to data slugs ─────────────────────────
   const brandFilter = params.brand && ALL_BRANDS.includes(params.brand) ? params.brand : null;
   const activeRosterBrands = brandFilter ? [brandFilter] : ALL_BRANDS;
+  const managersPromise = !brandFilter ? getDashboardManagers(activeRosterBrands) : Promise.resolve(undefined);
   const activeBrands = activeRosterBrands.flatMap(b => expandSlugs(reg, b));
   // brand_ids for the multi-brand analytics_* RPCs (shared with the fold-in helper).
   // Resolve via the registry (has every brand's id) rather than the allowedBrands-
@@ -488,8 +492,11 @@ export default async function AdminDashboard({ searchParams }: Props) {
     };
   }), periodLength, brandSummaries !== null && prevBrandSummaries !== null && brandDaily !== null);
   const comparisonRecorded = signals.available && !signals.attention.some(row => row.kind === 'coverage');
-  const totalDaily = rangeDays.map(date => ({ date, gmv: activeBrands.reduce((sum, slug) => sum + (dailyBySlug.get(slug)?.get(date) ?? 0), 0) }));
+  const totalDaily = buildDashboardTrend(rangeDays, activeBrands, dailyBySlug);
   const dailyCoverage = brandDaily !== null && rangeDays.every(day => activeBrands.every(slug => dailyBySlug.get(slug)?.has(day)));
+
+  const incompleteBrands = activeRosterBrands.filter(brand => rangeDays.some(day => expandSlugs(reg, brand).some(slug => !dailyBySlug.get(slug)?.has(day))));
+  const managers = await managersPromise;
 
   return (
     <div className={`${reviewStyles.page} space-y-6`}>
@@ -585,7 +592,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
       {!isEmptyBrand && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <div className="lg:col-span-2">
-            {dailyCoverage ? <ManagedGmvChart data={totalDaily} trend={comparisonRecorded ? gmvTrend : undefined} label={`Total affiliate GMV · ${periodLength} days`} />
+            {brandDaily !== null ? <ManagedGmvChart coverageNote={dailyCoverage ? undefined : `Recorded GMV only · incomplete daily coverage: ${incompleteBrands.map(slug => brandLabel(reg, slug)).join(", ")}. Missing records are not confirmed zero sales.`} data={totalDaily} trend={comparisonRecorded ? gmvTrend : undefined} label={`Total affiliate GMV · ${periodLength} days`} />
               : <Card><CardHeader><CardTitle>Total affiliate GMV trend</CardTitle></CardHeader><CardContent><p className="text-sm text-muted-foreground py-10">The daily trend is unavailable or has days without recorded activity. Review data coverage before interpreting a continuous trend.</p></CardContent></Card>}
           </div>
           <Card><CardHeader><CardTitle>Managed share</CardTitle></CardHeader><CardContent>
@@ -594,6 +601,8 @@ export default async function AdminDashboard({ searchParams }: Props) {
           </CardContent></Card>
         </div>
       )}
+
+      {managers !== undefined && <ManagerPortfolios managers={managers} brands={activeBrandRows} labels={Object.fromEntries(activeRosterBrands.map(slug => [slug, brandLabel(reg, slug)]))} signals={signals} start={startDate} end={endDate} totalsAvailable={!totalsFailed} />}
 
       {/* Row 3 — Brand Performance, full width. Deliberately shows EVERY brand,
           including those with $0 managed GMV: a brand you have no managed
