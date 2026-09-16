@@ -232,9 +232,8 @@ export default async function AdminDashboard({ searchParams }: Props) {
       console.error('[dashboard] analytics_latest_data_date failed:', e);
       return undefined; // undefined = failed; null = genuinely no data
     }),
-    // Per-brand daily GMV for the Brand Performance sparklines — ONE call for
-    // every brand (~91 rows for a 13-brand week). Degrades to no sparkline
-    // rather than failing the page; the row's numbers don't depend on it.
+    // Daily rows span current + prior periods for recorded-day checks. A failure
+    // suppresses signals and chart lines; it must not imply zero activity.
     getAnalyticsBrandDailySeries(BRAND_IDS, prevStartDate, endDate).catch((e) => {
       console.error('[dashboard] analytics_brand_daily_series failed; signals and sparklines omitted:', e);
       return null;
@@ -402,9 +401,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
     };
   });
 
-  // Brand movers used to live here too — they're now exclusive to /analytics's
-  // Notable Changes section so the same period-vs-prior comparison only has
-  // one canonical home.
+  // The morning review derives signals only from these already-authorized rows.
 
   // ── Managed GMV (portfolio-level) from the canonical shared calc. Unmanaged
   // is derived right after portfolio totals below (brand-wide minus managed).
@@ -477,7 +474,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
   // "No data for this brand" is only true if the fetch actually SUCCEEDED and
   // came back empty — otherwise it's a fetch failure wearing an empty state.
   const isEmptyBrand = !totalsFailed && brandFilter && totals.gmv === 0 && totals.orders === 0;
-  // Brand Performance shows only brands with activity this period.
+  // Include inactive brands so a genuine decline to zero remains visible.
   const activeBrandRows = rosterBrandStats;
   const showBrandPerf = !totalsFailed && !brandFilter && activeBrandRows.length > 1;
 
@@ -529,7 +526,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
 
       <div className={reviewStyles.scope}>
         <div><span className={reviewStyles.scopeLabel}>Brand scope · {brandFilter ? activeBrandName : `${ALL_BRANDS.length} authorized brands`}</span>
-          <BrandFilter appearance="creator" brands={ALL_BRANDS} brandsWithData={activeBrandRows.map(row => row.slug)} selectedBrand={brandFilter} />
+          <BrandFilter label="Dashboard brand scope" appearance="creator" brands={ALL_BRANDS} brandsWithData={activeBrandRows.map(row => row.slug)} selectedBrand={brandFilter} />
         </div>
         <div className={reviewStyles.dates}><div>{startDate} – {endDate}</div><div>Compared with {prevStartDate} – {prevEndDate}</div></div>
       </div>
@@ -576,7 +573,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
         <EmptyState
           icon={<BarChart3 className="h-8 w-8" />}
           title={`No data for ${activeBrandName} in this period`}
-          description="Try a different date range, or check back once creators have activity in this period."
+          description="Try a different date range, or check recorded-day coverage before treating this as zero activity."
           action={
             <a href={`?range=last7${brandFilter ? `&brand=${encodeURIComponent(brandFilter)}` : ''}`} className={buttonVariants({ variant: 'outline' })}>
               View Last 7 Days →

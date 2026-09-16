@@ -8,6 +8,7 @@ import { ChoiceMenu } from '@/components/ui/choice-menu';
 import { BrandPortrait } from './brand-portrait';
 
 interface BrandFilterProps {
+  label?: string;
   brands: string[];
   appearance?: 'default' | 'creator';
   brandsWithData: string[];
@@ -20,7 +21,7 @@ interface BrandFilterProps {
   collapseNoData?: boolean;
 }
 
-export function BrandFilter({ brands, brandsWithData, selectedBrand, collapseNoData = false, appearance = 'default' }: BrandFilterProps) {
+export function BrandFilter({ brands, brandsWithData, selectedBrand, collapseNoData = false, appearance = 'default', label = 'Brand relationship' }: BrandFilterProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const brandMeta = useBrandMeta();
@@ -52,10 +53,10 @@ export function BrandFilter({ brands, brandsWithData, selectedBrand, collapseNoD
   const visibleBrands = hidden > 0 ? withData : brands;
 
   if (appearance === 'creator') return <div aria-busy={pending}>
-    <ChoiceMenu label="Brand relationship" value={selectedBrand ?? '__all'} disabled={pending}
+    <ChoiceMenu label={label} value={selectedBrand ?? '__all'} disabled={pending}
       options={[{value:'__all',label:'All authorized brands',description:`${brands.length} brand relationships`}, ...brands.map(brand => ({value:brand,label:brandMeta.label(brand),icon:<BrandPortrait name={brandMeta.label(brand)} source={brandMeta.logo(brand)} color={brandMeta.color(brand)} />}))]}
       onChange={value => startTransition(()=>router.push(brandHref(value === '__all' ? null : value),{scroll:false}))} />
-    {pending && <span role="status" className="text-xs text-muted-foreground">Updating relationship…</span>}
+    {pending && <span role="status" className="text-xs text-muted-foreground">Updating brand scope…</span>}
   </div>;
   return (
     <div className="flex flex-wrap gap-2">
