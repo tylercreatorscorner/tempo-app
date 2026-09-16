@@ -32,11 +32,13 @@ export function ManagedGmvChart({
   trend,
   label,
   coverageNote,
+  totalBrands,
 }: {
   data: { date: string; gmv: number | null; recordedBrands?: number }[];
   trend?: number;
   label: string;
   coverageNote?: string;
+  totalBrands?: number;
 }) {
   const [hi, setHi] = useState<number | null>(null);
   const isPos = trend !== undefined && trend >= 0;
@@ -156,13 +158,14 @@ export function ManagedGmvChart({
                   style={{ left: `${xPct(hi!)}%`, top: `${yPct(hd.gmv)}%` }}
                 />}
                 <div
-                  className="pointer-events-none absolute top-1 -translate-x-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-[11px] font-medium text-background shadow-lg"
-                  style={{ left: `${Math.min(92, Math.max(8, xPct(hi!)))}%` }}
+                  className="pointer-events-none absolute top-1 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-[11px] font-medium text-background shadow-lg"
+                  style={{ left: `${xPct(hi!)}%`, transform: `translateX(${xPct(hi!) > 65 ? "-100%" : xPct(hi!) < 35 ? "0" : "-50%"})` }}
                 >
                   <span className="text-background/60">
                     {new Date(hd.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })} ·{' '}
                   </span>
                   <span className="tabular-nums">{hd.gmv === null ? 'No recorded data' : formatCurrency(hd.gmv)}</span>
+                  {totalBrands !== undefined && <span className="block text-background/70">{hd.recordedBrands ?? 0}/{totalBrands} brands recorded</span>}
                 </div>
               </>
             ) : null}

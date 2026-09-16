@@ -11,8 +11,8 @@
 .manager summary:focus-visible,.brands a:focus-visible { outline:2px solid var(--primary); outline-offset:-3px; }
 .identity { display:flex; gap:12px; align-items:center; min-width:0; }
 .portrait { width:40px; height:40px; flex-shrink:0; object-fit:cover; display:grid; place-items:center; border:1px solid var(--border); border-radius:50%; background:var(--muted); font-size:13px; font-weight:600; }
-.identity strong { display:block; font-size:14px; }
-.identity span,.metric span,.metric small { display:block; font-size:11px; color:var(--muted-foreground); }
+.identity strong { overflow-wrap:anywhere; display:block; font-size:14px; }
+.identity > div > span,.metric span,.metric small { display:block; font-size:11px; color:var(--muted-foreground); }
 .metric strong { font-size:17px; font-weight:600; font-variant-numeric:tabular-nums; }
 .metric small { font-variant-numeric:tabular-nums; }
 .metric .positive { color:var(--pulse-pos); }

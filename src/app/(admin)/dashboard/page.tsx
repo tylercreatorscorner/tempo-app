@@ -492,7 +492,9 @@ export default async function AdminDashboard({ searchParams }: Props) {
     };
   }), periodLength, brandSummaries !== null && prevBrandSummaries !== null && brandDaily !== null);
   const comparisonRecorded = signals.available && !signals.attention.some(row => row.kind === 'coverage');
-  const totalDaily = buildDashboardTrend(rangeDays, activeBrands, dailyBySlug);
+  const totalDaily = buildDashboardTrend(rangeDays, activeBrands, dailyBySlug).map(point => ({ ...point,
+    recordedBrands: activeRosterBrands.filter(brand => expandSlugs(reg, brand).every(slug => dailyBySlug.get(slug)?.has(point.date))).length,
+  }));
   const dailyCoverage = brandDaily !== null && rangeDays.every(day => activeBrands.every(slug => dailyBySlug.get(slug)?.has(day)));
 
   const incompleteBrands = activeRosterBrands.filter(brand => rangeDays.some(day => expandSlugs(reg, brand).some(slug => !dailyBySlug.get(slug)?.has(day))));
@@ -592,7 +594,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
       {!isEmptyBrand && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <div className="lg:col-span-2">
-            {brandDaily !== null ? <ManagedGmvChart coverageNote={dailyCoverage ? undefined : `Recorded GMV only · incomplete daily coverage: ${incompleteBrands.map(slug => brandLabel(reg, slug)).join(", ")}. Missing records are not confirmed zero sales.`} data={totalDaily} trend={comparisonRecorded ? gmvTrend : undefined} label={`Total affiliate GMV · ${periodLength} days`} />
+            {brandDaily !== null ? <ManagedGmvChart coverageNote={dailyCoverage ? undefined : `Recorded GMV · ${incompleteBrands.length} of ${activeRosterBrands.length} brands have missing days. Inspect a date for coverage; missing records are not zero sales.`} data={totalDaily} totalBrands={activeRosterBrands.length} trend={comparisonRecorded ? gmvTrend : undefined} label={`Total affiliate GMV · ${periodLength} days`} />
               : <Card><CardHeader><CardTitle>Total affiliate GMV trend</CardTitle></CardHeader><CardContent><p className="text-sm text-muted-foreground py-10">The daily trend is unavailable or has days without recorded activity. Review data coverage before interpreting a continuous trend.</p></CardContent></Card>}
           </div>
           <Card><CardHeader><CardTitle>Managed share</CardTitle></CardHeader><CardContent>

@@ -30,7 +30,7 @@ export async function getDashboardManagers(requestedSlugs: string[]): Promise<Da
   if (assignmentError) return null;
   const managerIds = [...new Set((assignments ?? []).map(row => row.manager_user_id))];
   const profiles = managerIds.length ? await admin.from('user_profiles')
-    .select('user_id,name,discord_avatar,tenant_id').in('user_id', managerIds)
+    .select('user_id,name,email,discord_avatar,tenant_id').in('user_id', managerIds)
     .in('tenant_id', [...new Set(brands.map(brand => brand.tenant_id).filter((id): id is string => !!id))]) : { data: [], error: null };
   if (profiles.error) return null;
   const groups = new Map<string, DashboardManager>();
@@ -39,7 +39,7 @@ export async function getDashboardManagers(requestedSlugs: string[]): Promise<Da
     const profile = profiles.data?.find(row => row.user_id === assignment?.manager_user_id && row.tenant_id === brand.tenant_id);
     // Missing/inaccessible identities are not matched by name or email.
     const id = profile?.user_id ?? (assignment ? `unavailable:${brand.id}` : 'unassigned');
-    const group: DashboardManager = groups.get(id) ?? { id, name: profile?.name || (assignment ? 'Manager profile unavailable' : 'Unassigned brands'), avatar: profile?.discord_avatar ?? null, brands: [] };
+    const group: DashboardManager = groups.get(id) ?? { id, name: profile?.name || profile?.email || (assignment ? 'Manager profile unavailable' : 'Unassigned brands'), avatar: profile?.discord_avatar ?? null, brands: [] };
     group.brands.push(brand.slug);
     groups.set(id, group);
   }
