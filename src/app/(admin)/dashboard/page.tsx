@@ -556,7 +556,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
           info="Affiliate items sold from the same daily reports as GMV and orders, for the selected brands and dates. Units and orders are separate measures." />
       </div>
       {canViewCost && <div className={reviewStyles.commitments}>
-        <span><strong>Current retainers</strong> {formatCurrency(totalRetainerSpend)} / month · {retainerBrandCount} brands</span>
+        <span><strong>Current retainers</strong> {formatCurrency(totalRetainerSpend)} / month · {retainerBrandCount} {retainerBrandCount === 1 ? 'brand' : 'brands'}</span>
         <span><strong>GMV / retainer</strong> {roi > 0 ? `${roi.toFixed(1)}×` : '—'} · Trailing 30 days ({roiStart} – {roiEnd})</span>
         <span className="text-muted-foreground">Revenue multiple, not profit ROI; current commitments, not historical payments.</span>
       </div>}
@@ -599,7 +599,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
         <BrandPerformance brands={activeBrandRows.map(row => !signals.available || signals.attention.some(signal => signal.slug === row.slug && signal.kind === 'coverage') ? { ...row, trend: undefined, managedTrend: undefined, series: undefined } : row)} range={params.range} start={params.start} end={params.end} periodLength={periodLength} />
       )}
 
-      <GmvContributors rows={contributorRows} available={comparableBrands.length > 0} brand={brandFilter} start={startDate} end={endDate} coverage={`${comparableBrands.length} of ${activeRosterBrands.length} brands with comparable coverage`} />
+      <GmvContributors rows={contributorRows} available={comparableBrands.length > 0} brand={brandFilter} start={startDate} end={endDate} coverage={`${comparableBrands.length} of ${activeRosterBrands.length} ${activeRosterBrands.length === 1 ? 'brand' : 'brands'} with comparable coverage`} />
 
       {/* Row 4 — Top Creators + Top Videos leaderboards (managed, by GMV) */}
       {!isEmptyBrand && (
