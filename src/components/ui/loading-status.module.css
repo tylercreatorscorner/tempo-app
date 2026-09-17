@@ -1,0 +1,15 @@
+.status { display:flex; align-items:center; gap:12px; min-width:0; color:var(--foreground); }
+.mark { display:flex; align-items:center; justify-content:center; gap:3px; width:30px; height:30px; flex-shrink:0; }
+.mark i { width:4px; height:12px; border-radius:4px; background:var(--primary); animation:tempo-pulse 1.5s ease-in-out infinite; }
+.mark i:nth-child(2) { height:20px; animation-delay:.16s; }
+.mark i:nth-child(3) { height:15px; animation-delay:.32s; }
+.label { margin:0; font-size:13px; font-weight:600; line-height:1.5; }
+.detail { margin:3px 0 0; font-size:12px; line-height:1.5; color:var(--muted-foreground); }
+.chart { position:relative; min-height:300px; display:flex; align-items:center; justify-content:center; overflow:hidden; border-radius:12px; }
+.grid { position:absolute; inset:22px 12px; opacity:.45; background:repeating-linear-gradient(to bottom, transparent 0, transparent 54px, var(--border) 54px, var(--border) 55px); }
+.chartStatus { position:relative; margin:20px; padding:16px 20px; border:1px solid var(--border); border-radius:14px; background:var(--card); box-shadow:0 4px 18px rgb(0 0 0 / .025); }
+.skeleton { position:relative; overflow:hidden; background:color-mix(in srgb, var(--muted) 65%, var(--card)); }
+.skeleton::after { content:''; position:absolute; inset:0; transform:translateX(-100%); background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--background) 60%,transparent),transparent); animation:tempo-shimmer 2s ease-in-out infinite; }
+@keyframes tempo-pulse { 0%,100% { opacity:.35; } 50% { opacity:1; } }
+@keyframes tempo-shimmer { 100% { transform:translateX(100%); } }
+@media(prefers-reduced-motion:reduce) { .mark i { animation:none; } .skeleton::after { animation:none; display:none; } }

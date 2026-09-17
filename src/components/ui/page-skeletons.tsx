@@ -1,3 +1,4 @@
+import { LoadingStatus } from './loading-status';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardHeader, CardContent } from '@/components/ui/card';
 
@@ -13,9 +14,10 @@ import { Card, CardHeader, CardContent } from '@/components/ui/card';
 export function PageHeaderSkeleton({ withControls = true, subtitle = true }: { withControls?: boolean; subtitle?: boolean }) {
   return (
     <div className="flex flex-wrap items-end justify-between gap-3">
-      <div className="space-y-2">
-        <Skeleton className="h-8 w-56" />
-        {subtitle && <Skeleton className="h-4 w-72" />}
+      <div className="space-y-3">
+        <LoadingStatus label="Loading page" />
+        <Skeleton className="h-8 w-56 max-w-full" />
+        {subtitle && <Skeleton className="h-4 w-72 max-w-full" />}
       </div>
       {withControls && (
         <div className="flex items-center gap-2">
