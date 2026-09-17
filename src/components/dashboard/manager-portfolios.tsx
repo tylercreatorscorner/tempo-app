@@ -71,6 +71,7 @@ export function ManagerPortfolios({
           </p>
         ) : (
           managers.map((manager) => {
+            const hasManager = manager.id !== "unassigned" && !manager.id.startsWith("unavailable:");
             const rows = brands.filter((row) =>
               manager.brands.includes(row.slug),
             );
@@ -161,9 +162,9 @@ export function ManagerPortfolios({
                 <div className={styles.brands}>
                   <Link
                     className={styles.reviewLink}
-                    href={`/dashboard/reviews?month=${month}&manager=${encodeURIComponent(manager.id)}`}
+                    href={`/dashboard/reviews?month=${month}&manager=${hasManager ? encodeURIComponent(manager.id) : "all"}`}
                   >
-                    Review {manager.name}’s goals and results →
+                    {hasManager ? `Review ${manager.name}’s goals and results →` : "Review brand assignments and goals →"}
                   </Link>
                   {rows.map((row) => {
                     const signal = [

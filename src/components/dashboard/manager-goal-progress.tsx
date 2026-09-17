@@ -72,12 +72,13 @@ export function ManagerGoalProgress({
     approved.length === rows.length &&
     rows.every((b) => b.actual !== null && b.complete);
   const actual = rows.reduce((s, b) => s + (b.actual ?? 0), 0);
+  const missingManager = managerId === "unassigned" || managerId.startsWith("unavailable:");
   const percent = complete && target ? (actual / target) * 100 : null;
   return (
     <div className="min-w-0 text-xs">
       <span className="block text-muted-foreground">{month} goal</span>
       <strong className="block text-sm">
-        {failed
+        {missingManager ? "Manager needed" : failed
           ? "Unavailable"
           : !data
             ? "Loading goals…"
