@@ -505,7 +505,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
       {/* Header */}
       <PageHeader
         eyebrow={brandFilter ? activeBrandName ?? "Dashboard" : "Agency overview"}
-        title="Performance overview"
+        title="Dashboard"
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <BrandFilter label="Dashboard brand scope" appearance="creator" brands={ALL_BRANDS} brandsWithData={activeBrandRows.map(row => row.slug)} selectedBrand={brandFilter} />
