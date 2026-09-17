@@ -51,7 +51,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
 
   const { data: row, error: fetchErr } = await supabase
     .from('client_reports')
-    .select('id, token, brand_slug, period_start, period_end, revoked_at, report_type')
+    .select('id, token, brand_slug, period_start, period_end, revoked_at, report_type, snapshot')
     .eq('id', id).eq('tenant_id', scope.tenantId)
     .maybeSingle();
   if (fetchErr) return NextResponse.json({ error: fetchErr.message }, { status: 500 });
@@ -61,6 +61,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
   }
   // A revoked link renders a revoked notice, so refreshing it would rebuild
   // numbers nobody can reach. Fail loudly rather than burn ~13s silently.
+  if (row.snapshot?.reconciliation) return NextResponse.json({error:'This reconciled revision cannot be refreshed. Create a new revision to change approved figures.'},{status:409});
   if (row.revoked_at) {
     return NextResponse.json(
       { error: 'This link is revoked. Generate a new report instead.' },

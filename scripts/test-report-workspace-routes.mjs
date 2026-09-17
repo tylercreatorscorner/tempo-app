@@ -74,6 +74,8 @@ scope=own;
 const board=await (await overview.GET()).json();assert.ok(!JSON.stringify(board).includes('secret-token'));
 deps['@react-pdf/renderer']={renderToBuffer:async()=>new Uint8Array([37,80,68,70])};
 let logoSeen=null;
+let reconciliationPdfSeen=false;
+deps['@/lib/pdf/report-reconciliation-pdf']={ReportReconciliationPDF:props=>{reconciliationPdfSeen=true;return props;}};
 deps['@/lib/pdf/brand-client-report-pdf']={BrandClientReportPDF:props=>props};
 deps['@/lib/brand-logo']={brandLogoDataUri:async url=>{logoSeen=url;return null;}};
 deps['react/jsx-runtime']={jsx:(type,props)=>({type,props}),jsxs:(type,props)=>({type,props}),Fragment:'fragment'};
@@ -89,6 +91,15 @@ const publicView=await page.default({...tokenCtx,searchParams:Promise.resolve({p
 assert.equal(publicView.props.children[1].props.logoUrl,'our-logo');
 assert.equal(publicView.props.children[1].props.report.granular.creators[0].gmv,123);
 assert.equal(rpcCalls.length,0,'Public token readers must never regenerate data');
+tables.client_reports[0].snapshot.reconciliation={version:1,rows:[{name:'=formula',handle:'creator',agreement:'300 / 30',augustPosts:7,creditedPosts:'7 confirmed',invoice:70,resolution:'Confirmed'}]};
+const correctedCsv=await (await csv.GET(req(null,'GET'),tokenCtx)).text();
+assert.ok(correctedCsv.includes("'=formula"));assert.ok(correctedCsv.includes('7 confirmed,70'));assert.ok(!correctedCsv.includes('Frozen creator'));
+assert.equal((await pdf.GET(req(null,'GET'),tokenCtx)).status,200);assert.equal(reconciliationPdfSeen,true);
+scope=own;const writesBefore=writes;rpcCalls=[];
+assert.equal((await refresh.POST(req(null),ctx('our-report'))).status,409);
+assert.equal(writes,writesBefore);assert.equal(rpcCalls.length,0);
+delete tables.client_reports[0].snapshot.reconciliation;
+
 scope=own;
 assert.equal((await revoke.POST(req(null),ctx('our-report'))).status,200);
 assert.equal((await csv.GET(req(null,'GET'),tokenCtx)).status,404);
