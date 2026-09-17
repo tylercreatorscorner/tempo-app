@@ -1,3 +1,4 @@
+import { ReconciliationView } from './reconciliation-view';
 /**
  * The client report page body — renders the frozen snapshot.
  *
@@ -1667,6 +1668,7 @@ export function ReportView({
    * delivered, and how much of the revenue is content we started — and leaves
    * the rest of the report alone.
    */
+  if (s.reconciliation) return <ReconciliationView revision={s.reconciliation} report={r} token={token} brandName={brandName} periodLabel={periodLabel} />;
   const isMonthly = reportType === 'monthly';
   const isWeekly = reportType === 'weekly';
   const word = periodWord(r.periodLengthDays);

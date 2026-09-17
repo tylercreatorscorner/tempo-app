@@ -1,3 +1,4 @@
+import { ReportReconciliationPDF } from '@/lib/pdf/report-reconciliation-pdf';
 /**
  * GET /api/report-pdf/[token] — public PDF export of a shared client report.
  *
@@ -52,7 +53,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ token: str
       logoUrl = (brandRow?.logo_url as string | null) ?? null;
     }
 
-    const docElement = BrandClientReportPDF({
+    const docElement = snapshot.reconciliation ? ReportReconciliationPDF({revision:snapshot.reconciliation,brandName:row.brand_name,periodLabel:`${data.startDate.toISOString().slice(0,10)} to ${data.endDate.toISOString().slice(0,10)}`}) : BrandClientReportPDF({
       data,
       // The attachment must carry the same human voice as the link.
       notes: row.notes as string | null,

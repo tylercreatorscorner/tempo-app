@@ -1,3 +1,4 @@
+import type { ReportReconciliation } from './report-reconciliation';
 import type { ClientReportContext } from '@/lib/auth/client-report-access';
 /**
  * Client report share links — snapshot creation + helpers.
@@ -25,6 +26,7 @@ import {
 export type ClientReportPeriod = ReportPeriod | { start: string; end: string };
 
 export interface ClientReportSnapshot {
+  reconciliation?: ReportReconciliation;
   v: 1;
   generatedAt: string;                     // ISO timestamp the numbers were frozen
   report: BrandClientReportData;           // Date fields are ISO strings at rest — revive on read

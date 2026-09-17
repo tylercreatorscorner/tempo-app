@@ -55,6 +55,11 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ token: str
   if (!row || row.revoked_at) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   const snapshot = row.snapshot as ClientReportSnapshot;
+  if (snapshot.reconciliation) {
+    const header=['Creator','Handle','Agreement / window','August posts','Delivery / allocation','Invoice USD','Resolution'];
+    const rows=snapshot.reconciliation.rows.map(r=>[r.name,r.handle,r.agreement,r.augustPosts,r.creditedPosts,r.invoice ?? 'Unchanged',r.resolution]);
+    return new NextResponse([header,...rows].map(r=>r.map(csvCell).join(',')).join('\r\n'),{headers:{'Content-Type':'text/csv; charset=utf-8','Content-Disposition':'attachment; filename="creator-reconciliation.csv"','Cache-Control':'private, no-store'}});
+  }
   const report = reviveReportDates(snapshot.report);
   const creators = report.granular?.creators ?? [];
   if (creators.length === 0) {
