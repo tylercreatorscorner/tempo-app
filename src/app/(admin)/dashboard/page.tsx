@@ -542,7 +542,11 @@ export default async function AdminDashboard({ searchParams }: Props) {
         }
       />
 
-      <p className="text-xs text-muted-foreground">{startDate} – {endDate} · Compared with {prevStartDate} – {prevEndDate} · {brandFilter ? activeBrandName : `${ALL_BRANDS.length} authorized brands`}</p>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+        <span className="font-medium text-foreground">{format(new Date(`${startDate}T12:00:00`), 'MMM d, yyyy')} – {format(new Date(`${endDate}T12:00:00`), 'MMM d, yyyy')}</span>
+        <span>vs {format(new Date(`${prevStartDate}T12:00:00`), 'MMM d, yyyy')} – {format(new Date(`${prevEndDate}T12:00:00`), 'MMM d, yyyy')}</span>
+        <span>{brandFilter ? activeBrandName : `${ALL_BRANDS.length} authorized brands`}</span>
+      </div>
 
       <div className={reviewStyles.metrics}>
         <StatCard

@@ -163,7 +163,7 @@ export function DashboardCharts({
             totalBrands={result?.brands}
             coverageUnit="stores"
             controls={
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-3">
                 <ChoiceMenu
                   compact
                   label="Chart metric"
@@ -173,7 +173,7 @@ export function DashboardCharts({
                 />
                 <InfoTooltip label="Recorded daily totals for your selected brands. Missing imports are gaps, not zero sales. Managed metrics use the same creator membership as the dashboard." />
                 {!result && !error && (
-                  <LoadingStatus label="Loading metrics" />
+                  <LoadingStatus label="Loading metrics" className="basis-full sm:basis-auto" />
                 )}
               </div>
             }
@@ -233,25 +233,26 @@ export function DashboardCharts({
             <p className="text-[11px] text-muted-foreground">
               * Partial month or incomplete coverage · Through {end}
             </p>
-            <details className="mt-2 text-xs text-muted-foreground">
-              <summary className="cursor-pointer">Monthly values</summary>
-              <div className="overflow-x-auto">
-                <table className="mt-2 w-full text-right tabular-nums">
-                  <thead>
+            <details className="mt-4 border-t border-border pt-3 text-xs text-muted-foreground">
+              <summary className="w-fit cursor-pointer rounded-md py-1 font-medium text-foreground focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-4">Monthly values</summary>
+              <div className="mt-3 overflow-x-auto rounded-xl border border-border" role="region" aria-label="Monthly performance values" tabIndex={0}>
+                <table className="w-full min-w-[460px] text-right tabular-nums [&_th]:px-4 [&_th]:py-3 [&_td]:px-4 [&_td]:py-3">
+                  <caption className="sr-only">Monthly total GMV, managed GMV, and managed share. An asterisk marks partial coverage.</caption>
+                  <thead className="bg-muted/40 text-[11px]">
                     <tr>
-                      <th className="text-left">Month</th>
-                      <th>Total GMV</th>
-                      <th>Managed GMV</th>
-                      <th>Share</th>
+                      <th scope="col" className="text-left">Month</th>
+                      <th scope="col">Total GMV</th>
+                      <th scope="col">Managed GMV</th>
+                      <th scope="col">Share</th>
                     </tr>
                   </thead>
                   <tbody>
                     {monthly.map((p) => (
-                      <tr key={p.month}>
-                        <td className="py-2 text-left">
-                          {p.month}
+                      <tr key={p.month} className="border-t border-border hover:bg-muted/20">
+                        <th scope="row" className="whitespace-nowrap text-left font-medium text-foreground">
+                          {new Date(`${p.month}-01T00:00:00Z`).toLocaleDateString("en-US", {month:"short",year:"numeric",timeZone:"UTC"})}
                           {p.partial ? " *" : ""}
-                        </td>
+                        </th>
                         <td>
                           {p.total === null ? "—" : formatCurrency(p.total)}
                         </td>
