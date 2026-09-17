@@ -198,3 +198,17 @@ assert.equal(
 console.log(
   "PASS goal API: own proposals, leadership approval, scoped reach, foreign brand denial, impersonation denial, strict inputs, missing/duplicate coverage",
 );
+
+for (const [month, proposal, approval] of [
+  ["2026-10", "2026-09-25", "2026-09-30"],
+  ["2026-11", "2026-10-28", "2026-10-30"],
+  ["2026-06", "2026-05-27", "2026-05-29"],
+  ["2028-03", "2028-02-24", "2028-02-29"],
+  ["2027-01", "2026-12-28", "2026-12-31"],
+]) {
+ const dates = model.goalDeadlines(month);
+ assert.equal(dates.proposal, proposal);
+ assert.equal(dates.approval, approval);
+}
+assert.throws(() => model.goalDeadlines("invalid"));
+console.log("PASS monthly goal deadlines: weekdays, weekend month ends, leap February and year rollover");

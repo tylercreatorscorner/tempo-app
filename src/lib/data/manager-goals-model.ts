@@ -81,3 +81,18 @@ export function goalCoverage(
   }
   return true;
 }
+
+/** Deadlines fall in the month before the target month. Business days are Mon–Fri. */
+export function goalDeadlines(month: string) {
+  if (!validGoalMonth(month)) throw new Error("Choose a valid goal month");
+  const monthEnd = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)) - 1, 0));
+  const approval = new Date(monthEnd);
+  while (approval.getUTCDay() === 0 || approval.getUTCDay() === 6) approval.setUTCDate(approval.getUTCDate() - 1);
+  const proposal = new Date(monthEnd);
+  let businessDays = 0;
+  while (businessDays < 3) {
+    proposal.setUTCDate(proposal.getUTCDate() - 1);
+    if (proposal.getUTCDay() !== 0 && proposal.getUTCDay() !== 6) businessDays++;
+  }
+  return { proposal: proposal.toISOString().slice(0, 10), approval: approval.toISOString().slice(0, 10) };
+}

@@ -18,3 +18,7 @@ These are live reviews, not finalized monthly performance snapshots. Actuals fol
 ## Verification
 
 `npm run test:manager-goals` executes the migration in isolated PostgreSQL (PGlite) and exercises route/data authorization using fixtures. It covers tenant/brand boundaries, proposal versus approval, impersonation, stale versions, rollback, immutable events, input validation, and missing/duplicate daily coverage. Never create test goals against a live preview database.
+
+## Planning deadlines
+
+For each goal month, proposals are due three Monday–Friday business days before the preceding calendar month ends; approvals are due on its last Monday–Friday business day. Dates are displayed in the review. Holidays are not excluded. These are planning deadlines, not automatic reminders or a hard lock on late corrections.
