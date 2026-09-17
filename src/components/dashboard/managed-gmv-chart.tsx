@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, useState, type PointerEvent } from 'react';
+import { useId, useState, type PointerEvent, type ReactNode } from 'react';
 import { formatCurrency } from '@/lib/utils/format';
 import { fmtCompactCurrency } from '@/components/charts/format';
 import { Card, CardHeader, CardContent } from '@/components/ui/card';
@@ -33,13 +33,19 @@ export function ManagedGmvChart({
   label,
   coverageNote,
   totalBrands,
+  controls,
+  numeric = false,
 }: {
   data: { date: string; gmv: number | null; recordedBrands?: number }[];
   trend?: number;
   label: string;
   coverageNote?: string;
   totalBrands?: number;
+  controls?: ReactNode;
+  numeric?: boolean;
 }) {
+  const compact = numeric ? (value: number) => Intl.NumberFormat('en-US',{notation:'compact',maximumFractionDigits:1}).format(value) : fmtCompactCurrency;
+  const detail = numeric ? (value: number) => value.toLocaleString('en-US') : formatCurrency;
   const [hi, setHi] = useState<number | null>(null);
   const isPos = trend !== undefined && trend >= 0;
   const gradientId = useId();
@@ -88,7 +94,7 @@ export function ManagedGmvChart({
         {/* Trend card — the canonical Managed GMV number lives in the KPI hero
             above; this card shows only the shape + period-over-period delta, so
             it never displays a second (source-divergent) managed total. */}
-        <p className="text-[10.5px] font-bold uppercase tracking-[0.12em] text-muted-foreground">{label}</p>
+        <div className="text-[10.5px] font-bold uppercase tracking-[0.12em] text-muted-foreground">{controls ?? label}</div>
         {trend !== undefined && (
           <span className={cn('shrink-0 text-[13px] font-bold tabular-nums', isPos ? 'text-[var(--pulse-pos)]' : 'text-[var(--pulse-neg)]')}>
             {isPos ? '▲' : '▼'}{Math.abs(trend) < 1 ? Math.abs(trend).toFixed(1) : Math.round(Math.abs(trend))}%
@@ -105,15 +111,15 @@ export function ManagedGmvChart({
                 at 52px the gutter pushed the plot 60px right of centre inside the
                 card, which read as the whole chart being off-centre. */}
             <div className="flex w-[34px] flex-shrink-0 flex-col justify-between py-[6px] text-right text-[10px] tabular-nums text-muted-foreground">
-              <span>{fmtCompactCurrency(max)}</span>
-              <span>{fmtCompactCurrency(min + range / 2)}</span>
-              <span>{fmtCompactCurrency(min)}</span>
+              <span>{compact(max)}</span>
+              <span>{compact(min + range / 2)}</span>
+              <span>{compact(min)}</span>
             </div>
 
             <div className="flex min-w-0 flex-1 flex-col">
               {/* min-h keeps the old floor; h-full lets the plot absorb the extra
                   height from the flex parent rather than leaving dead space below. */}
-              <div className="relative h-full min-h-[150px]" role="group" aria-label="GMV by day. Use left and right arrow keys to inspect dates." tabIndex={0}
+              <div className="relative h-full min-h-[150px]" role="group" aria-label={`${label} by day. Use left and right arrow keys to inspect dates.`} tabIndex={0}
                 onPointerMove={onMove} onPointerDown={onMove} onPointerLeave={() => setHi(null)}
                 onFocus={() => setHi(n - 1)} onBlur={() => setHi(null)}
                 onKeyDown={event => {
@@ -171,14 +177,14 @@ export function ManagedGmvChart({
                   <span className="text-background/60">
                     {new Date(hd.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })} ·{' '}
                   </span>
-                  <span className="tabular-nums">{hd.gmv === null ? 'No recorded data' : formatCurrency(hd.gmv)}</span>
+                  <span className="tabular-nums">{hd.gmv === null ? 'No recorded data' : detail(hd.gmv)}</span>
                   {totalBrands !== undefined && <span className="block text-background/70">{hd.recordedBrands ?? 0}/{totalBrands} brands recorded</span>}
                 </div>
               </>
             ) : null}
               </div>
 
-              <span className="sr-only" aria-live="polite">{hd ? `${fmtAxisDay(hd.date)}: ${hd.gmv === null ? "No recorded data" : formatCurrency(hd.gmv)}` : ""}</span>
+              <span className="sr-only" aria-live="polite">{hd ? `${fmtAxisDay(hd.date)}: ${hd.gmv === null ? "No recorded data" : detail(hd.gmv)}` : ""}</span>
               {/* X axis — first / middle / last day. Three ticks, not n: at 30d a
                   label per point is unreadable mush, and the hover tooltip already
                   names the exact day. */}

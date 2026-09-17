@@ -49,7 +49,7 @@ const TH = 'text-[10px] font-bold uppercase tracking-[0.1em] text-muted-foregrou
 // the free width — short names like "M3" sat alone on the left beside ~200px of
 // void while every number crowded the right edge. Now the data spreads evenly
 // across the full width instead of pooling at one end.
-const COLS = 'grid grid-cols-[minmax(140px,2.2fr)_repeat(8,minmax(0,1fr))] items-center gap-x-3';
+const COLS = 'grid grid-cols-[minmax(155px,1.6fr)_repeat(5,minmax(0,1fr))] items-center gap-x-3';
 
 /** Right-aligned column header with a hover tooltip explaining the metric.
  *  Width comes from the grid track, not the cell — see COLS. */
@@ -118,18 +118,16 @@ export async function BrandPerformance({ brands, range, start, end, periodLength
       </CardHeader>
 
       <div className="overflow-x-auto" role="region" aria-label="Brand performance metrics" tabIndex={0}>
-      <div className="min-w-[960px]">
+      <div className="min-w-[820px]">
       {/* Column headers — each metric header hover-explains itself */}
       <div className={`${COLS} border-b border-border px-5 py-2`}>
         <span className={TH}>Brand</span>
         <HeadCell label="GMV"      tip="Total affiliate GMV for this brand in the selected period." />
-        <HeadCell label="Δ"        tip="Total GMV vs the previous period of equal length." />
         <span className={`${TH} text-right`}>{sparkLabel}</span>
         <HeadCell label="Managed"  tip="GMV from your managed creators for this brand, in the selected period." />
-        <HeadCell label="Δ"        tip="Managed GMV vs the previous period — your own momentum on this brand, independent of how the brand is doing overall." />
         <HeadCell label="Mgd %"    tip="Managed GMV as a share of this brand's total GMV." />
         <HeadCell label="Retainer" tip="Current monthly creator retainer commitments for this brand. Not historical payments or actual period spend." />
-        <HeadCell label="GMV / fee"      tip="Trailing-30-day managed GMV divided by this brand's monthly retainer (a fixed 30-day window, independent of the period above). Revenue multiple, not profit ROI; excludes commissions and other costs." />
+
       </div>
 
       <div className="divide-y divide-border">
@@ -153,9 +151,8 @@ export async function BrandPerformance({ brands, range, start, end, periodLength
 
               {/* Total GMV + its delta */}
               <span className="text-right text-[13.5px] font-semibold tabular-nums text-foreground">
-                {formatCurrency(b.currentGmv)}
+                {formatCurrency(b.currentGmv)}<span className="mt-1 block text-[11px]"><Delta value={b.trend} /></span>
               </span>
-              <Delta value={b.trend} />
 
               {/* Shape of the period. Same source as the GMV figure two columns
                   left, so the line can't disagree with the number beside it. */}
@@ -165,9 +162,8 @@ export async function BrandPerformance({ brands, range, start, end, periodLength
 
               {/* Managed GMV + its delta */}
               <span className="text-right text-[13.5px] font-semibold tabular-nums text-foreground">
-                {formatCurrency(b.managedGmv)}
+                {formatCurrency(b.managedGmv)}<span className="mt-1 block text-[11px]"><Delta value={b.managedTrend} /></span>
               </span>
-              <Delta value={b.managedTrend} />
 
               {/* Managed share of the brand's total GMV */}
               <span className="text-right text-[13px] font-semibold tabular-nums text-muted-foreground">
@@ -177,13 +173,9 @@ export async function BrandPerformance({ brands, range, start, end, periodLength
               {/* Monthly retainer spend — ROI's denominator, shown.
                   Null (finance-hidden viewer) renders "—" like a $0 does. */}
               <span className="text-right text-[13px] font-semibold tabular-nums text-muted-foreground">
-                {b.retainer != null && b.retainer > 0 ? formatCurrency(b.retainer) : '—'}
+                {b.retainer != null && b.retainer > 0 ? formatCurrency(b.retainer) : '—'}<span className="mt-1 block text-[11px] font-normal">{b.roi != null && b.roi > 0 ? `${b.roi.toFixed(1)}× GMV / fee` : ''}</span>
               </span>
 
-              {/* ROI — trailing-30d managed GMV / monthly retainer */}
-              <span className="text-right text-[13.5px] font-semibold tabular-nums text-foreground">
-                {b.roi != null && b.roi > 0 ? `${b.roi.toFixed(1)}×` : '—'}
-              </span>
             </Link>
           );
         })}

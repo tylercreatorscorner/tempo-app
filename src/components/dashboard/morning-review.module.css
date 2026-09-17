@@ -17,9 +17,9 @@
 .empty { padding:12px 16px; color:var(--muted-foreground); font-size:14px; line-height:1.6; }
 .rules { font-size:12px; color:var(--muted-foreground); line-height:1.7; }
 .rules summary { cursor:pointer; padding:10px 0; }
-.metrics { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; }
+.metrics { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:12px; }
 .metrics > div { border-radius:14px; box-shadow:none; }
-@media(max-width:1100px) { .metrics { grid-template-columns:repeat(4,minmax(0,1fr)); } }
+@media(max-width:1100px) { .metrics { grid-template-columns:repeat(3,minmax(0,1fr)); } }
 @media(max-width:700px) { .groups { grid-template-columns:1fr; } .metrics { grid-template-columns:repeat(2,minmax(0,1fr)); }  .item { padding:8px 12px; gap:8px; } .group header { padding:12px; } .delta { font-size:14px; } }
 
 .delta small { display:block; font-size:11px; font-weight:400; }
@@ -32,3 +32,5 @@
 .commitments { display:flex; flex-wrap:wrap; gap:8px 24px; padding:12px 0; border-block:1px solid var(--border); font-size:12px; }
 .commitments strong { font-weight:500; margin-right:6px; }
 @media(max-width:900px) { .metrics { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+
+@media(min-width:1101px){.metrics > div{padding:14px 12px}.metrics > div > p{font-size:22px}}

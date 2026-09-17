@@ -18,9 +18,9 @@ import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 
 import { StatCard } from '@/components/dashboard/stat-card';
 import { ManagedOrganicDonut } from '@/components/dashboard/managed-organic-donut';
-import { ManagedGmvChart } from '@/components/dashboard/managed-gmv-chart';
+import { DashboardCharts } from '@/components/dashboard/dashboard-charts';
+import { InfoTooltip } from '@/components/ui/info-tooltip';
 import { BrandFilter } from '@/components/creators/brand-filter';
-import { MorningReview } from '@/components/dashboard/morning-review';
 import { dashboardComparison } from '@/lib/data/dashboard-comparison';
 import { buildContributors } from '@/lib/data/dashboard-contributors';
 import { GmvContributors } from '@/components/dashboard/gmv-contributors';
@@ -423,7 +423,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
     return acc;
   }, { gmv: 0, orders: 0, units: 0 });
 
-  const gmvTrend = totalsFailed || prevBrandSummaries === null ? undefined : pctChange(totals.gmv, prevTotals.gmv);
+
 
 
 
@@ -491,7 +491,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
   const comparison = dashboardComparison(comparableStores, summaryRows, prevSummaryRows, mgPeriod.byStore, mgPrev.byStore);
   const canCompare = comparableBrands.length > 0;
   const comparisonLabel = canCompare
-    ? `vs prior period · ${comparableBrands.length} comparable ${comparableBrands.length === 1 ? 'brand' : 'brands'}`
+    ? 'vs prior period'
     : signals.available ? 'No comparable brands in this period' : 'Comparison temporarily unavailable';
   function comparisonDelta(metric: 'gmv' | 'managed' | 'orders' | 'units') {
     if (!canCompare) return comparisonLabel;
@@ -503,7 +503,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
   const totalDaily = buildDashboardTrend(rangeDays, activeBrands, dailyBySlug).map(point => ({ ...point,
     recordedBrands: activeRosterBrands.filter(brand => expandSlugs(reg, brand).every(slug => dailyBySlug.get(slug)?.has(point.date))).length,
   }));
-  const dailyCoverage = brandDaily !== null && rangeDays.every(day => activeBrands.every(slug => dailyBySlug.get(slug)?.has(day)));
+
 
   const incompleteBrands = activeRosterBrands.filter(brand => rangeDays.some(day => expandSlugs(reg, brand).some(slug => !dailyBySlug.get(slug)?.has(day))));
   const managers = await managersPromise;
@@ -521,7 +521,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
         title="Dashboard"
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <BrandFilter label="Dashboard brand scope" appearance="creator" brands={ALL_BRANDS} brandsWithData={activeBrandRows.map(row => row.slug)} selectedBrand={brandFilter} />
+            <BrandFilter compact label="Dashboard brand scope" appearance="creator" brands={ALL_BRANDS} brandsWithData={activeBrandRows.map(row => row.slug)} selectedBrand={brandFilter} />
             <Suspense fallback={null}>
               <DateRangePicker staleThrough={staleThrough} />
             </Suspense>
@@ -529,14 +529,14 @@ export default async function AdminDashboard({ searchParams }: Props) {
                 `.chip.live`; green when fresh, amber when the data is stale. */}
             <span
               className={cn(
-                'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold text-muted-foreground shadow-sm',
+                'inline-flex items-center gap-1.5 rounded-md px-1 py-1 text-[11px] text-muted-foreground',
                 isStale
                   ? 'border-[var(--pulse-warn)]/30 bg-[var(--pulse-warn)]/10'
                   : 'border-[var(--pulse-pos)]/25 bg-[var(--pulse-pos)]/10',
               )}
             >
               <span className={cn('h-1.5 w-1.5 rounded-full', isStale ? 'bg-[var(--pulse-warn)]' : 'bg-[var(--pulse-pos)]')} />
-              <span className="tabular-nums">{dataThroughLabel}</span>
+              <span className="tabular-nums">{dataThroughLabel}</span><InfoTooltip label={`Changes compare ${comparableBrands.length} fully recorded brands in both periods. Headline totals include all recorded sales. ${incompleteBrands.map(slug => brandLabel(reg,slug)).join(', ')}${incompleteBrands.length ? ': missing daily data; excluded from comparisons.' : ''}`} />
             </span>
           </div>
         }
@@ -567,15 +567,14 @@ export default async function AdminDashboard({ searchParams }: Props) {
           trend={canCompare ? pctChange(comparison.current.units,comparison.previous.units) : undefined}
           trendLabel={comparisonDelta('units')}
           info="Affiliate items sold from the same daily reports as GMV and orders, for the selected brands and dates. Units and orders are separate measures." />
+        <StatCard label="Average order value" value={!totalsFailed && totals.orders > 0 ? formatCurrency(totals.gmv / totals.orders) : '—'}
+          trend={canCompare && comparison.current.orders > 0 && comparison.previous.orders > 0 ? pctChange(comparison.current.gmv / comparison.current.orders, comparison.previous.gmv / comparison.previous.orders) : undefined}
+          trendLabel={comparisonLabel} info="Affiliate GMV divided by affiliate orders. The comparison uses the same fully recorded brands in both periods; this is a weighted average, not an average of brand averages." />
       </div>
-      {canCompare && !comparisonRecorded && <p className="text-xs text-muted-foreground">Totals include all recorded sales in the selected scope. Changes compare only the same {comparableBrands.length} fully recorded brands in both periods; brands with missing data are excluded from changes.</p>}
-      {canViewCost && <div className={reviewStyles.commitments}>
-        <span><strong>Current retainers</strong> {formatCurrency(totalRetainerSpend)} / month · {retainerBrandCount} {retainerBrandCount === 1 ? 'brand' : 'brands'}</span>
-        <span><strong>GMV / retainer</strong> {roi > 0 ? `${roi.toFixed(1)}×` : '—'} · Trailing 30 days ({roiStart} – {roiEnd})</span>
-        <span className="text-muted-foreground">Revenue multiple, not profit ROI; current commitments, not historical payments.</span>
+      {canViewCost && <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <Card><CardContent className="flex items-center justify-between gap-4 py-4"><div><p className="text-xs font-medium text-muted-foreground">Monthly retainer budget <InfoTooltip label="Current monthly creator commitments for the selected brands; not historical payments or spend in the selected date range."/></p><p className="mt-1 text-xl font-semibold tabular-nums">{formatCurrency(totalRetainerSpend)}</p></div><span className="text-xs text-muted-foreground">{retainerBrandCount} {retainerBrandCount===1?'brand':'brands'}</span></CardContent></Card>
+        <Card><CardContent className="flex items-center justify-between gap-4 py-4"><div><p className="text-xs font-medium text-muted-foreground">GMV / retainer return <InfoTooltip label={`Managed GMV from ${roiStart} through ${roiEnd}, divided by current monthly commitments. Revenue multiple, not profit ROI; excludes commissions and other costs.`}/></p><p className="mt-1 text-xl font-semibold tabular-nums">{roi > 0 ? `${roi.toFixed(1)}×` : '—'}</p></div><span className="text-xs text-muted-foreground">Trailing 30 days</span></CardContent></Card>
       </div>}
-
-      <MorningReview singleBrand={!!brandFilter} {...signals} labels={Object.fromEntries(activeRosterBrands.map(slug => [slug, brandLabel(reg, slug)]))} start={startDate} end={endDate} />
 
       {/* Empty-state for a brand-filtered view with no activity */}
       {isEmptyBrand && (
@@ -591,18 +590,9 @@ export default async function AdminDashboard({ searchParams }: Props) {
         />
       )}
 
-      {!isEmptyBrand && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div className="lg:col-span-2">
-            {brandDaily !== null ? <ManagedGmvChart coverageNote={dailyCoverage ? undefined : `Recorded GMV · ${incompleteBrands.length} of ${activeRosterBrands.length} brands have missing days. Inspect a date for coverage. Dashed segments mark lower coverage; missing records are not zero sales.`} data={totalDaily} totalBrands={activeRosterBrands.length} trend={comparisonRecorded ? gmvTrend : undefined} label={`Total affiliate GMV · ${periodLength} days`} />
-              : <Card><CardHeader><CardTitle>Total affiliate GMV trend</CardTitle></CardHeader><CardContent><p className="text-sm text-muted-foreground py-10">The daily trend is unavailable or has days without recorded activity. Review data coverage before interpreting a continuous trend.</p></CardContent></Card>}
-          </div>
-          <Card><CardHeader><CardTitle>Managed share</CardTitle></CardHeader><CardContent>
-            {totalsFailed ? <p className="py-10 text-sm text-muted-foreground">Split unavailable — total GMV could not be loaded.</p>
-              : <ManagedOrganicDonut managed={managedGmv} organic={unmanagedGmv} prevManaged={comparisonRecorded ? prevManagedGmv : undefined} prevTotal={comparisonRecorded ? prevTotals.gmv : undefined} />}
-          </CardContent></Card>
-        </div>
-      )}
+      {!isEmptyBrand && <DashboardCharts key={`${brandFilter}|${startDate}|${endDate}`} start={startDate} end={endDate} brand={brandFilter} initial={totalDaily} share={<Card><CardHeader><CardTitle>Managed share</CardTitle></CardHeader><CardContent>
+        {totalsFailed ? <p className="py-10 text-sm text-muted-foreground">Split unavailable.</p> : <ManagedOrganicDonut managed={managedGmv} organic={unmanagedGmv} prevManaged={comparisonRecorded ? prevManagedGmv : undefined} prevTotal={comparisonRecorded ? prevTotals.gmv : undefined}/>}
+      </CardContent></Card>}/>}
 
       {managers !== undefined && <ManagerPortfolios managers={managers} brands={activeBrandRows} labels={Object.fromEntries(activeRosterBrands.map(slug => [slug, brandLabel(reg, slug)]))} signals={signals} start={startDate} end={endDate} totalsAvailable={!totalsFailed} />}
 
