@@ -25,5 +25,5 @@ export function TenantSwitcher({tenants,activeTenantId,managers,activeManagerId}
     } catch {setError('Could not change workspace. Please try again.');}
     finally {setPending(false);}
   }
-  return <div><ChoiceMenu label="Workspace" value={activeManagerId?`manager:${activeManagerId}`:`tenant:${activeTenantId??'all'}`} options={options} onChange={pick} disabled={pending}/>{error&&<p role="alert" className="absolute right-4 mt-2 rounded-xl border border-border bg-card p-3 text-xs text-red-500 shadow-lg">{error}</p>}</div>;
+  return <div><ChoiceMenu compact label="Workspace" value={activeManagerId?`manager:${activeManagerId}`:`tenant:${activeTenantId??'all'}`} options={options} onChange={pick} disabled={pending}/>{error&&<p role="alert" className="absolute right-4 mt-2 rounded-xl border border-border bg-card p-3 text-xs text-red-500 shadow-lg">{error}</p>}</div>;
 }

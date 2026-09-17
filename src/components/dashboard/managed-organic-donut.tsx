@@ -59,7 +59,7 @@ export function ManagedOrganicDonut({
         )}
       </div>
       <p className="-mt-3 text-[11px] font-medium text-muted-foreground">
-        of affiliate GMV is yours{deltaPts != null ? ' · vs prev period' : ''}
+        of affiliate GMV from managed creators{deltaPts != null ? ' · vs prev period' : ''}
       </p>
 
       {/* The split. One bar, two segments, 2px gap so the boundary is a real
@@ -83,7 +83,7 @@ export function ManagedOrganicDonut({
         <div className="flex items-center justify-between gap-2">
           <span className="flex min-w-0 items-center gap-2">
             <span className="h-2.5 w-2.5 flex-shrink-0 rounded-[3px] bg-secondary" />
-            <span className="truncate text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground">Organic</span>
+            <span className="truncate text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground">Other affiliates</span>
           </span>
           <span className="text-[13px] font-bold tabular-nums text-muted-foreground">{formatCurrency(organic)}</span>
         </div>

@@ -6,12 +6,12 @@ import type { ReactNode } from 'react';
 import styles from './choice-menu.module.css';
 
 export interface ChoiceOption { value: string; label: string; description?: string; icon?: ReactNode; group?: string; }
-export function ChoiceMenu({ label, value, options, onChange, disabled, placeholder = 'Choose an option' }: {
-  label: string; value: string; options: ChoiceOption[]; onChange: (value: string) => void; disabled?: boolean; placeholder?: string;
+export function ChoiceMenu({ label, value, options, onChange, disabled, placeholder = 'Choose an option', compact = false }: {
+  label: string; value: string; options: ChoiceOption[]; onChange: (value: string) => void; disabled?: boolean; placeholder?: string; compact?: boolean;
 }) {
   const selected = options.find(option => option.value === value);
   return <Select.Root value={value} onValueChange={onChange} disabled={disabled}>
-    <Select.Trigger className={styles.trigger} aria-label={label}>
+    <Select.Trigger className={`${styles.trigger} ${compact ? styles.compact : ''}`} aria-label={label}>
       {selected?.icon}<Select.Value placeholder={placeholder} /><Select.Icon className={styles.chevron}><ChevronDown size={15} /></Select.Icon>
     </Select.Trigger>
     <Select.Portal><Select.Content className={styles.content} position="popper" sideOffset={8} collisionPadding={12} data-lenis-prevent>
