@@ -130,3 +130,20 @@ identityScope=null; queriedTenant=undefined;
 assert.equal((await identityExports.GET()).status,403);
 assert.equal(queriedTenant,undefined);
 console.log('PASS workspace identity: authenticated home scope, active workspace, tenant-specific branding and private cache');
+
+const comparisonExports = {};
+runInNewContext(ts.transpileModule(readFileSync('src/lib/data/dashboard-comparison.ts','utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText, {exports:comparisonExports});
+const totalRow=(brand_slug,total_gmv,total_orders,total_items_sold)=>({brand_slug,total_gmv,total_orders,total_items_sold});
+const compared = comparisonExports.dashboardComparison(new Set(['complete']),
+ [totalRow('complete',200,8,10),totalRow('partial',9000,100,200),totalRow('outside',999,999,999)],
+ [totalRow('complete',100,4,5),totalRow('partial',1000,20,30)],
+ new Map([['complete',70],['partial',5000]]),new Map([['complete',40],['outside',999]]));
+assert.equal(compared.current.gmv-compared.previous.gmv,100);
+assert.equal(compared.current.orders-compared.previous.orders,4);
+assert.equal(compared.current.units-compared.previous.units,5);
+assert.equal(compared.current.managed-compared.previous.managed,30);
+const emptyComparison = comparisonExports.dashboardComparison(new Set(),[totalRow('outside',99,3,5)],[],new Map(),new Map());
+assert.equal(emptyComparison.current.gmv,0);
+assert.equal(build([row('unrecorded',0,0,0,0)],7,true).attention[0].noData,true);
+assert.equal(build([row('partial-zero',0,0,1,1)],7,true).attention[0].noData,false);
+console.log('PASS comparable KPI cohort: same stores in both periods, partial/outside exclusion, orders versus units, managed scope and no-data distinction');

@@ -14,7 +14,7 @@ export function MorningReview({ attention, opportunities, available, labels, sta
     return <Link key={row.slug} className={styles.item} href={`/dashboard?${new URLSearchParams({brand:row.slug, range:'custom',start,end})}`}>
       <BrandIdentity brand={row.slug} label={labels[row.slug] ?? row.slug} />
       <span className={`${styles.delta} ${row.kind === 'coverage' ? '' : positive ? styles.positive : styles.negative}`}>
-        {row.kind === 'coverage' ? 'Check data' : <>{row.delta > 0 ? '+' : '−'}{formatCurrency(Math.abs(row.delta))}<small>{row.percent === null ? 'From $0' : `${row.percent > 0 ? '+' : '−'}${Math.abs(row.percent).toFixed(1)}%`}</small></>}
+        {row.kind === 'coverage' ? row.noData ? 'No data available' : 'Incomplete dates' : <>{row.delta > 0 ? '+' : '−'}{formatCurrency(Math.abs(row.delta))}<small>{row.percent === null ? 'From $0' : `${row.percent > 0 ? '+' : '−'}${Math.abs(row.percent).toFixed(1)}%`}</small></>}
       </span>
     </Link>;
   }
@@ -28,7 +28,7 @@ export function MorningReview({ attention, opportunities, available, labels, sta
     </section>;
   }
   return <div>
-    {coverage.length > 0 && <details className={styles.coverage}><summary>Data coverage · {coverage.length} {coverage.length === 1 ? 'brand needs' : 'brands need'} review</summary><p>Missing records are not confirmed zero sales. Comparisons are withheld for these brands.</p>{coverage.map(row => signalRow(row,false))}</details>}
+    {coverage.length > 0 && <details className={styles.coverage}><summary>Data coverage · {coverage.length === 1 ? `${labels[coverage[0].slug] ?? coverage[0].slug}: ${coverage[0].noData ? 'no data available' : 'incomplete dates'}` : `${coverage.length} brands need review`}</summary><p>Missing records are not confirmed zero sales. Comparisons are withheld for these brands.</p>{coverage.map(row => signalRow(row,false))}</details>}
     {!singleBrand ? <div className={styles.groups}>{group('Needs attention',declines,false)}{group('Opportunities',opportunities,true)}</div> : <p className={styles.status}>{!available ? 'GMV signals unavailable.' : coverage.length ? 'GMV comparison awaiting recorded-day coverage.' : declines.length ? 'GMV decline meets the review threshold. Review the contributors below.' : 'No material GMV decline detected in this period.'}</p>}
     <details className={styles.rules}><summary>How these signals are selected</summary>
       GMV changes must be at least 10% and $100 versus the prior equal-length period. Growth from zero must reach $100 and has no percentage. Missing recorded days suppress movement signals; recorded days do not guarantee every file was imported. Changes are ordered by dollar impact, with data checks after declines. These signals identify questions, not causes or profit. Posting, spend-change, and coaching signals will need their own evidence.

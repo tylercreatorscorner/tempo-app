@@ -13,6 +13,7 @@ export interface DashboardSignal {
   previous: number;
   delta: number;
   percent: number | null;
+  noData?: boolean;
 }
 
 /** Evidence to investigate, not a health score or a profitability prediction.
@@ -30,7 +31,7 @@ export function buildDashboardSignals(brands: SignalBrand[], days: number, avail
     const percent = previous > 0 ? delta / previous * 100 : null;
     const base = { slug: brand.slug, current, previous, delta, percent };
     if (brand.recordedDays < days || brand.previousRecordedDays < days) {
-      attention.push({ ...base, kind: 'coverage', percent: null });
+      attention.push({ ...base, kind: 'coverage', percent: null, noData: brand.recordedDays === 0 && brand.previousRecordedDays === 0 });
     } else if (delta <= -100 && percent !== null && percent <= -10) {
       attention.push({ ...base, kind: 'decline' });
     } else if (delta >= 100 && (previous === 0 || (percent !== null && percent >= 10))) {

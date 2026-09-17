@@ -21,6 +21,7 @@ import { ManagedOrganicDonut } from '@/components/dashboard/managed-organic-donu
 import { ManagedGmvChart } from '@/components/dashboard/managed-gmv-chart';
 import { BrandFilter } from '@/components/creators/brand-filter';
 import { MorningReview } from '@/components/dashboard/morning-review';
+import { dashboardComparison } from '@/lib/data/dashboard-comparison';
 import { buildContributors } from '@/lib/data/dashboard-contributors';
 import { GmvContributors } from '@/components/dashboard/gmv-contributors';
 import { buildDashboardTrend } from '@/lib/data/dashboard-trend';
@@ -423,7 +424,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
   }, { gmv: 0, orders: 0, units: 0 });
 
   const gmvTrend = totalsFailed || prevBrandSummaries === null ? undefined : pctChange(totals.gmv, prevTotals.gmv);
-  const managedTrend = pctChange(managedGmv,    prevManagedGmv);
+
 
 
   // ROI = managed GMV (trailing 30d) ÷ total monthly retainer — the agency's
@@ -487,6 +488,18 @@ export default async function AdminDashboard({ searchParams }: Props) {
     Array.from(mgPeriod.byStoreCreator.entries()).filter(([store]) => comparableStores.has(store)).flatMap(([,rows]) => Array.from(rows.values()).map(row => ({handle:row.handleNorm,gmv:row.gmv}))),
     Array.from(mgPrev.byStoreCreator.entries()).filter(([store]) => comparableStores.has(store)).flatMap(([,rows]) => Array.from(rows.values()).map(row => ({handle:row.handleNorm,gmv:row.gmv}))), handleMeta);
   const comparisonRecorded = signals.available && !signals.attention.some(row => row.kind === 'coverage');
+  const comparison = dashboardComparison(comparableStores, summaryRows, prevSummaryRows, mgPeriod.byStore, mgPrev.byStore);
+  const canCompare = comparableBrands.length > 0;
+  const comparisonLabel = canCompare
+    ? `vs prior period · ${comparableBrands.length} comparable ${comparableBrands.length === 1 ? 'brand' : 'brands'}`
+    : signals.available ? 'No comparable brands in this period' : 'Comparison temporarily unavailable';
+  function comparisonDelta(metric: 'gmv' | 'managed' | 'orders' | 'units') {
+    if (!canCompare) return comparisonLabel;
+    const delta = comparison.current[metric] - comparison.previous[metric];
+    const value = metric === 'gmv' || metric === 'managed' ? formatCurrency(Math.abs(delta)) : Math.abs(delta).toLocaleString('en-US');
+    return `${delta >= 0 ? '+' : '−'}${value} ${comparisonLabel}`;
+  }
+
   const totalDaily = buildDashboardTrend(rangeDays, activeBrands, dailyBySlug).map(point => ({ ...point,
     recordedBrands: activeRosterBrands.filter(brand => expandSlugs(reg, brand).every(slug => dailyBySlug.get(slug)?.has(point.date))).length,
   }));
@@ -535,26 +548,27 @@ export default async function AdminDashboard({ searchParams }: Props) {
         <StatCard
           label="Total GMV"
           value={totalsFailed ? '—' : formatCurrency(totals.gmv)}
-          trend={comparisonRecorded ? gmvTrend : undefined}
-          trendLabel={totalsFailed ? 'temporarily unavailable' : !comparisonRecorded ? 'comparison unavailable — check recorded days' : `${totals.gmv - prevTotals.gmv >= 0 ? '+' : '−'}${formatCurrency(Math.abs(totals.gmv - prevTotals.gmv))} vs prior period`}
+          trend={canCompare ? pctChange(comparison.current.gmv, comparison.previous.gmv) : undefined}
+          trendLabel={comparisonDelta('gmv')}
           info="Total affiliate GMV across all brands in the selected period. The trend compares it to the previous period of equal length."
         />
         <StatCard
           label="Managed GMV"
           value={formatCurrency(managedGmv)}
-          trend={comparisonRecorded ? managedTrend : undefined}
-          trendLabel={comparisonRecorded ? "vs prior period" : "comparison unavailable — check recorded days"}
+          trend={canCompare ? pctChange(comparison.current.managed, comparison.previous.managed) : undefined}
+          trendLabel={comparisonDelta('managed')}
           info="GMV driven by your managed creators in the selected period. The trend compares it to the previous period of equal length."
         />
         <StatCard label="Total orders" value={totalsFailed ? '—' : totals.orders.toLocaleString('en-US')}
-          trend={comparisonRecorded ? pctChange(totals.orders,prevTotals.orders) : undefined}
-          trendLabel={comparisonRecorded ? `${totals.orders-prevTotals.orders >= 0 ? '+' : '−'}${Math.abs(totals.orders-prevTotals.orders).toLocaleString('en-US')} vs prior period` : 'Recorded totals · comparison incomplete'}
+          trend={canCompare ? pctChange(comparison.current.orders,comparison.previous.orders) : undefined}
+          trendLabel={comparisonDelta('orders')}
           info="Affiliate orders reported for the selected brands and dates. An order can contain more than one unit. This is not all shop orders or a unique customer count." />
         <StatCard label="Units sold" value={totalsFailed ? '—' : totals.units.toLocaleString('en-US')}
-          trend={comparisonRecorded ? pctChange(totals.units,prevTotals.units) : undefined}
-          trendLabel={comparisonRecorded ? `${totals.units-prevTotals.units >= 0 ? '+' : '−'}${Math.abs(totals.units-prevTotals.units).toLocaleString('en-US')} vs prior period` : 'Recorded totals · comparison incomplete'}
+          trend={canCompare ? pctChange(comparison.current.units,comparison.previous.units) : undefined}
+          trendLabel={comparisonDelta('units')}
           info="Affiliate items sold from the same daily reports as GMV and orders, for the selected brands and dates. Units and orders are separate measures." />
       </div>
+      {canCompare && !comparisonRecorded && <p className="text-xs text-muted-foreground">Totals include all recorded sales in the selected scope. Changes compare only the same {comparableBrands.length} fully recorded brands in both periods; brands with missing data are excluded from changes.</p>}
       {canViewCost && <div className={reviewStyles.commitments}>
         <span><strong>Current retainers</strong> {formatCurrency(totalRetainerSpend)} / month · {retainerBrandCount} {retainerBrandCount === 1 ? 'brand' : 'brands'}</span>
         <span><strong>GMV / retainer</strong> {roi > 0 ? `${roi.toFixed(1)}×` : '—'} · Trailing 30 days ({roiStart} – {roiEnd})</span>
