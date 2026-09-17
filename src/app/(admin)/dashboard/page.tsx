@@ -9,7 +9,7 @@ import { resolveDateRange } from '@/lib/data/date-utils';
 import { getDataAnchorDate } from '@/lib/data/data-anchor';
 import { fetchHandleDisplayMeta } from '@/lib/data/creator-aggregate';
 import { computeManagedGmv, buildManagedLookup } from '@/lib/data/managed-gmv';
-import { formatCurrency } from '@/lib/utils/format';
+import { formatCurrency, formatCurrencyExact } from '@/lib/utils/format';
 import { pctChange } from '@/lib/utils/trend';
 import { getBrandRegistry, brandLabel, expandSlugs } from '@/lib/data/brand-registry';
 import { createClient } from '@/lib/supabase/server';
@@ -567,7 +567,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
           trend={canCompare ? pctChange(comparison.current.units,comparison.previous.units) : undefined}
           trendLabel={comparisonDelta('units')}
           info="Affiliate items sold from the same daily reports as GMV and orders, for the selected brands and dates. Units and orders are separate measures." />
-        <StatCard label="Average order value" value={!totalsFailed && totals.orders > 0 ? formatCurrency(totals.gmv / totals.orders) : '—'}
+        <StatCard label="Average order value" value={!totalsFailed && totals.orders > 0 ? formatCurrencyExact(totals.gmv / totals.orders) : '—'}
           trend={canCompare && comparison.current.orders > 0 && comparison.previous.orders > 0 ? pctChange(comparison.current.gmv / comparison.current.orders, comparison.previous.gmv / comparison.previous.orders) : undefined}
           trendLabel={comparisonLabel} info="Affiliate GMV divided by affiliate orders. The comparison uses the same fully recorded brands in both periods; this is a weighted average, not an average of brand averages." />
       </div>
