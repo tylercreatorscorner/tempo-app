@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { Suspense } from 'react';
+import { AgreementPreview } from '@/components/creators/agreement-preview';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { ArrowLeft, ExternalLink } from 'lucide-react';
@@ -32,7 +33,7 @@ import styles from '@/components/creators/profile-workspace.module.css';
 
 interface Props {
   params: Promise<{ name: string }>;
-  searchParams: Promise<{ range?: string; brand?: string; start?: string; end?: string }>;
+  searchParams: Promise<{ range?: string; brand?: string; start?: string; end?: string; agreementsPreview?: string }>;
 }
 
 export default async function CreatorDetailPage({ params, searchParams }: Props) {
@@ -136,6 +137,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
   </div>;
 
   const agreements = <div className={styles.stack}>
+    {sp.agreementsPreview === '1' && canViewCost && ['owner', 'admin'].includes(scope.role) && <AgreementPreview key={selectedBrand ?? 'all'} brands={(selectedBrand ? brands.filter(brand => brand === selectedBrand) : brands).map(brand => ({value:brand,label:brandLabel(reg,brand)}))} today={new Date().toLocaleDateString('en-CA', {timeZone:'America/Chicago'})} />}
     <div className={styles.sectionHead}><div><h2>Agreements & terms</h2><p>Current commitments and the changes Tempo has recorded.</p></div><span className={styles.eyebrow}>{label}</span></div>
     <div className={styles.agreementGrid}>{visibleContracts.map(contract => <article key={contract.managedId} className={styles.agreement}>
       <h3><BrandIdentity brand={contract.brand} label={brandLabel(reg,contract.brand)} /></h3>
