@@ -2,6 +2,8 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { BrandIdentity } from "@/components/creators/brand-identity";
+import reviewStyles from "./morning-review.module.css";
 import { ChoiceMenu } from "@/components/ui/choice-menu";
 import { LoadingStatus } from "@/components/ui/loading-status";
 import { formatCurrency } from "@/lib/utils/format";
@@ -127,6 +129,11 @@ export function ManagerReviews() {
   const [month, setMonth] = useState(
     validGoalMonth(initial) ? initial : new Date().toISOString().slice(0, 7),
   );
+  const [monthOptions] = useState(()=>{
+    const now=new Date();
+    const values=Array.from({length:37},(_,i)=>new Date(Date.UTC(now.getUTCFullYear(),now.getUTCMonth()+12-i,1)).toISOString().slice(0,7));
+    return [...new Set([...values,month])].sort().reverse();
+  });
   const [manager, setManager] = useState(params.get("manager") ?? "all");
   const [refresh, setRefresh] = useState(0);
   const requestKey = `${month}:${refresh}`;
@@ -185,7 +192,7 @@ export function ManagerReviews() {
       ? goalProgress(actual, target)
       : null;
   return (
-    <div className="space-y-6">
+    <div className={`${reviewStyles.page} space-y-6`}>
       <Link
         href="/dashboard"
         className="text-sm text-muted-foreground hover:text-foreground"
@@ -205,16 +212,8 @@ export function ManagerReviews() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <label className="text-xs">
-            Goal month
-            <input
-              aria-label="Goal month"
-              type="month"
-              value={month}
-              onChange={(e) => setMonth(e.target.value)}
-              className="ml-2 rounded-lg border border-border bg-card p-2"
-            />
-          </label>
+          <ChoiceMenu compact label="Goal month" value={month} onChange={setMonth}
+            options={monthOptions.map(value=>({value,label:new Date(value+'-01T12:00:00Z').toLocaleDateString('en-US',{month:'long',year:'numeric',timeZone:'UTC'})}))}/>
           <ChoiceMenu
             compact
             label="Review manager"
@@ -244,7 +243,7 @@ export function ManagerReviews() {
         />
       ) : (
         <>
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {[
               [
                 "Recorded managed GMV",
@@ -263,7 +262,7 @@ export function ManagerReviews() {
             ].map(([label, value]) => (
               <div
                 key={label}
-                className="rounded-2xl border border-border bg-card p-5"
+                className="rounded-xl border border-border bg-card p-4 last:col-span-2 sm:last:col-span-1"
               >
                 <p className="text-xs text-muted-foreground">{label}</p>
                 <strong className="mt-2 block text-2xl">{value}</strong>
@@ -285,7 +284,7 @@ export function ManagerReviews() {
               No assigned brands are available in this review.
             </p>
           )}
-          <div className="grid gap-4 xl:grid-cols-2">
+          <div className="grid items-start gap-4 xl:grid-cols-2">
             {rows.map((b) => (
               <article
                 key={b.id}
@@ -293,7 +292,7 @@ export function ManagerReviews() {
               >
                 <header className="flex items-start justify-between gap-3">
                   <div>
-                    <h2 className="font-semibold">{b.name}</h2>
+                    <h2 className="font-semibold"><BrandIdentity brand={b.slug} label={b.name}/></h2>
                     <p className="text-xs text-muted-foreground">
                       {b.managerName} ·{" "}
                       {b.goal ? "Recorded goal owner" : "Current assignment"}
