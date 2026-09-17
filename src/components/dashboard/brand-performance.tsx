@@ -117,6 +117,8 @@ export async function BrandPerformance({ brands, range, start, end, periodLength
         </span>
       </CardHeader>
 
+      <div className="overflow-x-auto" role="region" aria-label="Brand performance metrics" tabIndex={0}>
+      <div className="min-w-[960px]">
       {/* Column headers — each metric header hover-explains itself */}
       <div className={`${COLS} border-b border-border px-5 py-2`}>
         <span className={TH}>Brand</span>
@@ -142,7 +144,7 @@ export async function BrandPerformance({ brands, range, start, end, periodLength
               href={hrefFor(b.slug)}
               className={`${COLS} group px-5 py-2.5 transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40 focus-visible:ring-inset`}
             >
-              {/* Brand — square color dot + name */}
+              {/* Brand logo and name */}
               <span className="flex min-w-0 items-center gap-2.5">
                 <span className="truncate text-[13.5px] font-bold text-foreground transition-colors group-hover:text-[var(--primary)]">
                   <BrandIdentity brand={b.slug} label={name} />
@@ -185,6 +187,8 @@ export async function BrandPerformance({ brands, range, start, end, periodLength
             </Link>
           );
         })}
+      </div>
+      </div>
       </div>
     </Card>
   );

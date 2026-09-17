@@ -599,7 +599,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
         <BrandPerformance brands={activeBrandRows.map(row => !signals.available || signals.attention.some(signal => signal.slug === row.slug && signal.kind === 'coverage') ? { ...row, trend: undefined, managedTrend: undefined, series: undefined } : row)} range={params.range} start={params.start} end={params.end} periodLength={periodLength} />
       )}
 
-      <GmvContributors rows={contributorRows} available={comparableBrands.length > 0} brand={brandFilter} coverage={`${comparableBrands.length} of ${activeRosterBrands.length} brands with comparable coverage`} />
+      <GmvContributors rows={contributorRows} available={comparableBrands.length > 0} brand={brandFilter} start={startDate} end={endDate} coverage={`${comparableBrands.length} of ${activeRosterBrands.length} brands with comparable coverage`} />
 
       {/* Row 4 — Top Creators + Top Videos leaderboards (managed, by GMV) */}
       {!isEmptyBrand && (
