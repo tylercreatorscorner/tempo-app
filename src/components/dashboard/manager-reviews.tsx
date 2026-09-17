@@ -9,6 +9,7 @@ import { LoadingStatus } from "@/components/ui/loading-status";
 import { formatCurrency } from "@/lib/utils/format";
 import {
   goalProgress,
+  goalDeadlines,
   validGoalTarget,
   validGoalMonth,
   type GoalReview,
@@ -169,6 +170,8 @@ export function ManagerReviews() {
       });
     return () => abort.abort();
   }, [month, requestKey]);
+  const deadlines = goalDeadlines(month);
+  const deadlineLabel = (day: string) => new Date(day + "T12:00:00Z").toLocaleDateString("en-US", {month:"short",day:"numeric",year:"numeric",timeZone:"UTC"});
   const rows =
     data?.brands.filter((b) => manager === "all" || b.managerId === manager) ??
     [];
@@ -226,6 +229,11 @@ export function ManagerReviews() {
           />
         </div>
       </header>
+      <section aria-label="Goal deadlines" className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl border border-border bg-card px-4 py-3 text-sm">
+        <p><span className="text-muted-foreground">Proposals due </span><strong className="font-medium">{deadlineLabel(deadlines.proposal)}</strong></p>
+        <p><span className="text-muted-foreground">Leadership approval due </span><strong className="font-medium">{deadlineLabel(deadlines.approval)}</strong></p>
+        <span className="text-xs text-muted-foreground">Before the goal month · Business days: Mon–Fri</span>
+      </section>
       {error ? (
         <div role="alert" className="rounded-xl border border-border p-5">
           {error}
