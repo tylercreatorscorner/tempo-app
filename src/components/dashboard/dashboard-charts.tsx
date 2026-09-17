@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import dynamic from "next/dynamic";
 import { useTheme } from "next-themes";
 import type { ApexOptions } from "apexcharts";
@@ -13,7 +13,8 @@ import {
   type MetricRow,
 } from "@/lib/data/dashboard-series-model";
 import { formatCurrency } from "@/lib/utils/format";
-const ApexChart = dynamic(() => import("react-apexcharts"), { ssr: false });
+import { ChartLoading, LoadingStatus } from '@/components/ui/loading-status';
+const ApexChart = dynamic(() => import("react-apexcharts"), { ssr: false, loading: () => <ChartLoading label="Preparing chart" /> });
 const options = [
   { value: "gmv", label: "Total GMV" },
   { value: "managed_gmv", label: "Managed GMV" },
@@ -54,6 +55,11 @@ export function DashboardCharts({
     const abort = new AbortController();
     setResult(null);
     setError(false);
+    // Bound the whole request, including auth/scope work before the database query.
+    const timeout = setTimeout(() => {
+      abort.abort();
+      setError(true);
+    }, 35000);
     const params = new URLSearchParams({ start: fetchStart, end });
     if (brand) params.set("brand", brand);
     fetch(`/api/dashboard/series?${params}`, { signal: abort.signal })
@@ -66,18 +72,19 @@ export function DashboardCharts({
       })
       .catch(() => {
         if (!abort.signal.aborted) setError(true);
-      });
-    return () => abort.abort();
+      })
+      .finally(() => clearTimeout(timeout));
+    return () => { clearTimeout(timeout); abort.abort(); };
   }, [fetchStart, end, brand, retry]);
   const selected = options.find((option) => option.value === metric)!;
-  const points = result
+  const points = useMemo(() => result
     ? seriesPoints(result.rows, start, end, metric)
     : metric === "gmv"
       ? initial
-      : [];
-  const monthly = result
+      : [], [result, start, end, metric, initial]);
+  const monthly = useMemo(() => result
     ? monthlyPoints(result.rows, historyStart, end, result.brands)
-    : [];
+    : [], [result, historyStart, end]);
   const ink = dark ? "#a9a9b3" : "#64646f";
   const apex: ApexOptions = {
     chart: {
@@ -166,9 +173,7 @@ export function DashboardCharts({
                 />
                 <InfoTooltip label="Recorded daily totals for your selected brands. Missing imports are gaps, not zero sales. Managed metrics use the same creator membership as the dashboard." />
                 {!result && !error && (
-                  <span className="text-xs normal-case font-normal">
-                    Loading metrics…
-                  </span>
+                  <LoadingStatus label="Loading metrics" />
                 )}
               </div>
             }
@@ -212,10 +217,7 @@ export function DashboardCharts({
             </button>
           </div>
         ) : !result ? (
-          <div
-            className="h-64 animate-pulse rounded-xl bg-muted/50"
-            aria-label="Loading monthly performance"
-          />
+          <ChartLoading key={`${fetchStart}|${end}|${brand}|${retry}`} />
         ) : (
           <>
             <ApexChart
