@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { ChevronsUpDown, Check, Search, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
+import { AllBrandsPortrait } from '@/components/creators/all-brands-portrait';
 import { BrandPortrait } from '@/components/creators/brand-portrait';
 import { useBrandMeta } from '@/hooks/use-brand-meta';
 import { useGlobalBrand } from '@/hooks/use-global-brand';
@@ -243,7 +244,7 @@ export function BrandSwitcher() {
                         isHighlighted ? 'bg-muted/80' : 'bg-transparent',
                       )}
                     >
-                      <BrandPortrait name={opt.label} source={meta.logo(opt.key)} color={meta.color(opt.key)} />
+                      {opt.key === 'all' ? <AllBrandsPortrait/> : <BrandPortrait name={opt.label} source={meta.logo(opt.key)} color={meta.color(opt.key)} />}
                       <span className={cn('flex-1 text-left truncate', isActive ? 'font-semibold text-foreground' : 'text-foreground')}>
                         {opt.label}
                       </span>
@@ -280,7 +281,7 @@ export function BrandSwitcher() {
             : 'bg-card border-border hover:bg-muted hover:border-border',
         )}
       >
-        <BrandPortrait name={brandLabel} source={meta.logo(brand)} color={meta.color(brand)} size={26} />
+        {brand === 'all' ? <AllBrandsPortrait size={26}/> : <BrandPortrait name={brandLabel} source={meta.logo(brand)} color={meta.color(brand)} size={26} />}
         <div className="flex-1 min-w-0 text-left">
           <p className="text-[9px] uppercase tracking-wider text-muted-foreground leading-none mb-0.5">Brand</p>
           <p className="text-sm text-foreground truncate leading-none font-semibold">{brandLabel}</p>

@@ -87,3 +87,46 @@ assert.equal(avatarCalls.length,0);
 scope={brandScope:{kind:'scoped',brandSlugs:['a']}}; assignmentFailed=true;
 assert.equal(await managerExports.getDashboardManagers(['a']),null);
 console.log('PASS manager portfolios: permission gate, explicit assignments, scoped identities, unassigned brands, fail-closed empty scope and read failures');
+
+const contributorExports = {};
+runInNewContext(ts.transpileModule(readFileSync('src/lib/data/dashboard-contributors.ts','utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText, {exports:contributorExports});
+const contributors = contributorExports.buildContributors(
+  [{handle:'@FIRST',gmv:300},{handle:'second',gmv:200},{handle:'distinct',gmv:75},{handle:'invalid',gmv:NaN}],
+  [{handle:'first',gmv:100},{handle:'departed',gmv:600}],
+  new Map([['first',{id:'one',name:'Same name'}],['second',{id:'one',name:'Same name'}],['distinct',{id:'two',name:'Same name'}]])
+);
+assert.equal(contributors.length,3);
+assert.equal(contributors[0].handle,'departed');
+assert.equal(contributors[0].delta,-600);
+assert.equal(contributors[1].current,500);
+assert.equal(contributors[1].delta,400);
+assert.equal(contributors[2].id,'two');
+assert.equal(contributors.reduce((sum,p)=>sum+p.delta,0),-125);
+console.log('PASS contributors: normalized handles, shared identities, distinct same names, prior-only declines, finite values and reconciliation');
+
+let identityScope = {tenantId:'home'};
+let activeTenant = null;
+let queriedTenant;
+const identityExports = {};
+runInNewContext(ts.transpileModule(readFileSync('src/app/api/workspace-identity/route.ts','utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText, {
+  exports:identityExports,
+  require(path) {
+    if(path==='next/server') return {NextResponse:{json:(body,options)=>({body,...options})}};
+    if(path.endsWith('/workspace-scope')) return {getWorkspaceScope:async()=>identityScope};
+    if(path.endsWith('/platform-admin')) return {getActiveTenantId:async()=>activeTenant};
+    if(path.endsWith('/supabase/server')) return {createClient:async()=>({from:()=>({select:()=>({eq:(_key,id)=>{queriedTenant=id;return {maybeSingle:async()=>({data:id==='home'?{name:'Agency',slug:'creators-corner'}:{name:'Other workspace',slug:'other'}})};}})})})};
+    throw Error(path);
+  }
+});
+let identity = await identityExports.GET();
+assert.equal(identity.body.logo,'/logo/creators-corner.png');
+assert.equal(queriedTenant,'home');
+assert.equal(identity.headers['Cache-Control'],'private, no-store');
+activeTenant='other';
+identity = await identityExports.GET();
+assert.equal(identity.body.logo,null);
+assert.equal(queriedTenant,'other');
+identityScope=null; queriedTenant=undefined;
+assert.equal((await identityExports.GET()).status,403);
+assert.equal(queriedTenant,undefined);
+console.log('PASS workspace identity: authenticated home scope, active workspace, tenant-specific branding and private cache');

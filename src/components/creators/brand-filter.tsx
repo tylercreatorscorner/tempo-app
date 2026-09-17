@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useBrandMeta } from '@/hooks/use-brand-meta';
 import { cn } from '@/lib/utils';
 import { ChoiceMenu } from '@/components/ui/choice-menu';
+import { AllBrandsPortrait } from './all-brands-portrait';
 import { BrandPortrait } from './brand-portrait';
 
 interface BrandFilterProps {
@@ -54,7 +55,7 @@ export function BrandFilter({ brands, brandsWithData, selectedBrand, collapseNoD
 
   if (appearance === 'creator') return <div aria-busy={pending}>
     <ChoiceMenu label={label} value={selectedBrand ?? '__all'} disabled={pending}
-      options={[{value:'__all',label:'All authorized brands',description:`${brands.length} brand relationships`}, ...brands.map(brand => ({value:brand,label:brandMeta.label(brand),icon:<BrandPortrait name={brandMeta.label(brand)} source={brandMeta.logo(brand)} color={brandMeta.color(brand)} />}))]}
+      options={[{value:'__all',label:'All Brands',icon:<AllBrandsPortrait/>,description:`${brands.length} brand relationships`}, ...brands.map(brand => ({value:brand,label:brandMeta.label(brand),icon:<BrandPortrait name={brandMeta.label(brand)} source={brandMeta.logo(brand)} color={brandMeta.color(brand)} />}))]}
       onChange={value => startTransition(()=>router.push(brandHref(value === '__all' ? null : value),{scroll:false}))} />
     {pending && <span role="status" className="text-xs text-muted-foreground">Updating brand scope…</span>}
   </div>;

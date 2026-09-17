@@ -17,11 +17,12 @@ import { getActiveTenantId } from '@/lib/auth/platform-admin';
 import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 
 import { StatCard } from '@/components/dashboard/stat-card';
-import { Greeting } from '@/components/dashboard/greeting';
 import { ManagedOrganicDonut } from '@/components/dashboard/managed-organic-donut';
 import { ManagedGmvChart } from '@/components/dashboard/managed-gmv-chart';
 import { BrandFilter } from '@/components/creators/brand-filter';
 import { MorningReview } from '@/components/dashboard/morning-review';
+import { buildContributors } from '@/lib/data/dashboard-contributors';
+import { GmvContributors } from '@/components/dashboard/gmv-contributors';
 import { buildDashboardTrend } from '@/lib/data/dashboard-trend';
 import { ManagerPortfolios } from '@/components/dashboard/manager-portfolios';
 import { getDashboardManagers } from '@/lib/data/dashboard-managers';
@@ -79,17 +80,6 @@ async function fetchRetainerBySlug(supabase: SB): Promise<Map<string, number>> {
     retainerBySlug.set(brand, (retainerBySlug.get(brand) ?? 0) + retainer);
   }
   return retainerBySlug;
-}
-
-/** Viewer's name for the greeting (user_profiles.name, then auth metadata). */
-async function fetchViewerName(supabase: SB): Promise<string | null> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
-  const { data: profRaw } = await supabase
-    .from('user_profiles').select('name').eq('user_id', user.id).maybeSingle();
-  return (profRaw as { name?: string | null } | null)?.name
-    ?? (user.user_metadata?.full_name as string | undefined)
-    ?? null;
 }
 
 export default async function AdminDashboard({ searchParams }: Props) {
@@ -213,7 +203,6 @@ export default async function AdminDashboard({ searchParams }: Props) {
     mgPrev,
     retainerBySlug,
     topPostsRes,
-    userName,
   ] = await Promise.all([
     // `null` (not []) on failure so the KPIs can render "—" instead of a
     // confident $0 — a swallowed statement_timeout here is exactly what made
@@ -253,7 +242,6 @@ export default async function AdminDashboard({ searchParams }: Props) {
       : supabase.rpc('get_top_videos_by_window_gmv', {
           p_brand_slugs: activeBrands, p_start_date: startDate, p_end_date: endDate, p_limit: 10,
         }),
-    fetchViewerName(supabase),
   ]);
 
   // A failed totals fetch must not read as "$0 of GMV" — track it and render "—".
@@ -280,7 +268,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
   //    first wave: it needs mgPeriod's exact managed handle set. Runs alongside
   //    the handle→name lookup, which needs the same set.
   const managedHandles = Array.from(
-    new Set(Array.from(mgPeriod.byStoreCreator.values()).flatMap((m) => Array.from(m.keys()))),
+    new Set([mgPeriod, mgPrev].flatMap(period => Array.from(period.byStoreCreator.values()).flatMap(m => Array.from(m.keys())))),
   );
   const handleMeta = await fetchHandleDisplayMeta(managedHandles).catch((error) => {
     console.error('[dashboard] fetchHandleDisplayMeta failed:', error);
@@ -328,7 +316,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
     for (const cg of perStore.values()) {
       const meta = handleMeta.get(cg.handleNorm);
       const name = meta?.name ?? null;
-      const key = meta?.id ?? name ?? cg.handleNorm;
+      const key = meta?.id ?? cg.handleNorm;
       const e = creatorAgg.get(key) ?? { name, id: meta?.id, handle: cg.rawName || cg.handleNorm, gmv: 0 };
       e.gmv += cg.gmv;
       creatorAgg.set(key, e);
@@ -415,8 +403,9 @@ export default async function AdminDashboard({ searchParams }: Props) {
   const totals = summaryRows.reduce((acc, s) => {
     acc.gmv    += s.total_gmv;
     acc.orders += s.total_orders;
+    acc.units += s.total_items_sold;
     return acc;
-  }, { gmv: 0, orders: 0 });
+  }, { gmv: 0, orders: 0, units: 0 });
   // Unmanaged = brand-wide GMV not attributable to a managed creator. (Was a
   // per-creator isManaged sum over the top-50-per-brand sample.)
   // NOTE: cross-source subtraction — totals.gmv comes from the analytics
@@ -429,8 +418,9 @@ export default async function AdminDashboard({ searchParams }: Props) {
   const prevTotals = prevSummaryRows.reduce((acc, s) => {
     acc.gmv    += s.total_gmv;
     acc.orders += s.total_orders;
+    acc.units += s.total_items_sold;
     return acc;
-  }, { gmv: 0, orders: 0 });
+  }, { gmv: 0, orders: 0, units: 0 });
 
   const gmvTrend = totalsFailed || prevBrandSummaries === null ? undefined : pctChange(totals.gmv, prevTotals.gmv);
   const managedTrend = pctChange(managedGmv,    prevManagedGmv);
@@ -448,7 +438,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
   const retainerBrandCount = activeRosterBrands.filter((rs) =>
     [rs, ...expandSlugs(reg, rs)].some((s) => (retainerBySlug.get(s) ?? 0) > 0),
   ).length;
-  const managedSharePct = totals.gmv > 0 ? (managedGmv / totals.gmv) * 100 : 0;
+
 
 
   // ── Stale-data check ────────────────────────────────────────────────────
@@ -491,6 +481,11 @@ export default async function AdminDashboard({ searchParams }: Props) {
       previousRecordedDays: comparisonDays.filter(day => stores.every(slug => dailyBySlug.get(slug)?.has(day))).length,
     };
   }), periodLength, brandSummaries !== null && prevBrandSummaries !== null && brandDaily !== null);
+  const comparableBrands = signals.available ? activeRosterBrands.filter(slug => !signals.attention.some(row => row.slug === slug && row.kind === 'coverage')) : [];
+  const comparableStores = new Set(comparableBrands.flatMap(slug => expandSlugs(reg,slug)));
+  const contributorRows = buildContributors(
+    Array.from(mgPeriod.byStoreCreator.entries()).filter(([store]) => comparableStores.has(store)).flatMap(([,rows]) => Array.from(rows.values()).map(row => ({handle:row.handleNorm,gmv:row.gmv}))),
+    Array.from(mgPrev.byStoreCreator.entries()).filter(([store]) => comparableStores.has(store)).flatMap(([,rows]) => Array.from(rows.values()).map(row => ({handle:row.handleNorm,gmv:row.gmv}))), handleMeta);
   const comparisonRecorded = signals.available && !signals.attention.some(row => row.kind === 'coverage');
   const totalDaily = buildDashboardTrend(rangeDays, activeBrands, dailyBySlug).map(point => ({ ...point,
     recordedBrands: activeRosterBrands.filter(brand => expandSlugs(reg, brand).every(slug => dailyBySlug.get(slug)?.has(point.date))).length,
@@ -509,10 +504,11 @@ export default async function AdminDashboard({ searchParams }: Props) {
 
       {/* Header */}
       <PageHeader
-        eyebrow="Morning review"
-        title={<Greeting name={userName} />}
+        eyebrow={brandFilter ? activeBrandName ?? "Dashboard" : "Agency overview"}
+        title="Performance overview"
         actions={
           <div className="flex flex-wrap items-center gap-2">
+            <BrandFilter label="Dashboard brand scope" appearance="creator" brands={ALL_BRANDS} brandsWithData={activeBrandRows.map(row => row.slug)} selectedBrand={brandFilter} />
             <Suspense fallback={null}>
               <DateRangePicker staleThrough={staleThrough} />
             </Suspense>
@@ -533,12 +529,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
         }
       />
 
-      <div className={reviewStyles.scope}>
-        <div><span className={reviewStyles.scopeLabel}>Brand scope · {brandFilter ? activeBrandName : `${ALL_BRANDS.length} authorized brands`}</span>
-          <BrandFilter label="Dashboard brand scope" appearance="creator" brands={ALL_BRANDS} brandsWithData={activeBrandRows.map(row => row.slug)} selectedBrand={brandFilter} />
-        </div>
-        <div className={reviewStyles.dates}><div>{startDate} – {endDate}</div><div>Compared with {prevStartDate} – {prevEndDate}</div></div>
-      </div>
+      <p className="text-xs text-muted-foreground">{startDate} – {endDate} · Compared with {prevStartDate} – {prevEndDate} · {brandFilter ? activeBrandName : `${ALL_BRANDS.length} authorized brands`}</p>
 
       <div className={reviewStyles.metrics}>
         <StatCard
@@ -555,27 +546,22 @@ export default async function AdminDashboard({ searchParams }: Props) {
           trendLabel={comparisonRecorded ? "vs prior period" : "comparison unavailable — check recorded days"}
           info="GMV driven by your managed creators in the selected period. The trend compares it to the previous period of equal length."
         />
-        <StatCard
-          label="Managed Share"
-          value={totals.gmv > 0 ? `${managedSharePct.toFixed(0)}%` : '—'}
-          subValue="of selected scope"
-          info="Managed GMV as a share of total GMV — how much of all affiliate GMV your managed creators drove."
-        />
-        <StatCard
-          label="GMV / monthly retainer"
-          value={!canViewCost ? '—' : roi > 0 ? `${roi.toFixed(1)}×` : 'N/A'}
-          subValue={canViewCost ? `${roiStart} – ${roiEnd} GMV` : undefined}
-          info="Trailing-30-day managed GMV divided by current monthly retainer commitments. A revenue multiple, not profit ROI or historical actual spend. Excludes commissions and other costs; independent of the selected period."
-        />
-        <StatCard
-          label="Current retainers / month"
-          value={canViewCost ? formatCurrency(totalRetainerSpend) : '—'}
-          subValue={canViewCost ? `across ${retainerBrandCount} brand${retainerBrandCount === 1 ? '' : 's'}` : undefined}
-          info="Total monthly retainer you pay, summed across brands that carry one."
-        />
+        <StatCard label="Total orders" value={totalsFailed ? '—' : totals.orders.toLocaleString('en-US')}
+          trend={comparisonRecorded ? pctChange(totals.orders,prevTotals.orders) : undefined}
+          trendLabel={comparisonRecorded ? `${totals.orders-prevTotals.orders >= 0 ? '+' : '−'}${Math.abs(totals.orders-prevTotals.orders).toLocaleString('en-US')} vs prior period` : 'Recorded totals · comparison incomplete'}
+          info="Affiliate orders reported for the selected brands and dates. An order can contain more than one unit. This is not all shop orders or a unique customer count." />
+        <StatCard label="Units sold" value={totalsFailed ? '—' : totals.units.toLocaleString('en-US')}
+          trend={comparisonRecorded ? pctChange(totals.units,prevTotals.units) : undefined}
+          trendLabel={comparisonRecorded ? `${totals.units-prevTotals.units >= 0 ? '+' : '−'}${Math.abs(totals.units-prevTotals.units).toLocaleString('en-US')} vs prior period` : 'Recorded totals · comparison incomplete'}
+          info="Affiliate items sold from the same daily reports as GMV and orders, for the selected brands and dates. Units and orders are separate measures." />
       </div>
+      {canViewCost && <div className={reviewStyles.commitments}>
+        <span><strong>Current retainers</strong> {formatCurrency(totalRetainerSpend)} / month · {retainerBrandCount} brands</span>
+        <span><strong>GMV / retainer</strong> {roi > 0 ? `${roi.toFixed(1)}×` : '—'} · Trailing 30 days ({roiStart} – {roiEnd})</span>
+        <span className="text-muted-foreground">Revenue multiple, not profit ROI; current commitments, not historical payments.</span>
+      </div>}
 
-      <MorningReview {...signals} labels={Object.fromEntries(activeRosterBrands.map(slug => [slug, brandLabel(reg, slug)]))} start={startDate} end={endDate} />
+      <MorningReview singleBrand={!!brandFilter} {...signals} labels={Object.fromEntries(activeRosterBrands.map(slug => [slug, brandLabel(reg, slug)]))} start={startDate} end={endDate} />
 
       {/* Empty-state for a brand-filtered view with no activity */}
       {isEmptyBrand && (
@@ -613,11 +599,13 @@ export default async function AdminDashboard({ searchParams }: Props) {
         <BrandPerformance brands={activeBrandRows.map(row => !signals.available || signals.attention.some(signal => signal.slug === row.slug && signal.kind === 'coverage') ? { ...row, trend: undefined, managedTrend: undefined, series: undefined } : row)} range={params.range} start={params.start} end={params.end} periodLength={periodLength} />
       )}
 
+      <GmvContributors rows={contributorRows} available={comparableBrands.length > 0} brand={brandFilter} coverage={`${comparableBrands.length} of ${activeRosterBrands.length} brands with comparable coverage`} />
+
       {/* Row 4 — Top Creators + Top Videos leaderboards (managed, by GMV) */}
       {!isEmptyBrand && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <TopCreators creators={topCreators} label={`${periodLength}d`} />
-          <TopVideos videos={topVideos} label={`${periodLength}d`} failed={topVideosFailed} />
+          <TopCreators brand={brandFilter} creators={topCreators} label={`${periodLength}d`} />
+          <TopVideos brand={brandFilter} videos={topVideos} label={`${periodLength}d`} failed={topVideosFailed} />
         </div>
       )}
     </div>
