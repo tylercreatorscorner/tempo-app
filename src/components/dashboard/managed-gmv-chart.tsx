@@ -35,6 +35,7 @@ export function ManagedGmvChart({
   totalBrands,
   controls,
   numeric = false,
+  coverageUnit = 'brands',
 }: {
   data: { date: string; gmv: number | null; recordedBrands?: number }[];
   trend?: number;
@@ -43,6 +44,7 @@ export function ManagedGmvChart({
   totalBrands?: number;
   controls?: ReactNode;
   numeric?: boolean;
+  coverageUnit?: 'brands' | 'stores';
 }) {
   const compact = numeric ? (value: number) => Intl.NumberFormat('en-US',{notation:'compact',maximumFractionDigits:1}).format(value) : fmtCompactCurrency;
   const detail = numeric ? (value: number) => value.toLocaleString('en-US') : formatCurrency;
@@ -178,7 +180,7 @@ export function ManagedGmvChart({
                     {new Date(hd.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })} ·{' '}
                   </span>
                   <span className="tabular-nums">{hd.gmv === null ? 'No recorded data' : detail(hd.gmv)}</span>
-                  {totalBrands !== undefined && <span className="block text-background/70">{hd.recordedBrands ?? 0}/{totalBrands} brands recorded</span>}
+                  {totalBrands !== undefined && <span className="block text-background/70">{hd.recordedBrands ?? 0}/{totalBrands} {coverageUnit} recorded</span>}
                 </div>
               </>
             ) : null}

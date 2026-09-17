@@ -34,3 +34,5 @@
 @media(max-width:900px) { .metrics { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 
 @media(min-width:1101px){.metrics > div{padding:14px 12px}.metrics > div > p{font-size:22px}}
+
+@media(max-width:900px){.metrics > div:last-child{grid-column:1/-1}}

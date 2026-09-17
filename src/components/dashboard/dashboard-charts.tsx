@@ -154,6 +154,7 @@ export function DashboardCharts({
             label={selected.label}
             numeric={!metric.includes("gmv")}
             totalBrands={result?.brands}
+            coverageUnit="stores"
             controls={
               <div className="flex items-center gap-2">
                 <ChoiceMenu
