@@ -122,8 +122,8 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
       </section>
       {selectedBrand && <><section className={styles.aside}><p className={styles.eyebrow}>Current relationship</p><h2>{currentContract ? brandLabel(reg,currentContract.brand) : label}</h2>
         <dl><div><dt>Agreement</dt><dd>{currentContract ? 'Current roster terms' : 'No terms recorded'}</dd></div>
-          {canViewCost && <div><dt>Monthly fee</dt><dd>{currentContract ? formatCurrency(currentContract.retainer) : '—'}</dd></div>}
-          <div><dt>Monthly posts</dt><dd>{currentContract?.monthlyPostRequirement || 'No target recorded'}</dd></div><div><dt>Start date</dt><dd>{currentContract?.retainerStartDate || 'Not recorded'}</dd></div>
+          {canViewCost && <div><dt>Recorded fee</dt><dd>{currentContract ? formatCurrency(currentContract.retainer) : '—'}</dd></div>}
+          <div><dt>Recorded post requirement</dt><dd>{currentContract?.monthlyPostRequirement || 'No target recorded'}</dd></div><div><dt>Start date</dt><dd>{currentContract?.retainerStartDate || 'Not recorded'}</dd></div>
         </dl>
       </section>
       <section className={styles.aside}><p className={styles.eyebrow}>Posting reliability</p><h2>This month’s activity</h2>
@@ -139,7 +139,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
   </div>;
 
   const agreements = <div className={styles.stack}>
-    {process.env.CREATOR_AGREEMENTS_ENABLED === 'true' && canViewCost && can(scope,'roster','read') && <AgreementWorkspace creatorId={creatorId} brands={(selectedBrand ? brands.filter(brand=>brand===selectedBrand) : brands).flatMap(brand=>{const id=slugToUuid(reg,brand);return id?[{value:id,label:brandLabel(reg,brand)}]:[];})} today={new Date().toLocaleDateString('en-CA',{timeZone:'America/Chicago'})} canWrite={can(scope,'roster','write') && !scope.impersonating} canSave={process.env.CREATOR_AGREEMENTS_WRITES_ENABLED === 'true'} />}
+    {process.env.CREATOR_AGREEMENTS_ENABLED === 'true' && canViewCost && can(scope,'roster','read') && <AgreementWorkspace key={selectedBrand ?? "all"} creatorId={creatorId} brands={(selectedBrand ? brands.filter(brand=>brand===selectedBrand) : brands).flatMap(brand=>{const id=slugToUuid(reg,brand);return id?[{value:id,label:brandLabel(reg,brand)}]:[];})} today={new Date().toLocaleDateString('en-CA',{timeZone:'America/Chicago'})} canWrite={can(scope,'roster','write') && !scope.impersonating} canSave={process.env.CREATOR_AGREEMENTS_WRITES_ENABLED === 'true'} />}
     {sp.agreementsPreview === '1' && canViewCost && ['owner', 'admin'].includes(scope.role) && <AgreementPreview key={selectedBrand ?? 'all'} brands={(selectedBrand ? brands.filter(brand => brand === selectedBrand) : brands).map(brand => ({value:brand,label:brandLabel(reg,brand)}))} today={new Date().toLocaleDateString('en-CA', {timeZone:'America/Chicago'})} />}
     {process.env.CREATOR_AGREEMENTS_ENABLED !== 'true' && <><div className={styles.sectionHead}><div><h2>Agreements & terms</h2><p>Current commitments and the changes Tempo has recorded.</p></div><span className={styles.eyebrow}>{label}</span></div>
     <div className={styles.agreementGrid}>{visibleContracts.map(contract => <article key={contract.managedId} className={styles.agreement}>

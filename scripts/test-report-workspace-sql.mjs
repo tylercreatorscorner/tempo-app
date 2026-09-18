@@ -120,5 +120,9 @@ assert.equal(corrected.creators[0].agreement.reportPeriodComparable,false,'Missi
 await db.exec('GRANT UPDATE,SELECT ON managed_creators TO authenticated; SET ROLE authenticated;');
 await assert.rejects(db.query(`update managed_creators set retainer=987 where tenant_id='${a}'`),/Agreements tab/);
 await db.exec('RESET ROLE;');
+await db.exec(readFileSync('supabase/migrations/20260918021757_agreement_agency_history.sql','utf8'));
+const agencyAugust=(await db.query(`select get_agency_portfolio_workspace('${a}','2026-08-01','2026-08-31','2026-07-01','2026-07-31') as data`)).rows[0].data;
+assert.equal(agencyAugust.brands.find(b=>b.slug==='shared').committedRetainer,800,'Agency history uses August terms despite a higher current roster fee');
+console.log('PASS agency agreement history: selected-period fee independent of current mirror');
 console.log('PASS agreement report cutover: historical fee/quota, revision basis, foreign isolation, pending renewal and frozen report preserved');
 await db.close();
