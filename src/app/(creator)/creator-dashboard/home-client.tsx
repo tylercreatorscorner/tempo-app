@@ -50,6 +50,7 @@ interface Props {
   rangeLabel: string;
   summary: CreatorSummary | null;
   lifetimeGmv: number | null;
+  hasCustomAgreement?: boolean;
   retainerTotal: number;
   streak: number;
   monthVideos: number;
@@ -155,6 +156,7 @@ export function HomeClient(props: Props) {
 
       {/* Earn & pace — retainer quota for contracted, GMV milestone for everyone.
           Contracted creators see both side by side; affiliate-only get the milestone. */}
+      {props.hasCustomAgreement && <p className="rounded-xl border border-border px-4 py-3 text-sm text-muted-foreground">Your agreements use different periods or changed terms. Check My Brands for each requirement; calendar-month activity is not a payment calculation.</p>}
       {monthlyTarget > 0 ? (
         <div className={lifetimeGmv && lifetimeGmv > 0 ? 'grid gap-5 lg:grid-cols-2' : ''}>
           <RetainerPace
@@ -306,7 +308,7 @@ function LedgerHero({
           <p className="mt-3.5 inline-flex items-center gap-2 text-xs text-muted-foreground">
             <span className="h-1.5 w-1.5 rounded-full bg-[var(--pulse-pos)] ring-2 ring-[var(--pulse-pos-bg)]" />
             {retainerTotal > 0 && (
-              <>${Math.round(retainerTotal).toLocaleString('en-US')}/mo retainer secured · </>
+              <>${Math.round(retainerTotal).toLocaleString('en-US')} in recorded agreement fees · </>
             )}
             {lifetimeGmv != null ? (
               <>{formatCurrency(lifetimeGmv)} driven all-time</>
@@ -657,7 +659,7 @@ function RetainerPace({
                 emphasis
               />
               {retainerTotal > 0 && (
-                <PaceRow label="Retainer at stake" value={`${formatCurrency(retainerTotal)}/mo`} />
+                <PaceRow label="Recorded agreement fees" value={formatCurrency(retainerTotal)} />
               )}
             </div>
             <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">

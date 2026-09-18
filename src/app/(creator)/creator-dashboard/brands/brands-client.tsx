@@ -65,7 +65,7 @@ export function BrandsClient({ realName, rangeLabel, rows, standings, untapped }
         <StripCell
           k="Total retainer"
           v={`${formatCurrency(totalRetainer)}`}
-          sub="per month"
+          sub="recorded agreement fees"
         />
         <StripCell k={`GMV · you`} v={gmvLabel(totalGmv)} sub={rangeLabel.toLowerCase()} />
         <StripCell
@@ -147,7 +147,7 @@ export function BrandsClient({ realName, rangeLabel, rows, standings, untapped }
                   // Affiliate-only brands ($0 retainer) carry a phantom
                   // monthly_post_requirement default and must NOT be flagged "Behind".
                   const contracted = r.retainer > 0;
-                  const hasReq = contracted && r.monthlyPostRequirement > 0;
+                  const hasReq = r.monthlyPaceComparable !== false && (contracted || r.agreementStatus === 'active') && r.monthlyPostRequirement > 0;
                   const behind =
                     r.postsThisMonth != null && hasReq && r.postsThisMonth < r.monthlyPostRequirement;
                   const standing = standings[r.brandSlug];
@@ -161,10 +161,10 @@ export function BrandsClient({ realName, rangeLabel, rows, standings, untapped }
                       </TD>
                       <TD className="tabular-nums text-foreground">
                         {contracted ? (
-                          formatCurrency(r.retainer)
+                          <>{formatCurrency(r.retainer)}{r.agreementPeriod && <span className="block text-[11px] font-normal text-muted-foreground">{r.agreementPeriod} · {r.agreementPosts ?? '—'} posts</span>}</>
                         ) : (
                           <Badge variant="neutral" size="sm">
-                            Affiliate
+                            {r.agreementStatus === 'ended' ? 'Ended' : r.agreementStatus === 'awaiting_renewal' ? 'Awaiting renewal' : r.agreementStatus === 'active' ? 'No fixed fee' : 'Affiliate'}
                           </Badge>
                         )}
                       </TD>
