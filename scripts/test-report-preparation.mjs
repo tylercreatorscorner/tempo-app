@@ -30,3 +30,14 @@ find(tree,'segmented','Report type').props.onValueChange('monthly');tree=render(
 pending=find(tree,'button','Prepare preview').props.onClick();tree=render();const month=find(tree,'choice','Reporting month');month.props.onChange(month.props.options[2].value);tree=render();assert.equal(find(tree,'button','Prepare preview').props.disabled,false,'Changing month resets pending preview state');resolvePreview();await pending;tree=render();assert.ok(!nodes(tree).some(n=>n.props?.id==='cr-notes'),'A late old-month response must not restore preview');
 pending=find(tree,'button','Prepare preview').props.onClick();resolvePreview();await pending;tree=render();await find(tree,'button','Create link + copy').props.onClick();tree=render();assert.equal(requests.at(-1).body.period.start,month.props.options[2].value+'-01');assert.equal(requests.at(-1).body.reportType,'monthly');assert.equal(reloads,1);assert.ok(text(tree).includes('No message has been sent'));assert.ok(nodes(tree).some(n=>n.type==='a'&&n.props.href==='https://example.invalid/r/fixture?preview=1'));
 console.log('PASS report preparation: type/month invalidate previews, late responses discarded, pending state recovers, created report uses reviewed month and exposes saved link');
+
+assert.deepEqual(JSON.parse(JSON.stringify(exports.reportingWeek(new Date('2026-09-21T12:00:00Z')))), {start:'2026-09-14',end:'2026-09-20'});
+assert.deepEqual(JSON.parse(JSON.stringify(exports.reportingWeek(new Date('2026-09-20T12:00:00Z')))), {start:'2026-09-07',end:'2026-09-13'});
+assert.deepEqual(JSON.parse(JSON.stringify(exports.reportingWeek(new Date('2026-01-01T12:00:00Z')))), {start:'2025-12-22',end:'2025-12-28'});
+assert.deepEqual(JSON.parse(JSON.stringify(exports.reportingWeek(new Date('2026-09-21T12:00:00Z'), true))), {start:'2026-09-21',end:'2026-09-21'});
+find(tree,'segmented','Report type').props.onValueChange('performance');tree=render();
+const dates=nodes(tree).filter(n=>n.type==='input'&&n.props.type==='date');
+dates[0].props.onChange({target:{value:'2026-08-03'}});dates[1].props.onChange({target:{value:'2026-08-19'}});tree=render();
+pending=find(tree,'button','Prepare preview').props.onClick();resolvePreview();await pending;tree=render();await find(tree,'button','Create link + copy').props.onClick();
+assert.equal(requests.at(-1).body.reportType,'performance');assert.equal(requests.at(-1).body.period.start,'2026-08-03');assert.equal(requests.at(-1).body.period.end,'2026-08-19');
+console.log('PASS calendar weeks: Monday/Sunday/year boundaries, partial week, and explicit custom report dates');

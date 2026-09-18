@@ -84,35 +84,7 @@ function daysAgo(iso: string): number | null {
   return Math.floor((Date.now() - t) / 86_400_000);
 }
 
-/** One tick per day in the window. Gaps read as gaps. */
-function CoverageMeter({ coverage }: { coverage: ReportingBrandRow['coverage'] }) {
-  const { presentDays, missingDays, daysExpected, daysPresent, windowStart, windowEnd } = coverage;
-  const all = [...presentDays, ...missingDays].sort();
-  const label = windowStart && windowEnd
-    ? `${daysPresent} of ${daysExpected} days present, ${windowStart} to ${windowEnd}`
-    : `${daysPresent} of ${daysExpected} days present`;
-
-  return (
-    <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-      <div className="flex items-center gap-[2px]" role="img" aria-label={label} title={label}>
-        {all.map((d) => (
-          <span
-            key={d}
-            className={cn(
-              'h-[15px] w-[5px] rounded-[1.5px]',
-              presentDays.includes(d) ? 'bg-[var(--pulse-pos)]/85' : 'bg-border',
-            )}
-          />
-        ))}
-      </div>
-      <span className="shrink-0 whitespace-nowrap text-[11px] tabular-nums text-muted-foreground">
-        {daysPresent} / {daysExpected}
-      </span>
-    </div>
-  );
-}
-
-const HEADERS = ['Brand', 'Data coverage', 'Latest report'] as const;
+const HEADERS = ['Brand', 'Recent data', 'Latest report'] as const;
 
 export function BrandTable({
   refreshKey, onGenerate,
@@ -164,7 +136,7 @@ export function BrandTable({
     <section className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-base font-bold tracking-tight text-foreground">Client reports</h2>
+          <h2 className="text-base font-bold tracking-tight text-foreground">Brands</h2>
           <p className="mt-0.5 text-xs text-muted-foreground">Choose a brand to prepare its next update.</p>
         </div>
         <label className="relative w-full sm:w-56">
@@ -253,8 +225,10 @@ function BrandRows({ row, onGenerate, onChanged }: {
         <BrandIdentity brand={row.slug} label={row.name} />
       </TD>
       <TD className="border-0 text-left md:border-b">
-        <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-muted-foreground md:hidden">Data coverage</span>
-        <CoverageMeter coverage={c} />
+        <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-muted-foreground md:hidden">Recent data</span>
+        <span className="text-xs text-muted-foreground" title={`${c.windowStart ?? ''} to ${c.windowEnd ?? ''}`}>
+          {c.daysPresent}/{c.daysExpected} recorded days
+        </span>
         {!reportable && <span className="mt-1 block text-[11px] text-[var(--pulse-warn)]">{c.daysPresent === 0 ? 'No data in window' : c.daysBehind !== null && c.daysBehind > MAX_DAYS_BEHIND ? 'Data is out of date' : 'Insufficient coverage'}</span>}
         {reportable && c.missingDays.length > 0 && <span className="mt-1 block text-[11px] text-[var(--pulse-warn)]">{c.missingDays.length} missing day{c.missingDays.length === 1 ? '' : 's'}</span>}
       </TD>
@@ -270,10 +244,10 @@ function BrandRows({ row, onGenerate, onChanged }: {
       </TD>
       <TD className="col-span-2 border-0 pt-1 text-left md:border-b md:pt-3">
         <div className="flex flex-wrap items-center gap-2 md:justify-end">
-          <Button size="sm" variant="outline" onClick={() => setExpanded(value => !value)} aria-expanded={expanded} aria-controls={detailId} aria-label={`Details for ${row.name}`}>
+          <Button size="sm" variant="ghost" onClick={() => setExpanded(value => !value)} aria-expanded={expanded} aria-controls={detailId} aria-label={`Details for ${row.name}`}>
             Details <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', expanded && 'rotate-180')} />
           </Button>
-          <Button size="sm" disabled={!reportable} onClick={() => onGenerate(row.slug, row.name)} aria-label={`Prepare report for ${row.name}`}>
+          <Button size="sm" variant="outline" disabled={!reportable} onClick={() => onGenerate(row.slug, row.name)} aria-label={`Prepare report for ${row.name}`}>
             Prepare report
           </Button>
         </div>

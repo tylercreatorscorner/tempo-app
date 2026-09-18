@@ -16,7 +16,7 @@ import { useState } from 'react';
 import { Loader2, Building2, Check, Copy, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Select } from '@/components/ui/select';
+import { ChoiceMenu } from '@/components/ui/choice-menu';
 
 /** Last 12 complete months, newest first. */
 function monthChoices(): { value: string; label: string; start: string; end: string }[] {
@@ -86,8 +86,7 @@ export function AgencyPanel() {
         <div className="min-w-0">
           <h2 className="text-[13.5px] font-bold tracking-tight text-foreground">Agency report</h2>
           <p className="text-[12px] leading-[1.5] text-muted-foreground">
-            The whole portfolio in one page, for leadership. Not a client report: it names the
-            accounts that went backwards.
+            Portfolio performance for leadership and manager meetings.
           </p>
         </div>
       </div>
@@ -95,17 +94,7 @@ export function AgencyPanel() {
       <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-end">
         <div className="min-w-0 flex-1">
           <Label htmlFor="ag-month">Month</Label>
-          <Select
-            id="ag-month"
-            className="mt-1.5"
-            value={month}
-            disabled={busy}
-            onChange={(e) => { setMonth(e.target.value); setMade(null); }}
-          >
-            {months.map((m) => (
-              <option key={m.value} value={m.value}>{m.label}</option>
-            ))}
-          </Select>
+          <ChoiceMenu label="Agency reporting month" value={month} disabled={busy} onChange={value => { setMonth(value); setMade(null); }} options={months} />
         </div>
         <Button onClick={generate} disabled={busy || !chosen} className="shrink-0">
           {busy ? <><Loader2 className="animate-spin" />Building…</> : <>Generate link</>}

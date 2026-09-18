@@ -56,7 +56,7 @@ export function CreatePanel({
   lockedBrandName?: string;
 }) {
   return (
-    <Card className="overflow-hidden">
+    <Card className="overflow-hidden shadow-none">
       <div className="border-b border-border px-5 py-4">
         <h2 className="text-base font-bold tracking-tight text-foreground">
           {lockedBrand && lockedBrandName ? <BrandIdentity brand={lockedBrand} label={lockedBrandName} /> : 'New client report'}
@@ -73,39 +73,10 @@ export function CreatePanel({
 }
 
 // ── Client report — prepare, edit notes, create link ────────────────
-type PeriodPreset = '7d' | '30d' | 'custom';
+type PeriodPreset = 'last-week' | 'this-week' | 'custom';
 
-/**
- * Which template the link renders.
- *
- *   weekly    everything below, PLUS "What moved this period": the creators
- *             who gained and lost, named.
- *   monthly   everything below, PLUS contracted posts against delivered.
- *             (The net-new GMV split was removed from the report at Tyler's
- *             request, 2026-09: we are credited with all roster revenue, so
- *             splitting it by post date read as a caveat on our own number.)
- *
- * Everything else is identical across types: the headline, the driver
- * sentence, the month-to-date block, signings, worth-a-conversation, the
- * roster table and its CSV, vintage, and store context.
- *
- * 🚨 'performance' IS RETIRED FROM THIS PICKER. It is a strict SUBSET of both
- * of the others: it adds nothing and omits the movers section, so there was
- * never a reason to choose it. Every report CC has sent was 'performance',
- * which means every weekly send went out without the movement section.
- *
- * ⚠️ NOT removed from the type, the API, or the DB constraint. Every report
- * issued before the templates existed is stored as 'performance' and must keep
- * rendering; the API still accepts it, and an absent reportType still defaults
- * to it. This is a change to what an operator can CHOOSE, nothing else.
- *
- * ⚠️ monthly is not "comparison over 30 days": its content is accountability
- * WITHIN the month, not movement between months.
- */
 type ReportKind = 'performance' | 'weekly' | 'monthly';
-
-/** What an operator may pick for a NEW report. See the note above. */
-type SelectableKind = Exclude<ReportKind, 'performance'>;
+type SelectableKind = ReportKind;
 
 interface PreviewData {
   periodLabel: string;
@@ -159,12 +130,21 @@ function monthChoices(now: Date, count = 6): MonthChoice[] {
   return out;
 }
 
+/** Calendar weeks use the same UTC date boundaries as report snapshots. */
+export function reportingWeek(now: Date, current = false) {
+  const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const monday = new Date(today);
+  monday.setUTCDate(today.getUTCDate() - (today.getUTCDay() + 6) % 7 - (current ? 0 : 7));
+  const end = current ? today : new Date(monday.getTime() + 6 * 86400000);
+  return { start: monday.toISOString().slice(0, 10), end: end.toISOString().slice(0, 10) };
+}
+
 function ClientReportForm({ onSent, lockedBrand }: { onSent: () => void; lockedBrand?: string }) {
   const { brand: pickedBrand, setBrand, options: brandOptions, error: brandsError } =
     useBrandSelect({ collapseUmbrella: true, initial: lockedBrand });
   const brand = lockedBrand ?? pickedBrand;
 
-  const [preset, setPreset] = useState<PeriodPreset>('7d');
+  const [preset, setPreset] = useState<PeriodPreset>('last-week');
   // Weekly is the common send and is never worse than the retired default.
   const [reportKind, setReportKind] = useState<SelectableKind>('weekly');
   // The months a monthly report can cover. Computed once per mount; the panel
@@ -182,7 +162,7 @@ function ClientReportForm({ onSent, lockedBrand }: { onSent: () => void; lockedB
   const today = new Date().toISOString().slice(0, 10);
   // A month is always a valid range by construction; only the custom inputs
   // can be put the wrong way round.
-  const rangeValid = reportKind === 'monthly' || preset !== 'custom' || startDate <= endDate;
+  const rangeValid = reportKind !== 'performance' || Boolean(startDate && endDate && startDate <= endDate && endDate <= today);
 
   const [preview, setPreview] = useState<PreviewData | null>(null);
   const [notes, setNotes] = useState('');
@@ -231,9 +211,9 @@ function ClientReportForm({ onSent, lockedBrand }: { onSent: () => void; lockedB
   const periodPayload =
     reportKind === 'monthly'
       ? { start: month.start, end: month.end }
-      : preset === 'custom'
+      : reportKind === 'performance'
         ? { start: startDate, end: endDate }
-        : preset;
+        : reportingWeek(new Date(), preset === 'this-week');
 
   const prepare = async () => {
     if (previewLoading || creating || !rangeValid) return;
@@ -328,6 +308,7 @@ function ClientReportForm({ onSent, lockedBrand }: { onSent: () => void; lockedB
           options={[
             { value: 'weekly', label: 'Week in review' },
             { value: 'monthly', label: 'Month in review' },
+            { value: 'performance', label: 'Custom report' },
           ]}
           value={reportKind}
           onValueChange={(v) => {
@@ -335,7 +316,7 @@ function ClientReportForm({ onSent, lockedBrand }: { onSent: () => void; lockedB
             // Weekly gets the 7-day window back if the operator had wandered
             // off it. Monthly needs no preset at all: it picks a MONTH below
             // and always sends explicit first/last dates.
-            if (v === 'weekly') setPreset('7d');
+            if (v === 'weekly') setPreset('last-week');
           }}
         />
         {/* Say what the choice actually buys, because the two differ by one
@@ -343,7 +324,7 @@ function ClientReportForm({ onSent, lockedBrand }: { onSent: () => void; lockedB
         <p className="mt-1.5 text-[11px] leading-snug text-muted-foreground">
           {reportKind === 'weekly'
             ? 'Performance changes and the creators driving them. '
-            : 'Monthly performance and contracted versus delivered posts. '}
+            : reportKind === 'monthly' ? 'Monthly performance and contracted versus delivered posts.' : 'Performance across your chosen dates; no calendar-month delivery comparison.'}
         </p>
 
       </div>
@@ -363,21 +344,21 @@ function ClientReportForm({ onSent, lockedBrand }: { onSent: () => void; lockedB
                 : `${month.start} to ${month.end}, a complete month.`}
             </p>
           </>
-        ) : (
+        ) : reportKind === 'weekly' ? (
         <SegmentedControl<PeriodPreset>
           ariaLabel="Reporting period"
           size="sm"
           className={SEG_FULL}
           options={[
-            { value: '7d', label: 'Last 7d' },
-            { value: '30d', label: 'Last 30d' },
-            { value: 'custom', label: 'Custom' },
+            { value: 'last-week', label: 'Last complete week' },
+            { value: 'this-week', label: 'This week so far' },
           ]}
           value={preset}
           onValueChange={setPreset}
         />
-        )}
-        {reportKind !== 'monthly' && preset === 'custom' && (
+        ) : null}
+        {reportKind === 'weekly' && <p className="mt-2 text-xs text-muted-foreground">{periodPayload.start} – {periodPayload.end} · Monday–Sunday{preset === 'this-week' ? ' (partial week)' : ''}</p>}
+        {reportKind === 'performance' && (
           <div className="mt-2 grid grid-cols-2 gap-2">
             <Input
               type="date" value={startDate} max={endDate} aria-label="Start date"
@@ -394,7 +375,7 @@ function ClientReportForm({ onSent, lockedBrand }: { onSent: () => void; lockedB
         )}
       </div>
 
-      <Button variant="outline" size="lg" className="w-full" onClick={prepare} disabled={previewLoading || !rangeValid}>
+      <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={prepare} disabled={previewLoading || !rangeValid}>
         {previewLoading ? <><Loader2 className="animate-spin" />Preparing…</> : <><Wand2 />Prepare preview</>}
       </Button>
 

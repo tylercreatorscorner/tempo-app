@@ -1,0 +1,13 @@
+.workspace {
+  --pulse-elev-2: none;
+  --secondary: #f4f4f5;
+  --muted: #f4f4f5;
+  --border: #e4e4e7;
+}
+:global(main):has(.workspace) { background: #fafafa; }
+:global(.dark) .workspace {
+  --secondary: #22232b;
+  --muted: #22232b;
+  --border: #34353e;
+}
+:global(.dark) :global(main):has(.workspace) { background: #14151b; }

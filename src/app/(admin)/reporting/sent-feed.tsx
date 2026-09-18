@@ -15,6 +15,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AlertCircle, Ban, Check, Clipboard, ExternalLink, Loader2, RotateCw, Send,
 } from 'lucide-react';
+import { DropdownMenu } from 'radix-ui';
+import { MoreHorizontal } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useBrandMeta } from '@/hooks/use-brand-meta';
 import { useDelayedFlag } from '@/hooks/use-delayed-flag';
@@ -91,11 +93,13 @@ function createdAtMs(item: FeedItem): number {
   return Number.isNaN(t) ? 0 : t;
 }
 
-const HEADERS = ['Report', 'Brand', 'Period', 'Created', 'Status'] as const;
+const HEADERS = ['Report', 'Created', 'Status'] as const;
 
 export function SentFeed({ refreshKey }: { refreshKey: number }) {
   // Last-good rows per source (null = never loaded), so a failed refetch
   // degrades to a warning over stale rows instead of wiping the list.
+  const [query, setQuery] = useState('');
+  const [showActivity, setShowActivity] = useState(false);
   const [reports, setReports] = useState<ClientReportRow[] | null>(null);
   const [logs, setLogs] = useState<ReportLogRow[] | null>(null);
   const [reportsError, setReportsError] = useState(false);
@@ -203,17 +207,21 @@ export function SentFeed({ refreshKey }: { refreshKey: number }) {
   const items: FeedItem[] = [
     ...(reports ?? []).map<FeedItem>(r => ({ kind: 'client', ...r })),
     ...(logs ?? []).map<FeedItem>(e => ({ kind: 'post', ...e })),
-  ].sort((a, b) => createdAtMs(b) - createdAtMs(a));
+  ].filter(item => (showActivity || item.kind === 'client') && `${feedBrandLabel(item, brandMeta.label)} ${item.periodLabel}`.toLowerCase().includes(query.trim().toLowerCase())).sort((a, b) => createdAtMs(b) - createdAtMs(a));
 
   return (
     <section className="space-y-3">
       <div>
-        <h2 className="text-base font-bold tracking-tight text-foreground">Report history</h2>
+        <h2 className="text-base font-bold tracking-tight text-foreground">Report library</h2>
         <p className="mt-0.5 text-sm text-muted-foreground">
-          Recent saved links and recorded activity. Creating a link does not send it to a client.
+          Find a saved report by brand or reporting period.
         </p>
       </div>
 
+      <div className="flex flex-wrap items-center gap-3">
+        <input aria-label="Search report library" placeholder="Search brand or period" value={query} onChange={e => setQuery(e.target.value)} className="h-9 w-full rounded-lg border border-border bg-card px-3 text-sm sm:w-72" />
+        <label className="flex items-center gap-2 text-xs text-muted-foreground"><input type="checkbox" checked={showActivity} onChange={e => setShowActivity(e.target.checked)} />Include creator post activity</label>
+      </div>
       {revisionLink && (
         <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-sm">
           <span>New revision created. The previous link is unchanged.</span>
@@ -259,8 +267,8 @@ export function SentFeed({ refreshKey }: { refreshKey: number }) {
       ) : items.length === 0 ? (
         <EmptyState
           icon={<Send className="h-8 w-8" />}
-          title="No report activity yet"
-          description="Saved report links and recorded delivery activity will appear here."
+          title={query ? "No matching reports" : "No saved reports yet"}
+          description={query ? "Try another brand or reporting period." : "Reports appear here after you create a share link."}
         />
       ) : (
         <TableCard className="relative">
@@ -331,13 +339,11 @@ function FeedRow({
   return (
     <TR className="hover:bg-muted/60">
       <TD className="text-left">
-        <ReportChip item={item} />
-        {previousUrl && <a href={`${previousUrl}?preview=1`} target="_blank" rel="noopener noreferrer" className="mt-1 block whitespace-nowrap text-xs text-muted-foreground underline-offset-4 hover:underline">Previous report ↗</a>}
+        <BrandIdentity brand={item.brandSlug} label={brandLabel} />
+        <p className="mt-1 text-xs text-muted-foreground">{item.periodLabel}{item.kind === 'client' && item.isRevision ? ' · Revised' : ''}</p>
+        {item.kind === 'post' && <ReportChip item={item} />}
+        {previousUrl && <a href={`${previousUrl}?preview=1`} target="_blank" rel="noopener noreferrer" className="mt-1 block text-xs text-muted-foreground hover:underline">Previous report ↗</a>}
       </TD>
-      <TD className="text-left">
-        <span className="text-foreground"><BrandIdentity brand={item.brandSlug} label={brandLabel} /></span>
-      </TD>
-      <TD className="text-left text-xs">{item.periodLabel}</TD>
       <TD className="text-left text-xs" title={new Date(item.createdAt).toLocaleString()}>
         {relativeTimeAgo(item.createdAt)}
       </TD>
@@ -369,28 +375,13 @@ function FeedRow({
               {copied ? <Check className="h-3.5 w-3.5" /> : <Clipboard className="h-3.5 w-3.5" />}
               {copied ? 'Copied' : 'Copy link'}
             </button>
-            {!item.revokedAt && (
-              <button
-                type="button"
-                onClick={() => onRefresh(item)}
-                disabled={refreshing}
-                title="Create a new revision while preserving this report link"
-                className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-60"
-              >
-                <RotateCw className={cn('h-3.5 w-3.5', refreshing && 'animate-spin')} />
-                {refreshing ? 'Creating revision' : 'Create revision'}
-              </button>
-            )}
-            {!item.revokedAt && (
-              <button
-                type="button"
-                onClick={() => onRevoke(item)}
-                className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-muted-foreground transition-colors hover:bg-[var(--pulse-neg-bg)] hover:text-[var(--pulse-neg)]"
-              >
-                <Ban className="h-3.5 w-3.5" />
-                Revoke
-              </button>
-            )}
+            {!item.revokedAt && <DropdownMenu.Root>
+              <DropdownMenu.Trigger asChild><button type="button" aria-label={`More actions for ${brandLabel}, ${item.periodLabel}`} className="rounded-md p-2 text-muted-foreground hover:bg-muted"><MoreHorizontal size={16} /></button></DropdownMenu.Trigger>
+              <DropdownMenu.Portal><DropdownMenu.Content align="end" sideOffset={6} className="z-50 min-w-44 rounded-lg border border-border bg-card p-1 shadow-lg">
+                <DropdownMenu.Item disabled={refreshing} onSelect={() => onRefresh(item)} className="flex cursor-pointer items-center gap-2 rounded px-3 py-2 text-xs outline-none data-[highlighted]:bg-muted data-[disabled]:opacity-50"><RotateCw size={14} />{refreshing ? 'Creating revision…' : 'Create revision'}</DropdownMenu.Item>
+                <DropdownMenu.Item onSelect={() => onRevoke(item)} className="flex cursor-pointer items-center gap-2 rounded px-3 py-2 text-xs text-[var(--pulse-neg)] outline-none data-[highlighted]:bg-muted"><Ban size={14} />Revoke link</DropdownMenu.Item>
+              </DropdownMenu.Content></DropdownMenu.Portal>
+            </DropdownMenu.Root>}
           </div>
         )}
       </TD>

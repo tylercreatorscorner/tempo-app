@@ -86,7 +86,7 @@ export function SectionTabs({
       }
     }
   }
-  if (!current) return null;
+  if (!current || pathname === '/reporting') return null;
 
   // ⚠️ AND-ed with the old admin rule, never instead of it. The href maps to a
   // matrix screen by its first path segment, which is how the section layouts
