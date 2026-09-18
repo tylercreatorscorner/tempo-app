@@ -19,6 +19,7 @@
  */
 
 import { cache } from 'react';
+import { applyRosterAgreementTerms, isCalendarMonthAgreement, type RosterAgreement } from '@/lib/agreements/roster-terms';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createAdminClient } from '@/lib/supabase/server';
 import { getBrandRegistry, resolveUuids, uuidToSlug, type BrandRegistry } from '@/lib/data/brand-registry';
@@ -27,6 +28,10 @@ import { resolveWatchUrl } from '@/lib/utils/format';
 // ---- Types ---------------------------------------------------------------
 
 export interface CreatorContract {
+  monthlyPaceComparable?: boolean;
+  agreementPeriod?: string;
+  agreementStatus?: string;
+  agreementPosts?: number | null;
   managedId: number;
   brandSlug: string;          // managed_creators.brand
   brandDisplayName: string;   // brands_v2.display_name (or slug fallback)
@@ -128,10 +133,10 @@ async function loadCreatorPortalProfileImpl(
 
   const { data: cv } = await supabase
     .from('creators_v2')
-    .select('id, real_name, email')
+    .select('id, real_name, email, tenant_id')
     .eq('id', creatorId)
     .maybeSingle();
-  if (!cv) return null;
+  if (!cv?.tenant_id) return null;
 
   const { data: accountRows } = await supabase
     .from('tiktok_accounts')
@@ -156,15 +161,17 @@ async function loadCreatorPortalProfileImpl(
       `account_${i + 1}.in.(${handles.map((h) => `"${h}"`).join(',')})`
     ).join(',');
 
-    const { data: mcRows } = await supabase
+    const { data: mcRows, error: contractError } = await supabase
       .from('managed_creators')
       .select(
         'id, brand, retainer, monthly_post_requirement, product_assignments, current_tier, employment_status, retainer_start_date, account_1, account_2, account_3, account_4, account_5, account_6, account_7, account_8, account_9, account_10'
       )
+      .eq('tenant_id', cv.tenant_id)
       .or(accountFilters);
+    if (contractError) throw Error('Creator agreements could not be loaded.');
 
     const handleSet = new Set(handles);
-    type McRow = NonNullable<typeof mcRows>[number];
+    type McRow = NonNullable<typeof mcRows>[number] & {agreement?:RosterAgreement|null};
     const brandRowMap = new Map<string, McRow>();
     for (const row of mcRows ?? []) {
       const rowHandles = [
@@ -182,7 +189,7 @@ async function loadCreatorPortalProfileImpl(
 
     const { data: brandsData } = await supabase
       .from('brands_v2')
-      .select('slug, display_name, color, is_archived');
+      .select('slug, display_name, color, is_archived').eq('tenant_id',cv.tenant_id);
     const brandMeta = new Map<
       string,
       { display_name: string; color: string; is_archived: boolean }
@@ -195,11 +202,18 @@ async function loadCreatorPortalProfileImpl(
       });
     }
 
-    contracts = Array.from(brandRowMap.values())
+    const scopedContracts=Array.from(brandRowMap.values());
+    const today=new Date().toLocaleDateString('en-CA',{timeZone:'America/Chicago'});
+    await applyRosterAgreementTerms(scopedContracts,cv.tenant_id,today);
+    contracts = scopedContracts
       .filter((r) => !brandMeta.get(r.brand)?.is_archived)
       .map((r) => {
         const meta = brandMeta.get(r.brand);
         return {
+          monthlyPaceComparable: !r.agreement || isCalendarMonthAgreement(r.agreement,today),
+          agreementPeriod: r.agreement?.periodStart && r.agreement.periodEnd ? `${r.agreement.periodStart}–${r.agreement.periodEnd}` : undefined,
+          agreementPosts: r.agreement?.quota,
+          agreementStatus: r.agreement?.status,
           managedId: r.id,
           brandSlug: r.brand,
           brandDisplayName: meta?.display_name ?? r.brand,
@@ -784,6 +798,10 @@ export async function getCreatorStreak(
 
 /** Distinct video IDs posted this calendar month — for retainer pace. */
 export interface BrandBreakdownRow {
+  monthlyPaceComparable?: boolean;
+  agreementPeriod?: string;
+  agreementStatus?: string;
+  agreementPosts?: number | null;
   brandSlug: string;
   brandDisplayName: string;
   brandColor: string;
@@ -812,6 +830,10 @@ export async function getAllBrandsBreakdown(
         getMonthVideoCount(handles, c.brandSlug).catch(() => null),
       ]);
       return {
+        monthlyPaceComparable: c.monthlyPaceComparable,
+        agreementPeriod: c.agreementPeriod,
+        agreementPosts: c.agreementPosts,
+        agreementStatus: c.agreementStatus,
         brandSlug: c.brandSlug,
         brandDisplayName: c.brandDisplayName,
         brandColor: c.brandColor,
@@ -834,14 +856,13 @@ export async function getMonthVideoCount(
   const reg = await getBrandRegistry();
   const brandUuid = brandFilter(reg, brandSlug);
 
-  const now = new Date();
-  const start = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-01`;
-  const end = now.toISOString().slice(0, 10);
+  const end = new Date().toLocaleDateString('en-CA',{timeZone:'America/Chicago'});
+  const start = end.slice(0,7)+'-01';
 
   const filters: { column: string; op: 'eq' | 'in' | 'gte' | 'lte'; value: any }[] = [
     { column: 'tiktok_username', op: 'in', value: handles },
-    { column: 'report_date', op: 'gte', value: start },
-    { column: 'report_date', op: 'lte', value: end },
+    { column: 'post_date', op: 'gte', value: start },
+    { column: 'post_date', op: 'lte', value: `${end}T23:59:59` },
   ];
   if (brandUuid) filters.push({ column: 'brand_id', op: 'in', value: brandUuid });
 
@@ -1215,7 +1236,7 @@ export function buildActionStack(args: {
     actions.push({
       kind: 'no_post',
       tone: 'urgent',
-      headline: `You haven't posted this period`,
+      headline: `No recorded video activity this period`,
       detail: `Momentum fades fast. Browse what's winning across the network and get one up today.`,
       cta: { label: 'Find something to post', href: DISCOVER },
       score: 1000,
@@ -1223,24 +1244,25 @@ export function buildActionStack(args: {
   }
 
   // Per-brand retainer pace — specific to the brand whose retainer is at risk.
-  const contracted = brands.filter((b) => b.retainer > 0 && b.monthlyPostRequirement > 0);
+  const contracted = brands.filter((b) => b.monthlyPaceComparable !== false && b.retainer > 0 && b.monthlyPostRequirement > 0);
   for (const b of contracted) {
-    const posted = b.postsThisMonth ?? 0;
+    if (b.postsThisMonth === null) continue;
+    const posted = b.postsThisMonth;
     const behind = b.monthlyPostRequirement - posted;
     if (behind <= 0) continue;
     const perDay = daysLeftInMonth > 0 ? Math.ceil(behind / daysLeftInMonth) : behind;
     actions.push({
       kind: 'pace_behind',
       tone: 'urgent',
-      headline: `Protect your ${b.brandDisplayName} retainer`,
-      detail: `${behind} more post${behind === 1 ? '' : 's'} this month fully earns your ${formatMoney(b.retainer)}/mo${daysLeftInMonth > 0 ? `, about ${perDay}/day for ${daysLeftInMonth} day${daysLeftInMonth === 1 ? '' : 's'}` : ''}.`,
+      headline: `${b.brandDisplayName} posting target`,
+      detail: `${behind} more post${behind === 1 ? '' : 's'} toward your recorded monthly target${daysLeftInMonth > 0 ? `, about ${perDay}/day for ${daysLeftInMonth} day${daysLeftInMonth === 1 ? '' : 's'}` : ''}.`,
       cta: { label: 'Find inspiration', href: DISCOVER },
       // Dollars at stake = the retainer; nudged up as the gap widens.
       score: b.retainer + behind * 15,
     });
   }
   // Aggregate fallback if we have a target but no per-brand rows resolved.
-  if (contracted.length === 0 && monthlyTarget > 0) {
+  if (contracted.length === 0 && monthlyTarget > 0 && !brands.some(b=>b.monthlyPaceComparable===false)) {
     const behind = monthlyTarget - monthVideos;
     if (behind > 0) {
       const perDay = daysLeftInMonth > 0 ? Math.ceil(behind / daysLeftInMonth) : behind;

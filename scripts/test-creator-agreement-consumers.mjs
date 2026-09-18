@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {runInNewContext} from 'node:vm';
+import ts from 'typescript';
+let fail=false;const seen=[];
+const tables={creators_v2:[{id:'creator',tenant_id:'own',real_name:'Fixture'}],tiktok_accounts:[{creator_id:'creator',tiktok_username:'fixture'}],managed_creators:[{id:1,tenant_id:'own',brand:'alpha',account_1:'fixture',retainer:100,monthly_post_requirement:30},{id:2,tenant_id:'foreign',brand:'secret',account_1:'fixture',retainer:9999}],brands_v2:[{tenant_id:'own',slug:'alpha',display_name:'Alpha'},{tenant_id:'foreign',slug:'secret',display_name:'Secret'}]};
+const admin={from:table=>{const filters=[];const q={select:()=>q,eq:(k,v)=>{filters.push(r=>r[k]===v);return q;},or:()=>q,maybeSingle:async()=>run(true),then:(ok,no)=>Promise.resolve(run(false)).then(ok,no)};function run(single){if(fail&&table==='managed_creators')return {data:null,error:{message:'read failed'}};const rows=tables[table].filter(r=>filters.every(f=>f(r)));return {data:single?rows[0]:rows,error:null};}return q;}};
+const deps={react:{cache:fn=>fn},'@/lib/supabase/server':{createAdminClient:async()=>admin},'@/lib/data/brand-registry':{},'@/lib/utils/format':{},'@/lib/agreements/roster-terms':{applyRosterAgreementTerms:async(rows,tenant)=>{assert.equal(tenant,'own');assert.deepEqual(Array.from(rows,r=>r.id),[1]);seen.push(...rows);rows[0].retainer=200;rows[0].agreement={quota:20,status:'active',periodStart:'2026-07-24',periodEnd:'2026-08-31'};},isCalendarMonthAgreement:()=>false}};
+const api={};runInNewContext(ts.transpileModule(readFileSync('src/lib/data/creator-portal.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{exports:api,Date,require:n=>{assert.ok(n in deps,n);return deps[n];}});
+const profile=await api.loadCreatorPortalProfile('creator',null);assert.equal(profile.contracts.length,1);assert.equal(profile.contracts[0].retainer,200);assert.equal(profile.contracts[0].monthlyPaceComparable,false);assert.equal(profile.contracts[0].agreementPeriod,'2026-07-24–2026-08-31');assert.equal(profile.contracts[0].agreementPosts,20);assert.equal(profile.contracts[0].agreement,undefined,'Never serialize private snapshots');
+fail=true;await assert.rejects(api.loadCreatorPortalProfile('creator',null),/could not be loaded/);
+const brand={brandSlug:'alpha',brandDisplayName:'Alpha',retainer:200,monthlyPostRequirement:20,monthlyPaceComparable:false,postsThisMonth:5};
+const args={monthVideos:5,monthlyTarget:20,streak:0,topVideo:null,summary:{videoCount:5,totalGmv:200},daysLeftInMonth:10,brands:[brand],rankChase:null};
+assert.equal(api.buildActionStack(args).some(a=>a.kind==='pace_behind'),false,'Custom periods have no monthly pace fallback');
+const actions=api.buildActionStack({...args,brands:[{...brand,monthlyPaceComparable:true}]});const pace=actions.find(a=>a.kind==='pace_behind');assert.ok(pace);assert.doesNotMatch(pace.detail,/fully earns|\/mo/,'Publication alone never promises a payment');
+assert.equal(api.buildActionStack({...args,brands:[{...brand,monthlyPaceComparable:true,postsThisMonth:null}]}).some(a=>a.kind==='pace_behind'),false,'Unavailable counts are not zero');
+console.log('PASS creator agreement consumers: tenant-bound contracts, dated fees, period context, no private snapshots, custom-period and missing-count suppression, no payment promises');

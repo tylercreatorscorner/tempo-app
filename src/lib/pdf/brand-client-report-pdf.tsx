@@ -701,7 +701,8 @@ export function BrandClientReportPDF({
    * apportionment this report refuses everywhere else); an incomplete month
    * says so instead.
    */
-  const contracted = gran
+  const agreementReviewNeeded = gran?.creators.some(c => c.agreement && !c.agreement.reportPeriodComparable);
+  const contracted = gran && !agreementReviewNeeded
     ? gran.creators.filter((c) => !c.isAffiliate && !c.departed && (c.quota ?? 0) > 0)
     : [];
   const postsOwed = contracted.reduce((s, c) => s + (c.quota ?? 0), 0);
@@ -742,7 +743,7 @@ export function BrandClientReportPDF({
   const showLevel = (gran?.roster?.roleCoverage ?? 0) >= 50;
 
   const mtdPass = data.monthToDate;
-  const mtdContracted = mtdPass
+  const mtdContracted = mtdPass && !mtdPass.granular.creators.some(c => c.agreement && !c.agreement.reportPeriodComparable)
     ? mtdPass.granular.creators.filter((c) => !c.isAffiliate && !c.departed && (c.quota ?? 0) > 0)
     : [];
   const mtdSpend = mtdPass
@@ -1146,6 +1147,7 @@ export function BrandClientReportPDF({
           </View>
         )}
 
+        {agreementReviewNeeded && <Text style={styles.splitMeta}>Agreement-period review required: some deals use different delivery dates or payment rules. Monthly fulfillment and payment estimates are not shown.</Text>}
         {/* ── Month in review: what was committed against what landed ──── */}
         {isMonthly && contracted.length > 0 && (
           <View style={styles.section}>
@@ -1490,12 +1492,12 @@ export function BrandClientReportPDF({
                 {/* Em dash, not $0: there is no agreed amount for affiliate-only,
                     and a zero would read as a negotiated figure. */}
                 <Text style={[styles.gCellMuted, { flex: 1.1, textAlign: 'right' }]}>
-                  {!c.departed && !c.isAffiliate && c.retainer > 0 ? `${fmtCurrency(c.retainer)}/mo` : '\u2014'}
+                  {!c.departed && !c.isAffiliate && c.retainer > 0 ? `${fmtCurrency(c.retainer)}/${c.agreement ? "period" : "mo"}` : '\u2014'}
                 </Text>
                 {/* The monthly target belongs beside a monthly count only.
                     Over a week "0 / 30" is a unit mismatch, not a shortfall. */}
                 <Text style={[styles.gCellMuted, { flex: 0.9, textAlign: 'right' }]}>
-                  {wholeMonth && c.quota != null
+                  {wholeMonth && c.quota != null && (!c.agreement || c.agreement.reportPeriodComparable)
                     ? `${fmtNumber(c.postsPublished)} / ${fmtNumber(c.quota)}`
                     : fmtNumber(c.postsPublished)}
                 </Text>

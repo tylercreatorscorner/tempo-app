@@ -65,7 +65,7 @@ export function BrandsClient({ realName, rangeLabel, rows, standings, untapped }
         <StripCell
           k="Total retainer"
           v={`${formatCurrency(totalRetainer)}`}
-          sub="per month"
+          sub="recorded agreement fees"
         />
         <StripCell k={`GMV · you`} v={gmvLabel(totalGmv)} sub={rangeLabel.toLowerCase()} />
         <StripCell
@@ -130,11 +130,11 @@ export function BrandsClient({ realName, rangeLabel, rows, standings, untapped }
       ) : (
         <TableCard>
           <div className="overflow-x-auto">
-            <Table>
+            <Table className="min-w-[600px]">
               <THead>
                 <TR>
                   <TH>Brand</TH>
-                  <TH>Retainer / mo</TH>
+                  <TH>Recorded fee</TH>
                   <TH>Posts (mo)</TH>
                   <TH>Your GMV</TH>
                   <TH className="hidden md:table-cell">Brand GMV</TH>
@@ -147,7 +147,7 @@ export function BrandsClient({ realName, rangeLabel, rows, standings, untapped }
                   // Affiliate-only brands ($0 retainer) carry a phantom
                   // monthly_post_requirement default and must NOT be flagged "Behind".
                   const contracted = r.retainer > 0;
-                  const hasReq = contracted && r.monthlyPostRequirement > 0;
+                  const hasReq = r.monthlyPaceComparable !== false && (contracted || r.agreementStatus === 'active') && r.monthlyPostRequirement > 0;
                   const behind =
                     r.postsThisMonth != null && hasReq && r.postsThisMonth < r.monthlyPostRequirement;
                   const standing = standings[r.brandSlug];
@@ -161,10 +161,10 @@ export function BrandsClient({ realName, rangeLabel, rows, standings, untapped }
                       </TD>
                       <TD className="tabular-nums text-foreground">
                         {contracted ? (
-                          formatCurrency(r.retainer)
+                          <>{formatCurrency(r.retainer)}{r.agreementPeriod && <span className="block text-[11px] font-normal text-muted-foreground">{r.agreementPeriod} · {r.agreementPosts ?? '—'} posts</span>}</>
                         ) : (
                           <Badge variant="neutral" size="sm">
-                            Affiliate
+                            {r.agreementStatus === 'ended' ? 'Ended' : r.agreementStatus === 'awaiting_renewal' ? 'Awaiting renewal' : r.agreementStatus === 'active' ? 'No fixed fee' : 'Affiliate'}
                           </Badge>
                         )}
                       </TD>
@@ -173,7 +173,7 @@ export function BrandsClient({ realName, rangeLabel, rows, standings, untapped }
                           <span className="text-muted-foreground">—</span>
                         ) : (
                           <div className="flex items-center justify-end gap-2">
-                            <span className="font-medium tabular-nums text-foreground">
+                            <span className="whitespace-nowrap font-medium tabular-nums text-foreground">
                               {r.postsThisMonth}
                               {hasReq && (
                                 <span className="text-muted-foreground"> / {r.monthlyPostRequirement}</span>
@@ -182,11 +182,11 @@ export function BrandsClient({ realName, rangeLabel, rows, standings, untapped }
                             {hasReq &&
                               (behind ? (
                                 <Badge variant="warning" size="sm">
-                                  Behind
+                                  In progress
                                 </Badge>
                               ) : (
                                 <Badge variant="positive" size="sm">
-                                  On track
+                                  Target reached
                                 </Badge>
                               ))}
                           </div>
@@ -215,7 +215,7 @@ export function BrandsClient({ realName, rangeLabel, rows, standings, untapped }
       )}
 
       <p className="text-[11px] text-muted-foreground">
-        Your retainer is your monthly agreement per brand. Posts and GMV update as your TikTok Shop data syncs.
+        Fees and requirements follow each brand agreement. Publication counts do not establish accepted deliveries or payment owed. Posts and GMV update as your TikTok Shop data syncs.
       </p>
     </div>
   );

@@ -16,6 +16,8 @@
  * that brand's products — independent of which brand the creator is contracted to.
  */
 import { cache } from 'react';
+import { applyRosterAgreementTerms, isCalendarMonthAgreement, type RosterAgreement } from '@/lib/agreements/roster-terms';
+import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { getCreatorReportBrands } from '@/lib/auth/creator-report-scope';
 import { getBrandRegistry, expandSlugs, type BrandRegistry } from '@/lib/data/brand-registry';
@@ -237,6 +239,7 @@ const MANAGED_CREATOR_COLUMNS =
   'account_1, account_2, account_3, account_4, account_5, account_6, account_7, account_8, account_9, account_10';
 
 interface ManagedRow {
+  agreement?: RosterAgreement | null;
   id: number;
   real_name: string | null;
   brand: string;
@@ -942,6 +945,8 @@ export async function getCreatorBrandRelationship(
  * so the page can summarise them rather than pretend they do not exist.
  */
 export interface CreatorContract {
+  monthlyPaceComparable?: boolean;
+  agreementPeriod?: string;
   managedId: number;
   brand: string;
   retainer: number;
@@ -960,7 +965,12 @@ export async function getCreatorContracts(creatorId: string): Promise<{
   if (handles.length === 0) return { primary: null, others: [], totalRetainer: 0 };
 
   const rows = await getManagedRowsForHandles(handles);
+  const scope = await getWorkspaceScope();
+  const today = new Date().toLocaleDateString('en-CA',{timeZone:'America/Chicago'});
+  if (scope?.tenantId) await applyRosterAgreementTerms(rows,scope.tenantId,today);
   const contracts: CreatorContract[] = rows.map((r) => ({
+    monthlyPaceComparable: !r.agreement || isCalendarMonthAgreement(r.agreement,today),
+    agreementPeriod: r.agreement?.periodStart && r.agreement.periodEnd ? `${r.agreement.periodStart}–${r.agreement.periodEnd}` : undefined,
     managedId: r.id,
     brand: r.brand,
     retainer: Number(r.retainer) || 0,

@@ -25,7 +25,10 @@
  *   for ROI is the product-specific retainer (not the total).
  */
 import { createAdminClient } from '@/lib/supabase/server';
-import { getBrandRegistry, expandSlugs } from '@/lib/data/brand-registry';
+import { buildRegistry, expandSlugs, type BrandRow } from '@/lib/data/brand-registry-core';
+import { can } from '@/lib/auth/permissions';
+import { isBrandInScope, type WorkspaceScope } from '@/lib/auth/workspace-scope';
+import { applyRosterAgreementTerms, type RosterAgreement } from '@/lib/agreements/roster-terms';
 
 /** Fetch every row of a query, paging past PostgREST's 1000-row cap. `makeQuery`
  *  returns a FRESH builder each call carrying a stable `.order()`. Mirrors the
@@ -37,7 +40,7 @@ async function fetchAllRows<T>(
   const out: T[] = [];
   for (let from = 0; ; from += PAGE) {
     const { data, error } = await makeQuery().range(from, from + PAGE - 1);
-    if (error) { console.error('[renewals] paged fetch failed:', error.message); break; }
+    if (error) throw Error('Renewal data could not be loaded completely.');
     if (!data || data.length === 0) break;
     out.push(...data);
     if (data.length < PAGE) break;
@@ -78,7 +81,13 @@ export interface RenewalCreator {
   paceStatus: PaceStatus;
 }
 
+export interface AgreementRenewalReview {
+ id:number; creatorId:string|null; name:string; brand:string; fee:number; posts:number|null;
+ period:string|null; status:string; reason:string;
+}
+export class RenewalsAccessError extends Error {}
 export interface RenewalsResult {
+ review:AgreementRenewalReview[];
   cut: RenewalCreator[];
   watch: RenewalCreator[];
   keep: RenewalCreator[];          // includes stars
@@ -93,6 +102,8 @@ export interface RenewalsResult {
 }
 
 interface ManagedCreatorRow {
+  creator_id:string|null;
+  agreement?:RosterAgreement|null;
   id: number;
   real_name: string | null;
   discord_name: string | null;
@@ -191,11 +202,18 @@ function getTotalRetainer(c: ManagedCreatorRow): number {
 // ── Main fetcher ───────────────────────────────────────────────────
 
 export async function getRenewals(opts: {
+  scope: WorkspaceScope;
   brand?: string | null;
   product?: string | null;
 }): Promise<RenewalsResult> {
+  const scope=opts.scope;
+  if (!scope?.tenantId || !scope.canViewCreatorCost || !can(scope,'roster','read')) throw new RenewalsAccessError('Renewal access denied.');
   const supabase = await createAdminClient();
-  const reg = await getBrandRegistry();
+  const {data:brandRows,error:brandError,count}=await supabase.from('brands_v2').select('id,slug,name,display_name,color,is_archived,is_umbrella,parent_brand_id,store_order',{count:'exact'}).eq('tenant_id',scope.tenantId);
+  if(brandError || !brandRows || count!==brandRows.length) throw Error('Renewal brands could not be verified.');
+  const reg=buildRegistry(brandRows as BrandRow[]);
+  const allowed=reg.rows.filter(row=>!row.is_archived && (isBrandInScope(scope,row) || !!(row.parent_brand_id && reg.byId.get(row.parent_brand_id) && isBrandInScope(scope,reg.byId.get(row.parent_brand_id)!))));
+  const allowedSlugs=new Set(allowed.map(r=>r.slug));
   const brandFilter = opts.brand && opts.brand !== 'all' ? opts.brand : null;
   // An umbrella brand has NO fact rows of its own — its data lives under the
   // store slugs. Measured 2026-07-26: creator_performance holds 0 rows under
@@ -204,34 +222,34 @@ export async function getRenewals(opts: {
   // both sides therefore gave every one of them GMV 0 -> ROI 0 -> 'Cut', i.e.
   // the page recommended terminating $95,100/mo of contracts it simply could
   // not see. Both the filter and the per-creator lookup must expand.
-  const filterSlugs = brandFilter ? expandSlugs(reg, brandFilter) : null;
+  if(brandFilter && !allowedSlugs.has(brandFilter)) throw new RenewalsAccessError('Brand is not available for renewal review.');
+  const rosterSlugs=brandFilter ? [brandFilter,...expandSlugs(reg,brandFilter)].filter(slug=>allowedSlugs.has(slug)) : [...allowedSlugs];
+  const filterSlugs=[...new Set(rosterSlugs.flatMap(slug=>expandSlugs(reg,slug)).filter(slug=>allowedSlugs.has(slug)))];
+  const empty=():RenewalsResult=>({review:[],cut:[],watch:[],keep:[],totals:{cutCount:0,watchCount:0,keepCount:0,starCount:0,monthlyAtRisk:0,monthlyTotal:0}});
+  if(!rosterSlugs.length) return empty();
   const productFilter = opts.product && opts.product !== 'all' ? opts.product : null;
 
   // 1. Pull active retainer creators
-  let q = supabase
+  const rawCreators=await fetchAllRows<ManagedCreatorRow>(()=>supabase
     .from('managed_creators')
-    .select('id, real_name, discord_name, discord_id, discord_user_id, discord_avatar, brand, status, retainer, account_1, account_2, account_3, account_4, account_5, contract_length_days, monthly_post_requirement, retainer_start_date, product_retainers')
-    .eq('status', 'Active');
-  // Contracts are filed under whatever slug the operator picked — umbrella OR
-  // store — so a filter on either must match both grains.
-  if (brandFilter && filterSlugs) {
-    q = filterSlugs.length > 1 ? q.in('brand', [brandFilter, ...filterSlugs]) : q.eq('brand', brandFilter);
-  }
-  const { data: rawCreators, error: cErr } = await q;
-  if (cErr) throw cErr;
-
-  let creators = (rawCreators as ManagedCreatorRow[] | null ?? []).filter(hasAnyRetainer);
+    .select('id, creator_id, real_name, discord_name, discord_id, discord_user_id, discord_avatar, brand, status, retainer, account_1, account_2, account_3, account_4, account_5, contract_length_days, monthly_post_requirement, retainer_start_date, product_retainers')
+    .eq('tenant_id',scope.tenantId).eq('status','Active').in('brand',rosterSlugs).order('id',{ascending:true}));
+  await applyRosterAgreementTerms(rawCreators,scope.tenantId,new Date().toLocaleDateString('en-CA',{timeZone:'America/Chicago'}));
+  let creators=rawCreators;
   // Product filter: only creators with this product key in product_retainers
   if (productFilter) {
     creators = creators.filter(c => productFilter in (c.product_retainers ?? {}));
   }
 
-  if (creators.length === 0) {
-    return {
-      cut: [], watch: [], keep: [],
-      totals: { cutCount: 0, watchCount: 0, keepCount: 0, starCount: 0, monthlyAtRisk: 0, monthlyTotal: 0 },
-    };
-  }
+  const review:AgreementRenewalReview[]=creators.filter(c=>c.agreement).map(c=>({
+    id:c.id,creatorId:c.creator_id,name:c.real_name || c.account_1 || 'Creator',brand:c.brand,
+    fee:Number(c.retainer)||0,posts:c.agreement!.quota,
+    period:c.agreement!.periodStart && c.agreement!.periodEnd ? `${c.agreement!.periodStart}–${c.agreement!.periodEnd}` : null,
+    status:c.agreement!.status,
+    reason:'Review recorded periods and accepted deliveries. Legacy rolling-window scores do not assess this agreement.',
+  }));
+  creators=creators.filter(c=>!c.agreement && hasAnyRetainer(c));
+  if(!creators.length) return {...empty(),review};
 
   // 2. Pull 60 days of creator_performance (covers current + prior contract periods)
   const today = new Date();
@@ -248,6 +266,7 @@ export async function getRenewals(opts: {
     let q = supabase
       .from('creator_performance')
       .select('creator_name, brand, gmv, videos, report_date')
+      .eq('tenant_id',scope.tenantId)
       .eq('period_type', 'daily')
       .gte('report_date', localDateStr(sixtyAgo))
       .lte('report_date', localDateStr(today))
@@ -378,7 +397,7 @@ export async function getRenewals(opts: {
   const monthlyAtRisk = cut.reduce((s, c) => s + c.retainer, 0);
 
   return {
-    cut, watch, keep,
+    review, cut, watch, keep,
     totals: {
       cutCount: cut.length,
       watchCount: watch.length,

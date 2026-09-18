@@ -46,3 +46,6 @@ audit.mjs
 # Isolated design preview build
 .design-preview/
 supabase/.temp/
+
+# Local agreement interaction build
+.agreement-preview/

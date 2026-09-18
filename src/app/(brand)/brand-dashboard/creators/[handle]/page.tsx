@@ -212,23 +212,24 @@ export default async function BrandCreatorDetailPage({ params, searchParams }: P
       </Card>
 
       {/* Contract details */}
-      {(detail.retainer > 0 ||
+      {(detail.hasVerifiedAgreement || detail.retainer > 0 ||
         detail.monthlyPostRequirement != null ||
         detail.handles.length > 1) && (
         <Card>
           <CardHeader title="Contract details" />
           <dl className="divide-y divide-border/40">
-            {detail.retainer > 0 && (
+            {detail.agreementStatus && <div className="flex items-center justify-between px-4 py-3"><dt className="text-xs text-muted-foreground">Agreement status</dt><dd className="text-sm">{detail.agreementStatus.replaceAll('_',' ')}</dd></div>}
+            {(detail.hasVerifiedAgreement || detail.retainer > 0) && (
               <div className="flex items-center justify-between px-4 py-3">
-                <dt className="text-xs text-muted-foreground">Monthly retainer</dt>
+                <dt className="text-xs text-muted-foreground">Recorded agreement fee</dt>
                 <dd className="text-sm font-medium text-foreground tabular-nums">
-                  {fmtCurrency(detail.retainer)}
+                  {fmtCurrency(detail.retainer)}{detail.agreementPeriod && <span className="block text-xs font-normal text-muted-foreground">{detail.agreementPeriod}</span>}
                 </dd>
               </div>
             )}
             {detail.monthlyPostRequirement != null && (
               <div className="flex items-center justify-between px-4 py-3">
-                <dt className="text-xs text-muted-foreground">Posts per month required</dt>
+                <dt className="text-xs text-muted-foreground">Recorded post requirement</dt>
                 <dd className="text-sm font-medium text-foreground tabular-nums">
                   {detail.monthlyPostRequirement}
                 </dd>

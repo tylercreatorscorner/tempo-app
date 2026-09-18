@@ -1,3 +1,5 @@
+import { applyRosterAgreementTerms, type RosterAgreement } from '@/lib/agreements/roster-terms';
+import { portalAgreementTenant, portalAgreementSummary } from '@/lib/agreements/portal-terms';
 /**
  * Single-creator detail fetcher for the brand portal.
  *
@@ -11,6 +13,9 @@ import type { BrandPortalPeriod } from './brand-portal-overview';
 import { getBrandRegistry, resolveUuids } from '@/lib/data/brand-registry';
 
 export interface BrandCreatorDetail {
+  hasVerifiedAgreement?: boolean;
+  agreementPeriod?: string;
+  agreementStatus?: string;
   managedId: number;
   realName: string | null;
   primaryHandle: string;
@@ -105,6 +110,7 @@ export async function getBrandCreatorDetail(
 
   // Umbrella-aware brand resolution (see brand-portal-overview for rationale).
   // 'leefar' → both store UUIDs; normal brand → its single UUID.
+  const agreementTenant = await portalAgreementTenant(supabase,brandUuid,brandSlug);
   const reg = await getBrandRegistry();
   const brandIds = resolveUuids(reg, brandSlug, brandUuid) ?? [];
 
@@ -115,10 +121,12 @@ export async function getBrandCreatorDetail(
   // on a linked TikTok account (most of Neurogum's roster GMV) was counted on
   // the overview and then came up empty on the click through to their page.
   const accountSelect = ACCOUNT_COLS.join(', ');
-  const rowSelect = `id, real_name, retainer, monthly_post_requirement, current_tier, archived_at, creator_id, ${accountSelect}`;
+  const rowSelect = `id, tenant_id, real_name, retainer, monthly_post_requirement, current_tier, archived_at, creator_id, ${accountSelect}`;
   const orFilter = ACCOUNT_COLS.map((c) => `${c}.ilike.%${targetHandle}%`).join(',');
 
   type ManagedRow = {
+    agreement?: RosterAgreement|null;
+    tenant_id:string;
     id: number;
     real_name: string | null;
     retainer: number | string | null;
@@ -194,7 +202,7 @@ export async function getBrandCreatorDetail(
 
   // Every row on this brand that carries the handle exactly. An unarchived one
   // owns the page; otherwise the first (by id), as on the overview.
-  const ownerRows = candidates.filter((r) => handlesOf(r).includes(targetHandle));
+  const ownerRows = candidates.filter((r) => (!agreementTenant || r.tenant_id===agreementTenant) && handlesOf(r).includes(targetHandle));
   const owner = ownerRows.find((r) => r.archived_at === null) ?? ownerRows[0];
   if (!owner) return null;
   const handles = handlesOf(owner);
@@ -258,6 +266,7 @@ export async function getBrandCreatorDetail(
 
   const startStr = fmt(startDate);
   const endStr = fmt(actualEndDate);
+  if (agreementTenant) await applyRosterAgreementTerms([owner],agreementTenant,endStr);
   const priorStartStr = fmt(priorStart);
   const priorEndStr = fmt(priorEnd);
 
@@ -377,6 +386,7 @@ export async function getBrandCreatorDetail(
     realName: owner.real_name,
     primaryHandle,
     handles,
+    ...portalAgreementSummary(owner.agreement),
     retainer: Number(owner.retainer ?? 0),
     monthlyPostRequirement: owner.monthly_post_requirement,
     currentTier: owner.current_tier,

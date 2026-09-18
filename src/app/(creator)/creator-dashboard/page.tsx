@@ -39,13 +39,14 @@ export default async function CreatorHomePage({
   const activeContracts = profile.contracts.filter(
     (c) => !profile.currentBrand || c.brandSlug === profile.currentBrand,
   );
-  const monthlyTarget = activeContracts.reduce((s, c) => s + (c.monthlyPostRequirement || 0), 0);
+  const hasCustomAgreement = activeContracts.some(c=>c.monthlyPaceComparable===false);
   const retainerTotal = activeContracts.reduce((s, c) => s + (c.retainer || 0), 0);
   // Only the CONTRACTED brands feed the retainer-pace actions (kept light — one
   // month-count each — vs the full per-brand breakdown, so Home stays fast).
   const contractedBrands = activeContracts.filter(
-    (c) => c.retainer > 0 && c.monthlyPostRequirement > 0,
+    (c) => c.monthlyPaceComparable !== false && (c.retainer > 0 || c.agreementStatus === 'active') && c.monthlyPostRequirement > 0,
   );
+  const monthlyTarget = hasCustomAgreement ? 0 : contractedBrands.reduce((sum,c)=>sum+c.monthlyPostRequirement,0);
   // Rank chase runs for the selected brand, else the creator's top-retainer brand.
   const chaseBrand =
     profile.currentBrand ??
@@ -89,6 +90,7 @@ export default async function CreatorHomePage({
     : null;
 
   const paceRows: BrandBreakdownRow[] = contractedBrands.map((c, i) => ({
+    monthlyPaceComparable: c.monthlyPaceComparable,
     brandSlug: c.brandSlug,
     brandDisplayName: c.brandDisplayName,
     brandColor: c.brandColor,
@@ -131,10 +133,11 @@ export default async function CreatorHomePage({
       rangeLabel={rangeLabel}
       summary={summary}
       lifetimeGmv={lifetimeGmv}
+      hasCustomAgreement={hasCustomAgreement}
       retainerTotal={retainerTotal}
       streak={streak}
-      monthVideos={monthVideos}
-      monthlyTarget={monthlyTarget}
+      monthVideos={contractedPosts.length ? contractedPosts.reduce<number>((sum,p)=>sum+(p ?? 0),0) : monthVideos}
+      monthlyTarget={contractedPosts.every(p=>p!==null) ? monthlyTarget : 0}
       daysLeftInMonth={daysLeftInMonth}
       topVideos={topVideos}
       topProducts={topProducts}

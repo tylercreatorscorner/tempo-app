@@ -171,7 +171,7 @@ export function SentFeed({ refreshKey }: { refreshKey: number }) {
       // component unmount the way the mount effect is, so it never cancels.
       await load(() => false);
     } catch (err) {
-      setActionError(`Couldn't refresh that report: ${err instanceof Error ? err.message : 'request failed'}`);
+      setActionError(`Couldn't create a report revision: ${err instanceof Error ? err.message : 'request failed'}`);
     } finally {
       setRefreshingId(null);
     }
@@ -369,11 +369,11 @@ function FeedRow({
                 type="button"
                 onClick={() => onRefresh(item)}
                 disabled={refreshing}
-                title="Rebuild this report's numbers, keeping the same link"
+                title="Create a new revision while preserving this report link"
                 className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-60"
               >
                 <RotateCw className={cn('h-3.5 w-3.5', refreshing && 'animate-spin')} />
-                {refreshing ? 'Refreshing' : 'Refresh'}
+                {refreshing ? 'Creating revision' : 'Create revision'}
               </button>
             )}
             {!item.revokedAt && (

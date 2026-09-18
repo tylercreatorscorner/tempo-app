@@ -24,6 +24,9 @@ const data = {
   getPostsPublishedThisMonth:async(_,brand)=>{postingBrand=brand;return 3;},
 };
 const modules = {
+  '@/components/creators/agreement-workspace':{AgreementWorkspace:nil},
+  '@/components/creators/agreement-preview':{AgreementPreview:nil},
+  '@/lib/auth/permissions':{can:()=>true},
   '@/components/creators/coaching-brief':{CoachingBrief:nil},
   '@/components/creators/profile-video-grid':{ProfileVideoGrid:nil},
   '@/components/creators/performance/profile-headline-metrics':{ProfileHeadlineMetrics:({summary})=>React.createElement('span',null,'$'+summary.total_gmv)},
@@ -53,7 +56,7 @@ const modules = {
 const exports = {};
 runInNewContext(ts.transpileModule(readFileSync('src/app/(admin)/creators/[name]/page.tsx','utf8'), {
   compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX,esModuleInterop:true},
-}).outputText,{exports,URLSearchParams,require:name=>{assert.ok(name in modules,name);return modules[name];}});
+}).outputText,{exports,process:{env:{}},URLSearchParams,require:name=>{assert.ok(name in modules,name);return modules[name];}});
 const render = async()=>renderToStaticMarkup(await exports.default({params:Promise.resolve({name:creatorId}),searchParams:Promise.resolve({brand:'beta'})}));
 let html=await render();
 assert.ok(html.includes('$4019'));

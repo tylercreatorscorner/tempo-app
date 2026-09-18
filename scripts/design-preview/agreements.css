@@ -1,0 +1,57 @@
+:root {
+  --background: #fafafa;
+  --card: #fff;
+  --foreground: #18181b;
+  --muted: #f4f4f5;
+  --muted-foreground: #71717a;
+  --border: #e4e4e7;
+  --primary: #753bd1;
+  --popover: #fff;
+  --popover-foreground: #18181b;
+  --accent: #f4f4f5;
+  --accent-foreground: #18181b;
+  font-family: Inter, Arial, sans-serif;
+  background: var(--background);
+  color: var(--foreground);
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+main {
+  max-width: 880px;
+  margin: 28px auto;
+  padding: 0 20px 60px;
+}
+header {
+  margin-bottom: 18px;
+}
+header > span {
+  color: #753bd1;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 2px;
+}
+h1 {
+  font-size: 25px;
+  letter-spacing: -1px;
+  margin: 12px 0 6px;
+}
+header p {
+  font-size: 13px;
+  color: #71717a;
+}
+button {
+  font-family: inherit;
+}
+@media (max-width: 650px) {
+  main {
+    margin: 24px auto;
+    padding: 0 12px 40px;
+  }
+  h1 {
+    font-size: 25px;
+  }
+}

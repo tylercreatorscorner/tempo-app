@@ -10,6 +10,7 @@
  * instead of a NextResponse (this module must stay importable outside a
  * request/response context, so no next/server here).
  */
+import { applyRosterAgreementTerms, isCalendarMonthAgreement, type RosterAgreement } from '@/lib/agreements/roster-terms';
 import { createAdminClient } from '@/lib/supabase/server';
 import { getRosterSummaryRetainer } from './roster-summary-retainer';
 import { getBrandRegistry, uuidToSlug, resolveUuids, expandSlugs } from '@/lib/data/brand-registry';
@@ -67,7 +68,8 @@ export type CreatorHealth =
   | 'silent'
   | 'churned'
   | 'affiliate'
-  | 'no_data';
+  | 'no_data'
+  | 'not_assessed';
 
 const SILENT_DAYS_THRESHOLD = 14;
 
@@ -102,12 +104,15 @@ function deriveHealth(opts: {
   retainer: number;
   postsThisMonth: number;
   monthlyTarget: number;
+  agreement?: RosterAgreement | null;
   lastPostDate: string | null;
 }): CreatorHealth {
   const { status, retainer, postsThisMonth, monthlyTarget, lastPostDate } = opts;
 
   // Terminal contract states win.
   if (status === 'Churned' || status === 'Inactive') return 'churned';
+
+  if (opts.agreement && !isCalendarMonthAgreement(opts.agreement, new Date().toLocaleDateString('en-CA',{timeZone:'America/Chicago'}))) return 'not_assessed';
 
   // Affiliate-only ($0 retainer): tracked, no post commitment. Health (pace /
   // silence-as-a-problem) doesn't apply — they never agreed to post. Classify
@@ -137,6 +142,7 @@ function deriveHealth(opts: {
 }
 
 interface ManagedRow {
+  agreement?: RosterAgreement | null;
   id: string;
   real_name: string | null;
   brand: string | null;
@@ -449,6 +455,8 @@ export async function runRosterQuery(
     if (data.length < 1000) break;
   }
 
+  await applyRosterAgreementTerms(allRows,tenantId,pEndDate ?? new Date().toLocaleDateString('en-CA',{timeZone:'America/Chicago'}));
+
   // Resolve product tag keys → display names for the row chips. One small query
   // for the whole page (the products catalog is tiny).
   const productNameByKey = new Map<string, string>();
@@ -669,9 +677,11 @@ export async function runRosterQuery(
       retainer,
       postsThisMonth,
       monthlyTarget: target,
+      agreement: row.agreement,
       lastPostDate: lastPost,
     });
-    const roi = retainer > 0 ? gmv / retainer : null;
+    const comparableFee = !row.agreement || (row.agreement.periodStart===pStartDate && row.agreement.periodEnd===pEndDate && row.agreement.snapshot?.segments.length===1);
+    const roi = retainer > 0 && comparableFee ? gmv / retainer : null;
     return {
       ...row,
       handles,
@@ -841,12 +851,13 @@ export async function runRosterQuery(
       r.gmv_period = bg;
       r.posts_period = bp;
       r.posts_this_month = bpm;
-      r.roi_period = ret > 0 ? bg / ret : null;
+      r.roi_period = ret > 0 && r.roi_period !== null ? bg / ret : null;
       r.health = deriveHealth({
         status: r.status,
         retainer: ret,
         postsThisMonth: bpm,
         monthlyTarget: Number(r.monthly_post_requirement) || 0,
+        agreement: r.agreement,
         lastPostDate: r.last_post_date,
       });
     }
@@ -876,6 +887,7 @@ export async function runRosterQuery(
       // and deriveHealth classifies the parent as 'affiliate'.
       let totPostsThisMonth = 0;
       let totTarget = 0;
+      const unassessed = rows.some(r=>r.health==='not_assessed');
       for (const r of rows) {
         const b = r.brand ?? '';
         if (seen.has(b)) continue;
@@ -911,9 +923,9 @@ export async function runRosterQuery(
         posts_period: totPosts,
         posts_this_month: totPostsThisMonth,
         retainer: totRet,
-        roi_period: totRet > 0 ? totGmv / totRet : null,
+        roi_period: totRet > 0 && children.every(c=>!c.retainer || c.roi_period !== null) ? totGmv / totRet : null,
         last_post_date: lastPost,
-        health: deriveHealth({
+        health: unassessed ? 'not_assessed' : deriveHealth({
           status: primary.status,
           retainer: totRet,
           postsThisMonth: totPostsThisMonth,
@@ -1125,6 +1137,7 @@ export async function runRosterQuery(
   // null, not 0, so the UI renders "—" instead of a fabricated $0). Health,
   // sort, and the low_roi counts above already ran on the real values —
   // everything else is byte-identical.
+  dataOut = dataOut.map(row => { const copy = {...row}; delete copy.agreement; return copy; });
   if (!scope.canViewCreatorCost) {
     dataOut = dataOut.map((r) => ({
       ...r,

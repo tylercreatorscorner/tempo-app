@@ -81,4 +81,67 @@ assert.equal(grants.length,14);assert.ok(grants.every(r=>!r.client&&r.service&&!
 console.log('PASS actual migration: frozen-link ownership backfill, unresolved ownership, column revokes, service-only invoker functions');
 console.log('PASS original calculation parity with populated creator, video, granular roster and retainer fixtures');
 console.log('PASS all 14 scoped SQL calculations: legitimate populated report, overlapping foreign brand/facts cannot alter any component');
+// Exercise agreement cutover against the same populated report fixture.
+await db.exec(`ALTER TABLE brands_v2 ADD PRIMARY KEY(id);
+CREATE TABLE IF NOT EXISTS creators_v2(id uuid PRIMARY KEY,tenant_id uuid);
+CREATE TABLE IF NOT EXISTS creator_brands(id uuid,creator_id uuid,brand_id uuid,tenant_id uuid);
+INSERT INTO creators_v2(id,tenant_id) VALUES ('${a}','${a}');
+UPDATE managed_creators SET creator_id='${a}' WHERE tenant_id='${a}';`);
+await db.exec(readFileSync('supabase/migrations/20260918010833_creator_agreement_ledger.sql','utf8'));
+await db.exec(readFileSync('supabase/migrations/20260918013822_agreement_reader_cutover.sql','utf8'));
+await db.exec(readFileSync('supabase/migrations/20260918093354_agreement_roster_write_guard.sql','utf8'));
+const beforeLedger=(await db.query(`SELECT get_brand_client_report_granular_workspace('${a}',ARRAY['shared'],ARRAY['shared'],'2026-08-01','2026-08-31') as data`)).rows[0].data;
+assert.equal(beforeLedger.roster.monthlyRetainerBudget,before.get_brand_client_report_granular[0].get_brand_client_report_granular_workspace.roster.monthlyRetainerBudget);
+const ledgerState={schemaVersion:1,kind:'monthly',start:'2026-08-01',deadline:null,finalDate:null,firstPeriodEnd:'2026-08-31',rules:[{from:'2026-08-01',through:null,terms:{feeCents:80000,requiredPosts:20,renewal:'automatic'}}],periods:[{start:'2026-08-01',through:'2026-08-31',revisions:[{version:1,segments:[{from:'2026-08-01',through:'2026-08-31',terms:{feeCents:80000,requiredPosts:20}}]}]}]};
+await db.query('INSERT INTO creator_agreement_ledgers(id,tenant_id,creator_id,brand_id,starts_on,version,state) VALUES($1,$1,$1,$1,$2,1,$3)',[a,'2026-08-01',JSON.stringify(ledgerState)]);
+const corrected=(await db.query(`SELECT get_brand_client_report_granular_workspace('${a}',ARRAY['shared'],ARRAY['shared'],'2026-08-01','2026-08-31') as data`)).rows[0].data;
+assert.equal(corrected.creators[0].retainer,800);assert.equal(corrected.creators[0].quota,20);
+assert.equal(corrected.creators[0].agreement.revision,1);assert.equal(corrected.roster.monthlyRetainerBudget,800);
+assert.equal((await db.query(`SELECT get_creator_agreement_terms('${b}','${a}','${a}','2026-08-31') as data`)).rows[0].data,null);
+await assert.rejects(db.query(`SELECT get_creator_agreement_terms('${a}','${a}','${a}','2026-09-01')`),/renewal is pending/);
+assert.deepEqual((await db.query(`SELECT snapshot FROM client_reports WHERE token='preserved-token'`)).rows[0].snapshot,{frozen:true});
+await db.exec(`INSERT INTO creator_brands(creator_id,brand_id,tenant_id) VALUES('${a}','${a}','${a}'); ALTER TABLE managed_creators ADD COLUMN IF NOT EXISTS updated_by text;`);
+const currentDate=(await db.query("select (now() at time zone 'America/Chicago')::date::text as day")).rows[0].day;
+const endOfMonth=(await db.query("select (date_trunc('month',now() at time zone 'America/Chicago')+interval '1 month - 1 day')::date::text as day")).rows[0].day;
+const currentState=structuredClone(ledgerState);
+currentState.periods.push({start:currentDate,through:endOfMonth,revisions:[{version:1,segments:[{from:currentDate,through:endOfMonth,terms:{feeCents:90000,requiredPosts:25}}]}]});
+await db.query('select save_creator_agreement_ledger($1,$1,$1,$1,$1,1,$2,$3,$4)',[a,'33333333-3333-4333-8333-333333333333',JSON.stringify({action:'change',reason:'Current terms revised'}),JSON.stringify(currentState)]);
+assert.equal(Number((await db.query(`select retainer from managed_creators where tenant_id='${a}'`)).rows[0].retainer),900);
+await assert.rejects(db.query(`update managed_creators set retainer=987 where tenant_id='${a}'`),/Agreements tab/);
+assert.equal((await db.query(`SELECT get_creator_agreement_terms('${a}','${a}','${a}','2026-08-31') as data`)).rows[0].data.retainer,800);
+// Future term activation must run on its exact day, not wait for month-end.
+const tomorrow=(await db.query("select ((now() at time zone 'America/Chicago')::date+1)::text as day")).rows[0].day;
+const scheduled=structuredClone(currentState);
+scheduled.rules.push({from:tomorrow,through:null,terms:{feeCents:95000,requiredPosts:25,renewal:'automatic'}});
+await db.query('select save_creator_agreement_ledger($1,$1,$1,$1,$1,2,$2,$3,$4)',[a,'44444444-4444-4444-8444-444444444444',JSON.stringify({action:'change',reason:'Future terms'}),JSON.stringify(scheduled)]);
+assert.equal((await db.query(`select renew_after::text as day from creator_agreement_ledgers where id='${a}'`)).rows[0].day,tomorrow);
+assert.equal(Number((await db.query(`select retainer from managed_creators where tenant_id='${a}'`)).rows[0].retainer),900,'Scheduled terms do not change today');
+assert.equal(corrected.creators[0].agreement.reportPeriodComparable,false,'Missing payment basis never fabricates an estimate');
+// Browser UPDATE privilege must not require SELECT access to the private ledger.
+await db.exec('GRANT UPDATE,SELECT ON managed_creators TO authenticated; SET ROLE authenticated;');
+await assert.rejects(db.query(`update managed_creators set retainer=987 where tenant_id='${a}'`),/Agreements tab/);
+await db.exec('RESET ROLE;');
+await db.exec(readFileSync('supabase/migrations/20260918021757_agreement_agency_history.sql','utf8'));
+const agencyAugust=(await db.query(`select get_agency_portfolio_workspace('${a}','2026-08-01','2026-08-31','2026-07-01','2026-07-31') as data`)).rows[0].data;
+assert.equal(agencyAugust.brands.find(b=>b.slug==='shared').committedRetainer,800,'Agency history uses August terms despite a higher current roster fee');
+console.log('PASS agency agreement history: selected-period fee independent of current mirror');
+// New rows and relinked legacy rows must not bypass verified commercial terms.
+await db.exec('GRANT INSERT ON managed_creators TO authenticated; SET ROLE authenticated;');
+const insertRoster=(id,tenant,creator,fee,quota)=>db.query('insert into managed_creators(id,tenant_id,creator_id,brand,retainer,monthly_post_requirement) values($1,$2,$3,$4,$5,$6)',[id,tenant,creator,'shared',fee,quota]);
+await assert.rejects(insertRoster(10,a,a,1,25),/Agreements tab/);
+await assert.rejects(insertRoster(10,a,a,900,1),/Agreements tab/);
+await assert.rejects(insertRoster(10,a,a,900,null),/Agreements tab/);
+await insertRoster(10,a,a,900,25);
+await assert.rejects(db.query(`update managed_creators set creator_id=null where id=10`),/agreement history/);
+await insertRoster(11,a,null,1,1);
+await assert.rejects(db.query(`update managed_creators set creator_id='${a}' where id=11`),/Agreements tab/);
+await db.query(`update managed_creators set creator_id='${a}',retainer=900,monthly_post_requirement=25 where id=11`);
+await insertRoster(12,b,a,1,1); // Same creator/slug in a different tenant is not this ledger.
+await assert.rejects(db.query(`update managed_creators set tenant_id='${a}' where id=12`),/Agreements tab/);
+await db.query(`update managed_creators set real_name='Updated display name' where id=10`);
+await assert.rejects(db.query('select * from creator_agreement_ledgers'),/permission denied/);
+await db.exec('RESET ROLE;');
+assert.equal((await db.query("select has_function_privilege('authenticated','guard_ledger_roster_terms()','EXECUTE') allowed")).rows[0].allowed,false);
+console.log('PASS roster INSERT and destination UPDATE guards: fee/quota mismatch, null quota, matching insert/relink, history identity protection, tenant isolation, unrelated edits and private ledger access');
+console.log('PASS agreement report cutover: historical fee/quota, revision basis, foreign isolation, pending renewal and frozen report preserved');
 await db.close();

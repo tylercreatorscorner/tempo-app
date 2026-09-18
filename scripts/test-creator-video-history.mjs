@@ -103,6 +103,8 @@ try {
     },
   };
   const deps = {
+    '@/lib/agreements/roster-terms': {},
+    '@/lib/auth/workspace-scope': {},
     react: { cache },
     '@/lib/supabase/server': { createClient: async () => client },
     '@/lib/auth/creator-report-scope': {},

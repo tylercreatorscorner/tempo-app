@@ -1,3 +1,4 @@
+import { ensureAgreementPeriods } from "@/lib/agreements/renewals";
 import type { ClientReportContext } from '@/lib/auth/client-report-access';
 /**
  * Brand Client Report — data fetcher.
@@ -341,6 +342,8 @@ export interface BrandClientReportData {
     /** EVERY signed creator, including those at zero. `quota` is null for
      *  affiliate-only and MUST render as absence, never 0. */
     creators: {
+      creatorId?: string | null;
+      agreement?: {reportPeriodComparable?:boolean;ledgerId:string;ledgerVersion:number;periodStart?:string;periodEnd?:string;revision?:number;retainer:number;quota:number|null;status:string;snapshot?:unknown} | null;
       name: string;
       /** Raw real_name. NULL for 147 active creators (9%), so the UI falls
        *  back to the handle rather than rendering an empty identity cell. */
@@ -496,6 +499,8 @@ export async function getBrandClientReportData(
   const supabase = clientOverride ?? (await createAdminClient());
   const reg = context.registry;
   const brandSlugs = getBrandDataSlugs(reg, brandSlug);
+  const agreementBrands = brandSlug === 'all' ? reg.rows : [reg.bySlug.get(brandSlug), reg.byId.get(reg.bySlug.get(brandSlug)?.parent_brand_id ?? '')].filter((b): b is NonNullable<typeof b> => !!b);
+  await ensureAgreementPeriods({tenantId:context.tenantId,brandIds:agreementBrands.map(b=>b.id)});
 
   // Managed-roster grain: managed_creators rows live at the umbrella/roster
   // slug. For a store slug include its parent umbrella so store-grain runs

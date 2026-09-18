@@ -50,6 +50,7 @@ interface Props {
   rangeLabel: string;
   summary: CreatorSummary | null;
   lifetimeGmv: number | null;
+  hasCustomAgreement?: boolean;
   retainerTotal: number;
   streak: number;
   monthVideos: number;
@@ -155,6 +156,7 @@ export function HomeClient(props: Props) {
 
       {/* Earn & pace — retainer quota for contracted, GMV milestone for everyone.
           Contracted creators see both side by side; affiliate-only get the milestone. */}
+      {props.hasCustomAgreement && <p className="rounded-xl border border-border px-4 py-3 text-sm text-muted-foreground">Your agreements use different periods or changed terms. Check My Brands for each requirement; calendar-month activity is not a payment calculation.</p>}
       {monthlyTarget > 0 ? (
         <div className={lifetimeGmv && lifetimeGmv > 0 ? 'grid gap-5 lg:grid-cols-2' : ''}>
           <RetainerPace
@@ -306,7 +308,7 @@ function LedgerHero({
           <p className="mt-3.5 inline-flex items-center gap-2 text-xs text-muted-foreground">
             <span className="h-1.5 w-1.5 rounded-full bg-[var(--pulse-pos)] ring-2 ring-[var(--pulse-pos-bg)]" />
             {retainerTotal > 0 && (
-              <>${Math.round(retainerTotal).toLocaleString('en-US')}/mo retainer secured · </>
+              <>${Math.round(retainerTotal).toLocaleString('en-US')} in recorded agreement fees · </>
             )}
             {lifetimeGmv != null ? (
               <>{formatCurrency(lifetimeGmv)} driven all-time</>
@@ -360,7 +362,7 @@ function LedgerStrip({ summary, streak }: { summary: CreatorSummary | null; stre
   const cells: { k: string; v: string; d: number | null; sub?: string }[] = [
     { k: 'GMV', v: summary ? formatCurrency(summary.totalGmv) : '—', d: summary?.gmvChangePct ?? null },
     { k: 'Orders', v: summary ? summary.totalOrders.toLocaleString() : '—', d: summary?.orderChangePct ?? null },
-    { k: 'Videos posted', v: summary ? String(summary.videoCount) : '—', d: summary?.videoChangePct ?? null },
+    { k: 'Videos with activity', v: summary ? String(summary.videoCount) : '—', d: summary?.videoChangePct ?? null },
     {
       k: 'Posting streak',
       v: String(streak),
@@ -630,7 +632,7 @@ function RetainerPace({
         </CardTitle>
         {onTrack ? (
           <Badge variant="positive" size="sm">
-            Quota met
+            Recorded target reached
           </Badge>
         ) : (
           <Badge variant="neutral" size="sm">
@@ -644,7 +646,7 @@ function RetainerPace({
             fraction={fraction}
             size={128}
             label={<NumberTicker value={monthVideos} className="text-foreground" />}
-            sublabel={onTrack ? 'quota met ✓' : `of ${monthlyTarget}`}
+            sublabel={onTrack ? 'target reached' : `of ${monthlyTarget}`}
             color={onTrack ? 'var(--pulse-pos)' : 'var(--primary)'}
           />
           <div className="min-w-[220px] flex-1 space-y-3 text-sm">
@@ -653,11 +655,11 @@ function RetainerPace({
               <PaceRow label="Days left" value={String(daysLeftInMonth)} />
               <PaceRow
                 label="Status"
-                value={onTrack ? 'Quota crushed' : `${dailyPace}/day needed`}
+                value={onTrack ? 'Recorded target reached' : `${dailyPace}/day needed`}
                 emphasis
               />
               {retainerTotal > 0 && (
-                <PaceRow label="Retainer at stake" value={`${formatCurrency(retainerTotal)}/mo`} />
+                <PaceRow label="Recorded agreement fees" value={formatCurrency(retainerTotal)} />
               )}
             </div>
             <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
@@ -671,8 +673,8 @@ function RetainerPace({
             </div>
             <p className="text-xs text-muted-foreground">
               {onTrack
-                ? "You've hit your posts this month. Every extra video is pure upside."
-                : 'Hitting your posts is exactly what your retainer pays for. Stay on pace.'}
+                ? "Recorded publications have reached the target. Accepted deliverables and payment are reviewed separately."
+                : 'Publication counts show activity toward the target. Accepted deliverables and payment are reviewed separately.'}
             </p>
           </div>
         </div>

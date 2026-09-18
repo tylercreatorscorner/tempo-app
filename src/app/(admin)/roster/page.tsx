@@ -57,7 +57,7 @@ const fmtShortDate = (s: string) => {
   return `${parseInt(m, 10)}/${parseInt(d, 10)}/${y.slice(2)}`;
 };
 
-type CreatorHealth = 'healthy' | 'behind' | 'silent' | 'churned' | 'affiliate' | 'no_data';
+type CreatorHealth = 'healthy' | 'behind' | 'silent' | 'churned' | 'affiliate' | 'no_data' | 'not_assessed';
 
 interface Creator {
   id: string;
@@ -504,6 +504,7 @@ const HEALTH_DOT_META: Record<CreatorHealth, { color: string; label: string } | 
   affiliate: { color: 'var(--muted-foreground)', label: 'Affiliate-only — $0 retainer, no post commitment' },
   churned:   { color: 'var(--muted-foreground)', label: 'Churned' },
   no_data:   null,
+  not_assessed: {color: '#a1a1aa', label: 'Review agreement period'},
 };
 function HealthDot({ health }: { health: CreatorHealth }) {
   const meta = HEALTH_DOT_META[health];

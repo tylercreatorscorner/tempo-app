@@ -242,10 +242,10 @@ export default async function BrandCreatorsPage({ searchParams }: PageProps) {
                       {fmtNumber(c.posts)}
                     </td>
                     <td className="text-right px-3 py-2.5 tabular-nums text-foreground">
-                      {c.retainer > 0 ? fmtCurrency(c.retainer) : <span className="text-muted-foreground">—</span>}
+                      {c.retainer > 0 || c.hasVerifiedAgreement ? fmtCurrency(c.retainer) : <span className="text-muted-foreground">—</span>}{c.agreementPeriod && <span className="block text-[11px] text-muted-foreground">{c.agreementPeriod}</span>}
                     </td>
                     <td className="text-right px-4 py-2.5">
-                      <RoiCell gmv30d={c.gmv30d} retainer={c.retainer} />
+                      {c.hasVerifiedAgreement ? <span title="The rolling 30-day window does not establish agreement-period ROI">—</span> : <RoiCell gmv30d={c.gmv30d} retainer={c.retainer} />}
                     </td>
                     <td className="text-right pr-3">
                       {c.primaryHandle && (
@@ -328,7 +328,7 @@ function sortValue(
     case 'retainer':
       return c.retainer;
     case 'roi':
-      return c.retainer > 0 ? c.gmv30d / c.retainer : -1;
+      return !c.hasVerifiedAgreement && c.retainer > 0 ? c.gmv30d / c.retainer : -1;
   }
 }
 
