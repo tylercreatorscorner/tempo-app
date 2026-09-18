@@ -1,3 +1,4 @@
+import styles from './report-presentation.module.css';
 import { ReconciliationView } from './reconciliation-view';
 /**
  * The client report page body — renders the frozen snapshot.
@@ -87,9 +88,9 @@ function finite(v: unknown): number | null {
 // Shared table-head classes. Also duplicated in creator-rows.tsx, which is a
 // client island and cannot import them from this server component.
 const TH_L =
-  'px-4 py-2.5 text-left text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]';
+  'px-4 py-2.5 text-left text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#71717a]';
 const TH_R =
-  'px-4 py-2.5 text-right text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]';
+  'px-4 py-2.5 text-right text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#71717a]';
 
 function handleOf(name: string): string {
   return name.trim().replace(/^@+/, '').toLowerCase();
@@ -103,11 +104,11 @@ function Delta({ pct, suffix, abs }: { pct?: number | null; suffix?: string; abs
   // zero"): there is no comparison to show, so show nothing at all.
   if (p === null) {
     return pct === null
-      ? <div className="mt-0.5 text-[11px] font-bold text-[#8a8fb0]">new this period</div>
+      ? <div className="mt-0.5 text-[11px] font-bold text-[#71717a]">new this period</div>
       : <div className="mt-0.5 text-[11px] text-[#b3b7d4]">&mdash;</div>;
   }
   if (Math.abs(p) < 0.5) {
-    return <div className="mt-0.5 text-[11px] font-bold text-[#8a8fb0]">no change</div>;
+    return <div className="mt-0.5 text-[11px] font-bold text-[#71717a]">no change</div>;
   }
   const pct_ = p;
   const up = pct_ >= 0;
@@ -179,7 +180,7 @@ function moveDriver(movers: NonNullable<ClientReportSnapshot['movers']> | null |
 function PointsDelta({ points }: { points: number | null }) {
   if (points === null) return <div className="mt-0.5 text-[11px] text-[#b3b7d4]">&mdash;</div>;
   if (Math.abs(points) < 0.05) {
-    return <div className="mt-0.5 text-[11px] font-bold text-[#8a8fb0]">no change</div>;
+    return <div className="mt-0.5 text-[11px] font-bold text-[#71717a]">no change</div>;
   }
   const up = points >= 0;
   return (
@@ -206,8 +207,8 @@ function HeroStat({
 }) {
   return (
     <div>
-      <div className="text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">{label}</div>
-      <div className="mt-0.5 text-[25px] font-extrabold leading-tight tabular-nums text-[#171a33]">{value}</div>
+      <div className="text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#71717a]">{label}</div>
+      <div className="mt-0.5 text-[25px] font-extrabold leading-tight tabular-nums text-[#18181b]">{value}</div>
       {points !== undefined ? <PointsDelta points={points} /> : <Delta pct={pct} abs={abs} />}
     </div>
   );
@@ -228,20 +229,20 @@ function Mini({
   note?: React.ReactNode;
 }) {
   return (
-    <div className="rounded-[12px] border border-[#e7e7f2] bg-white px-3.5 py-3">
-      <div className="text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">{label}</div>
-      <div className="mt-0.5 text-[18px] font-extrabold tabular-nums text-[#171a33]">{value}</div>
-      {note ? <div className="mt-1 text-[11px] leading-tight text-[#8a8fb0]">{note}</div> : <Delta pct={pct} />}
+    <div className="rounded-[12px] border border-[#dedee5] bg-white px-3.5 py-3">
+      <div className="text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#71717a]">{label}</div>
+      <div className="mt-0.5 text-[18px] font-extrabold tabular-nums text-[#18181b]">{value}</div>
+      {note ? <div className="mt-1 text-[11px] leading-tight text-[#71717a]">{note}</div> : <Delta pct={pct} />}
     </div>
   );
 }
 
-function SectionLine({ children }: { children: React.ReactNode }) {
+function SectionLine({ children, id }: { children: React.ReactNode; id?: string }) {
   return (
-    <div className="mb-2.5 mt-8 flex items-center gap-3 text-[10px] font-extrabold uppercase tracking-[0.15em] text-[#8a8fb0]">
-      <span className="shrink-0">{children}</span>
-      <span className="h-px flex-1 bg-[#e7e7f2]" />
-    </div>
+    <h2 id={id} className="mb-3 mt-8 flex scroll-mt-20 items-center gap-3 text-sm font-semibold tracking-tight text-[#52525b]">
+      <span className="min-w-0">{children}</span>
+      <span className="h-px min-w-6 flex-1 bg-[#dedee5]" />
+    </h2>
   );
 }
 
@@ -272,8 +273,8 @@ function HoverBars({
 }) {
   const max = Math.max(1, ...bars.map((b) => b.value));
   return (
-    <div className="rounded-[14px] border border-[#e7e7f2] bg-white px-4 py-3.5">
-      <div className="mb-2.5 text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">{title}</div>
+    <div className="rounded-[14px] border border-[#dedee5] bg-white px-4 py-3.5">
+      <div className="mb-2.5 text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#71717a]">{title}</div>
       <div className="flex h-[130px] items-end gap-[7px]">
         {bars.map((b, i) => (
           <div
@@ -283,7 +284,7 @@ function HoverBars({
             className="group relative flex h-full flex-1 flex-col justify-end rounded-[6px] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#5b5ee8] focus-visible:ring-offset-2"
           >
             <div
-              className="pointer-events-none absolute bottom-[calc(100%+8px)] left-1/2 z-10 -translate-x-1/2 translate-y-1 whitespace-nowrap rounded-[9px] bg-[#171a33] px-2.5 py-2 text-[11.5px] leading-[1.45] text-white opacity-0 shadow-[0_8px_22px_-8px_rgba(0,0,0,.5)] transition-all duration-150 group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100"
+              className="pointer-events-none absolute bottom-[calc(100%+8px)] left-1/2 z-10 -translate-x-1/2 translate-y-1 whitespace-nowrap rounded-[9px] bg-[#18181b] px-2.5 py-2 text-[11.5px] leading-[1.45] text-white opacity-0 shadow-[0_8px_22px_-8px_rgba(0,0,0,.5)] transition-all duration-150 group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100"
             >
               <b className="tabular-nums">{money(b.value)}</b>
               {b.isPeak && <span className="text-white/70"> · best {peakNoun}</span>}
@@ -330,13 +331,13 @@ function HoverBars({
       </div>
       <div className="mt-1.5 flex gap-[7px]">
         {labels.map((l, i) => (
-          <span key={i} className="flex-1 text-center text-[9.5px] tabular-nums text-[#8a8fb0]">
+          <span key={i} className="flex-1 text-center text-[9.5px] tabular-nums text-[#71717a]">
             {l}
           </span>
         ))}
       </div>
       {subLabel && (
-        <div className="mt-2 flex items-center gap-3 border-t border-[#f0eff7] pt-2 text-[10px] text-[#8a8fb0]">
+        <div className="mt-2 flex items-center gap-3 border-t border-[#f0eff7] pt-2 text-[10px] text-[#71717a]">
           <span className="flex items-center gap-1.5">
             <span
               className="h-2.5 w-2.5 rounded-[3px]"
@@ -404,11 +405,11 @@ function VsShop({
   return (
     <>
       {leverage !== null && gmvRow && creatorRow && (
-        <div className="rounded-[14px] border border-[#e7e7f2] border-l-[3px] border-l-[#4b45ff] bg-white px-5 py-4">
-          <p className="max-w-[70ch] text-[15px] font-semibold leading-[1.6] text-[#33375c]">
+        <div className="rounded-[14px] border border-[#dedee5] border-l-[3px] border-l-[#4b45ff] bg-white px-5 py-4">
+          <p className="max-w-[70ch] text-[15px] font-semibold leading-[1.6] text-[#3f3f46]">
             We are <b className="text-[#4b45ff]">{creatorRow.pct.toFixed(1)}%</b> of the creators posting
             on your shop, and we produced <b className="text-[#4b45ff]">{gmvRow.pct.toFixed(1)}%</b> of its
-            sales &mdash; <b className="text-[#171a33]">{leverage.toFixed(1)}&times;</b> the sales share you
+            sales &mdash; <b className="text-[#18181b]">{leverage.toFixed(1)}&times;</b> the sales share you
             would expect from our share of creators.
           </p>
         </div>
@@ -418,10 +419,10 @@ function VsShop({
         {rows.map((r) => (
           <div
             key={r.label}
-            className="rounded-[14px] border border-[#e7e7f2] bg-white px-4 py-3.5"
+            className="rounded-[14px] border border-[#dedee5] bg-white px-4 py-3.5"
             style={r.live ? { borderColor: '#f0cfe4' } : undefined}
           >
-            <div className="text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">
+            <div className="text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#71717a]">
               {r.label}
             </div>
             <div
@@ -431,14 +432,14 @@ function VsShop({
               {r.pct.toFixed(1)}%
             </div>
             {/* The denominator is printed, so the percentage is checkable. */}
-            <div className="mt-2 text-[12.5px] leading-snug text-[#33375c]">
-              <b className="tabular-nums text-[#171a33]">{r.ours}</b>
-              <span className="text-[#8a8fb0]"> of {r.theirs}</span>
+            <div className="mt-2 text-[12.5px] leading-snug text-[#3f3f46]">
+              <b className="tabular-nums text-[#18181b]">{r.ours}</b>
+              <span className="text-[#71717a]"> of {r.theirs}</span>
             </div>
           </div>
         ))}
       </div>
-      <div className="mt-2 text-[10.5px] leading-relaxed text-[#8a8fb0]">
+      <div className="mt-2 text-[10.5px] leading-relaxed text-[#71717a]">
         Each card is our share of a shop-wide total, with that total shown beneath it. &ldquo;Your
         shop&rdquo; is all of {brandName}&rsquo;s TikTok Shop activity, including creators we do not
         manage.
@@ -456,11 +457,11 @@ function SplitBar({ parts }: { parts: { label: string; value: string; pct: numbe
           <span key={p.label} style={{ width: `${p.pct}%`, background: p.color }} />
         ))}
       </div>
-      <div className="mt-2.5 flex flex-wrap gap-x-3.5 gap-y-1.5 text-[12px] text-[#33375c]">
+      <div className="mt-2.5 flex flex-wrap gap-x-3.5 gap-y-1.5 text-[12px] text-[#3f3f46]">
         {parts.map((p) => (
           <span key={p.label} className="flex items-center gap-1.5">
             <i className="h-[9px] w-[9px] flex-none rounded-[3px]" style={{ background: p.color }} />
-            {p.label} <b className="tabular-nums text-[#171a33]">{p.value}</b>
+            {p.label} <b className="tabular-nums text-[#18181b]">{p.value}</b>
           </span>
         ))}
       </div>
@@ -500,8 +501,8 @@ function SourceSplit({
   return (
     <div className="mt-3 grid grid-cols-1 gap-3.5 sm:grid-cols-2">
       {agreement && agTotal > 0 && (
-        <div className="rounded-[14px] border border-[#e7e7f2] bg-white px-4 py-3.5">
-          <div className="text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">
+        <div className="rounded-[14px] border border-[#dedee5] bg-white px-4 py-3.5">
+          <div className="text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#71717a]">
             Retainer roster vs affiliate-only
           </div>
           <SplitBar
@@ -510,7 +511,7 @@ function SourceSplit({
               { label: 'Affiliate-only', value: money(agreement.affiliateGmv), pct: share(agreement.affiliateGmv, agTotal), color: '#9a95e8' },
             ]}
           />
-          <p className="mt-2.5 text-[12.5px] leading-[1.6] text-[#33375c]">
+          <p className="mt-2.5 text-[12.5px] leading-[1.6] text-[#3f3f46]">
             {agreement.affiliateGmv > agreement.retainerGmv ? (
               <>
                 Your affiliate-only creators, who carry no retainer and no post requirement, out-earned
@@ -531,7 +532,7 @@ function SourceSplit({
               the period AND accounts not mapped to a person. On catakor it is
               14% of the total, far too large to explain away with a guess. */}
           {Math.abs(agreement.unattributedGmv) >= 1 && (
-            <p className="mt-1.5 text-[11px] leading-tight text-[#8a8fb0]">
+            <p className="mt-1.5 text-[11px] leading-tight text-[#71717a]">
               {money(Math.abs(agreement.unattributedGmv))} is not attributed to a row below, from creators
               who left during the period or accounts not yet linked to a creator.
             </p>
@@ -540,8 +541,8 @@ function SourceSplit({
       )}
 
       {channels && chTotal > 0 && (
-        <div className="rounded-[14px] border border-[#e7e7f2] bg-white px-4 py-3.5">
-          <div className="text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">
+        <div className="rounded-[14px] border border-[#dedee5] bg-white px-4 py-3.5">
+          <div className="text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#71717a]">
             Video vs live vs product card
           </div>
           <SplitBar
@@ -551,12 +552,12 @@ function SourceSplit({
               { label: 'Card', value: money(channels.rosterCardGmv), pct: share(channels.rosterCardGmv, chTotal), color: '#c7c9de' },
             ]}
           />
-          <p className="mt-2.5 text-[12.5px] leading-[1.6] text-[#33375c]">
+          <p className="mt-2.5 text-[12.5px] leading-[1.6] text-[#3f3f46]">
             {num(channels.rosterLiveStreams)} live stream{channels.rosterLiveStreams === 1 ? '' : 's'} from your
             roster
             {liveShareOfShop !== null && liveShareOfShop > 0 && (
               <>
-                , earning <b className="text-[#171a33]">{liveShareOfShop.toFixed(1)}%</b> of all the live GMV on
+                , earning <b className="text-[#18181b]">{liveShareOfShop.toFixed(1)}%</b> of all the live GMV on
                 your shop
               </>
             )}
@@ -576,15 +577,15 @@ function SourceSplit({
       )}
 
       {topLive && topLive.length > 0 && (
-        <div className="rounded-[14px] border border-[#e7e7f2] bg-white px-4 py-3.5 sm:col-span-2">
-          <div className="text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">
+        <div className="rounded-[14px] border border-[#dedee5] bg-white px-4 py-3.5 sm:col-span-2">
+          <div className="text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#71717a]">
             Who goes live for you
           </div>
           <div className="mt-2.5 flex flex-wrap gap-x-6 gap-y-2.5">
             {topLive.map((l) => (
               <div key={l.handle} className="min-w-0">
-                <div className="truncate text-[13px] font-bold text-[#171a33]">@{l.handle}</div>
-                <div className="text-[11.5px] tabular-nums text-[#8a8fb0]">
+                <div className="truncate text-[13px] font-bold text-[#18181b]">@{l.handle}</div>
+                <div className="text-[11.5px] tabular-nums text-[#71717a]">
                   {money(l.liveGmv)} &middot; {num(l.lives)} live{l.lives === 1 ? '' : 's'}
                 </div>
               </div>
@@ -628,16 +629,16 @@ function InvestmentStrip({
 }) {
   const budget = finite(g.roster.monthlyRetainerBudget);
   return (
-    <div className="mt-3 overflow-hidden rounded-[14px] border border-[#e7e7f2] bg-white">
+    <div className="mt-3 overflow-hidden rounded-[14px] border border-[#dedee5] bg-white">
       {ret !== null && spend !== null && (
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 border-b border-[#eeedf5] bg-[#fafaff] px-5 py-3.5">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 border-b border-[#e4e4e7] bg-[#fafaff] px-5 py-3.5">
           <span className="text-[30px] font-extrabold leading-none tracking-tight text-[#4b45ff]">
             {ret.toFixed(1)}x
           </span>
-          <span className="max-w-[52ch] text-[13.5px] leading-[1.5] text-[#33375c]">
+          <span className="max-w-[52ch] text-[13.5px] leading-[1.5] text-[#3f3f46]">
             back on retainer. Your roster produced{' '}
-            <b className="text-[#171a33]">{money(spend * ret)}</b> against{' '}
-            <b className="text-[#171a33]">{money(spend)}</b> of retainer earned this month.
+            <b className="text-[#18181b]">{money(spend * ret)}</b> against{' '}
+            <b className="text-[#18181b]">{money(spend)}</b> of retainer earned this month.
           </span>
         </div>
       )}
@@ -684,9 +685,9 @@ function InvestmentStrip({
 function MiniStat({ label, value, note }: { label: string; value: string; note?: string }) {
   return (
     <div className="min-w-0">
-      <div className="text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">{label}</div>
-      <div className="mt-0.5 text-[17px] font-extrabold tabular-nums leading-none text-[#171a33]">{value}</div>
-      {note && <div className="mt-1 text-[11px] leading-tight text-[#8a8fb0]">{note}</div>}
+      <div className="text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#71717a]">{label}</div>
+      <div className="mt-0.5 text-[17px] font-extrabold tabular-nums leading-none text-[#18181b]">{value}</div>
+      {note && <div className="mt-1 text-[11px] leading-tight text-[#71717a]">{note}</div>}
     </div>
   );
 }
@@ -773,23 +774,23 @@ function VintageSection({
   });
 
   return (
-    <div className="rounded-[14px] border border-[#e7e7f2] bg-white px-5 py-5">
+    <div className="rounded-[14px] border border-[#dedee5] bg-white px-5 py-5">
       {/* The SectionLine above already says "How long a post keeps earning";
           repeating it here wasted the one line that can state the finding. */}
-      <h2 className="text-[20px] font-extrabold leading-snug tracking-tight text-[#171a33]">
+      <h2 className="text-[20px] font-extrabold leading-snug tracking-tight text-[#18181b]">
         Video sales by the age of the post
       </h2>
-      <p className="mt-1.5 max-w-[68ch] text-[14.5px] leading-[1.65] text-[#33375c]">
+      <p className="mt-1.5 max-w-[68ch] text-[14.5px] leading-[1.65] text-[#3f3f46]">
         {fresh && (
           <>
-            <b className="text-[#171a33]">{money(fresh.gmv)}</b> came from videos posted in the last
+            <b className="text-[#18181b]">{money(fresh.gmv)}</b> came from videos posted in the last
             30 days, {pct(fresh.gmv).toFixed(0)}% of your roster&rsquo;s video sales.{' '}
           </>
         )}
         {old90 && (
           <>
-            Another <b className="text-[#171a33]">{money(old90.gmv)}</b> came from posts more than 90
-            days old, which is work already paid for that is still selling.
+            Another <b className="text-[#18181b]">{money(old90.gmv)}</b> came from posts more than 90
+            days old, showing the continuing contribution of older content.
           </>
         )}
       </p>
@@ -821,7 +822,7 @@ function VintageSection({
             x="60"
             y="55"
             textAnchor="middle"
-            className="fill-[#171a33] text-[15px] font-extrabold tabular-nums"
+            className="fill-[#18181b] text-[15px] font-extrabold tabular-nums"
           >
             {compactMoney(videoTotal)}
           </text>
@@ -829,7 +830,7 @@ function VintageSection({
             x="60"
             y="69"
             textAnchor="middle"
-            className="fill-[#8a8fb0] text-[8px] font-bold uppercase tracking-[0.09em]"
+            className="fill-[#71717a] text-[8px] font-bold uppercase tracking-[0.09em]"
           >
             video GMV
           </text>
@@ -845,14 +846,14 @@ function VintageSection({
                 className="h-2.5 w-2.5 shrink-0 rounded-[3px]"
                 style={{ backgroundColor: x.color }}
               />
-              <span className="min-w-0 flex-1 truncate text-[13.5px] text-[#33375c]">{x.label}</span>
-              <span className="shrink-0 text-[12px] tabular-nums text-[#8a8fb0]">
+              <span className="min-w-0 flex-1 truncate text-[13.5px] text-[#3f3f46]">{x.label}</span>
+              <span className="shrink-0 text-[12px] tabular-nums text-[#71717a]">
                 {num(x.videos)} video{x.videos === 1 ? '' : 's'}
               </span>
-              <span className="w-[52px] shrink-0 text-right text-[12.5px] font-bold tabular-nums text-[#5c6183]">
+              <span className="w-[52px] shrink-0 text-right text-[12.5px] font-bold tabular-nums text-[#52525b]">
                 {pct(x.gmv).toFixed(1)}%
               </span>
-              <span className="w-[78px] shrink-0 text-right text-[13.5px] font-bold tabular-nums text-[#171a33]">
+              <span className="w-[78px] shrink-0 text-right text-[13.5px] font-bold tabular-nums text-[#18181b]">
                 {money(x.gmv)}
               </span>
             </div>
@@ -863,10 +864,10 @@ function VintageSection({
       {/* The reconciliation. Without it the donut total and the headline differ
           by the live and card figures with no explanation anywhere on the page. */}
       {nonVideo > 0 && (
-        <p className="mt-3.5 border-t border-[#f2f1f8] pt-3 text-[12.5px] leading-[1.6] text-[#8a8fb0]">
-          Video only. A further <b className="text-[#5c6183]">{money(nonVideo)}</b> of your
-          roster&rsquo;s sales came through live streams and product cards, which carry no post date
-          and are not split by age here.
+        <p className="mt-3.5 border-t border-[#f2f1f8] pt-3 text-[12.5px] leading-[1.6] text-[#71717a]">
+          Video only. A further <b className="text-[#52525b]">{money(nonVideo)}</b> of your
+          roster&rsquo;s GMV is outside the video-age breakdown in this saved report. This difference
+          is not assigned to a sales channel here.
         </p>
       )}
     </div>
@@ -892,8 +893,8 @@ function LegacyVintageSection({ g }: { g: NonNullable<BrandClientReportData['gra
   if (total <= 0 || rows.length === 0) return null;
 
   return (
-    <div className="rounded-[14px] border border-[#e7e7f2] bg-white px-5 py-5">
-      <h2 className="text-[20px] font-extrabold leading-snug tracking-tight text-[#171a33]">
+    <div className="rounded-[14px] border border-[#dedee5] bg-white px-5 py-5">
+      <h2 className="text-[20px] font-extrabold leading-snug tracking-tight text-[#18181b]">
         Every month of posting keeps earning
       </h2>
       <div className="mt-3.5">
@@ -902,16 +903,16 @@ function LegacyVintageSection({ g }: { g: NonNullable<BrandClientReportData['gra
             key={r2.label}
             className="flex items-center gap-2.5 border-b border-[#f2f1f8] py-1.5 last:border-b-0"
           >
-            <span className="min-w-0 flex-1 truncate text-[13.5px] uppercase text-[#33375c]">
+            <span className="min-w-0 flex-1 truncate text-[13.5px] uppercase text-[#3f3f46]">
               {r2.label}
             </span>
-            <span className="shrink-0 text-[12px] tabular-nums text-[#8a8fb0]">
+            <span className="shrink-0 text-[12px] tabular-nums text-[#71717a]">
               {num(r2.videos)} videos
             </span>
-            <span className="w-[52px] shrink-0 text-right text-[12.5px] font-bold tabular-nums text-[#5c6183]">
+            <span className="w-[52px] shrink-0 text-right text-[12.5px] font-bold tabular-nums text-[#52525b]">
               {((r2.gmv / total) * 100).toFixed(1)}%
             </span>
-            <span className="w-[78px] shrink-0 text-right text-[13.5px] font-bold tabular-nums text-[#171a33]">
+            <span className="w-[78px] shrink-0 text-right text-[13.5px] font-bold tabular-nums text-[#18181b]">
               {money(r2.gmv)}
             </span>
           </div>
@@ -960,14 +961,14 @@ function FullRosterTable({
   const dormantAffiliate = dormant.length - dormantRetained;
 
   return (
-    <div className="overflow-hidden rounded-[14px] border border-[#e7e7f2] bg-white">
-      <div className="border-b border-[#eeedf5] px-4 py-3">
+    <div className="overflow-hidden rounded-[14px] border border-[#dedee5] bg-white">
+      <div className="border-b border-[#e4e4e7] px-4 py-3">
         {/* Deliberately does NOT restate posted / sold / signed: those are the
             tiles immediately above, derived from THIS array, and printing them
             twice is how the page ended up with 259 next to 293. */}
-        <p className="text-[13px] leading-[1.6] text-[#33375c]">
+        <p className="text-[13px] leading-[1.6] text-[#3f3f46]">
           Every creator we run for you, sorted by what they earned this period.{' '}
-          <b className="text-[#171a33]">{num(g.roster.affiliateOnly)}</b> of your roster are
+          <b className="text-[#18181b]">{num(g.roster.affiliateOnly)}</b> of your roster are
           affiliate-only &mdash; commission, with no post requirement, so they carry no posting target.
         </p>
         {/* Downloads the FULL list, including the dormant rows folded behind
@@ -975,7 +976,7 @@ function FullRosterTable({
             privacy one, and a spreadsheet missing its tail is worse than none. */}
         <a
           href={`/api/report-csv/${token}`}
-          className="mt-2.5 inline-flex items-center gap-1.5 rounded-[9px] border border-[#e7e7f2] bg-[#fbfbfd] px-3 py-1.5 text-[12px] font-bold text-[#4b45ff] transition-colors hover:bg-[#f2f1fb]"
+          className="mt-2.5 inline-flex items-center gap-1.5 rounded-[9px] border border-[#dedee5] bg-[#f0f1f5] px-3 py-1.5 text-[12px] font-bold text-[#4b45ff] transition-colors hover:bg-[#f2f1fb]"
         >
           &#8595; Download all {num(rows.length)} as CSV
         </a>
@@ -993,8 +994,8 @@ function FullRosterTable({
       />
 
       {dormant.length > 0 && (
-        <details className="group border-t border-[#eeedf5]">
-          <summary className="cursor-pointer list-none px-4 py-3 text-[12.5px] text-[#6b7093] hover:bg-[#fbfbfd]">
+        <details className="group border-t border-[#e4e4e7]">
+          <summary className="cursor-pointer list-none px-4 py-3 text-[12.5px] text-[#71717a] hover:bg-[#f0f1f5]">
             <span className="font-semibold text-[#4b45ff] underline decoration-[#4b45ff]/30 underline-offset-2">
               Show the other {num(dormant.length)}
             </span>{' '}
@@ -1071,11 +1072,11 @@ function MonthToDate({
   const postPct = owed > 0 ? (delivered / owed) * 100 : null;
 
   return (
-    <div className="mt-3.5 rounded-[14px] border border-[#e7e7f2] bg-white px-5 py-4">
-      <div className="text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">
+    <div className="mt-3.5 rounded-[14px] border border-[#dedee5] bg-white px-5 py-4">
+      <div className="text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#71717a]">
         {complete ? `All of ${monthName}` : `${monthName} so far`}
       </div>
-      <p className="mt-1 max-w-[70ch] text-[12.5px] leading-[1.6] text-[#8a8fb0]">
+      <p className="mt-1 max-w-[70ch] text-[12.5px] leading-[1.6] text-[#71717a]">
         Post targets and retainers are monthly, so they are measured here over the month rather
         than the period above.
       </p>
@@ -1101,7 +1102,7 @@ function MonthToDate({
         />
         {spend && (
           <Mini
-            label={complete ? 'Retainer spend' : 'Retainer earned'}
+            label="Estimated retainer spend"
             value={money(spend.earned)}
             note={
               spend.pctOfBudget !== null
@@ -1118,34 +1119,34 @@ function MonthToDate({
           MONTH grain, because a retainer is monthly: judging it over a week is
           the unit mismatch this whole section exists to correct. */}
       {silent.length > 0 && (
-        <div className="mt-3 border-t border-[#eeedf5] pt-3">
-          <div className="text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">
+        <div className="mt-3 border-t border-[#e4e4e7] pt-3">
+          <div className="text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#71717a]">
             Worth a conversation
           </div>
-          <p className="mt-1.5 max-w-[70ch] text-[15px] font-semibold leading-[1.6] text-[#33375c]">
-            <b className="text-[#171a33]">{num(silent.length)}</b> of your{' '}
+          <p className="mt-1.5 max-w-[70ch] text-[15px] font-semibold leading-[1.6] text-[#3f3f46]">
+            <b className="text-[#18181b]">{num(silent.length)}</b> of your{' '}
             {num(contracted.length)} retained creators have published nothing at all in{' '}
             {monthName}
             {silentRetainer > 0 && (
               <>
-                , carrying <b className="text-[#171a33]">{money(silentRetainer)}/mo</b> of committed
+                , carrying <b className="text-[#18181b]">{money(silentRetainer)}/mo</b> of committed
                 retainer between them
               </>
             )}
             .
           </p>
-          <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[12.5px] leading-[1.6] text-[#6b7093]">
+          <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[12.5px] leading-[1.6] text-[#71717a]">
             {silent.slice(0, 8).map((c) => (
               <li key={c.handle ?? c.name} className="tabular-nums">
                 @{(c.handle ?? c.name).replace(/^@+/, '')}
-                {c.retainer > 0 && <span className="text-[#8a8fb0]"> {money(c.retainer)}/mo</span>}
+                {c.retainer > 0 && <span className="text-[#71717a]"> {money(c.retainer)}/mo</span>}
               </li>
             ))}
-            {silent.length > 8 && <li className="text-[#8a8fb0]">and {num(silent.length - 8)} more</li>}
+            {silent.length > 8 && <li className="text-[#71717a]">and {num(silent.length - 8)} more</li>}
           </ul>
-          <p className="mt-2 text-[11.5px] leading-[1.6] text-[#8a8fb0]">
-            These are the ones we are chasing. Their retainer is only earned against posts
-            delivered, so an empty month costs you less than the committed figure suggests.
+          <p className="mt-2 text-[11.5px] leading-[1.6] text-[#71717a]">
+            Review posting progress with your account lead. Amounts shown are retainer commitments;
+            payment eligibility depends on each creator&rsquo;s agreement and approved adjustments.
           </p>
         </div>
       )}
@@ -1156,16 +1157,16 @@ function MonthToDate({
           🚨 Suppressed in a brand's FIRST month, where the whole opening roster
           shares one cc_start_date and would read as a recruiting spree. */}
       {signings && !signings.isFirstMonth && (
-        <div className="mt-3 border-t border-[#eeedf5] pt-3">
-          <div className="text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">
+        <div className="mt-3 border-t border-[#e4e4e7] pt-3">
+          <div className="text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#71717a]">
             New creators signed
           </div>
-          <p className="mt-1.5 max-w-[70ch] text-[15px] font-semibold leading-[1.6] text-[#33375c]">
-            <b className="text-[#171a33]">{num(signings.signed)}</b> new creator
+          <p className="mt-1.5 max-w-[70ch] text-[15px] font-semibold leading-[1.6] text-[#3f3f46]">
+            <b className="text-[#18181b]">{num(signings.signed)}</b> new creator
             {signings.signed === 1 ? '' : 's'} joined your roster in {signings.monthLabel}
             {signings.signedRetained > 0 && (
               <>
-                , <b className="text-[#171a33]">{num(signings.signedRetained)}</b> of them on a
+                , <b className="text-[#18181b]">{num(signings.signedRetained)}</b> of them on a
                 retainer
               </>
             )}
@@ -1174,7 +1175,7 @@ function MonthToDate({
               <> That compares with {num(signings.signedPrior)} in {signings.priorMonthLabel}.</>
             )}
           </p>
-          <p className="mt-1.5 max-w-[70ch] text-[12.5px] leading-[1.6] text-[#8a8fb0]">
+          <p className="mt-1.5 max-w-[70ch] text-[12.5px] leading-[1.6] text-[#71717a]">
             Counted by the date each creator signed with us for your brand, including any who have
             since left, so this figure does not change after the fact.
           </p>
@@ -1182,16 +1183,15 @@ function MonthToDate({
       )}
 
       {spend && (
-        <div className="mt-3.5 border-t border-[#eeedf5] pt-3">
-          <p className="max-w-[70ch] text-[12.5px] leading-[1.6] text-[#8a8fb0]">
-            <b className="text-[#33375c]">How the spend figure works.</b> Each creator&rsquo;s
-            retainer is scaled by what they actually published: deliver the full count and it earns
-            in full, deliver half and it earns half. Nobody is counted above 100%, so overdelivery
-            does not raise it.
-            {!complete && ' This is what published posts have earned, not a forecast.'}
+        <div className="mt-3.5 border-t border-[#e4e4e7] pt-3">
+          <p className="max-w-[70ch] text-[12.5px] leading-[1.6] text-[#71717a]">
+            <b className="text-[#3f3f46]">How the spend figure works.</b> Each creator&rsquo;s
+            retainer is estimated from published posts against the agreed post count, capped at
+            100% of the retainer. This is a delivery-based estimate, not a payment record.
+            Actual payment depends on the agreement and approved adjustments.
           </p>
           {caveats.length > 0 && (
-            <p className="mt-2 rounded-[10px] bg-[#f6f6fb] px-3 py-2 text-[11.5px] leading-[1.6] text-[#8a8fb0]">
+            <p className="mt-2 rounded-[10px] bg-[#f6f6fb] px-3 py-2 text-[11.5px] leading-[1.6] text-[#71717a]">
               An estimate, not a payment record: {caveats.join('; ')}. Treat the gap as an
               indication of delivery, not as money unspent.
             </p>
@@ -1223,10 +1223,10 @@ function TopPosts({
 }) {
   return (
     <>
-      <div className="overflow-x-auto rounded-[14px] border border-[#e7e7f2] bg-white">
+      <div className="overflow-x-auto rounded-[14px] border border-[#dedee5] bg-white">
         <table className="w-full min-w-[620px] border-collapse text-[13px]">
           <thead>
-            <tr className="border-b border-[#eeedf5]">
+            <tr className="border-b border-[#e4e4e7]">
               <th className={TH_L}>Post</th>
               <th className={`${TH_L} whitespace-nowrap`}>Creator</th>
               <th className={`${TH_R} whitespace-nowrap`}>Views</th>
@@ -1240,7 +1240,7 @@ function TopPosts({
               return (
                 <tr key={i} className="border-b border-[#f2f1f8] last:border-b-0">
                   <td className="max-w-[300px] px-4 py-2.5">
-                    <div className="truncate font-semibold text-[#171a33]" title={v.title}>
+                    <div className="truncate font-semibold text-[#18181b]" title={v.title}>
                       {v.videoUrl ? (
                         <a
                           href={v.videoUrl}
@@ -1273,13 +1273,13 @@ function TopPosts({
                   </td>
                   {/* Views come from a separate lookup and are genuinely
                       absent for some posts — an em dash, never a 0. */}
-                  <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-[#33375c]">
+                  <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-[#3f3f46]">
                     {v.viewsLabel ?? <span className="text-[#b9bcd0]">&mdash;</span>}
                   </td>
-                  <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-[#33375c]">
+                  <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-[#3f3f46]">
                     {num(v.orders)}
                   </td>
-                  <td className="whitespace-nowrap px-4 py-2.5 text-right font-extrabold tabular-nums text-[#171a33]">
+                  <td className="whitespace-nowrap px-4 py-2.5 text-right font-extrabold tabular-nums text-[#18181b]">
                     {money(v.gmv)}
                   </td>
                 </tr>
@@ -1288,7 +1288,7 @@ function TopPosts({
           </tbody>
         </table>
       </div>
-      <div className="mt-2 text-[10.5px] text-[#8a8fb0]">
+      <div className="mt-2 text-[10.5px] text-[#71717a]">
         Titles link to the post on TikTok. Figures are frozen at preparation and do not shift after
         sending.
       </div>
@@ -1408,15 +1408,15 @@ function MonthlyDelivery({
         </div>
       )}
       {spend && (
-        <div className="mt-3.5 rounded-[14px] border border-[#e7e7f2] bg-white px-5 py-4">
-          <div className="text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">
-            {mtd ? 'Retainer earned so far' : 'Estimated retainer spend'}
+        <div className="mt-3.5 rounded-[14px] border border-[#dedee5] bg-white px-5 py-4">
+          <div className="text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#71717a]">
+            Estimated retainer spend
           </div>
-          <p className="mt-1.5 max-w-[70ch] text-[15px] font-semibold leading-[1.6] text-[#33375c]">
-            <b className="text-[#171a33]">{money(spend.earned)}</b> of the{' '}
+          <p className="mt-1.5 max-w-[70ch] text-[15px] font-semibold leading-[1.6] text-[#3f3f46]">
+            <b className="text-[#18181b]">{money(spend.earned)}</b> of the{' '}
             {money(spend.budget)} committed
             {spend.pctOfBudget !== null && (
-              <>, or <b className="text-[#171a33]">{spend.pctOfBudget.toFixed(0)}%</b></>
+              <>, or <b className="text-[#18181b]">{spend.pctOfBudget.toFixed(0)}%</b></>
             )}
             , once each creator&rsquo;s retainer is scaled by what they actually published.
           </p>
@@ -1424,10 +1424,10 @@ function MonthlyDelivery({
               so the day count is not a footnote: without it this reads as a
               shortfall rather than as progress through a month still running. */}
           {mtd && (
-            <p className="mt-1.5 max-w-[70ch] text-[12.5px] leading-[1.6] text-[#8a8fb0]">
+            <p className="mt-1.5 max-w-[70ch] text-[12.5px] leading-[1.6] text-[#71717a]">
               This is what posts already published have earned, not a forecast and not a final
               figure. The remaining{' '}
-              <b className="text-[#33375c]">
+              <b className="text-[#3f3f46]">
                 {num(mtd.daysInMonth - mtd.daysElapsed)} days of the month
               </b>{' '}
               are still open for the rest to be earned.
@@ -1439,27 +1439,27 @@ function MonthlyDelivery({
               11 pages of table. Name the shortfall, then point at the column
               that now shows it per creator. */}
           {spend.budget - spend.earned > 1 && (
-            <p className="mt-1.5 max-w-[70ch] text-[12.5px] leading-[1.6] text-[#8a8fb0]">
-              The <b className="text-[#33375c]">{money(spend.budget - spend.earned)}</b> difference is
+            <p className="mt-1.5 max-w-[70ch] text-[12.5px] leading-[1.6] text-[#71717a]">
+              The <b className="text-[#3f3f46]">{money(spend.budget - spend.earned)}</b> difference is
               posting that did not happen, not money withheld. Every creator&rsquo;s share is in the{' '}
-              <b className="text-[#33375c]">Earned</b> column of the roster table below, beside the
+              <b className="text-[#3f3f46]">Earned</b> column of the roster table below, beside the
               posts that produced it.
             </p>
           )}
-          <p className="mt-1.5 max-w-[70ch] text-[12.5px] leading-[1.6] text-[#8a8fb0]">
+          <p className="mt-1.5 max-w-[70ch] text-[12.5px] leading-[1.6] text-[#71717a]">
             {num(spend.fullyDelivered)} of {num(spend.creators)} retained creators
             {mtd ? ' have already delivered' : ' delivered'} their full monthly count and are
             counted at 100%; nobody is counted above it, so overdelivery does not raise the figure.
           </p>
           {caveats.length > 0 && (
-            <p className="mt-2 rounded-[10px] bg-[#f6f6fb] px-3 py-2 text-[11.5px] leading-[1.6] text-[#8a8fb0]">
+            <p className="mt-2 rounded-[10px] bg-[#f6f6fb] px-3 py-2 text-[11.5px] leading-[1.6] text-[#71717a]">
               An estimate, not a payment record: {caveats.join('; ')}. Treat the gap as an
               indication of delivery, not as money unspent.
             </p>
           )}
         </div>
       )}
-      <div className="mt-2 text-[10.5px] leading-relaxed text-[#8a8fb0]">
+      <div className="mt-2 text-[10.5px] leading-relaxed text-[#71717a]">
         Counts only creators on a retainer with an agreed monthly post target. Affiliate-only creators
         take commission and carry no post commitment, so they are not measured against one.
       </div>
@@ -1483,8 +1483,8 @@ function NetNewSplit({ n }: { n: NonNullable<NonNullable<BrandClientReportData['
   if (total <= 0) return null;
   const pct = (n.netNewGmv / total) * 100;
   return (
-    <div className="rounded-[14px] border border-[#e7e7f2] bg-white px-5 py-4">
-      <div className="text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">
+    <div className="rounded-[14px] border border-[#dedee5] bg-white px-5 py-4">
+      <div className="text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#71717a]">
         Content we started vs content that predates us
       </div>
       <SplitBar
@@ -1498,8 +1498,8 @@ function NetNewSplit({ n }: { n: NonNullable<NonNullable<BrandClientReportData['
           },
         ]}
       />
-      <p className="mt-2.5 max-w-[70ch] text-[12.5px] leading-[1.6] text-[#33375c]">
-        <b className="text-[#171a33]">{pct.toFixed(1)}%</b> of your roster&rsquo;s revenue this month came
+      <p className="mt-2.5 max-w-[70ch] text-[12.5px] leading-[1.6] text-[#3f3f46]">
+        <b className="text-[#18181b]">{pct.toFixed(1)}%</b> of your roster&rsquo;s revenue this month came
         from videos published after we began working with each creator. The rest is their earlier
         content, still selling.
       </p>
@@ -1535,27 +1535,27 @@ function Movers({
   const up = m.netChange >= 0;
   return (
     <>
-      <div className="rounded-[14px] border border-[#e7e7f2] border-l-[3px] border-l-[#4b45ff] bg-white px-5 py-4">
-        <p className="max-w-[70ch] text-[15px] font-semibold leading-[1.6] text-[#33375c]">
+      <div className="rounded-[14px] border border-[#dedee5] border-l-[3px] border-l-[#4b45ff] bg-white px-5 py-4">
+        <p className="max-w-[70ch] text-[15px] font-semibold leading-[1.6] text-[#3f3f46]">
           Creators added <b className="text-[#0d9f6e]">{money(Math.abs(m.gained))}</b> against{' '}
           <b className="text-[#cf3a6e]">{money(Math.abs(m.lost))}</b> given back, for a net{' '}
-          <b className="text-[#171a33]">
+          <b className="text-[#18181b]">
             {up ? 'gain' : 'fall'} of {money(Math.abs(m.netChange))}
           </b>{' '}
           on the {word} before.
         </p>
         {(m.started > 0 || m.stopped > 0) && (
-          <p className="mt-1.5 text-[12.5px] leading-[1.6] text-[#8a8fb0]">
+          <p className="mt-1.5 text-[12.5px] leading-[1.6] text-[#71717a]">
             {m.started > 0 && (
               <>
-                <b className="text-[#171a33]">{num(m.started)}</b> creator
+                <b className="text-[#18181b]">{num(m.started)}</b> creator
                 {m.started === 1 ? '' : 's'} sold for the first time this {word}
               </>
             )}
             {m.started > 0 && m.stopped > 0 && ' · '}
             {m.stopped > 0 && (
               <>
-                <b className="text-[#171a33]">{num(m.stopped)}</b> who sold last {word} did not this
+                <b className="text-[#18181b]">{num(m.stopped)}</b> who sold last {word} did not this
                 one
               </>
             )}
@@ -1564,10 +1564,10 @@ function Movers({
         )}
       </div>
 
-      <div className="mt-3 overflow-x-auto rounded-[14px] border border-[#e7e7f2] bg-white">
+      <div className="mt-3 overflow-x-auto rounded-[14px] border border-[#dedee5] bg-white">
         <table className="w-full min-w-[520px] border-collapse text-[13px]">
           <thead>
-            <tr className="border-b border-[#eeedf5]">
+            <tr className="border-b border-[#e4e4e7]">
               <th className={TH_L}>Creator</th>
               <th className={`${TH_R} whitespace-nowrap`}>Last {word}</th>
               <th className={`${TH_R} whitespace-nowrap`}>This {word}</th>
@@ -1580,7 +1580,7 @@ function Movers({
               return (
                 <tr key={c.handle} className="border-b border-[#f2f1f8] last:border-b-0">
                   <td className="max-w-[220px] px-4 py-2.5">
-                    <div className="truncate font-semibold text-[#171a33]">
+                    <div className="truncate font-semibold text-[#18181b]">
                       {c.name?.trim() ? c.name : `@${h}`}
                     </div>
                     {c.name?.trim() && (
@@ -1594,10 +1594,10 @@ function Movers({
                       </a>
                     )}
                   </td>
-                  <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-[#33375c]">
+                  <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-[#3f3f46]">
                     {c.prior > 0 ? money(c.prior) : <span className="text-[#b9bcd0]">&mdash;</span>}
                   </td>
-                  <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-[#33375c]">
+                  <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-[#3f3f46]">
                     {c.cur > 0 ? money(c.cur) : <span className="text-[#b9bcd0]">&mdash;</span>}
                   </td>
                   <td className="whitespace-nowrap px-4 py-2.5 text-right">
@@ -1626,7 +1626,7 @@ function Movers({
           </tbody>
         </table>
       </div>
-      <div className="mt-2 text-[10.5px] text-[#8a8fb0]">
+      <div className="mt-2 text-[10.5px] text-[#71717a]">
         The {num(m.list.length)} largest movements by dollar change. Every signed creator who sold in
         either {word} is counted in the totals above.
       </div>
@@ -1999,14 +1999,13 @@ export function ReportView({
     : null;
 
   return (
-    <div className="min-h-screen bg-[#fbfbfd] pb-10 text-[#171a33]">
+    <div className={`${styles.report} min-h-screen pb-10 text-[#18181b]`}>
       {/* Masthead */}
       <div
-        className="px-5 pb-7 pt-8 text-white sm:px-11"
-        style={{ background: 'linear-gradient(135deg,#141633 0%,#3b2f7d 55%,#8a2f80 100%)' }}
+        className="border-b border-[#dedee5] bg-white px-5 py-6 sm:px-8"
       >
-        <div className="mx-auto flex max-w-[1000px] flex-wrap items-end justify-between gap-4">
-          <div className="flex items-end gap-4">
+        <div className="mx-auto flex max-w-[1080px] flex-wrap items-center justify-between gap-4">
+          <div className="flex min-w-0 items-center gap-3">
             {/* ⚠️ The logo is read LIVE from brands_v2, not from the frozen
                 snapshot, and that is deliberate: it is branding, not a figure.
                 Freezing it would leave every already-sent link permanently
@@ -2014,54 +2013,61 @@ export function ReportView({
                 the old one on reports it has not opened yet. The 59 live links
                 pick this up with no regeneration.
 
-                A white tile behind it because most marks are dark artwork with
-                a transparent ground, which is invisible on the masthead
-                gradient. object-contain so a wide logo is never cropped. */}
+                Contain the artwork so wide logos remain readable without cropping. */}
             {logoUrl && (
-              <span className="grid h-[54px] w-[54px] shrink-0 place-items-center overflow-hidden rounded-[12px] bg-white p-1.5 shadow-[0_2px_10px_rgba(0,0,0,0.18)]">
+              <span className="grid h-[54px] w-[54px] shrink-0 place-items-center overflow-hidden rounded-[12px] border border-[#e4e4e7] bg-white p-1.5">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={logoUrl} alt="" className="h-full w-full object-contain" />
               </span>
             )}
           <div>
-            <div className="text-[10.5px] font-extrabold uppercase tracking-[0.2em] text-white/65">
+            <div className="text-[10.5px] font-semibold uppercase tracking-[0.12em] text-[#71717a]">
               {AGENCY} &middot; {reportKind}
             </div>
             <h1 className="mb-0.5 mt-2 text-[28px] font-extrabold tracking-tight">{brandName}</h1>
-            <div className="text-[13.5px] text-white/80">
+            <div className="text-[13px] text-[#71717a]">
               {periodLabel} &middot; prepared {fmtDay(frozen)}
             </div>
           </div>
           </div>
           <a
             href={`/api/report-pdf/${token}`}
-            className="rounded-[9px] border border-white/25 bg-white/15 px-3.5 py-1.5 text-xs font-bold text-white backdrop-blur-sm transition-colors hover:bg-white/25"
+            className="rounded-lg border border-[#dedee5] bg-white px-3 py-2 text-xs font-semibold text-[#3f3f46] transition-colors hover:bg-[#f4f4f5]"
           >
             &#8595; Download PDF
           </a>
         </div>
       </div>
 
-      <div className="mx-auto max-w-[1000px] px-5 sm:px-11">
+      <nav aria-label="Report sections" className={`${styles.navigation} sticky top-0 z-20 border-b border-[#dedee5] bg-white/95 backdrop-blur-sm`}>
+        <div className="mx-auto flex max-w-[1080px] items-center gap-5 overflow-x-auto px-5 sm:px-8">
+          {hasRoster && <a href="#overview">Overview</a>}
+          {(notes?.trim() || plan?.trim()) && <a href="#commentary">Commentary &amp; plan</a>}
+          {watchVideos.length > 0 && <a href="#content">Top content</a>}
+          {gran && gran.creators.length > 0 && <a href="#creators">Creator detail</a>}
+          <a href="#store">Store context</a>
+        </div>
+      </nav>
+      <main className="mx-auto max-w-[1080px] px-5 sm:px-8">
         {/* ── 1. What we delivered. The agency leads. ────────────── */}
         {hasRoster && (
           <>
-            <SectionLine>What we delivered</SectionLine>
-            <div className="rounded-[14px] border border-[#e7e7f2] border-l-[3px] border-l-[#4b45ff] bg-white px-5 py-5">
-              <h2 className="text-[20px] font-extrabold leading-snug tracking-tight text-[#171a33]">
+            <SectionLine id="overview">Performance overview</SectionLine>
+            <div className="rounded-[14px] border border-[#dedee5] border-l-[3px] border-l-[#4b45ff] bg-white px-5 py-5">
+              <h2 className="text-[20px] font-extrabold leading-snug tracking-tight text-[#18181b]">
                 Your signed roster produced {money(cc.gmv)} this {word}
               </h2>
-              <p className="mt-1.5 max-w-[68ch] text-[14.5px] leading-[1.65] text-[#33375c]">
-                That is <b className="text-[#171a33]">{cc.pctOfStoreGmv.toFixed(1)}% of {brandName}&rsquo;s total store GMV</b>,
+              <p className="mt-1.5 max-w-[68ch] text-[14.5px] leading-[1.65] text-[#3f3f46]">
+                That is <b className="text-[#18181b]">{cc.pctOfStoreGmv.toFixed(1)}% of {brandName}&rsquo;s total store GMV</b>,
                 from{' '}
-                <b className="text-[#171a33]">
+                <b className="text-[#18181b]">
                   {num(rosterAct ? rosterAct.posted : cc.activeCreatorCount)} signed creators
                 </b>{' '}
-                who published <b className="text-[#171a33]">{num(cc.videos)} posts</b>
+                who published <b className="text-[#18181b]">{num(cc.videos)} posts</b>
                 {rosterAct && rosterAct.sold > 0 && (
                   <>
                     {' '}
-                    &mdash; and <b className="text-[#171a33]">{num(rosterAct.sold)}</b> of your roster made sales
+                    &mdash; and <b className="text-[#18181b]">{num(rosterAct.sold)}</b> of your roster made sales
                   </>
                 )}
                 {cc.newlyActivatedCount > 0 && (
@@ -2107,10 +2113,10 @@ export function ReportView({
 
             {/* The WHY, before any warning about the WHAT. */}
             {driver && (
-              <div className="mt-3 rounded-[12px] border border-[#e7e7f2] bg-white px-4 py-3.5 text-[13.5px] leading-[1.65] text-[#33375c]">
+              <div className="mt-3 rounded-[12px] border border-[#dedee5] bg-white px-4 py-3.5 text-[13.5px] leading-[1.65] text-[#3f3f46]">
                 {driver.kind === 'fall' ? (
                   <>
-                    <b className="text-[#171a33]">
+                    <b className="text-[#18181b]">
                       Most of the fall is one creator, not the roster.
                     </b>{' '}
                     @{driver.handle.replace(/^@+/, '')} came off {money(driver.amount)}, which is{' '}
@@ -2126,7 +2132,7 @@ export function ReportView({
                   </>
                 ) : (
                   <>
-                    <b className="text-[#171a33]">Most of the gain is one creator.</b>{' '}
+                    <b className="text-[#18181b]">Most of the gain is one creator.</b>{' '}
                     @{driver.handle.replace(/^@+/, '')} added {money(driver.amount)}, which is{' '}
                     {driver.share.toFixed(0)}% of the {money(driver.grossUp)} gained this {word}
                     {driver.grossDown > 0 && (
@@ -2202,7 +2208,7 @@ export function ReportView({
             drop it. */}
         {(notes?.trim() || plan?.trim()) && (
           <>
-            <SectionLine>From your account lead</SectionLine>
+            <SectionLine id="commentary">Commentary &amp; next steps</SectionLine>
             <div className="rounded-[14px] border border-[#e3e0f5] border-l-[3px] border-l-[#5b5ee8] bg-white px-[18px] py-[15px]">
               <div className="mb-2 flex items-center gap-2.5">
                 <span
@@ -2213,11 +2219,11 @@ export function ReportView({
                 </span>
                 <div>
                   <b className="text-[13px]">Notes for this {word}</b>
-                  <div className="text-[10.5px] text-[#8a8fb0]">{AGENCY}</div>
+                  <div className="text-[10.5px] text-[#71717a]">{AGENCY}</div>
                 </div>
               </div>
               {notes?.trim() && (
-                <p className="whitespace-pre-line text-[13.5px] leading-[1.65] text-[#33375c]">{notes}</p>
+                <p className="whitespace-pre-line text-[13.5px] leading-[1.65] text-[#3f3f46]">{notes}</p>
               )}
               {/* 🚨 THE ONLY FORWARD-LOOKING THING ON THE PAGE. Everything else
                   is retrospective, which is why a brand could read the whole
@@ -2226,11 +2232,11 @@ export function ReportView({
                   commitment made this {word} is still identifiable next {word}
                   and can actually be checked. */}
               {plan?.trim() && (
-                <div className="mt-3.5 border-t border-[#eeedf5] pt-3.5">
-                  <div className="text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]">
+                <div className="mt-3.5 border-t border-[#e4e4e7] pt-3.5">
+                  <div className="text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#71717a]">
                     What we are doing next
                   </div>
-                  <p className="mt-1.5 whitespace-pre-line text-[13.5px] leading-[1.65] text-[#33375c]">
+                  <p className="mt-1.5 whitespace-pre-line text-[13.5px] leading-[1.65] text-[#3f3f46]">
                     {plan}
                   </p>
                 </div>
@@ -2361,7 +2367,7 @@ export function ReportView({
                     still earning from content posted months ago is revenue, but
                     it is not work done this period, and merging the two is what
                     let one number stand for both. */}
-                <div className="mt-2 text-[10.5px] leading-relaxed text-[#8a8fb0]">
+                <div className="mt-2 text-[10.5px] leading-relaxed text-[#71717a]">
                   Posted counts creators who published at least once this period. Made sales counts
                   creators who earned, which includes earnings from posts made earlier.
                   {cc.newlyActivatedCount > 0 && (
@@ -2398,7 +2404,7 @@ export function ReportView({
         {/* ── 4. What they made. ─────────────────────────────────── */}
         {watchVideos.length > 0 && (
           <>
-            <SectionLine>Content that sold</SectionLine>
+            <SectionLine id="content">Top-performing content</SectionLine>
             <TopPosts rows={watchVideos} />
           </>
         )}
@@ -2424,14 +2430,14 @@ export function ReportView({
             heavy lifting for anyone who wants all of them. */}
         {gran && gran.creators.length > 0 && (
           <>
-            <SectionLine>Every creator we run for you</SectionLine>
+            <SectionLine id="creators">Creator performance &amp; agreements</SectionLine>
             <FullRosterTable g={gran} judgeQuota={windowIsMonth} token={token} />
           </>
         )}
 
         {/* ── 7. Store context, secondary ────────────────────────── */}
-        <SectionLine>Your store overall</SectionLine>
-        <p className="mb-3 max-w-[68ch] text-[13.5px] leading-[1.65] text-[#33375c]">
+        <SectionLine id="store">Store context</SectionLine>
+        <p className="mb-3 max-w-[68ch] text-[13.5px] leading-[1.65] text-[#3f3f46]">
           Context for the numbers above. This is all of {brandName}&rsquo;s TikTok Shop activity, not only the
           creators we run.
         </p>
@@ -2533,11 +2539,11 @@ export function ReportView({
               subLabel={weeklySplit ? 'creators we run' : undefined}
             />
             {weeklyShare && (
-              <div className="mt-2 text-[11.5px] leading-[1.6] text-[#5c6183]">
+              <div className="mt-2 text-[11.5px] leading-[1.6] text-[#52525b]">
                 Our share of the store went from{' '}
-                <b className="text-[#171a33]">{weeklyShare.first.toFixed(0)}%</b> in the week ending{' '}
+                <b className="text-[#18181b]">{weeklyShare.first.toFixed(0)}%</b> in the week ending{' '}
                 {fmtDay(new Date(weeklyShare.firstWeek + 'T12:00:00Z'))} to{' '}
-                <b className="text-[#171a33]">{weeklyShare.last.toFixed(0)}%</b> in the week ending{' '}
+                <b className="text-[#18181b]">{weeklyShare.last.toFixed(0)}%</b> in the week ending{' '}
                 {fmtDay(new Date(weeklyShare.lastWeek + 'T12:00:00Z'))}
                 {weeklyShare.monotonic
                   ? ', climbing in most weeks along the way rather than on any single one.'
@@ -2545,7 +2551,7 @@ export function ReportView({
               </div>
             )}
             {priorWasSpike && (
-              <div className="mt-2 text-[10.5px] text-[#8a8fb0]">
+              <div className="mt-2 text-[10.5px] text-[#71717a]">
                 Last week was the strongest in this 12-week window, so the comparison above is a steep one.
               </div>
             )}
@@ -2556,25 +2562,25 @@ export function ReportView({
         {s.lifetime.gmv > 0 && lifetimeSince && (
           <>
             <SectionLine>Since we started</SectionLine>
-            <div className="rounded-[14px] border border-[#e7e7f2] bg-white px-5 py-4 text-[14px] leading-[1.7] text-[#33375c]">
-              Since <b className="text-[#171a33]">{lifetimeSince}</b>, {brandName} has generated{' '}
-              <b className="text-[#171a33]">{compactMoney(s.lifetime.gmv)}</b> on TikTok Shop
+            <div className="rounded-[14px] border border-[#dedee5] bg-white px-5 py-4 text-[14px] leading-[1.7] text-[#3f3f46]">
+              Since <b className="text-[#18181b]">{lifetimeSince}</b>, {brandName} has generated{' '}
+              <b className="text-[#18181b]">{compactMoney(s.lifetime.gmv)}</b> on TikTok Shop
               {s.lifetime.videos !== null && (
-                <> across <b className="text-[#171a33]">{num(s.lifetime.videos)}</b> videos</>
+                <> across <b className="text-[#18181b]">{num(s.lifetime.videos)}</b> videos</>
               )}
               {s.lifetime.bestWeek !== null && (
-                <>, with a best week of <b className="text-[#171a33]">{compactMoney(s.lifetime.bestWeek)}</b></>
+                <>, with a best week of <b className="text-[#18181b]">{compactMoney(s.lifetime.bestWeek)}</b></>
               )}
               .
             </div>
           </>
         )}
 
-        <div className="mt-10 text-[11.5px] leading-[1.7] text-[#8a8fb0]">
+        <div className="mt-10 text-[11.5px] leading-[1.7] text-[#71717a]">
           Prepared by {AGENCY} for {brandName}. Every figure is frozen as of {fmtDay(frozen)} and will not
           change after sending. Questions go to your account lead.
         </div>
-      </div>
+      </main>
     </div>
   );
 }
