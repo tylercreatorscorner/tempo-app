@@ -60,3 +60,11 @@ Scoped service regression tests now cover permissions, tenant/brand identities, 
 - Web/PDF/CSV use consistent period-review handling; exports retain agreement dates, quota and revision instead of mislabeling cross-month requirements.
 - Agency portfolio/signings readers now use verified period fees; regression proves historical agency fees stay independent of current roster mirrors. Third migration applied and hosted read verified.
 - Manual-to-automatic changes cannot skip an unrenewed period silently. Remaining production gates: completed final release checks and controlled write activation with renewal scheduling, plus explicit treatment of legacy monthly-only consumers for fixed/cross-month agreements. UI verification alone does not establish the production financial cutover is complete.
+
+## Renewal-boundary and legacy-metric checks
+
+Scoped agreement, roster, profile-contract and report readers now catch up due periods before reading dated terms. Catch-up requires both feature and write flags, preserves the SQL compare-and-swap, drains pages and retries once from fresh state after a concurrent save. Roster batches explicitly retain creator/brand pairs; an IN-filter Cartesian product cannot authorize unrelated renewals.
+
+Custom, ended, unrenewed and split periods are excluded from calendar-month pace classification. The profile still shows calendar-month activity, with agreement-period guidance instead of a misleading quota bar. Roster GMV/fee ratios are withheld when selected performance does not match the recorded agreement period; grouped rows do not present partial ratios. Private agreement snapshots are removed from roster responses before cost scrubbing.
+
+Local full regression suite and typecheck pass. Targeted new-code lint passes; broader roster/profile lint also reports pre-existing purity/effect/any issues outside this patch. Final hosted build/UI verification and production flag activation remain separate release steps.

@@ -1,3 +1,4 @@
+import { ensureAgreementPeriods } from "@/lib/agreements/renewals";
 /**
  * The agency's own report: the whole portfolio, for leadership.
  *
@@ -327,6 +328,7 @@ async function loadRosterQuality(supabase: Admin, context: ClientReportContext):
 }
 
 export async function buildAgencySnapshot(start: string, end: string, context: ClientReportContext): Promise<AgencySnapshot> {
+  await ensureAgreementPeriods({tenantId:context.tenantId,brandIds:context.registry.rows.map(b=>b.id)});
   const supabase = await createAdminClient();
 
   // Prior period is the SAME length ending the day before this one starts, so

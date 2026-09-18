@@ -24,6 +24,7 @@ function load(file){const exports={};runInNewContext(ts.transpileModule(readFile
 deps['@/lib/auth/permissions']=load('src/lib/auth/permissions.ts');
 deps['@/lib/data/brand-registry-core']=load('src/lib/data/brand-registry-core.ts');deps['@/lib/data/brand-registry']=deps['@/lib/data/brand-registry-core'];
 deps['@/lib/auth/client-report-access']=load('src/lib/auth/client-report-access.ts');
+deps['@/lib/agreements/renewals']={ensureAgreementPeriods:async()=>{}};
 deps['@/lib/data/brand-client-report']=load('src/lib/data/brand-client-report.ts');
 deps['@/lib/data/client-reports']=load('src/lib/data/client-reports.ts');
 deps['@/lib/data/agency-report']=load('src/lib/data/agency-report.ts');

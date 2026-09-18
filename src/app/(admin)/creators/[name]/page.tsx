@@ -127,8 +127,9 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
         </dl>
       </section>
       <section className={styles.aside}><p className={styles.eyebrow}>Posting reliability</p><h2>This month’s activity</h2>
-        {published !== null ? <><div className="mt-5"><strong>{published}</strong><span className="text-xs text-muted-foreground"> published{currentContract?.monthlyPostRequirement ? ` / ${currentContract.monthlyPostRequirement} target` : ''}</span></div>
-          {!!currentContract?.monthlyPostRequirement && <div className={styles.progress}><span style={{width:`${Math.min(100, published/currentContract.monthlyPostRequirement*100)}%`}} /></div>}
+        {published !== null ? <><div className="mt-5"><strong>{published}</strong><span className="text-xs text-muted-foreground"> published{currentContract?.monthlyPaceComparable !== false && currentContract?.monthlyPostRequirement ? ` / ${currentContract.monthlyPostRequirement} target` : ''}</span></div>
+          {currentContract?.monthlyPaceComparable !== false && !!currentContract?.monthlyPostRequirement && <div className={styles.progress}><span style={{width:`${Math.min(100, published/currentContract.monthlyPostRequirement*100)}%`}} /></div>}
+          {currentContract?.monthlyPaceComparable === false && <p>Posting totals are calendar-month activity. Review the agreement{currentContract.agreementPeriod ? ` (${currentContract.agreementPeriod})` : ''} for its delivery requirement.</p>}
           <p>{currentContract && brandLabel(reg,currentContract.brand)} · calendar month to date · checked {new Date().toISOString().slice(0,10)}. Sales history ends {historyEnd}.</p></> : <p>No brand-specific posting target available.</p>}
         <dl><div><dt>On-time delivery</dt><dd>Not assessed</dd></div><div><dt>Accepted deliverables</dt><dd>Not recorded</dd></div></dl>
         <p>Publication volume is visible in monthly history. It does not establish whether agreed deliverables were accepted or on time.</p>

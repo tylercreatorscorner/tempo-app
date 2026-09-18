@@ -10,7 +10,7 @@ function reset(){scope={tenantId:id,userId:id,canViewCreatorCost:true,impersonat
 function load(file,deps){const exports={};runInNewContext(ts.transpileModule(readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{exports,Date,structuredClone,require:name=>{assert.ok(name in deps,name);return deps[name];}});return exports;}
 const model=load('src/lib/agreements/model.ts',{});
 const api=load('src/lib/agreements/service.ts',{
- 'server-only':{},'./model':model,
+ 'server-only':{},'./model':model,'./renewals':{ensureAgreementPeriods:async()=>{}},
  '@/lib/auth/workspace-scope':{getWorkspaceScope:async()=>scope,isBrandInScope:()=>allowed},
  '@/lib/auth/platform-admin':{getActiveTenantId:async()=>null,assertNotImpersonating:async()=>{if(scope.impersonating)throw Error('Read-only');}},
  '@/lib/auth/permissions':{can:()=>allowed},

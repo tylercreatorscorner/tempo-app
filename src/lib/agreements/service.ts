@@ -1,4 +1,5 @@
 import "server-only";
+import { ensureAgreementPeriods } from "./renewals";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getWorkspaceScope, isBrandInScope } from "@/lib/auth/workspace-scope";
 import {
@@ -74,6 +75,7 @@ export async function agreementContext(
 }
 export async function readAgreements(creatorId: string, brandId: string) {
   const ctx = await agreementContext(creatorId, brandId);
+  await ensureAgreementPeriods({tenantId:ctx.tenant,brandIds:[brandId],creatorIds:[creatorId]});
   const { data, error } = await ctx.admin
     .from("creator_agreement_ledgers")
     .select("id,version,state,updated_at")
