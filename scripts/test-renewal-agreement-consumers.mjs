@@ -1,0 +1,24 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {runInNewContext} from 'node:vm';
+import ts from 'typescript';
+import {NextRequest,NextResponse} from 'next/server.js';
+function load(path,deps){const exports={};runInNewContext(ts.transpileModule(readFileSync(path,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{exports,Date,console,require:n=>{assert.ok(n in deps,n);return deps[n];}});return exports;}
+const core=load('src/lib/data/brand-registry-core.ts',{});
+let scope={tenantId:'own',canViewCreatorCost:true,brandScope:{kind:'scoped',brandSlugs:['alpha'],brandIds:[]}},allowed=true,reads=0,failPage=false;
+const make=(id,tenant='own',brand='alpha')=>({id,creator_id:'creator-'+id,tenant_id:tenant,brand,status:'Active',retainer:100,monthly_post_requirement:10,account_1:'fixture'+id,product_retainers:{}});
+let roster=[make(1),make(2),make(3,'foreign'),make(4,'own','beta')];
+const brands=[{id:'a',slug:'alpha',tenant_id:'own'},{id:'b',slug:'beta',tenant_id:'own'},{id:'f',slug:'foreign',tenant_id:'foreign'}];
+const client={from:table=>{reads++;const filters=[];const q={select:()=>q,order:()=>q,eq:(k,v)=>{filters.push({k,v,match:r=>r[k]===v});return q;},in:(k,v)=>{filters.push({k,v,match:r=>v.includes(r[k])});return q;},gte:()=>q,lte:()=>q,range:async(start,end)=>run(start,end),then:(ok,no)=>Promise.resolve(run(0,999)).then(ok,no)};function run(start,end){assert.ok(filters.some(f=>f.k==='tenant_id'&&f.v==='own'),'Every privileged query is tenant bound');if(table!=='brands_v2')assert.ok(filters.some(f=>f.k==='brand'&&f.v.every(b=>b==='alpha')),'Facts and roster must be brand bound');if(failPage&&table==='managed_creators'&&start>0)return {data:null,error:{message:'fixture failure'}};const all=table==='brands_v2'?brands:table==='managed_creators'?roster:[];const matches=all.filter(r=>filters.every(f=>f.match(r)));return {data:matches.slice(start,end+1).map(r=>({...r})),count:matches.length,error:null};}return q;}};
+const deps={'@/lib/supabase/server':{createAdminClient:async()=>client},'@/lib/data/brand-registry-core':core,'@/lib/auth/permissions':{can:()=>allowed},'@/lib/auth/workspace-scope':{getWorkspaceScope:async()=>scope,isBrandInScope:(s,b)=>s.brandScope.kind==='all'||s.brandScope.brandSlugs.includes(b.slug)},'@/lib/agreements/roster-terms':{applyRosterAgreementTerms:async(rows,tenant)=>{assert.equal(tenant,'own');assert.ok(rows.every(r=>r.tenant_id==='own'&&r.brand==='alpha'));for(const row of rows)if(row.id!==2)row.agreement={quota:20,status:'active',periodStart:'2026-07-24',periodEnd:'2026-08-31',snapshot:{reason:'private'}};}}};
+const data=load('src/lib/data/renewals.ts',deps);
+let result=await data.getRenewals({scope});assert.equal(result.review.length,1);assert.equal(result.review[0].id,1);assert.equal(result.review[0].period,'2026-07-24–2026-08-31');assert.equal(result.review[0].agreement,undefined);assert.deepEqual(Array.from(result.cut,r=>r.id),[2]);assert.equal(result.totals.monthlyTotal,100,'Scored totals exclude agreements under review');
+await assert.rejects(data.getRenewals({scope,brand:'beta'}),/not available/);
+const oldReads=reads;allowed=false;await assert.rejects(data.getRenewals({scope}),/denied/);assert.equal(reads,oldReads);allowed=true;
+await assert.rejects(data.getRenewals({scope:{...scope,canViewCreatorCost:false}}),/denied/);
+roster=Array.from({length:1001},(_,i)=>make(i+10));result=await data.getRenewals({scope});assert.equal(result.review.length,1001,'Roster is completely paginated');
+failPage=true;await assert.rejects(data.getRenewals({scope}),/completely/);failPage=false;
+const route=load('src/app/api/renewals/route.ts',{...deps,'next/server':{NextRequest,NextResponse},'@/lib/data/renewals':data});
+assert.equal((await route.GET(new NextRequest('https://fixture.invalid/api/renewals?brand=beta'))).status,403);
+scope={...scope,canViewCreatorCost:false};assert.equal((await route.GET(new NextRequest('https://fixture.invalid/api/renewals'))).status,403);
+console.log('PASS renewal review: cost/capability denial, tenant and brand isolation, pagination, fail-closed partial reads, dated agreement review outside legacy scores and safe route errors');

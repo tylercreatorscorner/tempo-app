@@ -10,6 +10,8 @@
  *
  * Data: GET /api/renewals?brand=&product=  (admin-gated)
  */
+import Link from 'next/link';
+import type { AgreementRenewalReview } from '@/lib/data/renewals';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle, ArrowDown, ArrowUp, CheckCircle2, ChevronDown, ChevronUp,
@@ -48,6 +50,7 @@ interface RenewalCreator {
 }
 
 interface RenewalsResponse {
+  review?:AgreementRenewalReview[];
   cut: RenewalCreator[];
   watch: RenewalCreator[];
   keep: RenewalCreator[];
@@ -67,7 +70,7 @@ const SECTIONS = [
   {
     id: 'cut'   as const,
     label: 'Cut',
-    sublabel: 'ROI < 1x — losing money',
+    sublabel: 'GMV below recorded fees — review',
     icon: X,
     accent: 'red'    as const,
   },
@@ -114,24 +117,22 @@ export function RenewalsTab({ brand }: RenewalsTabProps) {
   const [error, setError] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const params = new URLSearchParams();
-      if (brand) params.set('brand', brand);
-      const res = await fetch(`/api/renewals?${params.toString()}`);
-      const j = await res.json();
-      if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
-      setData(j);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load renewals');
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    const controller=new AbortController();
+    async function load() {
+      setLoading(true);setError(null);setData(null);
+      try {
+        const params=new URLSearchParams();if(brand)params.set('brand',brand);
+        const response=await fetch(`/api/renewals?${params}`,{signal:controller.signal});
+        const result=await response.json();
+        if(!response.ok)throw Error(result.error || 'Renewal review could not be loaded.');
+        if(!controller.signal.aborted)setData(result);
+      } catch(error) {
+        if(!controller.signal.aborted)setError(error instanceof Error ? error.message : 'Renewal review could not be loaded.');
+      } finally {if(!controller.signal.aborted)setLoading(false);}
     }
-  }, [brand]);
-
-  useEffect(() => { fetchData(); }, [fetchData]);
+    void load();return ()=>controller.abort();
+  },[brand]);
 
   function toggleCollapse(id: string) {
     setCollapsed(prev => {
@@ -152,12 +153,12 @@ export function RenewalsTab({ brand }: RenewalsTabProps) {
             color="red"
             label="Cut"
             value={formatNumber(t.cutCount)}
-            sub={t.monthlyAtRisk > 0 ? `${formatCurrency(t.monthlyAtRisk)}/mo at risk` : '—'}
+            sub={t.monthlyAtRisk > 0 ? `${formatCurrency(t.monthlyAtRisk)} recorded fees` : '—'}
           />
           <HeadlineCell color="amber" label="Watch"   value={formatNumber(t.watchCount)} sub="monitoring" />
           <HeadlineCell color="green" label="Keep"    value={formatNumber(t.keepCount)}
             sub={t.starCount > 0 ? `${t.starCount} ⭐ stars` : 'solid performers'} />
-          <HeadlineCell color="green" label="Total Retainer" value={formatCurrency(t.monthlyTotal)} sub="/month across roster" />
+          <HeadlineCell color="green" label="Legacy fees assessed" value={formatCurrency(t.monthlyTotal)} sub="excludes period review below" />
         </div>
       </div>
     );
@@ -182,11 +183,19 @@ export function RenewalsTab({ brand }: RenewalsTabProps) {
 
   if (!data) return null;
 
-  const noResults = data.cut.length === 0 && data.watch.length === 0 && data.keep.length === 0;
+  const noResults = data.cut.length === 0 && data.watch.length === 0 && data.keep.length === 0 && !data.review?.length;
 
   return (
     <div className="space-y-4">
       {headlineStrip}
+      {!!data.review?.length && <section className="rounded-2xl border border-border bg-card p-4">
+        <h3 className="text-sm font-semibold">Agreement period review · {data.review.length}</h3>
+        <p className="mt-1 text-xs text-muted-foreground">Recorded agreements need a period-specific review. They are excluded from the legacy scores below; GMV divided by a fee does not establish profit or payment owed.</p>
+        <div className="mt-3 divide-y divide-border">{data.review.map(row=><div key={row.id} className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm">
+          <div><p className="font-medium">{row.name} <span className="font-normal text-muted-foreground">· {brandMeta.label(row.brand)}</span></p><p className="text-xs text-muted-foreground">{row.period ?? row.status.replaceAll('_',' ')} · {formatCurrency(row.fee)} recorded fee{row.posts!==null ? ` · ${row.posts} posts` : ''}</p></div>
+          {row.creatorId && <Link className="text-xs font-medium text-primary hover:underline" href={`/creators/${encodeURIComponent(row.creatorId)}?brand=${encodeURIComponent(row.brand)}`}>Review agreement</Link>}
+        </div>)}</div>
+      </section>}
 
       {noResults && (
         <div className="rounded-2xl bg-card border border-border shadow-sm p-12 text-center">
