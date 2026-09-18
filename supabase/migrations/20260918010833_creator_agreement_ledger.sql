@@ -61,7 +61,7 @@ begin
  if coalesce(current_row.version,0)<>p_expected then raise exception 'Agreement changed. Reload before saving'; end if;
  if (current_row.id is null) <> (p_command->>'action'='create') then raise exception 'Invalid agreement lifecycle'; end if;
  if current_row.id is not null then
-  if p_state->>'kind' is distinct from current_row.state->>'kind' or p_state->'deadline' is distinct from current_row.state->'deadline' then raise exception 'Agreement identity cannot change'; end if;
+  if p_state->>'firstPeriodEnd' is distinct from current_row.state->>'firstPeriodEnd' or p_state->>'kind' is distinct from current_row.state->>'kind' or p_state->'deadline' is distinct from current_row.state->'deadline' then raise exception 'Agreement identity cannot change'; end if;
   -- An existing period and every recorded revision must survive all later saves.
   if exists (
     select 1 from jsonb_array_elements(current_row.state->'periods') old_period

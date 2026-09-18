@@ -34,5 +34,5 @@ The initial release deliberately permits only one overlapping commercial agreeme
 
 Domain tests cover the October 5 amendment, November reversion, midmonth split, immutable captured report, manual renewal, termination, duplicate renewal, year rollover and leap February. Database tests cover tenant/brand mismatch, overlap, stale versions, retry keys, event immutability, history replacement and anonymous/authenticated denial. No real creator terms or private business data are in the fixtures.
 
-### Opening-period decision pending
-The prototype did not define a custom first billing period. Calendar-month-only creation could incorrectly treat an initial July 24–August 31 agreement as two separate obligations. Asked the user whether the first period end should be explicitly selected (recommended), always same-month end, or following-month end. Keep live writes disabled; incorporate the answer into the domain, form and recurrence tests before the integration gate.
+### Opening-period rule approved
+Managers choose the first period end date. July 24 through August 31 is one agreement period with one fee/post commitment; the next period starts September 1. Subsequent periods end at calendar month-end. First-period-only corrections run through the chosen end date and do not leak into renewals. Implemented in the model and approved form, with regression coverage. The remaining release gates above still apply.

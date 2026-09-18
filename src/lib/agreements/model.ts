@@ -35,6 +35,7 @@ export interface AgreementLedger {
   kind: "monthly" | "campaign" | "package";
   start: string;
   deadline: string | null;
+  firstPeriodEnd: string;
   finalDate: string | null;
   rules: TermRule[];
   periods: AgreementPeriod[];
@@ -45,6 +46,7 @@ export type AgreementCommand =
       kind: AgreementLedger["kind"];
       start: string;
       deadline: string | null;
+      firstPeriodEnd?: string;
       terms: AgreementTerms;
       reason: string;
     }
@@ -153,7 +155,11 @@ function addPeriod(
   const period: AgreementPeriod = {
     start,
     through:
-      ledger.kind === "monthly" ? agreementMonthEnd(start) : ledger.deadline!,
+      ledger.kind === "monthly"
+        ? ledger.periods.length === 0
+          ? ledger.firstPeriodEnd
+          : agreementMonthEnd(start)
+        : ledger.deadline!,
     revisions: [],
   };
   period.revisions.push(snapshot(ledger, period, actor, reason));
@@ -192,11 +198,19 @@ export function applyAgreementCommand(
         );
     } else if (command.deadline !== null)
       throw Error("Monthly agreements use calendar periods.");
+    const firstPeriodEnd =
+      command.kind === "monthly"
+        ? (command.firstPeriodEnd ?? agreementMonthEnd(command.start))
+        : command.deadline!;
+    assertDate(firstPeriodEnd);
+    if (firstPeriodEnd < command.start)
+      throw Error("First period must end on or after the start date.");
     const ledger: AgreementLedger = {
       schemaVersion: 1,
       kind: command.kind,
       start: command.start,
       deadline: command.deadline,
+      firstPeriodEnd,
       finalDate: null,
       rules: [
         {
@@ -253,7 +267,9 @@ export function applyAgreementCommand(
       ledger.kind !== "monthly"
         ? ledger.deadline
         : command.scope === "period"
-          ? agreementMonthEnd(command.effective)
+          ? command.effective <= ledger.firstPeriodEnd
+            ? ledger.firstPeriodEnd
+            : agreementMonthEnd(command.effective)
           : null;
     ledger.rules.push({
       from: command.effective,

@@ -221,3 +221,89 @@ assert.throws(
 console.log(
   "Agreement lifecycle: renewal, exceptions, effective-date splits, end, leap year, immutable snapshots and validation passed.",
 );
+const extended = apply(
+  null,
+  {
+    action: "create",
+    kind: "monthly",
+    start: "2026-07-24",
+    firstPeriodEnd: "2026-08-31",
+    deadline: null,
+    terms,
+    reason: "Confirmed opening period",
+  },
+  actor,
+);
+assert.equal(extended.periods.length, 1);
+assert.equal(extended.periods[0].through, "2026-08-31");
+assert.equal(
+  capture(extended, "2026-07-24")!.segments[0].terms.feeCents,
+  100000,
+);
+assert.equal(
+  apply(
+    extended,
+    { action: "advance", through: "2026-08-31", reason: "No early renewal" },
+    actor,
+  ).periods.length,
+  1,
+);
+const september = apply(
+  extended,
+  { action: "advance", through: "2026-09-01", reason: "First monthly renewal" },
+  actor,
+);
+assert.equal(september.periods.length, 2);
+assert.equal(september.periods[1].start, "2026-09-01");
+assert.equal(september.periods[1].through, "2026-09-30");
+const openingException = apply(
+  extended,
+  {
+    action: "change",
+    effective: "2026-07-24",
+    scope: "period",
+    terms: { ...terms, feeCents: 120000 },
+    reason: "Opening period exception",
+  },
+  actor,
+);
+assert.equal(capture(openingException, "2026-07-24")!.segments.length, 1);
+assert.equal(
+  capture(openingException, "2026-07-24")!.segments[0].through,
+  "2026-08-31",
+);
+assert.equal(
+  capture(
+    apply(
+      openingException,
+      {
+        action: "advance",
+        through: "2026-09-01",
+        reason: "Renew original terms",
+      },
+      actor,
+    ),
+    "2026-09-01",
+  )!.segments[0].terms.feeCents,
+  100000,
+);
+assert.throws(
+  () =>
+    apply(
+      null,
+      {
+        action: "create",
+        kind: "monthly",
+        start: "2026-07-24",
+        firstPeriodEnd: "2026-07-01",
+        deadline: null,
+        terms,
+        reason: "Invalid opening period",
+      },
+      actor,
+    ),
+  /First period/,
+);
+console.log(
+  "Custom opening period: one July–August obligation, September renewal and period-only exception passed.",
+);

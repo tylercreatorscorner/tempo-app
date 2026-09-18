@@ -3,6 +3,7 @@
 import { useId, useState } from "react";
 import { ArrowRight, Check, History, Plus, Repeat2, X } from "lucide-react";
 import { ChoiceMenu } from "@/components/ui/choice-menu";
+import { agreementMonthEnd, validAgreementDate } from "@/lib/agreements/model";
 import styles from "./agreement-preview.module.css";
 
 type Brand = { value: string; label: string };
@@ -12,6 +13,7 @@ type Terms = {
   amount: string;
   posts: string;
   start: string;
+  firstPeriodEnd: string;
   end: string;
   renewal: string;
   proration: string;
@@ -56,6 +58,7 @@ export function AgreementPreview({
     amount: "",
     posts: "",
     start: monthStart(today),
+    firstPeriodEnd: agreementMonthEnd(today),
     end: "",
     renewal: "auto",
     proration: "posts",
@@ -121,6 +124,14 @@ export function AgreementPreview({
       (!terms.end || terms.end < terms.start || terms.end < effective)
     ) {
       setError("Choose an end date on or after the start and effective dates.");
+      return;
+    }
+    if (
+      monthly &&
+      (!validAgreementDate(terms.firstPeriodEnd) ||
+        terms.firstPeriodEnd < terms.start)
+    ) {
+      setError("Choose a first-period end date on or after the start date.");
       return;
     }
     if (action !== "new" && effective < terms.start) {
@@ -296,6 +307,20 @@ export function AgreementPreview({
                         />
                       </label>
                     )}
+                    {monthly && action === "new" && (
+                      <label className={styles.field}>
+                        First period ends
+                        <input
+                          type="date"
+                          value={terms.firstPeriodEnd}
+                          min={terms.start}
+                          required
+                          onChange={(event) =>
+                            change("firstPeriodEnd", event.target.value)
+                          }
+                        />
+                      </label>
+                    )}
                     {!monthly && (
                       <label className={styles.field}>
                         {terms.kind === "package"
@@ -467,13 +492,19 @@ export function AgreementPreview({
                     </div>
                   )}
                   <div>
-                    <dt>Current period</dt>
+                    <dt>
+                      {action === "new" && monthly
+                        ? "First period"
+                        : "Current period"}
+                    </dt>
                     <dd>
-                      {action === "end"
-                        ? "Keep performance and fulfillment; review final payment separately."
-                        : action === "change" && timing === "date"
-                          ? "Keep both sets of terms with their effective dates. Any split-period payment needs review."
-                          : "Use these terms from the selected effective date."}
+                      {action === "new" && monthly
+                        ? `${terms.start}�${terms.firstPeriodEnd}: one agreement for ${money(terms.amount)} and ${terms.posts} posts. No extra retainer is created for the opening partial month.`
+                        : action === "end"
+                          ? "Keep performance and fulfillment; review final payment separately."
+                          : action === "change" && timing === "date"
+                            ? "Keep both sets of terms with their effective dates. Any split-period payment needs review."
+                            : "Use these terms from the selected effective date."}
                     </dd>
                   </div>
                   <div>
@@ -486,7 +517,9 @@ export function AgreementPreview({
                           : effectiveScope === "period" && action === "change"
                             ? `Resume ${money(renewalTerms?.amount ?? "0")} for ${renewalTerms?.posts ?? "�"} posts after this period (${renewalTerms?.renewal === "auto" ? "automatic renewal" : "explicit renewal required"}).`
                             : terms.renewal === "auto"
-                              ? "Create a separate agreement each month on these terms."
+                              ? action === "new"
+                                ? `Next period starts ${new Date(new Date(terms.firstPeriodEnd + "T00:00:00Z").getTime() + 86400000).toISOString().slice(0, 10)}; subsequent periods end at calendar month-end.`
+                                : "Create a separate agreement each month on these terms."
                               : "Wait for explicit renewal before opening another month."}
                     </dd>
                   </div>
