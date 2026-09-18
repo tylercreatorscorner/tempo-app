@@ -362,7 +362,7 @@ function LedgerStrip({ summary, streak }: { summary: CreatorSummary | null; stre
   const cells: { k: string; v: string; d: number | null; sub?: string }[] = [
     { k: 'GMV', v: summary ? formatCurrency(summary.totalGmv) : '—', d: summary?.gmvChangePct ?? null },
     { k: 'Orders', v: summary ? summary.totalOrders.toLocaleString() : '—', d: summary?.orderChangePct ?? null },
-    { k: 'Videos posted', v: summary ? String(summary.videoCount) : '—', d: summary?.videoChangePct ?? null },
+    { k: 'Videos with activity', v: summary ? String(summary.videoCount) : '—', d: summary?.videoChangePct ?? null },
     {
       k: 'Posting streak',
       v: String(streak),
@@ -632,7 +632,7 @@ function RetainerPace({
         </CardTitle>
         {onTrack ? (
           <Badge variant="positive" size="sm">
-            Quota met
+            Recorded target reached
           </Badge>
         ) : (
           <Badge variant="neutral" size="sm">
@@ -646,7 +646,7 @@ function RetainerPace({
             fraction={fraction}
             size={128}
             label={<NumberTicker value={monthVideos} className="text-foreground" />}
-            sublabel={onTrack ? 'quota met ✓' : `of ${monthlyTarget}`}
+            sublabel={onTrack ? 'target reached' : `of ${monthlyTarget}`}
             color={onTrack ? 'var(--pulse-pos)' : 'var(--primary)'}
           />
           <div className="min-w-[220px] flex-1 space-y-3 text-sm">
@@ -655,7 +655,7 @@ function RetainerPace({
               <PaceRow label="Days left" value={String(daysLeftInMonth)} />
               <PaceRow
                 label="Status"
-                value={onTrack ? 'Quota crushed' : `${dailyPace}/day needed`}
+                value={onTrack ? 'Recorded target reached' : `${dailyPace}/day needed`}
                 emphasis
               />
               {retainerTotal > 0 && (
@@ -673,8 +673,8 @@ function RetainerPace({
             </div>
             <p className="text-xs text-muted-foreground">
               {onTrack
-                ? "You've hit your posts this month. Every extra video is pure upside."
-                : 'Hitting your posts is exactly what your retainer pays for. Stay on pace.'}
+                ? "Recorded publications have reached the target. Accepted deliverables and payment are reviewed separately."
+                : 'Publication counts show activity toward the target. Accepted deliverables and payment are reviewed separately.'}
             </p>
           </div>
         </div>

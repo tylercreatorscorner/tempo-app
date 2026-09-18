@@ -861,8 +861,8 @@ export async function getMonthVideoCount(
 
   const filters: { column: string; op: 'eq' | 'in' | 'gte' | 'lte'; value: any }[] = [
     { column: 'tiktok_username', op: 'in', value: handles },
-    { column: 'report_date', op: 'gte', value: start },
-    { column: 'report_date', op: 'lte', value: end },
+    { column: 'post_date', op: 'gte', value: start },
+    { column: 'post_date', op: 'lte', value: `${end}T23:59:59` },
   ];
   if (brandUuid) filters.push({ column: 'brand_id', op: 'in', value: brandUuid });
 
@@ -1236,7 +1236,7 @@ export function buildActionStack(args: {
     actions.push({
       kind: 'no_post',
       tone: 'urgent',
-      headline: `You haven't posted this period`,
+      headline: `No recorded video activity this period`,
       detail: `Momentum fades fast. Browse what's winning across the network and get one up today.`,
       cta: { label: 'Find something to post', href: DISCOVER },
       score: 1000,

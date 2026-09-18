@@ -32,7 +32,7 @@
     "test:report-workspace": "node scripts/test-report-workspace-sql.mjs && node scripts/test-report-workspace-routes.mjs",
     "lint:report-workspace": "eslint src/lib/auth/client-report-access.ts src/lib/data/client-reports.ts src/lib/data/brand-client-report.ts src/lib/data/agency-report.ts \"src/app/api/client-reports/**/*.ts\" src/app/api/report-log/route.ts src/app/api/reporting/overview/route.ts src/app/api/reporting/freshness/route.ts src/app/api/agency-reports/route.ts src/app/api/brand-client-summary/route.ts src/app/api/brand-client-pdf/route.ts \"src/app/api/report-pdf/[token]/route.ts\" \"src/app/r/[token]/page.tsx\" scripts/test-report-workspace-sql.mjs scripts/test-report-workspace-routes.mjs",
     "test:manager-goals": "node scripts/test-manager-goals-sql.mjs && node scripts/test-manager-goals-routes.mjs",
-    "test:agreements": "node --import tsx scripts/test-agreement-model.ts && node scripts/test-agreement-ledger-sql.mjs && node scripts/test-agreement-service.mjs && node scripts/test-agreement-spend.mjs && node scripts/test-agreement-renewals.mjs && node scripts/test-creator-agreement-consumers.mjs && node scripts/test-brand-agreement-consumers.mjs && node scripts/test-renewal-agreement-consumers.mjs"
+    "test:agreements": "node --import tsx scripts/test-agreement-model.ts && node scripts/test-agreement-ledger-sql.mjs && node scripts/test-agreement-service.mjs && node scripts/test-agreement-spend.mjs && node scripts/test-agreement-renewals.mjs && node scripts/test-creator-agreement-consumers.mjs && node scripts/test-brand-agreement-consumers.mjs && node scripts/test-renewal-agreement-consumers.mjs && node scripts/test-creator-published-count.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.95.1",

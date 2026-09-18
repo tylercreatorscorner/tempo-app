@@ -182,11 +182,11 @@ export function BrandsClient({ realName, rangeLabel, rows, standings, untapped }
                             {hasReq &&
                               (behind ? (
                                 <Badge variant="warning" size="sm">
-                                  Behind
+                                  In progress
                                 </Badge>
                               ) : (
                                 <Badge variant="positive" size="sm">
-                                  On track
+                                  Target reached
                                 </Badge>
                               ))}
                           </div>
