@@ -140,7 +140,7 @@ export function BrandTable({
           <h2 className="text-base font-bold tracking-tight text-foreground">Brands</h2>
           <p className="mt-0.5 text-xs text-muted-foreground">Choose a brand to prepare its next update.</p>
         </div>
-        <SearchInput aria-label="Search reporting brands" placeholder="Find a brand" value={query} onChange={event => setQuery(event.target.value)} />
+        <SearchInput aria-label="Search reporting brands" placeholder="Find a brand" onClear={() => setQuery('')} value={query} onChange={event => setQuery(event.target.value)} />
       </div>
       {rows && <div className="flex flex-wrap gap-1.5" role="group" aria-label="Reporting readiness">
         {([

@@ -196,7 +196,7 @@ export function SentFeed({ refreshKey }: { refreshKey: number }) {
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
-        <SearchInput aria-label="Search report library" placeholder="Search brand or period" value={query} onChange={e => setQuery(e.target.value)} />
+        <SearchInput aria-label="Search report library" placeholder="Search brand or period" onClear={() => setQuery('')} value={query} onChange={e => setQuery(e.target.value)} />
 
       </div>
       {revisionLink && (
