@@ -499,7 +499,7 @@ export function AgreementPreview({
                     </dt>
                     <dd>
                       {action === "new" && monthly
-                        ? `${terms.start}�${terms.firstPeriodEnd}: one agreement for ${money(terms.amount)} and ${terms.posts} posts. No extra retainer is created for the opening partial month.`
+                        ? `${terms.start} to ${terms.firstPeriodEnd}: one agreement for ${money(terms.amount)} and ${terms.posts} posts. No extra retainer is created for the opening partial month.`
                         : action === "end"
                           ? "Keep performance and fulfillment; review final payment separately."
                           : action === "change" && timing === "date"
