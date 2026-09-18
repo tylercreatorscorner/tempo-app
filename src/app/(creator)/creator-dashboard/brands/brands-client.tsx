@@ -134,7 +134,7 @@ export function BrandsClient({ realName, rangeLabel, rows, standings, untapped }
               <THead>
                 <TR>
                   <TH>Brand</TH>
-                  <TH>Retainer / mo</TH>
+                  <TH>Recorded fee</TH>
                   <TH>Posts (mo)</TH>
                   <TH>Your GMV</TH>
                   <TH className="hidden md:table-cell">Brand GMV</TH>
@@ -215,7 +215,7 @@ export function BrandsClient({ realName, rangeLabel, rows, standings, untapped }
       )}
 
       <p className="text-[11px] text-muted-foreground">
-        Your retainer is your monthly agreement per brand. Posts and GMV update as your TikTok Shop data syncs.
+        Fees and requirements follow each brand agreement. Publication counts do not establish accepted deliveries or payment owed. Posts and GMV update as your TikTok Shop data syncs.
       </p>
     </div>
   );
