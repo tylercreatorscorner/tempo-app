@@ -7,10 +7,9 @@ export function reportDeliveryPace(c: Creator, mtd: BrandClientReportData['month
   if (matches.length !== 1) return undefined;
   const row = matches[0];
   const start = new Date(mtd.start).toISOString().slice(0,10);
-  const end = new Date(mtd.end).toISOString().slice(0,10);
   if (row.isAffiliate || row.departed || !row.quota || row.quota !== c.quota || (row.ccStartDate && row.ccStartDate > start) || (row.agreement && !row.agreement.reportPeriodComparable)) return undefined;
   const expected = row.quota * mtd.daysElapsed / mtd.daysInMonth;
   const difference = row.postsPublished - expected;
   const label = row.postsPublished >= row.quota ? 'Complete' : difference >= 1 ? 'Ahead' : difference <= -1 ? 'Behind' : 'On pace';
-  return { label, tone: label === 'Behind' ? 'behind' : label === 'Ahead' || label === 'Complete' ? 'ahead' : 'neutral', detail: `${row.postsPublished}/${row.quota} posts MTD · ${Math.round(expected)} expected by ${end}` };
+  return { label, tone: label === 'Behind' ? 'behind' : label === 'Ahead' || label === 'Complete' ? 'ahead' : 'neutral', detail: `${row.postsPublished}/${row.quota} MTD · ${Math.round(expected)} expected` };
 }

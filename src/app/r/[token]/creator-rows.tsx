@@ -83,7 +83,6 @@ function CreatorRows({
               an ellipsis rather than pushing the numeric columns around. */}
           <tr className="border-b border-[#e4e4e7]">
             <th className={TH_L}>Creator</th>
-            <th className={TH_L}>TikTok</th>
             <th className={`${TH_L} whitespace-nowrap`}>Agreement</th>
             {showLevel && <th className={`${TH_L} whitespace-nowrap`}>Level</th>}
             <th className={`${TH_R} whitespace-nowrap`}>{judgeQuota ? 'Posts' : 'Posts this period'}</th>
@@ -108,64 +107,12 @@ function CreatorRows({
               .filter((x) => x && x !== h);
             return (
               <tr key={i} className={`border-b border-[#f2f1f8] last:border-b-0 ${muted ? 'opacity-70' : ''}`}>
-                {/* Identity: the person's name, falling back to the handle
-                    for the 9% who have no real_name — never an empty cell. */}
-                <td className="max-w-[190px] px-3 py-2 font-semibold text-[#18181b]">
-                  <div className="flex items-center gap-2"><ReportImage src={c.avatarUrl} kind="creator" name={c.realName || h} /><div className="truncate">
-                  {c.realName?.trim() ? (
-                    <span title={c.realName}>{c.realName}</span>
-                  ) : (
-                    <span className="text-[#6b7191]" title={`@${h}`}>@{h}</span>
-                  )}
+                <td className="max-w-[210px] px-3 py-2">
+                  <div className="flex items-center gap-2"><ReportImage src={c.avatarUrl} kind="creator" name={c.realName || h} /><div className="min-w-0">
+                    <div className="truncate font-semibold text-zinc-900" title={c.realName || h}>{c.realName?.trim() || `@${h}`}</div>
+                    {c.handle && <a href={`https://www.tiktok.com/@${h}`} target="_blank" rel="noopener noreferrer" className="block truncate text-[11px] text-violet-700">@{h}</a>}
+                    {extras.length > 0 && <details><summary className="cursor-pointer text-[10px] text-zinc-500">+{extras.length} accounts</summary>{extras.map(x=><a key={x} href={`https://www.tiktok.com/@${x}`} target="_blank" rel="noopener noreferrer" className="block truncate text-[11px] text-violet-700">@{x}</a>)}</details>}
                   </div></div>
-                </td>
-                {/* 191 active roster rows have a real name but NO handle in
-                    any source — mostly a 2025-11-29 bulk import that never
-                    captured them. They are real signed creators, so they stay
-                    in the table, but linking @TheirName would point at a
-                    profile that does not exist. */}
-                <td className="max-w-[210px] px-3 py-2 align-top">
-                  <div className="truncate">
-                    {c.handle ? (
-                      <a
-                        href={`https://www.tiktok.com/@${h}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-semibold text-[#4b45ff] underline decoration-[#4b45ff]/30 underline-offset-2 hover:decoration-[#4b45ff]"
-                      >
-                        @{h}
-                      </a>
-                    ) : (
-                      <span className="text-[#b9bcd0]">&mdash;</span>
-                    )}
-                  </div>
-                  {/* The extras were a title="" tooltip, which cannot be
-                      clicked. A hover popover is not an option either: the
-                      table sits in an overflow-x-auto wrapper, which clips
-                      absolutely-positioned children. <details> expands in
-                      flow, is keyboard reachable, and every handle is a real
-                      link to the profile. */}
-                  {extras.length > 0 && (
-                    <details className="group mt-0.5">
-                      <summary className="inline-flex cursor-pointer list-none items-center gap-0.5 text-[11px] font-semibold text-[#71717a] hover:text-[#4b45ff]">
-                        +{extras.length} more
-                        <span className="transition-transform group-open:rotate-90">&rsaquo;</span>
-                      </summary>
-                      <div className="mt-1 flex flex-col gap-0.5">
-                        {extras.map((x) => (
-                          <a
-                            key={x}
-                            href={`https://www.tiktok.com/@${x}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="truncate text-[12px] font-semibold text-[#4b45ff] underline decoration-[#4b45ff]/30 underline-offset-2 hover:decoration-[#4b45ff]"
-                          >
-                            @{x}
-                          </a>
-                        ))}
-                      </div>
-                    </details>
-                  )}
                 </td>
                 {/* Keep the saved fee and commitment together. */}
                 <td className="whitespace-nowrap px-3 py-2 text-[12px] text-[#3f3f46]">
@@ -233,7 +180,7 @@ function CreatorRows({
                 })()}
                 <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-[#3f3f46]">{num(c.orders)}</td>
                 {showUnits && <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">{c.units == null ? '—' : num(c.units)}</td>}
-                {showPace && <td className="px-3 py-2"><span className={`text-xs font-semibold ${c.pace?.tone === 'behind' ? 'text-amber-700' : c.pace?.tone === 'ahead' ? 'text-emerald-700' : 'text-zinc-600'}`}>{c.pace?.label ?? '—'}</span>{c.pace && <small className="block whitespace-nowrap text-[10px] text-zinc-500">{c.pace.detail}</small>}</td>}
+                {showPace && <td className="px-3 py-2"><span className={`text-xs font-semibold ${c.pace?.tone === 'behind' ? 'text-amber-700' : c.pace?.tone === 'ahead' ? 'text-emerald-700' : 'text-zinc-600'}`}>{c.pace?.label ?? '—'}</span>{c.pace && <small className="block text-[10px] text-zinc-500">{c.pace.detail}</small>}</td>}
                 <td className="whitespace-nowrap px-3 py-2 text-right font-extrabold tabular-nums text-[#18181b]">{money(c.gmv)}</td>
               </tr>
             );

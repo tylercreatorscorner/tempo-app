@@ -990,6 +990,7 @@ function FullRosterTable({
         </a>
       </div>
 
+      {!judgeQuota && mtd && <p className="border-b border-zinc-100 px-4 py-2 text-[11px] text-zinc-500">Monthly pace: {fmtDay(new Date(mtd.start))}–{fmtDay(new Date(mtd.end))}, compared with an even daily posting schedule. It is a delivery signal, not a payment decision.</p>}
       {/* ⚠️ showEarned rides judgeQuota deliberately: both mean "this
               window IS the month the monthly commitment was written for".
               Deriving an earned figure from a week of posts against a monthly
