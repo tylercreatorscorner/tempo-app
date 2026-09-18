@@ -103,7 +103,7 @@ export function ReportActions({
       </button>
 
       {!open && error && <span role="alert" className="max-w-64 text-xs text-destructive">{error}</span>}
-      {revisionLink && <a role="status" href={revisionLink} target="_blank" rel="noopener noreferrer" title="The previous report link is unchanged" className="whitespace-nowrap rounded-md bg-primary/5 px-2 py-1.5 text-xs font-semibold text-primary">Open new revision ↗</a>}
+      {revisionLink && <span role="status"><a href={revisionLink} target="_blank" rel="noopener noreferrer" title="The previous report link is unchanged" className="whitespace-nowrap rounded-md bg-primary/5 px-2 py-1.5 text-xs font-semibold text-primary">Open new revision ↗</a></span>}
 
       {open && (
         <div

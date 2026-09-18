@@ -210,7 +210,7 @@ export function SentFeed({ refreshKey }: { refreshKey: number }) {
       <div>
         <h2 className="text-base font-bold tracking-tight text-foreground">Report history</h2>
         <p className="mt-0.5 text-sm text-muted-foreground">
-          Saved links and recorded activity. Creating a link does not send it to a client.
+          Recent saved links and recorded activity. Creating a link does not send it to a client.
         </p>
       </div>
 
