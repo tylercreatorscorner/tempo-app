@@ -51,3 +51,12 @@ Managers choose the first period end date. July 24 through August 31 is one agre
 The earlier numbered release gate is a checklist, not a claim that every item remains unimplemented. Hosted migrations were verified in PGlite and with read-only hosted checks; a disposable hosted branch was not used.
 
 Scoped service regression tests now cover permissions, tenant/brand identities, missing relationships, archived writes, impersonation, read failures and review without persistence.
+
+## Signed-in verification
+
+- Legacy seeded UUIDs now pass format validation while access still requires exact tenant/brand/creator matching. A regression test covers this database identity format.
+- Connected Cata-Kor profile: Agreements loads, review round-trip succeeds, real-save control is visibly disabled during verification. No ledger/event records created.
+- Desktop and 390px mobile review verified; no horizontal page overflow. Removed duplicate heading and reset editor state on brand scope changes.
+- Web/PDF/CSV use consistent period-review handling; exports retain agreement dates, quota and revision instead of mislabeling cross-month requirements.
+- Agency portfolio/signings readers now use verified period fees; regression proves historical agency fees stay independent of current roster mirrors. Third migration applied and hosted read verified.
+- Manual-to-automatic changes cannot skip an unrenewed period silently. Remaining production gates: completed final release checks and controlled write activation with renewal scheduling, plus explicit treatment of legacy monthly-only consumers for fixed/cross-month agreements. UI verification alone does not establish the production financial cutover is complete.

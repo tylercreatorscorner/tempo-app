@@ -95,6 +95,12 @@ const publicView=await page.default({...tokenCtx,searchParams:Promise.resolve({p
 assert.equal(publicView.props.children[1].props.logoUrl,'our-logo');
 assert.equal(publicView.props.children[1].props.report.granular.creators[0].gmv,123);
 assert.equal(rpcCalls.length,0,'Public token readers must never regenerate data');
+const frozenRow=tables.client_reports[0].snapshot.report.granular.creators[0];
+frozenRow.agreement={periodStart:'2026-07-24',periodEnd:'2026-08-31',quota:30,revision:2,reportPeriodComparable:false};
+const agreementCsv=await (await csv.GET(req(null,'GET'),tokenCtx)).text();
+assert.ok(agreementCsv.includes('Agreement period start,Agreement period end,Agreement post requirement,Agreement revision,Review required'));
+assert.ok(agreementCsv.includes('2026-07-24,2026-08-31,30,2,Agreement period / payment rules'));
+delete frozenRow.agreement;
 tables.client_reports[0].snapshot.reconciliation={version:1,rows:[{name:'=formula',handle:'creator',agreement:'300 / 30',augustPosts:7,creditedPosts:'7 confirmed',invoice:70,resolution:'Confirmed'}]};
 const correctedCsv=await (await csv.GET(req(null,'GET'),tokenCtx)).text();
 assert.ok(correctedCsv.includes("'=formula"));assert.ok(correctedCsv.includes('7 confirmed,70'));assert.ok(!correctedCsv.includes('Frozen creator'));
@@ -112,7 +118,7 @@ const gone=await page.default({...tokenCtx,searchParams:Promise.resolve({})});as
 assert.equal((await refresh.POST(req(null),ctx('our-report'))).status,409);
 assert.equal((await edit.PATCH(req({notes:'again'},'PATCH'),ctx('our-report'))).status,409);
 console.log('PASS actual report routes: foreign token/history isolation, foreign ID mutations, capability/view-as/brand denials');
-console.log('PASS legitimate edit/refresh preserves token and notes, revoked state, tenant-owned creation, all-brand and child-store SQL arguments');
+console.log('PASS legitimate corrections create new links and preserve original snapshots/notes, revoked state, tenant-owned creation, all-brand and child-store SQL arguments');
 
 
 
