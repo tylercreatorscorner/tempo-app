@@ -1,6 +1,7 @@
 'use client';
 
-import { Fragment, useState, useTransition } from 'react';
+import { Fragment, useEffect, useRef, useState, useTransition } from 'react';
+import { ModalOverlay } from '@/components/ui/modal-overlay';
 import {
   UserPlus, Shield, Mail, Trash2, Loader2, X, Users, Search, AlertTriangle, Check,
 } from 'lucide-react';
@@ -701,19 +702,32 @@ function InviteModal(props: {
     brands, role, setRole, email, setEmail, brandIds, toggleBrand, setBrandIds,
     finance, setFinance, pending, error, onClose, onSend,
   } = props;
+  const panelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
+    return () => previous?.focus();
+  }, []);
   const client = isClientRole(role);
   const disabled = pending || !email.trim() || (client && brandIds.length === 0);
 
   return (
+    <ModalOverlay onClose={onClose} closeOnBackdropClick={false} closeOnEsc={!pending}>
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       role="dialog" aria-modal="true" aria-labelledby="invite-title"
-      onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
+      onKeyDown={(e) => {
+        if (e.key !== 'Tab') return;
+        const nodes = panelRef.current?.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), [tabindex="0"]');
+        if (!nodes?.length) return;
+        const first = nodes[0], last = nodes[nodes.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }}
     >
       <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" onClick={onClose} />
       {/* Capped and scrollable: the brand picker grows with the brand list, and
           a modal that outgrows the viewport strands its own Send button. */}
-      <div className="relative flex max-h-[88vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-card shadow-2xl">
+      <div ref={panelRef} className="relative flex max-h-[88vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-card shadow-2xl">
         <div className="flex items-center justify-between border-b border-border px-6 py-4">
           <div className="flex items-center gap-2">
             <span className="grid h-7 w-7 place-items-center rounded-[9px] bg-primary/10 text-primary">
@@ -775,6 +789,7 @@ function InviteModal(props: {
               <BrandPicker
                 brands={brands}
                 selected={brandIds}
+                disabled={pending}
                 onToggle={toggleBrand}
                 onSelectAll={setBrandIds}
                 onClear={() => setBrandIds([])}
@@ -790,7 +805,7 @@ function InviteModal(props: {
 
           {isManager(role) && (
             <label className="flex cursor-pointer select-none items-center gap-3 rounded-md border border-border p-3 transition-colors hover:bg-secondary">
-              <Switch checked={finance} onCheckedChange={setFinance} aria-label="Can see Finance" />
+              <Switch disabled={pending} checked={finance} onCheckedChange={setFinance} aria-label="Can see Finance" />
               <span>
                 <span className="block text-[13px] font-semibold text-foreground">Can see Finance</span>
                 <span className="block text-[11.5px] text-muted-foreground">
@@ -835,5 +850,6 @@ function InviteModal(props: {
         </div>
       </div>
     </div>
+    </ModalOverlay>
   );
 }
