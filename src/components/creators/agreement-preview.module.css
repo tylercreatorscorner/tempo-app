@@ -279,3 +279,33 @@
 /* Keep selectors aligned with inputs without changing shared menu styles. */
 .field button[role="combobox"] { min-height: 36px; padding: 8px 10px; }
 @media (max-width: 650px) { .field button[role="combobox"] { min-height: 44px; } }
+/* Layered neutral surfaces keep the compact form readable. */
+.root {
+  box-shadow: 0 2px 8px rgb(0 0 0 / 3%);
+}
+.editor {
+  background: color-mix(in srgb, var(--muted) 65%, var(--card));
+}
+.editorHead .kicker {
+  display: inline-block;
+  padding: 4px 7px;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--primary) 9%, var(--card));
+}
+.field input,
+.field textarea,
+.field button[role="combobox"] {
+  background: var(--card);
+  border-color: color-mix(in srgb, var(--foreground) 18%, var(--card));
+}
+.footer {
+  background: var(--card);
+}
+.summary {
+  border-left: 2px solid var(--primary);
+  padding-left: 12px;
+  margin-bottom: 12px;
+}
+.impact > div {
+  border-color: color-mix(in srgb, var(--foreground) 12%, var(--card));
+}
