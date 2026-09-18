@@ -49,16 +49,16 @@ export default function ReportingPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <PageHeader
         eyebrow="Reporting"
         title="Client reporting"
-        subtitle="What each client has received, and whether their data can support the next one."
+        subtitle="Prepare client updates, review saved reports, and preserve every shared version."
       />
 
       <FreshnessBanner />
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_400px] xl:items-start">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-start">
         {/* Create panel — pinned right at xl, and only ever rendered for a
             chosen brand. On small screens it stacks under the header. */}
         <div
@@ -87,7 +87,7 @@ export default function ReportingPage() {
           )}
         </div>
 
-        <div className={cn('space-y-8 xl:col-start-1 xl:row-start-1', !target && 'xl:col-span-2')}>
+        <div className={cn('min-w-0 space-y-5 xl:col-start-1 xl:row-start-1', !target && 'xl:col-span-2')}>
           <BrandTable refreshKey={refreshKey} onGenerate={openFor} />
           {/* Agency-side, deliberately BELOW the client table: the client work
               is the daily job and this is monthly. */}

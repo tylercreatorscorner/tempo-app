@@ -29,6 +29,7 @@ export default async function TeamPage() {
   const { data: brands } = await supabase
     .from('brands_v2')
     .select('id, name, slug, display_name, color, is_archived')
+    .eq('tenant_id', scope.tenantId)
     .order('name');
 
   const { data: members } = await supabase
@@ -82,15 +83,14 @@ export default async function TeamPage() {
   }));
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <PageHeader
         eyebrow="Access"
-        title="Team"
-        subtitle="Who can sign in, what they can reach, and who can see money."
+        title="People & access"
+        subtitle="Invite your team, assign brands, and manage financial visibility."
       />
       {/* Roles and the access matrix, below the members list: you look up who
           someone is before you look up what their role can do. */}
-      <RolesMatrix />
 
       <TeamManagement
         users={users}
@@ -98,6 +98,10 @@ export default async function TeamPage() {
         tenantId={scope.tenantId}
         currentUserId={user?.id ?? ''}
       />
+      <details className="group rounded-xl border border-border bg-card">
+        <summary className="cursor-pointer px-4 py-3 text-sm font-semibold">Roles & permissions <span className="ml-2 text-xs font-normal text-muted-foreground">Review what each role can do</span></summary>
+        <div className="border-t border-border p-4"><RolesMatrix /></div>
+      </details>
     </div>
   );
 }

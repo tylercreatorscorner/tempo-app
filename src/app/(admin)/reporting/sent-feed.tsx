@@ -25,6 +25,7 @@ import { TableCard, Table, THead, TBody, TR, TH, TD } from '@/components/ui/tabl
 import { TableLoadBar } from '@/components/ui/table-load-bar';
 import { TableSkeleton } from '@/components/ui/page-skeletons';
 import { EmptyState } from '@/components/ui/empty-state';
+import { BrandIdentity } from '@/components/creators/brand-identity';
 
 // ── API row shapes (contract with /api/client-reports + /api/report-log) ──
 interface ClientReportRow {
@@ -39,6 +40,8 @@ interface ClientReportRow {
   viewedAt: string | null;
   revokedAt: string | null;
   refreshedAt: string | null;
+  isRevision?: boolean;
+  previousReportId?: string | null;
 }
 
 interface ReportLogRow {
@@ -88,7 +91,7 @@ function createdAtMs(item: FeedItem): number {
   return Number.isNaN(t) ? 0 : t;
 }
 
-const HEADERS = ['Report', 'Brand', 'Period', 'Sent', 'Status'] as const;
+const HEADERS = ['Report', 'Brand', 'Period', 'Created', 'Status'] as const;
 
 export function SentFeed({ refreshKey }: { refreshKey: number }) {
   // Last-good rows per source (null = never loaded), so a failed refetch
@@ -102,6 +105,7 @@ export function SentFeed({ refreshKey }: { refreshKey: number }) {
   const [nonce, setNonce] = useState(0);
 
   const [actionError, setActionError] = useState<string | null>(null);
+  const [revisionLink, setRevisionLink] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [confirmRevoke, setConfirmRevoke] = useState<ClientReportRow | null>(null);
@@ -152,21 +156,17 @@ export function SentFeed({ refreshKey }: { refreshKey: number }) {
     }
   };
 
-  /**
-   * Rebuild an existing report's numbers IN PLACE, keeping its token.
-   *
-   * Generate mints a NEW link every time, so the link already sent to a client
-   * keeps its original frozen numbers forever — which is what "it didn't
-   * regenerate" actually was. Refresh is the action that updates THAT link.
-   */
+  /** Create a separate snapshot and link; the original remains unchanged. */
   const [refreshingId, setRefreshingId] = useState<string | null>(null);
   const handleRefresh = async (r: ClientReportRow) => {
     setRefreshingId(r.id);
     setActionError(null);
+    setRevisionLink(null);
     try {
       const res = await fetch(`/api/client-reports/${r.id}/refresh`, { method: 'POST' });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      if (typeof data.token === 'string' && data.token) setRevisionLink(`/r/${encodeURIComponent(data.token)}`);
       // load() takes a cancellation predicate; this call is not racing a
       // component unmount the way the mount effect is, so it never cancels.
       await load(() => false);
@@ -208,11 +208,18 @@ export function SentFeed({ refreshKey }: { refreshKey: number }) {
   return (
     <section className="space-y-3">
       <div>
-        <h2 className="text-base font-bold tracking-tight text-foreground">Recent activity</h2>
+        <h2 className="text-base font-bold tracking-tight text-foreground">Report history</h2>
         <p className="mt-0.5 text-sm text-muted-foreground">
-          The audit trail. Creator posts now live in Creators &rsaquo; Drops.
+          Recent saved links and recorded activity. Creating a link does not send it to a client.
         </p>
       </div>
+
+      {revisionLink && (
+        <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-sm">
+          <span>New revision created. The previous link is unchanged.</span>
+          <a href={`${revisionLink}?preview=1`} target="_blank" rel="noopener noreferrer" className="font-semibold text-primary underline-offset-4 hover:underline">Open new revision →</a>
+        </div>
+      )}
 
       {actionError && (
         <div className="flex items-start gap-2 rounded-lg bg-[var(--pulse-neg-bg)] px-3 py-2 text-xs text-[var(--pulse-neg)]">
@@ -252,8 +259,8 @@ export function SentFeed({ refreshKey }: { refreshKey: number }) {
       ) : items.length === 0 ? (
         <EmptyState
           icon={<Send className="h-8 w-8" />}
-          title="Nothing sent yet"
-          description="Create a client report link or copy a creator post from the Create panel and it will show up here."
+          title="No report activity yet"
+          description="Saved report links and recorded delivery activity will appear here."
         />
       ) : (
         <TableCard className="relative">
@@ -273,12 +280,12 @@ export function SentFeed({ refreshKey }: { refreshKey: number }) {
                       key={`${item.kind}-${item.id}`}
                       item={item}
                       brandLabel={feedBrandLabel(item, brandMeta.label)}
-                      brandColor={brandMeta.color(item.brandSlug)}
                       copied={copiedId === item.id}
                       onCopyLink={copyLink}
                       onRevoke={setConfirmRevoke}
                       onRefresh={handleRefresh}
                       refreshing={refreshingId === item.id}
+                      previousUrl={item.kind === 'client' ? reports?.find(r => r.id === item.previousReportId)?.url : undefined}
                     />
                   ))}
                 </TBody>
@@ -310,27 +317,25 @@ function feedBrandLabel(item: FeedItem, label: (slug: string) => string): string
 
 // ── Row ─────────────────────────────────────────────────────────────
 function FeedRow({
-  item, brandLabel, brandColor, copied, onCopyLink, onRevoke, onRefresh, refreshing,
+  item, brandLabel, copied, onCopyLink, onRevoke, onRefresh, refreshing, previousUrl,
 }: {
   item: FeedItem;
   brandLabel: string;
-  brandColor: string;
   copied: boolean;
   onCopyLink: (r: ClientReportRow) => void;
   onRevoke: (r: ClientReportRow) => void;
   onRefresh: (r: ClientReportRow) => void;
   refreshing: boolean;
+  previousUrl?: string;
 }) {
   return (
     <TR className="hover:bg-muted/60">
       <TD className="text-left">
         <ReportChip item={item} />
+        {previousUrl && <a href={`${previousUrl}?preview=1`} target="_blank" rel="noopener noreferrer" className="mt-1 block whitespace-nowrap text-xs text-muted-foreground underline-offset-4 hover:underline">Previous report ↗</a>}
       </TD>
       <TD className="text-left">
-        <span className="inline-flex items-center gap-2 text-foreground">
-          <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-[3px]" style={{ backgroundColor: brandColor }} />
-          {brandLabel}
-        </span>
+        <span className="text-foreground"><BrandIdentity brand={item.brandSlug} label={brandLabel} /></span>
       </TD>
       <TD className="text-left text-xs">{item.periodLabel}</TD>
       <TD className="text-left text-xs" title={new Date(item.createdAt).toLocaleString()}>
@@ -397,7 +402,7 @@ function ReportChip({ item }: { item: FeedItem }) {
   if (item.kind === 'client') {
     return (
       <Badge variant="accent" size="sm" className="uppercase tracking-[0.06em]">
-        Client link
+        {item.isRevision ? 'Revised report' : 'Report link'}
       </Badge>
     );
   }

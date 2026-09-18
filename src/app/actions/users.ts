@@ -47,6 +47,25 @@ export async function inviteUser(email: string, role: string, canViewFinance = t
   revalidatePath('/team');
   return {userId:result.userId};
 }
+
+/** Return expected failures as data: production server actions redact thrown errors. */
+export async function submitTeamInvitation(email: string, role: string, canViewFinance: boolean) {
+  try {
+    return { ok: true as const, ...await inviteUser(email, role, canViewFinance) };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '';
+    const safeMessages = new Set([
+      'Invalid email.', 'Unsupported team role.', 'Invalid finance access.',
+      'Could not look up account. Retry invitation.',
+      'Could not invite account. Reload and retry invitation.',
+      'Cannot invite your own account.', 'Could not check account ownership.',
+      'Account cannot be invited to this team.',
+      'Could not save invitation. Reload and try again.',
+      'Access saved, but the sign-in email failed. Retry or resend from Team.',
+    ]);
+    return { ok: false as const, error: safeMessages.has(message) ? message : 'Invitation could not be completed. Refresh the page and try again.' };
+  }
+}
 export async function updateUserRole(userId: string, role: string) {
   const context = await assertOwnerOrAdmin();
   if (!['admin', 'manager', 'coach', 'brand'].includes(role)) throw new Error('Unsupported team role.');
