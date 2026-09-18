@@ -1,24 +1,18 @@
 'use client';
 
-/**
- * Sent feed for the Outbox: a merged, newest-first list of everything that
- * went out — client report links (GET /api/client-reports) and manually
- * copied creator posts (GET /api/report-log) — fetched in parallel.
- *
- * res.ok on both sources. If both fail with nothing loaded, that's an error
- * card (never the empty state); if one fails, we render what loaded plus an
- * inline warning naming the missing half. `refreshKey` from the parent bumps
- * a refetch after the Create panel sends something.
- */
+/** Saved client reports, searched and paginated within the caller's scope. */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AlertCircle, Ban, Check, Clipboard, ExternalLink, Loader2, RotateCw, Send,
 } from 'lucide-react';
+import { DropdownMenu } from 'radix-ui';
+import { MoreHorizontal } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useBrandMeta } from '@/hooks/use-brand-meta';
 import { useDelayedFlag } from '@/hooks/use-delayed-flag';
 import { ModalOverlay } from '@/components/ui/modal-overlay';
+import { SearchInput } from '@/components/ui/search-input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { TableCard, Table, THead, TBody, TR, TH, TD } from '@/components/ui/table';
@@ -86,20 +80,16 @@ function relativeTimeAgo(iso: string | null): string {
   return `${d}d ago`;
 }
 
-function createdAtMs(item: FeedItem): number {
-  const t = new Date(item.createdAt).getTime();
-  return Number.isNaN(t) ? 0 : t;
-}
-
-const HEADERS = ['Report', 'Brand', 'Period', 'Created', 'Status'] as const;
+const HEADERS = ['Report', 'Created', 'Status'] as const;
 
 export function SentFeed({ refreshKey }: { refreshKey: number }) {
-  // Last-good rows per source (null = never loaded), so a failed refetch
-  // degrades to a warning over stale rows instead of wiping the list.
+  const [query, setQuery] = useState('');
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  useEffect(() => { const timer = setTimeout(() => { setSearch(query.trim()); setPage(1); }, 250); return () => clearTimeout(timer); }, [query]);
   const [reports, setReports] = useState<ClientReportRow[] | null>(null);
-  const [logs, setLogs] = useState<ReportLogRow[] | null>(null);
   const [reportsError, setReportsError] = useState(false);
-  const [logsError, setLogsError] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refetching, setRefetching] = useState(false);
   const [nonce, setNonce] = useState(0);
@@ -115,26 +105,24 @@ export function SentFeed({ refreshKey }: { refreshKey: number }) {
   const showBar = useDelayedFlag(refetching);
 
   const load = useCallback(async (isCancelled: () => boolean) => {
-    const [r1, r2] = await Promise.allSettled([
-      fetch('/api/client-reports').then(async (res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return (await res.json()) as { reports?: ClientReportRow[] };
-      }),
-      fetch('/api/report-log').then(async (res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return (await res.json()) as { entries?: ReportLogRow[] };
-      }),
-    ]);
-    if (isCancelled()) return;
-    if (r1.status === 'fulfilled') { setReports(r1.value.reports ?? []); setReportsError(false); }
-    else setReportsError(true);
-    if (r2.status === 'fulfilled') { setLogs(r2.value.entries ?? []); setLogsError(false); }
-    else setLogsError(true);
-    setLoading(false);
-  }, []);
+    try {
+      const res = await fetch(`/api/client-reports?page=${page}&q=${encodeURIComponent(search)}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json() as { reports?: ClientReportRow[]; total?: number };
+      if (isCancelled()) return;
+      setReports(data.reports ?? []);
+      setTotal(data.total ?? 0);
+      setReportsError(false);
+    } catch {
+      if (!isCancelled()) setReportsError(true);
+    } finally {
+      if (!isCancelled()) setLoading(false);
+    }
+  }, [page, search]);
 
   useEffect(() => {
     let cancelled = false;
+    setLoading(true);
     setRefetching(true);
     load(() => cancelled).finally(() => { if (!cancelled) setRefetching(false); });
     return () => { cancelled = true; };
@@ -196,24 +184,21 @@ export function SentFeed({ refreshKey }: { refreshKey: number }) {
     }
   };
 
-  const neverLoaded = reports === null && logs === null;
-  const bothFailed = reportsError && logsError;
-  const partialError = !bothFailed && (reportsError || logsError);
-
-  const items: FeedItem[] = [
-    ...(reports ?? []).map<FeedItem>(r => ({ kind: 'client', ...r })),
-    ...(logs ?? []).map<FeedItem>(e => ({ kind: 'post', ...e })),
-  ].sort((a, b) => createdAtMs(b) - createdAtMs(a));
+  const items: FeedItem[] = (reports ?? []).map(r => ({ kind: 'client', ...r }));
 
   return (
     <section className="space-y-3">
       <div>
-        <h2 className="text-base font-bold tracking-tight text-foreground">Report history</h2>
+        <h2 className="text-base font-bold tracking-tight text-foreground">Report library</h2>
         <p className="mt-0.5 text-sm text-muted-foreground">
-          Recent saved links and recorded activity. Creating a link does not send it to a client.
+          Find a saved report by brand or reporting period.
         </p>
       </div>
 
+      <div className="flex flex-wrap items-center gap-3">
+        <SearchInput aria-label="Search report library" placeholder="Search brand or period" onClear={() => setQuery('')} value={query} onChange={e => setQuery(e.target.value)} />
+
+      </div>
       {revisionLink && (
         <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-sm">
           <span>New revision created. The previous link is unchanged.</span>
@@ -228,27 +213,13 @@ export function SentFeed({ refreshKey }: { refreshKey: number }) {
         </div>
       )}
 
-      {/* One source failed (or a refetch failed): keep what we have, say what's missing. */}
-      {!loading && (partialError || (bothFailed && !neverLoaded)) && (
-        <div className="flex items-start gap-2 rounded-lg bg-[var(--pulse-warn-bg)] px-3 py-2 text-xs text-[var(--pulse-warn)]">
-          <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          <span>
-            {bothFailed
-              ? "Couldn't refresh the outbox. Showing the last loaded state."
-              : reportsError
-                ? "Couldn't load client report links. Showing creator posts only."
-                : "Couldn't load creator post history. Showing client links only."}
-          </span>
-        </div>
-      )}
-
       {loading ? (
         <TableSkeleton rows={6} cols={6} title={false} />
-      ) : bothFailed && neverLoaded ? (
+      ) : reportsError ? (
         <EmptyState
           icon={<AlertCircle className="h-8 w-8 text-[var(--pulse-neg)]" />}
-          title="Couldn't load the outbox"
-          description="The sent list didn't load. This is a fetch error, not an empty outbox."
+          title="Couldn't load reports"
+          description="Please retry this search or page. Saved reports have not changed."
           action={
             <Button variant="outline" size="sm" onClick={() => { setLoading(true); reload(); }}>
               <RotateCw />
@@ -259,22 +230,22 @@ export function SentFeed({ refreshKey }: { refreshKey: number }) {
       ) : items.length === 0 ? (
         <EmptyState
           icon={<Send className="h-8 w-8" />}
-          title="No report activity yet"
-          description="Saved report links and recorded delivery activity will appear here."
+          title={query ? "No matching reports" : "No saved reports yet"}
+          description={query ? "Try another brand or reporting period." : "Reports appear here after you create a share link."}
         />
       ) : (
         <TableCard className="relative">
           <TableLoadBar active={showBar} />
           <div className={showBar ? 'opacity-60 transition-opacity duration-200' : ''}>
             <div className="overflow-x-auto">
-              <Table className="text-sm">
-                <THead>
+              <Table className="block text-sm sm:table">
+                <THead className="hidden sm:table-header-group">
                   <TR>
                     {HEADERS.map(h => <TH key={h} className="text-left">{h}</TH>)}
                     <TH aria-label="Actions" />
                   </TR>
                 </THead>
-                <TBody>
+                <TBody className="block sm:table-row-group">
                   {items.map(item => (
                     <FeedRow
                       key={`${item.kind}-${item.id}`}
@@ -295,6 +266,10 @@ export function SentFeed({ refreshKey }: { refreshKey: number }) {
         </TableCard>
       )}
 
+      {!loading && !reportsError && total > 0 && <nav aria-label="Report pagination" className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3">
+        <span className="text-xs text-muted-foreground" role="status">{(page - 1) * 20 + 1}–{Math.min(page * 20, total)} of {total} reports</span>
+        <div className="flex items-center gap-2"><Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>Previous</Button><span className="text-xs tabular-nums">Page {page}</span><Button variant="outline" size="sm" disabled={page * 20 >= total} onClick={() => setPage(p => p + 1)}>Next</Button></div>
+      </nav>}
       {confirmRevoke && (
         <ConfirmRevokeModal
           report={confirmRevoke}
@@ -329,24 +304,22 @@ function FeedRow({
   previousUrl?: string;
 }) {
   return (
-    <TR className="hover:bg-muted/60">
-      <TD className="text-left">
-        <ReportChip item={item} />
-        {previousUrl && <a href={`${previousUrl}?preview=1`} target="_blank" rel="noopener noreferrer" className="mt-1 block whitespace-nowrap text-xs text-muted-foreground underline-offset-4 hover:underline">Previous report ↗</a>}
+    <TR className="grid grid-cols-2 border-b border-border hover:bg-muted/60 sm:table-row sm:border-0">
+      <TD className="col-span-2 border-0 text-left sm:border-b">
+        <BrandIdentity brand={item.brandSlug} label={brandLabel} />
+        <p className="mt-1 text-xs text-muted-foreground">{item.periodLabel}{item.kind === 'client' && item.isRevision ? ' · Revised' : ''}</p>
+        {item.kind === 'post' && <ReportChip item={item} />}
+        {previousUrl && <a href={`${previousUrl}?preview=1`} target="_blank" rel="noopener noreferrer" className="mt-1 block text-xs text-muted-foreground hover:underline">Previous report ↗</a>}
       </TD>
-      <TD className="text-left">
-        <span className="text-foreground"><BrandIdentity brand={item.brandSlug} label={brandLabel} /></span>
-      </TD>
-      <TD className="text-left text-xs">{item.periodLabel}</TD>
-      <TD className="text-left text-xs" title={new Date(item.createdAt).toLocaleString()}>
+      <TD className="border-0 text-left text-xs sm:border-b" title={new Date(item.createdAt).toLocaleString()}>
         {relativeTimeAgo(item.createdAt)}
       </TD>
-      <TD className="text-left">
+      <TD className="border-0 text-left sm:border-b">
         <StatusBadge item={item} />
       </TD>
-      <TD className="py-2">
+      <TD className="col-span-2 border-0 py-2 sm:border-b">
         {item.kind === 'client' && (
-          <div className="flex items-center justify-end gap-1">
+          <div className="flex items-center justify-start gap-1 sm:justify-end">
             <a
               href={`${item.url}?preview=1`}
               target="_blank"
@@ -369,28 +342,13 @@ function FeedRow({
               {copied ? <Check className="h-3.5 w-3.5" /> : <Clipboard className="h-3.5 w-3.5" />}
               {copied ? 'Copied' : 'Copy link'}
             </button>
-            {!item.revokedAt && (
-              <button
-                type="button"
-                onClick={() => onRefresh(item)}
-                disabled={refreshing}
-                title="Create a new revision while preserving this report link"
-                className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-60"
-              >
-                <RotateCw className={cn('h-3.5 w-3.5', refreshing && 'animate-spin')} />
-                {refreshing ? 'Creating revision' : 'Create revision'}
-              </button>
-            )}
-            {!item.revokedAt && (
-              <button
-                type="button"
-                onClick={() => onRevoke(item)}
-                className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-muted-foreground transition-colors hover:bg-[var(--pulse-neg-bg)] hover:text-[var(--pulse-neg)]"
-              >
-                <Ban className="h-3.5 w-3.5" />
-                Revoke
-              </button>
-            )}
+            {!item.revokedAt && <DropdownMenu.Root>
+              <DropdownMenu.Trigger asChild><button type="button" aria-label={`More actions for ${brandLabel}, ${item.periodLabel}`} className="rounded-md p-2 text-muted-foreground hover:bg-muted"><MoreHorizontal size={16} /></button></DropdownMenu.Trigger>
+              <DropdownMenu.Portal><DropdownMenu.Content align="end" sideOffset={6} className="z-50 min-w-44 rounded-lg border border-border bg-card p-1 shadow-lg">
+                <DropdownMenu.Item disabled={refreshing} onSelect={() => onRefresh(item)} className="flex cursor-pointer items-center gap-2 rounded px-3 py-2 text-xs outline-none data-[highlighted]:bg-muted data-[disabled]:opacity-50"><RotateCw size={14} />{refreshing ? 'Creating revision…' : 'Create revision'}</DropdownMenu.Item>
+                <DropdownMenu.Item onSelect={() => onRevoke(item)} className="flex cursor-pointer items-center gap-2 rounded px-3 py-2 text-xs text-[var(--pulse-neg)] outline-none data-[highlighted]:bg-muted"><Ban size={14} />Revoke link</DropdownMenu.Item>
+              </DropdownMenu.Content></DropdownMenu.Portal>
+            </DropdownMenu.Root>}
           </div>
         )}
       </TD>

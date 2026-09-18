@@ -54,12 +54,29 @@ export async function GET(req: NextRequest) {
   if (denied) return denied;
 
   const supabase = await createAdminClient();
-  const { data, error } = await supabase
+  const params = new URL(req.url).searchParams;
+  const paginated = params.has('page');
+  const rawPage = Number(params.get('page') ?? 1);
+  if (paginated && (!Number.isSafeInteger(rawPage) || rawPage < 1 || rawPage > 100000)) {
+    return NextResponse.json({ error: 'Invalid page' }, { status: 400 });
+  }
+  const page = paginated ? rawPage : 1;
+  const pageSize = 20;
+  // Restrict grammar characters before interpolating the PostgREST OR expression.
+  const search = (params.get('q') ?? '').slice(0, 120).replace(/[^\p{L}\p{N}\s-]/gu, ' ').trim();
+  if (scope.brandScope.kind === 'scoped' && scope.brandScope.brandSlugs.length === 0) {
+    return NextResponse.json({ reports: [], total: 0, page, pageSize });
+  }
+  let query = supabase
     .from('client_reports')
-    .select('id, token, brand_slug, brand_name, period_label, created_by, created_at, viewed_at, revoked_at, refreshed_at, revision:snapshot->revision')
+    .select('id, token, brand_slug, brand_name, period_label, created_by, created_at, viewed_at, revoked_at, refreshed_at, revision:snapshot->revision', paginated ? { count: 'exact' } : undefined)
     .eq('tenant_id', scope.tenantId)
     .order('created_at', { ascending: false })
-    .limit(100);
+    .order('id', { ascending: false });
+  // Apply brand authorization BEFORE count and pagination, never only after LIMIT.
+  if (scope.brandScope.kind === 'scoped') query = query.in('brand_slug', scope.brandScope.brandSlugs);
+  if (paginated && search) query = query.or(`brand_name.ilike.%${search}%,brand_slug.ilike.%${search}%,period_label.ilike.%${search}%`);
+  const { data, error, count } = await (paginated ? query.range((page - 1) * pageSize, page * pageSize - 1) : query.limit(100));
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const base = appBaseUrl(req);
@@ -87,7 +104,7 @@ export async function GET(req: NextRequest) {
         previous.id === r.revision?.previousReportId && previous.brand_slug === r.brand_slug)?.id ?? null,
     }));
 
-  return NextResponse.json({ reports });
+  return NextResponse.json({ reports, ...(paginated ? { total: count ?? 0, page, pageSize } : {}) });
 }
 
 export async function POST(req: NextRequest) {

@@ -14,9 +14,10 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { AlertCircle, RotateCw, Send, Wand2, ExternalLink, Clipboard, Check } from 'lucide-react';
+import { AlertCircle, RotateCw, Send, ExternalLink, Clipboard, Check, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useDelayedFlag } from '@/hooks/use-delayed-flag';
+import { SearchInput } from '@/components/ui/search-input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { TableCard, Table, THead, TBody, TR, TH, TD } from '@/components/ui/table';
@@ -84,35 +85,7 @@ function daysAgo(iso: string): number | null {
   return Math.floor((Date.now() - t) / 86_400_000);
 }
 
-/** One tick per day in the window. Gaps read as gaps. */
-function CoverageMeter({ coverage }: { coverage: ReportingBrandRow['coverage'] }) {
-  const { presentDays, missingDays, daysExpected, daysPresent, windowStart, windowEnd } = coverage;
-  const all = [...presentDays, ...missingDays].sort();
-  const label = windowStart && windowEnd
-    ? `${daysPresent} of ${daysExpected} days present, ${windowStart} to ${windowEnd}`
-    : `${daysPresent} of ${daysExpected} days present`;
-
-  return (
-    <div className="flex items-center gap-2.5">
-      <div className="flex items-center gap-[2px]" role="img" aria-label={label} title={label}>
-        {all.map((d) => (
-          <span
-            key={d}
-            className={cn(
-              'h-[15px] w-[5px] rounded-[1.5px]',
-              presentDays.includes(d) ? 'bg-[var(--pulse-pos)]/85' : 'bg-border',
-            )}
-          />
-        ))}
-      </div>
-      <span className="text-[11px] tabular-nums text-muted-foreground">
-        {daysPresent} / {daysExpected}
-      </span>
-    </div>
-  );
-}
-
-const HEADERS = ['Brand', `Data coverage`, 'Last report', 'Client opened', 'Reports'] as const;
+const HEADERS = ['Brand', 'Recent data', 'Latest report'] as const;
 
 export function BrandTable({
   refreshKey, onGenerate,
@@ -120,6 +93,8 @@ export function BrandTable({
   refreshKey: number;
   onGenerate: (slug: string, name: string) => void;
 }) {
+  const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState<'all' | 'ready' | 'review'>('all');
   const [rows, setRows] = useState<ReportingBrandRow[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -152,14 +127,30 @@ export function BrandTable({
     return () => { cancelled = true; };
   }, [load, refreshKey, nonce]);
 
+  const visibleRows = (rows ?? []).filter(row =>
+    row.name.toLowerCase().includes(query.trim().toLowerCase()) &&
+    (filter === 'all' || (filter === 'ready' ? isReportable(row) : !isReportable(row))),
+  );
+  const readyCount = (rows ?? []).filter(isReportable).length;
+
   return (
     <section className="space-y-3">
-      <div>
-        <h2 className="text-base font-bold tracking-tight text-foreground">Brands</h2>
-        <p className="mt-0.5 text-sm text-muted-foreground">
-          Review coverage, open a saved report, or prepare the next one.
-        </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-base font-bold tracking-tight text-foreground">Brands</h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">Choose a brand to prepare its next update.</p>
+        </div>
+        <SearchInput aria-label="Search reporting brands" placeholder="Find a brand" onClear={() => setQuery('')} value={query} onChange={event => setQuery(event.target.value)} />
       </div>
+      {rows && <div className="flex flex-wrap gap-1.5" role="group" aria-label="Reporting readiness">
+        {([
+          ['all', 'All brands', rows.length],
+          ['ready', 'Can prepare', readyCount],
+          ['review', 'Check data', rows.length - readyCount],
+        ] as const).map(([value, label, count]) => <button key={value} type="button" aria-pressed={filter === value} onClick={() => setFilter(value)} className={cn('rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:ring-primary', filter === value ? 'bg-foreground text-background' : 'bg-card text-muted-foreground hover:bg-secondary')}>
+          {label}<span className="ml-2 tabular-nums opacity-70">{count}</span>
+        </button>)}
+      </div>}
 
       {error && rows !== null && (
         <div className="flex items-start gap-2 rounded-lg bg-[var(--pulse-warn-bg)] px-3 py-2 text-xs text-[var(--pulse-warn)]">
@@ -193,17 +184,18 @@ export function BrandTable({
           <TableLoadBar active={showBar} />
           <div className={showBar ? 'opacity-60 transition-opacity duration-200' : ''}>
             <div className="overflow-x-auto">
-              <Table className="text-sm">
-                <THead>
+              <Table className="block text-sm md:table">
+                <THead className="hidden md:table-header-group">
                   <TR>
                     {HEADERS.map(h => <TH key={h} className="text-left">{h}</TH>)}
                     <TH aria-label="Actions" />
                   </TR>
                 </THead>
-                <TBody>
-                  {rows.map(r => (
+                <TBody className="block md:table-row-group">
+                  {visibleRows.map(r => (
                     <BrandRows key={r.slug} row={r} onGenerate={onGenerate} onChanged={() => setNonce((n) => n + 1)} />
                   ))}
+                  {visibleRows.length === 0 && <TR><TD colSpan={4} className="py-10 text-center">No brands match. <button type="button" onClick={() => { setQuery(''); setFilter('all'); }} className="font-semibold text-primary">Clear filters</button></TD></TR>}
                 </TBody>
               </Table>
             </div>
@@ -214,114 +206,67 @@ export function BrandTable({
   );
 }
 
-function BrandRows({
-  row, onGenerate, onChanged,
-}: {
+function BrandRows({ row, onGenerate, onChanged }: {
   row: ReportingBrandRow;
   onGenerate: (slug: string, name: string) => void;
-  /** Reload the table after an edit, refresh or revoke: all three change
-   *  something this row displays. */
   onChanged: () => void;
 }) {
+  const [expanded, setExpanded] = useState(false);
   const reportable = isReportable(row);
   const c = row.coverage;
-  const since = row.lastReport ? daysAgo(row.lastReport.createdAt) : null;
-
-  return (
-    <>
-      <TR className="hover:bg-muted/60">
-        <TD className="text-left">
-          <span className="font-semibold text-foreground"><BrandIdentity brand={row.slug} label={row.name} /></span>
-        </TD>
-        <TD className="text-left"><CoverageMeter coverage={c} /></TD>
-        <TD className="text-left text-xs">
-          {row.lastReport ? (
-            <span className="inline-flex items-center gap-1.5">
-              <span className="tabular-nums text-foreground">{shortDate(row.lastReport.createdAt)}</span>
-              {since !== null && since >= 10 && (
-                <Badge variant="neutral" size="sm">{since}d ago</Badge>
-              )}
-            </span>
-          ) : (
-            <span className="text-muted-foreground">Never</span>
-          )}
-        </TD>
-        <TD className="text-left">
-          {!row.lastReport ? (
-            <span className="text-xs text-muted-foreground">—</span>
-          ) : row.lastReport.revokedAt ? (
-            <Badge variant="negative" size="sm">Revoked</Badge>
-          ) : row.lastReport.viewedAt ? (
-            <Badge variant="positive" size="sm">Opened</Badge>
-          ) : (
-            <Badge variant="warning" size="sm">Not opened</Badge>
-          )}
-        </TD>
-        <TD className="text-left tabular-nums text-xs">{row.reportCount}</TD>
-        <TD className="py-2">
-          <div className="flex items-center justify-end gap-1">
-            {row.lastReport?.shareMessage && (
-              <CopyMessage text={row.lastReport.shareMessage} />
-            )}
-            {/* Only on a link that still resolves. A revoked report renders a
-                notice instead of the page, so editing its copy or rebuilding
-                its figures changes nothing anyone can read. */}
-            {row.lastReport && !row.lastReport.revokedAt && (
-              <ReportActions
-                target={{
-                  id: row.lastReport.id,
-                  brandName: row.name,
-                  periodLabel: row.lastReport.periodLabel,
-                  notes: row.lastReport.notes,
-                  plan: row.lastReport.plan,
-                  viewedAt: row.lastReport.viewedAt,
-                }}
-                onDone={onChanged}
-              />
-            )}
-            {row.lastReport?.url && (
-              <a
-                href={`${row.lastReport.url}?preview=1`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              >
-                <ExternalLink className="h-3.5 w-3.5" />
-                Last
-              </a>
-            )}
-            {reportable ? (
-              <Button size="sm" onClick={() => onGenerate(row.slug, row.name)}>
-                <Wand2 />
-                Generate
-              </Button>
-            ) : (
-              <Badge variant="negative" size="sm">
-                {c.daysPresent === 0
-                  ? 'No data in window'
-                  : c.lastDataDay
-                    ? `Stale since ${c.lastDataDay}`
-                    : 'Not reportable'}
-              </Badge>
-            )}
+  const report = row.lastReport;
+  const since = report ? daysAgo(report.createdAt) : null;
+  const detailId = `report-details-${row.slug}`;
+  return <>
+    <TR className="grid grid-cols-2 border-b border-border md:table-row md:border-0 hover:bg-muted/30">
+      <TD className="col-span-2 border-0 text-left md:border-b">
+        <BrandIdentity brand={row.slug} label={row.name} />
+      </TD>
+      <TD className="border-0 text-left md:border-b">
+        <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-muted-foreground md:hidden">Recent data</span>
+        <span className="text-xs text-muted-foreground" title={`${c.windowStart ?? ''} to ${c.windowEnd ?? ''}`}>
+          {c.daysPresent}/{c.daysExpected} recorded days
+        </span>
+        {!reportable && <span className="mt-1 block text-[11px] text-[var(--pulse-warn)]">{c.daysPresent === 0 ? 'No data in window' : c.daysBehind !== null && c.daysBehind > MAX_DAYS_BEHIND ? 'Data is out of date' : 'Insufficient coverage'}</span>}
+        {reportable && c.missingDays.length > 0 && <span className="mt-1 block text-[11px] text-[var(--pulse-warn)]">{c.missingDays.length} missing day{c.missingDays.length === 1 ? '' : 's'}</span>}
+      </TD>
+      <TD className="border-0 text-left md:border-b">
+        <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-muted-foreground md:hidden">Latest report</span>
+        {report ? <div className="space-y-1">
+          <div className="flex flex-wrap items-center gap-1.5 text-xs">
+            <span className="whitespace-nowrap text-foreground">{shortDate(report.createdAt)}</span>
+            <Badge variant={report.revokedAt ? 'negative' : report.viewedAt ? 'positive' : 'neutral'} size="sm">{report.revokedAt ? 'Revoked' : report.viewedAt ? 'Opened' : 'Not opened'}</Badge>
           </div>
-        </TD>
-      </TR>
-
-      {/* Gaps get their own line under the brand, naming the exact days. A
-          report generated over a partial window reads as a decline the brand
-          did not have. */}
-      {reportable && c.missingDays.length > 0 && (
-        <TR>
-          <TD colSpan={6} className="bg-[var(--pulse-warn-bg)] px-4 py-2 text-left text-[11.5px] text-[var(--pulse-warn)]">
-            <strong>{row.name} is missing {c.missingDays.length} day{c.missingDays.length === 1 ? '' : 's'}</strong>
-            {' '}in this window ({c.missingDays.join(', ')}). A report spanning them compares an
-            incomplete period against a full one.
-          </TD>
-        </TR>
-      )}
-    </>
-  );
+          <p className="text-[11px] text-muted-foreground">{report.periodLabel || 'Saved report'}{since !== null && since >= 10 ? ` · created ${since}d ago` : ''}</p>
+        </div> : <span className="text-xs text-muted-foreground">No saved report</span>}
+      </TD>
+      <TD className="col-span-2 border-0 pt-1 text-left md:border-b md:pt-3">
+        <div className="flex flex-wrap items-center gap-2 md:justify-end">
+          <Button size="sm" variant="ghost" onClick={() => setExpanded(value => !value)} aria-expanded={expanded} aria-controls={detailId} aria-label={`Details for ${row.name}`}>
+            Details <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', expanded && 'rotate-180')} />
+          </Button>
+          <Button size="sm" variant="outline" disabled={!reportable} onClick={() => onGenerate(row.slug, row.name)} aria-label={`Prepare report for ${row.name}`}>
+            Prepare report
+          </Button>
+        </div>
+      </TD>
+    </TR>
+    {expanded && <TR className="block md:table-row"><TD colSpan={4} className="block bg-secondary/30 p-4 text-left md:table-cell">
+      <div id={detailId} className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs font-semibold text-foreground">{row.name} · {row.reportCount} saved report{row.reportCount === 1 ? '' : 's'}</p>
+          {c.windowStart && c.windowEnd && <span className="text-xs text-muted-foreground">Coverage: {c.windowStart} – {c.windowEnd}</span>}
+        </div>
+        {c.missingDays.length > 0 && <p className="text-xs leading-relaxed text-[var(--pulse-warn)]">Missing days: {c.missingDays.join(', ')}. Check coverage for your chosen report period before sharing.</p>}
+        {report && <div className="flex flex-wrap items-center gap-2">
+          {report.url && !report.revokedAt && <a href={`${report.url}?preview=1`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-xs font-semibold text-foreground"><ExternalLink className="h-3.5 w-3.5" />Open latest report</a>}
+          {!report.revokedAt && report.shareMessage && <CopyMessage text={report.shareMessage} />}
+          {!report.revokedAt && <ReportActions target={{id:report.id,brandName:row.name,periodLabel:report.periodLabel,notes:report.notes,plan:report.plan,viewedAt:report.viewedAt}} onDone={onChanged} />}
+        </div>}
+        {report && !report.revokedAt && <p className="text-[11px] text-muted-foreground">Revisions create a separate link. The original report stays unchanged.</p>}
+      </div>
+    </TD></TR>}
+  </>;
 }
 
 /**

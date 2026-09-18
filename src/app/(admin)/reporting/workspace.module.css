@@ -1,0 +1,16 @@
+.workspace {
+  --pulse-elev-2: none;
+  --secondary: #f4f4f5;
+  --muted: #f4f4f5;
+  --border: #dedee5;
+}
+:global(main):has(.workspace) { background: #f0f1f5; }
+:global(.dark) .workspace {
+  --secondary: #22232b;
+  --muted: #22232b;
+  --border: #34353e;
+}
+:global(.dark) :global(main):has(.workspace) { background: #14151b; }
+
+.workspace table thead { background: var(--secondary); }
+.workspace table th { padding-top: 10px; padding-bottom: 10px; }
