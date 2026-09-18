@@ -1,3 +1,5 @@
+import { reportDeliveryPace } from '@/lib/data/report-delivery-pace';
+import { ReportImage } from './report-image';
 import styles from './report-presentation.module.css';
 import { ReconciliationView } from './reconciliation-view';
 /**
@@ -88,9 +90,9 @@ function finite(v: unknown): number | null {
 // Shared table-head classes. Also duplicated in creator-rows.tsx, which is a
 // client island and cannot import them from this server component.
 const TH_L =
-  'px-4 py-2.5 text-left text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#71717a]';
+  'px-3 py-2 text-left text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#71717a]';
 const TH_R =
-  'px-4 py-2.5 text-right text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#71717a]';
+  'px-3 py-2 text-right text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#71717a]';
 
 function handleOf(name: string): string {
   return name.trim().replace(/^@+/, '').toLowerCase();
@@ -239,7 +241,7 @@ function Mini({
 
 function SectionLine({ children, id }: { children: React.ReactNode; id?: string }) {
   return (
-    <h2 id={id} className="mb-3 mt-8 flex scroll-mt-20 items-center gap-3 text-sm font-semibold tracking-tight text-[#52525b]">
+    <h2 id={id} className="mb-2 mt-6 flex scroll-mt-20 items-center gap-3 text-sm font-semibold tracking-tight text-[#52525b]">
       <span className="min-w-0">{children}</span>
       <span className="h-px min-w-6 flex-1 bg-[#dedee5]" />
     </h2>
@@ -407,7 +409,7 @@ function VsShop({
     <>
       {leverage !== null && gmvRow && creatorRow && (
         <div className="rounded-[14px] border border-[#dedee5] border-l-[3px] border-l-[#4b45ff] bg-white px-5 py-4">
-          <p className="max-w-[70ch] text-[15px] font-semibold leading-[1.6] text-[#3f3f46]">
+          <p className="max-w-[70ch] text-[13px] font-semibold leading-[1.5] text-[#3f3f46]">
             We are <b className="text-[#4b45ff]">{creatorRow.pct.toFixed(1)}%</b> of the creators posting
             on your shop, and we produced <b className="text-[#4b45ff]">{gmvRow.pct.toFixed(1)}%</b> of its
             sales &mdash; <b className="text-[#18181b]">{leverage.toFixed(1)}&times;</b> the sales share you
@@ -747,7 +749,10 @@ function VintageSection({
     { key: 'd0_30', label: 'Last 30 days', b: age.d0_30, color: '#4b45ff' },
     { key: 'd30_60', label: '30 to 60 days', b: age.d30_60, color: '#7c6cf5' },
     { key: 'd60_90', label: '60 to 90 days', b: age.d60_90, color: '#a99bf3' },
-    { key: 'd90_plus', label: '90+ days', b: age.d90_plus, color: '#d6d0f4' },
+    ...(age.d90_180 && age.d180_plus ? [
+      { key: 'd90_180', label: '90 to 180 days', b: age.d90_180, color: '#b8a6ed' },
+      { key: 'd180_plus', label: '180+ days', b: age.d180_plus, color: '#d6d0f4' },
+    ] : [{ key: 'd90_plus', label: '90+ days', b: age.d90_plus, color: '#d6d0f4' }]),
     { key: 'unknown', label: 'No post date', b: age.unknown, color: '#e9e7f2' },
   ]
     .map((x) => ({ ...x, gmv: finite(x.b.gmv) ?? 0, videos: finite(x.b.videos) ?? 0 }))
@@ -758,7 +763,7 @@ function VintageSection({
 
   const pct = (n: number) => (n / shown) * 100;
   const fresh = buckets.find((x) => x.key === 'd0_30');
-  const old90 = buckets.find((x) => x.key === 'd90_plus');
+  const old90 = age.d90_plus;
   // Live + product card. Named rather than hidden: the donut totals video GMV
   // and the headline states roster GMV, and a reader who subtracts is owed the
   // answer.
@@ -942,7 +947,9 @@ function FullRosterTable({
   g,
   judgeQuota,
   token,
+  mtd,
 }: {
+  mtd?: BrandClientReportData['monthToDate'];
   g: NonNullable<BrandClientReportData['granular']>;
   /** Whether the window is the month the monthly quota was written for. */
   judgeQuota: boolean;
@@ -955,7 +962,7 @@ function FullRosterTable({
    * data on a page whose whole point is that the numbers are trustworthy.
    */
   const showLevel = (g.roster.roleCoverage ?? 0) >= 50;
-  const rows = g.creators;
+  const rows = g.creators.map(c => ({...c, pace: judgeQuota ? undefined : reportDeliveryPace(c,mtd)}));
   const active = rows.filter((c) => c.gmv > 0 || c.postsPublished > 0);
   const dormant = rows.filter((c) => c.gmv === 0 && c.postsPublished === 0);
   const dormantRetained = dormant.filter((c) => !c.isAffiliate).length;
@@ -1124,7 +1131,7 @@ function MonthToDate({
           <div className="text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#71717a]">
             Worth a conversation
           </div>
-          <p className="mt-1.5 max-w-[70ch] text-[15px] font-semibold leading-[1.6] text-[#3f3f46]">
+          <p className="mt-1.5 max-w-[70ch] text-[13px] font-semibold leading-[1.5] text-[#3f3f46]">
             <b className="text-[#18181b]">{num(silent.length)}</b> of your{' '}
             {num(contracted.length)} retained creators have published nothing at all in{' '}
             {monthName}
@@ -1162,7 +1169,7 @@ function MonthToDate({
           <div className="text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#71717a]">
             New creators signed
           </div>
-          <p className="mt-1.5 max-w-[70ch] text-[15px] font-semibold leading-[1.6] text-[#3f3f46]">
+          <p className="mt-1.5 max-w-[70ch] text-[13px] font-semibold leading-[1.5] text-[#3f3f46]">
             <b className="text-[#18181b]">{num(signings.signed)}</b> new creator
             {signings.signed === 1 ? '' : 's'} joined your roster in {signings.monthLabel}
             {signings.signedRetained > 0 && (
@@ -1220,7 +1227,7 @@ function MonthToDate({
 function TopPosts({
   rows,
 }: {
-  rows: { title: string; creator: string; gmv: number; orders: number; videoUrl: string | null; viewsLabel: string | null }[];
+  rows: { title: string; creator: string; gmv: number; orders: number; videoUrl: string | null; viewsLabel: string | null; thumbnailUrl?: string }[];
 }) {
   return (
     <>
@@ -1240,7 +1247,8 @@ function TopPosts({
               const handle = v.creator ? handleOf(v.creator) : '';
               return (
                 <tr key={i} className="border-b border-[#f2f1f8] last:border-b-0">
-                  <td className="max-w-[300px] px-4 py-2.5">
+                  <td className="max-w-[300px] px-3 py-2">
+                    <div className="flex items-center gap-3"><ReportImage src={v.thumbnailUrl} kind="video" videoUrl={v.videoUrl} />
                     <div className="truncate font-semibold text-[#18181b]" title={v.title}>
                       {v.videoUrl ? (
                         <a
@@ -1255,8 +1263,9 @@ function TopPosts({
                         v.title
                       )}
                     </div>
+                    </div>
                   </td>
-                  <td className="max-w-[170px] px-4 py-2.5">
+                  <td className="max-w-[170px] px-3 py-2">
                     <div className="truncate">
                       {handle ? (
                         <a
@@ -1274,13 +1283,13 @@ function TopPosts({
                   </td>
                   {/* Views come from a separate lookup and are genuinely
                       absent for some posts — an em dash, never a 0. */}
-                  <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-[#3f3f46]">
+                  <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-[#3f3f46]">
                     {v.viewsLabel ?? <span className="text-[#b9bcd0]">&mdash;</span>}
                   </td>
-                  <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-[#3f3f46]">
+                  <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-[#3f3f46]">
                     {num(v.orders)}
                   </td>
-                  <td className="whitespace-nowrap px-4 py-2.5 text-right font-extrabold tabular-nums text-[#18181b]">
+                  <td className="whitespace-nowrap px-3 py-2 text-right font-extrabold tabular-nums text-[#18181b]">
                     {money(v.gmv)}
                   </td>
                 </tr>
@@ -1413,7 +1422,7 @@ function MonthlyDelivery({
           <div className="text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#71717a]">
             Estimated retainer spend
           </div>
-          <p className="mt-1.5 max-w-[70ch] text-[15px] font-semibold leading-[1.6] text-[#3f3f46]">
+          <p className="mt-1.5 max-w-[70ch] text-[13px] font-semibold leading-[1.5] text-[#3f3f46]">
             <b className="text-[#18181b]">{money(spend.earned)}</b> of the{' '}
             {money(spend.budget)} committed
             {spend.pctOfBudget !== null && (
@@ -1537,7 +1546,7 @@ function Movers({
   return (
     <>
       <div className="rounded-[14px] border border-[#dedee5] border-l-[3px] border-l-[#4b45ff] bg-white px-5 py-4">
-        <p className="max-w-[70ch] text-[15px] font-semibold leading-[1.6] text-[#3f3f46]">
+        <p className="max-w-[70ch] text-[13px] font-semibold leading-[1.5] text-[#3f3f46]">
           Creators added <b className="text-[#0d9f6e]">{money(Math.abs(m.gained))}</b> against{' '}
           <b className="text-[#cf3a6e]">{money(Math.abs(m.lost))}</b> given back, for a net{' '}
           <b className="text-[#18181b]">
@@ -1580,7 +1589,7 @@ function Movers({
               const h = handleOf(c.handle);
               return (
                 <tr key={c.handle} className="border-b border-[#f2f1f8] last:border-b-0">
-                  <td className="max-w-[220px] px-4 py-2.5">
+                  <td className="max-w-[220px] px-3 py-2">
                     <div className="truncate font-semibold text-[#18181b]">
                       {c.name?.trim() ? c.name : `@${h}`}
                     </div>
@@ -1595,13 +1604,13 @@ function Movers({
                       </a>
                     )}
                   </td>
-                  <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-[#3f3f46]">
+                  <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-[#3f3f46]">
                     {c.prior > 0 ? money(c.prior) : <span className="text-[#b9bcd0]">&mdash;</span>}
                   </td>
-                  <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-[#3f3f46]">
+                  <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-[#3f3f46]">
                     {c.cur > 0 ? money(c.cur) : <span className="text-[#b9bcd0]">&mdash;</span>}
                   </td>
-                  <td className="whitespace-nowrap px-4 py-2.5 text-right">
+                  <td className="whitespace-nowrap px-3 py-2 text-right">
                     {c.movement === 'new' ? (
                       <span className="rounded-[5px] bg-[#e7f7f0] px-1.5 py-0.5 text-[11px] font-bold text-[#0d9f6e]">
                         NEW
@@ -1650,6 +1659,7 @@ export function ReportView({
   periodLabel,
   reportType = 'performance',
   logoUrl = null,
+  thumbnails = {},
 }: {
   token: string;
   report: BrandClientReportData;
@@ -1663,6 +1673,7 @@ export function ReportView({
   /** Live from brands_v2, NOT the snapshot. See the masthead note. Null when
    *  the brand has no logo, which renders the wordmark alone. */
   logoUrl?: string | null;
+  thumbnails?: Record<string,string>;
 }) {
   /**
    * MONTH IN REVIEW is a different question from the standing report, not the
@@ -1992,7 +2003,7 @@ export function ReportView({
   const watchVideos = (cc.topVideos.length > 0 ? cc.topVideos : r.topVideos).slice(0, 5).map((v) => {
     const id = extractTikTokVideoId(v.videoUrl);
     const views = id !== null ? s.videoViews[id] : undefined;
-    return { ...v, videoId: id, viewsLabel: views !== undefined ? compactCount(views) : null };
+    return { ...v, thumbnailUrl: id ? thumbnails[id] : undefined, videoId: id, viewsLabel: views !== undefined ? compactCount(views) : null };
   });
 
   const lifetimeSince = s.lifetime.firstDate
@@ -2432,7 +2443,7 @@ export function ReportView({
         {gran && gran.creators.length > 0 && (
           <>
             <SectionLine id="creators">Creator performance &amp; agreements</SectionLine>
-            <FullRosterTable g={gran} judgeQuota={windowIsMonth} token={token} />
+            <FullRosterTable g={gran} judgeQuota={windowIsMonth} token={token} mtd={r.monthToDate} />
           </>
         )}
 

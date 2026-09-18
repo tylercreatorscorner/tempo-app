@@ -335,6 +335,8 @@ export interface BrandClientReportData {
       d30_60:   { videos: number; gmv: number };
       d60_90:   { videos: number; gmv: number };
       d90_plus: { videos: number; gmv: number };
+      d90_180?: { videos: number; gmv: number };
+      d180_plus?: { videos: number; gmv: number };
       /** Videos with no recorded post date. Belongs to no age bucket and is
        *  shown as its own line rather than folded into the oldest one. */
       unknown:  { videos: number; gmv: number };
@@ -371,6 +373,9 @@ export interface BrandClientReportData {
        *  cost. Optional: snapshots frozen before migration 157 lack it. */
       departed?: boolean;
       postsPublished: number;
+      avatarUrl?: string | null;
+      units?: number | null;
+      pace?: { label: string; detail: string; tone: 'ahead' | 'behind' | 'neutral' };
       videosEarning: number;
       gmv: number;
       orders: number;

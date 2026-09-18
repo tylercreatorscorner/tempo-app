@@ -18,6 +18,7 @@
  * They are four pure lines each, and a server component cannot export them to
  * a client one.
  */
+import { ReportImage } from './report-image';
 import { useState } from 'react';
 import type { BrandClientReportData } from '@/lib/data/brand-client-report';
 import { creatorEarnedShare } from '@/lib/data/delivered-spend';
@@ -35,9 +36,9 @@ function handleOf(name: string): string {
 }
 
 const TH_L =
-  'px-4 py-2.5 text-left text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]';
+  'px-3 py-2 text-left text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#71717a]';
 const TH_R =
-  'px-4 py-2.5 text-right text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#8a8fb0]';
+  'px-3 py-2 text-right text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#71717a]';
 
 function CreatorRows({
   rows,
@@ -45,6 +46,8 @@ function CreatorRows({
   showLevel,
   showEarned = false,
   muted = false,
+  showUnits = false,
+  showPace = false,
 }: {
   rows: NonNullable<BrandClientReportData['granular']>['creators'];
   /** Only show the monthly target beside a count covering that month. */
@@ -52,6 +55,8 @@ function CreatorRows({
   /** Only where enough of the roster carries a level. */
   showLevel: boolean;
   muted?: boolean;
+  showUnits?: boolean;
+  showPace?: boolean;
   /**
    * Show what each retained creator's posting actually earned of their
    * retainer.
@@ -76,20 +81,24 @@ function CreatorRows({
               breaking across two lines, and a wrapped number reads as two
               numbers. The identity columns truncate instead: a long name gets
               an ellipsis rather than pushing the numeric columns around. */}
-          <tr className="border-b border-[#eeedf5]">
+          <tr className="border-b border-[#e4e4e7]">
             <th className={TH_L}>Creator</th>
             <th className={TH_L}>TikTok</th>
             <th className={`${TH_L} whitespace-nowrap`}>Agreement</th>
-            <th className={`${TH_R} whitespace-nowrap`}>Agreed</th>
             {showLevel && <th className={`${TH_L} whitespace-nowrap`}>Level</th>}
             <th className={`${TH_R} whitespace-nowrap`}>{judgeQuota ? 'Posts' : 'Posts this period'}</th>
             {showEarned && <th className={`${TH_R} whitespace-nowrap`}>Earned</th>}
-            <th className={`${TH_R} whitespace-nowrap`}>Orders</th>
+            <th className={`${TH_R} whitespace-nowrap`}>Total orders</th>
+            {showUnits && <th className={`${TH_R} whitespace-nowrap`}>Units sold</th>}
+            {showPace && <th className={TH_L}>Monthly pace</th>}
             <th className={`${TH_R} whitespace-nowrap`}>GMV</th>
           </tr>
         </thead>
         <tbody>
           {rows.map((c, i) => {
+            const periodStart = c.agreement?.periodStart;
+            const periodEnd = c.agreement?.periodEnd;
+            const calendarMonth = !c.agreement || (!!periodStart && !!periodEnd && periodStart.endsWith('-01') && new Date(`${periodEnd}T00:00:00Z`).getUTCDate() === new Date(Date.UTC(Number(periodStart.slice(0,4)),Number(periodStart.slice(5,7)),0)).getUTCDate() && periodStart.slice(0,7) === periodEnd.slice(0,7));
             const h = c.handle ? handleOf(c.handle) : handleOf(c.name);
             // Every OTHER known handle for this person. Deduped against the
             // primary because the account_ columns and tiktok_accounts often
@@ -101,19 +110,21 @@ function CreatorRows({
               <tr key={i} className={`border-b border-[#f2f1f8] last:border-b-0 ${muted ? 'opacity-70' : ''}`}>
                 {/* Identity: the person's name, falling back to the handle
                     for the 9% who have no real_name — never an empty cell. */}
-                <td className="max-w-[190px] truncate px-4 py-2.5 font-semibold text-[#171a33]">
+                <td className="max-w-[190px] px-3 py-2 font-semibold text-[#18181b]">
+                  <div className="flex items-center gap-2"><ReportImage src={c.avatarUrl} kind="creator" name={c.realName || h} /><div className="truncate">
                   {c.realName?.trim() ? (
                     <span title={c.realName}>{c.realName}</span>
                   ) : (
                     <span className="text-[#6b7191]" title={`@${h}`}>@{h}</span>
                   )}
+                  </div></div>
                 </td>
                 {/* 191 active roster rows have a real name but NO handle in
                     any source — mostly a 2025-11-29 bulk import that never
                     captured them. They are real signed creators, so they stay
                     in the table, but linking @TheirName would point at a
                     profile that does not exist. */}
-                <td className="max-w-[210px] px-4 py-2.5 align-top">
+                <td className="max-w-[210px] px-3 py-2 align-top">
                   <div className="truncate">
                     {c.handle ? (
                       <a
@@ -136,7 +147,7 @@ function CreatorRows({
                       link to the profile. */}
                   {extras.length > 0 && (
                     <details className="group mt-0.5">
-                      <summary className="inline-flex cursor-pointer list-none items-center gap-0.5 text-[11px] font-semibold text-[#8a8fb0] hover:text-[#4b45ff]">
+                      <summary className="inline-flex cursor-pointer list-none items-center gap-0.5 text-[11px] font-semibold text-[#71717a] hover:text-[#4b45ff]">
                         +{extras.length} more
                         <span className="transition-transform group-open:rotate-90">&rsaquo;</span>
                       </summary>
@@ -156,9 +167,8 @@ function CreatorRows({
                     </details>
                   )}
                 </td>
-                {/* Agreement is the TYPE only. The money moved to its own
-                    column so a retainer figure is never mistaken for earnings. */}
-                <td className="whitespace-nowrap px-4 py-2.5 text-[12px] text-[#33375c]">
+                {/* Keep the saved fee and commitment together. */}
+                <td className="whitespace-nowrap px-3 py-2 text-[12px] text-[#3f3f46]">
                   {c.departed ? (
                     <span className="whitespace-nowrap rounded-[5px] bg-[#f2f3f7] px-1.5 py-0.5 font-semibold text-[#6b7191]">
                       Left
@@ -171,20 +181,16 @@ function CreatorRows({
                       Affiliate
                     </span>
                   ) : (
-                    <span className="whitespace-nowrap font-semibold">Retainer</span>
+                    <span className="whitespace-nowrap font-semibold">{money(c.retainer)}<span className="font-normal text-zinc-500">{calendarMonth ? "/month" : "/period"}</span></span>
                   )}
+                  {!c.isAffiliate && !c.departed && <small className="block text-[11px] text-zinc-500">{c.quota == null ? "Post target not recorded" : `${num(c.quota)} posts${calendarMonth ? " / month" : " per period"}`}</small>}
                   {c.agreement?.periodStart && <small className="block text-[10px] text-[#6b7191]">{c.agreement.periodStart} to {c.agreement.periodEnd}</small>}
                   {c.agreement && !c.agreement.reportPeriodComparable && <small className="block text-[10px] text-[#6b7191]">Payment requires agreement-period review</small>}
                 </td>
                 {/* Blank for affiliate-only: there is no agreed amount, and a
                     $0 would read as "we agreed zero" rather than "n/a". */}
-                <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-[#33375c]">
-                  {!c.departed && !c.isAffiliate && c.retainer > 0
-                    ? <>{money(c.retainer)}<span className="text-[#8a8fb0]">{c.agreement ? "/period" : "/mo"}</span></>
-                    : <span className="text-[#b9bcd0]">&mdash;</span>}
-                </td>
                 {showLevel && (
-                  <td className="whitespace-nowrap px-4 py-2.5 text-[#6b7093]">
+                  <td className="whitespace-nowrap px-3 py-2 text-[#6b7093]">
                     {c.role?.trim() ? c.role : <span className="text-[#b9bcd0]">&mdash;</span>}
                   </td>
                 )}
@@ -194,10 +200,10 @@ function CreatorRows({
                     it is a unit mismatch: 15 of Dr. Dent's retained creators
                     printed it for 2026-08-23 and the roster read as idle. The
                     month-to-date block carries the comparison instead. */}
-                <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-[#33375c]">
+                <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-[#3f3f46]">
                   {num(c.postsPublished)}
                   {judgeQuota && c.quota != null && (!c.agreement || c.agreement.reportPeriodComparable) && (
-                    <span className="text-[#8a8fb0]">&nbsp;/&nbsp;{num(c.quota)}</span>
+                    <span className="text-[#71717a]">&nbsp;/&nbsp;{num(c.quota)}</span>
                   )}
                 </td>
                 {/* ⚠️ From the SAME function that produces the total, so a
@@ -209,12 +215,12 @@ function CreatorRows({
                   const earned = creatorEarnedShare(c);
                   const short = earned !== null && c.retainer - earned > 0.5;
                   return (
-                    <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums">
+                    <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
                       {earned === null ? (
                         <span className="text-[#b9bcd0]">&mdash;</span>
                       ) : (
                         <>
-                          <span className="font-semibold text-[#33375c]">{money(earned)}</span>
+                          <span className="font-semibold text-[#3f3f46]">{money(earned)}</span>
                           {short && (
                             <span className="block text-[10.5px] leading-tight text-[#b0870f]">
                               {money(c.retainer - earned)} short
@@ -225,8 +231,10 @@ function CreatorRows({
                     </td>
                   );
                 })()}
-                <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-[#33375c]">{num(c.orders)}</td>
-                <td className="whitespace-nowrap px-4 py-2.5 text-right font-extrabold tabular-nums text-[#171a33]">{money(c.gmv)}</td>
+                <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-[#3f3f46]">{num(c.orders)}</td>
+                {showUnits && <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">{c.units == null ? '—' : num(c.units)}</td>}
+                {showPace && <td className="px-3 py-2"><span className={`text-xs font-semibold ${c.pace?.tone === 'behind' ? 'text-amber-700' : c.pace?.tone === 'ahead' ? 'text-emerald-700' : 'text-zinc-600'}`}>{c.pace?.label ?? '—'}</span>{c.pace && <small className="block whitespace-nowrap text-[10px] text-zinc-500">{c.pace.detail}</small>}</td>}
+                <td className="whitespace-nowrap px-3 py-2 text-right font-extrabold tabular-nums text-[#18181b]">{money(c.gmv)}</td>
               </tr>
             );
           })}
@@ -269,14 +277,16 @@ export function PaginatedCreatorRows({
     <>
       <CreatorRows
         rows={slice}
+        showUnits={rows.some(c=>c.units != null)}
+        showPace={rows.some(c=>!!c.pace)}
         judgeQuota={judgeQuota}
         showLevel={showLevel}
         showEarned={showEarned}
         muted={muted}
       />
       {pages > 1 && (
-        <div className="flex items-center justify-between gap-3 border-t border-[#eeedf5] px-4 py-2.5">
-          <span className="text-[12px] tabular-nums text-[#8a8fb0]">
+        <div className="flex items-center justify-between gap-3 border-t border-[#e4e4e7] px-3 py-2">
+          <span className="text-[12px] tabular-nums text-[#71717a]">
             {num(from + 1)}&ndash;{num(from + slice.length)} of {num(rows.length)}
           </span>
           <div className="flex items-center gap-1.5">
@@ -288,7 +298,7 @@ export function PaginatedCreatorRows({
             >
               Previous
             </button>
-            <span className="px-1 text-[12px] tabular-nums text-[#8a8fb0]">
+            <span className="px-1 text-[12px] tabular-nums text-[#71717a]">
               {safe + 1} / {pages}
             </span>
             <button
