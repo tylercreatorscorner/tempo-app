@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
 import ts from 'typescript';
-const id='11111111-1111-4111-8111-111111111111';
+// Existing seeded identities are valid PostgreSQL UUIDs without RFC version bits.
+const id='b0000000-0000-0000-0000-000000000001';
 const foreign='22222222-2222-4222-8222-222222222222';
 let scope,allowed,archived,dbError,linked,adminReads,writes;
 function reset(){scope={tenantId:id,userId:id,canViewCreatorCost:true,impersonating:false};allowed=true;archived=false;dbError=false;linked=true;adminReads=0;writes=0;}
