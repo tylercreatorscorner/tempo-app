@@ -284,7 +284,8 @@ function HoverBars({
             className="group relative flex h-full flex-1 flex-col justify-end rounded-[6px] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#5b5ee8] focus-visible:ring-offset-2"
           >
             <div
-              className="pointer-events-none absolute bottom-[calc(100%+8px)] left-1/2 z-10 -translate-x-1/2 translate-y-1 whitespace-nowrap rounded-[9px] bg-[#18181b] px-2.5 py-2 text-[11.5px] leading-[1.45] text-white opacity-0 shadow-[0_8px_22px_-8px_rgba(0,0,0,.5)] transition-all duration-150 group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100"
+              style={i < 2 ? { left: 0 } : i >= bars.length - 2 ? { right: 0 } : { left: '50%', transform: 'translateX(-50%)' }}
+              className="pointer-events-none absolute bottom-[calc(100%+8px)] z-10 translate-y-1 whitespace-nowrap rounded-[9px] bg-[#18181b] px-2.5 py-2 text-[11.5px] leading-[1.45] text-white opacity-0 shadow-[0_8px_22px_-8px_rgba(0,0,0,.5)] transition-all duration-150 group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100"
             >
               <b className="tabular-nums">{money(b.value)}</b>
               {b.isPeak && <span className="text-white/70"> · best {peakNoun}</span>}
