@@ -82,8 +82,10 @@ export async function GET(request: Request) {
         `Posts (${period})`,
         'Lifetime GMV',
         'Tier',
-        'Monthly retainer',
-        'Monthly post requirement',
+        'Recorded agreement fee',
+        'Recorded post requirement',
+        'Agreement period',
+        'Agreement status',
       ],
       ...data.creators.map((c) => [
         c.realName ?? '',
@@ -96,6 +98,8 @@ export async function GET(request: Request) {
         c.currentTier ?? '',
         c.retainer ? c.retainer.toFixed(2) : '',
         c.monthlyPostRequirement != null ? String(c.monthlyPostRequirement) : '',
+        c.agreementPeriod ?? 'Legacy roster terms',
+        c.agreementStatus ?? '',
       ]),
     ];
     csv = rows.map(toCsvRow).join('\n');

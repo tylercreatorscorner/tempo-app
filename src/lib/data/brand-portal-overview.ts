@@ -1,3 +1,5 @@
+import { applyRosterAgreementTerms, type RosterAgreement } from '@/lib/agreements/roster-terms';
+import { portalAgreementTenant, portalAgreementSummary } from '@/lib/agreements/portal-terms';
 /**
  * Data fetcher for the brand portal /brand-dashboard page.
  *
@@ -22,6 +24,9 @@ export type { BrandPortalPeriod } from './brand-portal-periods';
 export { PERIOD_LABELS } from './brand-portal-periods';
 
 export interface BrandRosterCreator {
+  hasVerifiedAgreement?: boolean;
+  agreementPeriod?: string;
+  agreementStatus?: string;
   managedId: number;
   realName: string | null;
   primaryHandle: string;
@@ -173,6 +178,7 @@ export async function getBrandPortalDashboard(
   // fallback so an unmapped-but-real brand still filters on its own UUID
   // rather than matching nothing. All stats queries below filter on this
   // array (.in) instead of a single UUID (.eq).
+  const agreementTenant = await portalAgreementTenant(supabase,brandUuid,brandSlug);
   const reg = await getBrandRegistry();
   const brandIds = resolveUuids(reg, brandSlug, brandUuid) ?? [brandUuid];
   // Slug-keyed *data* tables (videos) are keyed by the per-store slug for
@@ -260,6 +266,7 @@ export async function getBrandPortalDashboard(
   const PAGE = 1000;
 
   type ManagedRow = {
+    agreement?: RosterAgreement|null;
     id: number;
     real_name: string | null;
     retainer: number | string | null;
@@ -274,7 +281,7 @@ export async function getBrandPortalDashboard(
   // because .range(0, 9999) does not lift PostgREST's 1,000-row cap.
   const managedRows: ManagedRow[] = [];
   for (let from = 0; ; from += PAGE) {
-    const { data, error } = await supabase
+    let rosterQuery = supabase
       .from('managed_creators')
       .select(
         `id, real_name, retainer, monthly_post_requirement, current_tier, archived_at, creator_id, ${accountSelect}`,
@@ -282,11 +289,15 @@ export async function getBrandPortalDashboard(
       .eq('brand', brandSlug)
       .order('id', { ascending: true })
       .range(from, from + PAGE - 1);
+    if (agreementTenant) rosterQuery=rosterQuery.eq('tenant_id',agreementTenant);
+    const {data,error}=await rosterQuery;
     if (error) throw new Error(`[brand-portal] managed_creators read failed: ${error.message}`);
     const page = (data ?? []) as unknown as ManagedRow[];
     managedRows.push(...page);
     if (page.length < PAGE) break;
   }
+
+  if (agreementTenant) await applyRosterAgreementTerms(managedRows,agreementTenant,fmt(actualEndDate));
 
   // Linked TikTok accounts. Chunked (a long .in() overflows the URL) and paged.
   const creatorIds = [...new Set(managedRows.map((r) => r.creator_id).filter((v): v is string => !!v))];
@@ -363,6 +374,7 @@ export async function getBrandPortalDashboard(
   };
 
   const toEntry = (r: ManagedRow) => ({
+    ...portalAgreementSummary(r.agreement),
     managedId: r.id,
     realName: r.real_name,
     retainer: Number(r.retainer ?? 0),
@@ -800,6 +812,9 @@ export async function getBrandPortalDashboard(
     .map((r) => {
       const stats = perManaged.get(r.managedId) ?? { gmv: 0, orders: 0, posts: 0 };
       return {
+        hasVerifiedAgreement:r.hasVerifiedAgreement,
+        agreementPeriod:r.agreementPeriod,
+        agreementStatus:r.agreementStatus,
         managedId: r.managedId,
         realName: r.realName,
         primaryHandle: r.handles[0] ?? '',

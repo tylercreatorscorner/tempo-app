@@ -1,0 +1,21 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {runInNewContext} from 'node:vm';
+import ts from 'typescript';
+import {NextResponse} from 'next/server.js';
+const env={CREATOR_AGREEMENTS_ENABLED:'true'};
+function load(path,deps){const exports={};runInNewContext(ts.transpileModule(readFileSync(path,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{exports,Date,URL,process:{env},require:n=>{assert.ok(n in deps,n);return deps[n];}});return exports;}
+const api=load('src/lib/agreements/portal-terms.ts',{'server-only':{}});
+let reads=0;
+const client={from:table=>{reads++;assert.equal(table,'brands_v2');const filters={};const q={select:()=>q,eq:(k,v)=>{filters[k]=v;return q;},maybeSingle:async()=>({data:filters.id==='brand'&&filters.slug==='alpha'?{tenant_id:'own'}:null,error:null})};return q;}};
+assert.equal(await api.portalAgreementTenant(client,'brand','alpha'),'own');
+await assert.rejects(api.portalAgreementTenant(client,'foreign','alpha'),/could not be verified/);
+await assert.rejects(api.portalAgreementTenant(client,'brand','foreign'),/could not be verified/);
+env.CREATOR_AGREEMENTS_ENABLED='false';const before=reads;assert.equal(await api.portalAgreementTenant(client,'brand','alpha'),null);assert.equal(reads,before);
+const safe=api.portalAgreementSummary({retainer:300,quota:30,status:'active',periodStart:'2026-07-24',periodEnd:'2026-08-31',snapshot:{actor:'private',reason:'private'}});
+assert.equal(safe.agreementPeriod,'2026-07-24–2026-08-31');assert.equal(safe.hasVerifiedAgreement,true);assert.equal(safe.snapshot,undefined);assert.equal(safe.retainer,undefined);
+const route=load('src/app/api/brand/report/route.ts',{'next/server':{NextResponse},'@/lib/data/brand-portal':{loadBrandPortalContext:async()=>({activeBrand:{id:'brand',slug:'alpha',name:'Alpha'}})},'@/lib/supabase/server':{createAdminClient:async()=>client},'@/lib/utils/format':{},'@/lib/data/brand-portal-overview':{getBrandPortalDashboard:async(_,id,slug)=>{assert.equal(id,'brand');assert.equal(slug,'alpha');return {creators:[{...safe,realName:'Fixture',primaryHandle:'fixture',handles:['fixture'],gmv:500,orders:10,posts:22,lifetimeGmv:1000,currentTier:null,retainer:300,monthlyPostRequirement:30}]};}}});
+const response=await route.GET(new Request('https://fixture.invalid/api/brand/report?type=roster'));
+const csv=await response.text();assert.match(csv,/Recorded agreement fee,Recorded post requirement,Agreement period,Agreement status/);assert.match(csv,/300.00,30,2026-07-24–2026-08-31,active/);assert.doesNotMatch(csv,/Monthly retainer|Monthly post requirement|private/);
+assert.equal(response.headers.get('cache-control'),'no-store');
+console.log('PASS brand agreement consumers: exact brand/slug tenant binding, read flag, safe metadata, authorized CSV period/quota/fee and private history omission');

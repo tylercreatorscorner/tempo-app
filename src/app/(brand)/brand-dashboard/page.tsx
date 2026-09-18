@@ -844,7 +844,7 @@ function MetricRail({ data }: { data: BrandPortalDashboard }) {
       label: 'Creators live',
       value: fmtNumber(data.managedCount),
       foot: data.monthlyRetainerTotal > 0
-        ? <span className="text-[11.5px] text-muted-foreground">{fmtCurrency(data.monthlyRetainerTotal)}/mo retainer</span>
+        ? <span className="text-[11.5px] text-muted-foreground">{fmtCurrency(data.monthlyRetainerTotal)} recorded creator fees</span>
         : undefined,
     },
     ...(eng.posts > 0
