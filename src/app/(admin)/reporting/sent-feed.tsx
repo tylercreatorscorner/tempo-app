@@ -275,14 +275,14 @@ export function SentFeed({ refreshKey }: { refreshKey: number }) {
           <TableLoadBar active={showBar} />
           <div className={showBar ? 'opacity-60 transition-opacity duration-200' : ''}>
             <div className="overflow-x-auto">
-              <Table className="text-sm">
-                <THead>
+              <Table className="block text-sm sm:table">
+                <THead className="hidden sm:table-header-group">
                   <TR>
                     {HEADERS.map(h => <TH key={h} className="text-left">{h}</TH>)}
                     <TH aria-label="Actions" />
                   </TR>
                 </THead>
-                <TBody>
+                <TBody className="block sm:table-row-group">
                   {items.map(item => (
                     <FeedRow
                       key={`${item.kind}-${item.id}`}
@@ -337,22 +337,22 @@ function FeedRow({
   previousUrl?: string;
 }) {
   return (
-    <TR className="hover:bg-muted/60">
-      <TD className="text-left">
+    <TR className="grid grid-cols-2 border-b border-border hover:bg-muted/60 sm:table-row sm:border-0">
+      <TD className="col-span-2 border-0 text-left sm:border-b">
         <BrandIdentity brand={item.brandSlug} label={brandLabel} />
         <p className="mt-1 text-xs text-muted-foreground">{item.periodLabel}{item.kind === 'client' && item.isRevision ? ' · Revised' : ''}</p>
         {item.kind === 'post' && <ReportChip item={item} />}
         {previousUrl && <a href={`${previousUrl}?preview=1`} target="_blank" rel="noopener noreferrer" className="mt-1 block text-xs text-muted-foreground hover:underline">Previous report ↗</a>}
       </TD>
-      <TD className="text-left text-xs" title={new Date(item.createdAt).toLocaleString()}>
+      <TD className="border-0 text-left text-xs sm:border-b" title={new Date(item.createdAt).toLocaleString()}>
         {relativeTimeAgo(item.createdAt)}
       </TD>
-      <TD className="text-left">
+      <TD className="border-0 text-left sm:border-b">
         <StatusBadge item={item} />
       </TD>
-      <TD className="py-2">
+      <TD className="col-span-2 border-0 py-2 sm:border-b">
         {item.kind === 'client' && (
-          <div className="flex items-center justify-end gap-1">
+          <div className="flex items-center justify-start gap-1 sm:justify-end">
             <a
               href={`${item.url}?preview=1`}
               target="_blank"
