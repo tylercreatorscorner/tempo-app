@@ -57,6 +57,7 @@ export function AgreementPreview({
     current?: Revision;
     renewalTerms?: Terms;
     readOnly?: boolean;
+    canSave?: boolean;
     ended?: boolean;
     periodStart?: string;
     periodEnd?: string;
@@ -172,15 +173,15 @@ export function AgreementPreview({
     brands.find((brand) => brand.value === terms.brand)?.label ?? "Brand";
   return (
     <section className={styles.root} aria-label={integration ? "Creator agreement editor" : "Agreement flow prototype"}>
-      <div className={styles.heading}>
-        <div>
+      {(!integration || (stage === "idle" && !latest)) && <div className={styles.heading}>
+        {!integration && <div>
           <span className={styles.kicker}>{integration ? "Creator agreement" : "Interactive preview"}</span>
           <h2>A clear agreement. Every period.</h2>
           <p>
 {integration ? "Terms by agreement period, with every revision preserved." : "Try the new flow. Changes stay in this tab and disappear on refresh."}
           </p>
-        </div>
-        {stage === "idle" && !active && (
+        </div>}
+        {stage === "idle" && !active && !integration?.current && (
           <button
             className={styles.primary}
             onClick={() => open("new")}
@@ -189,7 +190,7 @@ export function AgreementPreview({
             <Plus size={16} /> New agreement
           </button>
         )}
-      </div>
+      </div>}
       {stage === "idle" && !latest && (
         <div className={styles.intro}>
           <Repeat2 size={21} />
@@ -480,7 +481,7 @@ export function AgreementPreview({
                 </p>
               )}
               <footer className={styles.footer}>
-                <span>Preview only · no payment will be approved</span>
+                <span>{integration ? "Review terms · payment approval is separate" : "Preview only · no payment will be approved"}</span>
                 <button className={styles.primary} type="submit" disabled={busy}>
                   Review impact <ArrowRight size={15} />
                 </button>
@@ -536,7 +537,7 @@ export function AgreementPreview({
                         : !monthly
                           ? "Ends at the agreed deadline. No monthly renewal."
                           : effectiveScope === "period" && action === "change"
-                            ? `Resume ${money(renewalTerms?.amount ?? "0")} for ${renewalTerms?.posts ?? "�"} posts after this period (${renewalTerms?.renewal === "auto" ? "automatic renewal" : "explicit renewal required"}).`
+                            ? `Resume ${money(renewalTerms?.amount ?? "0")} for ${renewalTerms?.posts ?? "—"} posts after this period (${renewalTerms?.renewal === "auto" ? "automatic renewal" : "explicit renewal required"}).`
                             : terms.renewal === "auto"
                               ? action === "new"
                                 ? `Next period starts ${new Date(new Date(terms.firstPeriodEnd + "T00:00:00Z").getTime() + 86400000).toISOString().slice(0, 10)}; subsequent periods end at calendar month-end.`
@@ -572,7 +573,7 @@ export function AgreementPreview({
                         <dt>Video credits</dt>
                         <dd>
                           {terms.credits === "review"
-                            ? "Select and approve prior-period videos individually. Original posting dates stay intact."
+                            ? "Prior-period video credits require separate approval and evidence. Original posting dates stay intact."
                             : "Count only videos published within this agreement period."}
                         </dd>
                       </div>
@@ -591,7 +592,7 @@ export function AgreementPreview({
                 <button onClick={() => setStage("edit")}>Back to terms</button>
                 <button
                   className={styles.primary}
-                  disabled={busy || integration?.readOnly}
+                  disabled={busy || integration?.readOnly || (integration && !integration.canSave)}
                   onClick={async () => {
                     if (integration) {
                       setBusy(true); setError('');
@@ -617,7 +618,7 @@ export function AgreementPreview({
                     setStage("idle");
                   }}
                 >
-                  <Check size={16} /> {busy ? "Saving..." : integration ? "Save agreement" : "Apply to preview"}
+                  <Check size={16} /> {busy ? "Saving..." : integration ? integration.canSave ? "Save agreement" : "Saving disabled during verification" : "Apply to preview"}
                 </button>
               </footer>
             </>

@@ -263,6 +263,10 @@ export function applyAgreementCommand(
       (command.scope !== "period" || command.terms.renewal !== "manual")
     )
       throw Error("Fixed agreements do not have monthly renewals.");
+    const nextUnopened = dayAfter(ledger.periods.at(-1)!.through);
+    if (ledger.kind === "monthly" && command.terms.renewal === "automatic" &&
+        command.effective > nextUnopened && termsAt(ledger, nextUnopened)?.renewal === "manual")
+      throw Error("Renew the missing period first, or start automatic renewal on " + nextUnopened + ".");
     const through =
       ledger.kind !== "monthly"
         ? ledger.deadline

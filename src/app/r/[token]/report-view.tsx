@@ -1041,6 +1041,7 @@ function MonthToDate({
   signings?: BrandClientReportData['signings'];
 }) {
   const g = mtd.granular;
+  if (g.creators.some(c => c.agreement && !c.agreement.reportPeriodComparable)) return <p className="rounded-xl border border-border bg-muted/30 p-4 text-sm text-muted-foreground">Some agreements use a different delivery period or payment rule. Review their recorded agreement dates before comparing commitments or calculating payment.</p>;
   const contracted = g.creators.filter((c) => !c.isAffiliate && !c.departed && (c.quota ?? 0) > 0);
   if (contracted.length === 0) return null;
 
@@ -1339,6 +1340,7 @@ function MonthlyDelivery({
   start: Date;
   end: Date;
 }) {
+  if (g.creators.some(c => c.agreement && !c.agreement.reportPeriodComparable)) return <p className="rounded-xl border border-border bg-muted/30 p-4 text-sm text-muted-foreground">Some agreements use a different delivery period or payment rule. Review their recorded agreement dates before comparing commitments or calculating payment.</p>;
   const contracted = g.creators.filter((c) => !c.isAffiliate && !c.departed && (c.quota ?? 0) > 0);
   if (contracted.length === 0) return null;
 

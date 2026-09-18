@@ -78,6 +78,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ token: str
     start.getUTCFullYear() === end.getUTCFullYear() &&
     end.getUTCDate() === lastOfMonth;
 
+  const hasAgreements = creators.some(c => c.agreement);
   const header = [
     'Creator',
     'TikTok handles',
@@ -86,11 +87,12 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ token: str
     // spreadsheet is ordinary; a column of dashes on a client-facing page is
     // not, which is why the rendered table gates on coverage and this does not.
     'Level',
-    'Monthly retainer',
+    hasAgreements ? 'Agreement fee' : 'Monthly retainer',
     ...(windowIsMonth ? ['Posts published', 'Monthly post target'] : ['Posts this period']),
     'Videos earning',
     'Orders',
     'GMV',
+    ...(hasAgreements ? ['Agreement period start', 'Agreement period end', 'Agreement post requirement', 'Agreement revision', 'Review required'] : []),
   ];
 
   const rows = creators.map((c) => {
@@ -109,11 +111,12 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ token: str
       // zero would read as a negotiated figure.
       !c.departed && !c.isAffiliate && c.retainer > 0 ? c.retainer.toFixed(2) : '',
       ...(windowIsMonth
-        ? [c.postsPublished, c.quota ?? '']
+        ? [c.postsPublished, c.agreement && !c.agreement.reportPeriodComparable ? '' : c.quota ?? '']
         : [c.postsPublished]),
       c.videosEarning ?? '',
       c.orders,
       c.gmv.toFixed(2),
+      ...(hasAgreements ? [c.agreement?.periodStart ?? '', c.agreement?.periodEnd ?? '', c.agreement?.quota ?? '', c.agreement?.revision ?? '', c.agreement && !c.agreement.reportPeriodComparable ? 'Agreement period / payment rules' : ''] : []),
     ];
   });
 

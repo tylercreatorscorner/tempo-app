@@ -307,3 +307,6 @@ assert.throws(
 console.log(
   "Custom opening period: one July–August obligation, September renewal and period-only exception passed.",
 );
+
+assert.throws(()=>apply(manual,{action:'change',effective:'2026-11-01',scope:'future',terms,reason:'Future auto renewal'},actor),/Renew the missing period first/);
+console.log('Manual renewal gaps cannot silently strand future automatic terms.');

@@ -22,11 +22,11 @@ async function fetchAgreements(creatorId:string,brandId:string,signal?:AbortSign
  if(!response.ok) throw Error(result.error || 'Agreements unavailable');
  return result.agreements;
 }
-export function AgreementWorkspace({creatorId,brands,today,canWrite}:{creatorId:string;brands:Brand[];today:string;canWrite:boolean}) {
+export function AgreementWorkspace({creatorId,brands,today,canWrite,canSave}:{creatorId:string;brands:Brand[];today:string;canWrite:boolean;canSave:boolean}) {
  const [brand,setBrand]=useState(brands[0]?.value ?? '');
- return <div className={styles.root}><div className={styles.heading}><div><span className={styles.kicker}>Agreement history</span><h2>Terms that stay with their period</h2></div><ChoiceMenu label="Agreement brand" value={brand} options={brands} onChange={setBrand}/></div>{brand && <BrandAgreements key={brand} creatorId={creatorId} brand={brands.find(b=>b.value===brand)!} today={today} canWrite={canWrite}/>}</div>;
+ return <div className={styles.root}><div className={styles.heading}><div><span className={styles.kicker}>Agreement history</span><h2>Terms that stay with their period</h2></div><ChoiceMenu label="Agreement brand" value={brand} options={brands} onChange={setBrand}/></div>{brand && <BrandAgreements key={brand} creatorId={creatorId} brand={brands.find(b=>b.value===brand)!} today={today} canWrite={canWrite} canSave={canSave}/>}</div>;
 }
-function BrandAgreements({creatorId,brand,today,canWrite}:{creatorId:string;brand:Brand;today:string;canWrite:boolean}) {
+function BrandAgreements({creatorId,brand,today,canWrite,canSave}:{creatorId:string;brand:Brand;today:string;canWrite:boolean;canSave:boolean}) {
  const [rows,setRows]=useState<SavedAgreement[]|null>(null);
  const [error,setError]=useState('');
  const [selected,setSelected]=useState('');
@@ -73,9 +73,9 @@ function BrandAgreements({creatorId,brand,today,canWrite}:{creatorId:string;bran
     {rows.length>0 && <ChoiceMenu label="Agreement" value={row?.id ?? 'new'} options={[...rows.map(r=>({value:r.id,label:`${r.state.start} · ${r.state.kind}`})),...(canWrite?[{value:'new',label:'New agreement'}]:[])]} onChange={value=>{setSelected(value);setPeriodStart('');}}/>}
     {row && <ChoiceMenu label="Agreement period" value={period!.start} options={row.state.periods.map(p=>({value:p.start,label:`${p.start} to ${p.through}`})).reverse()} onChange={setPeriodStart}/>}
    </div>
-   {canRenew && <div className={styles.review}><strong>{renewReview?'Confirm renewal':'Awaiting renewal'}</strong><p>{nextPeriod} starts the next period at ${(nextTerms.feeCents/100).toLocaleString()} for {nextTerms.requiredPosts} posts. Earlier periods stay unchanged. This does not approve payment.</p><button className={styles.primary} disabled={renewBusy} onClick={()=>void renew()}>{renewBusy?'Checking...':renewReview?'Confirm renewal':'Review renewal'}</button>{renewReview && <button disabled={renewBusy} onClick={()=>setRenewReview(false)}>Cancel</button>}{renewError && <p role="alert">{renewError}</p>}</div>}
+   {canRenew && <div className={styles.review}><strong>{renewReview?'Confirm renewal':'Awaiting renewal'}</strong><p>{nextPeriod} starts the next period at ${(nextTerms.feeCents/100).toLocaleString()} for {nextTerms.requiredPosts} posts. Earlier periods stay unchanged. This does not approve payment.</p><button className={styles.primary} disabled={renewBusy || (renewReview && !canSave)} onClick={()=>void renew()}>{renewBusy?'Checking...':renewReview?'Confirm renewal':'Review renewal'}</button>{renewReview && <button disabled={renewBusy} onClick={()=>setRenewReview(false)}>Cancel</button>}{renewError && <p role="alert">{renewError}</p>}</div>}
    {!rows.length && <p className={styles.review}>No verified agreements recorded yet. Current roster terms have not been copied into historical periods.</p>}
-   <AgreementPreview key={`${row?.id ?? 'new'}-${row?.version ?? 0}-${period?.start ?? ''}-${generation}`} brands={[brand]} today={today} integration={{current,renewalTerms:row && renewal?formTerms(renewal,row.state,brand.value):undefined,periodStart:period?.start,periodEnd:period?.through,readOnly:!canWrite,ended:Boolean(row?.state.finalDate),onReview:form=>submit(form,true),onSave:form=>submit(form,false)}}/>
+   <AgreementPreview key={`${row?.id ?? 'new'}-${row?.version ?? 0}-${period?.start ?? ''}-${generation}`} brands={[brand]} today={today} integration={{current,renewalTerms:row && renewal?formTerms(renewal,row.state,brand.value):undefined,periodStart:period?.start,periodEnd:period?.through,readOnly:!canWrite,canSave,ended:Boolean(row?.state.finalDate),onReview:form=>submit(form,true),onSave:form=>submit(form,false)}}/>
    {period && <div className={styles.history}><h3>Recorded revisions</h3>{[...period.revisions].reverse().map(rev=><div className={styles.event} key={rev.version}><span>v{rev.version}</span><div><strong>{rev.reason}</strong><p>{new Date(rev.recordedAt).toLocaleString()} · {rev.actor==='system:renewal'?'Automatic renewal':'Team member'}</p>{rev.cancelled?<p>Cancelled period · retained for history</p>:rev.segments.map(segment=><p key={segment.from}>{segment.from} to {segment.through} · ${(segment.terms.feeCents/100).toLocaleString()} · {segment.terms.requiredPosts} posts</p>)}{rev.paymentReviewRequired && <p>Payment calculation requires review.</p>}</div></div>)}</div>}
  </div>;
 }
