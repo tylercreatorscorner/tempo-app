@@ -36,6 +36,17 @@ const req=(body,method='POST')=>new NextRequest('https://fixture.invalid/api/cli
 const ctx=id=>({params:Promise.resolve({id})});
 assert.equal((await outbox.GET(req(null,'GET'))).status,200);
 assert.deepEqual((await (await outbox.GET(req(null,'GET'))).json()).reports.map(r=>r.token),['our-token']);
+tables.client_reports.push({id:'revision-fixture',tenant_id:'a',brand_slug:'own',token:'revision-token',revision:{previousReportId:'our-report',privateNote:'do not return'},snapshot:{private:'never return'}});
+let revisionResult=(await (await outbox.GET(req(null,'GET'))).json()).reports.find(r=>r.id==='revision-fixture');
+assert.equal(revisionResult.isRevision,true);assert.equal(revisionResult.previousReportId,'our-report');
+assert.ok(!JSON.stringify(revisionResult).includes('private'));
+tables.client_reports.at(-1).revision.previousReportId='their-report';
+revisionResult=(await (await outbox.GET(req(null,'GET'))).json()).reports.find(r=>r.id==='revision-fixture');
+assert.equal(revisionResult.previousReportId,null,'Foreign report history never becomes a link');
+tables.client_reports.at(-1).revision.previousReportId='revision-fixture';
+revisionResult=(await (await outbox.GET(req(null,'GET'))).json()).reports.find(r=>r.id==='revision-fixture');
+assert.equal(revisionResult.previousReportId,null,'No self-reference');
+tables.client_reports.pop();
 assert.equal((await (await log.GET()).json()).entries.length,0);
 for(const [route,method] of [[edit,'PATCH'],[revoke,'POST'],[refresh,'POST']]) assert.equal((await route[method](req({notes:'attack'},method),ctx('their-report'))).status,404);
 assert.equal(writes,0);assert.equal(rpcCalls.length,0);

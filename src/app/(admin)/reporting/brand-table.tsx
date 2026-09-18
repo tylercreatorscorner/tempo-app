@@ -24,6 +24,7 @@ import { TableLoadBar } from '@/components/ui/table-load-bar';
 import { TableSkeleton } from '@/components/ui/page-skeletons';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ReportActions } from './report-actions';
+import { BrandIdentity } from '@/components/creators/brand-identity';
 
 export interface ReportingBrandRow {
   slug: string;
@@ -154,9 +155,9 @@ export function BrandTable({
   return (
     <section className="space-y-3">
       <div>
-        <h2 className="text-base font-bold tracking-tight text-foreground">Client reporting</h2>
+        <h2 className="text-base font-bold tracking-tight text-foreground">Brands</h2>
         <p className="mt-0.5 text-sm text-muted-foreground">
-          Who is owed a report, and whether the data can honestly support one.
+          Review coverage, open a saved report, or prepare the next one.
         </p>
       </div>
 
@@ -230,10 +231,7 @@ function BrandRows({
     <>
       <TR className="hover:bg-muted/60">
         <TD className="text-left">
-          <span className="inline-flex items-center gap-2 font-semibold text-foreground">
-            <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-[3px]" style={{ backgroundColor: row.color }} />
-            {row.name}
-          </span>
+          <span className="font-semibold text-foreground"><BrandIdentity brand={row.slug} label={row.name} /></span>
         </TD>
         <TD className="text-left"><CoverageMeter coverage={c} /></TD>
         <TD className="text-left text-xs">

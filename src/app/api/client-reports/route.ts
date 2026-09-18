@@ -44,6 +44,7 @@ interface ReportRow {
   viewed_at: string | null;
   revoked_at: string | null;
   refreshed_at: string | null;
+  revision?: { previousReportId?: unknown } | null;
 }
 
 export async function GET(req: NextRequest) {
@@ -55,18 +56,18 @@ export async function GET(req: NextRequest) {
   const supabase = await createAdminClient();
   const { data, error } = await supabase
     .from('client_reports')
-    .select('id, token, brand_slug, brand_name, period_label, created_by, created_at, viewed_at, revoked_at, refreshed_at')
+    .select('id, token, brand_slug, brand_name, period_label, created_by, created_at, viewed_at, revoked_at, refreshed_at, revision:snapshot->revision')
     .eq('tenant_id', scope.tenantId)
     .order('created_at', { ascending: false })
     .limit(100);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const base = appBaseUrl(req);
-  const reports = ((data ?? []) as ReportRow[])
+  const visible = ((data ?? []) as ReportRow[])
     .filter((r) =>
       r.brand_slug === 'all' ? scope.brandScope.kind === 'all' : isBrandInScope(scope, { slug: r.brand_slug }),
-    )
-    .map((r) => ({
+    );
+  const reports = visible.map((r) => ({
       id: r.id,
       token: r.token,
       url: `${base}/r/${r.token}`,
@@ -77,9 +78,13 @@ export async function GET(req: NextRequest) {
       createdBy: r.created_by,
       viewedAt: r.viewed_at,
       revokedAt: r.revoked_at,
-      // NULL until the snapshot is rebuilt in place; the outbox uses it to say
-      // "numbers as of" rather than only "created".
+      // Legacy timestamp retained for older reports; new corrections have new rows.
       refreshedAt: r.refreshed_at ?? null,
+      isRevision: typeof r.revision?.previousReportId === 'string',
+      // Link only to a report independently authorized in this result set.
+      // Do not expose arbitrary snapshot metadata or infer a complete version chain.
+      previousReportId: visible.find(previous => previous.id !== r.id &&
+        previous.id === r.revision?.previousReportId && previous.brand_slug === r.brand_slug)?.id ?? null,
     }));
 
   return NextResponse.json({ reports });

@@ -44,17 +44,20 @@ export function ReportActions({
   }
   const [busy, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [revisionLink, setRevisionLink] = useState<string | null>(null);
 
   async function call(path: string, init?: RequestInit) {
     const res = await fetch(`/api/client-reports/${target.id}${path}`, init);
-    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    const data = (await res.json().catch(() => ({}))) as { error?: string; token?: string };
     if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    if (typeof data.token === 'string' && data.token) setRevisionLink(`/r/${encodeURIComponent(data.token)}?preview=1`);
     return data;
   }
 
   const run = (fn: () => Promise<void>) =>
     startTransition(async () => {
       setError(null);
+      setRevisionLink(null);
       try {
         await fn();
       } catch (e) {
@@ -98,6 +101,9 @@ export function ReportActions({
         <Ban className="h-3.5 w-3.5" />
         Revoke
       </button>
+
+      {!open && error && <span role="alert" className="max-w-64 text-xs text-destructive">{error}</span>}
+      {revisionLink && <a role="status" href={revisionLink} target="_blank" rel="noopener noreferrer" title="The previous report link is unchanged" className="whitespace-nowrap rounded-md bg-primary/5 px-2 py-1.5 text-xs font-semibold text-primary">Open new revision ↗</a>}
 
       {open && (
         <div
