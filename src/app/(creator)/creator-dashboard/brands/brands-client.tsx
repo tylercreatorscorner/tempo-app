@@ -130,7 +130,7 @@ export function BrandsClient({ realName, rangeLabel, rows, standings, untapped }
       ) : (
         <TableCard>
           <div className="overflow-x-auto">
-            <Table>
+            <Table className="min-w-[600px]">
               <THead>
                 <TR>
                   <TH>Brand</TH>
@@ -173,7 +173,7 @@ export function BrandsClient({ realName, rangeLabel, rows, standings, untapped }
                           <span className="text-muted-foreground">—</span>
                         ) : (
                           <div className="flex items-center justify-end gap-2">
-                            <span className="font-medium tabular-nums text-foreground">
+                            <span className="whitespace-nowrap font-medium tabular-nums text-foreground">
                               {r.postsThisMonth}
                               {hasReq && (
                                 <span className="text-muted-foreground"> / {r.monthlyPostRequirement}</span>
