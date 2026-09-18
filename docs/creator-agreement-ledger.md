@@ -46,6 +46,8 @@ Managers choose the first period end date. July 24 through August 31 is one agre
 - Both migrations applied to the hosted database; read checks confirmed zero agreement/event records, denied browser ledger access, and a working report query. No creator agreements or sent reports were changed.
 - Hosted security advisors flagged only informational missing-policy entries on the new server-only, RLS-enabled tables; unrelated database warnings remain outside this batch.
 - Local typecheck, focused lint, lifecycle/SQL/report/profile tests pass. Full regression chain passed through creator auth; remaining tsx/manager/agreement tests passed separately with esbuild subprocess access.
-- Pending: hosted preview build and signed-in desktop/mobile verification, API authorization regression coverage, full period/payment reader audit, production write enablement. Do not enable writes until those checks pass.
+- Pending: hosted preview build and signed-in desktop/mobile verification, full period/payment reader audit, production write enablement. Do not enable writes until those checks pass.
 
 The earlier numbered release gate is a checklist, not a claim that every item remains unimplemented. Hosted migrations were verified in PGlite and with read-only hosted checks; a disposable hosted branch was not used.
+
+Scoped service regression tests now cover permissions, tenant/brand identities, missing relationships, archived writes, impersonation, read failures and review without persistence.
