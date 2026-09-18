@@ -977,7 +977,7 @@ function FullRosterTable({
         <p className="text-[13px] leading-[1.6] text-[#3f3f46]">
           Every creator we run for you, sorted by what they earned this period.{' '}
           <b className="text-[#18181b]">{num(g.roster.affiliateOnly)}</b> of your roster are
-          affiliate-only &mdash; commission, with no post requirement, so they carry no posting target.
+          affiliate-only &mdash; commission, with no post requirement. Orders and units are video-attributed totals for this report period.
         </p>
         {/* Downloads the FULL list, including the dormant rows folded behind
             the disclosure below. Hiding them is a density decision, not a

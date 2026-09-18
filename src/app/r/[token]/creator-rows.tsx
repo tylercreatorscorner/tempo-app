@@ -87,7 +87,7 @@ function CreatorRows({
             {showLevel && <th className={`${TH_L} whitespace-nowrap`}>Level</th>}
             <th className={`${TH_R} whitespace-nowrap`}>{judgeQuota ? 'Posts' : 'Posts this period'}</th>
             {showEarned && <th className={`${TH_R} whitespace-nowrap`}>Earned</th>}
-            <th className={`${TH_R} whitespace-nowrap`}>Total orders</th>
+            <th className={`${TH_R} whitespace-nowrap`}>Video orders</th>
             {showUnits && <th className={`${TH_R} whitespace-nowrap`}>Units sold</th>}
             {showPace && <th className={TH_L}>Monthly pace</th>}
             <th className={`${TH_R} whitespace-nowrap`}>GMV</th>
