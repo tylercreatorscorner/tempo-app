@@ -21,12 +21,12 @@ body {
   margin: 0;
 }
 main {
-  max-width: 1020px;
-  margin: 40px auto;
+  max-width: 880px;
+  margin: 28px auto;
   padding: 0 20px 60px;
 }
 header {
-  margin-bottom: 28px;
+  margin-bottom: 18px;
 }
 header > span {
   color: #753bd1;
@@ -35,7 +35,7 @@ header > span {
   letter-spacing: 2px;
 }
 h1 {
-  font-size: 30px;
+  font-size: 25px;
   letter-spacing: -1px;
   margin: 12px 0 6px;
 }

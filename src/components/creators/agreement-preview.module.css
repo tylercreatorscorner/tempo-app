@@ -1,6 +1,6 @@
 .root {
   border: 1px solid var(--border);
-  border-radius: 18px;
+  border-radius: 12px;
   background: var(--card);
   overflow: hidden;
   color: var(--foreground);
@@ -12,19 +12,19 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 20px;
-  padding: 24px;
+  gap: 14px;
+  padding: 16px 20px;
 }
 .heading h2 {
-  font-size: 21px;
+  font-size: 18px;
   letter-spacing: -0.6px;
   font-weight: 650;
-  margin: 6px 0;
+  margin: 4px 0;
 }
 .root p {
   color: var(--muted-foreground);
   font-size: 13px;
-  line-height: 1.6;
+  line-height: 1.5;
   margin: 6px 0 0;
 }
 .kicker {
@@ -39,11 +39,11 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 10px 14px;
+  padding: 8px 12px;
   background: var(--card);
   color: var(--foreground);
   border: 1px solid var(--border);
-  border-radius: 9px;
+  border-radius: 7px;
   font: inherit;
   font-size: 12px;
   cursor: pointer;
@@ -71,8 +71,8 @@
   display: flex;
   gap: 14px;
   align-items: center;
-  margin: 0 24px 24px;
-  padding: 20px;
+  margin: 0 20px 16px;
+  padding: 14px 16px;
   border-radius: 12px;
   background: var(--muted);
 }
@@ -84,14 +84,12 @@
   font-size: 14px;
 }
 .editor {
-  margin: 0 24px 24px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
+  margin: 0;
+  border-top: 1px solid var(--border);
   overflow: hidden;
 }
 .editorHead {
-  padding: 20px;
-  border-bottom: 1px solid var(--border);
+  padding: 12px 20px 0;
 }
 .editorHead h3,
 .history h3 {
@@ -102,13 +100,13 @@
 .fields {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 20px;
-  padding: 24px;
+  gap: 14px;
+  padding: 16px 20px;
 }
 .field {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 5px;
   font-size: 12px;
   font-weight: 550;
   min-width: 0;
@@ -116,24 +114,24 @@
 .field input,
 .field textarea {
   width: 100%;
-  min-height: 42px;
-  padding: 10px 12px;
+  min-height: 36px;
+  padding: 8px 10px;
   border: 1px solid var(--border);
-  border-radius: 9px;
+  border-radius: 7px;
   background: var(--card);
   color: var(--foreground);
   font: inherit;
   box-sizing: border-box;
 }
 .field textarea {
-  min-height: 80px;
+  min-height: 60px;
   resize: vertical;
 }
 .wide {
   grid-column: 1 / -1;
 }
 .footer {
-  padding: 16px 24px;
+  padding: 12px 20px;
   border-top: 1px solid var(--border);
 }
 .footer > span {
@@ -141,13 +139,13 @@
   font-size: 11px;
 }
 .review {
-  padding: 24px;
+  padding: 16px 20px;
 }
 .summary {
-  padding-bottom: 20px;
+  padding-bottom: 12px;
 }
 .summary h3 {
-  font-size: 25px;
+  font-size: 21px;
   letter-spacing: -0.8px;
   font-weight: 650;
   margin: 8px 0;
@@ -158,11 +156,11 @@
 .impact > div {
   display: grid;
   grid-template-columns: 130px 1fr;
-  gap: 20px;
-  padding: 14px 0;
+  gap: 14px;
+  padding: 9px 0;
   border-top: 1px solid var(--border);
   font-size: 12px;
-  line-height: 1.6;
+  line-height: 1.5;
 }
 .impact dt {
   font-weight: 600;
@@ -172,8 +170,8 @@
   margin: 0;
 }
 .result {
-  margin: 0 24px 24px;
-  padding: 20px;
+  margin: 0 20px 16px;
+  padding: 14px 16px;
   border: 1px solid var(--border);
   border-radius: 12px;
 }
@@ -182,7 +180,7 @@
   font-size: 16px;
 }
 .result strong {
-  font-size: 25px;
+  font-size: 21px;
 }
 .result small {
   font-size: 12px;
@@ -195,7 +193,7 @@
   flex-wrap: wrap;
 }
 .history {
-  padding: 0 24px 24px;
+  padding: 0 20px 16px;
 }
 .history h3 {
   display: flex;
@@ -208,7 +206,7 @@
   gap: 14px;
   align-items: start;
   border-top: 1px solid var(--border);
-  padding: 14px 0;
+  padding: 9px 0;
   font-size: 12px;
 }
 .event > span {
@@ -234,16 +232,18 @@
   .result {
     align-items: start;
     flex-direction: column;
-    padding: 18px;
+    padding: 14px 16px;
   }
   .fields {
     grid-template-columns: 1fr;
-    padding: 18px;
-    gap: 16px;
+    padding: 14px 16px;
+    gap: 12px;
   }
   .editor {
-    margin: 0 12px 12px;
+    margin: 0;
   }
+  .editorHead { padding: 14px 16px 0; }
+  .field input, .field textarea, .field button { min-height: 44px; }
   .intro {
     margin: 0 12px 18px;
     padding: 16px;
@@ -259,7 +259,7 @@
     flex-basis: 100%;
   }
   .review {
-    padding: 18px;
+    padding: 14px 16px;
   }
   .impact > div {
     grid-template-columns: 1fr;
@@ -275,3 +275,7 @@
     display: none;
   }
 }
+
+/* Keep selectors aligned with inputs without changing shared menu styles. */
+.field button[role="combobox"] { min-height: 36px; padding: 8px 10px; }
+@media (max-width: 650px) { .field button[role="combobox"] { min-height: 44px; } }
