@@ -10,12 +10,14 @@ const tables={brands_v2:[brand('own','a'),brand('foreign','b')], client_reports:
  {id:'our-report',tenant_id:'a',brand_slug:'own',token:'our-token',notes:'original',plan:'keep',period_start:'2026-08-01',period_end:'2026-08-31',revoked_at:null},
  {id:'their-report',tenant_id:'b',brand_slug:'own',token:'secret-token',notes:'secret',plan:'secret',revoked_at:null},
 ],report_log:[{id:'their-log',tenant_id:'b',brand_slug:'own'}]};
-function from(table){let filters=[],limit=null,patch=null,insert=null;const q={select:()=>q,order:()=>q,
+function from(table){let filters=[],limit=null,offset=0,patch=null,insert=null;const q={select:()=>q,order:()=>q,
  eq:(k,v)=>{filters.push(r=>r[k]===v);return q;},in:(k,v)=>{filters.push(r=>v.includes(r[k]));return q;},limit:n=>{limit=n;return q;},
+ range:(start,end)=>{offset=start;limit=end-start+1;return q;},
+ or:expression=>{const terms=expression.split(',').map(term=>{const [column,,...pattern]=term.split('.');return [column,pattern.join('.').replace(/^%|%$/g,'').toLowerCase()];});filters.push(row=>terms.some(([column,value])=>String(row[column]??'').toLowerCase().includes(value)));return q;},
  update:v=>{patch=v;return q;},insert:v=>{insert=v;return q;},like:()=>q,
  maybeSingle:()=>run(true),single:()=>run(true),then:(r,j)=>Promise.resolve(run(false)).then(r,j)};
  function run(single){if(insert){writes++;const row={id:'new-report',token:'new-token',...insert};(tables[table]??=[]).push(row);return {data:row,error:null};}
- let data=(tables[table]??[]).filter(r=>filters.every(f=>f(r)));const count=data.length;if(limit)data=data.slice(0,limit);
+ let data=(tables[table]??[]).filter(r=>filters.every(f=>f(r)));const count=data.length;if(limit)data=data.slice(offset,offset+limit);
  if(patch){writes+=data.length;data.forEach(r=>Object.assign(r,patch));}return {data:single?data[0]??null:data,error:null,count};}return q;}
 const admin={from,rpc:async(name,args)=>{rpcCalls.push({name,args});return {data:name==='get_brand_roster_weekly_workspace'?[]:name==='get_brand_client_report_granular_workspace'?null:{},error:null};},auth:{getUser:async()=>({data:{user:{email:'fixture@invalid'}}})}};
 const deps={'next/server':{NextRequest,NextResponse},'@/lib/supabase/server':{createAdminClient:async()=>admin,createClient:async()=>admin},
@@ -135,3 +137,18 @@ console.log('PASS legitimate corrections create new links and preserve original 
 
 
 console.log('PASS actual public CSV/PDF/page: anonymous frozen-token reads, tenant-specific live logo, no regeneration, revocation denial');
+
+// Search reaches beyond the legacy 100-row window; counts and page limits are scoped.
+const savedScope=scope;
+scope={...own,brandScope:{kind:'scoped',brandIds:['own'],brandSlugs:['own']}};
+for(let i=0;i<125;i++) tables.client_reports.push({id:`page-${i}`,tenant_id:'a',brand_slug:'own',brand_name:'Pagination fixture',period_label:'August 2026',token:`p-${i}`});
+tables.client_reports.push({id:'foreign-match',tenant_id:'b',brand_slug:'own',brand_name:'Pagination fixture',token:'foreign-page'});
+tables.client_reports.push({id:'wrong-brand',tenant_id:'a',brand_slug:'other',brand_name:'Pagination fixture',token:'other-page'});
+let paged=await (await outbox.GET(new NextRequest('https://fixture.invalid/api/client-reports?page=6&q=Pagination'))).json();
+assert.equal(paged.total,125);assert.equal(paged.reports.length,20);assert.ok(paged.reports.every(r=>r.brandSlug==='own'));
+paged=await (await outbox.GET(new NextRequest('https://fixture.invalid/api/client-reports?page=7&q=Pagination'))).json();assert.equal(paged.reports.length,5);
+assert.equal((await outbox.GET(new NextRequest('https://fixture.invalid/api/client-reports?page=-1'))).status,400);
+scope={...own,brandScope:{kind:'scoped',brandIds:[],brandSlugs:[]}};
+paged=await (await outbox.GET(new NextRequest('https://fixture.invalid/api/client-reports?page=1'))).json();assert.equal(paged.total,0);assert.equal(paged.reports.length,0);
+scope=savedScope;
+console.log('PASS library pagination: search beyond 100 rows, full and final pages, invalid pages, tenant/brand-scoped totals');

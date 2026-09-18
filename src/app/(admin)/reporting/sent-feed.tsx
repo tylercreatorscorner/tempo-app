@@ -1,15 +1,6 @@
 'use client';
 
-/**
- * Sent feed for the Outbox: a merged, newest-first list of everything that
- * went out — client report links (GET /api/client-reports) and manually
- * copied creator posts (GET /api/report-log) — fetched in parallel.
- *
- * res.ok on both sources. If both fail with nothing loaded, that's an error
- * card (never the empty state); if one fails, we render what loaded plus an
- * inline warning naming the missing half. `refreshKey` from the parent bumps
- * a refetch after the Create panel sends something.
- */
+/** Saved client reports, searched and paginated within the caller's scope. */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -21,6 +12,7 @@ import { cn } from '@/lib/utils';
 import { useBrandMeta } from '@/hooks/use-brand-meta';
 import { useDelayedFlag } from '@/hooks/use-delayed-flag';
 import { ModalOverlay } from '@/components/ui/modal-overlay';
+import { SearchInput } from '@/components/ui/search-input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { TableCard, Table, THead, TBody, TR, TH, TD } from '@/components/ui/table';
@@ -88,22 +80,16 @@ function relativeTimeAgo(iso: string | null): string {
   return `${d}d ago`;
 }
 
-function createdAtMs(item: FeedItem): number {
-  const t = new Date(item.createdAt).getTime();
-  return Number.isNaN(t) ? 0 : t;
-}
-
 const HEADERS = ['Report', 'Created', 'Status'] as const;
 
 export function SentFeed({ refreshKey }: { refreshKey: number }) {
-  // Last-good rows per source (null = never loaded), so a failed refetch
-  // degrades to a warning over stale rows instead of wiping the list.
   const [query, setQuery] = useState('');
-  const [showActivity, setShowActivity] = useState(false);
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  useEffect(() => { const timer = setTimeout(() => { setSearch(query.trim()); setPage(1); }, 250); return () => clearTimeout(timer); }, [query]);
   const [reports, setReports] = useState<ClientReportRow[] | null>(null);
-  const [logs, setLogs] = useState<ReportLogRow[] | null>(null);
   const [reportsError, setReportsError] = useState(false);
-  const [logsError, setLogsError] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refetching, setRefetching] = useState(false);
   const [nonce, setNonce] = useState(0);
@@ -119,26 +105,24 @@ export function SentFeed({ refreshKey }: { refreshKey: number }) {
   const showBar = useDelayedFlag(refetching);
 
   const load = useCallback(async (isCancelled: () => boolean) => {
-    const [r1, r2] = await Promise.allSettled([
-      fetch('/api/client-reports').then(async (res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return (await res.json()) as { reports?: ClientReportRow[] };
-      }),
-      fetch('/api/report-log').then(async (res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return (await res.json()) as { entries?: ReportLogRow[] };
-      }),
-    ]);
-    if (isCancelled()) return;
-    if (r1.status === 'fulfilled') { setReports(r1.value.reports ?? []); setReportsError(false); }
-    else setReportsError(true);
-    if (r2.status === 'fulfilled') { setLogs(r2.value.entries ?? []); setLogsError(false); }
-    else setLogsError(true);
-    setLoading(false);
-  }, []);
+    try {
+      const res = await fetch(`/api/client-reports?page=${page}&q=${encodeURIComponent(search)}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json() as { reports?: ClientReportRow[]; total?: number };
+      if (isCancelled()) return;
+      setReports(data.reports ?? []);
+      setTotal(data.total ?? 0);
+      setReportsError(false);
+    } catch {
+      if (!isCancelled()) setReportsError(true);
+    } finally {
+      if (!isCancelled()) setLoading(false);
+    }
+  }, [page, search]);
 
   useEffect(() => {
     let cancelled = false;
+    setLoading(true);
     setRefetching(true);
     load(() => cancelled).finally(() => { if (!cancelled) setRefetching(false); });
     return () => { cancelled = true; };
@@ -200,14 +184,7 @@ export function SentFeed({ refreshKey }: { refreshKey: number }) {
     }
   };
 
-  const neverLoaded = reports === null && logs === null;
-  const bothFailed = reportsError && logsError;
-  const partialError = !bothFailed && (reportsError || logsError);
-
-  const items: FeedItem[] = [
-    ...(reports ?? []).map<FeedItem>(r => ({ kind: 'client', ...r })),
-    ...(logs ?? []).map<FeedItem>(e => ({ kind: 'post', ...e })),
-  ].filter(item => (showActivity || item.kind === 'client') && `${feedBrandLabel(item, brandMeta.label)} ${item.periodLabel}`.toLowerCase().includes(query.trim().toLowerCase())).sort((a, b) => createdAtMs(b) - createdAtMs(a));
+  const items: FeedItem[] = (reports ?? []).map(r => ({ kind: 'client', ...r }));
 
   return (
     <section className="space-y-3">
@@ -219,8 +196,8 @@ export function SentFeed({ refreshKey }: { refreshKey: number }) {
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
-        <input aria-label="Search report library" placeholder="Search brand or period" value={query} onChange={e => setQuery(e.target.value)} className="h-9 w-full rounded-lg border border-border bg-card px-3 text-sm sm:w-72" />
-        <label className="flex items-center gap-2 text-xs text-muted-foreground"><input type="checkbox" checked={showActivity} onChange={e => setShowActivity(e.target.checked)} />Include creator post activity</label>
+        <SearchInput aria-label="Search report library" placeholder="Search brand or period" value={query} onChange={e => setQuery(e.target.value)} />
+
       </div>
       {revisionLink && (
         <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-sm">
@@ -236,27 +213,13 @@ export function SentFeed({ refreshKey }: { refreshKey: number }) {
         </div>
       )}
 
-      {/* One source failed (or a refetch failed): keep what we have, say what's missing. */}
-      {!loading && (partialError || (bothFailed && !neverLoaded)) && (
-        <div className="flex items-start gap-2 rounded-lg bg-[var(--pulse-warn-bg)] px-3 py-2 text-xs text-[var(--pulse-warn)]">
-          <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          <span>
-            {bothFailed
-              ? "Couldn't refresh the outbox. Showing the last loaded state."
-              : reportsError
-                ? "Couldn't load client report links. Showing creator posts only."
-                : "Couldn't load creator post history. Showing client links only."}
-          </span>
-        </div>
-      )}
-
       {loading ? (
         <TableSkeleton rows={6} cols={6} title={false} />
-      ) : bothFailed && neverLoaded ? (
+      ) : reportsError ? (
         <EmptyState
           icon={<AlertCircle className="h-8 w-8 text-[var(--pulse-neg)]" />}
-          title="Couldn't load the outbox"
-          description="The sent list didn't load. This is a fetch error, not an empty outbox."
+          title="Couldn't load reports"
+          description="Please retry this search or page. Saved reports have not changed."
           action={
             <Button variant="outline" size="sm" onClick={() => { setLoading(true); reload(); }}>
               <RotateCw />
@@ -303,6 +266,10 @@ export function SentFeed({ refreshKey }: { refreshKey: number }) {
         </TableCard>
       )}
 
+      {!loading && !reportsError && total > 0 && <nav aria-label="Report pagination" className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3">
+        <span className="text-xs text-muted-foreground" role="status">{(page - 1) * 20 + 1}–{Math.min(page * 20, total)} of {total} reports</span>
+        <div className="flex items-center gap-2"><Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>Previous</Button><span className="text-xs tabular-nums">Page {page}</span><Button variant="outline" size="sm" disabled={page * 20 >= total} onClick={() => setPage(p => p + 1)}>Next</Button></div>
+      </nav>}
       {confirmRevoke && (
         <ConfirmRevokeModal
           report={confirmRevoke}

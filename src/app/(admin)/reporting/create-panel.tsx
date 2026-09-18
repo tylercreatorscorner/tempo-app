@@ -337,7 +337,7 @@ function ClientReportForm({ onSent, lockedBrand }: { onSent: () => void; lockedB
             cover and reads as failure. */}
         {reportKind === 'monthly' ? (
           <>
-            <ChoiceMenu label="Reporting month" value={monthKey} disabled={creating} onChange={setMonthKey} options={months.map(m => ({ value: m.key, label: `${m.label}${m.partial ? ' (so far)' : ''}` }))} />
+            <ChoiceMenu compact label="Reporting month" value={monthKey} disabled={creating} onChange={setMonthKey} options={months.map(m => ({ value: m.key, label: `${m.label}${m.partial ? ' (so far)' : ''}` }))} />
             <p className="mt-1.5 text-[11px] leading-snug text-muted-foreground">
               {month.partial
                 ? `${month.start} to ${month.end}, the month so far. The report says so and states the days elapsed; post targets are not pro-rated.`

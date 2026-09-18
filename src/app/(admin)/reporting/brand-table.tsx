@@ -14,9 +14,10 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { AlertCircle, RotateCw, Send, ExternalLink, Clipboard, Check, Search, ChevronDown } from 'lucide-react';
+import { AlertCircle, RotateCw, Send, ExternalLink, Clipboard, Check, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useDelayedFlag } from '@/hooks/use-delayed-flag';
+import { SearchInput } from '@/components/ui/search-input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { TableCard, Table, THead, TBody, TR, TH, TD } from '@/components/ui/table';
@@ -139,17 +140,14 @@ export function BrandTable({
           <h2 className="text-base font-bold tracking-tight text-foreground">Brands</h2>
           <p className="mt-0.5 text-xs text-muted-foreground">Choose a brand to prepare its next update.</p>
         </div>
-        <label className="relative w-full sm:w-56">
-          <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-          <input aria-label="Search reporting brands" placeholder="Find a brand" value={query} onChange={event => setQuery(event.target.value)} className="h-10 w-full rounded-lg border border-border bg-card pl-9 pr-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30" />
-        </label>
+        <SearchInput aria-label="Search reporting brands" placeholder="Find a brand" value={query} onChange={event => setQuery(event.target.value)} />
       </div>
       {rows && <div className="flex flex-wrap gap-1.5" role="group" aria-label="Reporting readiness">
         {([
           ['all', 'All brands', rows.length],
           ['ready', 'Can prepare', readyCount],
           ['review', 'Check data', rows.length - readyCount],
-        ] as const).map(([value, label, count]) => <button key={value} type="button" aria-pressed={filter === value} onClick={() => setFilter(value)} className={cn('rounded-lg px-3 py-2 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:ring-primary', filter === value ? 'bg-foreground text-background' : 'bg-card text-muted-foreground hover:bg-secondary')}>
+        ] as const).map(([value, label, count]) => <button key={value} type="button" aria-pressed={filter === value} onClick={() => setFilter(value)} className={cn('rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:ring-primary', filter === value ? 'bg-foreground text-background' : 'bg-card text-muted-foreground hover:bg-secondary')}>
           {label}<span className="ml-2 tabular-nums opacity-70">{count}</span>
         </button>)}
       </div>}

@@ -94,7 +94,7 @@ export function AgencyPanel() {
       <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-end">
         <div className="min-w-0 flex-1">
           <Label htmlFor="ag-month">Month</Label>
-          <ChoiceMenu label="Agency reporting month" value={month} disabled={busy} onChange={value => { setMonth(value); setMade(null); }} options={months} />
+          <ChoiceMenu compact label="Agency reporting month" value={month} disabled={busy} onChange={value => { setMonth(value); setMade(null); }} options={months} />
         </div>
         <Button onClick={generate} disabled={busy || !chosen} className="shrink-0">
           {busy ? <><Loader2 className="animate-spin" />Building…</> : <>Generate link</>}
