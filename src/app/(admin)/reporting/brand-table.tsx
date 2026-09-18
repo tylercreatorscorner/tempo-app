@@ -93,7 +93,7 @@ function CoverageMeter({ coverage }: { coverage: ReportingBrandRow['coverage'] }
     : `${daysPresent} of ${daysExpected} days present`;
 
   return (
-    <div className="flex items-center gap-2.5">
+    <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
       <div className="flex items-center gap-[2px]" role="img" aria-label={label} title={label}>
         {all.map((d) => (
           <span
@@ -256,7 +256,7 @@ function BrandRows({ row, onGenerate, onChanged }: {
         <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-muted-foreground md:hidden">Data coverage</span>
         <CoverageMeter coverage={c} />
         {!reportable && <span className="mt-1 block text-[11px] text-[var(--pulse-warn)]">{c.daysPresent === 0 ? 'No data in window' : c.daysBehind !== null && c.daysBehind > MAX_DAYS_BEHIND ? 'Data is out of date' : 'Insufficient coverage'}</span>}
-        {reportable && c.missingDays.length > 0 && <span className="mt-1 block text-[11px] text-[var(--pulse-warn)]">{c.missingDays.length} missing days</span>}
+        {reportable && c.missingDays.length > 0 && <span className="mt-1 block text-[11px] text-[var(--pulse-warn)]">{c.missingDays.length} missing day{c.missingDays.length === 1 ? '' : 's'}</span>}
       </TD>
       <TD className="border-0 text-left md:border-b">
         <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-muted-foreground md:hidden">Latest report</span>

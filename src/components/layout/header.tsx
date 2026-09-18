@@ -103,16 +103,16 @@ export function Header({ onMenuClick, tenantName, userName, userEmail, tenantSwi
   return (
     <header className="sticky top-0 z-30 flex items-center justify-between h-14 px-3 sm:px-5 border-b border-border bg-card">
       {/* Left: mobile menu + breadcrumb */}
-      <div className="flex items-center gap-3">
+      <div className="flex min-w-0 flex-1 items-center gap-2 pr-2 sm:gap-3">
         <button
           onClick={onMenuClick}
-          className="lg:hidden p-2 rounded-lg hover:bg-muted transition-colors"
+          className="lg:hidden shrink-0 p-2 rounded-lg hover:bg-muted transition-colors"
           aria-label="Toggle menu"
         >
           <Menu className="h-5 w-5 text-muted-foreground" />
         </button>
 
-        <div className="lg:hidden">
+        <div className="shrink-0 lg:hidden">
           <TempoLogo size="sm" animated />
         </div>
 
@@ -137,7 +137,7 @@ export function Header({ onMenuClick, tenantName, userName, userEmail, tenantSwi
       </div>
 
       {/* Right: tenant switcher + action icons + avatar */}
-      <div className="flex items-center gap-1">
+      <div className="flex shrink-0 items-center gap-1">
         {tenantSwitcher && <div className="hidden sm:block mr-2">{tenantSwitcher}</div>}
 
 
