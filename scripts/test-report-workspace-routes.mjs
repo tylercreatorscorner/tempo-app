@@ -11,6 +11,7 @@ const tables={brands_v2:[brand('own','a'),brand('foreign','b')], client_reports:
  {id:'their-report',tenant_id:'b',brand_slug:'own',token:'secret-token',notes:'secret',plan:'secret',revoked_at:null},
 ],report_log:[{id:'their-log',tenant_id:'b',brand_slug:'own'}]};
 function from(table){let filters=[],limit=null,offset=0,patch=null,insert=null;const q={select:()=>q,order:()=>q,abortSignal:()=>q,
+ gte:(k,v)=>{filters.push(r=>r[k]>=v);return q;},lte:(k,v)=>{filters.push(r=>r[k]<=v);return q;},
  eq:(k,v)=>{filters.push(r=>r[k]===v);return q;},in:(k,v)=>{filters.push(r=>v.includes(r[k]));return q;},limit:n=>{limit=n;return q;},
  range:(start,end)=>{offset=start;limit=end-start+1;return q;},
  or:expression=>{const terms=expression.split(',').map(term=>{const [column,,...pattern]=term.split('.');return [column,pattern.join('.').replace(/^%|%$/g,'').toLowerCase()];});filters.push(row=>terms.some(([column,value])=>String(row[column]??'').toLowerCase().includes(value)));return q;},
@@ -155,3 +156,13 @@ scope={...own,brandScope:{kind:'scoped',brandIds:[],brandSlugs:[]}};
 paged=await (await outbox.GET(new NextRequest('https://fixture.invalid/api/client-reports?page=1'))).json();assert.equal(paged.total,0);assert.equal(paged.reports.length,0);
 scope=savedScope;
 console.log('PASS library pagination: search beyond 100 rows, full and final pages, invalid pages, tenant/brand-scoped totals');
+
+// Units are scoped before pagination, include every product/day, and preserve missing data.
+tables.video_performance=Array.from({length:1001},(_,id)=>({id,product_id:String(id),gmv:1,period_type:'daily',tenant_id:'a',brand:'own',video_id:'v',items_sold:2,report_date:'2026-09-10'}));
+tables.video_performance.push({period_type:'daily',tenant_id:'b',brand:'own',video_id:'v',items_sold:9000,report_date:'2026-09-10'},{period_type:'daily',tenant_id:'a',brand:'other',video_id:'v',items_sold:9000,report_date:'2026-09-10'},{period_type:'daily',tenant_id:'a',brand:'own',video_id:'v',items_sold:9000,report_date:'2026-08-10'});
+const unitReader=load('src/lib/data/client-reports.ts').readReportVideoUnits;
+assert.equal((await unitReader(admin,'a',['own'],['v'],'2026-09-01','2026-09-30')).v,2002);
+tables.video_performance[0].items_sold=null;
+assert.equal((await unitReader(admin,'a',['own'],['v'],'2026-09-01','2026-09-30')).v,null);
+assert.equal((await unitReader(admin,'a',['own'],['missing'],'2026-09-01','2026-09-30')).missing,undefined);
+console.log('PASS top-content units: pagination, tenant/brand/date/video scope, missing values');

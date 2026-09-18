@@ -32,6 +32,7 @@ export interface ClientReportSnapshot {
   report: BrandClientReportData;           // Date fields are ISO strings at rest — revive on read
   views: number | null;                    // windowed views (null = no engagement data ingested)
   priorViews: number | null;
+  videoUnits?: Record<string, number | null>; // Absent on older frozen reports.
   videoViews: Record<string, number>;      // video_id → windowed views, for the watch cards
   /**
    * Per-creator movement between this window and the one before it. Present
@@ -140,6 +141,28 @@ export function reviveReportDates(r: BrandClientReportData): BrandClientReportDa
  * top-video ids from the first call. Throws on any failure — a client-facing
  * report must never freeze fabricated zeros.
  */
+export async function readReportVideoUnits(db: SupabaseClient, tenantId: string, brandSlugs: string[], videoIds: string[], start: string, end: string): Promise<Record<string,number|null>> {
+  if (!brandSlugs.length || !videoIds.length) return {};
+  const totals: Record<string,number|null> = {};
+  const seen = new Set<string>();
+  for (let offset=0;;offset+=1000) {
+    const {data,error}=await db.from('video_performance').select('id,video_id,product_id,report_date,items_sold,gmv')
+      .eq('tenant_id',tenantId).eq('period_type','daily').in('brand',brandSlugs).in('video_id',videoIds)
+      .gte('report_date',start).lte('report_date',end).order('gmv',{ascending:false}).order('id').range(offset,offset+999);
+    if (error) throw new Error('Unable to capture report video units');
+    for (const row of data ?? []) {
+      const id=String(row.video_id);
+      const key=JSON.stringify([id,row.product_id,row.report_date]);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      if (row.items_sold == null || totals[id] === null) totals[id]=null;
+      else totals[id]=(totals[id] ?? 0)+Number(row.items_sold);
+    }
+    if (!data || data.length<1000) break;
+  }
+  return totals;
+}
+
 export async function buildClientReportSnapshot(
   brandSlug: string,
   period: ClientReportPeriod,
@@ -320,7 +343,11 @@ export async function buildClientReportSnapshot(
   }
 
   const life = extras.lifetime ?? {};
+  const videoUnits = await readReportVideoUnits(supabase,context.tenantId,
+    dataSlugs,
+    videoIds,fmtDate(report.startDate),fmtDate(report.endDate));
   const snapshot: ClientReportSnapshot = {
+    videoUnits,
     v: 1,
     generatedAt: new Date().toISOString(),
     report,

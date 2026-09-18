@@ -1228,8 +1228,9 @@ function MonthToDate({
 function TopPosts({
   rows,
 }: {
-  rows: { title: string; creator: string; gmv: number; orders: number; videoUrl: string | null; viewsLabel: string | null; thumbnailUrl?: string }[];
+  rows: { title: string; creator: string; gmv: number; orders: number; videoUrl: string | null; viewsLabel: string | null; thumbnailUrl?: string; units?: number | null }[];
 }) {
+  const showUnits = rows.some(v => v.units != null);
   return (
     <>
       <div className="overflow-x-auto rounded-[14px] border border-[#dedee5] bg-white">
@@ -1240,6 +1241,7 @@ function TopPosts({
               <th className={`${TH_L} whitespace-nowrap`}>Creator</th>
               <th className={`${TH_R} whitespace-nowrap`}>Views</th>
               <th className={`${TH_R} whitespace-nowrap`}>Orders</th>
+              {showUnits && <th className={`${TH_R} whitespace-nowrap`}>Units sold</th>}
               <th className={`${TH_R} whitespace-nowrap`}>GMV</th>
             </tr>
           </thead>
@@ -1290,6 +1292,7 @@ function TopPosts({
                   <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-[#3f3f46]">
                     {num(v.orders)}
                   </td>
+                  {showUnits && <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-[#3f3f46]">{v.units == null ? "—" : num(v.units)}</td>}
                   <td className="whitespace-nowrap px-3 py-2 text-right font-extrabold tabular-nums text-[#18181b]">
                     {money(v.gmv)}
                   </td>
@@ -2004,7 +2007,7 @@ export function ReportView({
   const watchVideos = (cc.topVideos.length > 0 ? cc.topVideos : r.topVideos).slice(0, 5).map((v) => {
     const id = extractTikTokVideoId(v.videoUrl);
     const views = id !== null ? s.videoViews[id] : undefined;
-    return { ...v, thumbnailUrl: id ? thumbnails[id] : undefined, videoId: id, viewsLabel: views !== undefined ? compactCount(views) : null };
+    return { ...v, units: id ? s.videoUnits?.[id] : undefined, thumbnailUrl: id ? thumbnails[id] : undefined, videoId: id, viewsLabel: views !== undefined ? compactCount(views) : null };
   });
 
   const lifetimeSince = s.lifetime.firstDate
