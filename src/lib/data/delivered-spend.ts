@@ -68,6 +68,7 @@ export interface DeliveredSpendCreator {
   retainer: number;
   quota: number | null;
   postsPublished: number;
+  agreement?: {reportPeriodComparable?: boolean} | null;
 }
 
 /**
@@ -147,6 +148,7 @@ export interface DeliveredSpend {
  * agreed target. That is NOT a zero, and must render as absence.
  */
 export function creatorEarnedShare(c: DeliveredSpendCreator): number | null {
+  if (c.agreement && !c.agreement.reportPeriodComparable) return null;
   if (c.isAffiliate || c.departed || c.retainer <= 0 || (c.quota ?? 0) <= 0) return null;
   // Capped: overdelivery does not pay more than the retainer.
   return c.retainer * Math.min(c.postsPublished / (c.quota as number), 1);
@@ -157,6 +159,9 @@ export function estimateDeliveredSpend(
   window: SpendWindow,
 ): DeliveredSpend | null {
   if (window.kind === 'other') return null;
+  // Never present a partial portfolio sum as complete when a recorded deal
+  // needs period/credit/payment review beyond the monthly posting estimate.
+  if (creators.some(c => c.agreement && !c.agreement.reportPeriodComparable)) return null;
 
   // A real retainer AND a real target. Either missing means there is nothing
   // to pro-rate, not a shortfall.
@@ -173,7 +178,7 @@ export function estimateDeliveredSpend(
   for (const c of counted) {
     const quota = c.quota as number;
     budget += c.retainer;
-    if (quota === DEFAULT_POST_QUOTA) defaultQuotaBudget += c.retainer;
+    if (!c.agreement && quota === DEFAULT_POST_QUOTA) defaultQuotaBudget += c.retainer;
     // Capped: overdelivery does not pay more than the retainer. The quota is
     // the FULL monthly count even month to date, never scaled to days run.
     // ⚠️ Via the shared helper, so the per-creator column in the report and

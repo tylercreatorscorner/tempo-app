@@ -51,7 +51,9 @@ export async function POST(req: NextRequest) {
     );
   try {
     const body = await req.json();
-    const result = await writeAgreement(body.creatorId, body.brandId, body);
+    if (body.preview !== true && process.env.CREATOR_AGREEMENTS_WRITES_ENABLED !== "true")
+      return NextResponse.json({error:"Agreement saving is awaiting release verification. Your current terms have not changed."},{status:409,headers});
+    const result = await writeAgreement(body.creatorId, body.brandId, body, body.preview === true);
     return NextResponse.json(result, { headers });
   } catch (error) {
     return NextResponse.json(

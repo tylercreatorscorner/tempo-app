@@ -1,6 +1,6 @@
 # Agreement ledger implementation status
 
-The approved compact flow is unchanged. This change adds the domain and persistence foundation; it is **not enabled in production** and does not migrate legacy terms or regenerate reports.
+The approved compact flow is unchanged. The creator-profile integration and reader cutover are implemented. The interface is **not enabled in production**. Saving is separately gated by `CREATOR_AGREEMENTS_WRITES_ENABLED`; existing creator terms are not backfilled.
 
 ## Implemented
 
@@ -11,7 +11,7 @@ The approved compact flow is unchanged. This change adds the domain and persiste
 - Atomic compare-and-swap save, request replay protection and overlapping-agreement rejection; append-only audit events record actor and command.
 - RLS and revoked public/client grants; RPC executable only by server role. SQL also refuses removal/replacement of stored period revisions.
 - Bounded renewal worker with cursor pagination and failure IDs. It uses a system actor and catches up missing calendar months without duplicate periods.
-- Report snapshot helper returns a detached copy of a specific period revision. Existing report generation and sent snapshots are not changed.
+- Report snapshot helper returns a detached copy of a specific period revision. Report generation captures ledger, period and revision references. Report corrections and copy edits insert a new report with a new token; existing sent snapshots remain unchanged.
 
 ## Release gate (must complete before enabling)
 
@@ -36,3 +36,16 @@ Domain tests cover the October 5 amendment, November reversion, midmonth split, 
 
 ### Opening-period rule approved
 Managers choose the first period end date. July 24 through August 31 is one agreement period with one fee/post commitment; the next period starts September 1. Subsequent periods end at calendar month-end. First-period-only corrections run through the chosen end date and do not leak into renewals. Implemented in the model and approved form, with regression coverage. The remaining release gates above still apply.
+
+## Integration checkpoint
+
+- Creator Agreements tab uses the approved form, scoped API, period selector, recorded revisions and explicit manual-renewal review.
+- Roster readers resolve verified terms for the selected date. The protected scheduled route advances periods and synchronizes current roster terms at future effective dates, expiry and renewal boundaries.
+- SQL guards prevent legacy commercial edits bypassing recorded agreements. The trigger uses a narrowly scoped definer to read server-only ledgers on the caller's already-authorized row; it has no public execute grant.
+- Report rows carry agreement dates and revision metadata. Non-comparable periods/payment rules suppress delivery-based spend estimates rather than inventing a payout. Credit allocation and final invoice approval remain separate.
+- Both migrations applied to the hosted database; read checks confirmed zero agreement/event records, denied browser ledger access, and a working report query. No creator agreements or sent reports were changed.
+- Hosted security advisors flagged only informational missing-policy entries on the new server-only, RLS-enabled tables; unrelated database warnings remain outside this batch.
+- Local typecheck, focused lint, lifecycle/SQL/report/profile tests pass. Full regression chain passed through creator auth; remaining tsx/manager/agreement tests passed separately with esbuild subprocess access.
+- Pending: hosted preview build and signed-in desktop/mobile verification, API authorization regression coverage, full period/payment reader audit, production write enablement. Do not enable writes until those checks pass.
+
+The earlier numbered release gate is a checklist, not a claim that every item remains unimplemented. Hosted migrations were verified in PGlite and with read-only hosted checks; a disposable hosted branch was not used.

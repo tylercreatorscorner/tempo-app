@@ -1490,12 +1490,12 @@ export function BrandClientReportPDF({
                 {/* Em dash, not $0: there is no agreed amount for affiliate-only,
                     and a zero would read as a negotiated figure. */}
                 <Text style={[styles.gCellMuted, { flex: 1.1, textAlign: 'right' }]}>
-                  {!c.departed && !c.isAffiliate && c.retainer > 0 ? `${fmtCurrency(c.retainer)}/mo` : '\u2014'}
+                  {!c.departed && !c.isAffiliate && c.retainer > 0 ? `${fmtCurrency(c.retainer)}/${c.agreement ? "period" : "mo"}` : '\u2014'}
                 </Text>
                 {/* The monthly target belongs beside a monthly count only.
                     Over a week "0 / 30" is a unit mismatch, not a shortfall. */}
                 <Text style={[styles.gCellMuted, { flex: 0.9, textAlign: 'right' }]}>
-                  {wholeMonth && c.quota != null
+                  {wholeMonth && c.quota != null && (!c.agreement || c.agreement.reportPeriodComparable)
                     ? `${fmtNumber(c.postsPublished)} / ${fmtNumber(c.quota)}`
                     : fmtNumber(c.postsPublished)}
                 </Text>

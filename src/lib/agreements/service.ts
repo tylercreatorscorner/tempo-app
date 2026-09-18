@@ -94,6 +94,7 @@ export async function writeAgreement(
   creatorId: string,
   brandId: string,
   input: AgreementWrite,
+  preview = false,
 ) {
   const ctx = await agreementContext(creatorId, brandId, true);
   if (
@@ -139,11 +140,13 @@ export async function writeAgreement(
   }
   if ((row?.version ?? 0) !== input.version)
     throw Error("Agreement changed. Reload before saving.");
-  const state = applyAgreementCommand(
+  let state = applyAgreementCommand(
     (row?.state as AgreementLedger) ?? null,
     input.command,
     { id: ctx.scope.userId, now: new Date().toISOString() },
   );
+  if (state.kind === 'monthly') state = applyAgreementCommand(state,{action:'advance',through:new Date().toLocaleDateString('en-CA',{timeZone:'America/Chicago'}),reason:'Automatic renewal through current period'},{id:'system:renewal',now:new Date().toISOString()});
+  if (preview) return {id:input.id,version:input.version,state};
   const { data: version, error: saveError } = await ctx.admin.rpc(
     "save_creator_agreement_ledger",
     {

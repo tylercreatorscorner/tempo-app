@@ -1,3 +1,4 @@
+import { applyRosterAgreementTerms } from '@/lib/agreements/roster-terms';
 import type { WorkspaceScope } from '@/lib/auth/workspace-scope';
 import { createAdminClient } from '@/lib/supabase/server';
 import { fetchAllRows } from './fetch-all-rows';
@@ -31,6 +32,7 @@ export async function getRosterSummaryRetainer(
     return query;
   }, 'roster-summary-retainer');
 
+  await applyRosterAgreementTerms(rows,scope.tenantId,new Date().toLocaleDateString('en-CA',{timeZone:'America/Chicago'}));
   const commitments = new Map<string, number>();
   for (const row of rows) {
     // Linked duplicates are one agreement per brand. Unlinked rows retain

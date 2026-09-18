@@ -10,6 +10,7 @@
  * instead of a NextResponse (this module must stay importable outside a
  * request/response context, so no next/server here).
  */
+import { applyRosterAgreementTerms } from '@/lib/agreements/roster-terms';
 import { createAdminClient } from '@/lib/supabase/server';
 import { getRosterSummaryRetainer } from './roster-summary-retainer';
 import { getBrandRegistry, uuidToSlug, resolveUuids, expandSlugs } from '@/lib/data/brand-registry';
@@ -448,6 +449,8 @@ export async function runRosterQuery(
     allRows.push(...data);
     if (data.length < 1000) break;
   }
+
+  await applyRosterAgreementTerms(allRows,tenantId,pEndDate ?? new Date().toLocaleDateString('en-CA',{timeZone:'America/Chicago'}));
 
   // Resolve product tag keys → display names for the row chips. One small query
   // for the whole page (the products catalog is tiny).

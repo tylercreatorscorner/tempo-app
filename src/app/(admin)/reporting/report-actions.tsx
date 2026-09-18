@@ -1,30 +1,9 @@
 'use client';
 
-/**
- * What you can do to a report after it exists.
- *
- * 🚨 THE ANSWER USED TO BE NOTHING. /api/client-reports/[id]/refresh and
- * /revoke have existed for months and no UI ever called either, so correcting
- * a live client report meant running fetch() by hand in a browser console.
- * Editing its copy was not possible at all until the PATCH route landed
- * beside this.
- *
- * The three actions differ in blast radius, and the component treats them that
- * way rather than lining up three identical buttons:
- *
- *   Edit     changes the words on a page a client may already be reading.
- *   Refresh  changes the NUMBERS on that same page.
- *   Revoke   takes the page away.
- *
- * ⚠️ REFRESH IS THE DANGEROUS ONE and it does not look it. It rebuilds the
- * snapshot but PRESERVES the notes, and notes quote figures, so a refresh can
- * leave a live page whose first sentence contradicts its own headline. That
- * happened on the Forchics August monthly. Hence the warning after a refresh
- * succeeds, pointing straight at Edit.
- */
+/** Sent links are immutable. Notes and data corrections create separate revisions. */
 
 import { useState, useTransition } from 'react';
-import { Loader2, Pencil, RefreshCw, Ban, X, AlertTriangle } from 'lucide-react';
+import { Loader2, Pencil, RefreshCw, Ban, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/input';
@@ -65,7 +44,6 @@ export function ReportActions({
   }
   const [busy, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [refreshedAt, setRefreshedAt] = useState<string | null>(null);
 
   async function call(path: string, init?: RequestInit) {
     const res = await fetch(`/api/client-reports/${target.id}${path}`, init);
@@ -89,11 +67,11 @@ export function ReportActions({
       <button
         type="button"
         onClick={openEditor}
-        title="Edit the notes and forward plan on this report"
+        title="Create a new revision with updated notes and forward plan"
         className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
       >
         <Pencil className="h-3.5 w-3.5" />
-        Edit
+        Revise notes
       </button>
       <button
         type="button"
@@ -101,16 +79,15 @@ export function ReportActions({
         onClick={() =>
           run(async () => {
             await call('/refresh', { method: 'POST' });
-            setRefreshedAt(new Date().toISOString());
-            openEditor();
+
             onDone();
           })
         }
-        title="Rebuild this report's figures from current data, keeping the same link"
+        title="Create a new report revision; preserve this link's figures"
         className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
       >
         {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-        Refresh
+        Create revision
       </button>
       <button
         type="button"
@@ -134,7 +111,7 @@ export function ReportActions({
             <div className="flex items-center justify-between border-b border-border px-6 py-4">
               <div className="min-w-0">
                 <h2 className="truncate text-[13.5px] font-bold tracking-tight text-foreground">
-                  {open === 'revoke' ? 'Revoke this link' : 'Edit report copy'}
+                  {open === 'revoke' ? 'Revoke this link' : 'Revise report copy'}
                 </h2>
                 <p className="truncate text-[12px] text-muted-foreground">
                   {target.brandName}
@@ -169,17 +146,7 @@ export function ReportActions({
                 </>
               ) : (
                 <>
-                  {/* ⚠️ Fired after a refresh, because refresh keeps the notes
-                      and the notes quote figures the refresh may have moved. */}
-                  {refreshedAt && (
-                    <p className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[12.5px] leading-[1.6] text-amber-600 dark:text-amber-400">
-                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                      <span>
-                        Figures rebuilt. These notes were written against the old ones, so check any
-                        number below still matches the report.
-                      </span>
-                    </p>
-                  )}
+                  <p className="text-xs text-muted-foreground">Saving creates a new report link. The previously shared report stays unchanged.</p>
                   <div>
                     <Label htmlFor="ra-notes">Notes for this period</Label>
                     <Textarea
@@ -238,7 +205,6 @@ export function ReportActions({
                         body: JSON.stringify({ notes, plan }),
                       });
                       setOpen(null);
-                      setRefreshedAt(null);
                       onDone();
                     })
                   }

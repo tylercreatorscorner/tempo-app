@@ -83,7 +83,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   // brand-scoped manager must not be able to edit another brand's report by id.
   const { data: row, error: fetchErr } = await supabase
     .from('client_reports')
-    .select('id, brand_slug, revoked_at')
+    .select('id,brand_slug,brand_name,period_start,period_end,period_label,report_type,snapshot,notes,plan,revoked_at')
     .eq('id', id).eq('tenant_id', scope.tenantId)
     .maybeSingle();
   if (fetchErr) return NextResponse.json({ error: fetchErr.message }, { status: 500 });
@@ -101,8 +101,13 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     return NextResponse.json({ error: 'That link is revoked. Generate a new report instead.' }, { status: 409 });
   }
 
-  const { error } = await supabase.from('client_reports').update(patch).eq('id', id).eq('tenant_id', scope.tenantId);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
-  return NextResponse.json({ ok: true, id, updated: Object.keys(patch) });
+  const {data:revision,error} = await supabase.from('client_reports').insert({
+    tenant_id:scope.tenantId,brand_slug:row.brand_slug,brand_name:row.brand_name,
+    period_start:row.period_start,period_end:row.period_end,period_label:row.period_label,
+    report_type:row.report_type ?? 'performance',created_by:scope.email,
+    notes:row.notes,plan:row.plan,...patch,
+    snapshot:{...row.snapshot,revision:{previousReportId:row.id,createdAt:new Date().toISOString(),kind:'copy'}},
+  }).select('id,token').single();
+  if(error || !revision) return NextResponse.json({error:'Report revision could not be created.'},{status:500});
+  return NextResponse.json({ok:true,id:revision.id,token:revision.token,previousReportId:row.id,updated:Object.keys(patch)});
 }

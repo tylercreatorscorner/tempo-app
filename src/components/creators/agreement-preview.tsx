@@ -7,7 +7,7 @@ import { agreementMonthEnd, validAgreementDate } from "@/lib/agreements/model";
 import styles from "./agreement-preview.module.css";
 
 type Brand = { value: string; label: string };
-type Terms = {
+export type AgreementFormTerms = {
   brand: string;
   kind: string;
   amount: string;
@@ -19,13 +19,15 @@ type Terms = {
   proration: string;
   credits: string;
 };
-type Revision = {
-  terms: Terms;
+export type AgreementFormRevision = {
+  terms: AgreementFormTerms;
   action: string;
   effective: string;
   scope: string;
   reason: string;
 };
+type Terms = AgreementFormTerms;
+type Revision = AgreementFormRevision;
 const money = (value: string) =>
   Number(value).toLocaleString("en-US", {
     style: "currency",
@@ -43,13 +45,24 @@ const kinds = [
   { value: "package", label: "Deliverable package" },
 ];
 
-/** Interaction prototype only. Never calls a mutation endpoint or persists financial terms. */
+/** Shared agreement editor; standalone mode is a non-persistent design preview. */
 export function AgreementPreview({
   brands,
   today,
+  integration,
 }: {
   brands: Brand[];
   today: string;
+  integration?: {
+    current?: Revision;
+    renewalTerms?: Terms;
+    readOnly?: boolean;
+    ended?: boolean;
+    periodStart?: string;
+    periodEnd?: string;
+    onReview: (revision: Revision) => Promise<void>;
+    onSave: (revision: Revision) => Promise<void>;
+  };
 }) {
   const id = useId();
   const initial: Terms = {
@@ -65,8 +78,8 @@ export function AgreementPreview({
     credits: "review",
   };
   const [terms, setTerms] = useState<Terms>(initial);
-  const [revisions, setRevisions] = useState<Revision[]>([]);
-  const [renewalTerms, setRenewalTerms] = useState<Terms | null>(null);
+  const [revisions, setRevisions] = useState<Revision[]>(integration?.current ? [integration.current] : []);
+  const [renewalTerms, setRenewalTerms] = useState<Terms | null>(integration?.renewalTerms ?? null);
   const [action, setAction] = useState("new");
   const [stage, setStage] = useState<"idle" | "edit" | "review">("idle");
   const [timing, setTiming] = useState("month");
@@ -74,6 +87,8 @@ export function AgreementPreview({
   const [scope, setScope] = useState("future");
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const proposed = (): Revision => ({terms:{...terms},action,effective,scope:effectiveScope,reason});
   const latest = revisions.at(-1);
   const active = latest && latest.action !== "end";
   const effective =
@@ -82,8 +97,8 @@ export function AgreementPreview({
       : action === "end" || timing === "date" || terms.kind !== "monthly"
         ? date
         : timing === "next"
-          ? nextMonth(today)
-          : monthStart(today);
+          ? (integration?.periodEnd ? new Date(new Date(integration.periodEnd + "T00:00:00Z").getTime()+86400000).toISOString().slice(0,10) : nextMonth(today))
+          : (integration?.periodStart ?? monthStart(today));
   const monthly = terms.kind === "monthly";
   const effectiveScope = !monthly || action === "end" ? "period" : scope;
   function change(key: keyof Terms, value: string) {
@@ -100,7 +115,7 @@ export function AgreementPreview({
     setDate(today);
     setStage("edit");
   }
-  function review() {
+  async function review() {
     if (!terms.brand || !effective) {
       setError("Choose a brand and effective date.");
       return;
@@ -145,25 +160,31 @@ export function AgreementPreview({
       return;
     }
     setError("");
+    if (integration) {
+      setBusy(true);
+      try { await integration.onReview(proposed()); }
+      catch (error) { setError(error instanceof Error ? error.message : 'Unable to review agreement.'); return; }
+      finally { setBusy(false); }
+    }
     setStage("review");
   }
   const brandName =
     brands.find((brand) => brand.value === terms.brand)?.label ?? "Brand";
   return (
-    <section className={styles.root} aria-label="Agreement flow prototype">
+    <section className={styles.root} aria-label={integration ? "Creator agreement editor" : "Agreement flow prototype"}>
       <div className={styles.heading}>
         <div>
-          <span className={styles.kicker}>Interactive preview</span>
+          <span className={styles.kicker}>{integration ? "Creator agreement" : "Interactive preview"}</span>
           <h2>A clear agreement. Every period.</h2>
           <p>
-            Try the new flow. Changes stay in this tab and disappear on refresh.
+{integration ? "Terms by agreement period, with every revision preserved." : "Try the new flow. Changes stay in this tab and disappear on refresh."}
           </p>
         </div>
         {stage === "idle" && !active && (
           <button
             className={styles.primary}
             onClick={() => open("new")}
-            disabled={!brands.length}
+            disabled={!brands.length || integration?.readOnly || busy}
           >
             <Plus size={16} /> New agreement
           </button>
@@ -185,8 +206,8 @@ export function AgreementPreview({
         <div className={styles.result} role="status">
           <div>
             <span className={styles.kicker}>
-              Local preview ·{" "}
-              {latest.action === "end" ? "End scheduled" : "Draft agreement"}
+              {integration ? "Saved agreement · " : "Local preview · "}
+              {latest.action === "end" ? "End scheduled" : integration ? "Terms" : "Draft agreement"}
             </span>
             <h3>
               {
@@ -203,13 +224,13 @@ export function AgreementPreview({
             </strong>
             <p>
               {latest.action === "end" ? "Ends" : "Effective"}{" "}
-              {latest.effective} · No live changes saved
+              {latest.effective}{!integration && " · No live changes saved"}
             </p>
           </div>
-          {active && (
+          {(active || integration?.current) && !integration?.readOnly && (
             <div className={styles.actions}>
               <button onClick={() => open("change")}>Change terms</button>
-              <button onClick={() => open("end")}>End agreement</button>
+              {!integration?.ended && <button onClick={() => open("end")}>End agreement</button>}
             </div>
           )}
         </div>
@@ -240,7 +261,7 @@ export function AgreementPreview({
             <form
               onSubmit={(event) => {
                 event.preventDefault();
-                review();
+                void review();
               }}
             >
               <div className={styles.fields}>
@@ -399,9 +420,9 @@ export function AgreementPreview({
                       label="Effective timing"
                       value={timing}
                       options={[
-                        { value: "month", label: "Start of this month" },
+                        { value: "month", label: integration ? "Start of selected period" : "Start of this month" },
                         { value: "date", label: "A specific date" },
-                        { value: "next", label: "Start of next month" },
+                        { value: "next", label: integration ? "Start of next period" : "Start of next month" },
                       ]}
                       onChange={setTiming}
                     />
@@ -460,7 +481,7 @@ export function AgreementPreview({
               )}
               <footer className={styles.footer}>
                 <span>Preview only · no payment will be approved</span>
-                <button className={styles.primary} type="submit">
+                <button className={styles.primary} type="submit" disabled={busy}>
                   Review impact <ArrowRight size={15} />
                 </button>
               </footer>
@@ -565,11 +586,19 @@ export function AgreementPreview({
                   )}
                 </dl>
               </div>
+              {error && <p role="alert" className={styles.error}>{error}</p>}
               <footer className={styles.footer}>
                 <button onClick={() => setStage("edit")}>Back to terms</button>
                 <button
                   className={styles.primary}
-                  onClick={() => {
+                  disabled={busy || integration?.readOnly}
+                  onClick={async () => {
+                    if (integration) {
+                      setBusy(true); setError('');
+                      try { await integration.onSave(proposed()); }
+                      catch (error) { setError(error instanceof Error ? error.message : 'Unable to save agreement.'); return; }
+                      finally { setBusy(false); }
+                    }
                     if (
                       action === "new" ||
                       (action === "change" && effectiveScope === "future")
@@ -588,14 +617,14 @@ export function AgreementPreview({
                     setStage("idle");
                   }}
                 >
-                  <Check size={16} /> Apply to preview
+                  <Check size={16} /> {busy ? "Saving..." : integration ? "Save agreement" : "Apply to preview"}
                 </button>
               </footer>
             </>
           )}
         </div>
       )}
-      {revisions.length > 0 && (
+      {!integration && revisions.length > 0 && (
         <div className={styles.history}>
           <h3>
             <History size={16} /> Preview activity

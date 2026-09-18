@@ -37,6 +37,7 @@ function from(table) {
 }
 const { getRosterSummaryRetainer } = load('src/lib/data/roster-summary-retainer.ts', {
   '@/lib/supabase/server': { createAdminClient: async () => ({ from }) },
+  '@/lib/agreements/roster-terms': { applyRosterAgreementTerms: async rows => rows },
   './fetch-all-rows': load('src/lib/data/fetch-all-rows.ts', {}),
 });
 const owner = { tenantId: 'tenant-a', canViewCreatorCost: true, brandScope: { kind: 'all' } };

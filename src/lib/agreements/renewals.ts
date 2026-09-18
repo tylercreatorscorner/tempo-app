@@ -10,7 +10,8 @@ export async function renewAgreementBatch(afterId?: string) {
   });
   let query = admin
     .from("creator_agreement_ledgers")
-    .select("id,tenant_id,creator_id,brand_id,version,state")
+    .select("id,tenant_id,creator_id,brand_id,version,state,renew_after,starts_on,ends_on")
+    .lte("renew_after",through)
     .order("id")
     .limit(100);
   if (afterId) query = query.gt("id", afterId);
@@ -20,18 +21,17 @@ export async function renewAgreementBatch(afterId?: string) {
   const failed: string[] = [];
   for (const row of rows ?? []) {
     const current = row.state as AgreementLedger;
-    if (current.kind !== "monthly") continue;
+
     const command = {
       action: "advance" as const,
       through,
-      reason: "Automatic calendar-month renewal",
+      reason: "Scheduled agreement activation or renewal",
     };
     try {
-      const state = applyAgreementCommand(current, command, {
+      const state = current.kind !== "monthly" ? current : applyAgreementCommand(current, command, {
         id: "system:renewal",
         now: new Date().toISOString(),
       });
-      if (state.periods.length === current.periods.length) continue;
       const { error: saveError } = await admin.rpc(
         "save_creator_agreement_ledger",
         {

@@ -341,6 +341,8 @@ export interface BrandClientReportData {
     /** EVERY signed creator, including those at zero. `quota` is null for
      *  affiliate-only and MUST render as absence, never 0. */
     creators: {
+      creatorId?: string | null;
+      agreement?: {reportPeriodComparable?:boolean;ledgerId:string;ledgerVersion:number;periodStart?:string;periodEnd?:string;revision?:number;retainer:number;quota:number|null;status:string;snapshot?:unknown} | null;
       name: string;
       /** Raw real_name. NULL for 147 active creators (9%), so the UI falls
        *  back to the handle rather than rendering an empty identity cell. */

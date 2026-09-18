@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 
 import { Suspense } from 'react';
+import { AgreementWorkspace } from '@/components/creators/agreement-workspace';
+import { can } from '@/lib/auth/permissions';
 import { AgreementPreview } from '@/components/creators/agreement-preview';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
@@ -137,8 +139,9 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
   </div>;
 
   const agreements = <div className={styles.stack}>
+    {process.env.CREATOR_AGREEMENTS_ENABLED === 'true' && canViewCost && can(scope,'roster','read') && <AgreementWorkspace creatorId={creatorId} brands={(selectedBrand ? brands.filter(brand=>brand===selectedBrand) : brands).flatMap(brand=>{const id=slugToUuid(reg,brand);return id?[{value:id,label:brandLabel(reg,brand)}]:[];})} today={new Date().toLocaleDateString('en-CA',{timeZone:'America/Chicago'})} canWrite={can(scope,'roster','write') && !scope.impersonating} />}
     {sp.agreementsPreview === '1' && canViewCost && ['owner', 'admin'].includes(scope.role) && <AgreementPreview key={selectedBrand ?? 'all'} brands={(selectedBrand ? brands.filter(brand => brand === selectedBrand) : brands).map(brand => ({value:brand,label:brandLabel(reg,brand)}))} today={new Date().toLocaleDateString('en-CA', {timeZone:'America/Chicago'})} />}
-    <div className={styles.sectionHead}><div><h2>Agreements & terms</h2><p>Current commitments and the changes Tempo has recorded.</p></div><span className={styles.eyebrow}>{label}</span></div>
+    {process.env.CREATOR_AGREEMENTS_ENABLED !== 'true' && <><div className={styles.sectionHead}><div><h2>Agreements & terms</h2><p>Current commitments and the changes Tempo has recorded.</p></div><span className={styles.eyebrow}>{label}</span></div>
     <div className={styles.agreementGrid}>{visibleContracts.map(contract => <article key={contract.managedId} className={styles.agreement}>
       <h3><BrandIdentity brand={contract.brand} label={brandLabel(reg,contract.brand)} /></h3>
       {canViewCost && <strong>{formatCurrency(contract.retainer)}<span className="text-xs text-muted-foreground font-normal"> / month</span></strong>}
@@ -146,9 +149,9 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
       {contract.notes && <p className="mt-6 text-xs leading-relaxed text-muted-foreground whitespace-pre-wrap">{contract.notes}</p>}
     </article>)}</div>
     {!visibleContracts.length && <div className={styles.empty}>No agreement terms are recorded for this brand.</div>}
-    <details className={styles.notice}><summary className="cursor-pointer font-medium">Agreement coverage & limitations</summary><p>These cards show current roster terms. Historical fixed-post packages, rollover rules, commission terms and signed agreement dates are not yet stored as a complete agreement ledger. Recorded changes below preserve the available history; current fees are never projected backward.</p></details>
+    <details className={styles.notice}><summary className="cursor-pointer font-medium">Agreement coverage & limitations</summary><p>These cards show current roster terms. Historical fixed-post packages, rollover rules, commission terms and signed agreement dates are not yet stored as a complete agreement ledger. Recorded changes below preserve the available history; current fees are never projected backward.</p></details></>}
     <Suspense fallback={<div className={styles.empty}>Loading renewal evidence…</div>}><RelationshipHistory compact creatorId={creatorId} brand={selectedBrand ?? undefined} end={historyEnd} label={label} /></Suspense>
-    <section className={styles.section}><div className={styles.sectionHead}><div><h2>Recorded term changes</h2><p>Edit dates show when Tempo was updated, not necessarily when terms took effect.</p></div></div><div className="px-6 pb-6"><CreatorChangeHistory agreementOnly entries={changes} brandLabelFor={brand => brand ? brandLabel(reg,brand) : null} multiBrand={!selectedBrand} /></div></section>
+    <section className={styles.section}><div className={styles.sectionHead}><div><h2>Legacy roster changes</h2><p>Edit dates show when Tempo was updated, not necessarily when terms took effect.</p></div></div><div className="px-6 pb-6"><CreatorChangeHistory agreementOnly entries={changes} brandLabelFor={brand => brand ? brandLabel(reg,brand) : null} multiBrand={!selectedBrand} /></div></section>
   </div>;
 
   const content = <div className={styles.stack}>

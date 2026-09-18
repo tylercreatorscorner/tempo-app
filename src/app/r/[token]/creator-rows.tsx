@@ -173,12 +173,14 @@ function CreatorRows({
                   ) : (
                     <span className="whitespace-nowrap font-semibold">Retainer</span>
                   )}
+                  {c.agreement?.periodStart && <small className="block text-[10px] text-[#6b7191]">{c.agreement.periodStart} to {c.agreement.periodEnd}</small>}
+                  {c.agreement && !c.agreement.reportPeriodComparable && <small className="block text-[10px] text-[#6b7191]">Payment requires agreement-period review</small>}
                 </td>
                 {/* Blank for affiliate-only: there is no agreed amount, and a
                     $0 would read as "we agreed zero" rather than "n/a". */}
                 <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-[#33375c]">
                   {!c.departed && !c.isAffiliate && c.retainer > 0
-                    ? <>{money(c.retainer)}<span className="text-[#8a8fb0]">/mo</span></>
+                    ? <>{money(c.retainer)}<span className="text-[#8a8fb0]">{c.agreement ? "/period" : "/mo"}</span></>
                     : <span className="text-[#b9bcd0]">&mdash;</span>}
                 </td>
                 {showLevel && (
@@ -194,7 +196,7 @@ function CreatorRows({
                     month-to-date block carries the comparison instead. */}
                 <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-[#33375c]">
                   {num(c.postsPublished)}
-                  {judgeQuota && c.quota != null && (
+                  {judgeQuota && c.quota != null && (!c.agreement || c.agreement.reportPeriodComparable) && (
                     <span className="text-[#8a8fb0]">&nbsp;/&nbsp;{num(c.quota)}</span>
                   )}
                 </td>
