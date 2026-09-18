@@ -1,70 +1,38 @@
-# Agreement ledger implementation status
+# Creator agreement ledger
 
-The approved compact flow is unchanged. The creator-profile integration and reader cutover are implemented. The interface is **not enabled in production**. Saving is separately gated by `CREATOR_AGREEMENTS_WRITES_ENABLED`; existing creator terms are not backfilled.
+The approved compact agreement editor is integrated into creator profiles. Production activation is controlled separately by `CREATOR_AGREEMENTS_ENABLED` and `CREATOR_AGREEMENTS_WRITES_ENABLED`. Both must be true for saves, scheduled renewals and reader catch-up. Existing roster terms are never automatically backfilled into historical agreements.
 
-## Implemented
+## Behavior
 
-- Calendar-month renewal with a separate period snapshot and append-only revisions.
-- Whole-period exceptions, future-renewal changes, effective-date splits, explicit renewal, fixed campaigns/packages and final-date termination.
-- Fee values use integer cents. No payout is executed or approved. Partial months and split terms explicitly require payment review.
-- Scoped server reads/writes require roster permissions, creator-cost visibility, matching tenant, exact creator-brand association, and brand reach. Impersonation cannot write.
-- Atomic compare-and-swap save, request replay protection and overlapping-agreement rejection; append-only audit events record actor and command.
-- RLS and revoked public/client grants; RPC executable only by server role. SQL also refuses removal/replacement of stored period revisions.
-- Bounded renewal worker with cursor pagination and failure IDs. It uses a system actor and catches up missing calendar months without duplicate periods.
-- Report snapshot helper returns a detached copy of a specific period revision. Report generation captures ledger, period and revision references. Report corrections and copy edits insert a new report with a new token; existing sent snapshots remain unchanged.
+- Monthly automatic or explicit renewal, custom opening periods, fixed campaigns and post packages.
+- Append-only period revisions, effective-date changes, period-only exceptions and scheduled future terms.
+- Integer-cent fees, optimistic concurrency, replay protection and overlapping-agreement rejection.
+- Scoped server authorization for tenant, brand relationship, roster capability and creator-cost visibility. Impersonated sessions cannot write.
+- Server-only ledgers and audit events. Browser roles cannot select them or execute the save function.
+- Roster INSERT and UPDATE guards prevent legacy fee/quota changes or relationship relinking from bypassing recorded agreements. Matching roster terms remain valid.
+- Scheduled hourly renewals and scoped read-time catch-up handle effective dates, expiry and month boundaries. Processing drains pages, retries a concurrent save and surfaces failures.
+- Creator/brand portals and report exports read dated terms. Custom or split periods suppress calendar-month pace and incompatible fee ratios.
+- Creator monthly publication counts use publication dates, not the dates on which older videos earned sales.
+- Reports capture agreement period/revision context. Corrections create new links and leave sent snapshots unchanged. Web, PDF and CSV withhold unsupported payment estimates.
 
-## Release gate (must complete before enabling)
+Published posts do not establish accepted deliverables or payment owed. Prior-period credits, invoice approval and payment execution remain separate. No opening terms may be invented from current roster values. Concurrent overlapping commercial agreements require a future explicit grouping rule.
 
-`CREATOR_AGREEMENTS_ENABLED` defaults off. Do not enable it in preview against the shared live database until:
+The legacy renewal API is tenant/brand/cost scoped and excludes verified agreements from old rolling-period scores. Its review component is not currently mounted in a page; this release does not introduce a new renewal review navigation flow.
 
-1. Connect the approved form and history view to the server API, including explicit period selection and authoritative server impact review.
-2. Cut over roster cost/commitment readers and report generation together. Legacy edit controls must not remain a second commercial write path for creators with a ledger.
-3. Add report references to ledger/period/revision IDs and require a new report version for corrections. Never refresh a sent snapshot in place.
-4. Wire the bounded renewal worker to a protected scheduled job that drains cursors and retries/report failures; do not silently process only the first batch.
-5. Verify the migration against a disposable hosted branch and run advisors, then deploy migration and gated code in order. This migration has only been tested in local PGlite.
-6. Confirm opening terms from evidence. Never backfill earlier periods by copying today's roster retainer.
+## Verification and deployment
 
-The initial release deliberately permits only one overlapping commercial agreement per creator/brand. Concurrent campaigns require an explicit agreement grouping and reporting rule before broadening this invariant. Prior-period video credits remain a separate evidence/allocation workflow; setting a policy does not invent videos or mark invoices paid.
+Run `npm run test:ci`, `npm run typecheck`, and the release workflow. Tests exercise domain transitions, real Postgres migrations, tenant/role denials, immutable history, scoped readers, report preservation, concurrent renewal catch-up, publication counts and both activation flags. Fixture tests do not write real business data.
 
-## Verification
+The four additive ledger migrations were applied to the shared hosted database after isolated Postgres verification. Read-only hosted checks confirmed trigger definitions, fixed function search paths, denied browser grants and zero agreement/event records. No disposable hosted branch was used. Expected no-policy advisor notices apply to the intentionally server-only RLS tables; unrelated existing advisor findings are outside this change.
 
-`node --import tsx scripts/test-agreement-model.ts`
-`node scripts/test-agreement-ledger-sql.mjs`
-`npm run typecheck`
+Signed-in preview verification covered the integrated profile editor and review without saving, brand switching, creator portal fee/count displays and desktop/mobile layouts. Brand-role manual verification is unavailable through the owner session; its scoped reader and CSV boundaries have automated coverage. Do not change user roles to test.
 
-Domain tests cover the October 5 amendment, November reversion, midmonth split, immutable captured report, manual renewal, termination, duplicate renewal, year rollover and leap February. Database tests cover tenant/brand mismatch, overlap, stale versions, retry keys, event immutability, history replacement and anonymous/authenticated denial. No real creator terms or private business data are in the fixtures.
+Release checklist:
 
-### Opening-period rule approved
-Managers choose the first period end date. July 24 through August 31 is one agreement period with one fee/post commitment; the next period starts September 1. Subsequent periods end at calendar month-end. First-period-only corrections run through the chosen end date and do not leak into renewals. Implemented in the model and approved form, with regression coverage. The remaining release gates above still apply.
+1. Confirm the reviewed head passes hosted preview build and release checks.
+2. Record the production rollback deployment and commit privately.
+3. Activate production feature and write flags only with the deployed protected renewal scheduler. The existing cron secret must remain configured.
+4. Verify production profile/editor loading and scheduler authorization without creating fictional agreements.
+5. Record the final deployment and any verification limits in the private roadmap.
 
-## Integration checkpoint
-
-- Creator Agreements tab uses the approved form, scoped API, period selector, recorded revisions and explicit manual-renewal review.
-- Roster readers resolve verified terms for the selected date. The protected scheduled route advances periods and synchronizes current roster terms at future effective dates, expiry and renewal boundaries.
-- SQL guards prevent legacy commercial edits bypassing recorded agreements. The trigger uses a narrowly scoped definer to read server-only ledgers on the caller's already-authorized row; it has no public execute grant.
-- Report rows carry agreement dates and revision metadata. Non-comparable periods/payment rules suppress delivery-based spend estimates rather than inventing a payout. Credit allocation and final invoice approval remain separate.
-- Both migrations applied to the hosted database; read checks confirmed zero agreement/event records, denied browser ledger access, and a working report query. No creator agreements or sent reports were changed.
-- Hosted security advisors flagged only informational missing-policy entries on the new server-only, RLS-enabled tables; unrelated database warnings remain outside this batch.
-- Local typecheck, focused lint, lifecycle/SQL/report/profile tests pass. Full regression chain passed through creator auth; remaining tsx/manager/agreement tests passed separately with esbuild subprocess access.
-- Pending: hosted preview build and signed-in desktop/mobile verification, full period/payment reader audit, production write enablement. Do not enable writes until those checks pass.
-
-The earlier numbered release gate is a checklist, not a claim that every item remains unimplemented. Hosted migrations were verified in PGlite and with read-only hosted checks; a disposable hosted branch was not used.
-
-Scoped service regression tests now cover permissions, tenant/brand identities, missing relationships, archived writes, impersonation, read failures and review without persistence.
-
-## Signed-in verification
-
-- Legacy seeded UUIDs now pass format validation while access still requires exact tenant/brand/creator matching. A regression test covers this database identity format.
-- Connected Cata-Kor profile: Agreements loads, review round-trip succeeds, real-save control is visibly disabled during verification. No ledger/event records created.
-- Desktop and 390px mobile review verified; no horizontal page overflow. Removed duplicate heading and reset editor state on brand scope changes.
-- Web/PDF/CSV use consistent period-review handling; exports retain agreement dates, quota and revision instead of mislabeling cross-month requirements.
-- Agency portfolio/signings readers now use verified period fees; regression proves historical agency fees stay independent of current roster mirrors. Third migration applied and hosted read verified.
-- Manual-to-automatic changes cannot skip an unrenewed period silently. Remaining production gates: completed final release checks and controlled write activation with renewal scheduling, plus explicit treatment of legacy monthly-only consumers for fixed/cross-month agreements. UI verification alone does not establish the production financial cutover is complete.
-
-## Renewal-boundary and legacy-metric checks
-
-Scoped agreement, roster, profile-contract and report readers now catch up due periods before reading dated terms. Catch-up requires both feature and write flags, preserves the SQL compare-and-swap, drains pages and retries once from fresh state after a concurrent save. Roster batches explicitly retain creator/brand pairs; an IN-filter Cartesian product cannot authorize unrelated renewals.
-
-Custom, ended, unrenewed and split periods are excluded from calendar-month pace classification. The profile still shows calendar-month activity, with agreement-period guidance instead of a misleading quota bar. Roster GMV/fee ratios are withheld when selected performance does not match the recorded agreement period; grouped rows do not present partial ratios. Private agreement snapshots are removed from roster responses before cost scrubbing.
-
-Local full regression suite and typecheck pass. Targeted new-code lint passes; broader roster/profile lint also reports pre-existing purity/effect/any issues outside this patch. Final hosted build/UI verification and production flag activation remain separate release steps.
+Before rollback after real agreements exist, disable agreement writes and assess historical reader compatibility. An old application that ignores recorded agreement periods is not a safe automatic rollback target once the ledger is in use.

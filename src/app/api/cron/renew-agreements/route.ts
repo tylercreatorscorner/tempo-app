@@ -4,7 +4,7 @@ export const maxDuration=300;
 export async function GET(req:NextRequest) {
  const secret=process.env.CRON_SECRET;
  if(!secret || req.headers.get('authorization')!==`Bearer ${secret}`) return NextResponse.json({error:'Unauthorized'},{status:401});
- if(process.env.CREATOR_AGREEMENTS_ENABLED!=='true') return NextResponse.json({enabled:false});
+ if(process.env.CREATOR_AGREEMENTS_ENABLED!=='true' || process.env.CREATOR_AGREEMENTS_WRITES_ENABLED!=='true') return NextResponse.json({enabled:false});
  let cursor:string|undefined;let renewed=0;const failed:string[]=[];const started=Date.now();
  try {
   do {

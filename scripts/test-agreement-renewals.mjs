@@ -31,3 +31,21 @@ assert.equal(roster.isCalendarMonthAgreement({...agreement,periodStart:'2026-07-
 assert.equal(roster.isCalendarMonthAgreement({...agreement,status:'awaiting_renewal'},'2026-08-20'),false);
 assert.equal(roster.isCalendarMonthAgreement({...agreement,snapshot:{segments:[{},{}]}},'2026-08-20'),false);
 console.log('PASS renewals: scoped catch-up, month opening, CAS retry, paging, fail closed, preview gate, and calendar-period pace guards');
+let cronCalls=0;
+const cron=load('src/app/api/cron/renew-agreements/route.ts',{
+ 'next/server':{NextResponse:{json:(body,init)=>({body,status:init?.status??200})}},
+ '@/lib/agreements/renewals':{renewAgreementBatch:async()=>{cronCalls++;return {renewed:0,failed:[],nextCursor:null};}},
+});
+env.CRON_SECRET='fixture-cron-secret';
+const request=token=>({headers:{get:()=>token}});
+assert.equal((await cron.GET(request(null))).status,401);
+assert.equal((await cron.GET(request('Bearer wrong'))).status,401);
+assert.equal((await cron.GET(request('Bearer fixture-cron-secret'))).body.enabled,false);
+assert.equal(cronCalls,0,'Scheduled route must honor read-only mode too');
+env.CREATOR_AGREEMENTS_WRITES_ENABLED='true';env.CREATOR_AGREEMENTS_ENABLED='false';
+assert.equal((await cron.GET(request('Bearer fixture-cron-secret'))).body.enabled,false);
+assert.equal(cronCalls,0);
+env.CREATOR_AGREEMENTS_ENABLED='true';
+assert.equal((await cron.GET(request('Bearer fixture-cron-secret'))).status,200);
+assert.equal(cronCalls,1);
+console.log('PASS scheduled renewals: secret required and both activation flags required before any database work');
