@@ -11,6 +11,7 @@ const dependencies={
   react:{useState:initial=>{const slot=index++;if(!(slot in state))state[slot]=initial;return [state[slot],value=>{state[slot]=value;}];},useTransition:()=>[false,fn=>{pending=fn();}]},
   'react/jsx-runtime':{jsx:element,jsxs:element,Fragment:'fragment'},
   'lucide-react':Object.fromEntries(['Loader2','Pencil','RefreshCw','Ban','X'].map(name=>[name,name])),
+  '@/components/ui/modal-overlay':{ModalOverlay:'overlay'},
   '@/components/ui/button':{Button:'button'},
   '@/components/ui/label':{Label:'label'},
   '@/components/ui/input':{Textarea:'textarea'},

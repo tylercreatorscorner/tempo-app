@@ -18,10 +18,12 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, Clipboard, Link2, Loader2, Wand2 } from 'lucide-react';
+import { Check, Clipboard, Link2, Loader2, Wand2, ExternalLink } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils/format';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { ChoiceMenu } from '@/components/ui/choice-menu';
+import { BrandIdentity } from '@/components/creators/brand-identity';
 import { Select } from '@/components/ui/select';
 import { Input, Textarea } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -57,10 +59,10 @@ export function CreatePanel({
     <Card className="overflow-hidden">
       <div className="border-b border-border px-5 py-4">
         <h2 className="text-base font-bold tracking-tight text-foreground">
-          {lockedBrandName ? `Report for ${lockedBrandName}` : 'New client report'}
+          {lockedBrand && lockedBrandName ? <BrandIdentity brand={lockedBrand} label={lockedBrandName} /> : 'New client report'}
         </h2>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          A share link the client opens. Numbers freeze when you create it.
+          Review the figures and your commentary before creating a share link.
         </p>
       </div>
       <div className="space-y-4 p-5">
@@ -215,9 +217,10 @@ function ClientReportForm({ onSent, lockedBrand }: { onSent: () => void; lockedB
   useEffect(() => {
     prepareSeq.current += 1;
     setPreview(null);
+    setPreviewLoading(false);
     setCreated(null);
     setError(null);
-  }, [brand, preset, startDate, endDate]);
+  }, [brand, preset, startDate, endDate, reportKind, monthKey]);
 
   // '7d' | '30d' go up as-is; a custom range goes up as { start, end }.
   /**
@@ -233,7 +236,8 @@ function ClientReportForm({ onSent, lockedBrand }: { onSent: () => void; lockedB
         : preset;
 
   const prepare = async () => {
-    const seq = prepareSeq.current;
+    if (previewLoading || creating || !rangeValid) return;
+    const seq = ++prepareSeq.current;
     setPreviewLoading(true);
     setError(null);
     setCreated(null);
@@ -273,7 +277,7 @@ function ClientReportForm({ onSent, lockedBrand }: { onSent: () => void; lockedB
   };
 
   const createLink = async () => {
-    if (!preview) return;
+    if (!preview || creating || !rangeValid) return;
     setCreating(true);
     setError(null);
     try {
@@ -298,6 +302,13 @@ function ClientReportForm({ onSent, lockedBrand }: { onSent: () => void; lockedB
 
   return (
     <div className="space-y-4">
+      <ol aria-label="Report preparation progress" className="flex items-center gap-3 border-b border-border pb-3 text-xs">
+        {['Select period', 'Review', 'Share'].map((label, step) => {
+          const current = created ? 2 : preview ? 1 : 0;
+          return <li key={label} aria-current={step === current ? 'step' : undefined} className={step === current ? 'font-semibold text-primary' : 'text-muted-foreground'}><span className="mr-1.5 tabular-nums">{step + 1}.</span>{label}</li>;
+        })}
+      </ol>
+      <fieldset disabled={creating} className="min-w-0 space-y-4 disabled:opacity-60">
       {!lockedBrand && (
         <div>
           <Label htmlFor="cr-brand">Brand</Label>
@@ -331,8 +342,8 @@ function ClientReportForm({ onSent, lockedBrand }: { onSent: () => void; lockedB
             section each and nothing in the label conveys that. */}
         <p className="mt-1.5 text-[11px] leading-snug text-muted-foreground">
           {reportKind === 'weekly'
-            ? 'Adds “What moved this period”: the creators who gained and lost, named. Everything else is the same in both.'
-            : 'Adds contracted posts against delivered. Everything else is the same in both.'}
+            ? 'Performance changes and the creators driving them. '
+            : 'Monthly performance and contracted versus delivered posts. '}
         </p>
 
       </div>
@@ -345,18 +356,7 @@ function ClientReportForm({ onSent, lockedBrand }: { onSent: () => void; lockedB
             cover and reads as failure. */}
         {reportKind === 'monthly' ? (
           <>
-            <select
-              aria-label="Month"
-              className="mt-1 h-9 w-full rounded-lg border border-border bg-background px-2.5 text-sm text-foreground"
-              value={monthKey}
-              onChange={(e) => setMonthKey(e.target.value)}
-            >
-              {months.map((m) => (
-                <option key={m.key} value={m.key}>
-                  {m.label}{m.partial ? ' (so far)' : ''}
-                </option>
-              ))}
-            </select>
+            <ChoiceMenu label="Reporting month" value={monthKey} disabled={creating} onChange={setMonthKey} options={months.map(m => ({ value: m.key, label: `${m.label}${m.partial ? ' (so far)' : ''}` }))} />
             <p className="mt-1.5 text-[11px] leading-snug text-muted-foreground">
               {month.partial
                 ? `${month.start} to ${month.end}, the month so far. The report says so and states the days elapsed; post targets are not pro-rated.`
@@ -395,7 +395,7 @@ function ClientReportForm({ onSent, lockedBrand }: { onSent: () => void; lockedB
       </div>
 
       <Button variant="outline" size="lg" className="w-full" onClick={prepare} disabled={previewLoading || !rangeValid}>
-        {previewLoading ? <><Loader2 className="animate-spin" />Preparing…</> : <><Wand2 />Prepare</>}
+        {previewLoading ? <><Loader2 className="animate-spin" />Preparing…</> : <><Wand2 />Prepare preview</>}
       </Button>
 
       {preview && (
@@ -448,6 +448,8 @@ function ClientReportForm({ onSent, lockedBrand }: { onSent: () => void; lockedB
             <Check className="h-3.5 w-3.5" />
             {copiedFlash ? 'Link copied to clipboard' : 'Link created'}
           </div>
+          <p className="text-xs text-muted-foreground">Saved as a snapshot. No message has been sent to the client.</p>
+          <a href={`${created.url}?preview=1`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary"><ExternalLink className="h-3.5 w-3.5" />Review saved report</a>
           <div className="flex items-center gap-2">
             <code className="min-w-0 flex-1 truncate rounded-md bg-card/70 px-2 py-1.5 text-[11px] text-foreground">
               {created.url}
@@ -460,6 +462,7 @@ function ClientReportForm({ onSent, lockedBrand }: { onSent: () => void; lockedB
         </div>
       )}
 
+      </fieldset>
       {error && <InlineError>{error}</InlineError>}
     </div>
   );
