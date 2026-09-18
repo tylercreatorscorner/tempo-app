@@ -1,53 +1,11 @@
 'use client';
 
-/**
- * Team + client access, rebuilt as a dense table.
- *
- * ── What was wrong with the card list ────────────────────────────────────────
- *
- * 🚨 THE PAGE HID THE ONLY FACT THAT MATTERS ON IT. Of 22 accounts, nearly all
- * were Admin with All brands and Finance: full, and because every row rendered
- * identically there was nothing on screen that said so. An access page whose
- * layout cannot show a concentration of access is not doing its job. The
- * summary strip now states it in a line, and rows sort by access so the
- * elevated accounts are the ones you read first.
- *
- * ⚠️ SEVEN ROLE COLOURS, four chip treatments. Owner purple, admin blue,
- * manager emerald, coach cyan, viewer slate, analyst amber, brand pink, plus
- * amber Pending, emerald Finance and a bordered brand-count button. None of it
- * encoded severity: the rainbow was decoration, and it made a page where four
- * accounts genuinely need attention look uniformly busy. Colour is now
- * semantic only: amber means someone is locked out or has not accepted,
- * emerald means finance is on, primary means selected or interactive.
- *
- * ⚠️ THE ROLE CONTROL LOOKED LIKE A BADGE. It was a <select> styled as a
- * coloured pill, so the one genuinely destructive control on each row read as
- * a status label. It is a select that looks like a select now.
- *
- * ⚠️ "All brands / Finance: full" repeated verbatim on 19 of 22 rows. Facts
- * that are identical everywhere carry no information per row; they belong in
- * the summary and in a column you can scan down.
- *
- * ⚠️ Brand access opened a wall of 18 pills. Replaced with a checkbox grid
- * plus select-all / clear, which is scannable at any brand count and does not
- * reflow as you click. Pills are for filters you toggle occasionally, not for
- * a permission matrix.
- *
- * ── What is deliberately unchanged ───────────────────────────────────────────
- *
- * Every access rule and server action. 'analyst' stays out of ROLE_OPTIONS
- * because getWorkspaceScope has no case for it and offering it mints dead
- * accounts; coaches still have no finance toggle at all; client roles still
- * cannot be invited without a brand; an access-REDUCING role change still asks
- * first; owner and self rows are still not editable.
- */
-
 import { Fragment, useState, useTransition } from 'react';
 import {
   UserPlus, Shield, Mail, Trash2, Loader2, X, Users, Search, AlertTriangle, Check,
 } from 'lucide-react';
 import {
-  inviteUser,
+  submitTeamInvitation,
   updateUserRole,
   updateFinanceAccess,
   removeUser,
@@ -117,6 +75,7 @@ interface Props {
 export function TeamManagement({ users, brands, tenantId, currentUserId }: Props) {
   const [isPending, startTransition] = useTransition();
   const [showInvite, setShowInvite] = useState(false);
+  const [inviteError, setInviteError] = useState<string | null>(null);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState('manager');
   const [inviteBrandIds, setInviteBrandIds] = useState<string[]>([]);
@@ -139,7 +98,8 @@ export function TeamManagement({ users, brands, tenantId, currentUserId }: Props
   }
 
   function handleInvite() {
-    if (!inviteEmail.trim()) return;
+    if (isPending || !inviteEmail.trim()) return;
+    setInviteError(null);
     if (isClientRole(inviteRole) && inviteBrandIds.length === 0) {
       flash('Select at least one brand for this client.', 'error');
       return;
@@ -149,14 +109,15 @@ export function TeamManagement({ users, brands, tenantId, currentUserId }: Props
         // Coach is a hard finance no (the server re-enforces this); managers use
         // the checkbox; full-tenant roles always see finance.
         const canFin = isCoach(inviteRole) ? false : isManager(inviteRole) ? inviteFinance : true;
-        const result = await inviteUser(inviteEmail.trim(), inviteRole, canFin);
+        const result = await submitTeamInvitation(inviteEmail.trim(), inviteRole, canFin);
+        if (!result.ok) { setInviteError(result.error); return; }
         if (needsBrandScope(inviteRole) && inviteBrandIds.length > 0 && result?.userId) {
           await updateBrandAccess(result.userId, inviteBrandIds, tenantId);
         }
         resetInvite();
         setShowInvite(false);
         flash('Invite sent', 'success');
-      } catch (e) { flash((e as Error).message, 'error'); }
+      } catch { setInviteError('The invitation could not be completed. Check the member list before retrying; access may already have been saved.'); }
     });
   }
 
@@ -529,10 +490,10 @@ export function TeamManagement({ users, brands, tenantId, currentUserId }: Props
               />
             </div>
             <button
-              onClick={() => setShowInvite(true)}
+              onClick={() => { setInviteError(null); setShowInvite(true); }}
               className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-primary px-3.5 py-2 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-1"
             >
-              <UserPlus className="h-4 w-4" /> Invite
+              <UserPlus className="h-4 w-4" /> Invite person
             </button>
           </div>
         </div>
@@ -583,7 +544,8 @@ export function TeamManagement({ users, brands, tenantId, currentUserId }: Props
         setBrandIds={setInviteBrandIds}
         finance={inviteFinance} setFinance={setInviteFinance}
         pending={isPending}
-        onClose={() => setShowInvite(false)}
+        error={inviteError}
+        onClose={() => { if (!isPending) setShowInvite(false); }}
         onSend={handleInvite}
       />}
     </div>
@@ -732,11 +694,12 @@ function InviteModal(props: {
   brandIds: string[]; toggleBrand: (id: string) => void; setBrandIds: (ids: string[]) => void;
   finance: boolean; setFinance: (b: boolean) => void;
   pending: boolean;
+  error: string | null;
   onClose: () => void; onSend: () => void;
 }) {
   const {
     brands, role, setRole, email, setEmail, brandIds, toggleBrand, setBrandIds,
-    finance, setFinance, pending, onClose, onSend,
+    finance, setFinance, pending, error, onClose, onSend,
   } = props;
   const client = isClientRole(role);
   const disabled = pending || !email.trim() || (client && brandIds.length === 0);
@@ -765,14 +728,15 @@ function InviteModal(props: {
           </button>
         </div>
 
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-6">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto bg-secondary/20 p-5">
+          {error && <p role="alert" className="rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-2 text-sm text-red-700 dark:text-red-300">{error}</p>}
           <div>
             <label htmlFor="invite-email" className="mb-1.5 block text-[10.5px] font-bold uppercase tracking-[0.07em] text-muted-foreground">
               Email
             </label>
             <input
               id="invite-email" type="email" autoFocus placeholder="name@company.com"
-              value={email}
+              value={email} disabled={pending}
               onChange={(e) => setEmail(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && !disabled && onSend()}
               className="w-full rounded-md border border-input bg-card px-3 py-2.5 text-[13.5px] text-foreground placeholder:text-muted-foreground focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25"
@@ -783,10 +747,10 @@ function InviteModal(props: {
             <span className="mb-1.5 block text-[10.5px] font-bold uppercase tracking-[0.07em] text-muted-foreground">
               Role
             </span>
-            <div className="grid gap-2">
+            <div className="grid gap-2 sm:grid-cols-2">
               {ROLE_OPTIONS.map((r) => (
                 <button
-                  key={r.value} type="button" onClick={() => setRole(r.value)}
+                  key={r.value} type="button" disabled={pending} onClick={() => setRole(r.value)}
                   aria-pressed={role === r.value}
                   className={cn(
                     'flex items-center gap-3 rounded-md border px-3 py-2 text-left transition-colors',
@@ -866,7 +830,7 @@ function InviteModal(props: {
             className="inline-flex items-center gap-2 rounded-md bg-primary px-5 py-2 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
           >
             {pending && <Loader2 className="h-4 w-4 animate-spin" />}
-            Send invite
+            {pending ? 'Sending invitation…' : 'Send invite'}
           </button>
         </div>
       </div>

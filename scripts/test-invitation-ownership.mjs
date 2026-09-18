@@ -16,6 +16,14 @@ CREATE TABLE public.user_brand_access(user_id uuid REFERENCES auth.users(id),bra
 GRANT USAGE ON SCHEMA auth TO service_role; GRANT ALL ON ALL TABLES IN SCHEMA public,auth TO service_role;`);
 const migration=readdirSync('supabase/migrations').find(file=>file.endsWith('_provision_invited_member.sql'));
 await db.exec(readFileSync(`supabase/migrations/${migration}`,'utf8'));
+// Reproduce hosted Auth privileges before applying the repair. The old fixture
+// granted ALL on auth.users and masked the production failure.
+await db.exec("REVOKE ALL ON auth.users FROM service_role");
+await db.exec(`INSERT INTO auth.users VALUES ('${actorId}','actor@example.invalid'),('${memberId}','member@example.invalid');
+INSERT INTO user_profiles(user_id,tenant_id,role) VALUES ('${actorId}','${tenantA}','owner'); SET ROLE service_role;`);
+await assert.rejects(()=>db.query('SELECT provision_invited_member($1,$2,$3,$4,$5,$6)',[actorId,memberId,'member@example.invalid','manager',false,null]),/permission denied for table users/);
+await db.exec('RESET ROLE');
+await db.exec(readFileSync('supabase/migrations/20260918153630_fix_invitation_auth_boundary.sql','utf8'));
 let actor,accounts,events,listError,createError,mailError,readError,impersonating,beforeRpc;
 async function reset(){
  await db.exec(`RESET ROLE; TRUNCATE user_brand_access,user_profiles,brands_v2,auth.users CASCADE;
@@ -55,7 +63,7 @@ function from(table){
 }
 const admin={from,auth:{admin:{
  listUsers:async({page=1,perPage=50}={})=>{events.push(`list:${page}`);return {data:{users:accounts.slice((page-1)*perPage,page*perPage)},error:listError?{message:'fixture lookup failure'}:null};},
- inviteUserByEmail:async(email,options)=>{events.push('invite-mail');if(accounts.some(u=>u.email===email))return {data:{user:null},error:{message:'User already registered'}};if(createError)return {data:{user:null},error:{message:'fixture invite failure'}};assert.ok(options.redirectTo.endsWith('/auth/callback'));const user={id:newId,email};await db.query('INSERT INTO auth.users VALUES ($1,$2)',[user.id,user.email]);accounts.push(user);return {data:{user},error:null};},
+ inviteUserByEmail:async(email,options)=>{events.push('invite-mail');if(accounts.some(u=>u.email===email))return {data:{user:null},error:{message:'User already registered'}};if(createError)return {data:{user:null},error:{message:'fixture invite failure'}};assert.ok(options.redirectTo.endsWith('/auth/callback'));const user={id:newId,email};await db.exec('RESET ROLE');await db.query('INSERT INTO auth.users VALUES ($1,$2)',[user.id,user.email]);await db.exec('SET ROLE service_role');accounts.push(user);return {data:{user},error:null};},
 }},rpc:async(name,args)=>{events.push('rpc');if(beforeRpc)await beforeRpc();assert.equal(name,'provision_invited_member');try{await db.query('SELECT provision_invited_member($1,$2,$3,$4,$5,$6)',Object.values(args));return {error:null};}catch(error){return {error};}}};
 const deps={
  '@supabase/ssr':{createServerClient:()=>({auth:{signInWithOtp:async options=>{events.push('mail');assert.equal(options.options.shouldCreateUser,false);return {error:mailError?{message:'fixture mail failure'}:null};}}})},
@@ -64,7 +72,7 @@ const deps={
  '@/lib/auth/platform-admin':{assertNotImpersonating:async()=>{if(impersonating)throw new Error('Read only');}},
  'next/cache':{revalidatePath(){}},'next/server':{NextRequest,NextResponse},
 };
-const load=(file,old=false)=>{const exports={};const source=old?execFileSync('git',['show',`f145d0b99aabbb4491c1ad4431ad9bdcc81e6d92:${file}`],{encoding:'utf8'}):readFileSync(file,'utf8');runInNewContext(ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{exports,require:name=>{const key=name.startsWith('./')?`@/lib/auth/${name.slice(2)}`:name;assert.ok(key in deps,key);return deps[key];},process});return exports;};
+const load=(file,old=false)=>{const exports={};const source=old?execFileSync('git',['show',`f145d0b99aabbb4491c1ad4431ad9bdcc81e6d92:${file}`],{encoding:'utf8'}):readFileSync(file,'utf8');runInNewContext(ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{exports,require:name=>{const key=name.startsWith('./')?`@/lib/auth/${name.slice(2)}`:name;assert.ok(key in deps,key);return deps[key];},process,Error});return exports;};
 const old=process.argv.includes('--reproduce');
 if(!old)deps['@/lib/auth/invite-workspace-member']=load('src/lib/auth/invite-workspace-member.ts');
 const actions=load('src/app/actions/users.ts',old),route=load('src/app/api/clients/route.ts',old);
@@ -87,6 +95,9 @@ await reset();mailError=true;await assert.rejects(()=>invite(),/Access saved/);a
 await reset();const denied=await(await client('foreign@example.invalid')).json();assert.equal(denied.contacts[0].status,'error');assert.equal((await profile(foreignId)).tenant_id,tenantB);assert.ok(!events.includes('mail'));
 await reset();await db.query("UPDATE user_profiles SET role='brand_contact' WHERE user_id=$1",[memberId]);await db.query('INSERT INTO user_brand_access VALUES ($1,$2,$3)',[memberId,brandA,tenantA]);const added=await(await client('member@example.invalid')).json();assert.equal(added.contacts[0].status,'existing');assert.equal((await profile(memberId)).role,'brand_contact');assert.equal((await db.query('SELECT count(*)::int AS n FROM user_brand_access WHERE user_id=$1',[memberId])).rows[0].n,2);
 for(const role of ['anon','authenticated']){await reset();await db.exec(`RESET ROLE; SET ROLE ${role}`);await assert.rejects(()=>db.query('SELECT provision_invited_member($1,$2,$3,$4,$5,$6)',[actorId,memberId,'member@example.invalid','brand',false,null]),/permission denied/);}
+await reset();listError=true;const failed=await actions.submitTeamInvitation('member@example.invalid','manager',false);assert.equal(failed.ok,false);assert.match(failed.error,/look up account/);
+await reset();actor=null;const unauthorized=await actions.submitTeamInvitation('member@example.invalid','admin',true);assert.equal(unauthorized.ok,false);assert.match(unauthorized.error,/could not be completed/);assert.equal(events.length,0);
+await reset();const success=await actions.submitTeamInvitation('member@example.invalid','manager',false);assert.equal(success.ok,true);assert.equal(success.userId,memberId);
 await db.close();
 console.log('PASS real invitation callers and SQL: tenant/owner/self protection, lookup pagination, safe new accounts, stale role clearing, coach finance, and mail ordering');
 console.log('PASS tenant/signup races preserve ownership; client onboarding preserves existing contact role and additive brand access; browser roles cannot call provisioning');
