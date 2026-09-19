@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import { reportDeliveryPace } from '../src/lib/data/report-delivery-pace';
+import type { BrandClientReportData } from '../src/lib/data/brand-client-report';
+type C=NonNullable<BrandClientReportData['granular']>['creators'][number];
+const c={creatorId:'a',name:'Creator',handle:'creator',isAffiliate:false,retainer:300,quota:30,postsPublished:4,gmv:1,orders:1,videosEarning:1} satisfies C;
+const m={start:new Date('2026-09-01'),end:new Date('2026-09-15'),daysElapsed:15,daysInMonth:30,granular:{creators:[{...c,postsPublished:15}]}} as BrandClientReportData['monthToDate'];
+assert.equal(reportDeliveryPace(c,m)?.label,'On pace');
+m!.granular.creators[0].postsPublished=18;assert.equal(reportDeliveryPace(c,m)?.label,'Ahead');
+m!.granular.creators[0].postsPublished=10;assert.equal(reportDeliveryPace(c,m)?.label,'Behind');
+m!.granular.creators[0].postsPublished=30;assert.equal(reportDeliveryPace(c,m)?.label,'Complete');
+assert.equal(reportDeliveryPace({...c,isAffiliate:true},m),undefined);
+m!.granular.creators[0].ccStartDate='2026-09-10';assert.equal(reportDeliveryPace(c,m),undefined);
+delete m!.granular.creators[0].ccStartDate;
+m!.granular.creators.push({...c});assert.equal(reportDeliveryPace(c,m),undefined);
+assert.equal(reportDeliveryPace(c,undefined),undefined);
+console.log('PASS delivery pace: frozen month count, ahead/on/behind/complete, affiliate, midmonth and ambiguous identity excluded');

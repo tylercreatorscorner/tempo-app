@@ -177,7 +177,13 @@ function ClientReportForm({ onSent, lockedBrand }: { onSent: () => void; lockedB
    * happened and can be generated from it; a commitment about next month
    * cannot, and a machine-written one would be a promise nobody made.
    */
-  const [plan, setPlan] = useState('');
+  const [actions, setActions] = useState([{action:'',owner:'',due:''}]);
+  const [success, setSuccess] = useState('');
+  const [reviewDate, setReviewDate] = useState('');
+  const [decision, setDecision] = useState('');
+  const plan = ["Our response", ...actions.map((a,i)=>`${i+1}. ${a.action.trim()}\nOwner: ${a.owner.trim()} | Due: ${a.due}`), "", "What success looks like", success.trim(), `Review date: ${reviewDate}`, "", "Decision needed", decision.trim()].join('\n').replace(/\s*—\s*/g, ', ');
+  const actionPlanReady = actions.every(a=>a.action.trim() && a.owner.trim() && a.due) && success.trim() && reviewDate && decision.trim();
+
   const [previewLoading, setPreviewLoading] = useState(false);
   const [creating, setCreating] = useState(false);
   const [created, setCreated] = useState<{ url: string } | null>(null);
@@ -197,6 +203,11 @@ function ClientReportForm({ onSent, lockedBrand }: { onSent: () => void; lockedB
   useEffect(() => {
     prepareSeq.current += 1;
     setPreview(null);
+    setNotes('');
+    setActions([{action:'',owner:'',due:''}]);
+    setSuccess('');
+    setReviewDate('');
+    setDecision('');
     setPreviewLoading(false);
     setCreated(null);
     setError(null);
@@ -258,6 +269,8 @@ function ClientReportForm({ onSent, lockedBrand }: { onSent: () => void; lockedB
 
   const createLink = async () => {
     if (!preview || creating || !rangeValid) return;
+    if (!notes.trim() || !actionPlanReady) { setError('Add your assessment, an action with its owner and due date, success criteria with a review date, and a decision request or an explicit no-decision statement.'); return; }
+    if (plan.length > 2000) { setError('Shorten the action plan to 2,000 characters before creating the report.'); return; }
     setCreating(true);
     setError(null);
     try {
@@ -385,12 +398,13 @@ function ClientReportForm({ onSent, lockedBrand }: { onSent: () => void; lockedB
 
           <div>
             <div className="flex items-baseline justify-between gap-2">
-              <Label htmlFor="cr-notes" className="mb-0">Your notes</Label>
-              <span className="text-[10.5px] text-muted-foreground">drafted for you, edit freely</span>
+              <Label htmlFor="cr-notes" className="mb-0">Our assessment</Label>
+              <span className="text-[10.5px] text-muted-foreground">review the draft before sharing</span>
             </div>
             <Textarea
               id="cr-notes"
               className="mt-1.5"
+              placeholder="In 2–3 sentences: what changed, what explains it, and what remains uncertain? Separate evidence from your interpretation."
               rows={5}
               maxLength={2000}
               value={notes}
@@ -398,24 +412,27 @@ function ClientReportForm({ onSent, lockedBrand }: { onSent: () => void; lockedB
             />
           </div>
 
-          {/* Optional, and empty renders nothing on the report rather than an
-              empty heading. A monthly with no plan is the report's only
-              non-retrospective section missing, which is worth the field. */}
-          <div>
-            <div className="flex items-baseline justify-between gap-2">
-              <Label htmlFor="cr-plan" className="mb-0">What happens next</Label>
-              <span className="text-[10.5px] text-muted-foreground">optional, your words</span>
-            </div>
-            <Textarea
-              id="cr-plan"
-              className="mt-1.5"
-              rows={3}
-              maxLength={2000}
-              placeholder="What you are committing to for the coming period."
-              value={plan}
-              onChange={e => setPlan(e.target.value)}
-            />
+          <div className="rounded-xl border border-border bg-secondary/30 p-4">
+            <Label htmlFor="cr-decision">Decision needed from the client</Label>
+            <p className="mb-2 text-xs text-muted-foreground">State the specific approval, who needs to decide, and by when. If none is needed, say so explicitly.</p>
+            <Textarea id="cr-decision" rows={2} maxLength={300} value={decision} onChange={e=>setDecision(e.target.value)} placeholder="Approve the proposed budget by Friday, or confirm no decision is needed."/>
+            <Button type="button" variant="ghost" size="sm" onClick={()=>setDecision('No client decision is needed this period.')}>No decision needed</Button>
           </div>
+
+          <section className="space-y-3 rounded-xl border border-border bg-secondary/30 p-4" aria-label="Accountable action plan">
+            <h3 className="text-sm font-semibold">Our response</h3>
+            <p className="text-xs text-muted-foreground">Record the commitments you have agreed to. These appear near the top of the client report.</p>
+            {actions.map((a,i)=><fieldset key={i} className="space-y-2 border-t border-border pt-3">
+              <legend className="text-xs font-semibold">Action {i+1}</legend>
+              <Label htmlFor={`cr-action-${i}`}>Action</Label><Input id={`cr-action-${i}`} maxLength={300} value={a.action} onChange={e=>setActions(actions.map((v,n)=>n===i?{...v,action:e.target.value}:v))}/>
+              <div className="grid grid-cols-2 gap-3"><div><Label htmlFor={`cr-owner-${i}`}>Owner</Label><Input id={`cr-owner-${i}`} maxLength={80} value={a.owner} onChange={e=>setActions(actions.map((v,n)=>n===i?{...v,owner:e.target.value}:v))}/></div>
+              <div><Label htmlFor={`cr-due-${i}`}>Due date</Label><Input id={`cr-due-${i}`} type="date" value={a.due} onChange={e=>setActions(actions.map((v,n)=>n===i?{...v,due:e.target.value}:v))}/></div></div>
+              {actions.length>1 && <Button type="button" variant="ghost" size="sm" onClick={()=>setActions(actions.filter((_,n)=>n!==i))}>Remove action {i+1}</Button>}
+            </fieldset>)}
+            {actions.length<3 && <Button type="button" variant="outline" size="sm" onClick={()=>setActions([...actions,{action:'',owner:'',due:''}])}>Add action</Button>}
+            <div><Label htmlFor="cr-success">What success looks like</Label><Textarea id="cr-success" rows={2} maxLength={500} placeholder="Name the measurable outcome or deliverable we will review." value={success} onChange={e=>setSuccess(e.target.value)}/></div>
+            <div><Label htmlFor="cr-review-date">Review date</Label><Input id="cr-review-date" type="date" value={reviewDate} onChange={e=>setReviewDate(e.target.value)}/></div>
+          </section>
 
           <Button size="lg" className="w-full" onClick={createLink} disabled={creating || !rangeValid}>
             {creating ? <><Loader2 className="animate-spin" />Creating…</> : <><Link2 />Create link + copy</>}

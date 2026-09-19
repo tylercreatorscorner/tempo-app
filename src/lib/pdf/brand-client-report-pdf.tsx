@@ -1,5 +1,6 @@
+import { reportCopy } from '@/lib/data/report-copy';
 /**
- * Brand Client Report — full PDF document.
+ * Brand Client Report: full PDF document.
  *
  * Downloadable companion to the web report at /r/[token]. The two MUST tell
  * the same story: same order, same claims, same callouts. They diverged once
@@ -9,17 +10,17 @@
  *
  * The agency leads. Store totals are CONTEXT and follow:
  *
- *   1. Cover                          — branded card + brand name + period
- *   2. WHAT WE DELIVERED              — roster GMV, posts, honesty callouts,
+ *   1. Cover                         : branded card + brand name + period
+ *   2. WHAT WE DELIVERED             : roster GMV, posts, honesty callouts,
  *                                       activation, efficiency, roster leaders
- *   3. Store context                  — exec summary, highlights, GMV hero
- *   4. Store context                  — key metrics, managed split, new vs returning
- *   5. Store context                  — day of week + daily performance
- *   6. Top Creators                   — store-wide leaderboard
- *   7. Top Videos                     — store-wide
- *   8. Top Products                   — store-wide
- *   9. Product↔Creator Breakdown      — top 5 products → top 3 creators each
- *  10. Footer                         — Tempo branding
+ *   3. Store context                 : exec summary, highlights, GMV hero
+ *   4. Store context                 : key metrics, managed split, new vs returning
+ *   5. Store context                 : day of week + daily performance
+ *   6. Top Creators                  : store-wide leaderboard
+ *   7. Top Videos                    : store-wide
+ *   8. Top Products                  : store-wide
+ *   9. Product↔Creator Breakdown     : top 5 products → top 3 creators each
+ *  10. Footer                        : Tempo branding
  *
  * Uses Tempo's brand colors (pink #E91E8C primary, dark #1A1B3A ink) instead
  * of the old dash's green palette. Green is reserved for positive deltas.
@@ -358,7 +359,7 @@ function medal(rank: number): string {
  *
  * 🚨 IT SAID "WEEKLY REPORT" ON EVERY PAGE OF EVERY PDF, hardcoded. A
  * month-in-review attachment carried "CATA-KOR · WEEKLY REPORT" across all 18
- * pages beside a period label reading Aug 1 – Aug 31 — the header and the
+ * pages beside a period label reading Aug 1 – Aug 31: the header and the
  * dates on the same line contradicting each other, on the artifact a client
  * downloads and keeps.
  *
@@ -445,7 +446,7 @@ function pctChangeSafe(curr: number, prior: number): number | null {
 function DeltaPill({ pct }: { pct?: number | null }) {
   const p = finite(pct);
   if (p === null) {
-    return pct === null ? <Text style={styles.kpiDeltaNew}>NEW</Text> : <Text style={styles.kpiDeltaNone}>—</Text>;
+    return pct === null ? <Text style={styles.kpiDeltaNew}>NEW</Text> : <Text style={styles.kpiDeltaNone}>–</Text>;
   }
   const rounded = Math.round(Math.abs(p));
   if (p >= 0) return <Text style={styles.kpiDeltaPos}>+{rounded}%</Text>;
@@ -455,13 +456,13 @@ function DeltaPill({ pct }: { pct?: number | null }) {
 // ── Main Document ──────────────────────────────────────────────────
 
 export function BrandClientReportPDF({
-  data,
+  data: originalData,
   notes = null,
   plan = null,
   reportType = 'performance',
   weekly = [],
   logo = null,
-  movers = null,
+  movers: originalMovers = null,
 }: {
   data: BrandClientReportData;
   /**
@@ -482,13 +483,13 @@ export function BrandClientReportPDF({
    * The 12-week trend, with our half of each week.
    *
    * 🚨 THE PDF CARRIED NO TREND AT ALL, so a client who downloaded the
-   * attachment got this period's numbers and no trajectory whatsoever — the
+   * attachment got this period's numbers and no trajectory whatsoever: the
    * one thing that answers "is this working". Lives on the SNAPSHOT beside
    * `data` for the same reason movers do: it spans twelve weeks, not this
    * report's window.
    *
    * ⚠️ rosterGmv is absent on snapshots frozen before migration 193, and the
-   * chart is skipped entirely rather than drawn store-only — a bar with no
+   * chart is skipped entirely rather than drawn store-only: a bar with no
    * fill would read as a week we produced nothing.
    */
   weekly?: { weekEnd: string; gmv: number; rosterGmv?: number }[];
@@ -513,6 +514,9 @@ export function BrandClientReportPDF({
     list: { handle: string; name: string | null; cur: number; prior: number; change: number; movement: string }[];
   } | null;
 }) {
+  const data = reportCopy(originalData);
+  const movers = reportCopy(originalMovers);
+
   const isMonthly = reportType === 'monthly';
   const isWeekly = reportType === 'weekly';
   const goalPctOfTotal = (n: number) => data.totalGmv > 0 ? (n / data.totalGmv) * 100 : 0;
@@ -520,7 +524,7 @@ export function BrandClientReportPDF({
 
   /**
    * ⚠️ ALL TWELVE buckets or none. A partially split chart draws some weeks as
-   * empty tracks, which reads as "we produced nothing that week" — precisely
+   * empty tracks, which reads as "we produced nothing that week": precisely
    * the misreading the chart exists to prevent.
    */
   const trend = weekly.length >= 3 && weekly.every(w => w.rosterGmv !== undefined) ? weekly : null;
@@ -653,7 +657,7 @@ export function BrandClientReportPDF({
    *
    * cc.activeCreatorCount collapses POSTED and SOLD into one word, and the
    * creator list below is counted on a different roster rule (on the roster
-   * DURING the window, versus on it today) — which had the PDF printing two
+   * DURING the window, versus on it today): which had the PDF printing two
    * different totals for "signed creators" pages apart. When the creator list
    * is present every count is derived from it.
    */
@@ -681,7 +685,7 @@ export function BrandClientReportPDF({
    * count(distinct handle) over the TikTok export with NO gmv filter, so they
    * count every creator who APPEARS in the file. On jiyu 2026-08 that read
    * 40,954 store creators and 247 roster creators, against 4,216 who posted
-   * and 930 who sold — and it also poisoned every ratio built on it (GMV per
+   * and 930 who sold: and it also poisoned every ratio built on it (GMV per
    * creator read $10.43; new-vs-returning divided by it).
    *
    * storeSold is the honest denominator: creators who actually earned. Where
@@ -696,7 +700,7 @@ export function BrandClientReportPDF({
    * against a target nobody agreed to.
    *
    * ⚠️ The quota is MONTHLY, so a PART month reads short against it no matter
-   * what — jiyu 01-26 August showed 830 of 1,731 (48%) largely because four
+   * what: jiyu 01-26 August showed 830 of 1,731 (48%) largely because four
    * days had not happened. The window is NOT pro-rated (that would be the same
    * apportionment this report refuses everywhere else); an incomplete month
    * says so instead.
@@ -865,7 +869,7 @@ export function BrandClientReportPDF({
   /**
    * How much more of the sales we produce than our share of creators would
    * imply. Only meaningful when the input share is genuinely small and the
-   * output share genuinely larger — below 1.5x it is not a story, and a
+   * output share genuinely larger: below 1.5x it is not a story, and a
    * near-zero denominator makes the multiple explode.
    */
   const leverage = (() => {
@@ -1051,7 +1055,7 @@ export function BrandClientReportPDF({
             {notes?.trim() ? (
               <>
                 <Text style={styles.spendLead}>Notes from your account lead</Text>
-                <Text style={[styles.spendMeta, { fontSize: 9 }]}>{notes.trim()}</Text>
+                <Text style={[styles.spendMeta, { fontSize: 9 }]}>{reportCopy(notes.trim())}</Text>
               </>
             ) : null}
             {plan?.trim() ? (
@@ -1059,7 +1063,7 @@ export function BrandClientReportPDF({
                 <Text style={[styles.spendLead, { marginTop: notes?.trim() ? 8 : 0 }]}>
                   What we are doing next
                 </Text>
-                <Text style={[styles.spendMeta, { fontSize: 9 }]}>{plan.trim()}</Text>
+                <Text style={[styles.spendMeta, { fontSize: 9 }]}>{reportCopy(plan.trim())}</Text>
               </>
             ) : null}
           </View>
@@ -1108,7 +1112,7 @@ export function BrandClientReportPDF({
         {/* ── Week over week: what moved ───────────────────────────────── */}
         {/* ⚠️ GROSS UP AND GROSS DOWN, never "N creators explain X%". A net
             figure is the residue of two opposing forces and one percentage
-            against it hides their size — jiyu's week was $6,169 gained against
+            against it hides their size: jiyu's week was $6,169 gained against
             $9,098 lost for a net -$2,930. And a creator who went from nothing
             to something is NEW, not "up ∞%". */}
         {isWeekly && movers && movers.list.length > 0 && (
@@ -1136,8 +1140,8 @@ export function BrandClientReportPDF({
                       ? 'STOPPED'
                       : `${c.change >= 0 ? '+' : '-'}${fmtCurrency(Math.abs(c.change))}`}
                 </Text>
-                <Text style={styles.vsOurs}>{c.prior > 0 ? fmtCurrency(c.prior) : '—'}</Text>
-                <Text style={styles.vsTheirs}>to {c.cur > 0 ? fmtCurrency(c.cur) : '—'}</Text>
+                <Text style={styles.vsOurs}>{c.prior > 0 ? fmtCurrency(c.prior) : '–'}</Text>
+                <Text style={styles.vsTheirs}>to {c.cur > 0 ? fmtCurrency(c.cur) : '–'}</Text>
               </View>
             ))}
             <Text style={[styles.splitMeta, { marginTop: 4 }]}>
@@ -1226,8 +1230,8 @@ export function BrandClientReportPDF({
             <Text style={styles.sectionEyebrow}>EFFICIENCY</Text>
             <Text style={styles.sectionTitle}>Creators Corner vs your whole shop</Text>
             {/* ⚠️ NOT a bar per metric. Four bars at wildly different scales
-                made the strongest fact — a 2-3% sliver of creators producing
-                most of the sales — render as the SHORTEST bar on the page,
+                made the strongest fact: a 2-3% sliver of creators producing
+                most of the sales: render as the SHORTEST bar on the page,
                 which argues against us. The gap between a small input and a
                 large output is the point, and a bar shows each metric alone,
                 never the gap. */}
@@ -1235,7 +1239,7 @@ export function BrandClientReportPDF({
               <Text style={[styles.summaryBody, { marginTop: 2, marginBottom: 6 }]}>
                 We are <Text style={styles.highlightPink}>{fmtPct(vsShopRaw.creatorPct, 1)}</Text> of the
                 creators posting on your shop, and we produced{' '}
-                <Text style={styles.highlightPink}>{fmtPct(vsShopRaw.gmvPct, 1)}</Text> of its sales —{' '}
+                <Text style={styles.highlightPink}>{fmtPct(vsShopRaw.gmvPct, 1)}</Text> of its sales –{' '}
                 <Text style={styles.highlightInk}>{leverage.toFixed(1)}x</Text> the sales share you would
                 expect from our share of creators.
               </Text>
@@ -1304,7 +1308,7 @@ export function BrandClientReportPDF({
 
         {/* ⚠️ CUT: "Top Creators Corner Creators". It was the first rows of
             "Every creator we run for you", rendered a second time with
-            different columns — the same duplication removed from the web
+            different columns: the same duplication removed from the web
             report. The full table carries it. */}
 
         {/* Top managed videos */}
@@ -1336,7 +1340,7 @@ export function BrandClientReportPDF({
       {/* ── PAGE 2a: The roster we run + where the sales came from ────
           Its OWN page, not appended to the agency page. Measured on the first
           render: the six-stat grid split across a page break and page 4 opened
-          with "$48,450 monthly commitment 193 1,117" — values orphaned from
+          with "$48,450 monthly commitment 193 1,117": values orphaned from
           the labels left behind on page 3. A block whose labels and numbers
           can separate is worse than no block. */}
       {gran && (
@@ -1344,7 +1348,7 @@ export function BrandClientReportPDF({
           <PageHead brandName={data.brandName} periodLabel={data.periodLabel} kind={reportType} />
           {/* Roster composition + investment. Mirrors the web report's
               InvestmentStrip. "Affiliate-only" is stated because 142 signed
-              creators overstates the commitment on both sides — only some carry
+              creators overstates the commitment on both sides: only some carry
               a retainer, and the rest have no post obligation at all. */}
           {gran && (
             <View style={styles.section}>
@@ -1376,7 +1380,7 @@ export function BrandClientReportPDF({
           )}
 
           {/* Video vintage. Grouped by the month each video was POSTED, counting
-              only sales made in this period — the same cut as the web report. */}
+              only sales made in this period: the same cut as the web report. */}
           {gran && vintageRows.length > 0 && (
             <View style={styles.section}>
               <Text style={styles.sectionEyebrow}>
@@ -1445,7 +1449,7 @@ export function BrandClientReportPDF({
             </Text>
             {/* The PDF lists only creators who posted or sold. On Lemme that is
                 48 of 142 and turns six pages of mostly-blank rows into two.
-                The count dropped is STATED — a silent truncation reads as
+                The count dropped is STATED: a silent truncation reads as
                 "this is everyone", and the web report carries the full list. */}
             {activeCreators.length < gran.creators.length && (
               <Text style={[styles.gStatNote, { marginBottom: 6 }]}>
@@ -1456,7 +1460,7 @@ export function BrandClientReportPDF({
             )}
             {/* Flex values sum to 8.8 and mirror the row below EXACTLY. A header
                 whose flex differs from its rows misaligns silently in @react-pdf
-                — there is no layout error, the columns just drift. */}
+               : there is no layout error, the columns just drift. */}
             <View style={styles.gHead} wrap={false} fixed>
               <Text style={[styles.gHeadCell, { flex: 1.7 }]}>CREATOR</Text>
               <Text style={[styles.gHeadCell, { flex: 1.7 }]}>TIKTOK</Text>
@@ -1512,7 +1516,7 @@ export function BrandClientReportPDF({
         </Page>
       )}
 
-      {/* ── PAGE 3: Store context — exec summary, highlights, GMV hero ── */}
+      {/* ── PAGE 3: Store context: exec summary, highlights, GMV hero ── */}
       <Page size="LETTER" style={styles.page}>
         <PageHead brandName={data.brandName} periodLabel={data.periodLabel} kind={reportType} />
 
@@ -1594,7 +1598,7 @@ export function BrandClientReportPDF({
         </View>
       </Page>
 
-      {/* ── PAGE 4: Store context — key metrics, managed split, new vs returning ── */}
+      {/* ── PAGE 4: Store context: key metrics, managed split, new vs returning ── */}
       <Page size="LETTER" style={styles.page}>
         <PageHead brandName={data.brandName} periodLabel={data.periodLabel} kind={reportType} />
 
@@ -1718,7 +1722,7 @@ export function BrandClientReportPDF({
         </View>
       </Page>
 
-      {/* ── PAGE 5: Store context — day-of-week + daily performance ── */}
+      {/* ── PAGE 5: Store context: day-of-week + daily performance ── */}
       <Page size="LETTER" style={styles.page}>
         <PageHead brandName={data.brandName} periodLabel={data.periodLabel} kind={reportType} />
 

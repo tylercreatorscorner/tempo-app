@@ -10,7 +10,8 @@ const tables={brands_v2:[brand('own','a'),brand('foreign','b')], client_reports:
  {id:'our-report',tenant_id:'a',brand_slug:'own',token:'our-token',notes:'original',plan:'keep',period_start:'2026-08-01',period_end:'2026-08-31',revoked_at:null},
  {id:'their-report',tenant_id:'b',brand_slug:'own',token:'secret-token',notes:'secret',plan:'secret',revoked_at:null},
 ],report_log:[{id:'their-log',tenant_id:'b',brand_slug:'own'}]};
-function from(table){let filters=[],limit=null,offset=0,patch=null,insert=null;const q={select:()=>q,order:()=>q,
+function from(table){let filters=[],limit=null,offset=0,patch=null,insert=null;const q={select:()=>q,order:()=>q,abortSignal:()=>q,
+ gte:(k,v)=>{filters.push(r=>r[k]>=v);return q;},lte:(k,v)=>{filters.push(r=>r[k]<=v);return q;},
  eq:(k,v)=>{filters.push(r=>r[k]===v);return q;},in:(k,v)=>{filters.push(r=>v.includes(r[k]));return q;},limit:n=>{limit=n;return q;},
  range:(start,end)=>{offset=start;limit=end-start+1;return q;},
  or:expression=>{const terms=expression.split(',').map(term=>{const [column,,...pattern]=term.split('.');return [column,pattern.join('.').replace(/^%|%$/g,'').toLowerCase()];});filters.push(row=>terms.some(([column,value])=>String(row[column]??'').toLowerCase().includes(value)));return q;},
@@ -22,7 +23,7 @@ function from(table){let filters=[],limit=null,offset=0,patch=null,insert=null;c
 const admin={from,rpc:async(name,args)=>{rpcCalls.push({name,args});return {data:name==='get_brand_roster_weekly_workspace'?[]:name==='get_brand_client_report_granular_workspace'?null:{},error:null};},auth:{getUser:async()=>({data:{user:{email:'fixture@invalid'}}})}};
 const deps={'next/server':{NextRequest,NextResponse},'@/lib/supabase/server':{createAdminClient:async()=>admin,createClient:async()=>admin},
  '@/lib/auth/workspace-scope':{getWorkspaceScope:async()=>scope,isBrandInScope:(s,b)=>s.brandScope.kind==='all'||s.brandScope.brandIds.includes(b.id)||s.brandScope.brandSlugs.includes(b.slug)}};
-function load(file){const exports={};runInNewContext(ts.transpileModule(readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText,{exports,console,Set,Map,Date,URL,Uint8Array,process:{env:{}},require:name=>{let key=name;if(name.startsWith('./')&&file.includes('/auth/'))key='@/lib/auth/'+name.slice(2);assert.ok(key in deps,key);return deps[key];}});return exports;}
+function load(file){const exports={};runInNewContext(ts.transpileModule(readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText,{exports,console,Set,Map,Date,URL,AbortSignal,Uint8Array,process:{env:{}},require:name=>{let key=name;if(name.startsWith('./')&&file.includes('/auth/'))key='@/lib/auth/'+name.slice(2);assert.ok(key in deps,key);return deps[key];}});return exports;}
 deps['@/lib/auth/permissions']=load('src/lib/auth/permissions.ts');
 deps['@/lib/data/brand-registry-core']=load('src/lib/data/brand-registry-core.ts');deps['@/lib/data/brand-registry']=deps['@/lib/data/brand-registry-core'];
 deps['@/lib/auth/client-report-access']=load('src/lib/auth/client-report-access.ts');
@@ -101,13 +102,16 @@ const csv=load('src/app/api/report-csv/[token]/route.ts'),pdf=load('src/app/api/
 const tokenCtx={params:Promise.resolve({token:'our-token'})};
 tables.brands_v2[0].logo_url='our-logo';tables.brands_v2.unshift(brand('collision','b',{slug:'own',logo_url:'foreign-logo'}));
 tables.client_reports[0].snapshot=structuredClone(tables.client_reports.find(r=>r.snapshot?.revision && r.snapshot?.report)?.snapshot);
-tables.client_reports[0].snapshot.report.granular={creators:[{name:'Frozen creator',handles:['frozen'],retainer:10,gmv:123,orders:1}]};
+tables.client_reports[0].snapshot.report.granular={creators:[{creatorId:'published-creator',name:'Frozen creator',handles:['frozen'],retainer:10,gmv:123,orders:1}]};
 rpcCalls=[];scope=null;
 assert.equal((await csv.GET(req(null,'GET'),tokenCtx)).status,200);
 assert.equal((await pdf.GET(req(null,'GET'),tokenCtx)).status,200);assert.equal(logoSeen,'our-logo');
+tables.creators_v2=[{id:'published-creator',tenant_id:'b',discord_avatar:'foreign-photo'},{id:'published-creator',tenant_id:'a',discord_avatar:'our-photo'},{id:'unpublished-creator',tenant_id:'a',discord_avatar:'unpublished-photo'}];
 const publicView=await page.default({...tokenCtx,searchParams:Promise.resolve({preview:'1'})});
 assert.equal(publicView.props.children[1].props.logoUrl,'our-logo');
 assert.equal(publicView.props.children[1].props.report.granular.creators[0].gmv,123);
+assert.equal(publicView.props.children[1].props.report.granular.creators[0].avatarUrl,'our-photo');
+assert.equal(publicView.props.children[1].props.report.granular.creators.length,1);
 assert.equal(rpcCalls.length,0,'Public token readers must never regenerate data');
 const frozenRow=tables.client_reports[0].snapshot.report.granular.creators[0];
 frozenRow.agreement={periodStart:'2026-07-24',periodEnd:'2026-08-31',quota:30,revision:2,reportPeriodComparable:false};
@@ -152,3 +156,13 @@ scope={...own,brandScope:{kind:'scoped',brandIds:[],brandSlugs:[]}};
 paged=await (await outbox.GET(new NextRequest('https://fixture.invalid/api/client-reports?page=1'))).json();assert.equal(paged.total,0);assert.equal(paged.reports.length,0);
 scope=savedScope;
 console.log('PASS library pagination: search beyond 100 rows, full and final pages, invalid pages, tenant/brand-scoped totals');
+
+// Units are scoped before pagination, include every product/day, and preserve missing data.
+tables.video_performance=Array.from({length:1001},(_,id)=>({id,product_id:String(id),gmv:1,period_type:'daily',tenant_id:'a',brand:'own',video_id:'v',items_sold:2,report_date:'2026-09-10'}));
+tables.video_performance.push({period_type:'daily',tenant_id:'b',brand:'own',video_id:'v',items_sold:9000,report_date:'2026-09-10'},{period_type:'daily',tenant_id:'a',brand:'other',video_id:'v',items_sold:9000,report_date:'2026-09-10'},{period_type:'daily',tenant_id:'a',brand:'own',video_id:'v',items_sold:9000,report_date:'2026-08-10'});
+const unitReader=load('src/lib/data/client-reports.ts').readReportVideoUnits;
+assert.equal((await unitReader(admin,'a',['own'],['v'],'2026-09-01','2026-09-30')).v,2002);
+tables.video_performance[0].items_sold=null;
+assert.equal((await unitReader(admin,'a',['own'],['v'],'2026-09-01','2026-09-30')).v,null);
+assert.equal((await unitReader(admin,'a',['own'],['missing'],'2026-09-01','2026-09-30')).missing,undefined);
+console.log('PASS top-content units: pagination, tenant/brand/date/video scope, missing values');
