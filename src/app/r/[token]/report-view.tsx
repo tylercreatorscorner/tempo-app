@@ -277,6 +277,7 @@ function HoverBars({
   return (
     <div className="rounded-[14px] border border-[#dedee5] bg-white px-4 py-3.5">
       <div className="mb-2.5 text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#71717a]">{title}</div>
+      <div className="mb-1 flex justify-between text-[10px] tabular-nums text-zinc-500"><span>$0 baseline</span><span>Scale maximum {money(max)}</span></div>
       <div className="flex h-[130px] items-end gap-[7px]">
         {bars.map((b, i) => (
           <div
@@ -1079,6 +1080,9 @@ function MonthToDate({
   const complete = mtd.daysElapsed >= mtd.daysInMonth;
 
   const postPct = owed > 0 ? (delivered / owed) * 100 : null;
+  const pace = contracted.map(c=>reportDeliveryPace(c,mtd));
+  const paceCount = (label:string)=>pace.filter(p=>p?.label===label).length;
+  const unrated = pace.filter(p=>!p).length;
 
   return (
     <div className="mt-3.5 rounded-[14px] border border-[#dedee5] bg-white px-5 py-4">
@@ -1105,9 +1109,9 @@ function MonthToDate({
           note={postPct !== null ? `${postPct.toFixed(0)}% delivered` : undefined}
         />
         <Mini
-          label="Met their commitment"
-          value={`${num(met)} of ${num(contracted.length)}`}
-          note="retained creators, full monthly count"
+          label={complete ? 'Completed commitment' : 'On pace or ahead'}
+          value={complete ? `${num(met)} of ${num(contracted.length)}` : `${paceCount('On pace') + paceCount('Ahead') + paceCount('Complete')}`}
+          note={complete ? 'retained creators, full monthly count' : `${paceCount('Behind')} behind · ${unrated} not rated`}
         />
         {spend && (
           <Mini
@@ -1192,7 +1196,7 @@ function MonthToDate({
       )}
 
       {spend && (
-        <div className="mt-3.5 border-t border-[#e4e4e7] pt-3">
+        <details className="mt-3.5 border-t border-[#e4e4e7] pt-3"><summary className="mb-2 cursor-pointer text-xs font-semibold text-zinc-600">Estimate methodology &amp; limitations</summary>
           <p className="max-w-[70ch] text-[12.5px] leading-[1.6] text-[#71717a]">
             <b className="text-[#3f3f46]">How the spend figure works.</b> Each creator&rsquo;s
             retainer is estimated from published posts against the agreed post count, capped at
@@ -1205,7 +1209,7 @@ function MonthToDate({
               indication of delivery, not as money unspent.
             </p>
           )}
-        </div>
+        </details>
       )}
     </div>
   );
@@ -2058,7 +2062,9 @@ export function ReportView({
       <nav aria-label="Report sections" className={`${styles.navigation} sticky top-0 z-20 border-b border-[#dedee5] bg-white/95 backdrop-blur-sm`}>
         <div className="mx-auto flex max-w-[1080px] items-center gap-5 overflow-x-auto px-5 sm:px-8">
           {hasRoster && <a href="#overview">Overview</a>}
-          {(notes?.trim() || plan?.trim()) && <a href="#commentary">Commentary &amp; plan</a>}
+          <a href="#drivers">Drivers</a>
+          {((isMonthly && gran) || (!windowIsMonth && r.monthToDate)) && <a href="#delivery">Delivery</a>}
+          <a href="#next-steps">Next steps</a>
           {watchVideos.length > 0 && <a href="#content">Top content</a>}
           {gran && gran.creators.length > 0 && <a href="#creators">Creator detail</a>}
           <a href="#store">Store context</a>
@@ -2212,64 +2218,63 @@ export function ReportView({
           </>
         )}
 
-        {/* ── 1a. The account lead's voice, directly under the number.
-               Five sections used to stand between the headline and any human
-               framing of it, so the evidence argued before anyone said what it
-               meant. A report should read: here is the number, here is what we
-               think about it, now here is why. The forward plan travels with
-               the notes because a client reads "how did it go" and "what
-               happens next" as one thought. ─── */}
-        {/* Either half is enough: a report can carry a forward plan with no
-            retrospective commentary, and gating on notes alone would silently
-            drop it. */}
-        {(notes?.trim() || plan?.trim()) && (
-          <>
-            <SectionLine id="commentary">Commentary &amp; next steps</SectionLine>
-            <div className="rounded-[14px] border border-[#e3e0f5] border-l-[3px] border-l-[#5b5ee8] bg-white px-[18px] py-[15px]">
-              <div className="mb-2 flex items-center gap-2.5">
-                <span
-                  className="flex h-8 w-8 flex-none items-center justify-center rounded-full text-[11px] font-extrabold text-white"
-                  style={{ background: 'linear-gradient(135deg,#5b5ee8,#a855f7)' }}
-                >
-                  CC
-                </span>
-                <div>
-                  <b className="text-[13px]">Notes for this {word}</b>
-                  <div className="text-[10.5px] text-[#71717a]">{AGENCY}</div>
-                </div>
-              </div>
-              {notes?.trim() && (
-                <p className="whitespace-pre-line text-[13.5px] leading-[1.65] text-[#3f3f46]">{notes}</p>
-              )}
-              {/* 🚨 THE ONLY FORWARD-LOOKING THING ON THE PAGE. Everything else
-                  is retrospective, which is why a brand could read the whole
-                  report and still not know what happens next. Kept in its own
-                  column (mig 190) rather than merged into notes, so a
-                  commitment made this {word} is still identifiable next {word}
-                  and can actually be checked. */}
-              {plan?.trim() && (
-                <div className="mt-3.5 border-t border-[#e4e4e7] pt-3.5">
-                  <div className="text-[9.5px] font-extrabold uppercase tracking-[0.11em] text-[#71717a]">
-                    What we are doing next
-                  </div>
-                  <p className="mt-1.5 whitespace-pre-line text-[13.5px] leading-[1.65] text-[#3f3f46]">
-                    {plan}
-                  </p>
-                </div>
-              )}
-            </div>
-          </>
-        )}
-
+        {notes?.trim() && <div className="mt-4 border-l-2 border-violet-300 pl-4">
+          <h2 className="text-xs font-semibold text-zinc-700">Account lead’s perspective</h2>
+          <p className="mt-1 whitespace-pre-line text-[13px] leading-relaxed text-zinc-600">{notes}</p>
+        </div>}
+        {weeklyShare && <p className="mt-3 rounded-lg bg-violet-50 px-4 py-3 text-[12px] text-zinc-700">
+          <b>Longer-term context:</b> Managed share moved from {weeklyShare.first.toFixed(1)}% to {weeklyShare.last.toFixed(1)}% between the weeks ending {fmtDay(new Date(weeklyShare.firstWeek+'T12:00:00Z'))} and {fmtDay(new Date(weeklyShare.lastWeek+'T12:00:00Z'))}. Read the period change above alongside this trend.
+        </p>}
+        <SectionLine id="drivers">Performance drivers</SectionLine>
         {/* ── 1a-weekly. What moved. On a comparison report the CHANGE is
                the subject, so it leads rather than trailing the tables. ─── */}
         {isWeekly && s.movers && (
           <>
-            <SectionLine>What moved this {word}</SectionLine>
+            <h3 className="mb-2 text-xs font-semibold text-zinc-600">What moved this {word}</h3>
             <Movers m={s.movers} word={word} />
           </>
         )}
 
+        {/* ── 4. What they made. ─────────────────────────────────── */}
+        {watchVideos.length > 0 && (
+          <>
+            <SectionLine id="content">Top-performing content</SectionLine>
+            <TopPosts rows={watchVideos} />
+          </>
+        )}
+
+        {/* ── 2b. Month in review: committed against delivered. ────── */}
+        {isMonthly && gran && (
+          <>
+            <SectionLine id="delivery">Monthly delivery</SectionLine>
+            <MonthlyDelivery
+              g={gran}
+              budget={finite(gran.roster.monthlyRetainerBudget)}
+              /* Not tracked yet — see MonthlyDelivery. Never derived. */
+              actualSpend={null}
+              start={r.startDate}
+              end={r.endDate}
+            />
+          </>
+        )}
+
+        {/* ── 3b. The month. Monthly commitments judged over the month,
+            promoted ABOVE the roster table: this is the accountability the
+            reader came for, and it used to sit underneath ~55 rows of names. */}
+        {!windowIsMonth && r.monthToDate && (
+          <>
+            <SectionLine id="delivery">Delivery pace</SectionLine>
+            <MonthToDate mtd={r.monthToDate} signings={r.signings} />
+          </>
+        )}
+
+        <SectionLine id="next-steps">Next steps</SectionLine>
+        <div className="rounded-xl border border-violet-200 bg-white px-5 py-4">
+          {plan?.trim() ? <p className="whitespace-pre-line text-[13px] leading-relaxed text-zinc-700">{plan}</p> : <p className="text-[13px] text-zinc-600">No next-step plan was included in this saved report. Confirm the priority actions, owners and dates with your account lead.</p>}
+        </div>
+        <SectionLine>Supporting detail</SectionLine>
+        <details className="rounded-xl border border-zinc-200 bg-white px-4 py-3">
+          <summary className="cursor-pointer text-sm font-semibold text-zinc-700">Contribution, roster coverage &amp; content longevity</summary>
         {/* ── 1b. What we did against what the whole shop did. ───── */}
         {hasRoster && vsShopRows.length > 0 && (
           <>
@@ -2296,26 +2301,6 @@ export function ReportView({
                 58.6% "older than three months"). Its number now opens the
                 vintage section instead, so there is ONE place the client reads
                 about where the revenue came from. */}
-          </>
-        )}
-
-        {/* ⚠️ CUT: "The creators we run for you" (top 5). It was literally
-               the first five rows of "Every creator we run for you" below,
-               rendered a second time with different columns. The full table
-               now carries the whole story, adjacent to roster coverage. ─── */}
-
-        {/* ── 2b. Month in review: committed against delivered. ────── */}
-        {isMonthly && gran && (
-          <>
-            <SectionLine>What you committed, what we delivered</SectionLine>
-            <MonthlyDelivery
-              g={gran}
-              budget={finite(gran.roster.monthlyRetainerBudget)}
-              /* Not tracked yet — see MonthlyDelivery. Never derived. */
-              actualSpend={null}
-              start={r.startDate}
-              end={r.endDate}
-            />
           </>
         )}
 
@@ -2407,24 +2392,6 @@ export function ReportView({
           </>
         )}
 
-        {/* ── 3b. The month. Monthly commitments judged over the month,
-            promoted ABOVE the roster table: this is the accountability the
-            reader came for, and it used to sit underneath ~55 rows of names. */}
-        {!windowIsMonth && r.monthToDate && (
-          <>
-            <SectionLine>The month so far</SectionLine>
-            <MonthToDate mtd={r.monthToDate} signings={r.signings} />
-          </>
-        )}
-
-        {/* ── 4. What they made. ─────────────────────────────────── */}
-        {watchVideos.length > 0 && (
-          <>
-            <SectionLine id="content">Top-performing content</SectionLine>
-            <TopPosts rows={watchVideos} />
-          </>
-        )}
-
         {/* ── 4b. Video vintage: which posts are carrying the period ── */}
         {gran && gran.vintage.length > 0 && (
           <>
@@ -2433,13 +2400,7 @@ export function ReportView({
           </>
         )}
 
-        {/* ⚠️ CUT: "Signed creators vs the rest of your shop". It compared
-               AOV and GMV-per-creator against everyone else, and measured
-               across seven brands the AOV gap was $1-6 — on catakor the
-               roster read WORSE ($43.44 against $44.09). The agency-vs-shop
-               block in Act 1 makes the same argument honestly, with shares
-               of a denominator that is printed beside it. ─────────────── */}
-
+        </details>
         {/* ── 6b. Every creator, in full. REFERENCE, not narrative.
             Deliberately after the story: it is a lookup table, and in the
             middle of the page it buried everything below it. The CSV does the
@@ -2453,6 +2414,7 @@ export function ReportView({
 
         {/* ── 7. Store context, secondary ────────────────────────── */}
         <SectionLine id="store">Store context</SectionLine>
+        <details className="rounded-xl border border-zinc-200 bg-white p-4"><summary className="mb-3 cursor-pointer text-sm font-semibold text-zinc-700">Store totals, sales trends &amp; lifetime history</summary>
         <p className="mb-3 max-w-[68ch] text-[13.5px] leading-[1.65] text-[#3f3f46]">
           Context for the numbers above. This is all of {brandName}&rsquo;s TikTok Shop activity, not only the
           creators we run.
@@ -2549,7 +2511,7 @@ export function ReportView({
                 caption: `week ending ${fmtDay(new Date(w.weekEnd + 'T12:00:00Z'))}`,
               }))}
               labels={weekly.map((w, i) =>
-                i === 0 || i === weekly.length - 1 ? fmtDay(new Date(w.weekEnd + 'T12:00:00Z')) : '',
+                i % 3 === 0 || i === weekly.length - 1 ? fmtDay(new Date(w.weekEnd + 'T12:00:00Z')) : '',
               )}
               peakNoun="week"
               subLabel={weeklySplit ? 'creators we run' : undefined}
@@ -2592,6 +2554,7 @@ export function ReportView({
           </>
         )}
 
+        </details>
         <div className="mt-10 text-[11.5px] leading-[1.7] text-[#71717a]">
           Prepared by {AGENCY} for {brandName}. Every figure is frozen as of {fmtDay(frozen)} and will not
           change after sending. Questions go to your account lead.
