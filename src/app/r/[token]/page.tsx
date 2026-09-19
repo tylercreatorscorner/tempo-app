@@ -1,5 +1,5 @@
 /**
- * Public client report — /r/[token].
+ * Public client report: /r/[token].
  *
  * Renders the FROZEN snapshot from client_reports (never a live query): the
  * numbers a client sees are the numbers that were frozen at create time,
@@ -30,12 +30,12 @@ export async function generateMetadata({ params }: Props) {
   /**
    * ⚠️ THE TITLE SAID "Performance Report" WHATEVER THE REPORT WAS. This is
    * the browser tab, the bookmark, and the unfurl card in Slack or an email
-   * — so a month-in-review arrived in a client's inbox labelled as something
+   *: so a month-in-review arrived in a client's inbox labelled as something
    * else, next to a period label reading the whole month. Same defect the PDF
    * running head had.
    *
    * The period label is part of the title because an unfurl shows it alone:
-   * "Cata-Kor — Month in Review · Aug 1 – Aug 31, 2026" identifies WHICH
+   * "Cata-Kor: Month in Review · Aug 1 – Aug 31, 2026" identifies WHICH
    * report was sent, which matters when a client has several links.
    */
   const kind =
@@ -45,8 +45,8 @@ export async function generateMetadata({ params }: Props) {
   return {
     title:
       data && !data.revoked_at
-        ? `${data.brand_name} — ${kind}${data.period_label ? ` · ${data.period_label}` : ''}`
-        : 'Report — Tempo',
+        ? `${data.brand_name}: ${kind}${data.period_label ? ` · ${data.period_label}` : ''}`
+        : 'Report: Tempo',
     robots: { index: false, follow: false },
   };
 }

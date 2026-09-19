@@ -1,9 +1,10 @@
+import { reportCopy } from '@/lib/data/report-copy';
 import { reportDeliveryPace } from '@/lib/data/report-delivery-pace';
 import { ReportImage } from './report-image';
 import styles from './report-presentation.module.css';
 import { ReconciliationView } from './reconciliation-view';
 /**
- * The client report page body — renders the frozen snapshot.
+ * The client report page body: renders the frozen snapshot.
  *
  * Rebuilt 2026-08-05, agency-forward. The previous version opened with
  * store-wide GMV and buried the roster mid-page, which read as "here are your
@@ -21,7 +22,7 @@ import { ReconciliationView } from './reconciliation-view';
  * blocks rather than showing blanks.
  *
  * Deliberately LIGHT regardless of viewer theme: this is the artifact clients
- * receive — print-adjacent, paper white.
+ * receive: print-adjacent, paper white.
  */
 import type { BrandClientReportData } from '@/lib/data/brand-client-report';
 import {
@@ -107,7 +108,7 @@ function Delta({ pct, suffix, abs }: { pct?: number | null; suffix?: string; abs
   if (p === null) {
     return pct === null
       ? <div className="mt-0.5 text-[11px] font-bold text-[#71717a]">new this period</div>
-      : <div className="mt-0.5 text-[11px] text-[#b3b7d4]">&mdash;</div>;
+      : <div className="mt-0.5 text-[11px] text-[#b3b7d4]">&ndash;</div>;
   }
   if (Math.abs(p) < 0.5) {
     return <div className="mt-0.5 text-[11px] font-bold text-[#71717a]">no change</div>;
@@ -180,7 +181,7 @@ function moveDriver(movers: NonNullable<ClientReportSnapshot['movers']> | null |
  * beside a value reading "12.6%" invites the reader to subtract them.
  */
 function PointsDelta({ points }: { points: number | null }) {
-  if (points === null) return <div className="mt-0.5 text-[11px] text-[#b3b7d4]">&mdash;</div>;
+  if (points === null) return <div className="mt-0.5 text-[11px] text-[#b3b7d4]">&ndash;</div>;
   if (Math.abs(points) < 0.05) {
     return <div className="mt-0.5 text-[11px] font-bold text-[#71717a]">no change</div>;
   }
@@ -239,6 +240,23 @@ function Mini({
   );
 }
 
+function ResponsePlan({plan}:{plan:string}) {
+  const marker = '\n\nWhat success looks like\n';
+  if (!plan.startsWith('Our response\n') || !plan.includes(marker)) return <p className="whitespace-pre-line text-[13px] leading-relaxed text-zinc-700">{plan}</p>;
+  const boundary = plan.indexOf(marker);
+  const response = plan.slice(0, boundary);
+  const outcome = plan.slice(boundary + marker.length);
+  const actions = response.slice('Our response\n'.length).split(/\n(?=\d+\. )/);
+  const review = outcome?.match(/\nReview date: (\d{4}-\d{2}-\d{2})$/);
+  return <div className="space-y-4">
+    <div className="grid gap-3 sm:grid-cols-2">{actions.map((action,i)=>{
+      const parts=action.match(/^\d+\. (.*)\nOwner: (.*) \| Due: (\d{4}-\d{2}-\d{2})$/);
+      return <div key={i} className="rounded-lg border border-zinc-200 bg-zinc-50 p-3"><div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-violet-700">Action {i+1}</div><p className="text-sm font-semibold text-zinc-900">{parts?.[1] ?? action}</p>{parts && <p className="mt-2 text-xs text-zinc-600">{parts[2]} · Due {parts[3]}</p>}</div>;
+    })}</div>
+    <div className="border-t border-zinc-200 pt-3"><h3 className="text-xs font-semibold text-zinc-900">What success looks like</h3><p className="mt-1 whitespace-pre-line text-[13px] text-zinc-700">{review ? outcome.slice(0,review.index) : outcome}</p>{review && <p className="mt-2 text-xs text-zinc-500">Review on {review[1]}</p>}</div>
+  </div>;
+}
+
 function SectionLine({ children, id }: { children: React.ReactNode; id?: string }) {
   return (
     <h2 id={id} className="mb-2 mt-6 flex scroll-mt-20 items-center gap-3 text-sm font-semibold tracking-tight text-[#52525b]">
@@ -250,7 +268,7 @@ function SectionLine({ children, id }: { children: React.ReactNode; id?: string 
 
 /**
  * Daily chart with a real per-bar tooltip. CSS-only on hover, and every bar is
- * tabbable so the numbers are reachable without a mouse — the previous chart
+ * tabbable so the numbers are reachable without a mouse: the previous chart
  * exposed no values at all.
  */
 function HoverBars({
@@ -364,7 +382,7 @@ function HoverBars({
  * Roster composition + what the brand is committing to it.
  *
  * ⚠️ "142 signed creators" alone overstates the commitment on both sides: only
- * 57 are on a retainer, and the other 85 are AFFILIATE-ONLY — they take
+ * 57 are on a retainer, and the other 85 are AFFILIATE-ONLY: they take
  * commission and carry no post obligation at all. Saying so is not a caveat,
  * it is the difference between a number the brand can act on and one it can't.
  *
@@ -380,7 +398,7 @@ function HoverBars({
  * roster $43.44 against everyone else at $44.09).
  *
  * ⚠️ NOT a bar chart. Four bars at wildly different scales made the strongest
- * fact — that a 2% sliver of creators produces 38% of the sales — render as
+ * fact: that a 2% sliver of creators produces 38% of the sales: render as
  * the SHORTEST bar on the page, which argues against us. The whole point is
  * the gap between a small input and a large output, and a bar per metric
  * shows each metric in isolation, never the gap.
@@ -413,7 +431,7 @@ function VsShop({
           <p className="max-w-[70ch] text-[13px] font-semibold leading-[1.5] text-[#3f3f46]">
             We are <b className="text-[#4b45ff]">{creatorRow.pct.toFixed(1)}%</b> of the creators posting
             on your shop, and we produced <b className="text-[#4b45ff]">{gmvRow.pct.toFixed(1)}%</b> of its
-            sales &mdash; <b className="text-[#18181b]">{leverage.toFixed(1)}&times;</b> the sales share you
+            sales &ndash; <b className="text-[#18181b]">{leverage.toFixed(1)}&times;</b> the sales share you
             would expect from our share of creators.
           </p>
         </div>
@@ -930,19 +948,19 @@ function LegacyVintageSection({ g }: { g: NonNullable<BrandClientReportData['gra
 }
 
 /**
- * Every signed creator — the ones who did something, in full; the rest
+ * Every signed creator: the ones who did something, in full; the rest
  * summarised and available behind a disclosure.
  *
  * Measured on Lemme for the week of 2026-08-02: 142 rows, of which 94 had no
  * posts and no GMV, and the top 10 carried 98.8% of roster GMV. Printing 94
  * blank rows does not make a report more transparent, it makes the 48 rows
- * that matter harder to find. Nothing is hidden — the full list is one click
+ * that matter harder to find. Nothing is hidden: the full list is one click
  * away and the dormant count is stated, with its retainer split, because "24
  * of them are on retainer" is the part a brand is entitled to know.
  *
  * ⚠️ `quota` is null for affiliate-only creators and renders as absence. All
  * 85 of Lemme's affiliate-only rows carry a non-zero monthly_post_requirement
- * in the database and it is phantom — they never agreed to one.
+ * in the database and it is phantom: they never agreed to one.
  */
 function FullRosterTable({
   g,
@@ -978,7 +996,7 @@ function FullRosterTable({
         <p className="text-[13px] leading-[1.6] text-[#3f3f46]">
           Every creator we run for you, sorted by what they earned this period.{' '}
           <b className="text-[#18181b]">{num(g.roster.affiliateOnly)}</b> of your roster are
-          affiliate-only &mdash; commission, with no post requirement. Orders and units are video-attributed totals for this report period.
+          affiliate-only &ndash; commission, with no post requirement. Orders and units are video-attributed totals for this report period.
         </p>
         {/* Downloads the FULL list, including the dormant rows folded behind
             the disclosure below. Hiding them is a density decision, not a
@@ -1012,7 +1030,7 @@ function FullRosterTable({
             with no posts or sales this period
             {dormantRetained > 0 && (
               <>
-                {' '}&mdash; {num(dormantAffiliate)} affiliate-only, {num(dormantRetained)} on retainer
+                {' '}&ndash; {num(dormantAffiliate)} affiliate-only, {num(dormantRetained)} on retainer
               </>
             )}
           </summary>
@@ -1220,7 +1238,7 @@ function MonthToDate({
  *
  * Was three thumbnail cards with inline playback. A list carries five rows in
  * less vertical space, puts orders and views on the same line as the GMV they
- * produced, and is scannable — a card grid makes you read each card to compare
+ * produced, and is scannable: a card grid makes you read each card to compare
  * any two. The title links out to the post itself.
  *
  * ⚠️ There is deliberately NO "type" column. Lives are recorded at
@@ -1284,19 +1302,19 @@ function TopPosts({
                           @{handle}
                         </a>
                       ) : (
-                        <span className="text-[#b9bcd0]">&mdash;</span>
+                        <span className="text-[#b9bcd0]">&ndash;</span>
                       )}
                     </div>
                   </td>
                   {/* Views come from a separate lookup and are genuinely
-                      absent for some posts — an em dash, never a 0. */}
+                      absent for some posts: an em dash, never a 0. */}
                   <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-[#3f3f46]">
-                    {v.viewsLabel ?? <span className="text-[#b9bcd0]">&mdash;</span>}
+                    {v.viewsLabel ?? <span className="text-[#b9bcd0]">&ndash;</span>}
                   </td>
                   <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-[#3f3f46]">
                     {num(v.orders)}
                   </td>
-                  {showUnits && <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-[#3f3f46]">{v.units == null ? "—" : num(v.units)}</td>}
+                  {showUnits && <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-[#3f3f46]">{v.units == null ? "–" : num(v.units)}</td>}
                   <td className="whitespace-nowrap px-3 py-2 text-right font-extrabold tabular-nums text-[#18181b]">
                     {money(v.gmv)}
                   </td>
@@ -1324,8 +1342,8 @@ function TopPosts({
  * buy", and this is the answer: contracted posts against posts actually
  * published, per creator and in total.
  *
- * ⚠️ RETAINED CREATORS ONLY. Affiliate-only creators carry NO post commitment —
- * roughly 63% of the roster — and counting them here would invent a shortfall
+ * ⚠️ RETAINED CREATORS ONLY. Affiliate-only creators carry NO post commitment –
+ * roughly 63% of the roster: and counting them here would invent a shortfall
  * against a target nobody agreed to. That is the same phantom
  * monthly_post_requirement that once had the roster reporting 85 Lemme creators
  * as missing a quota they never had.
@@ -1380,7 +1398,7 @@ function MonthlyDelivery({
    * creator look short: jiyu 01-26 August read 830 of 1,731 (48%) purely
    * because four days had not happened yet.
    *
-   * The window is NOT pro-rated — inventing a partial target would be the same
+   * The window is NOT pro-rated: inventing a partial target would be the same
    * apportionment this report refuses everywhere else. Instead the shortfall is
    * stated as what it is, and an incomplete month says so, so 48% is never read
    * as failure.
@@ -1410,7 +1428,7 @@ function MonthlyDelivery({
         />
         <Mini
           label="Retainer committed"
-          value={budget !== null && budget > 0 ? `${money(budget)}/mo` : '—'}
+          value={budget !== null && budget > 0 ? `${money(budget)}/mo` : '–'}
           note={
             actualSpend !== null
               ? `${money(actualSpend)} actually paid`
@@ -1613,10 +1631,10 @@ function Movers({
                     )}
                   </td>
                   <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-[#3f3f46]">
-                    {c.prior > 0 ? money(c.prior) : <span className="text-[#b9bcd0]">&mdash;</span>}
+                    {c.prior > 0 ? money(c.prior) : <span className="text-[#b9bcd0]">&ndash;</span>}
                   </td>
                   <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-[#3f3f46]">
-                    {c.cur > 0 ? money(c.cur) : <span className="text-[#b9bcd0]">&mdash;</span>}
+                    {c.cur > 0 ? money(c.cur) : <span className="text-[#b9bcd0]">&ndash;</span>}
                   </td>
                   <td className="whitespace-nowrap px-3 py-2 text-right">
                     {c.movement === 'new' ? (
@@ -1659,12 +1677,12 @@ export type ReportType = 'performance' | 'weekly' | 'monthly';
 
 export function ReportView({
   token,
-  report: r,
-  snapshot: s,
-  notes,
-  plan,
-  brandName,
-  periodLabel,
+  report: originalReport,
+  snapshot: originalSnapshot,
+  notes: originalNotes,
+  plan: originalPlan,
+  brandName: originalBrandName,
+  periodLabel: originalPeriodLabel,
   reportType = 'performance',
   logoUrl = null,
   thumbnails = {},
@@ -1673,7 +1691,7 @@ export function ReportView({
   report: BrandClientReportData;
   snapshot: ClientReportSnapshot;
   notes: string | null;
-  /** Forward commitment, hand-written. Absent renders nothing. */
+  /** Saved commitments. Legacy reports without a plan show an explicit empty state. */
   plan: string | null;
   brandName: string;
   periodLabel: string;
@@ -1683,11 +1701,18 @@ export function ReportView({
   logoUrl?: string | null;
   thumbnails?: Record<string,string>;
 }) {
+  const brandName = reportCopy(originalBrandName);
+  const periodLabel = reportCopy(originalPeriodLabel);
+  const r = reportCopy(originalReport);
+  const s = reportCopy(originalSnapshot);
+  const notes = reportCopy(originalNotes);
+  const plan = reportCopy(originalPlan);
+
   /**
    * MONTH IN REVIEW is a different question from the standing report, not the
    * same one over 30 days: "what did my money buy" rather than "how did we
-   * do". So it ADDS two sections — what was committed against what was
-   * delivered, and how much of the revenue is content we started — and leaves
+   * do". So it ADDS two sections: what was committed against what was
+   * delivered, and how much of the revenue is content we started: and leaves
    * the rest of the report alone.
    */
   if (s.reconciliation) return <ReconciliationView revision={s.reconciliation} report={r} token={token} brandName={brandName} periodLabel={periodLabel} />;
@@ -1700,7 +1725,7 @@ export function ReportView({
   const cc = r.creatorsCorner;
   const hasRoster = cc.signedCreatorCount > 0;
   // Absent on every snapshot frozen before migration 152. Its presence IS the
-  // gate for the granular sections — an older report renders exactly as it
+  // gate for the granular sections: an older report renders exactly as it
   // always did rather than showing empty tables or NaN.
   const gran = r.granular;
   // Whether the report window IS the month the monthly quota was written for.
@@ -1726,7 +1751,7 @@ export function ReportView({
    * earning off content from months ago; counting them as active overstates
    * the work we did. Activation is measured on POSTING; sales sit beside it.
    *
-   * `act` is undefined on every snapshot frozen before 165 — those reports keep
+   * `act` is undefined on every snapshot frozen before 165: those reports keep
    * rendering the single number they were built with, because inventing a
    * split we never computed would be worse than the ambiguity.
    */
@@ -1762,7 +1787,7 @@ export function ReportView({
         departed: gran.creators.filter((c) => c.departed === true).length,
         /** Whether a period-over-period delta may be drawn on `posted`. The
          *  creator list is single-window, so there is no prior figure on the
-         *  same basis — and a delta computed across two definitions is worse
+         *  same basis: and a delta computed across two definitions is worse
          *  than no delta. */
         canCompare: false,
       }
@@ -1789,7 +1814,7 @@ export function ReportView({
         const onRetainer = gran.creators.filter((c) => !c.isAffiliate).length;
         const affiliateOnly = gran.creators.filter((c) => c.isAffiliate).length;
         // Split the departures by agreement rather than assuming which side
-        // they came from — the reconciling clause below names one or the other.
+        // they came from: the reconciling clause below names one or the other.
         const leftRetained = gran.creators.filter((c) => c.departed === true && !c.isAffiliate).length;
         const leftAffiliate = gran.creators.filter((c) => c.departed === true && c.isAffiliate).length;
         return { onRetainer, affiliateOnly, leftRetained, leftAffiliate };
@@ -1812,7 +1837,7 @@ export function ReportView({
 
   /**
    * Share of the shop, in percentage POINTS, from figures the snapshot already
-   * carries. This tile showed a bare "—" and so hid the direction entirely:
+   * carries. This tile showed a bare "–" and so hid the direction entirely:
    * Dr. Dent's week of 2026-08-23 fell 14.4% -> 12.6% while the page said only
    * "12.6%". A brand's core question is whether the agency is gaining or losing
    * ground on their shop, and the answer was being withheld by omission.
@@ -1868,7 +1893,7 @@ export function ReportView({
   const viewsDelta = s.views !== null && s.priorViews !== null ? pctChange(s.views, s.priorViews) : null;
 
   // The honest case: our roster fell while the store rose. Stating it plainly
-  // is the point — a report that only ever looks good stops being read.
+  // is the point: a report that only ever looks good stops being read.
   /**
    * "We fell while the shop did not."
    *
@@ -1906,7 +1931,7 @@ export function ReportView({
    * 🚨 "17.0% of signed" WAS THE WRONG DENOMINATOR AND IT UNDERSOLD THE WORK.
    * It measured 75 posters against all 440 signed creators, 389 of whom are
    * affiliate-only and carry no posting obligation. Among the 51 RETAINED
-   * creators, 37 posted — 73%, not 17%. Count only the people who agreed to
+   * creators, 37 posted: 73%, not 17%. Count only the people who agreed to
    * post, the same rule the delivery and spend sections already use.
    */
   const retainedPosted = gran
@@ -1965,7 +1990,7 @@ export function ReportView({
    *
    * ⚠️ EVERY bucket has to carry the roster figure, not most of them. A
    * partially split chart would draw some weeks as store-only bars and read as
-   * "we did nothing those weeks" — the exact misreading a chart is supposed to
+   * "we did nothing those weeks": the exact misreading a chart is supposed to
    * prevent. All twelve or none.
    */
   const weeklySplit = weekly.length >= 3 && weekly.every((w) => w.rosterGmv !== undefined);
@@ -2062,9 +2087,9 @@ export function ReportView({
       <nav aria-label="Report sections" className={`${styles.navigation} sticky top-0 z-20 border-b border-[#dedee5] bg-white/95 backdrop-blur-sm`}>
         <div className="mx-auto flex max-w-[1080px] items-center gap-5 overflow-x-auto px-5 sm:px-8">
           {hasRoster && <a href="#overview">Overview</a>}
+          <a href="#next-steps">Our response</a>
           <a href="#drivers">Drivers</a>
           {((isMonthly && gran) || (!windowIsMonth && r.monthToDate)) && <a href="#delivery">Delivery</a>}
-          <a href="#next-steps">Next steps</a>
           {watchVideos.length > 0 && <a href="#content">Top content</a>}
           {gran && gran.creators.length > 0 && <a href="#creators">Creator detail</a>}
           <a href="#store">Store context</a>
@@ -2089,7 +2114,7 @@ export function ReportView({
                 {rosterAct && rosterAct.sold > 0 && (
                   <>
                     {' '}
-                    &mdash; and <b className="text-[#18181b]">{num(rosterAct.sold)}</b> of your roster made sales
+                    &ndash; and <b className="text-[#18181b]">{num(rosterAct.sold)}</b> of your roster made sales
                   </>
                 )}
                 {cc.newlyActivatedCount > 0 && (
@@ -2219,9 +2244,13 @@ export function ReportView({
         )}
 
         {notes?.trim() && <div className="mt-4 border-l-2 border-violet-300 pl-4">
-          <h2 className="text-xs font-semibold text-zinc-700">Account lead’s perspective</h2>
+          <h2 className="text-xs font-semibold text-zinc-700">Our assessment</h2>
           <p className="mt-1 whitespace-pre-line text-[13px] leading-relaxed text-zinc-600">{notes}</p>
         </div>}
+        <SectionLine id="next-steps">Our response &amp; success criteria</SectionLine>
+        <div className="rounded-xl border border-violet-200 bg-white px-5 py-4">
+          {plan?.trim() ? <ResponsePlan plan={plan} /> : <p className="text-[13px] text-zinc-600">This saved report has no action plan. Ask your account lead to confirm the actions, owners, due dates and success criteria.</p>}
+        </div>
         {weeklyShare && <p className="mt-3 rounded-lg bg-violet-50 px-4 py-3 text-[12px] text-zinc-700">
           <b>Longer-term context:</b> Managed share moved from {weeklyShare.first.toFixed(1)}% to {weeklyShare.last.toFixed(1)}% between the weeks ending {fmtDay(new Date(weeklyShare.firstWeek+'T12:00:00Z'))} and {fmtDay(new Date(weeklyShare.lastWeek+'T12:00:00Z'))}. Read the period change above alongside this trend.
         </p>}
@@ -2250,7 +2279,7 @@ export function ReportView({
             <MonthlyDelivery
               g={gran}
               budget={finite(gran.roster.monthlyRetainerBudget)}
-              /* Not tracked yet — see MonthlyDelivery. Never derived. */
+              /* Not tracked yet: see MonthlyDelivery. Never derived. */
               actualSpend={null}
               start={r.startDate}
               end={r.endDate}
@@ -2268,10 +2297,6 @@ export function ReportView({
           </>
         )}
 
-        <SectionLine id="next-steps">Next steps</SectionLine>
-        <div className="rounded-xl border border-violet-200 bg-white px-5 py-4">
-          {plan?.trim() ? <p className="whitespace-pre-line text-[13px] leading-relaxed text-zinc-700">{plan}</p> : <p className="text-[13px] text-zinc-600">No next-step plan was included in this saved report. Confirm the priority actions, owners and dates with your account lead.</p>}
-        </div>
         <SectionLine>Supporting detail</SectionLine>
         <details className="rounded-xl border border-zinc-200 bg-white px-4 py-3">
           <summary className="cursor-pointer text-sm font-semibold text-zinc-700">Contribution, roster coverage &amp; content longevity</summary>
@@ -2317,7 +2342,7 @@ export function ReportView({
                     /**
                      * 🚨 THE SPLIT DID NOT ADD UP TO THE NUMBER ABOVE IT. The tile
                      * reads gran.creators.length (440 on Cata-Kor) and the note
-                     * read gran.roster, a DIFFERENT source that counts 439 —
+                     * read gran.roster, a DIFFERENT source that counts 439 –
                      * "440 signed / 50 on retainer, 389 affiliate-only" on one
                      * card, which is the client's first reason to distrust
                      * every other number on the page.
@@ -2457,7 +2482,7 @@ export function ReportView({
           />
           {/* ⚠️ NOT r.activeCreators. That is count(distinct handle) over the
               TikTok export with no gmv filter, so it counts every creator who
-              appears in the file at all — 40,954 on jiyu 2026-08 against 4,216
+              appears in the file at all: 40,954 on jiyu 2026-08 against 4,216
               who posted and 930 who sold. Migration 165 added the two real
               counts; where they are absent the tile is omitted rather than
               printed wrong. */}
@@ -2489,7 +2514,7 @@ export function ReportView({
         {/* ── 12-week trend, with OUR half drawn inside each bar ──────────
                🚨 THE ONE QUESTION THE REPORT ASKED THE READER TO TAKE ON TRUST.
                Both charts were store-level, so a client could see their shop's
-               trajectory and only two point-in-time numbers for us — Cata-Kor
+               trajectory and only two point-in-time numbers for us: Cata-Kor
                August read "59.6% -> 68.0%" with nothing between the endpoints.
                A share can climb steadily, spike once, or recover from a dip,
                and those are three different accounts of whether this is

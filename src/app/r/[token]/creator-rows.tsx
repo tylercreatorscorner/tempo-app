@@ -138,7 +138,7 @@ function CreatorRows({
                     $0 would read as "we agreed zero" rather than "n/a". */}
                 {showLevel && (
                   <td className="whitespace-nowrap px-3 py-2 text-[#6b7093]">
-                    {c.role?.trim() ? c.role : <span className="text-[#b9bcd0]">&mdash;</span>}
+                    {c.role?.trim() ? c.role : <span className="text-[#b9bcd0]">&ndash;</span>}
                   </td>
                 )}
                 {/* Quota tracking lives here, next to the number it judges,
@@ -164,7 +164,7 @@ function CreatorRows({
                   return (
                     <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
                       {earned === null ? (
-                        <span className="text-[#b9bcd0]">&mdash;</span>
+                        <span className="text-[#b9bcd0]">&ndash;</span>
                       ) : (
                         <>
                           <span className="font-semibold text-[#3f3f46]">{money(earned)}</span>
@@ -179,8 +179,8 @@ function CreatorRows({
                   );
                 })()}
                 <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-[#3f3f46]">{num(c.orders)}</td>
-                {showUnits && <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">{c.units == null ? '—' : num(c.units)}</td>}
-                {showPace && <td className="px-3 py-2"><span className={`text-xs font-semibold ${c.pace?.tone === 'behind' ? 'text-amber-700' : c.pace?.tone === 'ahead' ? 'text-emerald-700' : 'text-zinc-600'}`}>{c.pace?.label ?? '—'}</span>{c.pace && <small className="block text-[10px] text-zinc-500">{c.pace.detail}</small>}</td>}
+                {showUnits && <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">{c.units == null ? '–' : num(c.units)}</td>}
+                {showPace && <td className="px-3 py-2"><span className={`text-xs font-semibold ${c.pace?.tone === 'behind' ? 'text-amber-700' : c.pace?.tone === 'ahead' ? 'text-emerald-700' : 'text-zinc-600'}`}>{c.pace?.label ?? '–'}</span>{c.pace && <small className="block text-[10px] text-zinc-500">{c.pace.detail}</small>}</td>}
                 <td className="whitespace-nowrap px-3 py-2 text-right font-extrabold tabular-nums text-[#18181b]">{money(c.gmv)}</td>
               </tr>
             );
