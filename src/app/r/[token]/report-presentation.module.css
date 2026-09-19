@@ -1,0 +1,8 @@
+.report { background:#f0f1f5; color-scheme:light; }
+.navigation a { padding:14px 0; white-space:nowrap; font-size:12px; font-weight:600; color:#52525b; text-decoration:none; }
+.navigation a:hover { color:#6d28d9; }
+.navigation a:focus-visible { outline:2px solid #7c3aed; outline-offset:-2px; border-radius:4px; }
+.report :is(h1,h2,h3) { text-wrap:balance; }
+.report p { text-wrap:pretty; }
+@media(max-width:480px) { .report h1 { font-size:24px; } .navigation a { padding:12px 0; } }
+@media print { .navigation { display:none; } .report { background:white; } .report :is(h2,h3) { break-after:avoid; } }

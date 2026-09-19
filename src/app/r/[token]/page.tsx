@@ -1,5 +1,5 @@
 /**
- * Public client report — /r/[token].
+ * Public client report: /r/[token].
  *
  * Renders the FROZEN snapshot from client_reports (never a live query): the
  * numbers a client sees are the numbers that were frozen at create time,
@@ -8,7 +8,7 @@
  * can show "Viewed 2h ago"; the operator's own checks use ?preview=1.
  */
 import { createAdminClient } from '@/lib/supabase/server';
-import { reviveReportDates, type ClientReportSnapshot } from '@/lib/data/client-reports';
+import { reviveReportDates, extractTikTokVideoId, type ClientReportSnapshot } from '@/lib/data/client-reports';
 import { ReportView, type ReportType } from './report-view';
 import { ViewBeacon } from './view-beacon';
 
@@ -30,12 +30,12 @@ export async function generateMetadata({ params }: Props) {
   /**
    * ⚠️ THE TITLE SAID "Performance Report" WHATEVER THE REPORT WAS. This is
    * the browser tab, the bookmark, and the unfurl card in Slack or an email
-   * — so a month-in-review arrived in a client's inbox labelled as something
+   *: so a month-in-review arrived in a client's inbox labelled as something
    * else, next to a period label reading the whole month. Same defect the PDF
    * running head had.
    *
    * The period label is part of the title because an unfurl shows it alone:
-   * "Cata-Kor — Month in Review · Aug 1 – Aug 31, 2026" identifies WHICH
+   * "Cata-Kor: Month in Review · Aug 1 – Aug 31, 2026" identifies WHICH
    * report was sent, which matters when a client has several links.
    */
   const kind =
@@ -45,8 +45,8 @@ export async function generateMetadata({ params }: Props) {
   return {
     title:
       data && !data.revoked_at
-        ? `${data.brand_name} — ${kind}${data.period_label ? ` · ${data.period_label}` : ''}`
-        : 'Report — Tempo',
+        ? `${data.brand_name}: ${kind}${data.period_label ? ` · ${data.period_label}` : ''}`
+        : 'Report: Tempo',
     robots: { index: false, follow: false },
   };
 }
@@ -112,6 +112,18 @@ export default async function ClientReportPage({ params, searchParams }: Props) 
 
   const snapshot = row.snapshot as ClientReportSnapshot;
   const report = reviveReportDates(snapshot.report);
+  // Presentation-only assets. Never refresh historical metrics or terms here.
+  const creatorIds = [...new Set((report.granular?.creators ?? []).map(c => c.creatorId).filter((id): id is string => !!id))];
+  const videos = report.creatorsCorner.topVideos.length ? report.creatorsCorner.topVideos : report.topVideos;
+  const videoIds = videos.slice(0,5).map(v => extractTikTokVideoId(v.videoUrl)).filter((id): id is string => !!id);
+  const [portraits, covers] = await Promise.all([
+    row.tenant_id && creatorIds.length ? supabase.from('creators_v2').select('id, discord_avatar').eq('tenant_id',row.tenant_id).in('id',creatorIds).abortSignal(AbortSignal.timeout(5000)) : Promise.resolve({data:[]}),
+    videoIds.length ? supabase.from('video_thumbnails').select('video_id, thumbnail_url').in('video_id',videoIds).abortSignal(AbortSignal.timeout(5000)) : Promise.resolve({data:[]}),
+  ]);
+  const portraitMap = new Map((portraits.data ?? []).map(c => [c.id,c.discord_avatar]));
+  if (report.granular) report.granular.creators = report.granular.creators.map(c => ({...c, avatarUrl: c.creatorId ? portraitMap.get(c.creatorId) ?? null : null}));
+  const thumbnails: Record<string,string> = Object.fromEntries((covers.data ?? []).filter(v=>v.thumbnail_url).map(v=>[v.video_id,v.thumbnail_url]));
+
 
   return (
     <>
@@ -129,6 +141,7 @@ export default async function ClientReportPage({ params, searchParams }: Props) 
            an older client. Treat absence as the standing report. */
         reportType={(row.report_type as ReportType | null) ?? 'performance'}
         logoUrl={logoUrl}
+        thumbnails={thumbnails}
       />
     </>
   );

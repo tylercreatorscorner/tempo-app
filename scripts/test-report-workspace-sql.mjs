@@ -144,4 +144,22 @@ await db.exec('RESET ROLE;');
 assert.equal((await db.query("select has_function_privilege('authenticated','guard_ledger_roster_terms()','EXECUTE') allowed")).rows[0].allowed,false);
 console.log('PASS roster INSERT and destination UPDATE guards: fee/quota mismatch, null quota, matching insert/relink, history identity protection, tenant isolation, unrelated edits and private ledger access');
 console.log('PASS agreement report cutover: historical fee/quota, revision basis, foreign isolation, pending renewal and frozen report preserved');
+// Additional metrics preserve existing totals and tenant isolation.
+await db.exec(readFileSync('supabase/migrations/20260918195606_report_detail_metrics.sql','utf8'));
+await db.exec(`update daily_video_product_stats set items_sold=3 where tenant_id='${a}';`);
+const detailQuery=`select get_brand_client_report_granular_workspace('${a}',ARRAY['shared'],ARRAY['shared'],'2026-08-01','2026-08-31') as data`;
+let detail=(await db.query(detailQuery)).rows[0].data;
+assert.equal(detail.creators.find(c=>c.orders>0).units,3);
+const savedGmv=detail.newVideo.totalGmv;
+for (const [date,key] of [['2026-06-03','d60_90'],['2026-06-02','d90_180'],['2026-03-05','d90_180'],['2026-03-04','d180_plus']]) {
+ await db.exec(`update daily_video_product_stats set post_date='${date}' where tenant_id='${a}';`);
+ detail=(await db.query(detailQuery)).rows[0].data;
+ assert.equal(detail.vintageAge[key].gmv,savedGmv,`age boundary ${date}`);
+ assert.equal(detail.vintageAge.d90_plus.gmv,detail.vintageAge.d90_180.gmv+detail.vintageAge.d180_plus.gmv);
+}
+await db.exec(`update daily_video_product_stats set items_sold=null where tenant_id='${a}';`);
+detail=(await db.query(detailQuery)).rows[0].data;
+assert.equal(detail.creators.find(c=>c.orders>0).units,null,'Unknown units must not become zero');
+assert.equal(detail.newVideo.totalGmv,savedGmv);
+console.log('PASS report detail: units distinct from orders, unknown preserved, 90/180 boundaries, legacy bucket total preserved');
 await db.close();
