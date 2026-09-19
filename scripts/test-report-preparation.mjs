@@ -26,7 +26,8 @@ const form=nodes(exports.CreatePanel({lockedBrand:'fixture',lockedBrandName:'Fix
 function render(){let tree;do{dirty=false;index=0;effects=[];tree=form.type(form.props);const pending=effects;effects=[];pending.forEach(fn=>fn());}while(dirty);return tree;}
 const find=(tree,type,label)=>{const n=nodes(tree).find(n=>n.type===type&&(text(n)===label||n.props.ariaLabel===label||n.props.label===label));assert.ok(n,`${type} ${label}`);return n;};
 function completePlan(){
- for (const [id,value] of [['cr-action-0','Review delivery gaps'],['cr-owner-0','Account lead'],['cr-due-0','2026-09-25'],['cr-success','Agree a recovery schedule'],['cr-review-date','2026-09-28']]) { nodes(tree).find(n=>n.props?.id===id).props.onChange({target:{value}}); tree=render(); }
+ for (const [id,value] of [['cr-action-0','Review delivery gaps'],['cr-owner-0','Account lead'],['cr-due-0','2026-09-25'],['cr-success','Agree a recovery schedule'],
+ ['cr-decision','No client decision is needed this period.'],['cr-review-date','2026-09-28']]) { nodes(tree).find(n=>n.props?.id===id).props.onChange({target:{value}}); tree=render(); }
 }
 let tree=render();let pending=find(tree,'button','Prepare preview').props.onClick();resolvePreview();await pending;tree=render();assert.ok(nodes(tree).some(n=>n.props?.id==='cr-notes'));
 find(tree,'segmented','Report type').props.onValueChange('monthly');tree=render();assert.ok(!nodes(tree).some(n=>n.props?.id==='cr-notes'),'Report type change clears the prior preview');
@@ -69,3 +70,8 @@ const responseText=text(responseExports.ResponsePlan({plan:structured}));
 for(const expected of ['Review delivery','Account lead','2026-09-25','A documented schedule','All commitments reviewed','2026-09-28'])assert.ok(responseText.includes(expected),expected);
 assert.equal(text(responseExports.ResponsePlan({plan:'A legacy freeform plan'})),'A legacy freeform plan');
 console.log('PASS report presentation: punctuation normalized without changing saved facts or URLs; structured and legacy commitments preserved');
+
+assert.ok(requests.filter(r=>!r.url.endsWith('/preview')).at(-1).body.plan.includes('Decision needed\nNo client decision is needed this period.'));
+const decisionPlan=structured+'\n\nDecision needed\nApprove the schedule by Friday';
+assert.ok(!text(responseExports.ResponsePlan({plan:decisionPlan})).includes('Approve the schedule'), 'decision is separated from commitments');
+console.log('PASS executive decision: explicit request saved with plan, separated from action display');

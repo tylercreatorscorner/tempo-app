@@ -180,8 +180,9 @@ function ClientReportForm({ onSent, lockedBrand }: { onSent: () => void; lockedB
   const [actions, setActions] = useState([{action:'',owner:'',due:''}]);
   const [success, setSuccess] = useState('');
   const [reviewDate, setReviewDate] = useState('');
-  const plan = ["Our response", ...actions.map((a,i)=>`${i+1}. ${a.action.trim()}\nOwner: ${a.owner.trim()} | Due: ${a.due}`), "", "What success looks like", success.trim(), `Review date: ${reviewDate}`].join('\n').replace(/\s*—\s*/g, ', ');
-  const actionPlanReady = actions.every(a=>a.action.trim() && a.owner.trim() && a.due) && success.trim() && reviewDate;
+  const [decision, setDecision] = useState('');
+  const plan = ["Our response", ...actions.map((a,i)=>`${i+1}. ${a.action.trim()}\nOwner: ${a.owner.trim()} | Due: ${a.due}`), "", "What success looks like", success.trim(), `Review date: ${reviewDate}`, "", "Decision needed", decision.trim()].join('\n').replace(/\s*—\s*/g, ', ');
+  const actionPlanReady = actions.every(a=>a.action.trim() && a.owner.trim() && a.due) && success.trim() && reviewDate && decision.trim();
 
   const [previewLoading, setPreviewLoading] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -206,6 +207,7 @@ function ClientReportForm({ onSent, lockedBrand }: { onSent: () => void; lockedB
     setActions([{action:'',owner:'',due:''}]);
     setSuccess('');
     setReviewDate('');
+    setDecision('');
     setPreviewLoading(false);
     setCreated(null);
     setError(null);
@@ -267,7 +269,7 @@ function ClientReportForm({ onSent, lockedBrand }: { onSent: () => void; lockedB
 
   const createLink = async () => {
     if (!preview || creating || !rangeValid) return;
-    if (!notes.trim() || !actionPlanReady) { setError('Add your assessment, an action with its owner and due date, and success criteria with a review date.'); return; }
+    if (!notes.trim() || !actionPlanReady) { setError('Add your assessment, an action with its owner and due date, success criteria with a review date, and a decision request or an explicit no-decision statement.'); return; }
     if (plan.length > 2000) { setError('Shorten the action plan to 2,000 characters before creating the report.'); return; }
     setCreating(true);
     setError(null);
@@ -402,12 +404,19 @@ function ClientReportForm({ onSent, lockedBrand }: { onSent: () => void; lockedB
             <Textarea
               id="cr-notes"
               className="mt-1.5"
-              placeholder="What worked, what did not, and what is within our control?"
+              placeholder="In 2–3 sentences: what changed, what explains it, and what remains uncertain? Separate evidence from your interpretation."
               rows={5}
               maxLength={2000}
               value={notes}
               onChange={e => setNotes(e.target.value)}
             />
+          </div>
+
+          <div className="rounded-xl border border-border bg-secondary/30 p-4">
+            <Label htmlFor="cr-decision">Decision needed from the client</Label>
+            <p className="mb-2 text-xs text-muted-foreground">State the specific approval, who needs to decide, and by when. If none is needed, say so explicitly.</p>
+            <Textarea id="cr-decision" rows={2} maxLength={300} value={decision} onChange={e=>setDecision(e.target.value)} placeholder="Approve the proposed budget by Friday, or confirm no decision is needed."/>
+            <Button type="button" variant="ghost" size="sm" onClick={()=>setDecision('No client decision is needed this period.')}>No decision needed</Button>
           </div>
 
           <section className="space-y-3 rounded-xl border border-border bg-secondary/30 p-4" aria-label="Accountable action plan">

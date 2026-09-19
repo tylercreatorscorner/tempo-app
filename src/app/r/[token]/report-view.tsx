@@ -240,7 +240,9 @@ function Mini({
   );
 }
 
-function ResponsePlan({plan}:{plan:string}) {
+function ResponsePlan({plan: savedPlan}:{plan:string}) {
+  const decisionBoundary = savedPlan.lastIndexOf('\n\nDecision needed\n');
+  const plan = decisionBoundary >= 0 && savedPlan.startsWith('Our response\n') ? savedPlan.slice(0, decisionBoundary) : savedPlan;
   const marker = '\n\nWhat success looks like\n';
   if (!plan.startsWith('Our response\n') || !plan.includes(marker)) return <p className="whitespace-pre-line text-[13px] leading-relaxed text-zinc-700">{plan}</p>;
   const boundary = plan.indexOf(marker);
@@ -255,6 +257,26 @@ function ResponsePlan({plan}:{plan:string}) {
     })}</div>
     <div className="border-t border-zinc-200 pt-3"><h3 className="text-xs font-semibold text-zinc-900">What success looks like</h3><p className="mt-1 whitespace-pre-line text-[13px] text-zinc-700">{review ? outcome.slice(0,review.index) : outcome}</p>{review && <p className="mt-2 text-xs text-zinc-500">Review on {review[1]}</p>}</div>
   </div>;
+}
+
+function ExecutiveNarrative({notes, decision, plan}:{notes:string|null; decision:string|null; plan:string|null}) {
+  return <>
+            <div className="mt-3 grid gap-3 md:grid-cols-[1.4fr_1fr]">
+              <section className="rounded-xl border border-zinc-200 bg-white p-4">
+                <h2 className="text-xs font-semibold text-zinc-900">What it means</h2>
+                <p className="mt-2 whitespace-pre-line text-[13px] leading-relaxed text-zinc-600">{notes?.trim() || 'No account-lead assessment was saved with this report.'}</p>
+              </section>
+              <section className="rounded-xl border border-violet-200 bg-violet-50/70 p-4">
+                <h2 className="text-xs font-semibold text-violet-950">Decision needed</h2>
+                <p className="mt-2 whitespace-pre-line text-[13px] leading-relaxed text-zinc-700">{decision || 'No decision request was recorded. This does not confirm that no decision is needed.'}</p>
+              </section>
+            </div>
+            <section id="next-steps" className="mt-3 scroll-mt-20 rounded-xl border border-zinc-200 bg-white p-4">
+              <h2 className="mb-3 text-xs font-semibold text-zinc-900">Commitments &amp; next review</h2>
+              {plan?.trim() ? <ResponsePlan plan={plan} /> : <p className="text-[13px] text-zinc-600">No action plan was saved. Confirm actions, owners, due dates and success criteria with your account lead.</p>}
+            </section>
+
+  </>;
 }
 
 function SectionLine({ children, id }: { children: React.ReactNode; id?: string }) {
@@ -996,7 +1018,7 @@ function FullRosterTable({
         <p className="text-[13px] leading-[1.6] text-[#3f3f46]">
           Every creator we run for you, sorted by what they earned this period.{' '}
           <b className="text-[#18181b]">{num(g.roster.affiliateOnly)}</b> of your roster are
-          affiliate-only &ndash; commission, with no post requirement. Orders and units are video-attributed totals for this report period.
+          affiliate-only &ndash; commission, with no post requirement. Orders and units are video-attributed totals for this report period. Creator rows group linked accounts; account-level movement figures are shown separately when available.
         </p>
         {/* Downloads the FULL list, including the dormant rows folded behind
             the disclosure below. Hiding them is a density decision, not a
@@ -1707,6 +1729,8 @@ export function ReportView({
   const s = reportCopy(originalSnapshot);
   const notes = reportCopy(originalNotes);
   const plan = reportCopy(originalPlan);
+  const decisionBoundary = plan?.startsWith('Our response\n') ? plan.lastIndexOf('\n\nDecision needed\n') : -1;
+  const decision = plan && decisionBoundary !== undefined && decisionBoundary >= 0 ? plan.slice(decisionBoundary + '\n\nDecision needed\n'.length).trim() : null;
 
   /**
    * MONTH IN REVIEW is a different question from the standing report, not the
@@ -2086,11 +2110,11 @@ export function ReportView({
 
       <nav aria-label="Report sections" className={`${styles.navigation} sticky top-0 z-20 border-b border-[#dedee5] bg-white/95 backdrop-blur-sm`}>
         <div className="mx-auto flex max-w-[1080px] items-center gap-5 overflow-x-auto px-5 sm:px-8">
-          {hasRoster && <a href="#overview">Overview</a>}
+          <a href="#overview">Executive brief</a>
           <a href="#next-steps">Our response</a>
           <a href="#drivers">Drivers</a>
-          {((isMonthly && gran) || (!windowIsMonth && r.monthToDate)) && <a href="#delivery">Delivery</a>}
           {watchVideos.length > 0 && <a href="#content">Top content</a>}
+          {((isMonthly && gran) || (!windowIsMonth && r.monthToDate)) && <a href="#delivery">Delivery</a>}
           {gran && gran.creators.length > 0 && <a href="#creators">Creator detail</a>}
           <a href="#store">Store context</a>
         </div>
@@ -2099,32 +2123,18 @@ export function ReportView({
         {/* ── 1. What we delivered. The agency leads. ────────────── */}
         {hasRoster && (
           <>
-            <SectionLine id="overview">Performance overview</SectionLine>
+            <SectionLine id="overview">Executive brief</SectionLine>
             <div className="rounded-[14px] border border-[#dedee5] border-l-[3px] border-l-[#4b45ff] bg-white px-5 py-5">
               <h2 className="text-[20px] font-extrabold leading-snug tracking-tight text-[#18181b]">
-                Your signed roster produced {money(cc.gmv)} this {word}
+                {finite(cc.gmvChangePct) !== null ? `Managed GMV ${cc.gmvChangePct! > 0 ? 'grew' : cc.gmvChangePct! < 0 ? 'fell' : 'was unchanged'}${cc.gmvChangePct !== 0 ? ` ${Math.abs(cc.gmvChangePct!).toFixed(1)}%` : ''} this ${word}` : `Managed GMV was ${money(cc.gmv)} this ${word}`}
               </h2>
-              <p className="mt-1.5 max-w-[68ch] text-[14.5px] leading-[1.65] text-[#3f3f46]">
-                That is <b className="text-[#18181b]">{cc.pctOfStoreGmv.toFixed(1)}% of {brandName}&rsquo;s total store GMV</b>,
-                from{' '}
-                <b className="text-[#18181b]">
-                  {num(rosterAct ? rosterAct.posted : cc.activeCreatorCount)} signed creators
-                </b>{' '}
-                who published <b className="text-[#18181b]">{num(cc.videos)} posts</b>
-                {rosterAct && rosterAct.sold > 0 && (
-                  <>
-                    {' '}
-                    &ndash; and <b className="text-[#18181b]">{num(rosterAct.sold)}</b> of your roster made sales
-                  </>
-                )}
-                {cc.newlyActivatedCount > 0 && (
-                  <>, including {cc.newlyActivatedCount} who activated for the first time</>
-                )}
-                .
+              <p className="mt-1.5 text-[14px] leading-relaxed text-zinc-600">
+                {money(cc.gmv)} from the managed roster, representing {cc.pctOfStoreGmv.toFixed(1)}% of store GMV. Comparison is with the preceding equivalent period.
               </p>
+              <p className="mt-2 text-xs text-zinc-500">Target attainment is not assessed: no approved target is saved in this report. GMV measures sales value, not profit or incremental revenue.</p>
               <div className="mt-5 grid grid-cols-2 gap-5 md:grid-cols-4">
                 <HeroStat
-                  label="Roster GMV"
+                  label="Managed GMV"
                   value={money(cc.gmv)}
                   pct={cc.gmvChangePct}
                   abs={priorGmv !== null ? money(Math.abs(cc.gmv - priorGmv)) : null}
@@ -2147,6 +2157,8 @@ export function ReportView({
                 />
               </div>
             </div>
+
+            <ExecutiveNarrative notes={notes} decision={decision} plan={plan} />
 
             {/* The answer to "what did I get for my money" leads the block it
                 is derived from, rather than trailing it as a caption. */}
@@ -2174,8 +2186,7 @@ export function ReportView({
                         , while {money(driver.grossUp)} was added across other creators
                       </>
                     )}
-                    . A single post that runs hot one {word} and cools the next moves the total
-                    more than the rest of the roster does.
+                    . This identifies where GMV changed, not what caused that change.
                   </>
                 ) : (
                   <>
@@ -2236,21 +2247,13 @@ export function ReportView({
                     this {word}, led by @{handleOf(topManaged.name)} at {topShare.toFixed(1)}%.
                   </>
                 )}{' '}
-                Concentration at that level is the main risk to {word}-to-{word} stability, and
-                broadening it is an active priority for this account.
+                This concentration can increase {word}-to-{word} volatility and warrants review with your account lead.
               </div>
             )}
           </>
         )}
 
-        {notes?.trim() && <div className="mt-4 border-l-2 border-violet-300 pl-4">
-          <h2 className="text-xs font-semibold text-zinc-700">Our assessment</h2>
-          <p className="mt-1 whitespace-pre-line text-[13px] leading-relaxed text-zinc-600">{notes}</p>
-        </div>}
-        <SectionLine id="next-steps">Our response &amp; success criteria</SectionLine>
-        <div className="rounded-xl border border-violet-200 bg-white px-5 py-4">
-          {plan?.trim() ? <ResponsePlan plan={plan} /> : <p className="text-[13px] text-zinc-600">This saved report has no action plan. Ask your account lead to confirm the actions, owners, due dates and success criteria.</p>}
-        </div>
+        {!hasRoster && <><SectionLine id="overview">Executive brief</SectionLine><ExecutiveNarrative notes={notes} decision={decision} plan={plan} /></>}
         {weeklyShare && <p className="mt-3 rounded-lg bg-violet-50 px-4 py-3 text-[12px] text-zinc-700">
           <b>Longer-term context:</b> Managed share moved from {weeklyShare.first.toFixed(1)}% to {weeklyShare.last.toFixed(1)}% between the weeks ending {fmtDay(new Date(weeklyShare.firstWeek+'T12:00:00Z'))} and {fmtDay(new Date(weeklyShare.lastWeek+'T12:00:00Z'))}. Read the period change above alongside this trend.
         </p>}
