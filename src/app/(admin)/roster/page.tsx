@@ -23,6 +23,7 @@ import { CustomRangePopover } from '@/components/dashboard/custom-range-popover'
 import { BulkAddModal, type BulkRow } from '@/components/roster/BulkAddModal';
 import { useDelayedFlag } from '@/hooks/use-delayed-flag';
 import { TableLoadBar } from '@/components/ui/table-load-bar';
+import { CreatorGroupControls } from '@/components/roster/creator-group-controls';
 import { ProductTagPicker, ProductFilterSelect } from '@/components/roster/product-tag-picker';
 import { downloadCsv } from '@/lib/utils/csv';
 import { downloadXlsx } from '@/lib/utils/xlsx';
@@ -112,6 +113,7 @@ interface Creator {
   is_managed: boolean;
   // Resolved product tags (key + display name). Empty = no specific product.
   product_tags: { key: string; name: string }[];
+  creator_tags?: string[];
   // All-Brands collapse: parent row spanning multiple brands; `brands` holds the
   // per-brand children (one managed contract each).
   grouped?: boolean;
@@ -1504,6 +1506,7 @@ function RosterContent() {
   type View = 'managed' | 'all' | 'unmanaged';
   const [view, setView] = useState<View>('managed');
   const [productFilter, setProductFilter] = useState('');
+  const [groupFilter,setGroupFilter]=useState<{brand:string;tags:string[];mode:'any'|'all'}>({brand:'',tags:[],mode:'any'});
   // Health triage filter (drill-in, NOT a default): 'all' shows the full roster;
   // a health value narrows to that bucket. Counts come back on every response
   // (computed over the full managed set, brand-scoped), so the chips always show
@@ -1617,6 +1620,7 @@ function RosterContent() {
       if (brand && brand !== 'all') params.set('brand', brand);
       if (search) params.set('search', search);
       if (productFilter) params.set('product', productFilter);
+      if(groupFilter.brand===brand){for(const tag of groupFilter.tags)params.append('tag',tag);params.set('tag_mode',groupFilter.mode);}
       if (view !== 'managed') params.set('include', 'all');
       if (view === 'unmanaged') params.set('managed', 'unmanaged');
       if (health !== 'all') params.set('health', health);
@@ -1664,7 +1668,7 @@ function RosterContent() {
       },
       settled: () => setLoading(false),
     });
-  }, [brand, view, search, productFilter, health, page, sortBy, sortDir, preset, customStart, customEnd, isCustomPeriod, segFilters]);
+  }, [brand, view, search, productFilter, groupFilter, health, page, sortBy, sortDir, preset, customStart, customEnd, isCustomPeriod, segFilters]);
 
   useEffect(() => {
     void fetchRoster();
@@ -1681,6 +1685,7 @@ function RosterContent() {
       if (brand && brand !== 'all') params.set('brand', brand);
       if (search) params.set('search', search);
       if (productFilter) params.set('product', productFilter);
+      if(groupFilter.brand===brand){for(const tag of groupFilter.tags)params.append('tag',tag);params.set('tag_mode',groupFilter.mode);}
       if (view !== 'managed') params.set('include', 'all');
       if (view === 'unmanaged') params.set('managed', 'unmanaged');
       const res = await fetch(`/api/roster?${params}`);
@@ -1715,7 +1720,7 @@ function RosterContent() {
     } finally {
       setExporting(false);
     }
-  }, [brand, view, search, productFilter, sortBy, sortDir, preset, customStart, customEnd, isCustomPeriod, periodShort, brandOptions, brandMeta]);
+  }, [brand, view, search, productFilter, groupFilter, sortBy, sortDir, preset, customStart, customEnd, isCustomPeriod, periodShort, brandOptions, brandMeta]);
 
   // Reset to page 1 when scope/sort/period change.
   useEffect(() => { setPage(1); }, [brand, view, sortBy, sortDir, preset, customStart, customEnd, productFilter]);
@@ -1948,6 +1953,8 @@ function RosterContent() {
       )}
 
       {/* Multi-select action bar — appears once candidates are checked */}
+      {brand !== 'all' && <CreatorGroupControls key={brand} brand={brand} rows={roster} loading={loading} selected={groupFilter.brand===brand?groupFilter.tags:[]} mode={groupFilter.mode} onFilter={(tags,mode)=>{setGroupFilter({brand,tags,mode});setPage(1);}} onSaved={()=>{void fetchRoster();}} />}
+
       {selected.size > 0 && (
         <div className="flex items-center justify-between gap-3 rounded-xl border border-primary/15 bg-primary/10 px-4 py-2.5">
           <span className="text-sm font-semibold text-[var(--foreground)]">
@@ -2157,6 +2164,7 @@ function RosterContent() {
                             ) : !c.real_name && primary ? (
                               <ExtraAccountsBadge creator={c} />
                             ) : null}
+                            {brand !== 'all' && !!c.creator_tags?.length && <div className="mt-1 flex max-w-64 flex-wrap gap-1">{c.creator_tags.map(tag=><span key={tag} className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium capitalize text-primary">{tag}</span>)}</div>}
                             {(c.product_tags ?? []).length > 0 && (
                               <div className="flex flex-wrap items-center gap-1 mt-1">
                                 {(c.product_tags ?? []).slice(0, 3).map((t) => (

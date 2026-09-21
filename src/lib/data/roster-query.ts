@@ -1,3 +1,4 @@
+import { matchesCreatorTags, normalizeCreatorTag } from '@/lib/roster/creator-tags';
 /**
  * Roster query core — the /api/roster GET logic, extracted verbatim so it can
  * be called server-side without an HTTP round-trip (the Comms hub resolves a
@@ -38,7 +39,7 @@ const COLUMNS = [
   'id', 'real_name', 'brand', 'status', 'retainer', 'monthly_post_requirement',
   'discord_name', 'discord_avatar', 'notes', 'created_at', 'joined_at', 'creator_id',
   'account_1', 'account_2', 'account_3', 'account_4', 'account_5',
-  'product_assignments',
+  'product_assignments', 'tags',
 ].join(', ');
 
 // ─── Health derivation ───────────────────────────────────────────────────────
@@ -169,6 +170,7 @@ interface ManagedRow {
   // Product tag keys (reference products.product_key) — which of the brand's
   // products this creator focuses on. Optional; empty = no specific product.
   product_assignments: string[] | null;
+  tags?: string[] | null;
 }
 
 interface PerfRow {
@@ -221,6 +223,7 @@ export interface EnrichedRow extends ManagedRow {
   is_managed: boolean;
   // Resolved product tags (key + display name) for the row chips.
   product_tags: { key: string; name: string }[];
+  creator_tags?: string[];
   // Per-day GMV series over the selected window — powers the roster sparkline.
   // Attached only to the visible page (not on CSV/Excel export).
   spark?: number[];
@@ -316,7 +319,7 @@ export interface RosterQueryBody {
 
 export type RosterQueryResult =
   | { status: 200; body: RosterQueryBody }
-  | { status: 403 | 500; body: { error: string } };
+  | { status: 400 | 403 | 500; body: { error: string } };
 
 // Equivalent of GET /api/roster?brand=&status=&search=&page=1&limit=50&sort=&dir=&health=
 export async function runRosterQuery(
@@ -339,6 +342,9 @@ export async function runRosterQuery(
   const search = searchParams.get('search');
   // ?product=<product_key> — filter managed creators tagged with that product.
   const product = searchParams.get('product');
+  const selectedTags = searchParams.getAll('tag').map(normalizeCreatorTag);
+  if(selectedTags.length>30 || selectedTags.some(t=>!t) || (selectedTags.length && (!brand || brand==='all'))) return {status:400,body:{error:'Tag filters require one brand and valid tags'}};
+  const tagMode = searchParams.get('tag_mode') === 'all' ? 'all' : 'any';
   // ?all=1 — return every matching row (for CSV/Excel export), not just a page.
   const exportAll = searchParams.get('all') === '1';
   // ?summary=0 — skip the KPI-summary block (step 7c). For callers that only want
@@ -366,7 +372,7 @@ export async function runRosterQuery(
   // creators with recent GMV (sourcing-while-triaging). The unmanaged rows
   // come from the get_unmanaged_top_perf RPC; managed rows use the normal
   // roster path.
-  const includeParam = searchParams.get('include') || 'managed';
+  const includeParam = selectedTags.length ? 'managed' : (searchParams.get('include') || 'managed');
   const includeUnmanaged = includeParam === 'all';
 
   // Period window for GMV / ROI / posts. Preferred: ?range=<preset> (+ ?start=&end=
@@ -451,7 +457,7 @@ export async function runRosterQuery(
     const { data, error } = await buildBaseQuery().range(from, from + 999) as { data: ManagedRow[] | null; error: { message: string } | null };
     if (error) return { status: 500, body: { error: error.message } };
     if (!data || data.length === 0) break;
-    allRows.push(...data);
+    allRows.push(...data.filter(row=>matchesCreatorTags(row.tags, selectedTags as string[], tagMode)));
     if (data.length < 1000) break;
   }
 
@@ -699,6 +705,7 @@ export async function runRosterQuery(
       unread_count: unread,
       is_managed: true,
       joined: row.joined_at ?? row.created_at,
+      creator_tags: (row.tags ?? []).map(normalizeCreatorTag).filter((t): t is string => t !== null),
       product_tags: (row.product_assignments ?? []).map((key) => ({
         key, name: productNameByKey.get(key) ?? key,
       })),
