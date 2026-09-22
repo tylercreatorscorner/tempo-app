@@ -15,7 +15,7 @@ interface Tab {
 // so pages don't each hand-roll their own tabs.
 const SECTIONS: { key: string; tabs: Tab[] }[] = [
   { key: 'creators', tabs: [{ label: 'Roster', href: '/roster' }] },
-  { key: 'comms', tabs: [{ label: 'Messages', href: '/messages' }, { label: 'Discord drops', href: '/drops' }] },
+  { key: 'comms', tabs: [{ label: 'Messages', href: '/messages' }, { label: 'Discord Posts', href: '/drops' }] },
   // Reporting splits client-facing from internal. They share a nav section and
   // nothing else: separate tables, separate routes, and the internal one never
   // touches the public /r/[token] renderer. Keeping them adjacent is the point,

@@ -1,4 +1,5 @@
 'use client';
+import { SegmentedControl } from '@/components/ui/segmented';
 import RosterLoading from './loading';
 import { BrandIdentity } from '@/components/creators/brand-identity';
 import { CreatorPortrait } from '@/components/creators/creator-portrait';
@@ -1508,6 +1509,7 @@ function RosterContent() {
   // as a full reference when switched to All or Unmanaged.
   type View = 'managed' | 'all' | 'unmanaged';
   const [view, setView] = useState<View>('managed');
+  const [creatorView,setCreatorView]=useState<'creators'|'top'|'elite'>('creators');
   const [productFilter, setProductFilter] = useState('');
   const [groupFilter,setGroupFilter]=useState<{brand:string;tags:string[];mode:'any'|'all'}>({brand:'',tags:[],mode:'any'});
   // Health triage filter (drill-in, NOT a default): 'all' shows the full roster;
@@ -1589,6 +1591,7 @@ function RosterContent() {
   const [sortBy, setSortBy] = useState<SortCol>('gmv_period');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const toggleSort = (col: SortCol) => {
+    if(creatorView==='top')setCreatorView('creators');
     if (sortBy === col) setSortDir(d => (d === 'asc' ? 'desc' : 'asc'));
     else { setSortBy(col); setSortDir(col === 'real_name' ? 'asc' : 'desc'); }
   };
@@ -1627,6 +1630,7 @@ function RosterContent() {
       if (reuseSummary && loadedSummaryKey.current === summaryContext && Date.now() - loadedSummaryAt.current < 60_000) params.set('summary', '0');
       if (search) params.set('search', search);
       if (productFilter) params.set('product', productFilter);
+      if(creatorView==='elite'&&brand!=='all')params.append('tag','elite');
       if(groupFilter.brand===brand){for(const tag of groupFilter.tags)params.append('tag',tag);params.set('tag_mode',groupFilter.mode);}
       if (view !== 'managed') params.set('include', 'all');
       if (view === 'unmanaged') params.set('managed', 'unmanaged');
@@ -1675,7 +1679,7 @@ function RosterContent() {
       },
       settled: () => setLoading(false),
     });
-  }, [brand, view, search, productFilter, groupFilter, health, page, sortBy, sortDir, preset, customStart, customEnd, isCustomPeriod, segFilters, summaryContext]);
+  }, [brand, view, search, productFilter, groupFilter, creatorView, health, page, sortBy, sortDir, preset, customStart, customEnd, isCustomPeriod, segFilters, summaryContext]);
 
   useEffect(() => {
     void fetchRoster(true);
@@ -1692,6 +1696,7 @@ function RosterContent() {
       if (brand && brand !== 'all') params.set('brand', brand);
       if (search) params.set('search', search);
       if (productFilter) params.set('product', productFilter);
+      if(creatorView==='elite'&&brand!=='all')params.append('tag','elite');
       if(groupFilter.brand===brand){for(const tag of groupFilter.tags)params.append('tag',tag);params.set('tag_mode',groupFilter.mode);}
       if (view !== 'managed') params.set('include', 'all');
       if (view === 'unmanaged') params.set('managed', 'unmanaged');
@@ -1727,7 +1732,7 @@ function RosterContent() {
     } finally {
       setExporting(false);
     }
-  }, [brand, view, search, productFilter, groupFilter, sortBy, sortDir, preset, customStart, customEnd, isCustomPeriod, periodShort, brandOptions, brandMeta]);
+  }, [brand, view, search, productFilter, groupFilter, creatorView, sortBy, sortDir, preset, customStart, customEnd, isCustomPeriod, periodShort, brandOptions, brandMeta]);
 
   // Reset to page 1 when scope/sort/period change.
   useEffect(() => { setPage(1); }, [brand, view, sortBy, sortDir, preset, customStart, customEnd, productFilter]);
@@ -1895,6 +1900,11 @@ function RosterContent() {
         />
       </div>
 
+      <div className="flex flex-wrap items-center gap-3">
+        <SegmentedControl ariaLabel="Creator views" value={creatorView} options={[{value:'creators',label:'Creators'},{value:'top',label:'Top Creators'},{value:'elite',label:'Elite'}]} onValueChange={next=>{setCreatorView(next);setPage(1);setSearchInput('');setSearch('');setHealth('all');setProductFilter('');setSegFilters(null);setView('managed');setGroupFilter({brand,tags:[],mode:'any'});setSortBy(next==='creators'?'real_name':'gmv_period');setSortDir(next==='creators'?'asc':'desc');}}/>
+        {creatorView==='top'&&<span className="text-xs text-muted-foreground">Managed creators ranked by GMV for the selected period.</span>}
+        {creatorView==='elite'&&<span className="text-xs text-muted-foreground">{brand==='all'?'Select a brand to see its Elite creators.':'Creators tagged Elite for this brand.'}</span>}
+      </div>
       {/* Table toolbar — all DROPDOWNS (Tyler prefers them to pills). Search leads
           (the primary tool, grows to fill), then the filter dropdowns (View +
           Health replace the old segmented control + triage chip row; the Health
@@ -1902,12 +1912,12 @@ function RosterContent() {
           Segments + export at the end. Wraps at narrow widths. */}
       <div className={rosterLayout.toolbar}>
         <SearchInput className="min-w-[180px] flex-1 sm:w-auto" aria-label="Search creators" placeholder="Search creators…" value={searchInput} onChange={e=>setSearchInput(e.target.value)} onClear={()=>setSearchInput('')}/>
-        <ChoiceMenu compact label="Creator view" value={view} options={[{value:'all',label:'All creators'},{value:'managed',label:'Managed'},{value:'unmanaged',label:'Unmanaged'}]} onChange={value=>{setView(value as View);if(value!=='managed')setHealth('all');setPage(1);}}/>
+        <ChoiceMenu compact label="Creator view" value={view} options={[{value:'all',label:'All creators'},{value:'managed',label:'Managed'},{value:'unmanaged',label:'Unmanaged'}]} onChange={value=>{setCreatorView('creators');setGroupFilter({brand,tags:[],mode:'any'});setView(value as View);if(value!=='managed')setHealth('all');setPage(1);}}/>
         {view === 'managed' && (
           <HealthFilterMenu value={health} counts={healthCounts} onChange={(v) => { setHealth(v); setPage(1); }} />
         )}
         <ProductFilterSelect brand={brand} value={productFilter} onChange={setProductFilter} />
-      {brand !== 'all' && <CreatorGroupControls key={brand} brand={brand} rows={roster} loading={loading} selected={groupFilter.brand===brand?groupFilter.tags:[]} mode={groupFilter.mode} onFilter={(tags,mode)=>{setGroupFilter({brand,tags,mode});setPage(1);}} onSaved={()=>{void fetchRoster();}} />}
+      {brand !== 'all' && <CreatorGroupControls key={brand} brand={brand} rows={roster} loading={loading} selected={creatorView==='elite'?['elite']:groupFilter.brand===brand?groupFilter.tags:[]} mode={groupFilter.mode} onFilter={(tags,mode)=>{setCreatorView('creators');setGroupFilter({brand,tags,mode});setPage(1);}} onSaved={()=>{void fetchRoster();}} />}
         {brand === 'all' && <span className="text-xs text-muted-foreground">Select a brand to filter or edit tags</span>}
         <details className="relative ml-auto"><summary className="cursor-pointer rounded-lg px-3 py-2 text-xs font-medium">More</summary><div className="absolute right-0 top-full z-30 mt-2 flex min-w-56 flex-wrap gap-2 rounded-xl border border-border bg-card p-3 shadow-lg"><RosterSegmentControls currentCriteria={currentCriteria} onApply={applySegment} />
         <div className="flex items-center gap-2">
@@ -1915,7 +1925,7 @@ function RosterContent() {
             variant="outline"
             size="md"
             onClick={() => handleExport('csv')}
-            disabled={exporting || roster.length === 0}
+            disabled={exporting || loading || roster.length === 0 || (creatorView==='elite'&&brand==='all')}
             title="Export the current view to CSV"
           >
             {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />} CSV
@@ -1924,7 +1934,7 @@ function RosterContent() {
             variant="outline"
             size="md"
             onClick={() => handleExport('xlsx')}
-            disabled={exporting || roster.length === 0}
+            disabled={exporting || loading || roster.length === 0 || (creatorView==='elite'&&brand==='all')}
             title="Export the current view to Excel"
           >
             <FileDown className="h-4 w-4" /> Excel
@@ -1975,7 +1985,7 @@ function RosterContent() {
       )}
 
       {/* Table */}
-      {!loading && roster.length === 0 ? (
+      {creatorView==='elite'&&brand==='all' ? <EmptyState icon={<Users className="h-8 w-8"/>} title="Choose a brand" description="Elite membership is specific to each brand. Choose a brand above to view its Elite creators."/> : !loading && roster.length === 0 ? (
         loadError ? (
           <EmptyState
             icon={<AlertTriangle className="h-8 w-8" />}

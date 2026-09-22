@@ -104,13 +104,13 @@ function CommsHub() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Comms"
+        eyebrow="Communications"
         title={TAB_META[tab].title}
         subtitle={TAB_META[tab].subtitle}
       />
 
       <SegmentedControl<Tab>
-        ariaLabel="Comms views"
+        ariaLabel="Communication views"
         options={[
           { value: 'broadcasts', label: 'Broadcasts' },
           {

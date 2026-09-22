@@ -41,7 +41,7 @@ const PRIMARY: Dest[] = [
   // Reporting is a generator console, not a content view — owner's call
   // (2026-07-23): its own destination, out of the Content tabs.
   { href: '/reporting', label: 'Reporting', icon: FileBarChart,    match: ['/reporting'], screen: 'reporting' },
-  { href: '/messages',  label: 'Comms',     icon: MessagesSquare,  match: ['/messages', '/drops'], screen: 'messages' },
+  { href: '/messages',  label: 'Communications',     icon: MessagesSquare,  match: ['/messages', '/drops'], screen: 'messages' },
   { href: '/earnings',  label: 'Finance',   icon: Wallet,          match: ['/earnings', '/ytd', '/invoicing', '/payments'], financeGated: true, screen: 'earnings' },
   { href: '/products/catalog', label: 'Products', icon: Boxes,     match: ['/products'], adminOnly: true, screen: 'products' },
 ];
