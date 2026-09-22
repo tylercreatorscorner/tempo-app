@@ -1,4 +1,5 @@
 'use client';
+import RosterLoading from './loading';
 import { BrandIdentity } from '@/components/creators/brand-identity';
 import { CreatorPortrait } from '@/components/creators/creator-portrait';
 import { LatestRequest } from '@/lib/latest-request';
@@ -2360,11 +2361,7 @@ function RosterContent() {
 
 export default function RosterPage() {
   return (
-    <Suspense fallback={
-      <div className="p-16 flex items-center justify-center">
-        <Loader2 className="h-6 w-6 text-muted-foreground animate-spin" />
-      </div>
-    }>
+    <Suspense fallback={<RosterLoading />}>
       <RosterContent />
     </Suspense>
   );
