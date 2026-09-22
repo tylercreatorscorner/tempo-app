@@ -23,6 +23,8 @@ import { CustomRangePopover } from '@/components/dashboard/custom-range-popover'
 import { BulkAddModal, type BulkRow } from '@/components/roster/BulkAddModal';
 import { useDelayedFlag } from '@/hooks/use-delayed-flag';
 import { TableLoadBar } from '@/components/ui/table-load-bar';
+import { ChoiceMenu } from '@/components/ui/choice-menu';
+import { SearchInput } from '@/components/ui/search-input';
 import { CreatorGroupControls } from '@/components/roster/creator-group-controls';
 import { ProductTagPicker, ProductFilterSelect } from '@/components/roster/product-tag-picker';
 import { downloadCsv } from '@/lib/utils/csv';
@@ -660,7 +662,7 @@ function SkeletonRow({ cols }: { cols: number }) {
     <tr>
       {Array.from({ length: cols }).map((_, i) => (
         <td key={i} className="px-5 py-3.5">
-          <div className="h-3.5 rounded bg-muted animate-pulse" style={{ width: `${40 + ((i * 13) % 40)}%` }} />
+          {i === 0 ? <div className="flex items-center gap-3 motion-safe:animate-pulse"><div className="h-10 w-10 rounded-full bg-primary/10"/><div className="space-y-2"><div className="h-2.5 w-24 rounded bg-muted"/><div className="h-2 w-16 rounded bg-muted"/></div></div> : <div className="h-2.5 w-16 rounded bg-muted motion-safe:animate-pulse"/>}
         </td>
       ))}
     </tr>
@@ -1603,10 +1605,13 @@ function RosterContent() {
     return () => clearTimeout(t);
   }, [searchInput]);
 
+  const loadedSummaryKey = useRef('');
+  const loadedSummaryAt = useRef(0);
+  const summaryContext = JSON.stringify([brand,preset,customStart,customEnd,searchParams.toString()]);
   const rosterRequest = useRef<LatestRequest | null>(null);
   if (!rosterRequest.current) rosterRequest.current = new LatestRequest();
 
-  const fetchRoster = useCallback(async () => {
+  const fetchRoster = useCallback(async (reuseSummary = false) => {
     setLoading(true);
     await rosterRequest.current!.run(async (signal) => {
       const params = new URLSearchParams({
@@ -1618,6 +1623,7 @@ function RosterContent() {
       });
       if (isCustomPeriod && customStart && customEnd) { params.set('start', customStart); params.set('end', customEnd); }
       if (brand && brand !== 'all') params.set('brand', brand);
+      if (reuseSummary && loadedSummaryKey.current === summaryContext && Date.now() - loadedSummaryAt.current < 60_000) params.set('summary', '0');
       if (search) params.set('search', search);
       if (productFilter) params.set('product', productFilter);
       if(groupFilter.brand===brand){for(const tag of groupFilter.tags)params.append('tag',tag);params.set('tag_mode',groupFilter.mode);}
@@ -1657,7 +1663,7 @@ function RosterContent() {
           low_roi: json.low_roi_count ?? 0,
           affiliate: json.affiliate_count ?? 0,
         });
-        if (json.summary) setSummary(json.summary);
+        if (json.summary) { setSummary(json.summary); loadedSummaryKey.current = summaryContext; loadedSummaryAt.current = Date.now(); }
       },
       error: (err) => {
         console.error('Failed to fetch roster:', err);
@@ -1668,10 +1674,10 @@ function RosterContent() {
       },
       settled: () => setLoading(false),
     });
-  }, [brand, view, search, productFilter, groupFilter, health, page, sortBy, sortDir, preset, customStart, customEnd, isCustomPeriod, segFilters]);
+  }, [brand, view, search, productFilter, groupFilter, health, page, sortBy, sortDir, preset, customStart, customEnd, isCustomPeriod, segFilters, summaryContext]);
 
   useEffect(() => {
-    void fetchRoster();
+    void fetchRoster(true);
     return () => rosterRequest.current?.cancel();
   }, [fetchRoster]);
 
@@ -1861,7 +1867,7 @@ function RosterContent() {
         <StatCard
           className={`${rosterLayout.metric} ${rosterLayout.featured}`}
           label="Managed GMV"
-          value={kpiFailed ? '—' : loading ? '…' : fmt(totalGmvPeriod)}
+          value={kpiFailed ? '—' : loading && !summary ? '…' : fmt(totalGmvPeriod)}
           trend={summary ? pctDelta(totalGmvPeriod, summary.managed_gmv_prev) : undefined}
           trendLabel={periodLabel}
         />
@@ -1875,7 +1881,7 @@ function RosterContent() {
         <StatCard
           className={rosterLayout.metric}
           label="Total Retainers"
-          value={kpiFailed ? '—' : loading ? '…' : totalRetainer == null ? '—' : fmt(totalRetainer)}
+          value={kpiFailed ? '—' : loading && !summary ? '…' : totalRetainer == null ? '—' : fmt(totalRetainer)}
           subValue={totalRetainer != null ? 'per month' : undefined}
 
         />
@@ -1894,32 +1900,15 @@ function RosterContent() {
           menu keeps the per-bucket counts + colour dots the chips had), then
           Segments + export at the end. Wraps at narrow widths. */}
       <div className={rosterLayout.toolbar}>
-        <div className="relative min-w-[220px] flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none z-10" />
-          <Input
-            type="text"
-            placeholder="Search by name or handle…"
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-        <div className="w-[150px]">
-          <Select
-            value={view}
-            onChange={(e) => { const v = e.target.value as View; setView(v); if (v !== 'managed') setHealth('all'); setPage(1); }}
-            aria-label="Creator view"
-          >
-            <option value="all">All Creators</option>
-            <option value="managed">Managed</option>
-            <option value="unmanaged">Unmanaged</option>
-          </Select>
-        </div>
+        <SearchInput className="min-w-[180px] flex-1 sm:w-auto" aria-label="Search creators" placeholder="Search creators…" value={searchInput} onChange={e=>setSearchInput(e.target.value)} onClear={()=>setSearchInput('')}/>
+        <ChoiceMenu compact label="Creator view" value={view} options={[{value:'all',label:'All creators'},{value:'managed',label:'Managed'},{value:'unmanaged',label:'Unmanaged'}]} onChange={value=>{setView(value as View);if(value!=='managed')setHealth('all');setPage(1);}}/>
         {view === 'managed' && (
           <HealthFilterMenu value={health} counts={healthCounts} onChange={(v) => { setHealth(v); setPage(1); }} />
         )}
         <ProductFilterSelect brand={brand} value={productFilter} onChange={setProductFilter} />
-        <RosterSegmentControls currentCriteria={currentCriteria} onApply={applySegment} />
+      {brand !== 'all' && <CreatorGroupControls key={brand} brand={brand} rows={roster} loading={loading} selected={groupFilter.brand===brand?groupFilter.tags:[]} mode={groupFilter.mode} onFilter={(tags,mode)=>{setGroupFilter({brand,tags,mode});setPage(1);}} onSaved={()=>{void fetchRoster();}} />}
+        {brand === 'all' && <span className="text-xs text-muted-foreground">Select a brand to filter or edit tags</span>}
+        <details className="relative ml-auto"><summary className="cursor-pointer rounded-lg px-3 py-2 text-xs font-medium">More</summary><div className="absolute right-0 top-full z-30 mt-2 flex min-w-56 flex-wrap gap-2 rounded-xl border border-border bg-card p-3 shadow-lg"><RosterSegmentControls currentCriteria={currentCriteria} onApply={applySegment} />
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
@@ -1940,6 +1929,7 @@ function RosterContent() {
             <FileDown className="h-4 w-4" /> Excel
           </Button>
         </div>
+        </div></details>
       </div>
 
       {/* Active segment chip — indicates applied filters (incl. hidden thresholds) */}
@@ -1953,7 +1943,7 @@ function RosterContent() {
       )}
 
       {/* Multi-select action bar — appears once candidates are checked */}
-      {brand !== 'all' && <CreatorGroupControls key={brand} brand={brand} rows={roster} loading={loading} selected={groupFilter.brand===brand?groupFilter.tags:[]} mode={groupFilter.mode} onFilter={(tags,mode)=>{setGroupFilter({brand,tags,mode});setPage(1);}} onSaved={()=>{void fetchRoster();}} />}
+
 
       {selected.size > 0 && (
         <div className="flex items-center justify-between gap-3 rounded-xl border border-primary/15 bg-primary/10 px-4 py-2.5">
@@ -2007,11 +1997,12 @@ function RosterContent() {
           />
         )
       ) : (
-        <div className={rosterLayout.tableCard}>
+        <div className={rosterLayout.tableCard} aria-busy={loading}>
           {/* Indeterminate load bar — shows on first load AND every refetch
               (brand / period / sort / page change), even with rows on screen.
               Gated by showLoadBar (150ms delay) so fast loads don't flash it. */}
           <TableLoadBar active={showLoadBar} />
+          {loading && <div role="status" className="flex items-center gap-2 border-b border-border bg-primary/5 px-4 py-2 text-xs text-muted-foreground"><Loader2 aria-hidden="true" className="h-3.5 w-3.5 animate-spin"/>{roster.length ? 'Updating creators · showing previous results' : 'Loading creator performance…'}</div>}
           {/* ScrollFade: 8 columns overflow ~1,440px, so ROI/Joined sit off the
               right edge. The edge fade announces the sideways scroll instead of
               leaving the page's headline metric silently hidden. */}
@@ -2076,7 +2067,7 @@ function RosterContent() {
                 {loading && roster.length === 0 && Array.from({ length: 8 }).map((_, i) => (
                   <SkeletonRow key={i} cols={cols} />
                 ))}
-                {!loading && roster.map((c) => {
+                {roster.map((c) => {
                   const primary = primaryHandle(c);
                   const isGroup = !!c.grouped;
                   const isOpen = isGroup && expanded.has(c.id);

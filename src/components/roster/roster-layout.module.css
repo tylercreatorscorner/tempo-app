@@ -64,3 +64,8 @@
 }
 
 .featured{background:var(--card);border:1px solid var(--border)}.featured>p{color:var(--foreground)}.avatar{outline:1px solid var(--border);outline-offset:3px;background:var(--secondary);color:var(--foreground)}.scope button{min-height:44px;border-radius:12px}.toolbar button,.toolbar select,.toolbar input{border-radius:10px}.person{gap:14px}.panel h2{font-size:22px}.table td[data-label="Brand"]{min-width:150px}
+
+/* Compact roster controls share the reporting control density. */
+.toolbar {padding:10px;gap:8px;background:var(--secondary);border-radius:12px}
+.toolbar button,.toolbar select {min-height:32px;height:32px;font-size:12px}
+@media(pointer:coarse){.toolbar button,.toolbar select{min-height:44px;height:44px}}
