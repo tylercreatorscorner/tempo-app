@@ -1,0 +1,20 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {runInNewContext} from 'node:vm';
+import ts from 'typescript';
+import {z} from 'zod';
+let deny=false,writes=0,conflict=false;
+const record={tenant_id:'source',channel_id:'123456789012345678',guild_id:'234567890123456789',enabled:true,updated_at:'2026-09-22T00:00:00.000Z',note:'',source_hash:'source',assessment_hash:'source',synced_at:new Date().toISOString(),error:null};
+function query(){const filters=[];let patch;const q={select(){return q;},eq(k,v){filters.push(r=>r[k]===v);return q;},in(k,v){filters.push(r=>v.includes(r[k]));return q;},update(v){patch=v;return q;},insert(){return Promise.resolve({error:null});},single(){return Promise.resolve({data:filters.every(f=>f(record))?record:null,error:null});},then(resolve){const found=!conflict&&filters.every(f=>f(record));if(found&&patch)writes++;return Promise.resolve({data:found?[record]:[],error:null}).then(resolve);}};return q;}
+const deps={'zod':{z},'@/lib/community-ops/avatar-identity':{avatarIdentity:()=>null},'@/lib/community-ops/model':{pilotGuilds:{[record.guild_id]:{name:'Fixture'}}},'@/lib/community-ops/worker':{runOpsCycle:()=>{throw Error('Not part of this test');}},'@/lib/community-ops/server':{opsContext:async()=>deny?{denied:{status:403}}:{scope:{tenantId:'source',userId:'real-tempo-actor'},db:{from:()=>query()}},opsReply:(body,status=200)=>({body,status}),validOpsOrigin:r=>r.headers.get('origin')==='https://tempo.example'}};
+const exports={};runInNewContext(ts.transpileModule(readFileSync('src/app/api/community-operations/queue/route.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{exports,URL,require:n=>deps[n]});
+const body={channelId:record.channel_id,updatedAt:record.updated_at,status:'open',owner:'',followupAt:null,note:'review fixture',draft:'draft'};
+const request=(patch={},origin='https://tempo.example')=>new Request('https://tempo.example/api/community-operations/queue',{method:'PATCH',headers:{'content-type':'application/json',origin},body:JSON.stringify({...body,...patch})});
+assert.equal((await exports.PATCH(request())).status,200);assert.equal(writes,1);
+assert.equal((await exports.PATCH(request({channelId:'999999999999999999'}))).status,404);assert.equal(writes,1);
+assert.equal((await exports.PATCH(request({updatedAt:'2026-09-01T00:00:00.000Z'}))).status,409);assert.equal(writes,1);
+conflict=true;assert.equal((await exports.PATCH(request())).status,409);conflict=false;
+assert.equal((await exports.PATCH(request({},'https://other.example'))).status,403);
+assert.equal((await exports.PATCH(request({status:'snoozed'}))).status,400);
+deny=true;assert.equal((await exports.PATCH(request())).status,403);assert.equal(writes,1);
+console.log('PASS integrated review route: save, missing channel, concurrent edits, origin, invalid follow-up and denied operator');
