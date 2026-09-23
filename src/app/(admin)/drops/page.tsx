@@ -102,7 +102,7 @@ export default function DropsPage() {
     <div className="space-y-6">
       <PageHeader
         eyebrow="Creators"
-        title="Drops"
+        title="Discord Posts"
         subtitle="Every format at once. Take the ones that found something good."
       />
 

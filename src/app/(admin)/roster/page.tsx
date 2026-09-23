@@ -1,4 +1,6 @@
 'use client';
+import { SegmentedControl } from '@/components/ui/segmented';
+import RosterLoading from './loading';
 import { BrandIdentity } from '@/components/creators/brand-identity';
 import { CreatorPortrait } from '@/components/creators/creator-portrait';
 import { LatestRequest } from '@/lib/latest-request';
@@ -23,6 +25,9 @@ import { CustomRangePopover } from '@/components/dashboard/custom-range-popover'
 import { BulkAddModal, type BulkRow } from '@/components/roster/BulkAddModal';
 import { useDelayedFlag } from '@/hooks/use-delayed-flag';
 import { TableLoadBar } from '@/components/ui/table-load-bar';
+import { ChoiceMenu } from '@/components/ui/choice-menu';
+import { SearchInput } from '@/components/ui/search-input';
+import { CreatorGroupControls } from '@/components/roster/creator-group-controls';
 import { ProductTagPicker, ProductFilterSelect } from '@/components/roster/product-tag-picker';
 import { downloadCsv } from '@/lib/utils/csv';
 import { downloadXlsx } from '@/lib/utils/xlsx';
@@ -112,6 +117,7 @@ interface Creator {
   is_managed: boolean;
   // Resolved product tags (key + display name). Empty = no specific product.
   product_tags: { key: string; name: string }[];
+  creator_tags?: string[];
   // All-Brands collapse: parent row spanning multiple brands; `brands` holds the
   // per-brand children (one managed contract each).
   grouped?: boolean;
@@ -658,7 +664,7 @@ function SkeletonRow({ cols }: { cols: number }) {
     <tr>
       {Array.from({ length: cols }).map((_, i) => (
         <td key={i} className="px-5 py-3.5">
-          <div className="h-3.5 rounded bg-muted animate-pulse" style={{ width: `${40 + ((i * 13) % 40)}%` }} />
+          {i === 0 ? <div className="flex items-center gap-3 motion-safe:animate-pulse"><div className="h-10 w-10 rounded-full bg-primary/10"/><div className="space-y-2"><div className="h-2.5 w-24 rounded bg-muted"/><div className="h-2 w-16 rounded bg-muted"/></div></div> : <div className="h-2.5 w-16 rounded bg-muted motion-safe:animate-pulse"/>}
         </td>
       ))}
     </tr>
@@ -1503,7 +1509,9 @@ function RosterContent() {
   // as a full reference when switched to All or Unmanaged.
   type View = 'managed' | 'all' | 'unmanaged';
   const [view, setView] = useState<View>('managed');
+  const [creatorView,setCreatorView]=useState<'creators'|'top'|'elite'>('creators');
   const [productFilter, setProductFilter] = useState('');
+  const [groupFilter,setGroupFilter]=useState<{brand:string;tags:string[];mode:'any'|'all'}>({brand:'',tags:[],mode:'any'});
   // Health triage filter (drill-in, NOT a default): 'all' shows the full roster;
   // a health value narrows to that bucket. Counts come back on every response
   // (computed over the full managed set, brand-scoped), so the chips always show
@@ -1583,6 +1591,7 @@ function RosterContent() {
   const [sortBy, setSortBy] = useState<SortCol>('gmv_period');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const toggleSort = (col: SortCol) => {
+    if(creatorView==='top')setCreatorView('creators');
     if (sortBy === col) setSortDir(d => (d === 'asc' ? 'desc' : 'asc'));
     else { setSortBy(col); setSortDir(col === 'real_name' ? 'asc' : 'desc'); }
   };
@@ -1600,10 +1609,13 @@ function RosterContent() {
     return () => clearTimeout(t);
   }, [searchInput]);
 
+  const loadedSummaryKey = useRef('');
+  const loadedSummaryAt = useRef(0);
+  const summaryContext = JSON.stringify([brand,preset,customStart,customEnd,searchParams.toString()]);
   const rosterRequest = useRef<LatestRequest | null>(null);
   if (!rosterRequest.current) rosterRequest.current = new LatestRequest();
 
-  const fetchRoster = useCallback(async () => {
+  const fetchRoster = useCallback(async (reuseSummary = false) => {
     setLoading(true);
     await rosterRequest.current!.run(async (signal) => {
       const params = new URLSearchParams({
@@ -1615,8 +1627,11 @@ function RosterContent() {
       });
       if (isCustomPeriod && customStart && customEnd) { params.set('start', customStart); params.set('end', customEnd); }
       if (brand && brand !== 'all') params.set('brand', brand);
+      if (reuseSummary && loadedSummaryKey.current === summaryContext && Date.now() - loadedSummaryAt.current < 60_000) params.set('summary', '0');
       if (search) params.set('search', search);
       if (productFilter) params.set('product', productFilter);
+      if(creatorView==='elite'&&brand!=='all')params.append('tag','elite');
+      if(groupFilter.brand===brand){for(const tag of groupFilter.tags)params.append('tag',tag);params.set('tag_mode',groupFilter.mode);}
       if (view !== 'managed') params.set('include', 'all');
       if (view === 'unmanaged') params.set('managed', 'unmanaged');
       if (health !== 'all') params.set('health', health);
@@ -1653,7 +1668,7 @@ function RosterContent() {
           low_roi: json.low_roi_count ?? 0,
           affiliate: json.affiliate_count ?? 0,
         });
-        if (json.summary) setSummary(json.summary);
+        if (json.summary) { setSummary(json.summary); loadedSummaryKey.current = summaryContext; loadedSummaryAt.current = Date.now(); }
       },
       error: (err) => {
         console.error('Failed to fetch roster:', err);
@@ -1664,10 +1679,10 @@ function RosterContent() {
       },
       settled: () => setLoading(false),
     });
-  }, [brand, view, search, productFilter, health, page, sortBy, sortDir, preset, customStart, customEnd, isCustomPeriod, segFilters]);
+  }, [brand, view, search, productFilter, groupFilter, creatorView, health, page, sortBy, sortDir, preset, customStart, customEnd, isCustomPeriod, segFilters, summaryContext]);
 
   useEffect(() => {
-    void fetchRoster();
+    void fetchRoster(true);
     return () => rosterRequest.current?.cancel();
   }, [fetchRoster]);
 
@@ -1681,6 +1696,8 @@ function RosterContent() {
       if (brand && brand !== 'all') params.set('brand', brand);
       if (search) params.set('search', search);
       if (productFilter) params.set('product', productFilter);
+      if(creatorView==='elite'&&brand!=='all')params.append('tag','elite');
+      if(groupFilter.brand===brand){for(const tag of groupFilter.tags)params.append('tag',tag);params.set('tag_mode',groupFilter.mode);}
       if (view !== 'managed') params.set('include', 'all');
       if (view === 'unmanaged') params.set('managed', 'unmanaged');
       const res = await fetch(`/api/roster?${params}`);
@@ -1715,7 +1732,7 @@ function RosterContent() {
     } finally {
       setExporting(false);
     }
-  }, [brand, view, search, productFilter, sortBy, sortDir, preset, customStart, customEnd, isCustomPeriod, periodShort, brandOptions, brandMeta]);
+  }, [brand, view, search, productFilter, groupFilter, creatorView, sortBy, sortDir, preset, customStart, customEnd, isCustomPeriod, periodShort, brandOptions, brandMeta]);
 
   // Reset to page 1 when scope/sort/period change.
   useEffect(() => { setPage(1); }, [brand, view, sortBy, sortDir, preset, customStart, customEnd, productFilter]);
@@ -1856,7 +1873,7 @@ function RosterContent() {
         <StatCard
           className={`${rosterLayout.metric} ${rosterLayout.featured}`}
           label="Managed GMV"
-          value={kpiFailed ? '—' : loading ? '…' : fmt(totalGmvPeriod)}
+          value={kpiFailed ? '—' : loading && !summary ? '…' : fmt(totalGmvPeriod)}
           trend={summary ? pctDelta(totalGmvPeriod, summary.managed_gmv_prev) : undefined}
           trendLabel={periodLabel}
         />
@@ -1870,7 +1887,7 @@ function RosterContent() {
         <StatCard
           className={rosterLayout.metric}
           label="Total Retainers"
-          value={kpiFailed ? '—' : loading ? '…' : totalRetainer == null ? '—' : fmt(totalRetainer)}
+          value={kpiFailed ? '—' : loading && !summary ? '…' : totalRetainer == null ? '—' : fmt(totalRetainer)}
           subValue={totalRetainer != null ? 'per month' : undefined}
 
         />
@@ -1883,44 +1900,32 @@ function RosterContent() {
         />
       </div>
 
+      <div className="flex flex-wrap items-center gap-3">
+        <SegmentedControl ariaLabel="Creator views" value={creatorView} options={[{value:'creators',label:'Creators'},{value:'top',label:'Top Creators'},{value:'elite',label:'Elite'}]} onValueChange={next=>{setCreatorView(next);setPage(1);setSearchInput('');setSearch('');setHealth('all');setProductFilter('');setSegFilters(null);setView('managed');setGroupFilter({brand,tags:[],mode:'any'});setSortBy(next==='creators'?'real_name':'gmv_period');setSortDir(next==='creators'?'asc':'desc');}}/>
+        {creatorView==='top'&&<span className="text-xs text-muted-foreground">Managed creators ranked by GMV for the selected period.</span>}
+        {creatorView==='elite'&&<span className="text-xs text-muted-foreground">{brand==='all'?'Select a brand to see its Elite creators.':'Creators tagged Elite for this brand.'}</span>}
+      </div>
       {/* Table toolbar — all DROPDOWNS (Tyler prefers them to pills). Search leads
           (the primary tool, grows to fill), then the filter dropdowns (View +
           Health replace the old segmented control + triage chip row; the Health
           menu keeps the per-bucket counts + colour dots the chips had), then
           Segments + export at the end. Wraps at narrow widths. */}
       <div className={rosterLayout.toolbar}>
-        <div className="relative min-w-[220px] flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none z-10" />
-          <Input
-            type="text"
-            placeholder="Search by name or handle…"
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-        <div className="w-[150px]">
-          <Select
-            value={view}
-            onChange={(e) => { const v = e.target.value as View; setView(v); if (v !== 'managed') setHealth('all'); setPage(1); }}
-            aria-label="Creator view"
-          >
-            <option value="all">All Creators</option>
-            <option value="managed">Managed</option>
-            <option value="unmanaged">Unmanaged</option>
-          </Select>
-        </div>
+        <SearchInput className="min-w-[180px] flex-1 sm:w-auto" aria-label="Search creators" placeholder="Search creators…" value={searchInput} onChange={e=>setSearchInput(e.target.value)} onClear={()=>setSearchInput('')}/>
+        <ChoiceMenu compact label="Creator view" value={view} options={[{value:'all',label:'All creators'},{value:'managed',label:'Managed'},{value:'unmanaged',label:'Unmanaged'}]} onChange={value=>{setCreatorView('creators');setGroupFilter({brand,tags:[],mode:'any'});setView(value as View);if(value!=='managed')setHealth('all');setPage(1);}}/>
         {view === 'managed' && (
           <HealthFilterMenu value={health} counts={healthCounts} onChange={(v) => { setHealth(v); setPage(1); }} />
         )}
         <ProductFilterSelect brand={brand} value={productFilter} onChange={setProductFilter} />
-        <RosterSegmentControls currentCriteria={currentCriteria} onApply={applySegment} />
+      {brand !== 'all' && <CreatorGroupControls key={brand} brand={brand} rows={roster} loading={loading} selected={creatorView==='elite'?['elite']:groupFilter.brand===brand?groupFilter.tags:[]} mode={groupFilter.mode} onFilter={(tags,mode)=>{setCreatorView('creators');setGroupFilter({brand,tags,mode});setPage(1);}} onSaved={()=>{void fetchRoster();}} />}
+        {brand === 'all' && <span className="text-xs text-muted-foreground">Select a brand to filter or edit tags</span>}
+        <details className="relative ml-auto"><summary className="cursor-pointer rounded-lg px-3 py-2 text-xs font-medium">More</summary><div className="absolute right-0 top-full z-30 mt-2 flex min-w-56 flex-wrap gap-2 rounded-xl border border-border bg-card p-3 shadow-lg"><RosterSegmentControls currentCriteria={currentCriteria} onApply={applySegment} />
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
             size="md"
             onClick={() => handleExport('csv')}
-            disabled={exporting || roster.length === 0}
+            disabled={exporting || loading || roster.length === 0 || (creatorView==='elite'&&brand==='all')}
             title="Export the current view to CSV"
           >
             {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />} CSV
@@ -1929,12 +1934,13 @@ function RosterContent() {
             variant="outline"
             size="md"
             onClick={() => handleExport('xlsx')}
-            disabled={exporting || roster.length === 0}
+            disabled={exporting || loading || roster.length === 0 || (creatorView==='elite'&&brand==='all')}
             title="Export the current view to Excel"
           >
             <FileDown className="h-4 w-4" /> Excel
           </Button>
         </div>
+        </div></details>
       </div>
 
       {/* Active segment chip — indicates applied filters (incl. hidden thresholds) */}
@@ -1948,6 +1954,8 @@ function RosterContent() {
       )}
 
       {/* Multi-select action bar — appears once candidates are checked */}
+
+
       {selected.size > 0 && (
         <div className="flex items-center justify-between gap-3 rounded-xl border border-primary/15 bg-primary/10 px-4 py-2.5">
           <span className="text-sm font-semibold text-[var(--foreground)]">
@@ -1977,7 +1985,7 @@ function RosterContent() {
       )}
 
       {/* Table */}
-      {!loading && roster.length === 0 ? (
+      {creatorView==='elite'&&brand==='all' ? <EmptyState icon={<Users className="h-8 w-8"/>} title="Choose a brand" description="Elite membership is specific to each brand. Choose a brand above to view its Elite creators."/> : !loading && roster.length === 0 ? (
         loadError ? (
           <EmptyState
             icon={<AlertTriangle className="h-8 w-8" />}
@@ -2000,11 +2008,12 @@ function RosterContent() {
           />
         )
       ) : (
-        <div className={rosterLayout.tableCard}>
+        <div className={rosterLayout.tableCard} aria-busy={loading}>
           {/* Indeterminate load bar — shows on first load AND every refetch
               (brand / period / sort / page change), even with rows on screen.
               Gated by showLoadBar (150ms delay) so fast loads don't flash it. */}
           <TableLoadBar active={showLoadBar} />
+          {loading && <div role="status" className="flex items-center gap-2 border-b border-border bg-primary/5 px-4 py-2 text-xs text-muted-foreground"><Loader2 aria-hidden="true" className="h-3.5 w-3.5 animate-spin"/>{roster.length ? 'Updating creators · showing previous results' : 'Loading creator performance…'}</div>}
           {/* ScrollFade: 8 columns overflow ~1,440px, so ROI/Joined sit off the
               right edge. The edge fade announces the sideways scroll instead of
               leaving the page's headline metric silently hidden. */}
@@ -2069,7 +2078,7 @@ function RosterContent() {
                 {loading && roster.length === 0 && Array.from({ length: 8 }).map((_, i) => (
                   <SkeletonRow key={i} cols={cols} />
                 ))}
-                {!loading && roster.map((c) => {
+                {roster.map((c) => {
                   const primary = primaryHandle(c);
                   const isGroup = !!c.grouped;
                   const isOpen = isGroup && expanded.has(c.id);
@@ -2157,6 +2166,7 @@ function RosterContent() {
                             ) : !c.real_name && primary ? (
                               <ExtraAccountsBadge creator={c} />
                             ) : null}
+                            {brand !== 'all' && !!c.creator_tags?.length && <div className="mt-1 flex max-w-64 flex-wrap gap-1">{c.creator_tags.map(tag=><span key={tag} className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium capitalize text-primary">{tag}</span>)}</div>}
                             {(c.product_tags ?? []).length > 0 && (
                               <div className="flex flex-wrap items-center gap-1 mt-1">
                                 {(c.product_tags ?? []).slice(0, 3).map((t) => (
@@ -2361,11 +2371,7 @@ function RosterContent() {
 
 export default function RosterPage() {
   return (
-    <Suspense fallback={
-      <div className="p-16 flex items-center justify-center">
-        <Loader2 className="h-6 w-6 text-muted-foreground animate-spin" />
-      </div>
-    }>
+    <Suspense fallback={<RosterLoading />}>
       <RosterContent />
     </Suspense>
   );

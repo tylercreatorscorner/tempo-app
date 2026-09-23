@@ -14,17 +14,8 @@ interface Tab {
 // The sub-views for each sidebar destination. One shared bar, driven by the URL,
 // so pages don't each hand-roll their own tabs.
 const SECTIONS: { key: string; tabs: Tab[] }[] = [
-  // Drops sits last, next to Contests: both are the creator-facing
-  // recognition loop, and contest winners will eventually announce through
-  // the same Discord formats.
-  { key: 'creators', tabs: [
-    { label: 'Roster', href: '/roster' },
-    { label: 'Retention', href: '/retention' },
-    { label: 'Affiliates', href: '/affiliates' },
-    { label: 'Segments', href: '/segments' },
-    { label: 'Contests', href: '/contests' },
-    { label: 'Drops', href: '/drops' },
-  ] },
+  { key: 'creators', tabs: [{ label: 'Roster', href: '/roster' }] },
+  { key: 'comms', tabs: [{ label: 'Messages', href: '/messages' }, { label: 'Discord Posts', href: '/drops' }] },
   // Reporting splits client-facing from internal. They share a nav section and
   // nothing else: separate tables, separate routes, and the internal one never
   // touches the public /r/[token] renderer. Keeping them adjacent is the point,

@@ -54,7 +54,7 @@ const BREADCRUMB_MAP: Record<string, string> = {
   '/workflows/outreach': 'Outreach',
   // Other
   '/brands': 'Brands',
-  '/messages': 'Comms',
+  '/messages': 'Communications',
   '/discover': 'Discover',
   '/invites': 'Invites',
 };
