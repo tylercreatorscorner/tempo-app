@@ -10,8 +10,13 @@ export function resolveIdentities(rows:IdentityRow[]):ComparisonRow[]{
   return {id:row.id,name:row.real_name||`Creator ${row.id}`,discordId:valid?unique[0]:null,state:(unique.length===0?'missing_identity':valid?'unavailable':'identity_conflict') as MemberState};
  });
  const counts=new Map<string,number>();
- for(const row of identities)if(row.discordId)counts.set(row.discordId,(counts.get(row.discordId)||0)+1);
- return identities.map(row=>row.discordId && counts.get(row.discordId)!>1?{...row,state:'identity_conflict',discordId:null}:row);
+ // Count every claimed ID, including claims on already-conflicted records.
+ // Otherwise a clean-looking row could reuse an account from an ambiguous row.
+ for(const row of rows){
+  const claims=new Set([row.discord_id,row.discord_user_id,row.canonicalDiscordId].filter((v):v is string=>!!v?.trim()).map(v=>v.trim()));
+  for(const id of claims)counts.set(id,(counts.get(id)||0)+1);
+ }
+ return identities.map(row=>row.discordId && (counts.get(row.discordId)??0)>1?{...row,state:'identity_conflict',discordId:null}:row);
 }
 export function memberState(status:number,roles:unknown):MemberState{
  if(status===404)return 'not_in_server';

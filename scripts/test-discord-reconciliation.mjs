@@ -9,6 +9,7 @@ assert.equal(model.resolveIdentities([row(1,null)])[0].state,'missing_identity')
 assert.equal(model.resolveIdentities([row(1,'123456789012345678','987654321098765432')])[0].state,'identity_conflict');
 assert.equal(model.resolveIdentities([row(1,'invalid')])[0].state,'identity_conflict');
 assert.ok(model.resolveIdentities([row(1,'123456789012345678'),row(2,'123456789012345678')]).every(r=>r.state==='identity_conflict'));
+assert.ok(model.resolveIdentities([row(1,'123456789012345678','987654321098765432'),row(2,'123456789012345678')]).every(r=>r.state==='identity_conflict'));
 assert.equal(model.memberState(403,[]),'unavailable');assert.equal(model.memberState(429,[]),'unavailable');assert.equal(model.memberState(404,null),'not_in_server');assert.equal(model.memberState(200,null),'unavailable');assert.equal(model.memberState(200,[]),'missing_role');assert.equal(model.memberState(200,[model.JIYU_ROLE.roleId]),'aligned');
 const access=load('src/lib/roster/discord-reconciliation-access.ts',{'@/lib/auth/permissions':{can:s=>s.rosterRead},'@/lib/community-ops/access':{canUseOperations:s=>!!s?.operator},'./discord-reconciliation':model});
 let scope={tenantId:model.JIYU_ROLE.tenantId,operator:true,rosterRead:true};
