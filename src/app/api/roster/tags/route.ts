@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 import { can } from '@/lib/auth/permissions';
 import { createAdminClient } from '@/lib/supabase/server';
+import { canReviewDiscordRoles } from '@/lib/roster/discord-reconciliation-access';
 import { normalizeCreatorTag } from '@/lib/roster/creator-tags';
 
 export async function GET(request: NextRequest) {
@@ -17,7 +18,7 @@ export async function GET(request: NextRequest) {
     for (const row of data ?? []) for (const value of row.tags ?? []) { const tag=normalizeCreatorTag(value); if(tag) tags.add(tag); }
     if (!data || data.length<1000) break;
   }
-  return NextResponse.json({tags:[...tags].sort(),canWrite:!scope.impersonating && can(scope,'roster','write')});
+  return NextResponse.json({canReviewDiscord:canReviewDiscordRoles(scope,brand),tags:[...tags].sort(),canWrite:!scope.impersonating && can(scope,'roster','write')});
 }
 
 export async function POST(request: NextRequest) {
