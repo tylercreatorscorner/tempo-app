@@ -29,25 +29,30 @@ export async function GET(request:NextRequest){
  const comparison=resolveIdentities(rows.map(r=>({...r,canonicalDiscordId:canonical.get(r.creator_id)||null}))).filter(r=>eliteIds.has(r.id));
  const deadline=Date.now()+40000;
  let rateLimited=false;
- async function discord(path:string){
+ async function discord(path:string):Promise<{status:number;body:{roles?:string[];id?:string;name?:string;managed?:boolean} | {id:string;name:string;managed:boolean}[] | null}|null>{
   if(rateLimited || Date.now()>deadline)return null;
-  try{
-   const result=await fetch(`https://discord.com/api/v10${path}`,{headers:{Authorization:`Bot ${token}`},cache:'no-store',signal:AbortSignal.timeout(6000)});
-   if(result.status===429)rateLimited=true;
-   return {status:result.status,body:result.ok?await result.json():null};
-  }catch{return null;}
+  for(let attempt=0;attempt<3;attempt++){
+   try{
+    const result=await fetch(`https://discord.com/api/v10${path}`,{headers:{Authorization:`Bot ${token}`},cache:'no-store',signal:AbortSignal.timeout(Math.max(1,Math.min(6000,deadline-Date.now())))});
+    if(result.status!==429)return {status:result.status,body:result.ok?await result.json():null};
+    const body=await result.json().catch(()=>null);
+    const seconds=Number(body?.retry_after??result.headers.get('Retry-After'));
+    const delay=Number.isFinite(seconds)&&seconds>=0?Math.ceil(seconds*1000)+150:1000;
+    if(attempt===2 || Date.now()+delay>=deadline){rateLimited=true;return null;}
+    await new Promise(resolve=>setTimeout(resolve,delay));
+   }catch{return null;}
+  }
+  return null;
  }
  const roles=await discord(`/guilds/${JIYU_ROLE.guildId}/roles`);
  const role=Array.isArray(roles?.body)?roles.body.find((r:{id:string})=>r.id===JIYU_ROLE.roleId):null;
  if(!role || role.name!==JIYU_ROLE.roleName || role.managed)return reply({error:'The JiYu Elites role could not be verified. No comparison was produced.'},503);
- let cursor=0;
- await Promise.all(Array.from({length:3},async()=>{
-  while(cursor<comparison.length){
-   const row=comparison[cursor++];
-   if(!row.discordId)continue;
-   const result=await discord(`/guilds/${JIYU_ROLE.guildId}/members/${row.discordId}`);
-   row.state=memberState(result?.status??0,result?.body?.roles);
-  }
- }));
+ // Member lookups share a Discord rate-limit bucket. Serialize them and
+ // honor retry_after instead of racing requests into the same limit.
+ for(const row of comparison){
+  if(!row.discordId)continue;
+  const result=await discord(`/guilds/${JIYU_ROLE.guildId}/members/${row.discordId}`);
+  row.state=memberState(result?.status??0,result?.body && !Array.isArray(result.body)?result.body.roles:null);
+ }
  return reply({rows:comparison,checkedAt:new Date().toISOString(),roleName:JIYU_ROLE.roleName,reverseInventoryAvailable:false,rateLimited});
 }
