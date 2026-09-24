@@ -64,6 +64,18 @@ async function snapshot(tenant){const result={};for(const [name,args] of Object.
  result[name]=(await db.query(`SELECT * FROM ${name}_workspace('${tenant}'${args?','+args:''})`)).rows;
  }return result;}
 const before=await snapshot(a);
+const extrasArgs = [
+ "NULL,'2026-08-01','2026-08-31','2026-07-01','2026-07-31',NULL",
+ "ARRAY[]::text[],'2026-08-01','2026-08-31','2026-07-01','2026-07-31',NULL",
+ "ARRAY['shared','missing'],'2026-08-01','2026-08-31','2026-07-01','2026-07-31',ARRAY['12345']",
+ "ARRAY['shared'],'2026-07-01','2026-07-31','2026-06-01','2026-06-30',ARRAY[]::text[]",
+];
+const extrasForCases=()=>Promise.all(extrasArgs.map(args=>db.query(`SELECT get_brand_report_extras_workspace('${a}',${args}) AS data`).then(r=>r.rows)));
+const extrasBefore=await extrasForCases();
+await db.exec(readFileSync('supabase/migrations/20260924145911_report_extras_custom_plan.sql','utf8'));
+assert.deepEqual(await snapshot(a),before,'Custom report plan must preserve the full report snapshot');
+for(let i=0;i<7;i++) assert.deepEqual(await extrasForCases(),extrasBefore,'Repeated calls preserve null, empty, multi-brand and historical-window semantics');
+assert.ok((await db.query("SELECT proconfig FROM pg_proc WHERE proname='get_brand_report_extras_workspace'")).rows[0].proconfig.includes('plan_cache_mode=force_custom_plan'));
 for(const [name,args] of Object.entries(calls)) {
  const originalArgs=name==='get_reporting_coverage'?'14':args;
  const expected=(await db.query(`SELECT * FROM ${name}(${originalArgs})`)).rows;
