@@ -47,9 +47,16 @@ export async function PATCH(
 
   const ALLOWED = [
     'real_name', 'brand', 'status', 'retainer', 'monthly_post_requirement',
-    'discord_name', 'notes',
+    'discord_name', 'notes', 'reporting_start_date',
   ];
   const updates: Record<string, unknown> = {};
+  if ('reporting_start_date' in body && body.reporting_start_date !== null) {
+    const value = body.reporting_start_date;
+    if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)
+        || value.startsWith('0000') || !Number.isFinite(Date.parse(value)) || new Date(value).toISOString().slice(0, 10) !== value) {
+      return NextResponse.json({ error: 'Reporting start must be a valid date or null.' }, { status: 400 });
+    }
+  }
   for (const key of ALLOWED) {
     if (key in body) updates[key] = body[key] ?? null;
   }

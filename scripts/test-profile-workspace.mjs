@@ -24,6 +24,7 @@ const data = {
   getPostsPublishedThisMonth:async(_,brand)=>{postingBrand=brand;return 3;},
 };
 const modules = {
+  '@/components/creators/reporting-start-date':{ReportingStartDate:props=>{assert.equal(props.managedId,2);assert.equal(props.brand,'beta');return null;}},
   '@/components/creators/agreement-workspace':{AgreementWorkspace:nil},
   '@/components/creators/agreement-preview':{AgreementPreview:nil},
   '@/lib/auth/permissions':{can:()=>true},
@@ -68,5 +69,6 @@ canViewCreatorCost=false; html=await render();
 assert.ok(!html.includes('$4019') && !html.includes('$7419'),'No fees in server output for finance-blind users, including inactive sections');
 assert.ok(html.includes('$123'),'Performance remains visible independently of cost permission');
 console.log('PASS profile workspace: selected contract/posting/edit scope, server-side cost gating across sections, honest agreement and reliability states');
+
 
 

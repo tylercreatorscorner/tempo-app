@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { Suspense } from 'react';
+import { ReportingStartDate } from '@/components/creators/reporting-start-date';
 import { AgreementWorkspace } from '@/components/creators/agreement-workspace';
 import { can } from '@/lib/auth/permissions';
 import { AgreementPreview } from '@/components/creators/agreement-preview';
@@ -125,6 +126,7 @@ export default async function CreatorDetailPage({ params, searchParams }: Props)
           {canViewCost && <div><dt>Recorded fee</dt><dd>{currentContract ? formatCurrency(currentContract.retainer) : '—'}</dd></div>}
           <div><dt>Recorded post requirement</dt><dd>{currentContract?.monthlyPostRequirement || 'No target recorded'}</dd></div><div><dt>Start date</dt><dd>{currentContract?.retainerStartDate || 'Not recorded'}</dd></div>
         </dl>
+        {currentContract && <ReportingStartDate key={`${currentContract.managedId}:${currentContract.reportingStartDate}`} managedId={currentContract.managedId} startDate={currentContract.reportingStartDate} brand={label} />}
       </section>
       <section className={styles.aside}><p className={styles.eyebrow}>Posting reliability</p><h2>This month’s activity</h2>
         {published !== null ? <><div className="mt-5"><strong>{published}</strong><span className="text-xs text-muted-foreground"> published{currentContract?.monthlyPaceComparable !== false && currentContract?.monthlyPostRequirement ? ` / ${currentContract.monthlyPostRequirement} target` : ''}</span></div>
