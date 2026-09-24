@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Drops — every Discord post format for one brand, run at once.
+ * Drops — selected Discord post formats, with independent progress and results.
  *
  * Replaces the Create panel's "Creator post" mode, which was a dropdown over
  * three of the seven formats that exist. The other four (Movers, Rookies,
@@ -9,7 +9,7 @@
  * three that WERE reachable are the three that rank by absolute GMV, so the
  * same creators won every week and the feed read stale.
  *
- * Running everything and showing what each format FOUND is the whole point.
+ * Users choose formats; each selected format shows what it found independently.
  * Growth-ranked formats lead; size-ranked ones sit below them. A format with
  * nothing to say renders an empty card instead of being padded, and a format
  * that THREW renders an error card, because "broke" and "found nothing" must
@@ -20,7 +20,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertCircle, Check, Clipboard, Loader2, Sparkles } from 'lucide-react';
+import { AlertCircle, Check, Clipboard, Clock3, Loader2, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
@@ -32,8 +32,8 @@ import { Badge } from '@/components/ui/badge';
 import { SegmentedControl } from '@/components/ui/segmented';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
-import { DROP_FORMATS } from '@/lib/data/drop-formats';
-import { loadDropBoard } from '@/lib/data/drop-board-client';
+import { DROP_FORMATS, type DropFormat, type DropFormatId } from '@/lib/data/drop-formats';
+import { DROP_SELECTION_KEY, loadDropBoard, parseDropSelection } from '@/lib/data/drop-board-client';
 import { useBrandSelect, BrandListWarning } from '../reporting/use-report-brands';
 import { renderDiscordMarkdown } from '../reporting/message-preview';
 
@@ -62,6 +62,20 @@ export default function DropsPage() {
   const [endDate, setEndDate] = useState(() => new Date().toISOString().slice(0, 10));
   const today = new Date().toISOString().slice(0, 10);
   const rangeValid = preset !== 'custom' || startDate <= endDate;
+  const [selected, setSelected] = useState<DropFormatId[]>(() => DROP_FORMATS.map(f => f.id));
+  const [preferencesReady, setPreferencesReady] = useState(false);
+  const [active, setActive] = useState<DropFormatId[]>([]);
+  const selectedFormats = DROP_FORMATS.filter(f => selected.includes(f.id));
+
+  useEffect(() => {
+    try { setSelected(parseDropSelection(localStorage.getItem(DROP_SELECTION_KEY))); } catch { /* Storage may be unavailable. */ }
+    setPreferencesReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!preferencesReady) return;
+    try { localStorage.setItem(DROP_SELECTION_KEY, JSON.stringify(selected)); } catch { /* Selection still works without storage. */ }
+  }, [selected, preferencesReady]);
 
   const [cards, setCards] = useState<DropCard[] | null>(null);
   const [meta, setMeta] = useState<{ brandName: string; rangeLabel: string; found: number; total: number } | null>(null);
@@ -72,6 +86,7 @@ export default function DropsPage() {
   const request = useRef<AbortController | null>(null);
 
   const run = useCallback(async () => {
+    if (!selected.length) return;
     const seq = ++runSeq.current;
     request.current?.abort();
     const controller = new AbortController();
@@ -80,6 +95,7 @@ export default function DropsPage() {
     setError(null);
     setCards([]);
     setMeta(null);
+    setActive([]);
     try {
       const params = new URLSearchParams({ brand, period: preset });
       if (preset === 'custom') { params.set('start', startDate); params.set('end', endDate); }
@@ -87,14 +103,18 @@ export default function DropsPage() {
       await loadDropBoard(params, controller.signal, (card, brandName, rangeLabel) => {
         if (seq !== runSeq.current) return;
         completed.set(card.id, card);
+        setActive(previous => previous.filter(id => id !== card.id));
         const ordered = DROP_FORMATS.flatMap(f => completed.has(f.id) ? [completed.get(f.id)!] : []);
         setCards(ordered);
         setMeta(previous => ({
           brandName: brandName ?? previous?.brandName ?? brand,
           rangeLabel: rangeLabel ?? previous?.rangeLabel ?? '',
           found: ordered.filter(c => c.text !== null).length,
-          total: DROP_FORMATS.length,
+          total: selected.length,
         }));
+      }, {
+        formats: selected,
+        onStart: id => { if (seq === runSeq.current) setActive(previous => [...previous, id]); },
       });
     } catch (err) {
       if (seq !== runSeq.current) return;
@@ -102,25 +122,30 @@ export default function DropsPage() {
     } finally {
       if (seq === runSeq.current) setLoading(false);
     }
-  }, [brand, preset, startDate, endDate]);
+  }, [brand, preset, startDate, endDate, selected]);
 
   // Changing the selection invalidates the board it describes.
   useEffect(() => {
     runSeq.current += 1;
     request.current?.abort();
     setLoading(false);
+    setActive([]);
     setCards(null);
     setMeta(null);
     setError(null);
     return () => { runSeq.current += 1; request.current?.abort(); };
-  }, [brand, preset, startDate, endDate]);
+  }, [brand, preset, startDate, endDate, selected]);
+
+  const readyCount = cards?.filter(c => c.text !== null && !c.error).length ?? 0;
+  const failedCount = cards?.filter(c => c.error).length ?? 0;
+  const emptyCount = cards?.filter(c => c.text === null && !c.error).length ?? 0;
 
   return (
     <div className="space-y-6">
       <PageHeader
         eyebrow="Creators"
         title="Discord Posts"
-        subtitle="Every format at once. Take the ones that found something good."
+        subtitle="Choose the posts you need. Copy each one as soon as it’s ready."
       />
 
       <Card className="p-4">
@@ -163,10 +188,38 @@ export default function DropsPage() {
             </div>
           )}
 
-          <Button size="lg" onClick={run} disabled={loading || !rangeValid}>
-            {loading ? <><Loader2 className="animate-spin" />Building…</> : <><Sparkles />Build board</>}
+          <Button size="lg" onClick={run} disabled={loading || !rangeValid || !selected.length || !preferencesReady}>
+            {loading ? <><Loader2 className="animate-spin" />Building {cards?.length ?? 0}/{selected.length}</> : <><Sparkles />Build selected ({selected.length})</>}
           </Button>
         </div>
+
+        <fieldset disabled={loading} className="mt-5 border-t border-border pt-4 disabled:opacity-70">
+          <legend className="sr-only">Post formats</legend>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-sm font-semibold text-foreground">Choose post formats</p>
+              <p className="text-xs text-muted-foreground">{selected.length} selected · We’ll remember your choices in this browser.</p>
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" variant="ghost" type="button" onClick={() => setSelected(DROP_FORMATS.map(f => f.id))}>Select all</Button>
+              <Button size="sm" variant="ghost" type="button" onClick={() => setSelected([])}>Clear</Button>
+            </div>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            {DROP_FORMATS.map(f => (
+              <label key={f.id} className={cn('flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring', selected.includes(f.id) ? 'border-primary/40 bg-primary/5' : 'border-border hover:bg-secondary/50', loading && 'cursor-wait')}>
+                <input type="checkbox" className="mt-0.5 h-4 w-4 shrink-0 accent-primary" checked={selected.includes(f.id)}
+                  onChange={e => setSelected(previous => e.target.checked ? [...previous, f.id] : previous.filter(id => id !== f.id))} />
+                <span>
+                  <span className="block text-xs font-semibold text-foreground">{f.label}</span>
+                  <span className="mt-0.5 block text-[11px] text-muted-foreground">{f.what}</span>
+                  {!f.acceptsWindow && <span className="mt-1 block text-[10px] text-muted-foreground">Uses its own window: {f.ownWindowLabel}</span>}
+                </span>
+              </label>
+            ))}
+          </div>
+          {!selected.length && <p className="mt-3 text-xs text-muted-foreground">Select at least one format to build your board.</p>}
+        </fieldset>
 
         {!rangeValid && (
           <p className="mt-2 text-[11px] text-[var(--pulse-neg)]">Start date must be on or before the end date.</p>
@@ -179,12 +232,24 @@ export default function DropsPage() {
           </p>
         )}
 
-        {meta && (
-          <p className="mt-3 text-xs text-muted-foreground">
-            {meta.brandName} · {meta.rangeLabel} · <strong className="text-foreground">{meta.found}</strong> of {meta.total} formats found something
-          </p>
-        )}
+        {meta && <p className="mt-3 text-xs text-muted-foreground">{meta.brandName} · {meta.rangeLabel}</p>}
       </Card>
+
+      {cards !== null && (
+        <div role="status" aria-live="polite" className="rounded-xl border border-border bg-secondary/40 px-4 py-3">
+          <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+            {loading ? <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <Check className="h-4 w-4" aria-hidden="true" />}
+            {loading ? `Building your board · ${cards.length} of ${selected.length} checked` : 'Board finished'}
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {readyCount} ready to copy · {emptyCount} with no results · {failedCount} failed
+          </p>
+          {loading && <>
+            <progress aria-label="Board progress" className="mt-3 h-1.5 w-full accent-primary" value={cards.length} max={selected.length} />
+            <p className="mt-2 text-xs text-muted-foreground">Some formats take longer. You can copy ready posts while the rest finish.</p>
+          </>}
+        </div>
+      )}
 
       {error && (
         <div className="flex items-start gap-2 rounded-lg bg-[var(--pulse-neg-bg)] px-3 py-2 text-xs text-[var(--pulse-neg)]">
@@ -197,30 +262,39 @@ export default function DropsPage() {
         <EmptyState
           icon={<Sparkles className="h-8 w-8" />}
           title="Nothing built yet"
-          description="Pick a brand and a window, then build the board. Formats appear as they finish."
-          action={
-            <ul className="grid gap-x-8 gap-y-1.5 text-left sm:grid-cols-2">
-              {DROP_FORMATS.map(f => (
-                <li key={f.id} className="flex items-baseline gap-2 text-xs">
-                  <span className="font-semibold text-foreground">{f.label}</span>
-                  <span className="text-muted-foreground">{f.what}</span>
-                </li>
-              ))}
-            </ul>
-          }
+          description="Choose your formats above, then build your board. Only selected formats will load."
         />
       )}
 
       {cards !== null && (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {DROP_FORMATS.map(f => {
+          {selectedFormats.map(f => {
             const card = cards.find(c => c.id === f.id);
             return card ? <DropTile key={f.id} card={card} brand={brand} />
-              : loading ? <Skeleton key={f.id} aria-label={`Building ${f.label}`} className="h-[340px] rounded-xl" /> : null;
+              : loading ? <PendingDropTile key={f.id} format={f} active={active.includes(f.id)} /> : null;
           })}
         </div>
       )}
     </div>
+  );
+}
+
+function PendingDropTile({ format, active }: { format: DropFormat; active: boolean }) {
+  return (
+    <Card aria-busy="true" className="flex min-h-[280px] flex-col overflow-hidden">
+      <div className="space-y-1 border-b border-border px-4 py-3">
+        <h3 className="text-sm font-bold text-foreground">{format.label}</h3>
+        <p className="text-xs text-muted-foreground">{format.what}</p>
+      </div>
+      <div className="flex flex-1 flex-col justify-center gap-3 p-5">
+        <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+          {active ? <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin motion-reduce:animate-none" /> : <Clock3 aria-hidden="true" className="h-4 w-4" />}
+          {active ? 'Building this post…' : 'Waiting to start'}
+        </div>
+        <p className="text-xs text-muted-foreground">{active ? 'We’re gathering the results. Your post will appear here when it’s ready.' : 'This format is queued and will start automatically.'}</p>
+        <div aria-hidden="true" className="mt-2 space-y-2"><Skeleton className="h-2 w-4/5" /><Skeleton className="h-2 w-3/5" /></div>
+      </div>
+    </Card>
   );
 }
 
