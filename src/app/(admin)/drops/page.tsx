@@ -33,6 +33,7 @@ import { SegmentedControl } from '@/components/ui/segmented';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DROP_FORMATS } from '@/lib/data/drop-formats';
+import { loadDropBoard } from '@/lib/data/drop-board-client';
 import { useBrandSelect, BrandListWarning } from '../reporting/use-report-brands';
 import { renderDiscordMarkdown } from '../reporting/message-preview';
 
@@ -68,20 +69,33 @@ export default function DropsPage() {
   const [error, setError] = useState<string | null>(null);
   // A slow board must not repopulate after the operator changed brand or range.
   const runSeq = useRef(0);
+  const request = useRef<AbortController | null>(null);
 
   const run = useCallback(async () => {
     const seq = ++runSeq.current;
+    request.current?.abort();
+    const controller = new AbortController();
+    request.current = controller;
     setLoading(true);
     setError(null);
+    setCards([]);
+    setMeta(null);
     try {
       const params = new URLSearchParams({ brand, period: preset });
       if (preset === 'custom') { params.set('start', startDate); params.set('end', endDate); }
-      const res = await fetch(`/api/drops?${params.toString()}`);
-      const body = await res.json().catch(() => ({}));
-      if (seq !== runSeq.current) return;
-      if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
-      setCards(Array.isArray(body.cards) ? body.cards : []);
-      setMeta({ brandName: body.brandName ?? '', rangeLabel: body.rangeLabel ?? '', found: body.found ?? 0, total: body.total ?? 0 });
+      const completed = new Map<string, DropCard>();
+      await loadDropBoard(params, controller.signal, (card, brandName, rangeLabel) => {
+        if (seq !== runSeq.current) return;
+        completed.set(card.id, card);
+        const ordered = DROP_FORMATS.flatMap(f => completed.has(f.id) ? [completed.get(f.id)!] : []);
+        setCards(ordered);
+        setMeta(previous => ({
+          brandName: brandName ?? previous?.brandName ?? brand,
+          rangeLabel: rangeLabel ?? previous?.rangeLabel ?? '',
+          found: ordered.filter(c => c.text !== null).length,
+          total: DROP_FORMATS.length,
+        }));
+      });
     } catch (err) {
       if (seq !== runSeq.current) return;
       setError(err instanceof Error ? err.message : 'Failed to build the board');
@@ -93,9 +107,12 @@ export default function DropsPage() {
   // Changing the selection invalidates the board it describes.
   useEffect(() => {
     runSeq.current += 1;
+    request.current?.abort();
+    setLoading(false);
     setCards(null);
     setMeta(null);
     setError(null);
+    return () => { runSeq.current += 1; request.current?.abort(); };
   }, [brand, preset, startDate, endDate]);
 
   return (
@@ -162,7 +179,7 @@ export default function DropsPage() {
           </p>
         )}
 
-        {meta && !loading && (
+        {meta && (
           <p className="mt-3 text-xs text-muted-foreground">
             {meta.brandName} · {meta.rangeLabel} · <strong className="text-foreground">{meta.found}</strong> of {meta.total} formats found something
           </p>
@@ -176,17 +193,11 @@ export default function DropsPage() {
         </div>
       )}
 
-      {loading && (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-[340px] rounded-xl" />)}
-        </div>
-      )}
-
       {!loading && cards === null && !error && (
         <EmptyState
           icon={<Sparkles className="h-8 w-8" />}
           title="Nothing built yet"
-          description="Pick a brand and a window, then build the board. All seven formats run at once."
+          description="Pick a brand and a window, then build the board. Formats appear as they finish."
           action={
             <ul className="grid gap-x-8 gap-y-1.5 text-left sm:grid-cols-2">
               {DROP_FORMATS.map(f => (
@@ -200,9 +211,13 @@ export default function DropsPage() {
         />
       )}
 
-      {!loading && cards !== null && (
+      {cards !== null && (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {cards.map(c => <DropTile key={c.id} card={c} brand={brand} />)}
+          {DROP_FORMATS.map(f => {
+            const card = cards.find(c => c.id === f.id);
+            return card ? <DropTile key={f.id} card={card} brand={brand} />
+              : loading ? <Skeleton key={f.id} aria-label={`Building ${f.label}`} className="h-[340px] rounded-xl" /> : null;
+          })}
         </div>
       )}
     </div>

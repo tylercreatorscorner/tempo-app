@@ -34,7 +34,10 @@ import {
 import { DROP_FORMATS, type DropFormatId } from '@/lib/data/drop-formats';
 
 export const runtime = 'nodejs';
-export const maxDuration = 60;
+// Milestone detection alone can take 120s. Leave room for auth and the read
+// afterwards; the browser requests each format separately so results appear
+// as they finish and one slow format cannot discard the rest of the board.
+export const maxDuration = 180;
 
 /** Card order is deliberate: growth-ranked formats first, size-ranked last.
  *  The size-ranked ones are the stale-feeling ones and should not lead. */
@@ -69,7 +72,11 @@ export async function GET(request: NextRequest) {
   const scope = await getWorkspaceScope();
   if (!scope) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
-  if (!throttle(`drops:${scope.userId}`, 3000)) {
+  const format = request.nextUrl.searchParams.get('format');
+  if (format !== null && !DROP_FORMATS.some(f => f.id === format)) {
+    return NextResponse.json({ error: 'Invalid format' }, { status: 400 });
+  }
+  if (!throttle(`drops:${scope.userId}:${format ?? 'all'}`, 3000)) {
     return NextResponse.json({ error: 'Too many requests, please wait a moment' }, { status: 429 });
   }
 
@@ -129,7 +136,7 @@ export async function GET(request: NextRequest) {
 
   // Each card settles on its own. Promise.allSettled, not all: one generator
   // failing must not blank the board.
-  const built = await Promise.allSettled([
+  const builders = [
     (async (): Promise<DropCard> => {
       const d = await getMoversData(brand, period, window);
       return {
@@ -139,7 +146,7 @@ export async function GET(request: NextRequest) {
         qualified: `${d.eligibleCount} of ${d.poolCount} creators cleared the floor`,
         empty: d.movers.length === 0, error: null,
       };
-    })(),
+    }),
     (async (): Promise<DropCard> => {
       const d = await getRookieData(brand, period, window);
       return {
@@ -149,7 +156,7 @@ export async function GET(request: NextRequest) {
         qualified: `${d.rookieCount} rookie${d.rookieCount === 1 ? '' : 's'} posted in this window`,
         empty: d.rookies.length === 0, error: null,
       };
-    })(),
+    }),
     (async (): Promise<DropCard> => {
       const d = await getMilestoneData(brand);
       return {
@@ -159,7 +166,7 @@ export async function GET(request: NextRequest) {
         qualified: null,
         empty: d.milestones.length === 0, error: null,
       };
-    })(),
+    }),
     (async (): Promise<DropCard> => {
       const d = await getMtdData(brand);
       return {
@@ -169,7 +176,7 @@ export async function GET(request: NextRequest) {
         qualified: `${d.creatorCount} creators so far this month`,
         empty: d.leaderboard.length === 0, error: null,
       };
-    })(),
+    }),
     (async (): Promise<DropCard> => {
       const d = await getWhatsCookingData(brand, period, window);
       return {
@@ -179,7 +186,7 @@ export async function GET(request: NextRequest) {
         qualified: `${d.videoCount} videos, ${d.creatorCount} creators`,
         empty: d.videoCount === 0, error: null,
       };
-    })(),
+    }),
     (async (): Promise<DropCard> => {
       const d = await getWhosCookingData(brand, period, window);
       return {
@@ -189,7 +196,7 @@ export async function GET(request: NextRequest) {
         qualified: `${d.creatorCount} creators, ${d.videoCount} videos`,
         empty: d.creatorCount === 0, error: null,
       };
-    })(),
+    }),
     (async (): Promise<DropCard> => {
       const d = await getDailyDropData(brand);
       return {
@@ -199,16 +206,25 @@ export async function GET(request: NextRequest) {
         qualified: null,
         empty: d.yesterdayGmv === 0 && d.topCreators.length === 0, error: null,
       };
-    })(),
-  ]);
+    }),
+  ];
 
   // Recovered by INDEX for a rejected card, so this must stay in the same order
   // as the array above. Both now come from DROP_FORMATS, which is the point.
-  const META = DROP_FORMATS.map(f => meta(f.id));
+  const selected = DROP_FORMATS.map((f, i) => ({ meta: meta(f.id), build: builders[i] }))
+    .filter(f => format === null || f.meta.id === format);
+  const built = await Promise.allSettled(selected.map(async f => {
+    const started = Date.now();
+    try {
+      return await f.build();
+    } finally {
+      console.info('[drops] format completed', { format: f.meta.id, ms: Date.now() - started });
+    }
+  }));
 
   const cards: DropCard[] = built.map((r, i) => {
     if (r.status === 'fulfilled') return r.value;
-    const m = META[i];
+    const m = selected[i].meta;
     console.error(`[drops] ${m.id} failed:`, r.reason);
     return {
       ...m,
