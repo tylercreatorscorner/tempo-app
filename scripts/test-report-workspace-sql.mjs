@@ -158,6 +158,7 @@ console.log('PASS roster INSERT and destination UPDATE guards: fee/quota mismatc
 console.log('PASS agreement report cutover: historical fee/quota, revision basis, foreign isolation, pending renewal and frozen report preserved');
 const beforeDates=await snapshot(a);
 await db.exec(readFileSync('supabase/migrations/20260924215535_reporting_membership_dates.sql','utf8'));
+await db.exec(readFileSync('supabase/migrations/20260924221115_report_membership_join_performance.sql','utf8'));
 // Live granular SQL also includes units and expanded vintage buckets absent
 // from this older fixture baseline. Compare its existing fields unchanged.
 const existingShape=(value)=>JSON.parse(JSON.stringify(value,(key,v)=>['units','d90_180','d180_plus'].includes(key)?undefined:v));
