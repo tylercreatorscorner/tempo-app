@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Drops â€” every Discord post format for one brand, run at once.
+ * Drops — every Discord post format for one brand, run at once.
  *
  * Replaces the Create panel's "Creator post" mode, which was a dropdown over
  * three of the seven formats that exist. The other four (Movers, Rookies,
@@ -164,7 +164,7 @@ export default function DropsPage() {
           )}
 
           <Button size="lg" onClick={run} disabled={loading || !rangeValid}>
-            {loading ? <><Loader2 className="animate-spin" />Buildingâ€¦</> : <><Sparkles />Build board</>}
+            {loading ? <><Loader2 className="animate-spin" />Building…</> : <><Sparkles />Build board</>}
           </Button>
         </div>
 
@@ -181,7 +181,7 @@ export default function DropsPage() {
 
         {meta && (
           <p className="mt-3 text-xs text-muted-foreground">
-            {meta.brandName} Â· {meta.rangeLabel} Â· <strong className="text-foreground">{meta.found}</strong> of {meta.total} formats found something
+            {meta.brandName} · {meta.rangeLabel} · <strong className="text-foreground">{meta.found}</strong> of {meta.total} formats found something
           </p>
         )}
       </Card>
@@ -271,7 +271,7 @@ function DropTile({ card, brand }: { card: DropCard; brand: string }) {
             <span className="font-semibold text-foreground">Own window: </span>
           )}
           {card.windowLabel}
-          {card.qualified && <> Â· {card.qualified}</>}
+          {card.qualified && <> · {card.qualified}</>}
         </p>
       </div>
 

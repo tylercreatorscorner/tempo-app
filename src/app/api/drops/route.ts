@@ -1,11 +1,11 @@
 /**
- * Drops board â€” runs every Discord post format for one brand in a single call.
+ * Drops board — runs every Discord post format for one brand in a single call.
  *
  * GET /api/drops?brand=<slug>&period=7d|30d|custom[&start=&end=]
  *
  * The board exists because four of these seven generators shipped without ever
  * being reachable from the UI, and the three that were reachable all rank by
- * absolute GMV â€” so the same creators won every week and the feed read stale.
+ * absolute GMV — so the same creators won every week and the feed read stale.
  * Running them all and showing what each one FOUND is the point; picking one
  * blind from a dropdown is what made the good formats invisible.
  *
@@ -14,7 +14,7 @@
  * rather than a 500. An empty format is reported as empty, never padded.
  *
  * Only 4 formats take a custom window. Daily Drop is yesterday, Month to Date
- * is a calendar month, Milestones is "recently crossed" â€” a range is
+ * is a calendar month, Milestones is "recently crossed" — a range is
  * meaningless for those, so they run on their own window and say so.
  */
 import { NextRequest, NextResponse } from 'next/server';
