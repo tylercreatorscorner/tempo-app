@@ -156,4 +156,49 @@ await db.exec('RESET ROLE;');
 assert.equal((await db.query("select has_function_privilege('authenticated','guard_ledger_roster_terms()','EXECUTE') allowed")).rows[0].allowed,false);
 console.log('PASS roster INSERT and destination UPDATE guards: fee/quota mismatch, null quota, matching insert/relink, history identity protection, tenant isolation, unrelated edits and private ledger access');
 console.log('PASS agreement report cutover: historical fee/quota, revision basis, foreign isolation, pending renewal and frozen report preserved');
+const beforeDates=await snapshot(a);
+await db.exec(readFileSync('supabase/migrations/20260924215535_reporting_membership_dates.sql','utf8'));
+// Live granular SQL also includes units and expanded vintage buckets absent
+// from this older fixture baseline. Compare its existing fields unchanged.
+const existingShape=(value)=>JSON.parse(JSON.stringify(value,(key,v)=>['units','d90_180','d180_plus'].includes(key)?undefined:v));
+assert.deepEqual(existingShape(await snapshot(a)),existingShape(beforeDates),'Unset reporting dates preserve legacy calculations');
+const dateBrand='33333333-3333-4333-8333-333333333333';
+await db.exec(`INSERT INTO brands_v2(id,tenant_id,slug,name,is_archived) VALUES('${dateBrand}','${a}','dates','Dates',false);
+INSERT INTO managed_creators(id,tenant_id,creator_id,brand,real_name,account_1,reporting_start_date,employment_status) VALUES
+(30,'${a}',null,'dates','New creator','newcreator','2026-09-01','active'),
+(31,'${a}',null,'dates','Legacy creator','legacy',null,'active');
+INSERT INTO tiktok_accounts(tenant_id,creator_id,tiktok_username) VALUES('${b}','${b}','newcreator');`);
+for(const day of ['2026-08-31','2026-09-01','2026-09-15']) for(const handle of ['newcreator','legacy']) {
+ await db.exec(`INSERT INTO creator_performance(tenant_id,brand,report_date,period_type,creator_name,gmv,orders,items_sold,videos,est_commission) VALUES('${a}','dates','${day}','daily','${handle}',100,1,1,1,1);
+ INSERT INTO video_performance(tenant_id,brand,report_date,post_date,period_type,creator_name,video_id,product_id,gmv,orders) VALUES('${a}','dates','${day}','${day}','daily','${handle}','${handle}${day}','p',100,1);
+ INSERT INTO daily_video_product_stats(tenant_id,brand_id,report_date,post_date,tiktok_username,video_id,gmv,orders,items_sold) VALUES('${a}','${dateBrand}','${day}','${day}','${handle}','${handle}${day}',100,1,1);`);
+}
+const dateArgs=`'${a}',ARRAY['dates'],ARRAY['dates'],'2026-09-01','2026-09-30','2026-08-01','2026-08-31'`;
+const split=async()=>(await db.query(`select get_brand_client_report_managed_split_workspace(${dateArgs}) as data`)).rows[0].data;
+assert.equal((await split()).managed.gmv,400);
+assert.equal((await split()).managed_prior.gmv,100,'New creator cannot backfill August managed GMV');
+const agg=(await db.query(`select get_brand_client_report_agg_workspace(${dateArgs}) as data`)).rows[0].data;
+assert.equal(agg.prior_totals.gmv,200);assert.equal(agg.managed_prior.gmv,100);
+const counts=(await db.query(`select get_brand_client_report_counts_workspace(${dateArgs}) as data`)).rows[0].data;
+assert.equal(counts.rosterPostsPrior,1);assert.equal(counts.storePostsPrior,2);
+const granular=async(start,end)=>(await db.query(`select get_brand_client_report_granular_workspace('${a}',ARRAY['dates'],ARRAY['dates'],'${start}','${end}') as data`)).rows[0].data;
+assert.equal((await granular('2026-08-01','2026-08-31')).creators.some(c=>c.name==='New creator'),false);
+assert.equal((await granular('2026-09-01','2026-09-30')).creators.find(c=>c.name==='New creator').gmv,200);
+await db.exec("update managed_creators set reporting_start_date='2026-10-01' where id=30;");
+assert.equal((await split()).managed.gmv,200);assert.equal((await split()).organic.gmv,200,'Moving to October reclassifies September without changing store total');
+await db.exec("update managed_creators set reporting_start_date='2026-09-15' where id=30;");
+assert.equal((await split()).managed.gmv,300,'Start date is inclusive at daily grain');
+const mid=(await db.query(`select get_brand_client_report_agg_workspace(${dateArgs}) as data`)).rows[0].data;
+assert.equal(mid.totals.gmv,400);assert.equal(mid.totals.active_creators,2);assert.equal(mid.managed.gmv,300);assert.equal(mid.organic.gmv,100);
+assert.equal(mid.managed_top_creators.find(c=>c.name==='newcreator').gmv,100);
+assert.equal(mid.managed_top_videos.length,3);
+const weekly=(await db.query(`select get_brand_roster_weekly_workspace('${a}',ARRAY['dates'],ARRAY['dates'],'2026-09-30') as data`)).rows[0].data;
+assert.equal(weekly.reduce((sum,w)=>sum+w.roster_gmv,0),400);
+assert.equal(weekly.reduce((sum,w)=>sum+w.store_gmv,0),600);
+const trend=(await db.query(`select * from get_agency_trend_workspace('${a}','2026-08-01','2026-09-30') where roster_slug='dates' order by month`)).rows;
+assert.equal(Number(trend[0].roster_gmv),100);assert.equal(Number(trend[1].roster_gmv),300);
+await db.exec("update managed_creators set archived_at='2026-09-15' where id=30;");
+assert.equal((await split()).managed.gmv,200,'Empty interval does not count sales or crash');
+assert.deepEqual((await db.query("select snapshot from client_reports where token='preserved-token'")).rows[0].snapshot,{frozen:true});
+console.log('PASS reporting dates: legacy parity, prior-month exclusion, inclusive boundary, October move, store totals, people counts, leaderboards, granular rows, weekly and agency trends, archive boundary, saved snapshot preservation');
 await db.close();

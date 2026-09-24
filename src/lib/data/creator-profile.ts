@@ -235,10 +235,11 @@ async function getBrandsByHandle(reg: BrandRegistry, creatorId: string): Promise
 // --- Managed contract resolution ---
 
 const MANAGED_CREATOR_COLUMNS =
-  'id, real_name, brand, retainer, monthly_post_requirement, notes, status, employment_status, retainer_start_date, ' +
+  'id, real_name, brand, retainer, monthly_post_requirement, notes, status, employment_status, retainer_start_date, reporting_start_date, ' +
   'account_1, account_2, account_3, account_4, account_5, account_6, account_7, account_8, account_9, account_10';
 
 interface ManagedRow {
+  reporting_start_date: string | null;
   agreement?: RosterAgreement | null;
   id: number;
   real_name: string | null;
@@ -945,6 +946,7 @@ export async function getCreatorBrandRelationship(
  * so the page can summarise them rather than pretend they do not exist.
  */
 export interface CreatorContract {
+  reportingStartDate: string | null;
   monthlyPaceComparable?: boolean;
   agreementPeriod?: string;
   managedId: number;
@@ -972,6 +974,7 @@ export async function getCreatorContracts(creatorId: string): Promise<{
     monthlyPaceComparable: !r.agreement || isCalendarMonthAgreement(r.agreement,today),
     agreementPeriod: r.agreement?.periodStart && r.agreement.periodEnd ? `${r.agreement.periodStart}–${r.agreement.periodEnd}` : undefined,
     managedId: r.id,
+    reportingStartDate: r.reporting_start_date,
     brand: r.brand,
     retainer: Number(r.retainer) || 0,
     monthlyPostRequirement: Number(r.monthly_post_requirement) || 0,
