@@ -72,7 +72,7 @@ const extrasArgs = [
 ];
 const extrasForCases=()=>Promise.all(extrasArgs.map(args=>db.query(`SELECT get_brand_report_extras_workspace('${a}',${args}) AS data`).then(r=>r.rows)));
 const extrasBefore=await extrasForCases();
-await db.exec(readFileSync('supabase/migrations/20260924145911_report_extras_custom_plan.sql','utf8'));
+await db.exec(readFileSync('supabase/migrations/20260924155047_report_extras_custom_plan.sql','utf8'));
 assert.deepEqual(await snapshot(a),before,'Custom report plan must preserve the full report snapshot');
 for(let i=0;i<7;i++) assert.deepEqual(await extrasForCases(),extrasBefore,'Repeated calls preserve null, empty, multi-brand and historical-window semantics');
 assert.ok((await db.query("SELECT proconfig FROM pg_proc WHERE proname='get_brand_report_extras_workspace'")).rows[0].proconfig.includes('plan_cache_mode=force_custom_plan'));
