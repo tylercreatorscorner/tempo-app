@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { ArrowUpRight, Check, ChevronRight, Search, X } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import styles from './workspace.module.css';
+import { WeeklyAccountability } from './weekly-accountability';
 
 // Fictional, self-contained design fixtures. No live performance or assignments.
 const people = [
@@ -27,7 +28,6 @@ export function CoachingWorkspace() {
   const [selected, setSelected] = useState<string | null>(null);
   const [done, setDone] = useState<string[]>(['d']);
   const [notes, setNotes] = useState<Record<string,string>>({});
-  const [notice, setNotice] = useState('');
   const filtered = people.filter(p => (coach === 'All coaches' || p.coach === coach) && (cohort === 'All cohorts' || p.cohort === cohort) && `${p.name} ${p.handle}`.toLowerCase().includes(search.toLowerCase()));
   const person = filtered.find(p => p.id === selected);
   const sales = filtered.reduce((sum,p) => sum+p.gmv,0);
@@ -36,12 +36,12 @@ export function CoachingWorkspace() {
   function changeFilter(setter: (value:string)=>void, value:string) { setter(value); setSelected(null); }
 
   return <div className={styles.workspace}>
-    <div className={styles.preview}><strong>Interactive design preview</strong><span>Fictional people and sample metrics. Changes reset when you reload. Nothing is sent.</span></div>
+    <div className={styles.preview}><strong>Interactive design preview</strong><span>Sample activity and creator metrics. Changes reset when you reload. Nothing is sent.</span></div>
     <Link className={styles.back} href="/reporting">Reporting / Coaching</Link>
-    <PageHeader title="A clearer week for your creators." eyebrow="Coaching" subtitle="See progress. Focus the next conversation. Follow through." actions={<div className={styles.period}><strong>Demo brand</strong><span>Sep 14–20, 2026</span><small>Previous week: Sep 7–13</small></div>} />
+    <PageHeader title="A clearer week for your creators." eyebrow="Coaching" subtitle="See progress. Focus the next conversation. Follow through." actions={<div className={styles.period}><strong>Demo brand</strong><span>{view==='review'?'Weekly submissions':'Sep 14–20, 2026'}</span><small>{view==='review'?'Reviewer: Victoria':'Previous week: Sep 7–13'}</small></div>} />
     <div className={styles.toolbar}>
       <nav aria-label="Coaching views">{([['overview','Overview'],['followups','Creator follow-ups'],['review','Weekly review']] as const).map(([key,label])=><button key={key} aria-current={view===key?'page':undefined} onClick={()=>{setView(key);setSearch('');setSelected(null);}}>{label}{key==='followups' && <span>{pending.length}</span>}</button>)}</nav>
-      <div className={styles.filters}>
+      <div className={styles.filters} hidden={view==='review'}>
         <select aria-label="Filter by coach" value={coach} onChange={e=>changeFilter(setCoach,e.target.value)}><option>All coaches</option><option>Victoria</option><option>Macy</option></select>
         <select aria-label="Filter by cohort" value={cohort} onChange={e=>changeFilter(setCohort,e.target.value)}><option>All cohorts</option><option>Elite</option><option>Development</option></select>
       </div>
@@ -70,12 +70,8 @@ export function CoachingWorkspace() {
       {!filtered.length && <p className={styles.empty}>No sample creators match. Try another filter or clear your search.</p>}
       {person && <div className={styles.detail}><div><span className={styles.eyebrow}>Next conversation · {person.coach}</span><h3>{person.name}</h3><p>{person.task}</p><div className={styles.evidence}><strong>What supports this</strong><span>{person.posts} posts across {person.days.filter(Boolean).length} days. {money(person.gmv)} GMV compared with {money(person.previous)} in the previous week.</span></div></div><div><label htmlFor="coaching-note">Coaching note <span>Preview only</span></label><textarea id="coaching-note" value={notes[person.id]??''} placeholder="Observation, next experiment, and what to check next…" onChange={e=>setNotes({...notes,[person.id]:e.target.value})}/><small>Live version: linked video or Discord evidence, authenticated owner, and saved history.</small></div></div>}
       <div className={styles.footnote}>Sample performance through Sep 20. First recorded sale describes available history, not a verified lifetime first sale.</div>
-    </section>:<section className={styles.card}>
-      <div className={styles.sectionHead}><div><h2>Close the week with a clear handoff.</h2><p>Review the work completed separately from creator results.</p></div><span className={styles.draft}>Sample draft</span></div>
-      <div className={styles.reviewGrid}>{['Victoria','Macy'].filter(c=>coach==='All coaches'||coach===c).map(c=>{const rows=filtered.filter(p=>p.coach===c);return <div key={c} className={styles.review}><span className={styles.eyebrow}>{c==='Victoria'?'Elite coaching':'Creator development'}</span><h3>{c}</h3><div className={styles.reviewNumbers}><div><strong>{rows.filter(p=>done.includes(p.id)).length}/{rows.length}</strong><small>Follow-ups completed</small></div><div><strong>{money(rows.reduce((n,p)=>n+p.gmv,0))}</strong><small>Creator GMV</small></div></div><label htmlFor={`review-${c}`}>What changed, and what happens next?</label><textarea id={`review-${c}`} value={notes[c]??''} onChange={e=>setNotes({...notes,[c]:e.target.value})} placeholder="Capture the win, the blocker, and next week’s focus."/><p>Open follow-ups carry into the next week in the planned live workflow.</p></div>;})}</div>
-      <div className={styles.reviewFooter}><span>This preview does not publish a review or send SMS.</span><button className={styles.primary} onClick={()=>setNotice(`Sample weekly handoff: ${coach}. ${filtered.length} creators, ${money(sales)} GMV, ${filtered.reduce((n,p)=>n+p.posts,0)} posts. ${filtered.filter(p=>done.includes(p.id)).length} of ${filtered.length} follow-ups completed. ${pending.length} remaining. Nothing has been published or sent.`)}>Preview handoff <ArrowUpRight size={15}/></button></div>
-      {notice && <p role="status" className={styles.footnote}>{notice}</p>}
-    </section>}
+    </section>:null}
+    <div hidden={view!=='review'}><WeeklyAccountability /></div>
   </div>;
 }
 function Metric({label,value,detail}:{label:string;value:string;detail:string}) { return <div><span>{label}</span><strong>{value}</strong><small>{detail}</small></div>; }
