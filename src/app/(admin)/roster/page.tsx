@@ -1190,6 +1190,10 @@ function AddCreatorModal({ prefill, onClose, onSuccess }: AddCreatorModalProps) 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!form.brand || form.brand === 'all') {
+      setError('Please select a brand.');
+      return;
+    }
     const cleanHandles = Array.from(new Set(
       handles.map((h) => h.trim().replace(/^@/, '')).filter(Boolean),
     ));
@@ -1300,6 +1304,7 @@ function AddCreatorModal({ prefill, onClose, onSuccess }: AddCreatorModalProps) 
           <div>
             <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Brand</label>
             <select
+              aria-label="Brand"
               value={form.brand}
               onChange={(e) => set('brand', e.target.value)}
               className="w-full px-3 py-2.5 rounded-xl border border-border text-sm bg-card focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]"
@@ -1835,7 +1840,7 @@ function RosterContent() {
               <Upload className="h-4 w-4" />
               Bulk add
             </Button>
-            <Button variant="primary" onClick={() => setAddModalPrefill({})}>
+            <Button variant="primary" onClick={() => setAddModalPrefill({ brand: brand !== 'all' ? brand : '' })}>
               <UserPlus className="h-4 w-4" />
               Add Creator
             </Button>
