@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useRef, useState, useTransition } from 'react';
 import { ModalOverlay } from '@/components/ui/modal-overlay';
+import { EditMemberProfile } from '@/components/team/edit-member-profile';
 import {
   UserPlus, Shield, Mail, Trash2, Loader2, X, Users, Search, AlertTriangle, Check,
 } from 'lucide-react';
@@ -76,6 +77,7 @@ interface Props {
 export function TeamManagement({ users, brands, tenantId, currentUserId }: Props) {
   const [isPending, startTransition] = useTransition();
   const [showInvite, setShowInvite] = useState(false);
+  const [editingMember, setEditingMember] = useState<TeamUser | null>(null);
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState('manager');
@@ -341,6 +343,11 @@ export function TeamManagement({ users, brands, tenantId, currentUserId }: Props
           {/* Actions */}
           <TD>
             <div className="flex items-center justify-end gap-1">
+              <button type="button" disabled={isPending} onClick={() => setEditingMember(u)}
+                aria-label={`Edit profile for ${u.email}`}
+                className="whitespace-nowrap rounded-md px-2 py-1.5 text-xs font-medium text-muted-foreground hover:bg-secondary hover:text-foreground disabled:opacity-50">
+                Edit profile
+              </button>
               {locked ? null : confirmRemove === u.user_id ? (
                 <span className="flex items-center gap-1">
                   <button
@@ -537,6 +544,7 @@ export function TeamManagement({ users, brands, tenantId, currentUserId }: Props
         </div>
       </TableCard>
 
+      {editingMember && <EditMemberProfile member={editingMember} onClose={() => setEditingMember(null)} onSaved={() => { setEditingMember(null); flash('Name updated', 'success'); }} />}
       {showInvite && <InviteModal
         brands={brands}
         role={inviteRole} setRole={setInviteRole}
