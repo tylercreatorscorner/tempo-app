@@ -33,6 +33,9 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json();
   const { brand, real_name, discord_name, notes, monthly_post_requirement } = body;
+  if (typeof brand !== 'string' || !brand.trim() || brand === 'all') {
+    return NextResponse.json({ error: 'Please select a brand.' }, { status: 400 });
+  }
   // Retainers are creator COST, not the agency's books — see workspace-scope.ts.
   //
   // ⚠️ This used to read canViewFinance, which meant the 10 managers with that
