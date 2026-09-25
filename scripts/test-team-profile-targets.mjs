@@ -15,7 +15,7 @@ function query(table) {
   const filters=[]; let mutation=null, payload;
   const q={
     select(){return q;}, eq(key,value){filters.push(row=>row[key]===value);return q;},
-    in(key,values){filters.push(row=>values.includes(row[key]));return q;},
+    in(key,values){filters.push(row=>values.includes(row[key]));return q;}, neq(key,value){filters.push(row=>row[key]!==value);return q;},
     update(value){mutation='update';payload=value;return q;}, delete(){mutation='delete';return q;},
     insert(value){mutation='insert';payload=value;return q;},
     maybeSingle(){return Promise.resolve(result(true));}, single(){return Promise.resolve(result(true));},
@@ -64,4 +64,28 @@ console.log('PASS denied targets, owner/self protection, role validation, tenant
 console.log('PASS legitimate role/finance/removal/brand edits and coach finance restrictions');
 
 
+
+
+// Profile changes cannot alter access and may include the owner or current admin.
+for (const id of ['member','owner','actor']) {
+  reset();
+  const result = await exports.updateMemberName(id, '  Updated Name  ');
+  assert.equal(result.ok, true);
+  assert.equal(writes.length, 1);
+  assert.equal(JSON.stringify(writes[0].payload), JSON.stringify({name:'Updated Name'}));
+  assert.deepEqual(writes[0].ids, [id]);
+}
+for (const setup of [()=>{actor=null;},()=>{actor.role='manager';},()=>{actor.tenant_id=null;},()=>{impersonating=true;},()=>{dbError=true;}]) {
+  reset(); setup(); assert.equal((await exports.updateMemberName('member','Updated')).ok,false); assert.equal(writes.length,0);
+}
+for (const id of ['foreign','missing']) {
+  reset(); assert.equal((await exports.updateMemberName(id,'Updated')).ok,false); assert.deepEqual(writes[0].ids,[]);
+}
+reset(); targets[0].role='creator'; assert.equal((await exports.updateMemberName('member','Updated')).ok,false); assert.deepEqual(writes[0].ids,[]);
+for (const name of ['', '   ', null, 123, 'x'.repeat(101)]) {
+  reset(); assert.equal((await exports.updateMemberName('member',name)).ok,false); assert.equal(writes.length,0);
+}
+reset(); writeError=true; assert.equal((await exports.updateMemberName('member','Updated')).ok,false);
+reset(); actor.role='admin'; assert.equal((await exports.updateMemberName('member','Updated')).ok,true);
+console.log('PASS profile names: tenant isolation, owner/self editing, input validation, safe errors, and name-only writes');
 

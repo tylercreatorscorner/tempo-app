@@ -84,6 +84,30 @@ export async function updateUserRole(userId: string, role: string) {
   revalidatePath('/team');
 }
 
+/** Profile editing is separate from access: owners and self are valid name targets. */
+export async function updateMemberName(userId: string, name: string) {
+  try {
+    const { admin, tenantId } = await assertOwnerOrAdmin();
+    if (typeof name !== 'string' || !name.trim() || name.trim().length > 100) {
+      return { ok: false as const, error: 'Enter a name between 1 and 100 characters.' };
+    }
+    if (typeof userId !== 'string' || !userId) {
+      return { ok: false as const, error: 'Member could not be found. Refresh and try again.' };
+    }
+    const { data, error } = await admin.from('user_profiles')
+      .update({ name: name.trim() })
+      .eq('user_id', userId).eq('tenant_id', tenantId).neq('role', 'creator')
+      .select('user_id').maybeSingle();
+    if (error || !data) {
+      return { ok: false as const, error: 'Name could not be saved. Refresh and try again.' };
+    }
+    revalidatePath('/', 'layout');
+    return { ok: true as const };
+  } catch {
+    return { ok: false as const, error: 'Name could not be saved. Check your access and try again.' };
+  }
+}
+
 /** Toggle a member's Finance access (owner/admin/viewer always see it regardless;
  *  coaches are a hard no — this action refuses to grant them finance). */
 export async function updateFinanceAccess(userId: string, canViewFinance: boolean) {
