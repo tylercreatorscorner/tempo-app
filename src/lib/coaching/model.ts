@@ -38,12 +38,14 @@ export function blankDraft(): CoachingDraft {
     blockers: "",
   };
 }
-export function mondayToday() {
-  const today = new Date(
-    new Date().toLocaleString("en-US", { timeZone: "America/Chicago" }),
-  );
-  today.setDate(today.getDate() - ((today.getDay() + 6) % 7));
-  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+export function sundayToday(now = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(now);
+  const part = (type: string) => parts.find(p => p.type === type)!.value;
+  const today = new Date(`${part("year")}-${part("month")}-${part("day")}T12:00:00Z`);
+  today.setUTCDate(today.getUTCDate() - today.getUTCDay());
+  return today.toISOString().slice(0, 10);
 }
 export function validWeek(value: string) {
   const date = new Date(value + "T12:00:00Z");
@@ -51,10 +53,32 @@ export function validWeek(value: string) {
     /^\d{4}-\d{2}-\d{2}$/.test(value) &&
     !Number.isNaN(date.getTime()) &&
     date.toISOString().slice(0, 10) === value &&
-    date.getUTCDay() === 1 &&
+    date.getUTCDay() === 0 &&
     value >= "2020-01-01" &&
-    value <= mondayToday()
+    value <= sundayToday()
   );
+}
+export function weekLabel(start: string) {
+  const date = new Date(start + "T12:00:00Z");
+  const end = new Date(date);
+  end.setUTCDate(end.getUTCDate() + 6);
+  const month = (d: Date) => d.toLocaleDateString("en-US", { month: "long", timeZone: "UTC" });
+  const first = `${month(date)} ${date.getUTCDate()}`;
+  const last = date.getUTCMonth() === end.getUTCMonth() && date.getUTCFullYear() === end.getUTCFullYear()
+    ? `${end.getUTCDate()}` : `${month(end)} ${end.getUTCDate()}`;
+  return date.getUTCFullYear() === end.getUTCFullYear()
+    ? `Week of ${first} through ${last}, ${end.getUTCFullYear()}`
+    : `Week of ${first}, ${date.getUTCFullYear()} through ${last}, ${end.getUTCFullYear()}`;
+}
+export function coachingWeeks(current = sundayToday()) {
+  const result = [];
+  const date = new Date(current + "T12:00:00Z");
+  while (date.toISOString().slice(0, 10) >= "2020-01-05") {
+    const value = date.toISOString().slice(0, 10);
+    result.push({ value, label: weekLabel(value), description: value === current ? "Current week: Sunday to Saturday" : undefined });
+    date.setUTCDate(date.getUTCDate() - 7);
+  }
+  return result;
 }
 export type CoachingAssignment = {
   id: string;
@@ -95,7 +119,7 @@ export type CoachingData = {
   canWrite: boolean;
   canConfigure: boolean;
   brands: { id: string; name: string }[];
-  people: { user_id: string; name: string | null; email?: string }[];
+  people: { user_id: string; name: string | null; email?: string; avatar?: string | null }[];
   assignments: CoachingAssignment[];
   reports: CoachingReport[];
   submissions: CoachingSubmission[];

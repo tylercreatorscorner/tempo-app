@@ -28,6 +28,7 @@ await db.exec(
   ),
 );
 await db.exec(readFileSync('supabase/migrations/20260926211327_coaching_permission_levels.sql','utf8'));
+await db.exec(readFileSync('supabase/migrations/20260926223936_coaching_sunday_weeks.sql','utf8'));
 const call = (
   actor,
   action,
@@ -35,7 +36,7 @@ const call = (
   payload = {},
   expected = 0,
   tenant = id(1),
-  week = "2026-09-21",
+  week = "2026-09-20",
 ) =>
   db.query("select write_coaching_record($1,$2,$3,$4,$5,$6,$7) as id", [
     actor,
@@ -162,24 +163,24 @@ await db.exec(
   `reset role;delete from user_brand_access where user_id='${id(21)}';set role service_role`,
 );
 await assert.rejects(
-  call(id(21), "save", assignment, draft, 0, id(1), "2026-09-14"),
+  call(id(21), "save", assignment, draft, 0, id(1), "2026-09-13"),
   /Brand access denied/,
 );
 // Historical week is independent; revoked brand access is evaluated on every write.
 await db.exec(
   `reset role;insert into user_brand_access values('${id(21)}','${id(1)}','${id(10)}');set role service_role`,
 );
-await call(id(21), "submit", assignment, draft, 0, id(1), "2026-09-14");
+await call(id(21), "submit", assignment, draft, 0, id(1), "2026-09-13");
 assert.equal(
   (await db.query("select * from coaching_submissions")).rows.length,
   3,
 );
 // A failed history insert must roll back its report draft/version too.
 await db.exec(`reset role;create function reject_coaching_submission() returns trigger language plpgsql as $$ begin raise exception 'fixture history failure'; end; $$;create trigger reject_coaching_submission before insert on coaching_submissions for each row execute function reject_coaching_submission();set role service_role;`);
-await assert.rejects(call(id(21),'submit',assignment,draft,0,id(1),'2026-09-07'),/fixture history failure/);
-assert.equal((await db.query("select * from coaching_weekly_reports where week_start='2026-09-07'")).rows.length,0);
+await assert.rejects(call(id(21),'submit',assignment,draft,0,id(1),'2026-09-06'),/fixture history failure/);
+assert.equal((await db.query("select * from coaching_weekly_reports where week_start='2026-09-06'")).rows.length,0);
 await db.exec(`reset role;drop trigger reject_coaching_submission on coaching_submissions;delete from role_permissions where role_id='${id(31)}';set role service_role;`);
-await assert.rejects(call(id(21),'save',assignment,draft,0,id(1),'2026-09-07'),/Coaching access denied/);
+await assert.rejects(call(id(21),'save',assignment,draft,0,id(1),'2026-09-06'),/Coaching access denied/);
 console.log(
   "PASS coaching records: role/tenant/brand isolation, coach identity, stale writes, submission validation, immutable revisions, review permissions and prior weeks",
 );
