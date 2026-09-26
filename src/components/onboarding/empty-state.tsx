@@ -68,9 +68,9 @@ export function EmptyDashboard() {
     <EmptyState
       icon="📊"
       title="Your dashboard is ready"
-      description="Connect your TikTok Shop to start seeing real-time GMV, creator performance, and product analytics."
+      description="Connect your shop and import data to see GMV, creator performance and product analytics."
       actionLabel="Connect TikTok Shop"
-      actionHref="/settings"
+      actionHref="/workflows/integrations"
     />
   );
 }
@@ -94,9 +94,9 @@ export function EmptyVideos() {
     <EmptyState
       icon="🎬"
       title="No video data yet"
-      description="Once your TikTok Shop is connected, video performance data will appear here automatically."
+      description="Video performance appears after a successful import. Check Connections and Data & Imports for progress."
       actionLabel="Connect TikTok Shop"
-      actionHref="/settings"
+      actionHref="/workflows/integrations"
     />
   );
 }
@@ -106,9 +106,9 @@ export function EmptyAnalytics() {
     <EmptyState
       icon="📈"
       title="Analytics will appear here"
-      description="Connect your TikTok Shop and let the data sync. Your first analytics report will be ready within 24 hours."
+      description="Connect your shop and check import coverage before generating an analytics report."
       actionLabel="Connect TikTok Shop"
-      actionHref="/settings"
+      actionHref="/workflows/integrations"
     />
   );
 }
@@ -120,7 +120,7 @@ export function EmptyMessages() {
       title="No messages yet"
       description="Connect Discord to enable creator messaging, bulk outreach, and inbound DM logging."
       actionLabel="Connect Discord"
-      actionHref="/settings"
+      actionHref="/workflows/integrations"
     />
   );
 }

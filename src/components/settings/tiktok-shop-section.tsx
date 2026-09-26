@@ -206,7 +206,7 @@ function TikTokShopPanel() {
 
     setCallbackOk(ok);
     setCallbackError(failed);
-    router.replace('/settings#tiktok-shop', { scroll: false });
+    router.replace('/workflows/integrations#tiktok-shop', { scroll: false });
   }, [searchParams, router]);
 
   const [data, setData] = useState<ConnectionsPayload | null>(null);

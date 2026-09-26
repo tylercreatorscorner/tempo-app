@@ -32,7 +32,7 @@ export default async function UploadPage() {
     <div className="space-y-6">
       <PageHeader
         eyebrow="Data Ops"
-        title="Data Pipeline"
+        title="Data & Imports"
         subtitle="Every brand, every day, every report — known-complete or explicitly not. Upload is how the gaps get filled, not how coverage is judged."
       />
       <DataPipelineClient activeBrands={activeBrands} />

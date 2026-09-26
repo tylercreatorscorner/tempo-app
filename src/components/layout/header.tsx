@@ -36,6 +36,9 @@ const BREADCRUMB_MAP: Record<string, string> = {
   // Content
   '/posts': 'Posts',
   '/reporting': 'Reporting',
+  '/reporting/coaching': 'Coaching',
+  '/earnings/settings': 'Finance setup',
+  '/roster/invitations': 'Creator invitations',
   // Finance
   '/earnings': 'Earnings',
   '/ytd': 'Year-to-Date',
@@ -47,10 +50,10 @@ const BREADCRUMB_MAP: Record<string, string> = {
   // Settings
   '/settings': 'Settings',
   '/settings/brands': 'Brands',
-  '/team': 'Team',
-  '/upload': 'Data Pipeline',
+  '/team': 'People & Access',
+  '/upload': 'Data & Imports',
   '/workflows/automations': 'Automations',
-  '/workflows/integrations': 'Integrations',
+  '/workflows/integrations': 'Connections',
   '/workflows/outreach': 'Outreach',
   // Other
   '/brands': 'Brands',

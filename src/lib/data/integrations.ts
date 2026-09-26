@@ -88,8 +88,8 @@ export async function listIntegrations(): Promise<IntegrationView[]> {
       brandId: i.brand_id,
       brandSlug: brand?.slug ?? null,
       brandName: brand?.display_name || brand?.name || null,
-      status: (i.status as IntegrationView['status']) ?? 'connected',
-      summary: summarizeConfig(i.type, i.config),
+      status: (i.status as IntegrationView['status']) ?? 'pending',
+      summary: summarizeConfig(i.type, i.config) + (i.type === 'discord' && integrations.filter(other => other.type === 'discord' && other.brand_id === i.brand_id && other.config.guild_id && other.config.guild_id === i.config.guild_id).length > 1 ? ' · Multiple saved configurations for this server' : ''),
       lastUsedAt: i.last_used_at,
       lastErrorMessage: i.last_error_message,
       managed: true,
@@ -128,22 +128,22 @@ export async function listIntegrations(): Promise<IntegrationView[]> {
     );
     if (alreadyManaged) continue;
     const status: IntegrationView['status'] =
-      s.status === 'active' ? 'connected'
-      : s.status === 'expiring' ? 'connected'
+      s.status === 'active' ? (s.last_successful_scrape ? 'connected' : 'pending')
+      : s.status === 'expiring' ? 'pending'
       : s.status === 'expired' ? 'revoked'
       : s.status === 'error' ? 'error'
       : 'pending';
     out.push({
       id: `legacy:tiktok_shop:${brand.id}`,
       type: 'tiktok_shop',
-      displayName: `${brand.display_name || brand.name} TikTok Shop`,
+      displayName: `${brand.display_name || brand.name} · Legacy TikTok session`,
       brandId: brand.id,
       brandSlug: brand.slug,
       brandName: brand.display_name || brand.name,
       status,
       summary: s.last_successful_scrape
-        ? `Last scrape: ${new Date(s.last_successful_scrape).toLocaleDateString()}`
-        : 'No scrape yet',
+        ? `Legacy import: ${new Date(s.last_successful_scrape).toLocaleDateString()}`
+        : 'Legacy session: no successful import recorded',
       lastUsedAt: s.last_successful_scrape,
       lastErrorMessage: null,
       managed: false,

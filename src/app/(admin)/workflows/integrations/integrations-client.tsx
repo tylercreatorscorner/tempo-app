@@ -136,7 +136,7 @@ export function IntegrationsClient({
 
   const catalogByCategory = useMemo(() => {
     const out: Record<string, typeof INTEGRATION_TYPE_CATALOG> = {};
-    for (const item of INTEGRATION_TYPE_CATALOG) {
+    for (const item of INTEGRATION_TYPE_CATALOG.filter(item => !item.comingSoon && item.type !== 'tiktok_shop')) {
       (out[item.category] ??= []).push(item);
     }
     return out;
@@ -147,19 +147,21 @@ export function IntegrationsClient({
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-[var(--foreground)]">Integrations</h1>
+          <h1 className="text-2xl font-bold text-[var(--foreground)]">Connections</h1>
           <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
-            External systems Tempo connects to. Each integration powers Automations and Outreach campaigns.
-            Most connections are scoped to a single brand — Workspace-wide ones (Resend, AI providers) are shared across all brands.
+            Services configured for data imports, communications and automations.
+            Configuration is not proof of a successful sync or delivery. Review the latest recorded activity for each connection. Legacy TikTok sessions are separate from shop API authorization.
           </p>
         </div>
       </div>
+
+      <a href="#tiktok-shop" className="inline-flex text-sm font-medium text-primary">Manage TikTok Shop API authorization ↓</a>
 
       {/* Connected section */}
       <section className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-            Connected
+            Configured services
           </h2>
           <span className="text-xs text-muted-foreground">{integrations.length} total</span>
         </div>
@@ -268,11 +270,11 @@ function IntegrationRow({ integration, onClick }: { integration: IntegrationView
           </span>
           <span className={cn('inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full', STATUS_STYLE[integration.status])}>
             <StatusIcon className="h-2.5 w-2.5" />
-            {integration.status}
+            {integration.status === 'connected' ? 'Configured' : integration.status === 'revoked' ? 'Reconnect required' : integration.status}
           </span>
           {!integration.managed && (
             <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-muted text-muted-foreground" title="Detected from existing data — not yet migrated to the integrations table">
-              auto
+              Detected
             </span>
           )}
         </div>
@@ -443,7 +445,7 @@ function IntegrationDetailDrawer({
         <div className="p-6 space-y-5 flex-1">
           <DetailRow label="Status">
             <span className={cn('inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded-full', STATUS_STYLE[integration.status])}>
-              {integration.status}
+              {integration.status === 'connected' ? 'Configured' : integration.status === 'revoked' ? 'Reconnect required' : integration.status}
             </span>
           </DetailRow>
           {integration.brandName && (
@@ -680,7 +682,7 @@ function CatalogCard({
           <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{item.description}</p>
         </div>
       </div>
-      {!item.comingSoon && (
+      {!item.comingSoon && item.type !== 'tiktok_shop' && (
         <button
           onClick={onConnect}
           className="absolute top-3 right-3 inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-lg bg-[var(--primary)]/10 text-[var(--primary)] hover:bg-[var(--primary)]/15 transition-colors"

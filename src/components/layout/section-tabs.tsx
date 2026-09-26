@@ -14,7 +14,7 @@ interface Tab {
 // The sub-views for each sidebar destination. One shared bar, driven by the URL,
 // so pages don't each hand-roll their own tabs.
 const SECTIONS: { key: string; tabs: Tab[] }[] = [
-  { key: 'creators', tabs: [{ label: 'Roster', href: '/roster' }] },
+  { key: 'creators', tabs: [{ label: 'Roster', href: '/roster' }, { label: 'Invitations', href: '/roster/invitations', admin: true }] },
   { key: 'comms', tabs: [{ label: 'Messages', href: '/messages' }, { label: 'Discord Posts', href: '/drops' }] },
   // Reporting splits client-facing from internal. They share a nav section and
   // nothing else: separate tables, separate routes, and the internal one never
@@ -23,6 +23,7 @@ const SECTIONS: { key: string; tabs: Tab[] }[] = [
   { key: 'reporting', tabs: [
     { label: 'Clients', href: '/reporting' },
     { label: 'Weekly report', href: '/reporting/weekly' },
+    { label: 'Coaching', href: '/reporting/coaching' },
   ] },
   // Content is just Posts (Reporting graduated to its own sidebar destination
   // 2026-07-23); a single tab renders no bar, which is the point.
@@ -37,6 +38,7 @@ const SECTIONS: { key: string; tabs: Tab[] }[] = [
     { label: 'Earnings', href: '/earnings' },
     { label: 'Invoicing', href: '/invoicing' },
     { label: 'Payments', href: '/payments' },
+    { label: 'Finance setup', href: '/earnings/settings', admin: true },
   ] },
   { key: 'products', tabs: [
     { label: 'Catalog', href: '/products/catalog' },
@@ -44,11 +46,10 @@ const SECTIONS: { key: string; tabs: Tab[] }[] = [
   ] },
   { key: 'settings', tabs: [
     { label: 'General', href: '/settings' },
-    { label: 'Team', href: '/team', admin: true },
-    { label: 'Data Pipeline', href: '/upload', admin: true },
+    { label: 'People & Access', href: '/team', admin: true },
+    { label: 'Data & Imports', href: '/upload', admin: true },
     { label: 'Automations', href: '/workflows/automations' },
-    { label: 'Integrations', href: '/workflows/integrations', admin: true },
-    { label: 'Outreach', href: '/workflows/outreach', admin: true },
+    { label: 'Connections', href: '/workflows/integrations', admin: true },
   ] },
 ];
 
