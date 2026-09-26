@@ -5,6 +5,8 @@ import { guardScreen } from "@/lib/auth/require-screen";
 import { createAdminClient } from "@/lib/supabase/server";
 import { blankDraft, draftSchema, validWeek } from "@/lib/coaching/model";
 
+import { fetchDiscordAvatars } from "@/lib/discord/avatars";
+
 export const dynamic = "force-dynamic";
 async function access() {
   const scope = await guardScreen("reporting");
@@ -25,7 +27,7 @@ export async function GET(req: NextRequest) {
   const week = req.nextUrl.searchParams.get("week") ?? "";
   if (!validWeek(week))
     return NextResponse.json(
-      { error: "Choose a week starting Monday." },
+      { error: "Choose a week starting Sunday." },
       { status: 400 },
     );
   try {
@@ -64,7 +66,7 @@ export async function GET(req: NextRequest) {
     const assignments = assignmentResult.data ?? [];
     let peopleQuery = db
       .from("user_profiles")
-      .select("user_id,name,email")
+      .select("user_id,name,email,discord_id,discord_avatar")
       .eq("tenant_id", scope.tenantId)
       .in("role", ["owner", "admin", "manager", "coach"])
       .order("name");
@@ -88,6 +90,10 @@ export async function GET(req: NextRequest) {
     ]);
     if (peopleResult.error || reportResult.error)
       throw new Error("read failed");
+    const profiles = peopleResult.data ?? [];
+    const assignedPeople = new Set(assignments.flatMap(a => [a.coach_id, a.reviewer_id]));
+    const discordIds = profiles.filter(p => assignedPeople.has(p.user_id)).map(p => p.discord_id).filter((id): id is string => !!id);
+    const avatarPromise = fetchDiscordAvatars(discordIds);
     const reports = (reportResult.data ?? []).map((report) => ({
       ...report,
       draft:
@@ -116,6 +122,11 @@ export async function GET(req: NextRequest) {
         submissions.map((s) => s.id),
       );
     if (reviewsResult.error) throw reviewsResult.error;
+    const avatars = await avatarPromise;
+    const people = profiles.map(({ discord_id, discord_avatar, ...person }) => ({
+      ...person,
+      avatar: (discord_id ? avatars[discord_id] : null) || discord_avatar || null,
+    }));
     return NextResponse.json(
       {
         userId: scope.userId,
@@ -123,7 +134,7 @@ export async function GET(req: NextRequest) {
         canWrite: can(scope, "reporting", "write"),
         canConfigure: admin && can(scope, "reporting", "configure"),
         brands,
-        people: peopleResult.data ?? [],
+        people,
         assignments,
         reports,
         submissions,
@@ -196,7 +207,7 @@ export async function POST(req: NextRequest) {
   if (!can(scope, "reporting", input.action === "assign" ? "configure" : "write")) return NextResponse.json({error: "Reporting edit permission is required."}, {status:403});
   if (input.action !== "assign" && !validWeek(input.week))
     return NextResponse.json(
-      { error: "Choose a valid week starting Monday." },
+      { error: "Choose a valid week starting Sunday." },
       { status: 400 },
     );
   if (input.action === "assign" && !["owner", "admin"].includes(scope.role))

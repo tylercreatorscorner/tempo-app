@@ -1,13 +1,16 @@
 "use client";
 
-import { DateField } from '@/components/ui/date-field';
-import { useCallback, useEffect, useRef, useState } from "react";
+import { ChoiceMenu } from '@/components/ui/choice-menu';
+import { CreatorPortrait } from '@/components/creators/creator-portrait';
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { NavigationLink } from "@/components/ui/navigation-link";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import {
   blankDraft,
-  mondayToday,
+  sundayToday,
+  coachingWeeks,
+  weekLabel,
   validWeek,
   responsibilities,
   type CoachingData,
@@ -24,7 +27,9 @@ const statusLabel = {
   reviewed: "Reviewed",
 };
 export function CoachingRecords() {
-  const [week, setWeek] = useState(mondayToday);
+  const [week, setWeek] = useState(sundayToday);
+  const currentWeek = sundayToday();
+  const weekOptions = useMemo(() => coachingWeeks(currentWeek), [currentWeek]);
   const [data, setData] = useState<CoachingData | null>(null);
   const [selected, setSelected] = useState("");
   const [error, setError] = useState("");
@@ -140,30 +145,17 @@ export function CoachingRecords() {
         </div>
       </div>
       <div className="flex flex-wrap items-end gap-3">
-        <label className="text-xs text-muted-foreground">
-          Week beginning (Monday)
-          <DateField
-            className="block mt-1 rounded-md border border-border bg-card p-2 text-sm text-foreground"
-            aria-label="Week beginning"
-            value={week}
-            max={mondayToday()}
-            step={7}
-            min="2020-01-06"
-            disabled={busy}
-            onValueChange={(e) => {
-              if (!validWeek(e)) {
-                setError("Choose a Monday, up to the current week.");
-                return;
-              }
-              if (change()) {
+        <div className="min-w-0 max-w-full">
+          <ChoiceMenu label="Reporting week" value={week} options={weekOptions}
+            disabled={busy} onChange={(value) => {
+              if (validWeek(value) && change()) {
                 setDirty(false);
                 setData(null);
-                setWeek(e);
+                setWeek(value);
                 setMessage("");
               }
-            }}
-          />
-        </label>
+            }} />
+        </div>
         <Button
           variant="outline"
           size="sm"
@@ -245,9 +237,7 @@ export function CoachingRecords() {
                             }
                           }}
                         >
-                          <span className={styles.avatar}>
-                            {name(a.coach_id)[0]}
-                          </span>
+                          <CreatorPortrait name={name(a.coach_id)} source={data.people.find(p => p.user_id === a.coach_id)?.avatar} className={styles.coachPortrait} />
                           <span>
                             <strong>{name(a.coach_id)}</strong>
                             <small>
@@ -349,10 +339,11 @@ function ReportForm({
     <div className={styles.submission}>
       <div className={styles.submissionHeader}>
         <div>
-          <span className={styles.eyebrow}>{week}</span>
+          <span className={styles.eyebrow}>{weekLabel(week)}</span>
           <h3>{person(assignment.coach_id)}’s weekly report</h3>
-          <p>
+          <p className="flex flex-wrap items-center gap-1.5">
             {report ? statusLabel[report.status] : "Not submitted"} · Reviewer:{" "}
+            <CreatorPortrait name={person(assignment.reviewer_id)} source={data.people.find(p => p.user_id === assignment.reviewer_id)?.avatar} className={styles.reviewerPortrait} />
             {person(assignment.reviewer_id)}
           </p>
         </div>

@@ -9,8 +9,8 @@ let scope={userId:id(1),tenantId:id(10),role:'coach',permissions:new Set(['repor
 const tables={
  brands_v2:[{id:id(20),tenant_id:id(10),name:'Allowed',is_archived:false},{id:id(21),tenant_id:id(11),name:'Foreign',is_archived:false}],
  coaching_assignments:[{id:id(30),tenant_id:id(10),brand_id:id(20),coach_id:id(1),reviewer_id:id(2),active:true},{id:id(31),tenant_id:id(11),brand_id:id(21),coach_id:id(1),reviewer_id:id(2),active:true},{id:id(32),tenant_id:id(10),brand_id:id(20),coach_id:id(3),reviewer_id:id(4),active:true}],
- user_profiles:[{user_id:id(1),tenant_id:id(10),role:'coach',name:'Coach'},{user_id:id(2),tenant_id:id(10),role:'manager',name:'Reviewer'},{user_id:id(3),tenant_id:id(10),role:'coach',name:'Unassigned'}],
- coaching_weekly_reports:[{id:id(40),tenant_id:id(10),assignment_id:id(30),week_start:'2026-09-21',draft:{summary:'PRIVATE DRAFT'},version:1}],
+ user_profiles:[{user_id:id(1),tenant_id:id(10),role:'coach',name:'Coach',discord_id:'771499768807161856'},{user_id:id(2),tenant_id:id(10),role:'manager',name:'Reviewer'},{user_id:id(3),tenant_id:id(10),role:'coach',name:'Unassigned'}],
+ coaching_weekly_reports:[{id:id(40),tenant_id:id(10),assignment_id:id(30),week_start:'2026-09-20',draft:{summary:'PRIVATE DRAFT'},version:1}],
  coaching_submissions:[{id:id(50),tenant_id:id(10),report_id:id(40),revision:1,content:{summary:'SUBMITTED'}}],coaching_reviews:[],
 };
 function from(table){reads++;const filters=[];const q={select:()=>q,eq:(k,v)=>{filters.push(r=>r[k]===v);return q;},in:(k,v)=>{filters.push(r=>v.includes(r[k]));return q;},order:()=>q,or:expr=>{const parts=expr.split(',').map(p=>p.split('.eq.'));filters.push(r=>parts.some(([k,v])=>r[k]===v));return q;},then:(yes,no)=>Promise.resolve({data:(tables[table]??[]).filter(r=>filters.every(f=>f(r))),error:failure?new Error('offline'):null}).then(yes,no)};return q;}
@@ -18,16 +18,27 @@ const deps={'zod':{z},'next/server':{NextRequest,NextResponse},'@/lib/auth/requi
 function load(file){const exports={};runInNewContext(ts.transpileModule(readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{exports,console,Date,Set,Map,require:name=>{assert.ok(name in deps,name);return deps[name];}});return exports;}
 deps['@/lib/auth/permissions']=load('src/lib/auth/permissions.ts');
 const model=load('src/lib/coaching/model.ts');deps['@/lib/coaching/model']=model;
+let avatarRequests=[];
+deps['@/lib/discord/avatars']={fetchDiscordAvatars:async(ids)=>{avatarRequests.push(ids);return {'771499768807161856':'https://cdn.discordapp.com/test.png'};}};
+assert.equal(model.sundayToday(new Date('2026-09-27T04:59:00Z')),'2026-09-20');
+assert.equal(model.sundayToday(new Date('2026-09-27T05:00:00Z')),'2026-09-27');
+assert.equal(model.sundayToday(new Date('2026-03-08T08:00:00Z')),'2026-03-08');
+assert.equal(model.validWeek('2026-09-21'),false);
+assert.equal(model.validWeek('2026-02-30'),false);
+assert.equal(model.weekLabel('2026-09-13'),'Week of September 13 through 19, 2026');
+assert.equal(model.weekLabel('2026-09-27'),'Week of September 27 through October 3, 2026');
+assert.equal(model.weekLabel('2026-12-27'),'Week of December 27, 2026 through January 2, 2027');
+const weeks=model.coachingWeeks('2026-09-20');assert.equal(weeks[0].value,'2026-09-20');assert.equal(weeks[1].value,'2026-09-13');assert.equal(weeks.at(-1).value,'2020-01-05');
 const route=load('src/app/api/coaching/route.ts');
-const get=()=>route.GET(new NextRequest('https://tempo.test/api/coaching?week=2026-09-21'));
-let result=await (await get()).json();assert.equal(result.assignments.length,1);assert.equal(result.brands.length,1);assert.equal(result.people.length,2);assert.equal(result.reports[0].draft.summary,'PRIVATE DRAFT');
+const get=()=>route.GET(new NextRequest('https://tempo.test/api/coaching?week=2026-09-20'));
+let result=await (await get()).json();assert.equal(result.assignments.length,1);assert.equal(result.brands.length,1);assert.equal(result.people.length,2);assert.equal(result.reports[0].draft.summary,'PRIVATE DRAFT');assert.equal(result.people[0].avatar,'https://cdn.discordapp.com/test.png');assert.equal('discord_id' in result.people[0],false);assert.deepEqual(Array.from(avatarRequests[0]),['771499768807161856']);
 scope={...scope,userId:id(2),role:'manager'};result=await (await get()).json();assert.equal(result.reports[0].draft.summary,'');assert.equal(result.submissions[0].content.summary,'SUBMITTED');
-scope={...scope,brandScope:{kind:'scoped',brandIds:[]}};result=await (await get()).json();assert.equal(result.assignments.length,0);assert.equal(result.reports.length,0);
+scope={...scope,brandScope:{kind:'scoped',brandIds:[]}};result=await (await get()).json();assert.equal(result.assignments.length,0);assert.equal(result.reports.length,0);assert.equal(avatarRequests.at(-1).length,0);
 scope={...scope,impersonating:{userId:id(2)}};reads=0;assert.equal((await get()).status,403);assert.equal(reads,0);
 scope=null;assert.equal((await get()).status,403);
 scope={userId:id(1),tenantId:id(10),role:'coach',permissions:new Set(['reporting:read','reporting:write']),brandScope:{kind:'scoped',brandIds:[id(20)]}};
 const post=(body,origin='https://tempo.test')=>route.POST(new NextRequest('https://tempo.test/api/coaching',{method:'POST',headers:{origin,'content-type':'application/json'},body:JSON.stringify(body)}));
-const input={action:'save',assignmentId:id(30),week:'2026-09-21',expected:1,payload:model.blankDraft()};
+const input={action:'save',assignmentId:id(30),week:'2026-09-20',expected:1,payload:model.blankDraft()};
 assert.equal((await post(input,'https://foreign.test')).status,403);
 assert.equal((await post({...input,p_actor:id(2)})).status,400);
 assert.equal((await post({action:'assign',brandId:id(20),coachId:id(1),reviewerId:id(2)})).status,403);
