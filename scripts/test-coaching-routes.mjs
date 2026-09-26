@@ -33,5 +33,18 @@ assert.equal((await post({...input,p_actor:id(2)})).status,400);
 assert.equal((await post({action:'assign',brandId:id(20),coachId:id(1),reviewerId:id(2)})).status,403);
 assert.equal(rpcCalls.length,0);assert.equal((await post(input)).status,200);assert.equal(rpcCalls[0].args.p_actor,id(1));assert.equal(rpcCalls[0].args.p_tenant,id(10));
 scope.permissions=new Set(['reporting:read']);const before=rpcCalls.length;assert.equal((await post(input)).status,403);assert.equal(rpcCalls.length,before);
+// Legacy brand IDs are PostgreSQL UUIDs without RFC version/variant bits.
+const legacyBrand='b0000000-0000-0000-0000-000000000005';
+const assignment={action:'assign',brandId:legacyBrand,coachId:id(1),reviewerId:id(2)};
+scope={...scope,role:'owner',permissions:new Set(['reporting:read','reporting:write','reporting:configure'])};
+assert.equal((await post(assignment)).status,200);
+assert.equal(rpcCalls.at(-1).args.p_payload.brandId,legacyBrand);
+const afterLegacy=rpcCalls.length;
+for(const brandId of ['leefar','b0000000-0000-0000-0000-00000000000g',legacyBrand+'-extra']){
+ assert.equal((await post({...assignment,brandId})).status,400);
+}
+scope={...scope,role:'coach'};
+assert.equal((await post(assignment)).status,403);
+assert.equal(rpcCalls.length,afterLegacy);
 failure=true;assert.equal((await get()).status,503);
 console.log('PASS coaching API: scoped reads, private drafts, foreign/empty brands, impersonation, origin, strict inputs, trusted actor and visible read failures');
