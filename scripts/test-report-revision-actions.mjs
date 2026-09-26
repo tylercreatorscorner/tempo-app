@@ -8,6 +8,7 @@ import ts from 'typescript';
 let state=[],index=0,pending,requests=[],failure=false,reloads=0;
 const element=(type,props)=>({type,props});
 const dependencies={
+  '@/components/ui/interface-icon':{InterfaceIcon:'icon'},
   react:{useState:initial=>{const slot=index++;if(!(slot in state))state[slot]=initial;return [state[slot],value=>{state[slot]=value;}];},useTransition:()=>[false,fn=>{pending=fn();}]},
   'react/jsx-runtime':{jsx:element,jsxs:element,Fragment:'fragment'},
   'lucide-react':Object.fromEntries(['Loader2','Pencil','RefreshCw','Ban','X'].map(name=>[name,name])),
@@ -30,7 +31,7 @@ button(render(),'Create revision').props.onClick();await pending;
 let tree=render();
 assert.equal(requests[0].url,'/api/client-reports/preserved-id/refresh');
 assert.equal(requests[0].method,'POST');assert.equal(reloads,1);
-assert.equal(nodes(tree).find(n=>n.type==='a'&&text(n)==='Open new revision ↗').props.href,'/r/fixture-new-token?preview=1');
+assert.equal(nodes(tree).find(n=>n.type==='a'&&text(n).trim()==='Open new revision').props.href,'/r/fixture-new-token?preview=1');
 assert.equal(target.notes,'Original notes');
 failure=true;button(tree,'Create revision').props.onClick();await pending;tree=render();
 assert.equal(nodes(tree).find(n=>n.props?.role==='alert')?.props.children,'Approved figures require review');
@@ -42,7 +43,7 @@ button(render(),'Save').props.onClick();await pending;tree=render();
 assert.equal(requests.at(-1).url,'/api/client-reports/preserved-id');
 assert.equal(requests.at(-1).method,'PATCH');
 assert.deepEqual(JSON.parse(requests.at(-1).body),{notes:'Corrected notes',plan:'Original plan'});
-assert.ok(nodes(tree).some(n=>n.type==='a'&&text(n)==='Open new revision ↗'));
+assert.ok(nodes(tree).some(n=>n.type==='a'&&text(n).trim()==='Open new revision'));
 assert.ok(!nodes(tree).some(n=>n.props?.role==='dialog'));
 assert.equal(reloads,2);
 console.log('PASS report revision actions: new link surfaced for figures and copy, original inputs preserved, failed actions visible without modal and stale success removed');

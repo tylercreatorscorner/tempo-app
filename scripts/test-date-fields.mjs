@@ -1,0 +1,32 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {runInNewContext} from 'node:vm';
+import ts from 'typescript';
+import * as dates from 'date-fns';
+const node=(type,props)=>({type,props});
+const nodes=t=>!t||typeof t!=='object'?[]:Array.isArray(t)?t.flatMap(nodes):[t,...nodes(t.props?.children)];
+function load(file){let state=[],index=0;const dependencies={react:{useState(initial){const i=index++;if(!(i in state))state[i]=initial;return[state[i],v=>state[i]=v]},useRef:initial=>({current:initial})},'react/jsx-runtime':{jsx:node,jsxs:node,Fragment:'fragment'},'date-fns':dates,'radix-ui':{Popover:Object.fromEntries(['Root','Anchor','Trigger','Portal','Content'].map(x=>[x,x])),Dialog:Object.fromEntries(['Root','Portal','Overlay','Content','Title','Description','Close'].map(x=>[x,x]))},'lucide-react':{CalendarDays:'calendar-icon',X:'close-icon'},'./date-field':{DateField:'date-field'},'./calendar':{Calendar:'calendar'},'@/components/ui/calendar':{Calendar:'calendar'},'@/lib/utils':{cn:(...v)=>v.filter(Boolean).join(' ')},'./calendar.module.css':{default:{}},'./custom-range-popover.module.css':{default:{}}};const exports={};runInNewContext(ts.transpileModule(readFileSync(file,'utf8'),{compilerOptions:{jsx:ts.JsxEmit.ReactJSX,module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true}}).outputText,{exports,Date,require:name=>{assert.ok(name in dependencies,name);return dependencies[name]}});return{render(name,props){index=0;return exports[name](props)}};}
+const fields=load('src/components/ui/date-field.tsx');let value;
+const props={value:'2026-03-09',min:'2020-01-06',max:'2026-03-23',step:7,required:true,onValueChange:v=>value=v};
+let tree=fields.render('DateField',props),calendar=nodes(tree).find(n=>n.type==='calendar');
+assert.equal(calendar.props.disabled(new Date(2026,2,8)),true,'Sunday around DST stays unavailable');
+assert.equal(calendar.props.disabled(new Date(2026,2,9)),false,'Monday around DST remains available');
+assert.equal(calendar.props.disabled(new Date(2026,2,30)),true,'After max stays unavailable');
+assert.equal(calendar.props.disabled(new Date(2019,11,30)),true,'Before min stays unavailable');
+calendar.props.onSelect(new Date(2026,2,16));assert.equal(value,'2026-03-16','Calendar emits local ISO date, not UTC');
+const input=nodes(tree).find(n=>n.type==='input');assert.equal(input.props.required,true);assert.equal(input.props.type,'date');assert.equal(input.props.step,7);assert.equal(input.props.min,props.min);assert.equal(input.props.max,props.max);
+input.props.onChange({target:{value:'2026-03-23'}});assert.equal(value,'2026-03-23','Typed dates keep the same value contract');
+tree=fields.render('DateField',{...props,disabled:true});assert.equal(nodes(tree).find(n=>n.type==='button').props.disabled,true);
+const ranges=load('src/components/dashboard/custom-range-popover.tsx');let applied=null,closed=0;
+const rp={initialStart:'2026-08-01',initialEnd:'2026-08-31',maxDate:new Date(2026,8,25),onApply:(a,b)=>applied=[a,b],onClose:()=>closed++};
+const render=()=>ranges.render('CustomRangePopover',rp),cal=t=>nodes(t).find(n=>n.type==='calendar'),apply=t=>nodes(t).find(n=>n.type==='button'&&n.props.children==='Apply period');
+tree=render();cal(tree).props.onSelect(undefined,new Date(2026,7,17));tree=render();assert.equal(apply(tree).props.disabled,true,'Start alone cannot apply');
+cal(tree).props.onSelect(undefined,new Date(2026,7,10));tree=render();apply(tree).props.onClick();assert.deepEqual(applied,['2026-08-10','2026-08-17'],'Reversed range normalized');
+cal(tree).props.onSelect(undefined,new Date(2026,7,31));tree=render();cal(tree).props.onSelect(undefined,new Date(2026,8,2));tree=render();apply(tree).props.onClick();assert.deepEqual(applied,['2026-08-31','2026-09-02'],'Cross-month selection stays inclusive');
+cal(tree).props.onSelect(undefined,new Date(2026,8,2));tree=render();cal(tree).props.onSelect(undefined,new Date(2026,8,2));tree=render();apply(tree).props.onClick();assert.deepEqual(applied,['2026-09-02','2026-09-02'],'Same-day selection supported');
+applied=null;tree.props.onOpenChange(false);assert.equal(closed,1);assert.equal(applied,null,'Cancel does not apply');
+cal(tree).props.onSelect(undefined,new Date(2026,8,26));tree=render();cal(tree).props.onSelect(undefined,new Date(2026,8,27));tree=render();assert.equal(apply(tree).props.disabled,true);apply(tree).props.onClick();assert.equal(applied,null,'Apply independently rejects beyond cutoff');
+console.log('PASS shared dates: local ISO, min/max/step, DST Monday, native validation/typing, disabled controls, two-click ranges, reverse/cross-month/same-day ranges, cancel and cutoff');
+
+const scheduling=load('src/components/ui/date-time-field.tsx');let scheduled='';const sp=()=>({value:scheduled,onValueChange:v=>scheduled=v});
+let schedule=scheduling.render('DateTimeField',sp());nodes(schedule).find(n=>n.type==='date-field').props.onValueChange('2026-10-01');schedule=scheduling.render('DateTimeField',sp());assert.equal(scheduled,'','Incomplete scheduling cannot retain a stale date/time');nodes(schedule).find(n=>n.type==='input').props.onChange({target:{value:'09:30'}});assert.equal(scheduled,'2026-10-01T09:30','Local scheduling is not shifted by timezone conversion');schedule=scheduling.render('DateTimeField',sp());nodes(schedule).find(n=>n.type==='button').props.onClick();assert.equal(scheduled,'');console.log('PASS local scheduling: partial draft, complete date/time, clear');

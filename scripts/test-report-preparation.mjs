@@ -10,7 +10,7 @@ const hooks={
  useMemo(fn){const i=index++;return slots[i]??(slots[i]=fn());},
  useEffect(fn,deps){const i=index++;if(!slots[i]||deps.some((v,n)=>v!==slots[i][n])){slots[i]=deps;effects.push(fn);}},
 };
-const dependencies={react:hooks,'react/jsx-runtime':{jsx:node,jsxs:node,Fragment:'fragment'},
+const dependencies={'@/components/ui/date-field':{DateField:'date-field'},react:hooks,'react/jsx-runtime':{jsx:node,jsxs:node,Fragment:'fragment'},
  'lucide-react':Object.fromEntries(['Check','Clipboard','Link2','Loader2','Wand2','ExternalLink'].map(x=>[x,x])),
  '@/lib/utils/format':{formatCurrency:n=>String(n)},
  '@/components/ui/card':{Card:'card'},'@/components/ui/button':{Button:'button'},
@@ -36,8 +36,8 @@ assert.deepEqual(JSON.parse(JSON.stringify(exports.reportingWeek(new Date('2026-
 assert.deepEqual(JSON.parse(JSON.stringify(exports.reportingWeek(new Date('2026-01-01T12:00:00Z')))), {start:'2025-12-22',end:'2025-12-28'});
 assert.deepEqual(JSON.parse(JSON.stringify(exports.reportingWeek(new Date('2026-09-21T12:00:00Z'), true))), {start:'2026-09-21',end:'2026-09-21'});
 find(tree,'segmented','Report type').props.onValueChange('performance');tree=render();
-const dates=nodes(tree).filter(n=>n.type==='input'&&n.props.type==='date');
-dates[0].props.onChange({target:{value:'2026-08-03'}});dates[1].props.onChange({target:{value:'2026-08-19'}});tree=render();
+const dates=nodes(tree).filter(n=>n.type==='date-field');
+dates[0].props.onValueChange('2026-08-03');dates[1].props.onValueChange('2026-08-19');tree=render();
 pending=find(tree,'button','Prepare preview').props.onClick();resolvePreview();await pending;tree=render();await find(tree,'button','Create link + copy').props.onClick();
 assert.equal(requests.at(-1).body.reportType,'performance');assert.equal(requests.at(-1).body.period.start,'2026-08-03');assert.equal(requests.at(-1).body.period.end,'2026-08-19');
 console.log('PASS calendar weeks: Monday/Sunday/year boundaries, partial week, and explicit custom report dates');
