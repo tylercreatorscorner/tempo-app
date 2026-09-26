@@ -3,6 +3,7 @@
 import styles from './workspace.module.css';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { NavigationLink } from '@/components/ui/navigation-link';
 import { ArrowLeft } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
@@ -44,7 +45,7 @@ function ReportingWorkspace() {
             <Link href="/reporting/coaching" className="whitespace-nowrap px-1 pb-3 text-sm font-medium text-muted-foreground hover:text-foreground">Coaching</Link>
           </nav>
           <div hidden={view !== 'clients'} className="space-y-4"><FreshnessBanner /><BrandTable refreshKey={refreshKey} onGenerate={(slug, name) => setTarget({ slug, name })} /></div>
-          {visited.has('agency') && <div hidden={view !== 'agency'} className="max-w-3xl space-y-4"><AgencyPanel /><Link href="/reporting/weekly" className="inline-flex text-sm font-medium text-primary hover:underline">Open internal weekly review →</Link></div>}
+          {visited.has('agency') && <div hidden={view !== 'agency'} className="max-w-3xl space-y-4"><AgencyPanel /><NavigationLink href="/reporting/weekly">Open internal weekly review</NavigationLink></div>}
           {visited.has('library') && <div hidden={view !== 'library'}><SentFeed refreshKey={refreshKey} /></div>}
         </div>
     </div>

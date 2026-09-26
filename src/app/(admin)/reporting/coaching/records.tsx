@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
+import { NavigationLink } from "@/components/ui/navigation-link";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import {
@@ -124,9 +124,9 @@ export function CoachingRecords() {
         title="Coaching"
         subtitle="Weekly responsibilities, coach submissions and review history."
       />
-      <Link href="/reporting" className={styles.back}>
-        ← Back to reporting
-      </Link>
+      <NavigationLink href="/reporting" direction="back">
+        Back to reporting
+      </NavigationLink>
       <div className={styles.brief}>
         <div>
           <span className={styles.eyebrow}>Weekly accountability</span>

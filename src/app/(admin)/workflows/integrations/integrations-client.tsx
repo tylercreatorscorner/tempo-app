@@ -13,6 +13,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Plug, AlertCircle, CheckCircle2, Clock, X, MessageSquare, ShoppingBag, Mail, MessageCircle, Phone, Sparkles, Database, type LucideIcon, Plus, ExternalLink, Send, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { NavigationLink } from '@/components/ui/navigation-link';
 import { ModalOverlay } from '@/components/ui/modal-overlay';
 import type { IntegrationView } from '@/lib/data/integration-catalog';
 import { TYPE_LABELS, INTEGRATION_TYPE_CATALOG } from '@/lib/data/integration-catalog';
@@ -155,7 +156,7 @@ export function IntegrationsClient({
         </div>
       </div>
 
-      <a href="#tiktok-shop" className="inline-flex text-sm font-medium text-primary">Manage TikTok Shop API authorization ↓</a>
+      <NavigationLink href="#tiktok-shop" direction="down">Manage TikTok Shop API authorization</NavigationLink>
 
       {/* Connected section */}
       <section className="space-y-4">
