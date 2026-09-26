@@ -1,5 +1,6 @@
 "use client";
 
+import { DateField } from '@/components/ui/date-field';
 import { useId, useState } from "react";
 import { ArrowRight, Check, History, Plus, Repeat2, X } from "lucide-react";
 import { ChoiceMenu } from "@/components/ui/choice-menu";
@@ -319,11 +320,10 @@ export function AgreementPreview({
                     {action === "new" && (
                       <label className={styles.field}>
                         Starts
-                        <input
-                          type="date"
+                        <DateField
                           value={terms.start}
-                          onChange={(event) =>
-                            change("start", event.target.value)
+                          onValueChange={(event) =>
+                            change("start", event)
                           }
                           required
                         />
@@ -332,13 +332,12 @@ export function AgreementPreview({
                     {monthly && action === "new" && (
                       <label className={styles.field}>
                         First period ends
-                        <input
-                          type="date"
+                        <DateField
                           value={terms.firstPeriodEnd}
                           min={terms.start}
                           required
-                          onChange={(event) =>
-                            change("firstPeriodEnd", event.target.value)
+                          onValueChange={(event) =>
+                            change("firstPeriodEnd", event)
                           }
                         />
                       </label>
@@ -348,12 +347,11 @@ export function AgreementPreview({
                         {terms.kind === "package"
                           ? "Delivery deadline"
                           : "Ends"}
-                        <input
-                          type="date"
+                        <DateField
                           value={terms.end}
                           min={terms.start}
-                          onChange={(event) =>
-                            change("end", event.target.value)
+                          onValueChange={(event) =>
+                            change("end", event)
                           }
                           required
                         />
@@ -433,12 +431,11 @@ export function AgreementPreview({
                   (action === "change" && (timing === "date" || !monthly))) && (
                   <label className={styles.field}>
                     {action === "end" ? "Final active date" : "Effective date"}
-                    <input
-                      type="date"
+                    <DateField
                       value={date}
                       min={terms.start}
-                      onChange={(event) => {
-                        setDate(event.target.value);
+                      onValueChange={(event) => {
+                        setDate(event);
                         if (!monthly) setTiming("date");
                       }}
                       required

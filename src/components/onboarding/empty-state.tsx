@@ -1,10 +1,11 @@
 'use client';
 
+import { InterfaceIcon } from '@/components/ui/interface-icon';
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 
 interface EmptyStateProps {
-  icon: string;
+  icon: React.ReactNode;
   title: string;
   description: string;
   actionLabel?: string;
@@ -36,7 +37,7 @@ export function EmptyState({
 
       {/* Empty state content */}
       <div className="relative z-10 flex flex-col items-center justify-center py-16 px-6 text-center">
-        <div className="text-5xl mb-4">{icon}</div>
+        <div className="mb-4 flex size-12 items-center justify-center rounded-xl bg-primary/10 text-primary">{icon}</div>
         <h3 className="text-lg font-bold">{title}</h3>
         <p className="text-sm text-muted-foreground mt-2 max-w-sm">{description}</p>
 
@@ -66,7 +67,7 @@ export function EmptyState({
 export function EmptyDashboard() {
   return (
     <EmptyState
-      icon="📊"
+      icon={<InterfaceIcon name="chart" className="size-6"/>}
       title="Your dashboard is ready"
       description="Connect your shop and import data to see GMV, creator performance and product analytics."
       actionLabel="Connect TikTok Shop"
@@ -78,7 +79,7 @@ export function EmptyDashboard() {
 export function EmptyCreators() {
   return (
     <EmptyState
-      icon="👥"
+      icon={<InterfaceIcon name="people" className="size-6"/>}
       title="No creators yet"
       description="Upload your managed roster or connect TikTok to automatically discover your affiliate creators."
       actionLabel="Add Creators"
@@ -92,7 +93,7 @@ export function EmptyCreators() {
 export function EmptyVideos() {
   return (
     <EmptyState
-      icon="🎬"
+      icon={<InterfaceIcon name="video" className="size-6"/>}
       title="No video data yet"
       description="Video performance appears after a successful import. Check Connections and Data & Imports for progress."
       actionLabel="Connect TikTok Shop"
@@ -104,7 +105,7 @@ export function EmptyVideos() {
 export function EmptyAnalytics() {
   return (
     <EmptyState
-      icon="📈"
+      icon={<InterfaceIcon name="chart" className="size-6"/>}
       title="Analytics will appear here"
       description="Connect your shop and check import coverage before generating an analytics report."
       actionLabel="Connect TikTok Shop"
@@ -116,7 +117,7 @@ export function EmptyAnalytics() {
 export function EmptyMessages() {
   return (
     <EmptyState
-      icon="💬"
+      icon={<InterfaceIcon name="message" className="size-6"/>}
       title="No messages yet"
       description="Connect Discord to enable creator messaging, bulk outreach, and inbound DM logging."
       actionLabel="Connect Discord"

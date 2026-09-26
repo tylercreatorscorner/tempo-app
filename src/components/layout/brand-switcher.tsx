@@ -1,5 +1,6 @@
 'use client';
 
+import { InterfaceIcon } from '@/components/ui/interface-icon';
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { ChevronsUpDown, Check, Search, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -261,7 +262,7 @@ export function BrandSwitcher() {
                 {filtered.length} brand{filtered.length === 1 ? '' : 's'}
               </span>
               <span className="text-[10px] text-muted-foreground hidden sm:flex items-center gap-1">
-                <kbd className="px-1 py-0.5 rounded bg-card border border-border text-muted-foreground font-sans text-[9px]">↑↓</kbd>
+                <kbd className="px-1 py-0.5 rounded bg-card border border-border text-muted-foreground font-sans text-[9px]"><InterfaceIcon name="increase" /><InterfaceIcon name="decrease" /></kbd>
                 <kbd className="px-1 py-0.5 rounded bg-card border border-border text-muted-foreground font-sans text-[9px]">↵</kbd>
               </span>
             </div>

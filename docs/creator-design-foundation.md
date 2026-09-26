@@ -15,6 +15,13 @@ The existing creator profile metric rail uses a shared, server-compatible compon
 
 The approved reference archive remains in the Tempo workspace at `context/tempo-design-system`, with a manifest and hash verification script. Preserve those reference files when evolving implementation. This repository document records the implementation contract; the archive contains the full approved screens.
 
+## Shared calendars and interface icons
+
+- Use `InterfaceIcon` for decorative status and directional glyphs; retain visible status labels. Do not insert emoji or Unicode arrows into application controls. Conversational Discord message content is separate.
+- Use `DateField` for individual dates, `DateTimeField` for local scheduling, and `CustomRangePopover` for reporting ranges. They share the themed `Calendar` built on DayPicker. Keep ISO date strings, caller min/max/step constraints, native typed entry and form validation; never convert date-only values through UTC.
+- Reporting ranges require two selections and explicit Apply; backward selection is normalized. Cancel/Escape never applies the draft. The reporting cutoff remains yesterday unless the caller supplies a different maximum. Coaching retains its Monday-only rule.
+- Check keyboard focus, date boundaries, single-day and cross-month ranges, 390px mobile and dark appearance when changing these controls.
+
 ## Data integration boundary
 
 Components only accept already-authorized data. They do not fetch, authorize, or join records. Use a React `key` composed of creator, authorized brand scope, and date range when mounting a timeline so a scope change resets selection. Period keys must be unique and chronologically ordered; include explicit null buckets for unavailable periods. Empty strings are reserved for the totals selector.

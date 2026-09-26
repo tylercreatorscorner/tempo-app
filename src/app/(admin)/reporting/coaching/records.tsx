@@ -1,5 +1,6 @@
 "use client";
 
+import { DateField } from '@/components/ui/date-field';
 import { useCallback, useEffect, useRef, useState } from "react";
 import { NavigationLink } from "@/components/ui/navigation-link";
 import { PageHeader } from "@/components/ui/page-header";
@@ -141,24 +142,23 @@ export function CoachingRecords() {
       <div className="flex flex-wrap items-end gap-3">
         <label className="text-xs text-muted-foreground">
           Week beginning (Monday)
-          <input
+          <DateField
             className="block mt-1 rounded-md border border-border bg-card p-2 text-sm text-foreground"
-            type="date"
             aria-label="Week beginning"
             value={week}
             max={mondayToday()}
             step={7}
             min="2020-01-06"
             disabled={busy}
-            onChange={(e) => {
-              if (!validWeek(e.target.value)) {
+            onValueChange={(e) => {
+              if (!validWeek(e)) {
                 setError("Choose a Monday, up to the current week.");
                 return;
               }
               if (change()) {
                 setDirty(false);
                 setData(null);
-                setWeek(e.target.value);
+                setWeek(e);
                 setMessage("");
               }
             }}

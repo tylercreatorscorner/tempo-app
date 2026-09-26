@@ -1,5 +1,6 @@
 'use client';
 
+import { InterfaceIcon } from '@/components/ui/interface-icon';
 import { useState } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
@@ -202,7 +203,7 @@ export function SignupForm() {
         onClick={() => setStep('type')}
         className="w-full text-center text-sm text-muted-foreground hover:text-foreground transition-colors"
       >
-        ← Back
+        <InterfaceIcon name="back" /> Back
       </button>
     </div>
   );

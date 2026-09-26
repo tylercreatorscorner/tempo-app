@@ -505,7 +505,7 @@ function HighlightsCard({
             label="Most viral post"
             primary={highlights.topViralPost.title}
             secondary={`${fmtCompact(highlights.topViralPost.impressions)} views · @${highlights.topViralPost.creatorHandle}`}
-            pill="↗ TikTok"
+            pill="TikTok"
             accent={accent}
             href={
               resolveWatchUrl(

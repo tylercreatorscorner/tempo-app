@@ -1,3 +1,4 @@
+import { InterfaceIcon } from '@/components/ui/interface-icon';
 import Link from 'next/link';
 import { VideoThumbnail } from './video-thumbnail';
 import { formatCurrency } from '@/lib/utils/format';
@@ -62,7 +63,7 @@ export function TopVideos({ videos, label, failed = false, brand }: { videos: To
       <CardHeader>
         <CardTitle eyebrow>Top Videos · {label}</CardTitle>
         <Link href={brand ? `/posts?brand=${encodeURIComponent(brand)}` : "/posts"} className="text-xs font-semibold text-[var(--primary)] hover:underline">
-          View all →
+          View all <InterfaceIcon name="forward" />
         </Link>
       </CardHeader>
 

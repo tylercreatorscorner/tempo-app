@@ -1,215 +1,133 @@
-'use client';
-
-import { useState, useEffect, useRef } from 'react';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isSameDay, isAfter, isBefore, isSameMonth, parseISO, isValid } from 'date-fns';
-import { ChevronLeft, ChevronRight, X } from 'lucide-react';
-import styles from './custom-range-popover.module.css';
-import { cn } from '@/lib/utils';
-
+"use client";
+import { useState, useRef } from "react";
+import { Dialog } from "radix-ui";
+import { format, parseISO, isValid, subDays, startOfDay } from "date-fns";
+import { X } from "lucide-react";
+import { Calendar } from "@/components/ui/calendar";
+import type { DateRange } from "@daypicker/react";
+import styles from "./custom-range-popover.module.css";
 interface Props {
   initialStart?: string | null;
   initialEnd?: string | null;
   onApply: (start: string, end: string) => void;
   onClose: () => void;
-  /** Don't allow selecting dates after this (defaults to yesterday — data is always delayed). */
   maxDate?: Date;
 }
-
-const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
-
-/**
- * Compact two-month custom range picker. Click once to set the start, again to set the end.
- * Hover preview between clicks. Esc and outside-click both dismiss.
- */
-export function CustomRangePopover({ initialStart, initialEnd, onApply, onClose, maxDate }: Props) {
-  // Default to yesterday since data is always one day delayed
-  const yesterday = (() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 1);
-    d.setHours(0, 0, 0, 0);
-    return d;
-  })();
-  const max = maxDate ?? yesterday;
-
-  // Anchor the visible month: start of the month containing the existing start, else current month
-  const seedDate = initialStart && isValid(parseISO(initialStart)) ? parseISO(initialStart) : new Date();
-  const [anchor, setAnchor] = useState(() => startOfMonth(seedDate));
-
-  // Selection state
-  const [start, setStart] = useState<Date | null>(initialStart && isValid(parseISO(initialStart)) ? parseISO(initialStart) : null);
-  const [end, setEnd]     = useState<Date | null>(initialEnd && isValid(parseISO(initialEnd)) ? parseISO(initialEnd) : null);
-  const [hover, setHover] = useState<Date | null>(null);
-
-  const ref = useRef<HTMLDivElement>(null);
-
-  // Close on click-outside or Esc
-  useEffect(() => {
-    const onDoc = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    document.addEventListener('mousedown', onDoc);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onDoc);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [onClose]);
-
-  function handleDayClick(day: Date) {
-    if (isAfter(day, max)) return; // clamp to max date
-    if (!start || (start && end)) {
-      setStart(day);
-      setEnd(null);
-      setHover(null);
-    } else {
-      // Second click — set end (swap if user clicked an earlier day)
-      if (isBefore(day, start)) {
-        setEnd(start);
-        setStart(day);
-      } else {
-        setEnd(day);
-      }
-    }
-  }
-
-  function inRange(day: Date): boolean {
-    if (!start) return false;
-    if (start && end) return !isBefore(day, start) && !isAfter(day, end);
-    if (start && hover) {
-      const lo = isBefore(hover, start) ? hover : start;
-      const hi = isBefore(hover, start) ? start : hover;
-      return !isBefore(day, lo) && !isAfter(day, hi);
-    }
-    return false;
-  }
-
-  const months = [anchor, addMonths(anchor, 1)];
-  const canApply = start !== null && end !== null;
-
-  const renderMonth = (month: Date) => {
-    const monthStart = startOfMonth(month);
-    const monthEnd   = endOfMonth(month);
-    const days       = eachDayOfInterval({ start: monthStart, end: monthEnd });
-    // Pad leading blanks to align with weekday columns
-    const leadingBlanks = monthStart.getDay();
-    const cells: Array<Date | null> = [...Array(leadingBlanks).fill(null), ...days];
-
-    return (
-      <div key={month.toISOString()} className={styles.month}>
-        <div className="text-center text-xs font-bold text-[var(--foreground)] mb-2">
-          {format(month, 'MMMM yyyy')}
-        </div>
-        <div className="grid grid-cols-7 gap-0.5 text-[10px] text-muted-foreground font-medium mb-1">
-          {WEEKDAYS.map((w) => (
-            <div key={w} className="h-6 flex items-center justify-center">{w}</div>
-          ))}
-        </div>
-        <div className="grid grid-cols-7 gap-0.5">
-          {cells.map((day, i) => {
-            if (!day) return <div key={`b-${i}`} />;
-            const disabled = isAfter(day, max);
-            const isStart  = start && isSameDay(day, start);
-            const isEnd    = end && isSameDay(day, end);
-            const inSel    = inRange(day);
-            const sameMo   = isSameMonth(day, month);
-            return (
-              <button
-                key={day.toISOString()}
-                type="button"
-                aria-label={format(day, "MMMM d, yyyy")}
-                aria-pressed={!!(isStart || isEnd)}
-                disabled={disabled || !sameMo}
-                onClick={() => handleDayClick(day)}
-                onMouseEnter={() => setHover(day)}
-                className={cn(
-                  'h-9 w-full rounded-md text-xs font-medium transition-colors',
-                  disabled && 'text-muted-foreground cursor-not-allowed',
-                  !disabled && !inSel && !isStart && !isEnd && 'text-foreground hover:bg-muted',
-                  inSel && !isStart && !isEnd && 'bg-primary/10 text-[var(--primary)]',
-                  (isStart || isEnd) && 'bg-[var(--primary)] text-white',
-                )}
-              >
-                {day.getDate()}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    );
-  };
-
+const parse = (value?: string | null) =>
+  value && isValid(parseISO(value)) ? parseISO(value) : undefined;
+export function CustomRangePopover({
+  initialStart,
+  initialEnd,
+  onApply,
+  onClose,
+  maxDate,
+}: Props) {
+  const returnFocus = useRef(
+    typeof document === "undefined"
+      ? null
+      : (document.activeElement as HTMLElement | null),
+  );
+  const max = startOfDay(maxDate ?? subDays(new Date(), 1));
+  const [range, setRange] = useState<DateRange | undefined>({
+    from: parse(initialStart),
+    to: parse(initialEnd),
+  });
+  const complete =
+    !!range?.from && !!range?.to && range.from <= range.to && range.to <= max;
   return (
-    <div
-      ref={ref}
-      className={styles.popover}
-      role="dialog" aria-label="Custom reporting period" data-lenis-prevent
+    <Dialog.Root
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
     >
-      {/* Header */}
-      <div className="flex items-center justify-between mb-3">
-        <button
-          type="button" aria-label="Previous month"
-          onClick={() => setAnchor(subMonths(anchor, 1))}
-          className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground transition-colors"
-        >
-          <ChevronLeft className="h-4 w-4" />
-        </button>
-        <div className="text-xs text-muted-foreground">
-          {start && !end && <>Pick an end date</>}
-          {start && end && (
-            <>
-              <span className="font-semibold text-[var(--foreground)]">{format(start, 'MMM d, yyyy')}</span>
-              <span className="mx-1.5 text-muted-foreground">→</span>
-              <span className="font-semibold text-[var(--foreground)]">{format(end, 'MMM d, yyyy')}</span>
-            </>
-          )}
-          {!start && <>Pick a start date</>}
-        </div>
-        <div className="flex items-center gap-1">
-          <button
-            type="button" aria-label="Next month"
-            onClick={() => setAnchor(addMonths(anchor, 1))}
-            className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground transition-colors"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </button>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground transition-colors"
-            title="Close"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-      </div>
-
-      {/* Two-month grid */}
-      <div className={styles.months}>
-        {months.map(renderMonth)}
-      </div>
-
-      {/* Footer */}
-      <div className="flex items-center justify-between mt-4 pt-3 border-t border-border">
-        <button
-          onClick={() => { setStart(null); setEnd(null); setHover(null); }}
-          className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-        >
-          Clear
-        </button>
-        <button
-          onClick={() => {
-            if (canApply && start && end) {
-              onApply(format(start, 'yyyy-MM-dd'), format(end, 'yyyy-MM-dd'));
-            }
+      <Dialog.Portal>
+        <Dialog.Overlay className={styles.overlay} />
+        <Dialog.Content
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            returnFocus.current?.focus();
           }}
-          disabled={!canApply}
-          className="px-4 py-2 rounded-xl bg-[var(--primary)] text-white text-xs font-semibold hover:brightness-[1.07] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className={styles.popover}
+          data-lenis-prevent
         >
-          Apply
-        </button>
-      </div>
-    </div>
+          <header className={styles.header}>
+            <div>
+              <Dialog.Title className="text-sm font-semibold">
+                Custom reporting period
+              </Dialog.Title>
+              <Dialog.Description className="mt-1 text-xs text-muted-foreground">
+                Choose a start and end date.
+              </Dialog.Description>
+            </div>
+            <Dialog.Close asChild>
+              <button
+                type="button"
+                aria-label="Close calendar"
+                className={styles.close}
+              >
+                <X size={16} />
+              </button>
+            </Dialog.Close>
+          </header>
+          <div className={styles.selection} aria-live="polite">
+            <div>
+              <span>Start date</span>
+              <strong>
+                {range?.from
+                  ? format(range.from, "MMM d, yyyy")
+                  : "Select date"}
+              </strong>
+            </div>
+            <div>
+              <span>End date</span>
+              <strong>
+                {range?.to ? format(range.to, "MMM d, yyyy") : "Select date"}
+              </strong>
+            </div>
+          </div>
+          <Calendar
+            mode="range"
+            selected={range}
+            onSelect={(_, day) =>
+              setRange(
+                !range?.from || range.to
+                  ? { from: day, to: undefined }
+                  : day < range.from
+                    ? { from: day, to: range.from }
+                    : { from: range.from, to: day },
+              )
+            }
+            defaultMonth={range?.from ?? max}
+            disabled={{ after: max }}
+            numberOfMonths={1}
+            autoFocus
+          />
+          <footer className={styles.footer}>
+            <button
+              type="button"
+              onClick={() => setRange(undefined)}
+              className="rounded-md px-2 py-2 text-xs text-muted-foreground hover:bg-muted"
+            >
+              Clear
+            </button>
+            <button
+              type="button"
+              disabled={!complete}
+              className="rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-white disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+              onClick={() => {
+                if (complete && range?.from && range.to)
+                  onApply(
+                    format(range.from, "yyyy-MM-dd"),
+                    format(range.to, "yyyy-MM-dd"),
+                  );
+              }}
+            >
+              Apply period
+            </button>
+          </footer>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }

@@ -22,6 +22,7 @@
  * engagement data in this window" and renders as an em dash placeholder,
  * never a fake 0. Money is windowed per migration 079.
  */
+import { InterfaceIcon } from '@/components/ui/interface-icon';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Download, Eye, Loader2, Search, ExternalLink,
@@ -823,7 +824,7 @@ function SortableTh({
   align?: 'left' | 'right';
 }) {
   const active = current === sortKey;
-  const arrow = active ? (dir === 'asc' ? '↑' : '↓') : '';
+  const arrow = active ? <InterfaceIcon name={dir === "asc" ? "increase" : "decrease"}/> : null;
   return (
     <th
       onClick={() => onClick(sortKey)}

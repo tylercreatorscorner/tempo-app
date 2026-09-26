@@ -1,4 +1,5 @@
 "use client";
+import { InterfaceIcon } from '@/components/ui/interface-icon';
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -200,7 +201,7 @@ export function ManagerReviews() {
         href="/dashboard"
         className="text-sm text-muted-foreground hover:text-foreground"
       >
-        ← Dashboard
+        <InterfaceIcon name="back" /> Dashboard
       </Link>
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
@@ -404,7 +405,7 @@ export function ManagerReviews() {
               href="/reporting/weekly"
               className="mt-3 inline-block text-sm font-medium text-primary"
             >
-              Open weekly manager reports →
+              Open weekly manager reports <InterfaceIcon name="forward" />
             </Link>
           </section>
         </>

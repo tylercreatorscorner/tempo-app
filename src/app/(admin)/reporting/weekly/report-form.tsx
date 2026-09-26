@@ -9,6 +9,7 @@
  * system rests on and the one a manager is most likely to get wrong by hand.
  */
 
+import { DateField } from '@/components/ui/date-field';
 import { useState, useTransition } from 'react';
 import { AlertTriangle, Check, ChevronDown, Lock } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -256,11 +257,10 @@ export function ReportForm({ row, weekEnding }: { row: WeeklyReportRow; weekEndi
             </div>
             <div>
               <Label htmlFor={`due-${row.brandSlug}`}>Due by</Label>
-              <Input
+              <DateField
                 id={`due-${row.brandSlug}`}
-                type="date"
                 value={nextActionDue}
-                onChange={(e) => setNextActionDue(e.target.value)}
+                onValueChange={(e) => setNextActionDue(e)}
               />
             </div>
 
@@ -277,11 +277,10 @@ export function ReportForm({ row, weekEnding }: { row: WeeklyReportRow; weekEndi
             </div>
             <div>
               <Label htmlFor={`contract-${row.brandSlug}`}>Contract ends</Label>
-              <Input
+              <DateField
                 id={`contract-${row.brandSlug}`}
-                type="date"
                 value={contractEndsOn}
-                onChange={(e) => setContractEndsOn(e.target.value)}
+                onValueChange={(e) => setContractEndsOn(e)}
               />
             </div>
 

@@ -1,5 +1,6 @@
 'use client';
 
+import { InterfaceIcon } from '@/components/ui/interface-icon';
 import { useEffect, useState } from 'react';
 import { TempoLogo } from '@/components/ui/tempo-logo';
 import { Button } from '@/components/ui/button';
@@ -70,7 +71,7 @@ export default function CreatorLoginPage() {
 
           {sent ? (
             <div className="text-center space-y-4">
-              <div className="auth-settle text-4xl" style={{ '--d': '.04s' } as React.CSSProperties}>📬</div>
+              <div className="auth-settle text-4xl" style={{ '--d': '.04s' } as React.CSSProperties}><InterfaceIcon name="mail" className="size-7 text-primary" /></div>
               <p className="auth-rise text-sm text-muted-foreground" style={{ '--d': '.12s' } as React.CSSProperties}>
                 Check your email for a login link. It will expire in 15 minutes.
               </p>

@@ -1,5 +1,6 @@
 'use client';
 
+import { InterfaceIcon } from '@/components/ui/interface-icon';
 import { useState } from 'react';
 import { Copy, CheckCircle2, Music2, Shield, Info, ExternalLink } from 'lucide-react';
 
@@ -75,7 +76,7 @@ export function TikTokConnect({ companyName, connected }: TikTokConnectProps) {
           </li>
           <li className="flex items-start gap-3">
             <span className="h-6 w-6 rounded-full bg-muted flex items-center justify-center text-xs font-bold shrink-0">2</span>
-            <span>Navigate to <strong className="text-foreground">Settings → Account → Sub-accounts</strong></span>
+            <span>Navigate to <strong className="text-foreground">Settings <InterfaceIcon name="forward" /> Account <InterfaceIcon name="forward" /> Sub-accounts</strong></span>
           </li>
           <li className="flex items-start gap-3">
             <span className="h-6 w-6 rounded-full bg-muted flex items-center justify-center text-xs font-bold shrink-0">3</span>

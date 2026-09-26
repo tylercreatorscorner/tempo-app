@@ -1,0 +1,132 @@
+.calendar {
+  --rdp-accent-color: var(--primary);
+  --rdp-accent-background-color: color-mix(
+    in srgb,
+    var(--primary) 9%,
+    var(--card)
+  );
+  --rdp-day-height: 38px;
+  --rdp-day-width: 38px;
+  --rdp-day_button-height: 36px;
+  --rdp-day_button-width: 36px;
+  --rdp-day_button-border-radius: 8px;
+  --rdp-selected-border: 0;
+  --rdp-today-color: var(--primary);
+  --rdp-range_middle-background-color: var(--rdp-accent-background-color);
+  --rdp-range_middle-color: var(--foreground);
+  --rdp-outside-opacity: 0.35;
+  --rdp-disabled-opacity: 0.25;
+  --rdp-nav_button-height: 30px;
+  --rdp-nav_button-width: 30px;
+  font-size: 13px;
+  color: var(--foreground);
+}
+.calendar :global(.rdp-month_caption) {
+  height: 42px;
+  font-size: 13px;
+  font-weight: 600;
+  padding-left: 4px;
+}
+.calendar :global(.rdp-chevron) {
+  width: 16px;
+  height: 16px;
+  fill: var(--muted-foreground);
+}
+.calendar :global(.rdp-button_previous),
+.calendar :global(.rdp-button_next) {
+  border-radius: 7px;
+}
+.calendar button:hover:not(:disabled) {
+  background: var(--secondary);
+}
+.calendar button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.calendar :global(.rdp-selected) button {
+  background: var(--primary);
+  color: white;
+  font-weight: 600;
+}
+.calendar :global(.rdp-range_middle) button {
+  background: transparent;
+  color: var(--foreground);
+  font-weight: 400;
+}
+.calendar :global(.rdp-weekday) {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  padding: 8px 0;
+}
+.calendar :global(.rdp-dropdown) {
+  cursor: pointer;
+}
+.panel {
+  z-index: 220;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--card);
+  padding: 12px;
+  box-shadow: 0 16px 48px #00000020;
+  max-width: calc(100vw - 24px);
+  max-height: var(--radix-popover-content-available-height);
+  overflow: auto;
+  color: var(--foreground);
+}
+.field {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  min-width: 0;
+}
+.field input {
+  width: 100%;
+  min-width: 0;
+  padding-right: 38px;
+  color-scheme: light;
+}
+:global(.dark) .field input {
+  color-scheme: dark;
+}
+.field input::-webkit-calendar-picker-indicator {
+  display: none;
+}
+.open {
+  position: absolute;
+  right: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  color: var(--muted-foreground);
+}
+.open:hover {
+  background: var(--secondary);
+  color: var(--foreground);
+}
+.open:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+.open:disabled {
+  opacity: 0.4;
+}
+.footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid var(--border);
+  padding: 10px 4px 0;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+
+.calendar :global(.rdp-selected) {
+  font-size: inherit;
+  font-weight: 400;
+}

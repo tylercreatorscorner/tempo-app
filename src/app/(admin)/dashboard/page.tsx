@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic';
 
+import { InterfaceIcon } from '@/components/ui/interface-icon';
 import { Suspense } from 'react';
 import { BarChart3 } from 'lucide-react';
 import { format, subDays, differenceInDays } from 'date-fns';
@@ -588,7 +589,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
           description="Try a different date range, or check recorded-day coverage before treating this as zero activity."
           action={
             <a href={`?range=last7${brandFilter ? `&brand=${encodeURIComponent(brandFilter)}` : ''}`} className={buttonVariants({ variant: 'outline' })}>
-              View Last 7 Days →
+              View Last 7 Days <InterfaceIcon name="forward" />
             </a>
           }
         />

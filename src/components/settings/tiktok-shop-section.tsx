@@ -13,6 +13,7 @@
  * the last-good data behind a stale banner.
  */
 
+import { InterfaceIcon } from '@/components/ui/interface-icon';
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -561,7 +562,7 @@ function TikTokShopPanel() {
             ok: true,
             text:
               `Token rotated${d.firstEverRefresh ? ' — FIRST EVER refresh for this connection, the path is proven' : ''}. ` +
-              `Access token ${formatDateTime(d.previousAccessTokenExpiresAt ?? '')} → ${formatDateTime(d.accessTokenExpiresAt ?? '')}.`,
+              `Access token ${formatDateTime(d.previousAccessTokenExpiresAt ?? '')} to ${formatDateTime(d.accessTokenExpiresAt ?? '')}.`,
           },
         }));
         // Re-read so the card's expiry fields agree with what just happened
@@ -609,7 +610,7 @@ function TikTokShopPanel() {
             : `${r.endpoint}: ${r.rows} rows over ${r.pages} page(s)` +
               `${r.containerKey ? ` under "${r.containerKey}"` : ' — NO ARRAY FOUND'}` +
               `${r.tokenKey ? `, paged by "${r.tokenKey}"` : ', single page'}` +
-              `${r.truncated ? ' ⚠ HIT PAGE CAP' : ''}`,
+              `${r.truncated ? ' Page limit reached' : ''}`,
         );
         const allFailed = rs.length > 0 && rs.every((r) => r.error);
         setTestResult((prev) => ({
@@ -1288,7 +1289,7 @@ function ConnectionRow({
               : 'text-xs text-[var(--pulse-neg)]'
           }
         >
-          {testResult.ok ? '✓ ' : '✕ '}
+          <InterfaceIcon name={testResult.ok ? "success" : "error"} className="mr-1.5"/>
           {testResult.text}
         </p>
       )}

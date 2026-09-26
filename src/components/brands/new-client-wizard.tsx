@@ -13,6 +13,7 @@
  * before closing so partial failures aren't silent.
  */
 
+import { DateField } from '@/components/ui/date-field';
 import { useEffect, useMemo, useState } from 'react';
 import {
   X, Loader2, ArrowRight, ArrowLeft, Sparkles, DollarSign, UserPlus,
@@ -594,10 +595,9 @@ function Step2Financial({
               />
             </Field>
             <Field label="Launch Fee Ends" hint="Optional date when this fee stops">
-              <TextInput
-                type="date"
+              <DateField
                 value={financial.launch_fee_ends}
-                onChange={(v) => set('launch_fee_ends', v)}
+                onValueChange={(v) => set('launch_fee_ends', v)}
               />
             </Field>
           </>

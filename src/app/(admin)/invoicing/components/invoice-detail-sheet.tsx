@@ -1,5 +1,6 @@
 'use client';
 
+import { DateField } from '@/components/ui/date-field';
 import { useEffect, useState } from 'react';
 import { X, Save, Download, Trash2, Loader2, Send, CheckCircle2, RotateCcw, RefreshCw, Users, Ban, Link2, Mail, Copy, Check, ExternalLink, FileSpreadsheet } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -720,7 +721,7 @@ export function InvoiceDetailSheet({ invoice, onClose, onUpdated, onDeleted }: P
           {/* Payment terms */}
           <Section title="Payment Terms">
             <Field label="Due Date">
-              <TextInput type="date" value={draft.due_date} onChange={(v) => setDraft({ ...draft, due_date: v })} />
+              <DateField value={draft.due_date} onValueChange={(v) => setDraft({ ...draft, due_date: v })} />
             </Field>
             <Field label="Payment Instructions" hint="Appears on the PDF">
               <TextArea

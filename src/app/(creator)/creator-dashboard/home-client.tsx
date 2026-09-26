@@ -1,5 +1,6 @@
 'use client';
 
+import { InterfaceIcon } from '@/components/ui/interface-icon';
 import Link from 'next/link';
 import {
   ArrowRight,
@@ -138,7 +139,7 @@ export function HomeClient(props: Props) {
           <SectionHead
             title={`${bandLabel} · where you stand`}
             href="/creator-dashboard/rankings"
-            cta="Full rankings →"
+            cta="Full rankings"
           />
           <StandingBand standing={brandStanding} variant="share" />
         </section>
@@ -233,7 +234,7 @@ function SectionHead({ title, href, cta }: { title: string; href?: string; cta?:
           href={href}
           className="whitespace-nowrap text-xs font-semibold text-primary hover:underline"
         >
-          {cta}
+          {cta} <InterfaceIcon name="forward"/>
         </Link>
       )}
     </div>
@@ -475,7 +476,7 @@ function MoneyMakers({
           href="/creator-dashboard/stats"
           className="whitespace-nowrap text-xs font-semibold text-primary hover:underline"
         >
-          See all →
+          See all <InterfaceIcon name="forward" />
         </Link>
       </CardHeader>
       <CardContent className="pt-0">
@@ -651,7 +652,7 @@ function RetainerPace({
           />
           <div className="min-w-[220px] flex-1 space-y-3 text-sm">
             <div className="space-y-2">
-              <PaceRow label="Videos posted" value={`${monthVideos} / ${monthlyTarget}${onTrack ? ' ✓' : ''}`} />
+              <PaceRow label="Videos posted" value={`${monthVideos} / ${monthlyTarget}`} />
               <PaceRow label="Days left" value={String(daysLeftInMonth)} />
               <PaceRow
                 label="Status"
@@ -775,7 +776,7 @@ function VideoColumn({
           {title}
         </CardTitle>
         <Link href={ctaHref} className="whitespace-nowrap text-xs font-semibold text-primary hover:underline">
-          See all →
+          See all <InterfaceIcon name="forward" />
         </Link>
       </CardHeader>
       <CardContent className="pt-0">

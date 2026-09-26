@@ -16,13 +16,12 @@ export interface VideoData {
 
 interface VideoSectionProps {
   title: string;
-  emoji: string;
   description: string;
   videos: VideoData[];
   defaultExpanded?: boolean;
 }
 
-export function VideoSection({ title, emoji, description, videos, defaultExpanded = true }: VideoSectionProps) {
+export function VideoSection({ title, description, videos, defaultExpanded = true }: VideoSectionProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
 
   if (!videos || videos.length === 0) return null;

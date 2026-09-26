@@ -1,5 +1,6 @@
 'use client';
 
+import { InterfaceIcon } from '@/components/ui/interface-icon';
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -24,7 +25,7 @@ export function SetupBanner() {
         <div className="px-5 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4 flex-1">
             <div className="flex items-center gap-3">
-              <div className="text-2xl">🚀</div>
+              <div className="text-2xl"><InterfaceIcon name="launch" className="size-7 text-primary" /></div>
               <div>
                 <h3 className="font-semibold text-sm">Get set up</h3>
                 <p className="text-xs text-muted-foreground">

@@ -1,3 +1,4 @@
+import { InterfaceIcon } from '@/components/ui/interface-icon';
 interface Props {
   tiktokConnected: boolean;
   creatorsAdded: boolean;
@@ -26,7 +27,7 @@ export function DashboardOnboarding({
         <div className="relative z-10">
           <div className="flex items-center gap-3 mb-4">
             <div className="h-10 w-10 rounded-xl bg-card/10 backdrop-blur flex items-center justify-center">
-              <span className="text-xl">{requiredDone ? '🎉' : '🚀'}</span>
+              <span className="text-xl"><InterfaceIcon name={requiredDone ? "complete" : "launch"} className="size-5"/></span>
             </div>
             <span className="text-sm font-medium text-white/60 uppercase tracking-wider">
               {requiredDone ? 'Almost there' : 'Getting Started'}
@@ -61,7 +62,7 @@ export function DashboardOnboarding({
           <a href="/settings" className="group rounded-2xl border-2 border-[var(--primary)]/30 bg-gradient-to-br from-[var(--primary)]/5 to-card p-6 hover:border-[var(--primary)]/60 hover:shadow-lg hover:shadow-[var(--primary)]/10 transition-all duration-300 block">
             <div className="flex items-start gap-4">
               <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-[var(--primary)] to-[var(--primary)]/80 flex items-center justify-center flex-shrink-0 shadow-lg shadow-[var(--primary)]/20">
-                <span className="text-2xl">🎵</span>
+                <span className="text-2xl"><InterfaceIcon name="music" /></span>
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
@@ -88,7 +89,7 @@ export function DashboardOnboarding({
           ) : (
             <a href="/roster" className="group rounded-2xl border border-border bg-card p-5 hover:border-border hover:shadow-md transition-all duration-300 flex items-center gap-4">
               <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-[var(--pulse-accent-2)] to-[var(--pulse-accent-2)]/80 flex items-center justify-center flex-shrink-0">
-                <span className="text-lg">👥</span>
+                <span className="text-lg"><InterfaceIcon name="people" /></span>
               </div>
               <div className="flex-1 min-w-0">
                 <h3 className="font-semibold text-foreground text-sm">Add Your Creators</h3>
@@ -103,7 +104,7 @@ export function DashboardOnboarding({
           ) : (
             <a href="/settings" className="group rounded-2xl border border-border bg-card p-5 hover:border-border hover:shadow-md transition-all duration-300 flex items-center gap-4">
               <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-[#5865F2] to-[#5865F2]/80 flex items-center justify-center flex-shrink-0">
-                <span className="text-lg">💬</span>
+                <span className="text-lg"><InterfaceIcon name="message" /></span>
               </div>
               <div className="flex-1 min-w-0">
                 <h3 className="font-semibold text-foreground text-sm">Connect Discord</h3>

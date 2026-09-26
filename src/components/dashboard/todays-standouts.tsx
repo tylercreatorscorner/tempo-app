@@ -35,7 +35,6 @@ export async function TodaysStandouts({ brandFilter, startDate, endDate }: Props
 
   return (
     <VideoSection
-      emoji="✨"
       title="Today's Standouts"
       description="Top-performing posts in the selected period"
       videos={videos}

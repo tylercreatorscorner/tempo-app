@@ -1,5 +1,6 @@
 'use client';
 
+import { InterfaceIcon } from '@/components/ui/interface-icon';
 import { Select } from 'radix-ui';
 import { Check, ChevronDown } from 'lucide-react';
 import type { ReactNode } from 'react';
@@ -15,7 +16,7 @@ export function ChoiceMenu({ label, value, options, onChange, disabled, placehol
       {selected?.icon}<Select.Value placeholder={placeholder} /><Select.Icon className={styles.chevron}><ChevronDown size={15} /></Select.Icon>
     </Select.Trigger>
     <Select.Portal><Select.Content className={styles.content} position="popper" sideOffset={8} collisionPadding={12} data-lenis-prevent>
-      <Select.ScrollUpButton className={styles.scroll}>↑</Select.ScrollUpButton>
+      <Select.ScrollUpButton className={styles.scroll}><InterfaceIcon name="increase" /></Select.ScrollUpButton>
       <Select.Viewport className={styles.viewport}>
         {!options.some(option => option.group) && <div className={styles.heading}>{label}</div>}
         {options.map((option, index) => <Select.Group key={option.value}>
@@ -25,7 +26,7 @@ export function ChoiceMenu({ label, value, options, onChange, disabled, placehol
             <Select.ItemIndicator className={styles.check}><Check size={16} /></Select.ItemIndicator>
           </Select.Item>
         </Select.Group>)}
-      </Select.Viewport><Select.ScrollDownButton className={styles.scroll}>↓</Select.ScrollDownButton>
+      </Select.Viewport><Select.ScrollDownButton className={styles.scroll}><InterfaceIcon name="decrease" /></Select.ScrollDownButton>
     </Select.Content></Select.Portal>
   </Select.Root>;
 }

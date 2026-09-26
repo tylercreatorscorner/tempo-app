@@ -22,6 +22,7 @@
  * components — and /upload — same admin gating pattern (server component
  * redirect + client surface).
  */
+import { InterfaceIcon } from '@/components/ui/interface-icon';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ChevronDown, ChevronRight, Download, Loader2, Package, Search,
@@ -360,7 +361,7 @@ function SortableTh({
   align?: 'left' | 'right';
 }) {
   const active = current === sortKey;
-  const arrow = active ? (dir === 'asc' ? '↑' : '↓') : '';
+  const arrow = active ? <InterfaceIcon name={dir === "asc" ? "increase" : "decrease"}/> : null;
   return (
     <th
       onClick={() => onClick(sortKey)}

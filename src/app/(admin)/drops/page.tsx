@@ -19,6 +19,7 @@
  * to post for you.
  */
 
+import { DateField } from '@/components/ui/date-field';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AlertCircle, Check, Clipboard, Clock3, Loader2, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -26,7 +27,6 @@ import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Select } from '@/components/ui/select';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { SegmentedControl } from '@/components/ui/segmented';
@@ -177,13 +177,13 @@ export default function DropsPage() {
             <div className="flex items-end gap-2">
               <div>
                 <Label htmlFor="dr-start">From</Label>
-                <Input id="dr-start" type="date" value={startDate} max={endDate}
-                  onChange={e => setStartDate(e.target.value)} />
+                <DateField id="dr-start" value={startDate} max={endDate}
+                  onValueChange={e => setStartDate(e)} />
               </div>
               <div>
                 <Label htmlFor="dr-end">To</Label>
-                <Input id="dr-end" type="date" value={endDate} min={startDate} max={today}
-                  onChange={e => setEndDate(e.target.value)} />
+                <DateField id="dr-end" value={endDate} min={startDate} max={today}
+                  onValueChange={e => setEndDate(e)} />
               </div>
             </div>
           )}

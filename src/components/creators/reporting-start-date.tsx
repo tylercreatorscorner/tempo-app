@@ -1,9 +1,9 @@
 'use client';
 
+import { DateField } from '@/components/ui/date-field';
 import { useId, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
 export function ReportingStartDate({ managedId, startDate, brand }: {
@@ -36,7 +36,7 @@ export function ReportingStartDate({ managedId, startDate, brand }: {
   }
   return <div className="mt-4 space-y-2 border-t border-border pt-4">
     <Label htmlFor={id}>Count as managed from</Label>
-    <Input id={id} type="date" value={date} disabled={saving} onChange={event => setDate(event.target.value)} />
+    <DateField id={id} value={date} disabled={saving} onValueChange={event => setDate(event)} />
     <p className="text-xs text-muted-foreground">For {brand} reporting, sales before this date remain in store totals but do not count as managed. Leave blank to include all history. Contract dates are separate.</p>
     <Button size="sm" disabled={saving || date === saved} onClick={save}>{saving ? 'Saving…' : 'Save reporting date'}</Button>
     {message && <p role="status" className="text-xs">{message}</p>}
