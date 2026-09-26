@@ -191,6 +191,7 @@ export function CoachingRecords() {
           )}
         </div>
       )}
+      {dirty && <p role="status" className="text-xs text-muted-foreground">Unsaved changes. Save your draft before leaving.</p>}
       {message && (
         <p role="status" className="text-sm text-muted-foreground">
           {message}
@@ -279,7 +280,7 @@ export function CoachingRecords() {
               </section>
             )}
             {data.admin && (
-              <AssignmentForm data={data} busy={busy} save={save} />
+              <AssignmentForm data={data} busy={busy || dirty} save={save} />
             )}
           </>
         )

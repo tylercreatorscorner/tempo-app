@@ -172,6 +172,12 @@ assert.equal(
   (await db.query("select * from coaching_submissions")).rows.length,
   3,
 );
+// A failed history insert must roll back its report draft/version too.
+await db.exec(`reset role;create function reject_coaching_submission() returns trigger language plpgsql as $$ begin raise exception 'fixture history failure'; end; $$;create trigger reject_coaching_submission before insert on coaching_submissions for each row execute function reject_coaching_submission();set role service_role;`);
+await assert.rejects(call(id(21),'submit',assignment,draft,0,id(1),'2026-09-07'),/fixture history failure/);
+assert.equal((await db.query("select * from coaching_weekly_reports where week_start='2026-09-07'")).rows.length,0);
+await db.exec(`reset role;drop trigger reject_coaching_submission on coaching_submissions;delete from role_permissions where role_id='${id(31)}';set role service_role;`);
+await assert.rejects(call(id(21),'save',assignment,draft,0,id(1),'2026-09-07'),/Coaching access denied/);
 console.log(
   "PASS coaching records: role/tenant/brand isolation, coach identity, stale writes, submission validation, immutable revisions, review permissions and prior weeks",
 );
