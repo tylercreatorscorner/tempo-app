@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { NavigationLink } from "@/components/ui/navigation-link";
 import { redirect } from "next/navigation";
 import { requireScreen } from "@/lib/auth/require-screen";
 import { createAdminClient } from "@/lib/supabase/server";
@@ -41,18 +41,18 @@ export default async function SettingsPage({
           <dd>{tenant.name}</dd>
         </dl>
         {admin && (
-          <Link
-            className="inline-block mt-4 text-sm font-medium text-primary"
+          <NavigationLink
+            className="mt-3"
             href="/team"
           >
-            Manage people and access →
-          </Link>
+            Manage people and access
+          </NavigationLink>
         )}
       </section>
       {admin && (
         <section className="rounded-xl border border-border bg-muted/20 p-4 sm:p-5">
           <h2 className="font-semibold mb-2">Workspace tools</h2>
-          <div className="divide-y divide-border text-sm">
+          <div className="-mx-3 divide-y divide-border text-sm">
             {[
               [
                 "/settings/brands",
@@ -75,14 +75,13 @@ export default async function SettingsPage({
                 "Billing identities, payment details and compensation arrangements.",
               ],
             ].map(([href, title, description]) => (
-              <Link
+              <NavigationLink
                 key={href}
                 href={href}
-                className="block py-3 hover:text-primary"
+                description={description}
               >
-                <span className="font-medium">{title} →</span>
-                <p className="text-muted-foreground mt-1">{description}</p>
-              </Link>
+                {title}
+              </NavigationLink>
             ))}
           </div>
         </section>
