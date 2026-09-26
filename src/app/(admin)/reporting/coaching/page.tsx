@@ -1,11 +1,9 @@
 import { redirect } from 'next/navigation';
-import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
-import { CoachingWorkspace } from './workspace';
-
-export const metadata = { title: 'Coaching preview' };
+import { requireScreen } from '@/lib/auth/require-screen';
+import { CoachingRecords } from './records';
+export const metadata = { title: 'Coaching | Tempo' };
 export default async function CoachingPage() {
-  const scope = await getWorkspaceScope();
-  // Design review only. Real coach/brand access is introduced with the data layer.
-  if (!scope || scope.impersonating || !['owner', 'admin'].includes(scope.role)) redirect('/reporting');
-  return <CoachingWorkspace />;
+ const scope = await requireScreen('reporting');
+ if (scope.impersonating || !['owner','admin','manager','coach'].includes(scope.role)) redirect('/reporting');
+ return <CoachingRecords />;
 }

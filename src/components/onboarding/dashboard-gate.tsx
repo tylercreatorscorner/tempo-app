@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useOnboarding } from '@/hooks/use-onboarding';
 
-const UNGATED_PATHS = ['/settings', '/roster', '/dashboard'];
+const UNGATED_PATHS = ['/settings', '/workflows/integrations', '/roster', '/dashboard'];
 
 const PAGE_META: Record<string, { title: string; description: string; icon: React.ReactNode }> = {
   '/messages': {

@@ -43,7 +43,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /** Where the operator finishes the job. The fragment scrolls to the panel. */
-const ADMIN_SURFACE = '/settings';
+const ADMIN_SURFACE = '/workflows/integrations';
 const PANEL_ANCHOR = 'tiktok-shop';
 
 /**
@@ -188,7 +188,7 @@ async function recordInviteAuthorization(
 
   try {
     const [notice, registry] = await Promise.all([getInviteNotice(inviteId), getBrandRegistry()]);
-    const panel = new URL('/settings', request.url);
+    const panel = new URL('/workflows/integrations', request.url);
     panel.hash = 'tiktok-shop';
 
     await notifyPendingAuthorization({

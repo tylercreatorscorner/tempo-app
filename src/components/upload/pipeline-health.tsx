@@ -305,7 +305,7 @@ function AutoSyncStrip() {
         </span>
       )}
       <Link
-        href="/settings#tiktok-shop"
+        href="/workflows/integrations#tiktok-shop"
         className="ml-auto shrink-0 font-semibold text-primary hover:underline"
       >
         Shop connections

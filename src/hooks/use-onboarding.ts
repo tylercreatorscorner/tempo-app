@@ -72,10 +72,10 @@ export function useOnboarding(): OnboardingStatus {
         {
           id: 'tiktok',
           label: 'Connect TikTok Shop',
-          description: 'Add Tempo as a sub-account to sync your data',
+          description: 'Authorize your shop and check its import status',
           required: true,
           complete: tiktokConnected,
-          href: '/settings',
+          href: '/workflows/integrations',
           icon: '🎵',
         },
         {
@@ -93,7 +93,7 @@ export function useOnboarding(): OnboardingStatus {
           description: 'Enable creator messaging and server analytics',
           required: false,
           complete: discordConnected,
-          href: '/settings',
+          href: '/workflows/integrations',
           icon: '💬',
         },
       ];

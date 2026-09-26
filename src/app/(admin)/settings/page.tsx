@@ -1,292 +1,91 @@
-export const dynamic = 'force-dynamic';
-
-import { Suspense } from 'react';
-import { createClient } from '@/lib/supabase/server';
-import { User, Building2, Database, Bell, Key, Shield, Users } from 'lucide-react';
-import { TikTokConnect } from '@/components/onboarding/tiktok-connect';
-import { CreatorInvitesSection } from '@/components/settings/creator-invites-section';
-import { TeamMembersSection } from '@/components/settings/team-members-section';
-import { CompensationArrangementsSection } from '@/components/settings/compensation-arrangements-section';
-import { TikTokShopSection } from '@/components/settings/tiktok-shop-section';
-import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
-
-export default async function SettingsPage() {
-  // Brand-scoped members (managers/coaches) get a minimal, scoped Settings
-  // (Profile only). The full agency config below (TikTok/brand
-  // mgmt/team/compensation/API) is owner/admin only — this page previously had
-  // NO gate, so a manager hitting /settings directly would have seen all of it.
-  const scope = await getWorkspaceScope();
-  if (scope && scope.brandScope.kind === 'scoped') {
-    return (
-      <div className="space-y-6 max-w-4xl">
-        <div>
-          <h1 className="text-2xl font-bold">Settings</h1>
-          <p className="text-sm text-muted-foreground mt-1">Your account details</p>
-        </div>
-        <div className="rounded-xl border border-border bg-card overflow-hidden">
-          <div className="p-6 border-b border-border flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-              <User className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <h2 className="font-semibold text-lg">Profile</h2>
-              <p className="text-sm text-muted-foreground">Your account details</p>
-            </div>
-          </div>
-          <div className="p-6 space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-              <label className="text-sm text-muted-foreground w-32 shrink-0">Display Name</label>
-              <input type="text" defaultValue={scope.name ?? ''} disabled className="flex-1 px-3 py-2 rounded-lg border border-border bg-muted/30 text-sm disabled:opacity-60" />
-            </div>
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-              <label className="text-sm text-muted-foreground w-32 shrink-0">Email</label>
-              <input type="email" defaultValue={scope.email} disabled className="flex-1 px-3 py-2 rounded-lg border border-border bg-muted/30 text-sm disabled:opacity-60" />
-            </div>
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-              <label className="text-sm text-muted-foreground w-32 shrink-0">Role</label>
-              <span className="inline-flex items-center px-3 py-1 rounded-full bg-primary/20 text-primary text-sm font-medium">
-                <Shield className="h-3 w-3 mr-1" /> {scope.role === 'coach' ? 'Coach' : 'Manager'}
-              </span>
-            </div>
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-              <label className="text-sm text-muted-foreground w-32 shrink-0">Timezone</label>
-              <input type="text" defaultValue="America/Chicago (CST)" disabled className="flex-1 px-3 py-2 rounded-lg border border-border bg-muted/30 text-sm disabled:opacity-60" />
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { requireScreen } from "@/lib/auth/require-screen";
+import { createAdminClient } from "@/lib/supabase/server";
+import { PageHeader } from "@/components/ui/page-header";
+export const dynamic = "force-dynamic";
+export default async function SettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const scope = await requireScreen("settings");
+  const params = await searchParams;
+  if (params.tiktok) {
+    const query = new URLSearchParams();
+    for (const [key, value] of Object.entries(params))
+      if (typeof value === "string") query.set(key, value);
+    redirect(`/workflows/integrations?${query.toString()}#tiktok-shop`);
   }
-
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  // Load profile + tenant + brands dynamically
-  let profile: { name: string; email: string; role: string; tenant_id: string } | null = null;
-  let tenant: { name: string; discord_connected: boolean } | null = null;
-  let brands: { id: string; name: string; slug: string; color: string | null; display_name: string | null }[] = [];
-
-  if (user) {
-    const { data: p } = await supabase
-      .from('user_profiles')
-      .select('name, email, role, tenant_id')
-      .eq('user_id', user.id)
-      .maybeSingle();
-    profile = p;
-
-    if (p?.tenant_id) {
-      const { data: t } = await supabase
-        .from('tenants')
-        .select('name, discord_connected')
-        .eq('id', p.tenant_id)
-        .single();
-      tenant = t;
-
-      const { data: b } = await supabase
-        .from('brands_v2')
-        .select('id, name, slug, color, display_name')
-        .order('name');
-      brands = b || [];
-    }
-  }
-
-  const displayName = profile?.name || user?.user_metadata?.full_name || 'User';
-  const email = profile?.email || user?.email || '';
-  const role = profile?.role === 'admin' || profile?.role === 'owner' ? 'Owner' : 'Member';
-
+  const admin = ["owner", "admin"].includes(scope.role);
+  const db = await createAdminClient();
+  const { data: tenant, error } = await db
+    .from("tenants")
+    .select("name")
+    .eq("id", scope.tenantId)
+    .single();
+  if (error) throw new Error("Could not load workspace settings.");
   return (
-    <div className="space-y-6 max-w-4xl">
-      <div>
-        <h1 className="text-2xl font-bold">Settings</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Manage your account and application configuration
-        </p>
-      </div>
-
-      {/* Sub-account onboarding instructions (the manual/email data path). This
-          is NOT the API connection — that now lives in Data Sources below, as
-          TikTokShopSection, reading real tiktok_shop_connections rows.
-          Deliberately left un-wired to any status flag: it used to read
-          `tenants.tiktok_connected`, an onboarding-checklist flag migration 017
-          backfilled to true, so it claimed a live sync that never existed. */}
-      <Suspense>
-        <TikTokConnect companyName={tenant?.name} />
-      </Suspense>
-
-      {/* Profile */}
-      <div className="rounded-xl border border-border bg-card overflow-hidden">
-        <div className="p-6 border-b border-border flex items-center gap-3">
-          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-            <User className="h-5 w-5 text-primary" />
+    <div className="max-w-3xl space-y-5">
+      <PageHeader title="General" subtitle="Your account and workspace." />
+      <section className="rounded-xl border border-border bg-card p-4 sm:p-5">
+        <h2 className="font-semibold mb-4">Account</h2>
+        <dl className="grid grid-cols-[100px_minmax(0,1fr)] gap-x-4 gap-y-3 text-sm">
+          <dt className="text-muted-foreground">Name</dt>
+          <dd>{scope.name || "Not set"}</dd>
+          <dt className="text-muted-foreground">Email</dt>
+          <dd className="break-all">{scope.email}</dd>
+          <dt className="text-muted-foreground">Role</dt>
+          <dd className="capitalize">{scope.role}</dd>
+          <dt className="text-muted-foreground">Workspace</dt>
+          <dd>{tenant.name}</dd>
+        </dl>
+        {admin && (
+          <Link
+            className="inline-block mt-4 text-sm font-medium text-primary"
+            href="/team"
+          >
+            Manage people and access →
+          </Link>
+        )}
+      </section>
+      {admin && (
+        <section className="rounded-xl border border-border bg-muted/20 p-4 sm:p-5">
+          <h2 className="font-semibold mb-2">Workspace tools</h2>
+          <div className="divide-y divide-border text-sm">
+            {[
+              [
+                "/settings/brands",
+                "Brands",
+                "Manage brand setup and workspace clients.",
+              ],
+              [
+                "/workflows/integrations",
+                "Connections",
+                "TikTok Shop authorization, Discord and other connected services.",
+              ],
+              [
+                "/roster/invitations",
+                "Creator invitations",
+                "Create brand-specific join links.",
+              ],
+              [
+                "/earnings/settings",
+                "Finance setup",
+                "Billing identities, payment details and compensation arrangements.",
+              ],
+            ].map(([href, title, description]) => (
+              <Link
+                key={href}
+                href={href}
+                className="block py-3 hover:text-primary"
+              >
+                <span className="font-medium">{title} →</span>
+                <p className="text-muted-foreground mt-1">{description}</p>
+              </Link>
+            ))}
           </div>
-          <div>
-            <h2 className="font-semibold text-lg">Profile</h2>
-            <p className="text-sm text-muted-foreground">Manage your account details and preferences</p>
-          </div>
-        </div>
-        <div className="p-6 space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-            <label className="text-sm text-muted-foreground w-32 shrink-0">Display Name</label>
-            <input type="text" defaultValue={displayName} disabled className="flex-1 px-3 py-2 rounded-lg border border-border bg-muted/30 text-sm disabled:opacity-60" />
-          </div>
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-            <label className="text-sm text-muted-foreground w-32 shrink-0">Email</label>
-            <input type="email" defaultValue={email} disabled className="flex-1 px-3 py-2 rounded-lg border border-border bg-muted/30 text-sm disabled:opacity-60" />
-          </div>
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-            <label className="text-sm text-muted-foreground w-32 shrink-0">Role</label>
-            <span className="inline-flex items-center px-3 py-1 rounded-full bg-primary/20 text-primary text-sm font-medium">
-              <Shield className="h-3 w-3 mr-1" /> {role}
-            </span>
-          </div>
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-            <label className="text-sm text-muted-foreground w-32 shrink-0">Timezone</label>
-            <input type="text" defaultValue="America/Chicago (CST)" disabled className="flex-1 px-3 py-2 rounded-lg border border-border bg-muted/30 text-sm disabled:opacity-60" />
-          </div>
-        </div>
-      </div>
-
-      {/* Brand Management */}
-      <div className="rounded-xl border border-border bg-card overflow-hidden">
-        <div className="p-6 border-b border-border flex items-center gap-3">
-          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-            <Building2 className="h-5 w-5 text-primary" />
-          </div>
-          <div>
-            <h2 className="font-semibold text-lg">Brand Management</h2>
-            <p className="text-sm text-muted-foreground">Configure brands and their settings</p>
-          </div>
-        </div>
-        <div className="p-6 space-y-3">
-          {brands.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-4 text-center">No brands connected yet. Connect TikTok Shop to get started.</p>
-          ) : (
-            brands.map((brand) => {
-              const color = brand.color || 'var(--muted-foreground)';
-              return (
-                <div key={brand.slug} className="flex items-center justify-between p-3 rounded-lg border border-border/50 hover:border-border transition-colors">
-                  <div className="flex items-center gap-3">
-                    <div className="h-8 w-8 rounded-lg flex items-center justify-center text-white text-xs font-bold" style={{ backgroundColor: color }}>
-                      {(brand.display_name || brand.name).charAt(0)}
-                    </div>
-                    <span className="font-medium text-sm">{brand.display_name || brand.name}</span>
-                  </div>
-                  <span className="text-xs px-2 py-1 rounded-full font-medium bg-green-500/10 text-green-600">active</span>
-                </div>
-              );
-            })
-          )}
-          <button className="mt-2 px-4 py-2 rounded-lg border border-dashed border-border text-sm text-muted-foreground hover:border-primary hover:text-primary transition-colors">
-            + Add Brand
-          </button>
-        </div>
-      </div>
-
-      {/* Data Sources */}
-      <div className="rounded-xl border border-border bg-card overflow-hidden">
-        <div className="p-6 border-b border-border flex items-center gap-3">
-          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-            <Database className="h-5 w-5 text-primary" />
-          </div>
-          <div>
-            <h2 className="font-semibold text-lg">Data Sources</h2>
-            <p className="text-sm text-muted-foreground">Connected data integrations</p>
-          </div>
-        </div>
-        <div className="p-6 space-y-3">
-          {/* Live TikTok Shop connections. This replaces a hardcoded
-              "Not connected / pending" row that reported a status nothing
-              measured — the same class of lie as the tenants.tiktok_connected
-              flag noted above. */}
-          <TikTokShopSection />
-          <div className="flex items-center justify-between p-3 rounded-lg border border-border/50">
-            <div>
-              <p className="font-medium text-sm">Discord</p>
-              <p className="text-xs text-muted-foreground">{tenant?.discord_connected ? 'Bot active' : 'Not connected'}</p>
-            </div>
-            <span className={`text-xs px-2 py-1 rounded-full font-medium ${tenant?.discord_connected ? 'bg-green-500/10 text-green-600' : 'bg-muted text-muted-foreground'}`}>
-              {tenant?.discord_connected ? 'connected' : 'pending'}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Notifications */}
-      <div className="rounded-xl border border-border bg-card overflow-hidden">
-        <div className="p-6 border-b border-border flex items-center gap-3">
-          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-            <Bell className="h-5 w-5 text-primary" />
-          </div>
-          <div>
-            <h2 className="font-semibold text-lg">Notifications</h2>
-            <p className="text-sm text-muted-foreground">Configure alerts and notification preferences</p>
-          </div>
-        </div>
-        <div className="p-6 space-y-3">
-          {['Daily Performance Summary', 'New Creator Alerts', 'GMV Milestone Alerts', 'Weekly Report Email'].map((label) => (
-            <div key={label} className="flex items-center justify-between p-3 rounded-lg border border-border/50">
-              <span className="text-sm">{label}</span>
-              <div className="relative w-11 h-6 rounded-full bg-muted transition-colors cursor-not-allowed">
-                <div className="absolute top-1 left-1 h-4 w-4 rounded-full bg-card" />
-              </div>
-            </div>
-          ))}
-          <p className="text-xs text-muted-foreground mt-2">Notification preferences coming soon.</p>
-        </div>
-      </div>
-
-      {/* Team members now live on their own page (profile menu → User Management) */}
-      {(profile?.role === 'owner' || profile?.role === 'admin') && (
-        <a href="/team" className="block rounded-xl border border-border bg-card hover:border-primary/40 transition-colors overflow-hidden">
-          <div className="p-6 flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-              <Users className="h-5 w-5 text-primary" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <h2 className="font-semibold text-lg">Team Members</h2>
-              <p className="text-sm text-muted-foreground">Invite teammates, set roles, brand access &amp; finance visibility</p>
-            </div>
-            <span className="text-sm font-medium text-primary whitespace-nowrap">Manage →</span>
-          </div>
-        </a>
-      )}
-
-      {/* Creator Invites — admin only. Generates per-brand /join/[code] links. */}
-      {(profile?.role === 'owner' || profile?.role === 'admin') && profile?.tenant_id && (
-        <CreatorInvitesSection
-          tenantId={profile.tenant_id}
-          brands={brands.map(b => ({ slug: b.slug, name: b.name, display_name: b.display_name }))}
-        />
-      )}
-
-      {/* Team Members + per-(brand × payee) compensation arrangements.
-          Admin-only. Drives invoicing + earnings split between Tyler / Vic /
-          future collaborators. */}
-      {(profile?.role === 'owner' || profile?.role === 'admin') && (
-        <>
-          <TeamMembersSection />
-          <CompensationArrangementsSection
-            brands={brands.map(b => ({ slug: b.slug, name: b.name, display_name: b.display_name }))}
-          />
-        </>
-      )}
-
-      {/* API Keys - only show if they have brands */}
-      {brands.length > 0 && (
-        <div className="rounded-xl border border-border bg-card overflow-hidden">
-          <div className="p-6 border-b border-border flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-              <Key className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <h2 className="font-semibold text-lg">API Keys</h2>
-              <p className="text-sm text-muted-foreground">Manage API access tokens</p>
-            </div>
-          </div>
-          <div className="p-6">
-            <p className="text-sm text-muted-foreground py-4 text-center">API access coming soon. Contact support for early access.</p>
-          </div>
-        </div>
+        </section>
       )}
     </div>
   );

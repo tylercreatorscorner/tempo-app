@@ -128,7 +128,7 @@ export function TeamMembersSection() {
             <UserPlus className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <h2 className="font-semibold text-lg">Team Members</h2>
+            <h2 className="font-semibold text-lg">Billing identities</h2>
             <p className="text-sm text-muted-foreground">People who issue invoices to brands. Each has their own bill-from info + payment details.</p>
           </div>
         </div>

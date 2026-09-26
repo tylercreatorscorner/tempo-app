@@ -123,7 +123,7 @@ function InboxSetup() {
           ))}
         </div>
         <Link
-          href="/settings"
+          href="/workflows/integrations"
           className="inline-flex items-center gap-2 rounded-md bg-pulse-grad px-5 py-2.5 text-sm font-semibold text-white shadow-pulse-primary transition-[filter] hover:brightness-[1.07]"
         >
           Go to Settings
