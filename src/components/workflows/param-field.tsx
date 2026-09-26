@@ -185,7 +185,7 @@ export function ChannelPicker({
         <optgroup key={category} label={category}>
           {items.map(c => (
             <option key={c.id} value={c.id}>
-              {c.isAnnouncement ? 'Announcement: ' : '#'}{c.name}
+              {c.badge === '🔒' ? 'Private: ' : c.isAnnouncement ? 'Announcement: ' : '#'}{c.name}
             </option>
           ))}
         </optgroup>
