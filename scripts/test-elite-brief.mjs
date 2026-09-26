@@ -1,0 +1,30 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {runInNewContext} from 'node:vm';
+import ts from 'typescript';
+import {NextRequest,NextResponse} from 'next/server.js';
+import {z} from 'zod';
+const deps={'zod':{z},'next/server':{NextRequest,NextResponse}};
+function load(file){const exports={};runInNewContext(ts.transpileModule(readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{exports,console,Date,Intl,Set,Map,AbortSignal,require:name=>{assert.ok(name in deps,name);return deps[name];}});return exports;}
+const model=load('src/lib/coaching/elite.ts');
+const days=Array.from({length:14},(_,i)=>({stat_date:model.shiftDay('2026-09-06',i),gmv:i<7?10:20,posts:i<7?2:1}));
+const current=model.summarizeWeek(days.slice(7)), prior=model.summarizeWeek(days.slice(0,7));
+assert.equal(current.gmv.value,140);assert.equal(current.posts.value,7);assert.equal(model.compareWeeks(current,prior).gmv.amount,70);assert.equal(model.compareWeeks(current,prior).signal,'Posting declined');
+const missing=model.summarizeWeek([{stat_date:'2026-09-13',gmv:null,posts:null}]);assert.equal(missing.gmv.value,null);assert.equal(missing.posts.days,0);assert.equal(model.compareWeeks(missing,prior).gmv,null);
+const zero=model.summarizeWeek(days.slice(7).map(d=>({...d,gmv:0,posts:0})));assert.equal(model.compareWeeks(zero,prior).signal,'No recorded posts');assert.equal(model.compareWeeks(current,zero).gmv.percent,null);
+let reads=0, calls=[], failHistory=false;
+let scope={tenantId:'tenant',userId:'user',role:'manager',permissions:new Set(['reporting:read','roster:read']),brandScope:{kind:'scoped',brandSlugs:['jiyu']}};
+const tables={brands_v2:[{id:'brand',slug:'jiyu',tenant_id:'tenant',name:'JiYu',is_archived:false}],managed_creators:[{id:1,tenant_id:'tenant',brand:'jiyu',archived_at:null,tags:['elite'],creator_id:'creator',real_name:'Example',discord_avatar:null},{id:2,tenant_id:'foreign',brand:'jiyu',archived_at:null,tags:['elite'],creator_id:'foreign',real_name:'Hidden'}],tiktok_accounts:[{tenant_id:'tenant',creator_id:'creator',tiktok_username:'@Example'}]};
+function from(table){reads++;const filters=[];let limit=Infinity;const q={select:()=>q,eq:(k,v)=>{filters.push(r=>r[k]===v);return q;},is:(k,v)=>{filters.push(r=>r[k]===v);return q;},in:(k,v)=>{filters.push(r=>v.includes(r[k]));return q;},contains:(k,v)=>{filters.push(r=>v.every(x=>r[k]?.includes(x)));return q;},order:()=>q,limit:n=>{limit=n;return q;},then:yes=>{const data=tables[table].filter(r=>filters.every(f=>f(r)));return Promise.resolve({data:data.slice(0,limit),count:data.length,error:null}).then(yes);}};return q;}
+deps['@/lib/auth/require-screen']={guardScreen:async()=>scope??NextResponse.json({error:'Denied'},{status:403})};deps['@/lib/auth/permissions']=load('src/lib/auth/permissions.ts');
+deps['@/lib/supabase/server']={createAdminClient:async()=>({from,rpc:(name,args)=>{calls.push({name,args});return{abortSignal:async()=>({data:days,error:failHistory?new Error('offline'):null})};}})};
+deps['@/lib/coaching/model']=load('src/lib/coaching/model.ts');deps['@/lib/coaching/elite']=model;
+const route=load('src/app/api/coaching/elite/route.ts');const get=(week='2026-09-13')=>route.GET(new NextRequest('https://tempo.test/api/coaching/elite?week='+week));
+let response=await get(),body=await response.json();assert.equal(response.status,200);assert.equal(body.rows.length,1);assert.equal(body.rows[0].current.gmv.value,140);assert.equal(calls[0].args.p_tenant_id,'tenant');assert.deepEqual(Array.from(calls[0].args.p_brands),['jiyu']);assert.deepEqual(Array.from(calls[0].args.p_handles),['example']);assert.equal(response.headers.get('cache-control'),'private, no-store');
+failHistory=true;body=await (await get()).json();assert.equal(body.rows[0].unavailable,true);assert.equal(body.rows[0].current.gmv.value,null);
+const before=reads;scope={...scope,brandScope:{kind:'scoped',brandSlugs:['other']}};assert.equal((await get()).status,403);assert.equal(reads,before);
+scope={...scope,brandScope:{kind:'scoped',brandSlugs:['jiyu']},impersonating:{}};assert.equal((await get()).status,403);
+scope={...scope,impersonating:null,permissions:new Set(['reporting:read'])};assert.equal((await get()).status,403);
+scope={...scope,permissions:new Set(['reporting:read','roster:read'])};assert.equal((await get('2026-09-14')).status,400);assert.equal((await get(deps['@/lib/coaching/model'].sundayToday())).status,400);
+tables.brands_v2.push({...tables.brands_v2[0],tenant_id:'foreign'});assert.equal((await get()).status,403);
+console.log('PASS Elite brief: date windows, missing coverage, zero baseline, scoped cohort/handles, role/brand denial, collisions, partial failure and private caching');
