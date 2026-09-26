@@ -136,14 +136,14 @@ export async function listIntegrations(): Promise<IntegrationView[]> {
     out.push({
       id: `legacy:tiktok_shop:${brand.id}`,
       type: 'tiktok_shop',
-      displayName: `${brand.display_name || brand.name} TikTok Shop`,
+      displayName: `${brand.display_name || brand.name} · Legacy TikTok session`,
       brandId: brand.id,
       brandSlug: brand.slug,
       brandName: brand.display_name || brand.name,
       status,
       summary: s.last_successful_scrape
-        ? `Last scrape: ${new Date(s.last_successful_scrape).toLocaleDateString()}`
-        : 'No successful import recorded',
+        ? `Legacy import: ${new Date(s.last_successful_scrape).toLocaleDateString()}`
+        : 'Legacy session: no successful import recorded',
       lastUsedAt: s.last_successful_scrape,
       lastErrorMessage: null,
       managed: false,

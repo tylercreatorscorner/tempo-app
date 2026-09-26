@@ -136,7 +136,7 @@ export function IntegrationsClient({
 
   const catalogByCategory = useMemo(() => {
     const out: Record<string, typeof INTEGRATION_TYPE_CATALOG> = {};
-    for (const item of INTEGRATION_TYPE_CATALOG.filter(item => !item.comingSoon)) {
+    for (const item of INTEGRATION_TYPE_CATALOG.filter(item => !item.comingSoon && item.type !== 'tiktok_shop')) {
       (out[item.category] ??= []).push(item);
     }
     return out;
@@ -150,10 +150,12 @@ export function IntegrationsClient({
           <h1 className="text-2xl font-bold text-[var(--foreground)]">Connections</h1>
           <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
             Services configured for data imports, communications and automations.
-            Configuration is not proof of a successful sync or delivery. Review the latest recorded activity for each connection.
+            Configuration is not proof of a successful sync or delivery. Review the latest recorded activity for each connection. Legacy TikTok sessions are separate from shop API authorization.
           </p>
         </div>
       </div>
+
+      <a href="#tiktok-shop" className="inline-flex text-sm font-medium text-primary">Manage TikTok Shop API authorization ↓</a>
 
       {/* Connected section */}
       <section className="space-y-4">
@@ -680,7 +682,7 @@ function CatalogCard({
           <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{item.description}</p>
         </div>
       </div>
-      {!item.comingSoon && (
+      {!item.comingSoon && item.type !== 'tiktok_shop' && (
         <button
           onClick={onConnect}
           className="absolute top-3 right-3 inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-lg bg-[var(--primary)]/10 text-[var(--primary)] hover:bg-[var(--primary)]/15 transition-colors"
