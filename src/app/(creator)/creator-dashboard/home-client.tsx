@@ -352,7 +352,7 @@ function DeltaPill({ pct }: { pct: number }) {
         backgroundColor: up ? 'var(--pulse-pos-bg)' : 'var(--pulse-neg-bg)',
       }}
     >
-      {up ? '▲' : '▼'} {Math.abs(pct).toFixed(1)}%
+      {<><InterfaceIcon name={up ? 'increase' : 'decrease'} className="size-3"/><span className="sr-only">{up ? 'Up ' : 'Down '}</span></>} {Math.abs(pct).toFixed(1)}%
     </span>
   );
 }
@@ -399,7 +399,7 @@ function DeltaText({ pct }: { pct: number | null }) {
       className="mt-1 font-mono text-[11px] tabular-nums"
       style={{ color: up ? 'var(--pulse-pos)' : 'var(--pulse-neg)' }}
     >
-      {up ? '▲' : '▼'} {Math.abs(Math.round(pct))}% vs prior
+      {<><InterfaceIcon name={up ? 'increase' : 'decrease'} className="size-3"/><span className="sr-only">{up ? 'Up ' : 'Down '}</span></>} {Math.abs(Math.round(pct))}% vs prior
     </p>
   );
 }
@@ -495,7 +495,7 @@ function MoneyMakers({
                     className="whitespace-nowrap text-xs tabular-nums"
                     style={{ color: p.gmvChangePct >= 0 ? 'var(--pulse-pos)' : 'var(--pulse-warn)' }}
                   >
-                    {p.gmvChangePct >= 0 ? '▲' : '▼'}
+                    {<><InterfaceIcon name={p.gmvChangePct >= 0 ? 'increase' : 'decrease'} className="size-3"/><span className="sr-only">{p.gmvChangePct >= 0 ? 'Up ' : 'Down '}</span></>}
                     {Math.abs(Math.round(p.gmvChangePct))}% vs prior
                   </p>
                 )}

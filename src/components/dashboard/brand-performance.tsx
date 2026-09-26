@@ -1,3 +1,4 @@
+import { InterfaceIcon } from '@/components/ui/interface-icon';
 import Link from 'next/link';
 import { BrandIdentity } from '@/components/creators/brand-identity';
 import { formatCurrency } from '@/lib/utils/format';
@@ -73,7 +74,7 @@ function Delta({ value }: { value: number | undefined }) {
       className="text-right text-[13px] font-bold tabular-nums"
       style={{ color: pos ? 'var(--pulse-pos)' : 'var(--pulse-neg)' }}
     >
-      {pos ? '▲' : '▼'}{Math.abs(value) < 1 ? Math.abs(value).toFixed(1) : Math.round(Math.abs(value))}%
+      {<><InterfaceIcon name={pos ? 'increase' : 'decrease'} className="size-3"/><span className="sr-only">{pos ? 'Up ' : 'Down '}</span></>}{Math.abs(value) < 1 ? Math.abs(value).toFixed(1) : Math.round(Math.abs(value))}%
     </span>
   );
 }

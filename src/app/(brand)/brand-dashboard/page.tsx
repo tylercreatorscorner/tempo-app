@@ -1,3 +1,4 @@
+import { InterfaceIcon } from '@/components/ui/interface-icon';
 import { Suspense } from 'react';
 import Link from 'next/link';
 import { ChevronRight, ExternalLink, MessageCircle, Target, TrendingUp, TrendingDown, Sparkles, Calendar, Flame } from 'lucide-react';
@@ -795,7 +796,7 @@ function Delta({ pct }: { pct: number | null | undefined }) {
   const up = pct >= 0;
   return (
     <span className={`text-xs font-semibold tabular-nums ${up ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
-      {up ? '▲' : '▼'} {Math.abs(pct).toFixed(0)}%
+      {<><InterfaceIcon name={up ? 'increase' : 'decrease'} className="size-3"/><span className="sr-only">{up ? 'Up ' : 'Down '}</span></>} {Math.abs(pct).toFixed(0)}%
     </span>
   );
 }

@@ -1,5 +1,6 @@
 'use client';
 
+import { InterfaceIcon } from '@/components/ui/interface-icon';
 import { ArrowUpRight, Play, Sparkles, TrendingUp } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { TableCard, Table, THead, TBody, TR, TH, TD } from '@/components/ui/table';
@@ -179,7 +180,7 @@ function LedgerStrip({ summary }: { summary: CreatorSummary | null }) {
               className="mt-1 font-mono text-[11px] tabular-nums"
               style={{ color: c.d >= 0 ? 'var(--pulse-pos)' : 'var(--pulse-neg)' }}
             >
-              {c.d >= 0 ? '▲' : '▼'} {Math.abs(Math.round(c.d))}% vs prior
+              {<><InterfaceIcon name={c.d >= 0 ? 'increase' : 'decrease'} className="size-3"/><span className="sr-only">{c.d >= 0 ? 'Up ' : 'Down '}</span></>} {Math.abs(Math.round(c.d))}% vs prior
             </p>
           )}
         </div>

@@ -1,3 +1,4 @@
+import { InterfaceIcon } from '@/components/ui/interface-icon';
 import { formatCurrency } from '@/lib/utils/format';
 
 /**
@@ -54,7 +55,7 @@ export function ManagedOrganicDonut({
             className="text-[12px] font-bold tabular-nums"
             style={{ color: up ? 'var(--pulse-pos)' : 'var(--pulse-neg)' }}
           >
-            {up ? '▲' : '▼'}{Math.abs(deltaPts) < 1 ? Math.abs(deltaPts).toFixed(1) : Math.abs(deltaPts).toFixed(0)} pts
+            {<><InterfaceIcon name={up ? 'increase' : 'decrease'} className="size-3"/><span className="sr-only">{up ? 'Up ' : 'Down '}</span></>}{Math.abs(deltaPts) < 1 ? Math.abs(deltaPts).toFixed(1) : Math.abs(deltaPts).toFixed(0)} pts
           </span>
         )}
       </div>

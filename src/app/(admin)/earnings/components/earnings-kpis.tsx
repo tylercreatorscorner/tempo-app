@@ -9,6 +9,7 @@
  * Collected card needs a pulse-neg overdue line StatCard can't render.
  * Money renders an em-dash while data is missing — never a fake $0.
  */
+import { InterfaceIcon } from '@/components/ui/interface-icon';
 import type { ReactNode } from 'react';
 import { isOverdue } from '@/lib/finance/overdue';
 import { formatCurrency } from '@/lib/utils/format';
@@ -32,7 +33,7 @@ function MomDelta({ pct, label }: { pct: number | null; label: string }) {
   return (
     <>
       <span className="tabular-nums" style={{ color: positive ? 'var(--pulse-pos)' : 'var(--pulse-neg)' }}>
-        {positive ? '▲' : '▼'}{Math.abs(pct) < 1 ? Math.abs(pct).toFixed(1) : Math.round(Math.abs(pct))}%
+        {<><InterfaceIcon name={positive ? 'increase' : 'decrease'} className="size-3"/><span className="sr-only">{positive ? 'Up ' : 'Down '}</span></>}{Math.abs(pct) < 1 ? Math.abs(pct).toFixed(1) : Math.round(Math.abs(pct))}%
       </span>
       <span className="text-muted-foreground">{label}</span>
     </>

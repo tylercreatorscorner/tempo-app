@@ -1,5 +1,6 @@
 'use client';
 
+import { InterfaceIcon } from '@/components/ui/interface-icon';
 import { useId, useState, type PointerEvent, type ReactNode } from 'react';
 import { formatCurrency } from '@/lib/utils/format';
 import { fmtCompactCurrency } from '@/components/charts/format';
@@ -99,7 +100,7 @@ export function ManagedGmvChart({
         <div className="text-[10.5px] font-bold uppercase tracking-[0.12em] text-muted-foreground">{controls ?? label}</div>
         {trend !== undefined && (
           <span className={cn('shrink-0 text-[13px] font-bold tabular-nums', isPos ? 'text-[var(--pulse-pos)]' : 'text-[var(--pulse-neg)]')}>
-            {isPos ? '▲' : '▼'}{Math.abs(trend) < 1 ? Math.abs(trend).toFixed(1) : Math.round(Math.abs(trend))}%
+            {<><InterfaceIcon name={isPos ? 'increase' : 'decrease'} className="size-3"/><span className="sr-only">{isPos ? 'Up ' : 'Down '}</span></>}{Math.abs(trend) < 1 ? Math.abs(trend).toFixed(1) : Math.round(Math.abs(trend))}%
           </span>
         )}
       </CardHeader>
