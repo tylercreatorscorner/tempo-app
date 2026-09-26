@@ -146,7 +146,8 @@ const writeSchema = z.discriminatedUnion("action", [
   z
     .object({
       action: z.literal("assign"),
-      brandId: z.uuid(),
+      // Seeded brands use PostgreSQL UUIDs without RFC version/variant bits.
+      brandId: z.guid(),
       coachId: z.uuid(),
       reviewerId: z.uuid(),
     })
