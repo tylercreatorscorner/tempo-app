@@ -1,3 +1,4 @@
+import { InterfaceIcon } from '@/components/ui/interface-icon';
 import Link from "next/link";
 import { CreatorPortrait } from "@/components/creators/creator-portrait";
 import { BrandIdentity } from "@/components/creators/brand-identity";
@@ -47,7 +48,7 @@ export function ManagerPortfolios({
             className={styles.internal}
             href={`/dashboard/reviews?month=${month}`}
           >
-            Goals & reviews ↗
+            Goals & reviews <InterfaceIcon name="external" />
           </Link>
         </header>
         <p className={styles.hint}>
@@ -156,7 +157,7 @@ export function ManagerPortfolios({
                   </div>
                   <ManagerGoalProgress managerId={manager.id} month={month} />
                   <span className={styles.chevron} aria-hidden="true">
-                    ⌄
+                    <InterfaceIcon name="down" />
                   </span>
                 </summary>
                 <div className={styles.brands}>
@@ -164,7 +165,7 @@ export function ManagerPortfolios({
                     className={styles.reviewLink}
                     href={`/dashboard/reviews?month=${month}&manager=${hasManager ? encodeURIComponent(manager.id) : "all"}`}
                   >
-                    {hasManager ? `Review ${manager.name}’s goals and results →` : "Review brand assignments and goals →"}
+                    {hasManager ? `Review ${manager.name}’s goals and results` : "Review brand assignments and goals"} <InterfaceIcon name="forward"/>
                   </Link>
                   {rows.map((row) => {
                     const signal = [
@@ -197,7 +198,7 @@ export function ManagerPortfolios({
                             ? formatCurrency(row.currentGmv)
                             : "—"}
                         </strong>
-                        <span aria-hidden="true">↗</span>
+                        <span aria-hidden="true"><InterfaceIcon name="external" /></span>
                       </Link>
                     );
                   })}

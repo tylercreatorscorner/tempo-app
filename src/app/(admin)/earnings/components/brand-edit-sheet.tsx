@@ -25,6 +25,7 @@
  * rows optimistically while the authoritative refetch reconciles.
  */
 
+import { DateField } from '@/components/ui/date-field';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, Loader2, Save, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -375,10 +376,9 @@ export function BrandEditSheet({
                 />
               </Field>
               <Field label="Launch Fee Ends" hint="Optional date when this fee stops">
-                <TextInput
-                  type="date"
+                <DateField
                   value={values.launch_fee_ends ?? ''}
-                  onChange={(v) => set('launch_fee_ends', v || null)}
+                  onValueChange={(v) => set('launch_fee_ends', v || null)}
                 />
               </Field>
             </Section>

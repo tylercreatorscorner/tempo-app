@@ -1,5 +1,6 @@
 'use client';
 
+import { InterfaceIcon } from '@/components/ui/interface-icon';
 import { createContext, useContext, useId, useRef, useState, type ReactNode } from 'react';
 import styles from './profile-workspace.module.css';
 import { useSmoothScroll } from '@/components/providers/lenis-provider';
@@ -7,7 +8,7 @@ import { useSmoothScroll } from '@/components/providers/lenis-provider';
 const SectionNavigation = createContext<(section: string) => void>(() => {});
 export function ProfileSectionLink({ section, children }: { section: string; children: ReactNode }) {
   const navigate = useContext(SectionNavigation);
-  return <button type="button" className={styles.textAction} onClick={() => navigate(section)}>{children} <span aria-hidden="true">→</span></button>;
+  return <button type="button" className={styles.textAction} onClick={() => navigate(section)}>{children} <span aria-hidden="true"><InterfaceIcon name="forward" /></span></button>;
 }
 
 export function ProfileSections({ sections }: { sections: { id: string; label: string; content: ReactNode }[] }) {

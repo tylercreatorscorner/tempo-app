@@ -1,3 +1,4 @@
+import { InterfaceIcon } from '@/components/ui/interface-icon';
 import type { Metadata } from 'next';
 import { TempoLogo } from '@/components/ui/tempo-logo';
 import { ScrollReveal } from '@/components/landing/scroll-reveal';
@@ -153,7 +154,7 @@ export default function StatusPage() {
                 href="mailto:hello@tempoapp.ai"
                 className="font-semibold text-[#FF4D8D] hover:text-[#7C5CFC] transition-colors"
               >
-                Email us →
+                Email us <InterfaceIcon name="forward" />
               </a>
             </p>
           </div>

@@ -1,3 +1,4 @@
+import { InterfaceIcon } from '@/components/ui/interface-icon';
 import styles from './performance.module.css';
 
 export interface MetricCell {
@@ -17,7 +18,7 @@ export function CreatorMetricReadout({ cells, label = 'Creator performance' }: {
           <dd className={styles.value}>{cell.value}</dd>
           {cell.delta != null && Number.isFinite(cell.delta) && (
             <dd className={cell.delta >= 0 ? styles.positive : styles.negative}>
-              {cell.delta >= 0 ? '▲' : '▼'} {Math.abs(cell.delta).toFixed(0)}%
+              {<><InterfaceIcon name={cell.delta >= 0 ? 'increase' : 'decrease'} className="size-3"/><span className="sr-only">{cell.delta >= 0 ? 'Up ' : 'Down '}</span></>} {Math.abs(cell.delta).toFixed(0)}%
             </dd>
           )}
           {cell.foot && <dd className={styles.foot}>{cell.foot}</dd>}

@@ -1,5 +1,6 @@
 'use client';
 
+import { InterfaceIcon } from '@/components/ui/interface-icon';
 import { useState, useEffect } from 'react';
 import { Check } from 'lucide-react';
 import { Select } from '@/components/ui/select';
@@ -77,7 +78,7 @@ export function ProductTagPicker({
   }
   if (loading) return <p className="text-xs text-muted-foreground">Loading products…</p>;
   if (products.length === 0) {
-    return <p className="text-xs text-muted-foreground">No products defined for this brand yet — add them in Products → Catalog.</p>;
+    return <p className="text-xs text-muted-foreground">No products defined for this brand yet — add them in Products <InterfaceIcon name="forward" /> Catalog.</p>;
   }
   return (
     <div className="flex flex-wrap gap-1.5">

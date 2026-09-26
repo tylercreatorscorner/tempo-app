@@ -17,6 +17,7 @@
  * a silently-empty success state.
  */
 
+import { DateField } from '@/components/ui/date-field';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, Clipboard, Link2, Loader2, Wand2, ExternalLink } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils/format';
@@ -25,7 +26,7 @@ import { Button } from '@/components/ui/button';
 import { ChoiceMenu } from '@/components/ui/choice-menu';
 import { BrandIdentity } from '@/components/creators/brand-identity';
 import { Select } from '@/components/ui/select';
-import { Input, Textarea } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SegmentedControl } from '@/components/ui/segmented';
 import { useBrandSelect, BrandListWarning } from './use-report-brands';
@@ -360,13 +361,13 @@ function ClientReportForm({ onSent, lockedBrand }: { onSent: () => void; lockedB
         {reportKind === 'weekly' && <p className="mt-2 text-xs text-muted-foreground">{periodPayload.start} – {periodPayload.end} · Monday–Sunday{preset === 'this-week' ? ' (partial week)' : ''}</p>}
         {reportKind === 'performance' && (
           <div className="mt-2 grid grid-cols-2 gap-2">
-            <Input
-              type="date" value={startDate} max={endDate} aria-label="Start date"
-              onChange={e => setStartDate(e.target.value)}
+            <DateField
+              value={startDate} max={endDate} aria-label="Start date"
+              onValueChange={e => setStartDate(e)}
             />
-            <Input
-              type="date" value={endDate} min={startDate} max={today} aria-label="End date"
-              onChange={e => setEndDate(e.target.value)}
+            <DateField
+              value={endDate} min={startDate} max={today} aria-label="End date"
+              onValueChange={e => setEndDate(e)}
             />
           </div>
         )}
@@ -468,4 +469,3 @@ function HeadlineLine({ periodLabel, headline }: { periodLabel: string; headline
     </div>
   );
 }
-

@@ -10,6 +10,7 @@
  *
  * Data: GET /api/renewals?brand=&product=  (admin-gated)
  */
+import { InterfaceIcon } from '@/components/ui/interface-icon';
 import Link from 'next/link';
 import type { AgreementRenewalReview } from '@/lib/data/renewals';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -157,7 +158,7 @@ export function RenewalsTab({ brand }: RenewalsTabProps) {
           />
           <HeadlineCell color="amber" label="Watch"   value={formatNumber(t.watchCount)} sub="monitoring" />
           <HeadlineCell color="green" label="Keep"    value={formatNumber(t.keepCount)}
-            sub={t.starCount > 0 ? `${t.starCount} ⭐ stars` : 'solid performers'} />
+            sub={t.starCount > 0 ? `${t.starCount} stars` : 'solid performers'} />
           <HeadlineCell color="green" label="Legacy fees assessed" value={formatCurrency(t.monthlyTotal)} sub="excludes period review below" />
         </div>
       </div>
@@ -334,10 +335,10 @@ const PACE_STYLES = {
 } as const;
 
 const PACE_LABEL = {
-  ahead:    '🚀 Ahead',
-  'on-track': '✅ On track',
-  slow:     '⚠ Slow',
-  behind:   '🔴 Behind',
+  ahead:    <><InterfaceIcon name="increase"/> Ahead</>,
+  'on-track': <><InterfaceIcon name="complete"/> On track</>,
+  slow:     <><InterfaceIcon name="warning"/> Slow</>,
+  behind:   <><InterfaceIcon name="clock"/> Behind</>,
 } as const;
 
 function RenewalRow({ creator: c }: { creator: RenewalCreator }) {

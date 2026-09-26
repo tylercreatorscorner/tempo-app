@@ -2,6 +2,7 @@
 
 /** Sent links are immutable. Notes and data corrections create separate revisions. */
 
+import { InterfaceIcon } from '@/components/ui/interface-icon';
 import { ModalOverlay } from '@/components/ui/modal-overlay';
 import { useState, useTransition } from 'react';
 import { Loader2, Pencil, RefreshCw, Ban, X } from 'lucide-react';
@@ -104,7 +105,7 @@ export function ReportActions({
       </button>
 
       {!open && error && <span role="alert" className="max-w-64 text-xs text-destructive">{error}</span>}
-      {revisionLink && <span role="status"><a href={revisionLink} target="_blank" rel="noopener noreferrer" title="The previous report link is unchanged" className="whitespace-nowrap rounded-md bg-primary/5 px-2 py-1.5 text-xs font-semibold text-primary">Open new revision ↗</a></span>}
+      {revisionLink && <span role="status"><a href={revisionLink} target="_blank" rel="noopener noreferrer" title="The previous report link is unchanged" className="whitespace-nowrap rounded-md bg-primary/5 px-2 py-1.5 text-xs font-semibold text-primary">Open new revision <InterfaceIcon name="external" /></a></span>}
 
       {open && (
         <ModalOverlay onClose={() => { if (!busy) setOpen(null); }} closeOnBackdropClick={false} closeOnEsc={!busy}>

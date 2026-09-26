@@ -1,3 +1,4 @@
+import { InterfaceIcon } from '@/components/ui/interface-icon';
 import Link from 'next/link';
 import { peekClaimToken } from '@/lib/auth/creator-claim';
 import { ClaimContinue } from './claim-continue';
@@ -29,7 +30,7 @@ export default async function CreatorClaimPage({
           <>
             <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.16em] text-primary">Your portal is ready</p>
             <h1 className="text-2xl font-extrabold tracking-tight text-foreground">
-              Welcome, {info.realName.split(/\s+/)[0]} 👋
+              Welcome, {info.realName.split(/\s+/)[0]}
             </h1>
             <p className="mt-2 text-sm text-muted-foreground">
               Everything in one place — every brand you&apos;re on, your retainers, posts, and GMV,
@@ -50,7 +51,7 @@ export default async function CreatorClaimPage({
               href="/creator-login"
               className="mt-4 inline-block text-sm font-semibold text-primary hover:underline"
             >
-              Go to login →
+              Go to login <InterfaceIcon name="forward" />
             </Link>
           </>
         )}

@@ -32,6 +32,8 @@
  * carries Video Data content), Transaction Analysis. The separate
  * *_Video_Data_*.xlsx export is retired; it was byte-identical to Video List.
  */
+import { InterfaceIcon } from '@/components/ui/interface-icon';
+import { DateField } from '@/components/ui/date-field';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import {
@@ -424,7 +426,7 @@ export function UploadClient({ activeBrands, onUploaded }: UploadClientProps) {
       type: decision.to,
       typeNotice: {
         level: 'info',
-        message: `Type auto-switched: ${FILE_TYPE_LABELS[current.type]} → ${FILE_TYPE_LABELS[decision.to]} — columns matched ${decision.best.matched}/${decision.best.total}${vsChosen}`,
+        message: `Type auto-switched: ${FILE_TYPE_LABELS[current.type]} to ${FILE_TYPE_LABELS[decision.to]} — columns matched ${decision.best.matched}/${decision.best.total}${vsChosen}`,
       },
     });
     const fresh = queueRef.current.find(i => i.id === id);
@@ -1191,10 +1193,9 @@ function QueueRow({
                 <option key={b.slug} value={b.slug}>{b.name}</option>
               ))}
             </select>
-            <input
-              type="date"
+            <DateField
               value={item.reportDate}
-              onChange={e => onChange({ reportDate: e.target.value })}
+              onValueChange={e => onChange({ reportDate: e })}
               disabled={!editable}
               className="text-xs bg-card border border-border rounded-lg px-2 py-1.5 disabled:bg-muted disabled:text-muted-foreground"
             />
@@ -1285,7 +1286,7 @@ function QueueRow({
                   l.level === 'success' ? 'text-emerald-500 font-semibold' :
                                           'text-foreground'
                 )}>
-                  {l.level === 'error' ? '✗ ' : l.level === 'warning' ? '⚠ ' : l.level === 'success' ? '✓ ' : '· '}{l.message}
+                  <InterfaceIcon name={l.level === "error" ? "error" : l.level === "warning" ? "warning" : l.level === "success" ? "success" : "clock"} className="mr-1.5"/>{l.message}
                 </div>
               ))}
             </pre>

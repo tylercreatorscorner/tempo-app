@@ -1,1 +1,79 @@
-.popover{position:absolute;right:0;top:100%;margin-top:8px;z-index:50;width:520px;max-width:calc(100vw - 32px);background:var(--card);border:1px solid var(--border);border-radius:14px;box-shadow:0 12px 32px #00000018;padding:16px}.months{display:flex;gap:16px}.month{flex:1;min-width:0}@media(max-width:600px){.popover{position:fixed;left:16px;right:16px;top:auto;bottom:16px;width:auto;max-width:none;max-height:calc(100dvh - 80px);overflow-y:auto}.month:nth-child(2){display:none}}
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: #00000028;
+  backdrop-filter: blur(2px);
+}
+.popover {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 201;
+  width: 310px;
+  max-width: calc(100vw - 24px);
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+  background: var(--card);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: 0 20px 70px #00000030;
+  padding: 16px;
+}
+.header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  color: var(--muted-foreground);
+}
+.close:hover {
+  background: var(--secondary);
+}
+.selection {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  overflow: hidden;
+  margin: 16px 0 8px;
+}
+.selection > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--secondary);
+  padding: 9px 11px;
+}
+.selection span {
+  font-size: 10px;
+  color: var(--muted-foreground);
+}
+.selection strong {
+  font-size: 12px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid var(--border);
+  margin-top: 12px;
+  padding-top: 12px;
+}
+.popover button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}

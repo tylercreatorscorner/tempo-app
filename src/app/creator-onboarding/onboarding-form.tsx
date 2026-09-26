@@ -83,7 +83,7 @@ export function OnboardingForm({
 
         <div className="bg-card rounded-2xl border border-border shadow-[var(--pulse-elev-1)] p-8">
           <h1 className="text-xl font-bold text-foreground text-center">
-            {firstName ? `Welcome, ${firstName}! 👋` : 'Welcome to Tempo! 👋'}
+            {firstName ? `Welcome, ${firstName}!` : 'Welcome to Tempo!'}
           </h1>
           <p className="text-sm text-muted-foreground text-center mt-1.5 mb-6">
             Add your email so you can always sign back in — and a phone number so your

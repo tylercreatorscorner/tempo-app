@@ -1,3 +1,4 @@
+import { InterfaceIcon } from '@/components/ui/interface-icon';
 import { ReconciliationView } from './reconciliation-view';
 /**
  * The client report page body — renders the frozen snapshot.
@@ -113,7 +114,7 @@ function Delta({ pct, suffix, abs }: { pct?: number | null; suffix?: string; abs
   const up = pct_ >= 0;
   return (
     <div className={`mt-0.5 text-[11px] font-bold tabular-nums ${up ? 'text-[#0d9f6e]' : 'text-[#cf3a6e]'}`}>
-      {up ? '▲' : '▼'} {abs ? `${abs} ` : ''}({Math.abs(pct_).toFixed(1)}%){suffix ? ` ${suffix}` : ''}
+      {<><InterfaceIcon name={up ? 'increase' : 'decrease'} className="size-3"/><span className="sr-only">{up ? 'Up ' : 'Down '}</span></>} {abs ? `${abs} ` : ''}({Math.abs(pct_).toFixed(1)}%){suffix ? ` ${suffix}` : ''}
     </div>
   );
 }
@@ -184,7 +185,7 @@ function PointsDelta({ points }: { points: number | null }) {
   const up = points >= 0;
   return (
     <div className={`mt-0.5 text-[11px] font-bold tabular-nums ${up ? 'text-[#0d9f6e]' : 'text-[#cf3a6e]'}`}>
-      {up ? '▲' : '▼'} {Math.abs(points).toFixed(1)} pts
+      {<><InterfaceIcon name={up ? 'increase' : 'decrease'} className="size-3"/><span className="sr-only">{up ? 'Up ' : 'Down '}</span></>} {Math.abs(points).toFixed(1)} pts
     </div>
   );
 }

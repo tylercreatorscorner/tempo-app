@@ -11,6 +11,7 @@
  * arrives with the Discord bot revival (no delivery is built here).
  */
 
+import { DateField } from '@/components/ui/date-field';
 import { useMemo, useState } from 'react';
 import { Plus, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -392,22 +393,20 @@ export function ContestBuilderSheet({
                   <label className="mb-1 block text-[11px] font-medium text-muted-foreground" htmlFor="contest-window-start">
                     Starts
                   </label>
-                  <Input
+                  <DateField
                     id="contest-window-start"
-                    type="date"
                     value={windowStart}
-                    onChange={(e) => setWindowStart(e.target.value)}
+                    onValueChange={(e) => setWindowStart(e)}
                   />
                 </div>
                 <div>
                   <label className="mb-1 block text-[11px] font-medium text-muted-foreground" htmlFor="contest-window-end">
                     Ends
                   </label>
-                  <Input
+                  <DateField
                     id="contest-window-end"
-                    type="date"
                     value={windowEnd}
-                    onChange={(e) => setWindowEnd(e.target.value)}
+                    onValueChange={(e) => setWindowEnd(e)}
                   />
                 </div>
               </div>

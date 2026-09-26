@@ -11,6 +11,7 @@
  *   3. Drawer (when row clicked): edit + history
  */
 
+import { InterfaceIcon } from '@/components/ui/interface-icon';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Zap, Plus, Play, Loader2, X, AlertCircle, CheckCircle2, Clock,
@@ -914,7 +915,7 @@ function ChannelPicker({
         <optgroup key={category} label={category}>
           {items.map(c => (
             <option key={c.id} value={c.id}>
-              {c.isAnnouncement ? '📢 ' : '#'}{c.name}
+              {c.isAnnouncement ? 'Announcement: ' : '#'}{c.name}
             </option>
           ))}
         </optgroup>
@@ -997,7 +998,7 @@ function HistorySection({ automationId }: { automationId: string }) {
                     {r.error_message && <p className="text-red-600">{r.error_message}</p>}
                     {r.step_results?.map((sr, i) => (
                       <p key={i} className={sr.ok ? 'text-emerald-500' : 'text-red-500'}>
-                        {sr.ok ? '✓' : '✗'} {sr.action}{sr.summary ? ` — ${sr.summary}` : ''}{sr.error ? ` — ${sr.error}` : ''}
+                        <InterfaceIcon name={sr.ok ? "success" : "error"}/> {sr.action}{sr.summary ? ` — ${sr.summary}` : ''}{sr.error ? ` — ${sr.error}` : ''}
                       </p>
                     ))}
                   </div>

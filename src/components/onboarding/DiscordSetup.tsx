@@ -1,5 +1,6 @@
 'use client';
 
+import { InterfaceIcon } from '@/components/ui/interface-icon';
 import { useState, useEffect } from 'react';
 import { Bot, ExternalLink, CheckCircle2, Loader2, MessageSquare, Bell, DollarSign } from 'lucide-react';
 
@@ -111,7 +112,7 @@ export function DiscordSetup({ onComplete, onSkip }: DiscordSetupProps) {
         )}
 
         <p className="text-xs text-muted-foreground text-center">
-          🔜 <span className="font-medium">Slack integration coming soon!</span>
+          <InterfaceIcon name="clock" /> <span className="font-medium">Slack integration coming soon!</span>
         </p>
 
         <button

@@ -1,3 +1,4 @@
+import { InterfaceIcon } from '@/components/ui/interface-icon';
 import { CreatorPortrait } from '@/components/creators/creator-portrait';
 import Link from 'next/link';
 import { formatCurrency } from '@/lib/utils/format';
@@ -42,7 +43,7 @@ export function TopCreators({ creators, label, brand }: { creators: TopCreatorRo
       <CardHeader>
         <CardTitle eyebrow>Top Creators · {label}</CardTitle>
         <Link href={brand ? `/roster?brand=${encodeURIComponent(brand)}` : "/roster"} className="text-xs font-semibold text-[var(--primary)] hover:underline">
-          View roster →
+          View roster <InterfaceIcon name="forward" />
         </Link>
       </CardHeader>
 

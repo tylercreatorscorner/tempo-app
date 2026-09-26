@@ -1,5 +1,6 @@
 'use client';
 
+import { InterfaceIcon } from '@/components/ui/interface-icon';
 import { useState, useEffect, useCallback } from 'react';
 import { PageHeader } from '@/components/ui/page-header';
 import { StatCard } from '@/components/ui/stat-card';
@@ -53,26 +54,26 @@ export function InvitesClient() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        addLog(`❌ ${label}: ${data.error ?? res.status}`);
+        addLog(`Error: ${label}: ${data.error ?? res.status}`);
       } else if (data.attempted !== undefined) {
         addLog(
-          `✅ ${label}: attempted ${data.attempted}, sent ${data.sent}, blocked ${data.blocked}, failed ${data.failed}${data.rateLimited ? ' (rate-limited — run again)' : ''} · ${data.remaining} left`,
+          `Success: ${label}: attempted ${data.attempted}, sent ${data.sent}, blocked ${data.blocked}, failed ${data.failed}${data.rateLimited ? ' (rate-limited — run again)' : ''} · ${data.remaining} left`,
         );
         if (data.status) setStatus(data.status as Status);
       } else if (data.enqueued !== undefined) {
-        addLog(`✅ ${label}: enqueued ${data.enqueued}`);
+        addLog(`Success: ${label}: enqueued ${data.enqueued}`);
         if (data.status) setStatus(data.status as Status);
       } else if (data.outcome === 'error') {
-        addLog(`❌ ${label}: ${data.error ?? 'error'}`);
+        addLog(`Error: ${label}: ${data.error ?? 'error'}`);
       } else if (data.outcome) {
         addLog(
-          `${data.outcome === 'sent' ? '✅' : '⚠️'} ${label}: ${data.outcome}${data.creatorName ? ` (as ${data.creatorName})` : ''}${data.url ? ` — ${data.url}` : ''}`,
+          `${data.outcome === 'sent' ? 'Success:' : 'Warning:'} ${label}: ${data.outcome}${data.creatorName ? ` (as ${data.creatorName})` : ''}${data.url ? ` — ${data.url}` : ''}`,
         );
       } else {
-        addLog(`✅ ${label}`);
+        addLog(`Success: ${label}`);
       }
     } catch {
-      addLog(`❌ ${label}: network error`);
+      addLog(`Error: ${label}: network error`);
     }
     setBusy(null);
     refresh();
@@ -89,7 +90,7 @@ export function InvitesClient() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        addLog(`❌ find creator: ${data.error ?? res.status}`);
+        addLog(`Error: find creator: ${data.error ?? res.status}`);
         setCandidates([]);
       } else {
         const list = (data.candidates ?? []) as Candidate[];
@@ -98,7 +99,7 @@ export function InvitesClient() {
         if (list.length === 1) await mintFor(list[0]);
       }
     } catch {
-      addLog('❌ find creator: network error');
+      addLog('Error: find creator: network error');
     }
     setBusy(null);
   }
@@ -113,13 +114,13 @@ export function InvitesClient() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.minted?.url) {
-        addLog(`❌ mint link: ${data.error ?? res.status}`);
+        addLog(`Error: mint link: ${data.error ?? res.status}`);
       } else {
         setMintedUrl(data.minted.url as string);
-        addLog(`✅ minted invite link for ${c.name}`);
+        addLog(`Success: minted invite link for ${c.name}`);
       }
     } catch {
-      addLog('❌ mint link: network error');
+      addLog('Error: mint link: network error');
     }
     setBusy(null);
   }
@@ -221,8 +222,8 @@ export function InvitesClient() {
         <h3 className="font-bold text-foreground">1 · Test on yourself first</h3>
         <p className="text-sm text-muted-foreground">
           Send one real invite to your own Discord to check the DM + login flow. You only need your Discord{' '}
-          <strong>user id</strong> — in Discord: Settings → Advanced → <strong>Developer Mode</strong> on, then
-          right-click your name → <strong>Copy User ID</strong> (a ~19-digit number). Leave the creator field blank to
+          <strong>user id</strong> — in Discord: Settings <InterfaceIcon name="forward" /> Advanced <InterfaceIcon name="forward" /> <strong>Developer Mode</strong> on, then
+          right-click your name <InterfaceIcon name="forward" /> <strong>Copy User ID</strong> (a ~19-digit number). Leave the creator field blank to
           auto-pick one.
         </p>
         <div className="flex flex-wrap gap-2">

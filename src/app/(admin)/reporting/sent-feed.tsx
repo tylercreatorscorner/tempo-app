@@ -2,6 +2,7 @@
 
 /** Saved client reports, searched and paginated within the caller's scope. */
 
+import { InterfaceIcon } from '@/components/ui/interface-icon';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AlertCircle, Ban, Check, Clipboard, ExternalLink, Loader2, RotateCw, Send,
@@ -202,7 +203,7 @@ export function SentFeed({ refreshKey }: { refreshKey: number }) {
       {revisionLink && (
         <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-sm">
           <span>New revision created. The previous link is unchanged.</span>
-          <a href={`${revisionLink}?preview=1`} target="_blank" rel="noopener noreferrer" className="font-semibold text-primary underline-offset-4 hover:underline">Open new revision →</a>
+          <a href={`${revisionLink}?preview=1`} target="_blank" rel="noopener noreferrer" className="font-semibold text-primary underline-offset-4 hover:underline">Open new revision <InterfaceIcon name="forward" /></a>
         </div>
       )}
 
@@ -309,7 +310,7 @@ function FeedRow({
         <BrandIdentity brand={item.brandSlug} label={brandLabel} />
         <p className="mt-1 text-xs text-muted-foreground">{item.periodLabel}{item.kind === 'client' && item.isRevision ? ' · Revised' : ''}</p>
         {item.kind === 'post' && <ReportChip item={item} />}
-        {previousUrl && <a href={`${previousUrl}?preview=1`} target="_blank" rel="noopener noreferrer" className="mt-1 block text-xs text-muted-foreground hover:underline">Previous report ↗</a>}
+        {previousUrl && <a href={`${previousUrl}?preview=1`} target="_blank" rel="noopener noreferrer" className="mt-1 block text-xs text-muted-foreground hover:underline">Previous report <InterfaceIcon name="external" /></a>}
       </TD>
       <TD className="border-0 text-left text-xs sm:border-b" title={new Date(item.createdAt).toLocaleString()}>
         {relativeTimeAgo(item.createdAt)}

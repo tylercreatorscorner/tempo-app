@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic';
 
+import { InterfaceIcon } from '@/components/ui/interface-icon';
 import { Suspense } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
@@ -111,7 +112,7 @@ export default async function BrandsPage({ searchParams }: Props) {
       {brands.length === 0 && (
         <div className="rounded-2xl border border-border bg-card overflow-hidden">
           <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
-            <div className="text-5xl mb-4">🏢</div>
+            <div className="text-5xl mb-4"><InterfaceIcon name="brand" className="size-7 text-primary" /></div>
             <h3 className="text-lg font-bold">No brands yet</h3>
             <p className="text-sm text-muted-foreground mt-2 max-w-sm">
               Add your first brand to start tracking creator performance, GMV, and product analytics.

@@ -1,4 +1,5 @@
 'use client';
+import { InterfaceIcon } from '@/components/ui/interface-icon';
 import { SegmentedControl } from '@/components/ui/segmented';
 import RosterLoading from './loading';
 import { BrandIdentity } from '@/components/creators/brand-identity';
@@ -1448,7 +1449,7 @@ function DeltaBadge({ value }: { value?: number | null }) {
   const up = value >= 0;
   return (
     <span className={`text-[10px] font-semibold ${up ? 'text-green-600' : 'text-red-500'}`}>
-      {up ? '▲' : '▼'}{Math.abs(Math.round(value)).toLocaleString()}%
+      {<><InterfaceIcon name={up ? 'increase' : 'decrease'} className="size-3"/><span className="sr-only">{up ? 'Up ' : 'Down '}</span></>}{Math.abs(Math.round(value)).toLocaleString()}%
     </span>
   );
 }
@@ -1953,7 +1954,7 @@ function RosterContent() {
         <div className="flex items-center gap-2 -mt-1">
           <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-md bg-primary/10 text-[var(--primary)] border border-primary/10">
             Segment: {segFilters.name}
-            <button onClick={() => setSegFilters(null)} className="ml-0.5 leading-none text-sm hover:text-foreground" aria-label="Clear segment">×</button>
+            <button onClick={() => setSegFilters(null)} className="ml-0.5 leading-none text-sm hover:text-foreground" aria-label="Clear segment"><InterfaceIcon name="error" className="size-3.5"/></button>
           </span>
         </div>
       )}

@@ -12,6 +12,7 @@
  */
 export const dynamic = 'force-dynamic';
 
+import { InterfaceIcon } from '@/components/ui/interface-icon';
 import { createAdminClient } from '@/lib/supabase/server';
 import type { AgencySnapshot } from '@/lib/data/agency-report';
 import { AgencyView } from './agency-view';
@@ -45,7 +46,7 @@ function GonePage() {
     <div className="flex min-h-screen items-center justify-center bg-[#fbfbfd] p-6">
       <div className="max-w-sm rounded-2xl border border-[#e7e7f2] bg-white p-8 text-center shadow-sm">
         <div className="mx-auto mb-4 flex h-11 w-11 items-center justify-center rounded-full bg-[#f2f1f8] text-lg text-[#8a8fb0]">
-          🔒
+          <InterfaceIcon name="lock" className="size-7 text-primary" />
         </div>
         <h1 className="text-[15px] font-bold text-[#171a33]">This report link is no longer active</h1>
         <p className="mt-1.5 text-[13px] text-[#8a8fb0]">Ask your Tempo admin for a fresh link.</p>

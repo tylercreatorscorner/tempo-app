@@ -1,5 +1,6 @@
 'use client';
 
+import { InterfaceIcon } from '@/components/ui/interface-icon';
 import Link from 'next/link';
 import {
   ArrowRight,
@@ -138,7 +139,7 @@ export function HomeClient(props: Props) {
           <SectionHead
             title={`${bandLabel} · where you stand`}
             href="/creator-dashboard/rankings"
-            cta="Full rankings →"
+            cta="Full rankings"
           />
           <StandingBand standing={brandStanding} variant="share" />
         </section>
@@ -233,7 +234,7 @@ function SectionHead({ title, href, cta }: { title: string; href?: string; cta?:
           href={href}
           className="whitespace-nowrap text-xs font-semibold text-primary hover:underline"
         >
-          {cta}
+          {cta} <InterfaceIcon name="forward"/>
         </Link>
       )}
     </div>
@@ -351,7 +352,7 @@ function DeltaPill({ pct }: { pct: number }) {
         backgroundColor: up ? 'var(--pulse-pos-bg)' : 'var(--pulse-neg-bg)',
       }}
     >
-      {up ? '▲' : '▼'} {Math.abs(pct).toFixed(1)}%
+      {<><InterfaceIcon name={up ? 'increase' : 'decrease'} className="size-3"/><span className="sr-only">{up ? 'Up ' : 'Down '}</span></>} {Math.abs(pct).toFixed(1)}%
     </span>
   );
 }
@@ -398,7 +399,7 @@ function DeltaText({ pct }: { pct: number | null }) {
       className="mt-1 font-mono text-[11px] tabular-nums"
       style={{ color: up ? 'var(--pulse-pos)' : 'var(--pulse-neg)' }}
     >
-      {up ? '▲' : '▼'} {Math.abs(Math.round(pct))}% vs prior
+      {<><InterfaceIcon name={up ? 'increase' : 'decrease'} className="size-3"/><span className="sr-only">{up ? 'Up ' : 'Down '}</span></>} {Math.abs(Math.round(pct))}% vs prior
     </p>
   );
 }
@@ -475,7 +476,7 @@ function MoneyMakers({
           href="/creator-dashboard/stats"
           className="whitespace-nowrap text-xs font-semibold text-primary hover:underline"
         >
-          See all →
+          See all <InterfaceIcon name="forward" />
         </Link>
       </CardHeader>
       <CardContent className="pt-0">
@@ -494,7 +495,7 @@ function MoneyMakers({
                     className="whitespace-nowrap text-xs tabular-nums"
                     style={{ color: p.gmvChangePct >= 0 ? 'var(--pulse-pos)' : 'var(--pulse-warn)' }}
                   >
-                    {p.gmvChangePct >= 0 ? '▲' : '▼'}
+                    {<><InterfaceIcon name={p.gmvChangePct >= 0 ? 'increase' : 'decrease'} className="size-3"/><span className="sr-only">{p.gmvChangePct >= 0 ? 'Up ' : 'Down '}</span></>}
                     {Math.abs(Math.round(p.gmvChangePct))}% vs prior
                   </p>
                 )}
@@ -651,7 +652,7 @@ function RetainerPace({
           />
           <div className="min-w-[220px] flex-1 space-y-3 text-sm">
             <div className="space-y-2">
-              <PaceRow label="Videos posted" value={`${monthVideos} / ${monthlyTarget}${onTrack ? ' ✓' : ''}`} />
+              <PaceRow label="Videos posted" value={`${monthVideos} / ${monthlyTarget}`} />
               <PaceRow label="Days left" value={String(daysLeftInMonth)} />
               <PaceRow
                 label="Status"
@@ -775,7 +776,7 @@ function VideoColumn({
           {title}
         </CardTitle>
         <Link href={ctaHref} className="whitespace-nowrap text-xs font-semibold text-primary hover:underline">
-          See all →
+          See all <InterfaceIcon name="forward" />
         </Link>
       </CardHeader>
       <CardContent className="pt-0">

@@ -1,5 +1,6 @@
 'use client';
 
+import { InterfaceIcon } from '@/components/ui/interface-icon';
 import Link from 'next/link';
 import { Briefcase, Sparkles } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -107,7 +108,7 @@ export function BrandsClient({ realName, rangeLabel, rows, standings, untapped }
             href="/creator-dashboard/discover"
             className="shrink-0 rounded-lg bg-primary/10 px-2.5 py-1 font-mono text-xs font-semibold text-primary hover:bg-primary/15"
           >
-            Find an angle →
+            Find an angle <InterfaceIcon name="forward" />
           </Link>
         </section>
       )}

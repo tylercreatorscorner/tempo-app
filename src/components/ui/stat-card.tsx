@@ -1,3 +1,4 @@
+import { InterfaceIcon } from '@/components/ui/interface-icon';
 import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import { SparklineStrip } from '@/components/charts/sparkline-strip';
@@ -64,7 +65,7 @@ export function StatCard({
                   color: isPositive ? 'var(--pulse-on-hero-pos)' : 'var(--pulse-on-hero-neg)',
                 }}
               >
-                {isPositive ? '▲' : '▼'}{Math.abs(trend) < 1 ? Math.abs(trend).toFixed(1) : Math.round(Math.abs(trend))}%
+                {<><InterfaceIcon name={isPositive ? 'increase' : 'decrease'} className="size-3"/><span className="sr-only">{isPositive ? 'Up ' : 'Down '}</span></>}{Math.abs(trend) < 1 ? Math.abs(trend).toFixed(1) : Math.round(Math.abs(trend))}%
               </span>
             )}
             {trendLabel && <span className="text-white/60">{trendLabel}</span>}
@@ -94,7 +95,7 @@ export function StatCard({
         <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs font-semibold">
           {trend !== undefined && (
             <span className="tabular-nums" style={{ color: isPositive ? 'var(--pulse-pos)' : 'var(--pulse-neg)' }}>
-              {isPositive ? '▲' : '▼'}{Math.abs(trend) < 1 ? Math.abs(trend).toFixed(1) : Math.round(Math.abs(trend))}%
+              {<><InterfaceIcon name={isPositive ? 'increase' : 'decrease'} className="size-3"/><span className="sr-only">{isPositive ? 'Up ' : 'Down '}</span></>}{Math.abs(trend) < 1 ? Math.abs(trend).toFixed(1) : Math.round(Math.abs(trend))}%
             </span>
           )}
           {trendLabel && <span className="text-muted-foreground">{trendLabel}</span>}

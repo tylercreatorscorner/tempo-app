@@ -1,5 +1,6 @@
 'use client';
 
+import { InterfaceIcon } from '@/components/ui/interface-icon';
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { TempoLogo } from '@/components/ui/tempo-logo';
@@ -223,7 +224,7 @@ export default function JoinPage() {
 
           {step === 3 && (
             <div className="text-center space-y-4">
-              <div className="text-5xl">🎉</div>
+              <div className="text-5xl"><InterfaceIcon name="complete" className="size-7 text-primary" /></div>
               <h1 className="text-xl font-bold text-[#1A1B3A]">You are in!</h1>
               {verified ? (
                 <p className="text-sm text-gray-600">
