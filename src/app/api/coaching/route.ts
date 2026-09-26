@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { can } from "@/lib/auth/permissions";
 import { guardScreen } from "@/lib/auth/require-screen";
 import { createAdminClient } from "@/lib/supabase/server";
 import { blankDraft, draftSchema, validWeek } from "@/lib/coaching/model";
@@ -119,6 +120,8 @@ export async function GET(req: NextRequest) {
       {
         userId: scope.userId,
         admin,
+        canWrite: can(scope, "reporting", "write"),
+        canConfigure: admin && can(scope, "reporting", "configure"),
         brands,
         people: peopleResult.data ?? [],
         assignments,
@@ -189,6 +192,7 @@ export async function POST(req: NextRequest) {
       { status: 400 },
     );
   const input = parsed.data;
+  if (!can(scope, "reporting", input.action === "assign" ? "configure" : "write")) return NextResponse.json({error: "Reporting edit permission is required."}, {status:403});
   if (input.action !== "assign" && !validWeek(input.week))
     return NextResponse.json(
       { error: "Choose a valid week starting Monday." },

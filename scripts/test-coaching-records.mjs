@@ -17,6 +17,7 @@ insert into auth.users values('${id(20)}'),('${id(21)}'),('${id(22)}'),('${id(23
 insert into user_profiles values('${id(20)}','${id(1)}','owner',null),('${id(21)}','${id(1)}','coach',null),('${id(22)}','${id(1)}','manager',null),('${id(23)}','${id(2)}','coach',null);
 insert into roles values('${id(30)}','${id(1)}','owner'),('${id(31)}','${id(1)}','coach'),('${id(32)}','${id(1)}','manager');
 insert into role_permissions values('${id(30)}','reporting','read'),('${id(31)}','reporting','read'),('${id(32)}','reporting','read');
+insert into role_permissions values('${id(30)}','reporting','configure'),('${id(30)}','reporting','write'),('${id(31)}','reporting','write'),('${id(32)}','reporting','write');
 insert into user_brand_access values('${id(21)}','${id(1)}','${id(10)}'),('${id(22)}','${id(1)}','${id(10)}');
 grant usage on schema public,auth to service_role;
 grant select on all tables in schema public,auth to service_role;`);
@@ -26,6 +27,7 @@ await db.exec(
     "utf8",
   ),
 );
+await db.exec(readFileSync('supabase/migrations/20260926211327_coaching_permission_levels.sql','utf8'));
 const call = (
   actor,
   action,
@@ -61,7 +63,7 @@ await assert.rejects(
 await db.exec("reset role;set role service_role");
 await assert.rejects(
   call(id(21), "assign", null, assignmentPayload),
-  /Only administrators/,
+  /access denied/,
 );
 await assert.rejects(
   call(id(20), "assign", null, { ...assignmentPayload, brandId: id(11) }),
@@ -69,7 +71,7 @@ await assert.rejects(
 );
 await assert.rejects(
   call(id(20), "assign", null, { ...assignmentPayload, coachId: id(23) }),
-  /need access/,
+  /need brand access/,
 );
 const assignment = (await call(id(20), "assign", null, assignmentPayload))
   .rows[0].id;

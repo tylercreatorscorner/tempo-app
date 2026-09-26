@@ -92,6 +92,8 @@ export type CoachingReview = {
 export type CoachingData = {
   userId: string;
   admin: boolean;
+  canWrite: boolean;
+  canConfigure: boolean;
   brands: { id: string; name: string }[];
   people: { user_id: string; name: string | null; email?: string }[];
   assignments: CoachingAssignment[];

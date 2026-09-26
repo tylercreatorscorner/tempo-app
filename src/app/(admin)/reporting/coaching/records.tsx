@@ -279,7 +279,7 @@ export function CoachingRecords() {
                 </div>
               </section>
             )}
-            {data.admin && (
+            {data.canConfigure && (
               <AssignmentForm data={data} busy={busy || dirty} save={save} />
             )}
           </>
@@ -319,10 +319,12 @@ function ReportForm({
   const own = assignment.coach_id === data.userId;
   const editing =
     own &&
+    data.canWrite &&
     !revision &&
     (!report || ["draft", "changes_requested"].includes(report.status));
   const canReview =
     !own &&
+    data.canWrite &&
     (data.admin || assignment.reviewer_id === data.userId) &&
     report?.status === "submitted" &&
     !revision;
