@@ -133,6 +133,7 @@ export function CoachingRecords() {
       <NavigationLink href="/reporting" direction="back">
         Back to reporting
       </NavigationLink>
+      <NavigationLink href="/reporting/coaching/elite">Elite creator brief · JiYu</NavigationLink>
       <div className={styles.brief}>
         <div>
           <span className={styles.eyebrow}>Weekly accountability</span>
