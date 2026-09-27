@@ -22,16 +22,17 @@ const otherTenant = '00000000-0000-4000-8000-000000000002';
 const brand = '00000000-0000-4000-8000-000000000003';
 const manager = '00000000-0000-4000-8000-000000000004';
 const otherManager = '00000000-0000-4000-8000-000000000005';
+const owner = '00000000-0000-4000-8000-000000000009';
 const role = '00000000-0000-4000-8000-000000000006';
 const form = '00000000-0000-4000-8000-000000000007';
 const app = '00000000-0000-4000-8000-000000000008';
 await db.exec(`
   insert into tenants values ('${tenant}'),('${otherTenant}');
-  insert into auth.users values ('${manager}'),('${otherManager}');
+  insert into auth.users values ('${manager}'),('${otherManager}'),('${owner}');
   insert into brands_v2(id,tenant_id,slug) values ('${brand}','${tenant}','jiyu');
-  insert into roles values ('${role}','${tenant}','manager');
-  insert into role_permissions values ('${role}','roster','write');
-  insert into user_profiles values ('${manager}','${tenant}','manager','${role}'),('${otherManager}','${tenant}','manager','${role}');
+  insert into roles values ('${role}','${tenant}','manager'),('00000000-0000-4000-8000-000000000010','${tenant}','owner');
+  insert into role_permissions values ('${role}','roster','write'),('00000000-0000-4000-8000-000000000010','roster','write');
+  insert into user_profiles values ('${manager}','${tenant}','manager','${role}'),('${otherManager}','${tenant}','manager','${role}'),('${owner}','${tenant}','owner','00000000-0000-4000-8000-000000000010');
   insert into user_brand_access values ('${manager}','${brand}','${tenant}'),('${otherManager}','${brand}','${tenant}');
   insert into brand_manager_assignments values ('${brand}','${manager}');
   insert into creator_application_forms(id,tenant_id,brand_id,created_by) values ('${form}','${tenant}','${brand}','${manager}');
@@ -56,6 +57,16 @@ await assert.rejects(decide(manager), /Application changed/);
 const { rows } = await db.query('select prior_status,new_status,actor_id from creator_application_decisions');
 assert.equal(rows.length, 1);
 assert.equal(rows[0].actor_id, manager);
+const secondApp = '00000000-0000-4000-8000-000000000011';
+await db.exec(`
+  update brand_manager_assignments set manager_user_id='${owner}' where brand_id='${brand}';
+  insert into creator_application_submissions(id,tenant_id,brand_id,form_id,form_version,questions_snapshot,full_name,email,tiktok_handle)
+    values ('${secondApp}','${tenant}','${brand}','${form}',1,'[]','Another Creator','another@example.com','another');
+`);
+await assert.rejects(db.query('select status from decide_creator_application($1,$2,$3,$4,$5,$6)',
+  [secondApp, tenant, manager, 'pending', 'approved', null]), /Only the current assigned brand manager/);
+assert.equal((await db.query('select status from decide_creator_application($1,$2,$3,$4,$5,$6)',
+  [secondApp, tenant, owner, 'pending', 'approved', null])).rows[0].status, 'approved');
 const grants = await db.query(`select
   has_table_privilege('anon','public.creator_application_submissions','select') anon_read,
   has_table_privilege('authenticated','public.creator_application_submissions','select') staff_read,
