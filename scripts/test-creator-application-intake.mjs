@@ -42,10 +42,24 @@ const decide = (actor, expected = 'pending', next = 'approved', tenantId = tenan
   db.query('select status from decide_creator_application($1,$2,$3,$4,$5,$6)', [app, tenantId, actor, expected, next, 'Reviewed']);
 await assert.rejects(decide(otherManager), /Only the current assigned brand manager/);
 await assert.rejects(decide(manager, 'pending', 'approved', otherTenant), /Application changed/);
+await db.exec(`delete from user_brand_access where user_id='${manager}'`);
+await assert.rejects(decide(manager), /Only the current assigned brand manager/);
+await db.exec(`insert into user_brand_access values ('${manager}','${brand}','${tenant}')`);
+await db.exec(`update brands_v2 set is_archived=true where id='${brand}'`);
+await assert.rejects(decide(manager), /Only the current assigned brand manager/);
+await db.exec(`update brands_v2 set is_archived=false where id='${brand}'`);
+await db.exec(`delete from role_permissions where role_id='${role}'`);
+await assert.rejects(decide(manager), /Roster write access is required/);
+await db.exec(`insert into role_permissions values ('${role}','roster','write')`);
 assert.equal((await decide(manager)).rows[0].status, 'approved');
 await assert.rejects(decide(manager), /Application changed/);
 const { rows } = await db.query('select prior_status,new_status,actor_id from creator_application_decisions');
 assert.equal(rows.length, 1);
 assert.equal(rows[0].actor_id, manager);
+const grants = await db.query(`select
+  has_table_privilege('anon','public.creator_application_submissions','select') anon_read,
+  has_table_privilege('authenticated','public.creator_application_submissions','select') staff_read,
+  has_function_privilege('authenticated','public.decide_creator_application(uuid,uuid,uuid,text,text,text)','execute') staff_decide`);
+assert.deepEqual(Object.values(grants.rows[0]), [false, false, false]);
 console.log('creator application decision boundary: passed');
 await db.close();
