@@ -2,7 +2,7 @@
 
 import Link, { useLinkStatus } from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
-import { LayoutDashboard, Users, PlaySquare, FileBarChart, MessagesSquare, Wallet, Boxes, PanelLeftClose, PanelLeft, Loader2 } from 'lucide-react';
+import { LayoutDashboard, Users, PlaySquare, GraduationCap, FileBarChart, MessagesSquare, Wallet, Boxes, PanelLeftClose, PanelLeft, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useDelayedFlag } from '@/hooks/use-delayed-flag';
 import { TempoLogo, TempoIcon } from '@/components/ui/tempo-logo';
@@ -16,31 +16,21 @@ interface Dest {
   icon: React.ComponentType<{ className?: string }>;
   /** Path prefixes that light this destination up (its section's pages). */
   match: string[];
+  exclude?: string[];
   adminOnly?: boolean;
   financeGated?: boolean;
 }
 
-// SEVEN destinations (Products is admin-only; Finance is finance-gated).
-// Sub-views (Roster/Retention/Affiliates/Segments, Earnings/YTD/Invoicing/
-// Payments, …) live as tabs ON the page via SectionTabs — NOT as sidebar rows.
-// Comms (/messages) graduated from a header icon to a destination with the
-// Comms-hub rebuild (Broadcasts/Inbox/Templates own their tabs on-page).
-// Discover is hidden until real.
-// Settings deliberately has NO sidebar row: it already lives in the profile
-// dropdown (header.tsx) alongside User Management, and one destination in two
-// places is one too many. The dropdown link is ungated, so every role still
-// reaches it; /settings' own SectionTabs still carry General/Team/Upload/
-// Automations/Integrations/Outreach.
-//
-// With Settings gone, "Setup" was a section header over a single row, so
-// Products folds into the one list. It stays adminOnly, so managers see four.
+// Primary destinations. Sub-views live in SectionTabs; settings lives in the account menu.
+// Coaching preserves its existing routes and server-side Reporting permission guards.
 const PRIMARY: Dest[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, match: ['/dashboard'], screen: 'dashboard' },
   { href: '/roster',    label: 'Creators',  icon: Users,           match: ['/roster', '/retention', '/affiliates', '/segments', '/contests', '/creators'], screen: 'roster' },
   { href: '/posts',     label: 'Content',   icon: PlaySquare,      match: ['/posts'], screen: 'posts' },
+  { href: '/reporting/coaching', label: 'Coaching', icon: GraduationCap, match: ['/reporting/coaching'], screen: 'coaching' },
   // Reporting is a generator console, not a content view — owner's call
   // (2026-07-23): its own destination, out of the Content tabs.
-  { href: '/reporting', label: 'Reporting', icon: FileBarChart,    match: ['/reporting'], screen: 'reporting' },
+  { href: '/reporting', label: 'Reporting', icon: FileBarChart,    match: ['/reporting'], exclude: ['/reporting/coaching'], screen: 'reporting' },
   { href: '/messages',  label: 'Communications',     icon: MessagesSquare,  match: ['/messages', '/drops'], screen: 'messages' },
   { href: '/earnings',  label: 'Finance',   icon: Wallet,          match: ['/earnings', '/ytd', '/invoicing', '/payments'], financeGated: true, screen: 'earnings' },
   { href: '/products/catalog', label: 'Products', icon: Boxes,     match: ['/products'], adminOnly: true, screen: 'products' },
@@ -98,7 +88,8 @@ export function Sidebar({ className, isAdmin = false, canViewFinance = true, nav
   const brand = searchParams.get('brand');
 
   const withBrand = (href: string) => (brand ? `${href}?brand=${brand}` : href);
-  const isActive = (d: Dest) => d.match.some((m) => pathname === m || pathname.startsWith(m + '/'));
+  const matches = (prefix: string) => pathname === prefix || pathname.startsWith(prefix + '/');
+  const isActive = (d: Dest) => d.match.some(matches) && !d.exclude?.some(matches);
   // ⚠️ AND-ed with the old rules, never instead of them: the matrix can hide a
   // destination the old rules allowed, but cannot reveal one they denied.
   const visible = (d: Dest) =>
@@ -114,6 +105,7 @@ export function Sidebar({ className, isAdmin = false, canViewFinance = true, nav
         href={withBrand(d.href)}
         title={collapsed ? d.label : undefined}
         aria-label={d.label}
+        aria-current={active ? 'page' : undefined}
         className={cn(
           'group flex items-center rounded-lg text-sm transition-colors duration-150',
           collapsed ? 'justify-center py-2.5' : 'gap-3 px-3 py-2',

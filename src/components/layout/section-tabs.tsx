@@ -23,7 +23,10 @@ const SECTIONS: { key: string; tabs: Tab[] }[] = [
   { key: 'reporting', tabs: [
     { label: 'Clients', href: '/reporting' },
     { label: 'Weekly report', href: '/reporting/weekly' },
-    { label: 'Coaching', href: '/reporting/coaching' },
+  ] },
+  { key: 'coaching', tabs: [
+    { label: 'Weekly submissions', href: '/reporting/coaching' },
+    { label: 'Creator performance', href: '/reporting/coaching/elite' },
   ] },
   // Content is just Posts (Reporting graduated to its own sidebar destination
   // 2026-07-23); a single tab renders no bar, which is the point.
@@ -106,6 +109,7 @@ export function SectionTabs({
             <Link
               key={t.href}
               href={withBrand(t.href)}
+              aria-current={active ? 'page' : undefined}
               className={cn(
                 'px-3 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 -mb-px transition-colors',
                 active

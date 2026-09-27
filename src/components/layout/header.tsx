@@ -37,6 +37,7 @@ const BREADCRUMB_MAP: Record<string, string> = {
   '/posts': 'Posts',
   '/reporting': 'Reporting',
   '/reporting/coaching': 'Coaching',
+  '/reporting/coaching/elite': 'Coaching · Creator performance',
   '/earnings/settings': 'Finance setup',
   '/roster/invitations': 'Creator invitations',
   // Finance
