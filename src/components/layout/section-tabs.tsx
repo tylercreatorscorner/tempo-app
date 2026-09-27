@@ -14,7 +14,7 @@ interface Tab {
 // The sub-views for each sidebar destination. One shared bar, driven by the URL,
 // so pages don't each hand-roll their own tabs.
 const SECTIONS: { key: string; tabs: Tab[] }[] = [
-  { key: 'creators', tabs: [{ label: 'Roster', href: '/roster' }, { label: 'Invitations', href: '/roster/invitations', admin: true }] },
+  { key: 'creators', tabs: [{ label: 'Roster', href: '/roster' }] },
   { key: 'comms', tabs: [{ label: 'Messages', href: '/messages' }, { label: 'Discord Posts', href: '/drops' }] },
   // Reporting splits client-facing from internal. They share a nav section and
   // nothing else: separate tables, separate routes, and the internal one never

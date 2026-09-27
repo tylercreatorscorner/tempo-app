@@ -1,10 +1,10 @@
 'use client';
 
 /**
- * CreatorInvitesSection — embedded card on the Settings page (admin only).
+ * CreatorInvitesSection — brand join links in the admin Onboarding workspace.
  *
  * Generates per-brand invite codes that creators can use at /join/[code] to
- * onboard. Replaces the standalone /invites page.
+ * onboard. The legacy /invites route points to this workspace.
  *
  * The brand list is passed in from the server component so we don't refetch.
  */
@@ -73,19 +73,19 @@ export function CreatorInvitesSection({ tenantId, brands }: Props) {
 
   return (
     <div id="invites" className="rounded-xl border border-border bg-card overflow-hidden scroll-mt-20">
-      <div className="p-6 border-b border-border flex items-center gap-3">
-        <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-          <UserPlus className="h-5 w-5 text-primary" />
+      <div className="px-4 py-3.5 border-b border-border flex items-center gap-3">
+        <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center">
+          <UserPlus className="h-4 w-4 text-primary" />
         </div>
         <div>
-          <h2 className="font-semibold text-lg">Creator Invites</h2>
+          <h2 className="font-semibold text-base">Invite creators</h2>
           <p className="text-sm text-muted-foreground">
-            Generate invite links creators can use to join a brand
+            Generate a link for the brand they are joining.
           </p>
         </div>
       </div>
 
-      <div className="p-6 space-y-4">
+      <div className="p-4 space-y-3">
         {/* Generate form */}
         <div className="flex flex-col sm:flex-row gap-3">
           <select
@@ -110,7 +110,7 @@ export function CreatorInvitesSection({ tenantId, brands }: Props) {
             className="flex items-center justify-center gap-2 px-5 py-2 rounded-lg bg-primary text-primary-foreground font-medium text-sm hover:opacity-90 transition-opacity disabled:opacity-50"
           >
             <Plus className="h-4 w-4" />
-            {creating ? 'Generating…' : 'Generate Link'}
+            {creating ? 'Generating…' : 'Generate link'}
           </button>
         </div>
 
@@ -148,7 +148,7 @@ export function CreatorInvitesSection({ tenantId, brands }: Props) {
                   ) : (
                     <>
                       <Copy className="h-3.5 w-3.5 text-muted-foreground" />
-                      <span>Copy Link</span>
+                      <span>Copy link</span>
                     </>
                   )}
                 </button>

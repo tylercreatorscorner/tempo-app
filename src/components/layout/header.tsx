@@ -39,7 +39,7 @@ const BREADCRUMB_MAP: Record<string, string> = {
   '/reporting/coaching': 'Coaching',
   '/reporting/coaching/elite': 'Coaching · Creator performance',
   '/earnings/settings': 'Finance setup',
-  '/roster/invitations': 'Creator invitations',
+  '/roster/invitations': 'Onboarding',
   // Finance
   '/earnings': 'Earnings',
   '/ytd': 'Year-to-Date',
