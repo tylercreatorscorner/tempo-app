@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { z } from 'zod';
 import { createAdminClient } from '@/lib/supabase/server';
 import { questionsSchema } from '@/lib/applications/schema';
+import { BrandPortrait } from '@/components/creators/brand-portrait';
 import { PublicApplicationForm } from './public-application-form';
 
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
@@ -13,7 +14,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
     .eq('id', id).eq('active', true).maybeSingle();
   if (!form) notFound();
   const { data: brand } = await db.from('brands_v2')
-    .select('name,display_name').eq('id', form.brand_id).eq('tenant_id', form.tenant_id)
+    .select('name,display_name,logo_url,color').eq('id', form.brand_id).eq('tenant_id', form.tenant_id)
     .eq('is_archived', false).maybeSingle();
   if (!brand) notFound();
   const questions = questionsSchema.safeParse(form.questions);
@@ -24,6 +25,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
         <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#6d42c8] text-sm font-bold text-white">T</span>
         <span className="text-sm font-semibold tracking-tight">Tempo</span>
         <span className="text-sm text-[#9a96a6]">/</span>
+        <BrandPortrait name={brand.display_name || brand.name} source={brand.logo_url} color={brand.color} size={28} />
         <span className="text-sm text-[#5c5867]">{brand.display_name || brand.name}</span>
       </div>
       <section className="rounded-2xl border border-[#e9e5ef] bg-white p-6 shadow-[0_12px_40px_-28px_rgba(42,24,90,.35)] sm:p-8">
