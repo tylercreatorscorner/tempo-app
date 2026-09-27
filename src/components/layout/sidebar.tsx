@@ -2,7 +2,7 @@
 
 import Link, { useLinkStatus } from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
-import { LayoutDashboard, Users, PlaySquare, GraduationCap, FileBarChart, MessagesSquare, Wallet, Boxes, PanelLeftClose, PanelLeft, Loader2 } from 'lucide-react';
+import { LayoutDashboard, UserRoundPlus, Users, PlaySquare, GraduationCap, FileBarChart, MessagesSquare, Wallet, PanelLeftClose, PanelLeft, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useDelayedFlag } from '@/hooks/use-delayed-flag';
 import { TempoLogo, TempoIcon } from '@/components/ui/tempo-logo';
@@ -25,7 +25,8 @@ interface Dest {
 // Coaching preserves its existing routes and server-side Reporting permission guards.
 const PRIMARY: Dest[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, match: ['/dashboard'], screen: 'dashboard' },
-  { href: '/roster',    label: 'Creators',  icon: Users,           match: ['/roster', '/retention', '/affiliates', '/segments', '/contests', '/creators'], screen: 'roster' },
+  { href: '/roster/invitations', label: 'Onboarding', icon: UserRoundPlus, match: ['/roster/invitations'], adminOnly: true, screen: 'roster' },
+  { href: '/roster',    label: 'Creators',  icon: Users,           match: ['/roster', '/retention', '/affiliates', '/segments', '/contests', '/creators'], exclude: ['/roster/invitations'], screen: 'roster' },
   { href: '/posts',     label: 'Content',   icon: PlaySquare,      match: ['/posts'], screen: 'posts' },
   { href: '/reporting/coaching', label: 'Coaching', icon: GraduationCap, match: ['/reporting/coaching'], screen: 'coaching' },
   // Reporting is a generator console, not a content view — owner's call
@@ -33,7 +34,6 @@ const PRIMARY: Dest[] = [
   { href: '/reporting', label: 'Reporting', icon: FileBarChart,    match: ['/reporting'], exclude: ['/reporting/coaching'], screen: 'reporting' },
   { href: '/messages',  label: 'Communications',     icon: MessagesSquare,  match: ['/messages', '/drops'], screen: 'messages' },
   { href: '/earnings',  label: 'Finance',   icon: Wallet,          match: ['/earnings', '/ytd', '/invoicing', '/payments'], financeGated: true, screen: 'earnings' },
-  { href: '/products/catalog', label: 'Products', icon: Boxes,     match: ['/products'], adminOnly: true, screen: 'products' },
 ];
 
 /**
@@ -132,9 +132,7 @@ export function Sidebar({ className, isAdmin = false, canViewFinance = true, nav
         {collapsed ? <TempoIcon size={26} /> : <TempoLogo size="md" animated />}
       </div>
 
-      {/* Destinations — one flat list. The "Setup" group existed to hold
-          Products + Settings; Settings now lives only in the profile dropdown,
-          and a section header over a single row is just noise. */}
+      {/* Destinations — one flat list. Settings remains in the account menu. */}
       <nav className="flex-1 min-h-0 overflow-y-auto px-2 py-1 space-y-0.5">
         {PRIMARY.filter(visible).map(renderItem)}
       </nav>

@@ -66,8 +66,8 @@ export default async function SettingsPage({
               ],
               [
                 "/roster/invitations",
-                "Creator invitations",
-                "Create brand-specific join links.",
+                "Creator onboarding",
+                "Create brand-specific join links and manage new arrivals.",
               ],
               [
                 "/earnings/settings",
