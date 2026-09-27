@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { ChoiceMenu } from '@/components/ui/choice-menu';
 import { CreatorPortrait } from '@/components/creators/creator-portrait';
 import { PageHeader } from '@/components/ui/page-header';
-import { NavigationLink } from '@/components/ui/navigation-link';
 import { Button } from '@/components/ui/button';
 import { coachingWeeks, sundayToday, weekLabel } from '@/lib/coaching/model';
 import { shiftDay, type EliteBrief, type EliteRow } from '@/lib/coaching/elite';
@@ -30,7 +29,6 @@ export function EliteView() {
  const followups=data?.rows.filter(r=>['No recorded posts','Posting declined','GMV declined'].includes(r.change.signal)) ?? [];
  return <div className={styles.page}>
   <PageHeader title="Elite creator brief" subtitle="JiYu pilot · Weekly creator performance for Victoria and the coaching team." />
-  <NavigationLink href="/reporting/coaching" direction="back">Coach submissions</NavigationLink>
   <div className={styles.toolbar}><ChoiceMenu label="Reporting week" value={week} options={options} onChange={value=>{setData(null);setError('');setWeek(value);}}/><span>Sunday–Saturday · Completed weeks</span></div>
   {error ? <div role="alert" className={styles.panel}><p>{error}</p><Button onClick={()=>{setError('');setData(null);setRetry(n=>n+1);}}>Retry</Button></div> : !data ? <div role="status" className={styles.panel}>Loading Elite performance and prior-week coverage...</div> : <>
    <div className={styles.summary}><div><small>LINKED ELITE CREATORS</small><strong>{data.rows.length}</strong><span>Current Elite tags in {data.brand}</span></div><div><small>COMPLETE WEEK COVERAGE</small><strong>{complete}/{data.rows.length}</strong><span>Both GMV and published-post days</span></div><div><small>WORTH A CLOSER LOOK</small><strong>{followups.length}</strong><span>Recorded posting or GMV declines</span></div></div>

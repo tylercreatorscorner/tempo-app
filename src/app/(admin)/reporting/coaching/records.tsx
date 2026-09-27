@@ -3,7 +3,6 @@
 import { ChoiceMenu } from '@/components/ui/choice-menu';
 import { CreatorPortrait } from '@/components/creators/creator-portrait';
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { NavigationLink } from "@/components/ui/navigation-link";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import {
@@ -130,10 +129,6 @@ export function CoachingRecords() {
         title="Coaching"
         subtitle="Weekly responsibilities, coach submissions and review history."
       />
-      <NavigationLink href="/reporting" direction="back">
-        Back to reporting
-      </NavigationLink>
-      <NavigationLink href="/reporting/coaching/elite">Elite creator brief · JiYu</NavigationLink>
       <div className={styles.brief}>
         <div>
           <span className={styles.eyebrow}>Weekly accountability</span>

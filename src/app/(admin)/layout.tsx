@@ -24,6 +24,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const navPerms = scope
     ? Object.fromEntries(SCREENS.map((s) => [s, can(scope, s, 'read')]))
     : {};
+  // Coaching has its own navigation destination, but keeps the existing
+  // Reporting permission and staff-only route guard. This is presentation only.
+  navPerms.coaching = Boolean(scope && !scope.impersonating
+    && ['owner', 'admin', 'manager', 'coach'].includes(scope.role)
+    && can(scope, 'reporting', 'read'));
   // Fail CLOSED on finance. getWorkspaceScope returns null precisely when the
   // user can't be identified as a Workspace user (no profile, no tenant, a
   // portal role, an unknown role, or a failed profile read) — and `?? true`
