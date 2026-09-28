@@ -17,6 +17,7 @@ const saveSchema = z.object({
   coachingCategoryId: z.string().regex(/^\d{17,20}$/),
   staffRoleIds: z.array(z.string().regex(/^\d{17,20}$/)).min(1).max(10),
   enabled: z.boolean(),
+  validateOnly: z.boolean().optional().default(false),
 });
 
 async function authorizedBrand(brandId: string) {
@@ -72,6 +73,9 @@ export async function POST(request: Request) {
   if (!isCreatorOnboardingGuild(scope.tenantId, brand.id, parsed.data.guildId)) {
     return NextResponse.json({ error: 'This Discord server is not mapped to the brand.' }, { status: 403 });
   }
+  if (parsed.data.validateOnly && !parsed.data.enabled) {
+    return NextResponse.json({ error: 'Readiness checks require the enabled configuration.' }, { status: 400 });
+  }
   if (parsed.data.enabled) {
     const botToken = process.env.DISCORD_BOT_TOKEN;
     if (!botToken) return NextResponse.json({ error: 'Tempo Bot is not configured here.' }, { status: 503 });
@@ -83,6 +87,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: cause instanceof Error ? cause.message : 'Discord preflight failed.' }, { status: 409 });
     }
   }
+  if (parsed.data.validateOnly) return NextResponse.json({ ok: true, validated: true });
   const db = await createAdminClient();
   const { error } = await db.from('creator_hub_discord_destinations').upsert({
     tenant_id: scope.tenantId, brand_id: brand.id,

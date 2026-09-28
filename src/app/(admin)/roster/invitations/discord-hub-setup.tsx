@@ -21,6 +21,7 @@ export function DiscordHubSetup({ brandId, brandSlug }: { brandId: string; brand
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
+  const [validated, setValidated] = useState(false);
   useEffect(() => {
     let active = true;
     void fetch(`/api/creator-hub/discord-setup?brandId=${encodeURIComponent(brandId)}`)
@@ -43,18 +44,21 @@ export function DiscordHubSetup({ brandId, brandSlug }: { brandId: string; brand
       }).catch((cause: unknown) => { if (active) setError(cause instanceof Error ? cause.message : 'Could not load Discord setup.'); });
     return () => { active = false; };
   }, [brandId]);
-  async function save(enabled: boolean) {
-    setBusy(true); setError(''); setSaved(false);
+  async function save(enabled: boolean, validateOnly = false) {
+    setBusy(true); setError(''); setSaved(false); setValidated(false);
     try {
       const response = await fetch('/api/creator-hub/discord-setup', { method: 'POST',
         headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ brandId,
           guildId, startHereChannelId: startHere, creatorRoleId: creatorRole,
-          coachingCategoryId: category, staffRoleIds: staffRoles, enabled }) });
+          coachingCategoryId: category, staffRoleIds: staffRoles, enabled, validateOnly }) });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || 'Could not save Discord setup.');
-      setSaved(true); setSetup(current => current ? { ...current,
-        saved: { guild_id: guildId, start_here_channel_id: startHere, creator_role_id: creatorRole,
-          coaching_category_id: category, staff_role_ids: staffRoles, enabled } } : current);
+      if (validateOnly) setValidated(true);
+      else {
+        setSaved(true); setSetup(current => current ? { ...current,
+          saved: { guild_id: guildId, start_here_channel_id: startHere, creator_role_id: creatorRole,
+            coaching_category_id: category, staff_role_ids: staffRoles, enabled } } : current);
+      }
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not save Discord setup.'); }
     finally { setBusy(false); }
   }
@@ -70,7 +74,7 @@ export function DiscordHubSetup({ brandId, brandSlug }: { brandId: string; brand
         <div><span className="text-xs font-medium">Coaching category</span><ChoiceMenu compact label="Coaching category" value={category} options={setup.channels.filter(item => item.type === 4).map(item => ({ value: item.id, label: item.name }))} onChange={setCategory} placeholder="Choose category" /></div>
       </div>
       <div className="mt-3"><label className="text-xs font-medium">Staff roles with access to each coaching chat<input value={search} onChange={event => setSearch(event.target.value)} placeholder="Find a role" className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" /></label><div className="mt-2 max-h-32 overflow-y-auto rounded-lg border border-border p-2">{setup.roles.filter(role => role.name.toLowerCase().includes(search.toLowerCase())).map(role => <label key={role.id} className="flex items-center gap-2 rounded px-2 py-1 text-xs hover:bg-muted/30"><input type="checkbox" checked={staffRoles.includes(role.id)} onChange={event => setStaffRoles(current => event.target.checked ? [...current, role.id] : current.filter(id => id !== role.id))} />{role.name}</label>)}</div></div>
-      <div className="mt-4 flex flex-wrap items-center gap-2"><button type="button" disabled={busy || brandSlug !== 'jiyu'} onClick={() => save(true)} className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground disabled:opacity-50">{busy && <Loader2 size={13} className="animate-spin" />}Verify and enable</button>{setup.saved?.enabled && <button type="button" disabled={busy} onClick={() => save(false)} className="rounded-lg border border-border px-3 py-2 text-xs font-medium disabled:opacity-50">Pause onboarding</button>}{brandSlug !== 'jiyu' && <span className="text-xs text-muted-foreground">JiYu pilot only</span>}{saved && <span className="text-xs text-emerald-700">Saved</span>}</div>
+      <div className="mt-4 flex flex-wrap items-center gap-2"><button type="button" disabled={busy || brandSlug !== 'jiyu'} onClick={() => save(false)} className="rounded-lg border border-border px-3 py-2 text-xs font-medium disabled:opacity-50">{setup.saved?.enabled ? 'Pause onboarding' : 'Save disabled setup'}</button><button type="button" disabled={busy || brandSlug !== 'jiyu'} onClick={() => save(true, true)} className="rounded-lg border border-border px-3 py-2 text-xs font-medium disabled:opacity-50">Check readiness</button><button type="button" disabled={busy || brandSlug !== 'jiyu'} onClick={() => save(true)} className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground disabled:opacity-50">{busy && <Loader2 size={13} className="animate-spin" />}Verify and enable</button>{brandSlug !== 'jiyu' && <span className="text-xs text-muted-foreground">JiYu pilot only</span>}{validated && <span className="text-xs text-emerald-700">Ready to enable. No changes saved.</span>}{saved && <span className="text-xs text-emerald-700">Saved</span>}</div>
       {error && <p role="alert" className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-800">{error}</p>}
     </>}
   </details>;
