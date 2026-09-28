@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Check, Copy, ExternalLink, Loader2 } from 'lucide-react';
 import { DEFAULT_QUESTIONS, type ApplicationQuestion } from '@/lib/applications/schema';
+import { ChoiceMenu } from '@/components/ui/choice-menu';
 
 type Brand = { id: string; name: string; slug: string; canDecide: boolean };
 type Form = { id: string; brand_id: string; title: string; introduction: string; questions: unknown; version: number; active: boolean };
@@ -61,9 +62,11 @@ export function OnboardingWorkspace({ brands, forms, submissions, canConfigure, 
   return <div className="space-y-4">
     <section className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3">
       <div><h2 className="text-sm font-semibold">Creator applications</h2><p className="text-xs text-muted-foreground">The assigned manager makes each brand’s final decision.</p></div>
-      <select aria-label="Brand" value={brandId} onChange={event => { setSelected(null); router.push(`/roster/invitations?brand=${encodeURIComponent(event.target.value)}`); }} className="min-w-44 rounded-lg border border-border bg-background px-3 py-2 text-sm">
-        {brands.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
-      </select>
+      <div className="min-w-44 max-w-full">
+        <ChoiceMenu compact label="Application brand" value={brandId} options={brands.map(item => ({ value: item.id, label: item.name }))}
+          onChange={value => { setSelected(null); router.push(`/roster/invitations?brand=${encodeURIComponent(value)}`); }}
+          disabled={brands.length === 0} placeholder="Choose a brand" />
+      </div>
     </section>
     {!brand ? <div className="rounded-xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">No brand is assigned to your account.</div> : <>
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(280px,1fr)]">

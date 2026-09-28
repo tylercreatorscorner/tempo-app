@@ -11,6 +11,7 @@
 
 import { useState } from 'react';
 import { Copy, Plus, Check, UserPlus } from 'lucide-react';
+import { ChoiceMenu } from '@/components/ui/choice-menu';
 
 interface BrandOption {
   slug: string;
@@ -88,22 +89,11 @@ export function CreatorInvitesSection({ tenantId, brands }: Props) {
       <div className="p-4 space-y-3">
         {/* Generate form */}
         <div className="flex flex-col sm:flex-row gap-3">
-          <select
-            value={brand}
-            onChange={(e) => setBrand(e.target.value)}
-            disabled={brands.length === 0}
-            className="flex-1 px-3 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary disabled:opacity-50"
-          >
-            {brands.length === 0 ? (
-              <option>No brands available</option>
-            ) : (
-              brands.map((b) => (
-                <option key={b.slug} value={b.slug}>
-                  {b.display_name || b.name}
-                </option>
-              ))
-            )}
-          </select>
+          <div className="min-w-0 flex-1 [&>button]:w-full">
+            <ChoiceMenu label="Direct invitation brand" value={brand}
+              options={brands.map(b => ({ value: b.slug, label: b.display_name || b.name }))}
+              onChange={setBrand} disabled={brands.length === 0} placeholder="Choose a brand" />
+          </div>
           <button
             onClick={createInvite}
             disabled={creating || !brand}
