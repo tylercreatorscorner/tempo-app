@@ -15,7 +15,7 @@ export function ChoiceMenu({ label, value, options, onChange, disabled, placehol
     <Select.Trigger className={`${styles.trigger} ${compact ? styles.compact : ''}`} aria-label={label}>
       {selected?.icon}<Select.Value placeholder={placeholder} /><Select.Icon className={styles.chevron}><ChevronDown size={15} /></Select.Icon>
     </Select.Trigger>
-    <Select.Portal><Select.Content className={styles.content} position="popper" sideOffset={8} collisionPadding={12} data-lenis-prevent>
+    <Select.Portal><Select.Content className={`${styles.content} ${compact ? styles.compactContent : ''}`} position="popper" sideOffset={8} collisionPadding={12} data-lenis-prevent>
       <Select.ScrollUpButton className={styles.scroll}><InterfaceIcon name="increase" /></Select.ScrollUpButton>
       <Select.Viewport className={styles.viewport}>
         {!options.some(option => option.group) && <div className={styles.heading}>{label}</div>}

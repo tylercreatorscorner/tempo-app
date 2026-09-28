@@ -89,8 +89,8 @@ export function CreatorInvitesSection({ tenantId, brands }: Props) {
       <div className="p-4 space-y-3">
         {/* Generate form */}
         <div className="flex flex-col sm:flex-row gap-3">
-          <div className="min-w-0 flex-1 [&>button]:w-full">
-            <ChoiceMenu label="Direct invitation brand" value={brand}
+          <div className="w-full sm:w-60 [&>button]:w-full">
+            <ChoiceMenu compact label="Direct invitation brand" value={brand}
               options={brands.map(b => ({ value: b.slug, label: b.display_name || b.name }))}
               onChange={setBrand} disabled={brands.length === 0} placeholder="Choose a brand" />
           </div>
