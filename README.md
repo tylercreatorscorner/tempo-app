@@ -32,8 +32,8 @@ Open [http://localhost:3000](http://localhost:3000).
 | `NEXT_PUBLIC_SUPABASE_URL` | Your Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon/public key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (server-only) |
-| `DISCORD_CLIENT_ID` | Tempo Bot application client ID for creator Discord sign-in |
-| `DISCORD_CLIENT_SECRET` | Tempo Bot OAuth client secret (server-only) |
+| `DISCORD_CLIENT_ID` | Discord OAuth application client ID for creator sign-in (separate from the bot in the JiYu preview) |
+| `DISCORD_CLIENT_SECRET` | Discord OAuth client secret (server-only) |
 | `DISCORD_APPLICATION_REDIRECT_URI` | Registered callback URL, e.g. `https://app.tempoapp.ai/auth/discord/application/callback` |
 | `APPLICATION_DISCORD_COOKIE_SECRET` | Random secret of at least 32 characters for signed applicant identity cookies (server-only) |
 

@@ -53,7 +53,13 @@ export async function deliverCreatorApplicationDecision(notificationId: string):
       if (error) throw new Error('Could not save the Discord invitation.');
     }
     const brandName = brand.display_name || brand.name;
-    const appUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://app.tempoapp.ai').replace(/\/$/, '');
+    // The applicant must return to the same host where Discord sign-in and its
+    // identity cookie were established. Preview deploys use a branch alias.
+    const redirectUri = process.env.DISCORD_APPLICATION_REDIRECT_URI;
+    const appUrl = redirectUri
+      ? new URL(redirectUri).origin
+      : process.env.VERCEL_ENV === 'production' ? 'https://app.tempoapp.ai' : '';
+    if (!appUrl) throw new Error('Creator application public URL is not configured.');
     const subject = row.kind === 'approved'
       ? `Your ${brandName} creator application was approved`
       : `Update on your ${brandName} creator application`;
