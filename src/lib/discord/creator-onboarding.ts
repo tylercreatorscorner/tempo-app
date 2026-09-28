@@ -33,6 +33,7 @@ type GuildMember = { roles: string[] };
 type GuildRole = { id: string; position: number; permissions: string };
 type GuildChannel = {
   id: string;
+  name?: string;
   parent_id?: string | null;
   topic?: string | null;
   type: number;
@@ -116,24 +117,26 @@ export async function validateCreatorHubDestination(
     throw new Error('The configured Discord roles or coaching category are unavailable.');
   }
   const botPosition = Math.max(...botRoles.map((role) => role.position));
+  const issues: string[] = [];
   if (creator.position >= botPosition) {
-    throw new Error('Move the Tempo Bot role above the configured Creator role.');
+    issues.push('Move the Tempo Bot role above the configured Creator role.');
   }
   const botPermissions = botRoles.reduce((value, role) => value | BigInt(role.permissions), BigInt(everyone.permissions));
   if (!(botPermissions & ADMINISTRATOR) &&
       (!(botPermissions & MANAGE_ROLES) || !(botPermissions & MANAGE_CHANNELS) || !(botPermissions & BigInt(1)))) {
-    throw new Error('Tempo Bot needs Manage Roles, Manage Channels, and Create Invite permissions.');
+    issues.push('Tempo Bot needs Manage Roles, Manage Channels, and Create Invite permissions.');
   }
   const everyonePermissions = BigInt(everyone.permissions);
-  if (everyonePermissions & ADMINISTRATOR) throw new Error('@everyone has Administrator access.');
+  if (everyonePermissions & ADMINISTRATOR) issues.push('@everyone has Administrator access.');
   const startHere = channels.find((channel) => channel.id === setup.startHereChannelId);
   if (!startHere || ![0, 5].includes(startHere.type) ||
       !everyoneCanView(startHere, everyonePermissions, guild)) {
-    throw new Error('New members cannot see the configured #start-here channel.');
+    issues.push('New members cannot see the configured #start-here channel.');
   }
-  const otherPublic = channels.find((channel) => channel.id !== startHere.id && channel.type !== 4 &&
+  const otherPublic = channels.find((channel) => channel.id !== setup.startHereChannelId && channel.type !== 4 &&
     everyoneCanView(channel, everyonePermissions, guild));
-  if (otherPublic) throw new Error('New members can see another server channel before Hub completion. Restrict @everyone first.');
+  if (otherPublic) issues.push(`New members can see another server channel before Hub completion (${otherPublic.name ? `#${otherPublic.name}` : otherPublic.id}). Restrict @everyone first.`);
+  if (issues.length) throw new Error(issues.join(' '));
 }
 
 /**

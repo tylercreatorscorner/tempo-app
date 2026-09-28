@@ -33,6 +33,7 @@ let channels: Array<{ id: string; type: number; parent_id: string | null; topic:
 const writes: Array<{ path: string; method: string; body?: Record<string, unknown> }> = [];
 let guildEveryonePermissions = '0';
 let staffPosition = 1;
+let creatorPosition = 2;
 
 const fakeFetch: typeof fetch = async (url, init) => {
   const path = String(url).replace('https://discord.com/api/v10', '');
@@ -46,7 +47,7 @@ const fakeFetch: typeof fetch = async (url, init) => {
   else if (path.endsWith('/roles')) data = [
     { id: destination.guildId, position: 0, permissions: guildEveryonePermissions },
     { id: '1339335585776533715', position: 5, permissions: String((BigInt(1) << BigInt(28)) | (BigInt(1) << BigInt(4)) | BigInt(1)) },
-    { id: destination.creatorRoleId, position: 2, permissions: '0' },
+    { id: destination.creatorRoleId, position: creatorPosition, permissions: '0' },
     { id: destination.staffRoleIds[0], position: staffPosition, permissions: '0' },
   ];
   else if (path.endsWith('/channels') && method === 'GET') data = channels;
@@ -69,8 +70,11 @@ await validateCreatorHubDestination({ ...destination, startHereChannelId }, 'tes
 staffPosition = 1;
 channels.push({ id: '1339335585776533718', type: 0, parent_id: null, topic: null,
   permission_overwrites: [{ id: destination.guildId, type: 0, allow: '1024', deny: '0' }] });
+creatorPosition = 6;
 await assert.rejects(validateCreatorHubDestination({ ...destination, startHereChannelId }, 'test-token', fakeFetch),
-  /another server channel/);
+  (error: unknown) => error instanceof Error && /above the configured Creator role/.test(error.message) &&
+    /another server channel/.test(error.message));
+creatorPosition = 2;
 channels.pop();
 // Category permissions are copied only while synchronized. An unsynchronized
 // child with no deny is public when @everyone can view at guild level.
