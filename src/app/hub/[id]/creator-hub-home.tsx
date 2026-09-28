@@ -66,11 +66,11 @@ export function CreatorHubHome({ enrollmentId, brandName, brandLogoUrl, brandCol
                 <p className="text-xs font-semibold uppercase tracking-[.18em] text-white/70">A note from {brandName}</p>
                 <p className="mt-2 text-xl font-semibold tracking-tight sm:text-2xl">{video?.title || `Welcome to ${brandName}`}</p>
                 {video?.url && !preview && <a href={video.url} target="_blank" rel="noopener noreferrer" className="mt-6 inline-flex items-center gap-2 rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-[#25202d] transition hover:bg-[#eee9f6] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"><Play size={15} fill="currentColor" /> Watch welcome video <ExternalLink size={13} /></a>}
-                {preview && <span className="mt-6 inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/10 px-5 py-2.5 text-sm font-medium text-white/85"><Play size={15} /> Brand welcome video</span>}
+                {preview && <span className="mt-6 inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/10 px-5 py-2.5 text-sm font-medium text-white/85">{video ? <><Play size={15} /> Brand welcome video</> : 'Welcome video not added yet'}</span>}
                 {!video?.url && !preview && <p className="mt-5 text-sm text-white/70">Your brand team has not added a welcome video yet.</p>}
               </div>
             </div>
-            <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-4"><div><h2 id="welcome-video-heading" className="text-sm font-semibold">Start here</h2><p className="mt-0.5 text-xs text-[#77717e]">A personal introduction to your creator program.</p></div><span className="text-xs font-medium text-[#7656a1]">{video ? 'Part of your checklist' : 'From your brand team'}</span></div>
+            <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-4"><div><h2 id="welcome-video-heading" className="text-sm font-semibold">Start here</h2><p className="mt-0.5 text-xs text-[#77717e]">{video ? 'A personal introduction to your creator program.' : 'Your brand team can add an introduction here.'}</p></div><span className="text-xs font-medium text-[#7656a1]">{video ? 'Part of your checklist' : 'From your brand team'}</span></div>
           </section>
 
           <section aria-labelledby="checklist-heading" className="rounded-2xl border border-[#e4e0e9] bg-white p-5 shadow-[0_14px_34px_-30px_rgba(38,25,56,.45)] sm:p-6">
