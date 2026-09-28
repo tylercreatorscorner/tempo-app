@@ -24,14 +24,23 @@ export function DiscordHubSetup({ brandId, brandSlug }: { brandId: string; brand
   useEffect(() => {
     let active = true;
     void fetch(`/api/creator-hub/discord-setup?brandId=${encodeURIComponent(brandId)}`)
-      .then(response => response.json()).then((data: Setup) => {
+      .then(async response => {
+        const data: unknown = await response.json();
+        if (!response.ok || !data || typeof data !== 'object' ||
+            !('guilds' in data) || !Array.isArray(data.guilds) ||
+            !('roles' in data) || !Array.isArray(data.roles) ||
+            !('channels' in data) || !Array.isArray(data.channels)) {
+          throw new Error('Could not load Discord setup. Try again later.');
+        }
+        return data as Setup;
+      }).then(data => {
         if (!active) return;
         setSetup(data); setGuildId(data.saved?.guild_id ?? data.guilds[0]?.id ?? '');
         setStartHere(data.saved?.start_here_channel_id ?? '');
         setCreatorRole(data.saved?.creator_role_id ?? '');
         setCategory(data.saved?.coaching_category_id ?? '');
         setStaffRoles(data.saved?.staff_role_ids ?? []);
-      }).catch(() => { if (active) setError('Could not load Discord setup.'); });
+      }).catch((cause: unknown) => { if (active) setError(cause instanceof Error ? cause.message : 'Could not load Discord setup.'); });
     return () => { active = false; };
   }, [brandId]);
   async function save(enabled: boolean) {
@@ -52,7 +61,7 @@ export function DiscordHubSetup({ brandId, brandSlug }: { brandId: string; brand
   return <details className="rounded-xl border border-border bg-card p-4">
     <summary className="cursor-pointer text-sm font-semibold">Discord onboarding setup <span className="ml-2 text-xs font-normal text-muted-foreground">{setup?.saved?.enabled ? 'Enabled' : 'Not enabled'}</span></summary>
     <p className="mt-2 text-xs leading-5 text-muted-foreground">Choose this brand’s real server, #start-here, Creator role, coaching category, and staff roles. The first live pilot is JiYu. Enabling checks the bot’s permissions and confirms a new member can see only #start-here. Existing Ticket Tool chats are unaffected.</p>
-    {!setup ? <p className="mt-3 text-xs text-muted-foreground">Loading Discord options…</p> : <>
+    {!setup ? <p className="mt-3 text-xs text-muted-foreground">{error || 'Loading Discord options…'}</p> : <>
       {setup.error && <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">{setup.error}</p>}
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <div><span className="text-xs font-medium">Brand server</span><ChoiceMenu compact label="Brand Discord server" value={guildId} options={setup.guilds.map(item => ({ value: item.id, label: item.name }))} onChange={setGuildId} disabled={setup.guilds.length !== 1} placeholder="Choose server" /></div>
