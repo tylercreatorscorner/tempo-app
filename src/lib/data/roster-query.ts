@@ -13,13 +13,11 @@ import { matchesCreatorTags, normalizeCreatorTag } from '@/lib/roster/creator-ta
  */
 import { applyRosterAgreementTerms, isCalendarMonthAgreement, type RosterAgreement } from '@/lib/agreements/roster-terms';
 import { createAdminClient } from '@/lib/supabase/server';
-import { getRosterSummaryRetainer } from './roster-summary-retainer';
 import { getBrandRegistry, uuidToSlug, resolveUuids, expandSlugs } from '@/lib/data/brand-registry';
-import { getAnalyticsBrandTotals } from '@/lib/data/rpc';
 import type { WorkspaceScope } from '@/lib/auth/workspace-scope';
 import { resolveDateRange } from '@/lib/data/date-utils';
 import { getDataAnchorDate } from '@/lib/data/data-anchor';
-import { computeManagedGmv, buildManagedLookup, sumManagedGmvForBrands, type ManagedGmvResult } from '@/lib/data/managed-gmv';
+import { loadRosterSummary } from '@/lib/data/roster-summary';
 
 /**
  * Sentinel returned when a real brand is selected but we couldn't resolve any
@@ -428,6 +426,13 @@ export async function runRosterQuery(
 
   const supabase = await createAdminClient();
   const reg = await getBrandRegistry();
+  // The KPI rollups use the same scope and dates but no row-level enrichment.
+  // Run them alongside the roster instead of after it. Capture failures now so
+  // an early roster error cannot leave an unhandled background rejection.
+  const summaryTask = !exportAll && page === 1 && wantSummary
+    ? loadRosterSummary({ scope, brand, storeFilter, pStartDate, pEndDate, periodDays, reg })
+      .then(value => ({ value, error: null as unknown }), error => ({ value: null, error }))
+    : null;
 
   // ── 1. Fetch ALL matching managed creators (no DB pagination yet — we need
   // the full set to compute health-aggregates and to support filtering by
@@ -825,7 +830,6 @@ export async function runRosterQuery(
   // page uses — so the "Managed GMV" card ties out to Earnings exactly. Left
   // undefined on paginated (page > 1) responses; the client persists the page-1
   // value across pagination.
-  let total_gmv_period: number | undefined;
 
   // ── 4b. All-Brands collapse. On the owner's unscoped, managed, non-export
   // All-Brands view: (a) rescope each managed row's GMV/posts/ROI to its OWN
@@ -1154,102 +1158,10 @@ export async function runRosterQuery(
     }));
   }
 
-  // ── 7c. KPI-card summary metrics. Computed once (page 1 only) since they're
-  // period/brand-level, not page-level — keeps pagination fast. affiliate_gmv =
-  // the brand's TOTAL affiliate GMV (all creators); managed_gmv_prev / _30d are
-  // the roster's managed GMV over the prior period + a fixed trailing-30d window
-  // (the latter powers ROI, independent of the selected period).
-  //
-  // `?summary=0` skips this block. The dashboard's Roster Health card calls this
-  // route for FIVE counts (total_managed / healthy / behind / silent / unread
-  // DMs) that are computed at step 6 from managedRows and have nothing to do
-  // with GMV — but because it calls with page=1 it was also paying for this
-  // block: 3x computeManagedGmv (~84 RPCs) + 2 analytics calls, every result
-  // discarded. Defaults ON, so the roster client is unaffected.
-  let summary: { affiliate_gmv: number; affiliate_gmv_prev: number; managed_gmv_prev: number; managed_gmv_30d: number; total_retainer: number | null } | undefined;
-  if (!exportAll && page === 1 && wantSummary) {
-    const sEnd = pEndDate ?? new Date().toISOString().slice(0, 10);
-    const sStart = pStartDate ?? (() => {
-      const d = new Date(sEnd + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() - periodDays);
-      return d.toISOString().slice(0, 10);
-    })();
-    const sStartD = new Date(sStart + 'T00:00:00Z');
-    const sEndD = new Date(sEnd + 'T00:00:00Z');
-    const winLen = Math.round((sEndD.getTime() - sStartD.getTime()) / 86400000) + 1;
-    const pvEndD = new Date(sStartD); pvEndD.setUTCDate(pvEndD.getUTCDate() - 1);
-    const pvStartD = new Date(pvEndD); pvStartD.setUTCDate(pvStartD.getUTCDate() - (winLen - 1));
-    const pvStartStr = pvStartD.toISOString().slice(0, 10);
-    const pvEndStr = pvEndD.toISOString().slice(0, 10);
-    const roiEndStr = new Date().toISOString().slice(0, 10);
-    const roiStartD = new Date(roiEndStr + 'T00:00:00Z'); roiStartD.setUTCDate(roiStartD.getUTCDate() - 29);
-    const roiStartStr = roiStartD.toISOString().slice(0, 10);
-
-    // Affiliate GMV needs data-level brand ids (in scope).
-    let affBrandIds: string[] = [];
-    if (brand && brand !== 'all') {
-      affBrandIds = (brandIds ?? []).filter((id) => id !== NO_MATCH_BRAND_ID);
-    } else {
-      const rosterSlugs = scoped
-        ? allowedSlugs!
-        : reg.rows.filter((r) => r.parent_brand_id == null && !r.is_archived).map((r) => r.slug);
-      affBrandIds = rosterSlugs
-        .flatMap((s) => expandSlugs(reg, s))
-        .map((s) => reg.bySlug.get(s)?.id)
-        .filter((id): id is string => !!id);
-    }
-
-    // Canonical managed-GMV scope for this roster view, as DATA STORES. null =
-    // all active stores (owner "all" / unscoped); otherwise the selected brand's
-    // stores (umbrella-expanded), the store sub-filter, or the manager's stores.
-    const kpiStoreSlugs: string[] | null =
-      storeFilter ? [storeFilter]
-      : (brand && brand !== 'all') ? expandSlugs(reg, brand)
-      : scoped ? allowedSlugs!.flatMap((s) => expandSlugs(reg, s))
-      : null;
-    const sumMg = (r: ManagedGmvResult) =>
-      kpiStoreSlugs === null
-        ? Array.from(r.byStore.values()).reduce((s, v) => s + v, 0)
-        : sumManagedGmvForBrands(r, reg, kpiStoreSlugs);
-
-    // Managed GMV (period / prior period / trailing-30d) all come from the SAME
-    // computeManagedGmv() the Earnings page uses, so the cards tie out exactly.
-    // Affiliate GMV (brand-wide, all creators) stays on the analytics summaries.
-    const kpiLookup = await buildManagedLookup(kpiStoreSlugs, reg);
-    const [affCur, affPrev, mgCur, mgPrev, mg30, summaryRetainer] = await Promise.all([
-      // getAnalyticsBrandTotals, not ...Summaries: this only needs total_gmv, and
-      // the summaries RPC's unique_creators count made it slow enough to hit the
-      // statement_timeout — which this .catch() then reported as $0 of GMV.
-      affBrandIds.length
-        ? getAnalyticsBrandTotals(affBrandIds, sStart, sEnd).catch((e) => {
-            console.error('[roster] analytics_brand_totals (current period) failed:', e);
-            return [];
-          })
-        : Promise.resolve([]),
-      affBrandIds.length
-        ? getAnalyticsBrandTotals(affBrandIds, pvStartStr, pvEndStr).catch((e) => {
-            console.error('[roster] analytics_brand_totals (previous period) failed:', e);
-            return [];
-          })
-        : Promise.resolve([]),
-      // One shared managed lookup across all three windows — it's
-      // date-independent, and rebuilding it per call meant 3x (brands_v2 +
-      // ~1,460 paged managed_creators rows + a 5-batch tiktok_accounts loop).
-      computeManagedGmv(sStart, sEnd, kpiStoreSlugs, reg, kpiLookup),
-      computeManagedGmv(pvStartStr, pvEndStr, kpiStoreSlugs, reg, kpiLookup),
-      computeManagedGmv(roiStartStr, roiEndStr, kpiStoreSlugs, reg, kpiLookup),
-      // Store GMV cannot be divided by an unallocated umbrella agreement.
-      storeFilter ? Promise.resolve(null) : getRosterSummaryRetainer(scope, brand),
-    ]);
-    const sumTotalGmv = (rows: unknown) => ((rows as Array<{ total_gmv: number | string }> | null) ?? []).reduce((s, r) => s + (Number(r.total_gmv) || 0), 0);
-    total_gmv_period = sumMg(mgCur);
-    summary = {
-      affiliate_gmv: sumTotalGmv(affCur),
-      affiliate_gmv_prev: sumTotalGmv(affPrev),
-      managed_gmv_prev: sumMg(mgPrev),
-      managed_gmv_30d: sumMg(mg30),
-      total_retainer: summaryRetainer,
-    };
-  }
+  const summaryResult = summaryTask ? await summaryTask : null;
+  if (summaryResult?.error) throw summaryResult.error;
+  const summary = summaryResult?.value?.summary;
+  const total_gmv_period = summaryResult?.value?.totalGmvPeriod;
 
   return {
     status: 200,
