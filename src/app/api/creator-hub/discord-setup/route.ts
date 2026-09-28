@@ -77,6 +77,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Readiness checks require the enabled configuration.' }, { status: 400 });
   }
   if (parsed.data.enabled) {
+    const db = await createAdminClient();
+    const { data: requiredAcknowledgement, error: hubError } = await db.from('creator_hub_items')
+      .select('id')
+      .eq('tenant_id', scope.tenantId).eq('brand_id', brand.id)
+      .eq('active', true).eq('required', true).eq('kind', 'acknowledgement')
+      .not('current_version_id', 'is', null)
+      .limit(1).maybeSingle();
+    if (hubError) return NextResponse.json({ error: 'Could not verify Creator Hub requirements.' }, { status: 503 });
+    if (!requiredAcknowledgement) return NextResponse.json({
+      error: 'Add a required payment and deliverable acknowledgment in Creator Hub before enabling Discord onboarding.',
+    }, { status: 409 });
     const botToken = process.env.DISCORD_BOT_TOKEN;
     if (!botToken) return NextResponse.json({ error: 'Tempo Bot is not configured here.' }, { status: 503 });
     try {
