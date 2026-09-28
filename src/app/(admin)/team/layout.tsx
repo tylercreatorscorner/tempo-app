@@ -13,8 +13,14 @@
  * its own brand-scope check: this answers "may they open it", not "whose data".
  */
 import { requireScreen } from '@/lib/auth/require-screen';
+import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 
 export default async function TeamLayout({ children }: { children: React.ReactNode }) {
+  // Managers get only the scoped invitation view. The page and server action
+  // independently enforce that boundary; the owner/admin matrix is unchanged.
+  const scope = await getWorkspaceScope();
+  if (scope?.role === 'manager' && !scope.impersonating
+    && scope.brandScope.kind === 'scoped' && scope.brandScope.brandIds.length > 0) return <>{children}</>;
   await requireScreen('team');
   return <>{children}</>;
 }

@@ -18,6 +18,7 @@ interface HeaderProps {
   tenantSwitcher?: React.ReactNode;
   /** Owner/admin (impersonation-aware) — gates the User Management menu entry. */
   isAdmin?: boolean;
+  canInviteMembers?: boolean;
 }
 
 // Every nav destination AND every SectionTabs sub-view. Keep in sync with
@@ -71,7 +72,7 @@ function labelFromPath(pathname: string): string {
   return seg.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-export function Header({ onMenuClick, tenantName, userName, userEmail, tenantSwitcher, isAdmin }: HeaderProps) {
+export function Header({ onMenuClick, tenantName, userName, userEmail, tenantSwitcher, isAdmin, canInviteMembers }: HeaderProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { label: overrideLabel } = useBreadcrumbOverride();
@@ -155,7 +156,7 @@ export function Header({ onMenuClick, tenantName, userName, userEmail, tenantSwi
         {/* Divider */}
         <div className="w-px h-6 bg-secondary mx-1" />
 
-        <AccountMenu name={userName} email={userEmail} initials={initials} isAdmin={isAdmin} onLogout={handleLogout} />
+        <AccountMenu name={userName} email={userEmail} initials={initials} isAdmin={isAdmin} canInviteMembers={canInviteMembers} onLogout={handleLogout} />
       </div>
     </header>
   );
