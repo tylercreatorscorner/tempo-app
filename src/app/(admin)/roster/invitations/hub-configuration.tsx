@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, Plus } from 'lucide-react';
+import { ExternalLink, Loader2, Plus } from 'lucide-react';
 import { ChoiceMenu } from '@/components/ui/choice-menu';
 
 export type HubConfiguredItem = {
@@ -14,8 +14,8 @@ const empty = (): Omit<HubConfiguredItem, 'id' | 'version'> => ({
   kind: 'reading', title: '', body: '', url: null, required: true, active: true, sortOrder: 0,
 });
 
-export function HubConfiguration({ brandId, items, canConfigure }: {
-  brandId: string; items: HubConfiguredItem[]; canConfigure: boolean;
+export function HubConfiguration({ brandId, brandSlug, items, canConfigure }: {
+  brandId: string; brandSlug: string; items: HubConfiguredItem[]; canConfigure: boolean;
 }) {
   const router = useRouter();
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -48,7 +48,10 @@ export function HubConfiguration({ brandId, items, canConfigure }: {
   return <section className="rounded-xl border border-border bg-card p-4">
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div><h3 className="text-sm font-semibold">Creator Hub</h3><p className="mt-1 text-xs leading-5 text-muted-foreground">Set required and optional steps for this brand. New approvals receive a snapshot; completed acknowledgments keep the accepted version and time.</p></div>
-      {canConfigure && <button type="button" onClick={newItem} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs font-semibold hover:bg-muted/40"><Plus size={14} /> Add step</button>}
+      <div className="flex flex-wrap gap-2">
+        <a href={`/creator-hub-preview?brand=${encodeURIComponent(brandSlug)}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs font-semibold hover:bg-muted/40">Preview creator view <ExternalLink size={13} /></a>
+        {canConfigure && <button type="button" onClick={newItem} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs font-semibold hover:bg-muted/40"><Plus size={14} /> Add step</button>}
+      </div>
     </div>
     {items.length ? <div className="mt-4 divide-y divide-border rounded-lg border border-border">{items.map(item => <button type="button" key={item.id} onClick={() => select(item)} className="flex w-full flex-wrap items-center justify-between gap-2 px-3 py-2.5 text-left hover:bg-muted/30"><span className="min-w-0"><span className="block truncate text-sm font-medium">{item.title}</span><span className="text-xs text-muted-foreground">{item.kind} · version {item.version}</span></span><span className="flex gap-1.5 text-[11px]"><span className={`rounded-full px-2 py-1 ${item.required ? 'bg-violet-100 text-violet-800' : 'bg-muted text-muted-foreground'}`}>{item.required ? 'Required' : 'Optional'}</span>{!item.active && <span className="rounded-full bg-muted px-2 py-1 text-muted-foreground">Inactive</span>}</span></button>)}</div>
       : <p className="mt-4 rounded-lg bg-muted/25 px-3 py-4 text-xs text-muted-foreground">No Hub steps yet. Add payment and deliverable expectations before inviting a creator to onboard.</p>}

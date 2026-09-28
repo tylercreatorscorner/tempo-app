@@ -10,13 +10,15 @@ type Item = {
   title: string; version: number; body: string; url: string | null;
 };
 
-export function CreatorHubChecklist({ enrollmentId, brandName, creatorName, items, completion }: {
+export function CreatorHubChecklist({ enrollmentId, brandName, creatorName, items, completion, preview = false }: {
   enrollmentId: string; brandName: string; creatorName: string; items: Item[]; completion: CreatorHubCompletion;
+  preview?: boolean;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState('');
   async function complete(item: Item) {
+    if (preview) return;
     setBusy(item.id); setError('');
     try {
       const response = await fetch(`/api/creator-hub/enrollments/${enrollmentId}/complete`, {
@@ -31,6 +33,9 @@ export function CreatorHubChecklist({ enrollmentId, brandName, creatorName, item
   }
   return <main className="min-h-screen bg-[#f7f6fa] px-4 py-8 text-[#24212e] sm:py-12">
     <div className="mx-auto max-w-2xl">
+      {preview && <div role="status" className="mb-5 rounded-xl border border-[#d9c8f5] bg-[#f5efff] px-4 py-3 text-sm text-[#50337b]">
+        Creator-view preview. These steps are examples; no terms are published and nothing you click will save progress.
+      </div>}
       <div className="mb-6 flex items-center gap-3 text-sm font-semibold"><span className="flex size-9 items-center justify-center rounded-xl bg-[#7548ca] text-white">T</span> Tempo <span className="text-[#b9b2c4]">/</span> {brandName}</div>
       <section className="rounded-2xl border border-[#e8e5ee] bg-white p-6 shadow-[0_14px_40px_-30px_rgba(44,29,72,.35)] sm:p-8">
         <p className="text-xs font-semibold uppercase tracking-[.16em] text-[#7548ca]">Creator Hub</p>
@@ -47,10 +52,12 @@ export function CreatorHubChecklist({ enrollmentId, brandName, creatorName, item
               {done ? <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-emerald-600" /> : <Circle className="mt-0.5 size-5 shrink-0 text-[#aaa3b4]" />}
               <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h2 className="text-sm font-semibold">{item.title}</h2><span className="rounded-full bg-[#f3f0f7] px-2 py-0.5 text-[11px] text-[#625b6e]">{item.required ? 'Required' : 'Optional'}</span></div>
                 {item.body && <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[#625d6a]">{item.body}</p>}
-                {item.url && <a href={item.url} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-[#7548ca] hover:underline">Open resource <ExternalLink size={13} /></a>}
+                {item.url && (preview
+                  ? <span className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-[#7548ca]">Resource link (preview) <ExternalLink size={13} /></span>
+                  : <a href={item.url} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-[#7548ca] hover:underline">Open resource <ExternalLink size={13} /></a>)}
                 {item.kind === 'acknowledgement' && <p className="mt-2 text-xs text-[#77717f]">Your acceptance of version {item.version} is recorded with the time.</p>}
                 {done ? <p className="mt-3 text-xs text-emerald-700">{item.kind === 'acknowledgement' ? 'Accepted' : 'Completed'} {new Date((item.kind === 'acknowledgement' ? item.accepted_at : item.completed_at)!).toLocaleString()}</p>
-                  : <button type="button" disabled={busy !== null} onClick={() => complete(item)} className="mt-3 inline-flex items-center gap-2 rounded-lg bg-[#7548ca] px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">{busy === item.id && <Loader2 size={13} className="animate-spin" />}{item.kind === 'acknowledgement' ? `I accept version ${item.version}` : 'Mark complete'}</button>}
+                  : <button type="button" disabled={preview || busy !== null} onClick={() => complete(item)} className="mt-3 inline-flex items-center gap-2 rounded-lg bg-[#7548ca] px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">{busy === item.id && <Loader2 size={13} className="animate-spin" />}{item.kind === 'acknowledgement' ? `I accept version ${item.version}` : 'Mark complete'}</button>}
               </div>
             </div>
           </article>;
