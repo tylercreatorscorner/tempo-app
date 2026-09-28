@@ -32,6 +32,7 @@ let channels: Array<{ id: string; type: number; parent_id: string | null; topic:
 ];
 const writes: Array<{ path: string; method: string; body?: Record<string, unknown> }> = [];
 let guildEveryonePermissions = '0';
+let staffPosition = 1;
 
 const fakeFetch: typeof fetch = async (url, init) => {
   const path = String(url).replace('https://discord.com/api/v10', '');
@@ -46,7 +47,7 @@ const fakeFetch: typeof fetch = async (url, init) => {
     { id: destination.guildId, position: 0, permissions: guildEveryonePermissions },
     { id: '1339335585776533715', position: 5, permissions: String((BigInt(1) << BigInt(28)) | (BigInt(1) << BigInt(4)) | BigInt(1)) },
     { id: destination.creatorRoleId, position: 2, permissions: '0' },
-    { id: destination.staffRoleIds[0], position: 1, permissions: '0' },
+    { id: destination.staffRoleIds[0], position: staffPosition, permissions: '0' },
   ];
   else if (path.endsWith('/channels') && method === 'GET') data = channels;
   else if (path.endsWith('/channels') && method === 'POST') {
@@ -62,6 +63,10 @@ async function main() {
 const preflight = await preflightCreatorDiscordAccess(destination, subject, 'test-token', fakeFetch);
 assert.equal(preflight.botUserId, botId);
 await validateCreatorHubDestination({ ...destination, startHereChannelId }, 'test-token', fakeFetch);
+// The bot assigns the creator role, but only references staff roles in channel overwrites.
+staffPosition = 10;
+await validateCreatorHubDestination({ ...destination, startHereChannelId }, 'test-token', fakeFetch);
+staffPosition = 1;
 channels.push({ id: '1339335585776533718', type: 0, parent_id: null, topic: null,
   permission_overwrites: [{ id: destination.guildId, type: 0, allow: '1024', deny: '0' }] });
 await assert.rejects(validateCreatorHubDestination({ ...destination, startHereChannelId }, 'test-token', fakeFetch),

@@ -116,9 +116,8 @@ export async function validateCreatorHubDestination(
     throw new Error('The configured Discord roles or coaching category are unavailable.');
   }
   const botPosition = Math.max(...botRoles.map((role) => role.position));
-  if (creator.position >= botPosition ||
-      setup.staffRoleIds.some((id) => (roles.find((role) => role.id === id)?.position ?? Infinity) >= botPosition)) {
-    throw new Error('Move the Tempo Bot role above the configured Creator and coaching staff roles.');
+  if (creator.position >= botPosition) {
+    throw new Error('Move the Tempo Bot role above the configured Creator role.');
   }
   const botPermissions = botRoles.reduce((value, role) => value | BigInt(role.permissions), BigInt(everyone.permissions));
   if (!(botPermissions & ADMINISTRATOR) &&
