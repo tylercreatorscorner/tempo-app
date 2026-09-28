@@ -64,7 +64,7 @@ export function OnboardingWorkspace({ brands, forms, submissions, canConfigure, 
       <div><h2 className="text-sm font-semibold">Creator applications</h2><p className="text-xs text-muted-foreground">The assigned manager makes each brand’s final decision.</p></div>
       <div className="min-w-44 max-w-full">
         <ChoiceMenu compact label="Application brand" value={brandId} options={brands.map(item => ({ value: item.id, label: item.name }))}
-          onChange={value => { setSelected(null); router.push(`/roster/invitations?brand=${encodeURIComponent(value)}`); }}
+          onChange={value => { setSelected(null); const selectedBrand = brands.find(item => item.id === value); router.push(`/roster/invitations?brand=${encodeURIComponent(selectedBrand?.slug ?? value)}`); }}
           disabled={brands.length === 0} placeholder="Choose a brand" />
       </div>
     </section>

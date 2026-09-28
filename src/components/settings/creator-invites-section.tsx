@@ -33,11 +33,12 @@ interface Invite {
 interface Props {
   tenantId: string;
   brands: BrandOption[];
+  initialBrand?: string;
 }
 
-export function CreatorInvitesSection({ tenantId, brands }: Props) {
+export function CreatorInvitesSection({ tenantId, brands, initialBrand }: Props) {
   const [invites, setInvites] = useState<Invite[]>([]);
-  const [brand, setBrand] = useState(brands[0]?.slug ?? '');
+  const [brand, setBrand] = useState(initialBrand && brands.some(item => item.slug === initialBrand) ? initialBrand : brands[0]?.slug ?? '');
   const [creating, setCreating] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);

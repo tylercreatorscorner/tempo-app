@@ -26,7 +26,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ b
   const assignmentByBrand = new Map((assignments ?? []).map(row => [row.brand_id, row.manager_user_id]));
   const visibleBrands = scope.role === 'manager' ? brands.filter(brand => assignmentByBrand.get(brand.id) === scope.userId) : brands;
   const { brand: requestedBrand, page: requestedPage } = await searchParams;
-  const selectedBrand = visibleBrands.find(brand => brand.id === requestedBrand) ?? visibleBrands[0];
+  const selectedBrand = visibleBrands.find(brand => brand.id === requestedBrand || brand.slug === requestedBrand) ?? visibleBrands[0];
   const page = Math.max(1, Math.min(10000, Number.parseInt(requestedPage || '1', 10) || 1));
   const [{ data: submissions, count, error: submissionError }, { count: pendingCount, error: pendingError }] = selectedBrand
     ? await Promise.all([
@@ -52,7 +52,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ b
     {['owner','admin'].includes(scope.role) && <details className="rounded-xl border border-border bg-card p-4">
       <summary className="cursor-pointer text-sm font-semibold">Direct roster invitations</summary>
       <p className="mt-2 text-sm text-muted-foreground">Use these only for creators who have already been approved. This link skips the application review.</p>
-      <CreatorInvitesSection tenantId={scope.tenantId} brands={brands.map(brand => ({ slug: brand.slug, name: brand.name, display_name: brand.display_name }))} />
+      <CreatorInvitesSection key={selectedBrand?.slug} tenantId={scope.tenantId} initialBrand={selectedBrand?.slug} brands={brands.map(brand => ({ slug: brand.slug, name: brand.name, display_name: brand.display_name }))} />
     </details>}
   </div>;
 }
