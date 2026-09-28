@@ -31,6 +31,8 @@ interface SendArgs {
   cc?: string;
   /** Override sender — defaults to RESEND_FROM_EMAIL env. */
   from?: string;
+  /** Stable key for retryable transactional sends. */
+  idempotencyKey?: string;
 }
 
 function bodyToHtml(text: string): string {
@@ -52,7 +54,7 @@ function splitAddresses(s: string | undefined): string[] | undefined {
   return parts.length > 0 ? parts : undefined;
 }
 
-export async function sendEmail({ to, subject, body, replyTo, cc, from }: SendArgs): Promise<ResendSendResult> {
+export async function sendEmail({ to, subject, body, replyTo, cc, from, idempotencyKey }: SendArgs): Promise<ResendSendResult> {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) return { ok: false, error: 'RESEND_API_KEY env var is not set' };
 
@@ -68,6 +70,7 @@ export async function sendEmail({ to, subject, body, replyTo, cc, from }: SendAr
       headers: {
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
+        ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}),
       },
       body: JSON.stringify({
         from: fromAddr,

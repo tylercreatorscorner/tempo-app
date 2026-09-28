@@ -31,6 +31,13 @@ const PUBLIC_PATHS = [
   '/connect/tiktok/',
   '/onboarding',
   '/join',
+  // Public creator application links. Only submission uses this singular API
+  // prefix; staff form configuration and decisions remain behind auth.
+  '/apply/',
+  '/hub/',
+  '/auth/discord/application/',
+  '/api/creator-application/',
+  '/api/creator-hub/enrollments/',
   '/creator-login',
   '/creator-claim', // claim-link landing — the pre-session portal entry point
   '/api/auth/creator',
