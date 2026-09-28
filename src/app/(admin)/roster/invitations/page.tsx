@@ -4,7 +4,7 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/ui/page-header";
 import { CreatorInvitesSection } from "@/components/settings/creator-invites-section";
 import { NavigationLink } from "@/components/ui/navigation-link";
-export default async function Page() {
+export default async function Page({ searchParams }: { searchParams: Promise<{ brand?: string }> }) {
   const scope = await requireScreen("roster");
   if (scope.impersonating || !["owner", "admin"].includes(scope.role))
     redirect("/roster");
@@ -16,6 +16,8 @@ export default async function Page() {
     .eq("is_archived", false)
     .order("name");
   if (error) throw new Error("Could not load brands.");
+  const requestedBrand = (await searchParams).brand;
+  const selectedBrand = data?.find(brand => brand.slug === requestedBrand)?.slug;
   return (
     <div className="max-w-5xl space-y-5">
       <PageHeader
@@ -25,8 +27,8 @@ export default async function Page() {
       <div className="grid gap-3 md:grid-cols-2">
         <section className="rounded-xl border border-border bg-card px-4 py-3.5">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--primary)]">01 · Invite</p>
-          <h2 className="mt-1 text-sm font-semibold">Send a brand join link</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Choose the brand below, generate a link, and share it with the creator.</p>
+          <h2 className="mt-1 text-sm font-semibold">Send a direct roster link</h2>
+          <p className="mt-1 text-sm text-muted-foreground">For creators already approved. This link skips application review.</p>
         </section>
         <section className="rounded-xl border border-border bg-muted/25 px-4 py-3.5">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--primary)]">02 · Manage</p>
@@ -35,7 +37,7 @@ export default async function Page() {
           <NavigationLink href="/roster" className="mt-2">Open creator roster</NavigationLink>
         </section>
       </div>
-      <CreatorInvitesSection tenantId={scope.tenantId} brands={data ?? []} />
+      <CreatorInvitesSection key={selectedBrand} tenantId={scope.tenantId} initialBrand={selectedBrand} brands={data ?? []} />
     </div>
   );
 }
