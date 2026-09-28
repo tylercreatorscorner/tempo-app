@@ -37,7 +37,30 @@ export default async function CreatorHubPreviewPage({ searchParams }: {
     .eq('tenant_id', scope.tenantId).eq('slug', slug).maybeSingle();
   if (error || !brand || brand.is_archived || !isBrandInScope(scope, brand)) notFound();
 
-  const enrollmentItems: CreatorHubEnrollmentItem[] = examples.map((item) => ({
+  const { data: configuredItems, error: itemError } = await db.from('creator_hub_items')
+    .select('id,kind,required,sort_order,current_version_id')
+    .eq('tenant_id', scope.tenantId).eq('brand_id', brand.id).eq('active', true).order('sort_order');
+  if (itemError) throw new Error('Could not load Creator Hub preview.');
+  const versionIds = (configuredItems ?? []).map(item => item.current_version_id).filter((id): id is string => Boolean(id));
+  const { data: versions, error: versionError } = versionIds.length
+    ? await db.from('creator_hub_item_versions').select('id,title,content,version').in('id', versionIds)
+    : { data: [], error: null };
+  if (versionError) throw new Error('Could not load Creator Hub preview versions.');
+  const versionById = new Map((versions ?? []).map(version => [version.id, version]));
+  const configured = (configuredItems ?? []).flatMap(item => {
+    const version = versionById.get(item.current_version_id);
+    if (!version) return [];
+    const content = version.content && typeof version.content === 'object' && !Array.isArray(version.content)
+      ? version.content as { body?: string; url?: string } : {};
+    return [{ id: item.id, kind: item.kind, required: item.required, title: version.title,
+      body: content.body ?? '', url: content.url ?? null, version: version.version,
+      completed_at: null, accepted_at: null }];
+  });
+  const usingExamples = configured.length === 0;
+  const items = usingExamples
+    ? examples.map(item => ({ ...item, version: 1, completed_at: null, accepted_at: null }))
+    : configured;
+  const enrollmentItems: CreatorHubEnrollmentItem[] = items.map((item) => ({
     item_id: item.id, item_version_id: 'sample-version', kind: item.kind,
     required: item.required, completed_at: null, accepted_at: null,
   }));
@@ -46,6 +69,9 @@ export default async function CreatorHubPreviewPage({ searchParams }: {
   return <CreatorHubHome preview enrollmentId="preview-only"
     brandName={brand.display_name || brand.name} brandLogoUrl={brand.logo_url}
     brandColor={brand.color} creatorName="Creator"
-    items={examples.map(item => ({ ...item, version: 1, completed_at: null, accepted_at: null }))}
+    previewNotice={usingExamples
+      ? 'This brand has no active Hub items yet, so these are examples. Add videos, resources, and terms in Onboarding. Nothing here saves progress or grants access.'
+      : 'These are this brand’s active Hub items. This view cannot save progress or grant access.'}
+    items={items}
     completion={completion} />;
 }

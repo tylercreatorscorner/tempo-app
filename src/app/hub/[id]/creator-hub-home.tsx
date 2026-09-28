@@ -11,9 +11,9 @@ type Item = {
   title: string; version: number; body: string; url: string | null;
 };
 
-export function CreatorHubHome({ enrollmentId, brandName, brandLogoUrl, brandColor, creatorName, items, completion, preview = false }: {
+export function CreatorHubHome({ enrollmentId, brandName, brandLogoUrl, brandColor, creatorName, items, completion, preview = false, previewNotice }: {
   enrollmentId: string; brandName: string; brandLogoUrl?: string | null; brandColor?: string | null;
-  creatorName: string; items: Item[]; completion: CreatorHubCompletion; preview?: boolean;
+  creatorName: string; items: Item[]; completion: CreatorHubCompletion; preview?: boolean; previewNotice?: string;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
@@ -41,7 +41,7 @@ export function CreatorHubHome({ enrollmentId, brandName, brandLogoUrl, brandCol
   return <main className="min-h-screen bg-[#f6f5f7] text-[#1e1b24]">
     <div className="mx-auto max-w-[1180px] px-4 pb-16 pt-5 sm:px-6 lg:px-8">
       {preview && <div role="status" className="mb-5 rounded-xl border border-[#ded4ef] bg-[#f1eafa] px-4 py-3 text-sm text-[#4d356d]">
-        <strong>Layout preview</strong> · This is example content. JiYu has not published its video or terms, and this page cannot save progress or grant access.
+        <strong>Creator-view preview</strong> · {previewNotice || 'This page cannot save progress or grant access.'}
       </div>}
       <header className="flex items-center justify-between border-b border-[#e5e2e9] pb-5">
         <div className="flex min-w-0 items-center gap-3"><BrandPortrait name={brandName} source={brandLogoUrl} color={brandColor} size={42} />
