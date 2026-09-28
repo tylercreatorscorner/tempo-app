@@ -1,5 +1,8 @@
 import { z } from 'zod';
 
+// Several existing Tempo brand IDs are valid database GUIDs but not RFC 4122 UUIDs.
+export const brandIdSchema = z.guid();
+
 export const questionSchema = z.object({
   id: z.string().regex(/^[a-z][a-z0-9_]{1,39}$/),
   label: z.string().trim().min(3).max(120),

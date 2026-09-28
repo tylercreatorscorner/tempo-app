@@ -4,9 +4,10 @@ import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 import { can } from '@/lib/auth/permissions';
 import { createAdminClient } from '@/lib/supabase/server';
 import { applicationBrand, isAssignedApplicationManager } from '@/lib/applications/access';
+import { brandIdSchema } from '@/lib/applications/schema';
 
 const payloadSchema = z.object({
-  brandId: z.uuid(),
+  brandId: brandIdSchema,
   itemId: z.uuid().nullable().default(null),
   expectedVersion: z.number().int().positive().nullable().default(null),
   kind: z.enum(['video', 'reading', 'link', 'acknowledgement']),

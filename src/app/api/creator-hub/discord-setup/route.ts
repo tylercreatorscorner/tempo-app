@@ -7,9 +7,10 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { getGuildConfig } from '@/lib/discord/config';
 import { creatorOnboardingGuilds, isCreatorOnboardingGuild } from '@/lib/discord/creator-onboarding-guild';
 import { validateCreatorHubDestination } from '@/lib/discord/creator-onboarding';
+import { brandIdSchema } from '@/lib/applications/schema';
 
 const saveSchema = z.object({
-  brandId: z.uuid(),
+  brandId: brandIdSchema,
   guildId: z.string().regex(/^\d{17,20}$/),
   startHereChannelId: z.string().regex(/^\d{17,20}$/),
   creatorRoleId: z.string().regex(/^\d{17,20}$/),
@@ -21,22 +22,14 @@ const saveSchema = z.object({
 async function authorizedBrand(brandId: string) {
   const scope = await getWorkspaceScope();
   if (!scope || scope.impersonating || !['owner', 'admin'].includes(scope.role) ||
-      !can(scope, 'roster', 'write')) {
-    console.warn('Discord onboarding setup denied at workspace guard', {
-      hasScope: Boolean(scope), impersonating: Boolean(scope?.impersonating),
-      roleAllowed: Boolean(scope && ['owner', 'admin'].includes(scope.role)),
-      rosterWriteAllowed: Boolean(scope && can(scope, 'roster', 'write')),
-    });
-    return null;
-  }
+      !can(scope, 'roster', 'write')) return null;
   const brand = await applicationBrand(scope, brandId);
-  if (!brand) console.warn('Discord onboarding setup denied at brand guard');
   return brand ? { scope, brand } : null;
 }
 
 export async function GET(request: Request) {
   const brandId = new URL(request.url).searchParams.get('brandId') ?? '';
-  if (!z.uuid().safeParse(brandId).success) return NextResponse.json({ error: 'Invalid brand.' }, { status: 400 });
+  if (!brandIdSchema.safeParse(brandId).success) return NextResponse.json({ error: 'Invalid brand.' }, { status: 400 });
   const access = await authorizedBrand(brandId);
   if (!access) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   const guilds = creatorOnboardingGuilds(access.scope.tenantId, access.brand.id)

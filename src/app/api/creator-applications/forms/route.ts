@@ -4,10 +4,10 @@ import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 import { can } from '@/lib/auth/permissions';
 import { createAdminClient } from '@/lib/supabase/server';
 import { applicationBrand, isAssignedApplicationManager } from '@/lib/applications/access';
-import { DEFAULT_QUESTIONS, questionsSchema } from '@/lib/applications/schema';
+import { brandIdSchema, DEFAULT_QUESTIONS, questionsSchema } from '@/lib/applications/schema';
 
 const requestSchema = z.object({
-  brandId: z.uuid(),
+  brandId: brandIdSchema,
   title: z.string().trim().min(3).max(100).default('Creator application'),
   introduction: z.string().trim().max(600).default(''),
   questions: questionsSchema.default(DEFAULT_QUESTIONS),

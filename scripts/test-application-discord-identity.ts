@@ -1,5 +1,9 @@
 import assert from 'node:assert/strict';
 import { signDiscordIdentity, verifyApplicationDiscordIdentity, verifyDiscordIdentity } from '../src/lib/applications/discord-identity';
+import { brandIdSchema } from '../src/lib/applications/schema';
+
+assert.equal(brandIdSchema.safeParse('b0000000-0000-0000-0000-000000000003').success, true);
+assert.equal(brandIdSchema.safeParse('not-a-brand-id').success, false);
 
 process.env.APPLICATION_DISCORD_COOKIE_SECRET = 'a-local-test-secret-of-at-least-thirty-two-characters';
 const formId = '00000000-0000-4000-8000-000000000007';
