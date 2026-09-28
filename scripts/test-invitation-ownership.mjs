@@ -69,6 +69,7 @@ const deps={
  '@supabase/ssr':{createServerClient:()=>({auth:{signInWithOtp:async options=>{events.push('mail');assert.equal(options.options.shouldCreateUser,false);return {error:mailError?{message:'fixture mail failure'}:null};}}})},
  '@/lib/supabase/server':{createAdminClient:async()=>admin,createClient:async()=>({from,auth:{getUser:async()=>({data:{user:actor?{id:actor.user_id}:null}})}})},
  '@/lib/auth/require-admin':{requireAdmin:async()=>actor&&['owner','admin'].includes(actor.role)?actor:null},
+ '@/lib/auth/invite-manager-member':{inviteManagerMember:async()=>{throw new Error('Not exercised by owner invitation tests');}},
  '@/lib/auth/platform-admin':{assertNotImpersonating:async()=>{if(impersonating)throw new Error('Read only');}},
  'next/cache':{revalidatePath(){}},'next/server':{NextRequest,NextResponse},
 };

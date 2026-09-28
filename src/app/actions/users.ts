@@ -5,6 +5,7 @@ import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { assertNotImpersonating } from '@/lib/auth/platform-admin';
 import { revalidatePath } from 'next/cache';
 import { inviteWorkspaceMember } from '@/lib/auth/invite-workspace-member';
+import { inviteManagerMember } from '@/lib/auth/invite-manager-member';
 
 /**
  * Fresh anon-key Supabase client with no session attached. Used to trigger
@@ -64,6 +65,28 @@ export async function submitTeamInvitation(email: string, role: string, canViewF
       'Access saved, but the sign-in email failed. Retry or resend from Team.',
     ]);
     return { ok: false as const, error: safeMessages.has(message) ? message : 'Invitation could not be completed. Refresh the page and try again.' };
+  }
+}
+
+/** Managers can invite scoped roles only to their currently assigned brands. */
+export async function submitManagerInvitation(email: string, role: string, brandIds: string[]) {
+  try {
+    const result = await inviteManagerMember({ email, role, brandIds });
+    revalidatePath('/team');
+    return { ok: true as const, ...result };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '';
+    const safeMessages = new Set([
+      'Only an assigned manager can send this invitation.', 'Invalid email.',
+      'Unsupported team role.', 'Choose only brands assigned to you.',
+      'A selected brand is unavailable.', 'Could not look up account. Retry invitation.',
+      'Cannot invite your own account.', 'Could not check account ownership.',
+      'Existing member requires an administrator.',
+      'Could not invite account. Reload and retry invitation.',
+      'Could not save invitation. Check assigned brands and retry.',
+      'Access saved, but the sign-in email failed.',
+    ]);
+    return { ok: false as const, error: safeMessages.has(message) ? message : 'Invitation could not be completed. Refresh and try again.' };
   }
 }
 export async function updateUserRole(userId: string, role: string) {

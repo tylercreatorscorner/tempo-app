@@ -13,6 +13,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // real logged-in user, not the "view as" target.
   const scope = await getWorkspaceScope();
   const isAdmin = scope?.role === 'owner' || scope?.role === 'admin';
+  const canInviteMembers = isAdmin || Boolean(scope?.role === 'manager' && !scope.impersonating
+    && scope.brandScope.kind === 'scoped' && scope.brandScope.brandIds.length > 0);
   /**
    * What the nav is allowed to offer, straight from the matrix.
    *
@@ -46,6 +48,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       viewAsBanner={<Suspense><ViewAsBannerServer /></Suspense>}
       canViewFinance={canViewFinance}
       isAdmin={isAdmin}
+      canInviteMembers={canInviteMembers}
       navPerms={navPerms}
       defaultCollapsed={collapsed}
     >

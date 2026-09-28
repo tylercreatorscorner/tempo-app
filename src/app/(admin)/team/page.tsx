@@ -6,14 +6,28 @@ import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 import { TeamManagement } from '@/components/team/team-management';
 import { PageHeader } from '@/components/ui/page-header';
 import { RolesMatrix } from '@/components/team/roles-matrix';
+import { ManagerInvitations } from '@/components/team/manager-invitations';
 
 export const metadata = { title: 'Team — Tempo' };
 
 export default async function TeamPage() {
-  // Owner/admin only, and impersonation-aware via getWorkspaceScope — a viewed-as
-  // manager is bounced. Managing members is an owner/admin capability.
+  // Real managers see only a scoped invitation form. The full member directory
+  // and editing tools remain owner/admin only, including during impersonation.
   const scope = await getWorkspaceScope();
   if (!scope) redirect('/dashboard');
+  if (scope.role === 'manager' && !scope.impersonating
+    && scope.brandScope.kind === 'scoped' && scope.brandScope.brandIds.length > 0) {
+    const admin = await createAdminClient();
+    const { data: assignedBrands, error } = await admin.from('brands_v2')
+      .select('id,name,slug,display_name')
+      .eq('tenant_id', scope.tenantId).eq('is_archived', false)
+      .in('id', scope.brandScope.brandIds).order('name');
+    if (error) throw new Error('Assigned brands could not be loaded.');
+    return <div className="space-y-4">
+      <PageHeader eyebrow="Access" title="Invite people" subtitle="Add a manager, coach, or brand contact to the brands you manage." />
+      <ManagerInvitations brands={assignedBrands ?? []}/>
+    </div>;
+  }
   if (scope.role !== 'owner' && scope.role !== 'admin') redirect('/dashboard');
 
   const supabase = await createClient();

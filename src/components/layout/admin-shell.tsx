@@ -24,6 +24,7 @@ interface AdminShellProps {
   canViewFinance?: boolean;
   /** Impersonation-aware owner/admin flag — gates the header's User Management entry. */
   isAdmin?: boolean;
+  canInviteMembers?: boolean;
   /**
    * Which screens this person may open, from the permission matrix.
    *
@@ -38,7 +39,7 @@ interface AdminShellProps {
   defaultCollapsed?: boolean;
 }
 
-export function AdminShell({ children, tenantSwitcher, viewAsBanner, canViewFinance = true, isAdmin = false, navPerms, defaultCollapsed = false }: AdminShellProps) {
+export function AdminShell({ children, tenantSwitcher, viewAsBanner, canViewFinance = true, isAdmin = false, canInviteMembers = false, navPerms, defaultCollapsed = false }: AdminShellProps) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
   const { tenant, userName, userEmail } = useTenant();
@@ -73,6 +74,7 @@ export function AdminShell({ children, tenantSwitcher, viewAsBanner, canViewFina
             userEmail={userEmail}
             tenantSwitcher={tenantSwitcher}
             isAdmin={isAdmin}
+            canInviteMembers={canInviteMembers}
           />
           <SectionTabs isAdmin={isAdmin} navPerms={navPerms} />
           <main className="flex-1 animate-fade-in">
