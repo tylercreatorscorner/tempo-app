@@ -6,6 +6,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { PageHeader } from '@/components/ui/page-header';
 import { CreatorInvitesSection } from '@/components/settings/creator-invites-section';
 import { OnboardingWorkspace } from './workspace';
+import { isDiscordApplicationSignInAvailable } from '@/lib/applications/discord-oauth-config';
 
 export default async function Page({ searchParams }: { searchParams: Promise<{ brand?: string; page?: string }> }) {
   const scope = await requireScreen('roster');
@@ -56,6 +57,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ b
   if (versionError) throw new Error('Could not load Creator Hub versions.');
   const versionById = new Map((hubVersions ?? []).map(version => [version.id, version]));
   const visibleIds = new Set(visibleBrands.map(brand => brand.id));
+  const discordSignInAvailable = await isDiscordApplicationSignInAvailable();
+  const decisionEmailAvailable = Boolean(process.env.RESEND_API_KEY && process.env.RESEND_FROM_EMAIL);
   return <div className="mx-auto max-w-7xl space-y-5">
     <PageHeader title="Onboarding" subtitle="Collect creator applications, review them by brand, and track the handoff after a decision." />
     <OnboardingWorkspace
@@ -75,6 +78,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ b
       })}
       selectedBrandId={selectedBrand?.id ?? ''}
       page={page} totalCount={count ?? 0} pendingCount={pendingCount ?? 0}
+      discordSignInAvailable={discordSignInAvailable}
+      decisionEmailAvailable={decisionEmailAvailable}
       canConfigure={can(scope, 'roster', 'write') && !scope.impersonating}
       canManageDiscord={['owner', 'admin'].includes(scope.role) && !scope.impersonating}
     />
