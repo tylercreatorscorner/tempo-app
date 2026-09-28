@@ -21,8 +21,16 @@ const saveSchema = z.object({
 async function authorizedBrand(brandId: string) {
   const scope = await getWorkspaceScope();
   if (!scope || scope.impersonating || !['owner', 'admin'].includes(scope.role) ||
-      !can(scope, 'roster', 'write')) return null;
+      !can(scope, 'roster', 'write')) {
+    console.warn('Discord onboarding setup denied at workspace guard', {
+      hasScope: Boolean(scope), impersonating: Boolean(scope?.impersonating),
+      roleAllowed: Boolean(scope && ['owner', 'admin'].includes(scope.role)),
+      rosterWriteAllowed: Boolean(scope && can(scope, 'roster', 'write')),
+    });
+    return null;
+  }
   const brand = await applicationBrand(scope, brandId);
+  if (!brand) console.warn('Discord onboarding setup denied at brand guard');
   return brand ? { scope, brand } : null;
 }
 
