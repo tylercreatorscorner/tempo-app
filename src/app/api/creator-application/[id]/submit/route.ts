@@ -3,10 +3,13 @@ import { z } from 'zod';
 import { createAdminClient } from '@/lib/supabase/server';
 import { questionsSchema, submissionSchema } from '@/lib/applications/schema';
 import { throttle } from '@/lib/rate-limit';
+import { getApplicationDiscordIdentity } from '@/lib/applications/discord-identity';
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!z.uuid().safeParse(id).success) return NextResponse.json({ error: 'Application unavailable.' }, { status: 404 });
+  const discordIdentity = await getApplicationDiscordIdentity(id);
+  if (!discordIdentity) return NextResponse.json({ error: 'Connect Discord to submit this application.' }, { status: 401 });
   const length = Number(request.headers.get('content-length') || 0);
   if (length > 20000) return NextResponse.json({ error: 'Submission is too large.' }, { status: 413 });
   const ip = request.headers.get('x-real-ip') ?? request.headers.get('x-forwarded-for')?.split(',')[0] ?? 'unknown';
@@ -33,8 +36,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     tenant_id: form.tenant_id, brand_id: form.brand_id, form_id: form.id, form_version: form.version,
     questions_snapshot: questions.data, answers: parsed.data.answers,
     full_name: parsed.data.fullName, email: parsed.data.email,
+    phone_number: parsed.data.phoneNumber,
+    gmv_last_30_days_usd: parsed.data.gmvLast30DaysUsd,
+    deal_preference: parsed.data.dealPreference,
     tiktok_handle: parsed.data.tiktokHandle.replace(/^@/, ''),
-    discord_username: parsed.data.discordUsername || null,
+    discord_username: discordIdentity.username,
+    discord_user_id: discordIdentity.id,
+    discord_display_name: discordIdentity.globalName || discordIdentity.username,
+    discord_avatar_url: discordIdentity.avatar && /^[a-f0-9_]{16,100}$/i.test(discordIdentity.avatar)
+      ? `https://cdn.discordapp.com/avatars/${discordIdentity.id}/${discordIdentity.avatar}.png`
+      : null,
   });
   if (insertError) return NextResponse.json({ error: 'Could not submit. Please try again.' }, { status: 500 });
   // Do not disclose applicant identifiers or auto-create creator/Discord records.

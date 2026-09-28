@@ -20,8 +20,13 @@ export const submissionSchema = z.object({
   formVersion: z.number().int().positive(),
   fullName: z.string().trim().min(2).max(160),
   email: z.email().max(254).transform(value => value.toLowerCase()),
+  phoneNumber: z.string().trim().min(7).max(30).refine(value => {
+    const digits = value.replace(/\D/g, '');
+    return /^[+\d\s().-]+$/.test(value) && digits.length >= 7 && digits.length <= 15;
+  }, 'Enter a valid phone number.'),
   tiktokHandle: z.string().trim().min(2).max(80).regex(/^@?[a-zA-Z0-9._]+$/),
-  discordUsername: z.string().trim().max(80).optional(),
+  gmvLast30DaysUsd: z.number().finite().min(0).max(1_000_000_000),
+  dealPreference: z.enum(['affiliate', 'retainer', 'either']),
   answers: z.record(z.string(), z.string().trim().max(3000)),
   website: z.string().optional(), // invisible honeypot
 });

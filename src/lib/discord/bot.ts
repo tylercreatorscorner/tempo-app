@@ -24,6 +24,7 @@ import { commands, commandMap } from './commands';
 import { getGuildConfig } from './config';
 import { logMessage } from './relay';
 import { getSupabase } from './supabase';
+import { startCreatorHubProvisioningChecker } from './creator-hub-provisioning';
 import { startReminderChecker, scheduleDailyBriefs } from './scheduler';
 
 // ── Liveness heartbeat ───────────────────────────────────────────────────────
@@ -122,6 +123,7 @@ export function setupEventHandlers(client: Client): void {
     void upsertHeartbeat();
     setInterval(() => { void upsertHeartbeat(); }, HEARTBEAT_INTERVAL_MS);
     startBroadcastDrainTicker();
+    startCreatorHubProvisioningChecker();
   });
 
   client.on(Events.InteractionCreate, async (interaction: Interaction) => {

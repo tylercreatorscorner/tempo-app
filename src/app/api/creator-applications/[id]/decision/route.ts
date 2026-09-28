@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { createAdminClient } from '@/lib/supabase/server';
 import { getWorkspaceScope } from '@/lib/auth/workspace-scope';
 import { applicationBrand, isAssignedApplicationManager } from '@/lib/applications/access';
+import { deliverCreatorApplicationDecision } from '@/lib/applications/decision-notifications';
 
 const bodySchema = z.object({
   expectedStatus: z.enum(['pending','needs_info']),
@@ -26,11 +27,24 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!brand || !(await isAssignedApplicationManager(scope, brand))) {
     return NextResponse.json({ error: 'The current assigned manager must make this decision.' }, { status: 403 });
   }
-  const { error: decisionError } = await db.rpc('decide_creator_application', {
-    p_submission_id: id, p_tenant_id: scope.tenantId, p_actor_id: scope.userId,
-    p_expected_status: parsed.data.expectedStatus, p_new_status: parsed.data.decision,
-    p_note: parsed.data.note ?? null,
-  });
-  if (decisionError) return NextResponse.json({ error: 'The application or assignment changed. Reload and try again.' }, { status: 409 });
-  return NextResponse.json({ ok: true });
+  const common = { p_submission_id: id, p_tenant_id: scope.tenantId, p_actor_id: scope.userId,
+    p_expected_status: parsed.data.expectedStatus, p_note: parsed.data.note ?? null };
+  const { error: decisionError } = parsed.data.decision === 'approved'
+    ? await db.rpc('approve_creator_application_with_hub', common)
+    : await db.rpc('decide_creator_application', { ...common, p_new_status: parsed.data.decision });
+  if (decisionError) return NextResponse.json({ error: parsed.data.decision === 'approved'
+    ? 'Approval needs a published Hub with at least one required step. The decision was not saved; finish this brand’s Hub setup, then try again.'
+    : 'The application or assignment changed. Reload and try again.' }, { status: 409 });
+  let notificationStatus: 'sent' | 'pending' | 'failed' | null = null;
+  if (parsed.data.decision !== 'needs_info') {
+    const { data: notification } = await db.from('creator_application_notifications')
+      .select('id').eq('submission_id', id).eq('tenant_id', scope.tenantId)
+      .eq('kind', parsed.data.decision).order('created_at', { ascending: false }).limit(1).maybeSingle();
+    if (notification) {
+      notificationStatus = process.env.VERCEL_ENV === 'production'
+        ? (await deliverCreatorApplicationDecision(notification.id)).status
+        : 'pending';
+    }
+  }
+  return NextResponse.json({ ok: true, notificationStatus });
 }
