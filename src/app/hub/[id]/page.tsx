@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { createAdminClient } from '@/lib/supabase/server';
 import { getDiscordIdentity } from '@/lib/applications/discord-identity';
 import { getCreatorHubCompletion, type CreatorHubEnrollmentItem } from '@/lib/creator-hub/completion';
-import { CreatorHubChecklist } from './creator-hub-checklist';
+import { CreatorHubHome } from './creator-hub-home';
 import { isDiscordApplicationSignInAvailable } from '@/lib/applications/discord-oauth-config';
 
 export default async function Page({ params, searchParams }: {
@@ -42,7 +42,7 @@ export default async function Page({ params, searchParams }: {
   </main>;
 
   const [{ data: brand }, { data: rows, error: itemError }] = await Promise.all([
-    db.from('brands_v2').select('name,display_name').eq('id', enrollment.brand_id)
+    db.from('brands_v2').select('name,display_name,logo_url,color').eq('id', enrollment.brand_id)
       .eq('tenant_id', enrollment.tenant_id).maybeSingle(),
     db.from('creator_hub_enrollment_items')
       .select('id,item_id,item_version_id,kind,required,completed_at,accepted_at')
@@ -74,6 +74,7 @@ export default async function Page({ params, searchParams }: {
     enrollment.status as 'pending' | 'in_progress' | 'complete', enrollment.snapshot_finalized_at,
     items as CreatorHubEnrollmentItem[],
   );
-  return <CreatorHubChecklist enrollmentId={id} brandName={brand.display_name || brand.name}
+  return <CreatorHubHome enrollmentId={id} brandName={brand.display_name || brand.name}
+    brandLogoUrl={brand.logo_url} brandColor={brand.color}
     creatorName={application.full_name} items={items} completion={completion} />;
 }

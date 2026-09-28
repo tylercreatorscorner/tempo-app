@@ -3,7 +3,7 @@ import { requireScreen } from '@/lib/auth/require-screen';
 import { isBrandInScope } from '@/lib/auth/workspace-scope';
 import { createAdminClient } from '@/lib/supabase/server';
 import { getCreatorHubCompletion, type CreatorHubEnrollmentItem } from '@/lib/creator-hub/completion';
-import { CreatorHubChecklist } from '@/app/hub/[id]/creator-hub-checklist';
+import { CreatorHubHome } from '@/app/hub/[id]/creator-hub-home';
 
 const examples = [
   {
@@ -33,7 +33,7 @@ export default async function CreatorHubPreviewPage({ searchParams }: {
   if (!slug) notFound();
   const db = await createAdminClient();
   const { data: brand, error } = await db.from('brands_v2')
-    .select('id,tenant_id,slug,name,display_name,is_archived')
+    .select('id,tenant_id,slug,name,display_name,logo_url,color,is_archived')
     .eq('tenant_id', scope.tenantId).eq('slug', slug).maybeSingle();
   if (error || !brand || brand.is_archived || !isBrandInScope(scope, brand)) notFound();
 
@@ -43,8 +43,9 @@ export default async function CreatorHubPreviewPage({ searchParams }: {
   }));
   const completion = getCreatorHubCompletion('pending', 'preview-only', enrollmentItems);
 
-  return <CreatorHubChecklist preview enrollmentId="preview-only"
-    brandName={brand.display_name || brand.name} creatorName="Creator"
+  return <CreatorHubHome preview enrollmentId="preview-only"
+    brandName={brand.display_name || brand.name} brandLogoUrl={brand.logo_url}
+    brandColor={brand.color} creatorName="Creator"
     items={examples.map(item => ({ ...item, version: 1, completed_at: null, accepted_at: null }))}
     completion={completion} />;
 }
