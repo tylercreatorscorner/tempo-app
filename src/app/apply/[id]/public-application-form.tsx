@@ -2,16 +2,20 @@
 import { useState, type FormEvent } from 'react';
 import type { ApplicationQuestion } from '@/lib/applications/schema';
 import type { DiscordIdentity } from '@/lib/applications/discord-identity';
+import { ChoiceMenu } from '@/components/ui/choice-menu';
 
-export function PublicApplicationForm({ formId, formVersion, questions, identity, discordOutcome }: {
+export function PublicApplicationForm({ formId, formVersion, questions, identity, discordOutcome, discordAvailable }: {
   formId: string; formVersion: number; questions: ApplicationQuestion[];
-  identity: DiscordIdentity | null; discordOutcome?: string;
+  identity: DiscordIdentity | null; discordOutcome?: string; discordAvailable: boolean;
 }) {
   const [pending, setPending] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState('');
+  const [dealPreference, setDealPreference] = useState('');
   async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); setError(''); setPending(true);
+    event.preventDefault(); setError('');
+    if (!dealPreference) { setError('Choose the type of opportunity you are interested in.'); return; }
+    setPending(true);
     const values = new FormData(event.currentTarget);
     const answers = Object.fromEntries(questions.map(question => [question.id, String(values.get(question.id) || '')]));
     const gmv = values.get('gmvLast30DaysUsd');
@@ -22,7 +26,7 @@ export function PublicApplicationForm({ formId, formVersion, questions, identity
           phoneNumber: values.get('phoneNumber'),
           tiktokHandle: values.get('tiktokHandle'),
           gmvLast30DaysUsd: typeof gmv === 'string' && gmv.trim() ? Number(gmv) : null,
-          dealPreference: values.get('dealPreference'),
+          dealPreference,
           website: values.get('website'), formVersion, answers,
         }) });
       const result = await response.json();
@@ -41,7 +45,9 @@ export function PublicApplicationForm({ formId, formVersion, questions, identity
     {discordOutcome && <p role="alert" className="mt-3 text-sm text-red-700">
       {discordOutcome === 'denied' ? 'Discord sign-in was canceled. You can try again.' : 'Discord sign-in did not finish. Please try again.'}
     </p>}
-    <a href={`/auth/discord/application/start?form=${encodeURIComponent(formId)}`} className="mt-4 inline-flex rounded-lg bg-[#6d42c8] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#5934ae]">Connect Discord</a>
+    {discordAvailable
+      ? <a href={`/auth/discord/application/start?form=${encodeURIComponent(formId)}`} className="mt-4 inline-flex rounded-lg bg-[#6d42c8] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#5934ae]">Connect Discord</a>
+      : <p role="status" className="mt-4 rounded-lg border border-[#e8e0ef] bg-white px-3 py-2 text-sm text-[#5f5968]">Applications are temporarily paused while Discord sign-in is being set up. Please check back soon.</p>}
   </div>;
   const input = 'mt-1.5 w-full rounded-lg border border-[#ded9e7] bg-white px-3 py-2.5 text-sm outline-none transition focus:border-[#7650ce] focus:ring-2 focus:ring-[#7650ce]/15';
   return <form onSubmit={submit} className="mt-7 space-y-5">
@@ -58,14 +64,14 @@ export function PublicApplicationForm({ formId, formVersion, questions, identity
       <label className="block text-sm font-medium">TikTok handle<input name="tiktokHandle" required maxLength={80} className={input} placeholder="@creator" /></label>
       <label className="block text-sm font-medium">Last 30 days of TikTok Shop GMV (USD)<input name="gmvLast30DaysUsd" type="number" min="0" max="1000000000" step="0.01" required className={input} placeholder="0.00" /></label>
     </div>
-    <label className="block text-sm font-medium">What type of opportunity are you interested in?
-      <select name="dealPreference" required defaultValue="" className={input}>
-        <option value="" disabled>Select one</option>
-        <option value="affiliate">Affiliate</option>
-        <option value="retainer">Retainer</option>
-        <option value="either">Either</option>
-      </select>
-    </label>
+    <div className="text-sm font-medium"><span className="mb-1.5 block">What type of opportunity are you interested in?</span>
+      <ChoiceMenu compact label="Opportunity type" value={dealPreference} onChange={setDealPreference}
+        placeholder="Choose an opportunity" options={[
+          { value: 'affiliate', label: 'Affiliate' },
+          { value: 'retainer', label: 'Retainer' },
+          { value: 'either', label: 'Either' },
+        ]} />
+    </div>
     {questions.map(question => <label key={question.id} className="block text-sm font-medium">{question.label}{question.required ? ' *' : ''}
       <textarea name={question.id} required={question.required} maxLength={3000} rows={3} className={input} />
     </label>)}

@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { getDiscordIdentity } from '@/lib/applications/discord-identity';
 import { getCreatorHubCompletion, type CreatorHubEnrollmentItem } from '@/lib/creator-hub/completion';
 import { CreatorHubChecklist } from './creator-hub-checklist';
+import { isDiscordApplicationSignInAvailable } from '@/lib/applications/discord-oauth-config';
 
 export default async function Page({ params, searchParams }: {
   params: Promise<{ id: string }>;
@@ -24,6 +25,7 @@ export default async function Page({ params, searchParams }: {
   if (!application || application.status !== 'approved' ||
       application.discord_user_id !== enrollment.discord_user_id) notFound();
   const identity = await getDiscordIdentity();
+  const discordAvailable = await isDiscordApplicationSignInAvailable();
   const connected = Boolean(identity && identity.id === enrollment.discord_user_id && identity.formId === application.form_id);
   const otherAccount = identity && !connected;
   if (!connected) return <main className="min-h-screen bg-[#f7f6fa] px-4 py-16 text-[#24212e]">
@@ -33,7 +35,9 @@ export default async function Page({ params, searchParams }: {
       <p className="mt-2 text-sm leading-6 text-[#696574]">Use the same Discord account you connected when you applied. Your Hub progress and acknowledgments are tied to that account.</p>
       {otherAccount && <p className="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">This Discord account does not match the approved application. Switch accounts before continuing.</p>}
       {discord && discord !== 'connected' && <p className="mt-4 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-800">Discord sign-in did not finish. Please try again.</p>}
-      <a className="mt-6 inline-flex rounded-lg bg-[#7548ca] px-4 py-2.5 text-sm font-semibold text-white" href={`/auth/discord/application/start?form=${encodeURIComponent(application.form_id)}&hub=${encodeURIComponent(id)}`}>Connect Discord</a>
+      {discordAvailable
+        ? <a className="mt-6 inline-flex rounded-lg bg-[#7548ca] px-4 py-2.5 text-sm font-semibold text-white" href={`/auth/discord/application/start?form=${encodeURIComponent(application.form_id)}&hub=${encodeURIComponent(id)}`}>Connect Discord</a>
+        : <p role="status" className="mt-4 text-sm text-[#696574]">Discord sign-in is temporarily unavailable. Please check back soon.</p>}
     </div>
   </main>;
 
