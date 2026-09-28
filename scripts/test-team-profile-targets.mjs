@@ -32,6 +32,7 @@ function query(table) {
 const admin={from:query,rpc:async(name,args)=>{assert.equal(name,'replace_member_brand_access');writes.push({table:'rpc',...args});return {error:dbError?{message:'failed'}:null};}};
 const deps={
  '@/lib/auth/invite-workspace-member':{inviteWorkspaceMember(){throw new Error('Invitation not exercised in this fixture');}},
+ '@/lib/auth/invite-manager-member':{inviteManagerMember(){throw new Error('Manager invitation not exercised in this fixture');}},
  '@supabase/ssr':{createServerClient(){throw new Error('Email must not be sent in this fixture');}},
  '@/lib/supabase/server':{createAdminClient:async()=>admin,createClient:async()=>({from:query,auth:{getUser:async()=>({data:{user:actor?{id:actor.user_id}:null}})}})},
  '@/lib/auth/platform-admin':{assertNotImpersonating:async()=>{if(impersonating)throw new Error('Read only');}},
