@@ -297,6 +297,8 @@ export function PostsClient({
     }
     return stats;
   }, [data, creator, endDate]);
+  const filteredGmv = useMemo(() => visiblePosts.reduce((sum, post) => sum + post.gmv, 0), [visiblePosts]);
+  const hasTableFilters = Boolean(creator || search || age !== 'all' || reviewFilter !== 'all');
 
   // Reset the rendered window + close quick-watch whenever the matching set
   // changes, so neither points into a stale slice. Render-time adjust (not an
@@ -549,6 +551,7 @@ export function PostsClient({
         <label className="ml-auto flex items-center gap-2 text-xs font-medium text-foreground">Creator <Input value={creator} onChange={event => setCreator(event.target.value)} placeholder="Exact @handle" aria-label="Filter by exact creator handle" className="w-40 py-1.5 text-xs" /></label>
         <p className="w-full text-[11px] text-muted-foreground">Age is measured at the end of the selected sales window, matching the report. GMV remains sales earned during that window.{data?.capped ? ' Bucket totals cover only the videos loaded into this table; narrow the brand or date window for a complete breakdown.' : ''}</p>
       </div>
+      {hasTableFilters && !loading && data && <p role="status" className="-mt-3 text-xs text-foreground"><strong className="font-semibold">Filtered view:</strong> {formatNumber(visiblePosts.length)} videos · {formatCurrency(filteredGmv)} GMV earned in this window. <span className="text-muted-foreground">The KPI cards above show the full selected brand and date range.</span></p>}
       <div className="flex flex-col gap-3 pt-1 sm:flex-row sm:items-center sm:justify-between">
         <ReviewFilterPills active={reviewFilter} onChange={setReviewFilter} totals={data?.totals} />
         <div className="flex w-full items-center gap-2 sm:w-auto">
