@@ -5,10 +5,10 @@ import { renderDiscordMarkdown } from '../reporting/message-preview';
 
 // Illustrative copy only. These examples never request data or enter the build/copy flow.
 const EXAMPLES: Record<DropFormatId, string> = {
-  movers: '# 📈 BIGGEST MOVERS — {BRAND}\n_Ranked by growth, not total, over {WINDOW}._\n\n**1.** @creator_a — **+84%** ($450 → **$828**, +$378)\n**2.** @creator_b — **+41%** ($620 → **$874**, +$254)\n\n_6 creators grew this period out of 24 selling._',
-  rookies: '# 🌱 ROOKIE WATCH — {BRAND}\n_First sales from creators in their opening weeks._\n\n**1.** @new_creator — **$192** during {WINDOW} · day 4\n**2.** @fresh_face — **$86** during {WINDOW} · day 9\n\n_2 creators made their first sale. Say hi!_',
-  milestones: '# 🏆 MILESTONES — {BRAND}\n_Crossed in the last 14 days._\n\n🎉 @creator_a just crossed **$10,000** in lifetime GMV\n⭐ @creator_b just crossed **$25,000** in lifetime GMV\n\n_Celebrate the progress and keep the momentum going._',
-  mtd: '# 🗓️ MONTH-TO-DATE LEADERBOARD — {BRAND}\n_Day 18 of 30 · 60% through the month_\n\n**$42,800** so far · up 16% vs the same point last month\n\n**1.** @creator_a · **$8,420** · up 2 places\n**2.** @creator_b · **$6,140** · holding steady\n**3.** @creator_c · **$4,890** · new to the top three',
+  movers: '# 📈 BIGGEST MOVERS — {BRAND}\n*Ranked by growth, not total, over {WINDOW}.*\n\n**1.** @creator_a — **+84%** ($450 → **$828**, +$378)\n**2.** @creator_b — **+41%** ($620 → **$874**, +$254)\n\n*6 creators grew this period out of 24 selling.*',
+  rookies: '# 🌱 ROOKIE WATCH — {BRAND}\n*First sales from creators in their opening weeks.*\n\n**1.** @new_creator — **$192** during {WINDOW} · day 4\n**2.** @fresh_face — **$86** during {WINDOW} · day 9\n\n*2 creators made their first sale. Say hi!*',
+  milestones: '# 🏆 MILESTONES — {BRAND}\n*Crossed in the last 14 days.*\n\n🎉 @creator_a just crossed **$10,000** in lifetime GMV\n⭐ @creator_b just crossed **$25,000** in lifetime GMV\n\n*Celebrate the progress and keep the momentum going.*',
+  mtd: '# 🗓️ MONTH-TO-DATE LEADERBOARD — {BRAND}\n*Day 18 of 30 · 60% through the month*\n\n**$42,800** so far · up 16% vs the same point last month\n\n**1.** @creator_a · **$8,420** · up 2 places\n**2.** @creator_b · **$6,140** · holding steady\n**3.** @creator_c · **$4,890** · new to the top three',
   'whats-cooking': '🍳 **What\'s Cooking?** | {BRAND} | {WINDOW}\n*Top-performing videos from this window*\n\n📊 **$18,400** GMV from **42** videos and **18** creators\n\n**HOT VIDEOS (posted last 7 days)**\n> 1. @creator_a — **$2,140** GMV\n> 2. @creator_b — **$1,760** GMV\n\n**RISING (posted 7–14 days ago)**\n> 1. @creator_c — **$1,120** GMV',
   'whos-cooking': '👨‍🍳 **WHO\'S COOKING** · {BRAND} · {WINDOW}\n*The highlight reel*\n\n> 1. @creator_a · **$8,420** · up 2 places\n> 2. @creator_b · **$6,140** · holding steady\n> 3. @creator_c · **$4,890** · new this week\n\n💰 Total creator GMV: **$32,500** across **24** creators',
   'daily-drop': '# 📈 DAILY DROP | {BRAND} | YESTERDAY\n\n💰 YESTERDAY\'S GMV: **$3,840** · up 12% from the prior day\n\n**TOP 3 CREATORS**\n> 1. @creator_a · **$940**\n> 2. @creator_b · **$720**\n> 3. @creator_c · **$510**\n\n**TOP VIDEO**\n> @creator_a · **$380** GMV',
@@ -51,7 +51,7 @@ export function DropFormatPreview({
     </div>
     <div className="border-t border-border bg-secondary/30 px-4 py-3 text-xs text-muted-foreground">
       Sample names and figures show the layout only. Build selected to generate real posts for review and copying.
-      {!format.acceptsWindow && <span className="mt-1 block font-medium text-foreground">This format uses {format.ownWindowLabel?.toLowerCase()} instead of the selected window.</span>}
+      {!format.acceptsWindow && <span className="mt-1 block font-medium text-foreground">Window: {format.ownWindowLabel}. This format ignores the selected dates.</span>}
     </div>
   </aside>;
 }
