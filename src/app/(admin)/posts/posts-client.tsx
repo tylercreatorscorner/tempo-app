@@ -28,6 +28,7 @@ import {
   AlertTriangle, MessageSquare, Star, Play, ArrowDown, ArrowUp, X,
 } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { useBrandMeta } from '@/hooks/use-brand-meta';
 import { useInView } from '@/hooks/use-in-view';
@@ -96,7 +97,7 @@ interface PostsResponse {
 // thousands of posts) stays in memory for instant sort/search; we just grow
 // the rendered slice as the user scrolls so we never mount thousands of DOM
 // nodes up front.
-const RENDER_CHUNK = 300;
+const RENDER_CHUNK = 120;
 
 type SortKey = 'gmv' | 'orders' | 'items_sold' | 'views' | 'likes' | 'comments' | 'shares' | 'engagement_rate' | 'post_date' | 'post_age';
 type MetricsView = 'sales' | 'engagement';
@@ -575,7 +576,13 @@ export function PostsClient({
           </div>
           <span className="text-xs tabular-nums text-muted-foreground">{formatNumber(visiblePosts.length)} results</span>
         </div>
-        <div className="overflow-x-auto">
+        <div className="space-y-0 md:hidden">
+          {loading && !data ? <div className="px-5 py-10 text-center text-sm text-muted-foreground"><Loader2 className="mr-2 inline h-4 w-4 animate-spin" />Loading videos...</div>
+            : visiblePosts.length === 0 ? <PostsEmptyState reviewFilter={reviewFilter} filtered={Boolean(creator || search || age !== 'all')} />
+              : renderedPosts.map((p, i) => <PostMobileCard key={`${p.video_id}|${p.brand_slug}`} post={p} windowEnd={endDate}
+                  metricsView={metricsView} reviewHref={reviewHref(p)} onWatch={() => setWatchIndex(i)} />)}
+        </div>
+        <div className="hidden overflow-x-auto md:block">
           <table className="w-full min-w-[760px] text-sm">
             <thead>
               <tr className="text-left">
@@ -716,6 +723,39 @@ function RowCover({
       </span>
     </button>
   );
+}
+
+function PostMobileCard({ post: p, windowEnd, metricsView, reviewHref, onWatch }: {
+  post: PostRow;
+  windowEnd: string;
+  metricsView: MetricsView;
+  reviewHref: string;
+  onWatch: () => void;
+}) {
+  const brandMeta = useBrandMeta();
+  const age = postAgeDays(p.post_date, windowEnd);
+  return <article className="border-b border-border px-4 py-3 last:border-b-0">
+    <div className="flex items-start gap-3">
+      <RowCover videoUrl={p.video_url} creatorHandle={p.creator_handle} videoId={p.video_id}
+        brandColor={brandMeta.color(p.brand_slug)} onWatch={onWatch} />
+      <div className="min-w-0 flex-1">
+        <Link href={reviewHref} className="line-clamp-2 text-sm font-semibold leading-snug text-foreground hover:text-primary">{p.video_title}</Link>
+        <p className="mt-1 truncate text-xs text-muted-foreground">@{p.creator_handle} · {p.brand_name}</p>
+        <p className="mt-1 text-[11px] text-muted-foreground">{p.post_date ? new Date(`${p.post_date}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Chicago' }) : 'No publish date'}{age === null ? '' : ` · ${age} days old`}</p>
+      </div>
+      <div className="shrink-0 text-right"><p className="text-sm font-semibold tabular-nums text-foreground">{formatCurrency(p.gmv)}</p><p className="text-[10px] text-muted-foreground">Video GMV</p></div>
+    </div>
+    <div className="mt-3 flex items-center justify-between gap-3 border-t border-border/70 pt-2.5 text-xs">
+      {metricsView === 'sales' ? <div className="flex gap-4 text-muted-foreground">
+        <span><strong className="tabular-nums text-foreground">{formatNumber(p.orders)}</strong> orders</span>
+        <span><strong className="tabular-nums text-foreground">{formatNumber(p.items_sold)}</strong> units</span>
+      </div> : <div className="flex gap-4 text-muted-foreground">
+        <span><strong className="tabular-nums text-foreground">{fmtN(p.views)}</strong> views</span>
+        <span><strong className="tabular-nums text-foreground">{p.engagement_rate === null ? '—' : `${p.engagement_rate.toFixed(2)}%`}</strong> engagement</span>
+      </div>}
+      <ReviewCell post={p} />
+    </div>
+  </article>;
 }
 
 // ── Row + cells ────────────────────────────────────────────────────
