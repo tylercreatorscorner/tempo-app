@@ -1,26 +1,10 @@
 'use client';
 
 /**
- * Posts page — every video in the window, one dense sortable table.
- *
- * Rebuilt 2026-07-23 to the approved mockup:
- *   - The TABLE is the page. No cards mode, no view toggle, nothing between
- *     the KPI strip and the rows but a single toolbar.
- *   - Brand scoping is a DROPDOWN in the header (synced with the sidebar
- *     switcher via the shared ?brand= param) — the old pill wall is gone.
- *   - Default scope is ALL creators; Managed is the opt-in toggle.
- *   - Each row carries a small lazy TikTok cover. Clicking the cover opens
- *     the QUICK-WATCH modal: the video plays inside Tempo (official embed)
- *     and "Next post" steps down the current filtered list. Clicking
- *     anywhere else on the row opens the full review page.
- *   - The review queue (All / Unreviewed / Mine / Flagged) lives in the
- *     toolbar as filter chips with live counts — a pure client-side
- *     predicate over fields already on every row, zero refetches.
- *
- * Engagement (views/likes/comments/shares) is WINDOWED from
- * video_performance (migrations 088/090) and NULLABLE — null means "no
- * engagement data in this window" and renders as an em dash placeholder,
- * never a fake 0. Money is windowed per migration 079.
+ * Video sales and engagement for a selected window. Date basis and creator
+ * scope change the server query; age, search, review, and sorting are applied
+ * to the loaded rows. Engagement is nullable because some videos lack daily
+ * tracking data; missing values must not be displayed as zero.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -348,22 +332,6 @@ export function PostsClient({
     const params = new URLSearchParams(searchParams.toString());
     if (next === 'managed') params.set('managed', 'true');
     else params.delete('managed');
-    // Absolute path, built from usePathname(), rather than a bare `?${params}`.
-    //
-    // ⚠️ UNRESOLVED, do not read the git history as settled. In the in-app
-    // browser this control does not navigate: the onClick fires, throws nothing,
-    // and history.pushState is never called. Switching to an absolute path did
-    // NOT change that, which argues the query-only form was not the cause.
-    //
-    // That same browser showed a half-hydrated page (two <main> elements, orphan
-    // <table> nodes in <body>, unresolved S:0/S:1/S:2 stream holders), so the
-    // fault may be the browser rather than the app. NEEDS A TEST IN REAL CHROME
-    // before anyone concludes either way. The absolute path is kept because it
-    // is the more correct form regardless.
-    //
-    // What IS proven: loading the page with ?brand=<slug> by hand filters
-    // correctly (Views 1.8M -> 69.9k for akwellness1 on Forchics), so the page
-    // and the data are fine either way.
     const qs = params.toString();
     router.push(qs ? `${pathname}?${qs}` : pathname);
   }
@@ -372,22 +340,6 @@ export function PostsClient({
     const params = new URLSearchParams(searchParams.toString());
     if (next === 'posted') params.set('basis', 'posted');
     else params.delete('basis');
-    // Absolute path, built from usePathname(), rather than a bare `?${params}`.
-    //
-    // ⚠️ UNRESOLVED, do not read the git history as settled. In the in-app
-    // browser this control does not navigate: the onClick fires, throws nothing,
-    // and history.pushState is never called. Switching to an absolute path did
-    // NOT change that, which argues the query-only form was not the cause.
-    //
-    // That same browser showed a half-hydrated page (two <main> elements, orphan
-    // <table> nodes in <body>, unresolved S:0/S:1/S:2 stream holders), so the
-    // fault may be the browser rather than the app. NEEDS A TEST IN REAL CHROME
-    // before anyone concludes either way. The absolute path is kept because it
-    // is the more correct form regardless.
-    //
-    // What IS proven: loading the page with ?brand=<slug> by hand filters
-    // correctly (Views 1.8M -> 69.9k for akwellness1 on Forchics), so the page
-    // and the data are fine either way.
     const qs = params.toString();
     router.push(qs ? `${pathname}?${qs}` : pathname);
   }
@@ -396,22 +348,6 @@ export function PostsClient({
     const params = new URLSearchParams(searchParams.toString());
     if (slug === 'all') params.delete('brand');
     else params.set('brand', slug);
-    // Absolute path, built from usePathname(), rather than a bare `?${params}`.
-    //
-    // ⚠️ UNRESOLVED, do not read the git history as settled. In the in-app
-    // browser this control does not navigate: the onClick fires, throws nothing,
-    // and history.pushState is never called. Switching to an absolute path did
-    // NOT change that, which argues the query-only form was not the cause.
-    //
-    // That same browser showed a half-hydrated page (two <main> elements, orphan
-    // <table> nodes in <body>, unresolved S:0/S:1/S:2 stream holders), so the
-    // fault may be the browser rather than the app. NEEDS A TEST IN REAL CHROME
-    // before anyone concludes either way. The absolute path is kept because it
-    // is the more correct form regardless.
-    //
-    // What IS proven: loading the page with ?brand=<slug> by hand filters
-    // correctly (Views 1.8M -> 69.9k for akwellness1 on Forchics), so the page
-    // and the data are fine either way.
     const qs = params.toString();
     router.push(qs ? `${pathname}?${qs}` : pathname);
   }
