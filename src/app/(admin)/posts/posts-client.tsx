@@ -415,7 +415,7 @@ export function PostsClient({
           : 'Review videos published in the selected period and the sales they generated.'}
         actions={
           <div className="flex w-full flex-wrap items-center gap-2 lg:w-auto">
-            <div className="min-w-40 flex-1 lg:w-44 lg:flex-none">
+            <div className="w-full sm:w-44">
               <ChoiceMenu compact triggerClassName="w-full" label="Brand filter" value={selectedBrand ?? 'all'} onChange={setBrand}
                 options={[{ value: 'all', label: 'All Brands' }, ...brands.map(b => ({ value: b, label: brandMeta.label(b) }))]} />
             </div>
@@ -441,16 +441,13 @@ export function PostsClient({
             options={[{ value: 'all', label: 'All creators' }, { value: 'managed', label: 'Managed only' }]} />
         </div>
         <div className="grid grid-cols-2 divide-x divide-y divide-border sm:grid-cols-5 sm:divide-y-0">
-          <OverviewMetric label="Video GMV" value={data ? formatCurrency(data.totals.totalGmv) : '—'} prominent
-            detail="Sales attributed to videos in this window" />
-          <OverviewMetric label={dateBasis === 'earned' ? 'Videos earning' : 'Videos posted'} value={data ? formatNumber(data.totals.postCount) : '—'}
-            detail="Across the selected brand and scope" />
-          <OverviewMetric label="Views" value={data ? fmtN(data.totals.totalViews) : '—'} detail={viewsCoverage ?? 'Recorded during this window'} />
-          <OverviewMetric label="Likes" value={data ? fmtN(data.totals.totalLikes) : '—'} detail="Recorded during this window" />
-          <OverviewMetric label="Engagement" value={data ? (data.totals.avgEngagement === null ? '—' : `${data.totals.avgEngagement.toFixed(2)}%`) : '—'}
-            detail="Likes and comments ÷ views" />
+          <OverviewMetric label="Video GMV" value={data ? formatCurrency(data.totals.totalGmv) : '—'} prominent />
+          <OverviewMetric label={dateBasis === 'earned' ? 'Videos earning' : 'Videos posted'} value={data ? formatNumber(data.totals.postCount) : '—'} />
+          <OverviewMetric label="Views" value={data ? fmtN(data.totals.totalViews) : '—'} />
+          <OverviewMetric label="Likes" value={data ? fmtN(data.totals.totalLikes) : '—'} />
+          <OverviewMetric label="Engagement" value={data ? (data.totals.avgEngagement === null ? '—' : `${data.totals.avgEngagement.toFixed(2)}%`) : '—'} />
         </div>
-        <p className="border-t border-border px-4 py-2 text-[11px] text-muted-foreground sm:px-5">Video GMV excludes live and product showcase sales that cannot be attributed to an individual video.</p>
+        <p className="border-t border-border px-4 py-2 text-[11px] text-muted-foreground sm:px-5">Video GMV excludes live and product showcase sales that cannot be attributed to a video. Engagement is (likes + comments) ÷ views.{viewsCoverage ? ` Views are available ${viewsCoverage}.` : ''}</p>
       </section>
 
       {/* Capped-window notice. The KPI totals above are always computed over
@@ -490,7 +487,7 @@ export function PostsClient({
         <p className="mt-3 text-xs text-muted-foreground">Video age is measured at the end of the selected sales window. The sales shown were earned inside that window.</p>
         {hasTableFilters && !loading && data && <div role="status" className="mt-3 flex flex-wrap items-baseline gap-x-2 gap-y-1 border-t border-border pt-3 text-sm">
           <strong className="font-semibold text-foreground">{formatNumber(visiblePosts.length)} videos · {formatCurrency(filteredGmv)} video GMV</strong>
-          <span className="text-xs text-muted-foreground">{filterDescription}. Overview above remains the full brand, date and creator scope.</span>
+          <span className="text-xs text-muted-foreground">Filters: {filterDescription}. Overview above remains the full brand, date and creator scope.</span>
         </div>}
       </section>
 
@@ -832,16 +829,14 @@ function ReviewFilterPills({
   );
 }
 
-function OverviewMetric({ label, value, detail, prominent = false }: {
+function OverviewMetric({ label, value, prominent = false }: {
   label: string;
   value: string;
-  detail: string;
   prominent?: boolean;
 }) {
-  return <div className="min-w-0 px-4 py-4 sm:px-5">
+  return <div className="min-w-0 px-4 py-3 sm:px-5">
     <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{label}</p>
     <p className={cn('mt-1 tabular-nums font-semibold tracking-tight text-foreground', prominent ? 'text-2xl' : 'text-xl')}>{value}</p>
-    <p className="mt-0.5 truncate text-[11px] text-muted-foreground" title={detail}>{detail}</p>
   </div>;
 }
 
