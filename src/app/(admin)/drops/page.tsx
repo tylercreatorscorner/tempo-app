@@ -36,7 +36,7 @@ import { DROP_FORMATS, type DropFormat, type DropFormatId } from '@/lib/data/dro
 import { DROP_SELECTION_KEY, loadDropBoard, parseDropSelection } from '@/lib/data/drop-board-client';
 import { useBrandSelect, BrandListWarning } from '../reporting/use-report-brands';
 import { renderDiscordMarkdown } from '../reporting/message-preview';
-import { DropFormatPreview } from './drop-format-preview';
+import { DropFormatPicker } from './drop-format-picker';
 
 interface DropCard {
   id: string;
@@ -64,7 +64,6 @@ export default function DropsPage() {
   const today = new Date().toISOString().slice(0, 10);
   const rangeValid = preset !== 'custom' || startDate <= endDate;
   const [selected, setSelected] = useState<DropFormatId[]>(() => DROP_FORMATS.map(f => f.id));
-  const [previewId, setPreviewId] = useState<DropFormatId>(DROP_FORMATS[0].id);
   const [preferencesReady, setPreferencesReady] = useState(false);
   const [active, setActive] = useState<DropFormatId[]>([]);
   const selectedFormats = DROP_FORMATS.filter(f => selected.includes(f.id));
@@ -73,7 +72,6 @@ export default function DropsPage() {
     try {
       const saved = parseDropSelection(localStorage.getItem(DROP_SELECTION_KEY));
       setSelected(saved);
-      if (saved.length) setPreviewId(saved[0]);
     } catch { /* Storage may be unavailable. */ }
     setPreferencesReady(true);
   }, []);
@@ -145,13 +143,11 @@ export default function DropsPage() {
   const readyCount = cards?.filter(c => c.text !== null && !c.error).length ?? 0;
   const failedCount = cards?.filter(c => c.error).length ?? 0;
   const emptyCount = cards?.filter(c => c.text === null && !c.error).length ?? 0;
-  const previewBrand = brandOptions.find(option => option.value === brand)?.label ?? 'Your Brand';
-  const previewWindow = preset === '7d' ? 'the last 7 days' : preset === '30d' ? 'the last 30 days' : 'the selected dates';
 
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Creators"
+        eyebrow="Discord"
         title="Discord Posts"
         subtitle="Choose the posts you need. Copy each one as soon as it’s ready."
       />
@@ -201,48 +197,11 @@ export default function DropsPage() {
           </Button>
         </div>
 
-        <fieldset disabled={loading} className="mt-5 border-t border-border pt-4 disabled:opacity-70">
-          <legend className="sr-only">Post formats</legend>
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <p className="text-sm font-semibold text-foreground">Customize your build</p>
-              <p className="text-xs text-muted-foreground">Choose formats and preview their layout. {selected.length} selected · Saved in this browser.</p>
-            </div>
-            <div className="flex gap-2">
-              <Button size="sm" variant="ghost" type="button" onClick={() => setSelected(DROP_FORMATS.map(f => f.id))}>Select all</Button>
-              <Button size="sm" variant="ghost" type="button" onClick={() => setSelected([])}>Clear</Button>
-            </div>
-          </div>
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.9fr)]">
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
-              {DROP_FORMATS.map(f => (
-                <div key={f.id} className={cn('space-y-2', previewId === f.id && 'sm:col-span-2 lg:col-span-1')}>
-                  <div className={cn('flex items-start gap-3 rounded-lg border p-3 transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring', previewId === f.id ? 'border-primary/60 bg-primary/[0.06]' : selected.includes(f.id) ? 'border-primary/25 bg-primary/[0.025]' : 'border-border hover:bg-secondary/50')}>
-                    <label className="flex min-w-0 flex-1 cursor-pointer items-start gap-3">
-                      <input type="checkbox" className="mt-0.5 h-4 w-4 shrink-0 accent-primary" checked={selected.includes(f.id)}
-                        onChange={e => {
-                          setPreviewId(f.id);
-                          setSelected(previous => e.target.checked ? [...previous, f.id] : previous.filter(id => id !== f.id));
-                        }} />
-                      <span>
-                        <span className="block text-xs font-semibold text-foreground">{f.label}</span>
-                        <span className="mt-0.5 block text-[11px] text-muted-foreground">{f.what}</span>
-                        {!f.acceptsWindow && <span className="mt-1 block text-[10px] text-muted-foreground">Own window: {f.ownWindowLabel}</span>}
-                      </span>
-                    </label>
-                    <button type="button" aria-pressed={previewId === f.id} onClick={() => setPreviewId(f.id)}
-                      className="shrink-0 rounded-md px-2 py-1 text-[11px] font-semibold text-primary hover:bg-primary/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
-                      {previewId === f.id ? 'Viewing' : 'Preview'}
-                    </button>
-                  </div>
-                  {previewId === f.id && <div className="lg:hidden"><DropFormatPreview id={f.id} brandName={previewBrand} windowLabel={previewWindow} selected={selected.includes(f.id)} /></div>}
-                </div>
-              ))}
-            </div>
-            <div className="hidden lg:block"><DropFormatPreview id={previewId} brandName={previewBrand} windowLabel={previewWindow} selected={selected.includes(previewId)} /></div>
-          </div>
-          {!selected.length && <p className="mt-3 text-xs text-muted-foreground">Select at least one format to build your board.</p>}
-        </fieldset>
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
+          <div><p className="text-sm font-semibold text-foreground">Your post formats</p><p className="text-xs text-muted-foreground">{selected.length} selected · Saved in this browser</p></div>
+          <DropFormatPicker selected={selected} onChange={setSelected} disabled={loading} />
+        </div>
+        {!selected.length && <p className="mt-2 text-xs text-muted-foreground">Add at least one format to build your board.</p>}
 
         {!rangeValid && (
           <p className="mt-2 text-[11px] text-[var(--pulse-neg)]">Start date must be on or before the end date.</p>
