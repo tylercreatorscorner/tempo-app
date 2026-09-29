@@ -101,11 +101,31 @@ interface PostsResponse {
 // nodes up front.
 const RENDER_CHUNK = 300;
 
-type SortKey = 'gmv' | 'views' | 'likes' | 'comments' | 'shares' | 'engagement_rate' | 'post_date';
+type SortKey = 'gmv' | 'views' | 'likes' | 'comments' | 'shares' | 'engagement_rate' | 'post_date' | 'post_age';
 type SortDir = 'asc' | 'desc';
 type ReviewFilter = 'all' | 'unreviewed' | 'reviewed-by-me' | 'flagged';
+type AgeBucket = 'all' | '0-30' | '30-60' | '60-90' | '90-180' | '180+' | 'unknown';
 
-const SORT_KEYS: SortKey[] = ['gmv', 'views', 'likes', 'comments', 'shares', 'engagement_rate', 'post_date'];
+const SORT_KEYS: SortKey[] = ['gmv', 'views', 'likes', 'comments', 'shares', 'engagement_rate', 'post_date', 'post_age'];
+const AGE_BUCKETS: { value: AgeBucket; label: string }[] = [
+  { value: 'all', label: 'All ages' }, { value: '0-30', label: '0–30d' },
+  { value: '30-60', label: '30–60d' }, { value: '60-90', label: '60–90d' },
+  { value: '90-180', label: '90–180d' }, { value: '180+', label: '180d+' },
+  { value: 'unknown', label: 'No date' },
+];
+function postAgeDays(postDate: string | null, windowEnd: string): number | null {
+  if (!postDate) return null;
+  const days = Math.floor((Date.parse(`${windowEnd}T00:00:00Z`) - Date.parse(`${postDate}T00:00:00Z`)) / 86_400_000);
+  return Number.isFinite(days) ? Math.max(0, days) : null;
+}
+function ageBucket(days: number | null): AgeBucket {
+  if (days === null) return 'unknown';
+  if (days < 30) return '0-30';
+  if (days < 60) return '30-60';
+  if (days < 90) return '60-90';
+  if (days < 180) return '90-180';
+  return '180+';
+}
 function isSortKey(v: string | null): v is SortKey {
   return v !== null && (SORT_KEYS as string[]).includes(v);
 }
@@ -141,6 +161,8 @@ export function PostsClient({
   const [error, setError] = useState<string | null>(null);
   // Initialize sort + search from URL so refreshes / shares preserve state.
   const [search, setSearch] = useState(searchParams.get('q') ?? '');
+  const [creator, setCreator] = useState(searchParams.get('creator') ?? '');
+  const [age, setAge] = useState<AgeBucket>(() => AGE_BUCKETS.find(bucket => bucket.value === searchParams.get('age'))?.value ?? 'all');
   const [sortKey, setSortKey] = useState<SortKey>(() => {
     const fromUrl = searchParams.get('sort');
     return isSortKey(fromUrl) ? fromUrl : 'gmv';
@@ -169,6 +191,8 @@ export function PostsClient({
       if (sortKey === 'gmv') params.delete('sort'); else params.set('sort', sortKey);
       if (sortDir === 'desc') params.delete('dir'); else params.set('dir', sortDir);
       if (!search) params.delete('q'); else params.set('q', search);
+      if (!creator) params.delete('creator'); else params.set('creator', creator);
+      if (age === 'all') params.delete('age'); else params.set('age', age);
       if (reviewFilter === 'all') params.delete('review'); else params.set('review', reviewFilter);
       const next = params.toString();
       const current = searchParams.toString();
@@ -177,7 +201,7 @@ export function PostsClient({
       }
     }, 250);
     return () => clearTimeout(t);
-  }, [sortKey, sortDir, search, reviewFilter, router, searchParams]);
+  }, [sortKey, sortDir, search, creator, age, reviewFilter, router, searchParams]);
 
   // Fetch on mount + whenever the DATA scope changes (brand/date/managed).
   // The review filter is deliberately NOT here — it is a pure predicate over
@@ -228,6 +252,9 @@ export function PostsClient({
     if (reviewFilter === 'unreviewed') list = list.filter(p => p.review_count === 0);
     else if (reviewFilter === 'reviewed-by-me') list = list.filter(p => p.has_my_review);
     else if (reviewFilter === 'flagged') list = list.filter(p => p.flagged);
+    const creatorTerm = creator.trim().replace(/^@/, '').toLowerCase();
+    if (creatorTerm) list = list.filter(p => p.creator_handle.toLowerCase() === creatorTerm);
+    if (age !== 'all') list = list.filter(p => ageBucket(postAgeDays(p.post_date, endDate)) === age);
     const term = search.trim().toLowerCase();
     if (term) {
       list = list.filter(p =>
@@ -242,18 +269,39 @@ export function PostsClient({
         const bv = String(b.post_date ?? '');
         return av < bv ? -dir : av > bv ? dir : 0;
       }
+      if (sortKey === 'post_age') {
+        const av = postAgeDays(a.post_date, endDate);
+        const bv = postAgeDays(b.post_date, endDate);
+        if (av === null) return bv === null ? 0 : 1;
+        if (bv === null) return -1;
+        return (av - bv) * dir;
+      }
       // Unknown (null) engagement sorts below a real 0 in either direction.
       const av = a[sortKey] ?? -1;
       const bv = b[sortKey] ?? -1;
       return ((av as number) - (bv as number)) * dir;
     });
     return list;
-  }, [data, search, sortKey, sortDir, reviewFilter]);
+  }, [data, search, creator, age, endDate, sortKey, sortDir, reviewFilter]);
+
+  const ageStats = useMemo(() => {
+    const stats = new Map<AgeBucket, { videos: number; gmv: number }>();
+    const creatorTerm = creator.trim().replace(/^@/, '').toLowerCase();
+    for (const post of data?.posts ?? []) {
+      if (creatorTerm && post.creator_handle.toLowerCase() !== creatorTerm) continue;
+      const bucket = ageBucket(postAgeDays(post.post_date, endDate));
+      const entry = stats.get(bucket) ?? { videos: 0, gmv: 0 };
+      entry.videos += 1;
+      entry.gmv += post.gmv;
+      stats.set(bucket, entry);
+    }
+    return stats;
+  }, [data, creator, endDate]);
 
   // Reset the rendered window + close quick-watch whenever the matching set
   // changes, so neither points into a stale slice. Render-time adjust (not an
   // effect) per the same lint rule as the fetch-key reset above.
-  const listKey = `${search}|${sortKey}|${sortDir}|${reviewFilter}|${data?.startDate ?? ''}|${data?.endDate ?? ''}|${data?.posts.length ?? -1}`;
+  const listKey = `${search}|${creator}|${age}|${sortKey}|${sortDir}|${reviewFilter}|${data?.startDate ?? ''}|${data?.endDate ?? ''}|${data?.posts.length ?? -1}`;
   const [prevListKey, setPrevListKey] = useState(listKey);
   if (listKey !== prevListKey) {
     setPrevListKey(listKey);
@@ -368,12 +416,13 @@ export function PostsClient({
 
   function downloadCsv() {
     if (!visiblePosts.length) return;
-    const headers = ['Creator', 'Brand', 'Title', 'Posted', 'Views', 'Likes', 'Comments', 'Shares', 'Engagement %', 'GMV', 'Orders', 'URL'];
+    const headers = ['Creator', 'Brand', 'Title', 'Posted', 'Post age at window end (days)', 'Views', 'Likes', 'Comments', 'Shares', 'Engagement %', 'GMV', 'Orders', 'URL'];
     const rows = visiblePosts.map(p => [
       `@${p.creator_handle}`,
       p.brand_name,
       p.video_title,
       p.post_date ?? '',
+      postAgeDays(p.post_date, endDate) ?? '',
       p.views ?? '',
       p.likes ?? '',
       p.comments ?? '',
@@ -492,6 +541,14 @@ export function PostsClient({
       )}
 
       {/* Toolbar: review queue chips + search + CSV, one row. */}
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card px-3 py-3">
+        <span className="mr-1 text-xs font-semibold text-foreground">Video age</span>
+        <div className="flex max-w-full gap-1.5 overflow-x-auto" role="group" aria-label="Filter by age of post at window end">
+          {AGE_BUCKETS.map(bucket => <button key={bucket.value} type="button" aria-pressed={age === bucket.value} onClick={() => setAge(bucket.value)} className={cn('shrink-0 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary', age === bucket.value ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-card text-muted-foreground hover:text-foreground')}>{bucket.label}{bucket.value !== 'all' && <span className="ml-1.5 text-[10px] tabular-nums opacity-75">{loading ? 'Loading…' : `${ageStats.get(bucket.value)?.videos ?? 0} · ${formatCurrency(ageStats.get(bucket.value)?.gmv ?? 0)}`}</span>}</button>)}
+        </div>
+        <label className="ml-auto flex items-center gap-2 text-xs font-medium text-foreground">Creator <Input value={creator} onChange={event => setCreator(event.target.value)} placeholder="Exact @handle" aria-label="Filter by exact creator handle" className="w-40 py-1.5 text-xs" /></label>
+        <p className="w-full text-[11px] text-muted-foreground">Age is measured at the end of the selected sales window, matching the report. GMV remains sales earned during that window.{data?.capped ? ' Bucket totals cover only the videos loaded into this table; narrow the brand or date window for a complete breakdown.' : ''}</p>
+      </div>
       <div className="flex flex-col gap-3 pt-1 sm:flex-row sm:items-center sm:justify-between">
         <ReviewFilterPills active={reviewFilter} onChange={setReviewFilter} totals={data?.totals} />
         <div className="flex w-full items-center gap-2 sm:w-auto">
@@ -526,6 +583,7 @@ export function PostsClient({
               <tr className="text-left">
                 <Th>Post</Th>
                 <SortableTh label="Posted"       sortKey="post_date"      current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
+                <SortableTh label="Age"          sortKey="post_age"       current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
                 <SortableTh label="Views"        sortKey="views"          current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
                 <SortableTh label="Likes"        sortKey="likes"          current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
                 <SortableTh label="Comments"     sortKey="comments"       current={sortKey} dir={sortDir} onClick={changeSort} align="right" />
@@ -539,16 +597,17 @@ export function PostsClient({
               showBar && visiblePosts.length > 0 ? 'opacity-60 transition-opacity duration-200' : 'opacity-100',
             )}>
               {loading && !data ? (
-                <tr><td colSpan={9} className="text-center text-muted-foreground py-12 text-sm">
+                <tr><td colSpan={10} className="text-center text-muted-foreground py-12 text-sm">
                   <Loader2 className="h-4 w-4 animate-spin inline mr-2" />Loading posts...
                 </td></tr>
               ) : visiblePosts.length === 0 ? (
-                <tr><td colSpan={9} className="py-0"><PostsEmptyState reviewFilter={reviewFilter} /></td></tr>
+                <tr><td colSpan={10} className="py-0"><PostsEmptyState reviewFilter={reviewFilter} filtered={Boolean(creator || search || age !== 'all')} /></td></tr>
               ) : (
                 renderedPosts.map((p, i) => (
                   <PostRowView
                     key={`${p.video_id}|${p.brand_slug}`}
                     post={p}
+                    windowEnd={endDate}
                     onClick={handleRowClick}
                     onWatch={() => setWatchIndex(i)}
                   />
@@ -563,7 +622,7 @@ export function PostsClient({
               ? `Showing ${renderedPosts.length.toLocaleString()} of ${visiblePosts.length.toLocaleString()}. Scroll to load more.`
               : `${visiblePosts.length.toLocaleString()} ${visiblePosts.length === 1 ? 'post' : 'posts'}`}
           </span>
-          <span>Sorted by {sortKey === 'engagement_rate' ? 'engagement' : sortKey === 'post_date' ? 'post date' : sortKey}, earned in window</span>
+          <span>Sorted by {sortKey === 'engagement_rate' ? 'engagement' : sortKey === 'post_date' ? 'post date' : sortKey === 'post_age' ? 'post age' : sortKey}, earned in window</span>
         </div>
       </TableCard>
 
@@ -598,8 +657,8 @@ export function PostsClient({
 }
 
 // ── Empty state ────────────────────────────────────────────────────
-function PostsEmptyState({ reviewFilter }: { reviewFilter: ReviewFilter }) {
-  const copy = reviewFilter === 'all'
+function PostsEmptyState({ reviewFilter, filtered }: { reviewFilter: ReviewFilter; filtered: boolean }) {
+  const copy = filtered ? 'No videos match these filters' : reviewFilter === 'all'
     ? 'No posts in this window'
     : reviewFilter === 'unreviewed'
       ? 'Inbox zero: every post in this window has a review.'
@@ -610,7 +669,7 @@ function PostsEmptyState({ reviewFilter }: { reviewFilter: ReviewFilter }) {
     <EmptyState
       icon={<Eye className="h-8 w-8" />}
       title={copy}
-      description={reviewFilter === 'all'
+      description={filtered ? 'Check the exact creator handle or select another video age.' : reviewFilter === 'all'
         ? 'Try a wider date range or a different brand.'
         : undefined}
     />
@@ -658,9 +717,10 @@ function RowCover({
 // ── Row + cells ────────────────────────────────────────────────────
 
 function PostRowView({
-  post: p, onClick, onWatch,
+  post: p, windowEnd, onClick, onWatch,
 }: {
   post: PostRow;
+  windowEnd: string;
   onClick: (p: PostRow) => void;
   onWatch: () => void;
 }) {
@@ -713,6 +773,7 @@ function PostRowView({
           ? new Date(p.post_date + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Chicago' })
           : '—'}
       </td>
+      <td className="px-4 py-2.5 align-middle text-right text-xs tabular-nums text-muted-foreground whitespace-nowrap">{postAgeDays(p.post_date, windowEnd) === null ? '—' : `${postAgeDays(p.post_date, windowEnd)}d`}</td>
       <td className="px-4 py-2.5 align-middle text-right tabular-nums text-foreground">{fmtN(p.views)}</td>
       <td className="px-4 py-2.5 align-middle text-right tabular-nums text-foreground">{fmtN(p.likes)}</td>
       <td className="px-4 py-2.5 align-middle text-right tabular-nums text-foreground">{fmtN(p.comments)}</td>
